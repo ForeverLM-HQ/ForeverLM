@@ -1,47 +1,44 @@
 # ForeverLM
 
-ForeverLM keeps the books, papers, articles, podcasts and videos you learn from,
-and quizzes you on them: you explain an idea back in your own words, and the
-review tells you what you missed. It runs on the Mac, iPhone and iPad, and it
-connects to Claude, ChatGPT and other assistants through MCP.
+**Follow your curiosity.** Keep papers, books, articles, podcasts and videos in
+one library on your Mac, then let your AI quiz you on them until they stick.
 
-Documentation for people using the app: [docs.foreverlm.com](https://docs.foreverlm.com).
+### [Download ForeverLM for Mac](https://releases.foreverlm.com/ForeverLM.dmg)
 
-## What is in this repository
+Free to download.
 
-| Path | What it is |
-|---|---|
-| `ForeverLMApp/` | The Mac and iOS app: library, reader, review, sync, the MCP server |
-| `ForeverLMApp/Shared/Portable/` | `ForeverLMCore`, the Foundation-only review and tutor logic, also built for WebAssembly |
-| `schema/` | The CloudKit record schema, the merge rules every client shares, and their test vectors |
-| `scripts/schema/` | The generator that turns `schema/cloudkit-schema.json` into Swift and JavaScript |
-| `workers/shared/` | The public MCP tool contract that assistants and plugins call |
-| `docs-site/` | The user documentation at docs.foreverlm.com |
-| `plugins/` | The assistant plugin packages (MIT, see `plugins/foreverlm/LICENSE`) |
+## If you learn from it, it belongs here
 
-## Building it yourself
+- **Papers, done properly.** Import from arXiv, PubMed, a DOI or a PDF.
+  ForeverLM fetches the full paper and its metadata, catches duplicates and
+  keeps every page searchable.
+- **Your reading list, caught for you.** Save an article in Safari, Chrome or
+  Brave and it shows up in your library.
+- **X posts, YouTube and podcasts.** Bookmarked threads, liked videos and the
+  shows you follow become searchable sources, transcripts included.
+- **Talks with their papers attached.** Watch a presentation with its slides
+  and transcript, and pull the papers it cites straight into your library.
+- **Listen instead of read.** Turn any paper, article or thread into audio for
+  your commute.
 
-You need Xcode. Open `ForeverLMApp/ForeverLM.xcodeproj` and run the
-`ForeverLM (macOS)` scheme, or run `ForeverLMApp/scripts/build_dev.sh`.
-`ForeverLMApp/project.yml` is the source of the Xcode project, and
-`ForeverLMApp/scripts/sync_project.sh` regenerates it. A debug build needs no
-secrets: `.env.example` lists what release builds take.
+## Quizzing beats highlighting
 
-A build of your own is a smaller app than the one we ship. iCloud sync and the
-iOS app need a paid Apple developer account and your own iCloud container. The
-hosted services (managed AI, hosted MCP for assistants, the built-in GitHub,
-Linear, Notion and Slack plugins, publishing, teams) accept only our signed
-builds. What remains is a local library on one Mac, with AI on your own
-OpenRouter key.
+Testing yourself works better than re-reading. ForeverLM asks you to explain an
+idea in your own words, tells you what you missed, and schedules the next
+review. No flashcard decks to maintain: the questions come fresh from the
+source every time.
 
-## License
+## Your library, inside the AI you already use
 
-ForeverLM is source-available under the
-[Functional Source License, Version 1.1, ALv2 Future License](LICENSE.md)
-(FSL-1.1-ALv2). You may read, run, modify and share it for any purpose except
-offering a competing commercial product. Each version becomes available under
-the Apache License 2.0 two years after it is released.
+Connect ForeverLM to Claude, ChatGPT, Gemini or Grok. Your assistant can search
+everything you have saved, read the full text and quiz you on it. No more
+pasting PDFs into a chat window or explaining what you are studying.
 
-The ForeverLM name, logo and app icon are trademarks of ForeverLM and are not
-licensed for use by forks. The logos of other companies that ship
-with the app are not ours to license. See [NOTICE](NOTICE).
+## Yours, in your iCloud
+
+Your library lives in your own iCloud, synced by Apple to every Mac you own
+and backed up without a thought. No lock-in, and we never see your data.
+
+---
+
+[foreverlm.com](https://www.foreverlm.com) · [Documentation](https://docs.foreverlm.com)
