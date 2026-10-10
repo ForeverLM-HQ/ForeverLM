@@ -1,0 +1,588 @@
+{
+  "vectors": "url-normalize",
+  "version": 1,
+  "spec": "docs/cloudkit-schema-design.md §4.1 (One URL normalizer)",
+  "implementations": {
+    "swift": "ForeverLMApp/Shared/Sync/Core/URLNormalizer.swift (moved from Shared/Services/Storage in WP2, its local-path branch injected; v1 is frozen as this implementation)",
+    "js": "schema/js/url-normalize-v1.js"
+  },
+  "format": "Each case: input (a stored URL or key); normalized = URLNormalizer.normalize(input) as the Mac computes it; sourceID = \"src_\" + hex(sha256(\"source:v1:\" + normalized)) (SourceIdentity.stableID); iphoneNormalized, present only where it differs, is what the iPhone's MobileURLNormalizer (iOS/MobileCloudMutations.swift) made of the same input, the historical form migration 155 records as an extra url: work key. origin: URLNormalizerTests.<test> (the Mac's own fixtures), edge (one branch of normalize each), stand-in (a made-up URL that takes the branch of a live URL the privacy filter dropped;Local file paths (inputs starting with /) are excluded: they normalize against the Mac's content roots, and the iPhone and the web reject them.",
+  "generatedBy": "A standalone build of URLNormalizer.swift and MobileURLNormalizer (macOS 27 Foundation) run over the inputs; regenerate the same way when a branch is added, never by hand.",
+  "notes": [
+    "v1 strips a bioRxiv or medRxiv DOI's whole last segment (10.1101/2025.04.11.648220v1 becomes 10.1101/2025.04.11), so two preprints posted the same day share one key. It is v1 behaviour and stays frozen here; a fix is a v2 rule for new keys only (§4.1).",
+    "The private repository also pins about 2,100 live URLs from a real library; they are left out here."
+  ],
+  "cases": [
+    {
+      "origin": "URLNormalizerTests.testLowercasesHost",
+      "input": "https://Example.COM/path",
+      "normalized": "example.com/path",
+      "sourceID": "src_c074fe3957be94f706105a3fb3e1fe61d23fd5e3299f29b2d07dddcc339d7973"
+    },
+    {
+      "origin": "URLNormalizerTests.testStripsWWW",
+      "input": "https://www.example.com/page",
+      "normalized": "example.com/page",
+      "sourceID": "src_eb7e267b5d529c30989bca30324c2a5da3b57ff77d9e53405e8fbae239294f0b"
+    },
+    {
+      "origin": "URLNormalizerTests.testStripsTrailingSlash",
+      "input": "https://example.com/page/",
+      "normalized": "example.com/page",
+      "sourceID": "src_eb7e267b5d529c30989bca30324c2a5da3b57ff77d9e53405e8fbae239294f0b"
+    },
+    {
+      "origin": "URLNormalizerTests.testStripsTrackingParams",
+      "input": "https://example.com/page?utm_source=twitter&id=5",
+      "normalized": "example.com/page?id=5",
+      "sourceID": "src_151fd084b24350b6a99633b388f7cc9e10d4ad45290e1a361ce31f44c2adebbe"
+    },
+    {
+      "origin": "URLNormalizerTests.testStripsAllTrackingParamsRemovesQueryEntirely",
+      "input": "https://example.com/page?utm_source=twitter&utm_medium=social",
+      "normalized": "example.com/page",
+      "sourceID": "src_eb7e267b5d529c30989bca30324c2a5da3b57ff77d9e53405e8fbae239294f0b"
+    },
+    {
+      "origin": "URLNormalizerTests.testStripsFragment",
+      "input": "https://example.com/page#section",
+      "normalized": "example.com/page",
+      "sourceID": "src_eb7e267b5d529c30989bca30324c2a5da3b57ff77d9e53405e8fbae239294f0b"
+    },
+    {
+      "origin": "URLNormalizerTests.testYouTubeCanonical",
+      "input": "https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PLrAXtmErZgOeiKm4sgNOknGvNjby9efdf",
+      "normalized": "youtube.com/watch?v=dQw4w9WgXcQ",
+      "sourceID": "src_3805b3d649451578ae113beeb48b2a7efb07230ae191ecf6868805fae54b0c14"
+    },
+    {
+      "origin": "URLNormalizerTests.testYouTubeCanonical",
+      "input": "https://youtu.be/dQw4w9WgXcQ",
+      "normalized": "youtube.com/watch?v=dQw4w9WgXcQ",
+      "sourceID": "src_3805b3d649451578ae113beeb48b2a7efb07230ae191ecf6868805fae54b0c14"
+    },
+    {
+      "origin": "URLNormalizerTests.testYouTubeCanonical",
+      "input": "https://m.youtube.com/watch?v=dQw4w9WgXcQ",
+      "normalized": "youtube.com/watch?v=dQw4w9WgXcQ",
+      "sourceID": "src_3805b3d649451578ae113beeb48b2a7efb07230ae191ecf6868805fae54b0c14"
+    },
+    {
+      "origin": "URLNormalizerTests.testStripsScheme",
+      "input": "http://example.com/page",
+      "normalized": "example.com/page",
+      "sourceID": "src_eb7e267b5d529c30989bca30324c2a5da3b57ff77d9e53405e8fbae239294f0b"
+    },
+    {
+      "origin": "URLNormalizerTests.testHandlesGarbageInputGracefully",
+      "input": "not a url at all",
+      "normalized": "not a url at all",
+      "sourceID": "src_9bc49490417534495c21d6022cc7fe733adc57055a2feebc6eba0fbf9d9db4b7"
+    },
+    {
+      "origin": "URLNormalizerTests.testStripsFbclidAndGclid",
+      "input": "https://example.com/page?fbclid=abc123&real=yes",
+      "normalized": "example.com/page?real=yes",
+      "sourceID": "src_9139636c5d253b902e3f05fa95772de7cf91c654aaf1e44e7896bc65153f9e87"
+    },
+    {
+      "origin": "URLNormalizerTests.testStripsFbclidAndGclid",
+      "input": "https://example.com/page?gclid=abc123",
+      "normalized": "example.com/page",
+      "sourceID": "src_eb7e267b5d529c30989bca30324c2a5da3b57ff77d9e53405e8fbae239294f0b"
+    },
+    {
+      "origin": "URLNormalizerTests.testIdempotent",
+      "input": "https://www.Example.COM/page/?utm_source=twitter#section",
+      "normalized": "example.com/page",
+      "sourceID": "src_eb7e267b5d529c30989bca30324c2a5da3b57ff77d9e53405e8fbae239294f0b"
+    },
+    {
+      "origin": "URLNormalizerTests.testIdempotent",
+      "input": "example.com/page",
+      "normalized": "example.com/page",
+      "sourceID": "src_eb7e267b5d529c30989bca30324c2a5da3b57ff77d9e53405e8fbae239294f0b"
+    },
+    {
+      "origin": "URLNormalizerTests.testAlreadyRelativePathUnchanged",
+      "input": "Papers/X.pdf",
+      "normalized": "Papers/X.pdf",
+      "sourceID": "src_4bb0072d403fcdba87ec0f6d9678f47401af020a842b0b23b1f2f8a82e296bdc"
+    },
+    {
+      "origin": "URLNormalizerTests.testApplePodcastEpisodeURLsUseCanonicalSchemeForm",
+      "input": "apple-podcast:/episode/1000758651501",
+      "normalized": "apple-podcast://episode/1000758651501",
+      "sourceID": "src_6cea61e72af27a8e85a2cb66c8d131a118db7306aa4520485ea6566ad762fc64",
+      "iphoneNormalized": "apple-podcast:/episode/1000758651501"
+    },
+    {
+      "origin": "URLNormalizerTests.testApplePodcastEpisodeURLsUseCanonicalSchemeForm",
+      "input": "apple-podcast://episode/1000758651501",
+      "normalized": "apple-podcast://episode/1000758651501",
+      "sourceID": "src_6cea61e72af27a8e85a2cb66c8d131a118db7306aa4520485ea6566ad762fc64",
+      "iphoneNormalized": "episode/1000758651501"
+    },
+    {
+      "origin": "URLNormalizerTests.testApplePodcastEpisodeURLsUseCanonicalSchemeForm",
+      "input": "apple-podcast://episode/private/stable-feed-hash",
+      "normalized": "apple-podcast://episode/private/stable-feed-hash",
+      "sourceID": "src_6f8b2eb0e1ef4592c4cb23b6a8dfcdb7772fcbbf73f9fd3da6e35335e0c2feb7",
+      "iphoneNormalized": "episode/private/stable-feed-hash"
+    },
+    {
+      "origin": "URLNormalizerTests.testScienceDirectPIIURLsCanonicalizeAcrossAbstractAndArticleForms",
+      "input": "https://www.sciencedirect.com/science/article/pii/S1568163724001284",
+      "normalized": "sciencedirect.com/science/article/pii/S1568163724001284",
+      "sourceID": "src_cf2185866ea4e0a56bd6d942d5b819d6a9a0664ba751b0b9668e0595ea9e92e4"
+    },
+    {
+      "origin": "URLNormalizerTests.testScienceDirectPIIURLsCanonicalizeAcrossAbstractAndArticleForms",
+      "input": "https://www.sciencedirect.com/science/article/abs/pii/S1568163724001284?via%3Dihub",
+      "normalized": "sciencedirect.com/science/article/pii/S1568163724001284",
+      "sourceID": "src_cf2185866ea4e0a56bd6d942d5b819d6a9a0664ba751b0b9668e0595ea9e92e4"
+    },
+    {
+      "origin": "URLNormalizerTests.testSpringerNatureArticleURLsCanonicalizeAcrossPageRecommendationAndPDFForms",
+      "input": "https://www.nature.com/articles/s42003-022-04303-x",
+      "normalized": "nature.com/articles/s42003-022-04303-x",
+      "sourceID": "src_dee2716c414596408283310acf25e4a091e92d1a0924aad83d5c6c63e0d6acc3"
+    },
+    {
+      "origin": "URLNormalizerTests.testSpringerNatureArticleURLsCanonicalizeAcrossPageRecommendationAndPDFForms",
+      "input": "https://www.nature.com/articles/s42003-022-04303-x?fromPaywallRec=false",
+      "normalized": "nature.com/articles/s42003-022-04303-x",
+      "sourceID": "src_dee2716c414596408283310acf25e4a091e92d1a0924aad83d5c6c63e0d6acc3",
+      "iphoneNormalized": "nature.com/articles/s42003-022-04303-x?fromPaywallRec=false"
+    },
+    {
+      "origin": "URLNormalizerTests.testSpringerNatureArticleURLsCanonicalizeAcrossPageRecommendationAndPDFForms",
+      "input": "https://www.nature.com/articles/s42003-022-04303-x.pdf",
+      "normalized": "nature.com/articles/s42003-022-04303-x",
+      "sourceID": "src_dee2716c414596408283310acf25e4a091e92d1a0924aad83d5c6c63e0d6acc3",
+      "iphoneNormalized": "nature.com/articles/s42003-022-04303-x.pdf"
+    },
+    {
+      "origin": "URLNormalizerTests.testSpringerNatureArticleURLsCanonicalizeAcrossPageRecommendationAndPDFForms",
+      "input": "https://www.nature.com/commsbio/",
+      "normalized": "nature.com/commsbio",
+      "sourceID": "src_e034abf859f560aee5b9a2ed5a0fa0210833c7e42a1638fbb40671d5146938a9"
+    },
+    {
+      "origin": "URLNormalizerTests.testSpringerNatureArticleURLsCanonicalizeAcrossPageRecommendationAndPDFForms",
+      "input": "https://www.nature.com/search?q=oxphos",
+      "normalized": "nature.com/search?q=oxphos",
+      "sourceID": "src_9a599fa685786cf16fd26f9ff96fd56f26759772850001d1d5ae5c69150220a8"
+    },
+    {
+      "origin": "URLNormalizerTests.testCellPressPIIURLsCanonicalizeAcrossLandingAndPDFForms",
+      "input": "https://www.cell.com/molecular-cell/fulltext/S1097-2765(26)00310-2?utm_source=li&utm_medium=organic&utm_campaign=hl",
+      "normalized": "cell.com/pii/S1097-2765(26)00310-2",
+      "sourceID": "src_73f52ce120cbcb14e43c17d602e372f51983ec5c6b817da591e9d00d94d8f60e"
+    },
+    {
+      "origin": "URLNormalizerTests.testCellPressPIIURLsCanonicalizeAcrossLandingAndPDFForms",
+      "input": "https://www.cell.com/action/showPdf?pii=S1097-2765(26)00310-2",
+      "normalized": "cell.com/pii/S1097-2765(26)00310-2",
+      "sourceID": "src_73f52ce120cbcb14e43c17d602e372f51983ec5c6b817da591e9d00d94d8f60e"
+    },
+    {
+      "origin": "edge",
+      "input": "  https://example.com/a  ",
+      "normalized": "example.com/a",
+      "sourceID": "src_8802f0231f11c4e53adfd82635cd23a0854c09efef39e91a8f28417c68e8e70d"
+    },
+    {
+      "origin": "edge",
+      "input": "HTTPS://WWW.EXAMPLE.COM/",
+      "normalized": "example.com/",
+      "sourceID": "src_442b9b97694bb8e63e0f801146eb630e11b38e5e1a55ba00a016bc39ebabc09d"
+    },
+    {
+      "origin": "edge",
+      "input": "https://example.com",
+      "normalized": "example.com",
+      "sourceID": "src_08c8a0d9d1428063cb212bbeeabb246c3b9d364cd0e53180c3f945d78bd57457"
+    },
+    {
+      "origin": "edge",
+      "input": "https://example.com/",
+      "normalized": "example.com/",
+      "sourceID": "src_442b9b97694bb8e63e0f801146eb630e11b38e5e1a55ba00a016bc39ebabc09d"
+    },
+    {
+      "origin": "edge",
+      "input": "https://example.com/a/b/",
+      "normalized": "example.com/a/b",
+      "sourceID": "src_75babbfe2cdb6e4b3fdcd11abb90bb396bcc3a942d9e9d1825c3fd803d25b287"
+    },
+    {
+      "origin": "edge",
+      "input": "https://example.com/page?UTM_SOURCE=x&b=2",
+      "normalized": "example.com/page?b=2",
+      "sourceID": "src_e0e4f843ede675e31ad4a06eee20f4fc37da76c5861aa9d875d58cbbebbe8815"
+    },
+    {
+      "origin": "edge",
+      "input": "https://example.com/page?ref=hn",
+      "normalized": "example.com/page",
+      "sourceID": "src_eb7e267b5d529c30989bca30324c2a5da3b57ff77d9e53405e8fbae239294f0b"
+    },
+    {
+      "origin": "edge",
+      "input": "https://example.com/page?source=rss&x=1",
+      "normalized": "example.com/page?x=1",
+      "sourceID": "src_d13301fb54b61e94077df71f2a84f82de7ec6a150074f28e088666e84a04ddc6"
+    },
+    {
+      "origin": "edge",
+      "input": "https://example.com/page?a=1&a=2",
+      "normalized": "example.com/page?a=1&a=2",
+      "sourceID": "src_367604768d29aab790aa176fd0275c8027c2a77d68db507d3103bbfad149fc44"
+    },
+    {
+      "origin": "edge",
+      "input": "https://example.com/page?b=2&a=1",
+      "normalized": "example.com/page?b=2&a=1",
+      "sourceID": "src_40fce16cc940e11f6b436df55d66e72aa7806f359264a734e1464a4faac3f295"
+    },
+    {
+      "origin": "edge",
+      "input": "https://example.com/page?",
+      "normalized": "example.com/page",
+      "sourceID": "src_eb7e267b5d529c30989bca30324c2a5da3b57ff77d9e53405e8fbae239294f0b"
+    },
+    {
+      "origin": "edge",
+      "input": "https://example.com/page?flag",
+      "normalized": "example.com/page?flag",
+      "sourceID": "src_1106e2df83ebfed8f3905176cd3a471facfb8ffe4372b26d38b42339edaed06d"
+    },
+    {
+      "origin": "edge",
+      "input": "https://example.com/p%20q",
+      "normalized": "example.com/p%20q",
+      "sourceID": "src_d87f560bd3f5d778db1c871f7d82d420b55a68ac19732b3e270232bd128b05c1"
+    },
+    {
+      "origin": "edge",
+      "input": "https://example.com/caf%C3%A9",
+      "normalized": "example.com/caf%C3%A9",
+      "sourceID": "src_495023ff9bf3f558ed8b66a2e55e590a46630bc733d1c137dbc64ae840a4e4e4"
+    },
+    {
+      "origin": "edge",
+      "input": "https://user@example.com/x",
+      "normalized": "user@example.com/x",
+      "sourceID": "src_e543829522e483540b2e6374f881c5537a55cc7c1b1c584e98f99ab8ab701ffc"
+    },
+    {
+      "origin": "edge",
+      "input": "https://example.com:8443/x",
+      "normalized": "example.com:8443/x",
+      "sourceID": "src_15ef91aacc2ea6f29cf2dd9448c1f92ad170f6d932247273e716fe352f4042f9"
+    },
+    {
+      "origin": "edge",
+      "input": "ftp://files.example.com/x.pdf",
+      "normalized": "files.example.com/x.pdf",
+      "sourceID": "src_a1520d84fe1a2e87a0f20f696a96ded44fc1cc3b5a0e75fdd97d2a917b5cf60b"
+    },
+    {
+      "origin": "edge",
+      "input": "https://arxiv.org/abs/2503.09427v2",
+      "normalized": "arxiv.org/abs/2503.09427",
+      "sourceID": "src_eaf9819701a8e591b9640d81768c410a01c1b978051b88976ee28770811ac8b1"
+    },
+    {
+      "origin": "edge",
+      "input": "https://arxiv.org/pdf/2503.09427v1.pdf",
+      "normalized": "arxiv.org/abs/2503.09427",
+      "sourceID": "src_eaf9819701a8e591b9640d81768c410a01c1b978051b88976ee28770811ac8b1"
+    },
+    {
+      "origin": "edge",
+      "input": "https://arxiv.org/pdf/2503.09427",
+      "normalized": "arxiv.org/abs/2503.09427",
+      "sourceID": "src_eaf9819701a8e591b9640d81768c410a01c1b978051b88976ee28770811ac8b1"
+    },
+    {
+      "origin": "edge",
+      "input": "https://export.arxiv.org/abs/2503.09427",
+      "normalized": "arxiv.org/abs/2503.09427",
+      "sourceID": "src_eaf9819701a8e591b9640d81768c410a01c1b978051b88976ee28770811ac8b1"
+    },
+    {
+      "origin": "edge",
+      "input": "https://arxiv.org/html/2503.09427v3",
+      "normalized": "arxiv.org/abs/2503.09427",
+      "sourceID": "src_eaf9819701a8e591b9640d81768c410a01c1b978051b88976ee28770811ac8b1"
+    },
+    {
+      "origin": "edge",
+      "input": "https://www.arxiv.org/abs/2503.09427v2?context=cs",
+      "normalized": "arxiv.org/abs/2503.09427",
+      "sourceID": "src_eaf9819701a8e591b9640d81768c410a01c1b978051b88976ee28770811ac8b1"
+    },
+    {
+      "origin": "edge",
+      "input": "https://www.biorxiv.org/content/10.1101/2024.01.02.573456v2",
+      "normalized": "biorxiv.org/content/10.1101/2024.01.02",
+      "sourceID": "src_ba40c46be55ee5c13b53d883fc32c6e6ae189a42f4a1f9b0824195345575e0d3"
+    },
+    {
+      "origin": "edge",
+      "input": "https://www.biorxiv.org/content/10.1101/2024.01.02.573456v2.full",
+      "normalized": "biorxiv.org/content/10.1101/2024.01.02.573456v2.full",
+      "sourceID": "src_ea88c501721ccc8560d42d5b4b22ce6f7e7ea71b9f0fb18d8dedc8c3ee1f2631"
+    },
+    {
+      "origin": "edge",
+      "input": "https://www.medrxiv.org/content/10.1101/2023.05.01.23289365v1",
+      "normalized": "medrxiv.org/content/10.1101/2023.05.01",
+      "sourceID": "src_17903f8a3c9a3488c66e0d4ba9990f513a1c05f2366f7cd6a4947814fb75c8be"
+    },
+    {
+      "origin": "edge",
+      "input": "https://youtube.com/shorts/dQw4w9WgXcQ",
+      "normalized": "youtube.com/watch?v=dQw4w9WgXcQ",
+      "sourceID": "src_3805b3d649451578ae113beeb48b2a7efb07230ae191ecf6868805fae54b0c14",
+      "iphoneNormalized": "youtube.com/shorts/dQw4w9WgXcQ"
+    },
+    {
+      "origin": "edge",
+      "input": "https://www.youtube.com/embed/dQw4w9WgXcQ?start=10",
+      "normalized": "youtube.com/watch?v=dQw4w9WgXcQ",
+      "sourceID": "src_3805b3d649451578ae113beeb48b2a7efb07230ae191ecf6868805fae54b0c14",
+      "iphoneNormalized": "youtube.com/embed/dQw4w9WgXcQ?start=10"
+    },
+    {
+      "origin": "edge",
+      "input": "https://www.youtube.com/live/dQw4w9WgXcQ",
+      "normalized": "youtube.com/watch?v=dQw4w9WgXcQ",
+      "sourceID": "src_3805b3d649451578ae113beeb48b2a7efb07230ae191ecf6868805fae54b0c14",
+      "iphoneNormalized": "youtube.com/live/dQw4w9WgXcQ"
+    },
+    {
+      "origin": "edge",
+      "input": "https://m.youtube.com/shorts/dQw4w9WgXcQ",
+      "normalized": "youtube.com/watch?v=dQw4w9WgXcQ",
+      "sourceID": "src_3805b3d649451578ae113beeb48b2a7efb07230ae191ecf6868805fae54b0c14",
+      "iphoneNormalized": "m.youtube.com/shorts/dQw4w9WgXcQ"
+    },
+    {
+      "origin": "edge",
+      "input": "https://www.youtube.com/v/dQw4w9WgXcQ",
+      "normalized": "youtube.com/watch?v=dQw4w9WgXcQ",
+      "sourceID": "src_3805b3d649451578ae113beeb48b2a7efb07230ae191ecf6868805fae54b0c14",
+      "iphoneNormalized": "youtube.com/v/dQw4w9WgXcQ"
+    },
+    {
+      "origin": "edge",
+      "input": "https://www.youtube.com/shorts/short",
+      "normalized": "youtube.com/shorts/short",
+      "sourceID": "src_ab572b815da26e3ea5691864eef9dc21235065ef535731c89f8c95921b70de6f"
+    },
+    {
+      "origin": "edge",
+      "input": "https://youtube.com/watch?v=dQw4w9WgXcQ&t=30s",
+      "normalized": "youtube.com/watch?v=dQw4w9WgXcQ",
+      "sourceID": "src_3805b3d649451578ae113beeb48b2a7efb07230ae191ecf6868805fae54b0c14"
+    },
+    {
+      "origin": "edge",
+      "input": "https://www.youtube.com/watch?feature=share&v=dQw4w9WgXcQ",
+      "normalized": "youtube.com/watch?v=dQw4w9WgXcQ",
+      "sourceID": "src_3805b3d649451578ae113beeb48b2a7efb07230ae191ecf6868805fae54b0c14"
+    },
+    {
+      "origin": "edge",
+      "input": "https://youtu.be/dQw4w9WgXcQ?si=abc",
+      "normalized": "youtube.com/watch?v=dQw4w9WgXcQ",
+      "sourceID": "src_3805b3d649451578ae113beeb48b2a7efb07230ae191ecf6868805fae54b0c14"
+    },
+    {
+      "origin": "edge",
+      "input": "https://www.youtube.com/@channel/videos",
+      "normalized": "youtube.com/@channel/videos",
+      "sourceID": "src_b6ea2908b2bb3066902773b5bdc1bfb927f1ffe36f4f082e0d73ef09bfe881c8"
+    },
+    {
+      "origin": "edge",
+      "input": "https://www.youtube.com/playlist?list=PL123",
+      "normalized": "youtube.com/playlist?list=PL123",
+      "sourceID": "src_f92afd56f65f03b2274ce1de840c5803c13103b3f5e9e95f40ff1642f20283c3"
+    },
+    {
+      "origin": "edge",
+      "input": "https://www.sciencedirect.com/science/article/pii/S1568163724001284/pdfft?md5=x",
+      "normalized": "sciencedirect.com/science/article/pii/S1568163724001284",
+      "sourceID": "src_cf2185866ea4e0a56bd6d942d5b819d6a9a0664ba751b0b9668e0595ea9e92e4"
+    },
+    {
+      "origin": "edge",
+      "input": "https://www.cell.com/cell/pdf/S0092-8674(24)00476-8.pdf",
+      "normalized": "cell.com/pii/S0092-8674(24)00476-8",
+      "sourceID": "src_bc64e1b465e45e0158b8b823bf93dd4e87c993dad5ee4dee3e695d39c22d92ab"
+    },
+    {
+      "origin": "edge",
+      "input": "https://www.cell.com/cell/abstract/S0092-8674(24)00476-8",
+      "normalized": "cell.com/pii/S0092-8674(24)00476-8",
+      "sourceID": "src_bc64e1b465e45e0158b8b823bf93dd4e87c993dad5ee4dee3e695d39c22d92ab"
+    },
+    {
+      "origin": "edge",
+      "input": "https://www.cell.com/cell-metabolism/issue",
+      "normalized": "cell.com/cell-metabolism/issue",
+      "sourceID": "src_4939f90590e4ca7a4b77e4902b8b111ce28dfc865ac2cff41ac30f5375f1b053"
+    },
+    {
+      "origin": "edge",
+      "input": "https://nature.com/articles/nature12373",
+      "normalized": "nature.com/articles/nature12373",
+      "sourceID": "src_807e8dd9413d23bea53de00d77406f4c405d388d8be3168478104a1e98880651"
+    },
+    {
+      "origin": "edge",
+      "input": "https://www.nature.com/articles/s41586-020-2649-2/figures/1",
+      "normalized": "nature.com/articles/s41586-020-2649-2/figures/1",
+      "sourceID": "src_89429ef9bb1b0932fc85bd19a684cdce5a483ad6ff8ae64901068fa650062bb9"
+    },
+    {
+      "origin": "edge",
+      "input": "https://www.science.org/doi/10.1126/science.abc1234",
+      "normalized": "science.org/doi/10.1126/science.abc1234",
+      "sourceID": "src_b4ae5ccbc3a83724ad65aaa1e80629e3487290c8b48d262d3890b4a55d738371"
+    },
+    {
+      "origin": "edge",
+      "input": "https://doi.org/10.1038/S41586-020-2649-2",
+      "normalized": "doi.org/10.1038/S41586-020-2649-2",
+      "sourceID": "src_4f6b5b3997103c37d2cb2528091b8ca5508cbeb96841d1be67b2dbfa35ad4ac9"
+    },
+    {
+      "origin": "edge",
+      "input": "https://x.com/user/status/1234567890?s=20",
+      "normalized": "x.com/user/status/1234567890?s=20",
+      "sourceID": "src_5441ec660dd8f1e778f576df8ad403034c43a6e4b944ac69b8964c727c63bbad"
+    },
+    {
+      "origin": "edge",
+      "input": "apple-podcast:///episode/1000758651501",
+      "normalized": "apple-podcast://episode/1000758651501",
+      "sourceID": "src_6cea61e72af27a8e85a2cb66c8d131a118db7306aa4520485ea6566ad762fc64",
+      "iphoneNormalized": "/episode/1000758651501"
+    },
+    {
+      "origin": "edge",
+      "input": "APPLE-PODCAST://episode/123",
+      "normalized": "apple-podcast://episode/123",
+      "sourceID": "src_eb5bf0e40681b64d37afb2900e96b3e7eb2e98fd5cf2ac49159a4fba78741bc1",
+      "iphoneNormalized": "episode/123"
+    },
+    {
+      "origin": "edge",
+      "input": "apple-podcast://show/123",
+      "normalized": "apple-podcast://show/123",
+      "sourceID": "src_1e43012efc41ed24679feec341c1042cc03777896be0cace4dac554777d997e9",
+      "iphoneNormalized": "show/123"
+    },
+    {
+      "origin": "edge",
+      "input": "mailto:someone@example.com",
+      "normalized": "mailto:someone@example.com",
+      "sourceID": "src_ab983022e136fbf5426071a0173a9cc24977e130d14540c0cac9cba315fd8ddd"
+    },
+    {
+      "origin": "edge",
+      "input": "urn:isbn:9780306406157",
+      "normalized": "urn:isbn:9780306406157",
+      "sourceID": "src_c548ce9ef747b50e9755666590573b70216e372b21ead0d2c26d9d1921f13280"
+    },
+    {
+      "origin": "edge",
+      "input": "foreverlm://source/src_abc",
+      "normalized": "source/src_abc",
+      "sourceID": "src_a170c3bf07745019eacc90ac83d09d064c9dd8c136889c9df2be8ecf97c331f5"
+    },
+    {
+      "origin": "edge",
+      "input": "https://example.com/#/route",
+      "normalized": "example.com/",
+      "sourceID": "src_442b9b97694bb8e63e0f801146eb630e11b38e5e1a55ba00a016bc39ebabc09d"
+    },
+    {
+      "origin": "edge",
+      "input": "example.com/path?utm_campaign=x",
+      "normalized": "example.com/path?utm_campaign=x",
+      "sourceID": "src_8188bb9005f35b04c64e0e305cdbf949c971e70cb939e7a7f7709f56e9fe8c3c"
+    },
+    {
+      "origin": "stand-in",
+      "input": "https://slack-files.com/files-pri-safe/T0000000000-F0000000000/report.pdf?c=1700000000-0123456789abcdef",
+      "normalized": "slack-files.com/files-pri-safe/T0000000000-F0000000000/report.pdf?c=1700000000-0123456789abcdef",
+      "sourceID": "src_4a83578f0010ffaf2d74021cb1a27d46ca2a5ad01f04128c57e579f5cd7d993c"
+    },
+    {
+      "origin": "stand-in",
+      "input": "https://example-site.user-0000.chatgpt.site/",
+      "normalized": "example-site.user-0000.chatgpt.site/",
+      "sourceID": "src_b4eafa507ee2a3b72f3cb2b4bf7b03219e1d3394d7be9d8d7a3710dcab35cef4"
+    },
+    {
+      "origin": "stand-in",
+      "input": "https://giftarticle.ft.com/giftarticle/actions/redeem/00000000-0000-4000-8000-000000000000",
+      "normalized": "giftarticle.ft.com/giftarticle/actions/redeem/00000000-0000-4000-8000-000000000000",
+      "sourceID": "src_36fc9c86ada1e10c3ba6e05a053b295bb296bd9e5e1e3894f30e43669bb901c5"
+    },
+    {
+      "origin": "stand-in",
+      "input": "https://www.example.com/story/an-example/?_sp=00000000-0000-4000-8000-000000000000.1700000000000",
+      "normalized": "example.com/story/an-example?_sp=00000000-0000-4000-8000-000000000000.1700000000000",
+      "sourceID": "src_213cb1269e5b830ee926299e06a92ab436aabd0eca36ac10adb9b1a5567d977f"
+    },
+    {
+      "origin": "stand-in",
+      "input": "https://www.example.com/articles/an-example?utm_source=twitter&utm_medium=cpc&utm_campaign=example&twclid=0abc1def2ghi3jkl4mno5pqr6",
+      "normalized": "example.com/articles/an-example?twclid=0abc1def2ghi3jkl4mno5pqr6",
+      "sourceID": "src_01d9886d1df87e0147b965dc44879896ccf585e0ef91c0378882f2123cb9c2b5"
+    },
+    {
+      "origin": "stand-in",
+      "input": "https://pub.example.net/an-example-post-0123456789ab?gi=0123456789ab",
+      "normalized": "pub.example.net/an-example-post-0123456789ab?gi=0123456789ab",
+      "sourceID": "src_0db16574370551d20e6ad51994288a39040bef8b1086bfd4f1a67bcf76a424dd"
+    },
+    {
+      "origin": "stand-in",
+      "input": "https://substack.com/home/post/p-100000000?selection=00000000-0000-4000-8000-000000000000",
+      "normalized": "substack.com/home/post/p-100000000?selection=00000000-0000-4000-8000-000000000000",
+      "sourceID": "src_f7913ac2ec93b8150fa751df660bc2dd07271731636a6a12383b33673fd8c529"
+    },
+    {
+      "origin": "stand-in",
+      "input": "https://example.substack.com/p/an-example?utm_source=share&utm_medium=android&r=abc123",
+      "normalized": "example.substack.com/p/an-example?r=abc123",
+      "sourceID": "src_7069687a77037a7e5fc7a79b93d481f9a24acea512d9e1603a4acb66fcb260dd"
+    },
+    {
+      "origin": "stand-in",
+      "input": "https://platform.example.bio/mcp#client-0123456789abcdef01234567",
+      "normalized": "platform.example.bio/mcp",
+      "sourceID": "src_a3ca11815d8a2c05f04f3723ce22ed1b66e1c41324ae081f8c6f0e2967550e3f"
+    },
+    {
+      "origin": "stand-in",
+      "input": "urn:chatgpt-library:libfile_00000000000000000000000000000000",
+      "normalized": "urn:chatgpt-library:libfile_00000000000000000000000000000000",
+      "sourceID": "src_32646da10347b0af27fa64c3be17698552f23125b249f060ea1611cc26718da3"
+    },
+    {
+      "origin": "stand-in",
+      "input": "urn:chatgpt-library:libfile_00000000000000000000000000000000:addendum:an-example",
+      "normalized": "urn:chatgpt-library:libfile_00000000000000000000000000000000:addendum:an-example",
+      "sourceID": "src_b14cac5e91c4ecfc6bed44ffb3be836854a51c4ec36cb9f393ffe510d28b2635"
+    }
+  ]
+}

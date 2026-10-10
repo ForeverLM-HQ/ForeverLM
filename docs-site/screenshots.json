@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "capture_standard": {
+    "theme": "dark",
+    "macos_window_pixels": "2880x1800",
+    "notes": "Capture the app window only, with stable seeded content and no personal data."
+  },
+  "assets": [
+    {
+      "path": "/screenshots/macos.png",
+      "source": "ForeverLMApp/Screenshots/macOS/01_studio.png",
+      "view": "macOS Studio Notebooks home",
+      "pages": ["/index", "/macos-app", "/studio"],
+      "captured_at_version": "0.137.0",
+      "theme": "dark",
+      "pixels": "2880x1800"
+    }
+  ],
+  "coverage_targets": [
+    { "page": "/index", "view": "Landing / current product overview", "status": "covered" },
+    { "page": "/studio", "view": "Studio source library and reader", "status": "covered" },
+    { "page": "/schedule", "view": "Schedule week and day assignment", "status": "planned" },
+    { "page": "/papers", "view": "Representative paper source and reader", "status": "planned" },
+    { "page": "/in-app-chat", "view": "Source-grounded Review Chat", "status": "planned" },
+    { "page": "/setup-mcp", "view": "Current assistant connection flow; keep provider-specific UI steps in prose until stable captures exist", "status": "planned" }
+  ]
+}

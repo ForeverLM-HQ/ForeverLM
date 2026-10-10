@@ -1,0 +1,82 @@
+# ForeverLM
+
+> ForeverLM is a macOS app for building a personal learning knowledge base and reviewing it with AI. Instead of just flipping cards, it uses explain-it-back review: you explain concepts from scratch, and an AI evaluates your understanding, asks targeted follow-up questions, and only advances you when you actually get it. Your knowledge base lives in your private iCloud container on your Mac and in your iCloud account. External-assistant MCP traffic passes through ForeverLM-operated Cloudflare infrastructure.
+
+## Getting Started
+
+- [Introduction](https://docs.foreverlm.com/index): Product overview and starting points.
+- [Why Quizzing?](https://docs.foreverlm.com/why-quizzing): Why retrieval and explanation improve learning.
+- [macOS App](https://docs.foreverlm.com/macos-app): Install and use the native Mac app.
+- [Web Library](https://docs.foreverlm.com/web-library): Access the synced library from the web.
+
+## MCP Server
+
+- [Connect an AI Assistant](https://docs.foreverlm.com/setup-mcp): Claude custom connector (not in the Claude Directory yet); ChatGPT plugin in review; Grok custom connector at grok.com/connectors. Codex, Gemini, and Claude Code use a copied setup prompt.
+- [Drag & Drop](https://docs.foreverlm.com/drag-and-drop): Move sources into an assistant conversation directly.
+- [MCP Tools Reference](https://docs.foreverlm.com/mcp-tools): Complete ForeverLM MCP tool surface.
+
+## Adding Content
+
+- [Studio](https://docs.foreverlm.com/studio): Notebooks (the Notebooks home, a notebook's Sources, Chat and Studio, Add sources), the full-window Library, the Reader, in-app Chat, Memory, semantic search, and source review state.
+- [Teams](https://docs.foreverlm.com/teams): Shared team libraries in the creator's iCloud: inviting members, sharing sources, notebooks, Pages and chat transcripts by copy, and the notebook task board.
+- [Articles](https://docs.foreverlm.com/articles): Auto-discover articles from browser reading lists or paste URLs manually.
+- [Papers](https://docs.foreverlm.com/papers): Academic paper URLs are detected automatically and routed to Papers. Save paywalled PDFs to iCloud for automatic local fallback.
+- [Journals](https://docs.foreverlm.com/journals): Follow journal feeds; new articles are read against your notebooks and offered as suggestions you accept or dismiss, never imported unasked.
+- [Books](https://docs.foreverlm.com/books): Store book PDFs in the iCloud Books folder and use them as reviewable sources.
+- [Courses](https://docs.foreverlm.com/courses): Combine lecture PDFs, book chapters, and video transcripts into course sources.
+- [Podcasts](https://docs.foreverlm.com/podcasts): Extract transcripts from Apple Podcasts episodes and review them as sources.
+- [X Posts](https://docs.foreverlm.com/x-posts): Sync X bookmarks as sources.
+- [Plugins](https://docs.foreverlm.com/external-plugins): Connect supported external services.
+- [Build Your Own Plugin](https://docs.foreverlm.com/build-your-own-plugin): Add sources through the open plugin surface.
+
+## Learning
+
+- [Schedule](https://docs.foreverlm.com/schedule): Assign sources to days, move work across the week, and track progress. Completion requires a linked review session.
+- [In-App Chat](https://docs.foreverlm.com/in-app-chat): Review sources inside ForeverLM with the configured API provider. Completed sessions link back to sources.
+- [Text to Speech](https://docs.foreverlm.com/text-to-speech): Listen to articles and text sources with on-device macOS speech or configured cloud TTS providers.
+- [AI Providers & Models](https://docs.foreverlm.com/ai-providers): Managed provider and model selection for chat, text-to-speech, speech-to-text, and on-device semantic search.
+- [Learning with AI](https://docs.foreverlm.com/learning-with-mcp): Use explain-it-back review and Socratic dialogue with MCP-connected assistants.
+
+## Storage & Privacy
+
+- [iCloud Storage & Privacy](https://docs.foreverlm.com/icloud-storage): How local and synced data are stored.
+
+## Compare
+
+- [ForeverLM vs Alternatives](https://docs.foreverlm.com/compare): Comparison overview.
+- [Best NotebookLM Alternatives](https://docs.foreverlm.com/compare/best-notebooklm-alternatives): Research-library alternatives to NotebookLM.
+- [Best PDF Listening Apps](https://docs.foreverlm.com/compare/best-pdf-listening-apps): PDF and document listening tools.
+- [Best AI Research Libraries](https://docs.foreverlm.com/compare/best-ai-research-library-apps): AI-assisted research-library tools.
+- [ForeverLM vs NotebookLM](https://docs.foreverlm.com/compare/notebooklm)
+- [ForeverLM vs Heptabase](https://docs.foreverlm.com/compare/heptabase)
+- [ForeverLM vs Anki](https://docs.foreverlm.com/compare/anki)
+- [ForeverLM vs RemNote](https://docs.foreverlm.com/compare/remnote)
+- [ForeverLM vs Quizlet](https://docs.foreverlm.com/compare/quizlet)
+- [ForeverLM vs Speechify](https://docs.foreverlm.com/compare/speechify)
+- [ForeverLM vs ElevenReader](https://docs.foreverlm.com/compare/elevenreader)
+- [ForeverLM vs Readwise Reader](https://docs.foreverlm.com/compare/readwise)
+- [ForeverLM vs Matter](https://docs.foreverlm.com/compare/matter)
+- [ForeverLM vs Instapaper](https://docs.foreverlm.com/compare/instapaper)
+- [ForeverLM vs Raindrop.io](https://docs.foreverlm.com/compare/raindrop)
+- [ForeverLM vs Glasp](https://docs.foreverlm.com/compare/glasp)
+- [ForeverLM vs Zotero](https://docs.foreverlm.com/compare/zotero)
+- [ForeverLM vs Paperpile](https://docs.foreverlm.com/compare/paperpile)
+- [ForeverLM vs Papers](https://docs.foreverlm.com/compare/papers)
+- [ForeverLM vs Mendeley](https://docs.foreverlm.com/compare/mendeley)
+- [ForeverLM vs EndNote](https://docs.foreverlm.com/compare/endnote)
+- [ForeverLM vs Elicit](https://docs.foreverlm.com/compare/elicit)
+- [ForeverLM vs SciSpace](https://docs.foreverlm.com/compare/scispace)
+- [ForeverLM vs Obsidian](https://docs.foreverlm.com/compare/obsidian)
+- [ForeverLM vs DEVONthink](https://docs.foreverlm.com/compare/devonthink)
+- [ForeverLM vs LiquidText](https://docs.foreverlm.com/compare/liquidtext)
+- [ForeverLM vs MarginNote](https://docs.foreverlm.com/compare/marginnote)
+- [ForeverLM vs Recall](https://docs.foreverlm.com/compare/recall)
+- [ForeverLM vs Snipd](https://docs.foreverlm.com/compare/snipd)
+
+## Updates
+
+- [Changelog](https://docs.foreverlm.com/changelog): Release history and notable changes.
+
+## Optional
+
+- [Full documentation (llms-full.txt)](https://docs.foreverlm.com/llms-full.txt): Complete content of all guides in a single file.

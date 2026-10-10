@@ -1,0 +1,394 @@
+<!doctype html>
+<!-- The Canvas in a browser with sample cards, for a design loop without building the app
+     (the parity build's checks too: handles, Ideas written in place, arrow styles, a mind map, the minimap, Focus,
+     export; the host's writes are echoed into a copy of the layout, ideaRequested makes a local Idea):
+     serve this folder (python3 -m http.server) and open harness.html?s=<scale>.
+     ?n=3000 swaps the sample for that many generated cards (a fifth of them placed in ten
+     regions) with proposals, memory marks and written faces, for timing frames.
+     The panel at the top left injects proposals, memory marks and faces, runs a review in
+     place, and prints every message the page posts. -->
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="src/knowledge-map.css">
+<style>
+html,body{margin:0;height:100%} #map{width:100%;height:100%;display:block}
+#bench{position:fixed;left:8px;top:8px;z-index:20;width:236px;font:11px/1.35 -apple-system,system-ui,sans-serif;color:var(--map-text);
+  background:var(--map-panel);border:0.5px solid var(--map-panel-line);border-radius:9px;box-shadow:0 6px 20px var(--map-shadow);
+  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+#bench summary{cursor:default;padding:6px 9px;font-weight:600;user-select:none}
+#bench .rows{padding:0 8px 8px}
+#bench .row{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-top:5px}
+#bench .row b{width:100%;font-weight:600;color:var(--map-sub);font-size:10px;letter-spacing:.02em}
+#bench button{font:inherit;padding:2px 7px;border-radius:6px;border:0.5px solid var(--map-panel-line);background:var(--map-card);color:var(--map-text)}
+#bench button:active{background:var(--map-flat)}
+#log{margin-top:6px;max-height:150px;overflow:auto;font:10px/1.35 ui-monospace,Menlo,monospace;color:var(--map-sub);white-space:pre-wrap;word-break:break-all}
+#log div{border-top:0.5px solid var(--map-panel-line);padding:2px 0}
+</style></head>
+<body><canvas id="map" tabindex="0"></canvas>
+<details id="bench" open><summary>Canvas harness</summary><div class="rows">
+  <div class="row"><b>ZOOM</b><button data-zoom="0.12">Regions</button><button data-zoom="0.38">Titles</button><button data-zoom="0.75">Cards</button><button data-zoom="1.6">Detail</button></div>
+  <div class="row"><b>PROPOSALS</b><button data-set="bridge">Bridge</button><button data-set="connect">Connect</button><button data-set="gaps">Gaps</button><button id="noSet">Clear</button></div>
+  <div class="row"><b>LAYERS</b><button id="memory">Memory: off</button><button id="faces">Faces: off</button></div>
+  <div class="row"><b>REVIEW IN PLACE</b><button id="reviewStart">Start</button><button id="reviewNext">Next</button><button id="reviewEnd">End</button></div>
+  <div class="row"><b>DISPLAY</b><button id="minimap">Minimap: off</button><button id="focus">Focus: off</button></div>
+  <div class="row"><b>WRITE</b><button id="editIdea">Edit Idea</button><button id="newIdea">New Idea</button><button id="exportPng">Export</button></div>
+  <div class="row"><b>MESSAGES</b><button id="quiet">Hide view: on</button><button id="clearLog">Clear</button></div>
+  <div id="log"></div>
+</div></details>
+<script src="src/knowledge-map.js"></script>
+<script>
+const q = new URLSearchParams(location.search)
+const N = parseInt(q.get('n') || '0', 10)
+const CW = 240, CH = 120, G = 30
+let nodes = [], links = [], notebooks = [], frame = null
+// Sample memory marks, written faces and proposal sets, filled in by the scene below.
+let memorySample = { enabled: true, marks: {} }, facesSample = { enabled: true, faces: {} }, proposalSets = {}, reviewQueue = []
+
+// ---- The sample: two notebooks set down as frames, three Ideas in a region of their own.
+function sampleScene() {
+  const titles = [
+   ['Ecological scaling of metabolism and lifespan','paper'],['A century of heartbeats: why mammals share one count','article'],
+   ['Relationship of metabolic rate to longevity in birds','paper'],['Energy budgets of naked mole-rats','paper'],
+   ['10: The city as an organism','podcast'],['9: The pace of life','podcast'],['8: Fractal networks in biology','podcast'],
+   ['7: Turtles and long lives','podcast'],['6: Power laws everywhere','podcast'],['5: Field metabolic rate','podcast'],
+   ['4: The limits of growth','podcast'],['3: Why cities never die','podcast'],['2: The quarter-power law','podcast'],
+   ['1: Scale with Geoffrey West','podcast'],['Naked mole-rats defy the Gompertz law','article'],
+   ['Inside the longest-lived rodent','video'],['Why bats live so long for their size','article'],
+   ['#26 Metabolic theory of ecology','podcast'],['Mitochondria and the rate of living','paper'],['Energy, scaling and ageing','book']]
+  nodes = titles.map(([t,type],i)=>{ const series=/^\d+: /.test(t); return {ref:'src:'+i,kind:'source',type: series?'book':type,title:t,sub: series?'Scale · Geoffrey West':(type==='podcast'?'Live Longer World':'Nature · 2019'), group: series?'scale':undefined, groupTitle: series?'Scale':undefined} })
+  // Lifespan Scaling Laws, with three sources added since it was set down (not placed), and
+  // Membrane Potential, none of its cards placed.
+  const extra = [['Allometry of mitochondrial density across species','paper'],['Heart rate and lifespan in 230 mammals','paper'],['The metabolic theory, revisited','article']]
+  extra.forEach(([t,type],i)=>nodes.push({ref:'src:x'+i,kind:'source',type,title:t,sub:'Added later'}))
+  const mmp = [['Measuring membrane potential with TMRM','paper'],['Voltage dyes in vivo','paper'],['Depolarised mitochondria in cancer','paper'],['Pooled in vivo screens with an MMP readout','article'],['Membrane potential controls metabolism','paper'],['Bioelectric signals and cell fate','video'],['MMP measurement pitfalls','doc']]
+  mmp.forEach(([t,type],i)=>nodes.push({ref:(type==='doc'?'doc:m':'src:m')+i,kind:type==='doc'?'doc':'source',type,title:t,sub:'Nature · 2021'}))
+  notebooks = [
+    {id:'nb1', title:'Lifespan Scaling Laws', summary:'Why bigger animals live longer, and the exceptions.', refs: nodes.filter(n=>!n.ref.startsWith('src:m') && !n.ref.startsWith('doc:m')).map(n=>n.ref)},
+    {id:'nb2', title:'Membrane Potential as a Readout', summary:'Is mitochondrial membrane potential a readout of cell health?', refs: nodes.filter(n=>n.ref.startsWith('src:m')||n.ref.startsWith('doc:m')).map(n=>n.ref)},
+  ]
+  // Three Ideas in a region of their own, one with evidence not placed, and library
+  // sources on no notebook that Bridge can propose.
+  const ideas = [['idea:i0','Does a slower metabolism buy a longer life?'],['idea:i1','Bats break the rate-of-living rule'],['idea:i2','Mitochondrial ROS, not the rate, sets lifespan']]
+  ideas.forEach(([ref,title])=>nodes.push({ref,kind:'idea',type:'idea',title,sub:'Idea',detail:[],shore:''}))
+  const lib = [['Energetics of mitochondrial ROS production across species','paper','Cell Metabolism · 2020'],['Bat longevity and mitochondrial efficiency','article','Quanta · 2022'],['Superoxide production in long-lived mice','paper','Aging Cell · 2016']]
+  lib.forEach(([t,type,sub],i)=>nodes.push({ref:'src:b'+i,kind:'source',type,title:t,sub}))
+  // Two sources placed on the open plane, outside every region.
+  const free = [['Caloric restriction delays disease onset in rhesus monkeys','paper','Science · 2009'],['The hallmarks of aging','paper','Cell · 2013']]
+  free.forEach(([t,type,sub],i)=>nodes.push({ref:'src:f'+i,kind:'source',type,title:t,sub,detail:['In Lifespan Scaling Laws','2 chats','“Restriction lowered age-related deaths by half.”']}))
+  links = [{a:'idea:i0',b:'src:0',kind:'idea'},{a:'idea:i1',b:'src:16',kind:'idea'},{a:'idea:i2',b:'src:b2',kind:'idea'}]
+  // Clips cut out of papers in the Reader: a wide figure on the open plane, with a
+  // note, and a tall panel in the Membrane Potential frame, laid out in its rows.
+  const clips = [['clip:c0','Figure 2B · Mitochondrial ROS per unit of oxygen','Energetics of mitochondrial ROS production · p. 4','Bats sit lowest: the comparison my Idea leans on',1.9,'src:b0'],
+                 ['clip:c1','Figure 3 · TMRM signal against FCCP dose','Measuring membrane potential with TMRM · p. 6','',0.78,'src:m0']]
+  clips.forEach(([ref,title,sub,note,aspect,source])=>{ nodes.push({ref,kind:'clip',type:'clip',title,sub,detail:note?[note]:[],shore:'Clips',h:Math.min(Math.max(CW/aspect,70),420)+46,aspect}); links.push({a:ref,b:source,kind:'clip'}) })
+  // A paper laid out as its pages: one card each, left to right in a region of its own
+  // (Lay Out Pages); 8 of them, Letter-shaped, with an arrow from page 2 to an Idea.
+  for (let n = 1; n <= 8; n++) nodes.push({ref:'page:src:18:'+n,kind:'page',type:'page',title:'Page '+n,sub:'Mitochondria and the rate of living',detail:[],shore:'Pages',h:Math.round(CW/0.773)+46})
+  // The kinds the parity build added: a chat as a card, a canvas as a shortcut, a picture from the Images library.
+  nodes.push({ref:'chat:c0',kind:'chat',type:'chat',title:'How do bats avoid ROS damage?',sub:'Why do bats live so long? · 6 Oct',detail:[],shore:'Chats'})
+  nodes.push({ref:'canvas:k0',kind:'canvas',type:'canvas',title:'Mootha and mtDNA mutations',sub:'14 cards · 3 regions',detail:[],shore:'Canvases'})
+  nodes.push({ref:'picture:p0',kind:'picture',type:'picture',title:'Gel of mtDNA deletions',sub:'Picture',detail:[],shore:'Pictures',h:Math.round(CW/1.4)})
+  // A mind map: a region laid out as a tree, its Ideas joined by tree edges. They are placed anywhere; the page draws them as the tree.
+  const treeIdeas = [['idea:t0','Mitochondrial genome maintenance'],['idea:t1','mtDNA copy number'],['idea:t2','Heteroplasmy'],['idea:t3','TFAM sets the copy number'],['idea:t4','Selection for the wild type'],['idea:t5','Clonal expansion with age'],['idea:t6','Deletions expand faster than point mutations']]
+  treeIdeas.forEach(([ref,title])=>nodes.push({ref,kind:'idea',type:'idea',title,sub:'Idea',detail:[],shore:''}))
+  const cols=6, rows=Math.ceil(titles.length/cols)
+  const placements={}; nodes.slice(0, titles.length).forEach((n,i)=>placements[n.ref]={x:(i%cols)*(CW+G), y:Math.floor(i/cols)*(CH+G)})
+  ideas.forEach(([ref],i)=>placements[ref]={x:i*(CW+G), y:860})
+  placements['src:f0'] = {x:1000, y:860}; placements['src:f1'] = {x:1270, y:860}
+  placements['clip:c0'] = {x:1540, y:860}; placements['clip:c1'] = {x:1950, y:0}
+  treeIdeas.forEach(([ref],i)=>placements[ref]={x:2380+(i%3)*90, y:760+Math.floor(i/3)*60})
+  placements['chat:c0'] = {x:1000, y:1060}; placements['canvas:k0'] = {x:1270, y:1060}; placements['picture:p0'] = {x:1540, y:1180}
+  for (let n = 1; n <= 8; n++) placements['page:src:18:'+n] = {x:(n-1)*(CW+G), y:1330}
+  frame = {x:-50,y:-90,w:cols*(CW+G)-G+100,h:rows*(CH+G)-G+140}
+  const layout = {placements, regions:{
+    r1:{name:'Lifespan Scaling Laws', notebookID:'nb1', color:'#7F77DD', x:-50, y:-90, w:cols*(CW+G)-G+100, h:rows*(CH+G)-G+140},
+    r2:{name:'Membrane Potential as a Readout', notebookID:'nb2', color:'#1D9E75', x:1900, y:-90, w:4*(CW+G)-G+100, h:400},
+    r5:{name:'Mitochondrial genome maintenance', color:'#1D9E75', layout:'tree', x:2300, y:700, w:900, h:300},
+    r3:{name:'Rate of living', color:'#D85A30', x:-50, y:770, w:3*(CW+G)-G+100, h:300},
+    r4:{name:'Mitochondria and the rate of living', color:'#378ADD', x:-50, y:1270, w:8*(CW+G)-G+100, h:Math.round(CW/0.773)+46+110}},
+    // The arrow styles: a curve (default), a straight dashed line in a colour, an elbow with heads at both ends, an arrow to a region, a coloured curve between a chat and a canvas.
+    edges:{ e1:{from:'page:src:18:2', to:'idea:i0', label:'defines the rate', at:1},
+      e2:{from:'idea:i2', to:'src:f0', label:'tested in monkeys', route:'straight', dashed:true, color:'#D85A30'},
+      e3:{from:'src:f1', to:'clip:c0', route:'elbow', heads:'both'},
+      e4:{from:'idea:i1', to:'region:r4', label:'to a region'},
+      e5:{from:'chat:c0', to:'canvas:k0', color:'#378ADD'},
+      t1:{from:'idea:t0', to:'idea:t1', label:'', tree:true}, t2:{from:'idea:t0', to:'idea:t2', label:'', tree:true},
+      t3:{from:'idea:t1', to:'idea:t3', label:'', tree:true}, t4:{from:'idea:t2', to:'idea:t4', label:'', tree:true},
+      t5:{from:'idea:t2', to:'idea:t5', label:'', tree:true}, t6:{from:'idea:t5', to:'idea:t6', label:'', tree:true} }}
+  const summaries = {regions:{r1:{short:'Scaling laws link lifespan, metabolic rate and energy across mammals, birds, bats and naked mole-rats.', long:'Scaling laws link lifespan, metabolic rate and energy across mammals, birds, bats and naked mole-rats. Titles range from heartbeats and field metabolic rate to Geoffrey West’s city analogies.',
+    takeaways:['Lifespan scales with body mass to about the quarter power','Mammals share roughly a billion heartbeats per lifetime','Bats and naked mole-rats live far longer than their size predicts','Open: is the rate of living the cause, or a correlate?']},
+    r3:{short:'Whether a slower metabolism is why some animals live long.', long:'Whether a slower metabolism is why some animals live long, and what bats and ROS say against it.'}}}
+  memorySample = { enabled: true, marks: {
+    'src:0':{cards:6,due:0,fading:0,solid:6,dusty:false}, 'src:1':{cards:4,due:2,fading:0,solid:2,dusty:false},
+    'src:2':{cards:3,due:0,fading:1,solid:2,dusty:false}, 'src:3':{cards:2,due:0,fading:2,solid:0,dusty:true},
+    'src:14':{cards:5,due:1,fading:0,solid:4,dusty:false}, 'src:16':{cards:2,due:0,fading:0,solid:1,dusty:false},
+    'src:4':{cards:3,due:1,fading:0,solid:2,dusty:false}, 'src:5':{cards:2,due:0,fading:0,solid:2,dusty:false},
+    'src:x1':{cards:1,due:0,fading:0,solid:1,dusty:false},
+    'src:m0':{cards:4,due:0,fading:0,solid:4,dusty:false}, 'src:m2':{cards:2,due:2,fading:0,solid:0,dusty:false},
+    'idea:i0':{cards:2,due:1,fading:0,solid:1,dusty:false}, 'idea:i1':{cards:3,due:0,fading:3,solid:0,dusty:true},
+    'idea:i2':{cards:2,due:0,fading:2,solid:0,dusty:true}, 'src:b2':{cards:1,due:0,fading:1,solid:0,dusty:true},
+    'src:f0':{cards:5,due:2,fading:1,solid:2,dusty:false}, 'src:f1':{cards:3,due:0,fading:0,solid:3,dusty:false}}}
+  facesSample = { enabled: true, faces: {
+    'src:0':{far:'Bigger animals, slower clocks', mid:'Lifespan rises with body mass to about the quarter power, across 300 species of mammals and birds.', near:['Fits mammals and birds alike','Bats and mole-rats sit far above the line','Says nothing yet about cause']},
+    'src:1':{far:'A billion beats, then done', mid:'Mammals of every size get roughly the same number of heartbeats in a lifetime.', near:['Mouse 600 bpm for 2 years; elephant 30 bpm for 70','Humans are the outlier','Popular account, few numbers']},
+    'src:2':{far:'Birds outlive their metabolism', mid:'Birds burn faster than mammals of their size yet live two to three times longer.', near:['Contradicts a simple rate of living','Points at ROS handling','Field data, 1990s']},
+    'src:3':{far:'Mole-rats run cool and cheap', mid:'Naked mole-rats spend little energy for their size and barely age.', near:['Low body temperature','Hypoxia tolerance','Lab colonies, not the wild']},
+    'src:14':{far:'No Gompertz rise in mole-rats', mid:'Their risk of dying does not climb with age, against the Gompertz law that fits other mammals.', near:['3000 lifespans recorded','Risk flat to 25 years','Debated: censoring']},
+    'src:b0':{far:'ROS per oxygen, compared', mid:'Long-lived species leak fewer radicals per unit of oxygen used.', near:['Bats and birds lowest','Measured in isolated mitochondria']},
+    'src:f0':{far:'Eating less, ageing slower, in monkeys', mid:'Twenty years of a 30% lower diet halved age-related deaths in rhesus monkeys, though not deaths from all causes.', near:['76 monkeys over 20 years','Diabetes and cancer delayed','Contested by the NIA study in 2012']},
+    'src:f1':{far:'Nine hallmarks of ageing', mid:'Sorts what goes wrong with age into nine hallmarks, from genomic instability to altered communication between cells.', near:['Primary, antagonistic and integrative hallmarks','Mitochondrial dysfunction is one of the nine','Updated to twelve in 2023']},
+    'idea:i0':{far:'This must never replace an Idea', mid:'The learner’s own words stay theirs.', near:['never drawn']}}}
+  proposalSets = {
+    bridge: { id:'set-bridge', tool:'bridge', title:'Sources that bridge these Ideas', anchor:['idea:i0','idea:i1'], proposals:[
+      { id:'p:b0', kind:'source', ref:'src:b0', why:'Measures ROS per unit of oxygen in bats and mice, the link both Ideas lean on.', near:['idea:i0','idea:i1'] },
+      { id:'p:b1', kind:'source', ref:'src:b1', why:'Explains bat longevity by how efficient their mitochondria are.', near:['idea:i1'] },
+      { id:'p:b2', kind:'source', ref:'src:3', why:'Already on your Canvas: mole-rats live long on little energy.', near:['idea:i0'] },
+      { id:'p:b3', kind:'source', ref:'src:x0', why:'In Lifespan Scaling Laws: mitochondrial density scales with body mass.', near:['idea:i0'] }]},
+    connect: { id:'set-connect', tool:'connect', title:'How these connect', anchor:['idea:i0','idea:i1','idea:i2'], proposals:[
+      { id:'p:c0', kind:'edge', from:'idea:i1', to:'idea:i0', label:'contradicts', relation:'contradicts', near:[] },
+      { id:'p:c1', kind:'edge', from:'idea:i2', to:'idea:i1', label:'explains', relation:'explains', near:[] },
+      { id:'p:c2', kind:'edge', from:'src:2', to:'idea:i0', relation:'supports', near:[] }]},
+    gaps: { id:'set-gaps', tool:'gaps', title:'Questions these leave open', anchor:['idea:i1'], proposals:[
+      { id:'p:g0', kind:'question', text:'Do bats make less ROS per unit of oxygen than mice?', why:'Both Ideas lean on it, and no source here measures it.', near:['idea:i1'] },
+      { id:'p:g1', kind:'question', text:'Is hibernation part of why bats live long?', why:'Torpor lowers the rate of living for months a year.', near:['idea:i1'] },
+      { id:'p:g2', kind:'question', text:'What result would falsify the rate-of-living theory?', near:['idea:i0'] }]},
+  }
+  reviewQueue = ['src:f0', 'idea:i1', 'src:m2', 'src:5', 'src:1']
+  return { layout, summaries }
+}
+
+// ---- A big generated library, for timing: n cards, a fifth placed in ten regions.
+function bigScene(n) {
+  const kinds = ['paper','article','podcast','video','book']
+  nodes = []
+  for (let i = 0; i < n; i++) nodes.push({ref:'src:'+i,kind:'source',type:kinds[i%5],title:'Generated source number '+i+' on metabolism, scaling and the rate of living',sub:'Journal · '+(1990+i%30)})
+  notebooks = []; links = []
+  const placements = {}, regions = {}, summaries = {regions:{}}
+  const per = Math.min(60, Math.floor(n / 50)), cols = 10
+  for (let r = 0; r < 10; r++) {
+    const rx = (r % 5) * (cols * (CW + G) + 300), ry = Math.floor(r / 5) * (Math.ceil(per / cols) * (CH + G) + 400)
+    regions['g' + r] = { name: 'Region ' + (r + 1), color: ['#7F77DD','#1D9E75','#D85A30','#D4537E','#BA7517','#378ADD','#639922','#888780'][r % 8], x: rx - 50, y: ry - 90, w: cols * (CW + G) - G + 100, h: Math.ceil(per / cols) * (CH + G) - G + 140 }
+    summaries.regions['g' + r] = { short: 'A generated region of ' + per + ' cards.', long: 'A generated region of ' + per + ' cards, for timing frames with every layer on.' }
+    for (let k = 0; k < per; k++) placements['src:' + (r * per + k)] = { x: rx + (k % cols) * (CW + G), y: ry + Math.floor(k / cols) * (CH + G) }
+  }
+  memorySample = { enabled: true, marks: {} }
+  facesSample = { enabled: true, faces: {} }
+  for (let i = 0; i < n; i++) {
+    if (i % 2 === 0) memorySample.marks['src:' + i] = { cards: 1 + i % 7, due: i % 3 === 0 ? 1 : 0, fading: i % 5 === 0 ? 1 : 0, solid: i % 4, dusty: i % 11 === 0 }
+    facesSample.faces['src:' + i] = { far: 'Far face ' + i, mid: 'The middle face of source ' + i + ', two sentences long. It says what the source finds.', near: ['A first point', 'A second point', 'A third point'] }
+  }
+  const anchor = ['src:0', 'src:1']
+  proposalSets = { bridge: { id:'set-big', tool:'bridge', title:'Bridge', anchor, proposals: [0,1,2,3,4,5].map(k => ({ id:'p:big'+k, kind:'source', ref:'src:'+(n - 1 - k), why:'Generated reason number ' + k + ', one line long.', near: anchor })).concat([{ id:'p:bigq', kind:'question', text:'A generated question?', why:'Why it is asked.', near: anchor }, { id:'p:bige', kind:'edge', from:'src:0', to:'src:2', label:'supports', relation:'supports', near: [] }]) } }
+  reviewQueue = ['src:0', 'src:' + (per * 3 + 5), 'src:' + (per * 7 + 9)]
+  frame = { x: -50, y: -90, w: 5 * (cols * (CW + G) + 300), h: 2 * (Math.ceil(per / cols) * (CH + G) + 400) }
+  return { layout: { placements, regions, edges: {} }, summaries }
+}
+
+const scene = N > 0 ? bigScene(N) : sampleScene()
+
+// ---- The host as the Mac is: it hears every message, writes what the learner did into
+// its own copy of the layout and sends that layout back, as the app does after a write.
+// It also keeps or dismisses proposals as Swift does, and ends a review on Escape.
+window.posts = []
+let layout = null
+let currentSet = null
+// Undo and redo as the Mac model keeps them: whole edits, one burst of writes
+// (a drop and the region it reflows) counting as one.
+const undo = [], redo = []
+let lastEdit = 0
+const snapshot = () => JSON.parse(JSON.stringify(layout))
+const sendLayout = () => setTimeout(() => map.setLayout(JSON.parse(JSON.stringify(layout))), 30)
+let quietView = true
+const logEl = document.getElementById('log')
+function logMessage(type, body) {
+  if (quietView && (type === 'view' || type === 'camera')) return
+  const row = document.createElement('div')
+  row.textContent = type + ' ' + JSON.stringify(body)
+  logEl.prepend(row)
+  while (logEl.childNodes.length > 60) logEl.lastChild.remove()
+}
+function withoutProposal(id) {
+  if (!currentSet) return
+  currentSet = Object.assign({}, currentSet, { proposals: currentSet.proposals.filter(p => p.id !== id) })
+  const set = currentSet.proposals.length ? currentSet : null
+  if (!set) currentSet = null
+  setTimeout(() => map.setProposals(set && JSON.parse(JSON.stringify(set))), 40)
+}
+let ideaCount = 0
+const host = { post(type, body) {
+  window.posts.push(Object.assign({ type }, body))
+  logMessage(type, body)
+  if (!layout) return
+  if (type === 'proposalKeep') {
+    const p = currentSet && currentSet.proposals.find(p => p.id === body.id)
+    if (!p) return
+    undo.push(snapshot()); redo.length = 0
+    if (p.kind === 'source' && body.x != null && !layout.placements[p.ref]) layout.placements[p.ref] = { x: body.x, y: body.y }
+    else if (p.kind === 'question') {
+      const ref = 'idea:q' + (ideaCount++)
+      nodes.push({ ref, kind: 'idea', type: 'idea', title: p.text, sub: 'Idea', detail: [], shore: '' })
+      map.setContent({ nodes, links, notebooks })
+      layout.placements[ref] = { x: body.x, y: body.y }
+    } else if (p.kind === 'edge') layout.edges['e' + Date.now().toString(36)] = { from: p.from, to: p.to, label: p.label || p.relation || '' }
+    sendLayout()
+    withoutProposal(p.id)
+    return
+  }
+  if (type === 'proposalDismiss') { withoutProposal(body.id); return }
+  if (type === 'reviewEscape') { map.endReview(); return }
+  if (type === 'undo' || type === 'redo') {
+    const from = type === 'undo' ? undo : redo, to = type === 'undo' ? redo : undo
+    const step = from.pop()
+    if (!step) return
+    to.push(snapshot())
+    layout = step
+    sendLayout()
+    return
+  }
+  if (['placed', 'unplace', 'regionCreated', 'regionChanged', 'regionDeleted', 'regionCollapsed', 'placementChanged', 'edgeChanged', 'edgeRequested', 'edgeDeleted', 'regionRenamed', 'regionLocked', 'ideaEdited', 'ideaRequested', 'deleteRequested'].includes(type)) {
+    const now = performance.now()
+    if (now - lastEdit > 400 || !undo.length) undo.push(snapshot())
+    lastEdit = now
+    redo.length = 0
+  }
+  // A move keeps what the learner sized (the model's place() must too).
+  if (type === 'placed') for (const it of body.items) layout.placements[it.ref] = Object.assign({}, layout.placements[it.ref], { x: it.x, y: it.y })
+  else if (type === 'unplace') for (const ref of body.refs) delete layout.placements[ref]
+  else if (type === 'regionCreated' || type === 'regionChanged') { const { id, ...r } = body.region; layout.regions[id] = Object.assign({}, layout.regions[id] || {}, r) }
+  else if (type === 'regionDeleted') delete layout.regions[body.id]
+  else if (type === 'regionCollapsed') { const r = layout.regions[body.id]; if (r) { if (body.collapsed) r.collapsed = true; else delete r.collapsed } }
+  // The parity build's writes, as the model keeps them: a missing key leaves the field, null clears it.
+  else if (type === 'placementChanged') { for (const it of body.items) { const p = layout.placements[it.ref]; if (!p) continue; for (const k of ['w', 'h', 'folded', 'color']) if (k in it) { if (it[k] == null || it[k] === false) delete p[k]; else p[k] = it[k] } } }
+  else if (type === 'edgeChanged') { const e = layout.edges[body.id]; if (!e) return; for (const k of ['route', 'dashed', 'heads', 'color', 'label']) if (k in body) { if (body[k] == null || body[k] === false) delete e[k]; else e[k] = body[k] } }
+  else if (type === 'edgeRequested') { layout.edges['e' + Date.now().toString(36) + Math.random().toString(36).slice(2, 4)] = Object.assign({ from: body.from, to: body.to, label: '' }, body.tree ? { tree: true } : {}) }
+  else if (type === 'edgeDeleted') delete layout.edges[body.id]
+  else if (type === 'regionRenamed') { const r = layout.regions[body.id]; if (r) r.name = body.name }
+  else if (type === 'regionLocked') { const r = layout.regions[body.id]; if (r) { if (body.locked) r.locked = true; else delete r.locked } }
+  // An Idea goes to Trash, anything else comes off the Canvas.
+  else if (type === 'deleteRequested') {
+    for (const ref of body.refs) {
+      delete layout.placements[ref]
+      if (ref.startsWith('idea:')) { const i = nodes.findIndex(n => n.ref === ref); if (i >= 0) nodes.splice(i, 1) }
+      for (const [id, e] of Object.entries(layout.edges)) if (e.from === ref || e.to === ref) delete layout.edges[id]
+    }
+    map.setContent({ nodes, links, notebooks })
+  }
+  else if (type === 'ideaEdited') { const n = nodes.find(n => n.ref === body.ref); if (!n) return; n.title = body.title; n.sub = body.note ? body.note : 'Idea'; map.setContent({ nodes, links, notebooks }) }
+  else if (type === 'ideaRequested') {
+    // The Mac places a new Idea (its words as typed, or the copy's), selects it and, when asked, opens it for editing.
+    const src = body.copyOf ? nodes.find(n => n.ref === body.copyOf) : null
+    const ref = 'idea:n' + (ideaCount++)
+    nodes.push({ ref, kind: 'idea', type: 'idea', title: body.title != null && body.title !== '' ? body.title : src ? src.title : '', sub: body.note ? body.note : src && src.sub ? src.sub : 'Idea', detail: [], shore: '' })
+    let x = body.x, y = body.y
+    const parent = body.parentRef && layout.placements[body.parentRef]
+    if (parent) {
+      const pn = nodes.find(n => n.ref === body.parentRef)
+      const kids = Object.values(layout.edges).filter(e => e.tree && e.from === body.parentRef).length
+      x = parent.x + (parent.w || CW) + 60; y = parent.y + kids * 80
+      layout.edges['e' + Date.now().toString(36) + Math.random().toString(36).slice(2, 4)] = { from: body.parentRef, to: ref, label: '', tree: true }
+    }
+    layout.placements[ref] = { x: Math.round(x), y: Math.round(y) }
+    map.setContent({ nodes, links, notebooks })
+    sendLayout()
+    // An Idea made empty for typing opens with `fresh`: its title selected, and left empty it is forgotten.
+    if (body.edit) setTimeout(() => map.editIdea(ref, body.title ? undefined : { fresh: true }), 120)
+    else setTimeout(() => map.mirror({ selection: [ref] }), 120)
+    return
+  }
+  else return
+  sendLayout()
+} }
+const map = window.ForeverLMKnowledgeMap.create(document.getElementById('map'), host)
+window.map = map
+map.setContent({nodes, links, notebooks})
+layout = scene.layout
+map.setLayout(JSON.parse(JSON.stringify(layout)))
+window.layout = () => layout
+map.setSummaries(scene.summaries)
+// Synthetic pointer input for checks: ev('pointerdown', x, y), in page pixels.
+const cv = document.getElementById('map')
+cv.setPointerCapture = () => {}
+window.ev = (type, x, y, o) => cv.dispatchEvent(new PointerEvent(type, Object.assign({ clientX: x, clientY: y, pointerId: 1, bubbles: true, button: 0 }, o || {})))
+window.key = (k, o) => cv.dispatchEvent(new KeyboardEvent('keydown', Object.assign({ key: k, bubbles: true, cancelable: true }, o || {})))
+window.keyup = (k) => cv.dispatchEvent(new KeyboardEvent('keyup', { key: k, bubbles: true }))
+window.dbl = (x, y) => cv.dispatchEvent(new MouseEvent('dblclick', { clientX: x, clientY: y, bubbles: true }))
+// A world point on screen, with the camera as drawn now.
+window.scr = (x, y) => { const c = map.drawn().camera; return [x * c.scale + c.ox, y * c.scale + c.oy] }
+// A right-click: the page selects what is under it and posts contextMenu (the Mac shows a native menu).
+window.rclick = async (x, y, o) => { cv.dispatchEvent(new MouseEvent('contextmenu', Object.assign({ clientX: x, clientY: y, bubbles: true, cancelable: true, button: 2 }, o || {}))); await new Promise(r => setTimeout(r, 60)) }
+window.click = async (x, y, o) => { ev('pointerdown', x, y, o); ev('pointerup', x, y, o); await new Promise(r => setTimeout(r, 60)) }
+// Click a world point (the camera as drawn now), and settle: a frame drawn now, then `ms` of motion.
+window.clickAt = (wx, wy, o) => { const [x, y] = scr(wx, wy); return click(x, y, o) }
+// (A pane that is not in front runs no animation frames, so a frame is drawn by hand: once to start any motion, again once it has run.)
+window.settle = async (ms) => { await new Promise(r => setTimeout(r, 40)); map.measureDraw(1); await new Promise(r => setTimeout(r, ms || 350)); map.measureDraw(1) }
+window.dragAt = (x0, y0, x1, y1, steps) => { const a = scr(x0, y0), b = scr(x1, y1); return drag(a[0], a[1], b[0], b[1], steps) }
+window.drag = async (x0, y0, x1, y1, steps) => { ev('pointerdown', x0, y0); for (let i = 1; i <= (steps || 8); i++) { ev('pointermove', x0 + (x1 - x0) * i / (steps || 8), y0 + (y1 - y0) * i / (steps || 8)); await new Promise(r => setTimeout(r, 16)) } ev('pointerup', x1, y1); await new Promise(r => setTimeout(r, 80)) }
+function zoomTo(scale){ const b=frame; map.setCamera({scale, ox: 40 - b.x*scale, oy: 110 - b.y*scale}) }
+zoomTo(parseFloat(q.get('s')||'0.38'))
+window.zoomTo = zoomTo
+function fakeCover(i){ const c=document.createElement('canvas'); c.width=120;c.height=160; const g=c.getContext('2d');
+ const hues=[210,25,160,280,45,0]; const h=hues[i%hues.length]; const gr=g.createLinearGradient(0,0,120,160); gr.addColorStop(0,'hsl('+h+',55%,45%)'); gr.addColorStop(1,'hsl('+(h+40)+',60%,25%)');
+ g.fillStyle=gr; g.fillRect(0,0,120,160); g.fillStyle='rgba(255,255,255,.85)'; g.font='bold 15px sans-serif'; g.fillText('COVER '+i,12,30); g.fillRect(12,120,96,4); return c.toDataURL('image/jpeg',0.8) }
+// A figure as a clip would show it: axes and bars on white, at the clip's own shape.
+// A page of a paper as a page card draws it: title, columns of grey lines and one figure, on white.
+function fakePage(n){ const c=document.createElement('canvas'); c.width=480; c.height=620; const g=c.getContext('2d'); g.fillStyle='#fff'; g.fillRect(0,0,480,620)
+ g.fillStyle='#111'; g.font='bold 22px serif'; g.fillText(n===1?'Mitochondria and the rate of living':'Section '+n, 40, 54)
+ g.fillStyle='#bbb'; for(let col=0;col<2;col++) for(let l=0;l<30;l++){ g.fillRect(40+col*210, 90+l*17, 190-(l%7)*9, 5) }
+ g.fillStyle='#378ADD'; g.fillRect(40, 330+(n%3)*20, 200, 90); g.fillStyle='#222'; g.font='bold 40px sans-serif'; g.fillText(String(n), 430, 600); return c.toDataURL('image/jpeg',0.8) }
+function fakeFigure(aspect, seed){ const c=document.createElement('canvas'); c.width=Math.round(600*Math.min(1,aspect)); c.height=Math.round(c.width/aspect); const g=c.getContext('2d');
+ g.fillStyle='#fff'; g.fillRect(0,0,c.width,c.height); g.strokeStyle='#222'; g.lineWidth=2; g.beginPath(); g.moveTo(40,10); g.lineTo(40,c.height-30); g.lineTo(c.width-10,c.height-30); g.stroke()
+ const n=6; for(let k=0;k<n;k++){ const bh=(c.height-60)*(0.25+0.7*Math.abs(Math.sin(seed*3+k*1.3))); g.fillStyle=['#378ADD','#D85A30','#1D9E75'][k%3]; g.fillRect(55+k*(c.width-75)/n, c.height-30-bh, (c.width-75)/n-12, bh) }
+ g.fillStyle='#222'; g.font='bold 28px sans-serif'; g.fillText(seed===1?'B':'3', 8, 34); return c.toDataURL('image/png') }
+if (!N) { const thumbs={}; nodes.forEach((n,i)=>{ if(n.kind==='source' && (i%2===0 || n.type==='video')) thumbs[n.ref]=fakeCover(i); if(n.kind==='clip') thumbs[n.ref]=fakeFigure(n.aspect, n.ref==='clip:c0'?1:2); if(n.kind==='page') thumbs[n.ref]=fakePage(parseInt(n.ref.split(':').pop(),10)); if(n.kind==='picture') thumbs[n.ref]=fakeFigure(1.4, 3) }); map.setThumbnails(thumbs) }
+
+// ---- The panel.
+const copy = (v) => JSON.parse(JSON.stringify(v))
+let memoryOn = false, facesOn = false, reviewAt = -1
+document.querySelectorAll('[data-zoom]').forEach(b => b.onclick = () => zoomTo(parseFloat(b.dataset.zoom)))
+document.querySelectorAll('[data-set]').forEach(b => b.onclick = () => { currentSet = copy(proposalSets[b.dataset.set]); map.setProposals(copy(currentSet)) })
+document.getElementById('noSet').onclick = () => { currentSet = null; map.setProposals(null) }
+const memoryButton = document.getElementById('memory'), facesButton = document.getElementById('faces')
+memoryButton.onclick = () => { memoryOn = !memoryOn; map.setMemory(Object.assign(copy(memorySample), { enabled: memoryOn })); memoryButton.textContent = 'Memory: ' + (memoryOn ? 'on' : 'off') }
+facesButton.onclick = () => { facesOn = !facesOn; map.setFaces(Object.assign(copy(facesSample), { enabled: facesOn })); facesButton.textContent = 'Faces: ' + (facesOn ? 'on' : 'off') }
+const review = (i) => ({ ref: reviewQueue[i], index: i, total: reviewQueue.length })
+document.getElementById('reviewStart').onclick = () => { reviewAt = 0; map.startReview(review(0)) }
+document.getElementById('reviewNext').onclick = () => { if (reviewAt < 0) return; reviewAt = (reviewAt + 1) % reviewQueue.length; map.reviewFocus(review(reviewAt)) }
+document.getElementById('reviewEnd').onclick = () => { reviewAt = -1; map.endReview() }
+// The display switches the Mac keeps (setDisplay), writing an Idea in place, and the picture of the plane.
+const display = { minimap: false, focus: false }
+for (const key of ['minimap', 'focus']) {
+  const button = document.getElementById(key)
+  button.onclick = () => { display[key] = !display[key]; map.setDisplay(display); button.textContent = key[0].toUpperCase() + key.slice(1) + ': ' + (display[key] ? 'on' : 'off') }
+}
+document.getElementById('editIdea').onclick = () => { const sel = map.drawn().selection.find(r => r.startsWith('idea:')) || 'idea:i0'; map.editIdea(sel) }
+document.getElementById('newIdea').onclick = () => map.setTool('note')
+// Export: the whole plane (or the selection) as a PNG in a new tab.
+const exportPng = () => { const sel = map.drawn().selection; const url = map.exportImage(1, sel.length ? sel : undefined); if (url) fetch(url).then(r => r.blob()).then(b => window.open(URL.createObjectURL(b), '_blank')); return url }
+document.getElementById('exportPng').onclick = exportPng
+const quietButton = document.getElementById('quiet')
+quietButton.onclick = () => { quietView = !quietView; quietButton.textContent = 'Hide view: ' + (quietView ? 'on' : 'off') }
+document.getElementById('clearLog').onclick = () => { logEl.textContent = '' }
+// The same, for scripted checks.
+window.harness = {
+  proposals: (name) => { currentSet = name ? copy(proposalSets[name]) : null; map.setProposals(currentSet && copy(currentSet)) },
+  memory: (on) => { memoryOn = on; map.setMemory(Object.assign(copy(memorySample), { enabled: on })) },
+  faces: (on) => { facesOn = on; map.setFaces(Object.assign(copy(facesSample), { enabled: on })) },
+  review: (i) => { reviewAt = i; map[i === 0 ? 'startReview' : 'reviewFocus'](review(i)) },
+  endReview: () => { reviewAt = -1; map.endReview() },
+  sets: () => proposalSets,
+  display: (d) => { Object.assign(display, d); map.setDisplay(d) },
+  exportPng,
+  // The existing checks in one call (proposals, memory, faces, a review in place) and a frame's time.
+  smoke: async () => {
+    const out = {}, wait = (ms) => new Promise(r => setTimeout(r, ms)), errs = []
+    const onError = (e) => errs.push(String(e.message)); window.addEventListener('error', onError)
+    for (const [name, key] of [['bridge', 'bridgeGhosts'], ['connect', 'connectGhosts'], ['gaps', 'gapsGhosts']]) { harness.proposals(name); await wait(120); map.measureDraw(1); out[key] = Object.keys(map.drawn().ghosts).length }
+    harness.proposals(null)
+    harness.memory(true); harness.faces(true); await wait(80)
+    harness.review(0); await wait(900); map.measureDraw(1); out.review = map.drawn().review && map.drawn().review.ref
+    harness.endReview(); await wait(700)
+    harness.memory(false); harness.faces(false)
+    out.frame = map.measureDraw(20)
+    window.removeEventListener('error', onError); out.errors = errs
+    return out
+  },
+}
+</script></body></html>

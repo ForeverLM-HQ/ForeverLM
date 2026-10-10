@@ -1,0 +1,17 @@
+{
+  "name": "foreverlm-chat-renderer",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "dompurify": "3.4.14",
+    "katex": "0.18.4",
+    "markdown-it": "14.3.1"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

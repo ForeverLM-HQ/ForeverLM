@@ -1,0 +1,67 @@
+---
+layout: doc
+title: AI Providers & Models
+---
+
+# AI Providers & Models
+
+**AI runs on your own OpenRouter API key.** Create one at [openrouter.ai/keys](https://openrouter.ai/keys) and add it in **Settings → AI Usage → Your own key**. OpenRouter bills every model at its own cost, and ForeverLM adds nothing on top. OpenRouter is the only supported provider today. Using your key in ForeverLM needs a plan: **$4 a month, or $19 a year while the early-believer offer lasts**, before applicable tax. The plan covers every model; there is no higher tier. You pick a provider and model for each AI capability in **Settings**, and **Settings → Billing → AI activity** shows what each request cost, precise below a cent.
+
+Every text model, whether Anthropic, OpenAI, Google, Meta, xAI or the long tail, is served through [OpenRouter](https://openrouter.ai), on your key, by way of ForeverLM's proxy. A request never falls back silently to another route.
+
+You can also skip the built-in AI entirely and drive ForeverLM from Claude, Codex, Gemini, or Grok, [connected over MCP](/setup-mcp). ForeverLM charges nothing for MCP tool calls: your assistant's subscription covers the thinking, and reading and writing your library is free. Sources, Schedule, and semantic search work either way. Most people mix the two.
+
+## Chat and reviews (text models)
+
+In-app Chat and reviews use the Default Model chosen in **Settings → Chat → Models**. The default is Anthropic with Claude Sonnet 5. Background tasks (like paper metadata extraction) run on the two Background models in **Settings → Background**: **Text-only**, and **Multimodal** for the work that looks at a figure or a slide. Any one task can have a model of its own on the **Tasks** tab; until you give it one it follows the Background model of its kind. The chat can change them too (`set_ai_task_settings`).
+
+| Provider | Models | Default |
+|---|---|---|
+| **Anthropic** | Claude Sonnet 5, Claude Fable 5, Claude Opus 5, Claude Haiku 4.5 | Claude Sonnet 5 |
+| **OpenAI** | GPT-5.6 Sol, GPT-6 Astra, GPT-5.6 Terra, GPT-5.6 Luna | GPT-5.6 Sol |
+| **Google (Gemini)** | Gemini 3.5 Flash, Gemini 2.5 Flash Lite | Gemini 3.5 Flash |
+| **xAI (Grok)** | Grok 4.3, Grok 4.7 | Grok 4.3 |
+| **Meta** | Muse Spark 1.2, Muse Spark 1.2 Contributor | Muse Spark 1.2 |
+| **OpenRouter** | DeepSeek V4 Flash, DeepSeek V4 Pro, Kimi K3, GPT OSS 120B, GPT OSS 20B, Qwen3 32B, Qwen3 235B, GLM 5.2, Mistral Large 3, Mistral Small 4, Nemotron 3 Ultra, Nemotron 3 Super, Nemotron 3 Nano | DeepSeek V4 Flash |
+
+Notes:
+
+- The long-tail models (DeepSeek, Kimi, Qwen, GLM, GPT OSS, Mistral, Llama, and Nemotron) are served through OpenRouter like every other text model. The picker groups them by the lab that trained them, and you can add any other compatible model from OpenRouter's directory.
+- In Settings, each lab's models are listed newest release first, and the **more…** card at the end of a lab shows every other model OpenRouter lists for it in that same order.
+- DeepSeek and Kimi are offered only through OpenRouter's US-routed inference; the labs' own APIs are deliberately not integrated.
+- **Don't show models that train on my data** (Settings → Data & Privacy; Settings on iPhone) takes the models that train on what you send them out of every model picker, and routes every OpenRouter request only to hosts that neither retain prompts nor train on them, using OpenRouter's `data_collection: deny` provider preference. One model is priced for training: Meta's Muse Spark 1.2 Contributor, whose discount is paid in training consent. The app does not label it; the switch hides it. A model with no compliant host is refused with a message that names the switch. Anthropic, OpenAI, Google's paid API and xAI do not train on API traffic under their own terms, which the switch does not change.
+- A model is admitted only while OpenRouter publishes its price, and every charge is the cost OpenRouter reports for that request. A model it cannot price is refused instead of being estimated.
+- **Speed, priced per tier.** On the OpenRouter route the chat composer's model menu offers **Speed: Standard / Fast** for a model whose lab publishes a fast-processing endpoint on OpenRouter (`openai/fast`, `anthropic/fast`). Each speed is listed with its own input / output price from that endpoint — Fast is typically double — and a Fast request names the endpoint explicitly with fallbacks off, so it is never quietly served at another tier; OpenRouter's receipt for the endpoint that ran is the cost recorded. A Standard request names no endpoint, so when the lab's endpoint refuses it (a 429 from Google AI Studio, say) OpenRouter moves it to the same model's other standard endpoint rather than failing the chat; tier endpoints are never part of that fallback. A bolt on the model chip shows Fast is on. Models with no fast endpoint show no speed control.
+- **Promotions are named, not applied twice.** When OpenRouter is running a promotion on a model's endpoint, the price in the composer menu already reflects it and the subtitle says so ("$2 in / $10 out · 50% off"). Settings → Chat → Models shows the same label on the model's card.
+- The model picker shows a curated list; you can hide models you never use in **Settings → Chat → Models**.
+- Each provider remembers its own model choice, so switching providers doesn't reset your selection.
+
+## Text to Speech (text-to-speech)
+
+[Text to Speech](/text-to-speech) offers every speech model OpenRouter serves ([openrouter.ai/models?output_modalities=speech](https://openrouter.ai/models?output_modalities=speech)). The Mac and the iPhone read that list live, so a model OpenRouter adds appears without an app update, with the voices OpenRouter lists for it. Every request goes to OpenRouter, Grok and Gemini included. It goes straight to OpenRouter on your key, or through ForeverLM's proxy on a leftover balance. Gemini 3.1 Flash TTS with Kore remains the default, and it is also the widest-reaching entry: Google publishes more than 70 languages for it, from Afrikaans and Arabic through Mandarin, Swahili, Tamil, and Vietnamese. The models ForeverLM curates declare their languages. Others are marked as not published, never assumed to be English. Orpheus 3B is left out because it resets its intonation every ~180 characters.
+
+Each model shows OpenRouter's price in the unit OpenRouter bills it by, for the host it routes the model to. Most are per million characters, Fish Audio per million UTF-8 bytes, Gemini per million text and audio tokens, and Seed Audio per minute of audio. The free `:free` models show as free. None of these prices is written into the app, and a model OpenRouter has not priced shows **Price unknown**. The free routes have no production latency or availability guarantee. The exact cost OpenRouter reports, rather than the picker's price, is the record.
+
+On-device macOS speech and a local Qwen3-TTS server remain available without cloud inference cost.
+
+## Voice input (speech-to-text)
+
+Voice dictation in Chat on the Mac uses the model chosen in **Settings → Voice → Speech to text**. The recording is transcribed after you stop, by any transcription model OpenRouter serves ([openrouter.ai/models?output_modalities=transcription](https://openrouter.ai/models?output_modalities=transcription)). The list is read live and grouped by maker, and GPT-4o mini Transcribe is the default. Meeting recordings and podcast episodes use the same list (`speech_to_text.recordings_model`, set from the chat). Each model shows OpenRouter's price per hour of audio, or per million tokens for a model billed by tokens (the GPT-4o transcribe models, Gemini 3.5 Transcribe). Every transcription request goes to OpenRouter.
+
+Audio is sent only to the model you chose, through OpenRouter, and is not kept after transcription. The web library's composer dictates on the same model, through ForeverLM's proxy, once you stop recording.
+
+On the iPhone, the composer's microphone and voice conversations use Apple's on-device speech recognition. It is free, works offline, and is not a model you pick.
+
+## Semantic search
+
+Semantic source search runs entirely on-device using Apple's NaturalLanguage contextual embeddings. It costs nothing and sends nothing over the network.
+
+## Costs
+
+- **Your key pays, at OpenRouter's cost.** With a plan and an OpenRouter key stored in **Settings → AI Usage → Your own key**, everything ForeverLM sends through OpenRouter goes on your key and OpenRouter bills you directly. ForeverLM adds nothing to it. The key covers text models (chat, reviews, and background tasks) *and* every voice, speech-to-text, image and video model OpenRouter serves: the Gemini and Grok voices, GPT-4o mini transcription, the GPT Image, Gemini, FLUX, Recraft and Seedream image models, and Veo, Kling, Wan, Sora and the other video models. **Settings → AI Models → Images** and **→ Videos** list every one of them, read from OpenRouter each time the pane opens, so a model OpenRouter adds shows up there on its own; each card shows OpenRouter's price. Over MCP the same setting is `get_own_router_key` / `set_own_router_key`.
+- **Your key never touches ForeverLM's servers.** It is saved only in your Keychain, which iCloud Keychain syncs end-to-end encrypted to your Macs and iPhone, and the app sends it only to OpenRouter. Without a plan, the app tells ForeverLM only that you have a key, never the key itself. Connect OpenRouter signs in at openrouter.ai and hands the key back to the app on your Mac directly. The remote ForeverLM connector refuses to carry a key, so an AI assistant cannot set one through it; paste the key into the app instead.
+- **A plan lets the key run.** Monthly is $4 a month; its first 30 days are free, signed up for with a card at checkout, and you can cancel anytime. Believer is $19 a year for early adopters while the offer lasts: it starts with a free week that needs no card, and the price never goes up for as long as you keep the plan. Prices are before applicable tax. Choose a plan in **Settings → Billing** or at [foreverlm.com/account/billing](https://foreverlm.com/account/billing/). Every model is available with any plan. Without a plan, ForeverLM does not use your key. Billing holds only the plan: what it is, when it renews, the Stripe page for your card and receipts, and Cancel Plan.
+- **Settings → AI Usage → Activity** itemises every request with the exact cost OpenRouter reports, precise below a cent. Models without a published rate are shown as unpriced rather than guessed.
+- **Prepaid balance is retired.** ForeverLM no longer sells AI balance or offers auto top-up. A balance left from an earlier purchase is shown, read-only, while it lasts, and pays for requests sent without your own key. While a key is stored, it pays for nothing.
+- Background tasks (paper metadata extraction, transcript cleanup, search embeddings) run on the same key and are itemised per task in the ledger. They run on the Background models in **Settings → Background**, which the chat can change too (`set_ai_task_settings`), so a cheap or free model there keeps them cheap. While the Text model is free, meeting work stays on a paid model unless you let it use the free one: a meeting's transcript holds private conversations. Each Background model can also list up to ten **backups**, tried in order when it is busy, fails or sends back nothing usable: right-click a model and choose **Use as Backup**. A backup is billed at its own price. A free model you pick brings the next two free models as its backups when it has none. The chat's model can list backups too, in **Settings → AI Models → Chat**, but only a scheduled task's run moves to them: a chat you type in stays on the model you picked.
+- If a provider or model can't complete a request, ForeverLM surfaces the error — it never falls back to a model that is not one of the setting's listed backups, or to heuristic grading.

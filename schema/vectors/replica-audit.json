@@ -1,0 +1,19 @@
+{
+  "vectors": "replica-audit",
+  "version": 1,
+  "spec": "docs/cloudkit-schema-design.md §2.3 (Replica audit), D30",
+  "implementations": {
+    "swift": "ForeverLMApp/Shared/Sync/Store/ReplicaStore.swift (ReplicaAuditTests)",
+    "js": "docs-site/website/library/library-sync.js, workers/mcp-gateway/src/hosted-v2-mirror.ts"
+  },
+  "format": "rows are the replica's rows for one zone: recordName, state (acknowledged, or pendingCreate for a row created locally and not yet acknowledged) and serverModifiedAt (ms of the server modification date the replica holds, null for a pending create). walk is a names-only walk of the zone (desiredKeys = []): when it began and the names it returned. expect.delete lists, sorted, the rows to delete as inbound deletions: every row the walk did not return, except pending creates and rows whose serverModifiedAt is later than walk.startedAt.",
+  "status": "Seed set written with WP1; WP5 adds the cases for deterministic re-creates gated on the last complete pass (§6.2).",
+  "cases": [
+    {"name":"a row the walk did not return is deleted as an inbound deletion","rows":[{"recordName":"nb_a","state":"acknowledged","serverModifiedAt":1759499995000},{"recordName":"nb_b","state":"acknowledged","serverModifiedAt":1759499995000}],"walk":{"startedAt":1759500000000,"names":["nb_a"]},"expect":{"delete":["nb_b"]}},
+    {"name":"every row the walk returned is kept","rows":[{"recordName":"nb_a","state":"acknowledged","serverModifiedAt":1759499995000},{"recordName":"en_x","state":"acknowledged","serverModifiedAt":1759499991000}],"walk":{"startedAt":1759500000000,"names":["en_x","nb_a"]},"expect":{"delete":[]}},
+    {"name":"a row created locally and not yet acknowledged is kept although the walk missed it","rows":[{"recordName":"nb_new","state":"pendingCreate","serverModifiedAt":null}],"walk":{"startedAt":1759500000000,"names":[]},"expect":{"delete":[]}},
+    {"name":"a row modified on the server after the walk began is kept","rows":[{"recordName":"nb_late","state":"acknowledged","serverModifiedAt":1759500000001}],"walk":{"startedAt":1759500000000,"names":[]},"expect":{"delete":[]}},
+    {"name":"a row modified exactly when the walk began is deleted (only later rows are kept)","rows":[{"recordName":"nb_edge","state":"acknowledged","serverModifiedAt":1759500000000}],"walk":{"startedAt":1759500000000,"names":[]},"expect":{"delete":["nb_edge"]}},
+    {"name":"a mixed replica","rows":[{"recordName":"nb_a","state":"acknowledged","serverModifiedAt":1759499999999},{"recordName":"nb_gone","state":"acknowledged","serverModifiedAt":1759499999999},{"recordName":"nb_new","state":"pendingCreate","serverModifiedAt":null},{"recordName":"nb_late","state":"acknowledged","serverModifiedAt":1759500000010}],"walk":{"startedAt":1759500000000,"names":["nb_a"]},"expect":{"delete":["nb_gone"]}}
+  ]
+}

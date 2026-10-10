@@ -1,0 +1,11 @@
+<svg width="500" height="500" viewBox="0 0 500 500" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="500" height="500" rx="100" fill="url(#books_gradient)"/>
+<path d="M242 180 C210 157, 168 149, 141 154 C133.5 155.5, 128 162, 128 169 L128 325 C128 333.5, 136 340, 144.5 338.3 C170 333.5, 208 340, 242 361 Z" fill="white"/>
+<path d="M258 180 C290 157, 332 149, 359 154 C366.5 155.5, 372 162, 372 169 L372 325 C372 333.5, 364 340, 355.5 338.3 C330 333.5, 292 340, 258 361 Z" fill="white"/>
+<defs>
+<linearGradient id="books_gradient" x1="126" y1="388" x2="424" y2="123" gradientUnits="userSpaceOnUse">
+<stop stop-color="#EE7D00"/>
+<stop offset="1" stop-color="#FFB03C"/>
+</linearGradient>
+</defs>
+</svg>

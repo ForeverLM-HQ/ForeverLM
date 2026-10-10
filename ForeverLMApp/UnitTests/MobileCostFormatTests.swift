@@ -1,0 +1,112 @@
+import Testing
+@testable import ForeverLM
+
+// How spend reads on the phone (`MobileCostFormat`), and the one piece of the
+// realtime rate card usage history still needs: the cached part of an old
+// realtime charge, reconstructed from its model and token count. Realtime
+// voice went on 2026-10-01; its rows stay in the ledger and must still read
+// right.
+struct MobileCostFormatTests {
+    /// A chat turn often costs a fraction of a cent. Dollars with two
+    /// decimals would render that as "$0.00" — reading as free, which is the
+    /// one thing a cost display must never do. Cents keep a real figure.
+    @Test("Sub-cent spend shows a real figure in cents")
+    func subCentCostShowsRealFigure() {
+        // $0.004 is four tenths of a cent.
+        #expect(MobileCostFormat.cents(0.004) == "0.40¢")
+        #expect(MobileCostFormat.spokenCents(0.004) == "0.40 cents")
+    }
+
+    @Test("Precision widens as the amount shrinks")
+    func precisionWidensForSmallAmounts() {
+        #expect(MobileCostFormat.cents(0.42) == "42¢")       // 42 cents
+        #expect(MobileCostFormat.cents(0.042) == "4.2¢")     // 4.2 cents
+        #expect(MobileCostFormat.cents(0.0042) == "0.42¢")   // 0.42 cents
+    }
+
+    /// Below a hundredth of a cent even two decimals print 0.00, so that case
+    /// states a bound instead of claiming zero.
+    @Test("Vanishingly small spend states a bound, never zero")
+    func vanishinglySmallSpendIsBounded() {
+        #expect(MobileCostFormat.cents(0.00000001) == "<0.01¢")
+    }
+
+    @Test("Only genuine zero renders as zero")
+    func zeroCostRendersAsZero() {
+        #expect(MobileCostFormat.cents(0) == "0¢")
+        #expect(MobileCostFormat.spokenCents(0) == "zero cents")
+    }
+
+    @Test("Chat spend renders in USD without hiding sub-cent cost")
+    func chatSpendRendersInUSD() {
+        #expect(MobileCostFormat.chatUSD(0) == "$0.0000")
+        #expect(MobileCostFormat.chatUSD(0.004) == "$0.0040")
+        #expect(MobileCostFormat.chatUSD(0.42) == "$0.42")
+        #expect(MobileCostFormat.chatUSD(0.00000001) == "<$0.0001")
+    }
+
+    @Test("Spoken form spells the unit for VoiceOver")
+    func spokenFormSpellsCents() {
+        #expect(MobileCostFormat.spokenCents(0.42) == "42 cents")
+    }
+
+    /// The account balance stays in dollars — a standing amount in the tens of
+    /// dollars would read as "362¢".
+    @Test("Balance renders as dollars")
+    func balanceRendersAsDollars() {
+        #expect(MobileCostFormat.usd(3.6231).contains("3.62"))
+    }
+
+    @Test("Cache hit rate renders as a whole percentage")
+    func hitRateRendersAsPercent() {
+        #expect(MobileCostFormat.percent(0.75).contains("75"))
+    }
+
+    @Test("Historic standard cached charge is exact after margin")
+    func historicStandardCachedChargeIsExact() throws {
+        let range = try #require(
+            MobileRealtimeRates.historicCachedBilledCostRange(
+                model: "gpt-realtime-2.1",
+                cachedInputTokens: 1_000_000
+            )
+        )
+        #expect(range.lowerBound == 460_000)
+        #expect(range.upperBound == 460_000)
+    }
+
+    @Test("Historic mini cached charge preserves the lost modality range")
+    func historicMiniCachedChargePreservesRange() throws {
+        let range = try #require(
+            MobileRealtimeRates.historicCachedBilledCostRange(
+                model: "gpt-realtime-2.1-mini",
+                cachedInputTokens: 1_000_000
+            )
+        )
+        #expect(range.lowerBound == 69_000)
+        #expect(range.upperBound == 345_000)
+    }
+
+    @Test("Historic cached charge fails closed for an unknown model")
+    func historicUnknownCachedChargeIsUnpriced() {
+        #expect(
+            MobileRealtimeRates.historicCachedBilledCostRange(
+                model: "gpt-realtime-9",
+                cachedInputTokens: 1_000
+            ) == nil
+        )
+    }
+
+    /// Gemini Live had no cache discount, so its cached tokens were billed at
+    /// the input rate, text and audio apart.
+    @Test("Historic Gemini Live cached charge keeps its two input rates")
+    func historicGeminiCachedChargeKeepsItsRates() throws {
+        let range = try #require(
+            MobileRealtimeRates.historicCachedBilledCostRange(
+                model: "gemini-3.1-flash-live-preview",
+                cachedInputTokens: 1_000_000
+            )
+        )
+        #expect(range.lowerBound == 862_500)
+        #expect(range.upperBound == 3_450_000)
+    }
+}

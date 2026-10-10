@@ -1,0 +1,614 @@
+import Foundation
+import OSLog
+
+// MARK: - Memory as cards: the sources' draft decks
+//
+// docs/memory-design.md, "Cards to check". A drafted card waits in its
+// source's deck until the learner keeps or skips it in To Check
+// (`MemoryCardTriageWriter`). Under generation 2 (an activated store) the deck
+// is the source's Cards: each draft a `Card` with status `draft`, its wording
+// in its `draft`, synced to every device (`KnowledgeStore+CardRecords`). Under
+// generation 1 it is a private Artifact of kind `.flashcards` under the fixed
+// id `carddeck-<sourceID>`, no home Notebook, no Notebook links, no team,
+// grounded on its source, its body the deck format (`FlashcardDeck`), only
+// ever appended to. Nothing here spends: the cards come from an assistant
+// (`save_card_drafts`) or from ForeverLM's own drafting.
+
+/// What `saveCardDrafts` did with one source's drafts.
+struct MemoryCardDraftsSaved: Equatable, Sendable {
+    let sourceID: String
+    let deckID: String
+    /// The drafts added to the deck, as it holds them.
+    var added: [Flashcard] = []
+    /// Drafts the deck already holds — the same id, seed or front: drafted
+    /// before, and kept or skipped since, so never offered twice.
+    var alreadyDrafted: [Flashcard] = []
+    /// Drafts whose quote the source's text does not print (or that quote
+    /// nothing): not saved, since a card is kept only on a passage its source
+    /// prints.
+    var ungrounded: [Flashcard] = []
+    /// Drafts the deck's Markdown would not give back whole: not saved rather
+    /// than saved changed.
+    var unreadable: [Flashcard] = []
+    /// The id a saved draft was given by the caller, by the id it was saved
+    /// under, where they differ: under generation 2 a seeded draft is saved as
+    /// its source's Card for that seed (`card:<deckSourceID>:<seedKey>`).
+    var givenIDs: [String: String] = [:]
+
+    /// The id the caller gave `card`.
+    func givenID(of card: Flashcard) -> String { givenIDs[card.id] ?? card.id }
+}
+
+extension StorageService {
+    private static let cardDraftsLogger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM",
+        category: "MemoryCards"
+    )
+
+    /// Adds drafted cards to `sourceID`'s draft deck: under generation 2 as
+    /// draft Cards (`saveCardDraftRecords`), under generation 1 into the
+    /// deck's Artifact, made the first time. Either is the learner's own
+    /// record, private wherever the cards were asked for, so it never follows
+    /// a notebook into a team. Each draft's
+    /// quote is checked against the source's text (`MemoryGroundingText`, the
+    /// matcher Keep grounds with); a draft the source does not print is
+    /// returned in `ungrounded` and never saved. A draft is added only when
+    /// its id, seed and front are new to the deck (`FlashcardDeck.appending`);
+    /// nothing already in the deck changes. Nothing is written when nothing is
+    /// added. Throws for a source the library does not hold, one with no
+    /// text, and a deck whose body is still downloading from iCloud.
+    ///
+    /// The drafts' own `sourceID` is replaced by the deck's; their ids, seeds,
+    /// times, origin and `isRequested` are kept as given (`Flashcard.mint`
+    /// makes one). A team's copy of a source is drafted onto the learner's own
+    /// source at the same address when they hold one, as a kept card is
+    /// anchored (docs/teams-design.md, decision 19); `result.sourceID` names
+    /// the source the deck is for.
+    @discardableResult
+    func saveCardDrafts(
+        _ drafts: [Flashcard],
+        sourceID requestedSourceID: String,
+        sourceTitle: String,
+        stateDefaults: UserDefaults = .standard,
+        now: Date = Date()
+    ) throws -> MemoryCardDraftsSaved {
+        let store = try notebookFilesKnowledgeStore()
+        guard let requested = try store.loadSourceWithoutContent(requestedSourceID) else {
+            throw KnowledgeStoreError.invalidData("Source \(requestedSourceID) is not in the library.")
+        }
+        var sourceID = requestedSourceID
+        if requested.teamID != nil,
+           let own = store.activeSourceID(matchingAddress: requested.url, teamID: nil) {
+            sourceID = own
+        }
+        let deckID = MemoryCard.draftDeckID(sourceID: sourceID)
+        var result = MemoryCardDraftsSaved(sourceID: sourceID, deckID: deckID)
+        guard let content = try store.loadSourceContent(sourceID),
+              !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw KnowledgeStoreError.invalidData("Source \(sourceID) has no text yet, so no card can stand on a passage of it.")
+        }
+        let grounding = MemoryGroundingText(content)
+        var grounded: [Flashcard] = []
+        for draft in drafts {
+            var card = draft
+            card.sourceID = sourceID
+            card.sourceTitle = sourceTitle
+            card = card.asWritten
+            guard let quote = card.quote, grounding.contains(quote) else {
+                result.ungrounded.append(card)
+                continue
+            }
+            grounded.append(card)
+        }
+        if try store.recordsMemoryForGeneration2() {
+            try saveCardDraftRecords(grounded, sourceID: sourceID, content: content, into: &result, store: store, now: now)
+            return result
+        }
+
+        let existing = try store.loadArtifact(deckID)
+        let current: FlashcardDeck
+        let revision: String?
+        if let existing {
+            let snapshot = try artifactMarkdown(deckID)
+            current = FlashcardDeck.parse(snapshot.markdown, fallbackTitle: existing.title)
+            revision = snapshot.revision
+        } else {
+            current = FlashcardDeck(title: FlashcardDeck.title(forSourceTitle: sourceTitle))
+            revision = nil
+        }
+        // A draft that lapsed unseen does not hold its seed or front.
+        let lapsed = MemoryCardTriage.lapsedDraftIDs(
+            current,
+            state: MemoryCardStateStore.load(deckID: deckID, defaults: stateDefaults),
+            itemIDs: Set(try store.memoryItemIDs(anchoredOn: sourceID)),
+            now: now
+        )
+        let appended = current.appending(grounded, ignoring: lapsed)
+        result.added = appended.added
+        result.alreadyDrafted = appended.alreadyDrafted
+        result.unreadable = appended.unreadable
+        guard !appended.added.isEmpty else { return result }
+
+        if let revision {
+            let written = try writeArtifactMarkdown(
+                artifactID: deckID,
+                markdown: appended.deck.markdown,
+                expectedRevision: revision
+            )
+            try keepDeckPrivate(written.artifact, sourceID: sourceID, store: store)
+        } else {
+            _ = try createArtifact(
+                title: appended.deck.title,
+                homeNotebookID: nil,
+                linkedNotebookIDs: [],
+                markdown: appended.deck.markdown,
+                teamID: nil,
+                artifactID: deckID,
+                sourceIDs: [sourceID],
+                kind: .flashcards
+            )
+        }
+        scheduleSoonCloudKitSyncForCardDrafts()
+        return result
+    }
+
+    /// Generation 2's half of `saveCardDrafts`: the grounded drafts appended to the source's deck of
+    /// Cards by the deck's rules (`FlashcardDeck.appending`: an id, seed or front the deck holds is drafted
+    /// already; a draft that lapsed unseen holds none of them), each new one saved as a draft Card. A
+    /// seeded draft takes its seed's Card id, `card:<deckSourceID>:<seedKey>`, so two Macs drafting one
+    /// seed make one Card; when a Card already has that id (a draft of the seed that lapsed), the draft
+    /// keeps the id it was minted with. A Card is never written over.
+    private func saveCardDraftRecords(
+        _ grounded: [Flashcard],
+        sourceID: String,
+        content: String,
+        into result: inout MemoryCardDraftsSaved,
+        store: KnowledgeStore,
+        now: Date
+    ) throws {
+        let deck = try store.cardRecordDecks(sourceIDs: [sourceID]).first?.deck ?? FlashcardDeck(title: "")
+        let state = try store.cardRecordStates(deckSourceIDs: [sourceID])[result.deckID] ?? MemoryCardDeckState()
+        let lapsed = MemoryCardTriage.lapsedDraftIDs(deck, state: state, itemIDs: Set(try store.memoryItemIDs(anchoredOn: sourceID)), now: now)
+        var givenIDs: [String: String] = [:]
+        var named: [Flashcard] = []
+        for card in grounded {
+            guard let seed = card.seed else {
+                named.append(card)
+                continue
+            }
+            let id = SyncIdentity.cardDraftID(deckSourceID: sourceID, seedKey: seed)
+            if try store.cardRecordExists(id) || named.contains(where: { $0.id == id }) {
+                named.append(card)
+                continue
+            }
+            givenIDs[id] = card.id
+            named.append(Flashcard(
+                id: id, front: card.front, back: card.back, why: card.why, sourceID: card.sourceID, sourceTitle: card.sourceTitle,
+                quote: card.quote, difficulty: card.difficulty, seed: card.seed, ideaID: card.ideaID, draftedAt: card.draftedAt,
+                origin: card.origin, isRequested: card.isRequested, frontImages: card.frontImages, backImages: card.backImages
+            ))
+        }
+        let appended = FlashcardDeck(title: deck.title, cards: deck.cards.filter { !lapsed.contains($0.id) }).appending(named)
+        result.added = appended.added
+        result.alreadyDrafted = appended.alreadyDrafted
+        result.unreadable = appended.unreadable
+        result.givenIDs = givenIDs.filter { id, _ in appended.added.contains { $0.id == id } }
+        guard !appended.added.isEmpty else { return }
+        try store.saveCardDraftRecords(appended.added, deckSourceID: sourceID, textHash: PaperContentPreparationService.sha256(content))
+        scheduleSoonCloudKitSyncForCardDrafts()
+        MemoryCardStateStore.reload()
+    }
+
+    /// A deck record an older build saved back — as a Doc, its kind dropped,
+    /// perhaps filed under a Notebook — is put back to what a deck is: kind
+    /// `.flashcards`, no home, no Notebook links, grounded on its source.
+    private func keepDeckPrivate(_ record: ArtifactRecord, sourceID: String, store: KnowledgeStore) throws {
+        guard record.kind != .flashcards || record.homeNotebookID != nil
+                || !record.linkedNotebookIDs.isEmpty || record.sourceIDs != [sourceID] else { return }
+        if record.homeNotebookID != nil || !record.linkedNotebookIDs.isEmpty {
+            Self.cardDraftsLogger.notice("Took draft deck \(record.id, privacy: .public) out of the Notebooks an older build filed it under")
+        }
+        var repaired = record
+        repaired.kind = .flashcards
+        repaired.homeNotebookID = nil
+        repaired.linkedNotebookIDs = []
+        repaired.sourceIDs = [sourceID]
+        repaired.updatedAt = Date()
+        try store.saveArtifactRecord(repaired)
+    }
+
+    /// Every source's draft deck: under generation 2 its Cards
+    /// (`KnowledgeStore.cardRecordDecks`); under generation 1 its Artifact,
+    /// read and parsed, a deck whose body is not on this Mac yet (iCloud
+    /// still downloading it) or cannot be read left out, and logged, until
+    /// it can be.
+    func loadCardDrafts() throws -> [MemoryCardDraftDeck] {
+        try loadCardDrafts(forSourceIDs: nil)
+    }
+
+    /// The draft decks of `sourceIDs` alone, read and parsed, as
+    /// `loadCardDrafts` reads every one: a notebook's Studio reads its own
+    /// sources' decks for its Make Cards runs (`NotebookOutputs.cardRuns`)
+    /// without parsing the library's. Nil reads every deck.
+    func loadCardDrafts(forSourceIDs sourceIDs: Set<String>?) throws -> [MemoryCardDraftDeck] {
+        if let sourceIDs, sourceIDs.isEmpty { return [] }
+        let store = try notebookFilesKnowledgeStore()
+        if try store.recordsMemoryForGeneration2() { return try store.cardRecordDecks(sourceIDs: sourceIDs) }
+        var decks: [MemoryCardDraftDeck] = []
+        for record in try store.loadArtifacts(listing: .cardDecksOnly) {
+            guard let sourceID = MemoryCard.sourceID(fromDraftDeckID: record.id) ?? record.sourceIDs.first else { continue }
+            if let sourceIDs, !sourceIDs.contains(sourceID) { continue }
+            do {
+                let snapshot = try artifactMarkdown(record.id)
+                decks.append(MemoryCardDraftDeck(
+                    deckID: record.id,
+                    sourceID: sourceID,
+                    deck: FlashcardDeck.parse(snapshot.markdown, fallbackTitle: record.title)
+                ))
+            } catch {
+                Self.cardDraftsLogger.notice(
+                    "Draft deck \(record.id, privacy: .public) is not readable yet: \(error.localizedDescription, privacy: .public)"
+                )
+            }
+        }
+        return decks
+    }
+}
+
+extension StorageService {
+    /// How storage reads a deck's state for the card readers (To Check, drafting, Practice): under
+    /// generation 2 every deck's from the Card rows, read once now, so a state another device wrote is
+    /// what they read; under generation 1 a deck's `cards.state.<deckID>` row from `stateDefaults`.
+    func cardDeckStates(stateDefaults: UserDefaults) throws -> (String) -> MemoryCardDeckState {
+        let store = try notebookFilesKnowledgeStore()
+        if try store.recordsMemoryForGeneration2() {
+            let decks = try store.cardRecordStates()
+            return { decks[$0] ?? MemoryCardDeckState() }
+        }
+        return { MemoryCardStateStore.preferenceRow(deckID: $0, defaults: stateDefaults) }
+    }
+}
+
+// MARK: - The cards a chat saved
+
+/// One card a chat saved, as the reply's cards draw it: its face and where it
+/// stands now (docs/memory-design.md, "The cards in the chat").
+struct ChatSavedCard: Equatable, Identifiable, Sendable {
+    enum Standing: Equatable, Sendable {
+        /// Waiting in To Check, as To Check offers it: what Keep decides.
+        case toCheck(MemoryCardToCheck)
+        case kept
+        case skipped
+        /// Neither kept nor skipped, and no longer offered: drafted more than
+        /// 14 days ago, or a twin of a card gone through, or its source gone.
+        case notOffered
+    }
+
+    let id: String
+    let sourceID: String
+    let face: MemoryCard
+    /// The passage it quotes, which Show Passage opens.
+    let quote: String?
+    let standing: Standing
+
+    var toCheck: MemoryCardToCheck? {
+        if case .toCheck(let card) = standing { return card }
+        return nil
+    }
+}
+
+extension StorageService {
+    /// The cards `cards` names, in its order, each with where it stands: one
+    /// To Check would offer is `.toCheck` with the entry To Check holds (the
+    /// same `MemoryCardTriage.toCheck` read over the named sources' decks);
+    /// any other is kept or skipped by its deck's state, kept when its item
+    /// exists, else no longer offered. A card no named deck holds is left
+    /// out. Reading writes nothing.
+    func chatSavedCards(
+        _ cards: ChatSavedCards,
+        now: Date = Date(),
+        stateDefaults: UserDefaults = .standard
+    ) throws -> [ChatSavedCard] {
+        let store = try notebookFilesKnowledgeStore()
+        let decks = try loadCardDrafts(forSourceIDs: Set(cards.sourceIDs))
+        let deckStates = try cardDeckStates(stateDefaults: stateDefaults)
+        let available = try store.memoryCardDraftSourcesAvailable(Set(decks.map(\.sourceID)))
+        let itemIDs = Set(try store.loadAllMemoryItemIDs())
+        var states: [String: MemoryCardDeckState] = [:]
+        for deck in decks { states[deck.deckID] = deckStates(deck.deckID) }
+        let offered = MemoryCardTriage.toCheck(
+            decks: decks.filter { available.contains($0.sourceID) },
+            deckStates: states,
+            itemIDs: itemIDs,
+            legacyItems: [],
+            attemptsByItemID: [:],
+            now: now
+        )
+        let offeredByID: [String: MemoryCardToCheck] = Dictionary(
+            offered.map { ($0.cardID, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        var found: [String: ChatSavedCard] = [:]
+        for deck in decks {
+            for card in deck.deck.cards where cards.cardIDs.contains(card.id) && found[card.id] == nil {
+                let state = states[deck.deckID]?.cards[card.id]
+                let standing: ChatSavedCard.Standing
+                if let entry = offeredByID[card.id] {
+                    standing = .toCheck(entry)
+                } else if state?.status == .kept
+                            || itemIDs.contains(card.id)
+                            || itemIDs.contains(MemoryTutorIdentity.cardItemID(cardID: card.id)) {
+                    standing = .kept
+                } else if state?.status == .skipped {
+                    standing = .skipped
+                } else {
+                    standing = .notOffered
+                }
+                found[card.id] = ChatSavedCard(
+                    id: card.id,
+                    sourceID: deck.sourceID,
+                    face: MemoryCard(
+                        cardID: card.id,
+                        front: state?.editedFront ?? card.front,
+                        back: card.back,
+                        why: card.why.map { [$0] } ?? [],
+                        origin: card.origin ?? .drafted,
+                        difficulty: card.difficulty,
+                        deckID: deck.deckID,
+                        frontImages: card.frontImages,
+                        backImages: card.backImages
+                    ),
+                    quote: card.quote,
+                    standing: standing
+                )
+            }
+        }
+        return cards.cardIDs.compactMap { found[$0] }
+    }
+}
+
+// MARK: - Going through the cards to check
+
+/// Writes what the learner decided in To Check, or what `triage_cards` was
+/// asked: the Memory items first, through storage, then each deck's state
+/// once, on the main actor (`MemoryCardStateStore.update`: the decided cards'
+/// Card rows under generation 2, the `cards.state.<deckID>` row under
+/// generation 1), so the state never says kept before the item exists; under
+/// generation 2 it returns once the rows landed, so the caller's next read of
+/// the cards sees them. A decision storage refuses is reported and leaves its
+/// card to check.
+///
+/// - Keep a draft: its item is made once (`keepMemoryCard`), on its quote,
+///   checked again against the source's text; the row marks it kept with its
+///   seed. Edit, then Keep: the same, in the learner's words.
+/// - Skip a draft: the row marks it skipped; its seed is never drafted again.
+/// - Keep an item from before cards: it is kept already, so only its row
+///   says it was gone through. Edit, then Keep: a new front alone rewords it
+///   in the row; a new back or why starts it over (`startMemoryCardOver`).
+/// - Skip an item from before cards: it is retired, never asked again, and
+///   its row marks it skipped.
+enum MemoryCardTriageWriter {
+    @MainActor
+    static func apply(
+        _ decisions: [MemoryCardTriageDecision],
+        storage: StorageService,
+        defaults: UserDefaults = .standard,
+        at now: Date = Date()
+    ) async -> MemoryCardTriageResult {
+        var result = MemoryCardTriageResult()
+        var rowChanges: [String: [(inout MemoryCardDeckState) -> Void]] = [:]
+        var deckOrder: [String] = []
+        func change(_ deckID: String, _ body: @escaping (inout MemoryCardDeckState) -> Void) {
+            if rowChanges[deckID] == nil { deckOrder.append(deckID) }
+            rowChanges[deckID, default: []].append(body)
+        }
+        func fail(_ card: MemoryCardToCheck, _ reason: String) {
+            result.failed.append(MemoryCardTriageResult.Failure(cardID: card.cardID, reason: reason))
+        }
+
+        var seen = Set<String>()
+        for decision in decisions where seen.insert(decision.card.cardID).inserted {
+            let card = decision.card
+            switch (card.kind, decision.action) {
+            case (.draft, .keep), (.draft, .keepEdited):
+                let face: MemoryCard?
+                if case .keepEdited(let edit) = decision.action {
+                    face = MemoryCardTriage.editedFace(card, edit)
+                } else {
+                    face = card.face
+                }
+                guard let face else {
+                    fail(card, "A card needs a front and a back to be kept.")
+                    continue
+                }
+                guard let quote = card.quote else {
+                    fail(card, "This card quotes no passage of its source, so it cannot be kept.")
+                    continue
+                }
+                do {
+                    let item = try await storage.keepMemoryCard(
+                        face,
+                        sourceID: card.sourceID,
+                        quote: quote,
+                        ideaID: card.ideaID,
+                        at: now
+                    )
+                    result.kept.append(MemoryCardTriageResult.Kept(cardID: card.cardID, memoryItemID: item.id))
+                    let seed = card.seed
+                    change(card.deckID) { $0.markKept(cardID: card.cardID, memoryItemID: item.id, seed: seed, at: now) }
+                } catch {
+                    fail(card, error.localizedDescription)
+                }
+            case (.draft, .skip):
+                result.skipped.append(card.cardID)
+                let seed = card.seed
+                change(card.deckID) { $0.markSkipped(cardID: card.cardID, seed: seed, at: now) }
+            case (.legacy, .keep):
+                guard let itemID = card.memoryItemID else {
+                    fail(card, "This card's Memory item is not in the library.")
+                    continue
+                }
+                result.kept.append(MemoryCardTriageResult.Kept(cardID: card.cardID, memoryItemID: itemID))
+                change(card.deckID) { $0.markKept(cardID: card.cardID, memoryItemID: itemID, at: now) }
+            case (.legacy, .keepEdited(let edit)):
+                guard let itemID = card.memoryItemID else {
+                    fail(card, "This card's Memory item is not in the library.")
+                    continue
+                }
+                guard !edit.front.isEmpty, !edit.back.isEmpty else {
+                    fail(card, "A card needs a front and a back to be kept.")
+                    continue
+                }
+                if edit.back == card.face.back, edit.why == card.face.why {
+                    // A new front alone rewords the card: its item and its
+                    // schedule are untouched.
+                    let reworded: String? = edit.front == card.face.front ? nil : edit.front
+                    result.kept.append(MemoryCardTriageResult.Kept(cardID: card.cardID, memoryItemID: itemID))
+                    change(card.deckID) { row in
+                        row.markKept(cardID: card.cardID, memoryItemID: itemID, at: now)
+                        row.cards[card.cardID]?.editedFront = reworded
+                    }
+                } else {
+                    // A new answer starts the card over under a new card id,
+                    // as All Cards does; the writer of the items from before
+                    // cards was the walkthrough question writer.
+                    let revision = MemoryCard(
+                        cardID: UUID().uuidString.lowercased(),
+                        front: edit.front,
+                        back: edit.back,
+                        why: edit.why,
+                        origin: .walkthrough,
+                        difficulty: card.face.difficulty
+                    )
+                    do {
+                        let item = try await storage.startMemoryCardOver(memoryItemID: itemID, as: revision, at: now)
+                        result.kept.append(MemoryCardTriageResult.Kept(cardID: card.cardID, memoryItemID: item.id))
+                        change(card.deckID) { row in
+                            row.markKept(cardID: card.cardID, memoryItemID: itemID, at: now)
+                            row.recordStartOver(from: card.cardID, to: revision.cardID, newMemoryItemID: item.id, at: now)
+                        }
+                    } catch {
+                        fail(card, error.localizedDescription)
+                    }
+                }
+            case (.legacy, .skip):
+                guard let itemID = card.memoryItemID else {
+                    fail(card, "This card's Memory item is not in the library.")
+                    continue
+                }
+                do {
+                    try await storage.retireMemoryCard(memoryItemID: itemID, at: now)
+                    result.skipped.append(card.cardID)
+                    change(card.deckID) { $0.markSkipped(cardID: card.cardID, at: now) }
+                } catch {
+                    fail(card, error.localizedDescription)
+                }
+            }
+        }
+
+        for deckID in deckOrder {
+            let changes = rowChanges[deckID] ?? []
+            MemoryCardStateStore.update(deckID: deckID, defaults: defaults) { row in
+                for change in changes { change(&row) }
+            }
+        }
+        await MemoryCardStateStore.settled(defaults: defaults)
+        return result
+    }
+}
+
+// MARK: - Changing a kept card
+
+/// What a change to a kept card writes, shared by All Cards' editor and menu
+/// and `update_card` (docs/memory-design.md, "Cards: identity and Keep"):
+///
+/// - a new front alone rewords the card in its deck's state (`editedFront`:
+///   the Card's `front` variant under generation 2, the `cards.state.<deckID>`
+///   row under generation 1); the item and its schedule are untouched, and the
+///   front it was kept with clears the rewording;
+/// - a new back or why starts it over: the item is retired with its answers
+///   and a revision under a new card id is kept on the same passages, first
+///   asked the day after (`KnowledgeStore.startMemoryCardOver`), then
+///   recorded in the row (`MemoryCardDeckState.recordStartOver`).
+///
+/// "Always ask it this way" is `MemoryCardStateStore.setAlwaysAsk`, and
+/// retiring is `StorageService.retireMemoryCard`. The rows are written on the
+/// main actor, after the item, never while a lock is held.
+enum MemoryCardEditWriter {
+    /// The deck whose `cards.state.<deckID>` row holds a kept card's state:
+    /// the deck it was kept from, else its anchor source's
+    /// (`MemoryCard.stateDeckID`).
+    static func stateDeckID(_ card: MemoryCardListing) -> String? {
+        card.face.deckID ?? card.sourceIDs.first.map(MemoryCard.draftDeckID(sourceID:))
+    }
+
+    /// The card's own wording now: the learner's rewording, else its front.
+    static func wording(_ card: MemoryCardListing, defaults: UserDefaults = .standard) -> String {
+        let state = stateDeckID(card).flatMap {
+            MemoryCardStateStore.state(cardID: card.face.cardID, deckID: $0, defaults: defaults)
+        }
+        return card.face.wording(state: state)
+    }
+
+    /// A new front alone: the card reworded in its row, its item and schedule
+    /// untouched. False, with nothing written, when the front is empty or is
+    /// the wording the card is asked in already.
+    @MainActor
+    @discardableResult
+    static func reword(
+        _ card: MemoryCardListing,
+        front: String,
+        defaults: UserDefaults = .standard,
+        at now: Date = Date()
+    ) -> Bool {
+        let front = front.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !front.isEmpty, front != wording(card, defaults: defaults),
+              let deckID = stateDeckID(card) else { return false }
+        let face = card.face
+        let reworded: String? = front == face.front ? nil : front
+        MemoryCardStateStore.update(deckID: deckID, defaults: defaults) { row in
+            var state = row.cards[face.cardID] ?? MemoryCardState(status: .kept, memoryItemID: card.itemID, updatedAt: now)
+            state.status = .kept
+            state.memoryItemID = card.itemID
+            state.editedFront = reworded
+            state.updatedAt = now
+            row.cards[face.cardID] = state
+        }
+        return true
+    }
+
+    /// "Start this card over?": the card retired with its answers and its
+    /// revision kept under a new card id, in `edit`'s words or, with none, as
+    /// it is asked now. A card from before cards was made by the
+    /// walkthrough-question writer, which course quizzes shared, so its
+    /// revision says `walkthrough`. Returns the revision's card id and item.
+    @MainActor
+    static func startOver(
+        _ card: MemoryCardListing,
+        edit: MemoryCardEdit?,
+        storage: StorageService,
+        defaults: UserDefaults = .standard,
+        at now: Date = Date()
+    ) async throws -> (cardID: String, item: MemoryItem) {
+        let face = card.face
+        let revision = MemoryCard(
+            cardID: UUID().uuidString,
+            front: edit?.front ?? wording(card, defaults: defaults),
+            back: edit?.back ?? face.back,
+            why: edit?.why ?? face.why,
+            origin: face.origin == .legacy ? .walkthrough : face.origin,
+            difficulty: face.difficulty,
+            deckID: face.deckID,
+            frontImages: edit?.frontImages ?? face.frontImages,
+            backImages: edit?.backImages ?? face.backImages
+        )
+        let item = try await storage.startMemoryCardOver(memoryItemID: card.itemID, as: revision, at: now)
+        if let deckID = stateDeckID(card) {
+            MemoryCardStateStore.update(deckID: deckID, defaults: defaults) { row in
+                row.recordStartOver(from: face.cardID, to: revision.cardID, newMemoryItemID: item.id, at: now)
+            }
+        }
+        await MemoryCardStateStore.settled(defaults: defaults)
+        return (revision.cardID, item)
+    }
+}

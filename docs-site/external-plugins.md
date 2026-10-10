@@ -1,0 +1,124 @@
+---
+layout: doc
+title: Plugins
+---
+
+# Plugins
+
+Plugins are optional. Open **Settings -> Plugins** to see each plugin and its connection status, then select one to set it up. Every built-in plugin, Slack included, shows **Connected** or **Not connected** in the list.
+
+Plugins run only after you explicitly connect them. ForeverLM never scans X or YouTube on app startup. A selected Google Drive folder refreshes on app activation, when its tab opens, or when you refresh Studio.
+
+There is no Zotero or Paperpile plugin, by design. A paper has to live in your ForeverLM library, its PDF in your iCloud container, before the app can search it, read it aloud, chat about it, or review you on it, and a plugin that pointed at a record in another database would enable none of that. The route is a one-time import instead, from setup's Papers step or by an assistant with the ForeverLM plugin; see [Papers](/papers#coming-from-a-reference-manager).
+
+Don't see your service here? You can [build your own plugin](/build-your-own-plugin) for any service you can reach with code — it runs on your side with ingest-only access, and an AI assistant can write it for you in minutes. The guide includes Read AI as a worked example.
+
+## Google Drive
+
+Use the Google Drive plugin to import meeting recordings, transcripts, and notes from folders you choose. Drive shortcuts are followed to their underlying files, so shared Meet recordings and transcript Docs import the same way as files owned directly in the selected folder.
+
+1. In ForeverLM, open **Settings -> Plugins -> Google Drive**.
+2. Select **Connect and Choose Folder**.
+3. Sign in with Google and choose a meeting folder.
+4. Grant read-only Drive access with the same Google account.
+
+Google Picker's `drive.file` permission covers only the folder object you select; Google does not extend it to files already inside that folder or files added later. A working folder plugin therefore also requires Google's read-only Drive permission (`drive.readonly`). That permission can read files across your Drive, but ForeverLM's plugin traverses and imports only folders you explicitly link. OAuth tokens stay in your Apple Keychain and are not sent to ForeverLM servers.
+
+Connections made before this correction show **Reconnect needed**. Reconnect once, choose the folder again, and approve the read-only permission. The linked folder then refreshes when the Drive tab opens, when the app becomes active, or when you refresh Studio.
+
+Open an imported meeting recording and select **Find mentioned papers** to read its complete transcript and notes for academic papers participants explicitly discussed or recommended. A recording-only session is transcribed on-device first. Web Studio's **Find papers** reader action opens the same source in the Mac app and starts that scan. Resolved candidates can be added through the normal paper import pipeline; incomplete mentions remain visible as unmatched rather than being silently discarded. The same workflow is available to MCP assistants through `scan_meeting_for_mentioned_papers` and `list_video_cited_papers`.
+
+Opening a Drive meeting plays the recording in ForeverLM through the plugin's authenticated read-only session. The recording is kept only in the disposable app cache. If Google Drive supplies a transcript Doc, it appears as the **Transcript** section; if the meeting has only notes and a recording, ForeverLM transcribes the recording on-device when opened and syncs the transcript alongside the notes. Web Studio embeds the Drive preview and offers **Get transcript** when the Mac still needs to generate one.
+
+## Calendar
+
+The Calendar plugin makes the Mac's Calendar app your day. The **Now** chip at the bottom left of the Studio window shows today's events, and an assistant plans your day by adding events to the calendar, in a chat with `/plan` or from Claude or ChatGPT with the ForeverLM plugin.
+
+1. In ForeverLM, open **Settings -> Plugins -> Calendar** and click **Turn On**. macOS asks once whether ForeverLM may use your calendars.
+2. Under **Calendars in your day**, tick the calendars that make up your day. Until you change the list, every calendar but Birthdays is shown.
+3. Under **New events go to**, pick the calendar new events are added to, or leave it on the Calendar app's default.
+
+Access is granted to this Mac by macOS and never leaves it, and the calendar choice is this Mac's. ForeverLM writes only the events you or an assistant add, and never changes an event with other people on it; you change a meeting in the Calendar app. An event ForeverLM adds shows in the Calendar app at once and reaches your phone through your calendar account. **Turn Off** stops ForeverLM reading the calendar; every event stays where it is.
+
+### Google, Outlook and other calendars
+
+There is no separate Google Calendar plugin: ForeverLM reads whatever the Mac's Calendar holds.
+
+- To see a Google calendar, or a Microsoft 365, Exchange or Outlook calendar (where Teams meetings live), add the account in **System Settings -> Internet Accounts** and switch on **Calendars** for it. Its calendars then appear in the Calendar app and in ForeverLM's list.
+- To see a calendar you only have a link to, such as a published Outlook calendar or a class timetable, subscribe to it in the Calendar app with **File -> New Calendar Subscription…** and its `webcal://` or `.ics` link.
+
+A subscribed calendar is read-only, so it cannot be where new events go.
+
+## X Bookmarks
+
+Use the X plugin to sync saved X bookmarks into Studio as sources.
+
+1. In ForeverLM, open **Settings -> Plugins -> X**, or select the **X** tab in Studio.
+2. Click **Connect**.
+3. Sign in to X and approve ForeverLM's access.
+
+After connecting, use **Sync** on the X plugin page or **Sync Bookmarks** in the Studio X tab.
+
+There is no developer setup: ForeverLM supplies the production OAuth client and X API access. Each person authorizes only their own X account.
+
+## YouTube
+
+Use the YouTube plugin to import either **Liked videos** or videos from a playlist in your account named **ForeverLM**, and to follow any number of **channels**. The two import modes are mutually exclusive and can be changed later; followed channels sit alongside whichever one you pick.
+
+The plugin imports **metadata only** — a video's transcript (and slides) are fetched on demand the first time you open or review it, not when it's imported.
+
+Connecting YouTube is read-only. ForeverLM reads only the source you select.
+
+### Set Up YouTube
+
+1. In ForeverLM, open **Settings -> Plugins**.
+2. Select **YouTube** and click **Connect**. Google asks you to grant read-only access to your YouTube account.
+
+There is no Google Cloud setup: YouTube signs in against ForeverLM's own OAuth client.
+
+ForeverLM opens a temporary `127.0.0.1` callback while Google sign-in is in progress, and requests this Google scope:
+
+```text
+https://www.googleapis.com/auth/youtube.readonly
+```
+
+### Choose What to Import
+
+After connecting, choose one source:
+
+- **Liked videos** — choose whether to import existing and future likes or only future likes. Raw transcripts are imported automatically. AI formatting is a separate opt-in because formatting a large history can use substantial credits.
+- **ForeverLM playlist** — create a playlist in YouTube named exactly `ForeverLM`; all of its current videos import, and later changes stay in sync. The playlist may be public, unlisted, or private.
+
+If more than one playlist is named ForeverLM, rename the extras before selecting it. Switching sources keeps videos already imported and changes what ForeverLM follows from then on.
+
+### Follow Channels
+
+Under **Followed channels**, paste a channel's address (`youtube.com/@handle`, `/channel/UC…`, or an older `/c/` or `/user/` link) or just its `@handle` and click **Follow**. ForeverLM resolves the channel, imports its newest 50 uploads into a group named after the channel in the YouTube tab, and from then on imports every new upload with the plugin's refresh. Nothing is archived when a video leaves a channel.
+
+The back catalog beyond those 50 stays on YouTube; to bring an older run of videos in, add the channel's uploads or a curated playlist as a course. **Stop Following** keeps the videos already imported. Transcripts follow the same rules as other plugin imports: captions are fetched on first open, and AI formatting only runs when **Format new transcripts automatically** is on.
+
+### Automatic Import
+
+Turn on **Automatically import new videos** to keep the selected source and every followed channel fresh. ForeverLM also refreshes them when you refresh the Videos tab.
+
+::: tip Watch Later is not available
+Google's YouTube Data API does not expose the Watch Later playlist, so it can't be followed. Liked videos and ordinary playlists are supported.
+:::
+
+## Slack
+
+Slack is managed in the app. The **Slack** row in **Settings -> Plugins** shows **Connected** or **Not connected**, and its pane lists every connected workspace with a switch per channel for what ForeverLM may read; a switch takes effect the moment it is flipped. **Connect Slack…** (or **Connect Another Workspace…**) opens Slack's own consent screen in a sheet over the window and finishes the connection without leaving the app, and each workspace card has **Disconnect…**, which revokes its tokens at Slack. The same page is still available at app.foreverlm.com/slack-connect for a browser you are already signed in to, and it is where a workspace connected before a newer read scope existed is asked to grant it again. ForeverLM reads Slack as you and never posts. The connection lives on your ForeverLM account, not on the Mac, so it survives restarts, updates and reinstalls; the Mac reaches it with its own Sign in with Apple session, which the app renews on its own while you keep using it. It also follows the account if Apple ever re-issues your Sign in with Apple identity, as a change to the app's Sign in with Apple grouping or developer team does: the first request from the new identity moves the workspace connections and their channel choices across, so nothing has to be connected again. The tools an assistant gets from it are listed in the [MCP Tools Reference](/mcp-tools#slack).
+
+You can connect more than one workspace. The Slack page lists every workspace on your account; choose one to pick its channels, and **Connect another workspace…** takes you back to Slack, which asks which workspace to add. Each workspace has its own channel choices and its own permissions, so a workspace connected before a permission existed is asked to grant it on its own. A chat reads and searches across all of them at once: every channel, message and file an assistant is shown says which workspace it came from. **Disconnect this workspace** revokes that workspace's tokens at Slack and leaves the others as they are; its channel choices are kept, so connecting it again brings them back.
+
+## Linear
+
+Linear is connected the same way, on the web: the **Linear** row in **Settings -> Plugins** links to the Linear page of your ForeverLM account, where you authorize one workspace. The connection is read-only by construction. ForeverLM asks Linear for the single `read` permission, reads issues, comments, teams and projects as you when a chat asks, and never creates, edits, comments on or assigns anything; there is no code path that writes to Linear. The row shows **Connected** or **Not connected** because the Mac asks the ForeverLM gateway that holds the grant, and the Linear pane says the same in a sentence with a button that reads **Connect Linear…** or **Manage Linear…**. Nothing read from Linear is kept between reads. The connection lives on your ForeverLM account, not on the Mac, and follows it if Apple re-issues your Sign in with Apple identity, as the Slack connection does. Linear's access tokens expire after a day; the gateway renews them on its own, and a grant Linear no longer honours is reported as a reconnect at the same page. **Disconnect Linear** on that page revokes the grant at Linear and forgets it. The tools an assistant gets from it are listed in the [MCP Tools Reference](/mcp-tools#linear).
+
+## GitHub
+
+GitHub is connected on the web too: the **GitHub** row in **Settings -> Plugins** links to the GitHub page of your ForeverLM account, where you authorize the ForeverLM GitHub App and choose where it is installed. Where ForeverLM can read is exactly where the App is installed: an organisation you administer, or your own account; **Add an organisation** on that page opens GitHub's install chooser, and `list_github_repositories` in a chat names the same link. The connection is read-only by construction. The App's permissions are Contents, Issues, Pull requests and Metadata, all read, and there is no code path that pushes, comments, merges or changes anything on GitHub; a chat that wants to act points you at the page. The row shows **Connected** or **Not connected** because the Mac asks the ForeverLM gateway that holds the grant, and the GitHub pane says the same in a sentence with a button that reads **Connect GitHub…** or **Manage GitHub…**. Nothing read from GitHub is kept between reads. The connection lives on your ForeverLM account, not on the Mac, and follows it if Apple re-issues your Sign in with Apple identity, as the Slack and Linear connections do. GitHub's user tokens expire after eight hours; the gateway renews them on its own, and a grant GitHub no longer honours is reported as a reconnect at the same page. **Disconnect GitHub** on that page revokes the grant at GitHub and forgets it. A notebook can be linked to the repository it is about, from the **Repository** section of its About on the Mac and in Web Studio or through the Project tools (`create_project`, `update_project`), so a chat in that notebook reads the right repository without being told. The tools an assistant gets from it are listed in the [MCP Tools Reference](/mcp-tools#github).
+
+## Notion
+
+Notion is connected on the web as well: the **Notion** row in **Settings -> Plugins** links to the Notion page of your ForeverLM account, where you authorize the ForeverLM connection in one workspace and tick the pages and databases it may read. What ForeverLM can read is exactly what you shared: to add a page later, open it in Notion and choose **Connections** in its **•••** menu. The connection is read-only by construction. Its capabilities are read content and read user information without email, and there is no code path that creates, edits, moves or comments on anything in Notion; a chat that wants to act points you at the page. The row shows **Connected** or **Not connected** because the Mac asks the ForeverLM gateway that holds the grant, and the Notion pane says the same in a sentence with a button that reads **Connect Notion…** or **Manage Notion…**. Nothing read from Notion is kept between reads. The connection lives on your ForeverLM account, not on the Mac, and follows it if Apple re-issues your Sign in with Apple identity, as the Slack, Linear and GitHub connections do. A grant Notion stops honouring is renewed by the gateway on its own, and one it will not renew is reported as a reconnect at the same page. **Disconnect Notion** on that page revokes the grant at Notion and forgets it. The tools an assistant gets from it are listed in the [MCP Tools Reference](/mcp-tools#notion).

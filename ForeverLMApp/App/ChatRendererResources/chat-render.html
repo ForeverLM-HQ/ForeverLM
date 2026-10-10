@@ -1,0 +1,42 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- Every script and stylesheet here is a file inside the app bundle. Chat
+         markdown used to come off cdn.jsdelivr.net, which meant an unreachable
+         or slow CDN left the page without a Markdown engine and a reply
+         degraded to escaped plain text: offline, on a captive portal, behind a
+         proxy. Nothing on this page touches the network. -->
+    <link rel="stylesheet" href="katex.min.css">
+    <link rel="stylesheet" href="chat-render.css">
+    <style>
+      :root { color-scheme: light dark; }
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        padding: 0;
+        background: transparent;
+        color: CanvasText;
+        font: -apple-system-body;
+        overflow: hidden;
+        -webkit-font-smoothing: antialiased;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+        /* The app-wide zoom step, set by Swift on the root element. Chat body
+           text cannot follow SwiftUI's dynamicTypeSize from inside a WebView. */
+        font-size: var(--chat-font-size, 13px);
+        line-height: 1.48;
+      }
+      #content { padding: 0; }
+    </style>
+  </head>
+  <body>
+    <div id="content" class="chat-rendered"></div>
+    <script src="katex.min.js"></script>
+    <!-- mhchem must execute after katex.min.js; it registers \ce{} on it. -->
+    <script src="mhchem.min.js"></script>
+    <script src="chat-render.js"></script>
+  </body>
+</html>

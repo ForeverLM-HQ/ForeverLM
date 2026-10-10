@@ -1,0 +1,476 @@
+import Foundation
+import Testing
+@testable import ForeverLM
+
+/// The notebook chat checkboxes' stored form (`NotebookChatSelection`): the
+/// unticked sources as one sorted row per notebook, no row when every box is
+/// ticked, and the context notebooks put into its chats as a second row, no
+/// row when none is. Every test that writes binds its own defaults suite,
+/// never the standard defaults the Dev build and parallel suites share, and
+/// generation 1, whose rows these are: the test host runs generation 2, where
+/// the same ticks live in the member's NotebookState (`ChatTickRuleTests`).
+@Suite("Notebook chat selection")
+struct NotebookChatSelectionTests {
+
+    private func withCleanDefaults(_ body: (UserDefaults) throws -> Void) throws {
+        let suiteName = "NotebookChatSelectionTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        try ForeverLMRuntimeIdentity.$pinnedSyncGeneration.withValue(.one) {
+            try NotebookChatSelection.$overrideDefaults.withValue(NotebookChatSelection.DefaultsOverride(defaults: defaults)) {
+                try body(defaults)
+            }
+        }
+    }
+
+    @Test("A chat reads the pool in its own order, minus the unticked")
+    func chatSourceIDsKeepPoolOrder() {
+        let pool = ["c", "a", "d", "b"]
+        #expect(NotebookChatSelection.chatSourceIDs(pool: pool, excluded: []) == pool)
+        #expect(NotebookChatSelection.chatSourceIDs(pool: pool, excluded: ["a", "b"]) == ["c", "d"])
+        #expect(NotebookChatSelection.chatSourceIDs(pool: pool, excluded: Set(pool)).isEmpty)
+        #expect(NotebookChatSelection.chatSourceIDs(pool: pool, excluded: ["not-in-pool"]) == pool)
+    }
+
+    @Test("Ticking and unticking keep the exclusion sorted and inside the pool")
+    func updatedTicksUnticksAndPrunes() {
+        let pool = ["a", "b", "c", "d"]
+        #expect(NotebookChatSelection.updated([], setting: ["c", "a"], inChat: false, pool: pool) == ["a", "c"])
+        #expect(NotebookChatSelection.updated(["a", "c"], setting: ["c"], inChat: true, pool: pool) == ["a"])
+        #expect(
+            NotebookChatSelection.updated(["a"], setting: ["gone", "d"], inChat: false, pool: pool) == ["a", "d"],
+            "an id outside the pool is never stored"
+        )
+        #expect(
+            NotebookChatSelection.updated(["a", "removed-since"], setting: [], inChat: true, pool: pool) == ["a"],
+            "a source that left the pool drops its box, so it comes back ticked"
+        )
+        #expect(NotebookChatSelection.updated(Set(pool), setting: pool, inChat: true, pool: pool).isEmpty)
+    }
+
+    @Test("Writing an empty exclusion removes the notebook's row")
+    func writeEmptyRemovesTheRow() throws {
+        try withCleanDefaults { defaults in
+            let key = NotebookChatSelection.preferenceKey(notebookID: "p1")
+            #expect(key == "notebook.chatExcluded.p1")
+
+            NotebookChatSelection.write(["a", "b"], notebookID: "p1")
+            #expect(defaults.stringArray(forKey: key) == ["a", "b"])
+            #expect(NotebookChatSelection.excluded(notebookID: "p1") == ["a", "b"])
+
+            NotebookChatSelection.write([], notebookID: "p1")
+            #expect(defaults.object(forKey: key) == nil)
+            #expect(NotebookChatSelection.excluded(notebookID: "p1").isEmpty)
+
+            NotebookChatSelection.write(["a"], notebookID: "p1")
+            NotebookChatSelection.writeContextNotebooks(["r1"], notebookID: "p1")
+            NotebookChatSelection.forget(notebookID: "p1")
+            #expect(defaults.object(forKey: key) == nil)
+            #expect(defaults.object(forKey: NotebookChatContext.preferenceKey(notebookID: "p1")) == nil, "a deleted notebook's rows both go")
+        }
+    }
+
+    @Test("The context notebooks put in are a row of their own, sorted, and none is no row")
+    func contextNotebooksRow() throws {
+        try withCleanDefaults { defaults in
+            let key = NotebookChatContext.preferenceKey(notebookID: "p1")
+            #expect(key == "notebook.chatContextNotebooks.p1")
+            #expect(NotebookChatSelection.contextNotebookIDs(notebookID: "p1").isEmpty, "no row: no context notebook is read")
+
+            NotebookChatSelection.writeContextNotebooks(["r1", "r2"], notebookID: "p1")
+            #expect(defaults.stringArray(forKey: key) == ["r1", "r2"])
+            #expect(NotebookChatSelection.selection(notebookID: "p1") == NotebookChatContext.Selection(contextNotebookIDs: ["r1", "r2"]))
+            defaults.set(["x"], forKey: NotebookChatSelection.preferenceKey(notebookID: "p2"))
+            #expect(NotebookChatSelection.contextNotebooksFromDefaults() == ["p1": ["r1", "r2"]], "the unticked rows are not read as context rows")
+
+            NotebookChatSelection.writeContextNotebooks([], notebookID: "p1")
+            #expect(defaults.object(forKey: key) == nil)
+        }
+    }
+
+    @Test("A notebook's context notebooks are one per link, in link order, never itself, and none of a link's own links")
+    func contextNotebooksAreOneLevelDeep() {
+        // A links B and C (and, by a bad record, itself); B links D. A's
+        // chats never reach D, whatever A's row names.
+        let a = notebook("A", sources: ["a1"], related: ["B", "A", "C", "unknown"])
+        let b = notebook("B", sources: ["b1", "a1"], related: ["D"])
+        let c = notebook("C", sources: ["c1"])
+        let d = notebook("D", sources: ["d1"])
+        let records = ["B": b, "C": c, "D": d]
+        let linked = NotebookChatSelection.contextNotebooks(of: a) { records[$0]?.approvedSourceIDs }
+        #expect(linked == [
+            .init(id: "B", sourceIDs: ["b1", "a1"]),
+            .init(id: "C", sourceIDs: ["c1"]),
+            .init(id: "unknown", sourceIDs: []),
+        ])
+        let everything = NotebookChatContext.Selection(contextNotebookIDs: ["B", "C", "D", "unknown"])
+        #expect(NotebookChatContext.chatPool(own: a.approvedSourceIDs, linked: linked, selection: everything) == ["a1", "b1", "c1"])
+        #expect(NotebookChatContext.stored(everything, own: a.approvedSourceIDs, linked: linked).contextNotebookIDs == ["B", "C", "D", "unknown"],
+                "a write keeps every id the row names: D, not linked here, is passed over by the readers")
+    }
+
+    @Test("A split's heir takes the emptied parent's unticked boxes and context notebooks it still has, and the parent's rows go")
+    func handOverCarriesTheParentsRowToTheHeir() throws {
+        try withCleanDefaults { defaults in
+            let parentKey = NotebookChatSelection.preferenceKey(notebookID: "parent")
+            let heirKey = NotebookChatSelection.preferenceKey(notebookID: "heir")
+            // "b" went to the heir, "c" to another child; "r" is a context
+            // notebook's source the heir now reads. The parent's chats read
+            // two context notebooks, and the heir took the link to one.
+            NotebookChatSelection.write(["b", "c", "r"], notebookID: "parent")
+            NotebookChatSelection.writeContextNotebooks(["kept", "unlinked"], notebookID: "parent")
+            // Another notebook's chats read the parent itself.
+            NotebookChatSelection.writeContextNotebooks(["other", "parent"], notebookID: "reader")
+
+            NotebookChatSelection.handOver(fromParent: "parent", toHeir: "heir", heirPool: ["a", "b", "r"], heirLinks: ["kept"])
+            #expect(defaults.stringArray(forKey: heirKey) == ["b", "r"])
+            #expect(defaults.stringArray(forKey: NotebookChatContext.preferenceKey(notebookID: "heir")) == ["kept"])
+            #expect(defaults.object(forKey: parentKey) == nil)
+            #expect(defaults.object(forKey: NotebookChatContext.preferenceKey(notebookID: "parent")) == nil)
+            #expect(defaults.stringArray(forKey: NotebookChatContext.preferenceKey(notebookID: "reader")) == ["heir", "other"],
+                    "the link moved to the heir, and this learner's choice with it")
+
+            // A parent with nothing unticked in the heir's pool leaves the
+            // heir with no row, everything ticked.
+            NotebookChatSelection.write(["c"], notebookID: "parent-2")
+            NotebookChatSelection.handOver(fromParent: "parent-2", toHeir: "heir-2", heirPool: ["a"], heirLinks: [])
+            #expect(defaults.object(forKey: NotebookChatSelection.preferenceKey(notebookID: "heir-2")) == nil)
+            #expect(defaults.object(forKey: NotebookChatContext.preferenceKey(notebookID: "heir-2")) == nil)
+            #expect(defaults.object(forKey: NotebookChatSelection.preferenceKey(notebookID: "parent-2")) == nil)
+        }
+    }
+
+    @Test("A merge forgets the merged notebook's unticks, keeps the context notebooks the survivor links to, and repoints the notebooks reading it")
+    func mergedCarriesContextNotebooks() throws {
+        try withCleanDefaults { defaults in
+            NotebookChatSelection.write(["m1"], notebookID: "merged")
+            NotebookChatSelection.writeContextNotebooks(["linked", "not-linked"], notebookID: "merged")
+            NotebookChatSelection.writeContextNotebooks(["own-choice"], notebookID: "survivor")
+            NotebookChatSelection.writeContextNotebooks(["merged"], notebookID: "reader")
+            NotebookChatSelection.writeContextNotebooks(["merged", "survivor"], notebookID: "both")
+
+            let written = NotebookChatSelection.merged("merged", into: "survivor", survivorLinks: ["linked", "own-choice"])
+
+            #expect(defaults.stringArray(forKey: NotebookChatContext.preferenceKey(notebookID: "survivor")) == ["linked", "own-choice"])
+            #expect(defaults.object(forKey: NotebookChatSelection.preferenceKey(notebookID: "merged")) == nil,
+                    "its sources arrive in the survivor ticked")
+            #expect(defaults.object(forKey: NotebookChatContext.preferenceKey(notebookID: "merged")) == nil)
+            #expect(defaults.stringArray(forKey: NotebookChatContext.preferenceKey(notebookID: "reader")) == ["survivor"])
+            #expect(defaults.stringArray(forKey: NotebookChatContext.preferenceKey(notebookID: "both")) == ["survivor"])
+            #expect(written == ["survivor": ["linked", "own-choice"], "merged": [], "reader": ["survivor"], "both": ["survivor"]],
+                    "what a window mirrors")
+        }
+    }
+
+    @Test("Every notebook's row is read in one scan; an empty row counts as none")
+    func exclusionsFromDefaultsReadsEveryNotebook() throws {
+        try withCleanDefaults { defaults in
+            defaults.set(["a"], forKey: NotebookChatSelection.preferenceKey(notebookID: "p1"))
+            defaults.set(["b", "c"], forKey: NotebookChatSelection.preferenceKey(notebookID: "p2"))
+            defaults.set([String](), forKey: NotebookChatSelection.preferenceKey(notebookID: "p3"))
+            defaults.set(["x"], forKey: "notebook.somethingElse.p4")
+
+            #expect(NotebookChatSelection.exclusionsFromDefaults() == ["p1": ["a"], "p2": ["b", "c"]])
+        }
+    }
+
+    private func notebook(_ id: String, sources: [String], related: [String]? = nil) -> LearningGoalRecord {
+        let now = Date(timeIntervalSince1970: 1_790_000_000)
+        return LearningGoalRecord(
+            id: id,
+            title: id,
+            startAt: now,
+            endAt: LearningGoalRecord.openEndedEndAt,
+            createdAt: now,
+            updatedAt: now,
+            status: "active",
+            items: sources.map { LearningGoalItem(id: "item-\(id)-\($0)", goalID: id, sourceID: $0, addedAt: now) },
+            kind: LearningGoalRecord.companionKind,
+            relatedNotebookIDs: related
+        )
+    }
+
+    @Test("A source arrives ticked where it was added; a notebook only linked brings nothing to the notebooks linking it")
+    func arrivalsTickWhereTheSourceArrived() {
+        // B gained x and y; A links B and C but put neither into its chats.
+        let b = notebook("B", sources: ["x", "y"])
+        let a = notebook("A", sources: ["y"], related: ["B", "C"])
+        let unrelated = notebook("D", sources: ["x"])
+        let arrivals = ["B": ["x", "y"]]
+
+        #expect(NotebookChatSelection.arrivalsToTick(in: b, arrivals: arrivals) == ["x", "y"],
+                "where it was added, every arrival: the add asked for it")
+        #expect(NotebookChatSelection.arrivalsToTick(in: a, arrivals: arrivals).isEmpty)
+        #expect(NotebookChatSelection.arrivalsToTick(in: unrelated, arrivals: arrivals).isEmpty)
+        #expect(NotebookChatSelection.arrivalsToTick(in: a, arrivals: ["A": ["z", "z"]]) == ["z"], "each once")
+        #expect(NotebookChatSelection.arrivalsToTick(in: a, arrivals: [:]).isEmpty)
+    }
+
+    @Test("A source arriving in a context notebook the notebook put in ticks there, unless the notebook already showed it; one only linked brings nothing")
+    func contextNotebookArrivalsTick() {
+        let a = notebook("A", sources: ["own"], related: ["B", "C"])
+        let arrivals = ["B": ["x", "own", "c1"], "C": ["y"]]
+        let approved = ["B": ["x", "own", "c1"], "C": ["c1", "y"]]
+        let putIn = NotebookChatSelection.contextNotebookIDs(of: a, putIn: ["B"])
+        #expect(putIn == ["B"])
+        #expect(NotebookChatSelection.arrivalsToTick(in: a, arrivals: arrivals, contextNotebookIDs: putIn, approvedOf: { approved[$0] }) == ["x", "c1"],
+                "x and c1 came in through B; own was A's already")
+        #expect(NotebookChatSelection.arrivalsToTick(in: a, arrivals: arrivals).isEmpty, "linked, not put in: nothing")
+        let both = NotebookChatSelection.contextNotebookIDs(of: a, putIn: ["C", "B", "elsewhere"])
+        #expect(both == ["B", "C"], "link order, linked ones only")
+        #expect(NotebookChatSelection.arrivalsToTick(in: a, arrivals: ["B": ["c1"]], contextNotebookIDs: both, approvedOf: { approved[$0] }).isEmpty,
+                "c1 was in A's chats already through C")
+
+        let t0 = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        let inbound = ["B": [NotebookChatSelection.Arrival(sourceID: "x", joinedAt: t0)]]
+        #expect(NotebookChatSelection.inboundArrivalsToTick(in: a, arrivals: inbound, exclusionWrittenAt: t0.addingTimeInterval(-60), contextNotebookIDs: putIn, approvedOf: { approved[$0] }) == ["x"],
+                "an untick from before x joined B goes")
+        #expect(NotebookChatSelection.inboundArrivalsToTick(in: a, arrivals: inbound, exclusionWrittenAt: t0.addingTimeInterval(60), contextNotebookIDs: putIn, approvedOf: { approved[$0] }).isEmpty,
+                "an untick that may be from after it stands")
+    }
+
+    // MARK: - Arrivals from another device
+
+    private func item(_ notebookID: String, _ sourceID: String, addedAt: Date, state: LearningGoalItemReviewState? = nil) -> LearningGoalItem {
+        LearningGoalItem(
+            id: "item-\(notebookID)-\(sourceID)",
+            goalID: notebookID,
+            sourceID: sourceID,
+            addedAt: addedAt,
+            reviewState: state?.rawValue
+        )
+    }
+
+    private func notebook(_ id: String, items: [LearningGoalItem], updatedAt: Date, related: [String]? = nil) -> LearningGoalRecord {
+        var record = notebook(id, sources: [], related: related)
+        record.items = items
+        record.updatedAt = updatedAt
+        return record
+    }
+
+    @Test("An inbound change brings the sources a notebook did not hold, each with the earliest it can have joined")
+    func inboundArrivalsNameNewMembersAndWhenTheyJoined() {
+        let t0 = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        let removed = t0.addingTimeInterval(30)
+        let t1 = t0.addingTimeInterval(60)
+        let t2 = t0.addingTimeInterval(120)
+        // This Mac held a; b had been removed (rejected) and c only suggested,
+        // in the version it last saw, written when b was removed.
+        let before = notebook("N", items: [
+            item("N", "a", addedAt: t0),
+            item("N", "b", addedAt: t0, state: .rejected),
+            item("N", "c", addedAt: t0, state: .pending),
+        ], updatedAt: removed)
+        // The phone added b back, approved c and added d, a new item.
+        let after = notebook("N", items: [
+            item("N", "a", addedAt: t0),
+            item("N", "b", addedAt: t0, state: .approved),
+            item("N", "c", addedAt: t0, state: .approved),
+            item("N", "d", addedAt: t1),
+        ], updatedAt: t2)
+        let renamedOnly = notebook("R", items: [item("R", "x", addedAt: t0)], updatedAt: t0)
+        var renamed = renamedOnly
+        renamed.title = "Renamed"
+        renamed.updatedAt = t2
+        let newHere = notebook("New", items: [item("New", "y", addedAt: t1)], updatedAt: t1)
+
+        let arrivals = NotebookChatSelection.inboundArrivals(before: [before, renamedOnly], after: [after, renamed, newHere])
+
+        #expect(arrivals == ["N": [
+            .init(sourceID: "b", joinedAt: removed),
+            .init(sourceID: "c", joinedAt: removed),
+            .init(sourceID: "d", joinedAt: t1),
+        ]], "an item that was there was approved after the version this Mac held, never later than t2 but no earlier than that version; a new item joined when added; a rename brings nothing; a notebook new to this Mac is not compared")
+    }
+
+    @Test("An untick from before a source joined goes; one made after it, on any device, stands")
+    func inboundArrivalsTickOnlyStaleUnticks() {
+        let t0 = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        let joined = t0.addingTimeInterval(600)
+        let n = notebook("N", items: [item("N", "x", addedAt: t0), item("N", "y", addedAt: t0)], updatedAt: joined)
+        let arrivals: [String: [NotebookChatSelection.Arrival]] = ["N": [.init(sourceID: "x", joinedAt: joined)]]
+
+        #expect(NotebookChatSelection.inboundArrivalsToTick(in: n, arrivals: arrivals, exclusionWrittenAt: t0) == ["x"],
+                "the row was written before x came back: its untick is from when x last left")
+        #expect(NotebookChatSelection.inboundArrivalsToTick(in: n, arrivals: arrivals, exclusionWrittenAt: joined.addingTimeInterval(5)).isEmpty,
+                "the row was written after x joined: added, then unticked, before this Mac heard of either")
+        #expect(NotebookChatSelection.inboundArrivalsToTick(in: n, arrivals: arrivals, exclusionWrittenAt: nil) == ["x"],
+                "a row with no known date is older than every join")
+        #expect(NotebookChatSelection.inboundArrivalsToTick(in: n, arrivals: [:], exclusionWrittenAt: t0).isEmpty,
+                "nothing joined, nothing ticks: an untick that arrives alone is never undone")
+    }
+
+    @Test("A source added back, then unticked, then the notebook edited again, all before this Mac syncs, stays unticked")
+    func inboundReAddThenUntickThenEditKeepsTheUntick() {
+        let t0 = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        // This Mac last saw b removed, at 9:00.
+        let removedAt = t0
+        let before = notebook("N", items: [
+            item("N", "a", addedAt: t0.addingTimeInterval(-3_600)),
+            item("N", "b", addedAt: t0.addingTimeInterval(-3_600), state: .rejected),
+        ], updatedAt: removedAt)
+        // On the phone, with this Mac asleep: b added back at 10:00 (the same
+        // item approved again, its first addedAt kept), b unticked at 10:01,
+        // then c added (or the notebook renamed) at 10:02.
+        let reAdded = t0.addingTimeInterval(3_600)
+        let unticked = reAdded.addingTimeInterval(60)
+        let edited = unticked.addingTimeInterval(60)
+        let after = notebook("N", items: [
+            item("N", "a", addedAt: t0.addingTimeInterval(-3_600)),
+            item("N", "b", addedAt: t0.addingTimeInterval(-3_600), state: .approved),
+            item("N", "c", addedAt: edited),
+        ], updatedAt: edited)
+
+        let arrivals = NotebookChatSelection.inboundArrivals(before: [before], after: [after])
+        let tick = NotebookChatSelection.inboundArrivalsToTick(in: after, arrivals: arrivals, exclusionWrittenAt: unticked)
+
+        #expect(!tick.contains("b"), "b was unticked after it came back; the later edit does not make that untick look stale")
+        #expect(tick == ["c"], "c, added after the row was written, is the add's to tick")
+
+        // The reported case: b unticked at 8:00, then removed on an older
+        // phone at 9:00 (the version this Mac held), then added back. The row
+        // is older than anything b's return can follow, so b comes back ticked.
+        let staleUntick = t0.addingTimeInterval(-3_600)
+        #expect(NotebookChatSelection.inboundArrivalsToTick(in: after, arrivals: arrivals, exclusionWrittenAt: staleUntick) == ["b", "c"])
+    }
+
+    @Test("A source that joined a context notebook on another device ticks nothing in the notebook linking it")
+    func inboundArrivalsInAContextNotebook() {
+        let t0 = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        let joined = t0.addingTimeInterval(600)
+        let a = notebook("A", items: [item("A", "a", addedAt: t0)], updatedAt: t0, related: ["B"])
+        let arrivals: [String: [NotebookChatSelection.Arrival]] = ["B": [.init(sourceID: "x", joinedAt: joined)]]
+
+        #expect(NotebookChatSelection.inboundArrivalsToTick(in: a, arrivals: arrivals, exclusionWrittenAt: t0).isEmpty,
+                "B's box in A says whether A's chats read x")
+        #expect(NotebookChatSelection.inboundArrivalsToTick(in: a, arrivals: arrivals, exclusionWrittenAt: nil).isEmpty)
+    }
+}
+
+/// Which context notebooks a notebook's chats read, and how a box changes
+/// the two rows (`NotebookChatContext`), on the vectors the web's twin in
+/// library-notebooks.js runs too (docs-site/website/test/notebook-chat-context-vectors.json).
+/// The iPhone compiles the same file.
+@Suite("Notebook chat context")
+struct NotebookChatContextTests {
+    private struct Vectors: Decodable {
+        struct Linked: Decodable {
+            let id: String
+            let sources: [String]
+        }
+        struct Action: Decodable {
+            let kind: String
+            let ids: [String]?
+            let inChat: Bool?
+            let through: String?
+            let sourceIDs: [String]?
+            let contextNotebookIDs: [String]?
+        }
+        struct Expect: Decodable {
+            let chatPool: [String]
+            let chatSourceIDs: [String]
+            let linkedPool: [String]
+            let excluded: [String]
+            let context: [String]
+            let tallies: [String: [Int]?]
+        }
+        struct Case: Decodable {
+            let name: String
+            let own: [String]
+            let linked: [Linked]
+            let excluded: [String]
+            let context: [String]
+            let action: Action?
+            let expect: Expect
+        }
+        let cases: [Case]
+    }
+
+    private static func vectors() throws -> Vectors {
+        let repo = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()   // UnitTests
+            .deletingLastPathComponent()   // ForeverLMApp
+            .deletingLastPathComponent()
+        let data = try Data(contentsOf: repo.appendingPathComponent("docs-site/website/test/notebook-chat-context-vectors.json"))
+        return try JSONDecoder().decode(Vectors.self, from: data)
+    }
+
+    @Test("Every shared vector reads and writes the rows as the web's twin does")
+    func sharedVectors() throws {
+        let vectors = try Self.vectors()
+        #expect(vectors.cases.count >= 16)
+        for vector in vectors.cases {
+            let linked = vector.linked.map { NotebookChatContext.ContextNotebook(id: $0.id, sourceIDs: $0.sources) }
+            var selection = NotebookChatContext.Selection(excluded: Set(vector.excluded), contextNotebookIDs: Set(vector.context))
+            if let action = vector.action {
+                switch action.kind {
+                case "sources":
+                    selection = NotebookChatContext.settingSources(
+                        action.ids ?? [], inChat: action.inChat ?? true, through: action.through,
+                        own: vector.own, linked: linked, selection: selection
+                    )
+                case "contextNotebooks":
+                    selection = NotebookChatContext.settingContextNotebooks(
+                        action.ids ?? [], inChat: action.inChat ?? true, linked: linked, selection: selection
+                    )
+                case "only":
+                    selection = NotebookChatContext.keepingOnly(
+                        sourceIDs: action.sourceIDs ?? [], contextNotebookIDs: action.contextNotebookIDs ?? [],
+                        own: vector.own, linked: linked, selection: selection
+                    )
+                case "all", "none":
+                    let pool = NotebookChatContext.chatPool(own: vector.own, linked: linked, selection: selection)
+                    selection = NotebookChatContext.settingSources(
+                        pool, inChat: action.kind == "all", own: vector.own, linked: linked, selection: selection
+                    )
+                default:
+                    Issue.record("\(vector.name): unknown action \(action.kind)")
+                }
+            }
+            let stored = NotebookChatContext.stored(selection, own: vector.own, linked: linked)
+            #expect(stored.excluded == vector.expect.excluded, "\(vector.name)")
+            #expect(stored.contextNotebookIDs == vector.expect.context, "\(vector.name)")
+            let rows = NotebookChatContext.Selection(excluded: Set(stored.excluded), contextNotebookIDs: Set(stored.contextNotebookIDs))
+            let chat = NotebookChatContext.chatSourceIDs(own: vector.own, linked: linked, selection: rows)
+            #expect(NotebookChatContext.chatPool(own: vector.own, linked: linked, selection: rows) == vector.expect.chatPool, "\(vector.name)")
+            #expect(chat == vector.expect.chatSourceIDs, "\(vector.name)")
+            #expect(NotebookChatContext.linkedPool(own: vector.own, linked: linked) == vector.expect.linkedPool, "\(vector.name)")
+            for id in vector.expect.linkedPool {
+                #expect(NotebookChatContext.isInChat(id, own: vector.own, linked: linked, selection: rows) == chat.contains(id), "\(vector.name): \(id)")
+            }
+            for (notebookID, tally) in vector.expect.tallies {
+                let read = NotebookChatContext.tally(of: notebookID, linked: linked, selection: rows).map { [$0.ticked, $0.total] }
+                #expect(read == tally, "\(vector.name): \(notebookID)")
+            }
+        }
+    }
+
+    @Test("A context notebook's box counts only the sources a caller shows")
+    func tallyCountsShownSources() {
+        let linked = [NotebookChatContext.ContextNotebook(id: "r1", sourceIDs: ["a", "b", "hidden"])]
+        let selection = NotebookChatContext.Selection(excluded: ["b"], contextNotebookIDs: ["r1"])
+        let tally = NotebookChatContext.tally(of: "r1", linked: linked, selection: selection) { $0 != "hidden" }
+        #expect(tally?.ticked == 1)
+        #expect(tally?.total == 2)
+    }
+
+    @Test("Add a Notebook to Context puts one in as it was left, never ticking a source, even one the row already named")
+    func puttingInNeverTicks() {
+        let linked = [NotebookChatContext.ContextNotebook(id: "r1", sourceIDs: ["a", "b"])]
+        let unticked = NotebookChatContext.Selection(excluded: ["b"])
+        #expect(NotebookChatContext.puttingIn(["r1"], linked: linked, selection: unticked)
+            == NotebookChatContext.Selection(excluded: ["b"], contextNotebookIDs: ["r1"]))
+        // An older build's unlink left r1 in the row; linked again and added,
+        // its box's tick-everything does not apply.
+        let leftOver = NotebookChatContext.Selection(excluded: ["b"], contextNotebookIDs: ["r1"])
+        #expect(NotebookChatContext.puttingIn(["r1"], linked: linked, selection: leftOver) == leftOver)
+        #expect(NotebookChatContext.puttingIn(["elsewhere"], linked: linked, selection: unticked) == unticked,
+                "a notebook not linked is not put in")
+    }
+
+    @Test("A heir or survivor keeps the context notebooks it still links to beside its own")
+    func carriedKeepsLinkedOnes() {
+        #expect(NotebookChatContext.carried(["r1", "r2", "gone"], into: ["r3"], links: ["r1", "r3"]) == ["r1", "r3"])
+        #expect(NotebookChatContext.carried([], into: [], links: ["r1"]).isEmpty)
+    }
+}

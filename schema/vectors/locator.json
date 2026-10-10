@@ -1,0 +1,41 @@
+{
+  "vectors": "locator",
+  "version": 1,
+  "spec": "docs/cloudkit-schema-design.md §3.3 (Locator)",
+  "implementations": {
+    "swift": "ForeverLMApp/Shared/Sync/Core/Locator.swift (Values.swift)",
+    "js": "schema/js/locator.js"
+  },
+  "format": "op roundTrip: decoding locator and encoding it again gives locator back (every key kept, unknown kinds and keys included); expectKind is the decoded kind (unknown for a t the client does not know); expectValid applies the rules the spec states (PDF quads are 8 numbers, each page-normalized to 0…1). op parse: whether input is a Locator at all (an object with a string t) = expectLocator. op span: whether span is a Span (an object whose from and to are Locators) = expectSpan, and, when it is, whether it is valid (both ends valid and of one kind) = expectValid; unknown keys survive a round trip like a Locator's. op parse: whether input is a Locator at all (an object with a string t) = expectLocator. op span: whether span is a Span (an object whose from and to are Locators) = expectSpan, and, when it is, whether it is valid (both ends valid and of one kind) = expectValid; unknown keys survive a round trip like a Locator's.",
+  "status": "Seed set written with WP1; WP2 added pdf validity edges, parse and span cases. WP3 and later packages add cases as Locator grows (re-anchoring by textHash).",
+  "cases": [
+    {"op":"roundTrip","name":"pdf with quads","locator":{"t":"pdf","page":12,"quads":[[0.1,0.2,0.9,0.2,0.1,0.25,0.9,0.25]]},"expectKind":"pdf","expectValid":true},
+    {"op":"roundTrip","name":"pdf with offset","locator":{"t":"pdf","page":3,"quads":[],"offset":1200},"expectKind":"pdf","expectValid":true},
+    {"op":"roundTrip","name":"text anchor","locator":{"t":"text","offset":10234,"len":80,"quote":"the membrane potential","prefix":"because ","suffix":" drops","textHash":"0000000000000000000000000000000000000000000000000000000000000000"},"expectKind":"text","expectValid":true},
+    {"op":"roundTrip","name":"epub","locator":{"t":"epub","href":"OEBPS/ch3.xhtml","cfi":"/6/4!/4/2","fraction":0.42},"expectKind":"epub","expectValid":true},
+    {"op":"roundTrip","name":"media","locator":{"t":"media","seconds":254,"end":300.5,"duration":5017},"expectKind":"media","expectValid":true},
+    {"op":"roundTrip","name":"web","locator":{"t":"web","fraction":0.31},"expectKind":"web","expectValid":true},
+    {"op":"roundTrip","name":"slide","locator":{"t":"slide","index":14,"seconds":812},"expectKind":"slide","expectValid":true},
+    {"op":"roundTrip","name":"doc","locator":{"t":"doc","bodyHash":"abc","start":120,"end":180,"quote":"a passage"},"expectKind":"doc","expectValid":true},
+    {"op":"roundTrip","name":"unknown keys survive","locator":{"t":"web","fraction":0.5,"futureKey":{"x":1}},"expectKind":"web","expectValid":true},
+    {"op":"roundTrip","name":"an unknown kind is kept raw","locator":{"t":"hologram","depth":3},"expectKind":"unknown","expectValid":true},
+    {"op":"roundTrip","name":"quads are page-normalized 0…1","locator":{"t":"pdf","page":1,"quads":[[0.1,0.2,1.5,0.2,0.1,0.25,0.9,0.25]]},"expectKind":"pdf","expectValid":false},
+    {"op":"roundTrip","name":"a quad has 8 numbers","locator":{"t":"pdf","page":1,"quads":[[0.1,0.2,0.9]]},"expectKind":"pdf","expectValid":false},
+    {"op":"roundTrip","name":"pdf with no quads is valid","locator":{"t":"pdf","page":4},"expectKind":"pdf","expectValid":true},
+    {"op":"roundTrip","name":"pdf quads that are not a list","locator":{"t":"pdf","page":4,"quads":"none"},"expectKind":"pdf","expectValid":false},
+    {"op":"roundTrip","name":"a quad holding a string","locator":{"t":"pdf","page":4,"quads":[[0.1,0.2,0.9,0.2,0.1,0.25,0.9,"x"]]},"expectKind":"pdf","expectValid":false},
+    {"op":"roundTrip","name":"quads at the edges 0 and 1 are inside","locator":{"t":"pdf","page":1,"quads":[[0,0,1,0,0,1,1,1]]},"expectKind":"pdf","expectValid":true},
+    {"op":"roundTrip","name":"media without an end","locator":{"t":"media","seconds":12.5,"duration":600},"expectKind":"media","expectValid":true},
+    {"op":"roundTrip","name":"an unknown kind keeps its unknown keys","locator":{"t":"map","lat":1,"lng":2,"future":[true]},"expectKind":"unknown","expectValid":true},
+    {"op":"parse","name":"an object without t is no locator","input":{"page":3},"expectLocator":false},
+    {"op":"parse","name":"a t that is not a string is no locator","input":{"t":5},"expectLocator":false},
+    {"op":"parse","name":"a string is no locator","input":"pdf","expectLocator":false},
+    {"op":"parse","name":"the smallest locator","input":{"t":"web"},"expectLocator":true},
+    {"op":"span","name":"pages 12 to 40","span":{"from":{"t":"pdf","page":12},"to":{"t":"pdf","page":40}},"expectSpan":true,"expectValid":true},
+    {"op":"span","name":"00:10 to 00:45 of a video","span":{"from":{"t":"media","seconds":10},"to":{"t":"media","seconds":45}},"expectSpan":true,"expectValid":true},
+    {"op":"span","name":"ends of two kinds are not a valid span","span":{"from":{"t":"pdf","page":2},"to":{"t":"media","seconds":3}},"expectSpan":true,"expectValid":false},
+    {"op":"span","name":"an invalid end makes the span invalid","span":{"from":{"t":"pdf","page":2,"quads":[[2,0,0,0,0,0,0,0]]},"to":{"t":"pdf","page":3}},"expectSpan":true,"expectValid":false},
+    {"op":"span","name":"a span missing its end is no span","span":{"from":{"t":"pdf","page":2}},"expectSpan":false},
+    {"op":"span","name":"unknown keys of a span survive","span":{"from":{"t":"epub","href":"a.xhtml","cfi":"/6/2","fraction":0.1},"to":{"t":"epub","href":"b.xhtml","cfi":"/6/8","fraction":0.3},"label":"Chapter 2"},"expectSpan":true,"expectValid":true}
+  ]
+}

@@ -1,0 +1,75 @@
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:prism="http://prismstandard.org/namespaces/basic/2.0/" xmlns:dc="http://purl.org/dc/elements/1.1/"
+         xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns="http://purl.org/rss/1.0/" xmlns:admin="http://webns.net/mvcb/">
+    <channel rdf:about="http://feeds.nature.com/nrm/rss/current">
+        <title>Nature Reviews Molecular Cell Biology</title>
+        <description>Nature Reviews Molecular Cell Biology is the leading monthly review journal in the field of molecular and cell biology. With its extraordinary breadth and depth of coverage, the journal provides a unique resource of information, opinion and commentary for cutting-edge molecular and cell biology research. All Reviews, Perspectives and Progress articles are carefully commissioned, written by leaders in the field, and subject to rigorous peer review — which results in timely and authoritative articles. In addition, articles are edited and the diagrams redrawn by professional art editors, which makes for highly readable, visually attractive articles that are accessible to specialists and non-specialists alike.</description>
+        <link>http://feeds.nature.com/nrm/rss/current</link>
+        <admin:generatorAgent rdf:resource="https://www.nature.com/"/>
+        <admin:errorReportsTo rdf:resource="mailto:feedback@nature.com"/>
+        <dc:publisher>Nature Publishing Group</dc:publisher>
+        <dc:language>en</dc:language>
+        <dc:rights>© 2026 Macmillan Publishers Limited, part of Springer Nature. All rights reserved.</dc:rights>
+        <prism:publicationName>Nature Reviews Molecular Cell Biology</prism:publicationName>
+        
+        
+        <prism:copyright>© 2026 Macmillan Publishers Limited, part of Springer Nature. All rights reserved.</prism:copyright>
+        <prism:rightsAgent>permissions@nature.com</prism:rightsAgent>
+        <image rdf:resource="https://www.nature.com/uploads/product/nrm/rss.gif"/>
+        <items>
+            <rdf:Seq>
+                
+                    <rdf:li rdf:resource="https://www.nature.com/articles/s41580-026-01025-4"/>
+                
+                    <rdf:li rdf:resource="https://www.nature.com/articles/s41580-026-01019-2"/>
+                
+                    <rdf:li rdf:resource="https://www.nature.com/articles/s41580-026-01027-2"/>
+                
+                    <rdf:li rdf:resource="https://www.nature.com/articles/s41580-026-01020-9"/>
+                
+                    <rdf:li rdf:resource="https://www.nature.com/articles/s41580-026-01009-4"/>
+                
+                    <rdf:li rdf:resource="https://www.nature.com/articles/s41580-026-01011-w"/>
+                
+                    <rdf:li rdf:resource="https://www.nature.com/articles/s41580-026-01024-5"/>
+                
+                    <rdf:li rdf:resource="https://www.nature.com/articles/s41580-026-01018-3"/>
+                
+            </rdf:Seq>
+        </items>
+    </channel>
+    <image rdf:about="https://www.nature.com/uploads/product/nrm/rss.gif">
+        <title>Nature Reviews Molecular Cell Biology</title>
+        <url>https://www.nature.com/uploads/product/nrm/rss.gif</url>
+        <link>http://feeds.nature.com/nrm/rss/current</link>
+    </image>
+    
+        <item rdf:about="https://www.nature.com/articles/s41580-026-01025-4">
+            <title><![CDATA[Towards 3D-oid models that integrate molecular, morphological and spatial cellular features]]></title>
+            <link>https://www.nature.com/articles/s41580-026-01025-4</link>
+            <content:encoded>
+                <![CDATA[<p>Nature Reviews Molecular Cell Biology, Published online: 04 September 2026; <a href="https://www.nature.com/articles/s41580-026-01025-4">doi:10.1038/s41580-026-01025-4</a></p>Combined analyses of cellular omics, morphology and spatial context in 3D-oids would advance tissue studies and organ engineering.]]></content:encoded>
+            <dc:title><![CDATA[Towards 3D-oid models that integrate molecular, morphological and spatial cellular features]]></dc:title>
+            <dc:creator>Akos Diosdi</dc:creator><dc:creator>Fabian J. Theis</dc:creator><dc:creator>Peter Horvath</dc:creator>
+            <dc:identifier>doi:10.1038/s41580-026-01025-4</dc:identifier>
+            <dc:source>Nature Reviews Molecular Cell Biology, Published online: 2026-09-04; | doi:10.1038/s41580-026-01025-4</dc:source>
+            <dc:date>2026-09-04</dc:date>
+            <prism:publicationName>Nature Reviews Molecular Cell Biology</prism:publicationName>
+            <prism:doi>10.1038/s41580-026-01025-4</prism:doi>
+            <prism:url>https://www.nature.com/articles/s41580-026-01025-4</prism:url>
+        </item>
+<item rdf:about="https://www.nature.com/articles/s41580-026-01019-2">
+            <title><![CDATA[The molecular basis of transcription initiation by RNA polymerase II]]></title>
+            <link>https://www.nature.com/articles/s41580-026-01019-2</link>
+            <content:encoded>
+                <![CDATA[<p>Nature Reviews Molecular Cell Biology, Published online: 04 September 2026; <a href="https://www.nature.com/articles/s41580-026-01019-2">doi:10.1038/s41580-026-01019-2</a></p>Recent technological breakthroughs have transformed our understanding of how transcription initiation in eukaryotes is regulated. This Review discusses the dynamics and roles of initiation-relevant protein complexes, and how chromatin states regulate the selection of transcription start sites and transcription directionality.]]></content:encoded>
+            <dc:title><![CDATA[The molecular basis of transcription initiation by RNA polymerase II]]></dc:title>
+            <dc:creator>Xizi Chen</dc:creator><dc:creator>Yanhui Xu</dc:creator>
+            <dc:identifier>doi:10.1038/s41580-026-01019-2</dc:identifier>
+            <dc:source>Nature Reviews Molecular Cell Biology, Published online: 2026-09-04; | doi:10.1038/s41580-026-01019-2</dc:source>
+            <dc:date>2026-09-04</dc:date>
+            <prism:publicationName>Nature Reviews Molecular Cell Biology</prism:publicationName>
+            <prism:doi>10.1038/s41580-026-01019-2</prism:doi>
+            <prism:url>https://www.nature.com/articles/s41580-026-01019-2</prism:url>
+        </item>
+    
+</rdf:RDF>

@@ -1,0 +1,90 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script>
+      // The bundle is rebuilt between reloads far more often than the browser
+      // revalidates it, so load both assets fresh every time.
+      document.write(
+        `<link rel="stylesheet" href="../../App/ArtifactEditorResources/artifact-editor.css?t=${Date.now()}">`
+      )
+    </script>
+    <style>
+      #demo-status {
+        position: fixed;
+        right: 12px;
+        bottom: 12px;
+        z-index: 1000;
+        padding: 6px 9px;
+        border-radius: 6px;
+        background: color-mix(in srgb, CanvasText 9%, Canvas);
+        color: CanvasText;
+        font: 11px -apple-system, sans-serif;
+      }
+    </style>
+  </head>
+  <body>
+    <main id="editor" aria-label="Artifact editor"></main>
+    <output id="demo-status">Loading</output>
+    <script>
+      window.demoMarkdown = `# Why work on mitochondria
+
+A working memo with **bold claims**, *careful qualifiers*, and editable structure.
+
+## The short answer
+
+Work on mitochondria because three things coincide:
+
+1. The energy budget is made.
+2. The cost of living rises.
+3. The brain receives the signal.
+
+| Bad reason | Better reason |
+| --- | --- |
+| ROS is the cause | Energy cost is measurable |
+| Antioxidants solve aging | Efficiency and quality control matter |
+
+See [The Great Landscape of Aging Theories](foreverlm://source/src_demo12345678) and
+[Mitochondrial RNA cytosolic leakage drives the SASP](foreverlm://source/src_demo87654321)
+for context, and [an ordinary web link](https://example.com/mitochondria) for contrast:
+hovering that one shows Crepe's link preview, hovering the chip shows nothing. Naming the
+editor's private stand-in as text — \`https://foreverlm.invalid/source/src_docs_example\` —
+is not a link, so a save must leave it exactly as written.
+
+A second mention of [The Great Landscape of Aging Theories](foreverlm://source/src_demo12345678)
+keeps the number it was given the first time.
+
+Inline mathematics: $V_{max}$ and block mathematics:
+
+$$E = mc^2$$
+
+> The document stays Markdown even though it reads like a finished article.
+`
+      window.webkit = {
+        messageHandlers: {
+          artifactEditor: {
+            postMessage(message) {
+              window.lastArtifactEditorMessage = message
+              const sourceLinkState = message.markdown
+                ? (message.markdown.includes('foreverlm://source/src_demo12345678') ? ':source-ok' : ':source-lost')
+                : ''
+              const roundTripState = message.markdown
+                ? (message.markdown === window.demoMarkdown ? ':exact' : ':changed')
+                : ''
+              document.getElementById('demo-status').textContent = `${message.type}${sourceLinkState}${roundTripState}`
+            },
+          },
+        },
+      }
+    </script>
+    <script>
+      document.write(
+        `<script src="../../App/ArtifactEditorResources/artifact-editor.js?t=${Date.now()}"><\/script>`
+      )
+    </script>
+    <script>
+      window.foreverLMArtifactEditor.create(window.demoMarkdown, 15)
+    </script>
+  </body>
+</html>

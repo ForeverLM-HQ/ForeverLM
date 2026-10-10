@@ -1,0 +1,719 @@
+/* The look of a rendered chat message, shared by the Mac app and Web Studio.
+ *
+ * Every colour goes through a `--chat-*` custom property with a macOS system
+ * colour as its fallback, so the Mac WebView needs to define nothing and Web
+ * Studio maps the five properties onto its own palette. Surfaces keep their own
+ * frame styles : the bubble, the page margins, the body font size : and share
+ * everything inside the message.
+ */
+
+/* The reading rhythm is Gemini Notebook's (product owner, 2026-09-30: "this style
+ * is pretty pleasant to read"): a little more leading, air between
+ * paragraphs and more above a heading, medium-weight headings, and body text
+ * a step softer than the headings and bold terms that carry full ink. */
+.chat-rendered {
+  overflow-wrap: anywhere;
+  /* Markdown owns the line breaks now, so the pre-wrap a plain-text renderer
+     needs would double every blank line. */
+  white-space: normal;
+  line-height: 1.55;
+  color: color-mix(in srgb, var(--chat-fg, CanvasText) 88%, transparent);
+}
+
+.chat-rendered p,
+.chat-rendered ul,
+.chat-rendered ol,
+.chat-rendered blockquote,
+.chat-rendered pre,
+.chat-rendered table { margin: 0 0 0.62em; }
+
+/* The measure: prose stops near 85 to 90 characters however wide the column
+   is. Tables, code and pictures keep the whole column; a picture written
+   inside a paragraph is lifted out of it (`sourceImageFigure`), so the words
+   either side keep the measure. Display math stays in its paragraph and
+   centres under the prose it belongs to, shrinking or scrolling when it is
+   wider. A heading's em is its own larger size, so its cap is divided by it
+   and every line of text ends at the same edge. */
+.chat-rendered > p,
+.chat-rendered > ul,
+.chat-rendered > ol,
+.chat-rendered > h4,
+.chat-rendered > blockquote,
+.chat-rendered > hr,
+.chat-rendered > .source-citations-footer { max-width: 42em; }
+.chat-rendered > h1 { max-width: calc(42em / 1.35); }
+.chat-rendered > h2 { max-width: calc(42em / 1.25); }
+.chat-rendered > h3 { max-width: calc(42em / 1.15); }
+
+.chat-rendered ul { padding-left: 1.5em; list-style-type: disc; }
+.chat-rendered ul ul { list-style-type: circle; }
+.chat-rendered ul ul ul { list-style-type: square; }
+/* Markers draw outside the list box, and the row that hosts a reply clips at
+   its edge, so an ordered list needs room for a two-digit number or every
+   item from 10 on loses its first digit. */
+.chat-rendered ol { padding-left: 2.2em; }
+.chat-rendered li + li { margin-top: 0.3em; }
+.chat-rendered li > ul,
+.chat-rendered li > ol { margin: 0.3em 0 0; }
+.chat-rendered li::marker { color: color-mix(in srgb, var(--chat-fg, CanvasText) 55%, transparent); }
+
+.chat-rendered h1,
+.chat-rendered h2,
+.chat-rendered h3,
+.chat-rendered h4 {
+  margin: 1.3em 0 0.4em;
+  line-height: 1.3;
+  font-weight: 600;
+  color: var(--chat-fg, CanvasText);
+}
+.chat-rendered h1 { font-size: 1.35em; }
+.chat-rendered h2 { font-size: 1.25em; }
+.chat-rendered h3 { font-size: 1.15em; }
+.chat-rendered h4 { font-size: 1em; }
+
+.chat-rendered strong { font-weight: 600; color: var(--chat-fg, CanvasText); }
+.chat-rendered em { font-style: italic; }
+
+.chat-rendered a {
+  color: var(--chat-link, LinkText);
+  text-decoration: none;
+}
+.chat-rendered a:hover { text-decoration: underline; }
+
+.chat-rendered code {
+  font-family: "SF Mono", Menlo, Monaco, Consolas, monospace;
+  font-size: 0.92em;
+  padding: 0.12em 0.32em;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--chat-fg, CanvasText) 10%, transparent);
+}
+.chat-rendered pre {
+  overflow-x: auto;
+  padding: 10px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--chat-fg, CanvasText) 9%, transparent);
+}
+.chat-rendered pre code {
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  white-space: pre;
+}
+
+.chat-rendered blockquote {
+  padding: 0.15em 0 0.15em 0.85em;
+  border-left: 3px solid color-mix(in srgb, var(--chat-fg, CanvasText) 22%, transparent);
+  color: color-mix(in srgb, var(--chat-fg, CanvasText) 78%, transparent);
+}
+
+.chat-rendered table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.chat-rendered th,
+.chat-rendered td {
+  border: 1px solid color-mix(in srgb, var(--chat-fg, CanvasText) 18%, transparent);
+  padding: 0.34em 0.5em;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.chat-rendered th {
+  font-weight: 650;
+  background: color-mix(in srgb, var(--chat-fg, CanvasText) 7%, transparent);
+}
+
+.chat-rendered hr {
+  border: 0;
+  border-top: 1px solid color-mix(in srgb, var(--chat-fg, CanvasText) 13%, transparent);
+  margin: 1.2em 0;
+}
+
+/* Review checklists. The box replaces the literal `[ ]` a model writes. */
+.chat-rendered ul.flm-task-list,
+.chat-rendered ol.flm-task-list { list-style: none; padding-left: 0.1em; }
+.chat-rendered .flm-task-list li.flm-task {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55em;
+  margin-top: 0.34em;
+}
+.chat-rendered .flm-task-body { flex: 1 1 auto; min-width: 0; }
+.chat-rendered .flm-check {
+  flex: 0 0 auto;
+  width: 1.06em;
+  height: 1.06em;
+  margin-top: 0.14em;
+  border: 1.5px solid color-mix(in srgb, var(--chat-fg, CanvasText) 40%, transparent);
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.82em;
+  line-height: 1;
+  font-weight: 700;
+}
+.chat-rendered .flm-check-on {
+  background: var(--chat-accent, AccentColor);
+  border-color: var(--chat-accent, AccentColor);
+  color: var(--chat-accent-fg, AccentColorText);
+}
+
+/* Math. Both output modes land in these two wrappers. */
+.chat-rendered .chat-math-inline { white-space: normal; }
+.chat-rendered .chat-math-display {
+  display: block;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: normal;
+  padding: 0.15em 0;
+  margin: 0.6em 0;
+}
+.chat-rendered .katex-display { margin: 0; }
+/* An equation on its own line inside a paragraph is a block between two line
+   breaks. The one after it would open an empty line under the equation, so
+   it goes; the block already ends the line. */
+.chat-rendered .chat-math-display + br { display: none; }
+
+/* Source links, in the shapes a reply can carry them: a pending link the host
+   has not resolved yet, an inline citation marker, a list item's named entry,
+   a block card for a source the reply names on its own line, and a picture's
+   caption. */
+.chat-rendered .source-pending-link {
+  color: var(--chat-fg, CanvasText);
+  text-decoration: none;
+  opacity: 0.58;
+  pointer-events: none;
+}
+/* A source the reply names on its own line, before its card has arrived: the
+   block card's own structure with placeholder lines, so the paragraph is
+   already the height the card will take when it lands. */
+.chat-rendered .source-block-pending:hover { transform: none; }
+.chat-rendered .source-invalid-link {
+  color: var(--chat-fg, CanvasText);
+  opacity: 0.58;
+  font-style: italic;
+}
+.chat-rendered .source-smart-link {
+  color: var(--chat-fg, CanvasText);
+  text-decoration: none;
+  border: 1px solid color-mix(in srgb, var(--chat-fg, CanvasText) 14%, transparent);
+  background: color-mix(in srgb, var(--chat-fg, CanvasText) 5%, transparent);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--chat-fg, CanvasText) 5%, transparent);
+  transition: background 120ms ease, border-color 120ms ease, transform 120ms ease;
+}
+.chat-rendered .source-smart-link:hover {
+  text-decoration: none;
+  background: color-mix(in srgb, var(--chat-accent, AccentColor) 9%, transparent);
+  border-color: color-mix(in srgb, var(--chat-accent, AccentColor) 32%, transparent);
+}
+/* A citation is a small round grey chip on the line, "1" or "2 · 12:34",
+   that turns the accent colour under the pointer. An inline box, not
+   inline-flex: an atomic inline always offers a line break before it, so the
+   chip could fall onto a line of its own, and an inline box tied to its word
+   by the word joiner `moveCitationAfterPunctuation` puts in front of it
+   cannot. Its padding draws outside the line box, so it adds no height. */
+.chat-rendered .source-citation-marker {
+  display: inline;
+  padding: 0.1em 0.5em;
+  margin-left: 0.28em;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--chat-fg, CanvasText) 8%, transparent);
+  box-shadow: none;
+  color: color-mix(in srgb, var(--chat-fg, CanvasText) 64%, transparent);
+  vertical-align: 0.12em;
+  font-size: 0.66em;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1;
+  /* A marker that names a moment, "2 · 12:34", stays on one line. */
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+/* A library source the chat's notebook does not hold: the same chip, drawn as
+   an outline, so the claim reads as resting on something from outside. */
+.chat-rendered .source-citation-marker.source-outside-notebook {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--chat-fg, CanvasText) 26%, transparent);
+}
+.chat-rendered .source-footer-link.source-outside-notebook .source-footer-index {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--chat-fg, CanvasText) 26%, transparent);
+}
+.chat-rendered .source-footer-outside {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+.chat-rendered .source-footer-outside > .source-footer-link {
+  flex: 1 1 auto;
+}
+.chat-rendered .source-footer-add {
+  flex: none;
+  padding: 0.2em 0.75em;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--chat-accent, AccentColor) 12%, transparent);
+  color: var(--chat-accent, AccentColor);
+  font: inherit;
+  font-size: 0.78em;
+  font-weight: 620;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.chat-rendered .source-footer-add:hover {
+  background: color-mix(in srgb, var(--chat-accent, AccentColor) 20%, transparent);
+}
+.chat-rendered .source-footer-add:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.chat-rendered .source-citation-marker:hover {
+  background: color-mix(in srgb, var(--chat-accent, AccentColor) 16%, transparent);
+  color: var(--chat-accent, AccentColor);
+  text-decoration: none;
+}
+/* A list item a source link opens: the source's thumbnail in the item's
+   gutter, its title and byline as the item's first two lines, and what the
+   reply says about it underneath. One line each, like a card, so the item is
+   its final height before the card arrives. */
+.chat-rendered li.source-entry {
+  position: relative;
+  min-height: 2.45em;
+  padding-left: 2.7em;
+}
+.chat-rendered li.source-entry + li.source-entry { margin-top: 0.55em; }
+.chat-rendered ul.source-entry-list {
+  list-style: none;
+  padding-left: 0.1em;
+}
+.chat-rendered .source-entry-link {
+  display: block;
+  min-width: 0;
+  color: var(--chat-fg, CanvasText);
+  text-decoration: none;
+  line-height: 1.3;
+}
+.chat-rendered .source-entry-link:hover { text-decoration: none; }
+.chat-rendered .source-entry-link:hover .source-entry-title { color: var(--chat-accent, AccentColor); }
+.chat-rendered .source-entry-thumbnail {
+  position: absolute;
+  top: 0.1em;
+  left: 0;
+  width: 2.7em;
+  height: 2.7em;
+  font-size: 0.8em;
+  border-radius: 0.45em;
+}
+.chat-rendered .source-entry-title,
+.chat-rendered .source-entry-subtitle {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-rendered .source-entry-title { font-weight: 650; }
+.chat-rendered .source-entry-subtitle {
+  margin-top: 0.04em;
+  color: color-mix(in srgb, var(--chat-fg, CanvasText) 55%, transparent);
+  font-size: 0.8em;
+}
+.chat-rendered .source-card-paragraph { margin: 0.58em 0 0.68em; }
+.chat-rendered .source-block-card {
+  display: grid;
+  grid-template-columns: 3.15em minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.72em;
+  width: min(100%, 46em);
+  min-height: 4.15em;
+  padding: 0.52em 0.64em;
+  border-radius: 0.72em;
+  line-height: 1.25;
+}
+.chat-rendered .source-block-card:hover { transform: translateY(-1px); }
+.chat-rendered .source-card-copy { min-width: 0; }
+.chat-rendered .source-card-title {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 650;
+}
+.chat-rendered .source-card-subtitle {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 0.22em;
+  color: color-mix(in srgb, var(--chat-fg, CanvasText) 58%, transparent);
+  font-size: 0.88em;
+}
+.chat-rendered .source-card-arrow {
+  padding: 0 0.16em;
+  color: color-mix(in srgb, var(--chat-fg, CanvasText) 42%, transparent);
+  font-size: 1.28em;
+  font-weight: 400;
+}
+
+.chat-rendered .source-citations-footer {
+  margin-top: 0.86em;
+  padding-top: 0.58em;
+  border-top: 1px solid color-mix(in srgb, var(--chat-fg, CanvasText) 12%, transparent);
+}
+.chat-rendered .source-citations-heading {
+  margin-bottom: 0.28em;
+  color: color-mix(in srgb, var(--chat-fg, CanvasText) 62%, transparent);
+  font-size: 0.82em;
+  font-weight: 650;
+}
+.chat-rendered .source-citations-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.chat-rendered .source-citations-list li + li { margin-top: 0.12em; }
+.chat-rendered .source-footer-link {
+  display: grid;
+  grid-template-columns: max-content 1.8em minmax(0, 1fr);
+  align-items: center;
+  gap: 0.46em;
+  min-width: 0;
+  padding: 0.2em 0.28em 0.2em 0;
+  border-radius: 0.42em;
+  color: var(--chat-fg, CanvasText);
+  text-decoration: none;
+}
+.chat-rendered .source-footer-link:hover {
+  background: color-mix(in srgb, var(--chat-accent, AccentColor) 8%, transparent);
+  text-decoration: none;
+}
+/* The footer's number is the same chip as the marker in the sentence. */
+.chat-rendered .source-footer-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: end;
+  min-width: 1.6em;
+  height: 1.6em;
+  padding: 0 0.5em;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--chat-fg, CanvasText) 8%, transparent);
+  color: color-mix(in srgb, var(--chat-fg, CanvasText) 64%, transparent);
+  white-space: nowrap;
+  font-size: 0.66em;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.chat-rendered .source-footer-link:hover .source-footer-index {
+  background: color-mix(in srgb, var(--chat-accent, AccentColor) 16%, transparent);
+  color: var(--chat-accent, AccentColor);
+}
+.chat-rendered .source-footer-copy { min-width: 0; }
+.chat-rendered .source-footer-title,
+.chat-rendered .source-footer-subtitle {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-rendered .source-footer-title { font-size: 0.88em; font-weight: 600; }
+.chat-rendered .source-footer-moments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3em;
+  margin-top: 0.22em;
+}
+.chat-rendered .source-footer-moment {
+  display: inline-block;
+  padding: 0.05em 0.5em;
+  border-radius: 0.6em;
+  background: color-mix(in srgb, var(--chat-accent, AccentColor) 10%, transparent);
+  color: var(--chat-accent, AccentColor);
+  font-size: 0.72em;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+  cursor: pointer;
+}
+.chat-rendered .source-footer-moment:hover,
+.chat-rendered .source-footer-moment:focus-visible {
+  background: color-mix(in srgb, var(--chat-accent, AccentColor) 20%, transparent);
+  outline: none;
+}
+/* A footer row still waiting for its card: the finished row's geometry with
+   a soft bar where each line of text will be. */
+.chat-rendered .source-footer-pending { pointer-events: none; }
+.chat-rendered .source-footer-pending .source-footer-link:hover { background: transparent; }
+.chat-rendered .source-footer-placeholder {
+  background: linear-gradient(
+    color-mix(in srgb, var(--chat-fg, CanvasText) 9%, transparent),
+    color-mix(in srgb, var(--chat-fg, CanvasText) 9%, transparent)
+  ) left center / 58% 0.62em no-repeat;
+  border-radius: 0.31em;
+}
+.chat-rendered .source-footer-subtitle.source-footer-placeholder { background-size: 36% 0.62em; }
+.chat-rendered .source-thumbnail-pending {
+  background: color-mix(in srgb, var(--chat-fg, CanvasText) 7%, transparent);
+}
+.chat-rendered .source-footer-subtitle {
+  margin-top: 0.05em;
+  color: color-mix(in srgb, var(--chat-fg, CanvasText) 55%, transparent);
+  font-size: 0.75em;
+}
+
+.chat-rendered .source-thumbnail {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 0.4em;
+  background: color-mix(in srgb, var(--chat-accent, AccentColor) 14%, transparent);
+  color: var(--chat-accent, AccentColor);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+.chat-rendered .source-footer-thumbnail {
+  width: 1.8em;
+  height: 1.8em;
+  font-size: 0.72em;
+  border-radius: 0.34em;
+}
+.chat-rendered .source-block-thumbnail {
+  width: 3.15em;
+  height: 3.15em;
+  font-size: 1.14em;
+  border-radius: 0.52em;
+}
+.chat-rendered img.source-thumbnail-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  object-fit: cover;
+  border-radius: inherit;
+  margin: 0;
+}
+.chat-rendered .source-kind-paper { background: color-mix(in srgb, #af52de 14%, transparent); color: #9b3fc4; }
+.chat-rendered .source-kind-podcast { background: color-mix(in srgb, #ff9500 15%, transparent); color: #d97800; }
+.chat-rendered .source-kind-book { background: color-mix(in srgb, #34c759 14%, transparent); color: #249442; }
+.chat-rendered .source-kind-course { background: color-mix(in srgb, #5856d6 14%, transparent); color: #4b49bd; }
+.chat-rendered .source-kind-meeting { background: color-mix(in srgb, #30b0c7 14%, transparent); color: #218da0; }
+.chat-rendered .source-kind-video { background: color-mix(in srgb, #ff3b30 13%, transparent); color: #d72d24; }
+.chat-rendered .source-kind-xPost,
+.chat-rendered .source-kind-slack {
+  background: color-mix(in srgb, var(--chat-fg, CanvasText) 10%, transparent);
+  color: var(--chat-fg, CanvasText);
+}
+.chat-rendered .source-kind-manual {
+  background: color-mix(in srgb, var(--chat-fg, CanvasText) 8%, transparent);
+  color: color-mix(in srgb, var(--chat-fg, CanvasText) 65%, transparent);
+}
+
+/* Pictures the assistant showed from a source. */
+.chat-rendered img {
+  display: block;
+  max-width: 100%;
+  max-height: 560px;
+  object-fit: contain;
+  border-radius: 8px;
+  margin: 0.75em 0;
+}
+.chat-rendered .source-image-figure {
+  position: relative;
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0.75em 0;
+}
+.chat-rendered .source-image-figure img {
+  margin: 0;
+  background: white;
+  -webkit-user-drag: element;
+}
+.chat-rendered .source-image-figure img.source-image-zoomable { cursor: zoom-in; }
+.chat-rendered .source-image-figure.source-image-pending {
+  min-width: 14em;
+  min-height: 9em;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--chat-fg, CanvasText) 6%, transparent);
+}
+.chat-rendered .source-image-figure.source-image-pending img { display: none; }
+.chat-rendered .source-image-figure.source-image-unavailable {
+  padding: 0.55em 0.75em;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--chat-fg, CanvasText) 6%, transparent);
+}
+.chat-rendered .source-image-figure.source-image-unavailable img,
+.chat-rendered .source-image-figure.source-image-unavailable .source-image-copy { display: none; }
+.chat-rendered .source-image-note {
+  font-size: 0.86em;
+  color: color-mix(in srgb, var(--chat-fg, CanvasText) 62%, transparent);
+}
+/* A PDF page, for a host with no page rasterizer of its own. */
+.chat-rendered .source-image-frame {
+  background: #fff;
+  border: 1px solid color-mix(in srgb, var(--chat-fg, CanvasText) 18%, transparent);
+  border-radius: 8px;
+  display: block;
+  height: min(70vh, 560px);
+  width: min(100%, 460px);
+}
+.chat-rendered .source-image-actions {
+  position: absolute;
+  top: 0.55em;
+  right: 0.55em;
+}
+.chat-rendered .source-image-copy {
+  padding: 0.28em 0.62em;
+  border: 0;
+  border-radius: 0.5em;
+  background: color-mix(in srgb, var(--chat-bg, Canvas) 86%, var(--chat-fg, CanvasText) 14%);
+  color: var(--chat-fg, CanvasText);
+  font: inherit;
+  font-size: 0.8em;
+  font-weight: 620;
+  line-height: 1.2;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease, background 0.12s ease;
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--chat-fg, CanvasText) 18%, transparent);
+}
+.chat-rendered .source-image-figure:hover .source-image-copy,
+.chat-rendered .source-image-copy:focus-visible,
+.chat-rendered .source-image-copy.source-image-copied { opacity: 1; }
+.chat-rendered .source-image-copy:hover {
+  background: color-mix(in srgb, var(--chat-bg, Canvas) 72%, var(--chat-fg, CanvasText) 28%);
+}
+.chat-rendered .source-image-copy.source-image-copied { color: var(--chat-accent, AccentColor); }
+/* A picture with the link to its place in the same source as its caption: one
+ * card, the picture on top and the link along its foot. Sized to the picture,
+ * like the papers below. */
+.chat-rendered .source-image-captioned img,
+.chat-rendered .source-image-captioned .source-image-frame {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.chat-rendered .source-image-caption {
+  width: 0;
+  min-width: 100%;
+  margin: 0;
+}
+.chat-rendered .source-caption-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 2.35em;
+  padding: 0.4em 0.7em;
+  border-top-width: 0;
+  border-radius: 0 0 8px 8px;
+  font-size: 0.92em;
+  line-height: 1.25;
+}
+.chat-rendered .source-image-unavailable .source-caption-link {
+  margin-top: 0.45em;
+  border-top-width: 1px;
+  border-radius: 8px;
+}
+.chat-rendered .source-caption-play {
+  flex: none;
+  color: var(--chat-accent, AccentColor);
+  font-size: 0.72em;
+}
+.chat-rendered .source-caption-place {
+  flex: none;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.chat-rendered .source-caption-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: color-mix(in srgb, var(--chat-fg, CanvasText) 62%, transparent);
+}
+.chat-rendered .source-caption-place + .source-caption-title::before { content: "·\00a0"; }
+/* The papers read off a slide, under its picture. Sized to the picture rather
+ * than widening the figure: zero width, then at least the figure's. */
+.chat-rendered .source-image-papers {
+  width: 0;
+  min-width: 100%;
+  margin-top: 0.45em;
+  line-height: 1.25;
+}
+.chat-rendered .source-image-papers-heading {
+  margin-bottom: 0.2em;
+  color: color-mix(in srgb, var(--chat-fg, CanvasText) 58%, transparent);
+  font-size: 0.8em;
+  font-weight: 600;
+}
+.chat-rendered .source-image-paper {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.28em 0;
+}
+.chat-rendered .source-image-paper + .source-image-paper {
+  border-top: 1px solid color-mix(in srgb, var(--chat-fg, CanvasText) 8%, transparent);
+}
+.chat-rendered .source-image-paper-copy {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+.chat-rendered .source-image-paper-title {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--chat-fg, CanvasText);
+  font: inherit;
+  font-size: 0.9em;
+  font-weight: 600;
+  text-align: left;
+}
+.chat-rendered button.source-image-paper-title {
+  color: var(--chat-accent, AccentColor);
+  cursor: pointer;
+}
+.chat-rendered button.source-image-paper-title:hover { text-decoration: underline; }
+.chat-rendered .source-image-paper-subtitle {
+  margin-top: 0.12em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: color-mix(in srgb, var(--chat-fg, CanvasText) 58%, transparent);
+  font-size: 0.8em;
+}
+.chat-rendered .source-image-paper-add {
+  flex: none;
+  padding: 0.2em 0.75em;
+  border: 0;
+  border-radius: 999px;
+  background: var(--chat-accent, AccentColor);
+  color: white;
+  font: inherit;
+  font-size: 0.8em;
+  font-weight: 620;
+  cursor: pointer;
+}
+.chat-rendered .source-image-paper-add:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* The message's own outer edges, last so they outrank every component margin
+ * above at the same specificity. A block styled by class : a picture's figure,
+ * a display equation, a source card : used to keep its top margin when it led
+ * the message, and that margin collapses straight out through #content, whose
+ * height the Mac app measures to size the row. The message then drew ten pixels
+ * lower than the row was tall and the last line was cut in half. */
+.chat-rendered > :first-child { margin-top: 0; }
+.chat-rendered > :last-child { margin-bottom: 0; }

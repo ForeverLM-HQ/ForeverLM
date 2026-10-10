@@ -1,0 +1,2878 @@
+:root {
+  color-scheme: light dark;
+  --artifact-font-size: 15px;
+  /* The prose column's cap. 760px is a readable line at the page's type size;
+     the host offers wider settings (`ArtifactPageWidth`) and writes the choice
+     here, `100%` when the page is to fill the pane. */
+  --artifact-page-width: 760px;
+  /* One line of prose. The page's leading is also the height a list marker
+     centres itself in, so the two are one number rather than two. */
+  --artifact-line-height: 1.65;
+  /* A highlight's colours (Block properties): the bar and the tint come from
+     the one colour, so each is a single value. */
+  --artifact-highlight-yellow: #e0a800;
+  --artifact-highlight-red: #e5484d;
+  --artifact-highlight-orange: #f76b15;
+  --artifact-highlight-green: #30a46c;
+  --artifact-highlight-blue: #3b82f6;
+  --artifact-highlight-purple: #8e4ec6;
+  --artifact-highlight-gray: #8b8d98;
+}
+
+html,
+body {
+  min-height: 100%;
+  margin: 0;
+  background: transparent;
+  color: CanvasText;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+body::before {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: color-mix(in srgb, CanvasText 38%, transparent);
+  content: "Loading editor…";
+  font-size: 12px;
+  opacity: 1;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+body.ready::before,
+body.failed::before {
+  opacity: 0;
+}
+
+#editor {
+  min-height: 100vh;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.artifact-document-tabs {
+  position: fixed;
+  z-index: 18;
+  top: 22px;
+  left: 12px;
+  display: none;
+  width: 150px;
+  max-height: calc(100vh - 44px);
+  overflow: hidden;
+  color: CanvasText;
+}
+
+.artifact-document-tabs header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 30px;
+  padding: 0 7px 0 9px;
+  font-size: 12px;
+}
+
+.artifact-document-tabs header strong {
+  font-weight: 650;
+}
+
+.artifact-document-tab-add {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: CanvasText;
+  cursor: pointer;
+  font: 400 20px/1 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+}
+
+.artifact-document-tab-add:hover,
+.artifact-document-tab-add:focus-visible {
+  background: color-mix(in srgb, CanvasText 8%, transparent);
+  outline: none;
+}
+
+.artifact-document-tab-list {
+  overflow-y: auto;
+  max-height: calc(100vh - 76px);
+  padding: 3px 0;
+}
+
+.artifact-document-tab {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  gap: 9px;
+  padding: 8px 9px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: CanvasText;
+  cursor: pointer;
+  font: 500 12px/1.25 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  text-align: left;
+}
+
+.artifact-document-tab:hover {
+  background: color-mix(in srgb, CanvasText 6%, transparent);
+}
+
+.artifact-document-tab.active {
+  background: color-mix(in srgb, AccentColor 15%, transparent);
+  color: AccentColor;
+}
+
+.artifact-document-tab > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artifact-document-tab-icon {
+  box-sizing: border-box;
+  width: 13px;
+  height: 15px;
+  flex: 0 0 auto;
+  border: 1.5px solid currentColor;
+  border-radius: 2px;
+}
+
+.artifact-document-tab-icon::after {
+  display: block;
+  width: 7px;
+  height: 1.5px;
+  margin: 4px 2px;
+  background: currentColor;
+  box-shadow: 0 3px 0 currentColor;
+  content: "";
+}
+
+body.ready #editor {
+  opacity: 1;
+}
+
+.crepe,
+.milkdown {
+  min-height: 100vh;
+  background: transparent !important;
+}
+
+/* Crepe defaults headings to Noto Serif. Keep all note prose on the same system
+   family while retaining size and weight as the document hierarchy. */
+.milkdown {
+  --artifact-prose-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+  --crepe-font-title: var(--artifact-prose-font);
+  --crepe-font-default: var(--artifact-prose-font);
+}
+
+.milkdown .editor {
+  box-sizing: border-box;
+  width: min(100%, var(--artifact-page-width));
+  min-height: 100vh;
+  margin: 0 auto;
+  /* The page yields to the pane. Docs can sit in a third of a window, and side
+     margins that hold their full width there cost the prose more than they give
+     it: the column narrows to a stutter, or the page keeps a wider fitting size
+     and is drawn clipped on both edges. The native title above the page mirrors
+     this same expression so the two share one left edge. */
+  --artifact-page-padding: clamp(20px, 6vw, 48px);
+  padding: 18px var(--artifact-page-padding) 108px;
+  color: CanvasText;
+  caret-color: AccentColor;
+  font-family: var(--artifact-prose-font);
+  font-size: var(--artifact-font-size);
+  line-height: var(--artifact-line-height);
+  letter-spacing: -0.004em;
+  outline: none;
+}
+
+/* Crepe renders a virtual caret so the writer can move cleanly across link and
+   inline-code boundaries. Its base rule hides the browser caret, but the
+   Article's later AccentColor rule above has equal specificity and used to
+   override that safeguard, painting blue and gray carets side by side. Keep
+   the native caret as a fallback only when the virtual-cursor feature is not
+   active, and give the single virtual caret the Article accent color. */
+.milkdown .editor.virtual-cursor-enabled {
+  caret-color: transparent;
+}
+
+.milkdown .editor.ProseMirror-focused {
+  --prosemirror-virtual-cursor-color: AccentColor;
+}
+
+.milkdown img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  max-height: 72vh;
+  margin: 1.4em auto;
+  border-radius: 8px;
+  object-fit: contain;
+}
+
+/* The selection bar (2026-10-06, Quiet chrome): what the passage stands on,
+   Edit with AI, the marks, the block type, Comment and Chat, in one compact
+   bar over the highlight, as ChatGPT's Pages draws its own. Groups are split
+   by hairlines; a group the page cannot use (formatting on a team Doc) is
+   hidden whole, and the hairline goes with it. In a pane too narrow for one
+   row the groups wrap rather than run off the page. */
+.artifact-selection-assistant {
+  position: fixed;
+  z-index: 30;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  row-gap: 2px;
+  box-sizing: border-box;
+  max-width: calc(100vw - 24px);
+  min-height: 34px;
+  padding: 3px;
+  border: 1px solid color-mix(in srgb, AccentColor 24%, transparent);
+  border-radius: 10px;
+  background: Canvas;
+  box-shadow: 0 8px 24px color-mix(in srgb, CanvasText 15%, transparent);
+  color: CanvasText;
+}
+
+.artifact-selection-assistant[hidden] { display: none; }
+
+.artifact-selection-group {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.artifact-selection-group[hidden] { display: none; }
+
+.artifact-selection-group:not(:first-child)::before {
+  align-self: center;
+  width: 1px;
+  height: 16px;
+  margin: 0 4px;
+  background: color-mix(in srgb, CanvasText 14%, transparent);
+  content: "";
+}
+
+.artifact-selection-group.artifact-selection-row-start::before {
+  display: none;
+}
+
+.artifact-selection-assistant button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: 600 11px/1 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  white-space: nowrap;
+}
+
+.artifact-selection-assistant button svg {
+  flex: 0 0 auto;
+}
+
+/* The marks are glyphs, square, in the text colour until they apply. */
+.artifact-selection-assistant button[data-role="format"] {
+  width: 26px;
+  padding: 0;
+}
+
+.artifact-selection-assistant button[data-role="block"] {
+  padding: 0 6px 0 8px;
+}
+
+.artifact-selection-assistant button[data-role="block"] svg {
+  color: color-mix(in srgb, CanvasText 55%, transparent);
+}
+
+.artifact-selection-assistant button[data-role="chat"] {
+  color: AccentColor;
+}
+
+/* The attachment count is the only visible sign that a passage is grounded, so
+   it reads as stated fact when there is one and as an invitation when there is
+   not. */
+.artifact-selection-assistant button[data-role="sources"] {
+  color: color-mix(in srgb, CanvasText 62%, transparent);
+}
+
+.artifact-selection-assistant button[data-role="sources"][data-grounded="true"] {
+  color: CanvasText;
+}
+
+.artifact-selection-assistant button[data-role="sources"][data-grounded="true"]::before {
+  content: "◆";
+  margin-right: 1px;
+  color: AccentColor;
+  font-size: 8px;
+}
+
+.artifact-selection-assistant button:hover,
+.artifact-selection-assistant button[aria-expanded="true"] {
+  background: color-mix(in srgb, CanvasText 8%, Canvas);
+}
+
+.artifact-selection-assistant button:active {
+  background: color-mix(in srgb, CanvasText 14%, Canvas);
+}
+
+/* A mark the selection carries is lit in the accent, as the slash menu lights
+   the row the keys are on. */
+.artifact-selection-assistant button[aria-pressed="true"] {
+  background: color-mix(in srgb, AccentColor 14%, Canvas);
+  color: AccentColor;
+}
+
+.artifact-selection-assistant button[aria-pressed="true"]:hover {
+  background: color-mix(in srgb, AccentColor 20%, Canvas);
+}
+
+.artifact-selection-assistant button[aria-pressed="true"]:active {
+  background: color-mix(in srgb, AccentColor 26%, Canvas);
+}
+
+.artifact-selection-assistant button:disabled {
+  background: transparent;
+  color: color-mix(in srgb, CanvasText 30%, transparent);
+  cursor: default;
+}
+
+.artifact-selection-assistant button:focus-visible,
+.artifact-selection-block-menu button:focus-visible {
+  outline: 2px solid color-mix(in srgb, AccentColor 60%, transparent);
+  outline-offset: -2px;
+}
+
+/* Text ▾: what the selected block can become, on the slash menu's surface and
+   with its icons, the block the selection is in checked. */
+.artifact-selection-block-menu {
+  position: fixed;
+  z-index: 31;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  min-width: 196px;
+  padding: 4px;
+  border: 1px solid color-mix(in srgb, CanvasText 14%, transparent);
+  border-radius: 10px;
+  background: Canvas;
+  box-shadow: 0 8px 24px color-mix(in srgb, CanvasText 15%, transparent);
+  color: CanvasText;
+  font: 12px/1.3 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+}
+
+.artifact-selection-block-menu[hidden] { display: none; }
+
+.artifact-selection-block-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: 500 12px/1.3 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  text-align: left;
+}
+
+.artifact-selection-block-menu button:hover {
+  background: color-mix(in srgb, CanvasText 8%, Canvas);
+}
+
+.artifact-selection-block-menu button:active {
+  background: color-mix(in srgb, CanvasText 14%, Canvas);
+}
+
+.artifact-selection-block-menu button > svg:first-child {
+  flex: 0 0 auto;
+  color: color-mix(in srgb, CanvasText 70%, Canvas);
+}
+
+.artifact-selection-block-menu button > span {
+  flex: 1 1 auto;
+}
+
+.artifact-selection-block-menu svg[data-role="check"] {
+  flex: 0 0 auto;
+  color: AccentColor;
+  visibility: hidden;
+}
+
+.artifact-selection-block-menu button[aria-checked="true"] svg[data-role="check"] {
+  visibility: visible;
+}
+
+/* Edit with AI: the writer's instruction, the model's proposal, and the two
+   ways to take it. One panel, anchored under the passage, in the selection
+   assistant's own materials so it reads as part of the same gesture. */
+.artifact-ai-edit {
+  position: fixed;
+  z-index: 31;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(460px, calc(100vw - 24px));
+  padding: 10px 12px 12px;
+  border: 1px solid color-mix(in srgb, AccentColor 24%, transparent);
+  border-radius: 12px;
+  background: Canvas;
+  box-shadow: 0 12px 32px color-mix(in srgb, CanvasText 18%, transparent);
+  color: CanvasText;
+  font: 12px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+}
+
+.artifact-ai-edit[hidden] { display: none; }
+
+.artifact-ai-edit-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 11px;
+  color: color-mix(in srgb, CanvasText 70%, transparent);
+}
+
+.artifact-ai-edit-head [data-role="scope"] {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artifact-ai-edit-head button {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.artifact-ai-edit-head button:hover {
+  background: color-mix(in srgb, CanvasText 8%, Canvas);
+}
+
+/* The ForeverLM mark that opens the model menu: the artwork itself, wider
+   than the close glyph, on the same hover wash. */
+.artifact-ai-edit-head button[data-action="model"] {
+  width: auto;
+  padding: 0 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.artifact-ai-edit-head button[data-action="model"] img {
+  display: block;
+  height: 12px;
+  width: auto;
+  pointer-events: none;
+}
+
+/* After the mark's own display, so a host that names no model hides it. */
+.artifact-ai-edit-head button[hidden] { display: none; }
+
+.artifact-ai-edit-ask {
+  display: flex;
+  gap: 6px;
+}
+
+.artifact-ai-edit-ask input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid color-mix(in srgb, CanvasText 18%, transparent);
+  border-radius: 7px;
+  background: Canvas;
+  color: CanvasText;
+  font: inherit;
+}
+
+.artifact-ai-edit-ask input:focus {
+  outline: 2px solid color-mix(in srgb, AccentColor 55%, transparent);
+  outline-offset: -1px;
+}
+
+.artifact-ai-edit-ask button,
+.artifact-ai-edit-actions button {
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  background: color-mix(in srgb, CanvasText 7%, Canvas);
+  color: CanvasText;
+  cursor: pointer;
+  font: 600 11px/1 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+}
+
+.artifact-ai-edit-ask button,
+.artifact-ai-edit-actions button[data-action="replace"] {
+  background: AccentColor;
+  color: Canvas;
+}
+
+.artifact-ai-edit-ask button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.artifact-ai-edit-actions button:hover:not(:disabled),
+.artifact-ai-edit-ask button:hover:not(:disabled) {
+  filter: brightness(0.94);
+}
+
+.artifact-ai-edit-status {
+  margin: 0;
+  color: color-mix(in srgb, CanvasText 62%, transparent);
+}
+
+.artifact-ai-edit-status[hidden] { display: none; }
+
+.artifact-ai-edit-status[data-error="true"] {
+  color: color-mix(in srgb, red 70%, CanvasText);
+}
+
+.artifact-ai-edit-status[data-busy="true"]::after {
+  content: "";
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-left: 6px;
+  border: 1.5px solid color-mix(in srgb, CanvasText 30%, transparent);
+  border-top-color: AccentColor;
+  border-radius: 50%;
+  vertical-align: -1px;
+  animation: artifact-ai-edit-spin 0.9s linear infinite;
+}
+
+@keyframes artifact-ai-edit-spin { to { transform: rotate(360deg); } }
+
+/* The proposal is shown as the Markdown it is — what Replace will write — in
+   the doc's own type, so a heading or a list reads as such before it lands. */
+.artifact-ai-edit-proposal {
+  max-height: min(40vh, 320px);
+  overflow: auto;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, CanvasText 5%, Canvas);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.artifact-ai-edit-proposal[hidden] { display: none; }
+
+.artifact-ai-edit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.artifact-ai-edit-actions[hidden] { display: none; }
+
+.artifact-ai-edit-actions button[data-action="discard"] {
+  margin-left: auto;
+  background: transparent;
+  color: color-mix(in srgb, CanvasText 62%, transparent);
+}
+
+/* Generate and Generate image write something new where the caret was: there
+   is no passage to replace, so Insert is the one way to take the answer. */
+.artifact-ai-edit[data-mode="generate"] .artifact-ai-edit-actions button[data-action="replace"],
+.artifact-ai-edit[data-mode="visualize"] .artifact-ai-edit-actions button[data-action="replace"],
+.artifact-ai-edit[data-mode="image"] .artifact-ai-edit-actions button[data-action="replace"] {
+  display: none;
+}
+
+.artifact-ai-edit[data-mode="generate"] .artifact-ai-edit-actions button[data-action="insert"],
+.artifact-ai-edit[data-mode="visualize"] .artifact-ai-edit-actions button[data-action="insert"] {
+  background: AccentColor;
+  color: Canvas;
+}
+
+/* Where Generate will write: a mark with no width, drawn as a thin accent rule
+   at the start of the line so the writer sees the place the panel is about. */
+.artifact-ai-generate-anchor {
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  margin: 0 -1px;
+  border-radius: 1px;
+  background: AccentColor;
+  opacity: 0.55;
+  vertical-align: text-bottom;
+  pointer-events: none;
+}
+
+/* The passage the panel is about, washed in the accent while it is open. An
+   inline decoration, so it follows the words through any edit. */
+.milkdown .editor .artifact-ai-edit-target {
+  background: color-mix(in srgb, AccentColor 16%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, AccentColor 16%, transparent);
+  border-radius: 2px;
+}
+
+/* A team Doc reads without a caret; nothing there can be rewritten in place. */
+body.read-only .artifact-selection-assistant button[data-role="ai"] {
+  display: none;
+}
+
+/* A source dragged onto the highlighted passage attaches to it instead of
+   writing a citation where it landed. The passage lights up under the drag
+   because the two outcomes are otherwise indistinguishable until the mouse
+   comes up. */
+.artifact-selection-drop-layer {
+  position: fixed;
+  z-index: 29;
+  inset: 0;
+  pointer-events: none;
+}
+
+.artifact-selection-drop-layer[hidden] { display: none; }
+
+.artifact-selection-drop-box {
+  position: absolute;
+  border-radius: 3px;
+  background: color-mix(in srgb, AccentColor 26%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, AccentColor 62%, transparent);
+}
+
+.artifact-link-drop-caret {
+  position: absolute;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: AccentColor;
+}
+
+/* A hovered link to another doc or a Notebook offers one thing: following it.
+   The same pill as the selection assistant, holding one button. */
+.artifact-inapp-link-tooltip {
+  position: fixed;
+  z-index: 30;
+  display: flex;
+  height: 28px;
+  padding: 3px;
+  border: 1px solid color-mix(in srgb, AccentColor 24%, transparent);
+  border-radius: 999px;
+  background: Canvas;
+  box-shadow: 0 8px 24px color-mix(in srgb, CanvasText 15%, transparent);
+  color: CanvasText;
+}
+
+.artifact-inapp-link-tooltip[hidden] { display: none; }
+
+.artifact-inapp-link-tooltip button {
+  padding: 0 9px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: AccentColor;
+  cursor: pointer;
+  font: 600 11px/1 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+}
+
+.artifact-inapp-link-tooltip button:hover {
+  background: color-mix(in srgb, CanvasText 8%, Canvas);
+}
+
+/* Typing `[[` in the prose, or a title into the Link field, offers the docs
+   and Notebooks a link can point at: a short list under the caret or the field,
+   on the same surface as the hover pill, with the title and, quieter, where
+   the doc is filed or that the row is a Notebook. */
+.artifact-link-picker {
+  position: fixed;
+  z-index: 31;
+  min-width: 220px;
+  max-width: 360px;
+  padding: 4px;
+  border: 1px solid color-mix(in srgb, CanvasText 14%, transparent);
+  border-radius: 10px;
+  background: Canvas;
+  box-shadow: 0 8px 24px color-mix(in srgb, CanvasText 15%, transparent);
+  color: CanvasText;
+  font: 12px/1.3 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+}
+
+.artifact-link-picker[hidden] { display: none; }
+
+.artifact-link-picker-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  cursor: default;
+}
+
+.artifact-link-picker-row[aria-selected="true"] {
+  background: color-mix(in srgb, AccentColor 14%, Canvas);
+}
+
+.artifact-link-picker-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artifact-link-picker-detail {
+  flex: 0 1 auto;
+  max-width: 45%;
+  overflow: hidden;
+  color: color-mix(in srgb, CanvasText 58%, Canvas);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The `/` list: the caret list with group headings, an icon, and a line saying
+   what a row does, as ChatGPT's Pages draws its insert menu. It is the one
+   caret list that can be taller than its window, so it scrolls. */
+.artifact-link-picker[data-source="slash"] {
+  box-sizing: border-box;
+  width: min(440px, calc(100vw - 16px));
+  max-width: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.artifact-link-picker-group {
+  padding: 8px 8px 3px;
+  color: color-mix(in srgb, CanvasText 50%, Canvas);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.artifact-link-picker-group:first-child { padding-top: 4px; }
+
+.artifact-link-picker[data-source="slash"] .artifact-link-picker-row {
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+}
+
+.artifact-link-picker-icon {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  color: color-mix(in srgb, CanvasText 70%, Canvas);
+}
+
+.artifact-link-picker[data-source="slash"] .artifact-link-picker-title {
+  flex: 0 0 auto;
+  font-weight: 500;
+}
+
+.artifact-link-picker[data-source="slash"] .artifact-link-picker-detail {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: none;
+}
+
+.artifact-link-picker-hint {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: color-mix(in srgb, CanvasText 42%, Canvas);
+  font: 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* A reference line — a paragraph that is one link to the web, with at most a
+   label before it and a detail after it — is drawn as a card: the title the
+   writer gave the link, the detail quieter beside it, and at the trailing edge
+   the address's domain with the library's answer. The paragraph stays the
+   paragraph: its text is still typed into, still selected, still the Markdown
+   link it was. The control is floated from the head of the line rather than
+   laid out beside the text, so label, title and detail flow as one run of
+   prose around it and a long annotated entry wraps under it at full width;
+   `flow-root` keeps a short line from letting the float escape the card. The
+   card is a row, not a paragraph: it is set at the chat's Sources-row scale
+   (about 0.85 of the prose size, a tighter line) so a source dropped into a
+   page takes one line where the prose would take two. The product owner (2026-09-12),
+   on the first cards: "any way you can make that card smaller?" */
+.milkdown .editor p.artifact-reference {
+  position: relative;
+  display: flow-root;
+  margin: 0.45em 0;
+  /* Room on the left for the 34px tile and its 10px gutters. */
+  padding: 8px 10px 8px 54px;
+  border: 1px solid color-mix(in srgb, CanvasText 12%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, CanvasText 3.5%, transparent);
+  font-size: 0.85em;
+  line-height: 1.35;
+  /* A one-line card (no metadata line yet, or a source this library does not
+     hold) would otherwise close to within a pixel of the 34px tile. */
+  min-height: 42px;
+}
+
+.milkdown .editor li > p.artifact-reference {
+  margin: 0.3em 0;
+}
+
+.milkdown .editor p.artifact-reference a {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.milkdown .editor p.artifact-reference a:hover {
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, CanvasText 34%, transparent);
+  text-underline-offset: 3px;
+}
+
+.milkdown .editor p.artifact-reference .artifact-reference-detail {
+  color: color-mix(in srgb, CanvasText 58%, transparent);
+  font-size: 0.92em;
+}
+
+/* A source card's second line: the library's metadata for the source, under
+   the title the way the chat's Sources row writes it. The host's answer, not
+   the writer's text, so it is not editable and leaves the Markdown alone. */
+/* The metadata line is a widget after the title, so ProseMirror follows it
+   with its trailing separator and break. As a block the line pushed those onto
+   an empty third line of prose height under it, which is where a third of the
+   card's height went; as a full-width inline-block the break ends the
+   metadata line itself and the card closes under the text. */
+.milkdown .editor p.artifact-reference .artifact-reference-meta {
+  display: inline-block;
+  width: 100%;
+  vertical-align: top;
+  overflow: hidden;
+  margin-top: 2px;
+  color: color-mix(in srgb, CanvasText 58%, transparent);
+  font-size: 0.88em;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* The card's picture: the library's artwork for a saved source, a page's
+   og:image for one it does not hold, the site's icon small when there is no
+   picture, the family's glyph when there is nothing. Out of the text flow and
+   centred on the card, so a one-line and a two-line card carry it alike. */
+.artifact-reference-thumbnail {
+  position: absolute;
+  top: 50%;
+  left: 10px;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 6px;
+  background: color-mix(in srgb, CanvasText 6%, transparent);
+  color: color-mix(in srgb, CanvasText 45%, transparent);
+  transform: translateY(-50%);
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.artifact-reference-thumbnail img {
+  display: block;
+}
+
+.artifact-reference-thumbnail .artifact-reference-picture {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.artifact-reference-thumbnail .artifact-reference-icon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+
+.artifact-reference-thumbnail svg {
+  display: block;
+}
+
+/* The family tints, the same ones the library's rows use. */
+.artifact-reference-thumbnail[data-kind="article"],
+.artifact-reference-thumbnail[data-kind="unclassified"],
+.artifact-reference-thumbnail[data-kind="page"] {
+  background: color-mix(in srgb, #0a7aff 11%, transparent);
+  color: #0a7aff;
+}
+
+.artifact-reference-thumbnail[data-kind="paper"],
+.artifact-reference-thumbnail[data-kind="pdf"] {
+  background: color-mix(in srgb, #a550d6 11%, transparent);
+  color: #a550d6;
+}
+
+.artifact-reference-thumbnail[data-kind="podcast"] {
+  background: color-mix(in srgb, #f08a1e 12%, transparent);
+  color: #f08a1e;
+}
+
+.artifact-reference-thumbnail[data-kind="book"] {
+  background: color-mix(in srgb, #2ea043 12%, transparent);
+  color: #2ea043;
+}
+
+.artifact-reference-thumbnail[data-kind="course"] {
+  background: color-mix(in srgb, #5856d6 11%, transparent);
+  color: #5856d6;
+}
+
+.artifact-reference-thumbnail[data-kind="meeting"] {
+  background: color-mix(in srgb, #30b0c7 12%, transparent);
+  color: #30b0c7;
+}
+
+.artifact-reference-thumbnail[data-kind="video"] {
+  background: color-mix(in srgb, #e5484d 11%, transparent);
+  color: #e5484d;
+}
+
+.artifact-reference-control {
+  display: inline-flex;
+  float: right;
+  align-items: center;
+  gap: 8px;
+  height: 24px;
+  margin: -2px 0 0 12px;
+  user-select: none;
+  -webkit-user-select: none;
+  white-space: nowrap;
+}
+
+.artifact-reference-domain {
+  max-width: 13em;
+  overflow: hidden;
+  color: color-mix(in srgb, CanvasText 48%, transparent);
+  font-size: 11px;
+  text-overflow: ellipsis;
+}
+
+.artifact-reference-pending {
+  color: color-mix(in srgb, CanvasText 48%, transparent);
+  font: 600 11px/1 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+}
+
+/* At the card's row scale the control is as tall as the title's line, so the
+   floated control ends with that line and the metadata line can start straight
+   under the title instead of below the control. */
+.milkdown .editor p.artifact-reference .artifact-reference-control {
+  height: 1.35em;
+  margin: 0 0 0 10px;
+}
+
+.milkdown .editor p.artifact-reference .artifact-reference-control button {
+  height: 1.35em;
+  padding: 0 7px;
+}
+
+/* Every control lights up under the pointer: the same wash the in-app link
+   pill's button gets. */
+.artifact-reference-control button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  /* The system accent where the engine knows it; the link colour where it does
+     not, so the control never falls back to black. */
+  color: LinkText;
+  color: AccentColor;
+  cursor: pointer;
+  font: 600 11px/1 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+}
+
+.artifact-reference-control button:hover {
+  background: color-mix(in srgb, CanvasText 8%, transparent);
+}
+
+.artifact-reference-control button[data-role="add"] {
+  border: 1px solid color-mix(in srgb, LinkText 38%, transparent);
+  border-color: color-mix(in srgb, AccentColor 38%, transparent);
+}
+
+/* Request and Share stand where Add would: the same bordered control, so a
+   team Doc's card reads the same whichever step it is at. */
+.artifact-reference-control button[data-role="request"],
+.artifact-reference-control button[data-role="share"] {
+  border: 1px solid color-mix(in srgb, LinkText 38%, transparent);
+  border-color: color-mix(in srgb, AccentColor 38%, transparent);
+}
+
+.artifact-reference-control button[data-role="open"] {
+  padding: 0 5px;
+}
+
+/* In the library: a filled check. A real element, not a pseudo-element, so
+   the accent colour actually paints in this WebView. */
+.artifact-reference-check {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: LinkText;
+  background: AccentColor;
+  color: Canvas;
+}
+
+/* Crepe centres a list marker on the first line of ordinary prose; a card's
+   first line sits a border and a padding lower, so the marker follows it. The
+   slot's fixed one-line height (below) has to give way here: padding inside a
+   fixed box only moved the marker half as far as asked. */
+.milkdown .editor li.list-item:has(> .children > .content-dom > p.artifact-reference:first-child) > .label-wrapper {
+  height: auto;
+  padding-top: 11px;
+}
+
+.artifact-reference-check svg {
+  display: block;
+}
+
+/* In a narrow pane the floated control would leave the title a few characters
+   of width beside the tile; it takes its own row above the title instead. */
+@media (max-width: 480px) {
+  .artifact-reference-control {
+    display: flex;
+    float: none;
+    justify-content: space-between;
+    margin: 0 0 6px;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .milkdown .editor p.artifact-reference {
+    border-color: color-mix(in srgb, CanvasText 40%, transparent);
+  }
+}
+
+/* Margin cards: a paragraph that cites the web in its sentences carries a
+   stack of cards in the right margin, one per address, each drawn the way the
+   Sources sidebar draws a row — picture, title, a quieter line of what it is,
+   and the library's answer at the trailing edge. The stack is written at the
+   head of the paragraph and taken out of the text flow; `layoutMarginCards`
+   moves it into one column past the page's edge and down past the stack above
+   it, so the prose is never pushed and two paragraphs' cards never overlap.
+
+   The column needs room. The page is `--artifact-page-width` in a pane that
+   has it and centred there; with a margin column it moves over so page and
+   column are centred together, and in a pane that cannot hold both at full
+   width the page yields first — the prose column narrows before the cards go —
+   and only a pane that cannot hold the two at all draws no cards. The tier is
+   written on the body as `data-margin-tier` by `layoutMarginCards`, because it
+   depends on the page width the host chose and a media query cannot read a
+   custom property. The host mirrors these tiers for the title above the page
+   (`pageInset` in ArtifactViews.swift), so the title keeps the prose's left
+   edge whichever tier the pane is in. */
+.milkdown .editor {
+  --artifact-margin-card-width: 240px;
+  --artifact-margin-gutter: 20px;
+  --artifact-margin-gap: 10px;
+}
+
+.milkdown .editor p.artifact-cited {
+  position: relative;
+}
+
+.artifact-margin-cards {
+  position: absolute;
+  top: 0;
+  left: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--artifact-margin-gap);
+  width: var(--artifact-margin-card-width);
+  margin: 0;
+  padding: 0;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.artifact-margin-card {
+  display: flex;
+  box-sizing: border-box;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 6px;
+  border-radius: 10px;
+  color: CanvasText;
+  font: 400 12px/1.3 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+  letter-spacing: 0;
+  text-align: left;
+}
+
+.artifact-margin-card.is-openable {
+  cursor: pointer;
+}
+
+/* Every row lights up under the pointer, like the sidebar's. */
+.artifact-margin-card:hover,
+.artifact-margin-card:focus-visible {
+  background: color-mix(in srgb, CanvasText 6%, transparent);
+  outline: none;
+}
+
+/* The same tile as a reference card's, at the sidebar row's portrait size and
+   in the flow of the row rather than pinned to a corner. */
+.artifact-margin-card .artifact-reference-thumbnail {
+  position: static;
+  top: auto;
+  left: auto;
+  flex: 0 0 auto;
+  width: 36px;
+  height: 48px;
+  border-radius: 5px;
+  transform: none;
+}
+
+.artifact-margin-card-body {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.artifact-margin-card-title {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.artifact-margin-card-detail {
+  overflow: hidden;
+  color: color-mix(in srgb, CanvasText 55%, transparent);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artifact-margin-card-action {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+}
+
+.artifact-margin-card-action button {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: LinkText;
+  color: AccentColor;
+  cursor: pointer;
+}
+
+.artifact-margin-card-action button:hover {
+  background: color-mix(in srgb, CanvasText 8%, transparent);
+}
+
+.artifact-margin-card-action .artifact-reference-pending {
+  padding: 0 6px;
+}
+
+/* Add to Sources as a plus in a ring: the words are the button's label, and
+   the tooltip; the card's width has no room for them beside the title. */
+.artifact-reference-plus {
+  display: inline-grid;
+  box-sizing: border-box;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+}
+
+.artifact-reference-plus svg {
+  display: block;
+}
+
+/* In a paragraph whose sources stand in cards, the citations inside the
+   sentences go quiet: a report cites as it goes — "C03-S01 · Paper; C03-S02 ·
+   Company" after every claim — and in link blue those runs cut every sentence
+   in three. The words stay, in the prose's own colour with a dotted hairline
+   under them so they still read as something to follow; the card beside the
+   paragraph (or its reference line below) is what says which source it is.
+   The editor's private addresses — grounding, doc and Notebook links — keep
+   their own rules. */
+.milkdown .editor p.artifact-cited a[href^="http"]:not([href^="https://foreverlm.invalid/"]) {
+  color: color-mix(in srgb, CanvasText 62%, transparent);
+  text-decoration: underline dotted;
+  text-decoration-color: color-mix(in srgb, CanvasText 28%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.milkdown .editor p.artifact-cited a[href^="http"]:not([href^="https://foreverlm.invalid/"]):hover {
+  color: LinkText;
+  text-decoration: underline;
+}
+
+/* Hovering a card underlines the words in the paragraph that cite it. */
+.milkdown .editor a.artifact-cited-active {
+  color: CanvasText;
+  text-decoration: underline;
+  text-decoration-color: AccentColor;
+  text-underline-offset: 3px;
+}
+
+/* Wide: the page keeps its full width and moves over so that page and column
+   are centred together. */
+body.has-margin-cards[data-margin-tier="wide"] .milkdown .editor {
+  margin-right: auto;
+  margin-left: max(0px, calc((100% - var(--artifact-page-width) - 260px) / 2));
+}
+
+/* Medium: the page yields to the column. */
+body.has-margin-cards[data-margin-tier="medium"] .milkdown .editor {
+  width: calc(100% - 260px);
+  margin-right: auto;
+  margin-left: 0;
+}
+
+/* Narrow: no column. The stack is written after the paragraph's last word
+   instead and flows below the text, one full-width row per source — the same
+   rows, the same controls, just under the claim rather than beside it. */
+.artifact-margin-cards[data-tier="inline"] {
+  position: static;
+  width: auto;
+  margin: 8px 0 2px;
+}
+
+.artifact-margin-cards[data-tier="inline"] .artifact-margin-card {
+  padding: 4px 6px;
+}
+
+.artifact-margin-cards[data-tier="inline"] .artifact-margin-card-title {
+  -webkit-line-clamp: 1;
+}
+
+/* Two paragraphs in a row with stacks below them need a little more air
+   between the last row and the next paragraph. */
+.milkdown .editor p.artifact-cited:has(> .artifact-margin-cards[data-tier="inline"]) {
+  margin-bottom: 1em;
+}
+
+.artifact-heading-fold-controls {
+  position: fixed;
+  z-index: 18;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* A folded bullet keeps its own line and hides the rest of what it holds:
+   the bullets under it, and any further paragraph of a loose item. */
+.milkdown .editor .milkdown-list-item-block.is-outline-folded > li > .children > .content-dom > :not(:first-child) {
+  display: none;
+}
+
+/* Its marker sits in a soft disc, so a folded bullet reads as holding more
+   even where the pointer is not. */
+.milkdown .editor .milkdown-list-item-block.is-outline-folded > li > .label-wrapper {
+  position: relative;
+}
+
+.milkdown .editor .milkdown-list-item-block.is-outline-folded > li > .label-wrapper::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 18px;
+  height: 18px;
+  margin: -9px 0 0 -9px;
+  border-radius: 50%;
+  background: color-mix(in srgb, CanvasText 12%, transparent);
+  pointer-events: none;
+}
+
+.milkdown .editor .milkdown-list-item-block.is-outline-folded > li > .label-wrapper .label {
+  position: relative;
+}
+
+.artifact-heading-fold {
+  position: absolute;
+  display: grid;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: color-mix(in srgb, CanvasText 45%, transparent);
+  cursor: pointer;
+  opacity: 0.72;
+  pointer-events: auto;
+  transition: opacity 100ms ease, background 100ms ease, color 100ms ease;
+}
+
+.artifact-heading-fold:hover,
+.artifact-heading-fold:focus-visible {
+  opacity: 1;
+  background: color-mix(in srgb, CanvasText 8%, transparent);
+  color: CanvasText;
+  outline: none;
+}
+
+.artifact-heading-fold > svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 140ms ease;
+}
+
+.artifact-heading-fold.is-collapsed > svg {
+  transform: rotate(-90deg);
+}
+
+/* The first block starts flush with the page. The virtual caret is a widget
+   parked at document position 0 — present while the selection is a caret and
+   gone while it is a range — and it rewrites its own class on every selection
+   change, so neither `:first-child` nor `.ProseMirror-widget + *` could tell
+   the first block from it. Matching by position made the whole page drop by a
+   heading margin each time a click collapsed the selection and lift again as a
+   drag extended it — highlighting a passage jolted the page under the pointer.
+   `:nth-child(1 of …)` names the first non-widget child directly, however many
+   widgets precede it. */
+.milkdown .editor > :nth-child(1 of :not(.ProseMirror-widget, .prosemirror-virtual-cursor)) {
+  margin-top: 0;
+}
+
+.milkdown .editor p,
+.milkdown .editor ul,
+.milkdown .editor ol,
+.milkdown .editor blockquote,
+.milkdown .editor pre,
+.milkdown .editor table {
+  margin: 0 0 0.82em;
+}
+
+/* Crepe's frame theme pads every paragraph and heading by 4px and 2px of its
+   own and sets paragraphs to line-height 1.5. The rules here only ever set
+   margins, so all of that survived: each block carried vertical padding the
+   page never asked for, and the gap between two paragraphs (0.82em of margin
+   plus 8px of padding) came out nearly as tall as the leading *inside* one.
+   That reads as a page of loose single lines rather than paragraphs. Leading
+   belongs to the block and the space between blocks belongs to the margins
+   above, so take the padding back and let the paragraph inherit the page's
+   own line-height. */
+.milkdown .editor p,
+.milkdown .editor h1,
+.milkdown .editor h2,
+.milkdown .editor h3,
+.milkdown .editor h4 {
+  padding: 0;
+}
+
+.milkdown .editor p {
+  line-height: inherit;
+}
+
+/* A bullet, number, or checkbox rides in a fixed 32px slot Crepe sized to that
+   padded paragraph. With the padding gone the marker centred itself 3px below
+   the line it belongs to, so give the slot one line of prose to centre in. */
+.milkdown .editor li .label-wrapper,
+.milkdown .editor li .label-wrapper .label {
+  height: calc(var(--artifact-line-height) * 1em);
+  padding: 0;
+}
+
+.milkdown .editor h1,
+.milkdown .editor h2,
+.milkdown .editor h3,
+.milkdown .editor h4 {
+  letter-spacing: -0.026em;
+  /* Space above binds a heading to what follows it rather than floating it
+     between two blocks. */
+  margin-bottom: 0.34em;
+}
+
+.milkdown .editor h1 {
+  margin-top: 1.5em;
+  font-size: 1.85em;
+  font-weight: 700;
+  line-height: 1.12;
+}
+
+.milkdown .editor h2 {
+  margin-top: 1.5em;
+  font-size: 1.38em;
+  font-weight: 680;
+  line-height: 1.22;
+}
+
+.milkdown .editor h3 {
+  margin-top: 1.35em;
+  font-size: 1.15em;
+  font-weight: 660;
+}
+
+.milkdown .editor h4 {
+  margin-top: 1.2em;
+  font-size: 1.02em;
+  font-weight: 660;
+  /* At body size only case and color keep a heading from reading as a bold
+     sentence. */
+  color: color-mix(in srgb, CanvasText 72%, transparent);
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+}
+
+/* A paragraph inside a list item is a line, not a block: without this each
+   one-line bullet carries a full paragraph gap under it. */
+.milkdown .editor li p {
+  margin-bottom: 0.15em;
+}
+
+/* Blank lines are pauses, not holes: a run of them should breathe, not open a
+   screen-height gap in the middle of a note. Kept tall enough to click into. */
+.milkdown .editor > p:has(> br.ProseMirror-trailingBreak:only-child) {
+  padding: 0;
+  margin-bottom: 0;
+  line-height: 1.25;
+}
+
+.milkdown .editor a {
+  color: LinkText;
+  text-decoration: none;
+}
+
+.milkdown .editor a:hover {
+  text-decoration: underline;
+}
+
+/* A grounded passage: sources attached to the prose rather than named in it.
+   Nothing enters the sentence — no number, no footnote, no underline at rest —
+   so it reads exactly as it would if nothing were attached, and every property a
+   link would otherwise bring is handed back to the paragraph. The margin mark
+   below says the block stands on something; hovering says how far that reaches.
+
+   `cursor: text` matters as much as the colour: a caret is what tells the writer
+   this is still their sentence and not a destination. */
+.milkdown .editor a[href^="foreverlm://grounding/"],
+.milkdown .editor a[href^="https://foreverlm.invalid/grounding/"] {
+  display: inline;
+  max-width: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: text;
+  font: inherit;
+  text-decoration: none;
+  vertical-align: baseline;
+}
+
+.milkdown .editor a[href^="foreverlm://grounding/"]::before,
+.milkdown .editor a[href^="https://foreverlm.invalid/grounding/"]::before,
+.milkdown .editor a[href^="foreverlm://grounding/"]::after,
+.milkdown .editor a[href^="https://foreverlm.invalid/grounding/"]::after {
+  content: none;
+}
+
+/* A block that stands on something carries one short hairline in the margin.
+   Nothing enters the text. At the coverage this is built for — most paragraphs
+   carrying sources — an inline cue on almost every sentence stops being a
+   signal, while a margin column reads as a quiet rhythm and shows the paragraph
+   that stands on nothing as a gap in it. The mark sits inside the editor's own
+   left padding, so it costs the prose no width.
+
+   A hairline, not a dot: the same gutter holds the list bullets, and a dot there
+   is a bullet to the eye. A grounded list item read as a two-dot bullet, and a
+   grounded paragraph beside a list read as one more item of it. A thin vertical
+   rule is the mark margins already use for "this passage is annotated", and
+   nothing else in the gutter has that shape.
+
+   `blockquote` is deliberately absent from the list: it always contains the
+   paragraph that would be marked anyway, and matching both would draw two marks
+   for one passage. A list item is the same case twice over — Crepe wraps its
+   text in a paragraph, and a nested item sits inside its parent — so only the
+   outermost block takes the mark: a paragraph that is not in a list item, and a
+   list item that is not in another. Marking every level drew one for each level
+   of nesting. */
+.milkdown .editor :is(p:not(li p), li:not(li li), h1, h2, h3, h4, h5, h6):has(a[href^="foreverlm://grounding/"]),
+.milkdown .editor :is(p:not(li p), li:not(li li), h1, h2, h3, h4, h5, h6):has(a[href^="https://foreverlm.invalid/grounding/"]) {
+  position: relative;
+}
+
+.milkdown .editor :is(p:not(li p), li:not(li li), h1, h2, h3, h4, h5, h6):has(a[href^="foreverlm://grounding/"])::before,
+.milkdown .editor :is(p:not(li p), li:not(li li), h1, h2, h3, h4, h5, h6):has(a[href^="https://foreverlm.invalid/grounding/"])::before {
+  content: "";
+  position: absolute;
+  left: -18px;
+  /* Spans the glyphs of the block's first line, whatever that line's leading. */
+  top: 0.32em;
+  width: 2px;
+  height: 1em;
+  border-radius: 1px;
+  /* `CanvasText`, not `AccentColor`: a system accent colour resolves to
+     transparent on a pseudo-element in this WebView, which silently paints
+     nothing. A neutral mark is the better one anyway — an accent one reads as
+     something to click, and this is a margin note, not a control. */
+  background: color-mix(in srgb, CanvasText 30%, transparent);
+  pointer-events: none;
+}
+
+/* Which words, on demand. The mark says the block stands on something; hovering
+   the passage says how far that reaches, without leaving a mark on the page for
+   a reader who is only reading. */
+.milkdown .editor a[href^="foreverlm://grounding/"]:hover,
+.milkdown .editor a[href^="https://foreverlm.invalid/grounding/"]:hover {
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, CanvasText 26%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+}
+
+.milkdown .editor blockquote {
+  padding: 0.28em 0 0.28em 1em;
+  border-left: 3px solid color-mix(in srgb, CanvasText 22%, transparent);
+  color: color-mix(in srgb, CanvasText 78%, transparent);
+}
+
+/* Crepe draws its own rounded bar on blockquote::before. With the border-left
+   above, a quote carried two bars side by side: a straight one and a pill a few
+   pixels inside it. The border is the one bar; callouts keep theirs too. */
+.milkdown .editor blockquote::before {
+  content: none;
+}
+
+.milkdown .editor code {
+  border-radius: 4px;
+  background: color-mix(in srgb, CanvasText 9%, transparent);
+  font-family: "SF Mono", Menlo, Monaco, Consolas, monospace;
+  font-size: 0.92em;
+}
+
+.milkdown .editor span[data-type="math_inline"] {
+  color: CanvasText;
+}
+
+.milkdown .editor table {
+  width: 100%;
+}
+
+/* A table of four or more columns is wider than a line of prose wants to be:
+   five columns in the 760px column wrap their headings letter by letter. Such
+   a table spreads past the prose column to the pane's own inset on both sides
+   — the column stays where it is for the text, the table takes the room the
+   pane has — and stops at the pane's edge, so on a pane no wider than the
+   page (or a page set to Full Width) it is exactly the width it was. The product owner
+   (2026-09-12), on a five-column table of trials: "i need to be able to have a
+   table like that full screen". `50%` is half the prose column, `50vw` half
+   the pane, and the editor is centred in the pane, so the difference is the
+   column's inset. A page whose margin cards flow inline is centred the same
+   way. */
+body:not(.has-margin-cards) .milkdown .editor .milkdown-table-block:not([data-table-width]):has(tr > :nth-child(4)),
+body.has-margin-cards[data-margin-tier="inline"] .milkdown .editor .milkdown-table-block:not([data-table-width]):has(tr > :nth-child(4)),
+body:not(.has-margin-cards) .milkdown .editor .milkdown-table-block[data-table-width="full"],
+body.has-margin-cards[data-margin-tier="inline"] .milkdown .editor .milkdown-table-block[data-table-width="full"] {
+  width: calc(100vw - 2 * var(--artifact-page-padding));
+  margin-left: calc(50% - 50vw + var(--artifact-page-padding));
+}
+
+/* With a margin column beside the page the table must not cover the cards, so
+   it grows only towards the pane's leading edge: the page's own offset (the
+   `wide` tier's margin-left above) is the room it takes. In the `medium` tier
+   the page already spans everything the column leaves, and the table stays. */
+body.has-margin-cards[data-margin-tier="wide"] .milkdown .editor .milkdown-table-block:not([data-table-width]):has(tr > :nth-child(4)),
+body.has-margin-cards[data-margin-tier="wide"] .milkdown .editor .milkdown-table-block[data-table-width="full"] {
+  width: calc(100% + max(0px, (100vw - var(--artifact-page-width) - 260px) / 2));
+  margin-left: calc(-1 * max(0px, (100vw - var(--artifact-page-width) - 260px) / 2));
+}
+
+/* A table's properties (Block properties; the editor puts them on the table
+   as attributes, and none for a table at its defaults).
+   Column fit: "readability", the default, lets the words decide how wide a
+   column is (Crepe lays every table out fixed, so a table used to give each
+   column the same width whatever it held); "even" gives every column the same
+   width, which is that old look.
+   Width: Normal is the rule above (a wide table spreads past the column);
+   Flexible is only as wide as its words need and scrolls past the column;
+   Full width takes the pane's room whatever the columns, by the rule above.
+   Distribute-evenly fills the column, so a flexible table that is spread
+   evenly is the column's width. */
+.milkdown .editor .milkdown-table-block table {
+  table-layout: auto;
+}
+
+.milkdown .editor .milkdown-table-block[data-table-width="flexible"] > div > .table-wrapper {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.milkdown .editor .milkdown-table-block[data-table-width="flexible"] table {
+  width: max-content;
+  min-width: 0;
+}
+
+.milkdown .editor .milkdown-table-block[data-table-fit="even"] table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.milkdown .editor th,
+.milkdown .editor td {
+  border-color: color-mix(in srgb, CanvasText 18%, transparent);
+}
+
+.milkdown .editor hr {
+  border-color: color-mix(in srgb, CanvasText 16%, transparent);
+}
+
+@media (prefers-contrast: more) {
+  .milkdown .editor :is(p:not(li p), li:not(li li), h1, h2, h3, h4, h5, h6):has(a[href^="foreverlm://grounding/"])::before,
+  .milkdown .editor :is(p:not(li p), li:not(li li), h1, h2, h3, h4, h5, h6):has(a[href^="https://foreverlm.invalid/grounding/"])::before {
+    background: CanvasText;
+  }
+}
+
+/* A team Doc read as a page: no caret, and the page never announces itself as
+   a place to type. Selection and copying stay. */
+body.read-only .milkdown .ProseMirror {
+  caret-color: transparent;
+}
+body.read-only .milkdown .ProseMirror [data-placeholder]::before {
+  display: none;
+}
+
+/* ─── The notes graph ──────────────────────────────────────────────────────
+   Roam's way of taking notes, in ForeverLM's quiet style
+   (docs/notes-graph-design.md): a block reference reads as the words it
+   points at with a hairline under them, a page named by its title reads as a
+   link with its brackets faint, an embed is a framed block, and the page foot
+   lists what points here. Every colour is the system's, so light and dark
+   follow on their own. */
+
+/* The typed form a drawn reference or embed stands in for. */
+.milkdown .editor .artifact-graph-hidden {
+  display: none;
+}
+
+/* A reference as typed: in the block being written in, or one the host has
+   not answered yet. */
+.milkdown .editor .artifact-graph-source {
+  color: color-mix(in srgb, CanvasText 52%, transparent);
+}
+
+.milkdown .editor .artifact-block-ref {
+  border-radius: 3px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, AccentColor 55%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.milkdown .editor .artifact-block-ref:hover {
+  background: color-mix(in srgb, AccentColor 10%, transparent);
+}
+
+.milkdown .editor .artifact-block-ref.is-missing {
+  color: color-mix(in srgb, CanvasText 45%, transparent);
+  cursor: text;
+  font-style: italic;
+  text-decoration: none;
+}
+
+.milkdown .editor .artifact-block-ref code,
+.artifact-snippet code {
+  border-radius: 4px;
+  background: color-mix(in srgb, CanvasText 8%, transparent);
+  font-family: "SF Mono", Menlo, Monaco, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+/* `[[Title]]`, `#tag`, `#[[Two words]]`: a link to a page by its title. A
+   title no page has yet reads a little quieter; following it makes the page. */
+.milkdown .editor .artifact-page-link {
+  color: LinkText;
+}
+
+.milkdown .editor .artifact-page-link.is-new {
+  color: color-mix(in srgb, LinkText 58%, transparent);
+}
+
+.milkdown .editor .artifact-page-bracket {
+  color: color-mix(in srgb, CanvasText 26%, transparent);
+}
+
+body.read-only .milkdown .editor .artifact-page-link {
+  cursor: pointer;
+}
+
+/* An embed: the block and what is nested under it, framed and read-only,
+   its page's title small above. */
+.milkdown .editor .artifact-embed {
+  display: block;
+  margin: 0.1em 0;
+  padding: 7px 12px 9px;
+  border: 1px solid color-mix(in srgb, CanvasText 12%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, CanvasText 3%, transparent);
+  cursor: default;
+}
+
+.milkdown .editor .artifact-embed.is-missing {
+  color: color-mix(in srgb, CanvasText 45%, transparent);
+  font-style: italic;
+}
+
+.artifact-embed-title {
+  display: block;
+  max-width: 100%;
+  margin: 0 0 3px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: color-mix(in srgb, CanvasText 55%, transparent);
+  cursor: pointer;
+  font: 600 11px/1.3 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artifact-embed-title:hover {
+  color: LinkText;
+}
+
+.milkdown .editor .artifact-embed-body {
+  display: block;
+  font-size: 0.96em;
+}
+
+.milkdown .editor .artifact-embed-body p {
+  margin: 0;
+}
+
+/* Inside the prose the editor's own list and paragraph rules would win over a
+   snippet's, so an embed restates them. */
+.milkdown .editor .artifact-embed-body .artifact-snippet-list {
+  margin: 0.1em 0 0;
+  padding-left: 1.3em;
+}
+
+.milkdown .editor .artifact-embed-body > .artifact-snippet-list:first-child {
+  margin-top: 0;
+}
+
+.milkdown .editor .artifact-embed-body li {
+  margin: 0.08em 0;
+}
+
+.milkdown .editor .artifact-embed-body li p,
+.milkdown .editor .artifact-embed-body .artifact-snippet-item {
+  margin: 0;
+}
+
+/* How many blocks reference this one, at its trailing edge. */
+.milkdown .editor .artifact-block-ref-count {
+  float: right;
+  min-width: 20px;
+  height: 18px;
+  margin: 0.18em 0 0 10px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 9px;
+  background: color-mix(in srgb, CanvasText 8%, transparent);
+  color: color-mix(in srgb, CanvasText 68%, transparent);
+  cursor: pointer;
+  font: 600 11px/18px -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  letter-spacing: 0;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.milkdown .editor .artifact-block-ref-count:hover {
+  background: color-mix(in srgb, AccentColor 18%, transparent);
+  color: CanvasText;
+}
+
+/* A block the host opened this doc to show: washed in the accent for a
+   moment, then faded in two steps, the citation flash's look. */
+.milkdown .editor .artifact-block-flash {
+  border-radius: 4px;
+  background-color: color-mix(in srgb, AccentColor 38%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, AccentColor 38%, transparent);
+  transition: background-color 220ms ease, box-shadow 220ms ease;
+}
+
+.milkdown .editor .artifact-block-flash[data-flash-step="1"] {
+  background-color: color-mix(in srgb, AccentColor 24%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, AccentColor 24%, transparent);
+}
+
+.milkdown .editor .artifact-block-flash[data-flash-step="2"] {
+  background-color: color-mix(in srgb, AccentColor 12%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, AccentColor 12%, transparent);
+}
+
+/* The selection bar's Idea shows only for a host that keeps the graph. */
+.artifact-selection-assistant button[hidden] {
+  display: none;
+}
+
+/* The caret list's other rows: a day, a new page, a block found by `((`, a
+   `/` command, and what the block search says while it has no rows. */
+.artifact-link-picker-row[data-kind="newPage"] .artifact-link-picker-title {
+  color: LinkText;
+}
+
+.artifact-link-picker-status {
+  padding: 5px 8px;
+  color: color-mix(in srgb, CanvasText 55%, Canvas);
+  font-size: 11px;
+}
+
+.artifact-link-picker[data-source="block"] {
+  width: min(380px, calc(100vw - 24px));
+  max-width: none;
+}
+
+.artifact-link-picker[data-source="block"] .artifact-link-picker-row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+}
+
+.artifact-link-picker[data-source="block"] .artifact-link-picker-title {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-height: 1.35;
+  white-space: normal;
+}
+
+.artifact-link-picker[data-source="block"] .artifact-link-picker-detail {
+  max-width: none;
+}
+
+/* A preview, a reference list, a menu: the caret list's surface. */
+.artifact-graph-panel {
+  position: fixed;
+  z-index: 32;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, CanvasText 14%, transparent);
+  border-radius: 10px;
+  background: Canvas;
+  box-shadow: 0 8px 24px color-mix(in srgb, CanvasText 15%, transparent);
+  color: CanvasText;
+  font: 12px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+}
+
+.artifact-graph-panel[hidden] {
+  display: none;
+}
+
+.artifact-graph-pill {
+  flex: 0 0 auto;
+  height: 22px;
+  padding: 0 9px;
+  border: 1px solid color-mix(in srgb, AccentColor 32%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  color: AccentColor;
+  cursor: pointer;
+  font: 600 11px/1 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+}
+
+.artifact-graph-pill:hover:not(:disabled) {
+  background: color-mix(in srgb, CanvasText 8%, Canvas);
+}
+
+.artifact-graph-pill:disabled {
+  border-color: color-mix(in srgb, CanvasText 14%, transparent);
+  color: color-mix(in srgb, CanvasText 50%, transparent);
+  cursor: default;
+}
+
+.artifact-graph-muted {
+  color: color-mix(in srgb, CanvasText 52%, transparent);
+}
+
+.artifact-ref-preview {
+  width: min(380px, calc(100vw - 24px));
+}
+
+.artifact-ref-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.artifact-ref-preview-title {
+  min-width: 0;
+  overflow: hidden;
+  color: color-mix(in srgb, CanvasText 58%, transparent);
+  font-size: 11px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artifact-ref-preview-body {
+  max-height: 40vh;
+  overflow: auto;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.artifact-block-references {
+  width: min(420px, calc(100vw - 24px));
+  max-height: min(60vh, 460px);
+  overflow: auto;
+}
+
+.artifact-block-references-head {
+  margin-bottom: 2px;
+  color: color-mix(in srgb, CanvasText 58%, transparent);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.artifact-block-references .artifact-graph-group {
+  margin: 6px 0 8px;
+}
+
+.artifact-block-menu {
+  min-width: 190px;
+  padding: 4px;
+}
+
+.artifact-block-menu-item {
+  display: block;
+  width: 100%;
+  padding: 5px 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: CanvasText;
+  cursor: default;
+  font: 12px/1.3 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  text-align: left;
+}
+
+.artifact-block-menu-item:hover:not(:disabled),
+.artifact-block-menu-item:focus-visible {
+  background: color-mix(in srgb, AccentColor 14%, Canvas);
+  outline: none;
+}
+
+.artifact-block-menu-item:disabled {
+  color: color-mix(in srgb, CanvasText 40%, transparent);
+}
+
+/* A snippet: a block's words drawn outside the writing, in a preview, an
+   embed, a reference list or the page foot. */
+.artifact-snippet p {
+  margin: 0 0 0.35em;
+}
+
+.artifact-snippet p:last-child {
+  margin-bottom: 0;
+}
+
+.artifact-snippet .artifact-snippet-list {
+  margin: 0.1em 0 0.2em;
+  padding-left: 1.3em;
+}
+
+.artifact-snippet ul.artifact-snippet-list {
+  list-style: disc;
+}
+
+.artifact-snippet ul.artifact-snippet-list ul.artifact-snippet-list {
+  list-style: circle;
+}
+
+.artifact-snippet ol.artifact-snippet-list {
+  list-style: decimal;
+}
+
+.artifact-snippet li {
+  margin: 0.08em 0;
+}
+
+.artifact-snippet .artifact-snippet-task-item {
+  position: relative;
+  list-style: none;
+}
+
+.artifact-snippet-task {
+  position: absolute;
+  top: 0.32em;
+  left: -1.2em;
+  box-sizing: border-box;
+  width: 0.8em;
+  height: 0.8em;
+  border: 1.3px solid color-mix(in srgb, CanvasText 45%, transparent);
+  border-radius: 3px;
+}
+
+.artifact-snippet-task.is-checked {
+  border-color: color-mix(in srgb, CanvasText 55%, transparent);
+  background: color-mix(in srgb, CanvasText 55%, transparent);
+}
+
+.artifact-snippet-task.is-checked + .artifact-snippet-item {
+  color: color-mix(in srgb, CanvasText 55%, transparent);
+  text-decoration: line-through;
+}
+
+.artifact-snippet .artifact-snippet-heading {
+  margin: 0.45em 0 0.2em;
+  font-size: 1em;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.artifact-snippet .artifact-snippet-code {
+  margin: 0.3em 0;
+  padding: 7px 9px;
+  overflow: auto;
+  border-radius: 7px;
+  background: color-mix(in srgb, CanvasText 5%, transparent);
+  font-size: 0.85em;
+}
+
+.artifact-snippet .artifact-snippet-code code {
+  background: none;
+}
+
+.artifact-snippet blockquote {
+  margin: 0.3em 0;
+  padding-left: 0.8em;
+  border-left: 3px solid color-mix(in srgb, CanvasText 20%, transparent);
+  color: color-mix(in srgb, CanvasText 78%, transparent);
+}
+
+.artifact-snippet a {
+  color: LinkText;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.artifact-snippet a:hover {
+  text-decoration: underline;
+}
+
+.artifact-snippet .artifact-snippet-page.is-new {
+  color: color-mix(in srgb, LinkText 58%, transparent);
+}
+
+.artifact-snippet-ref {
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, AccentColor 50%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.artifact-snippet-ref.is-missing,
+.artifact-snippet-ref.is-pending {
+  color: color-mix(in srgb, CanvasText 45%, transparent);
+  text-decoration: none;
+}
+
+.artifact-snippet .artifact-snippet-embed {
+  margin: 0.3em 0;
+  padding: 6px 10px;
+  border: 1px solid color-mix(in srgb, CanvasText 12%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, CanvasText 3%, transparent);
+}
+
+.artifact-snippet .artifact-snippet-embed.is-missing {
+  color: color-mix(in srgb, CanvasText 45%, transparent);
+}
+
+.artifact-snippet-embed-title {
+  margin-bottom: 2px;
+  color: color-mix(in srgb, CanvasText 55%, transparent);
+  font-size: 0.78em;
+  font-weight: 600;
+}
+
+.artifact-snippet mark {
+  padding: 0 1px;
+  border-radius: 2px;
+  background: color-mix(in srgb, AccentColor 30%, transparent);
+  color: inherit;
+}
+
+.artifact-snippet .artifact-snippet-more > summary {
+  color: color-mix(in srgb, CanvasText 52%, transparent);
+  cursor: pointer;
+  font-size: 0.85em;
+}
+
+.artifact-snippet .artifact-snippet-table {
+  margin: 0.3em 0;
+  border-collapse: collapse;
+  font-size: 0.88em;
+}
+
+.artifact-snippet .artifact-snippet-table th,
+.artifact-snippet .artifact-snippet-table td {
+  padding: 3px 7px;
+  border: 1px solid color-mix(in srgb, CanvasText 15%, transparent);
+  text-align: left;
+}
+
+.artifact-snippet-image {
+  color: color-mix(in srgb, CanvasText 52%, transparent);
+  font-style: italic;
+}
+
+/* The page foot: below the writing, in the prose column, outside the text
+   the writer types into. With one, the page stops reserving a screen of
+   writing space, so a short note's references and earlier days follow it the
+   way Roam's do. */
+body.has-page-foot #editor,
+body.has-page-foot .crepe,
+body.has-page-foot .milkdown {
+  min-height: 0;
+}
+
+body.has-page-foot .milkdown .editor {
+  min-height: max(30vh, 180px);
+  padding-bottom: 36px;
+}
+
+.artifact-page-foot {
+  --artifact-page-padding: clamp(20px, 6vw, 48px);
+  box-sizing: border-box;
+  width: min(100%, var(--artifact-page-width));
+  margin: 0 auto;
+  padding: 0 var(--artifact-page-padding) 120px;
+  color: CanvasText;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+  font-size: var(--artifact-font-size);
+  letter-spacing: -0.004em;
+  line-height: 1.5;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+body.ready .artifact-page-foot {
+  opacity: 1;
+}
+
+.artifact-page-foot[hidden] {
+  display: none;
+}
+
+/* The foot moves with the page beside a margin column, so the two keep one
+   left edge (the same tiers as `.milkdown .editor` above). */
+body.has-margin-cards[data-margin-tier="wide"] .artifact-page-foot {
+  margin-right: auto;
+  margin-left: max(0px, calc((100% - var(--artifact-page-width) - 260px) / 2));
+}
+
+body.has-margin-cards[data-margin-tier="medium"] .artifact-page-foot {
+  width: calc(100% - 260px);
+  margin-right: auto;
+  margin-left: 0;
+}
+
+.artifact-foot-section {
+  margin-top: 26px;
+  padding-top: 14px;
+  border-top: 1px solid color-mix(in srgb, CanvasText 10%, transparent);
+}
+
+.artifact-foot-heading,
+.artifact-foot-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 0 -2px;
+  padding: 2px 7px 2px 2px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: color-mix(in srgb, CanvasText 70%, transparent);
+  font: 650 0.86em/1.3 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  letter-spacing: 0;
+}
+
+.artifact-foot-title {
+  padding-left: 2px;
+}
+
+.artifact-foot-heading {
+  cursor: pointer;
+}
+
+.artifact-foot-heading:hover {
+  background: color-mix(in srgb, CanvasText 6%, transparent);
+  color: CanvasText;
+}
+
+.artifact-foot-chevron {
+  display: grid;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+}
+
+.artifact-foot-chevron svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
+  transition: transform 140ms ease;
+}
+
+.artifact-foot-heading[aria-expanded="false"] .artifact-foot-chevron svg {
+  transform: rotate(-90deg);
+}
+
+.artifact-foot-body {
+  margin-top: 6px;
+}
+
+.artifact-foot-activity {
+  display: grid;
+  gap: 3px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.artifact-foot-activity-row {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+  gap: 10px;
+  font-size: 0.93em;
+}
+
+.artifact-foot-activity-kind {
+  flex: 0 0 6.2em;
+  color: color-mix(in srgb, CanvasText 52%, transparent);
+  font-size: 0.86em;
+}
+
+.artifact-foot-activity-title {
+  min-width: 0;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: LinkText;
+  font: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+button.artifact-foot-activity-title {
+  cursor: pointer;
+}
+
+button.artifact-foot-activity-title:hover {
+  text-decoration: underline;
+}
+
+span.artifact-foot-activity-title {
+  color: inherit;
+}
+
+.artifact-foot-activity-detail {
+  min-width: 0;
+  overflow: hidden;
+  color: color-mix(in srgb, CanvasText 52%, transparent);
+  font-size: 0.86em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artifact-graph-group {
+  margin: 12px 0 16px;
+}
+
+.artifact-graph-group-title {
+  max-width: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: LinkText;
+  cursor: pointer;
+  font: 600 0.95em/1.35 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artifact-graph-group-title:hover {
+  text-decoration: underline;
+}
+
+.artifact-graph-kind {
+  margin-left: 6px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: color-mix(in srgb, CanvasText 7%, transparent);
+  color: color-mix(in srgb, CanvasText 55%, transparent);
+  font: 600 10px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  vertical-align: 1px;
+}
+
+/* A referencing block, drawn as the bullet it is, its breadcrumbs above. */
+.artifact-graph-block {
+  position: relative;
+  margin: 5px 0 0;
+  padding: 4px 8px 4px 18px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.artifact-graph-block::before {
+  position: absolute;
+  top: calc(4px + 0.66em);
+  left: 7px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: color-mix(in srgb, CanvasText 42%, transparent);
+  content: "";
+}
+
+.artifact-graph-block:has(> .artifact-graph-crumbs)::before {
+  top: calc(4px + 0.66em + 1.3 * 0.76em + 2px);
+}
+
+.artifact-graph-block:hover,
+.artifact-graph-block:focus-visible {
+  background: color-mix(in srgb, CanvasText 4.5%, transparent);
+  outline: none;
+}
+
+.artifact-graph-crumbs {
+  margin-bottom: 2px;
+  overflow: hidden;
+  color: color-mix(in srgb, CanvasText 52%, transparent);
+  font-size: 0.76em;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artifact-graph-crumb-separator {
+  margin: 0 5px;
+  opacity: 0.7;
+}
+
+.artifact-graph-block-words {
+  font-size: 0.95em;
+}
+
+.artifact-graph-block-children {
+  margin-top: 2px;
+  color: color-mix(in srgb, CanvasText 86%, transparent);
+  font-size: 0.9em;
+}
+
+.artifact-graph-mention-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.artifact-graph-mention-line .artifact-graph-block-words {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* An unlinked mention's Link shows under the pointer, or while it is linking
+   or has the keyboard's focus; its place stays so the words never reflow
+   (2026-10-06: a pill on every mention read as a column of buttons). */
+.artifact-graph-mention .artifact-graph-pill {
+  opacity: 0;
+  transition: opacity 0.12s ease-out;
+}
+
+.artifact-graph-mention:hover .artifact-graph-pill,
+.artifact-graph-mention:focus-within .artifact-graph-pill,
+.artifact-graph-mention .artifact-graph-pill:disabled {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .artifact-graph-mention .artifact-graph-pill {
+    opacity: 1;
+  }
+}
+
+.artifact-foot-day {
+  margin: 0 0 24px;
+}
+
+.artifact-foot-day + .artifact-foot-day {
+  padding-top: 18px;
+  border-top: 1px solid color-mix(in srgb, CanvasText 7%, transparent);
+}
+
+.artifact-foot-day-title {
+  margin: 0 0 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: CanvasText;
+  cursor: pointer;
+  font: 680 1.25em/1.25 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  letter-spacing: -0.02em;
+  text-align: left;
+}
+
+.artifact-foot-day-title:hover {
+  color: LinkText;
+}
+
+.artifact-foot-day-body {
+  font-size: 0.97em;
+}
+
+.artifact-foot-more {
+  margin-top: 2px;
+}
+
+/* ─── Assistant instructions, prompts and visualizations ───────────────────
+   Quotes the slash menu writes, drawn as cards. The Markdown stays a quote:
+   the card is how this editor draws a quote whose first line is the bold
+   words "Assistant instructions" or "Prompt". */
+.milkdown .editor blockquote.artifact-callout {
+  padding: 0.55em 1em 0.6em;
+  border-left: 3px solid color-mix(in srgb, AccentColor 70%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, AccentColor 7%, transparent);
+  color: CanvasText;
+}
+
+.milkdown .editor blockquote.artifact-callout[data-callout="prompt"] {
+  border-left-color: color-mix(in srgb, CanvasText 38%, transparent);
+  background: color-mix(in srgb, CanvasText 5%, transparent);
+}
+
+.milkdown .editor blockquote.artifact-callout > p:first-child {
+  margin-bottom: 0.15em;
+  color: color-mix(in srgb, CanvasText 58%, transparent);
+  font-size: 0.72em;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.milkdown .editor blockquote.artifact-callout > p:first-child strong {
+  font-weight: 600;
+}
+
+.artifact-callout-chat {
+  display: block;
+  margin: 0.5em 0 0;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: color-mix(in srgb, CanvasText 9%, transparent);
+  color: CanvasText;
+  cursor: pointer;
+  font: 600 11px/1.3 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+}
+
+.artifact-callout-chat:hover {
+  background: color-mix(in srgb, AccentColor 18%, transparent);
+}
+
+/* A visualization is drawn above its source; the source keeps its first
+   lines in view and opens in full once the caret is in it. */
+.artifact-visualization {
+  margin: 0 0 0.4em;
+  user-select: none;
+}
+
+.artifact-visualization iframe {
+  display: block;
+  width: 100%;
+  height: 320px;
+  border: 1px solid color-mix(in srgb, CanvasText 12%, transparent);
+  border-radius: 10px;
+  background: transparent;
+}
+
+.artifact-visualization-bar {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 4px;
+}
+
+.artifact-visualization-bar button {
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: color-mix(in srgb, CanvasText 55%, transparent);
+  cursor: pointer;
+  font: 600 11px/1.3 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+}
+
+.artifact-visualization-bar button:hover {
+  background: color-mix(in srgb, CanvasText 8%, transparent);
+  color: CanvasText;
+}
+
+.milkdown .artifact-viz-source {
+  max-height: 3.2em;
+  margin-bottom: 0.82em;
+  overflow: hidden;
+  opacity: 0.55;
+}
+
+.milkdown .artifact-viz-source:focus-within {
+  max-height: none;
+  opacity: 1;
+}
+
+.artifact-ai-edit-proposal .artifact-visualization {
+  margin: 0;
+}
+
+.artifact-ai-edit-proposal .artifact-visualization iframe {
+  height: 260px;
+}
+
+/* A line that is one link to a file attached to the page: a card with a
+   paperclip, the file's name as the link. */
+.milkdown .editor p.artifact-file-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 7px 12px 7px 10px;
+  border: 1px solid color-mix(in srgb, CanvasText 14%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, CanvasText 4%, transparent);
+}
+
+.milkdown .editor p.artifact-file-card::before {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  background: color-mix(in srgb, CanvasText 62%, transparent);
+  content: "";
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12.6 7.6l-4.7 4.7a3 3 0 0 1-4.2-4.2l5-5a2 2 0 0 1 2.8 2.8l-5 5a1 1 0 0 1-1.4-1.4l4.4-4.4'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12.6 7.6l-4.7 4.7a3 3 0 0 1-4.2-4.2l5-5a2 2 0 0 1 2.8 2.8l-5 5a1 1 0 0 1-1.4-1.4l4.4-4.4'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.milkdown .editor p.artifact-file-card a {
+  color: CanvasText;
+  text-decoration: none;
+}
+
+/* ─── The block handle ──────────────────────────────────────────────────────
+   A grip in the gutter beside the block under the pointer: drag to move it,
+   click for its menu. It shows only under the pointer and goes while typing. */
+.artifact-block-handle {
+  position: fixed;
+  z-index: 29;
+  display: flex;
+  align-items: center;
+}
+
+.artifact-block-handle[hidden] { display: none; }
+
+.artifact-block-grip {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: color-mix(in srgb, CanvasText 36%, transparent);
+  cursor: grab;
+  touch-action: none;
+}
+
+.artifact-block-grip:hover,
+.artifact-block-grip[aria-expanded="true"] {
+  background: color-mix(in srgb, CanvasText 9%, transparent);
+  color: color-mix(in srgb, CanvasText 70%, transparent);
+}
+
+.artifact-block-grip:focus-visible {
+  outline: 2px solid color-mix(in srgb, AccentColor 60%, transparent);
+}
+
+body.artifact-block-dragging,
+body.artifact-block-dragging * {
+  cursor: grabbing !important;
+  user-select: none !important;
+}
+
+.artifact-block-dragging-source {
+  opacity: 0.35;
+}
+
+.artifact-block-drop-line {
+  position: fixed;
+  z-index: 30;
+  height: 2px;
+  border-radius: 1px;
+  background: AccentColor;
+  pointer-events: none;
+}
+
+.artifact-block-drop-line[hidden] { display: none; }
+
+.artifact-block-menu {
+  min-width: 204px;
+}
+
+.artifact-block-menu button > svg:last-child:not(:first-child) {
+  flex: 0 0 auto;
+  color: color-mix(in srgb, CanvasText 45%, transparent);
+}
+
+.artifact-block-menu button[aria-expanded="true"] > svg:last-child {
+  transform: rotate(180deg);
+}
+
+.artifact-block-menu-kinds {
+  display: flex;
+  flex-direction: column;
+  padding-left: 12px;
+}
+
+.artifact-block-menu-kinds[hidden] { display: none; }
+
+.artifact-block-menu-separator {
+  height: 1px;
+  margin: 4px 6px;
+  background: color-mix(in srgb, CanvasText 10%, transparent);
+}
+
+/* A highlight: a quote whose first line is the bold word "Highlight", drawn
+   as a tinted card with a warm bar. */
+.milkdown .editor blockquote.artifact-callout[data-callout="highlight"] {
+  --artifact-highlight: var(--artifact-highlight-yellow);
+  border-left-color: color-mix(in srgb, var(--artifact-highlight) 80%, transparent);
+  background: color-mix(in srgb, var(--artifact-highlight) 13%, transparent);
+}
+
+/* The colour a highlight was given (Block properties); yellow is the plain
+   one and carries no attribute. */
+.milkdown .editor blockquote.artifact-callout[data-callout="highlight"][data-callout-color="red"] { --artifact-highlight: var(--artifact-highlight-red); }
+.milkdown .editor blockquote.artifact-callout[data-callout="highlight"][data-callout-color="orange"] { --artifact-highlight: var(--artifact-highlight-orange); }
+.milkdown .editor blockquote.artifact-callout[data-callout="highlight"][data-callout-color="green"] { --artifact-highlight: var(--artifact-highlight-green); }
+.milkdown .editor blockquote.artifact-callout[data-callout="highlight"][data-callout-color="blue"] { --artifact-highlight: var(--artifact-highlight-blue); }
+.milkdown .editor blockquote.artifact-callout[data-callout="highlight"][data-callout-color="purple"] { --artifact-highlight: var(--artifact-highlight-purple); }
+.milkdown .editor blockquote.artifact-callout[data-callout="highlight"][data-callout-color="gray"] { --artifact-highlight: var(--artifact-highlight-gray); }
+
+/* The block menu's checks are the accent, not the chevron's grey. */
+.artifact-block-menu button[aria-checked="true"] > svg[data-role="check"] {
+  color: AccentColor;
+}
+
+/* A mention is a link to a page, notebook, idea or chat. */
+.artifact-link-picker-row[data-kind="chat"] .artifact-link-picker-detail {
+  color: color-mix(in srgb, CanvasText 50%, transparent);
+}
+
+/* Footnotes (docs/docs-design.md, "Footnotes"), drawn the way Substack draws
+   them. The number in the sentence is the note's place (`data-n`, from the
+   footnote plugin), not the label the Markdown keeps, which stays hidden
+   inside it for a copy to carry; a press goes to the note and a rest shows it
+   (`.artifact-footnote-card`). */
+.milkdown .editor sup.artifact-footnote-ref {
+  margin: 0 0.02em;
+  padding: 0 0.08em;
+  border-radius: 4px;
+  color: AccentColor;
+  cursor: pointer;
+  font-size: 0.72em;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 0;
+  vertical-align: super;
+}
+
+.milkdown .editor sup.artifact-footnote-ref > .artifact-footnote-label {
+  display: none;
+}
+
+.milkdown .editor sup.artifact-footnote-ref::after {
+  content: attr(data-n);
+}
+
+.milkdown .editor sup.artifact-footnote-ref:hover,
+.milkdown .editor sup.artifact-footnote-ref.ProseMirror-selectednode {
+  outline: none;
+  background: color-mix(in srgb, AccentColor 16%, transparent);
+}
+
+.milkdown .editor sup.artifact-footnote-ref.is-unresolved {
+  color: GrayText;
+}
+
+/* The notes: under a hairline at the foot of the page, smaller and quieter
+   than the prose, each with its number in the margin; a press on the number
+   goes back to the sentence. */
+.milkdown .editor .artifact-footnote {
+  position: relative;
+  margin: 0.2em 0 0;
+  padding: 0 0 0 2em;
+  border-radius: 6px;
+  color: color-mix(in srgb, CanvasText 80%, Canvas);
+  font-size: 0.9em;
+}
+
+.milkdown .editor .artifact-footnote.is-first {
+  margin-top: 2.6em;
+  padding-top: 1.1em;
+  border-top: 1px solid color-mix(in srgb, CanvasText 13%, transparent);
+  border-radius: 0;
+}
+
+.milkdown .editor .artifact-footnote::before {
+  content: attr(data-n);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1.4em;
+  padding-top: 4px;
+  color: AccentColor;
+  cursor: pointer;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+  text-align: right;
+}
+
+.milkdown .editor .artifact-footnote.is-first::before {
+  top: 1.1em;
+}
+
+.milkdown .editor .artifact-footnote[data-unreferenced]::before {
+  color: GrayText;
+  cursor: default;
+}
+
+.milkdown .editor .artifact-footnote-body > :first-child {
+  margin-top: 0;
+}
+
+.milkdown .editor .artifact-footnote-body > :last-child {
+  margin-bottom: 0;
+}
+
+/* A number or note just gone to is lit for a moment. */
+.milkdown .editor sup.artifact-footnote-ref.is-target,
+.milkdown .editor .artifact-footnote.is-target {
+  animation: artifact-footnote-target 1.4s ease-out;
+}
+
+@keyframes artifact-footnote-target {
+  0%,
+  45% { background: color-mix(in srgb, AccentColor 22%, transparent); }
+  100% { background: transparent; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .milkdown .editor sup.artifact-footnote-ref.is-target,
+  .milkdown .editor .artifact-footnote.is-target {
+    animation: none;
+    background: color-mix(in srgb, AccentColor 16%, transparent);
+  }
+}
+
+/* The note under a number the pointer rests on: the published page's hover
+   card, on the surface the page's other cards use. */
+.artifact-footnote-card {
+  position: fixed;
+  z-index: 31;
+  box-sizing: border-box;
+  max-width: min(360px, calc(100vw - 16px));
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, CanvasText 12%, transparent);
+  border-radius: 10px;
+  background: Canvas;
+  box-shadow: 0 8px 24px color-mix(in srgb, CanvasText 14%, transparent);
+  color: CanvasText;
+  font: 13px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  pointer-events: none;
+}
+
+.artifact-footnote-card[hidden] {
+  display: none;
+}
+
+.artifact-footnote-card.is-empty {
+  color: GrayText;
+}
+
+.artifact-footnote-card > * {
+  margin: 0;
+  padding: 0;
+}
+
+.artifact-footnote-card > * + * {
+  margin-top: 0.5em;
+}
+
+.artifact-footnote-card a {
+  color: AccentColor;
+}

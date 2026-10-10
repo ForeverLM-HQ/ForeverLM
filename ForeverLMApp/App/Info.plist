@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CKSharingSupported</key>
+    <true/>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>$(FOREVERLM_BUNDLE_NAME)</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundleIconName</key>
+	<string>AppIcon</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>ForeverLMAppIdentifierPrefix</key>
+	<string>$(AppIdentifierPrefix)</string>
+	<key>ForeverLMSyncGeneration</key>
+	<string>$(FOREVERLM_SYNC_GENERATION)</string>
+	<key>ForeverLMLibraryContainer</key>
+	<string>$(FOREVERLM_CLOUDKIT_CONTAINER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(FOREVERLM_BUNDLE_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.education</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
+	<key>SUFeedURL</key>
+	<string>https://releases.foreverlm.com/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>ynrptxKXOsmmfaLFMJbuE1r0T4r9Y615m43IWaOPd+w=</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<!-- Sparkle clamps this to one hour; anything smaller is silently raised. -->
+	<key>SUScheduledCheckInterval</key>
+	<integer>3600</integer>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>ForeverLM shows your calendar as your day, and adds, moves or removes the events you or your assistant plan. It never changes an event other people are on.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>ForeverLM shows your calendar as your day, and adds, moves or removes the events you or your assistant plan. It never changes an event other people are on.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>ForeverLM uses the microphone for Review Chat dictation.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>ForeverLM uses speech recognition for voice answers in Review Chat.</string>
+	<!-- Carries the on-screen source/Notebook to Siri so it can resolve "this".
+	     An activity type missing from this list is never advertised. -->
+	<key>NSUserActivityTypes</key>
+	<array>
+		<string>com.foreverlm.viewing-source</string>
+		<string>com.foreverlm.viewing-notebook</string>
+	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>OAuth Callbacks</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>$(FOREVERLM_URL_SCHEME)</string>
+				<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+			</array>
+		</dict>
+		<dict>
+			<!-- Web pages open in the Browser pane. Registering the schemes is
+			     what lets macOS offer ForeverLM as a web browser, and one of the
+			     conditions Apple sets for the passkey entitlement
+			     (com.apple.developer.web-browser.public-key-credential). -->
+			<key>CFBundleURLName</key>
+			<string>Web Pages</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>http</string>
+				<string>https</string>
+			</array>
+		</dict>
+	</array>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.foreverlm.studio-article</string>
+			<key>UTTypeDescription</key>
+			<string>Studio Article Transfer</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict/>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.foreverlm.studio-source-id</string>
+			<key>UTTypeDescription</key>
+			<string>Studio Source ID Transfer</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict/>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.foreverlm.studio-group</string>
+			<key>UTTypeDescription</key>
+			<string>Studio Group Transfer</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict/>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.foreverlm.studio-sidebar-tab</string>
+			<key>UTTypeDescription</key>
+			<string>Studio Sidebar Tab Transfer</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict/>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.foreverlm.studio-center-tab</string>
+			<key>UTTypeDescription</key>
+			<string>Studio Center Tab Transfer</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict/>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.foreverlm.review-session</string>
+			<key>UTTypeDescription</key>
+			<string>Review Session Transfer</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict/>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.foreverlm.studio-notebook</string>
+			<key>UTTypeDescription</key>
+			<string>Studio Notebook Transfer</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict/>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.foreverlm.studio-clip</string>
+			<key>UTTypeDescription</key>
+			<string>Studio Clip Transfer</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict/>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.foreverlm.studio-goal</string>
+			<key>UTTypeDescription</key>
+			<string>Studio Goal Transfer</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict/>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.foreverlm.studio-artifact</string>
+			<key>UTTypeDescription</key>
+			<string>Studio Doc Transfer</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict/>
+		</dict>
+	</array>
+</dict>
+</plist>

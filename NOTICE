@@ -1,0 +1,30 @@
+ForeverLM
+Copyright 2026 ForeverLM
+
+This software is licensed under the Functional Source License, Version 1.1,
+ALv2 Future License. See LICENSE.md.
+
+Trademarks
+
+"ForeverLM", the ForeverLM logo and the ForeverLM app icon are trademarks of
+ForeverLM. The license does not grant permission to use them, except to
+identify ForeverLM as the origin of the software. A
+modified version must not be distributed under the ForeverLM name or icon.
+
+Third-party marks
+
+The app's asset catalogs include the logos and icons of other companies and
+services (among them Anthropic, Claude, OpenAI, ChatGPT, Google, Gemini, Google
+Calendar, Google Docs, Google Drive, GitHub, Grok, Linear, Notion and Slack).
+They are used only to name those services in the app. They belong to their
+owners and are not licensed under this repository's license.
+
+Third-party software
+
+Libraries bundled with the app keep their own licenses. Their notices are in
+ForeverLMApp/App/ThirdPartyLicenses.txt,
+ForeverLMApp/App/ArtifactEditorResources/ArtifactEditorThirdPartyNotices.txt and
+ForeverLMApp/App/ChatRendererResources/ChatRendererThirdPartyNotices.txt.
+
+The packages in plugins/ are licensed under the MIT License; see
+plugins/foreverlm/LICENSE.

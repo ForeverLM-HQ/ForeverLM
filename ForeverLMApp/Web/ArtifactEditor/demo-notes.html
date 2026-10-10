@@ -1,0 +1,339 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Notes graph harness</title>
+    <script>
+      // The bundle is rebuilt between reloads far more often than the browser
+      // revalidates it, so load both assets fresh every time.
+      document.write(
+        `<link rel="stylesheet" href="../../App/ArtifactEditorResources/artifact-editor.css?t=${Date.now()}">`
+      )
+    </script>
+    <style>
+      #demo-log {
+        position: fixed;
+        right: 12px;
+        bottom: 12px;
+        z-index: 1000;
+        max-width: 340px;
+        max-height: 34vh;
+        overflow: auto;
+        padding: 6px 9px;
+        border-radius: 8px;
+        background: color-mix(in srgb, CanvasText 9%, Canvas);
+        color: CanvasText;
+        font: 10.5px/1.35 ui-monospace, Menlo, monospace;
+        white-space: pre-wrap;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <main id="editor" aria-label="Artifact editor"></main>
+    <output id="demo-log">Loading</output>
+    <script>
+      // A stub of the Mac host for the notes graph (PROTOCOL.md): it hands the
+      // editor a doc, its place in the graph, its references and, with
+      // `?daily`, a day's activity and earlier days, and answers every message
+      // the editor posts from the fixtures below. Every message lands in the
+      // log at the bottom right and in `window.demoMessages`.
+      //
+      //   demo-notes.html          a Doc with Linked and Unlinked References
+      //   demo-notes.html?daily    today's daily note
+      //   window.roundTripReport() what a save writes for every grammar form
+
+      const params = new URLSearchParams(location.search)
+      const daily = params.has('daily')
+      const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+      const pad = (value) => String(value).padStart(2, '0')
+      const dayKey = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+      const addDays = (date, days) => new Date(date.getFullYear(), date.getMonth(), date.getDate() + days)
+      const ordinal = (day) => (day % 100 >= 11 && day % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' })[day % 10] ?? 'th')
+      const dayTitle = (key) => {
+        const [year, month, day] = key.split('-').map(Number)
+        return `${months[month - 1]} ${day}${ordinal(day)}, ${year}`
+      }
+      const normalized = (title) => title.normalize('NFKD').replace(/\p{M}+/gu, '').toLowerCase().split(/\s+/).filter(Boolean).join(' ')
+
+      const today = new Date()
+      const todayKey = dayKey(today)
+      const docID = daily ? `daily-${todayKey}` : 'doc-memo'
+      const docTitle = daily ? dayTitle(todayKey) : 'Mitochondria memo'
+
+      window.demoMarkdown = daily
+        ? `- Met with Zara about [[Bioenergetics]] #meeting ^t1t2t3t4t
+  - Her point: ((k9x8y7w6v))
+  - Follow up on #[[Quality control]]
+- Read two papers on mitophagy
+`
+        : `The cell's energy budget is set by the electron transport chain. ^a1b2c3d4e
+
+See [[Bioenergetics]] and #aging, and #[[Quality control]] for context; [[A page nobody wrote]] reads quieter until it exists.
+
+A block reference reads as that block's words: ((k9x8y7w6v)) A missing one says so: ((zzzzzzzzz)).
+
+{{embed: ((m3n4o5p6q))}}
+
+- Outline bullet one ^b2c3d4e5f
+  - Child of bullet one
+    - Grandchild
+- Second bullet with a [doc link](foreverlm://doc/doc-bio)
+- [ ] A task that cites ((k9x8y7w6v))
+
+## Heading with an id ^c3d4e5f6g
+
+Code is not grammar: \`((k9x8y7w6v))\` and \`[[Not a link]]\`.
+
+A reference to this doc's own first paragraph: ((a1b2c3d4e))
+`
+
+      const block = (fields) => ({ key: '0', kind: 'paragraph', blockID: null, breadcrumbs: [], childrenMarkdown: '', line: 0, ...fields })
+      const known = {
+        k9x8y7w6v: block({ docID: 'doc-bio', docTitle: 'Bioenergetics', key: '3', blockID: 'k9x8y7w6v', markdown: 'ATP synthase turns **proton flow** into ATP, about `3` per turn.', plainText: 'ATP synthase turns proton flow into ATP, about 3 per turn.', breadcrumbs: ['Mechanisms'], line: 6 }),
+        m3n4o5p6q: block({ docID: 'doc-qc', docTitle: 'Quality control', key: '2.0', kind: 'listItem', blockID: 'm3n4o5p6q', markdown: 'Mitophagy clears damaged mitochondria', plainText: 'Mitophagy clears damaged mitochondria', childrenMarkdown: '- PINK1 accumulates on depolarized mitochondria\n- Parkin ubiquitinates outer-membrane proteins\n  - which marks them for the autophagosome', line: 4 }),
+        a1b2c3d4e: block({ docID: 'doc-memo', docTitle: 'Mitochondria memo', key: '0', blockID: 'a1b2c3d4e', markdown: "The cell's energy budget is set by the electron transport chain.", plainText: "The cell's energy budget is set by the electron transport chain." }),
+      }
+      const searchable = [
+        { docID: 'doc-bio', docTitle: 'Bioenergetics', revision: 'r12', block: known.k9x8y7w6v },
+        { docID: 'doc-qc', docTitle: 'Quality control', revision: 'r7', block: known.m3n4o5p6q },
+        { docID: 'doc-aging', docTitle: 'Aging', revision: 'r3', block: block({ docID: 'doc-aging', key: '1', markdown: 'Energy decline precedes most hallmarks of aging, and **NAD+** falls with it.', plainText: 'Energy decline precedes most hallmarks of aging, and NAD+ falls with it.', line: 2 }) },
+        { docID: 'doc-aging', docTitle: 'Aging', revision: 'r3', block: block({ docID: 'doc-aging', key: '2', markdown: 'Caloric restriction extends lifespan in yeast, worms, flies and mice, though the effect in primates is still argued about after two long studies reached opposite conclusions.', plainText: 'Caloric restriction extends lifespan in yeast, worms, flies and mice, though the effect in primates is still argued about after two long studies reached opposite conclusions.', line: 4 }) },
+        { docID, docTitle, revision: 'r1', block: block({ docID, key: '4.1', kind: 'listItem', markdown: 'Second bullet with a [doc link](foreverlm://doc/doc-bio)', plainText: 'Second bullet with a doc link', line: 11 }) },
+      ]
+
+      let linkTargets = [
+        { kind: 'doc', id: 'doc-bio', title: 'Bioenergetics', detail: 'Metabolism' },
+        { kind: 'doc', id: 'doc-qc', title: 'Quality control', detail: 'Metabolism' },
+        { kind: 'doc', id: 'doc-aging', title: 'Aging', detail: 'Unfiled' },
+        { kind: 'notebook', id: 'nb-metabolism', title: 'Metabolism', detail: '' },
+        { kind: 'idea', id: 'idea-1', title: 'Energy is the bottleneck of aging', detail: 'Idea' },
+      ]
+      const titles = {}
+      for (const target of linkTargets) if (target.kind === 'doc') titles[normalized(target.title)] = { kind: 'doc', id: target.id }
+      titles[normalized(docTitle)] = { kind: 'doc', id: docID }
+
+      const graphContext = () => ({
+        docID,
+        isDailyNote: daily,
+        allowsDates: true,
+        blocks: known,
+        titles,
+        refCounts: daily ? { t1t2t3t4t: 2 } : { a1b2c3d4e: 3, b2c3d4e5f: 1 },
+      })
+
+      let references = daily
+        ? {
+            linked: [
+              { kind: 'doc', id: 'doc-weekly', title: 'Weekly review', updatedAt: 1791300000, blocks: [
+                block({ docID: 'doc-weekly', key: '1.0', kind: 'listItem', markdown: `Plan from [[${dayTitle(todayKey)}]]: finish the memo`, plainText: `Plan from ${dayTitle(todayKey)}: finish the memo`, breadcrumbs: ['This week'] }),
+              ] },
+            ],
+            unlinked: [],
+          }
+        : {
+            linked: [
+              { kind: 'doc', id: 'doc-bio', title: 'Bioenergetics', updatedAt: 1791300000, blocks: [
+                block({ docID: 'doc-bio', key: '2.1', kind: 'listItem', blockID: 'q1q2q3q4q', markdown: 'As the [[Mitochondria memo]] argues, the budget is set *upstream*.', plainText: 'As the Mitochondria memo argues, the budget is set upstream.', breadcrumbs: ['Mechanisms', 'Electron transport'], childrenMarkdown: '- Complex I is the entry point\n  - NADH feeds it\n    - from the TCA cycle\n      - which the deepest level folds away' }),
+                block({ docID: 'doc-bio', key: '5', markdown: 'See also [Mitochondria memo](foreverlm://doc/doc-memo) on ((a1b2c3d4e))', plainText: 'See also Mitochondria memo on the budget' }),
+              ] },
+              { kind: 'dailyNote', id: `daily-${dayKey(addDays(today, -1))}`, title: dayTitle(dayKey(addDays(today, -1))), updatedAt: 1791200000, blocks: [
+                block({ key: '0', kind: 'listItem', markdown: 'Read about ((a1b2c3d4e)) today #aging', plainText: 'Read about the budget today aging' }),
+              ] },
+              { kind: 'idea', id: 'idea-1', title: 'Energy is the bottleneck of aging', updatedAt: 1791100000, blocks: [] },
+            ],
+            unlinked: [
+              { docID: 'doc-qc', docTitle: 'Quality control', revision: 'r7', start: 0, end: 17, block: block({ docID: 'doc-qc', key: '3', markdown: 'Mitochondria memo notes that mitophagy matters more than ROS.', plainText: 'Mitochondria memo notes that mitophagy matters more than ROS.', breadcrumbs: ['Open questions'] }) },
+              { docID: 'doc-aging', docTitle: 'Aging', revision: 'r3', start: 14, end: 31, block: block({ docID: 'doc-aging', key: '6', markdown: 'Compare the **mitochondria memo** with the hallmarks list.', plainText: 'Compare the mitochondria memo with the hallmarks list.' }) },
+            ],
+          }
+
+      let earlierRound = 0
+      const earlierDay = (offset, markdown) => {
+        const key = dayKey(addDays(today, offset))
+        return { docID: `daily-${key}`, dayKey: key, title: dayTitle(key), markdown }
+      }
+      let dailyContext = daily
+        ? {
+            dayKey: todayKey,
+            isToday: true,
+            activity: [
+              { kind: 'read', title: 'Mitochondrial RNA cytosolic leakage drives the SASP', detail: 'Paper, 42 min', href: 'foreverlm://source/src_demo87654321' },
+              { kind: 'highlight', title: 'The Great Landscape of Aging Theories', detail: '3 highlights', href: 'foreverlm://source/src_demo12345678' },
+              { kind: 'chat', title: 'Why does Complex I leak electrons?', detail: 'Chat', href: 'foreverlm://chat/chat-1' },
+              { kind: 'listened', title: 'The Drive #312: mitochondria and exercise', detail: 'Podcast, 18 min', href: 'foreverlm://source/src_pod' },
+              { kind: 'doc', title: 'Mitochondria memo', detail: 'Edited', href: 'foreverlm://doc/doc-memo' },
+            ],
+            earlier: [
+              earlierDay(-1, '- Finished the [[Bioenergetics]] outline\n  - Next: ((m3n4o5p6q))\n- [x] Order the Seahorse kit\n- [ ] Email Zara about #[[Quality control]]'),
+              earlierDay(-2, '## Reading\n\nStarted *The Vital Question*. #books'),
+            ],
+            hasMore: true,
+          }
+        : null
+
+      const groupsFor = (blockID) => (blockID === 'a1b2c3d4e' || blockID === 't1t2t3t4t' ? references.linked.filter((group) => group.kind !== 'idea') : [
+        { kind: 'doc', id: 'doc-aging', title: 'Aging', updatedAt: 1791000000, blocks: [block({ key: '7', markdown: `Builds on ((${blockID}))`, plainText: 'Builds on that' })] },
+      ])
+
+      window.demoMessages = []
+      window.lastCopied = null
+      const logLines = []
+      const note = (line) => {
+        logLines.unshift(line)
+        document.getElementById('demo-log').textContent = logLines.slice(0, 12).join('\n')
+      }
+      const editorAPI = () => window.foreverLMArtifactEditor
+      let contextTimer = null
+
+      function answer(message) {
+        const { type } = message
+        switch (type) {
+          case 'blocksRequested':
+            setTimeout(() => {
+              const map = {}
+              for (const id of message.blockIDs) if (known[id]) map[id] = known[id]
+              editorAPI().setBlocks(map)
+            }, 60)
+            break
+          case 'blockSearchRequested':
+            // Answers arrive late and out of order on purpose: only the
+            // latest question's answer may show.
+            setTimeout(() => {
+              const query = message.query.trim().toLowerCase()
+              const hits = searchable.filter((hit) => !query
+                || hit.block.plainText.toLowerCase().includes(query)
+                || hit.docTitle.toLowerCase().includes(query))
+              editorAPI().setBlockSearchResults(message.requestID, hits)
+            }, 60 + Math.random() * 260)
+            break
+          case 'blockIDAssigned':
+            setTimeout(() => {
+              const hit = searchable.find((candidate) => candidate.docID === message.docID && candidate.block.key === message.key)
+              if (!hit) return
+              hit.block = { ...hit.block, blockID: message.blockID }
+              known[message.blockID] = { ...hit.block, docTitle: hit.docTitle }
+              editorAPI().setBlocks({ [message.blockID]: known[message.blockID] })
+            }, 160)
+            break
+          case 'pageCreationRequested':
+            linkTargets = [...linkTargets, { kind: 'doc', id: message.docID, title: message.title, detail: message.dayKey ? 'Daily note' : 'Unfiled' }]
+            titles[normalized(message.title)] = { kind: 'doc', id: message.docID }
+            editorAPI().setLinkTargets(linkTargets)
+            editorAPI().setGraphContext(graphContext())
+            break
+          case 'blockReferencesRequested':
+            setTimeout(() => editorAPI().setBlockReferencesFor(message.blockID, groupsFor(message.blockID)), 140)
+            break
+          case 'linkMentionRequested':
+            setTimeout(() => {
+              const mention = message.mention
+              references = {
+                linked: [...references.linked, { kind: 'doc', id: mention.docID, title: mention.docTitle, updatedAt: 1791400000, blocks: [{ ...mention.block, markdown: `${mention.block.markdown.slice(0, mention.start)}[[${docTitle}]]${mention.block.markdown.slice(mention.end)}` }] }],
+                unlinked: references.unlinked.filter((candidate) => !(candidate.docID === mention.docID && candidate.block.key === mention.block.key)),
+              }
+              editorAPI().setReferences(references)
+            }, 300)
+            break
+          case 'dailyNotesMoreRequested':
+            setTimeout(() => {
+              earlierRound += 1
+              const start = -2 - earlierRound * 2
+              dailyContext = {
+                ...dailyContext,
+                earlier: [...dailyContext.earlier, earlierDay(start - 1, `- Day ${-start + 1}: notes on #[[Quality control]]`), earlierDay(start - 2, '')],
+                hasMore: earlierRound < 2,
+              }
+              editorAPI().setDailyContext(dailyContext)
+            }, 250)
+            break
+          case 'copyToPasteboardRequested':
+            window.lastCopied = message.text
+            break
+          case 'markdownChanged':
+            window.lastMarkdown = message.markdown
+            // The host sends the graph again a beat after the doc's own saves.
+            clearTimeout(contextTimer)
+            contextTimer = setTimeout(() => editorAPI().setGraphContext(graphContext()), 600)
+            break
+          default:
+            break
+        }
+      }
+
+      window.webkit = {
+        messageHandlers: {
+          artifactEditor: {
+            postMessage(message) {
+              window.demoMessages.push(message)
+              window.lastArtifactEditorMessage = message
+              if (!['selectionChanged', 'referencesChanged', 'foldsChanged'].includes(message.type)) {
+                const detail = { ...message }
+                delete detail.type
+                if (detail.markdown) detail.markdown = `${detail.markdown.length} chars`
+                note(`${message.type} ${JSON.stringify(detail)}`)
+              }
+              answer(message)
+            },
+          },
+        },
+      }
+
+      // What a save writes for each grammar form: set as the whole doc, read
+      // back the way the editor serializes it.
+      window.roundTrip = (markdown) => {
+        editorAPI().setMarkdown(markdown)
+        return editorAPI().serializedMarkdown()
+      }
+      window.roundTripReport = () => {
+        const cases = [
+          'A paragraph with an id ^a1b2c3d4e',
+          '## A heading with an id ^b2c3d4e5f',
+          '- A bullet with an id ^c3d4e5f6g\n  - and a child ^d4e5f6g7h',
+          '> A quote with an id ^e5f6g7h8i',
+          '^f6g7h8i9j',
+          'A reference ((a1b2c3d4e)) inline',
+          '{{embed: ((a1b2c3d4e))}}',
+          '{{[[embed]]: ((a1b2c3d4e))}}',
+          'See [[Title]] here',
+          '[[Title]] at the start',
+          'A #tag mid-line',
+          '#tag at the start',
+          '#[[Two words]] at the start',
+          'And #[[Two words]] mid-line',
+          'A #snake_case tag',
+          '[[Title]]((a1b2c3d4e)) side by side',
+          'Code `((a1b2c3d4e)) [[Not]] #nottag` is not grammar',
+          'Prose that mentions a \\( and a { and a ^ and snake_case words',
+          'A [link](https://example.com/a_b) and [a doc](foreverlm://doc/doc-bio)',
+        ]
+        const original = window.demoMarkdown
+        const rows = cases.map((input) => {
+          const output = window.roundTrip(input).replace(/\n+$/, '')
+          return { input, output, unchanged: output === input }
+        })
+        const whole = window.roundTrip(original)
+        editorAPI().setMarkdown(original)
+        return { rows, wholeDocUnchanged: whole === original, whole }
+      }
+    </script>
+    <script>
+      document.write(
+        `<script src="../../App/ArtifactEditorResources/artifact-editor.js?t=${Date.now()}"><\/script>`
+      )
+    </script>
+    <script>
+      (async () => {
+        const editor = window.foreverLMArtifactEditor
+        editor.setLinkTargets(linkTargets)
+        await editor.create(window.demoMarkdown, 15)
+        editor.setMarkdown(window.demoMarkdown, { key: docID, folds: '' })
+        editor.setGraphContext(graphContext())
+        editor.setReferences(references)
+        editor.setDailyContext(dailyContext)
+        note(`ready: ${docTitle}`)
+      })()
+    </script>
+  </body>
+</html>

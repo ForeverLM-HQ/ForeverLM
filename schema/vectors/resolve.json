@@ -1,0 +1,35 @@
+{
+  "vectors": "resolve",
+  "version": 1,
+  "spec": "docs/cloudkit-schema-design.md §5.2 (resolveNotebook), §4.2 (resolveSource)",
+  "implementations": {
+    "swift": "ForeverLMApp/Shared/Sync/Core/NotebookResolution.swift, SourceResolution.swift",
+    "js": "schema/js/resolve.js"
+  },
+  "format": "op resolveNotebook: notebooks maps each zone (Library or Space-<spaceID>) to the notebooks the client holds there and their redirect fields (mergedInto: another notebook in the same zone; movedTo: a spaceID, the notebook keeps its id in zone Space-<spaceID>; absent or null = none). resolveNotebook(start) = expect: current = start; up to 8 times, take current's mergedInto (same zone) or else its movedTo (same id, the space's zone) as next; stop when there is none, when next is not held, or when next was already visited; return current as {zone, id}. movingTo, when present, is never followed (§4.4). op resolveSource: the same walk over Source.mergedInto within one zone.",
+  "cases": [
+    {"op":"resolveNotebook","name":"no redirect","notebooks":{"Library":{"a":{}}},"start":{"zone":"Library","id":"a"},"expect":{"zone":"Library","id":"a"}},
+    {"op":"resolveNotebook","name":"one merge hop","notebooks":{"Library":{"a":{"mergedInto":"b"},"b":{}}},"start":{"zone":"Library","id":"a"},"expect":{"zone":"Library","id":"b"}},
+    {"op":"resolveNotebook","name":"a merge chain","notebooks":{"Library":{"a":{"mergedInto":"b"},"b":{"mergedInto":"c"},"c":{}}},"start":{"zone":"Library","id":"a"},"expect":{"zone":"Library","id":"c"}},
+    {"op":"resolveNotebook","name":"a move into a space: the Library stub resolves to the same id in the space","notebooks":{"Library":{"a":{"movedTo":"s1"}},"Space-s1":{"a":{}}},"start":{"zone":"Library","id":"a"},"expect":{"zone":"Space-s1","id":"a"}},
+    {"op":"resolveNotebook","name":"a move, then a merge inside the space","notebooks":{"Library":{"a":{"movedTo":"s1"}},"Space-s1":{"a":{"mergedInto":"b"},"b":{}}},"start":{"zone":"Library","id":"a"},"expect":{"zone":"Space-s1","id":"b"}},
+    {"op":"resolveNotebook","name":"a moved notebook not yet arrived in the space: stop at the stub","notebooks":{"Library":{"a":{"movedTo":"s1"}}},"start":{"zone":"Library","id":"a"},"expect":{"zone":"Library","id":"a"}},
+    {"op":"resolveNotebook","name":"the target is missing: stop at the last live notebook","notebooks":{"Library":{"a":{"mergedInto":"x"}}},"start":{"zone":"Library","id":"a"},"expect":{"zone":"Library","id":"a"}},
+    {"op":"resolveNotebook","name":"a missing target further down","notebooks":{"Library":{"a":{"mergedInto":"b"},"b":{"mergedInto":"x"}}},"start":{"zone":"Library","id":"a"},"expect":{"zone":"Library","id":"b"}},
+    {"op":"resolveNotebook","name":"the start is unknown: it is returned as is","notebooks":{"Library":{}},"start":{"zone":"Library","id":"z"},"expect":{"zone":"Library","id":"z"}},
+    {"op":"resolveNotebook","name":"a cleared redirect (undo) does not move","notebooks":{"Library":{"a":{"mergedInto":null},"b":{}}},"start":{"zone":"Library","id":"a"},"expect":{"zone":"Library","id":"a"}},
+    {"op":"resolveNotebook","name":"a self-loop","notebooks":{"Library":{"a":{"mergedInto":"a"}}},"start":{"zone":"Library","id":"a"},"expect":{"zone":"Library","id":"a"}},
+    {"op":"resolveNotebook","name":"a cycle stops before revisiting","notebooks":{"Library":{"a":{"mergedInto":"b"},"b":{"mergedInto":"a"}}},"start":{"zone":"Library","id":"a"},"expect":{"zone":"Library","id":"b"}},
+    {"op":"resolveNotebook","name":"a longer cycle","notebooks":{"Library":{"a":{"mergedInto":"b"},"b":{"mergedInto":"c"},"c":{"mergedInto":"a"}}},"start":{"zone":"Library","id":"b"},"expect":{"zone":"Library","id":"a"}},
+    {"op":"resolveNotebook","name":"exactly 8 hops reach the end","notebooks":{"Library":{"n0":{"mergedInto":"n1"},"n1":{"mergedInto":"n2"},"n2":{"mergedInto":"n3"},"n3":{"mergedInto":"n4"},"n4":{"mergedInto":"n5"},"n5":{"mergedInto":"n6"},"n6":{"mergedInto":"n7"},"n7":{"mergedInto":"n8"},"n8":{}}},"start":{"zone":"Library","id":"n0"},"expect":{"zone":"Library","id":"n8"}},
+    {"op":"resolveNotebook","name":"at most 8 hops are followed","notebooks":{"Library":{"n0":{"mergedInto":"n1"},"n1":{"mergedInto":"n2"},"n2":{"mergedInto":"n3"},"n3":{"mergedInto":"n4"},"n4":{"mergedInto":"n5"},"n5":{"mergedInto":"n6"},"n6":{"mergedInto":"n7"},"n7":{"mergedInto":"n8"},"n8":{"mergedInto":"n9"},"n9":{}}},"start":{"zone":"Library","id":"n0"},"expect":{"zone":"Library","id":"n8"}},
+    {"op":"resolveNotebook","name":"ids compare exactly (letter case)","notebooks":{"Library":{"a":{"mergedInto":"B"},"b":{}}},"start":{"zone":"Library","id":"a"},"expect":{"zone":"Library","id":"a"}},
+    {"op":"resolveNotebook","name":"movingTo is never followed: a notebook still moving resolves to itself (§4.4)","notebooks":{"Library":{"a":{"movingTo":"s1"}},"Space-s1":{"a":{}}},"start":{"zone":"Library","id":"a"},"expect":{"zone":"Library","id":"a"}},
+    {"op":"resolveNotebook","name":"an emptying split leaves the parent as a merged stub that resolves to its heir (D48)","notebooks":{"Library":{"n":{"mergedInto":"n1"},"n1":{},"n2":{}}},"start":{"zone":"Library","id":"n"},"expect":{"zone":"Library","id":"n1"}},
+    {"op":"resolveNotebook","name":"a team notebook's split stays in the team: the heir is in the same space","notebooks":{"Space-s1":{"n":{"mergedInto":"n1"},"n1":{}}},"start":{"zone":"Space-s1","id":"n"},"expect":{"zone":"Space-s1","id":"n1"}},
+    {"op":"resolveSource","name":"a duplicate's loser resolves to its winner","sources":{"src_b":{"mergedInto":"src_a"},"src_a":{}},"start":"src_b","expect":"src_a"},
+    {"op":"resolveSource","name":"a winner that later lost again","sources":{"src_c":{"mergedInto":"src_b"},"src_b":{"mergedInto":"src_a"},"src_a":{}},"start":"src_c","expect":"src_a"},
+    {"op":"resolveSource","name":"an unknown source is returned as is","sources":{},"start":"src_z","expect":"src_z"},
+    {"op":"resolveSource","name":"a missing winner: stop at the loser","sources":{"src_b":{"mergedInto":"src_x"}},"start":"src_b","expect":"src_b"}
+  ]
+}

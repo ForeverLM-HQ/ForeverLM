@@ -1,0 +1,1030 @@
+name: ForeverLM
+configs:
+  Debug: debug
+  # The First Run app (com.foreverlm.dev.firstrun): a Debug build that opens as
+  # a stranger's first launch. See FOREVERLM_FIRST_RUN below and
+  # scripts/reset_first_run_app.sh. The name ends in Debug because
+  # generate_secrets.sh reads that as a development configuration.
+  FirstRunDebug: debug
+  Release: release
+
+options:
+  bundleIdPrefix: com.foreverlm
+  createIntermediateGroups: true
+  deploymentTarget:
+    macOS: "14.0"
+    iOS: "17.0"
+
+  xcodeVersion: "16.2"
+
+packages:
+  ZIPFoundation:
+    url: https://github.com/weichsel/ZIPFoundation
+    from: "0.9.19"
+  EPUBKit:
+    url: https://github.com/witekbobrowski/EPUBKit
+    branch: main
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: "2.6.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    ENABLE_USER_SCRIPT_SANDBOXING: "NO"
+    DEAD_CODE_STRIPPING: "YES"
+    STRING_CATALOG_GENERATE_SYMBOLS: "YES"
+    ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS: "YES"
+    ALWAYS_SEARCH_USER_PATHS: "NO"
+    CLANG_ENABLE_OBJC_WEAK: "YES"
+    # Recommended warnings (Clang)
+    CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING: "YES"
+    CLANG_WARN_BOOL_CONVERSION: "YES"
+    CLANG_WARN_COMMA: "YES"
+    CLANG_WARN_CONSTANT_CONVERSION: "YES"
+    CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS: "YES"
+    CLANG_WARN_EMPTY_BODY: "YES"
+    CLANG_WARN_ENUM_CONVERSION: "YES"
+    CLANG_WARN_IMPLICIT_FALLTHROUGH: "YES"
+    CLANG_WARN_INFINITE_RECURSION: "YES"
+    CLANG_WARN_INT_CONVERSION: "YES"
+    CLANG_WARN_NON_LITERAL_NULL_CONVERSION: "YES"
+    CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF: "YES"
+    CLANG_WARN_OBJC_LITERAL_CONVERSION: "YES"
+    CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER: "YES"
+    CLANG_WARN_RANGE_LOOP_ANALYSIS: "YES"
+    CLANG_WARN_STRICT_PROTOTYPES: "YES"
+    CLANG_WARN_SUSPICIOUS_MOVE: "YES"
+    CLANG_WARN_UNREACHABLE_CODE: "YES"
+    CLANG_WARN__DUPLICATE_METHOD_MATCH: "YES"
+    ENABLE_STRICT_OBJC_MSGSEND: "YES"
+    GCC_NO_COMMON_BLOCKS: "YES"
+    GCC_WARN_UNDECLARED_SELECTOR: "YES"
+    GCC_WARN_UNINITIALIZED_AUTOS: "YES_AGGRESSIVE"
+    GCC_WARN_UNUSED_FUNCTION: "YES"
+    GCC_WARN_UNUSED_VARIABLE: "YES"
+    GCC_WARN_64_TO_32_BIT_CONVERSION: "YES"
+    GCC_WARN_ABOUT_RETURN_TYPE: "YES_ERROR"
+  configs:
+    Debug:
+      ONLY_ACTIVE_ARCH: "YES"
+      ENABLE_TESTABILITY: "YES"
+    FirstRunDebug:
+      ONLY_ACTIVE_ARCH: "YES"
+    Release:
+      SWIFT_COMPILATION_MODE: wholemodule
+
+schemes:
+  # macOS app
+  ForeverLM (macOS):
+    build:
+      targets:
+        ForeverLM_macOS: all
+        ForeverLMMacUnitTests: [test]
+        ForeverLMMacUITests: [test]
+    run:
+      config: Debug
+      # ForeverLM does not issue Metal commands. PDFKit on macOS 27 can send a
+      # zero-instance wide-line draw for otherwise readable PDFs; Xcode's Metal
+      # validation layer aborts on that private-framework call before the app can
+      # recover. Keep validation off for the macOS app run scheme so PDFs behave
+      # under Xcode exactly as they do in production.
+      enableGPUValidationMode: false
+    profile:
+      config: Release
+    analyze:
+      config: Release
+    archive:
+      config: Release
+    test:
+      config: Debug
+      gatherCoverageData: true
+      coverageTargets:
+        - ForeverLM_macOS
+      targets:
+        - ForeverLMMacUnitTests
+        - ForeverLMMacUITests
+
+  ForeverLM (iOS):
+    build:
+      targets:
+        ForeverLM_iOS: all
+        ForeverLMiOSUITests: [test]
+    run:
+      config: Debug
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
+    test:
+      config: Debug
+      targets:
+        - ForeverLMiOSUnitTests
+        - ForeverLMiOSUITests
+
+targets:
+  # macOS app
+  ForeverLM_macOS:
+    type: application
+    platform: macOS
+    # The target is ForeverLM_macOS but the product is ForeverLM.app. Without
+    # this, XcodeGen names the scheme's buildable after the target, so the
+    # schemes regenerate to "ForeverLM_macOS.app" — a name nothing produces.
+    productName: ForeverLM
+    preBuildScripts:
+      - name: Remove Stale Test Bundles
+        script: |
+          case "${CONFIGURATION}" in
+            Debug) exit 0 ;;
+          esac
+          APP_PLUGINS_DIR="${TARGET_BUILD_DIR}/${WRAPPER_NAME}/Contents/PlugIns"
+          if [ -d "$APP_PLUGINS_DIR" ]; then
+            find "$APP_PLUGINS_DIR" -maxdepth 1 -name "*.xctest" -exec rm -rf {} +
+          fi
+        basedOnDependencyAnalysis: false
+      - name: Generate Secrets
+        script: "\"${SRCROOT}/scripts/generate_secrets.sh\""
+        basedOnDependencyAnalysis: false
+      - name: Enforce AI Model Routing
+        script: "/bin/sh \"${SRCROOT}/scripts/check_ai_model_routing.sh\""
+        basedOnDependencyAnalysis: false
+    sources:
+      - Shared
+      - MCP
+      - path: App
+        excludes:
+          - ArtifactEditorResources
+          - ChatRendererResources
+          - KnowledgeMapResources
+          - PublishedPageResources
+          - WelcomeClipsResources
+          - AppIcon.icon
+      # The app icon ships as an Icon Composer bundle so macOS 26 can render the
+      # dark and tinted Dock variants; actool still emits the legacy .icns from
+      # it for macOS 14 and 15. XcodeGen has no file type for `.icon` and would
+      # otherwise walk into the bundle and add icon.json and the layer PNGs as
+      # loose resources, so it has to be pinned to a single file reference.
+      - path: App/AppIcon.icon
+        type: file
+      - path: App/ArtifactEditorResources
+        type: folder
+        buildPhase: resources
+      # The chat renderer Web Studio also runs, built by Web/ChatRenderer with
+      # KaTeX and its fonts beside it, so chat markdown needs no CDN.
+      - path: App/ChatRendererResources
+        type: folder
+        buildPhase: resources
+      # The Map's renderer, copied from Web/KnowledgeMap (a plain script, no
+      # bundling) and loaded over file:// in the Map pane's web view.
+      - path: App/KnowledgeMapResources
+        type: folder
+        buildPhase: resources
+      # The published-page renderer foreverlm.com runs, built by Web/PublishedPage
+      # from docs-site/website/publishing, so the Docs pane's Page view draws a
+      # doc on this Mac instead of asking the site to.
+      - path: App/PublishedPageResources
+        type: folder
+        buildPhase: resources
+      # The screen recordings beside the setup welcome's pages. A page whose
+      # clip is missing shows its words alone; the folder's README is the
+      # shot list.
+      - path: App/WelcomeClipsResources
+        type: folder
+        buildPhase: resources
+      # The public changelog rides in the bundle so the What's New sheet can
+      # show this build's highlights after an update. ReleaseNotesChangelog
+      # parses it; release_macos.sh refuses to ship a build whose section is
+      # missing from it.
+      - path: ../docs-site/changelog.md
+        buildPhase: resources
+      # Unused by the Mac app itself; compiled in so ForeverLMMacUnitTests can
+      # reach platform-neutral iOS helpers through @testable import ForeverLM.
+      - iOS/MobileOpenRouterChat.swift
+      - iOS/MobileReaderText.swift
+      - path: Shared/Utilities/Secrets.generated.swift
+        optional: true
+    dependencies:
+      - package: ZIPFoundation
+      - package: EPUBKit
+      - package: Sparkle
+      - sdk: MediaPlayer.framework
+      # Bundled auxiliary tool that mints Apple Podcasts API bearer tokens.
+      # Embedded into Contents/MacOS so pathForAuxiliaryExecutable can find it.
+      - target: PodcastTokenHelper
+        embed: true
+        codeSign: true
+        copy:
+          destination: executables
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.foreverlm
+        CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION: "YES"
+        GENERATE_INFOPLIST_FILE: "NO"
+        INFOPLIST_FILE: App/Info.plist
+        MARKETING_VERSION: "0.137.0"
+        CURRENT_PROJECT_VERSION: "208"
+        PRODUCT_NAME: "$(FOREVERLM_PRODUCT_NAME)"
+        PRODUCT_MODULE_NAME: "ForeverLM"
+        # Production identity. The Debug config below replaces these values so the
+        # development app is a genuinely separate macOS app rather than a second build
+        # of the installed one: ForeverLMRuntimeIdentity switches on FOREVERLM_DEVELOPMENT
+        # to pick its own Application Support root, data folder names, Keychain vault,
+        # and MCP port, and App/Info.plist reads FOREVERLM_URL_SCHEME. Without these the
+        # runtime split is dead code: every Xcode build ships as com.foreverlm and opens
+        # the daily-use knowledge.db, which is what let agent builds replace the app
+        # the product owner was working in. The module name stays ForeverLM in both configurations
+        # so @testable import ForeverLM is unaffected.
+        # The app's file and executable name (`DevLM.app`, `FirstRunLM.app`). Spotlight
+        # and the app pickers of other tools list an app by this name, so the two
+        # development apps get short ones that typing `@for` in such a picker does not
+        # reach. The data folders keep their long names (ForeverLMRuntimeIdentity's
+        # productFolderName); the Mac's ForeverLMRuntimeIdentity.bundleFileName and every
+        # script that installs or launches the app by path carry the same names.
+        FOREVERLM_PRODUCT_NAME: "ForeverLM"
+        # What the menu bar, the Dock tooltip, and notifications call the app; the Dev
+        # app reads "ForeverLM (Dev)" in the menu bar.
+        FOREVERLM_BUNDLE_NAME: "ForeverLM"
+        FOREVERLM_URL_SCHEME: "foreverlm"
+        # The CloudKit sync generation (D40, docs/cloudkit-schema-design.md §13.2),
+        # read at run time from App/Info.plist's ForeverLMSyncGeneration. Every
+        # configuration is 2, the schema-v2 sync: since the move to the company
+        # Technologies team (XXXXXXXXXX, 2026-10-09) no build is entitled to the old
+        # team's containers, so generation 1 has nowhere to run.
+        FOREVERLM_SYNC_GENERATION: "2"
+        # The one CloudKit container every build names (docs/cloudkit-schema-design.md
+        # §2.1), read at run time from App/Info.plist's ForeverLMLibraryContainer. The
+        # signed environment entitlement picks its replica: Development for Debug and
+        # First Run, Production for Release. Every entitlements file grants exactly this
+        # container, since CKContainer(identifier:) traps on one the app is not entitled to.
+        FOREVERLM_CLOUDKIT_CONTAINER: "iCloud.com.foreverlm.knowledge"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # Ship one universal macOS app. Apple's NaturalLanguage/CoreML/Accelerate stack
+        # supports both architectures; Intel uses its CPU/GPU path and is expected to be
+        # slower for on-device embeddings and Whisper transcription.
+        ARCHS: "$(ARCHS_STANDARD)"
+        ENABLE_HARDENED_RUNTIME: "YES"
+        # Sparkle ships pre-signed helper binaries; Xcode cannot strip signed artifacts during copy.
+        COPY_PHASE_STRIP: "NO"
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
+        INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: "ForeverLM uses speech recognition for voice answers in Review Chat."
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "ForeverLM uses the microphone for dictation."
+        # The Mac target ships App/Info.plist as is (GENERATE_INFOPLIST_FILE is
+        # NO below), so usage descriptions belong in that file, not here: the
+        # Mac's Calendar read and write (`AppleCalendarService`) is declared there
+        # as NSCalendarsFullAccessUsageDescription. An INFOPLIST_KEY_* line in this
+        # block never reaches the bundle.
+        INFOPLIST_KEY_CFBundleDisplayName: "$(FOREVERLM_BUNDLE_NAME)"
+        INFOPLIST_KEY_LSApplicationCategoryType: "public.app-category.education"
+        SWIFT_OBJC_BRIDGING_HEADER: Shared/BridgingHeader.h
+      configs:
+        # The Mac app always ships as a notarized DMG and updates through Sparkle, so it
+        # needs only the standard Debug and Release configurations. Debug uses the combined
+        # development profile (iCloud + native Sign in with Apple); the release script turns
+        # the Release archive into the separately provisioned Developer ID app.
+        Debug:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: "DEBUG DIRECT_DOWNLOAD FOREVERLM_DEVELOPMENT"
+          PRODUCT_BUNDLE_IDENTIFIER: com.foreverlm.dev
+          FOREVERLM_PRODUCT_NAME: "DevLM"
+          FOREVERLM_BUNDLE_NAME: "ForeverLM (Dev)"
+          FOREVERLM_URL_SCHEME: "foreverlm-dev"
+          CODE_SIGN_ENTITLEMENTS: App/ForeverLMDevelopment.entitlements
+          CODE_SIGN_STYLE: Automatic
+          CODE_SIGN_IDENTITY: "Apple Development"
+          DEVELOPMENT_TEAM: XXXXXXXXXX
+          PROVISIONING_PROFILE_SPECIFIER: ""
+          ONLY_ACTIVE_ARCH: "YES"
+        # A third app beside the installed one and the Dev app, with its own
+        # bundle, library, settings, keychain, permissions and Dock badge, so a
+        # first launch can be walked through without touching the seeded Dev
+        # library. Built, installed and reset by `scripts/build_dev.sh --first-run`.
+        FirstRunDebug:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: "DEBUG DIRECT_DOWNLOAD FOREVERLM_DEVELOPMENT FOREVERLM_FIRST_RUN"
+          PRODUCT_BUNDLE_IDENTIFIER: com.foreverlm.dev.firstrun
+          FOREVERLM_PRODUCT_NAME: "FirstRunLM"
+          FOREVERLM_BUNDLE_NAME: "ForeverLM (First Run)"
+          FOREVERLM_URL_SCHEME: "foreverlm-firstrun"
+          CODE_SIGN_ENTITLEMENTS: App/ForeverLMFirstRun.entitlements
+          # Signed manually: Xcode's automatic signing cannot mint a profile
+          # with any App Store Connect key here ("Authentication failed"), and
+          # nothing it managed ever existed for this bundle ID. The profile was
+          # made through POST /v1/profiles for both Macs and must sit in
+          # ~/Library/Developer/Xcode/UserData/Provisioning Profiles.
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "Apple Development"
+          DEVELOPMENT_TEAM: XXXXXXXXXX
+          PROVISIONING_PROFILE_SPECIFIER: "ForeverLM First Run Mac Development"
+          ONLY_ACTIVE_ARCH: "YES"
+        Release:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: DIRECT_DOWNLOAD
+          CODE_SIGN_ENTITLEMENTS: App/ForeverLMDirectDownload.entitlements
+          CODE_SIGN_STYLE: Automatic
+          CODE_SIGN_IDENTITY: "Apple Development"
+          DEVELOPMENT_TEAM: XXXXXXXXXX
+          PROVISIONING_PROFILE_SPECIFIER: ""
+          ONLY_ACTIVE_ARCH: "NO"
+
+  ForeverLM_iOS:
+    type: application
+    platform: iOS
+    # Same as the Mac target: product is ForeverLM.app, target is ForeverLM_iOS.
+    productName: ForeverLM
+    preBuildScripts:
+      - name: Enforce AI Model Routing
+        script: "/bin/sh \"${SRCROOT}/scripts/check_ai_model_routing.sh\""
+        basedOnDependencyAnalysis: false
+    sources:
+      - iOS/ForeverLMMobileApp.swift
+      - iOS/MobileDesign.swift
+      - iOS/MobileKeychainService.swift
+      - iOS/MobileAudioReviewView.swift
+      - iOS/MobileAudioReviewViewModel.swift
+      - iOS/MobileCloudSourceModels.swift
+      # Notebooks on the phone (docs/notebooks-design.md, "iPhone"): Home, a
+      # notebook's Sources · Chat · Studio, and the rules they share with the
+      # Mac — the chat checkboxes' row, whole-source grounding, Home's order,
+      # the last notebook, links, Docs — kept Foundation-only for the Mac
+      # unit tests.
+      - iOS/MobileNotebookModels.swift
+      # Which context notebooks a notebook's chats read, and how a box
+      # changes the two rows: the Mac's own rule (`NotebookChatContext`).
+      - Shared/Models/NotebookChatContext.swift
+      # Sharing a notebook asks once whether the learner may share its
+      # sources: the synced row, its words and its version, the Mac's own
+      # (`SharingRightsAffirmation`); and its Share says what it gives in the
+      # Mac's words (`NotebookShareLine`).
+      - Shared/Models/SharingRightsAffirmation.swift
+      - Shared/Models/NotebookShareLine.swift
+      - iOS/MobileNotebookHomeView.swift
+      # The Mac's rail and Notebooks home rules (`NotebookRail`,
+      # `NotebookPins`, `NotebooksHomeSort`, the filter, Grid | List), which
+      # Home's Pinned, Recent and Collections and the Notebooks screen read.
+      - Shared/Models/NotebooksHomeRules.swift
+      - iOS/MobileNotebookRail.swift
+      # The Notebooks screen Home's rail rows push (Grid | List, the sort, the
+      # filter) and the notebook and collection menus both screens carry.
+      - iOS/MobileNotebooksScreen.swift
+      - iOS/MobileNotebookMenus.swift
+      # Home's collections of notebooks: the Mac's two kinds of synced row
+      # (`NotebookCollections`), found through the notebooks the phone knows.
+      - iOS/MobileNotebookCollectionsStore.swift
+      - iOS/MobileNotebookScreen.swift
+      # The way to the learner's Mac through the gateway (Route A), which the
+      # phone's search asks, and generation 1's rules for a notebook's Share,
+      # dormant until WP30 (a notebook is shared by moving it into a space).
+      - iOS/MobileNotebookSharing.swift
+      - iOS/MobileNotebookChatTab.swift
+      - iOS/MobileNotebookStudioTab.swift
+      # The iPad's notebook as the Mac's three columns, each side folding to
+      # a strip, and Home's gallery: the view, and its Foundation-only rules.
+      - iOS/MobileNotebookColumns.swift
+      - iOS/MobileNotebookColumnLayout.swift
+      # The Space on the phone (docs/docs-design.md, "The Space"): every page, the learner's spaces of
+      # pages, pins and subpages, read from the replica and written through the generation-2 writer
+      # (`MobileSpaceStore`, `MobileSpaceRecords`); its rules Foundation-only for the Mac unit tests, over
+      # the Mac's own rows (`PageSpaces`, `PagePins`, `PageParents`) and daily notes (`DailyNote`).
+      - iOS/MobileSpaceModels.swift
+      - iOS/MobileSpaceStore.swift
+      # Its screens: the sidebar's places, a place's pages and the split view on a roomy screen; the
+      # page row menu and its questions; a page written in the editor with its autosave; and the DEBUG
+      # `-foreverlm-uitest-space` harness over a sample library made in memory.
+      - iOS/MobileSpaceViews.swift
+      - iOS/MobileSpaceMenus.swift
+      - iOS/MobilePageScreen.swift
+      - iOS/MobileSpaceHarness.swift
+      - Shared/Models/PageSpaces.swift
+      - Shared/Models/DocGraph.swift
+      # Add sources on the phone: up to ten pasted links, and pages from the
+      # document camera or Photos filed as one PDF that carries the words
+      # Vision read on them, so the Mac's paper ingestion and every chat can
+      # read a scan. The links' and the pages' rules are Foundation-only for
+      # the Mac unit tests.
+      - iOS/MobileNotebookAddSourcesModels.swift
+      - iOS/MobileScannedPagesPDF.swift
+      - iOS/MobileNotebookCapture.swift
+      - iOS/MobileCloudMutations.swift
+      # Retry for the transient CloudKit failures every direct phone call hits.
+      - iOS/MobileCloudKitRetry.swift
+      - iOS/MobileLibraryManagementViews.swift
+      - iOS/MobileWidgetSnapshot.swift
+      - iOS/MobileShareInbox.swift
+      # The share sheet's notebooks, its preview and the adds a drain of the
+      # inbox makes; Foundation only, compiled by the share extension too.
+      - iOS/MobileShareSheetModels.swift
+      - iOS/MobileShareDrain.swift
+      - iOS/MobileReviewSpeechService.swift
+      - iOS/MobileOpenRouterChat.swift
+      - iOS/MobileSourceChatService.swift
+      - iOS/DrivingSourceAnswerPlanner.swift
+      - iOS/MobileDrivingBenchmarks.swift
+      - iOS/MobileVoiceSourceResolver.swift
+      - iOS/MobileVoiceAgentService.swift
+      - iOS/MobileVoiceCommandService.swift
+      - iOS/MobileSourceVoiceFormatter.swift
+      - iOS/MobileSiriIntents.swift
+      - iOS/MobileSourceAppEntity.swift
+      - iOS/MobileSemanticSourceSearch.swift
+      - iOS/CarPlaySceneDelegate.swift
+      - iOS/MobileReviewBrain.swift
+      - iOS/MobileVoiceReviewPromptContract.swift
+      - iOS/MobileReviewFoundationBrain.swift
+      - iOS/MobileReviewSessionRecorder.swift
+      - iOS/MobileMemoryAttemptRecorder.swift
+      # The turn-by-turn voice conversation (Apple dictation, the learner's
+      # chat model through the ordinary chat or review, spoken replies) and
+      # its model-free rules, which the Mac unit tests compile too.
+      - iOS/MobileVoiceConversationController.swift
+      - iOS/MobileVoiceConversationRules.swift
+      # Speech loudness: shared gain+limiter stages, and the AVPlayer tap that
+      # applies them to text-to-speech narration.
+      - iOS/MobileSpeechLoudness.swift
+      - iOS/MobileLoudnessAudioMix.swift
+      # Old realtime rows' cached-charge reconstruction for usage history,
+      # and the cost formatting; Foundation-only for the Mac unit tests.
+      - iOS/MobileRealtimeRates.swift
+      - iOS/MobileSourceFileStore.swift
+      # Durable, non-purgeable copies of saved sources + the Save Offline UI.
+      - iOS/MobileOfflineLibrary.swift
+      - iOS/MobileOfflineViews.swift
+      - iOS/MobileModelPreferenceStore.swift
+      - iOS/MobileSourcePDFView.swift
+      - iOS/MobilePaperFigureView.swift
+      # XCUITest self-check line (DEBUG-only; launch-argument gated).
+      - iOS/MobileUITestProbe.swift
+      # Read-and-chat surface behind Settings: browser, reader, chat, dictation.
+      - iOS/MobileSignInGate.swift
+      - iOS/MobileAudioSessionArbiter.swift
+      - iOS/MobileSettingsView.swift
+      - iOS/MobileUsageHistoryView.swift
+      - iOS/MobileSourceBrowserView.swift
+      # A course's page and its quizzes: the Mac's path and gate
+      # (docs/courses-design.md) over the shared course types.
+      - iOS/MobileCoursePath.swift
+      - iOS/MobileCourseViews.swift
+      - Shared/Models/CourseCore.swift
+      - iOS/MobileReaderText.swift
+      - iOS/MobileReaderWebView.swift
+      # A page read and written in the editor the Mac and the web run (its
+      # bundle is the resource folder below), fitted to a finger, with the
+      # DEBUG `-foreverlm-uitest-page-editor` harness.
+      - iOS/MobilePageEditorView.swift
+      # A book read whole: the chapters on the page, what the page reports,
+      # and the steps that keep it up to date.
+      - iOS/MobileBookReading.swift
+      # Find inside a source: the bar, its state, and the PDF/web performers.
+      - iOS/MobileReaderFind.swift
+      - iOS/MobileSourceReaderView.swift
+      - iOS/MobileSourceReaderViewModel.swift
+      # Explainers on the phone: the writer, the row badge, menu item and
+      # reader control, and the shared grammar/lengths/writer turn.
+      - iOS/MobileExplainerGenerator.swift
+      - iOS/MobileExplainerViews.swift
+      - Shared/Models/ExplainerScript.swift
+      # Walkthroughs on the phone: the synced record read as a deck of cards,
+      # and the policy a step's animation is shown under.
+      - iOS/MobileWalkthroughDeck.swift
+      - iOS/MobileWalkthroughDeckView.swift
+      - Shared/Models/PaperWalkthroughAnimationDocument.swift
+      # A figure or panel found on its PDF page from the caption and the
+      # printed panel letters, for a figure the Mac has not analysed.
+      - Shared/Utilities/PaperFigureRectRefiner.swift
+      - Shared/Utilities/PaperFigurePanelLocator.swift
+      # A citation's reference card in the phone's PDF reader: the entry read
+      # from the paper's own file, as on the Mac, and the source it names.
+      - Shared/Services/Import/PDFReferenceEntries.swift
+      - iOS/MobileReaderReferenceCard.swift
+      # Writing a walkthrough on the phone: the Mac's record and validator,
+      # the shared writer turns and run, and the step turns and grading brief
+      # the card's chat saves in the Mac's own shape.
+      - iOS/MobileWalkthroughGenerator.swift
+      - Shared/Models/PaperWalkthrough.swift
+      - Shared/Services/AI/PaperWalkthroughWriting.swift
+      - Shared/Services/AI/WalkthroughStepComposer.swift
+      - Shared/Utilities/SourceImageReference.swift
+      - Shared/Utilities/GeneratedImageAddress.swift
+      # A step's saved animation: the Artifact's body package unpacked and
+      # served under the Mac's local-site rule.
+      - iOS/MobileWalkthroughAnimationPages.swift
+      - Shared/Services/Storage/ArtifactBodyPackage.swift
+      - Shared/Models/SiteFile.swift
+      - Shared/Utilities/LocalSiteServing.swift
+      - iOS/MobileSourceHighlightEditor.swift
+      - iOS/MobileStreamingChat.swift
+      - iOS/MobileChatView.swift
+      - iOS/MobileChatViewModel.swift
+      - iOS/MobileComposerDictation.swift
+      - Shared/Models/SyncedArticleAudio.swift
+      - Shared/Models/SyncedArticleAudioSatellites.swift
+      - Shared/Models/SourceHighlight.swift
+      - Shared/Models/PaperNarrationFilter.swift
+      - Shared/Models/PaperFigure.swift
+      - Shared/Models/AIModelDefaultsCore.swift
+      - Shared/Models/AITaskCore.swift
+      - Shared/Models/MemoryTutorModels.swift
+      # The memory records and their schedule, and today's card queue: the
+      # order, the new-card allowance and the budget every surface deals and
+      # counts the day's cards by (the widget's count among them).
+      - Shared/Portable/MemoryTutorRecords.swift
+      - Shared/Portable/MemoryCardQueue.swift
+      - Shared/Portable/CardScheduleFold.swift
+      - Shared/Models/MemoryTutorGradeMapping.swift
+      - Shared/Models/MemoryTutorSourceLinkage.swift
+      # A kept card's face in its Memory item, and the per-card state row
+      # (`cards.state.<deckID>`) the phone reads and writes like the Mac.
+      - Shared/Models/MemoryCard.swift
+      # The matcher a Memory anchor is grounded with, which also places a
+      # mnemonic reading's questions after the passages they quote.
+      - Shared/Models/MemoryGroundingText.swift
+      # A mnemonic reading (docs/memory-design.md, "Mnemonic reading"): its
+      # body, its questions' identity and Memory face, and where each question
+      # stands in its source's text, as the Mac reads and writes them.
+      - Shared/Models/MnemonicReading.swift
+      - Shared/Models/MnemonicReadingPlacement.swift
+      # The phone's reading: what an answer writes, decided as the Mac's
+      # store decides it, and the view that reads and answers it.
+      - iOS/MobileMnemonicReading.swift
+      - iOS/MobileMnemonicReadingView.swift
+      # The card review and a notebook's Practice on the phone
+      # (docs/memory-design.md, "The card review on the iPhone"): the Mac's
+      # sitting, deal, scope and wording (`MemoryCardSitting`,
+      # `MemoryCardDeal`, `MemoryCardScope` over homing's
+      # `NotebookMembership`, `MemoryCardWording` and its variations), with
+      # the cards-to-check face a sitting's card can carry (`MemoryCardTriage`
+      # over `FlashcardDeck`), and the phone's screen and its pure rules.
+      - Shared/Models/NotebookMembership.swift
+      - Shared/Models/NotebookIcon.swift
+      # The collections' rows and their rules, shared with the Mac and its
+      # unit tests; Home's store reads and writes through them.
+      - Shared/Models/NotebookCollections.swift
+      - Shared/Models/RetiredNotebookWording.swift
+      # A new notebook's placeholder and the row that lets ForeverLM name it
+      # (`NotebookNaming`), which the phone writes when it makes one.
+      - Shared/Models/NotebookNaming.swift
+      - Shared/Models/FlashcardDeck.swift
+      - Shared/Models/MemoryCardTriage.swift
+      - Shared/Models/MemoryCardVariation.swift
+      - Shared/Models/MemoryCardSitting.swift
+      - iOS/MobileCardReview.swift
+      - iOS/MobileCardReviewView.swift
+      # Going through cards on the phone (docs/memory-design.md, "Cards to
+      # check on the iPhone"): To Check's Keep, Edit and Skip and a kept
+      # card's menu, written on its generation-2 Card, and their screens.
+      - iOS/MobileCardTriage.swift
+      - iOS/MobileCardsToCheckView.swift
+      # The Memory screen (docs/memory-design.md, "The Memory screen on the
+      # iPhone"): the Mac's Memory pane's Review and All Cards, its history
+      # grid, and Home's Memory strip.
+      - iOS/MobileMemoryScreen.swift
+      - Shared/Models/ArticleSpeechCatalog.swift
+      # A text-to-speech pick OpenRouter stopped offering is repaired where it
+      # is used, by the Mac's rule.
+      - Shared/Models/ArticleSpeechPickRepair.swift
+      - Shared/Utilities/ForeverLMRuntimeIdentity.swift
+      - Shared/Utilities/String+UTF8Mojibake.swift
+      # The passage chip's TeX-to-readable-text fold; both composers show it.
+      - Shared/Utilities/String+ReadableMath.swift
+      - Shared/Portable/ForeverLMCore.swift
+      - Shared/Portable/TutorContract.swift
+      # The question marker old realtime voice exchanges carry, which every
+      # transcript renderer hides.
+      - Shared/Portable/RealtimeExchangeLedger.swift
+      # Which sources narrate through the AI preparation pass: papers and
+      # articles always, a book or course chapter when its text carries
+      # equations or tables. The phone reads the Mac's prepared narration.
+      - Shared/Portable/TextToSpeechPreparationPolicy.swift
+      - Shared/Portable/AITaskSettingsCatalog.swift
+      # The daily review's synced switch key, and the day's chat identity plus
+      # the voice handoff shape, so "start my review" on the phone picks up the
+      # review a Mac prepared.
+      - Shared/Portable/DailyReviewPreparationCore.swift
+      # The daily time budget: its synced key, default, and how many sources
+      # and bridges a review of that length carries. Both planners size by it.
+      - Shared/Portable/MemoryReviewBudget.swift
+      # The day's goal — the budget, spent — its per-device activity row, the
+      # streak, and the engagement clock both clients run. The phone reads the
+      # ActivityLog fold from its replica and writes its own review clock.
+      - Shared/Models/MemoryReviewGoal.swift
+      - Shared/Models/MemoryReviewActivityDevice.swift
+      - Shared/Views/MemoryGoalCelebrationView.swift
+      - iOS/MobileMemoryGoalModel.swift
+      - Shared/Portable/MemoryReviewTutoring.swift
+      # Go deeper's understanding probes past recall: the kinds, their
+      # rotation, the analogy partner and the tutor's note.
+      - Shared/Portable/MemoryUnderstandingProbe.swift
+      # The line that opens a walkthrough step the Mac's chat plays; the phone
+      # strips it from a synced transcript the way it strips a source turn.
+      - Shared/Portable/WalkthroughStepTurn.swift
+      # The rating enum the exchange payload carries: ratings older builds
+      # made still round-trip through the phone's ReviewSession records.
+      - Shared/Portable/ReviewTurnRating.swift
+      - Shared/Portable/SourceIdeaDrafting.swift
+      # Today's review on the phone: the synced record, the candidates the
+      # selector runs on, the planner, the conversation, and its scheduling.
+      - Shared/Portable/MemoryReviewCandidates.swift
+      - iOS/MobileMemoryReviewStore.swift
+      - iOS/MobileMemoryReviewPreparer.swift
+      - iOS/MobileMemoryReviewViewModel.swift
+      - iOS/MobileMemoryReviewView.swift
+      - iOS/MobileMemoryReviewScheduler.swift
+      - Shared/Models/MemoryReviewSession.swift
+      # The memory review's models, Foundation-only: the cohort and its pure
+      # selector, the plan, the ideas, and the contour grade the phone's review
+      # is graded with — the same grader the Mac runs.
+      - Shared/Models/LearningCohort.swift
+      - Shared/Models/CohortSessionPlan.swift
+      - Shared/Models/SourceIdea.swift
+      - Shared/Models/MemoryContourGrade.swift
+      - Shared/Services/AI/AIProviderErrorText.swift
+      - Shared/Services/AI/AIDataPolicy.swift
+      - Shared/Services/AI/SSEByteLines.swift
+      - Shared/Services/AI/Prompts.swift
+      # The portable tutor contract's tools as request JSON (the memory
+      # review's grader).
+      - Shared/Services/AI/TutorToolRequestDictionary.swift
+      # The voice conversation's screen and the mark it moves.
+      - Shared/Views/VoiceSessionSurface.swift
+      # The brand mark, drawn by the phone's account wall.
+      - Shared/Views/ForeverLMMark.swift
+      # The branded wait, drawn by the phone's chat while a reply is coming.
+      - Shared/Views/ForeverLMLoadingIndicator.swift
+      - Shared/Views/LoadingIndicatorSpeed.swift
+      - Shared/Services/AI/CloudArticleTTS.swift
+      # A text-to-speech pick is tested before it is used, with the Mac's
+      # records and rules (`AIModelQualification`).
+      - Shared/Services/AI/AIModelQualificationCore.swift
+      - Shared/Services/AI/CloudArticleTTS+Qualification.swift
+      - Shared/Services/AI/ArticleSpeechVoicePreviewRepository.swift
+      - Shared/Services/AI/AIUsageReporting.swift
+      # CloudArticleTTS and the Mobile* services call ManagedAI.isSignedIn/rewrite.
+      - Shared/Services/AI/AppleSignInSupport.swift
+      - Shared/Services/AI/ManagedAI.swift
+      # The app plan the proxy returns with every session (ManagedAI reads it).
+      - Shared/Services/AI/ManagedAIAppAccess.swift
+      - Shared/Services/AI/ManagedTranscriptionClient.swift
+      - Shared/Services/Notifications/NotificationRetirement.swift
+      # The Planner's bout timer, phone side: the break a write-up earned is
+      # taken away from the desk, so the phone draws its clock. Foundation-only
+      # models, read out of the Mac's own DayPlan record.
+      - Shared/Models/PlanDate.swift
+      - Shared/Models/LearningBout.swift
+      - iOS/MobileLearningBoutStore.swift
+      - iOS/MobileLearningBoutTimer.swift
+      # Shared thumbnail support used by the iPhone source browser.
+      - Shared/Services/Storage/ImageCache.swift
+      - Shared/Services/Storage/ThumbnailDiskCache.swift
+      - Shared/Services/Storage/CacheDirectorySweep.swift
+      - Shared/Services/Storage/LegacyIdentityAdoption.swift
+      - Shared/Services/Storage/SharedDerivedCacheAdoption.swift
+      # CloudKit schema v2: the record types, zones and field policies the
+      # sync core reads, generated from schema/cloudkit-schema.json
+      # (docs/cloudkit-schema-design.md §12.1, §14.1), and the sync core
+      # itself (Foundation and CryptoKit only), the same code as the Mac's.
+      - Shared/Sync/Core/SyncSchema.generated.swift
+      - Shared/Sync/Core/ChatKindClassifier.swift
+      - Shared/Sync/Core/Envelope.swift
+      - Shared/Sync/Core/FieldMerge.swift
+      - Shared/Sync/Core/FractionalIndex.swift
+      - Shared/Sync/Core/MobileURLNormalizer.swift
+      - Shared/Sync/Core/NotebookResolution.swift
+      - Shared/Sync/Core/RecordNaming.swift
+      - Shared/Sync/Core/SourceResolution.swift
+      - Shared/Sync/Core/SourceSkeleton.swift
+      - Shared/Sync/Core/SpaceWriteGuard.swift
+      - Shared/Sync/Core/Stamp.swift
+      - Shared/Sync/Core/StampClock.swift
+      - Shared/Sync/Core/SyncJSON.swift
+      - Shared/Sync/Core/SyncNotebookChatContext.swift
+      - Shared/Sync/Core/URLNormalizer.swift
+      - Shared/Sync/Core/Values.swift
+      - Shared/Sync/Core/WorkKey.swift
+      - Shared/Sync/Core/ZonePlacement.swift
+      # The replica's tables and the connection they run on, the same code
+      # as the Mac's (§14.1 Store/).
+      - Shared/Sync/Store/SQLiteConnection.swift
+      - Shared/Sync/Store/ReplicaStore.swift
+      - Shared/Sync/Store/OutboxFeeder.swift
+      # The CloudKit operations that sync runs, as one protocol the tests'
+      # in-memory CloudKit also implements (§14.1 CloudKit/).
+      - Shared/Sync/CloudKit/CloudTransport.swift
+      - Shared/Sync/CloudKit/CloudKitTransport.swift
+      - Shared/Sync/CloudKit/SyncPacer.swift
+      - Shared/Sync/CloudKit/MoveMapIndex.swift
+      - Shared/Sync/CloudKit/PrivateSyncEngine.swift
+      - Shared/Sync/CloudKit/ZoneBootstrap.swift
+      - Shared/Sync/CloudKit/PurgeHandler.swift
+      - Shared/Sync/CloudKit/ReplicaAudit.swift
+      - Shared/Sync/CloudKit/SyncStatus.swift
+      - Shared/Sync/CloudKit/SyncRoundLoop.swift
+      - Shared/Sync/CloudKit/SyncCoordinator.swift
+      - Shared/Sync/CloudKit/BlobStore.swift
+      - Shared/Sync/CloudKit/SpaceSync.swift
+      - Shared/Sync/CloudKit/ShareService.swift
+      # The projection protocol and registry (§14.1 Projection/), which the
+      # feeder routes outbox rows through.
+      - Shared/Sync/Projection/RecordProjection.swift
+      - Shared/Sync/Projection/ProjectionRegistry.swift
+      # The iPhone's own half (§14.1 iOS/Sync): its replica file with the index columns the screens
+      # query, extracted when a record is applied, the query layer over them, and the session that
+      # runs the shared sync core on them, with the push registration.
+      - iOS/Sync/MobileReplica.swift
+      - iOS/Sync/MobileProjection.swift
+      - iOS/Sync/MobileSyncSession.swift
+      # What the screens read, from the index (WP19b).
+      - iOS/Sync/MobileReadModels.swift
+      # Every phone write as a RecordPatch, and the outbox that sends them (WP20).
+      - iOS/Sync/MobileRecordWriter.swift
+      - iOS/Sync/MobileRecordWriterOperations.swift
+      # Settings and the learning history, written the same way (WP20b).
+      - iOS/Sync/MobileSettingWriter.swift
+      - iOS/Sync/MobileMemoryRecords.swift
+      # Spaces on the phone: share acceptance, the space's sharing controller, Share as Job(moveToSpace).
+      - iOS/Sync/MobileSpaceSharing.swift
+      # Satellites on demand, kept on disk by hash; a space's "Download all files" (WP21).
+      - iOS/Sync/MobileSatellites.swift
+      # FTS5 over source metadata and the text set, in the replica file (WP21, §8a).
+      - iOS/Sync/MobileTextIndex.swift
+      # Explainers, the Schedule's placements and highlights as records (WP20c).
+      - iOS/Sync/MobileExplainerRecords.swift
+      - iOS/Sync/MobileScheduleRecords.swift
+      - iOS/Sync/MobileHighlightRecords.swift
+      # A notebook's AI-drawn cover: shown in place of its emoji, asked of a Mac for a notebook made here (D53, WP31b),
+      # and drawn bare by the Mac's own cut, which takes the flat ground away (docs/notebooks-design.md).
+      - iOS/Sync/MobileNotebookCovers.swift
+      - Shared/Utilities/NotebookCoverCutout.swift
+      # A switched phone's narration: the source's `audio.*` satellites, the working folder the player reads (NARR2).
+      - iOS/Sync/MobileNarrationRecords.swift
+      # A card's Card under generation 2: the drafts To Check offers, Keep, Skip, Retire, a rewording, "always
+      # ask it this way" and starting a card over (§3.5.22).
+      - iOS/Sync/MobileCardRecords.swift
+      # The Space's pages as Artifacts and their bodies, and the learner's grouping of pages as Settings (§3.5.15, §3.5.3).
+      - iOS/Sync/MobileSpaceRecords.swift
+      - path: iOS/Assets.xcassets
+        buildPhase: resources
+      - path: Shared/PrivacyInfo.xcprivacy
+        buildPhase: resources
+      # The page editor's bundle, the Mac's own copy (built by
+      # Web/ArtifactEditor), loaded over file:// by MobilePageEditorView.
+      - path: App/ArtifactEditorResources
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - target: ForeverLMTodayWidget
+        embed: true
+      - target: ForeverLMShareExtension
+        embed: true
+    settings:
+      base:
+        # One App ID with the Developer ID Mac app (company team, 2026-10-09):
+        # com.foreverlm.mobile belonged to the old team and can never be reused.
+        PRODUCT_BUNDLE_IDENTIFIER: com.foreverlm
+        PRODUCT_NAME: "ForeverLM"
+        PRODUCT_MODULE_NAME: "ForeverLM"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        GENERATE_INFOPLIST_FILE: "NO"
+        INFOPLIST_FILE: iOS/Info.plist
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "34"
+        SDKROOT: iphoneos
+        SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        # The iPhone app shares the Mac app's bundle ID, so it must never install on
+        # an Apple silicon Mac or a Vision Pro as an iPad app: a Mac would then hold
+        # two apps with one bundle ID.
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: "NO"
+        SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: "NO"
+        CODE_SIGN_ENTITLEMENTS: iOS/ForeverLMiOS.entitlements
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "Apple Development"
+        DEVELOPMENT_TEAM: XXXXXXXXXX
+        INFOPLIST_KEY_CFBundleDisplayName: "ForeverLM"
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: "YES"
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: "YES"
+        INFOPLIST_KEY_CFBundleIconName: AppIcon
+        # The CloudKit sync generation (D40), as on the Mac, read from
+        # iOS/Info.plist's ForeverLMSyncGeneration: 2 in every configuration, the
+        # replica of the library container.
+        FOREVERLM_SYNC_GENERATION: "2"
+        # The one container, as on the Mac, from iOS/Info.plist's
+        # ForeverLMLibraryContainer.
+        FOREVERLM_CLOUDKIT_CONTAINER: "iCloud.com.foreverlm.knowledge"
+        # The CloudKit environment the entitlements sign for, from iOS/Info.plist's
+        # ForeverLMCloudKitEnvironment: the phone keeps its replica apart per
+        # environment, since Debug and Release share one app container.
+        FOREVERLM_CLOUDKIT_ENVIRONMENT: Production
+      configs:
+        Debug:
+          # Xcode 27 can update filesystem metadata on the source entitlements
+          # while packaging a local device build and then reject that build as
+          # an entitlements modification. Keep the relaxation debug-only so
+          # Release/Archive signing still verifies the file strictly.
+          CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION: "YES"
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG
+          # A Debug iPhone or iPad build syncs with CloudKit's Development
+          # environment (C4), with push for the sync.
+          CODE_SIGN_ENTITLEMENTS: iOS/ForeverLMiOSDevelopment.entitlements
+          FOREVERLM_CLOUDKIT_ENVIRONMENT: Development
+        Release:
+          ONLY_ACTIVE_ARCH: "NO"
+
+  ForeverLMTodayWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - iOSWidget/ForeverLMTodayWidget.swift
+      - iOS/MobileWidgetSnapshot.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.foreverlm.widget
+        PRODUCT_NAME: "ForeverLM Today"
+        GENERATE_INFOPLIST_FILE: "NO"
+        INFOPLIST_FILE: iOSWidget/Info.plist
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "34"
+        SDKROOT: iphoneos
+        SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        APPLICATION_EXTENSION_API_ONLY: "YES"
+        SKIP_INSTALL: "YES"
+        CODE_SIGN_ENTITLEMENTS: iOSWidget/ForeverLMTodayWidget.entitlements
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "Apple Development"
+        DEVELOPMENT_TEAM: XXXXXXXXXX
+
+  ForeverLMShareExtension:
+    type: app-extension
+    platform: iOS
+    sources:
+      - iOSShare/MobileShareViewController.swift
+      - iOSShare/MobileShareSheetView.swift
+      - iOS/MobileShareInbox.swift
+      - iOS/MobileShareSheetModels.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.foreverlm.share
+        PRODUCT_NAME: "Add to ForeverLM"
+        PRODUCT_MODULE_NAME: ForeverLMShare
+        GENERATE_INFOPLIST_FILE: "NO"
+        INFOPLIST_FILE: iOSShare/Info.plist
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "34"
+        SDKROOT: iphoneos
+        SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        APPLICATION_EXTENSION_API_ONLY: "YES"
+        SKIP_INSTALL: "YES"
+        CODE_SIGN_ENTITLEMENTS: iOSShare/ForeverLMShare.entitlements
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "Apple Development"
+        DEVELOPMENT_TEAM: XXXXXXXXXX
+
+  # macOS Unit Tests (Swift Testing) — same sources, macOS host
+  ForeverLMMacUnitTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - UnitTests
+      # Platform-neutral iOS planning helpers compiled directly into the test
+      # bundle.
+      - iOS/DrivingSourceAnswerPlanner.swift
+      - iOS/MobileVoiceSourceResolver.swift
+      - iOS/MobileCloudSourceModels.swift
+      - iOS/MobileNotebookModels.swift
+      - iOS/MobileNotebookAddSourcesModels.swift
+      - iOS/MobileSpaceModels.swift
+      - iOS/MobileCardReview.swift
+      - iOS/MobileMnemonicReading.swift
+      - iOS/MobileCoursePath.swift
+      - iOS/MobileBookReading.swift
+      - iOS/MobileWalkthroughDeck.swift
+      - iOS/MobileDrivingBenchmarks.swift
+      - iOS/MobileVoiceReviewPromptContract.swift
+      - iOS/MobileVoiceConversationRules.swift
+      - iOS/MobileRealtimeRates.swift
+      - iOS/MobileSpeechLoudness.swift
+      # The shared sync vectors (docs/cloudkit-schema-design.md §12.1), as one
+      # folder in the bundle: SyncVectorRunner reads them from `vectors/`.
+      - path: ../schema/vectors
+        type: folder
+        buildPhase: resources
+    resources:
+      - path: UnitTests/Fixtures
+        buildPhase: resources
+    dependencies:
+      - target: ForeverLM_macOS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.foreverlm.mac-unittests
+        PRODUCT_NAME: ForeverLMMacUnitTests
+        PRODUCT_MODULE_NAME: ForeverLMMacUnitTests
+        GENERATE_INFOPLIST_FILE: "YES"
+        # Follows the host app's per-configuration name: under Debug the host is
+        # "DevLM.app". A hardcoded ForeverLM.app here would fail to launch the
+        # test host in the only configuration these tests are ever run in.
+        FOREVERLM_PRODUCT_NAME: "ForeverLM"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/$(FOREVERLM_PRODUCT_NAME).app/Contents/MacOS/$(FOREVERLM_PRODUCT_NAME)"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+      configs:
+        Debug:
+          FOREVERLM_PRODUCT_NAME: "DevLM"
+          CODE_SIGN_STYLE: Automatic
+          CODE_SIGN_IDENTITY: "Apple Development"
+          DEVELOPMENT_TEAM: XXXXXXXXXX
+
+  # macOS UI Tests
+  ForeverLMMacUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - UITests/macOS
+      - Shared/Utilities/AccessibilityIdentifiers.swift
+    dependencies:
+      - target: ForeverLM_macOS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.foreverlm.mac.uitests
+        PRODUCT_NAME: ForeverLMMacUITests
+        PRODUCT_MODULE_NAME: ForeverLMMacUITests
+        GENERATE_INFOPLIST_FILE: "YES"
+        TEST_HOST: ""
+        TEST_TARGET_NAME: ForeverLM_macOS
+      configs:
+        Debug:
+          CODE_SIGN_STYLE: Automatic
+          CODE_SIGN_IDENTITY: "Apple Development"
+          DEVELOPMENT_TEAM: XXXXXXXXXX
+
+  # iOS UI Tests
+  # XCUITest is the only way to drive the iOS app on this machine: Xcode 27
+  # ships no Simulator.app and the Claude simulator helper's input path is
+  # broken, so taps injected in-process by the test runner are the sole
+  # interaction surface.
+  ForeverLMiOSUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - UITests/iOS
+    dependencies:
+      - target: ForeverLM_iOS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.foreverlm.ios-uitests
+        PRODUCT_NAME: ForeverLMiOSUITests
+        PRODUCT_MODULE_NAME: ForeverLMiOSUITests
+        GENERATE_INFOPLIST_FILE: "YES"
+        TEST_TARGET_NAME: ForeverLM_iOS
+      configs:
+        Debug:
+          CODE_SIGN_STYLE: Automatic
+          CODE_SIGN_IDENTITY: "Apple Development"
+          DEVELOPMENT_TEAM: XXXXXXXXXX
+
+  # iOS Unit Tests — direct coverage for CloudKit mutation convergence and
+  # other phone-only behavior that cannot be exercised by the macOS host.
+  ForeverLMiOSUnitTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - iOSUnitTests
+      # The in-memory CloudKit the phone's sync suites run on, the same one the Mac's suites use.
+      - UnitTests/Support/FakeCloudKit.swift
+      - path: UnitTests/Fixtures/cross-surface-cloudkit-roundtrip-v1.json
+        buildPhase: resources
+      - path: ../schema/vectors
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - target: ForeverLM_iOS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.foreverlm.ios-unittests
+        PRODUCT_NAME: ForeverLMiOSUnitTests
+        PRODUCT_MODULE_NAME: ForeverLMiOSUnitTests
+        GENERATE_INFOPLIST_FILE: "YES"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/ForeverLM.app/ForeverLM"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+      configs:
+        Debug:
+          CODE_SIGN_STYLE: Automatic
+          CODE_SIGN_IDENTITY: "Apple Development"
+          DEVELOPMENT_TEAM: XXXXXXXXXX
+
+  # Auxiliary command-line tool embedded in the macOS app (Contents/MacOS).
+  # Mints Apple Podcasts API bearer tokens via the private PodcastsFoundation
+  # framework, isolated in its own process so a signing-teardown crash in that
+  # framework can never reach the host app. Re-signed on copy with the app's
+  # identity, so its own signing config is intentionally minimal.
+  PodcastTokenHelper:
+    type: tool
+    platform: macOS
+    sources:
+      - PodcastTokenHelper
+    settings:
+      base:
+        PRODUCT_NAME: PodcastTokenHelper
+        PRODUCT_BUNDLE_IDENTIFIER: com.foreverlm.podcasttokenhelper
+        CLANG_ENABLE_OBJC_ARC: "YES"
+        ENABLE_HARDENED_RUNTIME: "YES"
+        SKIP_INSTALL: "YES"
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: XXXXXXXXXX

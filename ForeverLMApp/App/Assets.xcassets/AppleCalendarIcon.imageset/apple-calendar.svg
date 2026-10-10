@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- macOS Calendar app tile: white squircle, red date band, black day number -->
+  <defs>
+    <clipPath id="tile">
+      <rect x="1" y="1" width="62" height="62" rx="14" ry="14"/>
+    </clipPath>
+  </defs>
+  <rect x="1" y="1" width="62" height="62" rx="14" ry="14" fill="#ffffff"/>
+  <g clip-path="url(#tile)">
+    <rect x="0" y="0" width="64" height="19" fill="#ff3b30"/>
+  </g>
+  <!-- weekday abbreviation drawn as three small white pills -->
+  <g fill="#ffffff" opacity="0.95">
+    <rect x="22" y="7.5" width="5" height="4.5" rx="1"/>
+    <rect x="29.5" y="7.5" width="5" height="4.5" rx="1"/>
+    <rect x="37" y="7.5" width="5" height="4.5" rx="1"/>
+  </g>
+  <!-- "17" as paths -->
+  <g fill="#1d1d1f">
+    <path d="M22.5 26.5l8-4.5h2.5v34h-6V29.4l-4.5 2.4z"/>
+    <path d="M36 22h20v4.2L44.6 56h-6.6l11.2-29.2H36z"/>
+  </g>
+  <rect x="1" y="1" width="62" height="62" rx="14" ry="14" fill="none" stroke="#000" stroke-opacity="0.12" stroke-width="1"/>
+</svg>

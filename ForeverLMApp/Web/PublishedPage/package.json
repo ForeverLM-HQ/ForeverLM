@@ -1,0 +1,15 @@
+{
+  "name": "foreverlm-published-page",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  },
+  "dependencies": {
+    "core-js": "^3.50.0"
+  }
+}

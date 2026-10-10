@@ -1,0 +1,148 @@
+:root {
+  color-scheme: light dark;
+  --map-bg: #fbfbfa;
+  --map-dot: #c4c4c0;
+  --map-card: #ffffff;
+  --map-flat: #ececea;
+  --map-hairline: rgba(0, 0, 0, 0.05);
+  --map-text: #1d1d1f;
+  --map-sub: #6e6e73;
+  --map-faint: #98989d;
+  --map-select: #0a84ff;
+  --map-edge: #a1a1a6;
+  --map-shadow: rgba(0, 0, 0, 0.11);
+  --map-sticky: #fff3b0;
+  --map-sticky-text: #3d3200;
+  --map-ai: #7a6cc4;
+  --map-panel: rgba(255, 255, 255, 0.92);
+  --map-panel-line: rgba(0, 0, 0, 0.08);
+  /* A proposed arrow that contradicts; how a card's kept cards stand. */
+  --map-contra: #cf4a3f;
+  --map-mem-solid: #2f9e5b;
+  --map-mem-due: #d99211;
+  --map-mem-fading: #c25b52;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --map-bg: #1c1c1e;
+    --map-dot: #48484a;
+    --map-card: #2c2c2e;
+    --map-flat: #242426;
+    --map-hairline: rgba(255, 255, 255, 0.06);
+    --map-text: #f2f2f7;
+    --map-sub: #aeaeb2;
+    --map-faint: #8e8e93;
+    --map-select: #0a84ff;
+    --map-edge: #636366;
+    --map-shadow: rgba(0, 0, 0, 0.45);
+    --map-sticky: #5c4f1c;
+    --map-sticky-text: #fff6d6;
+    --map-ai: #b2a7f0;
+    --map-panel: rgba(44, 44, 46, 0.92);
+    --map-panel-line: rgba(255, 255, 255, 0.10);
+    --map-contra: #ff7b6e;
+    --map-mem-solid: #4cc77a;
+    --map-mem-due: #f2b84b;
+    --map-mem-fading: #e8857c;
+  }
+}
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--map-bg); }
+#map { display: block; width: 100%; height: 100%; outline: none; cursor: default; touch-action: none; }
+
+/* A card's words in full, beside it, when the pointer rests on it. */
+.map-peek {
+  position: fixed; left: 0; top: 0; z-index: 10;
+  box-sizing: border-box; max-width: 300px; min-width: 160px;
+  padding: 10px 12px 11px;
+  background: var(--map-panel); color: var(--map-text);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4); backdrop-filter: blur(18px) saturate(1.4);
+  border: 0.5px solid var(--map-panel-line); border-radius: 10px;
+  box-shadow: 0 10px 30px var(--map-shadow), 0 1px 3px var(--map-shadow);
+  font: 12px/1.38 -apple-system, system-ui, "SF Pro Text", "Helvetica Neue", sans-serif;
+  pointer-events: none; user-select: none;
+  opacity: 0; transition: opacity 110ms ease;
+}
+.map-peek.shown { opacity: 1; }
+.peek-kind {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em; color: var(--map-sub);
+}
+.peek-kind::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--tint, var(--map-faint)); flex: none; }
+.peek-title { margin-top: 4px; font-size: 13.5px; font-weight: 600; line-height: 1.3; }
+.peek-sub { margin-top: 3px; color: var(--map-sub); }
+.peek-note { margin-top: 4px; color: var(--map-text); white-space: pre-wrap; }
+.peek-detail { margin-top: 3px; color: var(--map-faint); }
+.peek-item { margin-top: 2px; color: var(--map-sub); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.peek-item:first-of-type { margin-top: 6px; }
+.peek-more { margin-top: 2px; color: var(--map-faint); }
+.peek-hint { margin-top: 7px; font-size: 11px; color: var(--map-faint); }
+
+/* Words written on the plane: a one-line field over a region's name or an
+   arrow's label, laid over what it edits and moved with the camera. */
+.map-line-editor {
+  position: fixed; left: 0; top: 0; z-index: 12;
+  box-sizing: border-box; margin: 0; padding: 2px 7px; height: 26px;
+  border: 1.5px solid var(--map-select); border-radius: 8px;
+  background: var(--map-card); color: var(--map-text);
+  box-shadow: 0 6px 20px var(--map-shadow);
+  font: 600 14px/18px -apple-system, system-ui, "SF Pro Text", "Helvetica Neue", sans-serif;
+  outline: none; transform-origin: 0 0;
+}
+.map-line-editor::placeholder { color: var(--map-faint); font-weight: 500; }
+
+/* The selected arrow's toolbar: route, heads, dashed, colour, delete. */
+.map-edge-bar {
+  position: fixed; left: 0; top: 0; z-index: 11;
+  display: none; align-items: center; gap: 1px; padding: 3px;
+  background: var(--map-panel); color: var(--map-text);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4); backdrop-filter: blur(18px) saturate(1.4);
+  border: 0.5px solid var(--map-panel-line); border-radius: 10px;
+  box-shadow: 0 8px 24px var(--map-shadow), 0 1px 3px var(--map-shadow);
+  user-select: none; -webkit-user-select: none;
+}
+.map-edge-bar.shown { display: flex; }
+.map-edge-bar i { width: 0.5px; align-self: stretch; margin: 4px 3px; background: var(--map-panel-line); }
+.map-edge-bar button {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; padding: 0; margin: 0; border: 0; border-radius: 6px;
+  background: transparent; color: var(--map-sub); cursor: default;
+}
+.map-edge-bar button:hover { background: var(--map-flat); color: var(--map-text); }
+.map-edge-bar button.on { background: color-mix(in srgb, var(--map-select) 16%, transparent); color: var(--map-select); }
+.map-edge-bar button.dot::before {
+  content: ''; width: 13px; height: 13px; border-radius: 50%; background: var(--dot);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+.map-edge-bar button.dot.on { background: transparent; }
+.map-edge-bar button.dot.on::before { box-shadow: 0 0 0 2px var(--map-card), 0 0 0 3.5px var(--dot); }
+.map-edge-bar.tree [data-route], .map-edge-bar.tree [data-heads] { display: none; }
+.map-edge-bar.tree i:first-of-type, .map-edge-bar.tree i:nth-of-type(2) { display: none; }
+
+/* An Idea written in place: its title and note over its card, on the card's
+   own colour, scaled with the camera so the card seems to open. */
+.map-editor {
+  position: fixed; left: 0; top: 0; z-index: 12; transform-origin: 0 0;
+  box-sizing: border-box; padding: 10px 14px 10px; border-radius: 4px;
+  background: var(--map-sticky); color: var(--map-sticky-text);
+  box-shadow: 0 0 0 2px var(--map-select), 0 12px 30px var(--map-shadow);
+}
+.map-editor textarea {
+  display: block; box-sizing: border-box; width: 100%; margin: 0; padding: 0; border: 0; border-radius: 0;
+  resize: none; overflow: hidden; background: transparent; color: inherit; outline: none;
+  font-family: inherit; white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere;
+}
+.map-editor .ed-title { font-size: 14px; font-weight: 500; line-height: 18px; }
+.map-editor .ed-note { margin-top: 4px; font-size: 12.5px; line-height: 16px; opacity: 0.85; }
+.map-editor textarea::placeholder { color: inherit; opacity: 0.4; }
+
+/* The minimap, when the display switch is on: the whole plane in 200 x 130,
+   the view as a stroked rect, a press or drag moving the camera there. */
+.map-minimap {
+  position: fixed; right: var(--map-minimap-right, 24px); bottom: var(--map-minimap-bottom, 24px); z-index: 9;
+  display: none; box-sizing: border-box; width: 200px; height: 130px;
+  background: var(--map-panel);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4); backdrop-filter: blur(18px) saturate(1.4);
+  border: 0.5px solid var(--map-panel-line); border-radius: 10px;
+  box-shadow: 0 8px 24px var(--map-shadow), 0 1px 3px var(--map-shadow);
+  cursor: pointer; touch-action: none;
+}

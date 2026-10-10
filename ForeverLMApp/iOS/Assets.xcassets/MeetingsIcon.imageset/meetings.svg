@@ -1,0 +1,14 @@
+<svg width="500" height="500" viewBox="0 0 500 500" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="500" height="500" rx="100" fill="url(#meetings_gradient)"/>
+<path d="M132 105 H368 C394.5 105 416 126.5 416 153 V308 C416 334.5 394.5 356 368 356 H215 L149 408 V356 H132 C105.5 356 84 334.5 84 308 V153 C84 126.5 105.5 105 132 105 Z" fill="white"/>
+<circle cx="201" cy="215" r="43" fill="url(#meetings_gradient)"/>
+<circle cx="299" cy="215" r="43" fill="url(#meetings_gradient)"/>
+<path d="M124 318 C129 267 159 245 201 245 C243 245 270 270 273 318 H124 Z" fill="url(#meetings_gradient)"/>
+<path d="M227 318 C230 270 257 245 299 245 C341 245 371 267 376 318 H227 Z" fill="url(#meetings_gradient)"/>
+<defs>
+<linearGradient id="meetings_gradient" x1="126" y1="388" x2="424" y2="123" gradientUnits="userSpaceOnUse">
+<stop stop-color="#078894"/>
+<stop offset="1" stop-color="#39C9CA"/>
+</linearGradient>
+</defs>
+</svg>
