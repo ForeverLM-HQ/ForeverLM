@@ -258,6 +258,155 @@ enum InstalledAppCopy {
     }
 }
 
+/// The disk image ForeverLM was installed from.
+///
+/// A learner downloads `ForeverLM.dmg`, drags the app into Applications and
+/// opens it, and the image stays mounted with the `.dmg` file in Downloads.
+/// Once the app runs from an Applications folder the installer is spent, so the
+/// app offers to eject it and move the file to the Trash. The image is found
+/// by what it carries (this app's bundle identifier), never by its volume name.
+enum InstallerImage {
+    struct Mounted: Equatable {
+        /// The `.dmg` file, as `hdiutil info` reports it.
+        let imagePath: String
+        let mountPoint: String
+    }
+
+    /// Image paths the learner chose to keep, so a mounted installer is asked
+    /// about once. Device-local: another Mac has its own installer.
+    private static let keptImagesKey = "installer.keptImagePaths"
+    private static let logger = Logger(subsystem: "com.foreverlm", category: "InstallerImage")
+
+    /// The mounted images in `hdiutil info -plist` output that carry a copy of
+    /// this app. `bundleIdentifierAt` answers for the app at a path inside a mount.
+    static func carryingThisApp(
+        hdiutilInfo info: [String: Any]?,
+        appFileName: String,
+        bundleIdentifier: String,
+        bundleIdentifierAt: (String) -> String?
+    ) -> [Mounted] {
+        guard let images = info?["images"] as? [[String: Any]] else { return [] }
+        var found: [Mounted] = []
+        for image in images {
+            guard let imagePath = image["image-path"] as? String,
+                  let entities = image["system-entities"] as? [[String: Any]] else { continue }
+            for mountPoint in entities.compactMap({ $0["mount-point"] as? String }) {
+                let appPath = (mountPoint as NSString).appendingPathComponent(appFileName)
+                if bundleIdentifierAt(appPath) == bundleIdentifier {
+                    found.append(Mounted(imagePath: imagePath, mountPoint: mountPoint))
+                    break
+                }
+            }
+        }
+        return found
+    }
+
+    /// Whether `bundleURL` is an installed copy: inside one of the Applications
+    /// folders, so not running off the image itself or from a translocated path.
+    static func isInstalled(bundleURL: URL) -> Bool {
+        let applicationFolders = FileManager.default.urls(for: .applicationDirectory, in: .allDomainsMask)
+        let path = bundleURL.standardizedFileURL.path
+        return applicationFolders.contains { path.hasPrefix($0.standardizedFileURL.path + "/") }
+    }
+
+    /// Ask once, after launch, whether to throw the installer away. A no-op
+    /// when the app is not installed yet, no installer is mounted, or the
+    /// learner already kept it. Never blocks the main actor: `hdiutil` runs
+    /// off-main and only the alert and its answer come back.
+    @MainActor
+    static func offerToTrashMountedInstaller(bundle: Bundle = .main) async {
+        guard isInstalled(bundleURL: bundle.bundleURL),
+              let bundleIdentifier = bundle.bundleIdentifier else { return }
+        // Let the window come up first; the question is not what the launch is for.
+        try? await Task.sleep(for: .seconds(3))
+        let appFileName = bundle.bundleURL.lastPathComponent
+        let kept = Set(UserDefaults.standard.stringArray(forKey: keptImagesKey) ?? [])
+        let mounted = await Task.detached(priority: .utility) { () -> [Mounted] in
+            let info = (try? run(["info", "-plist"])).flatMap {
+                try? PropertyListSerialization.propertyList(from: $0, format: nil) as? [String: Any]
+            }
+            return carryingThisApp(
+                hdiutilInfo: info,
+                appFileName: appFileName,
+                bundleIdentifier: bundleIdentifier,
+                bundleIdentifierAt: Self.bundleIdentifier(ofAppAt:)
+            )
+        }.value
+        guard let installer = mounted.first(where: { !kept.contains($0.imagePath) }) else { return }
+
+        let alert = NSAlert()
+        alert.messageText = "ForeverLM is installed. Move the installer to the Trash?"
+        alert.addButton(withTitle: "Move to Trash")
+        alert.addButton(withTitle: "Keep")
+        guard alert.runModal() == .alertFirstButtonReturn else {
+            UserDefaults.standard.set(Array(kept.union([installer.imagePath])), forKey: keptImagesKey)
+            return
+        }
+        do {
+            try await trash(installer)
+        } catch {
+            logger.error("Could not move the installer to the Trash: \(error.localizedDescription, privacy: .public)")
+            NSAlert(error: error).runModal()
+        }
+    }
+
+    /// Eject the image, then move its `.dmg` to the Trash. The file is trashed
+    /// only after the eject succeeds, so a busy image is left whole.
+    private static func trash(_ installer: Mounted) async throws {
+        try await Task.detached(priority: .utility) {
+            _ = try run(["detach", installer.mountPoint])
+        }.value
+        let imageURL = URL(fileURLWithPath: installer.imagePath)
+        guard FileManager.default.fileExists(atPath: imageURL.path) else { return }
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            NSWorkspace.shared.recycle([imageURL]) { _, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume()
+                }
+            }
+        }
+    }
+
+    private static func bundleIdentifier(ofAppAt path: String) -> String? {
+        let plistURL = URL(fileURLWithPath: path).appendingPathComponent("Contents/Info.plist")
+        guard let data = try? Data(contentsOf: plistURL),
+              let info = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any] else {
+            return nil
+        }
+        return info["CFBundleIdentifier"] as? String
+    }
+
+    private struct HdiutilFailure: LocalizedError {
+        let message: String
+        var errorDescription: String? { message }
+    }
+
+    /// Runs `hdiutil` and returns its standard output; a non-zero exit throws
+    /// what it said on standard error.
+    private static func run(_ arguments: [String]) throws -> Data {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
+        process.arguments = arguments
+        let output = Pipe()
+        let errors = Pipe()
+        process.standardOutput = output
+        process.standardError = errors
+        try process.run()
+        // Drain both pipes before waiting, or a full pipe stalls the child.
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        let errorData = errors.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else {
+            let said = String(data: errorData, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            throw HdiutilFailure(message: said.isEmpty ? "hdiutil exited with status \(process.terminationStatus)." : said)
+        }
+        return data
+    }
+}
+
 /// Bridges Sparkle's update state into SwiftUI so the app can show a gentle in-app update affordance.
 final class AppUpdateController: NSObject, ObservableObject {
     /// One reused identifier, so a second version supersedes the banner already

@@ -20,6 +20,8 @@ You work in **notebooks**. A notebook holds the sources for one piece of work �
 
 [Download the app](https://releases.foreverlm.com/ForeverLM-0.138.1-build210-universal.dmg) — a notarized universal binary that runs on both Apple Silicon and Intel Macs. It checks for updates hourly and at launch, then offers each new version in the sidebar.
 
+Drag ForeverLM into Applications and open it. While the installer is still mounted, ForeverLM asks whether to move it to the Trash; it ejects the installer and moves the downloaded `.dmg` there. **Keep** leaves it alone, and ForeverLM does not ask about that installer again.
+
 The first launch after an update opens a **What's New** sheet with that release's highlights from this changelog — and, if you skipped a few releases, theirs too. **ForeverLM → What's New in ForeverLM…** brings it back at any time.
 
 New versions reach beta testers first. To be one of them, turn on **Settings → General → Updates → Get beta releases**: your Macs are then offered each beta as well as each regular release, whichever is newer, and show the features still in beta (the Canvas and the Atlas for now). The switch follows your account to all of your Macs. Turning it off hides those features again and never moves a Mac back to an older version; it stays on the beta it has until the next regular release passes it. While a Mac runs a beta, **ForeverLM → About ForeverLM** and the version under Settings say so: "Version 0.123.0 Beta (192)".

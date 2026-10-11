@@ -105,6 +105,13 @@ final class ForeverLMApplicationDelegate: NSObject, NSApplicationDelegate {
         if !isTestRun {
             NSApplication.shared.registerForRemoteNotifications()
         }
+        #if DIRECT_DOWNLOAD
+        // Installed from the disk image, so offer to throw the installer away.
+        // The Dev apps are never installed from one.
+        if !isTestRun, !ForeverLMRuntimeIdentity.isDevelopment {
+            Task { @MainActor in await InstallerImage.offerToTrashMountedInstaller() }
+        }
+        #endif
         #if DEBUG
         // WP5's Development spike, only when launched for it (`--schema-v2-spike`).
         if !isTestRun { DevelopmentSpike.runIfRequested() }

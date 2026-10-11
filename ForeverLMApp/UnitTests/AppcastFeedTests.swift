@@ -180,6 +180,41 @@ struct AppcastFeedTests {
         #expect(InstalledAppCopy.newerBuild(installedInfo: ["CFBundleVersion": "134"], runningBuild: nil) == nil)
     }
 
+    /// The installer is found by the app it carries, not by its volume name, and
+    /// only a mounted image counts.
+    @Test func installerImageIsTheMountedImageCarryingThisApp() {
+        let info: [String: Any] = ["images": [
+            ["image-path": "/Users/zara/Downloads/ForeverLM-1.dmg",
+             "system-entities": [["dev-entry": "/dev/disk4"], ["mount-point": "/Volumes/ForeverLM Installer"]]],
+            ["image-path": "/Users/zara/Downloads/Other.dmg",
+             "system-entities": [["mount-point": "/Volumes/Other"]]],
+            ["image-path": "/Users/zara/Downloads/Unmounted.dmg",
+             "system-entities": [["dev-entry": "/dev/disk5"]]],
+        ]]
+        let found = InstallerImage.carryingThisApp(
+            hdiutilInfo: info,
+            appFileName: "ForeverLM.app",
+            bundleIdentifier: "com.foreverlm",
+            bundleIdentifierAt: { path in
+                path == "/Volumes/ForeverLM Installer/ForeverLM.app" ? "com.foreverlm" : nil
+            }
+        )
+        #expect(found == [InstallerImage.Mounted(
+            imagePath: "/Users/zara/Downloads/ForeverLM-1.dmg",
+            mountPoint: "/Volumes/ForeverLM Installer"
+        )])
+        #expect(InstallerImage.carryingThisApp(
+            hdiutilInfo: nil, appFileName: "ForeverLM.app", bundleIdentifier: "com.foreverlm",
+            bundleIdentifierAt: { _ in "com.foreverlm" }
+        ).isEmpty)
+    }
+
+    @Test func installerIsOfferedOnlyToAnInstalledCopy() {
+        #expect(InstallerImage.isInstalled(bundleURL: URL(fileURLWithPath: "/Applications/ForeverLM.app")))
+        #expect(!InstallerImage.isInstalled(bundleURL: URL(fileURLWithPath: "/Volumes/ForeverLM Installer/ForeverLM.app")))
+        #expect(!InstallerImage.isInstalled(bundleURL: URL(fileURLWithPath: "/private/var/folders/x/AppTranslocation/y/d/ForeverLM.app")))
+    }
+
     @Test("A build is a beta while the feed lists it only in its own channel")
     func runningBuildIsBeta() {
         let feed = Self.feed(items: """
