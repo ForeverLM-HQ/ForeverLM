@@ -4,6 +4,12 @@ All notable changes to ForeverLM are documented here. Dates are in YYYY-MM-DD fo
 
 ForeverLM follows [semantic versioning](https://semver.org) against its public surface: the MCP tool contracts, the knowledge-base/sync format, and licensing compatibility. While the version is 0.x, minor releases may include breaking changes to that surface; patch releases never do.
 
+## 0.139.1 (build 212) — 2026-10-11
+
+**Highlights:**
+- **iCloud sync survives a move to another Apple team or container.** A Mac that kept the old container's sync state used to read an empty new container as "your data was removed from iCloud" and stop; it now starts fresh there. A real purge in the same container still waits for you.
+- **"Upload my library to iCloud again" uploads everything.** It no longer treats a library as already seeded when only the old container had been.
+
 ## 0.139.0 (build 211) — 2026-10-11
 
 **Highlights:**
