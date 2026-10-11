@@ -3,6 +3,7 @@
 servers/.tunnel_wrapper.sh
 __pycache__/
 *.log
+!ForeverLMApp/UnitTests/Fixtures/*.log
 .coverage
 .venv/
 # Cache files (now live in iCloud .appdata, kept here for migration)
@@ -66,6 +67,7 @@ Secrets.generated.swift
 
 # MCP plugin config (contains bearer token)
 .mcp.json
+!plugins/*/.mcp.json
 
 # Wrangler local state
 .wrangler/
