@@ -786,6 +786,7 @@
 		6944D3A974D8B90C700ED31F /* MobileSpaceHarness.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFA90739F5A12DAAFB5D7354 /* MobileSpaceHarness.swift */; };
 		697E75B57AA50CF055CB9885 /* MCPTools+Courses.swift in Sources */ = {isa = PBXBuildFile; fileRef = 911D395AD4B7DFB5C07D40D7 /* MCPTools+Courses.swift */; };
 		69BC9B9F4E6238099F4A0BD8 /* String+ReadableMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62B5AD22C124CEE6E00131EB /* String+ReadableMath.swift */; };
+		69BE999A957F8E13EAA1D964 /* GoogleDriveFolderPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACCD06573B50AACC2D0903C0 /* GoogleDriveFolderPicker.swift */; };
 		69CCFD198DFC2ABF51EB2561 /* MCPToolActivityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A30C860E78A65D953A7CFEB /* MCPToolActivityTests.swift */; };
 		69F3555128F779F9B1A69686 /* DocGraphParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38B5271ED2AD7F689E9E8035 /* DocGraphParser.swift */; };
 		6A16D9FFC2F040F801A49FAB /* NotebookOutputsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 124C643378C97E4B639C2C7A /* NotebookOutputsTests.swift */; };
@@ -1235,7 +1236,6 @@
 		A485BA9DD35BE79015B6B69B /* KnowledgeStore+Skills.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E7FBE24CEF75167A92A47DE /* KnowledgeStore+Skills.swift */; };
 		A4DBAE679BEA3AE9A7FBDF68 /* AIService+JournalWatch.swift in Sources */ = {isa = PBXBuildFile; fileRef = B70CB4111F94800F08B2D2C2 /* AIService+JournalWatch.swift */; };
 		A4EC52E5A95A06A9B7D3E651 /* MeetingRecordingReaderViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8512A83692079684B06F7477 /* MeetingRecordingReaderViews.swift */; };
-		C7D31F0A52B94E6D8A1F3B02 /* GoogleDriveFolderPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = E91A4C7B03D84F5A9B6C2D18 /* GoogleDriveFolderPicker.swift */; };
 		A4EDE7A17A370828EA35923F /* correct_answer.wav in Resources */ = {isa = PBXBuildFile; fileRef = 14E8FAE13F88D920FA67678E /* correct_answer.wav */; };
 		A53DF848D4E1C900BC163AE8 /* MobileSemanticSourceSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDB7652D223027D2D251AB6B /* MobileSemanticSourceSearch.swift */; };
 		A55C468BD5FA48E6CAF01265 /* StudioViewModel+SourcePipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52F5CECE85971E116C709F00 /* StudioViewModel+SourcePipeline.swift */; };
@@ -2862,7 +2862,6 @@
 		84DBFB04D7F0C3E00E93C20F /* StudioViewModel+BatchSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StudioViewModel+BatchSelection.swift"; sourceTree = "<group>"; };
 		84DF327ACDF454B4D5B48A6A /* TaskProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskProjection.swift; sourceTree = "<group>"; };
 		8512A83692079684B06F7477 /* MeetingRecordingReaderViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingRecordingReaderViews.swift; sourceTree = "<group>"; };
-		E91A4C7B03D84F5A9B6C2D18 /* GoogleDriveFolderPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleDriveFolderPicker.swift; sourceTree = "<group>"; };
 		8515CC7F6DE57FF5F2CFABD7 /* MCPRuntimePreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPRuntimePreferences.swift; sourceTree = "<group>"; };
 		851932E91EC48148ED19E79E /* SpaceMovePlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpaceMovePlan.swift; sourceTree = "<group>"; };
 		85B39B6BAFBFA33578A57DB4 /* SpaceTestFixture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpaceTestFixture.swift; sourceTree = "<group>"; };
@@ -3143,6 +3142,7 @@
 		ACABF6101D16985569775E41 /* MemoryTutorSchedulerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryTutorSchedulerTests.swift; sourceTree = "<group>"; };
 		ACB5E33A4DC229850C070FB1 /* MemoryReviewChatHandoffTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryReviewChatHandoffTests.swift; sourceTree = "<group>"; };
 		ACC5D72D6D1A305FC5E22D32 /* KnowledgeMapReviewOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeMapReviewOverlay.swift; sourceTree = "<group>"; };
+		ACCD06573B50AACC2D0903C0 /* GoogleDriveFolderPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleDriveFolderPicker.swift; sourceTree = "<group>"; };
 		AD083089287BFEBCD10A6594 /* KnowledgeMapCanvasMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeMapCanvasMenu.swift; sourceTree = "<group>"; };
 		AD1DA93086792DCD02B5AD05 /* TextbookReading.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextbookReading.swift; sourceTree = "<group>"; };
 		AD2AB673DC783D935359A6E4 /* AnimationsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimationsTests.swift; sourceTree = "<group>"; };
@@ -4985,6 +4985,7 @@
 				CB43A18DD8D631E4097CCAAE /* GettingStartedSourceSteps.swift */,
 				97E32C453D9395947A79DCEE /* GoalEditorSheet.swift */,
 				B826E0381D5C772580BEA37E /* GoalsViews.swift */,
+				ACCD06573B50AACC2D0903C0 /* GoogleDriveFolderPicker.swift */,
 				3E31AE472C11F272145C9097 /* HoverHighlight.swift */,
 				2EA743D29EEA4E70EB3202C7 /* ICloudMigrationModel.swift */,
 				11422CE6FC3AB7D11E54C311 /* IdeasViews.swift */,
@@ -5019,7 +5020,6 @@
 				E86DAF44B91E79B8F7431F5A /* MakeMnemonicReadingSheet.swift */,
 				1E3FCE2B1E028332DEAFAC26 /* ManagedAIAccountModel.swift */,
 				8512A83692079684B06F7477 /* MeetingRecordingReaderViews.swift */,
-				E91A4C7B03D84F5A9B6C2D18 /* GoogleDriveFolderPicker.swift */,
 				40C5E32D477ECA743032D220 /* MeetingScheduleSheet.swift */,
 				36223701B9AB02EFD6800DB8 /* MemoryCardImagesView.swift */,
 				628E0BC3EA81D20506457167 /* MemoryCardSessionView.swift */,
@@ -7254,6 +7254,7 @@
 				ADC86D0520EE88BD61F448C3 /* GoalEditorSheet.swift in Sources */,
 				A1C517A6C56DCF9A2D1BD2D7 /* GoalsViews.swift in Sources */,
 				315F9ADE7342B5AA1121348F /* GoogleDocConversion.swift in Sources */,
+				69BE999A957F8E13EAA1D964 /* GoogleDriveFolderPicker.swift in Sources */,
 				EF11D9503766C1FFE9529147 /* GoogleDriveService.swift in Sources */,
 				3750106EBA5A37AED22BB0F9 /* GoogleMeetNotesSplit.swift in Sources */,
 				5D74D9BDA7DD318DA04CE43B /* GoogleOAuthClient.swift in Sources */,
@@ -7518,7 +7519,6 @@
 				CE9B48BDA65B55DFB7FF22FA /* MeetingCalendarEvent.swift in Sources */,
 				98219B14EE3D1E647BF8733E /* MeetingIconService.swift in Sources */,
 				A4EC52E5A95A06A9B7D3E651 /* MeetingRecordingReaderViews.swift in Sources */,
-				C7D31F0A52B94E6D8A1F3B02 /* GoogleDriveFolderPicker.swift in Sources */,
 				EBD0E26C7EBD2C6E6C0DB439 /* MeetingScheduleSheet.swift in Sources */,
 				5B3C895D5CC41B3D44E5DF20 /* MeetingTranscriptionService.swift in Sources */,
 				4F4382600B6E2995D5009572 /* MemoryCard.swift in Sources */,
@@ -8255,7 +8255,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 210;
+				CURRENT_PROJECT_VERSION = 212;
 				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FOREVERLM_BUNDLE_NAME = "ForeverLM (Dev)";
@@ -8270,7 +8270,7 @@
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "ForeverLM uses the microphone for dictation.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "ForeverLM uses speech recognition for voice answers in Review Chat.";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MARKETING_VERSION = 0.138.1;
+				MARKETING_VERSION = 0.139.1;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.foreverlm.dev;
 				PRODUCT_MODULE_NAME = ForeverLM;
@@ -8293,7 +8293,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 210;
+				CURRENT_PROJECT_VERSION = 212;
 				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FOREVERLM_BUNDLE_NAME = ForeverLM;
@@ -8308,7 +8308,7 @@
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "ForeverLM uses the microphone for dictation.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "ForeverLM uses speech recognition for voice answers in Review Chat.";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MARKETING_VERSION = 0.138.1;
+				MARKETING_VERSION = 0.139.1;
 				ONLY_ACTIVE_ARCH = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = com.foreverlm;
 				PRODUCT_MODULE_NAME = ForeverLM;
@@ -8453,7 +8453,7 @@
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 210;
+				CURRENT_PROJECT_VERSION = 212;
 				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FOREVERLM_BUNDLE_NAME = "ForeverLM (First Run)";
@@ -8468,7 +8468,7 @@
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "ForeverLM uses the microphone for dictation.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "ForeverLM uses speech recognition for voice answers in Review Chat.";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MARKETING_VERSION = 0.138.1;
+				MARKETING_VERSION = 0.139.1;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.foreverlm.dev.firstrun;
 				PRODUCT_MODULE_NAME = ForeverLM;

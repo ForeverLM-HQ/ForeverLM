@@ -4,6 +4,22 @@ All notable changes to ForeverLM are documented here. Dates are in YYYY-MM-DD fo
 
 ForeverLM follows [semantic versioning](https://semver.org) against its public surface: the MCP tool contracts, the knowledge-base/sync format, and licensing compatibility. While the version is 0.x, minor releases may include breaking changes to that surface; patch releases never do.
 
+## 0.139.1 (build 212) — 2026-10-11
+
+**Highlights:**
+- **iCloud sync survives a move to another Apple team or container.** A Mac that kept the old container's sync state used to read an empty new container as "your data was removed from iCloud" and stop; it now starts fresh there. A real purge in the same container still waits for you.
+- **"Upload my library to iCloud again" uploads everything.** It no longer treats a library as already seeded when only the old container had been.
+
+## 0.139.0 (build 211) — 2026-10-11
+
+**Highlights:**
+- **The library is one pane you drag in.** The Sources panel on the right edge is gone. Click **Library** in the sidebar and it fills the window, or drag the row to an edge of the window and it docks beside your chat, a Page or a canvas, with the same tabs, search and row menus. Its sources drag into a chat or onto a canvas.
+- **Google Drive asks you to sign in once.** One read-only sign-in, then a folder chooser inside ForeverLM (My Drive, Shared with me, shared drives and search). A disconnected or revoked connection shows **Reconnect Google Drive** above Drive recordings and the Meetings list, and Cancel appears wherever the app waits for Google.
+- **Setup's AI step is two short pages.** **Connect OpenRouter**, then **Pick your models**, one question at a time; the data-policy note and Free mode row stay in Settings › AI Usage.
+- **A paper's question markers are sharp.** The ?, ✓ and ↻ markers in a PDF's margin are drawn by the Mac at full resolution at any zoom, and clicking one opens its question as before.
+- **Clicking the calendar glyph no longer quits ForeverLM.** The pill that names an icon-strip button on hover is measured once, so it can no longer resize itself until macOS ends the app.
+- **7 days free, then $19 once.** The paid app's free days are 7, taken from the account server, and the pay screen says "Your free days are over". The account page on foreverlm.com is **Billing** alone: its usage totals and breakdowns are gone, since what your key spends is on OpenRouter's activity page and in Settings › AI Usage.
+
 ## 0.138.1 (build 210) — 2026-10-10
 
 **Highlights:**
