@@ -205,6 +205,8 @@ actor MacSyncSession {
     private var accountWritten = false
     private var lastPurge = Date.distantPast
     private var movedReported = false
+    /// The coordinator's `uploadGeneration` this session last saw.
+    private var seenUploadGeneration = 0
     /// A `deferred` store whose catch-up has not run (§13.3): it syncs receive-only, as a Mac with no library,
     /// until its deferred catch-up has run over a complete fetch, and then holds its library.
     private var catchUpOwed = false
@@ -719,7 +721,15 @@ actor MacSyncSession {
     /// the metadata complete reconciles, another's live claim is waited for. It runs on a task of its own, so
     /// the rounds go on; one run at a time.
     private func cutoverTick() async {
-        guard let coordinator, !ticking, !cutoverFinished else { return }
+        guard let coordinator, !ticking else { return }
+        // "Upload my library to iCloud again" made a new root: the cutover this session finished was the old one's.
+        let generation = await coordinator.uploadGeneration
+        if generation != seenUploadGeneration {
+            seenUploadGeneration = generation
+            cutoverFinished = false
+            movedReported = false
+        }
+        guard !cutoverFinished else { return }
         ticking = true
         defer { ticking = false }
         do {

@@ -69,6 +69,9 @@ actor SyncCoordinator {
     /// The CKSyncEngine belongs to a database that stopped: the next start makes a fresh one, so its saved
     /// state (tokens of zones that may be gone) is never written back over the new one (m6).
     private var engineStale = false
+    /// How many times the learner has had this Mac upload its library again; the Mac's cutover session
+    /// starts its seed over when this changes, since it marks the cutover finished until a relaunch.
+    private(set) var uploadGeneration = 0
     /// How long `sendSoon` waits: past the outbox's debounce, so the change it was asked for is due.
     static let sendSoonDelay: TimeInterval = 3
 
@@ -412,6 +415,7 @@ actor SyncCoordinator {
     /// that never held a root. The seed that uploads the library follows it (WP16).
     func uploadAgain() async throws {
         try await store.perform { try PurgeHandler.reupload(in: $0) }
+        uploadGeneration += 1
         try await engine.resume()
         engineStale = true
         await start()
