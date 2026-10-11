@@ -22,30 +22,43 @@ The honest trade-off: **ForeverLM is Mac-centered** (macOS 14+). Its synced iPho
 
 ## The full comparison
 
-| Tool | Pricing | Platforms | Where your data lives | AI models | Podcasts | Retention/review |
-|---|---|---|---|---|---|---|
-| **ForeverLM** | **7 days free, then $19 once** (no subscription); AI on your own OpenRouter key at cost | macOS + synced iPhone access | Your iCloud + local SQLite | Any (MCP or in-app Chat) | Full transcripts | AI review dialogue, scheduled |
-| [NotebookLM](/compare/notebooklm) | Free (capped); $7.99–$99.99+/mo Google AI bundles | Web, iOS, Android | Google's servers | Gemini only | No (generates audio, can't ingest feeds) | One-shot quizzes/flashcards, no tracking |
-| [Heptabase](/compare/heptabase) | $107.88–$647.88/yr, no free tier | Mac, Win, Linux, iOS, Android, web | Local-first + their AWS sync | Credit-metered (Gemini; more on Premium) | No | AI tutor on $215.88/yr tier; spaced repetition unshipped |
-| [Anki](/compare/anki) | Free (iOS $24.99 one-time) | Everywhere | Local + free/self-hosted sync | None built in | No | Self-graded flashcards, SM-2/FSRS |
-| [RemNote](/compare/remnote) | Free (capped); $96–$216/yr; $395 lifetime (AI extra) | Everywhere | Their cloud (local-only mode loses sync) | Credit-metered (OpenAI/Anthropic/Google) | No | Flashcards + AI quizzes/grading, exam scheduler |
-| Mochi | Free offline; Pro $5/mo for sync | Everywhere | Local-first + their sync (paid) | Minimal (GPT text fields, Pro) | No | Flashcards, simple two-button or FSRS |
-| [Speechify](/compare/speechify) | Free tier; Premium $29/mo monthly | Web, Mac, Win, iOS, Android | Their cloud | Built-in summaries, chat, voice assistant | Turns text into AI podcasts | No learning schedule or linked active review |
-| [Readwise Reader](/compare/readwise) | $9.99–$12.99/mo after trial | Web, Mac, Win, iOS, Android | Their cloud, with full exports | Ghostreader + MCP to external assistants | Saved episodes and transcripts | Daily Review resurfacing + self-graded Mastery cards |
-| [Zotero](/compare/zotero) | Free; file sync $20–$120/yr above 300 MB | Mac, Win, Linux, iOS, Android | Local-first + optional Zotero/WebDAV sync | Community plugins | No | No built-in learning review; excellent citation workflow |
-| [Paperpile](/compare/paperpile) | $99.60–$138/yr; academic pricing 50% lower | Web, iOS, Android | Their cloud + optional Drive/OneDrive sync | Ask AI sends PDFs to external assistants | No | No built-in learning review; excellent citation workflow |
-| [Obsidian](/compare/obsidian) | Free; Sync $4–8/mo | Everywhere | Local Markdown files | Plugins, bring-your-own-key | No | Community plugins only |
-| Reflect | $10/mo billed annually, no free tier | Mac, iOS, web | Their cloud, end-to-end encrypted | GPT/Claude/Gemini, BYOK, MCP beta | No | None |
-| [Recall](/compare/recall) | Free (10 summaries/mo); $120/yr Plus; $456/yr Max | Web, iOS, Android | Local-first + their sync (Google Cloud EU) | Auto-picked; choice only on Max | Saved episodes | Spaced-repetition quizzes (paid tier) |
-| [Snipd](/compare/snipd) | Free (2 ep/wk AI); Premium ~$7–12/mo by region | iOS, Android, Watch | Their cloud | Proprietary pipeline | Core feature (highlights) | None — exports to other apps |
-| [Matter](/compare/matter) | Free | iOS, iPad, web | Their cloud | Reading assistance | Episode transcripts | None |
-| [Paper](/compare/paper-ac) | Free during its beta; paid plans announced, not priced | Web; Mac app in testing | Their cloud (Supabase on AWS) | Grok, GPT, Gemini | Generates podcasts; no feeds | FSRS flashcards, quizzes |
-| [Memo](/compare/memo-cards) | Free plan; Pro $120/yr; Max $300/yr | Web, Mac, Win, Linux, iOS; Android web app | Their cloud | Unnamed modes, no BYOK | Generates podcasts; no feeds | FSRS flashcards (cloze, image occlusion), Anki export |
-| [Gistr](/compare/gistr) | Free (500 credits/mo); $8–$40/mo | Web, Chrome, Android | Their cloud | By tier; frontier models from $16/mo | Saved episodes (Apple Podcasts or Spotify links) | Quizzes; no spaced repetition |
-| [Sapience](/compare/sapience) | Not published (invite-only early access) | Not stated | Local plain-text folders | Not stated | No | None stated |
-| [AnythingLLM](/compare/anythingllm) | Desktop app free; cloud $50–$99/mo | Mac, Win, Linux, Docker, Android | Local folders or your own server | 40+ providers + local models | No | None |
+| Tool | Best at | Pricing | AI | Retention/review |
+|---|---|---|---|---|
+| **ForeverLM** | Learning from the sources you keep, by AI review dialogue | **7 days free, then $19 once** (no subscription); AI on your own OpenRouter key at cost | Any (MCP or in-app Chat) | AI review dialogue, scheduled |
+| [NotebookLM](/compare/notebooklm) | Study material and audio overviews from uploads | Free (capped); $7.99–$99.99+/mo Google AI bundles | Gemini only | One-shot quizzes/flashcards, no tracking |
+| [Heptabase](/compare/heptabase) | Card-first whiteboards for thinking | $107.88–$647.88/yr, no free tier | Credit-metered (Gemini; more on Premium) | AI tutor on $215.88/yr tier; spaced repetition unshipped |
+| [Anki](/compare/anki) | Memorizing with self-graded flashcards | Free (iOS $24.99 one-time) | None built in | Self-graded flashcards, SM-2/FSRS |
+| [RemNote](/compare/remnote) | Notes with flashcards and exam scheduling | Free (capped); $96–$216/yr; $395 lifetime (AI extra) | Credit-metered (OpenAI/Anthropic/Google) | Flashcards + AI quizzes/grading, exam scheduler |
+| [Quizlet](/compare/quizlet) | Memorization and shared class sets | Free; Plus $35.99/yr; Plus Unlimited $44.99/yr | Built-in study and tutoring features | Flashcards, Learn mode, tests, games |
+| Mochi | Simple flashcards | Free offline; Pro $5/mo for sync | Minimal (GPT text fields, Pro) | Flashcards, simple two-button or FSRS |
+| [Paper](/compare/paper-ac) | Study workspace with FSRS cards and quizzes | Free during its beta; paid plans announced, not priced | Grok, GPT, Gemini | FSRS flashcards, quizzes |
+| [Memo](/compare/memo-cards) | AI flashcards with FSRS and Anki export | Free plan; Pro $120/yr; Max $300/yr | Unnamed modes, no BYOK | FSRS flashcards (cloze, image occlusion), Anki export |
+| [Gistr](/compare/gistr) | AI notebook for video, podcasts, PDFs and articles | Free (500 credits/mo); $8–$40/mo | By tier; frontier models from $16/mo | Quizzes; no spaced repetition |
+| [Sapience](/compare/sapience) | Local, canvas-first workspace of plain text | Not published (invite-only early access) | Not stated | None stated |
+| [AnythingLLM](/compare/anythingllm) | Document chat on local or hosted models | Desktop app free; cloud $50–$99/mo | 40+ providers + local models | None |
+| [Speechify](/compare/speechify) | Text to speech across devices | Free tier; Premium $29/mo monthly | Built-in summaries, chat, voice assistant | No learning schedule or linked active review |
+| [ElevenReader](/compare/elevenreader) | Natural narration of PDFs, EPUBs and articles | Free mobile app; ElevenLabs services priced separately | GenFM AI-hosted podcasts from your content | None: builds a listening habit |
+| [Readwise Reader](/compare/readwise) | Read-later and highlight hub | $9.99–$12.99/mo after trial | Ghostreader + MCP to external assistants | Daily Review resurfacing + self-graded Mastery cards |
+| [Instapaper](/compare/instapaper) | Read-later queue with Kindle and Kobo delivery | Free; Premium $6/mo or $60/yr | Narration and voice playlists on Premium | Highlights and notes only |
+| [Matter](/compare/matter) | Free reading queue for articles and newsletters | Free | Reading assistance | None |
+| [Raindrop.io](/compare/raindrop) | Bookmarks, collections and web archives | Free; optional Pro subscription | AI Assistant and suggestions on Pro | None |
+| [Glasp](/compare/glasp) | Social highlighting and shareable notes | Free; Pro $150/yr; Unlimited $360/yr | Summaries, transcription, AI clone | Highlight resurfacing only |
+| [Snipd](/compare/snipd) | Podcast capture and highlights on your phone | Free (2 ep/wk AI); Premium ~$7–12/mo by region | Proprietary pipeline | None: exports to other apps |
+| [Recall](/compare/recall) | Saving and summarizing everything you read and watch | Free (10 summaries/mo); $120/yr Plus; $456/yr Max | Auto-picked; choice only on Max | Spaced-repetition quizzes (paid tier) |
+| [Zotero](/compare/zotero) | Free, open-source citation management | Free; file sync $20–$120/yr above 300 MB | Community plugins | None built in |
+| [Paperpile](/compare/paperpile) | Cloud reference manager for Docs and Word | $99.60–$138/yr; academic pricing 50% lower | Ask AI sends PDFs to external assistants | None built in |
+| [Papers](/compare/papers) | Reference management with AI across papers | Essentials $65/yr; Pro $130/yr; 40% academic discount | Chat with 1 PDF (Essentials) or up to 20 papers (Pro) | None |
+| [Mendeley](/compare/mendeley) | Elsevier's reference library with Word citations | Free with 2 GB; Plus $55/yr; Pro $110/yr; Max $165/yr | Reading Assistant; Ask My Library on Pro and Max | None |
+| [EndNote](/compare/endnote) | Professional bibliographies and manuscripts | $275 license; $150 student; $125 upgrade | EndNote Research Assistant | None |
+| [Elicit](/compare/elicit) | Literature discovery, screening and systematic reviews | Free; Plus $132/yr; Pro $480/yr; Scale $1,068/yr | Reports, evidence tables, extraction, paper chat | None: research synthesis |
+| [SciSpace](/compare/scispace) | Academic search, PDF explanation and writing | Free with credits; Premium from $12/mo billed annually | Literature Review, Deep Review, Chat with PDF | None: research synthesis |
+| [Obsidian](/compare/obsidian) | Owning your notes as local Markdown | Free; Sync $4–8/mo | Plugins, bring-your-own-key | Community plugins only |
+| Reflect | Fast networked notes | $10/mo billed annually, no free tier | GPT/Claude/Gemini, BYOK, MCP beta | None |
+| [LiquidText](/compare/liquidtext) | Close PDF reading and spatial excerpts | Free Basic; paid plans vary by platform and region | Not a focus | None: active reading and synthesis |
+| [MarginNote](/compare/marginnote) | PDF study with mind maps and flashcards | Pro $12.99 lifetime; Max $16.99/yr or $51.99 lifetime | Credit-based summary, Q&A, OCR, cards | Flashcards, FSRS, document and mind-map recall |
+| [DEVONthink](/compare/devonthink) | Private Mac document databases | Standard $99, Pro $199, Server $499 (one year of updates) | AI chat with local or external models | None |
 
-*Pricing verified against official pages in July 2026, and in October 2026 for Paper, Memo, Gistr, Sapience and AnythingLLM. Prices change — always check the vendor's site. Annual-billed rates shown where vendors advertise them.*
+*Pricing verified against official pages in July 2026, and in October 2026 for Paper, Memo, Gistr, Sapience and AnythingLLM; the other rows follow each tool's own page, which says when its prices were checked. Prices change — always check the vendor's site. Annual-billed rates shown where vendors advertise them.*
 
 ## More head-to-head comparisons
 
