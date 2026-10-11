@@ -434,7 +434,7 @@ struct ScreenRecordModeTests {
             "talk", "episode", "paper", "article", "post", "book",
             "old-article", "old-kept-article", "zoom", "upload", "drive", "pasted", "profile", "private-feed",
         ]
-        scope.keptSourceIDs = ["old-kept-article", "kept-but-unfiled"]
+        scope.keptSourceIDs = ["old-kept-article", "kept-but-unfiled", "kept-meeting"]
 
         // Discover and Add sources give the source the manual origin; membership vouches for it.
         #expect(scope.allowsSource(
@@ -463,9 +463,13 @@ struct ScreenRecordModeTests {
         #expect(scope.allowsSource(
             id: "old-kept-article", addedAt: before, kind: "article", url: "https://example.org/kept", origin: .manual
         ))
-        // Kept is not shown by itself: it joins a take only through a Notebook made in it.
-        #expect(!scope.allowsSource(
+        // Kept shows with or without a take Notebook (the learner has to find it to file it), but only
+        // while it is public.
+        #expect(scope.allowsSource(
             id: "kept-but-unfiled", addedAt: before, kind: "article", url: "https://example.org/kept-two", origin: .manual
+        ))
+        #expect(!scope.allowsSource(
+            id: "kept-meeting", addedAt: before, kind: "meeting", url: "https://zoom.us/rec/share/private", origin: .zoom
         ))
         // Nor does membership alone make a new source public.
         #expect(!scope.allowsSource(

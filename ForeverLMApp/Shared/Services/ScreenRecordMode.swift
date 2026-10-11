@@ -38,8 +38,8 @@ enum ScreenRecordMode {
     /// Images kept on screen although they were drawn before the take: an
     /// image carries no Notebook or source to earn a pass by.
     static let imageIDsKey = "screenRecordMode.imageIDs"
-    /// Library sources the learner may file into a Notebook made during the
-    /// take although the library held them before it (`ScreenRecordScope.keptSourceIDs`).
+    /// Older public library sources kept on screen although the library held
+    /// them before the take (`ScreenRecordScope.keptSourceIDs`).
     static let sourceIDsKey = "screenRecordMode.sourceIDs"
     /// Meeting folders whose sessions show although meetings never count as
     /// public: a seminar series the admin chooses to film.
@@ -120,7 +120,7 @@ enum ScreenRecordMode {
             .filter { !$0.isEmpty }
     }
 
-    /// The older library sources a take may file into its own Notebook (`sourceIDsKey`).
+    /// The older public library sources kept on screen (`sourceIDsKey`).
     static var sourceIDs: [String] {
         (defaults.stringArray(forKey: sourceIDsKey) ?? [])
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -265,9 +265,10 @@ struct ScreenRecordScope: Sendable, Equatable {
     /// Notebook and Discover or Add sources fills it. Membership alone earns
     /// nothing (`isTakeNotebookSource`).
     var takeSourceIDs: Set<String> = []
-    /// Older library sources that may join a take by being filed into one of
-    /// its Notebooks (`ScreenRecordMode.sourceIDs`): a public book or talk the
-    /// library already held, which Discover files instead of importing.
+    /// Older public library sources kept on screen whatever their date
+    /// (`ScreenRecordMode.sourceIDs`): a book the library already held, which
+    /// Discover files into a take's Notebook rather than imports. Kept shows
+    /// without being filed, so the learner can find it to file it.
     var keptSourceIDs: Set<String> = []
     /// Safe public sources captured, and the learner's own work created, at or
     /// after this moment show.
@@ -305,8 +306,11 @@ struct ScreenRecordScope: Sendable, Equatable {
            Self.isSafeNewCaptureSource(kind: kind, url: url, show: show, origin: origin) {
             return true
         }
-        if takeSourceIDs.contains(id), addedAt >= cutoff || keptSourceIDs.contains(id),
+        if addedAt >= cutoff, takeSourceIDs.contains(id),
            Self.isTakeNotebookSource(kind: kind, url: url, show: show) {
+            return true
+        }
+        if keptSourceIDs.contains(id), Self.isTakeNotebookSource(kind: kind, url: url, show: show) {
             return true
         }
         return showsLibrarySources && Self.isPublicLibrarySource(kind: kind, url: url, show: show)
@@ -354,9 +358,9 @@ struct ScreenRecordScope: Sendable, Equatable {
     /// cannot vouch for it; the Notebook made in the take does. A meeting, an
     /// upload, pasted text and a private host stay off screen, and so does a
     /// source the library already held (`allowsSource` checks `addedAt`, unless
-    /// the admin kept it on `ScreenRecordMode.sourceIDs`): a Discover candidate
-    /// the learner saved long before is filed into the Notebook, but their other
-    /// reading never joins the take.
+    /// the admin kept it on `ScreenRecordMode.sourceIDs`, which shows it with or
+    /// without a Notebook): a Discover candidate the learner saved long before is
+    /// filed into the Notebook, but their other reading never joins the take.
     static func isTakeNotebookSource(kind: String?, url: String?, show: String? = nil) -> Bool {
         guard let kind else { return false }
         if kind == StudioSourceType.xPost.rawValue { return isPublicXStatus(url) }
