@@ -451,7 +451,8 @@ extension StudioViewModel {
                 && !superseded.contains(paper.id)
                 && (screenRecordScope?.allowsSource(
                     id: paper.id, addedAt: paper.dateAdded,
-                    kind: paper.sourceType.rawValue, url: paper.url, show: paper.domain
+                    kind: paper.sourceType.rawValue, url: paper.url, show: paper.domain,
+                    origin: paper.discoveryOrigin
                 ) ?? true)
         }
 
@@ -1940,7 +1941,7 @@ extension StudioViewModel {
     func matchesCurrentTab(_ article: StudioArticle) -> Bool {
         guard !isSourceHidden(article) else { return false }
         // Screen record mode lists only the recording Notebook's sources and
-        // what was added during the take (`ScreenRecordScope`). Every tab, its
+        // safe public captures from the take (`ScreenRecordScope`). Every tab, its
         // count and the sidebar search come through here.
         guard isVisibleInRecordingMode(article) else { return false }
         // An explainer never has a row of its own: it is reached from the

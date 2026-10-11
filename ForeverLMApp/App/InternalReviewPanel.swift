@@ -1717,8 +1717,8 @@ private struct InternalReviewPanelContent: View {
     }
 
     private var idleScheduleSnapshot: IdleScheduleSnapshot {
-        // Screen record mode: only the recording Notebook's sources and what
-        // was added during the take are planned on screen.
+        // Screen record mode: only the recording Notebook's sources and safe
+        // public captures from the take are planned on screen.
         let isSourceVisible: (String) -> Bool = { vm.isSourceIDVisibleInRecordingMode($0) }
         let earliest = Date().addingTimeInterval(-Self.idleSuggestionRecency)
         return IdleScheduleSnapshot(

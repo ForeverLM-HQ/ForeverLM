@@ -198,8 +198,13 @@ extension StudioViewModel {
         /// activation every time the learner glances at another window must not
         /// repeat that, and nothing upstream changes minute to minute. A local
         /// store is a file-snapshot check that no-ops when nothing changed, so
-        /// it only needs to be kept from stacking behind a bouncy scroll.
-        var eventSyncCooldown: TimeInterval {
+        /// it only needs to be kept from stacking behind a bouncy scroll. Screen
+        /// Record mode is the exception for X and Reading Lists: returning from
+        /// the browser is the filmed action, so that activation checks them now.
+        func eventSyncCooldown(screenRecordMode: Bool) -> TimeInterval {
+            if screenRecordMode, self == .xBookmarks || self == .browserReadingLists {
+                return 0
+            }
             switch self {
             case .xBookmarks, .youtube, .googleDriveMeetings: return 5 * 60
             case .browserReadingLists, .applePodcasts: return 30
@@ -232,11 +237,12 @@ extension StudioViewModel {
     nonisolated static func dueEventPlugins(
         for tab: StudioSidebarTab?,
         lastSyncedAt: [EventSyncPlugin: Date],
-        now: Date
+        now: Date,
+        screenRecordMode: Bool = ScreenRecordMode.isEffective
     ) -> Set<EventSyncPlugin> {
         EventSyncPlugin.plugins(for: tab).filter { plugin in
             guard let last = lastSyncedAt[plugin] else { return true }
-            return now.timeIntervalSince(last) >= plugin.eventSyncCooldown
+            return now.timeIntervalSince(last) >= plugin.eventSyncCooldown(screenRecordMode: screenRecordMode)
         }
     }
 

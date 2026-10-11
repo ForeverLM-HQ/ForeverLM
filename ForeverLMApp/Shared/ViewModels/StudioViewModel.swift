@@ -1033,10 +1033,10 @@ class StudioViewModel {
     /// Screen record mode's scope (`ScreenRecordMode`, admin only): nil when
     /// the mode is off, which is every learner but the admin. While it is set,
     /// the lists this view model feeds show only the recording Notebook, its
-    /// sources, and what was made after the mode went on. Everything stays
-    /// persisted and synced; only presentation narrows. Resolved at init with
-    /// no Notebook sources yet (fail closed), and again whenever the Notebooks
-    /// load or the setting changes.
+    /// sources, safe public captures and work made after the mode went on.
+    /// Everything stays persisted and synced; only presentation narrows.
+    /// Resolved at init with no Notebook sources yet (fail closed), and again
+    /// whenever the Notebooks load or the setting changes.
     var screenRecordScope: ScreenRecordScope? = ScreenRecordScope.resolve { _ in [] } {
         didSet {
             if screenRecordScope != oldValue { refreshScreenRecordShownCourses() }
@@ -1143,14 +1143,15 @@ class StudioViewModel {
     }
 
     /// A source shows while recording when it belongs to the recording
-    /// Notebook, was added during the take, or is public with library sources
-    /// on (`ScreenRecordScope.isPublicLibrarySource`).
+    /// Notebook, was safely captured during the take, or is public with library
+    /// sources on (`ScreenRecordScope.isPublicLibrarySource`).
     func isVisibleInRecordingMode(_ article: StudioArticle) -> Bool {
         screenRecordScope?.allowsSource(
             id: article.id, addedAt: article.dateAdded,
             kind: article.sourceType.rawValue, url: article.url,
             group: article.parentGroup.map(canonicalMeetingGroupID),
-            show: article.domain
+            show: article.domain,
+            origin: article.discoveryOrigin
         ) ?? true
     }
 

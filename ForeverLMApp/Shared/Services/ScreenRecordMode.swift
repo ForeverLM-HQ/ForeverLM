@@ -9,7 +9,8 @@ import SQLite3
 // of screen recording". Product videos are filmed against the real library,
 // so while the mode is on every list the app, the in-app chat and the MCP
 // connector show is cut down to one scope: the recording Notebook's sources,
-// plus whatever was made after the mode was turned on.
+// safe public browser captures made after the mode was turned on, plus the
+// learner's own work made during the take.
 //
 // Invariants:
 // - Presentation only. Nothing is deleted, hidden in the database, or kept
@@ -90,7 +91,7 @@ enum ScreenRecordMode {
     }
 
     /// The Notebook whose sources stay on screen, or nil for "none": then only
-    /// what was made after the cutoff shows.
+    /// safe public captures and work made after the cutoff show.
     static var notebookID: String? {
         guard let id = defaults.string(forKey: notebookIDKey)?
             .trimmingCharacters(in: .whitespacesAndNewlines),
@@ -227,7 +228,8 @@ struct ScreenRecordScope: Sendable, Equatable {
     let notebookID: String?
     /// The recording Notebook's own sources.
     let allowedSourceIDs: Set<String>
-    /// Anything created at or after this shows.
+    /// Safe public sources captured, and the learner's own work created, at or
+    /// after this moment show.
     let cutoff: Date
     /// The library's public sources show too (`ScreenRecordMode.showsLibrarySources`).
     var showsLibrarySources = false
@@ -236,17 +238,74 @@ struct ScreenRecordScope: Sendable, Equatable {
     /// Meeting folders whose sessions show (`ScreenRecordMode.meetingGroupIDs`).
     var allowedMeetingGroupIDs: Set<String> = []
 
-    /// A source shows when it is one of the recording Notebook's, was added
-    /// after the mode went on, is a session of a meeting folder on the kept
-    /// list, or, with library sources on, is public by
-    /// `isPublicLibrarySource`. A caller that cannot say the kind, address and
-    /// folder passes nil and gets the narrow answer.
+    /// A source shows when it is one of the recording Notebook's, is a safe
+    /// public browser capture added after the mode went on, is a session of a
+    /// meeting folder on the kept list, or, with library sources on, is public
+    /// by `isPublicLibrarySource`. A caller that cannot say the kind, address
+    /// folder and discovery origin passes nil and gets the narrow answer.
+    ///
+    /// The source type and address are checked before the cutoff earns a pass.
+    /// Otherwise an unrelated meeting, Drive page or local upload that happened
+    /// to sync during a take would appear beside the deliberate X bookmark or
+    /// Reading List page the take is filming.
     func allowsSource(
-        id: String, addedAt: Date, kind: String? = nil, url: String? = nil, group: String? = nil, show: String? = nil
+        id: String,
+        addedAt: Date,
+        kind: String? = nil,
+        url: String? = nil,
+        group: String? = nil,
+        show: String? = nil,
+        origin: DiscoveryOrigin? = nil
     ) -> Bool {
-        if allowedSourceIDs.contains(id) || addedAt >= cutoff { return true }
+        if allowedSourceIDs.contains(id) { return true }
         if kind == StudioSourceType.meeting.rawValue, let group, allowedMeetingGroupIDs.contains(group) { return true }
+        if addedAt >= cutoff,
+           Self.isSafeNewCaptureSource(kind: kind, url: url, show: show, origin: origin) {
+            return true
+        }
         return showsLibrarySources && Self.isPublicLibrarySource(kind: kind, url: url, show: show)
+    }
+
+    /// What may arrive automatically while a take is running. Only a source
+    /// whose discovery origin proves it came from a browser Reading List, or a
+    /// public X status fetched from X bookmarks, earns the cutoff pass. A
+    /// podcast subscription, followed video channel, plugin or cloud sync may
+    /// also add a public URL during the take; none of those are the deliberate
+    /// browser action being filmed.
+    ///
+    /// Books do not pass here. A newly imported EPUB/PDF has no public address
+    /// with which to prove it is safe; put the two books for a take in the
+    /// recording Notebook instead. Meetings likewise require their explicit
+    /// folder allow-list.
+    static func isSafeNewCaptureSource(
+        kind: String?,
+        url: String?,
+        show: String? = nil,
+        origin: DiscoveryOrigin?
+    ) -> Bool {
+        guard let kind = kind.flatMap(StudioSourceType.init(rawValue:)) else { return false }
+        if kind == .course, let url, let components = URLComponents(string: url),
+           components.scheme == GeneratedCourseLesson.scheme,
+           components.host == GeneratedCourseLesson.host {
+            return true
+        }
+        let isReadingList = origin == .safari || origin == .chrome || origin == .brave
+        switch kind {
+        case .meeting, .book:
+            return false
+        case .xPost:
+            guard origin == .xBookmarks || isReadingList,
+                  let components = publicWebAddress(url),
+                  let host = components.host?.lowercased(),
+                  host == "x.com" || host.hasSuffix(".x.com")
+                    || host == "twitter.com" || host.hasSuffix(".twitter.com") else { return false }
+            let parts = components.path.split(separator: "/")
+            guard let status = parts.firstIndex(where: { $0.lowercased() == "status" }) else { return false }
+            return parts.index(after: status) < parts.endIndex
+        case .article, .paper, .podcast, .course, .video, .manual, .unclassified:
+            guard isReadingList else { return false }
+            return isPublicLibrarySource(kind: kind.rawValue, url: url, show: show)
+        }
     }
 
     /// An image shows when it is on the kept list or was drawn during the take.
@@ -271,19 +330,25 @@ struct ScreenRecordScope: Sendable, Equatable {
         case .book:
             return true
         case .paper, .article, .manual, .unclassified, .podcast, .course, .video:
-            guard let url, let components = URLComponents(string: url),
-                  let scheme = components.scheme?.lowercased(), scheme == "https" || scheme == "http",
-                  let host = components.host?.lowercased(), !host.isEmpty else { return false }
+            guard let components = publicWebAddress(url),
+                  let host = components.host?.lowercased() else { return false }
             let matches: (Set<String>) -> Bool = { hosts in
                 hosts.contains { host == $0 || host.hasSuffix("." + $0) }
             }
-            if matches(privateHosts) { return false }
             if kind == .podcast, let show, isPrivateFeedShow(show) { return false }
             // A video is public only on a public video site; the rest are
             // Zoom and read.ai recordings of the learner's own meetings.
             if kind == .video { return matches(publicVideoHosts) }
             return true
         }
+    }
+
+    private static func publicWebAddress(_ value: String?) -> URLComponents? {
+        guard let value, let components = URLComponents(string: value),
+              let scheme = components.scheme?.lowercased(), scheme == "https" || scheme == "http",
+              let host = components.host?.lowercased(), !host.isEmpty,
+              !privateHosts.contains(where: { host == $0 || host.hasSuffix("." + $0) }) else { return nil }
+        return components
     }
 
     /// A subscriber feed's show name, as Supercast and the like title it:
@@ -338,11 +403,12 @@ struct ScreenRecordScope: Sendable, Equatable {
     /// linked to notebooks (`NotebookMembership`), and it keeps no date of its
     /// own, so this is `allowsItem`'s filed half — or when one of
     /// its lessons, the course-typed sources it groups, is a source the take
-    /// may show (`allowsSource`): filmed, added during the take, or public
-    /// with library sources on. A lecture's other sources earn it nothing, as
-    /// a cited source earns a Doc nothing: a course put together from the
-    /// learner's papers is their own. The caller answers `hasShownLesson`
-    /// from the store it reads (`KnowledgeStore.screenRecordCoursesWithShownLesson`).
+    /// may show (`allowsSource`): filmed, safely captured during the take, or
+    /// public with library sources on. A lecture's other sources earn it
+    /// nothing, as a cited source earns a Page nothing: a course put together
+    /// from the learner's papers is their own. The caller answers
+    /// `hasShownLesson` from the store it reads
+    /// (`KnowledgeStore.screenRecordCoursesWithShownLesson`).
     func allowsCourse(followedBy notebookIDs: [String], hasShownLesson: Bool) -> Bool {
         hasShownLesson || allowsItem(
             createdAt: nil,
@@ -453,14 +519,16 @@ extension KnowledgeStore {
         guard let scope else { return [] }
         var excluded: Set<String> = []
         try queryBind("""
-            SELECT id, date_added, source_type, url, parent_group, domain FROM source_projection
+            SELECT id, date_added, source_type, url, parent_group, domain, discovery_origin
+            FROM source_projection
         """, bind: { _ in }) { stmt in
             guard let id = self.string(stmt, 0) else { return }
             let addedAt = Date(timeIntervalSinceReferenceDate: sqlite3_column_double(stmt, 1))
             if !scope.allowsSource(
                 id: id, addedAt: addedAt,
                 kind: self.string(stmt, 2), url: self.string(stmt, 3), group: self.string(stmt, 4),
-                show: self.string(stmt, 5)
+                show: self.string(stmt, 5),
+                origin: self.string(stmt, 6).flatMap { DiscoveryOrigin(rawValue: $0) }
             ) {
                 excluded.insert(id)
             }
@@ -476,7 +544,8 @@ extension KnowledgeStore {
         let kind = StudioSourceType.course.rawValue
         var courseIDs: Set<String> = []
         try queryBind("""
-            SELECT id, date_added, url, parent_group, domain FROM source_projection
+            SELECT id, date_added, url, parent_group, domain, discovery_origin
+            FROM source_projection
             WHERE source_type = ? AND status = 'active' AND parent_group IS NOT NULL
         """, bind: { stmt in
             self.bind(stmt, 1, kind)
@@ -485,7 +554,8 @@ extension KnowledgeStore {
             let addedAt = Date(timeIntervalSinceReferenceDate: sqlite3_column_double(stmt, 1))
             if scope.allowsSource(
                 id: id, addedAt: addedAt,
-                kind: kind, url: self.string(stmt, 2), group: courseID, show: self.string(stmt, 4)
+                kind: kind, url: self.string(stmt, 2), group: courseID, show: self.string(stmt, 4),
+                origin: self.string(stmt, 5).flatMap { DiscoveryOrigin(rawValue: $0) }
             ) {
                 courseIDs.insert(courseID)
             }

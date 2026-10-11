@@ -138,7 +138,7 @@ struct ScreenRecordModeTests {
         }
     }
 
-    @Test("The scope's predicates: Notebook sources and new work show, everything else does not")
+    @Test("The scope's predicates: Notebook sources, safe captures and new work show, everything else does not")
     func predicates() {
         let cutoff = Date(timeIntervalSinceReferenceDate: 800_000_000)
         let before = cutoff.addingTimeInterval(-60)
@@ -146,8 +146,15 @@ struct ScreenRecordModeTests {
         let scope = ScreenRecordScope(notebookID: "notebook", allowedSourceIDs: ["filmed"], cutoff: cutoff)
 
         #expect(scope.allowsSource(id: "filmed", addedAt: before))
-        #expect(scope.allowsSource(id: "new", addedAt: after))
-        #expect(scope.allowsSource(id: "at-cutoff", addedAt: cutoff))
+        #expect(scope.allowsSource(
+            id: "new", addedAt: after, kind: "article", url: "https://example.org/bioelectricity",
+            origin: .safari
+        ))
+        #expect(scope.allowsSource(
+            id: "at-cutoff", addedAt: cutoff, kind: "xPost", url: "https://x.com/example/status/123",
+            origin: .xBookmarks
+        ))
+        #expect(!scope.allowsSource(id: "new-untyped", addedAt: after))
         #expect(!scope.allowsSource(id: "private", addedAt: before))
 
         #expect(scope.allowsNotebook(id: "notebook", createdAt: before))
@@ -168,6 +175,91 @@ struct ScreenRecordModeTests {
 
         let noNotebook = ScreenRecordScope(notebookID: nil, allowedSourceIDs: [], cutoff: cutoff)
         #expect(!noNotebook.allowsItem(createdAt: before, notebookIDs: [nil]))
+    }
+
+    @Test("Sources added during a take admit public browser captures, never incidental private sync")
+    func newSourcesAreSafeCapturesOnly() {
+        let cutoff = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        let after = cutoff.addingTimeInterval(60)
+        var scope = ScreenRecordScope(notebookID: "notebook", allowedSourceIDs: ["curated-private"], cutoff: cutoff)
+        scope.allowedMeetingGroupIDs = ["public-seminar"]
+
+        // The two launch-film workflows: a public Reading List page and an X bookmark.
+        #expect(scope.allowsSource(
+            id: "reading-list", addedAt: after, kind: "unclassified",
+            url: "https://example.org/field-notes", origin: .safari
+        ))
+        #expect(scope.allowsSource(
+            id: "x", addedAt: after, kind: "xPost", url: "https://x.com/example/status/123456789",
+            origin: .xBookmarks
+        ))
+        #expect(scope.allowsSource(
+            id: "old-twitter-address", addedAt: after, kind: "xPost",
+            url: "https://twitter.com/example/status/123456789", origin: .xBookmarks
+        ))
+        #expect(scope.allowsSource(
+            id: "x-canonical-address", addedAt: after, kind: "xPost",
+            url: "https://x.com/i/web/status/123456789", origin: .xBookmarks
+        ))
+        #expect(scope.allowsSource(
+            id: "youtube", addedAt: after, kind: "video", url: "https://www.youtube.com/watch?v=abc",
+            origin: .brave
+        ))
+        #expect(scope.allowsSource(
+            id: "course-made-in-take", addedAt: after, kind: "course",
+            url: GeneratedCourseLesson.url(courseID: "bioelectricity", module: 1, kind: .lesson)
+        ))
+
+        // A profile or search page is not the public post the take deliberately bookmarked.
+        #expect(!scope.allowsSource(
+            id: "x-profile", addedAt: after, kind: "xPost", url: "https://x.com/example",
+            origin: .xBookmarks
+        ))
+        #expect(!scope.allowsSource(
+            id: "x-lookalike", addedAt: after, kind: "xPost", url: "https://x.com.example.org/person/status/1",
+            origin: .xBookmarks
+        ))
+
+        // Incidental sync never widens the filmed library merely because it is new.
+        #expect(!scope.allowsSource(
+            id: "meeting", addedAt: after, kind: "meeting", url: "https://zoom.us/rec/share/private", group: "other"
+        ))
+        #expect(!scope.allowsSource(
+            id: "drive", addedAt: after, kind: "article", url: "https://docs.google.com/document/d/private"
+        ))
+        #expect(!scope.allowsSource(
+            id: "upload", addedAt: after, kind: "paper", url: "file:///Users/example/private.pdf"
+        ))
+        #expect(!scope.allowsSource(id: "pasted", addedAt: after, kind: "article", url: nil))
+        #expect(!scope.allowsSource(
+            id: "new-book", addedAt: after, kind: "book", url: "file:///Users/example/private.epub"
+        ))
+        #expect(!scope.allowsSource(
+            id: "private-feed", addedAt: after, kind: "podcast", url: "https://example.org/episode",
+            show: "Subscriber Feed (🔓 for A Learner)", origin: .applePodcasts
+        ))
+        #expect(!scope.allowsSource(
+            id: "public-feed", addedAt: after, kind: "podcast", url: "https://example.org/episode",
+            show: "Example Science", origin: .applePodcasts
+        ))
+        #expect(!scope.allowsSource(
+            id: "followed-video", addedAt: after, kind: "video", url: "https://youtube.com/watch?v=abc",
+            origin: .youtubePlaylist
+        ))
+        #expect(!scope.allowsSource(
+            id: "plugin-page", addedAt: after, kind: "article", url: "https://example.org/private",
+            origin: .plugin
+        ))
+
+        // Deliberate choices win: the curated Notebook and selected seminar folder may hold private URLs.
+        #expect(scope.allowsSource(
+            id: "curated-private", addedAt: cutoff.addingTimeInterval(-60), kind: "book",
+            url: "file:///Users/example/Example Field Guide.epub"
+        ))
+        #expect(scope.allowsSource(
+            id: "seminar", addedAt: after, kind: "meeting", url: "https://meet.example.org/recording/private",
+            group: "public-seminar"
+        ))
     }
 
     @Test("Library sources: public papers, podcasts, books and public videos show; meetings, X posts, uploads and private hosts never do")
@@ -214,20 +306,20 @@ struct ScreenRecordModeTests {
         let before = cutoff.addingTimeInterval(-60)
         var scope = ScreenRecordScope(notebookID: "notebook", allowedSourceIDs: [], cutoff: cutoff)
         scope.showsLibrarySources = true
-        scope.allowedMeetingGroupIDs = ["zoom:stanford.zoom.us"]
-        let url = "https://stanford.zoom.us/rec/share/abc"
-        #expect(scope.allowsSource(id: "seminar", addedAt: before, kind: "meeting", url: url, group: "zoom:stanford.zoom.us"))
-        #expect(!scope.allowsSource(id: "standup", addedAt: before, kind: "meeting", url: url, group: "zoom:other.zoom.us"))
+        scope.allowedMeetingGroupIDs = ["example-seminar"]
+        let url = "https://meet.example.org/recording/private"
+        #expect(scope.allowsSource(id: "seminar", addedAt: before, kind: "meeting", url: url, group: "example-seminar"))
+        #expect(!scope.allowsSource(id: "standup", addedAt: before, kind: "meeting", url: url, group: "acme-standup"))
         #expect(!scope.allowsSource(id: "loose", addedAt: before, kind: "meeting", url: url, group: nil))
         // The list names meeting folders only: a paper in a folder of that id earns nothing by it.
-        #expect(!scope.allowsSource(id: "paper", addedAt: before, kind: "paper", url: nil, group: "zoom:stanford.zoom.us"))
+        #expect(!scope.allowsSource(id: "paper", addedAt: before, kind: "paper", url: nil, group: "example-seminar"))
 
         try await withCleanDefaults {
             ScreenRecordMode.recordAdminStatus(true)
             ScreenRecordMode.setEnabled(true, now: cutoff)
-            _ = try await MCPDataStore().setAppSetting(settingID: "recording.meeting_group_ids", value: ["zoom:stanford.zoom.us"])
-            #expect(ScreenRecordMode.meetingGroupIDs == ["zoom:stanford.zoom.us"])
-            #expect(try #require(ScreenRecordScope.resolve { _ in [] }).allowedMeetingGroupIDs == ["zoom:stanford.zoom.us"])
+            _ = try await MCPDataStore().setAppSetting(settingID: "recording.meeting_group_ids", value: ["example-seminar"])
+            #expect(ScreenRecordMode.meetingGroupIDs == ["example-seminar"])
+            #expect(try #require(ScreenRecordScope.resolve { _ in [] }).allowedMeetingGroupIDs == ["example-seminar"])
         }
     }
 
