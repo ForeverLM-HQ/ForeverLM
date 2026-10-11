@@ -436,9 +436,10 @@ struct SourceCleanupProgress: View {
     }
 
     private func summary(total: Int, ready: Int, underway: Int, failed: Int) -> String {
+        if underway == 0 && failed == 0 { return "All \(total) ready" }
         var parts = ["\(ready) of \(total) ready"]
-        if underway > 0 { parts.append("\(underway) being fetched and cleaned up") }
-        if failed > 0 { parts.append("\(failed) failed, retry from the source's row") }
+        if underway > 0 { parts.append("\(underway) still coming in, in the background") }
+        if failed > 0 { parts.append("\(failed) could not be fetched; retry them from the Library later") }
         return parts.joined(separator: " · ")
     }
 

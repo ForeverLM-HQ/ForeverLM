@@ -514,6 +514,7 @@ struct GettingStartedGuide: View {
     @State private var readingListBrowser: ReadingListBrowser = .safari
     @State private var enabledReadingListBrowsers = ReadingListBrowser.enabled
     @State private var showsReadLaterImport = false
+    @State private var showsReferenceManagerImport = false
     @State private var isFileDropTargeted = false
     @State private var fileImportError: String?
     @State private var oneTimeImportResults: [String: String] = [:]
@@ -790,10 +791,9 @@ struct GettingStartedGuide: View {
             stepHeading(
                 icon: "doc.text.magnifyingglass",
                 title: "Bring your papers",
-                detail: "Import from your reference manager, or drop PDFs."
+                detail: "Add them any way you like. They are fetched and tidied up in the background, so you can carry on while they come in."
             )
             ZoteroImportCard()
-            referenceManagerImport
             fileDropZone(
                 "Drop PDFs here",
                 icon: "arrow.down.doc",
@@ -803,13 +803,19 @@ struct GettingStartedGuide: View {
                 _ = try await vm.importPDF(from: url.path, selectInReader: false)
             }
             readingListPapersNote
+            if showsReferenceManagerImport {
+                referenceManagerImport
+            } else {
+                Button("Coming from Paperpile, Mendeley or another reference manager?") {
+                    withAnimation(.easeInOut(duration: 0.2)) { showsReferenceManagerImport = true }
+                }
+                .buttonStyle(.link)
+                .font(.caption)
+            }
             SourceCleanupProgress(types: [.paper], task: .paperNarrationPreparation)
             if let paper = newestPaper {
                 VStack(alignment: .leading, spacing: 10) {
-                    detectedSourceCard(paper, label: "Latest paper")
-                    ingestionStage("PDF located", done: paper.localFilePath != nil)
-                    ingestionStage("Metadata extracted", done: paper.author?.isEmpty == false || paper.journal?.isEmpty == false)
-                    ingestionStage("Full text ready", done: paper.state == .ready)
+                    detectedSourceCard(paper, label: "Last paper added")
                     if paper.state == .error, let error = paper.errorMessage {
                         Label(error, systemImage: "exclamationmark.triangle.fill")
                             .font(.caption)
@@ -2210,12 +2216,6 @@ struct GettingStartedGuide: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .setupCard()
-    }
-
-    private func ingestionStage(_ label: String, done: Bool) -> some View {
-        Label(label, systemImage: done ? "checkmark.circle.fill" : "circle.dotted")
-            .font(.caption)
-            .foregroundStyle(done ? Color.green : Color.secondary)
     }
 
     @ViewBuilder
