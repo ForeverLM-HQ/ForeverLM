@@ -26,10 +26,6 @@ struct ArticleRow: View {
     var showsChapterNumber: Bool = false
     var onShowDrafts: (() -> Void)? = nil
     var dragProvider: (() -> NSItemProvider)? = nil
-    /// A meeting session listed among other series' sessions (the Meetings tab
-    /// by date), where no series header says whose it is: the row names its
-    /// series and leads its metadata with the day.
-    var showsMeetingSeries: Bool = false
     /// The notebook the Sources list is marking (`sidebarNotebook(in:)`); nil
     /// everywhere else. The row only hosts the mark: `NotebookMembershipMark`
     /// reads the membership itself, so adding a row never re-runs this one.
@@ -46,10 +42,7 @@ struct ArticleRow: View {
     /// For books/courses/videos inside a group, strip the group name prefix from the title
     /// since it's already shown in the DisclosureGroup header.
     private var displayTitle: String {
-        if showsMeetingSeries, article.sourceType == .meeting {
-            return vm.meetingSeriesRowTitle(for: article)
-        }
-        return vm.sourceRowTitle(for: article)
+        vm.sourceRowTitle(for: article)
     }
 
     /// A meeting session's row title, and the day it stands for when the title
@@ -117,11 +110,7 @@ struct ArticleRow: View {
             parts.append(article.dateAdded.formatted(date: .abbreviated, time: .omitted))
         }
 
-        if type == .meeting, showsMeetingSeries {
-            // Where the day is what the list is ordered by, it leads the line
-            // and is printed whatever the date setting says.
-            parts.insert(vm.meetingSessionWhen(for: article), at: 0)
-        } else if type == .meeting, metadataVisibility.isVisible(.date, for: type) {
+        if type == .meeting, metadataVisibility.isVisible(.date, for: type) {
             // A row already titled with its day says only the time here, and
             // nothing when no time is known rather than a midnight it made up.
             let rowTitle = meetingRowTitle
@@ -756,29 +745,6 @@ extension StudioViewModel {
             groupTitle: article.parentGroup.map { meetingDisplayName($0) } ?? "",
             dateAdded: article.dateAdded
         )
-    }
-
-    /// A session's title in a list that mixes series: its series' name, then
-    /// the session's own name when it has one besides its day, which the
-    /// metadata line prints instead (`meetingSessionWhen`).
-    func meetingSeriesRowTitle(for article: StudioArticle) -> String {
-        let row = meetingRowTitle(for: article)
-        let series = article.parentGroup.map { meetingDisplayName($0) } ?? ""
-        guard !series.isEmpty else { return row.text }
-        return row.day != nil ? series : "\(series) — \(row.text)"
-    }
-
-    /// When a session happened, for a list that mixes series: the day it stands
-    /// for, with the time when one is known, and no midnight made up when none is.
-    func meetingSessionWhen(for article: StudioArticle) -> String {
-        let row = meetingRowTitle(for: article)
-        guard row.day != nil else {
-            return article.dateAdded.formatted(date: .abbreviated, time: .shortened)
-        }
-        if let time = row.time {
-            return time.formatted(date: .abbreviated, time: .shortened)
-        }
-        return (row.day ?? article.dateAdded).formatted(date: .abbreviated, time: .omitted)
     }
 
     /// What a source row says beside its spinner while the source's content

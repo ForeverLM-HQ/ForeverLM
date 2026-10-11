@@ -31,10 +31,6 @@ extension StudioViewModel {
         if sidebarTab == .videos {
             return pagedVideoTabArticles
         }
-        if listsMeetingsByDate {
-            // One flat, paged list: no group to keep whole.
-            return Array(filteredActiveItems.prefix(displayLimit))
-        }
         if sidebarTab.isGrouped {
             // Grouped tabs render whole groups; truncating by individual item would
             // split a single book/course across the fold and surface a misleading
@@ -49,12 +45,6 @@ extension StudioViewModel {
                 + activePodcastsNotProcessing
         }
         return Array(filteredActiveItems.prefix(displayLimit))
-    }
-
-    /// The Meetings tab is showing every session on its own row, newest first,
-    /// rather than one row per series.
-    var listsMeetingsByDate: Bool {
-        sidebarTab == .meetings && meetingListOrder == .byDate
     }
 
     var visibleSidebarSourceIDs: Set<String> {
@@ -173,7 +163,6 @@ extension StudioViewModel {
     var hasMoreItems: Bool {
         if sidebarTab == .papers { return false }
         if sidebarTab == .videos { return pagedVideoRows.count > displayLimit }
-        if listsMeetingsByDate { return filteredActiveItems.count > displayLimit }
         // Grouped tabs show every item (no pagination), so there is never more.
         if sidebarTab.isGrouped { return false }
         return filteredActiveItems.count > displayLimit
@@ -498,9 +487,7 @@ extension StudioViewModel {
             return cached
         }
         let count: Int
-        if listsMeetingsByDate {
-            count = filteredActiveItems.count
-        } else if sidebarTab == .meetings {
+        if sidebarTab == .meetings {
             count = filteredMeetingGroupNames.count
         } else if sidebarTab == .books {
             count = filteredBookGroupNames.count
@@ -2920,10 +2907,6 @@ extension StudioViewModel {
         if let raw = defaults.string(forKey: "videoSortMode"),
            let mode = VideoSortMode(rawValue: raw), mode != videoSortMode {
             videoSortMode = mode
-        }
-        if let raw = defaults.string(forKey: "meetingListOrder"),
-           let order = MeetingListOrder(rawValue: raw), order != meetingListOrder {
-            meetingListOrder = order
         }
         let likedPolicyRaw = defaults.string(forKey: "youtube.likedImportPolicy") ?? ""
         if likedPolicyRaw != youtubeLikedImportPolicyRaw {

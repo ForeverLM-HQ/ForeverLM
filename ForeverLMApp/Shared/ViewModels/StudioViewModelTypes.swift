@@ -750,21 +750,6 @@ enum VideoSortMode: String, CaseIterable, Codable {
     }
 }
 
-/// How the Meetings tab lays its sessions out.
-enum MeetingListOrder: String, CaseIterable, Codable {
-    /// One row per series, each opening onto its own sessions. The default.
-    case bySeries
-    /// Every session on its own row, newest first, whichever series it belongs to.
-    case byDate
-
-    var title: String {
-        switch self {
-        case .bySeries: return "By Series"
-        case .byDate: return "By Date"
-        }
-    }
-}
-
 enum ApplePodcastDiscoveryScope: String, CaseIterable, Identifiable {
     case listened
     case downloadedOrListened

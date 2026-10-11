@@ -580,12 +580,21 @@ extension StudioViewModel {
         UserDefaults.standard.bool(forKey: meetingOwnTranscriptionEnabledKey)
     }
 
-    /// The complete first-run path: Google sign-in, Google's folder picker,
-    /// then an immediate import. Picker chooses the folder; a separate
-    /// read-only grant is required because Google's per-file Picker scope does
-    /// not expose the files inside a selected folder.
-    func connectAndImportGoogleDriveMeetings() async throws {
-        let folder = try await GoogleDriveService.shared.connectAndPickMeetingFolder()
+    /// The path for adding a meeting folder: one Google sign-in (read-only Drive
+    /// access), the learner choosing the folder in the app, then an immediate
+    /// import. With `reconnectOnly`, a Drive that already has linked folders
+    /// just signs in again and refreshes them, because the folder was chosen
+    /// long ago and only the access is broken; with none linked it falls
+    /// through to the chooser.
+    func connectAndImportGoogleDriveMeetings(reconnectOnly: Bool = false) async throws {
+        let account = try await GoogleDriveService.shared.connectAccount()
+        if reconnectOnly, hasLinkedGoogleDriveFolders {
+            await refreshConnectedGoogleDriveMeetings(silent: false)
+            return
+        }
+        guard let folder = await GoogleDriveFolderPicker.choose(account: account) else {
+            throw GoogleDriveServiceError.noFolderSelected
+        }
         // Signing in is the evidence the Google Drive tab was waiting for; pin it
         // before the import so the meetings land somewhere the learner can see.
         pinIntegrationTabsInUse()
@@ -596,14 +605,17 @@ extension StudioViewModel {
         )
     }
 
-    /// The repair offered wherever Drive health is broken: the same Google round
-    /// as connecting for the first time. Closing Google's picker or the window
-    /// is a plain cancel; any other failure is shown. Returns whether the
-    /// reconnect and the import behind it completed.
+    var hasLinkedGoogleDriveFolders: Bool {
+        meetingMetadata.values.contains { $0.driveFolderURL?.isEmpty == false }
+    }
+
+    /// The repair offered wherever Drive health is broken. Closing the sign-in
+    /// or the folder chooser is a plain cancel; any other failure is shown.
+    /// Returns whether it completed.
     @discardableResult
     func reconnectGoogleDriveMeetings() async -> Bool {
         do {
-            try await connectAndImportGoogleDriveMeetings()
+            try await connectAndImportGoogleDriveMeetings(reconnectOnly: true)
             return true
         } catch GoogleDriveServiceError.noFolderSelected {
             return false

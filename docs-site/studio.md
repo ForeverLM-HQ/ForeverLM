@@ -556,7 +556,7 @@ Sources flow into Studio from multiple directions:
 - **AI assistants** — Your AI assistant can add sources via the [MCP connection](/setup-mcp)
 - **X (Twitter)** — sign in to sync your bookmarked posts
 - **YouTube** — connect the [YouTube plugin](/external-plugins#youtube) and import Liked videos or a playlist named ForeverLM
-- **Meetings** — connect [Google Drive](/external-plugins#google-drive) and choose a meeting folder, use [a plugin you build](/build-your-own-plugin) (Read AI, Fireflies, …), or ask an assistant to import transcript files directly. The tab groups sessions by meeting series; turn on **By date** beside its search to list every session on its own row instead, newest first, each naming its series
+- **Meetings** — connect [Google Drive](/external-plugins#google-drive) and choose a meeting folder, use [a plugin you build](/build-your-own-plugin) (Read AI, Fireflies, …), or ask an assistant to import transcript files directly
 
 Each source type has its own tab in the sidebar. Right-click a tab and choose **Customize Source Types…** to pin, unpin and reorder the types. When the bar has no room for every pinned type, a **⋯** at its end lists the rest and offers the same. See the dedicated guides for details on [Articles](/articles), [Papers](/papers), [Books](/books), [Podcasts](/podcasts), [X Posts](/x-posts), and [Plugins](/external-plugins) (YouTube, X — and [build your own](/build-your-own-plugin) for anything else). Courses are not a source type: every course is in the Space (its **All** and its **Courses**), and a course's lecture videos and papers are listed under YouTube and Papers as well. See [Courses](/courses).
 

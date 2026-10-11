@@ -32,7 +32,6 @@ extension StudioViewModel {
         /// at its default, which serves a stale array to an unscrolled list.
         let podcastSortMode: PodcastSortMode
         let videoSortMode: VideoSortMode
-        let meetingListOrder: MeetingListOrder
         let articlesRevision: Int
         let displayLimit: Int
         let courseMetadataCount: Int
@@ -83,12 +82,6 @@ extension StudioViewModel {
                     return compareVideoArticles(lhs, rhs)
                 }
                 if sidebarTab == .meetings {
-                    if meetingListOrder == .byDate {
-                        // The meeting's own day, across every series; the id
-                        // keeps two sessions at one moment in a fixed order.
-                        if lhs.dateAdded != rhs.dateAdded { return lhs.dateAdded > rhs.dateAdded }
-                        return lhs.id < rhs.id
-                    }
                     if let a = lhs.courseSortIndex, let b = rhs.courseSortIndex {
                         return a < b
                     }
@@ -204,7 +197,6 @@ extension StudioViewModel {
             contentSearchRevision: sidebarStore.contentSearchRevision,
             podcastSortMode: podcastSortMode,
             videoSortMode: videoSortMode,
-            meetingListOrder: meetingListOrder,
             articlesRevision: articlesRevision,
             displayLimit: displayLimit,
             courseMetadataCount: courseMetadata.count,

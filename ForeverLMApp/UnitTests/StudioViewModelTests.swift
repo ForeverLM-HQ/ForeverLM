@@ -2067,64 +2067,6 @@ struct TabManagementTests {
         #expect(vm.filteredMeetingGroupNames.count == 2)
     }
 
-    @Test("by date, Meetings lists every session newest first across series, a page at a time")
-    func meetingsByDateListsSessionsAcrossSeries() {
-        let vm = makeViewModel()
-        vm.sidebarTab = .meetings
-        vm.meetingMetadata = [
-            "alpha": MeetingMetadata(title: "Alpha Group"),
-            "beta": MeetingMetadata(title: "Beta Group"),
-        ]
-        let start = Date(timeIntervalSince1970: 1_800_000_000)
-        vm.articles = (0..<45).map { index in
-            var session = makeArticle(
-                url: "https://example.org/session/\(index)",
-                title: "Session \(index)",
-                sourceType: .meeting,
-                discoveryOrigin: .localMeetings,
-                parentGroup: index.isMultiple(of: 2) ? "alpha" : "beta",
-                id: "session-\(index)"
-            )
-            session.dateAdded = start.addingTimeInterval(Double(index) * 86_400)
-            return session
-        }
-
-        // By series, the tab renders whole groups and never pages.
-        #expect(vm.meetingListOrder == .bySeries)
-        #expect(vm.activeTabArticles.count == 45)
-        #expect(!vm.hasMoreItems)
-        #expect(vm.totalFilteredCount == 2)
-
-        vm.meetingListOrder = .byDate
-        defer { vm.meetingListOrder = .bySeries }
-
-        let page = vm.activeTabArticles
-        #expect(page.count == 40)
-        #expect(page.first?.id == "session-44")
-        #expect(page.map(\.dateAdded) == page.map(\.dateAdded).sorted(by: >))
-        // Neighbouring rows come from different series: the list is not grouped.
-        #expect(Set(page.prefix(2).compactMap(\.parentGroup)) == ["alpha", "beta"])
-        #expect(vm.hasMoreItems)
-        #expect(vm.remainingItemCount == 5)
-        #expect(vm.totalFilteredCount == 45)
-
-        vm.showMore()
-        #expect(vm.activeTabArticles.count == 45)
-        #expect(!vm.hasMoreItems)
-    }
-
-    @Test("a session row names its series and its day when listed among other series")
-    func meetingSeriesRowTitleNamesTheSeries() {
-        let vm = makeViewModel()
-        vm.meetingMetadata = ["alpha": MeetingMetadata(title: "Alpha Group")]
-        let dated = makeArticle(title: "2026/05/10 08:00 PDT", sourceType: .meeting, parentGroup: "alpha")
-        let named = makeArticle(title: "Journal club on ion channels", sourceType: .meeting, parentGroup: "alpha")
-
-        #expect(vm.meetingSeriesRowTitle(for: dated) == "Alpha Group")
-        #expect(vm.meetingSeriesRowTitle(for: named) == "Alpha Group — Journal club on ion channels")
-        #expect(!vm.meetingSessionWhen(for: dated).isEmpty)
-    }
-
     @Test("a folder imported from this Mac is visible in Meetings")
     func locallyImportedMeetingIsVisible() {
         let vm = makeViewModel()

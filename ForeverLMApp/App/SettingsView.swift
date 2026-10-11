@@ -4671,22 +4671,30 @@ private struct GoogleDriveConnectionSettingsView: View {
 
                 HStack(spacing: 8) {
                     Spacer()
-                    Button {
-                        connectAndChooseFolder()
-                    } label: {
-                        if isWorking {
-                            ProgressView()
-                                .controlSize(.small)
-                        } else {
+                    if isWorking {
+                        // The browser sends nothing back when its tab is closed,
+                        // so a bare spinner held this card for ten minutes.
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Waiting for Google…")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Button("Cancel") {
+                            Task { await GoogleDriveService.shared.cancelPendingConnection() }
+                        }
+                    } else {
+                        Button {
+                            connectAndChooseFolder()
+                        } label: {
                             Label(
                                 isSignedIn && !hasFolderReadAccess
-                                    ? "Reconnect and Choose Folder"
-                                    : (isSignedIn ? "Add Account or Folder" : "Connect and Choose Folder"),
+                                    ? "Reconnect Google Drive"
+                                    : (isSignedIn ? "Add Account or Folder" : "Connect Google Drive"),
                                 systemImage: "folder.badge.plus"
                             )
                         }
+                        .disabled(!GoogleDriveService.shared.canConnect)
                     }
-                    .disabled(!GoogleDriveService.shared.canConnect || isWorking)
                 }
 
                 if isSignedIn {
@@ -4796,11 +4804,16 @@ private struct GoogleDriveConnectionSettingsView: View {
                 isWorking = false
             }
             do {
-                try await vm.connectAndImportGoogleDriveMeetings()
+                try await vm.connectAndImportGoogleDriveMeetings(
+                    reconnectOnly: isSignedIn && !hasFolderReadAccess
+                )
                 await refreshConnectionState()
-                statusMessage = "Meeting folder added."
+                statusMessage = "Google Drive is connected."
             } catch is CancellationError {
                 return
+            } catch GoogleDriveServiceError.noFolderSelected {
+                await refreshConnectionState()
+                statusMessage = "Google Drive is connected. Choose a meeting folder to start importing."
             } catch {
                 await refreshConnectionState()
                 statusMessage = error.localizedDescription

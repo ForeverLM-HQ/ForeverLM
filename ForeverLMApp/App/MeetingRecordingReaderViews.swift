@@ -355,14 +355,18 @@ struct MeetingRecordingReaderView: View {
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 420)
             HStack(spacing: 10) {
-                Button(health.reconnectLabel, action: reconnectDrive)
-                    .buttonStyle(.borderedProminent)
-                    .tint(.orange)
-                    .disabled(isReconnectingDrive)
-                Button("Open in Google Drive") { NSWorkspace.shared.open(original) }
                 if isReconnectingDrive {
                     ProgressView().controlSize(.small)
+                    Text("Waiting for Google…")
+                    Button("Cancel") {
+                        Task { await GoogleDriveService.shared.cancelPendingConnection() }
+                    }
+                } else {
+                    Button(health.reconnectLabel, action: reconnectDrive)
+                        .buttonStyle(.borderedProminent)
+                        .tint(.orange)
                 }
+                Button("Open in Google Drive") { NSWorkspace.shared.open(original) }
             }
             .controlSize(.large)
         }
@@ -1016,12 +1020,16 @@ struct GoogleDriveHealthBanner: View {
                     Spacer(minLength: 8)
                     if isWorking {
                         ProgressView().controlSize(.small)
-                    }
-                    Button(health.reconnectLabel, action: reconnect)
-                        .buttonStyle(.borderedProminent)
-                        .tint(.orange)
+                        Button("Cancel") {
+                            Task { await GoogleDriveService.shared.cancelPendingConnection() }
+                        }
                         .controlSize(.small)
-                        .disabled(isWorking)
+                    } else {
+                        Button(health.reconnectLabel, action: reconnect)
+                            .buttonStyle(.borderedProminent)
+                            .tint(.orange)
+                            .controlSize(.small)
+                    }
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)

@@ -18,13 +18,12 @@ Don't see your service here? You can [build your own plugin](/build-your-own-plu
 Use the Google Drive plugin to import meeting recordings, transcripts, and notes from folders you choose. Drive shortcuts are followed to their underlying files, so shared Meet recordings and transcript Docs import the same way as files owned directly in the selected folder.
 
 1. In ForeverLM, open **Settings -> Plugins -> Google Drive**.
-2. Select **Connect and Choose Folder**.
-3. Sign in with Google and choose a meeting folder.
-4. Grant read-only Drive access with the same Google account.
+2. Select **Connect Google Drive** and approve read-only Drive access in your browser, once.
+3. Back in ForeverLM, choose your meeting folder from My Drive, Shared with me or a shared drive, or search for it by name.
 
-Google Picker's `drive.file` permission covers only the folder object you select; Google does not extend it to files already inside that folder or files added later. A working folder plugin therefore also requires Google's read-only Drive permission (`drive.readonly`). That permission can read files across your Drive, but ForeverLM's plugin traverses and imports only folders you explicitly link. OAuth tokens stay in your Apple Keychain and are not sent to ForeverLM servers.
+Google's read-only Drive permission (`drive.readonly`) can read files across your Drive, but ForeverLM's plugin traverses and imports only folders you explicitly link. OAuth tokens stay in your Apple Keychain and are not sent to ForeverLM servers.
 
-Connections made before this correction show **Reconnect needed**. Reconnect once, choose the folder again, and approve the read-only permission. The linked folder then refreshes when the Drive tab opens, when the app becomes active, or when you refresh Studio.
+If Google Drive stops working, ForeverLM says so in an orange bar above the meeting recording and at the top of the Meetings list, with a **Reconnect Google Drive** button. Reconnecting asks Google for access once more and refreshes the folders you already linked; you do not choose them again. If the browser page goes nowhere, **Cancel** stops the wait. The linked folder refreshes when the Drive tab opens, when the app becomes active, or when you refresh Studio.
 
 Open an imported meeting recording and select **Find mentioned papers** to read its complete transcript and notes for academic papers participants explicitly discussed or recommended. A recording-only session is transcribed on-device first. Web Studio's **Find papers** reader action opens the same source in the Mac app and starts that scan. Resolved candidates can be added through the normal paper import pipeline; incomplete mentions remain visible as unmatched rather than being silently discarded. The same workflow is available to MCP assistants through `scan_meeting_for_mentioned_papers` and `list_video_cited_papers`.
 

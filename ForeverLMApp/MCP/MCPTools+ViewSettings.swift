@@ -156,12 +156,6 @@ extension MCPDataStore {
                 options: VideoSortMode.allCases.map { ($0.rawValue, $0.title) }
             ),
             preferenceEntry(
-                id: "sources.meeting_list_order", pane: "Sources sidebar › Meetings, By Date toggle beside the search", title: "Meetings list order",
-                detail: "How the Meetings tab lists sessions: one row per series (bySeries), or every session on its own row, newest first (byDate).",
-                key: "meetingListOrder", kind: .choice, absent: MeetingListOrder.bySeries.rawValue,
-                options: MeetingListOrder.allCases.map { ($0.rawValue, $0.title) }
-            ),
-            preferenceEntry(
                 id: "sources.apple_podcast_discovery_scope", pane: "Sources › Podcasts (no pane)", title: "Apple Podcasts discovery",
                 detail: "Which Apple Podcasts episodes discovery reads: only the ones the learner listened to, those downloaded or listened to, or only the ones played to the end.",
                 key: ApplePodcastDiscoveryScope.defaultsKey, kind: .choice, absent: ApplePodcastDiscoveryScope.listened.rawValue,

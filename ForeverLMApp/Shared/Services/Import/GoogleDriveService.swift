@@ -188,6 +188,8 @@ actor GoogleDriveService {
     private let googleDocMimeType = "application/vnd.google-apps.document"
     nonisolated static let accountQueryItem = "foreverlm_drive_account"
     private var recordingDownloadTasks: [String: Task<URL, Error>] = [:]
+    /// The loopback server of a sign-in in progress, so Cancel can reach it.
+    private var activeCallbackServer: GoogleDriveOAuthCallbackServer?
 
     nonisolated var isSignedIn: Bool {
         hasLegacyConnection || connectedAccounts.contains(where: Self.hasStoredCredential)
@@ -371,11 +373,19 @@ actor GoogleDriveService {
         }
     }
 
-    /// Let the learner choose a folder, then obtain the read-only permission
-    /// required to enumerate its current and future children. Picker's
-    /// `drive.file` token stays ephemeral and never replaces a working folder
-    /// grant if the second consent step is cancelled.
-    func connectAndPickMeetingFolder() async throws -> GoogleDriveFile {
+    /// The one Google sign-in: read-only Drive access (`drive.readonly`) for the
+    /// account the learner picks, stored per account. Folders are then chosen
+    /// in the app (`listFolders`, `searchFolders`), so there is no second consent.
+    ///
+    /// Google's own Picker would have chosen the folder in the browser, but its
+    /// `drive.file` token reaches only the folder object itself, never what is
+    /// inside it, so a folder plugin built on it had to ask for `drive.readonly`
+    /// as well: two consent screens for one connection.
+    ///
+    /// An existing grant for the same account is replaced, which is also how a
+    /// revoked or too-narrow grant is repaired. Cancel it with
+    /// `cancelPendingConnection()`.
+    func connectAccount() async throws -> GoogleDriveAccount {
         // A pre-multi-account build may still have one unscoped grant. Resolve
         // its Drive identity before another account is added so every old,
         // untagged folder keeps an unambiguous owner.
@@ -387,139 +397,17 @@ actor GoogleDriveService {
             throw GoogleDriveServiceError.authFailed("The configured OAuth client ID is invalid.")
         }
 
-        // One loopback server for both consent rounds. Giving each round its own
-        // used to close the port between them, so anything that disturbed the app
-        // in that gap — a relaunch, a slow second consent — left Google redirecting
-        // to a port nobody was listening on, and the learner got Safari's
-        // "the server unexpectedly dropped the connection" instead of a folder.
         let callbackServer = try GoogleDriveOAuthCallbackServer(callbackPath: "/\(callbackPath)")
         try await callbackServer.start()
-        defer { callbackServer.stop() }
+        defer {
+            callbackServer.stop()
+            activeCallbackServer = nil
+        }
+        activeCallbackServer = callbackServer
 
-        let pickedFolder = try await pickMeetingFolder(
-            credentials: credentials,
-            callbackServer: callbackServer
-        )
-        let authorizedFolder = try await authorizeFolderReadAccess(
-            folderID: pickedFolder.id,
-            selectedAccountID: pickedFolder.accountID,
-            credentials: credentials,
-            callbackServer: callbackServer
-        )
-        Self.notifyConnectionChanged()
-        logger.info("Connected Google Drive and selected folder \(authorizedFolder.id, privacy: .private(mask: .hash))")
-        return authorizedFolder
-    }
-
-    private func pickMeetingFolder(
-        credentials: GoogleOAuthCredentials,
-        callbackServer: GoogleDriveOAuthCallbackServer
-    ) async throws -> GoogleDriveFile {
         let verifier = Self.codeVerifier()
         let challenge = Self.codeChallenge(for: verifier)
         let state = UUID().uuidString
-        callbackServer.prepareForNextCallback()
-        let redirectURI = callbackServer.redirectURI
-
-        var components = URLComponents(string: "https://accounts.google.com/o/oauth2/v2/auth")!
-        components.queryItems = [
-            URLQueryItem(name: "response_type", value: "code"),
-            URLQueryItem(name: "client_id", value: credentials.clientID),
-            URLQueryItem(name: "redirect_uri", value: redirectURI),
-            URLQueryItem(name: "scope", value: Self.pickerScope),
-            URLQueryItem(name: "code_challenge", value: challenge),
-            URLQueryItem(name: "code_challenge_method", value: "S256"),
-            URLQueryItem(name: "state", value: state),
-            URLQueryItem(name: "access_type", value: "offline"),
-            URLQueryItem(name: "prompt", value: "consent select_account"),
-            URLQueryItem(name: "include_granted_scopes", value: "false"),
-            URLQueryItem(name: "trigger_onepick", value: "true"),
-            URLQueryItem(name: "allow_folder_selection", value: "true"),
-            URLQueryItem(name: "allow_multiple", value: "false"),
-            URLQueryItem(name: "mimetypes", value: folderMimeType),
-        ]
-        guard let authorizationURL = components.url else {
-            throw GoogleDriveServiceError.authFailed("Could not construct the Google authorization URL.")
-        }
-
-        // Ten minutes, not five: the consent screen now carries Google's
-        // "unverified app" interstitial, which adds an Advanced -> continue
-        // detour to every round. The caller owns the server's lifetime, so this
-        // only cancels its own wait.
-        let callbackTask = Task {
-            try await callbackServer.waitForCallback(timeout: 600)
-        }
-        defer { callbackTask.cancel() }
-
-        let openedBrowser = await MainActor.run {
-            NSWorkspace.shared.open(authorizationURL)
-        }
-        guard openedBrowser else {
-            throw GoogleDriveServiceError.authFailed("Could not open the browser sign-in page.")
-        }
-
-        do {
-            let callbackURL = try await callbackTask.value
-            let callback = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)
-            let items = callback?.queryItems ?? []
-            if let oauthError = items.first(where: { $0.name == "error" })?.value {
-                throw GoogleDriveServiceError.authFailed(oauthError)
-            }
-            guard items.first(where: { $0.name == "state" })?.value == state,
-                  let code = items.first(where: { $0.name == "code" })?.value else {
-                throw GoogleDriveServiceError.authFailed("Google returned an invalid callback.")
-            }
-            guard let rawPickedIDs = items.first(where: { $0.name == "picked_file_ids" })?.value else {
-                throw GoogleDriveServiceError.noFolderSelected
-            }
-            let pickedIDs = rawPickedIDs
-                .split(separator: ",")
-                .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty }
-            guard let folderID = pickedIDs.first else {
-                throw GoogleDriveServiceError.noFolderSelected
-            }
-
-            let tokens = try await exchangeCodeForTokens(
-                code: code,
-                verifier: verifier,
-                redirectURI: redirectURI,
-                credentials: credentials
-            )
-            guard let pickerToken = tokens.accessToken, !pickerToken.isEmpty else {
-                throw GoogleDriveServiceError.authFailed("Google did not return a Picker access token.")
-            }
-            let pickerAccount = try await accountProfile(accessToken: pickerToken)
-            let folder = try await fileMetadata(
-                fileID: folderID,
-                accessToken: pickerToken,
-                accountID: pickerAccount.id
-            )
-            guard folder.isFolder else { throw GoogleDriveServiceError.invalidSelection }
-
-            callbackServer.completeBrowserCallback(
-                success: true,
-                message: "Folder selected. Google will now ask for read-only access so ForeverLM can import its contents."
-            )
-            return folder
-        } catch {
-            callbackServer.completeBrowserCallback(success: false, message: error.localizedDescription)
-            throw error
-        }
-    }
-
-    /// Picker cannot combine its `drive.file` selection scope with the
-    /// read-only Drive scope, so this is a distinct OAuth authorization.
-    private func authorizeFolderReadAccess(
-        folderID: String,
-        selectedAccountID: String?,
-        credentials: GoogleOAuthCredentials,
-        callbackServer: GoogleDriveOAuthCallbackServer
-    ) async throws -> GoogleDriveFile {
-        let verifier = Self.codeVerifier()
-        let challenge = Self.codeChallenge(for: verifier)
-        let state = UUID().uuidString
-        callbackServer.prepareForNextCallback()
         let redirectURI = callbackServer.redirectURI
 
         var components = URLComponents(string: "https://accounts.google.com/o/oauth2/v2/auth")!
@@ -539,15 +427,6 @@ actor GoogleDriveService {
             throw GoogleDriveServiceError.authFailed("Could not construct the Google authorization URL.")
         }
 
-        // Ten minutes, not five: the consent screen now carries Google's
-        // "unverified app" interstitial, which adds an Advanced -> continue
-        // detour to every round. The caller owns the server's lifetime, so this
-        // only cancels its own wait.
-        let callbackTask = Task {
-            try await callbackServer.waitForCallback(timeout: 600)
-        }
-        defer { callbackTask.cancel() }
-
         let openedBrowser = await MainActor.run {
             NSWorkspace.shared.open(authorizationURL)
         }
@@ -556,9 +435,11 @@ actor GoogleDriveService {
         }
 
         do {
-            let callbackURL = try await callbackTask.value
-            let callback = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)
-            let items = callback?.queryItems ?? []
+            // Ten minutes: the consent screen carries Google's "unverified app"
+            // interstitial, which adds an Advanced -> continue detour. The wait
+            // answers task cancellation and `cancelPendingConnection()`.
+            let callbackURL = try await callbackServer.waitForCallback(timeout: 600)
+            let items = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)?.queryItems ?? []
             if let oauthError = items.first(where: { $0.name == "error" })?.value {
                 throw GoogleDriveServiceError.authFailed(oauthError)
             }
@@ -575,40 +456,20 @@ actor GoogleDriveService {
             let callbackScopes = items.first(where: { $0.name == "scope" })?.value
             let grantedScopes = Self.scopeSet(from: tokens.scope ?? callbackScopes)
             guard grantedScopes.contains(Self.folderReadScope) else {
-                throw GoogleDriveServiceError.authFailed("Google did not grant read-only Drive access.")
+                throw GoogleDriveServiceError.authFailed(
+                    "Google did not grant read-only Drive access. Tick the Drive permission on Google's consent screen."
+                )
             }
             guard let accessToken = tokens.accessToken, !accessToken.isEmpty else {
                 throw GoogleDriveServiceError.authFailed("Google did not return a Drive access token.")
             }
             let account = try await accountProfile(accessToken: accessToken)
-            guard selectedAccountID == account.id else {
-                throw GoogleDriveServiceError.authFailed(
-                    "Use the same Google account for folder selection and read-only access."
-                )
-            }
             let existingRefreshToken = Self.storedScopes(accountID: account.id).contains(Self.folderReadScope)
                 ? KeychainService.googleDriveCredential(field: .refreshToken, accountID: account.id)
                 : nil
             guard tokens.refreshToken?.isEmpty == false || existingRefreshToken?.isEmpty == false else {
                 throw GoogleDriveServiceError.authFailed("Google did not return long-lived Drive access. Try connecting again.")
             }
-
-            // This also proves the second consent used the same Google account
-            // as Picker; otherwise a valid token could be saved next to an
-            // inaccessible selected folder and fail later as a mysterious 404.
-            let folder: GoogleDriveFile
-            do {
-                folder = try await fileMetadata(
-                    fileID: folderID,
-                    accessToken: accessToken,
-                    accountID: account.id
-                )
-            } catch {
-                throw GoogleDriveServiceError.authFailed(
-                    "The selected folder is not available to this Google account. Use the same account for folder selection and read-only access."
-                )
-            }
-            guard folder.isFolder else { throw GoogleDriveServiceError.invalidSelection }
             store(
                 tokens: tokens,
                 account: account,
@@ -618,13 +479,108 @@ actor GoogleDriveService {
             )
             callbackServer.completeBrowserCallback(
                 success: true,
-                message: "ForeverLM is importing \(folder.name). You can close this tab."
+                message: "Google Drive is connected. Return to ForeverLM to choose your meeting folder. You can close this tab."
             )
-            return folder
+            Self.notifyConnectionChanged()
+            logger.info("Connected Google Drive account \(account.id, privacy: .private(mask: .hash))")
+            return account
         } catch {
             callbackServer.completeBrowserCallback(success: false, message: error.localizedDescription)
             throw error
         }
+    }
+
+    /// Stop waiting for the browser: closing the Google tab sends nothing back,
+    /// so without this a sign-in that went nowhere held its button for ten
+    /// minutes. `connectAccount()` then throws `CancellationError`.
+    func cancelPendingConnection() {
+        activeCallbackServer?.cancelWait()
+    }
+
+    // MARK: Choosing a folder
+
+    /// Where the in-app folder browser is looking.
+    enum FolderLocation: Hashable, Sendable {
+        case myDrive
+        case sharedWithMe
+        case sharedDrives
+        case folder(String)
+    }
+
+    /// The folders directly inside `location`, by name. Shared drives list as
+    /// folders whose id is the drive id, which Drive accepts as a parent.
+    func listFolders(in location: FolderLocation, accountID: String) async throws -> [GoogleDriveFile] {
+        switch location {
+        case .sharedDrives:
+            return try await listSharedDrives(accountID: accountID)
+        case .myDrive:
+            return try await listFiles(
+                query: "'root' in parents and mimeType = '\(folderMimeType)' and trashed = false",
+                accountID: accountID,
+                acrossAllDrives: true
+            )
+        case .sharedWithMe:
+            return try await listFiles(
+                query: "sharedWithMe = true and mimeType = '\(folderMimeType)' and trashed = false",
+                accountID: accountID,
+                acrossAllDrives: true
+            )
+        case .folder(let id):
+            return try await listFiles(
+                query: "'\(Self.escapedQueryLiteral(id))' in parents and mimeType = '\(folderMimeType)' and trashed = false",
+                accountID: accountID,
+                acrossAllDrives: true
+            )
+        }
+    }
+
+    /// Folders anywhere in the account (My Drive, shared with me, shared
+    /// drives) whose name contains `text`.
+    func searchFolders(matching text: String, accountID: String) async throws -> [GoogleDriveFile] {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        return try await listFiles(
+            query: "name contains '\(Self.escapedQueryLiteral(trimmed))' and mimeType = '\(folderMimeType)' and trashed = false",
+            accountID: accountID,
+            acrossAllDrives: true
+        )
+    }
+
+    private func listSharedDrives(accountID: String) async throws -> [GoogleDriveFile] {
+        var pageToken: String?
+        var drives: [GoogleDriveFile] = []
+        repeat {
+            var components = URLComponents(string: "https://www.googleapis.com/drive/v3/drives")!
+            var queryItems = [
+                URLQueryItem(name: "pageSize", value: "100"),
+                URLQueryItem(name: "fields", value: "nextPageToken,drives(id,name)"),
+            ]
+            if let pageToken { queryItems.append(URLQueryItem(name: "pageToken", value: pageToken)) }
+            components.queryItems = queryItems
+            let (data, response) = try await authorizedData(url: components.url!, accountID: accountID)
+            try Self.requireSuccess(response, data: data)
+            let page = try JSONDecoder.googleDrive.decode(SharedDriveListPayload.self, from: data)
+            drives.append(contentsOf: page.drives.map {
+                GoogleDriveFile(
+                    id: $0.id,
+                    name: $0.name,
+                    mimeType: folderMimeType,
+                    modifiedAt: nil,
+                    webViewLink: nil,
+                    shortcutTargetID: nil,
+                    shortcutTargetMimeType: nil,
+                    accountID: accountID
+                )
+            })
+            pageToken = page.nextPageToken
+        } while pageToken != nil
+        return drives.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+
+    private nonisolated static func escapedQueryLiteral(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "'", with: "\\'")
     }
 
     /// Adopt the single Drive grant written by older builds into the
@@ -769,7 +725,6 @@ actor GoogleDriveService {
         let verifier = Self.codeVerifier()
         let challenge = Self.codeChallenge(for: verifier)
         let state = UUID().uuidString
-        callbackServer.prepareForNextCallback()
         let redirectURI = callbackServer.redirectURI
 
         var components = URLComponents(string: "https://accounts.google.com/o/oauth2/v2/auth")!
@@ -1222,18 +1177,33 @@ actor GoogleDriveService {
     }
 
     private func listFolderItems(folderID: String, accountID: String?) async throws -> [GoogleDriveFile] {
+        try await listFiles(
+            query: "'\(Self.escapedQueryLiteral(folderID))' in parents and trashed = false",
+            accountID: accountID
+        )
+    }
+
+    /// Every page of a Drive `files.list` query, folders first, then by name.
+    private func listFiles(
+        query: String,
+        accountID: String?,
+        acrossAllDrives: Bool = false
+    ) async throws -> [GoogleDriveFile] {
         var pageToken: String?
         var files: [GoogleDriveFile] = []
         repeat {
             var components = URLComponents(string: "https://www.googleapis.com/drive/v3/files")!
             var queryItems = [
-                URLQueryItem(name: "q", value: "'\(folderID.replacingOccurrences(of: "'", with: "\\'"))' in parents and trashed = false"),
+                URLQueryItem(name: "q", value: query),
                 URLQueryItem(name: "pageSize", value: "1000"),
                 URLQueryItem(name: "fields", value: "nextPageToken,files(id,name,mimeType,modifiedTime,webViewLink,shortcutDetails(targetId,targetMimeType))"),
                 URLQueryItem(name: "includeItemsFromAllDrives", value: "true"),
                 URLQueryItem(name: "supportsAllDrives", value: "true"),
                 URLQueryItem(name: "orderBy", value: "folder,name_natural"),
             ]
+            // Folder browsing spans My Drive, shared-with-me and shared drives
+            // in one query; the import's own listing stays per-parent.
+            if acrossAllDrives { queryItems.append(URLQueryItem(name: "corpora", value: "allDrives")) }
             if let pageToken { queryItems.append(URLQueryItem(name: "pageToken", value: pageToken)) }
             components.queryItems = queryItems
 
@@ -1620,6 +1590,16 @@ private struct DriveFilePayload: Decodable {
     }
 }
 
+private struct SharedDriveListPayload: Decodable {
+    struct Drive: Decodable {
+        let id: String
+        let name: String
+    }
+
+    let drives: [Drive]
+    let nextPageToken: String?
+}
+
 private struct DriveFileListPayload: Decodable {
     let files: [DriveFilePayload]
     let nextPageToken: String?
@@ -1696,17 +1676,6 @@ private final class GoogleDriveOAuthCallbackServer: @unchecked Sendable {
         }
     }
 
-    /// Arm the server for another round on the same port. Folder selection and
-    /// the read-only grant are two OAuth round trips through one server, so the
-    /// completion latch has to reopen between them.
-    func prepareForNextCallback() {
-        queue.sync {
-            self.didComplete = false
-            self.pendingCallback = nil
-            self.callbackGeneration += 1
-        }
-    }
-
     func waitForCallback(timeout: TimeInterval) async throws -> URL {
         try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
@@ -1730,6 +1699,11 @@ private final class GoogleDriveOAuthCallbackServer: @unchecked Sendable {
         } onCancel: {
             self.queue.async { self.finishCallback(.failure(CancellationError())) }
         }
+    }
+
+    /// Ends the current wait with a cancellation, from outside the waiting task.
+    func cancelWait() {
+        queue.async { self.finishCallback(.failure(CancellationError())) }
     }
 
     func completeBrowserCallback(success: Bool, message: String) {

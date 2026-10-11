@@ -1168,7 +1168,6 @@
       "showSyncSubtitles": {"type": "bool", "retired": true, "doc": "Retired: whether the Sources list showed its sync captions; no code reads it."},
       "podcastSortMode": {"type": "string", "mcp": {"tool": "set_app_setting", "setting": "sources.podcast_sort_mode"}, "doc": "How podcast episodes sort (PodcastSortMode)."},
       "videoSortMode": {"type": "string", "mcp": {"tool": "set_app_setting", "setting": "sources.video_sort_mode"}, "doc": "How videos sort."},
-      "meetingListOrder": {"type": "string", "mcp": {"tool": "set_app_setting", "setting": "sources.meeting_list_order"}, "doc": "How the Meetings tab lists sessions: by series, or every session by date (MeetingListOrder)."},
       "readerOriginalPageColors": {"type": "bool", "mcp": {"tool": "set_app_setting", "setting": "appearance.reader_original_page_colors"}, "doc": "Read sources as published rather than darkened in Dark Mode (ReaderDarkMode)."},
       "notepad.pageWidth": {"type": "string", "mcp": {"tool": "set_app_setting", "setting": "docs.page_width"}, "doc": "How wide a Doc's page is drawn (ArtifactPageWidth)."},
       "notepad.showsMarginCards": {"type": "bool", "mcp": {"tool": "set_app_setting", "setting": "docs.shows_margin_cards"}, "doc": "Whether a Doc draws its margin cards; true when absent."},

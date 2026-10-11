@@ -114,8 +114,6 @@ extension StudioSidebar {
             return windowVM.inlineVideoPlaylistGroupNames.contains(group) || sidebar.expandedGroups.contains(group)
         default:
             if sidebar.sidebarTab == .meetings {
-                // By date every session has a row of its own.
-                if windowVM.meetingListOrder == .byDate { return true }
                 guard let group = article.parentGroup else { return false }
                 return sidebar.expandedGroups.contains(group)
             }
@@ -715,9 +713,6 @@ extension StudioSidebar {
                 },
                 onClear: { hideSourceSearch(clearingText: true) }
             )
-            if sidebar.sidebarTab == .meetings {
-                meetingsByDateToggle
-            }
             if sourcesListLayout == .wide {
                 notInAnyNotebookToggle
             }
@@ -749,40 +744,6 @@ extension StudioSidebar {
         .padding(.top, 5)
         .padding(.bottom, 4)
         .transition(.opacity)
-    }
-
-    /// The Meetings tab's "By date": every session on its own row, newest
-    /// first, rather than one row per series. A toggle beside the search, lit
-    /// while on, as the notebook filter beside it is. Icon alone in the narrow
-    /// Sources panel, where the label would crowd the field.
-    private var meetingsByDateToggle: some View {
-        let isOn = windowVM.meetingListOrder == .byDate
-        return Button {
-            withAnimation {
-                windowVM.meetingListOrder = isOn ? .bySeries : .byDate
-            }
-        } label: {
-            Group {
-                if sourcesListLayout == .wide {
-                    Label(MeetingListOrder.byDate.title, systemImage: "calendar")
-                } else {
-                    Image(systemName: "calendar")
-                }
-            }
-            .font(.caption)
-            .lineLimit(1)
-            .foregroundStyle(isOn ? Color.accentColor : Color.secondary)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(isOn ? Color.accentColor.opacity(0.14) : Color.clear, in: Capsule())
-            .contentShape(Capsule())
-        }
-        .buttonStyle(.hoverWash(in: Capsule()))
-        .fixedSize()
-        .help(isOn ? "Group meetings by series" : "List every meeting by date, newest first")
-        .accessibilityLabel(MeetingListOrder.byDate.title)
-        .accessibilityAddTraits(isOn ? .isSelected : [])
-        .accessibilityIdentifier("library.meetings.byDate")
     }
 
     /// The full-window Library's "Not in any notebook": only the sources no
@@ -1276,11 +1237,12 @@ extension StudioSidebar {
                     HStack(spacing: 8) {
                         Button(action: startGoogleDriveMeetingImport) {
                             Label(
-                                isGoogleDriveSignedIn
-                                    && !hasGoogleDriveFolderReadAccess
-                                    ? "Reconnect Google Drive…"
-                                    : "Add Meeting Folder…",
-                                systemImage: "folder.badge.plus"
+                                isGoogleDriveWorking
+                                    ? "Waiting for Google… Cancel"
+                                    : (isGoogleDriveSignedIn && !hasGoogleDriveFolderReadAccess
+                                        ? "Reconnect Google Drive…"
+                                        : "Add Meeting Folder…"),
+                                systemImage: isGoogleDriveWorking ? "xmark.circle" : "folder.badge.plus"
                             )
                                 .font(.subheadline.weight(.medium))
                                 .frame(maxWidth: .infinity)
@@ -1289,7 +1251,6 @@ extension StudioSidebar {
                         .buttonStyle(.borderedProminent)
                         .tint(.blue.opacity(0.8))
                         .controlSize(.small)
-                        .disabled(isGoogleDriveWorking)
 
                         // Followed the Zoom tab down here when the tabs merged:
                         // pasting a recording link is how one provider's
@@ -1463,13 +1424,14 @@ extension StudioSidebar {
             }
         } actions: {
             Button(
-                isGoogleDriveSignedIn && !hasGoogleDriveFolderReadAccess
-                    ? "Reconnect Google Drive"
-                    : (isGoogleDriveSignedIn ? "Choose Meeting Folder" : "Connect Google Drive"),
+                isGoogleDriveWorking
+                    ? "Waiting for Google… Cancel"
+                    : (isGoogleDriveSignedIn && !hasGoogleDriveFolderReadAccess
+                        ? "Reconnect Google Drive"
+                        : (isGoogleDriveSignedIn ? "Choose Meeting Folder" : "Connect Google Drive")),
                 action: startGoogleDriveMeetingImport
             )
             .buttonStyle(.borderedProminent)
-            .disabled(isGoogleDriveWorking)
 
             if isGoogleDriveWorking {
                 ProgressView()
@@ -1483,12 +1445,18 @@ extension StudioSidebar {
     }
 
     private func startGoogleDriveMeetingImport() {
-        guard !isGoogleDriveWorking else { return }
+        // While Google's page is open the same button stops waiting for it.
+        guard !isGoogleDriveWorking else {
+            Task { await GoogleDriveService.shared.cancelPendingConnection() }
+            return
+        }
         isGoogleDriveWorking = true
         Task {
             defer { isGoogleDriveWorking = false }
             do {
-                try await vm.connectAndImportGoogleDriveMeetings()
+                try await vm.connectAndImportGoogleDriveMeetings(
+                    reconnectOnly: isGoogleDriveSignedIn && !hasGoogleDriveFolderReadAccess
+                )
             } catch GoogleDriveServiceError.noFolderSelected {
                 // Closing Google's picker is a normal cancellation.
             } catch is CancellationError {
@@ -1728,28 +1696,7 @@ extension StudioSidebar {
         let hasGroupedContent = (sidebar.sidebarTab == .meetings && !windowVM.filteredMeetingGroupNames.isEmpty)
             || (sidebar.sidebarTab == .books && !windowVM.filteredBookGroupNames.isEmpty)
             || (sidebar.sidebarTab == .videos && !windowVM.filteredVideoPlaylistGroupNames.isEmpty)
-        if windowVM.listsMeetingsByDate {
-            // Every session in order, with the series it belongs to on the row.
-            Section {
-                ForEach(activeItems) { article in
-                    meetingSessionRow(article, groupName: article.parentGroup, showsSeries: true)
-                }
-            }
-            if windowVM.hasMoreItems {
-                Button {
-                    windowVM.inWindow { $0.showMore() }
-                } label: {
-                    HStack {
-                        Spacer()
-                        Text("Show More (\(windowVM.remainingItemCount) remaining)")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                    }
-                }
-                .buttonStyle(.hoverWash(cornerRadius: 6, inset: -2))
-            }
-        } else if !activeItems.isEmpty || hasGroupedContent {
+        if !activeItems.isEmpty || hasGroupedContent {
             let grouped = Dictionary(grouping: listedItems, by: { $0.parentGroup })
 
             if sidebar.sidebarTab == .books || sidebar.sidebarTab == .meetings || sidebar.sidebarTab == .videos {
@@ -2976,29 +2923,14 @@ extension StudioSidebar {
     /// not sources — they are the session's parts — so they get a lighter row
     /// than `articleRow`, and open the session in the reader at their own part of
     /// it rather than selecting a source of their own. See `MeetingArtifactRow`.
-    ///
-    /// `showsSeries` is the by-date list, where no series header stands above the
-    /// row to say which meeting it belongs to: the row says it itself, and a
-    /// session has no place among its series' sessions to be dropped into.
     @ViewBuilder
-    private func meetingSessionRow(
-        _ article: StudioArticle,
-        groupName: String?,
-        showsSeries: Bool = false
-    ) -> some View {
+    private func meetingSessionRow(_ article: StudioArticle, groupName: String) -> some View {
         let artifacts = (vm.meetingArtifactsBySourceId[article.id] ?? [])
             .sorted { ($0.kind.sortRank, $0.sortIndex) < ($1.kind.sortRank, $1.sortIndex) }
         let sessionKey = "meeting-session:\(article.id)"
-        let label = Group {
-            if showsSeries {
-                articleRow(article, showsMeetingSeries: true)
-            } else if let groupName {
-                groupedCollectionArticleRow(article, groupName: groupName)
-            }
-        }
 
         if artifacts.isEmpty {
-            label
+            groupedCollectionArticleRow(article, groupName: groupName)
         } else {
             DisclosureGroup(isExpanded: Binding(
                 get: { sidebar.expandedGroups.contains(sessionKey) },
@@ -3016,7 +2948,7 @@ extension StudioSidebar {
                     }
                 }
             } label: {
-                label
+                groupedCollectionArticleRow(article, groupName: groupName)
             }
         }
     }
@@ -3076,13 +3008,8 @@ extension StudioSidebar {
     /// ordinary source in storage but has no row in the sidebar at all
     /// (explainer-design.md): it is read from the source's Explain button or
     /// its context menu.
-    private func articleRow(_ article: StudioArticle, showsMeetingSeries: Bool = false) -> some View {
-        ArticleRow(
-            article: article,
-            metadataVisibility: metadataVisibility,
-            showsMeetingSeries: showsMeetingSeries,
-            notebook: sidebarNotebook
-        )
+    private func articleRow(_ article: StudioArticle) -> some View {
+        ArticleRow(article: article, metadataVisibility: metadataVisibility, notebook: sidebarNotebook)
             .tag(article.id)
             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                 Button(role: .destructive) {
