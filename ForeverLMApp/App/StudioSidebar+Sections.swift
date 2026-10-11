@@ -1217,6 +1217,21 @@ extension StudioSidebar {
                 }
             }
 
+            // A linked Drive folder is what makes a broken connection matter
+            // here; a learner who only imports local recordings is never nagged.
+            if sidebar.sidebarTab == .meetings,
+               vm.meetingMetadata.values.contains(where: { $0.driveFolderURL?.isEmpty == false }) {
+                Section {
+                    GoogleDriveHealthBanner(
+                        accountID: nil,
+                        isWorking: isGoogleDriveWorking,
+                        reconnect: startGoogleDriveMeetingImport
+                    )
+                    .listRowInsets(EdgeInsets())
+                    .listRowSeparator(.hidden)
+                }
+            }
+
             if sidebar.sidebarTab == .meetings, !showsMeetingsEmptyHelp {
                 Section {
                     HStack(spacing: 8) {

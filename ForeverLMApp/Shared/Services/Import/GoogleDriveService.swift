@@ -78,15 +78,71 @@ struct GoogleDriveFile: Sendable {
     }
 }
 
+/// Whether the Drive link behind the meeting folders can read files right now.
+/// The one answer every surface (reader, sidebar, Settings) shows, so a broken
+/// connection reads the same everywhere instead of as scattered fine print.
+enum GoogleDriveHealth: Equatable {
+    case notConnected
+    /// Signed in, but the stored grant cannot read inside folders (an older
+    /// `drive.file`-only grant), or Google revoked it.
+    case needsReconnect
+    case connected
+
+    var isBroken: Bool { self != .connected }
+
+    var bannerTitle: String {
+        switch self {
+        case .connected: return ""
+        case .notConnected: return "Google Drive is not connected"
+        case .needsReconnect: return "Google Drive needs to be reconnected"
+        }
+    }
+
+    var bannerDetail: String {
+        switch self {
+        case .connected:
+            return ""
+        case .notConnected:
+            return "Meeting recordings cannot play and new files will not import until you connect Google Drive."
+        case .needsReconnect:
+            return "ForeverLM can no longer read the files in your meeting folders, so recordings cannot play and new files will not import."
+        }
+    }
+
+    var reconnectLabel: String {
+        self == .notConnected ? "Connect Google Drive" : "Reconnect Google Drive"
+    }
+}
+
 enum GoogleDriveServiceError: LocalizedError {
     case notConfigured
     case notSignedIn
     case noFolderSelected
     case invalidSelection
     case folderAccessUpgradeRequired
+    case accessRevoked
     case authFailed(String)
     case apiFailed(String)
     case downloadFailed(String)
+
+    /// The failures that only a fresh Google sign-in repairs, as opposed to a
+    /// network blip or a missing file. The reader and sidebar answer these with
+    /// the reconnect banner rather than a one-line error.
+    var needsReconnect: Bool {
+        switch self {
+        case .notSignedIn, .folderAccessUpgradeRequired, .accessRevoked:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// No Google account is linked at all, as opposed to one whose grant is
+    /// too narrow or was revoked.
+    var isNotConnected: Bool {
+        if case .notSignedIn = self { return true }
+        return false
+    }
 
     var errorDescription: String? {
         switch self {
@@ -100,6 +156,8 @@ enum GoogleDriveServiceError: LocalizedError {
             return "Choose a folder that contains your meeting recordings or transcripts."
         case .folderAccessUpgradeRequired:
             return "Reconnect Google Drive so ForeverLM can read files inside meeting folders."
+        case .accessRevoked:
+            return "Google Drive access expired or was revoked. Reconnect Google Drive so ForeverLM can read your meeting folders."
         case .authFailed(let message):
             return "Google Drive sign-in failed: \(message)"
         case .apiFailed(let message):
@@ -154,6 +212,18 @@ actor GoogleDriveService {
             || connectedAccounts.contains { account in
                 Self.storedScopes(accountID: account.id).contains(Self.folderReadScope)
             }
+    }
+
+    nonisolated var health: GoogleDriveHealth {
+        guard isSignedIn else { return .notConnected }
+        return hasFolderReadAccess ? .connected : .needsReconnect
+    }
+
+    /// Health for the account a recording or folder belongs to; an untagged
+    /// link answers for the connection as a whole.
+    nonisolated func health(accountID: String?) -> GoogleDriveHealth {
+        guard isSignedIn(accountID: accountID) else { return .notConnected }
+        return hasFolderReadAccess(accountID: accountID) ? .connected : .needsReconnect
     }
 
     nonisolated func hasFolderReadAccess(accountID: String?) -> Bool {
@@ -1256,6 +1326,7 @@ actor GoogleDriveService {
         } catch let error as GoogleDriveServiceError {
             if error.localizedDescription.contains("invalid_grant") {
                 signOut(accountID: accountID)
+                throw GoogleDriveServiceError.accessRevoked
             }
             throw error
         }

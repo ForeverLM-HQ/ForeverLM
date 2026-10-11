@@ -152,6 +152,11 @@ struct MeetingRecordingReaderView: View {
     @State private var isFindingPapers = false
     @State private var cachedDriveRecordingURL: URL?
     @State private var driveRecordingError: String?
+    /// Set when the load failed in a way only a fresh Google sign-in repairs, so
+    /// the pane shows the reconnect card instead of a one-line error. Derived
+    /// from the error, never read from the keychain while drawing.
+    @State private var driveReconnectHealth: GoogleDriveHealth?
+    @State private var isReconnectingDrive = false
     @State private var driveRecordingRetryID = UUID()
     @State private var isTranscribingMeeting = false
     @State private var transcriptError: String?
@@ -203,6 +208,17 @@ struct MeetingRecordingReaderView: View {
     var body: some View {
         GeometryReader { geo in
             VStack(spacing: 0) {
+                // The recording's own pane already carries the reconnect card
+                // when the load failed on it; the bar covers the rest, such as
+                // a cached recording that plays while new files cannot import.
+                if case .googleDrive(let original, _, _, _) = media, driveReconnectHealth == nil {
+                    GoogleDriveHealthBanner(
+                        accountID: GoogleDriveService.accountID(from: original.absoluteString),
+                        isWorking: isReconnectingDrive,
+                        reconnect: reconnectDrive
+                    )
+                }
+
                 videoPane
                     .frame(height: videoHeight(in: geo.size))
                     // Not into the safe area: the reader toolbar hangs in the
@@ -240,6 +256,7 @@ struct MeetingRecordingReaderView: View {
             isFindingPapers = false
             cachedDriveRecordingURL = nil
             driveRecordingError = nil
+            driveReconnectHealth = nil
             driveRecordingRetryID = UUID()
             isTranscribingMeeting = false
             transcriptError = nil
@@ -293,6 +310,8 @@ struct MeetingRecordingReaderView: View {
                     loadError: $playbackError
                 )
                 .overlay(alignment: .topTrailing) { openInDriveButton(original) }
+            } else if let driveReconnectHealth {
+                driveReconnectCard(health: driveReconnectHealth, original: original)
             } else if let driveRecordingError {
                 VStack(spacing: 10) {
                     Image(systemName: "exclamationmark.triangle")
@@ -317,6 +336,49 @@ struct MeetingRecordingReaderView: View {
                 .foregroundStyle(.white)
                 .overlay(alignment: .topTrailing) { openInDriveButton(original) }
             }
+        }
+    }
+
+    /// What the black pane says when Google Drive cannot be read: what broke, what
+    /// it stops, and the one button that repairs it. The disconnected state is
+    /// the reader's loudest, because the recording cannot play at all.
+    private func driveReconnectCard(health: GoogleDriveHealth, original: URL) -> some View {
+        VStack(spacing: 12) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .zoomedSystemFont(size: 30)
+                .foregroundStyle(.orange)
+            Text(health.bannerTitle)
+                .font(.headline)
+            Text("This recording cannot play until Google Drive is reconnected. Your transcript and notes are not affected.")
+                .font(.callout)
+                .foregroundStyle(.white.opacity(0.75))
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 420)
+            HStack(spacing: 10) {
+                Button(health.reconnectLabel, action: reconnectDrive)
+                    .buttonStyle(.borderedProminent)
+                    .tint(.orange)
+                    .disabled(isReconnectingDrive)
+                Button("Open in Google Drive") { NSWorkspace.shared.open(original) }
+                if isReconnectingDrive {
+                    ProgressView().controlSize(.small)
+                }
+            }
+            .controlSize(.large)
+        }
+        .foregroundStyle(.white)
+        .padding(24)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("googleDrive.reconnectCard")
+    }
+
+    private func reconnectDrive() {
+        guard !isReconnectingDrive else { return }
+        isReconnectingDrive = true
+        Task {
+            let reconnected = await vm.reconnectGoogleDriveMeetings()
+            isReconnectingDrive = false
+            if reconnected { driveRecordingRetryID = UUID() }
         }
     }
 
@@ -346,6 +408,7 @@ struct MeetingRecordingReaderView: View {
         guard case .googleDrive(let original, _, let mimeType, let modifiedAt) = media else { return }
         cachedDriveRecordingURL = nil
         driveRecordingError = nil
+        driveReconnectHealth = nil
         do {
             cachedDriveRecordingURL = try await GoogleDriveService.shared.cachedRecordingURL(
                 fileURLOrID: original.absoluteString,
@@ -355,6 +418,9 @@ struct MeetingRecordingReaderView: View {
         } catch {
             guard !Task.isCancelled else { return }
             driveRecordingError = error.localizedDescription
+            if let driveError = error as? GoogleDriveServiceError, driveError.needsReconnect {
+                driveReconnectHealth = driveError.isNotConnected ? .notConnected : .needsReconnect
+            }
         }
     }
 
@@ -915,6 +981,70 @@ struct MeetingRecordingPlayerView: NSViewRepresentable {
             loadedMediaURL = nil
             lastPublishedTime = nil
         }
+    }
+}
+
+/// The bar that says, above everything else, that Google Drive cannot read the
+/// meeting folders. A meeting recording that will not load used to explain
+/// itself in one line of small text over a black box; this is the same fact
+/// where nobody can miss it, with the repair beside it. It draws nothing while
+/// Drive is healthy, and it re-checks whenever a connection changes.
+struct GoogleDriveHealthBanner: View {
+    /// The Drive account the content belongs to; nil answers for the connection
+    /// as a whole.
+    var accountID: String?
+    var isWorking: Bool
+    var reconnect: () -> Void
+
+    // Healthy until a check says otherwise, so a connected Drive never flashes
+    // a warning while the keychain is read off the main thread.
+    @State private var health: GoogleDriveHealth = .connected
+
+    var body: some View {
+        Group {
+            if health.isBroken {
+                HStack(alignment: .center, spacing: 10) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(health.bannerTitle)
+                            .font(.callout.weight(.semibold))
+                        Text(health.bannerDetail)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 8)
+                    if isWorking {
+                        ProgressView().controlSize(.small)
+                    }
+                    Button(health.reconnectLabel, action: reconnect)
+                        .buttonStyle(.borderedProminent)
+                        .tint(.orange)
+                        .controlSize(.small)
+                        .disabled(isWorking)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.orange.opacity(0.12))
+                .overlay(alignment: .bottom) { Divider() }
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("googleDrive.healthBanner")
+            }
+        }
+        .task(id: accountID) { await refresh() }
+        .onReceive(NotificationCenter.default.publisher(for: .pluginConnectionChanged)) { _ in
+            Task { await refresh() }
+        }
+    }
+
+    private func refresh() async {
+        let accountID = accountID
+        let current = await Task.detached(priority: .utility) {
+            GoogleDriveService.shared.health(accountID: accountID)
+        }.value
+        guard !Task.isCancelled, current != health else { return }
+        health = current
     }
 }
 

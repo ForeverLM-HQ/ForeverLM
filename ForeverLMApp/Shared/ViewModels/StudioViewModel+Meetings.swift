@@ -596,6 +596,26 @@ extension StudioViewModel {
         )
     }
 
+    /// The repair offered wherever Drive health is broken: the same Google round
+    /// as connecting for the first time. Closing Google's picker or the window
+    /// is a plain cancel; any other failure is shown. Returns whether the
+    /// reconnect and the import behind it completed.
+    @discardableResult
+    func reconnectGoogleDriveMeetings() async -> Bool {
+        do {
+            try await connectAndImportGoogleDriveMeetings()
+            return true
+        } catch GoogleDriveServiceError.noFolderSelected {
+            return false
+        } catch is CancellationError {
+            return false
+        } catch {
+            errorMessage = error.localizedDescription
+            showToast(error.localizedDescription)
+            return false
+        }
+    }
+
     /// Refresh one folder that was explicitly selected in Google Drive.
     func importMeetingFolderFromAuthenticatedDrive(
         _ driveFolderURL: String,
