@@ -19,6 +19,7 @@ struct ScreenRecordModeTests {
         ScreenRecordMode.confirmedAdminKey,
         ScreenRecordMode.librarySourcesKey,
         ScreenRecordMode.imageIDsKey,
+        ScreenRecordMode.sourceIDsKey,
         ScreenRecordMode.meetingGroupIDsKey,
     ]
 
@@ -420,6 +421,131 @@ struct ScreenRecordModeTests {
             #expect(!listed.contains("id: private-lessons"))
             let shown = try ks.screenRecordShownCourseIDs(scope: try #require(ks.screenRecordScope()))
             #expect(shown == ["filmed-lessons", "followed"])
+        }
+    }
+
+    @Test("A from-scratch take: public sources the learner files into a Notebook made in the take show; older reading, private hosts and meetings never do")
+    func takeNotebookSourcesShowOnlyWhenNewAndPublic() {
+        let cutoff = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        let before = cutoff.addingTimeInterval(-86_400 * 21)
+        let after = cutoff.addingTimeInterval(120)
+        var scope = ScreenRecordScope(notebookID: nil, allowedSourceIDs: [], cutoff: cutoff)
+        scope.takeSourceIDs = [
+            "talk", "episode", "paper", "article", "post", "book",
+            "old-article", "old-kept-article", "zoom", "upload", "drive", "pasted", "profile", "private-feed",
+        ]
+        scope.keptSourceIDs = ["old-kept-article", "kept-but-unfiled"]
+
+        // Discover and Add sources give the source the manual origin; membership vouches for it.
+        #expect(scope.allowsSource(
+            id: "talk", addedAt: after, kind: "video", url: "https://www.youtube.com/watch?v=abc", origin: .manual
+        ))
+        #expect(scope.allowsSource(
+            id: "episode", addedAt: after, kind: "podcast", url: "https://podcasts.apple.com/us/podcast/example/id1?i=2",
+            show: "Example Science", origin: .manual
+        ))
+        #expect(scope.allowsSource(
+            id: "paper", addedAt: after, kind: "paper", url: "https://doi.org/10.1000/example", origin: .manual
+        ))
+        #expect(scope.allowsSource(
+            id: "article", addedAt: after, kind: "article", url: "https://example.org/field-notes", origin: .manual
+        ))
+        #expect(scope.allowsSource(
+            id: "post", addedAt: after, kind: "xPost", url: "https://x.com/example/status/42", origin: .manual
+        ))
+        #expect(scope.allowsSource(id: "book", addedAt: after, kind: "book", url: nil, origin: .manual))
+
+        // A Discover candidate the library already held is filed into the Notebook with its old date: the
+        // learner's other reading does not join the take, unless the admin kept that source.
+        #expect(!scope.allowsSource(
+            id: "old-article", addedAt: before, kind: "article", url: "https://example.org/old", origin: .manual
+        ))
+        #expect(scope.allowsSource(
+            id: "old-kept-article", addedAt: before, kind: "article", url: "https://example.org/kept", origin: .manual
+        ))
+        // Kept is not shown by itself: it joins a take only through a Notebook made in it.
+        #expect(!scope.allowsSource(
+            id: "kept-but-unfiled", addedAt: before, kind: "article", url: "https://example.org/kept-two", origin: .manual
+        ))
+        // Nor does membership alone make a new source public.
+        #expect(!scope.allowsSource(
+            id: "zoom", addedAt: after, kind: "meeting", url: "https://zoom.us/rec/share/private", origin: .zoom
+        ))
+        #expect(!scope.allowsSource(id: "upload", addedAt: after, kind: "paper", url: "file:///Users/example/private.pdf"))
+        #expect(!scope.allowsSource(id: "drive", addedAt: after, kind: "article", url: "https://docs.google.com/document/d/1"))
+        #expect(!scope.allowsSource(id: "pasted", addedAt: after, kind: "article", url: nil))
+        #expect(!scope.allowsSource(id: "profile", addedAt: after, kind: "xPost", url: "https://x.com/example"))
+        #expect(!scope.allowsSource(
+            id: "private-feed", addedAt: after, kind: "podcast", url: "https://example.org/episode",
+            show: "Subscriber Feed (🔓 for A Learner)"
+        ))
+        // A source outside every take Notebook is the narrow answer, however public and new.
+        #expect(!scope.allowsSource(
+            id: "unfiled", addedAt: after, kind: "article", url: "https://example.org/unfiled", origin: .manual
+        ))
+        // A caller that cannot say the kind and address gets the narrow answer here too.
+        #expect(!scope.allowsSource(id: "talk", addedAt: after))
+    }
+
+    @Test("resolve reads a take's own Notebook sources at the cutoff, and the kept list from settings")
+    func resolveCarriesTakeAndKeptSources() async throws {
+        try await withCleanDefaults {
+            let cutoff = Date(timeIntervalSinceReferenceDate: 800_000_000)
+            ScreenRecordMode.recordAdminStatus(true)
+            ScreenRecordMode.setEnabled(true, now: cutoff)
+            _ = try await MCPDataStore().setAppSetting(settingID: "recording.source_ids", value: [" kept ", "kept", "other"])
+            #expect(ScreenRecordMode.sourceIDs == ["kept", "other"])
+
+            var askedAt: Date?
+            let scope = try #require(ScreenRecordScope.resolve(
+                notebookSourceIDs: { _ in [] },
+                takeSourceIDs: { cutoff in
+                    askedAt = cutoff
+                    return ["a", "b", "a"]
+                }
+            ))
+            #expect(askedAt == cutoff)
+            #expect(scope.takeSourceIDs == ["a", "b"])
+            #expect(scope.keptSourceIDs == ["kept", "other"])
+
+            ScreenRecordMode.setSourceIDs([])
+            #expect(ScreenRecordMode.overrideDefaults?.defaults.object(forKey: ScreenRecordMode.sourceIDsKey) == nil)
+            #expect(MCPDataStore.appSettingsCatalog().map(\.id).contains("recording.source_ids"))
+        }
+    }
+
+    @Test("The store answers the sources of the Notebooks and Goals made at or after the cutoff")
+    func storeAnswersTakeSources() throws {
+        let store = try KnowledgeStore(inMemory: true)
+        let now = Date()
+        try ScreenRecordCourseFixtures.saveSource(
+            store, "from-scratch", .article, url: "https://example.org/from-scratch", addedAt: now
+        )
+        let notebook = try store.createCompanionGoal(
+            title: "Started in the take", topic: "demo", startAt: now, endAt: LearningGoalRecord.openEndedEndAt,
+            dailyTarget: 3, discoveryEnabled: false, seedSourceIDs: ["from-scratch"]
+        )
+        #expect(try store.screenRecordTakeSourceIDs(since: now.addingTimeInterval(-3_600)) == ["from-scratch"])
+        // A Notebook made before the take holds sources that never ride in on its membership.
+        #expect(try store.screenRecordTakeSourceIDs(since: now.addingTimeInterval(3_600)).isEmpty)
+        #expect(try store.loadLearningGoal(notebook.id)?.approvedSourceIDs == ["from-scratch"])
+    }
+
+    @Test("Date stamps: only a date from the take is drawn while recording")
+    func dateStampsComeFromTheTake() async throws {
+        let cutoff = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        let scope = ScreenRecordScope(notebookID: nil, allowedSourceIDs: [], cutoff: cutoff)
+        #expect(!scope.showsDateStamp(cutoff.addingTimeInterval(-86_400 * 21)))
+        #expect(scope.showsDateStamp(cutoff))
+        #expect(scope.showsDateStamp(cutoff.addingTimeInterval(60)))
+
+        try await withCleanDefaults {
+            // Off, every date shows; on, the cutoff decides.
+            #expect(ScreenRecordMode.showsDateStamp(cutoff.addingTimeInterval(-86_400)))
+            ScreenRecordMode.recordAdminStatus(true)
+            ScreenRecordMode.setEnabled(true, now: cutoff)
+            #expect(!ScreenRecordMode.showsDateStamp(cutoff.addingTimeInterval(-86_400)))
+            #expect(ScreenRecordMode.showsDateStamp(cutoff.addingTimeInterval(1)))
         }
     }
 }

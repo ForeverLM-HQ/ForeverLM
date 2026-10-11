@@ -147,11 +147,15 @@ struct NotebookStudioColumn: View {
             }
             .padding(.horizontal, 12)
             .padding(.top, 10)
-            // Room for the floating Add note over the last output.
-            .padding(.bottom, 56)
+            // Room for the floating Add note over the last output. Screen record
+            // mode draws no pill, so no room is kept for it either.
+            .padding(.bottom, vm.isScreenRecordModeActive ? 12 : 56)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .overlay(alignment: .bottom) { addNote }
+        .overlay(alignment: .bottom) {
+            // A pill floating over the rows covers the last one on a film.
+            if !vm.isScreenRecordModeActive { addNote }
+        }
         .task(id: walkthroughsKey) {
             walkthroughs = await vm.notebookWalkthroughs(notebookID: goal.id)
         }
@@ -1270,7 +1274,7 @@ private struct NotebookOutputRow: View {
             } else {
                 Text(NotebookOutputs.subtitle(kind: kindWord, sourceCount: output.sourceIDs.count))
             }
-            if let date = output.date {
+            if let date = output.date, vm.showsDateStamp(date) {
                 Text("·")
                 Text(date, format: .relative(presentation: .named))
             }

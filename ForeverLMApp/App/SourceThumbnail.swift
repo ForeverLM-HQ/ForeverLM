@@ -18,6 +18,13 @@ struct SourceThumbnail: View {
     // would block the main actor (documented Library-beachball hazard).
     @State private var localDocumentThumbnailPath: String?
 
+    /// A paper's first page is mostly white, and beside covers it reads as a
+    /// picture that failed to load: a filmed row draws the paper icon instead
+    /// (screen record mode).
+    private var drawsPaperAsIcon: Bool {
+        source.sourceType == .paper && ScreenRecordMode.isEffective
+    }
+
     private var artworkURL: URL? {
         SourceArtwork.remoteURL(for: source)
     }
@@ -31,7 +38,7 @@ struct SourceThumbnail: View {
                     placeholderSystemImage: "book.closed",
                     tint: sourceTypeColor(.book)
                 )
-            } else if let thumbnailPath = localDocumentThumbnailPath {
+            } else if let thumbnailPath = localDocumentThumbnailPath, !drawsPaperAsIcon {
                 BookCoverThumbnail(
                     pdfPath: thumbnailPath,
                     size: CGSize(width: size, height: size),

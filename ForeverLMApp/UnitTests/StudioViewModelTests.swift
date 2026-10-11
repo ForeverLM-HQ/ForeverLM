@@ -4683,6 +4683,64 @@ struct ScheduleChatNavigationTests {
         #expect(vm.filteredActiveItems.count == 3)
     }
 
+    @Test("a from-scratch take shows its own Notebook, the public sources filed into it and its date stamps, and nothing older")
+    func screenRecordScopeShowsAFromScratchTake() {
+        let cutoff = Date()
+        let oldDate = cutoff.addingTimeInterval(-86_400 * 21)
+        let newDate = cutoff.addingTimeInterval(60)
+        let vm = makeViewModel()
+        defer { vm.screenRecordScope = nil }
+
+        func source(_ id: String, addedAt: Date, type: StudioSourceType = .article, url: String) -> StudioArticle {
+            var article = makeArticle(url: url, title: id, sourceType: type, state: .ready, discoveryOrigin: .manual, id: id)
+            article.dateAdded = addedAt
+            return article
+        }
+        func notebook(id: String, createdAt: Date, sourceIDs: [String]) -> LearningGoalRecord {
+            LearningGoalRecord(
+                id: id, title: id, startAt: createdAt, endAt: LearningGoalRecord.openEndedEndAt,
+                createdAt: createdAt, updatedAt: createdAt, status: "active",
+                items: sourceIDs.map { LearningGoalItem(id: "item-\($0)", goalID: id, sourceID: $0, addedAt: createdAt) },
+                kind: LearningGoalRecord.companionKind
+            )
+        }
+
+        vm.articles = [
+            source("talk", addedAt: newDate, type: .video, url: "https://www.youtube.com/watch?v=abc"),
+            source("article", addedAt: newDate, url: "https://example.org/field-notes"),
+            source("already-in-library", addedAt: oldDate, url: "https://example.org/read-last-year"),
+            source("older-notebook-source", addedAt: oldDate, url: "https://example.org/private-reading"),
+            source("not-filed", addedAt: newDate, url: "https://example.org/stray"),
+        ]
+        vm.learningGoals = [
+            notebook(id: "started-in-take", createdAt: newDate, sourceIDs: ["talk", "article", "already-in-library"]),
+            notebook(id: "older-notebook", createdAt: oldDate, sourceIDs: ["older-notebook-source"]),
+        ]
+
+        // The scope a Studio window resolves: no recording Notebook, the take's own Notebook's sources.
+        vm.screenRecordScope = ScreenRecordScope(
+            notebookID: nil,
+            allowedSourceIDs: [],
+            takeSourceIDs: ["talk", "article", "already-in-library"],
+            cutoff: cutoff
+        )
+        vm.invalidateSidebarCachesInEveryWindow()
+
+        #expect(Set(vm.notebooks.map(\.id)) == ["started-in-take"])
+        #expect(vm.isSourceIDVisibleInRecordingMode("article"))
+        #expect(vm.isSourceIDVisibleInRecordingMode("talk"))
+        #expect(!vm.isSourceIDVisibleInRecordingMode("already-in-library"), "an old library source filed into the Notebook stays off screen")
+        #expect(!vm.isSourceIDVisibleInRecordingMode("older-notebook-source"))
+        #expect(!vm.isSourceIDVisibleInRecordingMode("not-filed"), "a new source in no take Notebook earns nothing without a Reading List origin")
+        #expect(vm.articles.count == 5, "the source array stays whole")
+
+        // Date stamps: the take's own rows keep them; anything older reads as abandoned and is not drawn.
+        #expect(vm.showsDateStamp(newDate))
+        #expect(!vm.showsDateStamp(oldDate))
+        vm.screenRecordScope = nil
+        #expect(vm.showsDateStamp(oldDate))
+    }
+
     @Test("research questions column codec round-trips")
     func researchQuestionsCodec() {
         // NULL means never-set (sync treats it as no-opinion); "[]" is an

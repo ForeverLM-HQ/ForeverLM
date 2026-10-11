@@ -2710,7 +2710,7 @@ private struct InternalReviewPanelContent: View {
                 if !manager.isTopicMemoryReview {
                     memoryReviewSourcesMenu
                 }
-                if hidesComposerForMemoryCard {
+                if hidesComposerForMemoryCard, !vm.isScreenRecordModeActive {
                     InlineModelPicker(task: .chat)
                         .id("chat-model")
                 }
@@ -3971,10 +3971,15 @@ private struct InternalReviewPanelContent: View {
                 } else {
                     Spacer(minLength: 0)
 
-                    InlineModelPicker(task: .chat)
-                        // The chip always shows the model's whole name, so it
-                        // takes its width before the row's Spacer.
-                        .layoutPriority(1)
+                    // A filmed composer names no model: the chip is the learner's
+                    // own setting, and it reads as a configuration step in a story
+                    // about learning (screen record mode).
+                    if !vm.isScreenRecordModeActive {
+                        InlineModelPicker(task: .chat)
+                            // The chip always shows the model's whole name, so it
+                            // takes its width before the row's Spacer.
+                            .layoutPriority(1)
+                    }
 
                     // The mic has nothing to do mid-turn; Stop takes the
                     // trailing edge below.

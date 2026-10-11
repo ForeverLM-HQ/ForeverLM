@@ -1058,9 +1058,14 @@ class StudioViewModel {
     /// windows subscribe) and after every Notebooks load.
     func refreshScreenRecordScope() {
         let goals = learningGoals
-        let next = ScreenRecordScope.resolve { notebookID in
-            goals.first { $0.id == notebookID }?.approvedSourceIDs ?? []
-        }
+        let next = ScreenRecordScope.resolve(
+            notebookSourceIDs: { notebookID in
+                goals.first { $0.id == notebookID }?.approvedSourceIDs ?? []
+            },
+            takeSourceIDs: { cutoff in
+                goals.filter { $0.createdAt >= cutoff }.flatMap(\.approvedSourceIDs)
+            }
+        )
         guard next != screenRecordScope else {
             // A Notebooks load can change which courses the recording Notebook follows.
             refreshScreenRecordShownCourses()
@@ -1075,6 +1080,12 @@ class StudioViewModel {
             guard let self, let reloaded = try? await self.loadScopedArtifacts() else { return }
             self.artifacts = reloaded
         }
+    }
+
+    /// Whether a row draws its relative date while recording: only a date from
+    /// the take (`ScreenRecordScope.showsDateStamp`); every date when the mode is off.
+    func showsDateStamp(_ date: Date) -> Bool {
+        screenRecordScope?.showsDateStamp(date) ?? true
     }
 
     func isVisibleInRecordingMode(createdAt: Date) -> Bool {

@@ -733,8 +733,11 @@ struct NotebookSourcePoolView: View {
     @ViewBuilder
     private var selectAllRow: some View {
         let tally = vm.notebookChatTally(goal)
-        if tally.total > 0 {
-            let state = NotebookTickState.of(ticked: tally.inChat, total: tally.total)
+        let state = NotebookTickState.of(ticked: tally.inChat, total: tally.total)
+        // Every source in chat is the resting state: a filmed column draws no
+        // row for it, not even the invisible one that held its place and left a
+        // gap under the search field (screen record mode).
+        if tally.total > 0, !(vm.isScreenRecordModeActive && state == .checked) {
             HStack(spacing: 6) {
                 if state != .checked || isPointerOverColumn {
                     Text(state == .checked ? "Select all sources" : "\(tally.inChat) of \(tally.total) in chat")
@@ -1935,7 +1938,9 @@ struct NotebookPoolSourceRow: View {
             leadingGlyph(chapterNumber: chapter.number)
             Text(chapter.text)
                 .zoomedSystemFont(size: showsChapterNumber ? 12 : 13)
-                .lineLimit(1)
+                // A filmed title is read, not hovered: it gets a second line
+                // (screen record mode).
+                .lineLimit(vm.isScreenRecordModeActive ? 2 : 1)
                 .truncationMode(.tail)
                 .help(title)
             Spacer(minLength: 0)
@@ -1953,12 +1958,19 @@ struct NotebookPoolSourceRow: View {
                     .hidden()
             }
             if let isInChat {
-                NotebookTickBox(
-                    state: isInChat ? .checked : .unchecked,
-                    label: "Include \(article.title) in chat",
-                    help: isInChat ? "Leave out of chat" : "Include in chat",
-                    action: onToggleChat
-                )
+                if vm.isScreenRecordModeActive, isInChat, !isHovering {
+                    // A column of bright ticks is the default state, not a story:
+                    // a filmed row draws its box under the pointer, or when the
+                    // learner left the source out (screen record mode).
+                    Color.clear.frame(width: 18, height: 18)
+                } else {
+                    NotebookTickBox(
+                        state: isInChat ? .checked : .unchecked,
+                        label: "Include \(article.title) in chat",
+                        help: isInChat ? "Leave out of chat" : "Include in chat",
+                        action: onToggleChat
+                    )
+                }
             }
         }
         .padding(.vertical, 3)

@@ -9,8 +9,9 @@ import SQLite3
 // of screen recording". Product videos are filmed against the real library,
 // so while the mode is on every list the app, the in-app chat and the MCP
 // connector show is cut down to one scope: the recording Notebook's sources,
-// safe public browser captures made after the mode was turned on, plus the
-// learner's own work made during the take.
+// safe public browser captures made after the mode was turned on, the public
+// sources the learner adds during the take to a Notebook or Goal also made
+// during it, plus the learner's own work made during the take.
 //
 // Invariants:
 // - Presentation only. Nothing is deleted, hidden in the database, or kept
@@ -37,6 +38,9 @@ enum ScreenRecordMode {
     /// Images kept on screen although they were drawn before the take: an
     /// image carries no Notebook or source to earn a pass by.
     static let imageIDsKey = "screenRecordMode.imageIDs"
+    /// Library sources the learner may file into a Notebook made during the
+    /// take although the library held them before it (`ScreenRecordScope.keptSourceIDs`).
+    static let sourceIDsKey = "screenRecordMode.sourceIDs"
     /// Meeting folders whose sessions show although meetings never count as
     /// public: a seminar series the admin chooses to film.
     static let meetingGroupIDsKey = "screenRecordMode.meetingGroupIDs"
@@ -116,6 +120,13 @@ enum ScreenRecordMode {
             .filter { !$0.isEmpty }
     }
 
+    /// The older library sources a take may file into its own Notebook (`sourceIDsKey`).
+    static var sourceIDs: [String] {
+        (defaults.stringArray(forKey: sourceIDsKey) ?? [])
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
     /// The meeting folders kept on screen (`meetingGroupIDsKey`).
     static var meetingGroupIDs: [String] {
         (defaults.stringArray(forKey: meetingGroupIDsKey) ?? [])
@@ -136,6 +147,13 @@ enum ScreenRecordMode {
         // On with no stamp (a hand-edited plist): the safest boundary is now.
         return Date()
         #endif
+    }
+
+    /// Whether a row draws its relative date: every date with the mode off, and
+    /// with it on only a date from the take (`ScreenRecordScope.showsDateStamp`).
+    /// For views with no view model in reach, such as a popover's rows.
+    static func showsDateStamp(_ date: Date) -> Bool {
+        cutoff.map { date >= $0 } ?? true
     }
 
     // MARK: Writes
@@ -186,6 +204,20 @@ enum ScreenRecordMode {
         postChange()
     }
 
+    static func setSourceIDs(_ ids: [String]) {
+        var seen: Set<String> = []
+        let next = ids
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty && seen.insert($0).inserted }
+        guard next != sourceIDs else { return }
+        if next.isEmpty {
+            defaults.removeObject(forKey: sourceIDsKey)
+        } else {
+            defaults.set(next, forKey: sourceIDsKey)
+        }
+        postChange()
+    }
+
     static func setMeetingGroupIDs(_ ids: [String]) {
         var seen: Set<String> = []
         let next = ids
@@ -228,6 +260,15 @@ struct ScreenRecordScope: Sendable, Equatable {
     let notebookID: String?
     /// The recording Notebook's own sources.
     let allowedSourceIDs: Set<String>
+    /// The sources of every Notebook and Goal made at or after the cutoff: the
+    /// membership half of a from-scratch take, where the learner starts an empty
+    /// Notebook and Discover or Add sources fills it. Membership alone earns
+    /// nothing (`isTakeNotebookSource`).
+    var takeSourceIDs: Set<String> = []
+    /// Older library sources that may join a take by being filed into one of
+    /// its Notebooks (`ScreenRecordMode.sourceIDs`): a public book or talk the
+    /// library already held, which Discover files instead of importing.
+    var keptSourceIDs: Set<String> = []
     /// Safe public sources captured, and the learner's own work created, at or
     /// after this moment show.
     let cutoff: Date
@@ -239,7 +280,8 @@ struct ScreenRecordScope: Sendable, Equatable {
     var allowedMeetingGroupIDs: Set<String> = []
 
     /// A source shows when it is one of the recording Notebook's, is a safe
-    /// public browser capture added after the mode went on, is a session of a
+    /// public browser capture added after the mode went on, is a new public
+    /// source in a Notebook or Goal made during the take, is a session of a
     /// meeting folder on the kept list, or, with library sources on, is public
     /// by `isPublicLibrarySource`. A caller that cannot say the kind, address
     /// folder and discovery origin passes nil and gets the narrow answer.
@@ -261,6 +303,10 @@ struct ScreenRecordScope: Sendable, Equatable {
         if kind == StudioSourceType.meeting.rawValue, let group, allowedMeetingGroupIDs.contains(group) { return true }
         if addedAt >= cutoff,
            Self.isSafeNewCaptureSource(kind: kind, url: url, show: show, origin: origin) {
+            return true
+        }
+        if takeSourceIDs.contains(id), addedAt >= cutoff || keptSourceIDs.contains(id),
+           Self.isTakeNotebookSource(kind: kind, url: url, show: show) {
             return true
         }
         return showsLibrarySources && Self.isPublicLibrarySource(kind: kind, url: url, show: show)
@@ -294,18 +340,38 @@ struct ScreenRecordScope: Sendable, Equatable {
         case .meeting, .book:
             return false
         case .xPost:
-            guard origin == .xBookmarks || isReadingList,
-                  let components = publicWebAddress(url),
-                  let host = components.host?.lowercased(),
-                  host == "x.com" || host.hasSuffix(".x.com")
-                    || host == "twitter.com" || host.hasSuffix(".twitter.com") else { return false }
-            let parts = components.path.split(separator: "/")
-            guard let status = parts.firstIndex(where: { $0.lowercased() == "status" }) else { return false }
-            return parts.index(after: status) < parts.endIndex
+            return (origin == .xBookmarks || isReadingList) && isPublicXStatus(url)
         case .article, .paper, .podcast, .course, .video, .manual, .unclassified:
             guard isReadingList else { return false }
             return isPublicLibrarySource(kind: kind.rawValue, url: url, show: show)
         }
+    }
+
+    /// What the learner may add by hand during a take to a Notebook or Goal
+    /// made during it: a source with a public address (a paper, article, talk,
+    /// podcast episode, public X status), or a book. The Discover and Add
+    /// sources routes give such a source no Reading List origin, so the origin
+    /// cannot vouch for it; the Notebook made in the take does. A meeting, an
+    /// upload, pasted text and a private host stay off screen, and so does a
+    /// source the library already held (`allowsSource` checks `addedAt`, unless
+    /// the admin kept it on `ScreenRecordMode.sourceIDs`): a Discover candidate
+    /// the learner saved long before is filed into the Notebook, but their other
+    /// reading never joins the take.
+    static func isTakeNotebookSource(kind: String?, url: String?, show: String? = nil) -> Bool {
+        guard let kind else { return false }
+        if kind == StudioSourceType.xPost.rawValue { return isPublicXStatus(url) }
+        return isPublicLibrarySource(kind: kind, url: url, show: show)
+    }
+
+    /// A public X status address: a post, not a profile, search or look-alike host.
+    private static func isPublicXStatus(_ url: String?) -> Bool {
+        guard let components = publicWebAddress(url),
+              let host = components.host?.lowercased(),
+              host == "x.com" || host.hasSuffix(".x.com")
+                || host == "twitter.com" || host.hasSuffix(".twitter.com") else { return false }
+        let parts = components.path.split(separator: "/")
+        guard let status = parts.firstIndex(where: { $0.lowercased() == "status" }) else { return false }
+        return parts.index(after: status) < parts.endIndex
     }
 
     /// An image shows when it is on the kept list or was drawn during the take.
@@ -416,6 +482,14 @@ struct ScreenRecordScope: Sendable, Equatable {
         )
     }
 
+    /// Whether a row may carry a date stamp ("3 weeks ago"). A stamp from before
+    /// the take reads as abandoned data on a film of someone starting out, and a
+    /// curated Notebook's rows all share the day it was built; only what the take
+    /// itself made keeps its stamp.
+    func showsDateStamp(_ date: Date) -> Bool {
+        date >= cutoff
+    }
+
     /// A team shows when it was made during the take or holds something the
     /// take may show — the recording Notebook, a Notebook or page made during
     /// the take, a page filed under the Notebook — since its name is the
@@ -431,12 +505,19 @@ struct ScreenRecordScope: Sendable, Equatable {
     /// recording Notebook's direct sources from whichever store the caller
     /// holds (the view model's loaded Notebooks, or a `KnowledgeStore`), so the
     /// storage layer and MCP need no Studio window to be scoped.
-    static func resolve(notebookSourceIDs: (String) -> [String]) -> ScreenRecordScope? {
+    /// `takeSourceIDs` answers, given the cutoff, the sources of the Notebooks
+    /// and Goals made at or after it.
+    static func resolve(
+        notebookSourceIDs: (String) -> [String],
+        takeSourceIDs: (_ cutoff: Date) -> [String] = { _ in [] }
+    ) -> ScreenRecordScope? {
         guard ScreenRecordMode.isEffective, let cutoff = ScreenRecordMode.cutoff else { return nil }
         let notebookID = ScreenRecordMode.notebookID
         return ScreenRecordScope(
             notebookID: notebookID,
             allowedSourceIDs: Set(notebookID.map(notebookSourceIDs) ?? []),
+            takeSourceIDs: Set(takeSourceIDs(cutoff)),
+            keptSourceIDs: Set(ScreenRecordMode.sourceIDs),
             cutoff: cutoff,
             showsLibrarySources: ScreenRecordMode.showsLibrarySources,
             allowedImageIDs: Set(ScreenRecordMode.imageIDs),
@@ -507,9 +588,26 @@ extension KnowledgeStore {
     /// The screen-record scope resolved against this store's own Notebooks.
     /// Nil when the mode is off, which is every learner but the admin.
     func screenRecordScope() -> ScreenRecordScope? {
-        ScreenRecordScope.resolve { notebookID in
-            (try? self.loadLearningGoal(notebookID))?.approvedSourceIDs ?? []
+        ScreenRecordScope.resolve(
+            notebookSourceIDs: { notebookID in
+                (try? self.loadLearningGoal(notebookID))?.approvedSourceIDs ?? []
+            },
+            takeSourceIDs: { cutoff in
+                (try? self.screenRecordTakeSourceIDs(since: cutoff)) ?? []
+            }
+        )
+    }
+
+    /// The sources of every Notebook and Goal made at or after `cutoff`: a
+    /// from-scratch take's own Notebooks. Few rows, so each is loaded whole.
+    func screenRecordTakeSourceIDs(since cutoff: Date) throws -> [String] {
+        var goalIDs: [String] = []
+        try queryBind("SELECT id FROM learning_goals WHERE created_at >= ?", bind: { stmt in
+            self.bind(stmt, 1, cutoff.timeIntervalSinceReferenceDate)
+        }) { stmt in
+            if let id = self.string(stmt, 0) { goalIDs.append(id) }
         }
+        return try goalIDs.flatMap { try self.loadLearningGoal($0)?.approvedSourceIDs ?? [] }
     }
 
     /// Every stored source id the scope keeps off screen. Empty when the mode

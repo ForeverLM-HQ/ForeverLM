@@ -221,10 +221,12 @@ private struct NotebookChatRow: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
                 Spacer(minLength: 8)
-                Text(chat.date, format: .relative(presentation: .named))
-                    .font(.system(size: 11))
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
+                if ScreenRecordMode.showsDateStamp(chat.date) {
+                    Text(chat.date, format: .relative(presentation: .named))
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
