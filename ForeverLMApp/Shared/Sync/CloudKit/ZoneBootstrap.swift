@@ -77,6 +77,8 @@ struct ZoneBootstrap {
     let client: Client
     let deviceID: String
     var now: @Sendable () -> Date = { Date() }
+    /// "Production" or "Development": the half of the container's identity its name does not carry.
+    var containerEnvironment = ""
     /// The fresh salt of a root this device creates (32 random bytes; a test passes its own).
     var makeSalt: @Sendable () -> Data = {
         var generator = SystemRandomNumberGenerator()
@@ -86,7 +88,43 @@ struct ZoneBootstrap {
     // MARK: - The run
 
     func run() async throws -> Outcome {
-        let held = try await store.perform { try $0.replica.zone(key: PrivateSyncZones.libraryKey)?.saltID }
+        let outcome = try await perform()
+        switch outcome {
+        case .adopted, .created:
+            let binding = Data(containerBinding.utf8)
+            try await store.perform { try $0.replica.setEngineState(ReplicaStore.EngineScope.containerBinding, binding) }
+        default:
+            break
+        }
+        return outcome
+    }
+
+    private var containerBinding: String { "\(transport.containerIdentifier)|\(containerEnvironment)" }
+
+    /// Whether the zones and salt this replica holds describe another container, environment or iCloud
+    /// account than the one the transport reads now. A moved Apple team, a new container or a switch
+    /// between Development and Production all look like a missing root; none of them is a purge, and a
+    /// device that read one as a purge stopped syncing for good (2026-10-11: a Mac moved to the company
+    /// team held the old container's salt, found no root in the new one and showed "removed from iCloud").
+    private func holdsForeignState() async throws -> Bool {
+        let (binding, account) = try await store.perform { state in
+            (try state.replica.engineState(ReplicaStore.EngineScope.containerBinding),
+             try state.replica.engineState(ReplicaStore.EngineScope.account))
+        }
+        if let binding, String(decoding: binding, as: UTF8.self) != containerBinding { return true }
+        // A user record name is scoped to its container, so it also tells a replica written before
+        // the binding existed.
+        if let account, String(decoding: account, as: UTF8.self) != (try await transport.userRecordName()) { return true }
+        return false
+    }
+
+    private func perform() async throws -> Outcome {
+        var held = try await store.perform { try $0.replica.zone(key: PrivateSyncZones.libraryKey)?.saltID }
+        if held != nil, try await holdsForeignState() {
+            Self.logger.notice("The replica describes another container or account; starting as a device that holds no root")
+            try await store.perform { try PurgeHandler.reupload(in: $0) }
+            held = nil
+        }
         let rootID = CloudRecordID(SyncSchema.rootRecordName, in: PrivateSyncZones.library)
         switch try await transport.record(rootID, in: .private, desiredKeys: [CloudRecord.payloadKey]) {
         case .success(let root):

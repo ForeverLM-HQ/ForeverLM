@@ -137,6 +137,9 @@ actor SyncCoordinator {
             // brand-new to this one (§2.4).
             var bootstrap = ZoneBootstrap(transport: transport, legacyTransport: nil, store: store, client: client, deviceID: deviceID)
             bootstrap.now = { Date() }
+            #if os(macOS)
+            bootstrap.containerEnvironment = CloudRuntimeAvailability.containerEnvironment.rawValue
+            #endif
             switch try await bootstrap.run() {
             case .adopted, .created:
                 break

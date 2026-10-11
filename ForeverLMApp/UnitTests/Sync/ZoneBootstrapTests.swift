@@ -161,6 +161,45 @@ struct ZoneBootstrapTests {
         #expect(try await mac.zone("Library")?.saltID == RecordNaming.saltID(Data(repeating: 3, count: 32)))
     }
 
+    @Test("A replica written in another container is not a purge: the root is made in the new one")
+    func otherContainerIsNotPurge() async throws {
+        let first = FakeCloudKit()
+        let second = FakeCloudKit()
+        let mac = try Device(first, name: "mac")
+        _ = try await mac.bootstrap(.macHoldingLibrary, salt: 3, server: first).run()
+        // The same Apple Account, an empty container of another team: the replica's salt names nothing there.
+        let moved = second.transport(user: Self.user, container: "iCloud.com.example.company", device: "mac")
+        let outcome = try await mac.bootstrap(.macHoldingLibrary, salt: 5, server: second, legacy: false, transport: moved).run()
+        #expect(outcome == .created(saltID: RecordNaming.saltID(Data(repeating: 5, count: 32))))
+        #expect(try await mac.zone("Library")?.saltID == RecordNaming.saltID(Data(repeating: 5, count: 32)))
+    }
+
+    @Test("A replica from before the container binding, written for another account's user record, is not a purge either")
+    func otherAccountRecordIsNotPurge() async throws {
+        let first = FakeCloudKit()
+        let second = FakeCloudKit()
+        let mac = try Device(first, name: "mac")
+        _ = try await mac.bootstrap(.macHoldingLibrary, salt: 3, server: first).run()
+        try await mac.store.perform { state in
+            try state.replica.setEngineState(ReplicaStore.EngineScope.containerBinding, nil)
+            try state.replica.setEngineState(ReplicaStore.EngineScope.account, Data("_oldcontaineruser".utf8))
+        }
+        let outcome = try await mac.bootstrap(.macHoldingLibrary, salt: 5, server: second, legacy: false,
+                                              transport: second.transport(user: Self.user, device: "mac")).run()
+        #expect(outcome == .created(saltID: RecordNaming.saltID(Data(repeating: 5, count: 32))))
+    }
+
+    @Test("In the same container a missing root is still a purge once the binding is written")
+    func sameContainerStaysPurge() async throws {
+        let server = FakeCloudKit()
+        let mac = try Device(server, name: "mac")
+        _ = try await mac.bootstrap(.macHoldingLibrary, server: server).run()
+        let bound = try await mac.store.perform { try $0.replica.engineState(ReplicaStore.EngineScope.containerBinding) }
+        #expect(bound == Data("\(FakeCloudKit.libraryContainer)|".utf8))
+        server.deleteZone("Library", owner: Self.user, reason: .purged)
+        #expect(try await mac.bootstrap(.macHoldingLibrary, server: server).run() == .purged(.zoneDeleted(reason: .purged)))
+    }
+
     @Test("A Mac with no library writes `pending` when the old container has a Knowledge zone, and the empty complete seed when it has none")
     func macWithoutLibrary() async throws {
         let oldServer = FakeCloudKit()

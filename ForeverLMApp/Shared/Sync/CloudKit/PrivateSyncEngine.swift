@@ -118,6 +118,9 @@ extension ReplicaStore {
         static let privateStop = "private.stop"
         /// The account the replica belongs to (its user record name in the library container).
         static let account = "account"
+        /// The container and environment ("<container>|<environment>") whose zones and salts the replica
+        /// holds, written when a bootstrap adopts or creates a root there.
+        static let containerBinding = "bootstrap.container"
         /// When this device created the private zones, before its root save was acknowledged.
         static let zonesCreated = "bootstrap.zonesCreated"
         /// When the replica audit last walked a zone (`audit.<zone key>`).
