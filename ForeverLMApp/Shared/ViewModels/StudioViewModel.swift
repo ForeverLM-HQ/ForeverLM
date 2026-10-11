@@ -2673,6 +2673,23 @@ class StudioViewModel {
         let coreTabs: Set<StudioCenterTab> = [.chat, .notepad, .sites, .animations, .artifacts, .browser]
 
         if layout.groups[source].activeTab == tab {
+            // The only pane on screen shows this tab (the Library clicked in
+            // the rail fills the window): reordering one pane changes nothing
+            // the learner can see, so the drag docks the tab at the edge and
+            // lets Chat, else the Reader, take the rest of the window.
+            if layout.groups.count == 1, layout.groups[source].tabs != [tab], layout.canCreateGroup {
+                layout.groups[source].tabs.removeAll { $0 == tab }
+                let remaining = layout.groups[source].tabs
+                layout.groups[source].activeTab = remaining.contains(.chat)
+                    ? .chat
+                    : (remaining.contains(.reader) ? .reader : remaining[0])
+                layout.groups.insert(
+                    .init(tabs: [tab], activeTab: tab),
+                    at: leading ? 0 : layout.groups.count
+                )
+                destination.centerTabGroups = layout
+                return
+            }
             let group = layout.groups.remove(at: source)
             layout.groups.insert(group, at: leading ? 0 : layout.groups.count)
             destination.centerTabGroups = layout

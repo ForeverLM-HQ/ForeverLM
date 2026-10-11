@@ -2675,6 +2675,28 @@ struct CrossWindowStudioDropTests {
         #expect(destination.centerTabGroups.groups.last == .init(tabs: [.notepad], activeTab: .notepad))
     }
 
+    @Test("Dragging the Library, which fills the window, to an edge docks it and gives the rest to Chat")
+    func libraryFillingTheWindowDocksAtAnEdge() {
+        let restoreTemplate = capturedStudioWindowTemplate()
+        defer { restoreTemplate() }
+        let vm = makeViewModel()
+        let window = StudioWindowState(snapshot: .init(
+            centerTabGroups: StudioCenterTabGroups(groups: [
+                .init(tabs: StudioCenterTab.permanentTabs, activeTab: .library),
+            ]).persistedRepresentation,
+            navigationRailVisible: true
+        ))
+
+        vm.placeCenterTabAtEdge(.library, leading: false, in: window)
+
+        #expect(window.centerTabGroups.groups.map(\.activeTab) == [.chat, .library])
+        #expect(window.centerTabGroups.groups.last?.tabs == [.library])
+
+        // Dropped on the other edge, the docked pane moves across.
+        vm.placeCenterTabAtEdge(.library, leading: true, in: window)
+        #expect(window.centerTabGroups.groups.map(\.activeTab) == [.library, .chat])
+    }
+
     @Test("A source drop changes the destination Reader only")
     func sourceDropUsesDestinationReader() async {
         let source = StudioWindowState()
