@@ -61,14 +61,11 @@ struct LinkedDocView: View {
     @State private var changeRequest: SiteChangeRequest?
 
     private var url: URL? { artifact.linkedURL.flatMap(URL.init(string:)) }
-    /// Change is offered on a ForeverLM site this account published — its own
-    /// entry in My Library, signed in so the publish can go — and nowhere
-    /// else. The publish itself still refuses a site the account cannot write.
+    /// Change is offered on a ForeverLM site kept in the learner's own entry
+    /// in My Library, and nowhere else: a team's copy changes through it.
     private var canChangeSite: Bool {
-        // A site kept in the library changes on this Mac with no account; one
-        // still on sites.foreverlm.com needs the account to bring it home.
         kind == .foreverlmSite && artifact.teamID == nil
-            && (LinkedPage.localSiteID(fromURLString: artifact.linkedURL) != nil || ManagedAI.isSignedIn)
+            && LinkedPage.localSiteID(fromURLString: artifact.linkedURL) != nil
     }
     /// The browser profile the page signs in as. Library shares its jar with
     /// the Browser pane's Library tabs and every reader, so a sign-in done in
@@ -82,10 +79,10 @@ struct LinkedDocView: View {
     private var kind: LinkedPageKind? { artifact.linkedKind }
 
     /// The Change action: one passage of the site, replaced in the stored
-    /// page and republished through the same path `replace_site_text` takes
+    /// page through the same path `replace_site_text` takes
     /// (docs/docs-design.md, "Changing a passage in place"). The page reloads
-    /// once the publish is through; a passage the page has twice, or not at
-    /// all, is refused with why, and nothing is sent.
+    /// once the save is through; a passage the page has twice, or not at
+    /// all, is refused with why, and nothing is saved.
     private func applyChange(_ selection: LinkedPageSelection, newText: String) {
         Task {
             if let failure = await vm.replaceSiteText(
@@ -349,7 +346,7 @@ struct LinkedDocView: View {
     /// A selection on a Site is a request about the live page, not a loose
     /// quotation. Carry its route and surrounding block into a fresh Chat and
     /// attach the Site by identity, so Chat can read the current files and
-    /// publish the fix back to the same address.
+    /// save the fix back into the same site.
     private func addSelectionToChat(_ selection: LinkedPageSelection) {
         Task {
             do {
@@ -568,7 +565,7 @@ struct LinkedPageSelection: Equatable {
         context = Self.bounded(payload["context"] as? String, limit: Self.contextLimit)
         sectionTitle = Self.bounded(payload["sectionTitle"] as? String, limit: 500)
         pageTitle = Self.bounded(payload["title"] as? String, limit: 500)
-        pageURL = Self.publicPageURL(payload["href"] as? String)
+        pageURL = Self.pageAddress(payload["href"] as? String)
     }
 
     /// The route (and heading, when the page supplied one) is the compact label
@@ -615,9 +612,15 @@ struct LinkedPageSelection: Equatable {
         return String(trimmed.prefix(limit)).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private static func publicPageURL(_ value: String?) -> URL? {
+    /// The page the words are on, without credentials or query: a web page,
+    /// or a page of a site kept in the library (`foreverlm-site://<id>/…`),
+    /// which `read_site_file` and `replace_site_text` resolve. Until
+    /// 2026-10-10 only a web address was kept, so Add to Chat and Copy on a
+    /// library site never said which of its pages the words were on.
+    private static func pageAddress(_ value: String?) -> URL? {
         guard let value, var components = URLComponents(string: value),
-              components.scheme == "https" || components.scheme == "http" else { return nil }
+              let scheme = components.scheme?.lowercased(),
+              ["https", "http", LinkedPage.localSiteScheme].contains(scheme) else { return nil }
         components.user = nil
         components.password = nil
         components.query = nil
@@ -680,8 +683,8 @@ struct SiteChangeSheet: View {
 enum LinkedPageSelectionMessage: Equatable {
     case addToChat(LinkedPageSelection)
     case copy(LinkedPageSelection)
-    /// Change the selected words on the page itself: a ForeverLM site this
-    /// account published, edited in place and republished (`SiteTextEdit`).
+    /// Change the selected words on the page itself: a ForeverLM site kept in
+    /// the library, edited in place and saved (`SiteTextEdit`).
     case change(LinkedPageSelection)
 
     init?(body: Any) {
@@ -734,8 +737,8 @@ struct LinkedDocWebView: NSViewRepresentable {
     let onAddSelectionToChat: (LinkedPageSelection) -> Void
     let onCopySelection: (LinkedPageSelection) -> Void
     /// Whether the selection bar offers **Change**: only on a ForeverLM site
-    /// this account can republish. A Claude artifact, a Codex site, a Google
-    /// Doc or a teammate's site never shows it.
+    /// in the learner's own library. A Claude artifact, a Codex site, a Google
+    /// Doc or a team's copy never shows it.
     var canChange = false
     var onChangeSelection: (LinkedPageSelection) -> Void = { _ in }
     let onOpenSource: (ChatSourceLink) -> Void
@@ -774,18 +777,6 @@ struct LinkedDocWebView: NSViewRepresentable {
     /// to page JavaScript.
     static let selectionContentWorld = WKContentWorld.world(name: "ForeverLMSiteSelection")
 
-    /// The Site host exchanges this bearer for its own HttpOnly, path-scoped
-    /// cookie and immediately redirects, so authored HTML never receives the
-    /// ForeverLM account session. Other linked pages must never see it.
-    static func initialRequest(url: URL, kind: LinkedPageKind, sessionToken: String? = ManagedAI.requestSessionToken) -> URLRequest {
-        var request = URLRequest(url: url)
-        if kind == .foreverlmSite, url.host?.lowercased() == LinkedPage.foreverlmSitesHost,
-           let sessionToken, !sessionToken.isEmpty {
-            request.setValue("Bearer \(sessionToken)", forHTTPHeaderField: "Authorization")
-        }
-        return request
-    }
-
     /// A linked Site is allowed to be its own HTML, but source identity and
     /// navigation belong to ForeverLM. A plain, standalone
     /// `foreverlm://source/<id>` link therefore becomes the same compact
@@ -794,7 +785,7 @@ struct LinkedDocWebView: NSViewRepresentable {
     /// the link itself becomes the banner, so the author does not have to
     /// build app chrome into the page.
     ///
-    /// A ForeverLM Site carries the same card for the web in its own files
+    /// A ForeverLM Site carries the same card for a browser in its own files
     /// (`SiteSourceCards`); that script yields to this one when it finds the
     /// `linkedPageSourceLinks` handler, so the card here is drawn from the
     /// live library and its style (`SiteSourceCards.cardStyle`) is the one
@@ -1020,7 +1011,7 @@ struct LinkedDocWebView: NSViewRepresentable {
     /// A Site selection becomes a small bar at the words themselves: Chat
     /// carries the passage and page identity into ForeverLM's composer; Copy
     /// makes the same context portable to Codex or Claude; Change, on a
-    /// ForeverLM site this account published, edits the words on the page
+    /// ForeverLM site kept in the library, edits the words on the page
     /// itself (product owner, 2026-09-18: "let me highlight stuff and then actually
     /// change it"). Shadow DOM keeps authored CSS from restyling the controls,
     /// and every press must be a real user event before it posts anything
@@ -1494,7 +1485,7 @@ struct LinkedDocWebView: NSViewRepresentable {
         context.coordinator.observeTitle(of: webView)
         context.coordinator.loadedGeneration = reloadGeneration
         ArticleReaderZoom.apply(zoomScale, to: webView)
-        webView.load(Self.initialRequest(url: url, kind: kind))
+        webView.load(URLRequest(url: url))
         return webView
     }
 
@@ -1505,7 +1496,7 @@ struct LinkedDocWebView: NSViewRepresentable {
         context.coordinator.onOpenSource = onOpenSource
         if context.coordinator.loadedGeneration != reloadGeneration {
             context.coordinator.loadedGeneration = reloadGeneration
-            webView.load(Self.initialRequest(url: url, kind: kind))
+            webView.load(URLRequest(url: url))
         }
         ArticleReaderZoom.apply(zoomScale, to: webView)
         if let walkFocus, context.coordinator.appliedWalkFocusRevision != walkFocus.revision {
@@ -1877,15 +1868,12 @@ struct LinkedGoogleDocIcon: View {
 /// the page header. Each kind wears the mark of the product it lives in, so a
 /// card says where the page is before the caption does: Google's blue Docs
 /// mark, Anthropic's terracotta Claude mark, OpenAI's blossom for a Codex site,
-/// and GitHub's mark when a ForeverLM Site was published from a repository.
-/// An inline-published ForeverLM Site keeps the generic blue globe. The black
+/// and a blue globe for a ForeverLM Site. The black
 /// product marks render as templates in the primary colour and stay visible in
 /// dark mode. Menus and sheets keep the SF Symbol, which AppKit sizes for them.
 struct LinkedPageIcon: View {
     let kind: LinkedPageKind
     let height: CGFloat
-    /// Definite publishing provenance supplied only for a ForeverLM Site.
-    var isGitHubBacked = false
 
     var body: some View {
         switch kind {
@@ -1906,22 +1894,12 @@ struct LinkedPageIcon: View {
                 .foregroundStyle(.primary)
                 .accessibilityLabel(kind.label)
         case .foreverlmSite:
-            if isGitHubBacked {
-                Image("GitHubIcon")
-                    .resizable()
-                    .renderingMode(.template)
-                    .scaledToFit()
-                    .frame(height: height)
-                    .foregroundStyle(.primary)
-                    .accessibilityLabel("GitHub-backed \(kind.label)")
-            } else {
-                Image(systemName: "globe")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(height: height)
-                    .foregroundStyle(Color.accentColor)
-                    .accessibilityLabel(kind.label)
-            }
+            Image(systemName: "globe")
+                .resizable()
+                .scaledToFit()
+                .frame(height: height)
+                .foregroundStyle(Color.accentColor)
+                .accessibilityLabel(kind.label)
         }
     }
 }
@@ -2111,10 +2089,10 @@ struct ConvertToGoogleDocSheet: View {
 /// Serves a ForeverLM site or animation from its folder in the library
 /// (`Artifacts/<id>/Site/` under the content root) at
 /// `foreverlm-site://<id>/…`, so a site opens in the app with no host at all
-/// and each record is its own origin. Every answer carries the CSP sandbox
-/// sites.foreverlm.com sends — scripts run, the page gets an opaque origin,
-/// storage throws — so a page behaves here exactly as its published copy
-/// would. A folder answers with its index.html; a `Range` request (a video
+/// and each record is its own origin. Every answer carries a CSP sandbox —
+/// scripts run, the page gets an opaque origin, storage throws — so nothing
+/// a site's author wrote can reach the app's own storage or another site's.
+/// A folder answers with its index.html; a `Range` request (a video
 /// seeking) is answered in part. Files are read off the main thread.
 final class LocalSiteSchemeHandler: NSObject, WKURLSchemeHandler {
     static let shared = LocalSiteSchemeHandler()

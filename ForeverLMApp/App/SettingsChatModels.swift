@@ -7,11 +7,10 @@ import AppKit
 /// basically list with banners"): a Suggested list with one model per maker
 /// (`AIModelDefaults.suggestedChatModels`), a Free list (the free models Free
 /// mode itself would offer), the backups, and under them OpenRouter's whole
-/// directory, one maker at a time, picked from a row of the makers' logos,
-/// every maker's free or discounted models at once, or whatever a search
-/// finds (`OpenRouterModelBrowser`). The list of the other
+/// directory as a table (`OpenRouterModelTable`), narrowed to free or
+/// discounted models or to what a search finds. The list of the other
 /// models the learner offered went the same day ("why is that even there?"):
-/// the browser shows each of them under its maker. Every row turns
+/// the table shows each of them. Every row turns
 /// the model on or off in the chat's model picker; its context menu sets the
 /// Default Model and the backups a scheduled task's run moves to, and its
 /// provider button chooses who runs it. It replaced the maker-by-maker card
@@ -29,11 +28,12 @@ struct ChatModelsPane: View {
     @State private var isLoadingDirectory = false
     @State private var directoryLoadError: String?
     @State private var lists = ChatModelLists.Built.empty
-    /// Narrows the browser to free or discounted models, across every maker
-    /// until one is picked.
+    /// Narrows the table to free or discounted models.
     @State private var browserFilters: Set<ModelBrowserFilter> = []
     /// "provider|model" of the row whose test run is under way.
     @State private var testingKey: String?
+    /// Several of the table's rows are being offered, one test at a time.
+    @State private var isOfferingMany = false
     @State private var pickRefusal: String?
 
     private static let role = AIModelQualification.Role.chat
@@ -184,15 +184,14 @@ struct ChatModelsPane: View {
     private func suggestionRow(_ suggestion: ChatModelLists.Suggestion) -> some View {
         switch suggestion {
         case .catalog(let entry, _):
-            catalogRow(entry, showsMaker: true)
+            catalogRow(entry)
         case .directory(let model):
-            directoryRow(model, showsMaker: true)
+            directoryRow(model)
         case .pending(let slug):
             let maker = lists.identity(ofSlug: slug)
             ChatModelRow(
                 entry: AIModelCatalogEntry(maker: maker.logo ?? .other, provider: .openRouter, modelID: slug),
                 maker: maker,
-                showsMaker: true,
                 isOffered: false,
                 isDefault: false,
                 isConfigured: true,
@@ -203,14 +202,13 @@ struct ChatModelsPane: View {
     }
 
     /// A catalogued model: the row turns it on or off in the chat's picker.
-    private func catalogRow(_ entry: AIModelCatalogEntry, showsMaker: Bool) -> some View {
+    private func catalogRow(_ entry: AIModelCatalogEntry) -> some View {
         let slug = ChatModelLists.slug(of: entry)
         let offered = snapshot.enabledIDs.contains(entry.id)
         let isDefault = snapshot.defaultID == entry.id
         return ChatModelRow(
             entry: entry,
             maker: lists.identity(ofSlug: slug),
-            showsMaker: showsMaker,
             isOffered: offered,
             isDefault: isDefault,
             isConfigured: snapshot.configuredProviders.contains(entry.provider),
@@ -237,7 +235,7 @@ struct ChatModelsPane: View {
 
     /// A directory model the catalog does not carry yet: turning it on adds
     /// it, after which it is a catalogued row like any other.
-    private func directoryRow(_ model: OpenRouterDirectoryModel, showsMaker: Bool) -> some View {
+    private func directoryRow(_ model: OpenRouterDirectoryModel) -> some View {
         let maker = lists.identity(ofSlug: model.id)
         return ChatModelRow(
             entry: AIModelCatalogEntry(
@@ -247,7 +245,6 @@ struct ChatModelsPane: View {
                 customName: model.name
             ),
             maker: maker,
-            showsMaker: showsMaker,
             isOffered: false,
             isDefault: false,
             isConfigured: snapshot.configuredProviders.contains(.openRouter),
@@ -266,27 +263,23 @@ struct ChatModelsPane: View {
 
     // MARK: Browser
 
-    /// OpenRouter's directory, one maker at a time, with a search
-    /// (`OpenRouterModelBrowser`): every maker it lists, by logo, and under
-    /// the one picked all of its models, newest first. With Free or
-    /// Discounted on, only those count, and until a maker is picked every
-    /// maker's are listed at once.
+    /// OpenRouter's directory as a table (`OpenRouterModelTable`), with a
+    /// search. With Free or Discounted on, only those models are listed.
     private var browser: some View {
-        OpenRouterModelBrowser(
-            makers: lists.makers.map { ModelBrowserMaker(id: $0.id, identity: $0.identity, models: $0.models) },
+        OpenRouterModelTable(
+            rows: tableRows,
             state: browserState,
             subject: ModelBrowserFilter.subject("chat models", filters: browserFilters),
             retry: { Task { await loadDirectory() } },
-            listsEveryMaker: !browserFilters.isEmpty,
-            cost: { ModelCostOrder.blended(input: $0.inputUSDPerMTokens, output: $0.outputUSDPerMTokens) },
-            searchFields: { [$0.name, $0.id] },
+            purpose: .chat,
+            toggle: toggle,
             accessory: {
                 if directory != nil {
                     ModelBrowserFilterChips(filters: $browserFilters, counts: lists.filterCounts)
                 }
             },
-            row: { model, showsMaker in
-                browserRow(model, showsMaker: showsMaker)
+            actions: { rows in
+                tableActions(rows)
             }
         )
     }
@@ -296,15 +289,131 @@ struct ChatModelsPane: View {
         return directory == nil || isLoadingDirectory ? .loading : .loaded
     }
 
-    /// A catalogued model keeps its catalog identity, so the row a learner
-    /// turns on here is the one Suggested and the chat's picker show. Rows
-    /// from every maker at once name their maker.
-    @ViewBuilder
-    private func browserRow(_ model: OpenRouterDirectoryModel, showsMaker: Bool) -> some View {
-        if let entry = lists.entryBySlug[model.id.lowercased()] {
-            catalogRow(entry, showsMaker: showsMaker)
+    /// Every model the table lists, maker by maker, newest first, each
+    /// under its catalog identity where the catalog carries it.
+    private var tableRows: [ModelTableRow] {
+        lists.makers.flatMap(\.models).map { model in
+            var row = ModelTableRow(model, in: lists)
+            row.isOn = row.isCatalogued && snapshot.enabledIDs.contains(row.entry.id)
+            row.isDefault = row.isCatalogued && snapshot.defaultID == row.entry.id
+            row.isConfigured = snapshot.configuredProviders.contains(row.entry.provider)
+            row.isTesting = testingKey == Self.testingKey(row.entry.provider, row.entry.modelID)
+            row.backupRank = backupRank(provider: row.entry.provider, model: row.entry.modelID)
+            return row
+        }
+    }
+
+    /// The table's check, or a double-click: one row turns on or off as a
+    /// Suggested row does; several are all offered, or all taken off when
+    /// every one of them already is.
+    private func toggle(_ rows: [ModelTableRow]) {
+        if rows.count == 1, let row = rows.first {
+            if row.isOn {
+                setOffered(false, row.entry)
+            } else if row.isCatalogued {
+                testThen(row.entry.provider, row.entry.modelID, name: row.name) { setOffered(true, row.entry) }
+            } else {
+                testThen(.openRouter, row.model.id, name: row.name) { add(row.model) }
+            }
+        } else if rows.contains(where: { !$0.isOn }) {
+            offer(rows.filter { !$0.isOn })
         } else {
-            directoryRow(model, showsMaker: showsMaker)
+            for row in rows { setOffered(false, row.entry) }
+        }
+    }
+
+    /// Offers each model, testing the ones not yet tried one after another.
+    /// One that fails stays off, and a single alert names every one that did.
+    private func offer(_ rows: [ModelTableRow]) {
+        guard testingKey == nil, !isOfferingMany else { return }
+        let role = Self.role
+        isOfferingMany = true
+        pickRefusal = nil
+        Task {
+            var refusals: [String] = []
+            for row in rows {
+                let (provider, model) = (row.entry.provider, row.entry.modelID)
+                if !AIModelQualification.isPassed(provider: provider, model: model, role: role) {
+                    testingKey = Self.testingKey(provider, model)
+                    let verdict = await Task.detached(priority: .userInitiated) {
+                        await AIModelQualification.testBeforeSelecting(provider: provider, model: model, role: role)
+                    }.value
+                    testingKey = nil
+                    // Nil for a model that passed.
+                    if let refusal = AIModelQualification.refusalText(name: row.name, role: role, verdict: verdict) {
+                        refusals.append(refusal)
+                        continue
+                    }
+                }
+                if row.isCatalogued {
+                    setOffered(true, row.entry)
+                } else {
+                    add(row.model)
+                }
+            }
+            isOfferingMany = false
+            if !refusals.isEmpty {
+                pickRefusal = refusals.joined(separator: "\n\n")
+            }
+        }
+    }
+
+    /// The table's context menu: for one row what a Suggested row's menu
+    /// holds; for several, offering them all or taking them all off.
+    @ViewBuilder
+    private func tableActions(_ rows: [ModelTableRow]) -> some View {
+        if rows.count == 1, let row = rows.first {
+            Button {
+                toggle([row])
+            } label: {
+                Label(row.isOn ? "Stop Offering in Chat" : "Offer in Chat", systemImage: row.isOn ? "minus.circle" : "plus.circle")
+            }
+            // The Default Model cannot be turned off.
+            .disabled(row.isDefault)
+            if row.isCatalogued {
+                Button {
+                    testThen(row.entry.provider, row.entry.modelID, name: row.name) { setAsDefault(row.entry) }
+                } label: {
+                    Label(row.isDefault ? "Default Model" : "Set as Default", systemImage: row.isDefault ? "checkmark" : "star")
+                }
+                .disabled(row.isDefault)
+            }
+            if !row.isDefault {
+                ModelBackupMenuItem(
+                    backupRank: row.backupRank,
+                    backupsAreFull: snapshot.backups.count >= AIBackupModels.limit
+                ) {
+                    toggleBackup(
+                        provider: row.entry.provider,
+                        model: row.entry.modelID,
+                        name: row.name,
+                        directoryModel: row.isCatalogued ? nil : row.model
+                    )
+                }
+            }
+            if AIModelCatalog.isCustom(row.entry) {
+                Button("Remove from Catalog") {
+                    AIModelCatalog.removeCustomOpenRouterModel(id: row.entry.modelID)
+                }
+                .disabled(row.isDefault)
+            }
+        } else {
+            let off = rows.filter { !$0.isOn }
+            let on = rows.filter { $0.isOn && !$0.isDefault }
+            if !off.isEmpty {
+                Button {
+                    offer(off)
+                } label: {
+                    Label("Offer \(ModelTableRow.count(off.count)) in Chat", systemImage: "plus.circle")
+                }
+            }
+            if !on.isEmpty {
+                Button {
+                    for row in on { setOffered(false, row.entry) }
+                } label: {
+                    Label("Stop Offering \(ModelTableRow.count(on.count))", systemImage: "minus.circle")
+                }
+            }
         }
     }
 
@@ -346,7 +455,7 @@ struct ChatModelsPane: View {
     /// tried, or failed before. A model that fails is not applied, and the
     /// alert says why.
     private func testThen(_ provider: AIProvider, _ model: String, name: String, apply: @escaping () -> Void) {
-        guard testingKey == nil else { return }
+        guard testingKey == nil, !isOfferingMany else { return }
         let role = Self.role
         pickRefusal = nil
         if AIModelQualification.isPassed(provider: provider, model: model, role: role) {
@@ -819,13 +928,18 @@ struct ChatModelRow: View {
             if case .chat = self { return true }
             return false
         }
+
+        /// The slot whose provider a row sets (`OpenRouterHostPreference`).
+        var hostSlotID: String {
+            switch self {
+            case .chat: return ModelPickerSlot.chat.id
+            case .background(let slot): return slot.sharedSlotID
+            }
+        }
     }
 
     let entry: AIModelCatalogEntry
     let maker: ChatModelLists.MakerIdentity
-    /// The maker's logo and name lead the row. The browser, which lists one
-    /// maker at a time, leaves them out.
-    let showsMaker: Bool
     let isOffered: Bool
     let isDefault: Bool
     /// Whether the model's host has usable credentials. A row without them
@@ -862,14 +976,6 @@ struct ChatModelRow: View {
     private var openRouterURL: URL? { OpenRouterModelPage.url(slug: slug) }
     private var name: String { entry.displayName }
 
-    /// The slot whose provider the row's button sets (`OpenRouterHostPreference`).
-    private var hostSlotID: String {
-        switch purpose {
-        case .chat: return ModelPickerSlot.chat.id
-        case .background(let slot): return slot.sharedSlotID
-        }
-    }
-
     /// The check, said aloud.
     private var checkDescription: String {
         switch purpose {
@@ -881,9 +987,7 @@ struct ChatModelRow: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 12) {
-                if showsMaker {
-                    logoTile
-                }
+                logoTile
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
                         Text(name)
@@ -904,7 +1008,7 @@ struct ChatModelRow: View {
                     .frame(width: 16)
             }
             .padding(.horizontal, 14)
-            .padding(.vertical, showsMaker ? 10 : 8)
+            .padding(.vertical, 10)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -1012,7 +1116,7 @@ struct ChatModelRow: View {
     private var trailingIcons: some View {
         HStack(spacing: 6) {
             if offersHost {
-                ChatModelHostButton(entry: entry, slotID: hostSlotID, isPresented: $showsHost)
+                ChatModelHostButton(entry: entry, slotID: purpose.hostSlotID, isPresented: $showsHost)
             }
             if let openRouterURL {
                 Link(destination: openRouterURL) {
@@ -1052,23 +1156,7 @@ struct ChatModelRow: View {
             .disabled(isDefault)
         }
         if let toggleBackup, !isPending {
-            if backupRank != nil {
-                Button {
-                    toggleBackup()
-                } label: {
-                    Label("Stop Using as Backup", systemImage: "minus.circle")
-                }
-            } else {
-                Button {
-                    toggleBackup()
-                } label: {
-                    Label(
-                        backupsAreFull ? "Use as Backup (\(AIBackupModels.limit) at most)" : "Use as Backup",
-                        systemImage: "arrow.triangle.branch"
-                    )
-                }
-                .disabled(backupsAreFull)
-            }
+            ModelBackupMenuItem(backupRank: backupRank, backupsAreFull: backupsAreFull, toggle: toggleBackup)
         }
         if AIModelCatalog.isCustom(entry) {
             Button("Remove from Catalog") {
@@ -1099,16 +1187,18 @@ struct ChatModelRow: View {
     private var contextLabel: String? {
         let tokens = directoryModel?.contextLength.flatMap { $0 > 0 ? $0 : nil }
             ?? AIService.contextWindowTokens(provider: entry.provider, model: entry.modelID)
-        return tokens.map { $0 >= 1_000_000 ? "\($0 / 1_000_000)M" : "\($0 / 1_000)k" }
+        return tokens.map(Self.contextLabel(tokens:))
+    }
+
+    /// "262k", "1M".
+    nonisolated static func contextLabel(tokens: Int) -> String {
+        tokens >= 1_000_000 ? "\(tokens / 1_000_000)M" : "\(tokens / 1_000)k"
     }
 
     /// "Anthropic · $4/$20 · 78 tok/s · 1M". No monospaced digits: tabular
     /// figures pad a narrow "1", which reads as a stray space in "$0.1".
     private var subtitle: Text {
-        var parts: [Text] = []
-        if showsMaker {
-            parts.append(Text(maker.name))
-        }
+        var parts: [Text] = [Text(maker.name)]
         if isPending {
             return parts.reduce(Text(verbatim: "")) { $0 + $1 }
         }
@@ -1140,18 +1230,47 @@ struct ChatModelRow: View {
         return "\(price) input/output per 1M tokens\(was) · \(context)\(speed)"
     }
 
-    /// The speed the chat's picker quotes for the model, once OpenRouter's
-    /// statistics arrive. Rows load it as they scroll into view.
     @MainActor
     private func loadSpeed() async {
         guard !isPending else { return }
+        await Self.loadSpeed(of: entry) { tokensPerSecond = $0 }
+    }
+
+    /// The speed the chat's picker quotes for the model: the cached figure
+    /// at once, then OpenRouter's statistics once they arrive. Rows load it
+    /// as they scroll into view.
+    @MainActor
+    static func loadSpeed(of entry: AIModelCatalogEntry, update: (Double?) -> Void) async {
         let speedSlug = AIRequestOptionSupport.openRouterSpeedSlug(
             provider: entry.provider, model: entry.modelID, routingMode: .openRouter
-        ) ?? slug
-        tokensPerSecond = OpenRouterModelSpeedCatalog.cachedTokensPerSecond(slug: speedSlug, speed: .standard)
+        ) ?? OpenRouterModelID.slug(provider: entry.provider, model: entry.modelID)
+        update(OpenRouterModelSpeedCatalog.cachedTokensPerSecond(slug: speedSlug, speed: .standard))
         guard let speeds = try? await OpenRouterModelSpeedCatalog.shared.speeds(for: speedSlug),
               !Task.isCancelled else { return }
-        tokensPerSecond = OpenRouterModelSpeed.tokensPerSecond(for: .standard, slug: speedSlug, in: speeds)
+        update(OpenRouterModelSpeed.tokensPerSecond(for: .standard, slug: speedSlug, in: speeds))
+    }
+}
+
+/// Use as Backup, or Stop Using as Backup, in a model's context menu.
+struct ModelBackupMenuItem: View {
+    let backupRank: Int?
+    let backupsAreFull: Bool
+    let toggle: () -> Void
+
+    var body: some View {
+        if backupRank != nil {
+            Button(action: toggle) {
+                Label("Stop Using as Backup", systemImage: "minus.circle")
+            }
+        } else {
+            Button(action: toggle) {
+                Label(
+                    backupsAreFull ? "Use as Backup (\(AIBackupModels.limit) at most)" : "Use as Backup",
+                    systemImage: "arrow.triangle.branch"
+                )
+            }
+            .disabled(backupsAreFull)
+        }
     }
 }
 
@@ -1163,6 +1282,9 @@ private struct ChatModelHostButton: View {
     let entry: AIModelCatalogEntry
     let slotID: String
     @Binding var isPresented: Bool
+    /// Drawn as plain text in a table's Provider column, "Automatic" while
+    /// OpenRouter picks, where a capsule on every line would be noise.
+    var inTable = false
 
     /// "DeepInfra", "Cheapest provider" or "US providers"; nil for Automatic.
     @State private var label: String?
@@ -1174,16 +1296,16 @@ private struct ChatModelHostButton: View {
             isPresented = true
         } label: {
             HStack(spacing: 3) {
-                Text(label ?? "Choose provider")
+                Text(label ?? (inTable ? "Automatic" : "Choose provider"))
                     .lineLimit(1)
                 Image(systemName: "chevron.down")
                     .zoomedSystemFont(size: 8, weight: .semibold)
             }
             .font(.caption)
             .foregroundStyle(label == nil ? HierarchicalShapeStyle.secondary : HierarchicalShapeStyle.primary)
-            .padding(.horizontal, 8)
+            .padding(.horizontal, inTable ? 2 : 8)
             .frame(height: 20)
-            .background(Capsule().fill(.fill.tertiary))
+            .background(Capsule().fill(inTable ? AnyShapeStyle(.clear) : AnyShapeStyle(.fill.tertiary)))
             .contentShape(Capsule())
         }
         .buttonStyle(.hoverWash(in: Capsule(), inset: 0, opacity: 0.10))
@@ -1212,5 +1334,489 @@ private struct ChatModelHostButton: View {
 
     private func refresh() {
         label = OpenRouterHostPreference.stored(slot: slotID, slug: slug)?.label
+    }
+}
+
+// MARK: - The directory as a table
+
+/// One OpenRouter model as a line of the table Settings › Chat and
+/// Background list the directory in.
+struct ModelTableRow: Identifiable {
+    let model: OpenRouterDirectoryModel
+    /// The catalog's entry when it carries the model, so the row a learner
+    /// turns on is the one Suggested and the chat's picker show; else one
+    /// made from the directory's row.
+    let entry: AIModelCatalogEntry
+    let isCatalogued: Bool
+    let maker: ChatModelLists.MakerIdentity
+    /// Offered in the chat's picker, or the model a Background slot runs on.
+    var isOn = false
+    var isDefault = false
+    /// Whether the model's host has usable credentials. A row without them
+    /// is dimmed; turning it on walks the learner to them.
+    var isConfigured = true
+    var isTesting = false
+    var backupRank: Int? = nil
+
+    init(_ model: OpenRouterDirectoryModel, in lists: ChatModelLists.Built) {
+        self.model = model
+        let maker = lists.identity(ofSlug: model.id)
+        self.maker = maker
+        if let entry = lists.entryBySlug[model.id.lowercased()] {
+            self.entry = entry
+            isCatalogued = true
+        } else {
+            entry = AIModelCatalogEntry(
+                maker: maker.logo ?? .other,
+                provider: .openRouter,
+                modelID: model.id,
+                customName: model.name
+            )
+            isCatalogued = false
+        }
+    }
+
+    var id: String { model.id }
+    var name: String { entry.displayName }
+    var makerName: String { maker.name }
+    /// What the Price column sorts on: input and output blended as a chat
+    /// runs them (`ModelCostOrder.blended`). A model with no price sorts
+    /// after every priced one.
+    var cost: Double {
+        ModelCostOrder.blended(input: model.inputUSDPerMTokens, output: model.outputUSDPerMTokens) ?? .infinity
+    }
+    /// What the Context column sorts on; an unpublished window counts as none.
+    var context: Int { model.contextLength ?? 0 }
+
+    /// A router (`openrouter/free`, `openrouter/auto`) has no providers of
+    /// its own to choose from.
+    var offersHost: Bool { !model.id.lowercased().hasPrefix("openrouter/") }
+
+    /// "1 Model", "3 Models": a context menu's count.
+    static func count(_ count: Int) -> String {
+        count == 1 ? "1 Model" : "\(count) Models"
+    }
+}
+
+/// "All models on OpenRouter" in Settings › Chat and Background, as a table
+/// (product owner, 2026-10-10: "can this maybe be a bigger table where you
+/// can select stuff?", and "i need to be able to filter in that table by
+/// model provider etc; and be able to sort by price"). One line per model, a
+/// check that offers it in the chat's picker or picks it for the work, and
+/// columns that sort on a click of their header, cheapest first until one is
+/// clicked. Beside the search, a Maker menu narrows the table to one maker or
+/// several and a Features menu to what a model can do. Rows select, several
+/// at once with ⌘ or ⇧, for the context menu to act on together, and a
+/// double-click does what the check does. Collapsed until opened, as the list
+/// it replaced was (2026-10-06: "just a table that we can expand; pre-sorted
+/// by costs").
+struct OpenRouterModelTable<Accessory: View, Actions: View>: View {
+    /// Maker by maker, newest first: the order ties keep.
+    let rows: [ModelTableRow]
+    let state: ModelBrowserState
+    /// "chat models": what the loading, empty and search lines name.
+    let subject: String
+    let retry: () -> Void
+    let purpose: ChatModelRow.Purpose
+    /// The check, or a double-click, on these rows.
+    let toggle: ([ModelTableRow]) -> Void
+    /// Controls at the trailing end of the title line.
+    @ViewBuilder let accessory: () -> Accessory
+    /// The pane's own menu items for the rows a right-click took in; the
+    /// table adds Choose Provider and the OpenRouter page for one row.
+    @ViewBuilder let actions: ([ModelTableRow]) -> Actions
+
+    @State private var isExpanded = false
+    @State private var query = ""
+    /// The makers the table is narrowed to, by name; empty for every maker.
+    @State private var makers: Set<String> = []
+    /// What every listed model must do; empty for no such limit.
+    @State private var features: Set<ModelTableFeature> = []
+    @State private var selection: Set<ModelTableRow.ID> = []
+    @State private var sortOrder = [KeyPathComparator(\ModelTableRow.cost)]
+    /// The row whose provider panel is open, from its cell or its menu.
+    @State private var hostPanelRowID: ModelTableRow.ID?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 6) {
+                Button {
+                    isExpanded.toggle()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                            .zoomedSystemFont(size: 10, weight: .semibold)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 10)
+                        Text("All models on OpenRouter")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.primary)
+                        if !rows.isEmpty {
+                            Text("\(rows.count)")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(.isButton)
+                .accessibilityValue(isExpanded ? "expanded" : "collapsed")
+                if state == .loading {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+                Spacer()
+                accessory()
+            }
+            if isExpanded {
+                content
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch state {
+        case .failed(let message):
+            ModelBrowserFailure(message: message, retry: retry)
+        case .loading where rows.isEmpty:
+            Text("Reading OpenRouter's \(subject)…")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+        default:
+            if rows.isEmpty {
+                Text("OpenRouter lists no \(subject) ForeverLM can use right now.")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            } else {
+                HStack(spacing: 8) {
+                    ModelSearchField(text: $query, prompt: "Search \(subject)")
+                    makerMenu
+                    featureMenu
+                }
+                let shown = shownRows
+                if shown.isEmpty {
+                    Text(emptyLine)
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                } else {
+                    table(shown)
+                }
+            }
+        }
+    }
+
+    /// The rows the search and the filters let through, in the order the
+    /// headers ask for.
+    private var shownRows: [ModelTableRow] {
+        let terms = ModelSearch.terms(query)
+        return rows
+            .filter { row in
+                (makers.isEmpty || makers.contains(row.makerName))
+                    && features.allSatisfy { $0.matches(row.model) }
+                    && ModelSearch.matches(terms: terms, fields: [row.name, row.id, row.makerName])
+            }
+            .sorted(using: sortOrder)
+    }
+
+    private var emptyLine: String {
+        let query = query.trimmingCharacters(in: .whitespaces)
+        let filtered = !makers.isEmpty || !features.isEmpty
+        if query.isEmpty { return "No model matches these filters." }
+        return "No model matches “\(query)”\(filtered ? " with these filters" : "")."
+    }
+
+    // MARK: Filters
+
+    /// Every maker the table lists, the most models first, with how many.
+    private var makerCounts: [(name: String, count: Int)] {
+        Dictionary(grouping: rows, by: \.makerName)
+            .map { (name: $0.key, count: $0.value.count) }
+            .sorted { $0.count != $1.count ? $0.count > $1.count : $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    /// "Maker", "Google" or "3 makers": what the table is narrowed to.
+    private var makerMenu: some View {
+        Menu {
+            Button("All Makers") {
+                makers = []
+            }
+            .disabled(makers.isEmpty)
+            Divider()
+            ForEach(makerCounts, id: \.name) { maker in
+                Toggle(
+                    "\(maker.name) (\(maker.count))",
+                    isOn: Binding(
+                        get: { makers.contains(maker.name) },
+                        set: { isOn in
+                            if isOn { makers.insert(maker.name) } else { makers.remove(maker.name) }
+                        }
+                    )
+                )
+            }
+        } label: {
+            filterLabel(
+                makers.count == 1 ? makers.first ?? "Maker" : makers.isEmpty ? "Maker" : "\(makers.count) makers",
+                isOn: !makers.isEmpty
+            )
+        }
+        .pickerPillMenu()
+        .fixedSize()
+        .help("Show only some makers' models")
+        .accessibilityLabel("Maker filter")
+        .accessibilityValue(makers.isEmpty ? "every maker" : makers.sorted().joined(separator: ", "))
+    }
+
+    /// "Features", "Reads images" or "2 features".
+    private var featureMenu: some View {
+        Menu {
+            Button("Any Features") {
+                features = []
+            }
+            .disabled(features.isEmpty)
+            Divider()
+            ForEach(ModelTableFeature.allCases) { feature in
+                Toggle(
+                    "\(feature.title) (\(rows.filter { feature.matches($0.model) }.count))",
+                    isOn: Binding(
+                        get: { features.contains(feature) },
+                        set: { isOn in
+                            if isOn { features.insert(feature) } else { features.remove(feature) }
+                        }
+                    )
+                )
+            }
+        } label: {
+            filterLabel(
+                features.count == 1 ? features.first?.title ?? "Features" : features.isEmpty ? "Features" : "\(features.count) features",
+                isOn: !features.isEmpty
+            )
+        }
+        .pickerPillMenu()
+        .fixedSize()
+        .help("Show only models that can do certain things")
+        .accessibilityLabel("Features filter")
+        .accessibilityValue(features.isEmpty ? "any" : ModelTableFeature.allCases.filter(features.contains).map(\.title).joined(separator: ", "))
+    }
+
+    private func filterLabel(_ title: String, isOn: Bool) -> some View {
+        HStack(spacing: 3) {
+            Text(title)
+                .lineLimit(1)
+            Image(systemName: "chevron.down")
+                .zoomedSystemFont(size: 8, weight: .semibold)
+        }
+        .font(.caption.weight(.medium))
+        .foregroundStyle(isOn ? Color.accentColor : Color.primary)
+    }
+
+    private func table(_ shown: [ModelTableRow]) -> some View {
+        Table(shown, selection: $selection, sortOrder: $sortOrder) {
+            // Ideal widths that, with each column's padding, fit the 660 pt
+            // a Settings card leaves: a wider pane widens the Model column.
+            TableColumn("") { row in
+                checkCell(row)
+            }
+            .width(20)
+            TableColumn("Model", value: \.name) { row in
+                modelCell(row)
+            }
+            .width(min: 130, ideal: 166)
+            TableColumn("Maker", value: \.makerName) { row in
+                Text(row.makerName)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .width(min: 56, ideal: 72)
+            TableColumn("Price", value: \.cost) { row in
+                priceCell(row)
+            }
+            .width(min: 64, ideal: 80)
+            TableColumn("Context", value: \.context) { row in
+                Text(row.model.contextLength.map(ChatModelRow.contextLabel(tokens:)) ?? "—")
+                    .foregroundStyle(.secondary)
+                    .help(row.model.contextLength.map { "\(ChatModelRow.contextLabel(tokens: $0)) token context window" } ?? "Context window not published")
+            }
+            .width(min: 44, ideal: 50)
+            TableColumn("Speed") { row in
+                ModelTableSpeed(entry: row.entry)
+            }
+            .width(min: 48, ideal: 64)
+            TableColumn("Provider") { row in
+                if row.offersHost {
+                    ChatModelHostButton(
+                        entry: row.entry,
+                        slotID: purpose.hostSlotID,
+                        isPresented: Binding(
+                            get: { hostPanelRowID == row.id },
+                            set: { hostPanelRowID = $0 ? row.id : nil }
+                        ),
+                        inTable: true
+                    )
+                }
+            }
+            .width(min: 64, ideal: 76)
+        }
+        .tableStyle(.inset(alternatesRowBackgrounds: true))
+        .contextMenu(forSelectionType: ModelTableRow.ID.self) { ids in
+            menu(for: rows.filter { ids.contains($0.id) })
+        } primaryAction: { ids in
+            let picked = rows.filter { ids.contains($0.id) }
+            if !picked.isEmpty { toggle(picked) }
+        }
+        // Some 18 lines at once, where the banners showed five.
+        .frame(height: 460)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.12), lineWidth: 1)
+        }
+        .accessibilityIdentifier("settings.models.browser.table")
+    }
+
+    @ViewBuilder
+    private func menu(for picked: [ModelTableRow]) -> some View {
+        if !picked.isEmpty {
+            actions(picked)
+            if picked.count == 1, let row = picked.first {
+                Divider()
+                if row.offersHost {
+                    Button {
+                        hostPanelRowID = row.id
+                    } label: {
+                        Label("Choose Provider…", systemImage: "server.rack")
+                    }
+                }
+                if let url = OpenRouterModelPage.url(slug: row.model.id) {
+                    Link(destination: url) {
+                        Label("About \(row.name) on OpenRouter", systemImage: "arrow.up.right.square")
+                    }
+                }
+            }
+        }
+    }
+
+    /// A checkbox where the chat offers several models; a single pick's
+    /// check where Background runs on one.
+    @ViewBuilder
+    private func checkCell(_ row: ModelTableRow) -> some View {
+        if row.isTesting {
+            ProgressView()
+                .controlSize(.mini)
+                .help("Testing \(row.name) before \(purpose.isChat ? "offering" : "using") it")
+        } else if purpose.isChat {
+            Toggle("", isOn: Binding(get: { row.isOn }, set: { _ in toggle([row]) }))
+                .toggleStyle(.checkbox)
+                .labelsHidden()
+                // The Default Model cannot be turned off.
+                .disabled(row.isDefault)
+                .help(row.isOn ? "Offered in the chat's model picker" : "Offer \(row.name) in the chat's model picker")
+                .accessibilityLabel("Offer \(row.name) in the chat model picker")
+        } else {
+            Button {
+                toggle([row])
+            } label: {
+                Image(systemName: row.isOn ? "checkmark.circle.fill" : "circle")
+                    .zoomedSystemFont(size: 13, weight: .regular)
+                    .foregroundStyle(row.isOn ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.tertiary))
+            }
+            .buttonStyle(.plain)
+            .help(row.isOn ? "This work runs on \(row.name)" : "Run this work on \(row.name)")
+            .accessibilityLabel("Use \(row.name)")
+            .accessibilityAddTraits(row.isOn ? .isSelected : [])
+        }
+    }
+
+    /// The maker's logo, the model's name and its grey marks. The name
+    /// wins the room: marks that do not fit beside it are left to the tooltip.
+    private func modelCell(_ row: ModelTableRow) -> some View {
+        let marks = ChatModelRow.marks(
+            isDefault: row.isDefault,
+            isRecommended: row.entry.provider == .openRouter && FreeModelsSetup.isRecommended(row.entry.modelID),
+            promotion: row.model.promotion?.label,
+            backupRank: row.backupRank
+        )
+        return HStack(spacing: 6) {
+            OpenRouterMakerLogo(bundled: row.maker.logo, openRouterSlug: row.maker.vendor, fallbackSymbol: "sparkles")
+                .frame(width: 14, height: 14)
+            ViewThatFits(in: .horizontal) {
+                if let marks {
+                    HStack(spacing: 6) {
+                        Text(row.name)
+                        Text(marks)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .lineLimit(1)
+                }
+                Text(row.name)
+                    .lineLimit(1)
+            }
+        }
+        .opacity(row.isConfigured ? 1 : 0.55)
+        .help(marks.map { "\(row.model.id) · \($0)" } ?? row.model.id)
+    }
+
+    /// "$0.3/$2.5" input and output per 1M tokens, or "Free".
+    @ViewBuilder
+    private func priceCell(_ row: ModelTableRow) -> some View {
+        if let input = row.model.inputUSDPerMTokens, let output = row.model.outputUSDPerMTokens {
+            let was = row.model.promotion?.listPriceLabel(effectiveInput: input, effectiveOutput: output)
+                .map { ", down from \($0)" } ?? ""
+            Text(row.model.isZeroPriced ? "Free" : AIModelListPrice.pairLabel(input: input, output: output))
+                .lineLimit(1)
+                .help("\(AIModelListPrice.pairLabel(input: input, output: output)) input/output per 1M tokens\(was)")
+        } else {
+            Text("—")
+                .foregroundStyle(.tertiary)
+                .help("No published list price")
+        }
+    }
+}
+
+/// What the table's Features menu narrows to, as OpenRouter's directory
+/// lists it.
+enum ModelTableFeature: String, CaseIterable, Identifiable, Hashable {
+    case readsImages
+    case reasoning
+    case openWeights
+    case longContext
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .readsImages: return "Reads images"
+        case .reasoning: return "Reasoning effort"
+        case .openWeights: return "Open weights"
+        case .longContext: return "1M context"
+        }
+    }
+
+    func matches(_ model: OpenRouterDirectoryModel) -> Bool {
+        switch self {
+        case .readsImages: return model.supportsVision == true
+        case .reasoning: return model.reasoningEfforts != nil
+        case .openWeights: return model.huggingFaceID != nil
+        case .longContext: return (model.contextLength ?? 0) >= 1_000_000
+        }
+    }
+}
+
+/// A table line's output speed, loaded as the line scrolls into view.
+private struct ModelTableSpeed: View {
+    let entry: AIModelCatalogEntry
+
+    @State private var tokensPerSecond: Double?
+
+    var body: some View {
+        Text(tokensPerSecond.map(OpenRouterModelSpeed.label(tokensPerSecond:)) ?? "—")
+            .foregroundStyle(tokensPerSecond == nil ? HierarchicalShapeStyle.tertiary : HierarchicalShapeStyle.secondary)
+            .lineLimit(1)
+            .help(OpenRouterModelSpeed.explanation)
+            .task(id: entry.id) {
+                await ChatModelRow.loadSpeed(of: entry) { tokensPerSecond = $0 }
+            }
     }
 }

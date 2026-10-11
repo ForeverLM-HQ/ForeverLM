@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import WebKit
 
 /// A canvas: a plane for what the learner thinks (docs/knowledge-map-design.md).
 /// Their Ideas, the regions they draw and the arrows between them sit on it;
@@ -9,19 +10,25 @@ import UniformTypeIdentifiers
 /// sidebar on the leading edge, the canvas beside it, and the canvas's name
 /// at the top as its menu ("Canvases in the Space").
 ///
-/// The plane is `KnowledgeMapCanvasView`. Around it: the tray on the leading
-/// edge with what is not on the map yet (Ideas, notebooks, a library search);
-/// the tools (select, hand, circle, region, arrow, note) and a find field
-/// above, undo, zoom and the shortcuts below; the
-/// lens banner while a chat's lens shows; and, on the trailing edge, what is
+/// The plane is `KnowledgeMapCanvasView`. Around it: the tools (select, hand,
+/// circle, region, arrow, note) with a + that opens the add box, a find field
+/// that also adds, and the Library button above; undo, zoom and the shortcuts
+/// below; the lens banner while a chat's lens shows; the Library, a sidebar on
+/// the trailing edge with what is not on the canvas yet (closed until asked for,
+/// and the plane narrows for it); and, over the plane's trailing edge, what is
 /// selected — cards with Ask in Chat, an Idea's evidence, a region's name and
 /// colour, an arrow's label. An empty map says what to do first.
+/// docs/knowledge-map-design.md, "Adding to the canvas".
 struct KnowledgeMapPane: View {
     @Environment(StudioViewModel.self) private var vm
     @Environment(StudioWindowState.self) private var windowState
     @Environment(\.studioCenterPaneHeaderLeadingInset) private var headerLeadingInset
 
-    @State private var query = ""
+    @State private var findQuery = ""
+    @State private var findHighlight = 0
+    @FocusState private var findFocused: Bool
+    /// How tall the inspector's content is, measured: the card is that tall.
+    @State private var inspectorHeight: CGFloat = 200
     @State private var noteText = ""
     @State private var regionName = ""
     @State private var edgeLabel = ""
@@ -29,7 +36,6 @@ struct KnowledgeMapPane: View {
     @FocusState private var regionNameFocused: Bool
     /// This pane's canvas, for Extend to Other Display.
     @State private var canvasHandle = KnowledgeMapCanvasHandle()
-    @State private var showsTray = true
     // MARK: The Space beside the canvas
     /// The learner's choice to keep the Space sidebar out of the way, shared
     /// with the Space and its pages; this Mac's.
@@ -41,6 +47,12 @@ struct KnowledgeMapPane: View {
     @State private var isCreatingSpace = false
 
     private var map: KnowledgeMapModel { vm.knowledgeMap }
+
+    /// The Library sits beside the plane while the learner has it open, and
+    /// steps aside for a review in place.
+    private var showsLibrarySidebar: Bool {
+        map.showsLibrary && map.memory.review == nil
+    }
 
     /// The sidebar shows unless the learner hid it or the pane is too narrow
     /// for it beside the canvas.
@@ -59,8 +71,13 @@ struct KnowledgeMapPane: View {
         )
     }
 
-    var body: some View {
+    /// The Space sidebar, the plane with what floats over it, and the Library.
+    @ViewBuilder
+    private var paneLayout: some View {
         let map = map
+        // Read here, in the layout, for the overlay that draws them below.
+        let findListing = findListing
+        let findHighlight = findHighlight
         HStack(spacing: 0) {
             if showsSpaceSidebar {
                 SpaceSidebar(
@@ -114,11 +131,7 @@ struct KnowledgeMapPane: View {
                 // than taking over the last one's drawn state.
                 .id(map.mapID)
                 if map.placedCount == 0, map.lens == nil, !map.content.nodes.isEmpty {
-                    // Centred in the room the tray leaves: beside the Space
-                    // sidebar the plane is narrower, and the tray would cover
-                    // the card's leading edge.
                     emptyMapCard
-                        .padding(.leading, showsTray && map.memory.review == nil ? 290 + 14 : 0)
                 }
                 // Freeform's arrangement: the tools float over the plane, the
                 // find field top right, zoom bottom left, and what is selected in
@@ -166,105 +179,122 @@ struct KnowledgeMapPane: View {
                     }
                 }
                 .padding(14)
+                // What is selected hangs from the top of the trailing edge, under the
+                // find field, as tall as it is (at most 520 points, then it scrolls).
                 HStack {
-                    if showsTray, map.memory.review == nil {
-                        KnowledgeMapTray(onClose: { showsTray = false })
-                            .frame(width: 290)
-                            .frame(maxHeight: 640)
-                            .mapFloatingChrome(cornerRadius: 14)
-                            .padding(.leading, 14)
-                            .padding(.vertical, 64)
-                            .transition(.move(edge: .leading).combined(with: .opacity))
-                    }
                     Spacer()
                     if showsInspector {
                         inspector
                             .frame(width: 290)
-                            .frame(maxHeight: 520)
                             .mapFloatingChrome(cornerRadius: 14)
                             .padding(.trailing, 14)
-                            .padding(.vertical, 64)
                             .transition(.move(edge: .trailing).combined(with: .opacity))
                     }
                 }
+                .frame(maxHeight: .infinity, alignment: .top)
+                .padding(.vertical, 64)
                 .animation(.easeInOut(duration: 0.18), value: showsInspector)
-                .animation(.easeInOut(duration: 0.18), value: showsTray)
                 // MARK: Review (WP-B2)
                 KnowledgeMapReviewLayer()
                 // ⌘-click: a card's faces floating beside it.
                 KnowledgeMapPopupLayer()
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // What floats under the chrome (the add box under the tools, the find
+            // field's list under the field) is placed from where the pills are.
+            .overlayPreferenceValue(KnowledgeMapChromeAnchorKey.self) { anchors in
+                chromeOverlay(anchors, findListing: findListing, findHighlight: findHighlight)
+            }
+            // The Library: a sidebar on the plane's trailing edge; the plane narrows.
+            if showsLibrarySidebar {
+                Divider()
+                KnowledgeMapLibrarySidebar(onClose: { map.showsLibrary = false })
+                    .frame(width: 300)
+                    .background(Color(nsColor: .windowBackgroundColor))
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+            }
         }
         .animation(.easeInOut(duration: 0.18), value: showsSpaceSidebar)
+        .animation(.easeInOut(duration: 0.18), value: showsLibrarySidebar)
         .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { paneWidth = $0 }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .windowBackgroundColor))
-        .canvasRenameAlert($renamingCanvas)
-        // Opening a canvas is a Recents entry, as opening a page is.
-        .onChange(of: map.mapID, initial: true) { _, id in
-            SpaceRecents.shared.note(.canvas, id: id)
-        }
-        // What was linked from the sidebar opens in its pane once the sheet
-        // has gone, as from the Space.
-        .sheet(item: $linkSection, onDismiss: {
-            guard let id = linkedArtifactID else { return }
-            linkedArtifactID = nil
-            vm.revealArtifact(id, in: windowState)
-        }) { section in
-            LinkPageSheet(section: section) { urlString in
-                let artifact = try await vm.linkPage(
-                    urlString: urlString,
-                    in: section,
-                    homeNotebookID: nil,
-                    linkedNotebookIDs: []
-                )
-                if let spaceID = spaceSelection.pageSpaceID {
-                    vm.filePages([artifact.id], inPageSpace: spaceID)
-                }
-                linkedArtifactID = artifact.id
+    }
+
+    var body: some View {
+        paneLayout
+            .canvasRenameAlert($renamingCanvas)
+            // Opening a canvas is a Recents entry, as opening a page is.
+            .onChange(of: map.mapID, initial: true) { _, id in
+                SpaceRecents.shared.note(.canvas, id: id)
             }
-        }
-        .sheet(isPresented: $isCreatingSpace) {
-            SpaceNewSpaceSheet(onCreated: showSpacePlace)
-        }
-        .knowledgeMapMemory() // Memory (WP-B2)
-        .studioChromeLineHeader { header }
-        .studioCenterTabCloseChrome(for: .knowledgeMap)
-        .task(id: "\(map.mapID)|\(vm.knowledgeMapContentSignature)") {
-            await vm.refreshKnowledgeMapContent()
-            Task { await vm.refreshKnowledgeMapFaces() } // Faces (WP-B1)
-            await vm.refreshKnowledgeMapSummaries()
-        }
-        .task(id: "\(map.describesView)-\(map.viewport.captionKey)") {
-            await vm.refreshKnowledgeMapViewCaption()
-        }
-        .onChange(of: map.layoutRevision) {
-            Task { await vm.refreshKnowledgeMapSummaries() }
-            Task { await vm.refreshKnowledgeMapFaces() } // Faces (WP-B1)
-        }
-        .onChange(of: map.selectedRegionID) { _, id in
-            regionName = id.flatMap { map.layout.regions[$0]?.name } ?? ""
-            if let id, map.layout.regions[id]?.name.isEmpty == true { regionNameFocused = true }
-        }
-        .onChange(of: map.selectedEdgeID) { _, id in
-            edgeLabel = id.flatMap { map.layout.edges[$0]?.label } ?? ""
-        }
-        // A note asked for with the Note tool in the window extended to is
-        // written here, in the window extended from.
-        .onChange(of: map.pendingNote == nil) { _, isNil in
-            if !isNil { noteFocused = true }
-        }
-        // View ▸ Extend Map to Other Display, in the window it was chosen in.
-        .onReceive(NotificationCenter.default.publisher(for: .extendKnowledgeMapToOtherDisplay)) { note in
-            let isThisWindow = (note.object as? UUID).map { $0 == windowState.id }
-                ?? (StudioWindowRegistry.shared.activeState === windowState)
-            guard isThisWindow else { return }
-            toggleDisplayExtension()
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Canvas")
-        .accessibilityIdentifier("knowledgeMap.pane")
+            // What was linked from the sidebar opens in its pane once the sheet
+            // has gone, as from the Space.
+            .sheet(item: $linkSection, onDismiss: {
+                guard let id = linkedArtifactID else { return }
+                linkedArtifactID = nil
+                vm.revealArtifact(id, in: windowState)
+            }) { section in
+                LinkPageSheet(section: section) { urlString in
+                    let artifact = try await vm.linkPage(
+                        urlString: urlString,
+                        in: section,
+                        homeNotebookID: nil,
+                        linkedNotebookIDs: []
+                    )
+                    if let spaceID = spaceSelection.pageSpaceID {
+                        vm.filePages([artifact.id], inPageSpace: spaceID)
+                    }
+                    linkedArtifactID = artifact.id
+                }
+            }
+            .sheet(isPresented: $isCreatingSpace) {
+                SpaceNewSpaceSheet(onCreated: showSpacePlace)
+            }
+            .knowledgeMapMemory() // Memory (WP-B2)
+            .studioChromeLineHeader { header }
+            .studioCenterTabCloseChrome(for: .knowledgeMap)
+            .task(id: "\(map.mapID)|\(vm.knowledgeMapContentSignature)") {
+                await vm.refreshKnowledgeMapContent()
+                Task { await vm.refreshKnowledgeMapFaces() } // Faces (WP-B1)
+                await vm.refreshKnowledgeMapSummaries()
+            }
+            .task(id: "\(map.describesView)-\(map.viewport.captionKey)") {
+                await vm.refreshKnowledgeMapViewCaption()
+            }
+            .onChange(of: map.layoutRevision) {
+                Task { await vm.refreshKnowledgeMapSummaries() }
+                Task { await vm.refreshKnowledgeMapFaces() } // Faces (WP-B1)
+            }
+            .onChange(of: map.selectedRegionID) { _, id in
+                regionName = id.flatMap { map.layout.regions[$0]?.name } ?? ""
+                if let id, map.layout.regions[id]?.name.isEmpty == true { regionNameFocused = true }
+            }
+            .onChange(of: map.selectedEdgeID) { _, id in
+                edgeLabel = id.flatMap { map.layout.edges[$0]?.label } ?? ""
+            }
+            // ⌘F on the plane: the cursor goes to the find field, in the window
+            // the learner is working in.
+            .onChange(of: map.findFocusRequests) {
+                guard StudioWindowRegistry.shared.activeState === windowState else { return }
+                findFocused = true
+            }
+            .onChange(of: findQuery) { findHighlight = 0 }
+            // A note asked for with the Note tool in the window extended to is
+            // written here, in the window extended from.
+            .onChange(of: map.pendingNote == nil) { _, isNil in
+                if !isNil { noteFocused = true }
+            }
+            // View ▸ Extend Map to Other Display, in the window it was chosen in.
+            .onReceive(NotificationCenter.default.publisher(for: .extendKnowledgeMapToOtherDisplay)) { note in
+                let isThisWindow = (note.object as? UUID).map { $0 == windowState.id }
+                    ?? (StudioWindowRegistry.shared.activeState === windowState)
+                guard isThisWindow else { return }
+                toggleDisplayExtension()
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Canvas")
+            .accessibilityIdentifier("knowledgeMap.pane")
     }
 
     /// The chrome line: the Space sidebar's own line over the sidebar, then
@@ -365,6 +395,7 @@ struct KnowledgeMapPane: View {
             Button("New Canvas", systemImage: KnowledgeMap.symbolName) {
                 vm.makeAndOpenCanvas(inPageSpace: spaceSelection.pageSpaceID, in: windowState)
             }
+            regionsMenuSection
         } label: {
             HStack(spacing: 5) {
                 Image(systemName: KnowledgeMap.symbolName)
@@ -389,6 +420,34 @@ struct KnowledgeMapPane: View {
         .help("Canvas options")
         .accessibilityLabel("\(vm.openCanvasName), canvas options")
         .accessibilityIdentifier("knowledgeMap.canvasMenu")
+    }
+
+    /// The most regions the canvas menu lists.
+    private static let regionMenuLimit = 40
+
+    /// **Regions**, after the menu's own items: the canvas's regions in reading
+    /// order, a region before the ones inside it, each indented one step per
+    /// level; a click flies to the region (docs/knowledge-map-design.md,
+    /// "Adding to the canvas", part 4).
+    @ViewBuilder
+    private var regionsMenuSection: some View {
+        let rows = Array(map.layout.regionOutline().prefix(Self.regionMenuLimit))
+        if !rows.isEmpty {
+            Section("Regions") {
+                ForEach(rows, id: \.id) { row in
+                    Button(String(repeating: "\u{2003}", count: row.depth) + regionMenuName(row.id)) {
+                        map.send(.focus(refs: [], regionID: row.id))
+                    }
+                }
+            }
+        }
+    }
+
+    /// A notebook's frame is named by its notebook; a region nobody named is
+    /// "Untitled region".
+    private func regionMenuName(_ id: String) -> String {
+        let written = map.layout.regions[id]?.name.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return map.notebook(ofRegion: id)?.title ?? (written.isEmpty ? "Untitled region" : written)
     }
 
     /// Over a canvas the learner put in Trash: it stays readable and usable,
@@ -485,61 +544,191 @@ struct KnowledgeMapPane: View {
                 .accessibilityLabel(tool.title)
                 .accessibilityIdentifier("knowledgeMap.tool.\(tool.id)")
             }
+            Divider().frame(height: 16).padding(.horizontal, 3)
+            // An action, not a tool: the add box opens under the pill and nothing
+            // stays selected.
+            Button {
+                map.addBox = KnowledgeMapAddBoxRequest(view: nil, worldX: nil, worldY: nil, windowID: windowState.id)
+            } label: {
+                Image(systemName: "plus")
+                    .zoomedSystemFont(size: 14)
+                    .frame(width: 32, height: 28)
+                    .foregroundStyle(Color.primary.opacity(0.8))
+            }
+            .buttonStyle(.hoverWash(cornerRadius: 8, inset: 0, opacity: 0.10))
+            .help("Add to the canvas (/)")
+            .accessibilityLabel("Add to the canvas (/)")
+            .accessibilityIdentifier("knowledgeMap.add")
         }
         .padding(4)
         .mapFloatingChrome(cornerRadius: 12)
+        .anchorPreference(key: KnowledgeMapChromeAnchorKey.self, value: .bounds) { KnowledgeMapChromeAnchors(tools: $0) }
     }
 
-    /// The find field's width, and the whole pill's.
+    /// The find field's width, the whole pill's, and the pill with the Library
+    /// button beside it.
     private static let findFieldWidth: CGFloat = 180
     private static let findPillWidth: CGFloat = findFieldWidth + 38
+    private static let findClusterWidth: CGFloat = findPillWidth + 6 + 40
 
     /// Freeform's arrangement: the tools centred over the plane and the find
-    /// field on the trailing edge. A pane too narrow for both puts the tools
-    /// beside the field rather than under it, then narrows the field.
+    /// field, with the Library button, on the trailing edge. A pane too narrow
+    /// for both puts the tools beside the field rather than centred, then
+    /// narrows the field.
     private var topBar: some View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: 10) {
-                topBarLeading.frame(width: Self.findPillWidth, alignment: .leading)
+                Color.clear.frame(width: Self.findClusterWidth, height: 0)
                 Spacer(minLength: 0)
                 toolsPill
                 Spacer(minLength: 0)
-                findPill(fieldWidth: Self.findFieldWidth)
+                findCluster(fieldWidth: Self.findFieldWidth)
             }
             HStack(spacing: 10) {
-                topBarLeading
                 Spacer(minLength: 0)
                 toolsPill
-                findPill(fieldWidth: Self.findFieldWidth)
+                findCluster(fieldWidth: Self.findFieldWidth)
             }
             HStack(spacing: 8) {
-                topBarLeading
                 Spacer(minLength: 0)
                 toolsPill
-                findPill(fieldWidth: 96)
+                findCluster(fieldWidth: 96)
             }
         }
     }
 
-    @ViewBuilder
-    private var topBarLeading: some View {
-        if !showsTray { trayToggle }
+    private func findCluster(fieldWidth: CGFloat) -> some View {
+        HStack(spacing: 6) {
+            findPill(fieldWidth: fieldWidth)
+            libraryToggle
+        }
     }
 
+    /// One field that finds and adds: the cards on the canvas, the library's,
+    /// the notebooks, and what is typed as a new Idea, listed under it
+    /// (`KnowledgeMapFindDropdown`). ⌘F on the plane puts the cursor here.
     private func findPill(fieldWidth: CGFloat) -> some View {
         HStack(spacing: 6) {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(.secondary)
                 .zoomedSystemFont(size: 12)
-            TextField("Find on the canvas", text: $query)
+            TextField("Find or add…", text: $findQuery)
                 .textFieldStyle(.plain)
                 .frame(width: fieldWidth)
-                .onSubmit(find)
+                .focused($findFocused)
+                .onSubmit(takeHighlightedFindRow)
+                .onKeyPress(.downArrow) { moveFindHighlight(1) }
+                .onKeyPress(.upArrow) { moveFindHighlight(-1) }
+                .onKeyPress(.escape) {
+                    endFind()
+                    return .handled
+                }
+                .onExitCommand(perform: endFind)
                 .accessibilityIdentifier("knowledgeMap.find")
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
         .mapFloatingChrome(cornerRadius: 12)
+        .anchorPreference(key: KnowledgeMapChromeAnchorKey.self, value: .bounds) { KnowledgeMapChromeAnchors(find: $0) }
+    }
+
+    /// The Library's button, after the find field: lit while the sidebar is open.
+    private var libraryToggle: some View {
+        Button {
+            map.showsLibrary.toggle()
+        } label: {
+            Image(systemName: "sidebar.right")
+                .zoomedSystemFont(size: 14)
+                .frame(width: 32, height: 28)
+                .foregroundStyle(map.showsLibrary ? Color.accentColor : Color.primary.opacity(0.8))
+        }
+        .buttonStyle(.hoverWash(cornerRadius: 8, inset: 0, opacity: 0.10))
+        .help("Library: what is not on this canvas yet (L)")
+        .accessibilityLabel("Library")
+        .accessibilityIdentifier("knowledgeMap.library.toggle")
+        .padding(4)
+        .mapFloatingChrome(cornerRadius: 12)
+    }
+
+    // MARK: The find field's list and the add box
+
+    /// The rows under the find field while it has the cursor and words are in
+    /// it; nil otherwise.
+    private var findListing: KnowledgeMapAddSearch.Listing? {
+        guard findFocused, !findQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        return KnowledgeMapAddSearch.listing(
+            query: findQuery,
+            mode: .find,
+            content: map.content,
+            placed: Set(map.layout.placements.keys),
+            selection: map.selection,
+            index: map.addSearchIndex
+        )
+    }
+
+    private func moveFindHighlight(_ step: Int) -> KeyPress.Result {
+        guard let count = findListing?.rows.count, count > 0 else { return .handled }
+        findHighlight = min(max(findHighlight + step, 0), count - 1)
+        return .handled
+    }
+
+    private func takeHighlightedFindRow() {
+        guard let rows = findListing?.rows, rows.indices.contains(findHighlight) else { return }
+        takeFindRow(rows[findHighlight])
+    }
+
+    /// A row of the find field's list: set down beside the selection, else in
+    /// the middle of the view (a new Idea at its centre), or flown to.
+    private func takeFindRow(_ row: KnowledgeMapAddSearch.Row) {
+        endFind()
+        vm.takeKnowledgeMapAddRow(row, at: KnowledgeMapAddSpot(view: nil, world: nil))
+    }
+
+    /// Esc, or a row taken: the field empties, lets go of the cursor and the
+    /// keys go back to the plane.
+    private func endFind() {
+        findQuery = ""
+        findFocused = false
+        focusPlane()
+    }
+
+    /// Gives the keys back to the plane after the add box or the find field
+    /// lets go of them.
+    private func focusPlane() {
+        guard let webView = canvasHandle.coordinator?.webView else { return }
+        webView.window?.makeFirstResponder(webView)
+    }
+
+    /// What floats over the plane under the chrome: the add box, and the find
+    /// field's list hanging from the field's trailing edge.
+    private func chromeOverlay(
+        _ anchors: KnowledgeMapChromeAnchors,
+        findListing: KnowledgeMapAddSearch.Listing?,
+        findHighlight: Int
+    ) -> some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .topLeading) {
+                Color.clear
+                    .allowsHitTesting(false)
+                KnowledgeMapAddBoxLayer(
+                    plane: proxy.size,
+                    toolsPill: anchors.tools.map { proxy[$0] },
+                    focusPlane: focusPlane
+                )
+                if let listing = findListing, let field = anchors.find.map({ proxy[$0] }) {
+                    KnowledgeMapFindDropdown(
+                        listing: listing,
+                        highlighted: min(findHighlight, max(listing.rows.count - 1, 0)),
+                        onTake: takeFindRow
+                    )
+                    .offset(
+                        x: max(KnowledgeMapAddBox.margin, field.maxX - KnowledgeMapFindDropdown.width),
+                        y: field.maxY + 6
+                    )
+                }
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
+        }
     }
 
     private var zoomPill: some View {
@@ -623,24 +812,9 @@ struct KnowledgeMapPane: View {
         }
     }
 
-    /// Brings the tray back once it was closed.
-    private var trayToggle: some View {
-        Button { showsTray = true } label: {
-            Label("Add to the Canvas", systemImage: "sidebar.left")
-                .zoomedSystemFont(size: 12, weight: .medium)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 7)
-        }
-        .buttonStyle(.hoverWash(cornerRadius: 12, inset: 0, opacity: 0.10))
-        .mapFloatingChrome(cornerRadius: 12)
-        .help("Show what is not on the canvas yet: your Ideas, notebooks and the library")
-        .accessibilityIdentifier("knowledgeMap.tray.show")
-    }
-
     /// What an empty map says: what it is for, and the first moves.
     private var emptyMapCard: some View {
-        let ideas = map.unplacedIdeaRefs
-        return VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 12) {
             Text("A canvas for what you think")
                 .zoomedSystemFont(size: 17, weight: .semibold)
                 .textSelection(.disabled)
@@ -650,13 +824,12 @@ struct KnowledgeMapPane: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.disabled)
             HStack(spacing: 10) {
-                if !ideas.isEmpty {
-                    Button(ideas.count == 1 ? "Place My Idea" : "Place My \(ideas.count) Ideas") {
-                        map.send(.dropAtCenter(refs: ideas, regionName: nil))
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .accessibilityIdentifier("knowledgeMap.empty.placeIdeas")
+                Button("Add from Your Library") {
+                    map.addBox = KnowledgeMapAddBoxRequest(view: nil, worldX: nil, worldY: nil, windowID: windowState.id)
                 }
+                .buttonStyle(.borderedProminent)
+                .help("Find a card of your library, or an idea of your own, to put on the canvas (/)")
+                .accessibilityIdentifier("knowledgeMap.empty.add")
                 Button("Write an Idea") { map.send(.tool("note")) }
                     .help("Click anywhere on the canvas to write it there (N); double-click the canvas any time")
                 Button("Lay Out a Topic…") { vm.requestKnowledgeMapTopicChat() }
@@ -766,28 +939,6 @@ struct KnowledgeMapPane: View {
         .accessibilityLabel(help)
     }
 
-    /// Flies to the cards whose title holds the words typed, and rings them.
-    private func find() {
-        let words = query.lowercased().split(separator: " ").map(String.init)
-        guard !words.isEmpty else { return }
-        // What is on the plane: placed cards and the evidence under them. The
-        // rest of the library is found in the tray.
-        let evidence = Set(map.content.links.filter { $0.kind == "idea" && map.layout.placements[$0.a] != nil }.map(\.b))
-        let matches = map.content.nodes
-            .filter { node in
-                guard map.layout.placements[node.ref] != nil || evidence.contains(node.ref) else { return false }
-                let title = node.title.lowercased()
-                return words.allSatisfy { title.contains($0) }
-            }
-            .prefix(40)
-            .map(\.ref)
-        if matches.isEmpty {
-            vm.showToast("Nothing on the canvas is called that; the tray finds the rest of your library")
-        } else {
-            map.send(.focus(refs: Array(matches), regionID: nil))
-        }
-    }
-
     // MARK: Lens
 
     private func lensBanner(_ lens: KnowledgeMapLens) -> some View {
@@ -856,6 +1007,11 @@ struct KnowledgeMapPane: View {
         return !map.selection.isEmpty || map.selectedRegionID != nil || map.selectedEdgeID != nil
     }
 
+    /// The most the inspector grows to before it scrolls.
+    private static let inspectorMaximumHeight: CGFloat = 520
+
+    /// What is selected, as tall as it says (measured), at most
+    /// `inspectorMaximumHeight`, then it scrolls.
     @ViewBuilder
     private var inspector: some View {
         ScrollView {
@@ -870,7 +1026,13 @@ struct KnowledgeMapPane: View {
             }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .onGeometryChange(for: CGFloat.self) { proxy in
+                proxy.size.height
+            } action: { height in
+                if abs(height - inspectorHeight) > 0.5 { inspectorHeight = height }
+            }
         }
+        .frame(maxHeight: min(inspectorHeight, Self.inspectorMaximumHeight))
     }
 
     private func regionInspector(id: String, region: KnowledgeMapLayout.Region) -> some View {
@@ -1134,8 +1296,9 @@ struct KnowledgeMapPane: View {
         return only
     }
 
-    /// The cards' ⋯: how one opens, laying a paper out, fold, size, tidying,
-    /// moving to another canvas, copying and taking off. The plane's own
+    /// The cards' ⋯: how one opens, laying a paper out, a paper's page or an
+    /// Idea's words, fold, size, tidying, moving to another canvas, copying
+    /// and taking off. The plane's own
     /// right-click menu offers the same through the same calls
     /// (`StudioViewModel+CanvasInspector.swift`).
     private func cardsMenu(refs: [String], placed: [String], pagedSource: String?) -> some View {
@@ -1184,6 +1347,20 @@ struct KnowledgeMapPane: View {
         .accessibilityIdentifier("knowledgeMap.selection.more")
     }
 
+    /// Answered, for the question Ideas of `refs`: its badge turns from ? to ✓
+    /// on this canvas; the Idea itself is not touched.
+    private func answeredToggle(_ questions: [String], isOn: Bool) -> some View {
+        Toggle("Answered", isOn: Binding(
+            get: { isOn },
+            set: { vm.setKnowledgeMapAnswered(questions, answered: $0) }
+        ))
+        .toggleStyle(.switch)
+        .controlSize(.small)
+        .zoomedSystemFont(size: 12)
+        .help("Mark the question answered or open again")
+        .accessibilityIdentifier("knowledgeMap.selection.answered")
+    }
+
     @ViewBuilder
     private var selectionInspector: some View {
         let refs = map.selection
@@ -1204,17 +1381,27 @@ struct KnowledgeMapPane: View {
                   vm.knowledgeMapSourceHasPages(item.id) else { return nil }
             return item.id
         }()
+        let actions = vm.knowledgeMapCardActions(for: refs)
         return VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
+            // The ways in wrap onto a second line when the card is too narrow
+            // for them; the ⋯ keeps the trailing corner.
+            FlowLayout(spacing: 10) {
                 Button("Ask in Chat") { vm.requestChatAboutKnowledgeMapSelection(refs) }
                     .buttonStyle(.hoverWash(cornerRadius: 6, inset: -4, opacity: 0.10))
                     .accessibilityIdentifier("knowledgeMap.selection.ask")
+                Button("Add to Chat") { vm.addKnowledgeMapCardsToChat(refs, in: windowState) }
+                    .buttonStyle(.hoverWash(cornerRadius: 6, inset: -4, opacity: 0.10))
+                    .help("Give the chat beside the canvas these cards to work from, or open one with them")
+                    .accessibilityIdentifier("knowledgeMap.selection.addToChat")
                 if refs.count == 1 {
                     Button("Open") { Task { await vm.openKnowledgeMapItem(refs[0], in: windowState) } }
                         .buttonStyle(.hoverWash(cornerRadius: 6, inset: -4, opacity: 0.10))
                 }
                 KnowledgeMapAskSection(refs: refs) // Ask (WP-B1)
-                Spacer()
+            }
+            .padding(.trailing, 28)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .overlay(alignment: .topTrailing) {
                 cardsMenu(refs: refs, placed: placed, pagedSource: pagedSource)
             }
             // The cards' colour: one of eight, or the kind's own.
@@ -1228,6 +1415,12 @@ struct KnowledgeMapPane: View {
             }
             if refs.count == 1, let idea = KnowledgeMap.ItemRef(refs[0]), idea.kind == .idea {
                 ideaEvidence(ideaRef: refs[0], ideaID: idea.id)
+            }
+            // A question is open until the learner says it is answered.
+            if case .markAnswered(let questions)? = actions.answered {
+                answeredToggle(questions, isOn: false)
+            } else if case .markOpen(let questions)? = actions.answered {
+                answeredToggle(questions, isOn: true)
             }
             ForEach(refs.prefix(40), id: \.self) { ref in
                 if let node = map.nodesByRef[ref] {
@@ -1249,6 +1442,17 @@ struct KnowledgeMapPane: View {
                         }
                     }
                     .padding(.vertical, 4)
+                    // What a lone card is on this canvas, under its title: the
+                    // page a paper shows and why it is here.
+                    if refs.count == 1 {
+                        if let turn = actions.pageTurn {
+                            KnowledgeMapPageTurner(turn: turn)
+                        }
+                        if actions.annotation != nil {
+                            KnowledgeMapAnnotationField(ref: ref)
+                                .id(ref)
+                        }
+                    }
                     Divider().opacity(0.4)
                 }
             }
@@ -1352,7 +1556,7 @@ extension KnowledgeMapPane {
                 .foregroundStyle(.secondary)
                 .textSelection(.disabled)
             if evidence.isEmpty {
-                Text("Drop a source or Page on this idea, from the canvas or the tray, to link it.")
+                Text("Drop a source or Page on this idea, from the canvas or the Library, to link it.")
                     .zoomedSystemFont(size: 11)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1389,343 +1593,6 @@ extension KnowledgeMapPane {
         }
         .padding(.vertical, 4)
         Divider().opacity(0.4)
-    }
-}
-
-/// What is not on the map yet, on the plane's leading edge: the open Ideas
-/// waiting to be placed, the notebooks, and a search of the whole library.
-/// Each row's + sets it down in the middle of the view; a source or Doc can
-/// also be dragged onto the map, or onto an Idea to become its evidence.
-struct KnowledgeMapTray: View {
-    @Environment(StudioViewModel.self) private var vm
-    let onClose: () -> Void
-
-    @State private var query = ""
-
-    private var map: KnowledgeMapModel { vm.knowledgeMap }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("Add to the Canvas")
-                    .zoomedSystemFont(size: 13, weight: .semibold)
-                    .textSelection(.disabled)
-                Spacer()
-                Button(action: onClose) {
-                    Image(systemName: "xmark")
-                        .zoomedSystemFont(size: 11)
-                        .frame(width: 22, height: 22)
-                }
-                .buttonStyle(.hoverWash(cornerRadius: 6, inset: 0, opacity: 0.10))
-                .help("Hide the tray")
-                .accessibilityIdentifier("knowledgeMap.tray.close")
-            }
-            .padding(.horizontal, 14)
-            .padding(.top, 12)
-            .padding(.bottom, 8)
-            HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.secondary)
-                    .zoomedSystemFont(size: 12)
-                TextField("Find a source, Page or idea", text: $query)
-                    .textFieldStyle(.plain)
-                    .accessibilityIdentifier("knowledgeMap.tray.search")
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .padding(.horizontal, 12)
-            .padding(.bottom, 8)
-            Divider().opacity(0.5)
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 2) {
-                    if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        regionsSection
-                        thisNotebookSection
-                        ideasSection
-                        clipsSection
-                        notebooksSection
-                    } else {
-                        searchResults
-                    }
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 8)
-            }
-        }
-    }
-
-    // MARK: Sections
-
-    /// The open canvas's regions in reading order, a region before the ones
-    /// inside it, indented: a table of contents for the plane. A click flies
-    /// to the region.
-    @ViewBuilder
-    private var regionsSection: some View {
-        let rows = map.layout.regionOutline()
-        if !rows.isEmpty {
-            let counts = regionCardCounts()
-            sectionHeader("Regions", trailing: nil)
-            ForEach(rows, id: \.id) { row in
-                regionRow(row, cards: counts[row.id] ?? 0)
-            }
-        }
-    }
-
-    /// How many placed cards each region holds as its own, in one pass.
-    private func regionCardCounts() -> [String: Int] {
-        var counts: [String: Int] = [:]
-        for ref in map.layout.placements.keys {
-            if let id = map.regionID(containing: ref) { counts[id, default: 0] += 1 }
-        }
-        return counts
-    }
-
-    private func regionRow(_ row: KnowledgeMapLayout.RegionOutlineRow, cards: Int) -> some View {
-        let region = map.layout.regions[row.id]
-        let written = region?.name.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let name = map.notebook(ofRegion: row.id)?.title ?? (written.isEmpty ? "Untitled region" : written)
-        return Button {
-            map.send(.focus(refs: [], regionID: row.id))
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "rectangle.dashed")
-                    .zoomedSystemFont(size: 11)
-                    .foregroundStyle(Color(mapHex: region?.color ?? ""))
-                Text(name)
-                    .zoomedSystemFont(size: 12)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                if cards > 0 {
-                    Text("\(cards)")
-                        .zoomedSystemFont(size: 10.5)
-                        .monospacedDigit()
-                        .foregroundStyle(.tertiary)
-                }
-            }
-            .padding(.leading, 6 + CGFloat(row.depth) * 12)
-            .padding(.trailing, 6)
-            .padding(.vertical, 5)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.hoverWash(cornerRadius: 6, inset: 0, opacity: 0.08))
-        .help("Zoom to \(name)")
-        .accessibilityLabel("Zoom to region \(name)")
-        .accessibilityIdentifier("knowledgeMap.tray.region.\(row.id)")
-    }
-
-    /// A notebook's own canvas opens its tray on the notebook's sources: the
-    /// ticked ones, each placed from here (product owner, 2026-10-09).
-    @ViewBuilder
-    private var thisNotebookSection: some View {
-        if let notebookID = vm.openCanvas?.notebookID, let notebook = vm.notebook(id: notebookID) {
-            let unticked = vm.notebookChatExclusions[notebookID] ?? []
-            let refs = notebook.approvedSourceIDs
-                .filter { !unticked.contains($0) }
-                .map { KnowledgeMap.ItemRef(kind: .source, id: $0).description }
-                .filter { map.nodesByRef[$0] != nil }
-            let unplaced = refs.filter { map.layout.placements[$0] == nil }
-            sectionHeader(
-                NotebookTitle(notebook.title).text,
-                trailing: unplaced.count > 1 ? ("Place All", { map.send(.dropAtCenter(refs: unplaced, regionName: nil)) }) : nil
-            )
-            ForEach(refs, id: \.self) { ref in
-                row(ref)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var ideasSection: some View {
-        let ideas = map.unplacedIdeaRefs
-        sectionHeader("Ideas", trailing: ideas.count > 1 ? ("Place All", { map.send(.dropAtCenter(refs: ideas, regionName: nil)) }) : nil)
-        if ideas.isEmpty {
-            Text("Every open idea is on the canvas. Write another anywhere with the Note tool (N).")
-                .zoomedSystemFont(size: 11)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, 6)
-                .padding(.bottom, 8)
-                .textSelection(.disabled)
-        }
-        ForEach(ideas, id: \.self) { ref in
-            row(ref)
-        }
-    }
-
-    /// Clips saved in the Reader and not placed yet, newest first. A clip
-    /// dragged straight onto the Canvas never waits here.
-    @ViewBuilder
-    private var clipsSection: some View {
-        let clips = map.content.nodes
-            .filter { $0.kind == "clip" && map.layout.placements[$0.ref] == nil }
-            .map(\.ref)
-            .reversed()
-        if !clips.isEmpty {
-            sectionHeader("Clips", trailing: clips.count > 1 ? ("Place All", { map.send(.dropAtCenter(refs: Array(clips), regionName: nil)) }) : nil)
-            ForEach(Array(clips), id: \.self) { ref in
-                row(ref)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var notebooksSection: some View {
-        sectionHeader("Notebooks", trailing: nil)
-        ForEach(vm.notebooks.filter { !$0.approvedSourceIDs.isEmpty }.prefix(80), id: \.id) { notebook in
-            HStack(spacing: 8) {
-                Image(systemName: "book.closed")
-                    .zoomedSystemFont(size: 11)
-                    .foregroundStyle(.secondary)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(NotebookTitle(notebook.title).text)
-                        .zoomedSystemFont(size: 12)
-                        .lineLimit(2)
-                    Text(notebook.approvedSourceIDs.count == 1 ? "1 source" : "\(notebook.approvedSourceIDs.count) sources")
-                        .zoomedSystemFont(size: 10.5)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                placeButton(help: "Set this notebook's sources and Pages down in a region of their own") {
-                    let placed = vm.knowledgeMapDrop(sourceIDs: [], docIDs: [], notebookIDs: [notebook.id])
-                    guard !placed.refs.isEmpty else { return }
-                    map.send(.dropAtCenter(refs: placed.refs, regionName: placed.regionName, notebookID: placed.notebookID))
-                }
-            }
-            .padding(.horizontal, 6)
-            .padding(.vertical, 5)
-            .textSelection(.disabled)
-        }
-    }
-
-    @ViewBuilder
-    private var searchResults: some View {
-        let words = query.lowercased().split(separator: " ").map(String.init)
-        let matches = map.content.nodes
-            .filter { node in
-                let title = node.title.lowercased()
-                return words.allSatisfy { title.contains($0) }
-            }
-            .prefix(60)
-        if matches.isEmpty {
-            Text("Nothing in the library is called that.")
-                .zoomedSystemFont(size: 11)
-                .foregroundStyle(.secondary)
-                .padding(6)
-                .textSelection(.disabled)
-        }
-        ForEach(Array(matches), id: \.ref) { node in
-            row(node.ref)
-        }
-    }
-
-    // MARK: Rows
-
-    private func sectionHeader(_ title: String, trailing: (String, () -> Void)?) -> some View {
-        HStack {
-            Text(title.uppercased())
-                .zoomedSystemFont(size: 10, weight: .semibold)
-                .foregroundStyle(.secondary)
-                .textSelection(.disabled)
-            Spacer()
-            if let trailing {
-                Button(trailing.0, action: trailing.1)
-                    .buttonStyle(.hoverWash(cornerRadius: 5, inset: -3, opacity: 0.10))
-                    .zoomedSystemFont(size: 11)
-            }
-        }
-        .padding(.horizontal, 6)
-        .padding(.top, 8)
-        .padding(.bottom, 4)
-    }
-
-    /// One card: its title and who and when; + places it, or, once it is on
-    /// the map, the pin flies there. A source or Doc drags onto the map too.
-    @ViewBuilder
-    private func row(_ ref: String) -> some View {
-        if let node = map.nodesByRef[ref] {
-            let placed = map.layout.placements[ref] != nil
-            let content = HStack(alignment: .top, spacing: 8) {
-                Circle()
-                    .fill(node.kind == "idea" ? Color.yellow.opacity(0.8) : Color.secondary.opacity(0.5))
-                    .frame(width: 7, height: 7)
-                    .padding(.top, 5)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(node.title)
-                        .zoomedSystemFont(size: 12)
-                        .lineLimit(3)
-                    if !node.sub.isEmpty, node.kind != "idea" {
-                        Text(node.sub)
-                            .zoomedSystemFont(size: 10.5)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                if placed {
-                    Button {
-                        map.send(.focus(refs: [ref], regionID: nil))
-                    } label: {
-                        Image(systemName: "scope")
-                            .zoomedSystemFont(size: 12)
-                            .frame(width: 22, height: 22)
-                    }
-                    .buttonStyle(.hoverWash(cornerRadius: 6, inset: 0, opacity: 0.10))
-                    .help("On the canvas: show it")
-                } else {
-                    placeButton(help: "Place it in the middle of the view") {
-                        map.send(.dropAtCenter(refs: [ref], regionName: nil))
-                    }
-                }
-            }
-            .padding(.horizontal, 6)
-            .padding(.vertical, 5)
-            .contentShape(Rectangle())
-            .textSelection(.disabled)
-            if let provider = dragProvider(ref) {
-                content.onDrag { provider() }
-            } else {
-                content
-            }
-        }
-    }
-
-    private func placeButton(help: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: "plus")
-                .zoomedSystemFont(size: 12, weight: .medium)
-                .frame(width: 22, height: 22)
-        }
-        .buttonStyle(.hoverWash(cornerRadius: 6, inset: 0, opacity: 0.10))
-        .help(help)
-    }
-
-    /// A source or Doc drags the way it does from the Sources list or Docs,
-    /// so the map, an Idea on it, or a chat can take it.
-    private func dragProvider(_ ref: String) -> (() -> NSItemProvider)? {
-        guard let item = KnowledgeMap.ItemRef(ref) else { return nil }
-        switch item.kind {
-        case .source:
-            guard let article = vm.articles.first(where: { $0.id == item.id }) else { return nil }
-            return { articleDragProvider(for: article) }
-        case .doc:
-            guard let artifact = vm.artifacts.first(where: { $0.id == item.id }) else { return nil }
-            return { studioArtifactDragProvider(for: artifact) }
-        case .clip:
-            guard let clip = map.clips[item.id], let transfer = StudioClipTransfer(clip: clip) ?? StudioClipTransfer(passage: clip),
-                  let data = try? JSONEncoder().encode(transfer) else { return nil }
-            return {
-                let provider = NSItemProvider()
-                provider.registerDataRepresentation(forTypeIdentifier: UTType.studioClip.identifier, visibility: .ownProcess) { done in
-                    done(data, nil)
-                    return nil
-                }
-                return provider
-            }
-        case .idea, .page, .canvas, .chat, .picture:
-            return nil
-        }
     }
 }
 
@@ -1783,6 +1650,9 @@ struct KnowledgeMapShortcutsView: View {
         .init("Climb out to the region around", "⌘↑"),
         .init("Draw an arrow", "A"),
         .init("Write a note", "Double-click the empty canvas, or N"),
+        .init("Add to the canvas", "/ at the pointer; right-click ▸ Add Here…"),
+        .init("Find on the canvas, or add", "⌘F"),
+        .init("Show or hide the Library", "L"),
         .init("Open a card", "Double-click it"),
         .init("Open it beside the canvas", "⌥-click it, or Return (an idea edits instead)"),
         .init("Float it as a popup", "⌘-click it; Esc or a click elsewhere closes it"),

@@ -15,6 +15,12 @@ import os
 /// - **Break Down**: one source taken apart into 5 to 12 concept Ideas with a
 ///   sentence each, and the arrows among them, laid out in a region named for
 ///   the source.
+/// - **Mind Map**: what the cards say as a tree of topics, a root, 3 to 7
+///   branches and leaves of at most 8 words each, hung from the one card
+///   asked about when it is an Idea on the canvas.
+/// - **Question Map**: the same tree with a question at every node, each
+///   narrower than its parent and its leaves answerable by a literature
+///   search or an experiment.
 ///
 /// The model reads each card with its best passage, the regions holding the
 /// cards, the arrows among them and what the learner set aside before. Every
@@ -53,12 +59,31 @@ enum CanvasAskService {
     static let maximumBreakDownArrows = 14
     static let conceptTitleWords = 12
     static let conceptNoteWords = 28
+    /// A Mind Map or Question Map: how many nodes at most (besides a root the
+    /// model wrote), how few make a tree, how many levels deep under the root,
+    /// and how long a node's title and note are, in words. A question is kept
+    /// whole or not at all (cut, it would not be one), so its limit is the
+    /// largest the page can show, not the 14 words the model is asked for.
+    static let maximumTreeNodes = 30
+    static let minimumTreeNodes = 3
+    static let maximumTreeDepth = 3
+    static let treeTitleWords = 8
+    static let treeQuestionWords = 20
+    static let treeNoteWords = 28
     /// A Break Down reads the source as this many passages spread from its
     /// start to its end, each at most this many characters.
     static let breakDownPassageCount = 14
     static let breakDownPassageCharacters = 1200
     /// What an arrow can say about two cards.
     static let relations: Set<String> = ["supports", "contradicts", "explains", "causes", "measures", "extends", "example", "same_question"]
+
+    /// Whether the one source asked is read whole, as passages spread from its
+    /// start to its end, rather than by the one passage that best answers the
+    /// cards' words: a Break Down always, and a Mind Map or Question Map of a
+    /// single source.
+    static func readsWholeSource(_ tool: CanvasAskTool, kinds: [KnowledgeMap.ItemKind]) -> Bool {
+        tool == .breakDown || (tool.drawsTree && kinds == [.source])
+    }
 
     // MARK: What the main actor gathers
 
@@ -94,6 +119,8 @@ enum CanvasAskService {
         /// Every card the Canvas can draw, by ref: a Bridge proposes only these.
         var nodes: [String: KnowledgeMapNode]
         var placedRefs: Set<String>
+
+        var readsWholeSource: Bool { CanvasAskService.readsWholeSource(tool, kinds: items.map(\.kind)) }
     }
 
     /// An arrow between two cards: by ref in a snapshot, by card id in a context.
@@ -147,6 +174,17 @@ enum CanvasAskService {
         var regions: [String] = []
         var setAside: [String] = []
 
+        /// The card a Mind Map or Question Map hangs from: the one card asked
+        /// about, when it is an Idea on the canvas. The model then writes no
+        /// root, and the tree's first branches start at this card.
+        var rootCard: Card? {
+            guard tool.drawsTree, cards.count == 1, let card = cards.first,
+                  card.item.kind == .idea, card.item.placed else { return nil }
+            return card
+        }
+
+        var readsWholeSource: Bool { CanvasAskService.readsWholeSource(tool, kinds: cards.map(\.item.kind)) }
+
         func card(_ id: String) -> Card? { cards.first { $0.id == id } }
         func candidate(_ id: String) -> Candidate? { candidates.first { $0.id == id } }
         func passage(_ id: String) -> Passage? { passages.first { $0.id == id } }
@@ -182,8 +220,9 @@ enum CanvasAskService {
     /// highlight, a Doc's opening, an Idea's note and evidence.
     static func context(for snapshot: Snapshot, storage: StorageService, ai: AIService) async throws -> Context {
         let items = Array(snapshot.items.prefix(maximumCards))
-        // A Break Down reads one source whole: nothing is searched for.
-        let query = snapshot.tool == .breakDown ? "" : searchQuery(for: items)
+        // One source read whole (a Break Down, a Mind Map of it) needs no search.
+        let wholeSource = snapshot.readsWholeSource
+        let query = wholeSource ? "" : searchQuery(for: items)
         let terms = query.isEmpty ? [] : SourceSearchEngine.searchTerms(for: query)
         var vector: [Float]?
         if !query.isEmpty {
@@ -239,7 +278,7 @@ enum CanvasAskService {
                 break
             case .source:
                 card.highlight = highlights[id]
-                if snapshot.tool == .breakDown {
+                if wholeSource {
                     // The whole source as passages from its start to its end,
                     // listed beside the card rather than on it.
                     for text in spreadPassages(from: contents[id] ?? "") { _ = addPassage(item.ref, text) }
@@ -458,8 +497,8 @@ enum CanvasAskService {
             return entry
         }
         var canvas: [String: Any] = ["asked_cards": cards]
-        // A Break Down's source is read as these passages, in order.
-        if context.tool == .breakDown {
+        // A source read whole is given as these passages, in order.
+        if context.readsWholeSource {
             canvas["source_passages"] = context.passages.map { ["id": $0.id, "text": $0.text] }
         }
         if !context.regions.isEmpty { canvas["regions"] = context.regions }
@@ -482,20 +521,24 @@ enum CanvasAskService {
         }
         if !context.setAside.isEmpty { canvas["set_aside"] = context.setAside }
         let data = (try? JSONSerialization.data(withJSONObject: canvas, options: [.sortedKeys, .withoutEscapingSlashes])) ?? Data()
-        var text = instructions(for: context.tool)
+        var text = instructions(for: context)
         if !context.setAside.isEmpty {
             text += "\n\n" + Prompts.canvasAskSetAside
         }
         return text + "\n\nThe Canvas:\n" + String(decoding: data, as: UTF8.self)
     }
 
-    static func instructions(for tool: CanvasAskTool) -> String {
-        switch tool {
+    /// The task text of the ask; a tree that hangs from the card asked about
+    /// tells the model that card is its root.
+    static func instructions(for context: Context) -> String {
+        switch context.tool {
         case .bridge: return Prompts.canvasAskBridge
         case .connect: return Prompts.canvasAskConnect
         case .gaps: return Prompts.canvasAskGaps
         case .summarize: return Prompts.canvasAskSummarize
         case .breakDown: return Prompts.canvasAskBreakDown
+        case .mindMap: return context.rootCard == nil ? Prompts.canvasAskMindMap : Prompts.canvasAskMindMapRooted
+        case .questionMap: return context.rootCard == nil ? Prompts.canvasAskQuestionMap : Prompts.canvasAskQuestionMapRooted
         }
     }
 
@@ -509,18 +552,19 @@ enum CanvasAskService {
 
     /// Why the context could not be read.
     enum ContextError: LocalizedError {
-        /// A Break Down of a source with no text on this Mac.
+        /// A source to be read whole (a Break Down, a Mind Map of it) with no
+        /// text on this Mac.
         case noText(String)
 
         var errorDescription: String? {
             switch self {
-            case .noText(let title): return "“\(title)” has no text on this Mac to break down"
+            case .noText(let title): return "“\(title)” has no text on this Mac to read"
             }
         }
     }
 
-    /// What one reply came to: the proposals, and for a Break Down the region
-    /// and arrows keeping the whole set writes.
+    /// What one reply came to: the proposals, and for a Break Down or a tree
+    /// the region and arrows keeping the whole set writes.
     struct Parsed: Equatable, Sendable {
         var answers: [Answer]
         var plan: KnowledgeMapBreakDownPlan?
@@ -535,9 +579,9 @@ enum CanvasAskService {
 
     static func parsed(from response: String, context: Context) throws -> Parsed {
         let value = jsonObject(from: response)
-        if context.tool == .breakDown {
+        if context.tool == .breakDown || context.tool.drawsTree {
             guard let object = value as? [String: Any] else { throw ParseError.unreadable }
-            return breakDownParsed(object, context: context)
+            return context.tool == .breakDown ? breakDownParsed(object, context: context) : treeParsed(object, context: context)
         }
         let list: [[String: Any]]
         if let object = value as? [String: Any], let proposals = object["proposals"] as? [[String: Any]] {
@@ -555,7 +599,7 @@ enum CanvasAskService {
         case .connect: return Parsed(answers: connectAnswers(list, context: context), plan: nil)
         case .gaps: return Parsed(answers: gapAnswers(list, context: context), plan: nil)
         case .summarize: return Parsed(answers: summarizeAnswers(list, context: context), plan: nil)
-        case .breakDown: return Parsed(answers: [], plan: nil)
+        case .breakDown, .mindMap, .questionMap: return Parsed(answers: [], plan: nil)
         }
     }
 
@@ -679,7 +723,7 @@ enum CanvasAskService {
         var titles: Set<String> = []
         for entry in object["concepts"] as? [[String: Any]] ?? [] where answers.count < maximumConcepts {
             // The model's key, kept in the ghost's id so arrows can name it.
-            let key = (shortID(entry["id"]) ?? "").filter { $0.isLetter || $0.isNumber || $0 == "_" || $0 == "-" }
+            let key = idKey(entry["id"])
             guard !key.isEmpty, proposalIDs[key] == nil else { continue }
             let title = words(entry["title"] as? String, max: conceptTitleWords, ellipsis: false)
                 .trimmingCharacters(in: CharacterSet(charactersIn: ".;:"))
@@ -704,8 +748,7 @@ enum CanvasAskService {
         var pairs: Set<String> = []
         for entry in object["arrows"] as? [[String: Any]] ?? [] where arrows.count < maximumBreakDownArrows {
             guard let from = shortID(entry["from"]), let to = shortID(entry["to"]), from != to,
-                  let fromID = proposalIDs[from.filter { $0.isLetter || $0.isNumber || $0 == "_" || $0 == "-" }],
-                  let toID = proposalIDs[to.filter { $0.isLetter || $0.isNumber || $0 == "_" || $0 == "-" }],
+                  let fromID = proposalIDs[idKey(from)], let toID = proposalIDs[idKey(to)],
                   pairs.insert(pairKey(fromID, toID)).inserted else { continue }
             let label = words(
                 (entry["label"] as? String)?.trimmingCharacters(in: CharacterSet(charactersIn: "\"'“”‘’.")),
@@ -718,6 +761,107 @@ enum CanvasAskService {
         let name = cut(card.item.title, characters: 80)
         let plan = KnowledgeMapBreakDownPlan(sourceRef: card.item.ref, regionName: name.isEmpty ? "Concepts" : name, arrows: arrows)
         return Parsed(answers: answers, plan: plan)
+    }
+
+    /// A Mind Map or a Question Map: the tree's nodes as question proposals
+    /// (each kept as an Idea with its one-sentence note), the root first when
+    /// the model wrote one, then the nodes in the order it gave them; and the
+    /// plan: the branches from parent to child, `tree` set, and `rootRef` the
+    /// card asked about when the tree hangs from it. A node is kept only when
+    /// its parent is the root (`root`, which the asked card answers to as well
+    /// as `c1` when the tree hangs from it) or a node kept before it, so a
+    /// dropped node takes with it everything that hung from it. A title the
+    /// tree has already, a question that does not end in a question mark
+    /// (Question Map), a node past `maximumTreeNodes` or `maximumTreeDepth`
+    /// levels is dropped; fewer than `minimumTreeNodes` nodes is no tree.
+    private static func treeParsed(_ object: [String: Any], context: Context) -> Parsed {
+        guard let asked = context.cards.first?.item.ref else { return Parsed(answers: [], plan: nil) }
+        let near = context.cards.map(\.item.ref)
+        let hung = context.rootCard
+        var titles: Set<String> = []
+        var answers: [Answer] = []
+        // What the first branches leave from: the asked card, else the root
+        // the model wrote (a proposal no branch leads to).
+        let rootEnd: String
+        let rootTitle: String
+        if let hung {
+            rootEnd = hung.item.ref
+            rootTitle = hung.item.title
+            titles.insert(normalized(hung.item.title).lowercased())
+        } else {
+            guard let root = object["root"] as? [String: Any], let title = treeTitle(root["title"], tool: context.tool) else {
+                return Parsed(answers: [], plan: nil)
+            }
+            rootEnd = "p:root"
+            rootTitle = title
+            titles.insert(title.lowercased())
+            let note = words(root["note"] as? String, max: treeNoteWords)
+            answers.append(Answer(
+                proposal: KnowledgeMapProposal(id: rootEnd, kind: .question, text: title, near: near, note: note.isEmpty ? nil : note),
+                cites: passageIDs(root["cites"], context: context)
+            ))
+        }
+        // The level of each node kept, by the model's key: 1 for a branch.
+        var levels: [String: Int] = [:]
+        var arrows: [KnowledgeMapBreakDownPlan.Arrow] = []
+        for entry in object["nodes"] as? [[String: Any]] ?? [] where arrows.count < maximumTreeNodes {
+            // The model's key, kept in the ghost's id so branches can name it.
+            let key = idKey(entry["id"])
+            guard !key.isEmpty, key != "root", key != hung?.id, levels[key] == nil else { continue }
+            let parent = idKey(entry["parent"])
+            let level: Int
+            let from: String
+            if parent == "root" || parent == hung?.id {
+                level = 1
+                from = rootEnd
+            } else if let parentLevel = levels[parent] {
+                level = parentLevel + 1
+                from = "p:" + parent
+            } else {
+                continue
+            }
+            guard level <= maximumTreeDepth, let title = treeTitle(entry["title"], tool: context.tool),
+                  titles.insert(title.lowercased()).inserted else { continue }
+            let note = words(entry["note"] as? String, max: treeNoteWords)
+            levels[key] = level
+            arrows.append(.init(from: from, to: "p:" + key, label: ""))
+            answers.append(Answer(
+                proposal: KnowledgeMapProposal(id: "p:" + key, kind: .question, text: title, near: near, note: note.isEmpty ? nil : note),
+                cites: passageIDs(entry["cites"], context: context)
+            ))
+        }
+        guard arrows.count >= minimumTreeNodes else { return Parsed(answers: [], plan: nil) }
+        let plan = KnowledgeMapBreakDownPlan(
+            sourceRef: asked,
+            regionName: cut(rootTitle, characters: 80),
+            arrows: arrows,
+            tree: true,
+            rootRef: hung?.item.ref
+        )
+        return Parsed(answers: answers, plan: plan)
+    }
+
+    /// A tree node's title as the model wrote it: for a Mind Map cut at
+    /// `treeTitleWords` words; for a Question Map whole, and nothing when it
+    /// is not a question or too long to show.
+    private static func treeTitle(_ value: Any?, tool: CanvasAskTool) -> String? {
+        var flat = normalized((value as? String) ?? "")
+        // A title the model put in quotes.
+        if flat.count > 1, let first = flat.first, let last = flat.last, "\"“".contains(first), "\"”".contains(last) {
+            flat = String(flat.dropFirst().dropLast())
+        }
+        if tool == .questionMap {
+            guard KnowledgeMap.isQuestion(flat), flat.split(separator: " ").count <= treeQuestionWords else { return nil }
+            return flat
+        }
+        let title = words(flat, max: treeTitleWords, ellipsis: false).trimmingCharacters(in: CharacterSet(charactersIn: ".;:"))
+        return title.isEmpty ? nil : title
+    }
+
+    /// A model's own id for a concept or a node, safe to keep in a proposal's
+    /// id: lower case, letters, digits, `_` and `-`.
+    private static func idKey(_ value: Any?) -> String {
+        (shortID(value) ?? "").filter { $0.isLetter || $0.isNumber || $0 == "_" || $0 == "-" }
     }
 
     /// An id as the model wrote it: trimmed, lower case.
@@ -841,10 +985,11 @@ extension AIService {
             config: config,
             system: system,
             user: CanvasAskService.message(context),
-            // A Break Down writes a dozen concepts and their arrows; a
-            // Summarize one title and a few sentences.
-            maxTokens: context.tool == .breakDown ? 2800 : context.tool == .summarize ? 800 : 1400,
-            temperature: context.tool == .connect ? 0.3 : (context.tool == .summarize || context.tool == .breakDown ? 0.4 : 0.6),
+            // A Break Down writes a dozen concepts and their arrows, a tree up
+            // to thirty nodes with a note each; a Summarize one title and a
+            // few sentences.
+            maxTokens: context.tool.drawsTree ? 3600 : context.tool == .breakDown ? 2800 : context.tool == .summarize ? 800 : 1400,
+            temperature: context.tool == .connect ? 0.3 : (context.tool == .summarize || context.tool == .breakDown || context.tool.drawsTree ? 0.4 : 0.6),
             jsonMode: true,
             validateResponse: { response in _ = try CanvasAskService.parsed(from: response, context: context) },
             sourceTitle: "Canvas",

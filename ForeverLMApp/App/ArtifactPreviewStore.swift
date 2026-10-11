@@ -273,10 +273,7 @@ final class ArtifactPagePhotographer {
         ArtifactPreviewHostWindow.shared.host(webView)
         defer { ArtifactPreviewHostWindow.shared.release(webView) }
 
-        // A ForeverLM site the account owns opens with the account's session,
-        // the way the reader opens it, so a private page photographs as its
-        // page and not as the sign-in gate.
-        let request = LinkedDocWebView.initialRequest(url: url, kind: kind ?? .foreverlmSite)
+        let request = URLRequest(url: url)
         let loaded = await withTaskGroup(of: Bool.self) { group -> Bool in
             group.addTask { @MainActor in await loader.finished(loading: request, in: webView) }
             group.addTask {

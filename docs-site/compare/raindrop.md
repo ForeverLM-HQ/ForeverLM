@@ -6,13 +6,13 @@ description: Compare ForeverLM and Raindrop.io for bookmarks, reading lists, hig
 
 # ForeverLM vs Raindrop.io
 
-Raindrop.io is a polished bookmark manager for saving, organizing, highlighting, searching, archiving, and sharing almost anything found online. Its generous free plan supports unlimited bookmarks, collections, highlights, and devices. ForeverLM includes a free reading list, but is designed around consuming and understanding sources rather than maintaining a universal bookmark archive.
+Raindrop.io is a polished bookmark manager for saving, organizing, highlighting, searching, archiving, and sharing almost anything found online. Its generous free plan supports unlimited bookmarks, collections, highlights, and devices. ForeverLM includes a reading list, but is designed around consuming and understanding sources rather than maintaining a universal bookmark archive.
 
 ## At a glance
 
 | | ForeverLM | Raindrop.io |
 |---|---|---|
-| **Price** | Free app and free over MCP; built-in AI needs a plan ($4/mo, or $19/yr for early believers) and your own OpenRouter key | Free plan; optional Pro subscription |
+| **Price** | 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free plan; optional Pro subscription |
 | **Best for** | Learning from a curated source library | Organizing a broad, durable bookmark collection |
 | **Capture** | Reading lists, URLs, files, podcasts, papers, books, and plugins | Browser extensions, share sheets, apps, integrations, and uploads |
 | **Organization** | Notebooks, status, source types, relationships, and Schedule | Collections, nested structure, tags, filters, highlights, and collaboration |

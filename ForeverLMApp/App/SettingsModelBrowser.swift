@@ -24,11 +24,6 @@ struct OpenRouterModelBrowser<Model: Identifiable, Row: View, Accessory: View>: 
     /// Lists every maker's models at once until a tile is picked, as a
     /// search does: a browser with Free or Discounted on.
     var listsEveryMaker = false
-    /// What one model costs to run. Given, the browser is a collapsed list
-    /// of every model, cheapest first, with no maker tiles (product owner,
-    /// 2026-10-06: "just a table that we can expand; pre-sorted by costs");
-    /// a model with no price comes after every priced one.
-    var cost: ((Model) -> Double?)? = nil
     /// The text a search is matched against, besides the maker's name.
     let searchFields: (Model) -> [String]
     /// Controls at the trailing end of the title line.
@@ -39,40 +34,14 @@ struct OpenRouterModelBrowser<Model: Identifiable, Row: View, Accessory: View>: 
 
     @State private var selectedMakerID: String?
     @State private var query = ""
-    @State private var isExpanded = false
 
     var body: some View {
         let terms = ModelSearch.terms(query)
         let shown = ModelSearch.narrowed(makers, to: terms, fields: searchFields)
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 6) {
-                if cost != nil {
-                    Button {
-                        isExpanded.toggle()
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                                .zoomedSystemFont(size: 10, weight: .semibold)
-                                .foregroundStyle(.secondary)
-                                .frame(width: 10)
-                            Text("All models on OpenRouter")
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.primary)
-                            if !makers.isEmpty {
-                                Text("\(makers.reduce(0) { $0 + $1.models.count }) · cheapest first")
-                                    .font(.caption)
-                                    .foregroundStyle(.tertiary)
-                            }
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(.isButton)
-                    .accessibilityValue(isExpanded ? "expanded" : "collapsed")
-                } else {
                 Text("All models on OpenRouter")
                     .font(.subheadline.weight(.semibold))
-                }
                 if state == .loading {
                     ProgressView()
                         .controlSize(.small)
@@ -80,20 +49,9 @@ struct OpenRouterModelBrowser<Model: Identifiable, Row: View, Accessory: View>: 
                 Spacer()
                 accessory()
             }
-            if cost != nil && !isExpanded {
-                EmptyView()
-            } else {
             switch state {
             case .failed(let message):
-                HStack(spacing: 8) {
-                    Text(message)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Button("Retry", action: retry)
-                        .buttonStyle(.hoverWash(tint: Color(nsColor: .linkColor)))
-                        .font(.caption)
-                }
+                ModelBrowserFailure(message: message, retry: retry)
             case .loading where makers.isEmpty:
                 Text("Reading OpenRouter's \(subject)…")
                     .font(.caption)
@@ -109,12 +67,6 @@ struct OpenRouterModelBrowser<Model: Identifiable, Row: View, Accessory: View>: 
                         Text("No model matches “\(query.trimmingCharacters(in: .whitespaces))”.")
                             .font(.caption)
                             .foregroundStyle(.tertiary)
-                    } else if let cost {
-                        LazyVStack(spacing: 6) {
-                            ForEach(ModelCostOrder.cheapestFirst(shown.flatMap(\.models), cost: cost)) { model in
-                                row(model, true)
-                            }
-                        }
                     } else {
                         FlowLayout(spacing: 6) {
                             ForEach(shown) { maker in
@@ -124,7 +76,6 @@ struct OpenRouterModelBrowser<Model: Identifiable, Row: View, Accessory: View>: 
                         rows(shown, searching: !terms.isEmpty)
                     }
                 }
-            }
             }
         }
     }
@@ -188,7 +139,6 @@ extension OpenRouterModelBrowser where Accessory == EmptyView {
         state: ModelBrowserState,
         subject: String,
         retry: @escaping () -> Void,
-        cost: ((Model) -> Double?)? = nil,
         searchFields: @escaping (Model) -> [String],
         @ViewBuilder row: @escaping (Model, Bool) -> Row
     ) {
@@ -197,7 +147,6 @@ extension OpenRouterModelBrowser where Accessory == EmptyView {
             state: state,
             subject: subject,
             retry: retry,
-            cost: cost,
             searchFields: searchFields,
             accessory: { EmptyView() },
             row: row
@@ -207,7 +156,7 @@ extension OpenRouterModelBrowser where Accessory == EmptyView {
 
 // MARK: - Sort by cost
 
-/// What a model costs, for the browsers that list by price.
+/// What a model costs, for the table that lists by price.
 enum ModelCostOrder {
     /// What a model costs per million tokens, blended 3 input to 1 output,
     /// the mix a chat or a reading task runs at. Nil when either price is
@@ -215,19 +164,6 @@ enum ModelCostOrder {
     static func blended(input: Double?, output: Double?) -> Double? {
         guard let input, let output else { return nil }
         return (3 * input + output) / 4
-    }
-
-    /// Cheapest first; a model with no price after every priced one; the
-    /// order given breaks ties.
-    static func cheapestFirst<Model>(_ models: [Model], cost: (Model) -> Double?) -> [Model] {
-        models.enumerated().sorted { lhs, rhs in
-            switch (cost(lhs.element), cost(rhs.element)) {
-            case let (l?, r?): return l != r ? l < r : lhs.offset < rhs.offset
-            case (_?, nil): return true
-            case (nil, _?): return false
-            case (nil, nil): return lhs.offset < rhs.offset
-            }
-        }.map(\.element)
     }
 }
 
@@ -388,8 +324,26 @@ struct ModelBrowserMaker<Model: Identifiable>: Identifiable {
     let models: [Model]
 }
 
+/// Why a browser's directory could not be read, with a way to try again.
+struct ModelBrowserFailure: View {
+    let message: String
+    let retry: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(.red)
+                .fixedSize(horizontal: false, vertical: true)
+            Button("Retry", action: retry)
+                .buttonStyle(.hoverWash(tint: Color(nsColor: .linkColor)))
+                .font(.caption)
+        }
+    }
+}
+
 /// The search field under a browser's title, drawn as Settings' own.
-private struct ModelSearchField: View {
+struct ModelSearchField: View {
     @Binding var text: String
     let prompt: String
 

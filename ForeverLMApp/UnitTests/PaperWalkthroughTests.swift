@@ -351,7 +351,7 @@ struct PaperWalkthroughValidationTests {
         let reference = WalkthroughAnimationReference(animationID: "anim-1", step: 5, conditions: ["iono": "nig", "resp": "1"])
         let walkthrough = PaperWalkthrough(
             sourceID: "anim-1",
-            sourceSHA256: PaperWalkthrough.animationFingerprint(linkedURL: "https://sites.foreverlm.com/pmf/", artifactID: "anim-1"),
+            sourceSHA256: PaperWalkthrough.animationFingerprint(linkedURL: "foreverlm-site://anim-1/", artifactID: "anim-1"),
             subject: .animation,
             title: "Two forces",
             steps: [PaperWalkthroughStep(id: "step-1", kind: .explain, title: "T", body: "B", animation: reference)],
@@ -371,7 +371,7 @@ struct PaperWalkthroughValidationTests {
         let bare = try JSONDecoder().decode(WalkthroughAnimationReference.self, from: Data("{\"animation_id\":\"x\"}".utf8))
         #expect(bare == WalkthroughAnimationReference(animationID: "x"))
 
-        let url = reference.pageURL(animationURL: URL(string: "https://sites.foreverlm.com/pmf/?step=1&other=k")!)
+        let url = reference.pageURL(animationURL: URL(string: "foreverlm-site://anim-1/?step=1&other=k")!)
         let items = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems)
         #expect(items.first { $0.name == "embed" }?.value == "1")
         #expect(items.first { $0.name == "step" }?.value == "5")
@@ -2910,7 +2910,7 @@ struct AnimationWalkthroughStorageTests {
         let (storage, root) = makeTemporaryStorage("anim")
         defer { try? FileManager.default.removeItem(at: root) }
         let artifact = try await storage.createLinkedArtifact(
-            url: URL(string: "https://sites.foreverlm.com/pmf-two-components/")!, title: "One force, two components",
+            url: URL(string: "foreverlm-site://pmf-two-components/")!, title: "One force, two components",
             homeNotebookID: nil, linkedNotebookIDs: [], kind: .animation
         )
         let store = try KnowledgeStore(storeDirectory: root)
@@ -2945,11 +2945,11 @@ struct AnimationWalkthroughStorageTests {
         let (storage, root) = makeTemporaryStorage("anim-stale")
         defer { try? FileManager.default.removeItem(at: root) }
         let artifact = try await storage.createLinkedArtifact(
-            url: URL(string: "https://sites.foreverlm.com/pmf-two-components/")!, title: "One force",
+            url: URL(string: "foreverlm-site://pmf-two-components/")!, title: "One force",
             homeNotebookID: nil, linkedNotebookIDs: [], kind: .animation
         )
         let site = try await storage.createLinkedArtifact(
-            url: URL(string: "https://sites.foreverlm.com/a-site/")!, title: "A site",
+            url: URL(string: "foreverlm-site://a-site/")!, title: "A site",
             homeNotebookID: nil, linkedNotebookIDs: []
         )
         await #expect(throws: (any Error).self) {
@@ -2963,7 +2963,11 @@ struct AnimationWalkthroughStorageTests {
         }
 
         try await storage.saveArtifactWalkthrough(animationWalk(for: artifact))
-        _ = try await storage.relinkArtifact(artifactID: artifact.id, url: URL(string: "https://sites.foreverlm.com/pmf-renamed/")!)
+        // Re-addressed under the walk: the walk's fingerprint no longer matches.
+        let store = try KnowledgeStore(storeDirectory: root)
+        var moved = try #require(try store.loadArtifact(artifact.id))
+        moved.linkedURL = "foreverlm-site://pmf-renamed/"
+        try store.saveArtifactRecord(moved)
         #expect(try await storage.loadArtifactWalkthrough(artifact.id) == nil)
         #expect(try await storage.hasArtifactWalkthrough(artifact.id))
 
@@ -2976,7 +2980,7 @@ struct AnimationWalkthroughStorageTests {
         let (storage, root) = makeTemporaryStorage("anim-sync")
         defer { try? FileManager.default.removeItem(at: root) }
         let artifact = try await storage.createLinkedArtifact(
-            url: URL(string: "https://sites.foreverlm.com/pmf-two-components/")!, title: "One force",
+            url: URL(string: "foreverlm-site://pmf-two-components/")!, title: "One force",
             homeNotebookID: nil, linkedNotebookIDs: [], kind: .animation
         )
         let walk = animationWalk(for: artifact)
@@ -3035,7 +3039,7 @@ struct MCPAnimationWalkthroughToolsTests {
         let (store, tmpPath) = try makeStore()
         defer { try? FileManager.default.removeItem(atPath: tmpPath) }
         let animation = try await store.notebookFileStorage.createLinkedArtifact(
-            url: URL(string: "https://sites.foreverlm.com/pmf-two-components/")!, title: "One force, two components",
+            url: URL(string: "foreverlm-site://pmf-two-components/")!, title: "One force, two components",
             homeNotebookID: nil, linkedNotebookIDs: [], kind: .animation
         )
         let steps: [[String: Any]] = [
@@ -3043,7 +3047,7 @@ struct MCPAnimationWalkthroughToolsTests {
             ["kind": "explain", "title": "Nigericin", "body": "Trades the pH term.", "animation_step": 5, "animation_conditions": ["iono": "nig", "resp": true]],
             ["kind": "quiz", "title": "Check", "body": "", "quiz": ["question": "Where did the force go?", "answer": "Into ΔpH.", "key_points": ["ΔpH"]]],
         ]
-        let saved = try parseJSON(try await store.saveWalkthrough(arguments: ["animation": "pmf-two-components", "title": "Two forces", "steps": steps]))
+        let saved = try parseJSON(try await store.saveWalkthrough(arguments: ["animation": animation.id, "title": "Two forces", "steps": steps]))
         #expect(saved["status"] as? String == "saved")
         #expect(saved["subject"] as? String == "animation")
         #expect(saved["animation_id"] as? String == animation.id)
@@ -3056,7 +3060,7 @@ struct MCPAnimationWalkthroughToolsTests {
         let got = try parseJSON(try await store.getWalkthrough(arguments: ["animation": animation.id]))
         #expect(got["status"] as? String == "ok")
         #expect(got["subject"] as? String == "animation")
-        #expect(got["animation_url"] as? String == "https://sites.foreverlm.com/pmf-two-components/")
+        #expect(got["animation_url"] as? String == "foreverlm-site://pmf-two-components/")
         let gotSteps = try #require(got["steps"] as? [[String: Any]])
         #expect(gotSteps.count == 3)
         #expect(gotSteps[0]["has_animation"] as? Bool == true)
@@ -3067,7 +3071,7 @@ struct MCPAnimationWalkthroughToolsTests {
         #expect(second["conditions"] as? [String: String] == ["iono": "nig", "resp": "1"])
         #expect(second["title"] as? String == "One force, two components")
         let url = try #require(second["url"] as? String)
-        #expect(url.hasPrefix("https://sites.foreverlm.com/pmf-two-components/?"))
+        #expect(url.hasPrefix("foreverlm-site://pmf-two-components/?"))
         #expect(url.contains("embed=1") && url.contains("step=5") && url.contains("iono:nig"))
         #expect(gotSteps[2]["has_animation"] as? Bool == false)
 
@@ -3076,7 +3080,7 @@ struct MCPAnimationWalkthroughToolsTests {
         let entry = try #require((listed["animations"] as? [[String: Any]])?.first)
         #expect(entry["has_walkthrough"] as? Bool == true)
 
-        let deleted = try parseJSON(try await store.deleteWalkthrough(arguments: ["animation": "https://sites.foreverlm.com/pmf-two-components/"]))
+        let deleted = try parseJSON(try await store.deleteWalkthrough(arguments: ["animation": animation.id]))
         #expect(deleted["status"] as? String == "deleted")
         #expect((deleted["message"] as? String)?.contains("animation's walkthrough") == true)
         let none = try parseJSON(try await store.getWalkthrough(arguments: ["animation": animation.id]))
@@ -3084,22 +3088,22 @@ struct MCPAnimationWalkthroughToolsTests {
         #expect(none["subject"] as? String == "animation")
     }
 
-    @Test("A source's step shows a saved animation by slug; a Site, an unknown handle, both subjects at once and a stepless reference are refused")
+    @Test("A source's step shows a saved animation by id; a Site, an unknown handle, both subjects at once and a stepless reference are refused")
     func referencesAndRefusals() async throws {
         let (store, tmpPath) = try makeStore()
         defer { try? FileManager.default.removeItem(atPath: tmpPath) }
         let article = try seedArticle(store)
         let animation = try await store.notebookFileStorage.createLinkedArtifact(
-            url: URL(string: "https://sites.foreverlm.com/pmf-two-components/")!, title: "One force",
+            url: URL(string: "foreverlm-site://pmf-two-components/")!, title: "One force",
             homeNotebookID: nil, linkedNotebookIDs: [], kind: .animation
         )
-        _ = try await store.notebookFileStorage.createLinkedArtifact(
-            url: URL(string: "https://sites.foreverlm.com/a-site/")!, title: "A site",
+        let site = try await store.notebookFileStorage.createLinkedArtifact(
+            url: URL(string: "foreverlm-site://a-site/")!, title: "A site",
             homeNotebookID: nil, linkedNotebookIDs: []
         )
         let steps: [[String: Any]] = [
             ["kind": "explain", "title": "Start", "body": "Read this first.", "passage": "Sleep pressure rises during waking"],
-            ["kind": "explain", "title": "See it move", "body": "The force has two parts.", "animation": "pmf-two-components", "animation_step": 4],
+            ["kind": "explain", "title": "See it move", "body": "The force has two parts.", "animation": animation.id, "animation_step": 4],
         ]
         let saved = try parseJSON(try await store.saveWalkthrough(arguments: ["source_id": article.id, "title": "Walk", "steps": steps]))
         #expect(saved["status"] as? String == "saved")
@@ -3113,15 +3117,15 @@ struct MCPAnimationWalkthroughToolsTests {
         #expect((gotSteps[0]["anchor"] as? [String: Any])?["passage"] as? String == "Sleep pressure rises during waking")
 
         for bad: [String: Any] in [
-            ["source_id": article.id, "title": "W", "steps": [["kind": "explain", "title": "S", "body": "B", "animation": "a-site", "animation_step": 1]]],
+            ["source_id": article.id, "title": "W", "steps": [["kind": "explain", "title": "S", "body": "B", "animation": site.id, "animation_step": 1]]],
             ["source_id": article.id, "title": "W", "steps": [["kind": "explain", "title": "S", "body": "B", "animation": "nothing-here", "animation_step": 1]]],
             ["source_id": article.id, "title": "W", "steps": [["kind": "explain", "title": "S", "body": "B", "animation_step": 2]]],
-            ["source_id": article.id, "animation": "pmf-two-components", "title": "W", "steps": steps],
-            ["animation": "a-site", "title": "W", "steps": steps],
+            ["source_id": article.id, "animation": animation.id, "title": "W", "steps": steps],
+            ["animation": site.id, "title": "W", "steps": steps],
         ] {
             await #expect(throws: MCPError.self) { try await store.saveWalkthrough(arguments: bad) }
         }
-        await #expect(throws: MCPError.self) { try await store.generateWalkthrough(arguments: ["animation": "pmf-two-components"]) }
+        await #expect(throws: MCPError.self) { try await store.generateWalkthrough(arguments: ["animation": animation.id]) }
     }
 }
 

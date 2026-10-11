@@ -9,9 +9,11 @@ import SwiftUI
 // reading made for a paper (or a book's chapters) is drawn on the PDF the
 // Reader already shows, not read in a view of its own: each question is a
 // small marker in the page margin beside the passage it follows, and a click
-// opens the question as a card at the marker. The marks are PDFKit
-// annotations like the walkthrough's outline and the saved highlights, so they
-// ride scrolling, zooming and Dark Mode, and none is ever written to the file.
+// opens the question as a card at the marker. The markers are views PDFKit
+// lays over each page (`PDFPageOverlayViewProvider`), so they ride scrolling,
+// zooming and Dark Mode and none is ever written to the file. They are not
+// annotations: PDFKit paints an annotation at one pixel per PDF point and
+// stretches it, so a glyph that small came out blurred at any zoom.
 // The questions, and the answers, are the reading's (`ReaderQuestionsModel`).
 
 /// Where a marker sits on its page.
@@ -62,12 +64,7 @@ enum ReaderQuestionMarkerGeometry {
 }
 
 @MainActor
-final class ReaderQuestionLayer {
-    nonisolated static let userNamePrefix = "foreverlm-question:"
-    /// The sepia the Studio gives the reading (`NotebookStudioHue.sepia`).
-    private static let sepia = NSColor(calibratedRed: 0.70, green: 0.48, blue: 0.22, alpha: 1)
-    private static let keptGreen = NSColor(calibratedRed: 0.28, green: 0.58, blue: 0.38, alpha: 1)
-
+final class ReaderQuestionLayer: NSObject, @preconcurrency PDFPageOverlayViewProvider {
     private struct Placement {
         let pageIndex: Int
         let line: CGRect
@@ -86,7 +83,10 @@ final class ReaderQuestionLayer {
     /// Questions whose quote the PDF does not print; asked again only when the
     /// document changes.
     private var missed: Set<String> = []
-    private var painted: [(page: PDFPage, annotation: PDFAnnotation)] = []
+    /// The markers each page carries, by page index, as last painted.
+    private var marksByPage: [Int: [ReaderQuestionPageOverlay.Mark]] = [:]
+    /// The overlays PDFKit shows now, one per page on screen.
+    private var overlays: [ReaderQuestionPageOverlay] = []
     private var paintedKey: [PaintKey]?
     private var markerRects: [String: (pageIndex: Int, rect: CGRect)] = [:]
     /// Whether each page, by index, sets its text in two columns.
@@ -100,10 +100,14 @@ final class ReaderQuestionLayer {
     private var flashed: PDFSelection?
     private var chip: NSHostingView<ReaderQuestionsChip>?
     private var chipCountersInversion = false
+    /// What a click on a marker does; `apply` sets it, since it has the store.
+    private var openQuestion: ((String) -> Void)?
 
     /// Created in the PDF coordinator's stored-property initialiser, which is
     /// not on any actor; everything it does afterwards is.
-    nonisolated init() {}
+    nonisolated override init() {
+        super.init()
+    }
 
     // MARK: Drawing
 
@@ -126,6 +130,10 @@ final class ReaderQuestionLayer {
             self.document = document
         }
         desired = markers
+        openQuestion = { [weak self, weak store] questionID in
+            guard let self, let store else { return }
+            self.present(questionID, store: store, storage: storage)
+        }
         ensureChip(in: pdfView, store: store, storage: storage)
         keepChipUpright(in: pdfView)
         let pending = markers.filter { placements[$0.questionID] == nil && !missed.contains($0.questionID) }
@@ -224,8 +232,8 @@ final class ReaderQuestionLayer {
         let key = shown.map { PaintKey(id: $0.questionID, standing: $0.standing) }
         guard key != paintedKey else { return }
         paintedKey = key
-        clearMarks()
-        var taken: [Int: [CGRect]] = [:]
+        markerRects = [:]
+        var byPage: [Int: [ReaderQuestionPageOverlay.Mark]] = [:]
         for marker in shown {
             guard let placement = placements[marker.questionID],
                   let page = document.page(at: placement.pageIndex) else { continue }
@@ -234,12 +242,26 @@ final class ReaderQuestionLayer {
                 forLine: placement.line,
                 onPage: bounds,
                 twoColumn: isTwoColumn(page, index: placement.pageIndex),
-                taken: taken[placement.pageIndex] ?? []
+                taken: byPage[placement.pageIndex]?.map(\.rect) ?? []
             )
-            taken[placement.pageIndex, default: []].append(rect)
+            byPage[placement.pageIndex, default: []].append(.init(
+                questionID: marker.questionID,
+                rect: rect,
+                standing: marker.standing
+            ))
             markerRects[marker.questionID] = (placement.pageIndex, rect)
-            addMarker(marker, rect: rect, on: page)
         }
+        marksByPage = byPage
+        for overlay in overlays { overlay.marks = marks(for: overlay.page) }
+    }
+
+    /// The markers a page of the current document carries; none for a page
+    /// of a document the view no longer shows.
+    private func marks(for page: PDFPage?) -> [ReaderQuestionPageOverlay.Mark] {
+        guard let page, let document else { return [] }
+        let index = document.index(for: page)
+        guard index != NSNotFound else { return [] }
+        return marksByPage[index] ?? []
     }
 
     private func isTwoColumn(_ page: PDFPage, index: Int) -> Bool {
@@ -251,57 +273,26 @@ final class ReaderQuestionLayer {
         return result
     }
 
-    private func addMarker(_ marker: ReaderQuestionMarker, rect: CGRect, on page: PDFPage) {
-        let name = Self.userNamePrefix + marker.questionID
-        let color = marker.standing == .kept ? Self.keptGreen : Self.sepia
-
-        let disc = PDFAnnotation(bounds: rect, forType: .circle, withProperties: nil)
-        disc.userName = name
-        disc.color = color
-        disc.interiorColor = marker.standing == .due ? color.withAlphaComponent(0.16) : color
-        let border = PDFBorder()
-        border.lineWidth = 1.2
-        border.style = .solid
-        disc.border = border
-        disc.shouldPrint = false
-        page.addAnnotation(disc)
-        painted.append((page, disc))
-
-        let glyph = PDFAnnotation(bounds: rect.offsetBy(dx: 0, dy: 0.5), forType: .freeText, withProperties: nil)
-        glyph.userName = name
-        glyph.contents = Self.symbol(for: marker.standing)
-        glyph.font = NSFont.systemFont(ofSize: 11, weight: .bold)
-        glyph.fontColor = marker.standing == .due ? color : .white
-        glyph.alignment = .center
-        glyph.color = .clear
-        let glyphBorder = PDFBorder()
-        glyphBorder.lineWidth = 0
-        glyph.border = glyphBorder
-        glyph.shouldPrint = false
-        page.addAnnotation(glyph)
-        painted.append((page, glyph))
-    }
-
-    private static func symbol(for standing: ReaderQuestionMarker.Standing) -> String {
-        switch standing {
-        case .open: "?"
-        case .kept: "\u{2713}"
-        case .due: "\u{21BB}"
-        }
-    }
-
     private func clearMarks() {
-        for item in painted { item.page.removeAnnotation(item.annotation) }
-        painted = []
+        marksByPage = [:]
         markerRects = [:]
+        for overlay in overlays { overlay.marks = [] }
     }
 
-    // MARK: Clicks
+    // MARK: The overlays
 
-    /// The question a clicked annotation is the marker of.
-    nonisolated static func questionID(for annotation: PDFAnnotation) -> String? {
-        guard let name = annotation.userName, name.hasPrefix(userNamePrefix) else { return nil }
-        return String(name.dropFirst(userNamePrefix.count))
+    /// Every page gets an overlay, empty or not, so markers that land later
+    /// have somewhere to go.
+    func pdfView(_ view: PDFView, overlayViewFor page: PDFPage) -> NSView? {
+        let overlay = ReaderQuestionPageOverlay(page: page)
+        overlay.onClick = { [weak self] questionID in self?.openQuestion?(questionID) }
+        overlay.marks = marks(for: page)
+        overlays.append(overlay)
+        return overlay
+    }
+
+    func pdfView(_ pdfView: PDFView, willEndDisplayingOverlayView overlayView: NSView, for page: PDFPage) {
+        overlays.removeAll { $0 === overlayView }
     }
 
     // MARK: The card
@@ -426,6 +417,146 @@ final class ReaderQuestionLayer {
             host.trailingAnchor.constraint(equalTo: pdfView.trailingAnchor, constant: -22),
         ])
         chip = host
+    }
+}
+
+// MARK: - The markers on a page
+
+/// The view PDFKit lays over one page: the page's question markers, placed in
+/// page points and drawn by AppKit at the screen's resolution. Clicks
+/// anywhere else fall through to the page, for selecting text and following
+/// links.
+final class ReaderQuestionPageOverlay: NSView {
+    struct Mark: Equatable {
+        let questionID: String
+        /// In page points, in the page's crop box.
+        let rect: CGRect
+        let standing: ReaderQuestionMarker.Standing
+    }
+
+    private(set) weak var page: PDFPage?
+    var onClick: ((String) -> Void)?
+    var marks: [Mark] = [] {
+        didSet {
+            guard marks != oldValue else { return }
+            subviews.forEach { $0.removeFromSuperview() }
+            for mark in marks {
+                let marker = ReaderQuestionMarkerView(mark: mark)
+                marker.onClick = { [weak self] in self?.onClick?(mark.questionID) }
+                addSubview(marker)
+            }
+            needsLayout = true
+        }
+    }
+
+    init(page: PDFPage) {
+        self.page = page
+        super.init(frame: .zero)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        needsLayout = true
+    }
+
+    /// The overlay covers the page at whatever zoom, so a marker's frame is
+    /// its page rect scaled to the overlay.
+    override func layout() {
+        super.layout()
+        guard let box = page?.bounds(for: .cropBox), box.width > 0, box.height > 0 else { return }
+        let sx = bounds.width / box.width
+        let sy = bounds.height / box.height
+        for case let marker as ReaderQuestionMarkerView in subviews {
+            let rect = marker.mark.rect
+            marker.frame = CGRect(
+                x: (rect.minX - box.minX) * sx,
+                y: (rect.minY - box.minY) * sy,
+                width: rect.width * sx,
+                height: rect.height * sy
+            )
+        }
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let hit = super.hitTest(point)
+        return hit is ReaderQuestionMarkerView ? hit : nil
+    }
+}
+
+/// One question's marker: a filled circle with the question's standing in it,
+/// drawn from SF Symbols so it stays sharp at any zoom.
+final class ReaderQuestionMarkerView: NSView {
+    /// The sepia the Studio gives the reading (`NotebookStudioHue.sepia`).
+    private static let sepia = NSColor(calibratedRed: 0.70, green: 0.48, blue: 0.22, alpha: 1)
+    private static let keptGreen = NSColor(calibratedRed: 0.28, green: 0.58, blue: 0.38, alpha: 1)
+
+    let mark: ReaderQuestionPageOverlay.Mark
+    var onClick: (() -> Void)?
+
+    init(mark: ReaderQuestionPageOverlay.Mark) {
+        self.mark = mark
+        super.init(frame: .zero)
+        setAccessibilityElement(true)
+        setAccessibilityRole(.button)
+        setAccessibilityLabel("Question")
+        setAccessibilityValue(Self.standingDescription(mark.standing))
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    /// Sepia **?** unanswered; green **✓** kept and not due; a sepia ring
+    /// with **↻** on a pale fill, answered and due now.
+    private static func layers(for standing: ReaderQuestionMarker.Standing) -> [(symbol: String, colors: [NSColor])] {
+        switch standing {
+        case .open: [("questionmark.circle.fill", [.white, sepia])]
+        case .kept: [("checkmark.circle.fill", [.white, keptGreen])]
+        case .due: [("circle.fill", [sepia.withAlphaComponent(0.16)]), ("arrow.clockwise.circle", [sepia])]
+        }
+    }
+
+    private static func standingDescription(_ standing: ReaderQuestionMarker.Standing) -> String {
+        switch standing {
+        case .open: "Not answered"
+        case .kept: "Answered"
+        case .due: "Due for review"
+        }
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        for layer in Self.layers(for: mark.standing) {
+            let configuration = NSImage.SymbolConfiguration(pointSize: bounds.height, weight: .semibold)
+                .applying(.init(paletteColors: layer.colors))
+            guard let image = NSImage(systemSymbolName: layer.symbol, accessibilityDescription: nil)?
+                .withSymbolConfiguration(configuration),
+                image.size.width > 0, image.size.height > 0 else { continue }
+            let fit = min(bounds.width / image.size.width, bounds.height / image.size.height)
+            let size = CGSize(width: image.size.width * fit, height: image.size.height * fit)
+            image.draw(in: CGRect(
+                x: bounds.midX - size.width / 2,
+                y: bounds.midY - size.height / 2,
+                width: size.width,
+                height: size.height
+            ))
+        }
+    }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    /// The press is the marker's, so PDFKit does not start a text selection.
+    override func mouseDown(with event: NSEvent) {}
+
+    override func mouseUp(with event: NSEvent) {
+        guard bounds.contains(convert(event.locationInWindow, from: nil)) else { return }
+        onClick?()
+    }
+
+    override func accessibilityPerformPress() -> Bool {
+        onClick?()
+        return true
     }
 }
 

@@ -8,8 +8,8 @@ import UniformTypeIdentifiers
 /// files under `Artifacts/<id>`.
 ///
 /// Format 2 adds a site's files (`siteFiles`): a ForeverLM site or animation
-/// kept in the library travels between devices here, beside its text copy,
-/// rather than living on sites.foreverlm.com. A body with no site is still
+/// kept in the library travels between devices here, beside its text copy.
+/// A body with no site is still
 /// written as format 1, byte for byte, so a Doc's revision never changes.
 struct ArtifactBodyPackage: Sendable, Equatable {
     static let formatVersion = 1

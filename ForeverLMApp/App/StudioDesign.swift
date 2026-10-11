@@ -237,7 +237,20 @@ private final class RailTooltipPanel {
     func show(text: String, beside view: NSView) {
         guard let window = view.window, window.isVisible, NSApp.isActive else { return }
         let hosting = NSHostingView(rootView: RailTooltipPill(text: text))
-        let size = hosting.fittingSize
+        let fitting = hosting.fittingSize
+        let size = NSSize(width: ceil(fitting.width), height: ceil(fitting.height))
+        // Measured once; after that the pill never sizes its panel. As the
+        // panel's content view with the default sizing options, the hosting
+        // view pinned the panel's min and max size to SwiftUI's on every
+        // constraints pass, and when the two disagreed each pass resized the
+        // panel and asked for another, until AppKit ended the app (build 210,
+        // 2026-10-11: clicking the calendar glyph quit ForeverLM). So the
+        // hosting view sits inside a plain view and sizes nothing.
+        hosting.sizingOptions = []
+        let container = NSView(frame: NSRect(origin: .zero, size: size))
+        hosting.frame = container.bounds
+        hosting.autoresizingMask = [.width, .height]
+        container.addSubview(hosting)
         let anchorRect = window.convertToScreen(view.convert(view.bounds, to: nil))
         var origin = NSPoint(x: anchorRect.maxX, y: anchorRect.midY - size.height / 2)
         if let visible = window.screen?.visibleFrame {
@@ -246,7 +259,7 @@ private final class RailTooltipPanel {
         }
         let panel = self.panel ?? makePanel()
         self.panel = panel
-        panel.contentView = hosting
+        panel.contentView = container
         panel.setFrame(NSRect(origin: origin, size: size), display: true)
         panel.orderFrontRegardless()
         installDismissMonitor()
@@ -299,6 +312,8 @@ private struct RailTooltipPill: View {
             .font(.system(size: 13, weight: .medium))
             .foregroundStyle(Color.white)
             .lineLimit(1)
+            // Its own size whatever the panel's, so it never truncates.
+            .fixedSize()
             .padding(.horizontal, 13)
             .padding(.vertical, 8)
             .background(

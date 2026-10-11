@@ -14,8 +14,8 @@ ForeverLM overlaps with that first job: it gives you a reading list for articles
 
 | | ForeverLM | Readwise Reader + Readwise |
 |---|---|---|
-| **Reading-list price** | Free: save, organize, read, and schedule sources without a subscription | 30-day trial, then $9.99/month billed annually or $12.99/month billed monthly |
-| **AI costs** | Your own OpenRouter key, billed by OpenRouter at cost with nothing added, plus a ForeverLM plan ($4/mo, or $19/yr for early believers) for any model in Chat; or free over MCP from an assistant subscription you already use | Ghostreader is included; external assistants use your own ChatGPT, Claude, or other MCP client account |
+| **Reading-list price** | 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | 30-day trial, then $9.99/month billed annually or $12.99/month billed monthly |
+| **AI costs** | Your own OpenRouter key, billed by OpenRouter at cost with nothing added, for any model in Chat (free models cost nothing); or an assistant subscription you already use, over MCP | Ghostreader is included; external assistants use your own ChatGPT, Claude, or other MCP client account |
 | **Platforms** | Mac-centered library with synced iPhone reading, listening, and voice access | Web, Mac, Windows, iOS, Android, browser extensions, and e-ink viewing |
 | **Capture** | Safari, Chrome, and Brave reading lists; URL paste; local files; plugins; MCP | Browser extensions, share sheet, email newsletters, RSS, file upload, and imports |
 | **Content** | Articles, papers, books, podcasts, videos, courses, meetings, and X posts | Articles, newsletters, RSS, PDFs, EPUBs, videos, podcasts, and X posts |
@@ -27,13 +27,13 @@ ForeverLM overlaps with that first job: it gives you a reading list for articles
 
 *Readwise features and pricing checked against its [official Reader page](https://readwise.io/read/) in August 2026. Readwise offers 50% discounts to several eligible groups.*
 
-## A free reading list versus a reading subscription
+## A one-time price versus a reading subscription
 
 Readwise Full costs **$119.88 per year** on annual billing or **$155.88 per year** month-to-month. That subscription pays for a highly polished cross-platform reader, newsletter and RSS workflows, text-to-speech, Ghostreader, highlight aggregation, Daily Review, and best-in-class exports.
 
-ForeverLM's reading list is **free**. Articles saved in Safari, Chrome, or Brave flow into Studio, where you can read them, organize them into notebooks, and put them on Schedule without a subscription or trial clock. Papers, books, podcasts, videos, courses, and meetings share the same library.
+ForeverLM's reading list comes with the app: **7 days free, then $19 once**. Articles saved in Safari, Chrome, or Brave flow into Studio, where you can read them, organize them into notebooks, and put them on Schedule without a subscription. Papers, books, podcasts, videos, courses, and meetings share the same library.
 
-Only built-in AI and cloud voices cost anything. On-device Mac speech is free. In-app Chat needs a ForeverLM plan ($4 a month, or $19 a year while the early-believer offer lasts) and runs on your own OpenRouter key, billed by OpenRouter at its cost with nothing added, while a Claude, ChatGPT, Gemini, or Grok subscription connected through MCP costs nothing extra. A quiet reading month adds nothing to your OpenRouter bill.
+Beyond that, only AI and cloud voices cost anything, and ForeverLM never charges for them. On-device Mac speech costs nothing. In-app Chat runs on your own OpenRouter key, billed by OpenRouter at its cost with nothing added, or on free models for nothing. Connecting a Claude, ChatGPT, Gemini, or Grok subscription through MCP is included. A quiet reading month adds nothing to your OpenRouter bill.
 
 ## Where Readwise is better
 
@@ -46,7 +46,7 @@ Only built-in AI and cloud voices cost anything. On-device Mac speech is free. I
 
 ## Where ForeverLM is more complete
 
-- **The reading list is free.** Saving and organizing articles does not stop after 30 days and does not cost $119.88 every year.
+- **The reading list is paid for once.** Saving and organizing articles costs $19 once, not $119.88 every year.
 - **Sources become a plan.** Schedule specific items for specific days, move unfinished work, and see pending, reviewed, and completed sources rather than maintaining an endless queue.
 - **Review tests understanding.** Readwise resurfaces what you highlighted. ForeverLM asks you to reconstruct the source in your own words, probes gaps, and saves the review back against the sources it covered.
 - **Chat is part of the notebook.** Discuss one source or combine papers, articles, podcasts, meetings, and videos in the same conversation. In-app Chat supports model choice, and MCP lets external assistants search and operate the library.
@@ -58,6 +58,6 @@ Only built-in AI and cloud voices cost anything. On-device Mac speech is free. I
 
 Choose **Readwise Reader** if you want the most polished cross-platform reading inbox, rely heavily on RSS and newsletters, collect highlights from Kindle and many other services, or need continuous export into a notes app. The subscription buys a broad and mature reading experience.
 
-Choose **ForeverLM** if you want a free reading list on Apple devices and your real problem is the queue after capture: what to read today, how it connects to the rest of your research, and whether you retained it. It covers saving, reading, listening, source-grounded chat, planning, and active review in one local-first workflow.
+Choose **ForeverLM** if you want a reading list on Apple devices with no subscription and your real problem is the queue after capture: what to read today, how it connects to the rest of your research, and whether you retained it. It covers saving, reading, listening, source-grounded chat, planning, and active review in one local-first workflow.
 
 They can also work together. Keep Readwise as the universal highlight and feed inbox, and use ForeverLM for the sources important enough to schedule, discuss deeply, and review for understanding.

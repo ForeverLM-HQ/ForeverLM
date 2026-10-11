@@ -101,23 +101,45 @@ private struct KnowledgeMapPopupHost: View {
 }
 
 /// The floating card: the faces the Canvas has of one card, and what to do
-/// with it.
-private struct KnowledgeMapPopupCard: View {
+/// with it. The ⌘-click popup floats it over the plane; the Library sidebar
+/// shows it in a popover beside a row, which draws its own material and
+/// shadow (`drawsChrome: false`). A card not on the canvas offers **Place on
+/// the Canvas**: beside the selection, else the middle of the view.
+struct KnowledgeMapPopupCard: View {
     @Environment(StudioViewModel.self) private var vm
     @Environment(StudioWindowState.self) private var windowState
 
     let ref: String
+    let drawsChrome: Bool
     let onClose: () -> Void
 
     /// How tall what the card says is, measured; the scroll view is that tall.
     @State private var faceHeight: CGFloat = 120
 
+    init(ref: String, drawsChrome: Bool = true, onClose: @escaping () -> Void) {
+        self.ref = ref
+        self.drawsChrome = drawsChrome
+        self.onClose = onClose
+    }
+
     private var map: KnowledgeMapModel { vm.knowledgeMap }
     private static let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
 
     var body: some View {
+        if drawsChrome {
+            card
+                .background(.regularMaterial, in: Self.shape)
+                .overlay(Self.shape.strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5))
+                .shadow(color: .black.opacity(0.14), radius: 14, y: 5)
+        } else {
+            card
+        }
+    }
+
+    private var card: some View {
         let node = map.nodesByRef[ref]
-        VStack(alignment: .leading, spacing: 10) {
+        let placed = map.layout.placements[ref] != nil
+        return VStack(alignment: .leading, spacing: 10) {
             header(node)
             // What the card says, as tall as it is; it scrolls only once it
             // would pass the most the popup is allowed. One scroll view
@@ -131,20 +153,33 @@ private struct KnowledgeMapPopupCard: View {
                     }
             }
             .frame(height: min(faceHeight, KnowledgeMapPopupMetrics.maximumHeight))
-            if let item = KnowledgeMap.ItemRef(ref), item.kind != .idea {
+            // An Idea edits in place, so it has no Open; a card not on the canvas
+            // can be set down from here.
+            if let item = KnowledgeMap.ItemRef(ref), item.kind != .idea || !placed {
                 HStack(spacing: 4) {
-                    Button("Open Beside") {
-                        Task { await vm.openKnowledgeMapItemBeside(ref, in: windowState) }
+                    if !placed {
+                        Button("Place on the Canvas") {
+                            map.send(.dropAtCenter(refs: [ref], regionName: nil))
+                            onClose()
+                        }
+                        .buttonStyle(.hoverWash(cornerRadius: 6, inset: -4, opacity: 0.10))
+                        .help("Set it down beside the selection, or in the middle of the view")
+                        .accessibilityIdentifier("knowledgeMap.popup.place")
                     }
-                    .buttonStyle(.hoverWash(cornerRadius: 6, inset: -4, opacity: 0.10))
-                    .help("Open it beside the Canvas")
-                    .accessibilityIdentifier("knowledgeMap.popup.openBeside")
-                    Button("Open") {
-                        onClose()
-                        Task { await vm.openKnowledgeMapItem(ref, in: windowState) }
+                    if item.kind != .idea {
+                        Button("Open Beside") {
+                            Task { await vm.openKnowledgeMapItemBeside(ref, in: windowState) }
+                        }
+                        .buttonStyle(.hoverWash(cornerRadius: 6, inset: -4, opacity: 0.10))
+                        .help("Open it beside the Canvas")
+                        .accessibilityIdentifier("knowledgeMap.popup.openBeside")
+                        Button("Open") {
+                            onClose()
+                            Task { await vm.openKnowledgeMapItem(ref, in: windowState) }
+                        }
+                        .buttonStyle(.hoverWash(cornerRadius: 6, inset: -4, opacity: 0.10))
+                        .accessibilityIdentifier("knowledgeMap.popup.open")
                     }
-                    .buttonStyle(.hoverWash(cornerRadius: 6, inset: -4, opacity: 0.10))
-                    .accessibilityIdentifier("knowledgeMap.popup.open")
                     Spacer(minLength: 0)
                 }
                 .zoomedSystemFont(size: 12)
@@ -152,9 +187,6 @@ private struct KnowledgeMapPopupCard: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.regularMaterial, in: Self.shape)
-        .overlay(Self.shape.strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5))
-        .shadow(color: .black.opacity(0.14), radius: 14, y: 5)
     }
 
     private func faceColumn(_ node: KnowledgeMapNode?) -> some View {

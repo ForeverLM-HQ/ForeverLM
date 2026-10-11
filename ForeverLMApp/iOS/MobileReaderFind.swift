@@ -3,7 +3,7 @@ import SwiftUI
 import WebKit
 
 // Find inside a source on the phone. One bar, one state, two performers: the
-// text reader steps WebKit's own find through the rendered document, the PDF
+// text reader steps WebKit's text search through the rendered document, the PDF
 // reader steps PDFKit's `findString` matches, and both report where they landed
 // the way the Mac reader's find bar does. The system `UIFindInteraction` was
 // the first choice — it is what Safari shows — but `PDFView` never reports it
@@ -16,7 +16,7 @@ import WebKit
 @MainActor
 protocol MobileReaderFindPerformer: AnyObject {
     /// Moves to the next (or previous) match of `query` and returns the status
-    /// to show — "3 of 14", "14 matches", "No matches", or "" for no query.
+    /// to show — "3 of 14", "No matches", or "" for no query.
     func find(_ query: String, backwards: Bool) async -> String
     func clearFind()
 }
@@ -209,24 +209,43 @@ final class MobilePDFFindPerformer: MobileReaderFindPerformer {
     }
 }
 
-/// Find over the text reader: WebKit steps from the current selection to the
-/// next match, wrapping, and the document's total is counted once per query so
-/// the bar can say how many there are.
+/// Find over the text reader: WebKit's text search, the `UITextSearching`
+/// side of WKWebView that Safari's find bar drives, lists every match in the
+/// document, and the performer steps through them with wrap. WebKit shows the
+/// highlighted match as the page's selection, so `clearFind` drops the
+/// decoration and then the selection.
+///
+/// Not `WKWebView.find(_:configuration:)`: after it finds a match, iOS stops
+/// showing the page's own selection changes, so the match stayed on screen
+/// with its handles after the bar closed, whatever script cleared it, until a
+/// tap on the page (iOS 26.5 Simulator, 2026-10-10). The text search leaves the
+/// selection the page's to change.
+///
+/// UIKit marks both protocols Swift-private, so Swift spells the public
+/// `UITextSearching` and `UITextSearchAggregator` with two underscores.
+/// WKWebView adopts `UITextSearching` without saying so in its header; it is
+/// what the web view's own `findInteraction` searches.
 @MainActor
 final class MobileWebFindPerformer: MobileReaderFindPerformer {
     private weak var webView: WKWebView?
     private var lastQuery = ""
-    private var total: Int?
+    private var matches: [UITextRange] = []
+    private var index = -1
+    /// The matches describe a document that is no longer there.
+    private var matchesAreStale = false
+    /// Moves on with every search and every clear, so a search that finishes
+    /// after a newer one, or after the bar closed, changes nothing.
+    private var generation = 0
 
     init(webView: WKWebView) {
         self.webView = webView
     }
 
-    /// The document was rebuilt (a font-size change reloads it), so the count
-    /// and the position no longer describe what is on screen.
+    /// The document changed (a font-size change reloads it, a book page takes
+    /// chapters in and out), so the matches' places in it no longer hold. The
+    /// next step searches again and carries on from the match on screen.
     func documentChanged() {
-        lastQuery = ""
-        total = nil
+        matchesAreStale = true
     }
 
     func find(_ query: String, backwards: Bool) async -> String {
@@ -236,55 +255,145 @@ final class MobileWebFindPerformer: MobileReaderFindPerformer {
             clearFind()
             return ""
         }
+        guard let searchable = webView as? __UITextSearching else { return "" }
 
-        let configuration = WKFindConfiguration()
-        configuration.backwards = backwards
-        configuration.caseSensitive = false
-        configuration.wraps = true
-        let found = await withCheckedContinuation { continuation in
-            webView.find(needle, configuration: configuration) { result in
-                continuation.resume(returning: result.matchFound)
+        if needle != lastQuery || matchesAreStale {
+            generation += 1
+            let search = generation
+            // Like WebKit's own find, start from what the page has selected:
+            // the match on screen, or the learner's selection.
+            let position = await Self.selectionPosition(of: needle, in: webView)
+            guard search == generation else { return "" }
+            searchable.clearAllDecoratedFoundText()
+            let found = await Self.matches(of: needle, in: searchable)
+            guard search == generation else { return "" }
+            matches = found
+            lastQuery = needle
+            matchesAreStale = false
+            if let position {
+                index = position.isMatch || backwards ? position.before : position.before - 1
+            } else {
+                index = backwards ? matches.count : -1
             }
         }
-        guard found else {
-            lastQuery = needle
-            total = 0
+        guard !matches.isEmpty else {
+            index = -1
+            dropSelection()
             return "No matches"
         }
-        if needle != lastQuery || total == nil {
-            lastQuery = needle
-            total = await Self.count(needle, in: webView)
+
+        // Undecorated first: WebKit skips a range already in the style asked
+        // for, so a match highlighted once would not take the selection back.
+        if matches.indices.contains(index) {
+            searchable.decorateFound(matches[index], inDocument: nil, using: .normal)
         }
-        guard let total, total > 0 else { return "" }
-        return total == 1 ? "1 match" : "\(total) matches"
+        if backwards {
+            index = index <= 0 || index > matches.count ? matches.count - 1 : index - 1
+        } else {
+            index = index < -1 || index >= matches.count - 1 ? 0 : index + 1
+        }
+        let match = matches[index]
+        searchable.decorateFound(match, inDocument: nil, using: .highlighted)
+        searchable.scrollRangeToVisible?(match, inDocument: nil)
+        return "\(index + 1) of \(matches.count)"
     }
 
     func clearFind() {
+        generation += 1
         lastQuery = ""
-        total = nil
+        matches = []
+        index = -1
+        matchesAreStale = false
+        (webView as? __UITextSearching)?.clearAllDecoratedFoundText()
+        dropSelection()
+    }
+
+    /// The page's selection is how WebKit shows the match.
+    private func dropSelection() {
         webView?.evaluateJavaScript("window.getSelection()?.removeAllRanges();") { _, _ in }
     }
 
-    /// Occurrences of `needle` in the visible text, case-folded the way
-    /// WebKit's find is. The needle travels as JSON so no query can break out
-    /// of the script.
-    private static func count(_ needle: String, in webView: WKWebView) async -> Int? {
+    /// Every match of `needle` in the document, in reading order.
+    private static func matches(of needle: String, in searchable: __UITextSearching) async -> [UITextRange] {
+        await withCheckedContinuation { continuation in
+            let results = MobileWebFindResults { continuation.resume(returning: $0) }
+            searchable.performTextSearch(
+                withQueryString: needle,
+                using: MobileWebFindOptions(),
+                resultAggregator: results
+            )
+        }
+    }
+
+    /// Where the page's selection sits among the matches of `needle`: how many
+    /// begin before it, and whether it is one of them. nil with nothing
+    /// selected. The needle travels as JSON so no query can break out of the
+    /// script.
+    private static func selectionPosition(of needle: String, in webView: WKWebView) async -> (before: Int, isMatch: Bool)? {
         guard let data = try? JSONSerialization.data(withJSONObject: [needle]),
               let json = String(data: data, encoding: .utf8) else { return nil }
         let script = """
         (() => {
-          const text = (document.body.innerText || document.body.textContent || '').toLocaleLowerCase();
           const needle = \(json)[0].toLocaleLowerCase();
-          if (!needle) return 0;
+          const selection = window.getSelection();
+          if (!needle || !document.body || !selection || selection.rangeCount === 0) return null;
+          const start = selection.getRangeAt(0);
+          const before = document.createRange();
+          before.setStart(document.body, 0);
+          before.setEnd(start.startContainer, start.startOffset);
+          const text = before.toString().toLocaleLowerCase();
           let count = 0, from = 0;
           while ((from = text.indexOf(needle, from)) >= 0) { count += 1; from += needle.length; }
-          return count;
+          return [count, selection.toString().toLocaleLowerCase() === needle];
         })()
         """
         return await withCheckedContinuation { continuation in
             webView.evaluateJavaScript(script) { value, _ in
-                continuation.resume(returning: (value as? NSNumber)?.intValue)
+                guard let pair = value as? [Any], pair.count == 2,
+                      let before = (pair[0] as? NSNumber)?.intValue,
+                      let isMatch = (pair[1] as? NSNumber)?.boolValue else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                continuation.resume(returning: (before, isMatch))
             }
         }
     }
+}
+
+/// Collects one search's matches and hands them over when WebKit says it has
+/// finished.
+private final class MobileWebFindResults: NSObject, __UITextSearchAggregator {
+    private var ranges: [UITextRange] = []
+    private var onFinish: (([UITextRange]) -> Void)?
+
+    init(onFinish: @escaping ([UITextRange]) -> Void) {
+        self.onFinish = onFinish
+    }
+
+    var allFoundRanges: NSOrderedSet { NSOrderedSet(array: ranges) }
+
+    func found(_ range: UITextRange, forSearch string: String, inDocument document: (any NSCopying & NSObjectProtocol)?) {
+        ranges.append(range)
+    }
+
+    func invalidateFound(_ range: UITextRange, inDocument document: (any NSCopying & NSObjectProtocol)?) {
+        ranges.removeAll { $0 === range }
+    }
+
+    func invalidate() {
+        ranges.removeAll()
+    }
+
+    func finishedSearching() {
+        onFinish?(ranges)
+        onFinish = nil
+    }
+}
+
+/// Case-insensitive, as WebKit's find was. The options' properties are
+/// read-only and default to an exact-case match, so the search asks through a
+/// subclass.
+private final class MobileWebFindOptions: UITextSearchOptions {
+    override var stringCompareOptions: NSString.CompareOptions { .caseInsensitive }
 }

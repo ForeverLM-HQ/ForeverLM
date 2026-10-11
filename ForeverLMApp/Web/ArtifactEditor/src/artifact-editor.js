@@ -1654,6 +1654,7 @@ const slashIcons = {
   chart: '<path d="M2.4 2.4v11.2h11.2"/><path d="M5.4 10.6l2.6-3.4 2.2 1.8 3-4.2"/>',
   clipboard: '<rect x="3.4" y="2.8" width="9.2" height="11" rx="1.6"/><path d="M6 2.8V2h4v.8M5.8 7h4.4M5.8 9.6h4.4M5.8 12h2.4"/>',
   chat: '<path d="M3 3.4h10v7H8.2L5 13V10.4H3z"/><path d="M5.8 6.2h4.4M5.8 8.2h2.6"/>',
+  search: '<circle cx="7" cy="7" r="4.2"/><path d="M10.1 10.1L14 14"/>',
   palette: '<path d="M8 2a6 6 0 1 0 0 12c.9 0 1.3-.7 1-1.4-.4-.8.1-1.6 1-1.6h1.4A2.6 2.6 0 0 0 14 8.4C14 4.9 11.4 2 8 2z"/><circle cx="5.2" cy="7.2" r=".8"/><circle cx="8" cy="5" r=".8"/><circle cx="10.8" cy="6.8" r=".8"/>',
   text: '<path d="M3 4.2h10M8 4.2v8.6M5.6 12.8h4.8"/>',
   h1: '<path d="M2.6 3.6v8.8M8 3.6v8.8M2.6 8h5.4M11 6.2l1.8-1v7.8"/>',
@@ -1729,6 +1730,8 @@ const slashBlockCommands = {
 /// One row per thing the menu can put on the page. `needs` names the host
 /// feature a row waits for; `keywords` are the other words that find it.
 const slashItems = [
+  { id: 'chat', group: 'Generate', title: 'Chat', detail: 'Ask about this page or anything in your library', icon: 'chat', keywords: ['ask', 'question', 'research', 'library', 'sources', 'ai'] },
+  { id: 'find-sources', group: 'Generate', title: 'Find sources', detail: 'Search your library and the web from Chat', icon: 'search', keywords: ['find', 'search', 'research', 'references', 'papers', 'podcast', 'library', 'web'] },
   { id: 'generate', group: 'Generate', title: 'Generate', detail: 'Describe what you want to write', icon: 'sparkle', keywords: ['ai', 'write', 'draft', 'compose'] },
   { id: 'visualize', group: 'Generate', title: 'Visualize', detail: 'Create an interactive visualization', icon: 'chart', keywords: ['chart', 'diagram', 'graph', 'interactive', 'calculator', 'plot'], needs: 'visualize' },
   { id: 'page', group: 'Create', title: 'Page', detail: 'Create a page inside this one', icon: 'page', keywords: ['new', 'subpage', 'child'], needs: 'pages' },
@@ -3999,6 +4002,12 @@ function runSlashCommand(command, from, to) {
     return
   }
   switch (command.id) {
+    case 'chat':
+      if (removeSlashText(from, to)) post('promptRequested', { text: '' })
+      return
+    case 'find-sources':
+      if (removeSlashText(from, to)) post('promptRequested', { text: 'Find sources relevant to this page.' })
+      return
     case 'reference':
       writePlainText('((', from, to)
       return
@@ -7540,7 +7549,25 @@ function ensureAIEditPanel() {
   ask.type = 'submit'
   ask.dataset.action = 'ask'
   ask.textContent = 'Ask'
-  form.append(instruction, ask)
+  const chat = document.createElement('button')
+  chat.type = 'button'
+  chat.dataset.action = 'chat'
+  chat.textContent = 'Ask in Chat'
+  chat.title = 'Ask with this page, its sources, and library search available'
+  chat.addEventListener('click', () => {
+    const text = instruction.value.trim()
+    if (!text) {
+      instruction.focus()
+      return
+    }
+    // Chat owns questions that need the learner's sources, the rest of their
+    // library or the live web. The page host attaches this page and its cited
+    // sources and leaves these words in the composer for the learner to send.
+    // Write/Edit keeps the small, deliberately tool-less passage model.
+    post('promptRequested', { text })
+    closeAIEdit()
+  })
+  form.append(instruction, chat, ask)
   form.addEventListener('submit', (event) => {
     event.preventDefault()
     submitAIEdit(instruction.value)
@@ -7600,6 +7627,7 @@ function setAIEditStatus(message, { busy = false, error = false } = {}) {
   status.dataset.busy = busy ? 'true' : 'false'
   status.dataset.error = error ? 'true' : 'false'
   ensureAIEditPanel().querySelector('[data-action="ask"]').disabled = busy
+  ensureAIEditPanel().querySelector('[data-action="chat"]').disabled = busy
   scheduleAIEditPanelReposition()
 }
 
@@ -7660,6 +7688,10 @@ function setAIEditPanelMode(mode) {
   const copy = aiEditModes[mode] ?? aiEditModes.edit
   panel.dataset.mode = mode
   aiEditElement('instruction').placeholder = copy.placeholder
+  const submit = panel.querySelector('[data-action="ask"]')
+  submit.textContent = { edit: 'Edit', generate: 'Write', image: 'Draw', visualize: 'Create' }[mode] ?? 'Ask'
+  const chat = panel.querySelector('[data-action="chat"]')
+  chat.hidden = mode === 'image' || mode === 'visualize'
   const insert = panel.querySelector('[data-action="insert"]')
   insert.textContent = copy.insertLabel
   insert.title = copy.insertHint

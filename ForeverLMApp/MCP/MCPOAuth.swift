@@ -511,8 +511,9 @@ actor MCPOAuthProvider {
         // Validate client (recovery of loopback clients only happens behind the
         // owner-consent gate, so an unknown dyn_ client can't be auto-registered
         // by an unauthenticated caller).
-        guard validateClient(clientID) || recoverDynamicLoopbackClient(clientID: clientID, redirectURI: redirectURI) else {
-            return .json(["error": "invalid_client"], status: 400)
+        guard validateClient(clientID)
+                || recoverDynamicLoopbackClient(clientID: clientID, redirectURI: redirectURI, requestedScope: params["scope"]) else {
+            return Self.unknownClientResponse(clientID: clientID, status: 400)
         }
 
         guard isRedirectAllowed(redirectURI, clientID: clientID) else {
@@ -1086,6 +1087,14 @@ actor MCPOAuthProvider {
         guard let oldRefresh = params["refresh_token"] else {
             return .json(["error": "invalid_request"], status: 400)
         }
+        // A client this store does not know is RFC 6749's invalid_client, not
+        // invalid_grant, whatever token it brings. That is how a plugin learns,
+        // before it opens a browser, that its registration is gone and it must
+        // register again rather than reuse the id (see mayRecoverDynamicClient).
+        if let presentedID = params["client_id"] ?? extractBasicAuthCredentials(request)?.clientID,
+           !validateClient(presentedID) {
+            return Self.unknownClientResponse(clientID: presentedID, status: 401)
+        }
         guard let refreshInfo = refreshTokens[oldRefresh] else {
             return .json(["error": "invalid_grant"], status: 400)
         }
@@ -1222,10 +1231,9 @@ actor MCPOAuthProvider {
         return clientID
     }
 
-    private func recoverDynamicLoopbackClient(clientID: String, redirectURI: String) -> Bool {
-        guard clientID.hasPrefix("dyn_"),
-              dynamicClients[clientID] == nil,
-              isLoopbackRedirect(redirectURI) else {
+    private func recoverDynamicLoopbackClient(clientID: String, redirectURI: String, requestedScope: String?) -> Bool {
+        guard dynamicClients[clientID] == nil,
+              Self.mayRecoverDynamicClient(clientID: clientID, redirectURI: redirectURI, requestedScope: requestedScope) else {
             return false
         }
 
@@ -1245,6 +1253,37 @@ actor MCPOAuthProvider {
         return true
     }
 
+    /// Whether an authorization request may recreate the unknown `dyn_` client
+    /// it names. A local assistant (Claude Code, Codex) whose registration this
+    /// store lost, to a reinstall or a Keychain reset, keeps working without
+    /// registering again, still behind the owner's approval.
+    ///
+    /// A plugin asking for `mcp:ingest` is refused instead. It is known by the
+    /// `client_name` it registered: that name labels every source it adds
+    /// (`sources.connector_label`) and its row in Settings › Plugins, and an
+    /// authorization request does not carry it. Recreated, the client would
+    /// have no name, so its sources would file under the raw `dyn_…` id and the
+    /// list would show the id. Refused with `invalid_client`, the plugin
+    /// registers again under its name.
+    static func mayRecoverDynamicClient(clientID: String, redirectURI: String, requestedScope: String?) -> Bool {
+        clientID.hasPrefix("dyn_")
+            && isLoopbackRedirect(redirectURI)
+            && MCPAuthScope.effective(fromRequested: requestedScope) != .ingest
+    }
+
+    /// RFC 6749 `invalid_client` for a client id this store does not know. A
+    /// `dyn_` id is one it issued once and has since forgotten, so the answer
+    /// says what to do about it.
+    static func unknownClientResponse(clientID: String, status: Int) -> HTTPResponse {
+        guard clientID.hasPrefix("dyn_") else {
+            return .json(["error": "invalid_client"], status: status)
+        }
+        return .json([
+            "error": "invalid_client",
+            "error_description": "ForeverLM does not know this client_id. It forgets registrations when it is reinstalled or moves to another Apple account. Register again at /oauth/register with the same client_name, then authorize with the client_id that returns.",
+        ], status: status)
+    }
+
     private func isRedirectAllowed(_ uri: String, clientID: String) -> Bool {
         if let url = URL(string: uri), let host = url.host,
            allowedRedirectHosts.contains(host) { return true }
@@ -1252,7 +1291,7 @@ actor MCPOAuthProvider {
         return false
     }
 
-    private func isLoopbackRedirect(_ uri: String) -> Bool {
+    private static func isLoopbackRedirect(_ uri: String) -> Bool {
         guard let url = URL(string: uri),
               url.scheme == "http",
               let host = url.host?.lowercased() else {
@@ -1834,6 +1873,13 @@ struct MCPAccessContext: Sendable, Equatable {
     /// under, or the one the hosted gateway passes on. Display only — nothing
     /// authorizes on it — and nil when the caller never gave one.
     var assistantName: String? = nil
+    /// True for a request that reached this Mac on its own OAuth bearer
+    /// (a Build Your Own plugin, Read AI, any client given the tunnel's
+    /// address), not through the hosted gateway. Only these are checked
+    /// against the app lock here (`MCPProtocolHandler.appLockRefusal`); the
+    /// gateway checks its own, and in-app callers (`internalFullAccess`),
+    /// which sit behind the pay screen, never are.
+    var arrivedWithoutGateway = false
 
     /// The context in-app callers (Chat, ⌘K assistant bar) run under: the app
     /// process is the owner, so it is never scope-restricted. Remote MCP paths

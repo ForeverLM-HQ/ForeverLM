@@ -7,7 +7,7 @@ import AppKit
 struct ArtifactsHomePreviewTests {
     @Test("A Site's page is photographed; a Doc draws its own lines")
     func previewRequestsByKind() throws {
-        let url = "https://sites.foreverlm.com/krebs-cycle/"
+        let url = "foreverlm-site://krebs-cycle/"
         #expect(
             ArtifactsHomePane.previewRequest(kind: .site, linkedURL: url, linkedKind: .foreverlmSite)
                 == .page(url: URL(string: url)!, kind: .foreverlmSite)

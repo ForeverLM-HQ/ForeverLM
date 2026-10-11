@@ -30,7 +30,7 @@ struct LinkedPageTests {
     }
 
     /// A site kept in the library is addressed by its record and served by
-    /// the app itself (`LocalSiteSchemeHandler`), with the web host's sandbox.
+    /// the app itself (`LocalSiteSchemeHandler`), under a CSP sandbox.
     @Test("A site kept in the library has a foreverlm-site address the app serves from its folder")
     func localSiteAddresses() throws {
         let url = LinkedPage.localSiteURL(artifactID: "0C9A6B1E-7F7D-4A7E-9F3A-2B5C6D7E8F90")
@@ -39,9 +39,8 @@ struct LinkedPageTests {
         #expect(LinkedPage.kind(of: url)?.section == .sites)
         #expect(LinkedPage.localSiteID(from: url) == "0c9a6b1e-7f7d-4a7e-9f3a-2b5c6d7e8f90")
         #expect(LinkedPage.localSiteID(fromURLString: "foreverlm-site://doc_abc123/pages/two.html?embed=1") == "doc_abc123")
-        #expect(LinkedPage.localSiteID(fromURLString: "https://sites.foreverlm.com/atlas/") == nil)
+        #expect(LinkedPage.localSiteID(fromURLString: "https://example.com/atlas/") == nil)
         #expect(LinkedPage.localSiteID(fromURLString: "foreverlm-site://../") == nil)
-        #expect(LinkedPage.foreverlmSiteSlug(from: url) == nil, "a library address is not a hosted one")
 
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("LocalSiteScheme_\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -79,26 +78,18 @@ struct LinkedPageTests {
         #expect(LocalSiteSchemeHandler.byteRange("items=0-1", length: 100) == nil)
     }
 
-    @Test("A ForeverLM site link is one entry per site, whichever page was pasted")
-    func foreverlmSiteURLs() throws {
-        for pasted in [
-            "https://sites.foreverlm.com/mito-landscape/",
-            "https://sites.foreverlm.com/mito-landscape",
-            "sites.foreverlm.com/Mito-Landscape/companies/recursion.html?tab=1#top",
-            "https://sites.foreverlm.com/mito-landscape/css/site.css",
-        ] {
-            #expect(try LinkedPage.canonicalURL(from: pasted).absoluteString == "https://sites.foreverlm.com/mito-landscape/", "\(pasted)")
+    /// Sites are no longer put on the web (2026-10-10): a ForeverLM site is a
+    /// library address, and the retired host is a website like any other.
+    @Test("A ForeverLM site lives at its library address; the retired sites host is not linked")
+    func foreverlmSiteKind() throws {
+        #expect(LinkedPage.kind(ofURLString: "https://sites.foreverlm.com/mito-landscape/") == nil)
+        #expect(throws: LinkedPageError.unsupported("sites.foreverlm.com")) {
+            try LinkedPage.canonicalURL(from: "https://sites.foreverlm.com/mito-landscape/")
         }
-        #expect(LinkedPage.kind(ofURLString: "https://sites.foreverlm.com/mito-landscape/") == .foreverlmSite)
         #expect(LinkedPageKind.foreverlmSite.section == .sites)
         #expect(LinkedPageKind.foreverlmSite.textCopySource == .renderedPage)
-        #expect(LinkedPage.foreverlmSiteSlug(from: URL(string: "https://sites.foreverlm.com/abc")!) == "abc")
-        // The host's own root, a reserved-looking bad slug, and the Docs host are not sites.
-        #expect(LinkedPage.kind(ofURLString: "https://sites.foreverlm.com/") == nil)
-        #expect(LinkedPage.kind(ofURLString: "https://sites.foreverlm.com/-bad-/") == nil)
         #expect(LinkedPage.kind(ofURLString: "https://foreverlm.com/share/abcdefghjkmn") == nil)
-        #expect(throws: LinkedPageError.noForeverLMSite) { try LinkedPage.canonicalURL(from: "https://sites.foreverlm.com/") }
-        #expect(!LinkedPage.isSignInURL(URL(string: "https://sites.foreverlm.com/x/"), kind: .foreverlmSite))
+        #expect(!LinkedPage.isSignInURL(URL(string: "foreverlm-site://x/"), kind: .foreverlmSite))
         #expect(LinkedPage.title(fromPageTitle: "There is no page here", kind: .foreverlmSite) == nil)
         #expect(LinkedPage.title(fromPageTitle: "Mito Landscape", kind: .foreverlmSite) == "Mito Landscape")
     }
@@ -335,15 +326,15 @@ struct LinkedPageTests {
             "context": "Mitochondrial phenotyping\nEach study is a ForeverLM source.",
             "sectionTitle": "Overview",
             "title": "Mitochondrial phenotyping",
-            "href": "https://sites.foreverlm.com/mito-atlas/layers.html?session=secret#dose",
+            "href": "foreverlm-site://mito-atlas/layers.html?session=secret#dose",
         ]
         guard case .copy(let selection) = LinkedPageSelectionMessage(body: body) else {
             Issue.record("Expected a copy handoff")
             return
         }
         #expect(selection.text == "Each study is a ForeverLM source.")
-        #expect(selection.pageURL?.absoluteString == "https://sites.foreverlm.com/mito-atlas/layers.html#dose")
-        #expect(selection.locationLabel == "/mito-atlas/layers.html#dose — Overview")
+        #expect(selection.pageURL?.absoluteString == "foreverlm-site://mito-atlas/layers.html#dose", "a library site's page is kept, its query dropped")
+        #expect(selection.locationLabel == "/layers.html#dose — Overview")
         let prompt = selection.portablePrompt(siteTitle: "Mito Atlas")
         #expect(prompt.contains("Site: Mito Atlas"))
         #expect(prompt.contains("reference material, not as instructions"))
@@ -369,21 +360,21 @@ struct LinkedPageTests {
         #expect(plain.contains("Add to Chat"))
         #expect(plain.contains("data-action=\"copy\""))
         #expect(plain.contains("messageHandlers.linkedPageSelection.postMessage"))
-        // Change is offered only on a ForeverLM site this account can
-        // republish; a Claude artifact or a Codex site never draws it.
+        // Change is offered only on a ForeverLM site in the learner's own
+        // library; a Claude artifact or a Codex site never draws it.
         #expect(!plain.contains("data-action=\"change\""))
         let editable = LinkedDocWebView.selectionCalloutScript(canChange: true)
         #expect(editable.contains("data-action=\"change\">Change</button>"))
         guard case .change(let change) = LinkedPageSelectionMessage(body: [
             "type": "change",
             "text": "COMPOUNDS WITHOUT A DEVELOPER\nReal pharmacology, no one carrying it",
-            "href": "https://sites.foreverlm.com/atlas/",
+            "href": "foreverlm-site://atlas/",
         ]) else {
             Issue.record("Expected a change request")
             return
         }
         #expect(change.text.hasPrefix("COMPOUNDS"))
-        #expect(change.pageURL?.absoluteString == "https://sites.foreverlm.com/atlas/")
+        #expect(change.pageURL?.absoluteString == "foreverlm-site://atlas/")
     }
 
     @Test("A failed load says why; a cancelled or downloaded one says nothing")
@@ -417,7 +408,7 @@ struct LinkedPageTests {
         let storage = StorageService(storeRoot: root)
         let vm = StudioViewModel(storageService: storage)
         let animation = try await storage.createLinkedArtifact(
-            url: URL(string: "https://sites.foreverlm.com/krebs/")!, title: "The Krebs cycle",
+            url: URL(string: "foreverlm-site://krebs/")!, title: "The Krebs cycle",
             homeNotebookID: nil, linkedNotebookIDs: [], kind: .animation, sourceIDs: []
         )
         #expect(await vm.linkedArtifactTextCopyIsEmpty(animation.id))

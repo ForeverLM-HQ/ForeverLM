@@ -35,7 +35,7 @@ extension MCPToolRegistry {
         return [
             MCPToolDef(
                 name: "get_knowledge_map",
-                description: "Read the learner's Canvas: a zoomable plane for what they think, holding the Ideas (questions, claims, hunches) and other cards they placed, the regions they drew around them and the arrows between them; a source not placed is not on the plane unless it is an Idea's evidence. Returns the regions they drew (by name, with region_id and rect, and collapsed when folded up, its cards then placed but not drawn) with the cards placed in each, the cards placed outside any region, each placed Idea's evidence (the sources and Docs linked to it), the arrows they drew between cards with their labels and edge_id, what is in view right now (the zoom level, the regions and up to 60 cards on screen), the cards they selected or circled, the lens showing if any, and how many cards are not placed yet, by notebook. Every card has an item_id (source:<source_id>, doc:<doc_id> for a Doc or anything else a notebook made, idea:<idea_id>, page:<source_id>:<n> for one page of a PDF source laid out on the Canvas, drawn from the PDF, canvas:<canvas_id> for a shortcut to another canvas, chat:<session_id> for a chat, or picture:<image_id> for an image of the Images library) to pass to apply_map_lens, focus_map and the tools that edit the Canvas on the learner's word (place_on_canvas and the rest); a source's id works with every source tool and a Doc's with read_doc. A placed card also gives its rect (x, y and the width and height it is drawn at) and what the learner gave it (w, h, folded, color); a region says when it is locked and when its layout is a tree (a mind map); an arrow says its route (curve, straight or elbow), dashed, heads (end, both or none), color and whether it is a tree branch, and an arrow's end may be a region (region:<region_id>); what is left out is the default. Call it when the learner talks about the canvas, the area they are looking at, a region, or what they circled, before answering about it. The learner may have several canvases in their Space; this reads the one open on the Mac, named in canvas (list_canvases lists them, open_canvas opens another).",
+                description: "Read the learner's Canvas: a zoomable plane for what they think, holding the Ideas (questions, claims, hunches) and other cards they placed, the regions they drew around them and the arrows between them; a source not placed is not on the plane unless it is an Idea's evidence. Returns the regions they drew (by name, with region_id and rect, and collapsed when folded up, its cards then placed but not drawn) with the cards placed in each, the cards placed outside any region, each placed Idea's evidence (the sources and Docs linked to it), the arrows they drew between cards with their labels and edge_id, what is in view right now (the zoom level, the regions and up to 60 cards on screen), the cards they selected or circled, the lens showing if any, and how many cards are not placed yet, by notebook. Every card has an item_id (source:<source_id>, doc:<doc_id> for a Doc or anything else a notebook made, idea:<idea_id>, page:<source_id>:<n> for one page of a PDF source laid out on the Canvas, drawn from the PDF, canvas:<canvas_id> for a shortcut to another canvas, chat:<session_id> for a chat, or picture:<image_id> for an image of the Images library) to pass to apply_map_lens, focus_map and the tools that edit the Canvas on the learner's word (place_on_canvas and the rest); a source's id works with every source tool and a Doc's with read_doc. A placed card also gives its rect (x, y and the width and height it is drawn at) and what the learner gave it (w, h, folded, color); a source drawn as a page of its PDF says which (page) and how many the PDF has (pages), and a card says the learner's words about why it is on this canvas (annotation), an Idea drawn as plain words (plain), an Idea whose title is a question (question) and a question marked answered (answered); a region says when it is locked and when its layout is a tree (a mind map); an arrow says its route (curve, straight or elbow), dashed, heads (end, both or none), color, its stance (supports or contradicts) and whether it is a tree branch, and an arrow's end may be a region (region:<region_id>); what is left out is the default. Call it when the learner talks about the canvas, the area they are looking at, a region, or what they circled, before answering about it. The learner may have several canvases in their Space; this reads the one open on the Mac, named in canvas (list_canvases lists them, open_canvas opens another).",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -144,7 +144,7 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "place_on_canvas",
-                description: "Set cards down on the learner's Canvas, or move ones already on it: into a region or a notebook's frame (region), beside a card already placed (beside), as a block with a new region drawn around it (new_region), or, with none of these, in free space in the middle of what the learner is looking at. Any source, Doc or Idea in the library can be placed; a card already on the Canvas moves. Cards in a region fill the free cells of its grid and the region grows to hold them; a notebook's frame lays its cards out in rows. Pass at most one of region, beside and new_region. Pass color, folded, w and h to give the cards set down a look of their own at once (update_canvas_card changes it later). Only on the learner's word: the Canvas is where they think, so never arrange it on your own initiative; to suggest an arrangement, show a lens (apply_map_lens) or ask_canvas. Each call is one edit of theirs, which Undo (⌘Z, or undo_canvas) takes back. Opens the Canvas beside the chat and flies to the cards. Returns the cards placed, the region they went into, and any item_ids the library does not hold.",
+                description: "Set cards down on the learner's Canvas, or move ones already on it: into a region or a notebook's frame (region), beside a card already placed (beside), as a block with a new region drawn around it (new_region), or, with none of these, in free space in the middle of what the learner is looking at. Any source, Doc or Idea in the library can be placed; a card already on the Canvas moves. Cards in a region fill the free cells of its grid and the region grows to hold them; a notebook's frame lays its cards out in rows. Pass at most one of region, beside and new_region. Pass color, folded, w and h to give the cards set down a look of their own at once (update_canvas_card changes it later). A paper whose PDF is on the Mac is set down as page 1 of it, its title and authors under, rather than as a card (face card sets it down as the usual card; face page shows any source as its page); pass annotations to write the learner's reason for each card being there under it (update_canvas_card changes it later). Only on the learner's word: the Canvas is where they think, so never arrange it on your own initiative; to suggest an arrangement, show a lens (apply_map_lens) or ask_canvas. Each call is one edit of theirs, which Undo (⌘Z, or undo_canvas) takes back. Opens the Canvas beside the chat and flies to the cards. Returns the cards placed, the region they went into, and any item_ids the library does not hold.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -185,13 +185,23 @@ extension MCPToolRegistry {
                             "type": "number",
                             "description": "Give the cards this height, 40 to 2000 (a card is as tall as its kind is unless asked).",
                         ],
+                        "annotations": [
+                            "type": "object",
+                            "additionalProperties": ["type": "string"],
+                            "description": "The learner's words about why a card is on this canvas, drawn under it, by item_id: at most 600 characters each. For any card set down in this call but an Idea, whose own note holds its words.",
+                        ] as [String: Any],
+                        "face": [
+                            "type": "string",
+                            "enum": ["page", "card"],
+                            "description": "page: show sources as page 1 of their PDF; card: the usual card. Without it a paper whose PDF is on the Mac is set down as its page and every other card as itself.",
+                        ],
                     ] as [String: Any],
                     "required": ["item_ids"],
                 ] as [String: Any]
             ),
             MCPToolDef(
                 name: "take_off_canvas",
-                description: "Take cards off the learner's Canvas, as the inspector's Take Off Canvas does: each goes back to the tray (a notebook's source is drawn flat in its notebook's frame again when the frame is on the Canvas), and the arrows drawn to it go with it. Nothing is deleted from the library. Only on the learner's word: the Canvas is where they think, so never arrange it on your own initiative; to suggest an arrangement, show a lens (apply_map_lens) or ask_canvas. Each call is one edit of theirs, which Undo (⌘Z, or undo_canvas) takes back. Returns the cards taken off and those that were not on the Canvas.",
+                description: "Take cards off the learner's Canvas, as the inspector's Take Off Canvas does: each waits in the canvas's Library again (a notebook's source is drawn flat in its notebook's frame again when the frame is on the Canvas), and the arrows drawn to it go with it. Nothing is deleted from the library. Only on the learner's word: the Canvas is where they think, so never arrange it on your own initiative; to suggest an arrangement, show a lens (apply_map_lens) or ask_canvas. Each call is one edit of theirs, which Undo (⌘Z, or undo_canvas) takes back. Returns the cards taken off and those that were not on the Canvas.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -325,7 +335,7 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "draw_canvas_arrow",
-                description: "Draw an arrow between two cards on the learner's Canvas, with a short label for how one leads to the other (supports, contradicts, explains, causes, measures, extends, example of, or the learner's own words). Both cards must be on the Canvas (place_on_canvas first); an arrow already drawn between them gets the label and what else is given. An end may be a region instead of a card (region:<region_id>, or region:<name>): an arrow to a region survives its cards leaving and goes with the region; a card is not joined to the region that holds it, nor a region to one around or inside it. Give the arrow a look: route (curve, the default; straight; or elbow), dashed, heads (end, the default; both; or none) and color (#RRGGBB). With tree true it is a mind-map branch, parent to child, drawn as a branch and not an arrow: a branch joins two cards, a card has one parent, and a tree has no loop (update_canvas_region with layout tree lays a region of such cards out as a mind map). Only on the learner's word: the Canvas is where they think, so never arrange it on your own initiative; to suggest an arrangement, show a lens (apply_map_lens) or ask_canvas. Each call is one edit of theirs, which Undo (⌘Z, or undo_canvas) takes back. Returns the arrow's edge_id.",
+                description: "Draw an arrow between two cards on the learner's Canvas, with a short label for how one leads to the other (supports, contradicts, explains, causes, measures, extends, example of, or the learner's own words). Both cards must be on the Canvas (place_on_canvas first); an arrow already drawn between them gets the label and what else is given. An end may be a region instead of a card (region:<region_id>, or region:<name>): an arrow to a region survives its cards leaving and goes with the region; a card is not joined to the region that holds it, nor a region to one around or inside it. Give the arrow a look: route (curve, the default; straight; or elbow), dashed, heads (end, the default; both; or none), color (#RRGGBB) and a stance (supports draws it green, contradicts red, unless it has a color of its own). With tree true it is a mind-map branch, parent to child, drawn as a branch and not an arrow: a branch joins two cards, a card has one parent, and a tree has no loop (update_canvas_region with layout tree lays a region of such cards out as a mind map). Only on the learner's word: the Canvas is where they think, so never arrange it on your own initiative; to suggest an arrangement, show a lens (apply_map_lens) or ask_canvas. Each call is one edit of theirs, which Undo (⌘Z, or undo_canvas) takes back. Returns the arrow's edge_id.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -363,13 +373,18 @@ extension MCPToolRegistry {
                             "type": "boolean",
                             "description": "Make it a mind-map branch from the parent (from) to the child (to).",
                         ],
+                        "stance": [
+                            "type": "string",
+                            "enum": ["supports", "contradicts"],
+                            "description": "Which side of an argument the arrow is on: supports (drawn green) or contradicts (red).",
+                        ],
                     ] as [String: Any],
                     "required": ["from", "to"],
                 ] as [String: Any]
             ),
             MCPToolDef(
                 name: "update_canvas_arrow",
-                description: "Change an arrow on the learner's Canvas, named by its edge_id (get_knowledge_map lists it under arrows) or by its ends (from and to: cards, or regions as region:<region_id>): relabel it (label; an empty label clears it), set its route (curve, straight or elbow), dashed, heads (end, both or none) or color (#RRGGBB; an empty string gives it the usual one), or turn it into a mind-map branch or back into an arrow (tree). Pass only what changes. Only on the learner's word: the Canvas is where they think, so never arrange it on your own initiative; to suggest an arrangement, show a lens (apply_map_lens) or ask_canvas. Each call is one edit of theirs, which Undo (⌘Z, or undo_canvas) takes back.",
+                description: "Change an arrow on the learner's Canvas, named by its edge_id (get_knowledge_map lists it under arrows) or by its ends (from and to: cards, or regions as region:<region_id>): relabel it (label; an empty label clears it), set its route (curve, straight or elbow), dashed, heads (end, both or none) or color (#RRGGBB; an empty string gives it the usual one), put it on a side of an argument (stance: supports draws it green, contradicts red, an empty string takes it off), or turn it into a mind-map branch or back into an arrow (tree). Pass only what changes. Only on the learner's word: the Canvas is where they think, so never arrange it on your own initiative; to suggest an arrangement, show a lens (apply_map_lens) or ask_canvas. Each call is one edit of theirs, which Undo (⌘Z, or undo_canvas) takes back.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -411,6 +426,10 @@ extension MCPToolRegistry {
                             "type": "boolean",
                             "description": "Make it a mind-map branch (true), or a plain arrow again (false).",
                         ],
+                        "stance": [
+                            "type": "string",
+                            "description": "supports (drawn green) or contradicts (red), or an empty string to take the stance off.",
+                        ],
                     ] as [String: Any],
                     "required": [] as [String],
                 ] as [String: Any]
@@ -439,7 +458,7 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "build_canvas",
-                description: "Lay a whole picture out on one of the learner's canvases in one call, on their word (\"lay this paper out visually on a canvas\", \"mock up how these ideas connect\"): write note cards, set them and cards from the library down in labelled groups, and draw arrows between them. Each note is an Idea of the learner's (a card with a title and a few lines of text; it is also linked to the canvas's notebook when the canvas belongs to one) that you author: a claim, a step, a question, a caveat. A note with source_id and quote is instead a passage card: the words are marked as a highlight in that source (the one the learner already has on them is reused), the card shows them, and clicking it opens the paper at those words, so quote the paper wherever a claim rests on it. Each group becomes a region of that name around its cards, set down in the order given, left to right; a card in no group is set down in free space. Cards from the library are named by item_id (source:<id>, doc:<id>, idea:<id>, canvas:<id> for a shortcut to another canvas, chat:<session_id>, picture:<image_id>), notes by the key you gave them. Arrows join two cards, each a note key or an item_id, with an optional short label. Keep what is observed apart from what is interpreted by putting them in different groups, and give each region a colour with the same meaning. A mind map is a tree: each trees entry names a region and a root note with nested children notes (all Ideas of the learner's, written the same way), set down left to right inside that region (the root at the left, each child to the right of its parent, a parent centred on its children), joined by tree branches, and the region's layout is a mind map so the Canvas keeps it one; a note in a tree may be named by its key in arrows. A paper can be laid out as its own pages too: each pdf_pages entry names a source with a PDF (a paper, or a book or hand-out kept as one), and its pages are set down as cards drawn from the PDF itself, one per page, left to right in a region named for the source, a row below the last, before the groups; name them page:<source_id>:<n> in groups and arrows, limit them to a range such as \"1-8\" (at most 60 at a time), and set collapsed to fold the region up to its name and count until the learner opens it. Nothing the learner already placed moves. Pass canvas_id (list_canvases) to build on a canvas other than the open one; it is opened. Returns the notes and passages made with their item_ids, the regions drawn, the mind maps laid out (trees: the region, the root and each note with its item_id), the pages laid out (pdf_pages: the region, the page count and each page's item_id) and the arrows drawn, and anything it could not resolve. Undo takes it back card by card, but the Ideas it made stay in the learner's Ideas.",
+                description: "Lay a whole picture out on one of the learner's canvases in one call, on their word (\"lay this paper out visually on a canvas\", \"mock up how these ideas connect\"): write note cards, set them and cards from the library down in labelled groups, and draw arrows between them. Each note is an Idea of the learner's (a card with a title and a few lines of text; it is also linked to the canvas's notebook when the canvas belongs to one) that you author: a claim, a step, a question, a caveat. A note with source_id and quote is instead a passage card: the words are marked as a highlight in that source (the one the learner already has on them is reused), the card shows them, and clicking it opens the paper at those words, so quote the paper wherever a claim rests on it. Each group becomes a region of that name around its cards, set down in the order given, left to right; a card in no group is set down in free space. Cards from the library are named by item_id (source:<id>, doc:<id>, idea:<id>, canvas:<id> for a shortcut to another canvas, chat:<session_id>, picture:<image_id>), notes by the key you gave them. Arrows join two cards, each a note key or an item_id, with an optional short label. Keep what is observed apart from what is interpreted by putting them in different groups, and give each region a colour with the same meaning. A mind map is a tree: each trees entry names a region and a root note with nested children notes (all Ideas of the learner's, written the same way), set down left to right inside that region (the root at the left, each child to the right of its parent, a parent centred on its children), joined by tree branches, and the region's layout is a mind map so the Canvas keeps it one; a note in a tree may be named by its key in arrows. A paper can be laid out as its own pages too: each pdf_pages entry names a source with a PDF (a paper, or a book or hand-out kept as one), and its pages are set down as cards drawn from the PDF itself, one per page, left to right in a region named for the source, a row below the last, before the groups; name them page:<source_id>:<n> in groups and arrows, limit them to a range such as \"1-8\" (at most 60 at a time), and set collapsed to fold the region up to its name and count until the learner opens it. A paper whose PDF is on the Mac is set down as its first page, its title and authors under it, rather than as a card. Pass annotations (a note key or item_id to the words) to write the learner's reason for a card being on the canvas under it: any card but a note, whose own text holds its words; and give an arrow a stance (supports draws it green, contradicts red) to argue a claim. Nothing the learner already placed moves. Pass canvas_id (list_canvases) to build on a canvas other than the open one; it is opened. Returns the notes and passages made with their item_ids, the regions drawn, the mind maps laid out (trees: the region, the root and each note with its item_id), the pages laid out (pdf_pages: the region, the page count and each page's item_id) and the arrows drawn, and anything it could not resolve. Undo takes it back card by card, but the Ideas it made stay in the learner's Ideas.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -508,6 +527,11 @@ extension MCPToolRegistry {
                             "items": ["type": "string"],
                             "description": "Cards (note keys or item_ids) to set down together in free space, in no region.",
                         ] as [String: Any],
+                        "annotations": [
+                            "type": "object",
+                            "additionalProperties": ["type": "string"],
+                            "description": "The learner's words about why a card is on the canvas, drawn under it, by note key (a passage) or item_id: at most 600 characters each. Not for an Idea or a note, whose own text holds its words.",
+                        ] as [String: Any],
                         "pdf_pages": [
                             "type": "array",
                             "description": "PDF sources to lay out as their pages, at most 10: each is set down as a row of cards, one per page, left to right in a region named for the source, before the groups.",
@@ -536,6 +560,7 @@ extension MCPToolRegistry {
                                     "dashed": ["type": "boolean", "description": "Draw it dashed."],
                                     "heads": ["type": "string", "enum": ["end", "both", "none"], "description": "Where its heads are (default end)."],
                                     "color": ["type": "string", "description": "Its color as #RRGGBB."],
+                                    "stance": ["type": "string", "enum": ["supports", "contradicts"], "description": "Which side of an argument it is on: supports (drawn green) or contradicts (red)."],
                                 ],
                                 "required": ["from", "to"],
                             ],
@@ -939,8 +964,25 @@ extension MCPDataStore {
             _ = try edgeRoute(arrow["route"])
             _ = try edgeHeads(arrow["heads"])
             _ = try edgeColor(arrow["color"])
+            _ = try edgeStance(arrow["stance"])
         }
         let specs = try treeSpecs(from: trees)
+        // A note is an Idea, whose own text holds its words: only the library's
+        // cards and the passages quoted take an annotation.
+        var annotationWords: [String: String] = [:]
+        if let given = arguments["annotations"], !(given is NSNull) {
+            guard let object = given as? [String: Any] else { throw MCPError.invalidInput("annotations is an object of note key or item_id to words.") }
+            let noteKeys = Set(notes.compactMap { ($0["key"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) }
+                + specs.flatMap { $0.notes.compactMap(\.key) })
+            for (key, raw) in object {
+                let name = key.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard let text = raw as? String else { throw MCPError.invalidInput("The annotation for \(name) is text.") }
+                if noteKeys.contains(name) || name.hasPrefix("idea:") {
+                    throw MCPError.invalidInput("An Idea's own note holds its words, so \(name) takes no annotation; give annotations to the library's cards and the passages quoted.")
+                }
+                if let cleaned = try cardAnnotation(text) { annotationWords[name] = cleaned }
+            }
+        }
         var (_, map) = try await preparedMap(opening: true)
         if map.lens != nil {
             throw MCPError.invalidInput("A lens shows on the Canvas: keep it (keep_map_lens) or clear it (clear_map_lens) first, as the learner's own edits wait for it.")
@@ -1024,13 +1066,27 @@ extension MCPDataStore {
             unresolved.append(trimmed)
             return nil
         }
+        // The words for the cards named, by ref: an Idea named by item_id is refused as a note is.
+        var annotated: [String: String] = [:]
+        for (name, words) in annotationWords.sorted(by: { $0.key < $1.key }) {
+            guard let ref = resolve(name) else { continue }
+            if ref.hasPrefix("idea:") {
+                unresolved.append("annotation for \(name): an Idea's own note holds its words")
+            } else {
+                annotated[ref] = words
+            }
+        }
+        var annotationsWritten = 0
         // Each block starts after the last one's right edge, level with its top.
         var next: KnowledgeMapArranging.Spot?
         func place(_ refs: [String], regionName: String?, color: String?) -> String? {
-            let heights = refs.map(map.cardHeight(of:))
+            let words = annotated.filter { refs.contains($0.key) }
+            // The block is laid out for the room the words take under their cards.
+            let heights = refs.map { map.heightWhenSetDown($0, annotation: words[$0]) }
             let block = KnowledgeMapArranging.block(heights: heights, origin: .init(x: 0, y: 0)).frame
             let center = next.map { KnowledgeMapArranging.Spot(x: $0.x + block.w / 2, y: $0.y + block.h / 2) } ?? map.arrivalCenter()
-            let id = map.placeBlock(refs, near: center, regionName: regionName, color: color)
+            let id = map.placeBlock(refs, near: center, regionName: regionName, color: color, annotations: words)
+            annotationsWritten += words.count
             if let id, let region = map.layout.regions[id] {
                 next = .init(x: region.x + region.w + 80, y: region.y)
             } else if let spot = refs.compactMap({ map.spot(of: $0) }).max(by: { $0.x < $1.x }) {
@@ -1111,9 +1167,14 @@ extension MCPDataStore {
         // joined by branches, in the same left-to-right run as the groups.
         var treeResults: [[String: Any]] = []
         for plan in treePlans {
-            let size = map.treeFrameSize(root: plan.root, children: plan.children)
+            // The map is laid out by what its notes say, as a mind map draws them.
+            let titles = Dictionary(plan.notes.compactMap { note -> (String, String)? in
+                guard let ref = note["item_id"] as? String, let title = note["title"] as? String else { return nil }
+                return (ref, title)
+            }, uniquingKeysWith: { first, _ in first })
+            let size = map.treeFrameSize(root: plan.root, children: plan.children, titles: titles)
             let center = next.map { KnowledgeMapArranging.Spot(x: $0.x + size.w / 2, y: $0.y + size.h / 2) } ?? map.arrivalCenter()
-            guard let placed = map.placeTree(root: plan.root, children: plan.children, near: center, regionName: plan.name, color: plan.color) else {
+            guard let placed = map.placeTree(root: plan.root, children: plan.children, near: center, regionName: plan.name, color: plan.color, titles: titles) else {
                 unresolved.append("tree \(plan.name)")
                 continue
             }
@@ -1142,17 +1203,25 @@ extension MCPDataStore {
                   let edgeID = map.addEdge(
                       from: from, to: to, label: arrow["label"] as? String ?? "",
                       route: try edgeRoute(arrow["route"]), dashed: arrow["dashed"] as? Bool,
-                      heads: try edgeHeads(arrow["heads"]), color: try edgeColor(arrow["color"])
+                      heads: try edgeHeads(arrow["heads"]), color: try edgeColor(arrow["color"]),
+                      stance: try edgeStance(arrow["stance"])
                   ) else {
                 unresolved.append("arrow \(arrow["from"] ?? "?") → \(arrow["to"] ?? "?")")
                 continue
             }
             drawn.append(["edge_id": edgeID, "from": from, "to": to, "label": map.layout.edges[edgeID]?.label ?? ""])
         }
+        // Words for a card set down another way (a page of a PDF's row, a card on the Canvas already).
+        let late = annotated.filter { ref, _ in !placedRefs.contains(ref) && map.layout.placements[ref] != nil }
+        if !late.isEmpty {
+            annotationsWritten += map.setPlacementStyle(late.map { KnowledgeMapPlacementStyle(ref: $0.key, annotation: .set($0.value)) })
+            map.growRegions(toHold: Array(late.keys).sorted())
+        }
         // Pages run far to the right, so a view of everything would shrink them
         // away: when there are other cards the view fits those.
         map.send(.focus(refs: placedRefs.isEmpty ? pageFocus : Array(placedRefs), regionID: nil))
         var result: [String: Any] = ["notes": made, "regions": regions, "arrows": drawn, "cards_placed": placedRefs.count]
+        if annotationsWritten > 0 { result["annotated"] = annotationsWritten }
         if !pdfResults.isEmpty { result["pdf_pages"] = pdfResults }
         if !treeResults.isEmpty { result["trees"] = treeResults }
         if !unresolved.isEmpty { result["could_not_resolve"] = Array(unresolved.prefix(50)) }

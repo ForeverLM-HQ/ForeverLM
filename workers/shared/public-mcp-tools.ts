@@ -689,13 +689,10 @@ export const DESKTOP_ONLY_TOOL_NAMES: ReadonlySet<string> = new Set([
   // So are the learner's lists of goals and ideas in the Space: a row per
   // list and one per goal or idea filed in it, written by the Mac app.
   ...SPACE_LIST_TOOL_NAMES,
-  // A site is files kept in the Mac's library (and synced through the
-  // learner's iCloud); publishing sends a copy to sites.foreverlm.com under
-  // the Mac's own session.
+  // A site or an animation is files kept in the Mac's library (and synced
+  // through the learner's iCloud); nothing puts a copy on the web.
   "save_site",
-  "publish_site",
   "read_site_file",
-  "unpublish_site",
   "save_animation",
   "list_animations",
   "delete_animation",

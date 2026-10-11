@@ -66,7 +66,10 @@ struct StudioView: View {
     /// Whether this window has given itself over to today's review. The rail,
     /// Sources, and every other center tab step aside while it has: fifteen
     /// minutes of retrieval is what the review is, and retrieval is the first
-    /// thing to go when something else is one click away.
+    /// thing to go when something else is one click away. The sidebar toggle
+    /// and the Sources toggle still work: each brings its side back beside
+    /// the review (`StudioWindowState.drawsNavigationRail`,
+    /// `sourcesStepAsideForMemoryReview`).
     private var isMemoryReviewFocused: Bool {
         windowState.memoryReviewFocusSessionID != nil
     }
@@ -99,13 +102,13 @@ struct StudioView: View {
     /// The sidebar toggle, the window's only one (ChatGPT's): it folds the
     /// whole sidebar, the rail and the Space sidebar beside it, and brings
     /// both back. It reads as shown only while both are. Pressed while the
-    /// rail is stepping aside for a narrow notebook, it brings the rail back now.
+    /// rail is stepping aside for a narrow notebook or a memory review, it
+    /// brings the rail back now (`setNavigationRailShown`).
     private var navigationRailVisibilityBinding: Binding<Bool> {
         Binding(
-            get: { windowState.showsNavigationRail && !spaceSidebarHiddenByLearner },
+            get: { windowState.drawsNavigationRail && !spaceSidebarHiddenByLearner },
             set: { shown in
-                if windowState.navigationRailYieldsToNotebook { windowState.navigationRailYieldsToNotebook = false }
-                if windowState.navigationRailVisible != shown { windowState.navigationRailVisible = shown }
+                windowState.setNavigationRailShown(shown)
                 withAnimation(.easeInOut(duration: 0.18)) { spaceSidebarHiddenByLearner = !shown }
             }
         )
@@ -150,7 +153,7 @@ struct StudioView: View {
             let golden = goldenSideWidth(windowWidth: geo.size.width)
             let sourcesWidth = resolvedSourcesWidth(golden: golden)
             HStack(spacing: 0) {
-                if windowState.showsNavigationRail, !isMemoryReviewFocused {
+                if windowState.drawsNavigationRail {
                     StudioNavigationRail(
                         sessionStore: studioAssistantSessions,
                         comparisonSessionStore: comparisonAssistantSessions,
@@ -172,7 +175,7 @@ struct StudioView: View {
                     // Home's sidebar — New chat, the notebooks and the
                     // chats — beside the icon rail while the window is on
                     // Home, as Codex draws its projects.
-                    if windowState.showsNavigationRail, windowState.showsHomeSidebar, !isMemoryReviewFocused {
+                    if windowState.drawsNavigationRail, windowState.showsHomeSidebar {
                         StudioNavigationRail(
                             sessionStore: studioAssistantSessions,
                             comparisonSessionStore: comparisonAssistantSessions,
@@ -198,7 +201,7 @@ struct StudioView: View {
                 }
                 .studioInsetCard()
             }
-            .animation(.easeInOut(duration: 0.22), value: windowState.showsNavigationRail)
+            .animation(.easeInOut(duration: 0.22), value: windowState.drawsNavigationRail)
             .animation(.easeInOut(duration: 0.22), value: isMemoryReviewFocused)
         }
     }
@@ -211,7 +214,7 @@ struct StudioView: View {
         StudioPanelLayout(
             totalWidth: totalWidth,
             panelOrder: dockedStudioPanelOrder,
-            showSources: shouldShowSourcesPanel && !isMemoryReviewFocused,
+            showSources: shouldShowSourcesPanel && !windowState.sourcesStepAsideForMemoryReview,
             showReader: true,
             // Only the Sources panel collapses away; the center tab
             // area is the app and always stays expanded. Stale panel ids
@@ -516,8 +519,8 @@ struct StudioView: View {
         // Home's sidebar beside the strip keeps the panes clear of the
         // lights altogether; without it (a notebook, the Space, the Library)
         // the lights reach into the pane beside the strip.
-        if windowState.showsHomeSidebar, !isMemoryReviewFocused { return 0 }
-        if windowState.showsNavigationRail, !isMemoryReviewFocused {
+        if windowState.drawsNavigationRail, windowState.showsHomeSidebar { return 0 }
+        if windowState.drawsNavigationRail {
             guard panel == .reader, hasTitlebarBand else { return 0 }
             return max(0, StudioTopBar.headerLeadingClearance - StudioNavigationRail.compactRailWidth)
         }
@@ -548,16 +551,19 @@ struct StudioView: View {
         if windowState.notebook != nil { return false }
         // The full-window Library is the list, not a panel waiting off screen.
         if vm.libraryViewIsOnScreen(in: windowState) { return false }
+        // Stepping aside for a memory review, it waits off screen too, and
+        // the same control brings it back beside the review.
+        if windowState.sourcesStepAsideForMemoryReview { return true }
         return !windowState.showSourcesPanel
             || windowState.collapsedPanelIDs.contains(StudioPanel.sources.rawValue)
     }
 
-    /// Puts Sources back on screen, from either of the two ways it can be off:
-    /// collapsed to the edge, or switched off outright.
+    /// Puts Sources back on screen, from any of the ways it can be off:
+    /// collapsed to the edge, switched off outright, or stepping aside for a
+    /// memory review (`revealSourcesPanel`).
     private func expandSourcesPanel() {
         withAnimation(.easeInOut(duration: 0.22)) {
-            windowState.collapsedPanelIDs.remove(StudioPanel.sources.rawValue)
-            windowState.showSourcesPanel = true
+            windowState.revealSourcesPanel()
         }
     }
 
@@ -1664,7 +1670,7 @@ private struct CreditsEmptySheet: View {
             Text("Add your OpenRouter key")
                 .font(.title2.weight(.semibold))
 
-            Text("AI features run on your own OpenRouter API key with a ForeverLM plan. Add your key in Settings → AI Usage, and choose a plan in Settings → Billing.")
+            Text("AI features run on your own OpenRouter API key, billed by OpenRouter at cost, and ForeverLM adds nothing. Add your key in Settings → AI Usage, where Free mode can keep it to OpenRouter's free models.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

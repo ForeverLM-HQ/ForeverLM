@@ -73,11 +73,13 @@ extension KnowledgeMapModel {
     // MARK: Arrows
 
     /// Draws an arrow between two ends, each a placed card or a region
-    /// (`region:<regionID>`), with its label and look. An arrow already drawn
-    /// between them keeps what it has and takes what is given. Nil when it
-    /// cannot be drawn: an end is missing or off the map, a card is joined to
-    /// the region that holds it (or a region to one it is inside), or a tree
-    /// branch would join a region, give a card a second parent or close a loop.
+    /// (`region:<regionID>`), with its label and look (its `stance` is
+    /// `supports` or `contradicts`). An arrow already drawn between them keeps
+    /// what it has and takes what is given. Nil when it cannot be drawn: an end
+    /// is missing or off the map, a card is joined to the region that holds it
+    /// (or a region to one it is inside), a tree branch would join a region,
+    /// give a card a second parent or close a loop, or the look is not one of
+    /// the choices.
     @discardableResult
     func addEdge(
         from: String,
@@ -87,18 +89,20 @@ extension KnowledgeMapModel {
         route: String? = nil,
         dashed: Bool? = nil,
         heads: String? = nil,
-        color: String? = nil
+        color: String? = nil,
+        stance: String? = nil
     ) -> String? {
         guard canJoin(from: from, to: to, tree: tree) else { return nil }
         guard route == nil || KnowledgeMapEdgeRoute(rawValue: route ?? "") != nil,
-              heads == nil || KnowledgeMapEdgeHeads(rawValue: heads ?? "") != nil else { return nil }
+              heads == nil || KnowledgeMapEdgeHeads(rawValue: heads ?? "") != nil,
+              Self.isStanceChoice(stance) else { return nil }
         let trimmed = label.trimmingCharacters(in: .whitespacesAndNewlines)
         let existing = layout.edges.first { $0.value.from == from && $0.value.to == to }
         let id = existing?.key ?? "e" + UUID().uuidString.prefix(8).lowercased()
         var edge: KnowledgeMapLayout.Edge = existing?.value ?? .init(from: from, to: to, label: trimmed, at: 0)
         edge.label = trimmed
         if tree { edge.tree = true }
-        Self.apply(route: route, dashed: dashed, heads: heads, color: color, to: &edge)
+        Self.apply(route: route, dashed: dashed, heads: heads, color: color, stance: stance, to: &edge)
         updateLayout { row, at in
             edge.at = at
             row.setEdge(id, edge)
@@ -109,8 +113,9 @@ extension KnowledgeMapModel {
     /// Changes an arrow's look: its route (`curve`, `straight`, `elbow`),
     /// whether it is dashed, where its heads are (`end`, `both`, `none`), its
     /// colour (`#RRGGBB`, or an empty string for the usual one), whether it is
-    /// a mind-map branch, and its label. Nil leaves a part as it is; a part
-    /// set to what an arrow has by default is stored as nothing. Returns
+    /// a mind-map branch, its label and its stance (`supports` or
+    /// `contradicts`; an empty string clears it). Nil leaves a part as it is; a
+    /// part set to what an arrow has by default is stored as nothing. Returns
     /// whether the arrow changed (false for an unknown arrow, a value that is
     /// not one of the choices, or a branch that cannot be drawn).
     @discardableResult
@@ -121,13 +126,15 @@ extension KnowledgeMapModel {
         heads: String? = nil,
         color: String? = nil,
         tree: Bool? = nil,
-        label: String? = nil
+        label: String? = nil,
+        stance: String? = nil
     ) -> Bool {
         guard var edge = layout.edges[id] else { return false }
         guard route == nil || KnowledgeMapEdgeRoute(rawValue: route ?? "") != nil,
-              heads == nil || KnowledgeMapEdgeHeads(rawValue: heads ?? "") != nil else { return false }
+              heads == nil || KnowledgeMapEdgeHeads(rawValue: heads ?? "") != nil,
+              Self.isStanceChoice(stance) else { return false }
         let before = edge
-        Self.apply(route: route, dashed: dashed, heads: heads, color: color, to: &edge)
+        Self.apply(route: route, dashed: dashed, heads: heads, color: color, stance: stance, to: &edge)
         if let label { edge.label = label.trimmingCharacters(in: .whitespacesAndNewlines) }
         if let tree {
             if tree, !edge.isTree {
@@ -145,11 +152,19 @@ extension KnowledgeMapModel {
         return true
     }
 
-    private static func apply(route: String?, dashed: Bool?, heads: String?, color: String?, to edge: inout KnowledgeMapLayout.Edge) {
+    private static func apply(route: String?, dashed: Bool?, heads: String?, color: String?, stance: String? = nil, to edge: inout KnowledgeMapLayout.Edge) {
         if let route { edge.route = route == KnowledgeMapEdgeRoute.curve.rawValue ? nil : route }
         if let dashed { edge.dashed = dashed ? true : nil }
         if let heads { edge.heads = heads == KnowledgeMapEdgeHeads.end.rawValue ? nil : heads }
         if let color { edge.color = color.isEmpty ? nil : color.uppercased() }
+        if let stance { edge.stance = stance.isEmpty ? nil : stance }
+    }
+
+    /// Whether a stance asked for is one of the choices: nothing (keep), an
+    /// empty string (clear), `supports` or `contradicts`.
+    static func isStanceChoice(_ stance: String?) -> Bool {
+        guard let stance, !stance.isEmpty else { return true }
+        return KnowledgeMapEdgeStance(rawValue: stance) != nil
     }
 
     /// Whether an arrow from `from` to `to` can be drawn (see `addEdge`).
@@ -357,6 +372,12 @@ extension KnowledgeMapModel {
         if let bounds = laid.bounds {
             region.w = max(bounds.w + KnowledgeMapArranging.insetX * 2, KnowledgeMapArranging.minimumRegionSize.w)
             region.h = max(bounds.h + KnowledgeMapArranging.insetY + KnowledgeMapArranging.insetX, KnowledgeMapArranging.minimumRegionSize.h)
+            // A node is held by the middle of a usual card at its spot, so the
+            // frame keeps every one of those inside it.
+            for spot in laid.spots.values {
+                region.w = max(region.w, spot.x.rounded() + Self.usualMiddle.x - region.x)
+                region.h = max(region.h, spot.y.rounded() + Self.usualMiddle.y - region.y)
+            }
         }
         updateLayout { row, at in
             for (ref, spot) in laid.spots { row.place(ref, x: spot.x.rounded(), y: spot.y.rounded(), at: at) }
@@ -368,7 +389,9 @@ extension KnowledgeMapModel {
 
     /// The spots a tree layout gives `refs`: their roots (no tree parent among
     /// them) stacked at `origin` in the order they sit now, each with its
-    /// branches to the cards among them.
+    /// branches to the cards among them. An Idea of no size of its own is a
+    /// node, measured by its words (`KnowledgeMap.treeNodeSize`) as the page
+    /// draws it once the cards are a tree.
     func treeSpots(for refs: [String], origin: KnowledgeMapArranging.Spot) -> (spots: [String: KnowledgeMapArranging.Spot], bounds: KnowledgeMapArranging.Rect?) {
         let members = Set(refs)
         var children: [String: [String]] = [:]
@@ -378,8 +401,14 @@ extension KnowledgeMapModel {
             if let parent = layout.treeParent(of: ref), members.contains(parent) { return nil }
             return (ref, Rect(x: placement.x, y: placement.y, w: cardWidth(of: ref), h: cardHeight(of: ref)))
         }).map(\.ref)
+        let rootSet = Set(roots)
         var heights: [String: Double] = [:], widths: [String: Double] = [:]
-        for ref in refs { heights[ref] = cardHeight(of: ref); widths[ref] = cardWidth(of: ref) }
+        for ref in refs {
+            let role: KnowledgeMapTreeNodeRole = rootSet.contains(ref) ? .root : (children[ref]?.isEmpty == false ? .branch : .leaf)
+            let size = treeSize(of: ref, role: role)
+            heights[ref] = size.h
+            widths[ref] = size.w
+        }
         return KnowledgeMapArranging.forest(roots: roots, children: children, heights: heights, widths: widths, origin: origin)
     }
 
@@ -408,35 +437,20 @@ extension KnowledgeMapModel {
     }
 
     /// How large the region that frames a mind map is: the tree's bounds with
-    /// the room a drawn region leaves round them.
-    func treeFrameSize(root: String, children: [String: [String]]) -> (w: Double, h: Double) {
-        var heights: [String: Double] = [:], widths: [String: Double] = [:]
-        var seen: Set<String> = []
-        func walk(_ ref: String) {
-            guard seen.insert(ref).inserted else { return }
-            heights[ref] = cardHeight(of: ref)
-            widths[ref] = cardWidth(of: ref)
-            for child in children[ref] ?? [] { walk(child) }
-        }
-        walk(root)
-        let bounds = KnowledgeMapArranging.tree(root: root, children: children, heights: heights, widths: widths).bounds
-        return (bounds.w + KnowledgeMapArranging.insetX * 2, bounds.h + KnowledgeMapArranging.insetY + KnowledgeMapArranging.insetX)
+    /// the room a drawn region leaves round them. `titles` are the words of
+    /// Ideas the map does not hold yet (by ref), as a tree about to be set
+    /// down knows them.
+    func treeFrameSize(root: String, children: [String: [String]], titles: [String: String] = [:]) -> (w: Double, h: Double) {
+        let flat = flatTree(root: root, children: children, titles: titles)
+        return treeFrame(around: flat.laid)
     }
 
-    /// Sets a mind map down in free space as near `center` as it can be, in a
-    /// region of its own named `name` with `layout` `"tree"`: the cards laid
-    /// out as `KnowledgeMapArranging.tree` does (a card with its children
-    /// under `children`), the branches drawn, all in one write. Returns the
-    /// region and the branches' edge ids, or nil when there is no card.
-    @discardableResult
-    func placeTree(
+    /// A tree's cards laid out by their sizes as a mind map draws them.
+    private func flatTree(
         root: String,
         children: [String: [String]],
-        near center: KnowledgeMapArranging.Spot,
-        regionName: String,
-        color: String? = nil,
-        notebookID: String? = nil
-    ) -> (regionID: String, edgeIDs: [String])? {
+        titles: [String: String]
+    ) -> (order: [String], laid: (spots: [String: Spot], bounds: Rect)) {
         var order: [String] = []
         var seen: Set<String> = []
         func walk(_ ref: String) {
@@ -445,16 +459,54 @@ extension KnowledgeMapModel {
             for child in children[ref] ?? [] { walk(child) }
         }
         walk(root)
-        guard !order.isEmpty else { return nil }
         var heights: [String: Double] = [:], widths: [String: Double] = [:]
-        for ref in order { heights[ref] = cardHeight(of: ref); widths[ref] = cardWidth(of: ref) }
-        let flat = KnowledgeMapArranging.tree(root: root, children: children, heights: heights, widths: widths)
-        let frameSize = (
-            w: flat.bounds.w + KnowledgeMapArranging.insetX * 2,
-            h: flat.bounds.h + KnowledgeMapArranging.insetY + KnowledgeMapArranging.insetX
+        for ref in order {
+            let role: KnowledgeMapTreeNodeRole = ref == root ? .root : (children[ref]?.isEmpty == false ? .branch : .leaf)
+            let size = treeSize(of: ref, role: role, titles: titles)
+            heights[ref] = size.h
+            widths[ref] = size.w
+        }
+        return (order, KnowledgeMapArranging.tree(root: root, children: children, heights: heights, widths: widths))
+    }
+
+    /// The frame that holds a laid-out tree: its bounds with the room a drawn
+    /// region leaves, and wide and tall enough that the middle of a usual
+    /// card at each spot (what holds a node in a region) is inside it too.
+    private func treeFrame(around laid: (spots: [String: Spot], bounds: Rect)) -> (w: Double, h: Double) {
+        var frame = (
+            w: laid.bounds.w + KnowledgeMapArranging.insetX * 2,
+            h: laid.bounds.h + KnowledgeMapArranging.insetY + KnowledgeMapArranging.insetX
         )
+        for spot in laid.spots.values {
+            frame.w = max(frame.w, KnowledgeMapArranging.insetX + spot.x.rounded() + Self.usualMiddle.x)
+            frame.h = max(frame.h, KnowledgeMapArranging.insetY + spot.y.rounded() + Self.usualMiddle.y)
+        }
+        return frame
+    }
+
+    /// Sets a mind map down in free space as near `center` as it can be, in a
+    /// region of its own named `name` with `layout` `"tree"`: the cards laid
+    /// out as `KnowledgeMapArranging.tree` does (a card with its children
+    /// under `children`), the branches drawn, all in one write. Returns the
+    /// region and the branches' edge ids, or nil when there is no card. An
+    /// Idea of no size of its own is a node of the map, measured by its words
+    /// (`titles` gives those of Ideas the map does not hold yet, by ref).
+    @discardableResult
+    func placeTree(
+        root: String,
+        children: [String: [String]],
+        near center: KnowledgeMapArranging.Spot,
+        regionName: String,
+        color: String? = nil,
+        notebookID: String? = nil,
+        titles: [String: String] = [:]
+    ) -> (regionID: String, edgeIDs: [String])? {
+        let flat = flatTree(root: root, children: children, titles: titles)
+        let order = flat.order
+        guard !order.isEmpty else { return nil }
+        let frameSize = treeFrame(around: flat.laid)
         let origin = KnowledgeMapArranging.freeOrigin(size: frameSize, near: center, occupied: occupied(excluding: Set(order)))
-        let spots = flat.spots.mapValues { Spot(x: (origin.x + KnowledgeMapArranging.insetX + $0.x).rounded(), y: (origin.y + KnowledgeMapArranging.insetY + $0.y).rounded()) }
+        let spots = flat.laid.spots.mapValues { Spot(x: (origin.x + KnowledgeMapArranging.insetX + $0.x).rounded(), y: (origin.y + KnowledgeMapArranging.insetY + $0.y).rounded()) }
         let id = Self.newRegionID()
         let tint = color ?? nextRegionColor()
         var edgeIDs: [String] = []

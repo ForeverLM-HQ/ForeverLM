@@ -3,7 +3,7 @@ import Foundation
 // MARK: - Ask the Canvas: proposals on the plane (WP-B1)
 //
 // docs/sensemaking-design.md, "Ask the Canvas". The learner asks a selection
-// one of three questions (`CanvasAskTool`); ForeverLM's answer is a set of
+// one of the questions of `CanvasAskTool`; ForeverLM's answer is a set of
 // proposals the renderer draws dotted beside the cards they answer, each the
 // learner's to keep or dismiss. Keeping one is the learner's own write, through
 // the path their own hands use: a source is placed as a drop places it, an
@@ -39,6 +39,11 @@ final class KnowledgeMapAskState {
     var writeIdea: ((String, String?, (x: Double, y: Double)?) async -> String?)?
     /// The Ideas being written for kept questions, one after another.
     var ideaWrites: Task<Void, Never>?
+    /// The Ideas a tree's proposals became as the learner kept them one at a
+    /// time, by proposal id, until the next answer shows: a branch is drawn
+    /// between a kept Idea and the Idea it hangs from, which may have been
+    /// kept before it, and Keep All hangs what is left from them.
+    var keptTreeIdeas: [String: String] = [:]
     /// Cards to select on the page without flying to them, taken by the pane's
     /// canvas on its next push.
     var pendingSelection: [String]?
@@ -83,6 +88,7 @@ extension KnowledgeMapModel {
     ) -> Bool {
         guard lens == nil else { return false }
         askState.positions = [:]
+        askState.keptTreeIdeas = [:]
         askState.makeIdea = makeIdea
         askState.writeIdea = writeIdea
         proposals = set.proposals.isEmpty ? nil : set
@@ -136,12 +142,19 @@ extension KnowledgeMapModel {
     /// - an arrow is drawn between its two placed cards with its label,
     ///   unless an arrow already joins them;
     /// - a question becomes an Idea at that spot, selected so the learner can
-    ///   reword it.
+    ///   reword it; a tree's node (Mind Map, Question Map) also has its branch
+    ///   drawn when the node it hangs from is the card the tree is rooted on
+    ///   or an Idea kept before.
     @discardableResult
     func keepProposal(_ id: String, at spot: (x: Double, y: Double)? = nil, selectsIdea: Bool = true) -> ProposalKeep {
         let drawnAt = spot ?? askState.positions[id]
+        let set = proposals
         guard let proposal = removeProposal(id)?.proposal else { return .unknown }
-        return keep(proposal, at: drawnAt ?? fallbackSpot(for: proposal), selectsIdea: selectsIdea)
+        let at = drawnAt ?? fallbackSpot(for: proposal)
+        if let set, let plan = set.plan, plan.tree == true {
+            return keepTreeNode(proposal, ofSet: set.id, plan: plan, at: at, selectsIdea: selectsIdea)
+        }
+        return keep(proposal, at: at, selectsIdea: selectsIdea)
     }
 
     /// Keeps every proposal still showing, each where its ghost is drawn
@@ -157,13 +170,26 @@ extension KnowledgeMapModel {
             keepBreakDown(set, plan: plan)
             return
         }
+        // A Mind Map or Question Map is kept whole too: its nodes where the
+        // page drew them, joined by their branches.
+        if set.tool.drawsTree, let plan = set.plan, plan.tree == true, askState.writeIdea != nil {
+            keepTree(set, plan: plan, positions: positions)
+            return
+        }
         for proposal in set.proposals {
             keep(proposal, at: positions[proposal.id] ?? fallbackSpot(for: proposal), selectsIdea: false)
         }
     }
 
+    /// `onWritten` is given the ref of the Idea a kept question became, once
+    /// it is written (a tree draws its branch from it).
     @discardableResult
-    private func keep(_ proposal: KnowledgeMapProposal, at spot: (x: Double, y: Double), selectsIdea: Bool) -> ProposalKeep {
+    private func keep(
+        _ proposal: KnowledgeMapProposal,
+        at spot: (x: Double, y: Double),
+        selectsIdea: Bool,
+        onWritten: ((String) -> Void)? = nil
+    ) -> ProposalKeep {
         switch proposal.kind {
         case .source:
             guard let ref = proposal.ref, nodesByRef[ref] != nil else { return .skipped }
@@ -178,10 +204,13 @@ extension KnowledgeMapModel {
                   layout.placements[from] != nil, layout.placements[to] != nil,
                   !Self.joined(from, to, in: layout) else { return .skipped }
             // The Arrow tool's path: the arrow, then its label; two writes in
-            // one burst, so one undo step.
+            // one burst, so one undo step. An arrow that supports or
+            // contradicts is drawn green or red, as the learner's own For and
+            // Against make it.
             guard let id = addEdge(from: from, to: to) else { return .skipped }
             let label = proposal.label?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             if !label.isEmpty { relabelEdge(id, to: label) }
+            if let stance = proposal.relation.flatMap(KnowledgeMapEdgeStance.init(rawValue:)) { setEdgeStance(id, stance) }
             return .arrow(id)
         case .question:
             let text = proposal.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -198,6 +227,7 @@ extension KnowledgeMapModel {
                 } else {
                     ref = await makeIdea?(text, spot)
                 }
+                if let ref { onWritten?(ref) }
                 if selectsIdea, let ref { self?.selectQuietly([ref]) }
             }
             return .idea
@@ -240,6 +270,151 @@ extension KnowledgeMapModel {
             }
             self.selectQuietly(ordered)
             self.send(.focus(refs: regionID == nil ? ordered : [], regionID: regionID))
+        }
+    }
+
+    /// Keeps a whole Mind Map or Question Map, the learner's own write: each
+    /// node still showing is written as an Idea with its note (one after
+    /// another, with the other question writes) and set down where its ghost
+    /// is drawn, and the branches are drawn as tree arrows, also to Ideas
+    /// kept one at a time before. Without a `rootRef` a region named for the
+    /// root is drawn round the Ideas and laid out as a tree; with one, the new
+    /// Ideas join the tree region that card is in (growing it) and stay free
+    /// cards when it is in none. A node whose parent could not be written is
+    /// not written. The layout writes follow each other at once, so they are
+    /// one Undo step.
+    private func keepTree(_ set: KnowledgeMapProposalSet, plan: KnowledgeMapBreakDownPlan, positions: [String: (x: Double, y: Double)]) {
+        guard let writeIdea = askState.writeIdea else { return }
+        let nodes = set.proposals.filter { $0.kind == .question }
+        let showing = Set(nodes.map(\.id))
+        let parents = Dictionary(plan.arrows.map { ($0.to, $0.from) }, uniquingKeysWith: { first, _ in first })
+        let before = askState.ideaWrites
+        askState.ideaWrites = Task { [weak self] in
+            await before?.value
+            guard let self else { return }
+            // Starts from the Ideas kept before: what is left hangs from them.
+            var refs = self.askState.keptTreeIdeas
+            var written: [(node: KnowledgeMapProposal, ref: String)] = []
+            for node in nodes {
+                // Nothing hangs from a node that was to be written and was not.
+                if let parent = parents[node.id], showing.contains(parent), refs[parent] == nil { continue }
+                let title = node.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                guard !title.isEmpty else { continue }
+                let note = node.note?.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard let ref = await writeIdea(title, note?.isEmpty == false ? note : nil, nil) else { continue }
+                refs[node.id] = ref
+                written.append((node, ref))
+            }
+            self.setDownTree(written, refs: refs, plan: plan, positions: positions)
+        }
+    }
+
+    /// The writes of `keepTree` once the Ideas exist: `written` is each node
+    /// with its Idea, `refs` every Idea of the tree by proposal id.
+    private func setDownTree(
+        _ written: [(node: KnowledgeMapProposal, ref: String)],
+        refs: [String: String],
+        plan: KnowledgeMapBreakDownPlan,
+        positions: [String: (x: Double, y: Double)]
+    ) {
+        guard !written.isEmpty else { return }
+        let ordered = written.map(\.ref)
+        func end(_ id: String) -> String? { id == plan.rootRef ? id : refs[id] }
+        let branches = plan.arrows.compactMap { arrow -> (from: String, to: String)? in
+            guard let from = end(arrow.from), let to = end(arrow.to), ordered.contains(from) || ordered.contains(to) else { return nil }
+            return (from, to)
+        }
+        let drawn = written.map { item -> (ref: String, x: Double, y: Double) in
+            let spot = positions[item.node.id] ?? fallbackSpot(for: item.node)
+            return (item.ref, spot.x.rounded(), spot.y.rounded())
+        }
+        var regionID: String?
+        if let root = plan.rootRef {
+            // Where the page has not said where it drew the ghosts, the tree
+            // is laid out here from the card.
+            let ghostsKnown = written.allSatisfy { positions[$0.node.id] != nil }
+            place(ghostsKnown ? drawn : spotsHanging(from: root, refs: ordered, branches: branches))
+            for branch in branches { addEdge(from: branch.from, to: branch.to, label: "", tree: true) }
+            joinTreeRegion(of: root, adding: ordered, name: plan.regionName)
+        } else {
+            place(drawn)
+            for branch in branches { addEdge(from: branch.from, to: branch.to, label: "", tree: true) }
+            // Laying the region out as a tree sets the Ideas in order from the
+            // branches, so the spots the ghosts had matter only as its start.
+            // The Ideas of this tree kept one at a time before are in it too.
+            let earlier = Set(refs.values).subtracting(ordered).filter { layout.placements[$0] != nil }
+            // Nodes kept one at a time may have made the mind map already.
+            let made = earlier.sorted().lazy.compactMap { self.regionID(containing: $0) }.first { self.layout.regions[$0]?.isTree == true }
+            if let id = made {
+                growRegion(id, toHold: ordered)
+                setRegionLayout(id, KnowledgeMapLayout.treeLayout)
+                regionID = id
+            } else if let id = makeRegion(around: ordered + earlier.sorted(), name: plan.regionName) {
+                setRegionLayout(id, KnowledgeMapLayout.treeLayout)
+                regionID = id
+            }
+        }
+        selectQuietly(ordered)
+        send(.focus(refs: regionID == nil ? ordered : [], regionID: regionID))
+    }
+
+    /// The spots of a tree's Ideas that hang from a card on the canvas when
+    /// the page has not said where it drew them: a tidy tree with the card at
+    /// its root, which stays where it is.
+    private func spotsHanging(from root: String, refs: [String], branches: [(from: String, to: String)]) -> [(ref: String, x: Double, y: Double)] {
+        var children: [String: [String]] = [:]
+        for branch in branches { children[branch.from, default: []].append(branch.to) }
+        var heights: [String: Double] = [:], widths: [String: Double] = [:]
+        for ref in [root] + refs { heights[ref] = cardHeight(of: ref); widths[ref] = cardWidth(of: ref) }
+        let origin = layout.placements[root].map { KnowledgeMapArranging.Spot(x: $0.x, y: $0.y) } ?? arrivalCenter()
+        let laid = KnowledgeMapArranging.tree(root: root, children: children, heights: heights, widths: widths, origin: origin).spots
+        let shiftX = origin.x - (laid[root]?.x ?? origin.x), shiftY = origin.y - (laid[root]?.y ?? origin.y)
+        return refs.compactMap { ref in laid[ref].map { (ref: ref, x: ($0.x + shiftX).rounded(), y: ($0.y + shiftY).rounded()) } }
+    }
+
+    /// Keeps one node of a tree: its Idea written at `spot`, and once the Idea
+    /// is there its branches drawn: from the node it hangs from, when that is
+    /// the card the tree is rooted on or an Idea kept before, and to the nodes
+    /// that hang from it which were kept before it (`keptTreeIdeas`).
+    private func keepTreeNode(
+        _ proposal: KnowledgeMapProposal,
+        ofSet setID: String,
+        plan: KnowledgeMapBreakDownPlan,
+        at spot: (x: Double, y: Double),
+        selectsIdea: Bool
+    ) -> ProposalKeep {
+        let parent = plan.arrows.first { $0.to == proposal.id }?.from
+        let children = plan.arrows.filter { $0.from == proposal.id }.map(\.to)
+        return keep(proposal, at: spot, selectsIdea: selectsIdea) { [weak self] ref in
+            // The Ask may have moved on to another answer while it was written.
+            guard let self, self.proposals == nil || self.proposals?.id == setID else { return }
+            let kept = self.askState.keptTreeIdeas
+            self.askState.keptTreeIdeas[proposal.id] = ref
+            let hung = children.compactMap { kept[$0] }
+            for child in hung { self.addEdge(from: ref, to: child, label: "", tree: true) }
+            if let parent, let parentRef = parent == plan.rootRef ? parent : kept[parent] {
+                self.addEdge(from: parentRef, to: ref, label: "", tree: true)
+                self.joinTreeRegion(of: parentRef, adding: [ref] + hung, name: plan.regionName)
+            }
+        }
+    }
+
+    /// Grows the mind-map region a card is in to hold Ideas hung from it. A
+    /// card in no mind map gets one around it and them, named `name`: a node
+    /// is drawn small only inside a mind map, and Ideas hung from a free card
+    /// would be drawn as notes over each other. Its layout is set without
+    /// laying the cards out again, so the card stays where the learner put it.
+    private func joinTreeRegion(of card: String, adding refs: [String], name: String) {
+        if let id = regionID(containing: card), layout.regions[id]?.isTree == true {
+            growRegion(id, toHold: refs)
+            return
+        }
+        guard let id = makeRegion(around: [card] + refs, name: name) else { return }
+        updateLayout { layout, at in
+            guard var region = layout.regions[id] else { return }
+            region.layout = KnowledgeMapLayout.treeLayout
+            region.at = at
+            layout.setRegion(id, region)
         }
     }
 

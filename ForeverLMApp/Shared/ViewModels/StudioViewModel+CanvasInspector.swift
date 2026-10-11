@@ -45,6 +45,112 @@ enum KnowledgeMapInspectorChoices {
 
     /// A region's layout, as `Region.layout` stores it: free (nil) or a mind map.
     static let treeLayout = "tree"
+
+    /// An arrow's stance, as `Edge.stance` stores it; empty is none. The
+    /// others are `KnowledgeMapEdgeStance`'s raw values.
+    static let stances: [(title: String, value: String)] = [
+        ("None", ""), ("Supports", KnowledgeMapEdgeStance.supports.rawValue), ("Contradicts", KnowledgeMapEdgeStance.contradicts.rawValue),
+    ]
+}
+
+/// Which of the page, words and answer acts a selection of cards takes
+/// (docs/knowledge-map-design.md, "Menus and the inspector"): each is offered
+/// only where it applies to every card selected, and says which way it goes
+/// (Show Page or Show as Card) by what the cards are now. The native menu and
+/// the inspector both ask it, so they can never differ.
+struct KnowledgeMapCardActions: Equatable {
+    /// What one selected card is, as far as these acts care.
+    struct Card: Equatable {
+        var ref: String
+        /// `KnowledgeMapNode.kind`; empty for a ref the library does not hold.
+        var kind: String
+        var isPlaced: Bool
+        /// An Idea whose title ends in a question mark.
+        var isQuestion: Bool
+        /// A source whose PDF this Mac holds, so it can be drawn as a page.
+        var hasPDF: Bool
+        var page: Int?
+        /// How many pages the PDF has once this Mac has read it.
+        var pageCount: Int?
+        var isPlain: Bool
+        var isAnswered: Bool
+        var hasAnnotation: Bool
+    }
+
+    /// Show Page (sets down the page of the cards that show their usual
+    /// face) or Show as Card (every card shows a page).
+    enum Face: Equatable {
+        case showPage([String])
+        case showAsCard([String])
+    }
+
+    /// The page of the one page face selected, and where it can turn to.
+    struct PageTurn: Equatable {
+        var ref: String
+        var page: Int
+        var pageCount: Int?
+        var canGoBack: Bool
+        var canGoForward: Bool
+    }
+
+    /// Annotate… (the one card has no words yet) or Edit Annotation….
+    struct Annotation: Equatable {
+        var ref: String
+        var isEdit: Bool
+    }
+
+    /// Show as Words (an Idea drawn as a note) or Show as Note (every Idea is
+    /// drawn as words).
+    enum Words: Equatable {
+        case showAsWords([String])
+        case showAsNote([String])
+    }
+
+    /// Mark Answered or Mark Open, over question Ideas.
+    enum Answered: Equatable {
+        case markAnswered([String])
+        case markOpen([String])
+    }
+
+    var face: Face?
+    var pageTurn: PageTurn?
+    var annotation: Annotation?
+    var words: Words?
+    var answered: Answered?
+
+    init(cards: [Card]) {
+        guard !cards.isEmpty, cards.allSatisfy(\.isPlaced) else { return }
+        // A page face is a source with a PDF here that has a page set; a card
+        // with a page but no PDF here draws its usual face.
+        if cards.allSatisfy({ $0.kind == "source" && $0.hasPDF }) {
+            let faces = cards.filter { $0.page != nil }
+            face = faces.count == cards.count
+                ? .showAsCard(cards.map(\.ref))
+                : .showPage(cards.filter { $0.page == nil }.map(\.ref))
+            if cards.count == 1, let card = cards.first, let page = card.page {
+                pageTurn = PageTurn(
+                    ref: card.ref,
+                    page: page,
+                    pageCount: card.pageCount,
+                    canGoBack: page > 1,
+                    canGoForward: card.pageCount.map { page < $0 } ?? true
+                )
+            }
+        }
+        if cards.count == 1, let card = cards.first, card.kind != "idea", !card.kind.isEmpty {
+            annotation = Annotation(ref: card.ref, isEdit: card.hasAnnotation)
+        }
+        if cards.allSatisfy({ $0.kind == "idea" }) {
+            words = cards.allSatisfy(\.isPlain)
+                ? .showAsNote(cards.map(\.ref))
+                : .showAsWords(cards.filter { !$0.isPlain }.map(\.ref))
+            if cards.allSatisfy(\.isQuestion) {
+                answered = cards.allSatisfy(\.isAnswered)
+                    ? .markOpen(cards.map(\.ref))
+                    : .markAnswered(cards.filter { !$0.isAnswered }.map(\.ref))
+            }
+        }
+    }
 }
 
 /// What Open in Other Window opens for a card: its source, its Doc, Ideas,
@@ -135,6 +241,74 @@ extension StudioViewModel {
         moveKnowledgeMapSelection(refs: placed, toCanvas: canvasID)
     }
 
+    // MARK: Faces, words and annotations
+
+    /// What the cards of `refs` take of Show Page, Next Page, Annotate, Show as
+    /// Words and Mark Answered, read from the canvas as it stands.
+    func knowledgeMapCardActions(for refs: [String]) -> KnowledgeMapCardActions {
+        let map = knowledgeMap
+        return KnowledgeMapCardActions(cards: refs.map { ref in
+            let node = map.nodesByRef[ref]
+            let placement = map.layout.placements[ref]
+            let sourceID = KnowledgeMap.ItemRef(ref).flatMap { $0.kind == .source ? $0.id : nil }
+            let pageCount = sourceID.flatMap { map.pageFaces[$0]?.pageCount }
+            return KnowledgeMapCardActions.Card(
+                ref: ref,
+                kind: node?.kind ?? "",
+                isPlaced: placement != nil,
+                isQuestion: node.map { $0.kind == "idea" && KnowledgeMap.isQuestion($0.title) } ?? false,
+                hasPDF: sourceID.map(knowledgeMapSourceHasPages) ?? false,
+                page: placement?.page,
+                pageCount: pageCount.flatMap { $0 > 0 ? $0 : nil },
+                isPlain: placement?.plain == true,
+                isAnswered: placement?.answered == true,
+                hasAnnotation: placement?.annotation?.isEmpty == false
+            )
+        })
+    }
+
+    /// Show Page: the papers of `refs` are drawn as their first page.
+    func showKnowledgeMapPages(_ refs: [String]) {
+        let placed = knowledgeMapPlacedRefs(among: refs)
+        guard !placed.isEmpty else { return }
+        knowledgeMap.setCardPage(placed, 1)
+    }
+
+    /// Show as Card: the pages of `refs` are drawn as the usual card again.
+    func showKnowledgeMapAsCards(_ refs: [String]) {
+        let placed = knowledgeMapPlacedRefs(among: refs)
+        guard !placed.isEmpty else { return }
+        knowledgeMap.setCardPage(placed, nil)
+    }
+
+    /// Next Page and Previous Page (`delta` 1 and -1) on a page face.
+    func turnKnowledgeMapPage(_ ref: String, by delta: Int) {
+        guard knowledgeMap.layout.placements[ref] != nil else { return }
+        knowledgeMap.turnCardPage(ref, by: delta)
+    }
+
+    /// The learner's words under a card, for this canvas: why it is here. Empty
+    /// takes them away. An Idea has its note instead and takes none.
+    func setKnowledgeMapAnnotation(_ ref: String, _ text: String) {
+        guard knowledgeMap.layout.placements[ref] != nil else { return }
+        knowledgeMap.setCardAnnotation(ref, text)
+    }
+
+    /// Show as Words: the Ideas of `refs` are drawn as plain words (`plain`),
+    /// or as notes again.
+    func setKnowledgeMapWords(_ refs: [String], plain: Bool) {
+        let placed = knowledgeMapPlacedRefs(among: refs)
+        guard !placed.isEmpty else { return }
+        knowledgeMap.setCardPlain(placed, plain)
+    }
+
+    /// Mark Answered or Mark Open: the badge of the question Ideas of `refs`.
+    func setKnowledgeMapAnswered(_ refs: [String], answered: Bool) {
+        let placed = knowledgeMapPlacedRefs(among: refs)
+        guard !placed.isEmpty else { return }
+        knowledgeMap.setCardAnswered(placed, answered)
+    }
+
     // MARK: Regions
 
     func setKnowledgeMapRegionLocked(_ id: String, _ locked: Bool) {
@@ -160,6 +334,13 @@ extension StudioViewModel {
     }
 
     // MARK: Arrows
+
+    /// An arrow's stance: it supports or contradicts the card it points at, and
+    /// is drawn green or red; nil takes it away.
+    func setKnowledgeMapArrowStance(_ id: String, _ stance: KnowledgeMapEdgeStance?) {
+        guard knowledgeMap.layout.edges[id] != nil else { return }
+        knowledgeMap.setEdgeStance(id, stance)
+    }
 
     /// An arrow's route, heads, dashing or colour; a nil part is left alone.
     /// An empty `color` puts the arrow back to the default colour.

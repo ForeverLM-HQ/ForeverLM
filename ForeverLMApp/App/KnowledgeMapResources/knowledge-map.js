@@ -2,8 +2,8 @@
 // Their Ideas, the regions they draw around them and the arrows between them
 // are what sit on it; an Idea's sources hang under it as evidence, and a
 // source is drawn only where the learner placed it, as an Idea's evidence, or
-// in a lens a chat shows. Nothing waits on the plane unplaced: the pane's tray
-// holds what is not on the map yet.
+// in a lens a chat shows. Nothing waits on the plane unplaced: the pane's
+// Library sidebar and its add box (Find or add) hold what is not on the map yet.
 //
 // A classic script with no dependencies, so the Mac loads it over file:// in a
 // WKWebView, where module imports are blocked. It draws and takes
@@ -92,6 +92,69 @@
   const TOOL_KEYS = { v: 'select', h: 'hand', c: 'circle', r: 'region', a: 'connect', n: 'note' }
   const REGION_TINTS = ['#7F77DD', '#1D9E75', '#D85A30', '#D4537E', '#BA7517', '#378ADD', '#639922', '#888780']
 
+  // What Sapience showed (docs/knowledge-map-design.md, "What Sapience showed"):
+  // a paper drawn as one page of its PDF, the learner's words about a card on
+  // this canvas, an Idea as plain words, a question's badge, and a mind map's
+  // small nodes. The four size formulas below are the Mac's as well
+  // (`KnowledgeMap.pageFaceHeight`, `annotationHeight`, `treeNodeSize`,
+  // `pageFaceFootHeight`): the Mac arranges cards with the same numbers, so a
+  // card is as tall where it is drawn as where it was set down.
+  const PAGE_FOOT = 70
+  const LETTER_ASPECT = 0.7727
+  const ANN_PAD = 10, ANN_LINE_H = 16, ANN_CHAR_W = 6.5, ANN_SIDE = 28, ANN_MAX_LINES = 12, ANN_MAX_CHARS = 600
+  // The ✓ read mark, the open question's badge, and the junction of a bundle
+  // (how far off the card's side the arrows meet).
+  const QUESTION_TINT = '#D85A30'
+  const BADGE_R = 8
+  const JUNCTION = 28
+  const STANCE_KEYS = ['supports', 'contradicts']
+
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)) }
+  // Characters as the Mac counts them (Swift's `count`: grapheme clusters).
+  const graphemes = typeof Intl !== 'undefined' && Intl.Segmenter ? new Intl.Segmenter() : null
+  function charCount(text) {
+    const t = String(text || '')
+    return graphemes ? [...graphemes.segment(t)].length : Array.from(t).length
+  }
+  function pageFaceFootHeight() { return PAGE_FOOT }
+  // A page face's height: the page at the card's width (US Letter until the
+  // PDF has been read), clamped to half to 2.7 times the width, and the foot.
+  function pageFaceHeight(aspect, width) {
+    const a = aspect > 0 ? aspect : LETTER_ASPECT
+    return Math.round(clamp(width / a, 0.5 * width, 2.7 * width)) + pageFaceFootHeight()
+  }
+  // The lines an annotation takes: each paragraph its characters at 6.5 points
+  // over the room beside the card's padding, at most 12 in all.
+  function annotationLineCount(text, width) {
+    if (!text) return 0
+    const room = Math.max(1, width - ANN_SIDE)
+    let lines = 0
+    // Split as the Mac's `isNewline` does: CR LF is one break.
+    for (const paragraph of String(text).split(/\r\n|[\n\r\u000B\u000C\u0085\u2028\u2029]/)) {
+      lines += Math.max(1, Math.ceil(charCount(paragraph) * ANN_CHAR_W / room))
+      if (lines >= ANN_MAX_LINES) return ANN_MAX_LINES
+    }
+    return lines
+  }
+  function annotationHeight(text, width) {
+    const lines = annotationLineCount(text, width)
+    return lines ? ANN_PAD + lines * ANN_LINE_H : 0
+  }
+  // A mind-map node's box from its words: the root is bigger than the rest.
+  function treeNodeSize(title, role) {
+    const root = role === 'root'
+    const charW = root ? 8.6 : 7.0, padX = root ? 18 : 12, padY = root ? 12 : 7, lineH = root ? 21 : 17
+    const minW = root ? 120 : 60, maxW = root ? 280 : 220
+    const textW = charCount(title) * charW
+    const w = clamp(textW + 2 * padX, minW, maxW)
+    // Less a hair, as the Mac's: words that just fill a line are one line,
+    // not two by rounding noise (a root of 14 characters, say).
+    const lines = Math.min(4, Math.max(1, Math.ceil(textW / (w - 2 * padX) - 1e-9)))
+    return { w: Math.round(w), h: Math.round(2 * padY + lines * lineH) }
+  }
+  // An Idea whose title ends with ? or ？ is a question.
+  function isQuestionTitle(title) { return /[?？]$/.test(String(title || '').trim()) }
+
   function create(canvas, host) {
     // `let`: an export draws the plane once onto another canvas (`exportImage`).
     let ctx = canvas.getContext('2d')
@@ -156,6 +219,17 @@
       display: { minimap: false, focus: false },
       lockHits: [], edgePills: [], connectHover: null, pendingIdeas: [], stickyPeek: null, spaceTap: null,
       editor: null, handles: [], badgeHits: [], treeCache: null, pendingEdit: null, exporting: false, view: null, textEpoch: 0,
+      // Where the pointer last was over the plane ([x, y] in view points, null
+      // once it leaves), for the key that adds where the learner is looking; and
+      // which ring (`ringCards`) is the latest, so an earlier one's timer does
+      // not put out a later one.
+      pointer: null, ringToken: 0,
+      // What Sapience showed: each Idea's place in a mind map (`mindInfo`) and the
+      // arrows that converge into one card (`bundles`), both worked out once per
+      // layout; where the page faces' stepper pills and the questions' badges
+      // were drawn this frame, on screen; and what the ghost tree of the set
+      // showing remembers (`layoutGhostTree`).
+      mindCache: null, bundleCache: null, pageHits: [], questionHits: [], ghostTree: null,
     }
 
     // ---- Theme
@@ -294,17 +368,86 @@
     function placementOf(node) { return node ? state.placements[node.ref] : null }
     function cardW(node) {
       const p = !state.lens && placementOf(node)
-      return p && p.w > 0 ? clamp(p.w, MIN_CARD_W, MAX_CARD_W) : CARD_W
+      if (p && p.w > 0) return clamp(p.w, MIN_CARD_W, MAX_CARD_W)
+      const mind = mindInfo(node)
+      return mind ? treeNodeSize(node.title, mind.role).w : CARD_W
     }
     function isFoldedCard(node) { const p = !state.lens && placementOf(node); return !!(p && p.folded) }
     function cardColor(node) { const p = !state.lens && placementOf(node); return p && p.color ? p.color : null }
+    // A card's height: its title line when folded, else what the learner sized
+    // it to (which holds the annotation too), else its kind's own and, but for
+    // an Idea, the room for the words about it. The Mac reads the same sizes.
     function cardH(node) {
       if (!node) return CARD_H
       const p = !state.lens && placementOf(node)
       if (p && p.folded) return FOLD_H
       if (p && p.h > 0) return Math.max(MIN_CARD_H, p.h)
+      return ownH(node) + annotationH(node)
+    }
+    // A card's own height, without the room for an annotation.
+    function ownH(node) {
+      const mind = mindInfo(node)
+      if (mind) return treeNodeSize(node.title, mind.role).h
+      if (isPageFace(node)) return pageFaceHeight(node.aspect, cardW(node))
       if (node.h) return node.h
       return node.kind === 'idea' ? ideaAutoH(node) : CARD_H
+    }
+    // A source whose paper the card shows as a page: its placement says which
+    // page, and this Mac has read the PDF (`pages`). A lens shows usual cards.
+    function isPageFace(node) {
+      if (!node || node.kind !== 'source' || state.lens || !(node.pages > 0)) return false
+      const p = placementOf(node)
+      return !!(p && p.page > 0)
+    }
+    // The page a page face shows, kept within the PDF.
+    function pageOf(node) { return Math.min(placementOf(node).page, node.pages) }
+    function isPlain(node) { const p = !state.lens && placementOf(node); return !!(p && p.plain && node.kind === 'idea') }
+    // The learner's words about a card on this canvas: the editor's, as typed,
+    // while it is open on this card (so the card grows with them).
+    function annotationOf(node) {
+      if (!node || node.kind === 'idea') return ''
+      const ed = state.editor
+      if (ed && ed.kind === 'annotation' && ed.ref === node.ref) return ed.text
+      const p = !state.lens && placementOf(node)
+      return p && p.annotation ? p.annotation : ''
+    }
+    function annotationH(node) {
+      if (isFoldedCard(node)) return 0
+      return annotationHeight(annotationOf(node), cardW(node))
+    }
+    // Where an Idea sits in a mind map: {regionID, role} for an Idea placed in a
+    // region laid out as a tree with no size or fold of its own, else null. The
+    // region is read from the stored spot at the usual card's middle (as the Mac
+    // reads it), never from where the tree draws it, so a node's size does not
+    // depend on the layout that is made of the sizes. Its role: a root when no
+    // branch leads to it, a branch when one leads from it, else a leaf.
+    function mindInfo(node) {
+      if (!node || node.kind !== 'idea' || state.lens) return null
+      const cache = state.mindCache || (state.mindCache = new Map())
+      if (cache.has(node.ref)) return cache.get(node.ref)
+      let info = null
+      const p = state.placements[node.ref]
+      if (p && !(p.w > 0) && !(p.h > 0) && !p.folded) {
+        const mx = p.x + CARD_W / 2, my = p.y + CARD_H / 2
+        let home = null
+        for (const r of Object.values(state.regions)) {
+          if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h && (!home || r.w * r.h < home.w * home.h)) home = r
+        }
+        if (home && home.layout === 'tree' && !notebookOf(home)) {
+          const { kids, parent } = treeIndex()
+          info = { regionID: home.id, role: !parent.has(node.ref) ? 'root' : (kids.get(node.ref) || []).length ? 'branch' : 'leaf' }
+        }
+      }
+      cache.set(node.ref, info)
+      return info
+    }
+    // A mind map's colour for a node: the root the region's tint, a branch's
+    // own colour (each child of a root takes the next tint after the region's)
+    // for the cards under it.
+    function nodeTint(node, mind) {
+      const r = state.regions[mind.regionID]
+      const own = r && r.color ? r.color : REGION_TINTS[0]
+      return mind.role === 'root' ? own : stackLayout().branchTint.get(node.ref) || own
     }
     // An Idea's note: its sub line, unless that is just the word Idea.
     function ideaNote(node) { return node && node.kind === 'idea' && node.sub && node.sub !== 'Idea' ? node.sub : '' }
@@ -318,7 +461,8 @@
       if (node._auto && node._auto.key === key) return node._auto.h
       const keep = ctx.font
       const tw = w - IDEA_PAD * 2
-      const tl = wrapLines(node.title, '500 14px ' + state.font, tw, IDEA_TITLE_LINES).length
+      // A question's badge takes the room before its title.
+      const tl = wrapLines(node.title, '500 14px ' + state.font, tw - (isQuestionTitle(node.title) ? BADGE_R * 2 + 6 : 0), IDEA_TITLE_LINES).length
       const note = ideaNote(node)
       const nl = note ? wrapLines(note, '12.5px ' + state.font, tw, IDEA_NOTE_LINES).length : 0
       ctx.font = keep
@@ -344,7 +488,9 @@
       const node = state.byRef.get(ref)
       const q = state.placements[ref]
       const sized = !!(node && q && (q.h > 0 || q.folded))
-      return [p.x + (node ? cardW(node) : CARD_W) / 2, p.y + (sized ? cardH(node) : CARD_H) / 2]
+      // A mind map's node is held at the usual card's middle, as the Mac reads it.
+      const wide = !!(node && q && q.w > 0 && !state.lens)
+      return [p.x + (wide ? cardW(node) : CARD_W) / 2, p.y + (sized ? cardH(node) : CARD_H) / 2]
     }
     // Moves a placed card, keeping what the learner sized.
     function spotAt(ref, x, y) { return Object.assign({}, state.placements[ref], { x, y }) }
@@ -500,7 +646,6 @@
       const s = clamp(from.scale * factor, MIN_SCALE, MAX_SCALE)
       flyCamera(s, px - (px - from.ox) * (s / from.scale), py - (py - from.oy) * (s / from.scale), 220)
     }
-    function clamp(v, a, b) { return Math.max(a, Math.min(b, v)) }
 
     // ---- Text
 
@@ -559,6 +704,8 @@
       state.hiddenCache = null
       state.treeCache = null
       state.focusCache = null
+      state.mindCache = null
+      state.bundleCache = null
       mm.dirty = true
       redraw()
     }
@@ -787,8 +934,13 @@
       ctx.textBaseline = 'top'
       state.badgeHits = []
       state.edgePills = []
+      state.pageHits = []
+      state.questionHits = []
       layoutFan(L)
+      // Cards sliding to their spots move the ends of the arrows bundled between them.
+      const sliding = state.moves.size > 0
       if (!state.exporting) stepMotion(now)
+      if (sliding || state.moves.size) state.bundleCache = null
       if (state.ghostsDirty && state.proposals && ghostLayoutReady()) layoutGhosts(false)
 
       // Regions: faint tinted fields under everything (quieter while a card
@@ -1035,7 +1187,8 @@
       const ref = [...state.selection][0]
       const node = state.byRef.get(ref)
       if (!node || !state.placements[ref] || isFoldedCard(node) || flowed(node) || isFanned(node) || stackOf(node)) return null
-      if (hiddenByFold(ref) || lockedRegionOf(ref)) return null
+      // A mind map's node is as big as its words: a size of its own would make it a card.
+      if (hiddenByFold(ref) || lockedRegionOf(ref) || mindInfo(node)) return null
       const p = pos(node)
       return p ? { node, p } : null
     }
@@ -1083,10 +1236,13 @@
       }
       return null
     }
-    // A clip, page or picture's foot (its name and note under the picture).
-    function footOf(node) {
-      if (node.kind === 'picture') return 0
-      return node.kind === 'clip' || node.kind === 'page' ? CLIP_FOOT + (node.caption ? CAPTION_ROOM : 0) : 0
+    // A clip, page, picture or page face's foot (its name and note under the
+    // picture) and the room for the words about it.
+    function footOf(node, width) {
+      let foot = 0
+      if (node.kind === 'clip' || node.kind === 'page') foot = CLIP_FOOT + (node.caption ? CAPTION_ROOM : 0)
+      else if (isPageFace(node)) foot = PAGE_FOOT
+      return foot + (isFoldedCard(node) ? 0 : annotationHeight(annotationOf(node), width == null ? cardW(node) : width))
     }
     // Starts a resize of the card or region a handle belongs to.
     function beginResize(h, px, py) {
@@ -1098,8 +1254,8 @@
       const node = state.byRef.get(h.id)
       const p = state.placements[h.id]
       const [w0, h0] = [cardW(node), cardH(node)]
-      const aspect = node.kind === 'clip' || node.kind === 'page' || node.kind === 'picture'
-      state.drag = { kind: 'resizeCard', ref: h.id, dir: h.dir, px, py, x: p.x, y: p.y, w: w0, h: h0, was: Object.assign({}, p), aspect, ratio: aspect ? (h0 - footOf(node)) / w0 : 0, foot: footOf(node), moved: false }
+      const aspect = node.kind === 'clip' || node.kind === 'page' || node.kind === 'picture' || isPageFace(node)
+      state.drag = { kind: 'resizeCard', ref: h.id, dir: h.dir, px, py, x: p.x, y: p.y, w: w0, h: h0, was: Object.assign({}, p), aspect, ratio: aspect ? (h0 - footOf(node)) / w0 : 0, moved: false }
     }
     // The resize under way, for the pointer at world offset (dx, dy).
     function resizeCardTo(d, dx, dy) {
@@ -1111,7 +1267,8 @@
       if (west) x = d.x + d.w - w
       const corner = (east || west) && (north || south)
       if (d.aspect && corner) {
-        h = w * d.ratio + d.foot
+        // The picture keeps its shape; the foot and the words about it take what they need at the new width.
+        h = w * d.ratio + footOf(state.byRef.get(d.ref), w)
       } else {
         if (south) h = d.h + dy
         if (north) h = d.h - dy
@@ -1132,6 +1289,8 @@
     // just off its right middle; dragging from it is the Arrow tool for that
     // drag, and letting go over a card or a region's name draws an arrow there.
     const CONNECT_R = 7
+    // On a mind map's node it is a + in a circle, in the node's branch colour,
+    // that adds a child (`addTreeChild`), in place of the ring.
     function connectHandleOf(ref) {
       if (state.lens || state.review || state.exporting || level() < 2) return null
       const node = state.byRef.get(ref)
@@ -1140,28 +1299,58 @@
       if (!p) return null
       const [w, h] = sizeOf(node)
       const [x, y] = toScreen(p[0], p[1])
-      return { ref, x: x + w * state.scale + 14, y: y + h * state.scale / 2, wx: p[0] + w, wy: p[1] + h / 2 }
+      const mind = mindInfo(node)
+      return { ref, x: x + w * state.scale + 14, y: y + h * state.scale / 2, wx: p[0] + w, wy: p[1] + h / 2, plus: !!mind, tint: mind ? nodeTint(node, mind) : null }
+    }
+    // The cards whose handle shows: the one under the pointer, and a mind map's node that is selected.
+    function handleRefs() {
+      const refs = state.hover ? [state.hover] : []
+      if (state.selection.size === 1) {
+        const ref = [...state.selection][0]
+        if (!refs.includes(ref) && mindInfo(state.byRef.get(ref))) refs.push(ref)
+      }
+      return refs
     }
     function hitConnectHandle(px, py) {
-      const h = state.hover ? connectHandleOf(state.hover) : null
-      return h && Math.hypot(px - h.x, py - h.y) <= CONNECT_R + 5 ? h : null
+      for (const ref of handleRefs()) {
+        const h = connectHandleOf(ref)
+        if (h && Math.hypot(px - h.x, py - h.y) <= (h.plus ? BADGE_R : CONNECT_R) + 5) return h
+      }
+      return null
     }
     function drawConnectHandle() {
       const d = state.drag
       if (state.exporting || (d && !(d.kind === 'connect' && d.viaHandle))) return
-      const ref = d ? d.from : state.hover
-      const h = ref && connectHandleOf(ref)
-      if (!h) return
+      for (const ref of d ? [d.from] : handleRefs()) {
+        const h = ref && connectHandleOf(ref)
+        if (h) drawHandle(h)
+      }
+    }
+    function drawHandle(h) {
       const c = state.colors
+      const r = h.plus ? BADGE_R : CONNECT_R
       ctx.save()
       ctx.shadowColor = c.shadow; ctx.shadowBlur = 5; ctx.shadowOffsetY = 1
       ctx.fillStyle = c.card
-      ctx.beginPath(); ctx.arc(h.x, h.y, CONNECT_R, 0, Math.PI * 2); ctx.fill()
+      ctx.beginPath(); ctx.arc(h.x, h.y, r, 0, Math.PI * 2); ctx.fill()
       ctx.restore()
-      ctx.strokeStyle = c.select; ctx.lineWidth = 1.5
-      ctx.beginPath(); ctx.arc(h.x, h.y, CONNECT_R, 0, Math.PI * 2); ctx.stroke()
-      ctx.fillStyle = c.select
-      ctx.beginPath(); ctx.arc(h.x, h.y, 2.4, 0, Math.PI * 2); ctx.fill()
+      ctx.strokeStyle = h.plus ? h.tint : c.select; ctx.lineWidth = 1.5
+      ctx.beginPath(); ctx.arc(h.x, h.y, r, 0, Math.PI * 2); ctx.stroke()
+      if (h.plus) {
+        ctx.lineWidth = 1.7; ctx.lineCap = 'round'
+        ctx.beginPath(); ctx.moveTo(h.x - 3.6, h.y); ctx.lineTo(h.x + 3.6, h.y); ctx.moveTo(h.x, h.y - 3.6); ctx.lineTo(h.x, h.y + 3.6); ctx.stroke()
+        ctx.lineCap = 'butt'
+      } else {
+        ctx.fillStyle = c.select
+        ctx.beginPath(); ctx.arc(h.x, h.y, 2.4, 0, Math.PI * 2); ctx.fill()
+      }
+    }
+    // The + on a node: a child of it, written in place (the host places it and
+    // opens it, as it does for Tab).
+    function addTreeChild(ref) {
+      const node = state.byRef.get(ref), p = state.placements[ref], mind = mindInfo(node)
+      if (!node || !p || !mind) return
+      host.post('ideaRequested', { parentRef: ref, title: '', edit: true, x: round(p.x + cardW(node) + TREE_COL), y: round(p.y), regionID: mind.regionID })
     }
     // What a connecting drag would join to: a card, else a region's name or face.
     function connectTarget(px, py, from) {
@@ -1227,6 +1416,7 @@
       '<i></i>' +
       [['end', 'Head at the end'], ['both', 'Heads at both ends'], ['none', 'No head']].map(([h, t]) => '<button type="button" tabindex="-1" data-heads="' + h + '" title="' + t + '">' + svg(h) + '</button>').join('') +
       '<i></i><button type="button" tabindex="-1" data-dashed title="Dashed">' + svg('dashed') + '</button><i></i>' +
+      STANCE_KEYS.map(k => '<button type="button" tabindex="-1" class="stance" data-stance="' + k + '" title="' + (k === 'supports' ? 'Supports (for)' : 'Contradicts (against)') + '">' + (k === 'supports' ? 'For' : 'Against') + '</button>').join('') + '<i></i>' +
       REGION_TINTS.map(t => '<button type="button" tabindex="-1" class="dot" data-color="' + t + '" title="Colour" style="--dot:' + t + '"></button>').join('') +
       '<i></i><button type="button" tabindex="-1" data-delete title="Delete arrow">' + svg('trash') + '</button>'
     document.body.appendChild(edgeBar)
@@ -1243,6 +1433,7 @@
       if (b.dataset.route) change.route = b.dataset.route === 'curve' ? null : b.dataset.route
       else if (b.dataset.heads) change.heads = b.dataset.heads === 'end' ? null : b.dataset.heads
       else if (b.hasAttribute('data-dashed')) change.dashed = e.dashed ? null : true
+      else if (b.dataset.stance) change.stance = e.stance === b.dataset.stance ? null : b.dataset.stance
       else if (b.dataset.color) change.color = e.color === b.dataset.color ? null : b.dataset.color
       for (const [k, v] of Object.entries(change)) { if (v == null || v === false) delete e[k]; else e[k] = v }
       host.post('edgeChanged', Object.assign({ id: e.id }, change))
@@ -1254,14 +1445,14 @@
       const d = state.drag
       const path = e && !state.exporting && !state.lens && !state.review && !(state.editor && state.editor.kind === 'edge') && level() >= 1 && !(d && d.kind !== 'pan') && edgeShown(e) ? edgePath(e) : null
       if (!path) { if (state.edgeBarKey !== 'hidden') { edgeBar.classList.remove('shown'); state.edgeBarKey = 'hidden' } return }
-      const key = [e.id, e.route || 'curve', e.heads || 'end', !!e.dashed, e.color || '', !!e.tree].join('|')
+      const key = [e.id, e.route || 'curve', e.heads || 'end', !!e.dashed, e.color || '', e.stance || '', !!e.tree].join('|')
       if (state.edgeBarKey !== key) {
         state.edgeBarKey = key
         edgeBar.classList.add('shown')
         edgeBar.classList.toggle('tree', !!e.tree)
         for (const b of edgeBar.querySelectorAll('button')) {
           const on = (b.dataset.route && b.dataset.route === (e.route || 'curve')) || (b.dataset.heads && b.dataset.heads === (e.heads || 'end')) ||
-            (b.hasAttribute('data-dashed') && !!e.dashed) || (b.dataset.color && b.dataset.color === e.color)
+            (b.hasAttribute('data-dashed') && !!e.dashed) || (b.dataset.stance && b.dataset.stance === e.stance) || (b.dataset.color && b.dataset.color === e.color)
           b.classList.toggle('on', !!on)
         }
       }
@@ -1681,6 +1872,9 @@
       const base = ctx.globalAlpha
       const tc = ghost ? null : cardColor(node)
       const isPicture = node.kind === 'picture'
+      // The room for the learner's words sits at the card's foot; the clip is the rest.
+      const annPx = ghost ? 0 : annotationH(node) * s
+      const hb = h - annPx
       let alpha = ghost ? 1 : presence(node)
       if (!ghost && state.lens && !(state.lens.positions[node.ref])) alpha = state.lens.hideOthers ? 0.05 : 0.2
       if (!ghost && state.highlight.size && !state.highlight.has(node.ref)) alpha *= 0.3
@@ -1728,7 +1922,7 @@
       // line under it when the card is close.
       const foot = L >= 2 && !isPicture ? (CLIP_FOOT + (node.caption ? CAPTION_ROOM : 0)) * s : 0
       const pad = Math.max(3, 8 * s)
-      const bx = x + pad, by = y + pad, bw = w - pad * 2, bh = h - foot - pad * (foot ? 1 : 2)
+      const bx = x + pad, by = y + pad, bw = w - pad * 2, bh = hb - foot - pad * (foot ? 1 : 2)
       if (node.quote) {
         // A passage: the words the learner marked in the paper, on the
         // highlighter's yellow; a click opens the paper at them.
@@ -1750,7 +1944,7 @@
       } else if (ready && bw > 2 && bh > 2) {
         const k = Math.min(bw / img.naturalWidth, bh / img.naturalHeight)
         const iw = img.naturalWidth * k, ih = img.naturalHeight * k
-        ctx.save(); roundRect(x, y, w, h - foot, radius); ctx.clip()
+        ctx.save(); roundRect(x, y, w, hb - foot, radius); ctx.clip()
         ctx.drawImage(img, bx + (bw - iw) / 2, by + (bh - ih) / 2, iw, ih)
         ctx.restore()
       } else if (bw > 2 && bh > 2) {
@@ -1765,12 +1959,12 @@
       if (foot) {
         ctx.save()
         roundRect(x, y, w, h, radius); ctx.clip()
-        if (tc) { ctx.fillStyle = withAlpha(tc, 0.12); ctx.fillRect(x, y + h - foot, w, foot) }
+        if (tc) { ctx.fillStyle = withAlpha(tc, 0.12); ctx.fillRect(x, y + hb - foot, w, foot) }
         ctx.strokeStyle = 'rgba(0,0,0,0.07)'; ctx.lineWidth = 1
-        ctx.beginPath(); ctx.moveTo(x, y + h - foot); ctx.lineTo(x + w, y + h - foot); ctx.stroke()
+        ctx.beginPath(); ctx.moveTo(x, y + hb - foot); ctx.lineTo(x + w, y + hb - foot); ctx.stroke()
         const tx = x + Math.max(6, 12 * s), tw = w - Math.max(12, 24 * s)
         const tf = Math.max(9, Math.min(13, 12.5 * s))
-        let ty = y + h - foot + Math.max(3, 7 * s)
+        let ty = y + hb - foot + Math.max(3, 7 * s)
         ctx.fillStyle = TYPE_TINTS[node.type] || TYPE_TINTS.clip
         ctx.beginPath(); ctx.arc(tx + 3, ty + tf * 0.55, Math.max(1.5, 3 * s), 0, Math.PI * 2); ctx.fill()
         ctx.fillStyle = '#1d1d1f'; ctx.font = '600 ' + tf + 'px ' + state.font
@@ -1781,7 +1975,7 @@
         if (node.caption) {
           // A figure: its caption under its name, as many lines as the foot
           // holds, after the learner's note when there is one.
-          let room = Math.max(1, Math.floor((y + h - ty - Math.max(3, 6 * s)) / (nf + 3)))
+          let room = Math.max(1, Math.floor((y + hb - ty - Math.max(3, 6 * s)) / (nf + 3)))
           if (note) {
             ctx.font = 'italic ' + nf + 'px ' + state.font; ctx.fillStyle = '#3a3a3c'
             drawLines(wrapLines(note, ctx.font, tw, 1), tx, ty, nf + 3)
@@ -1798,7 +1992,384 @@
         }
         ctx.restore()
       }
+      if (annPx > 0 && L >= 2) drawAnnotation(node, x, y + hb, w, annPx, isPicture ? c.text : '#1d1d1f')
       ctx.globalAlpha = base
+    }
+
+    // ---- What Sapience showed: the small marks
+    //
+    // A question's badge (an orange ? while open, a green ✓ once answered; a
+    // press on it toggles that, `questionHits`) and a source's read mark.
+    function drawQuestionBadge(cx, cy, answered, ref) {
+      const c = state.colors
+      ctx.save()
+      ctx.fillStyle = answered ? c.memSolid : QUESTION_TINT
+      ctx.beginPath(); ctx.arc(cx, cy, BADGE_R, 0, Math.PI * 2); ctx.fill()
+      ctx.strokeStyle = '#ffffff'; ctx.fillStyle = '#ffffff'
+      if (answered) {
+        ctx.lineWidth = 1.8; ctx.lineCap = 'round'; ctx.lineJoin = 'round'
+        ctx.beginPath(); ctx.moveTo(cx - 3.6, cy + 0.3); ctx.lineTo(cx - 1.1, cy + 2.9); ctx.lineTo(cx + 3.8, cy - 2.7); ctx.stroke()
+      } else {
+        ctx.font = '700 11px ' + state.font; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+        ctx.fillText('?', cx, cy + 0.5)
+      }
+      ctx.restore()
+      if (ref && !state.exporting) state.questionHits.push({ ref, x: cx - BADGE_R - 2, y: cy - BADGE_R - 2, w: BADGE_R * 2 + 4, h: BADGE_R * 2 + 4 })
+    }
+    function drawReadMark(cx, cy) {
+      ctx.save()
+      ctx.fillStyle = state.colors.memSolid
+      ctx.beginPath(); ctx.arc(cx, cy, 6.5, 0, Math.PI * 2); ctx.fill()
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.7; ctx.lineCap = 'round'; ctx.lineJoin = 'round'
+      ctx.beginPath(); ctx.moveTo(cx - 3, cy + 0.3); ctx.lineTo(cx - 0.8, cy + 2.4); ctx.lineTo(cx + 3.2, cy - 2.2); ctx.stroke()
+      ctx.restore()
+    }
+
+    // ---- Words about a card on this canvas
+    //
+    // In the bottom room of a card (`annotationH`), under a hairline: 12.5 px,
+    // the ink at 85%, the first sentence in bold when more follows it (the
+    // bold lead). From the middle zoom in only; the room is kept at every zoom.
+    // The page wraps the words by measuring them but draws at most as many
+    // lines as the room was reckoned for, the last ending in … when words are left.
+    function leadLength(text) {
+      const m = /^[\s\S]*?[.!?。！？…]["'”’)\]]*(?=\s)/.exec(text)
+      return m && text.slice(m[0].length).trim() ? m[0].length : 0
+    }
+    // The words as lines of {t, b, x}: a word, whether it is in the bold lead, and its offset on the line.
+    function annotationRuns(text, width, maxLines, fs) {
+      const key = 'ann|' + fs + '|' + width + '|' + maxLines + '|' + text
+      const hit = wrapCache.get(key)
+      if (hit) return hit
+      const lead = leadLength(text)
+      const measure = (t, b) => { ctx.font = (b ? '600 ' : '') + fs + 'px ' + state.font; return ctx.measureText(t).width }
+      const lines = []
+      let line = [], used = 0
+      for (const m of text.matchAll(/\S+|\n/g)) {
+        if (m[0] === '\n') { lines.push(line); line = []; used = 0; continue }
+        const b = m.index < lead
+        const w = measure(m[0], b), gap = line.length ? measure(' ', b) : 0
+        if (line.length && used + gap + w > width) { lines.push(line); line = []; used = 0 }
+        const x = used + (line.length ? gap : 0)
+        line.push({ t: m[0], b, x })
+        used = x + w
+      }
+      if (line.length) lines.push(line)
+      if (lines.length > maxLines) {
+        lines.length = Math.max(1, maxLines)
+        const last = lines[lines.length - 1]
+        const ellipsis = measure('…', false)
+        while (last.length > 1 && last[last.length - 1].x + measure(last[last.length - 1].t, last[last.length - 1].b) + ellipsis > width) last.pop()
+        const tail = last[last.length - 1]
+        if (tail) {
+          let t = tail.t
+          while (t.length > 1 && tail.x + measure(t + '…', tail.b) > width) t = t.slice(0, -1)
+          tail.t = t + '…'
+        } else last.push({ t: '…', b: false, x: 0 })
+      }
+      if (wrapCache.size > 6000) wrapCache.clear()
+      wrapCache.set(key, lines)
+      return lines
+    }
+    // How many lines the words are drawn in at the card's own width: for the harness and the tests.
+    function annotationLinesOf(node) {
+      const text = annotationOf(node)
+      if (!text) return 0
+      const w = cardW(node)
+      return annotationRuns(text, w - ANN_SIDE, annotationLineCount(text, w), 12.5).length
+    }
+    // The room starts at (x, y) on screen, `hPx` tall, as wide as the card.
+    function drawAnnotation(node, x, y, w, hPx, ink) {
+      const text = annotationOf(node)
+      const ed = state.editor
+      if (!text || hPx < 14 || (ed && ed.kind === 'annotation' && ed.ref === node.ref)) return
+      const s = state.scale
+      const padX = Math.max(6, 14 * s)
+      const fs = clamp(12.5 * s, 8.5, 12.5), lh = fs * 1.28
+      const topPad = Math.max(3, 5 * s)
+      const room = Math.max(1, Math.min(annotationLineCount(text, cardW(node)), Math.floor((hPx - topPad * 1.5) / lh)))
+      const lines = annotationRuns(text, w - padX * 2, room, fs)
+      ctx.save()
+      ctx.beginPath(); ctx.rect(x, y, w, hPx); ctx.clip()
+      ctx.strokeStyle = withAlpha(ink, 0.12); ctx.lineWidth = 1
+      ctx.beginPath(); ctx.moveTo(x + padX, Math.round(y) + 0.5); ctx.lineTo(x + w - padX, Math.round(y) + 0.5); ctx.stroke()
+      ctx.fillStyle = withAlpha(ink, 0.85)
+      lines.forEach((ln, i) => {
+        for (const word of ln) {
+          ctx.font = (word.b ? '600 ' : '') + fs + 'px ' + state.font
+          ctx.fillText(word.t, x + padX + word.x, y + topPad + i * lh)
+        }
+      })
+      ctx.restore()
+    }
+
+    // ---- A mind map's nodes
+    //
+    // In a region laid out as a mind map an Idea is small, as Sapience's:
+    // the root a card with a 1.5-point outline in the region's tint and its
+    // title centred (16 px, 600); a branch its words alone (13 px); a leaf its
+    // words in a pill outlined 1.2 points in its branch colour (12.5 px). The
+    // words wrap inside `treeNodeSize`'s box (the text scales with the card, so
+    // the lines are the ones the box was reckoned for). A ≡ after the words
+    // says there is a note. `spec` is {role, tint, allowShadow} for a placed node,
+    // and for a proposed one also {w, h, ghost: {x, y, lifted}}.
+    function drawTreeNode(node, L, W, H, spec) {
+      const c = state.colors
+      const s = state.scale
+      const ghost = spec.ghost
+      const p = ghost ? [ghost.x, ghost.y] : pos(node)
+      if (!p) return
+      const [cw, ch] = ghost ? [spec.w, spec.h] : sizeOf(node)
+      const x = p[0] * s + state.ox, y = p[1] * s + state.oy
+      const w = cw * s, h = ch * s
+      if (x > W || y > H || x + w < 0 || y + h < 0) return
+      const role = spec.role, root = role === 'root', leaf = role === 'leaf'
+      const tint = spec.tint
+      let alpha = ghost ? 1 : presence(node)
+      if (!ghost && state.highlight.size && !state.highlight.has(node.ref)) alpha *= 0.3
+      const mark = ghost ? null : markOf(node.ref)
+      if (mark && mark.dusty) alpha *= DUSTY_ALPHA
+      const ringed = !ghost && (state.selection.has(node.ref) || state.highlight.has(node.ref))
+      const base = ctx.globalAlpha
+      ctx.globalAlpha = alpha * base
+      const radius = leaf ? h / 2 : root ? Math.max(3, 12 * s) : Math.max(2, 6 * s)
+      const lift = state.lifting || !!(ghost && ghost.lifted)
+      if (L === 0) {
+        ctx.fillStyle = root ? c.card : withAlpha(tint, leaf ? 0.55 : 0.8)
+        roundRect(x, y, Math.max(2, w), Math.max(2, h), Math.min(radius, Math.max(2, h) / 2)); ctx.fill()
+        if (root) { ctx.strokeStyle = tint; ctx.lineWidth = 1; ctx.stroke() }
+        if (ringed) { ctx.strokeStyle = c.select; ctx.lineWidth = 1.5; ctx.stroke() }
+        ctx.globalAlpha = base
+        return
+      }
+      if (root || leaf) {
+        const shadow = lift || (root && spec.allowShadow)
+        if (shadow) {
+          ctx.save()
+          ctx.shadowColor = c.shadow
+          ctx.shadowBlur = lift ? 24 : Math.min(14, 12 * Math.max(0.5, s))
+          ctx.shadowOffsetY = lift ? 10 : Math.min(3, 2.5 * Math.max(0.5, s))
+        }
+        ctx.fillStyle = c.card
+        roundRect(x, y, w, h, radius); ctx.fill()
+        if (shadow) ctx.restore()
+        ctx.strokeStyle = tint; ctx.lineWidth = root ? 1.5 : 1.2
+        if (ghost) ctx.setLineDash([5, 4])
+        ctx.stroke(); ctx.setLineDash([])
+      } else if (ghost) {
+        // A proposed branch has no outline of its own: ForeverLM's, dashed.
+        ctx.strokeStyle = c.ai; ctx.lineWidth = 1; ctx.setLineDash([4, 3])
+        roundRect(x, y, w, h, radius); ctx.stroke(); ctx.setLineDash([])
+      }
+      if (ringed) {
+        ctx.strokeStyle = c.select; ctx.lineWidth = 2
+        roundRect(x - 3, y - 3, w + 6, h + 6, radius + 3); ctx.stroke()
+      } else if (!ghost && state.hover === node.ref && !state.drag) {
+        ctx.strokeStyle = withAlpha(c.select, 0.45); ctx.lineWidth = 1.5
+        roundRect(x - 2, y - 2, w + 4, h + 4, radius + 2); ctx.stroke()
+      }
+      // The words, scaled with the card between 0.55 and 3 times their size.
+      const k = clamp(s, 0.55, 3)
+      const lineH = (root ? 21 : 17)
+      const px = (root ? 18 : 12) * s
+      const tw = w - 2 * px
+      const note = ideaNote(node)
+      if (tw >= 14) {
+        const maxLines = Math.max(1, Math.round((ch - 2 * (root ? 12 : 7)) / lineH))
+        // The box was reckoned from the characters, so words a little wider than it
+        // allowed (a bold face, wide letters) are set a little smaller before they are cut.
+        let font = '', lines = []
+        for (const shrink of [1, 0.93, 0.86]) {
+          font = (root ? '600 ' : '500 ') + (root ? 16 : leaf ? 12.5 : 13) * k * shrink + 'px ' + state.font
+          lines = wrapLines(node.title, font, tw, maxLines)
+          if (!(lines.length && lines[lines.length - 1].endsWith('…') && !String(node.title).trim().endsWith('…'))) break
+        }
+        const lh = lineH * k
+        ctx.save()
+        roundRect(x, y, w, h, radius); ctx.clip()
+        ctx.font = font; ctx.fillStyle = c.text
+        ctx.textBaseline = 'middle'; ctx.textAlign = role === 'branch' ? 'left' : 'center'
+        // The ≡ of a node with a note sits after its last line; a centred block of words makes room for it.
+        const noteRoom = note && L >= 2 && lines.length ? 4 + ctx.measureText('≡').width : 0
+        const tx = role === 'branch' ? x + px : x + w / 2 - noteRoom / 2
+        const top = y + (h - lines.length * lh) / 2 + lh / 2
+        lines.forEach((ln, i) => ctx.fillText(ln, tx, top + i * lh))
+        if (noteRoom) {
+          const lw = ctx.measureText(lines[lines.length - 1]).width
+          ctx.fillStyle = c.faint; ctx.textAlign = 'left'
+          ctx.fillText('≡', (role === 'branch' ? tx + lw : tx + lw / 2) + 4, top + (lines.length - 1) * lh)
+        }
+        ctx.restore()
+      }
+      // A question's badge sits on the node's left edge, where its branch arrives.
+      if (L >= 2 && isQuestionTitle(node.title)) {
+        const placed = !ghost && placementOf(node)
+        drawQuestionBadge(x, y + h / 2, !!(placed && placed.answered), ghost ? null : node.ref)
+      }
+      ctx.globalAlpha = base
+    }
+
+    // ---- A paper as a page
+    //
+    // A source whose card shows page n of its PDF: white in both themes, the
+    // picture contained at the top, then the foot: the kind's dot and the title
+    // in two lines (13 px, 600), the byline in one (12 px). Far out it is its
+    // picture. A green ✓ on the picture's top right for a paper the learner has
+    // read; while the card is the one selected, or hovered, a pill floats at
+    // the bottom of the picture, `‹  n / N  ›`, whose arrows turn the page.
+    function pageFaceImage(node, n) {
+      const ready = (img) => img && img.complete && img.naturalWidth ? img : null
+      const own = ready(state.thumbs.get('page:' + String(node.ref).replace(/^source:/, '') + ':' + n))
+      // Until the page's picture comes the first page is the source's own thumbnail.
+      return own || (n === 1 ? ready(state.thumbs.get(node.ref)) : null)
+    }
+    function drawPageFace(node, L, W, H, allowShadow) {
+      const c = state.colors
+      const s = state.scale
+      const p = pos(node)
+      if (!p) return
+      const x = p[0] * s + state.ox, y = p[1] * s + state.oy
+      if (x > W || y > H || x + MAX_CARD_W * s < 0) return
+      const [cw, ch] = sizeOf(node)
+      const w = cw * s, h = ch * s
+      if (x + w < 0 || y + h < 0) return
+      const base = ctx.globalAlpha
+      const tc = cardColor(node)
+      let alpha = presence(node)
+      if (state.highlight.size && !state.highlight.has(node.ref)) alpha *= 0.3
+      const mark = markOf(node.ref)
+      const dusty = !!(mark && mark.dusty)
+      if (dusty) alpha *= DUSTY_ALPHA
+      ctx.globalAlpha = alpha * base
+      const radius = Math.max(2, 10 * s)
+      const ringed = state.selection.has(node.ref) || state.highlight.has(node.ref)
+      if (L === 0) {
+        ctx.fillStyle = '#ffffff'
+        roundRect(x, y, Math.max(2, w), Math.max(2, h), radius); ctx.fill()
+        if (ringed) { ctx.strokeStyle = c.select; ctx.lineWidth = 1.5; ctx.stroke() }
+        ctx.globalAlpha = base
+        return
+      }
+      const lift = state.lifting
+      const shadow = lift || allowShadow
+      if (shadow) {
+        ctx.save()
+        ctx.shadowColor = c.shadow
+        ctx.shadowBlur = lift ? 30 : Math.min(18, 14 * Math.max(0.5, s))
+        ctx.shadowOffsetY = lift ? 12 : Math.min(4, 3 * Math.max(0.5, s))
+      }
+      ctx.fillStyle = '#ffffff'
+      roundRect(x, y, w, h, radius); ctx.fill()
+      if (shadow) ctx.restore()
+      if (tc) { ctx.strokeStyle = withAlpha(tc, 0.7); ctx.lineWidth = 1.6 } else { ctx.strokeStyle = c.hairline; ctx.lineWidth = 1 }
+      ctx.stroke()
+      if (ringed) {
+        ctx.strokeStyle = c.select; ctx.lineWidth = 2
+        roundRect(x - 3, y - 3, w + 6, h + 6, radius + 3); ctx.stroke()
+      } else if (state.hover === node.ref && !state.drag) {
+        ctx.strokeStyle = withAlpha(c.select, 0.45); ctx.lineWidth = 1.5
+        roundRect(x - 2, y - 2, w + 4, h + 4, radius + 2); ctx.stroke()
+      }
+      // From the top: the page, the foot, the room for the learner's words.
+      const annPx = annotationH(node) * s
+      const pageH = Math.max(1, ch - PAGE_FOOT - annotationH(node)) * s
+      const n = pageOf(node)
+      ctx.save()
+      roundRect(x, y, w, h, radius); ctx.clip()
+      const img = pageFaceImage(node, n)
+      const ratio = img ? img.naturalWidth / img.naturalHeight : node.aspect > 0 ? node.aspect : LETTER_ASPECT
+      const dw = Math.min(w, pageH * ratio), dh = dw / ratio
+      const ix = x + (w - dw) / 2
+      if (img) ctx.drawImage(img, ix, y, dw, dh)
+      else {
+        // The picture has not come: a blank sheet with its number.
+        ctx.fillStyle = '#f1f1ef'; ctx.fillRect(ix, y, dw, dh)
+        const nf = clamp(dh * 0.16, 9, 44)
+        ctx.font = '600 ' + nf + 'px ' + state.font; ctx.fillStyle = '#c3c3bf'
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+        ctx.fillText(String(n), ix + dw / 2, y + dh / 2)
+        ctx.textAlign = 'left'; ctx.textBaseline = 'top'
+      }
+      if (L >= 2) {
+        if (tc) { ctx.fillStyle = withAlpha(tc, 0.12); ctx.fillRect(x, y + pageH, w, h - pageH - annPx) }
+        const tx = x + Math.max(8, 12 * s), tw = w - Math.max(16, 24 * s)
+        let ty = y + pageH + Math.max(4, 8 * s)
+        const tf = clamp(13 * s, 9, 13), lh = tf + 3
+        ctx.fillStyle = TYPE_TINTS[node.type] || TYPE_TINTS.paper
+        ctx.beginPath(); ctx.arc(tx + 3.5, ty + tf * 0.55, Math.max(2, 3.2 * Math.min(1, s + 0.4)), 0, Math.PI * 2); ctx.fill()
+        ctx.fillStyle = '#1d1d1f'; ctx.font = '600 ' + tf + 'px ' + state.font
+        const titleLines = wrapLines(node.title, ctx.font, tw - 12, 2)
+        drawLines(titleLines, tx + 12, ty, lh)
+        ty += titleLines.length * lh + 2
+        const bf = clamp(12 * s, 8.5, 12)
+        if (node.sub && y + h - annPx - ty >= bf + 2) {
+          ctx.font = bf + 'px ' + state.font; ctx.fillStyle = '#6e6e73'
+          drawLines(wrapLines(node.sub, ctx.font, tw, 1), tx, ty, bf + 3)
+        }
+      }
+      ctx.restore()
+      if (annPx > 0 && L >= 2) drawAnnotation(node, x, y + h - annPx, w, annPx, '#1d1d1f')
+      if (L >= 2 && node.read) drawReadMark(x + w - 14, y + 14)
+      const selected = state.selection.size === 1 && state.selection.has(node.ref)
+      if (L >= 2 && node.pages > 1 && pageH >= 60 && (selected || state.hover === node.ref) && !state.exporting && !state.lifting) drawStepper(node, n, x + w / 2, y + pageH - 22)
+      if (dusty) drawHatch(x, y, w, h, radius)
+      ctx.globalAlpha = base
+    }
+    // `‹  n / N  ›` with its middle at (cx, cy) on screen; the arrows are the turn
+    // buttons (`pageHits`), the numbers swallow a press so it never starts a drag.
+    function drawStepper(node, n, cx, cy) {
+      const text = n + ' / ' + node.pages
+      ctx.font = '600 12px ' + state.font
+      const tw = ctx.measureText(text).width, arrow = 26, ph = 24
+      const pw = tw + arrow * 2
+      const x = cx - pw / 2, y = cy - ph / 2
+      ctx.save()
+      ctx.shadowColor = 'rgba(0,0,0,0.28)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 2
+      ctx.fillStyle = 'rgba(30,30,32,0.86)'
+      roundRect(x, y, pw, ph, ph / 2); ctx.fill()
+      ctx.restore()
+      ctx.save()
+      const a = ctx.globalAlpha
+      ctx.fillStyle = '#ffffff'; ctx.textBaseline = 'middle'; ctx.textAlign = 'center'
+      ctx.fillText(text, cx, cy + 0.5)
+      ctx.font = '600 17px ' + state.font
+      // An arrow at the end of the PDF is dimmed.
+      ctx.globalAlpha = a * (n > 1 ? 1 : 0.32)
+      ctx.fillText('‹', x + arrow / 2, cy - 0.5)
+      ctx.globalAlpha = a * (n < node.pages ? 1 : 0.32)
+      ctx.fillText('›', x + pw - arrow / 2, cy - 0.5)
+      ctx.restore()
+      state.pageHits.push({ ref: node.ref, dir: -1, x, y, w: arrow, h: ph }, { ref: node.ref, dir: 0, x: x + arrow, y, w: pw - arrow * 2, h: ph }, { ref: node.ref, dir: 1, x: x + pw - arrow, y, w: arrow, h: ph })
+    }
+    function hitPageStepper(px, py) {
+      return state.pageHits.find(b => px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h) || null
+    }
+    // Turns a page face's page by one: drawn at once, then told to the host.
+    function turnPage(ref, delta) {
+      const node = state.byRef.get(ref)
+      if (!node || !isPageFace(node)) return false
+      const p = state.placements[ref]
+      const next = clamp(pageOf(node) + delta, 1, node.pages)
+      if (next === pageOf(node)) return false
+      p.page = next
+      host.post('placementChanged', { items: [{ ref, page: next }] })
+      invalidate()
+      return true
+    }
+    // The one selected card, when it is a page face with more than a page.
+    function onePageFace() {
+      if (state.selection.size !== 1) return null
+      const node = state.byRef.get([...state.selection][0])
+      return node && isPageFace(node) && node.pages > 1 ? node : null
+    }
+    // A question marked answered here, or open again (the badge's press).
+    function toggleAnswered(ref) {
+      const p = state.placements[ref]
+      if (!p || !state.byRef.has(ref)) return
+      const next = !p.answered
+      if (next) p.answered = true; else delete p.answered
+      host.post('placementChanged', { items: [{ ref, answered: next ? true : null }] })
+      invalidate()
     }
 
     // A card's face for the zoom. `ghost` draws it as one of ForeverLM's
@@ -1806,6 +2377,12 @@
     // card, never selected, hovered or marked.
     function drawNode(node, L, W, H, allowShadow, ghost) {
       if (node.kind === 'clip' || node.kind === 'page' || node.kind === 'picture') return drawClip(node, L, W, H, allowShadow, ghost)
+      // A mind map's node (or a proposed one) and a paper shown as a page have their own faces.
+      if (ghost && ghost.tree) return drawTreeNode(node, L, W, H, { role: ghost.tree.role, tint: ghost.tree.tint, w: ghost.tree.w, h: ghost.tree.h, ghost })
+      const mind = ghost ? null : mindInfo(node)
+      if (mind) return drawTreeNode(node, L, W, H, { role: mind.role, tint: nodeTint(node, mind), allowShadow })
+      // (A page face folded to its title line is the usual folded card.)
+      if (!ghost && isPageFace(node) && !isFoldedCard(node)) return drawPageFace(node, L, W, H, allowShadow)
       const c = state.colors
       const s = state.scale
       const p = ghost ? [ghost.x, ghost.y] : pos(node)
@@ -1816,7 +2393,10 @@
       // is out before the card is measured.
       if (x > W || y > H || x + MAX_CARD_W * s < 0) return
       const [cw, ch] = sizeOf(node)
-      const w = cw * s, h = ch * s
+      const w = cw * s
+      // `hFull` is the whole card; `h` becomes the card without the room for its annotation.
+      const hFull = ch * s
+      let h = hFull
       if (x + w < 0 || y + h < 0) return
       const lensed = !ghost && !!(state.lens && state.lens.positions[node.ref])
       const lifted = !!ghost || isPlaced(node) || lensed
@@ -1824,12 +2404,14 @@
       if (!ghost && state.lens && !lensed) alpha = state.lens.hideOthers ? 0.05 : 0.2
       if (!ghost && state.highlight.size && !state.highlight.has(node.ref)) alpha *= 0.3
       const isIdea = node.kind === 'idea'
+      // An Idea shown as plain words: no sticky, shadow or hairline.
+      const plain = isIdea && !ghost && isPlain(node)
       // The colour the learner gave the card tints its face: a source or Doc
       // the tint over white with a hairline in it, an Idea the tint in place
       // of the sticky yellow, its words in whichever ink reads on it.
       const tc = ghost ? null : cardColor(node)
       const pal = isIdea && tc ? ideaPalette(tc) : null
-      const ink = pal ? pal.ink : c.stickyText
+      const ink = plain ? c.text : pal ? pal.ink : c.stickyText
       const mark = ghost ? null : markOf(node.ref)
       const dusty = !!(mark && mark.dusty)
       if (dusty) alpha *= DUSTY_ALPHA
@@ -1840,7 +2422,7 @@
       ctx.globalAlpha = alpha * base
 
       if (L === 0) {
-        ctx.fillStyle = isIdea ? (pal ? pal.fill : c.sticky) : lifted ? c.card : c.flat
+        ctx.fillStyle = plain ? withAlpha(c.text, 0.16) : isIdea ? (pal ? pal.fill : c.sticky) : lifted ? c.card : c.flat
         roundRect(x, y, Math.max(2, w), Math.max(2, h), radius); ctx.fill()
         if (tc && !isIdea) { ctx.fillStyle = withAlpha(tc, state.dark ? 0.22 : 0.14); ctx.fill() }
         if (ringed) { ctx.strokeStyle = c.select; ctx.lineWidth = 1.5; ctx.stroke() }
@@ -1851,15 +2433,17 @@
 
       // The card.
       const lift = state.lifting || !!(ghost && ghost.lifted)
-      const shadow = lift || (lifted && allowShadow)
+      const shadow = !plain && (lift || (lifted && allowShadow))
       if (shadow) {
         ctx.save()
         ctx.shadowColor = c.shadow
         ctx.shadowBlur = lift ? 30 : Math.min(18, 14 * Math.max(0.5, s))
         ctx.shadowOffsetY = lift ? 12 : Math.min(4, 3 * Math.max(0.5, s))
       }
-      ctx.fillStyle = isIdea ? (pal ? pal.fill : c.sticky) : lifted || lift ? c.card : c.flat
-      roundRect(x, y, w, h, radius); ctx.fill()
+      if (!plain) {
+        ctx.fillStyle = isIdea ? (pal ? pal.fill : c.sticky) : lifted || lift ? c.card : c.flat
+        roundRect(x, y, w, h, radius); ctx.fill()
+      }
       if (shadow) ctx.restore()
       if (tc && !isIdea) {
         ctx.fillStyle = withAlpha(tc, state.dark ? 0.2 : 0.12); ctx.fill()
@@ -1874,13 +2458,16 @@
         roundRect(x - 2, y - 2, w + 4, h + 4, radius + 2); ctx.stroke()
       }
 
+      // The room for the learner's words (every card but an Idea) takes the foot of the card.
+      const annPx = ghost ? 0 : annotationH(node) * s
+      h = hFull - annPx
       const pad = Math.max(6, 14 * s)
       const tint = tc || TYPE_TINTS[node.type] || TYPE_TINTS[node.kind] || TYPE_TINTS.other
       const kept = mark && mark.cards > 0 ? mark : null
       // A folded card is its title line, from the middle zoom in.
       if (!ghost && L >= 2 && isFoldedCard(node)) {
         drawFoldedLine(node, x, y, w, h, radius, tint, isIdea ? ink : c.text)
-        if (dusty) drawHatch(x, y, w, h, radius)
+        if (dusty) drawHatch(x, y, w, hFull, radius)
         ctx.globalAlpha = base
         return
       }
@@ -1918,7 +2505,7 @@
           ctx.strokeStyle = c.card; ctx.lineWidth = 1.2; ctx.stroke()
         }
         if (kept) drawPip(x + 7, y + h - 7, memoryTone(kept), true)
-        if (dusty) drawHatch(x, y, w, h, radius)
+        if (dusty) drawHatch(x, y, w, hFull, radius)
         ctx.globalAlpha = base
         return
       }
@@ -1933,15 +2520,17 @@
       // above it.
       const chip = kept && L >= 2 ? memoryChip(kept, x, y, h, L, pad) : null
       const chipRow = chip ? y + h - chip.y + 2 : 0
-      const tw = x + w - left - pad * 2 - (L === 2 && !isIdea ? 8 : 0)
+      // A source the learner has read wears a green ✓ on its corner, and its words stop short of it.
+      const reads = !isIdea && !ghost && L >= 2 && !!node.read
+      const tw = x + w - left - pad * 2 - (L === 2 && !isIdea ? 8 : 0) - (reads ? 14 : 0)
       if (tw < 24 || h < 16) {
         if (chip) drawMemoryChip(chip)
-        if (dusty) drawHatch(x, y, w, h, radius)
+        if (dusty) drawHatch(x, y, w, hFull, radius)
         ctx.globalAlpha = base
         return
       }
       ctx.save()
-      roundRect(x, y, w, h, radius); ctx.clip()
+      roundRect(x, y, w, hFull, radius); ctx.clip()
       let cy = y + pad * 0.85
 
       const tf = isIdea ? (L === 1 ? 12 : 14) : (L === 1 ? 11.5 : L === 2 ? 13 : 14)
@@ -1951,8 +2540,10 @@
       const showSub = L >= 3 && !isIdea && (node.sub || node.type)
       // A chat and a canvas wear a glyph before their title instead of the kind's dot.
       const glyph = node.kind === 'chat' || node.kind === 'canvas' ? node.kind : null
-      const gi = glyph && L >= 2 ? 17 : 0
-      if (L === 2 && !isIdea && !glyph) {
+      // A question's badge, at the top left inside the padding, the title after it.
+      const asks = isIdea && L >= 2 && isQuestionTitle(node.title)
+      const gi = glyph && L >= 2 ? 17 : asks ? BADGE_R * 2 + 6 : 0
+      if (L === 2 && !isIdea && !glyph && !reads) {
         ctx.fillStyle = tint
         ctx.beginPath(); ctx.arc(x + w - 8, y + 8, 3, 0, Math.PI * 2); ctx.fill()
       }
@@ -1967,14 +2558,15 @@
         const titleLines = wrapLines(node.title, titleFont, tw - gi, Math.min(isIdea ? IDEA_TITLE_LINES : 3, room))
         ctx.font = titleFont
         drawLines(titleLines, left + pad + gi, cy, tf + 4)
-        if (gi) drawKindGlyph(glyph, left + pad + 1, cy + 1, 13, tint)
+        if (glyph && gi) drawKindGlyph(glyph, left + pad + 1, cy + 1, 13, tint)
+        if (asks) drawQuestionBadge(left + pad + BADGE_R, cy + 9, !ghost && !!(placementOf(node) && placementOf(node).answered), ghost ? null : node.ref)
         cy += titleLines.length * (tf + 4) + 3
         // An Idea's note under its title, as far as the card has room.
         if (isIdea && !ghost && L >= 2) {
           const note = ideaNote(node)
           const nroom = Math.floor((y + h - cy - pad * 0.5 - footRow) / 16)
           if (note && nroom > 0) {
-            ctx.font = '12.5px ' + state.font; ctx.fillStyle = withAlpha(ink, 0.78)
+            ctx.font = '12.5px ' + state.font; ctx.fillStyle = plain ? c.sub : withAlpha(ink, 0.78)
             drawLines(wrapLines(note, ctx.font, tw, Math.min(IDEA_NOTE_LINES, nroom)), left + pad, cy + 1, 16)
           }
         }
@@ -2002,9 +2594,11 @@
         ctx.fillText('▤ ' + evidence + (evidence === 1 ? ' source' : ' sources'), chip ? chip.x + chip.w + 8 : x + pad, y + h - pad * 0.6 - 13)
       }
       ctx.restore()
+      if (annPx > 0 && L >= 2) drawAnnotation(node, x, y + h, w, annPx, c.text)
+      if (reads) drawReadMark(x + w - 13, y + 13)
       if (chip) drawMemoryChip(chip)
       else if (kept) drawPip(x + 7, y + h - 7, memoryTone(kept), true)
-      if (dusty) drawHatch(x, y, w, h, radius)
+      if (dusty) drawHatch(x, y, w, hFull, radius)
       ctx.globalAlpha = base
     }
 
@@ -2201,10 +2795,63 @@
       }
       return pts[0]
     }
+    // ---- Bundles (the brace)
+    //
+    // Two or more arrows into one card from the same side of it (the side the
+    // straight line from the other end's middle enters by), of one colour,
+    // dashing and head, are drawn converging: each a cubic from its start to a
+    // junction 28 points off the middle of that side, arriving along the side's
+    // outward normal, and one stem from the junction to the card with one head.
+    // Only default curves with the end head join a bundle, never a branch or an
+    // end on a region. Worked out once per layout: `invalidate` (and, while
+    // cards slide, each frame) drops the cache.
+    const SIDE_NORMALS = { left: [-1, 0], right: [1, 0], top: [0, -1], bottom: [0, 1] }
+    function entrySide(a, b) {
+      const dx = a.x + a.w / 2 - (b.x + b.w / 2), dy = a.y + a.h / 2 - (b.y + b.h / 2)
+      // The offset against the box's own proportions, so a wide box takes the top and bottom more often.
+      return Math.abs(dx) * b.h >= Math.abs(dy) * b.w ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'top' : 'bottom')
+    }
+    function bundles() {
+      if (state.bundleCache) return state.bundleCache
+      const out = { byEdge: new Map(), list: [] }
+      const groups = new Map()
+      for (const e of Object.values(state.edges)) {
+        if (e.tree || (e.route && e.route !== 'curve') || (e.heads && e.heads !== 'end')) continue
+        if (String(e.from).startsWith('region:') || String(e.to).startsWith('region:') || !edgeShown(e)) continue
+        const a = endRect(e.from), b = endRect(e.to)
+        if (!a || !b) continue
+        const side = entrySide(a, b)
+        const key = [e.to, side, edgeColor(e), !!e.dashed].join('|')
+        if (!groups.has(key)) groups.set(key, { side, b, color: edgeColor(e), dashed: !!e.dashed, members: [] })
+        groups.get(key).members.push({ e, a })
+      }
+      for (const g of groups.values()) {
+        if (g.members.length < 2) continue
+        const n = SIDE_NORMALS[g.side]
+        const mid = [g.b.x + g.b.w / 2 + n[0] * g.b.w / 2, g.b.y + g.b.h / 2 + n[1] * g.b.h / 2]
+        const junction = [mid[0] + n[0] * JUNCTION, mid[1] + n[1] * JUNCTION]
+        // The stem ends a gap off the card, as every arrow does.
+        const bundle = { side: g.side, junction, tip: [mid[0] + n[0] * 8, mid[1] + n[1] * 8], color: g.color, dashed: g.dashed, edges: g.members.map(m => m.e.id) }
+        for (const { e, a } of g.members) {
+          const p0 = boxEdge([a.x + a.w / 2, a.y + a.h / 2], junction, a)
+          const dx = junction[0] - p0[0], dy = junction[1] - p0[1]
+          const d = Math.hypot(dx, dy) || 1
+          const k = Math.max(20, d * 0.4)
+          // It leaves toward the junction and arrives along the side's outward normal.
+          const p1 = [p0[0] + dx / d * k, p0[1] + dy / d * k], p2 = [junction[0] + n[0] * k, junction[1] + n[1] * k]
+          out.byEdge.set(e.id, { kind: 'cubic', pts: [p0, p1, p2, junction], mid: cubicPoint(p0, p1, p2, junction, 0.5), bundle })
+        }
+        out.list.push(bundle)
+      }
+      return (state.bundleCache = out)
+    }
+
     // The route an arrow takes, in world points: {kind: quad | cubic | poly, pts, mid}.
     function edgePath(e) {
       const a = endRect(e.from), b = endRect(e.to)
       if (!a || !b) return null
+      const bundled = bundles().byEdge.get(e.id)
+      if (bundled) return bundled
       if (e.tree) {
         const p0 = [a.x + a.w, a.y + a.h / 2], p3 = [b.x, b.y + b.h / 2]
         const k = Math.max(24, Math.abs(p3[0] - p0[0]) * 0.5)
@@ -2260,10 +2907,18 @@
     }
     // A branch takes its region's tint, unless it was given a colour.
     function treeTint(e) {
+      const branch = stackLayout().branchTint.get(e.to)
+      if (branch) return branch
       const id = stackLayout().innermost.get(e.to)
       const r = id && state.regions[id]
       return r && r.color ? r.color : null
     }
+    // An arrow's colour: its own, else its stance's (green for, red against),
+    // else a branch's tint, else the edge colour.
+    function stanceTint(e) {
+      return e.stance === 'supports' ? state.colors.memSolid : e.stance === 'contradicts' ? state.colors.contra : null
+    }
+    function edgeColor(e) { return e.color || stanceTint(e) || (e.tree ? treeTint(e) : null) || state.colors.edge }
     // Whether an arrow shows at all: both ends there, and in a lens only
     // between cards the lens shows.
     function edgeShown(e) {
@@ -2307,7 +2962,7 @@
         if (minX > W + 40 || minY > H + 40 || maxX < -40 || maxY < -40) continue
         const selected = state.selectedEdge === e.id
         ctx.globalAlpha = base * focusDim(e)
-        const color = selected ? c.select : e.color || (e.tree ? treeTint(e) : null) || c.edge
+        const color = selected ? c.select : edgeColor(e)
         ctx.strokeStyle = color; ctx.fillStyle = color
         ctx.lineWidth = e.tree ? (selected ? 2.8 : 2) : selected ? 2.2 : 1.6
         ctx.lineCap = e.dashed ? 'butt' : 'round'; ctx.lineJoin = 'round'
@@ -2317,7 +2972,8 @@
         else if (path.kind === 'cubic') ctx.bezierCurveTo(pts[1][0], pts[1][1], pts[2][0], pts[2][1], pts[3][0], pts[3][1])
         else for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1])
         ctx.stroke(); ctx.setLineDash([]); ctx.lineCap = 'butt'; ctx.lineJoin = 'miter'
-        const heads = e.tree ? 'none' : e.heads === 'both' || e.heads === 'none' ? e.heads : 'end'
+        // A bundled arrow ends at its junction: the stem, drawn once, has the head.
+        const heads = e.tree || path.bundle ? 'none' : e.heads === 'both' || e.heads === 'none' ? e.heads : 'end'
         if (heads !== 'none') {
           const [startAng, endAng] = endAngles({ kind: path.kind, pts })
           drawHead(pts[pts.length - 1][0], pts[pts.length - 1][1], endAng, 10)
@@ -2329,7 +2985,23 @@
           state.edgePills.push({ id: e.id, x: box.x, y: box.y, w: box.w, h: box.h })
         }
       }
+      drawStems(base)
       ctx.globalAlpha = base
+    }
+    // One stem from each bundle's junction to its card, with the one head, as
+    // visible as the most visible of its arrows.
+    function drawStems(base) {
+      for (const bd of bundles().list) {
+        const [jx, jy] = toScreen(bd.junction[0], bd.junction[1]), [tx, ty] = toScreen(bd.tip[0], bd.tip[1])
+        if (Math.max(jx, tx) < -40 || Math.min(jx, tx) > viewW() + 40 || Math.max(jy, ty) < -40 || Math.min(jy, ty) > viewH() + 40) continue
+        ctx.globalAlpha = base * Math.max(...bd.edges.map(id => focusDim(state.edges[id])))
+        ctx.strokeStyle = bd.color; ctx.fillStyle = bd.color
+        ctx.lineWidth = 1.6; ctx.lineCap = bd.dashed ? 'butt' : 'round'
+        if (bd.dashed) ctx.setLineDash(DASH)
+        ctx.beginPath(); ctx.moveTo(jx, jy); ctx.lineTo(tx, ty); ctx.stroke()
+        ctx.setLineDash([]); ctx.lineCap = 'butt'
+        drawHead(tx, ty, Math.atan2(ty - jy, tx - jx), 10)
+      }
     }
 
     function pill(text, cx, cy, selected) {
@@ -2598,7 +3270,8 @@
     function computeLayoutOnce(placements, carried, drawnH, resizing, grow, pinned) {
       // frameOf: each card drawn in a notebook's frame, by the frame's id.
       // innermost: each placed card's region, the innermost one around it.
-      const out = { pos: new Map(), stackOf: new Map(), stacks: [], regionH: new Map(), regionW: new Map(), members: new Map(), frameOf: new Map(), innermost: new Map(), fixedW: new Set() }
+      // branchTint: each mind-map card's branch colour (see `layoutTree`).
+      const out = { pos: new Map(), stackOf: new Map(), stacks: [], regionH: new Map(), regionW: new Map(), members: new Map(), frameOf: new Map(), innermost: new Map(), fixedW: new Set(), branchTint: new Map() }
       if (state.lens) return out
       const regions = Object.values(state.regions)
       const heightOf = (r, ref) => {
@@ -2741,7 +3414,9 @@
     // stacked with a 24 gap in the order of their stored spots, a parent
     // centred on its children's block, subtrees never overlapping (the widths
     // are the cards' own). A card folded hides what hangs from it. The region
-    // is as tall as the tree, and as wide when the tree is wider.
+    // is as tall as the tree, and as wide when the tree is wider. Each child of
+    // a root, in the order its branch is drawn, takes the next of the eight
+    // tints after the region's own, and every card under it inherits it.
     const TREE_PAD_X = 40, TREE_PAD_Y = 36, TREE_COL = 60, TREE_GAP = 24, TREE_ROOT_GAP = 40
     function layoutTree(r, members, out) {
       const spot = new Map(members.map(m => [m.node.ref, m]))
@@ -2776,10 +3451,18 @@
       const live = members.filter(m => visible(m.node.ref)).sort(order)
       const roots = live.filter(m => !visible(parent.get(m.node.ref) || '')).map(m => m.node.ref)
       let top = r.y + TREE_PAD_Y
-      const stack = (ref) => { measure(ref, new Set()); put(ref, x0, top); top += size.get(ref).total + TREE_ROOT_GAP }
+      const stacked = []
+      const stack = (ref) => { stacked.push(ref); measure(ref, new Set()); put(ref, x0, top); top += size.get(ref).total + TREE_ROOT_GAP }
       for (const ref of roots) stack(ref)
       // A cycle has no root: its cards are roots in their own right.
       for (const m of live) if (!placed.has(m.node.ref)) stack(m.node.ref)
+      const start = REGION_TINTS.indexOf(r.color || REGION_TINTS[0])
+      const tintDown = (ref, tint) => {
+        if (out.branchTint.has(ref)) return
+        out.branchTint.set(ref, tint)
+        for (const k of kidsOf.get(ref) || []) tintDown(k, tint)
+      }
+      for (const root of stacked) (kidsOf.get(root) || []).forEach((k, i) => tintDown(k, REGION_TINTS[(start + 1 + i) % REGION_TINTS.length]))
       out.members.set(r.id, live.map(m => m.node.ref))
       const bottom = roots.length || live.length ? top - TREE_ROOT_GAP : r.y + TREE_PAD_Y
       out.regionH.set(r.id, bottom - r.y + TREE_PAD_Y)
@@ -3305,6 +3988,9 @@
       if (set && state.gotContent && state.gotLayout) {
         const grid = ghostObstacles()
         const asked = planeCentre(set.anchor)
+        // A Mind Map's or Question Map's questions are laid out together, as a tree.
+        const tree = set.plan && set.plan.tree ? set.plan : null
+        if (tree) layoutGhostTree(set, tree, grid, asked, next)
         // One row height for the whole set, so its ghosts line up in rows.
         const room = set.proposals.some(p => p && (p.kind === 'source' || p.kind === 'question') && p.why) ? WHY_ROOM : 0
         for (const p of set.proposals) {
@@ -3312,6 +3998,7 @@
           const id = String(p.id)
           const gone = state.ghostGone.get(id)
           if (gone && gone.kind === 'dismissed') continue
+          if (tree && p.kind === 'question') continue
           if (p.kind === 'edge') {
             if (p.from && p.to) next.set(id, { id, p, kind: 'edge' })
             continue
@@ -3337,6 +4024,156 @@
       if (state.ghostHover && !next.has(state.ghostHover)) { state.ghostHover = null; state.ghostPart = null }
       postGhostLayout(force)
     }
+    // ---- Ghost trees
+    //
+    // A Mind Map or Question Map (a set whose `plan.tree` is true) is proposed
+    // as a tidy tree with the look and sizes of a placed mind map's nodes
+    // (`treeNodeSize`), in the order proposed, not in free slots. With
+    // `plan.rootRef` a placed card, the tree grows from it: its children's
+    // column 60 points right of the card, the block centred on the card's
+    // middle, and the card itself never moves. Without one, the ghost root and
+    // its tree go in the free spot nearest the asked cards that holds the
+    // tree's whole box. The branches are dashed in ForeverLM's colour. The
+    // tree is laid out once and kept as it is (a ghost kept or dismissed
+    // leaves a gap, not a reflow), until the card it grows from moves or
+    // something lands on the box.
+    // The ghost tree's tint after `base`'s, for its i-th branch.
+    function nextTint(base, i) { return REGION_TINTS[(REGION_TINTS.indexOf(base) + 1 + i) % REGION_TINTS.length] }
+    // The spots for a box about a point, nearest first (80 apart), the right and below before the left and above.
+    let boxSpots = null
+    function freeBoxSpot(c, w, h, grid) {
+      if (!boxSpots) {
+        boxSpots = []
+        for (let j = -60; j <= 60; j++) for (let i = -60; i <= 60; i++) boxSpots.push({ dx: i * 80, dy: j * 80, d: Math.hypot(i, j) })
+        boxSpots.sort((a, b) => a.d - b.d || b.dy - a.dy || b.dx - a.dx)
+      }
+      for (const o of boxSpots) {
+        const x = round(c[0] - w / 2 + o.dx), y = round(c[1] - h / 2 + o.dy)
+        if (!grid.hits({ x: x - GHOST_MARGIN, y: y - GHOST_MARGIN, w: w + GHOST_MARGIN * 2, h: h + GHOST_MARGIN * 2 })) return { x, y }
+      }
+      return null
+    }
+    function layoutGhostTree(set, plan, grid, asked, out) {
+      const nodes = new Map()
+      for (const p of set.proposals) {
+        if (p && p.id != null && p.kind === 'question') nodes.set(String(p.id), { id: String(p.id), p, kids: [], root: false, tint: null })
+      }
+      const parentOf = new Map((plan.arrows || []).map(a => [String(a.to), String(a.from)]))
+      const rootBox = plan.rootRef && state.byRef.get(plan.rootRef) ? endRect(plan.rootRef) : null
+      const rootRef = rootBox ? plan.rootRef : null
+      let memory = state.ghostTree
+      if (!memory || memory.setId !== set.id) memory = state.ghostTree = { setId: set.id, key: null, rects: new Map(), parents: parentOf, dismissed: new Set(), free: null, rootRef }
+      memory.rootRef = rootRef
+      const gone = (id) => { const g = state.ghostGone.get(id); return !!g && g.kind === 'dismissed' }
+      // A proposal kept leaves the set but its Idea stands where its ghost was.
+      const kept = (id) => !nodes.has(id) && memory.rects.has(id) && !memory.dismissed.has(id)
+      // Each proposal's parent: the branch that leads to it, by way of any
+      // proposal that is gone (dismissed, or not there: `plan.arrows` still name
+      // it) to the one before. A branch that ends at a proposal kept leaves the
+      // ghost hanging where it was; one that ends nowhere makes it a root of its own.
+      const tops = [], underRoot = []
+      for (const n of nodes.values()) {
+        if (gone(n.id)) continue
+        let up = parentOf.get(n.id)
+        for (let hops = 0; up != null && up !== rootRef && !(nodes.has(up) && !gone(up)) && !kept(up) && hops < 64; hops++) up = parentOf.get(up)
+        if (up != null && up === rootRef) underRoot.push(n)
+        else if (up != null && nodes.has(up) && !gone(up)) nodes.get(up).kids.push(n)
+        else { n.root = !(up != null && kept(up)); tops.push(n) }
+      }
+      const mind = rootRef ? mindInfo(state.byRef.get(rootRef)) : null
+      // The region's tint the branches' colours follow: the root card's, else the next region's.
+      const base = mind ? (state.regions[mind.regionID].color || REGION_TINTS[0]) : REGION_TINTS[Object.keys(state.regions).length % REGION_TINTS.length]
+      const measure = (n) => {
+        const size = treeNodeSize(String(n.p.text || ''), n.root ? 'root' : n.kids.length ? 'branch' : 'leaf')
+        n.w = size.w; n.h = size.h
+        let block = 0
+        for (const k of n.kids) block += measure(k) + (block ? TREE_GAP : 0)
+        n.block = block; n.total = Math.max(n.h, block)
+        return n.total
+      }
+      const paint = (n, tint) => { n.tint = tint; for (const k of n.kids) paint(k, tint) }
+      let right = 0
+      const put = (n, x, top) => {
+        n.x = x; n.y = top + (n.total - n.h) / 2
+        right = Math.max(right, x + n.w)
+        let y = top + (n.total - n.block) / 2
+        for (const k of n.kids) { put(k, x + n.w + TREE_COL, y); y += k.total + TREE_GAP }
+      }
+      const shift = (n, dx, dy) => { n.x += dx; n.y += dy; for (const k of n.kids) shift(k, dx, dy) }
+      const key = rootBox ? 'root|' + [rootBox.x, rootBox.y, rootBox.w, rootBox.h].map(round).join('|') : 'free'
+      // Still standing where it was laid out, unless something has landed on its box.
+      let standing = memory.key === key && [...nodes.values()].every(n => gone(n.id) || memory.rects.has(n.id))
+      const margin = (r) => ({ x: r.x - GHOST_MARGIN, y: r.y - GHOST_MARGIN, w: r.w + GHOST_MARGIN * 2, h: r.h + GHOST_MARGIN * 2 })
+      if (standing && memory.free && grid.hits(margin(memory.free))) standing = false
+      // What hangs from a placed card takes the next tints after its region's (or its branch's); the others are trees of their own.
+      if (mind && mind.role !== 'root') for (const n of underRoot) paint(n, nodeTint(state.byRef.get(rootRef), mind))
+      else underRoot.forEach((n, i) => paint(n, nextTint(base, i)))
+      let total = 0
+      for (const n of underRoot) total += measure(n) + (total ? TREE_GAP : 0)
+      for (const n of tops) {
+        measure(n)
+        if (n.root) { n.tint = base; n.kids.forEach((k, i) => paint(k, nextTint(base, i))) }
+        else { const was = memory.rects.get(n.id); paint(n, was && was.tint || nextTint(base, 0)) }
+      }
+      if (!standing) {
+        // The children's column, the block level with the card's middle.
+        let y = underRoot.length ? rootBox.y + rootBox.h / 2 - total / 2 : 0
+        for (const n of underRoot) { put(n, rootBox.x + rootBox.w + TREE_COL, y); y += n.total + TREE_GAP }
+        // The roots stacked, the whole box put in the free spot nearest the asked cards.
+        memory.free = null
+        if (tops.length) {
+          right = 0
+          let top = 0
+          for (const n of tops) { put(n, 0, top); top += n.total + TREE_ROOT_GAP }
+          const box = { w: right, h: top - TREE_ROOT_GAP }
+          const c = asked || viewCentre()
+          const at = freeBoxSpot(c, box.w, box.h, grid) || { x: round(c[0] - box.w / 2), y: round(c[1] - box.h / 2) }
+          for (const n of tops) shift(n, at.x, at.y)
+          memory.free = { x: at.x, y: at.y, w: box.w, h: box.h }
+        }
+      }
+      if (memory.free) grid.add(margin(memory.free))
+      memory.key = key
+      // What was laid out stays where it was while it stands; a ghost gone is
+      // remembered where it was, for the branches that hung from it.
+      const rects = new Map()
+      for (const n of nodes.values()) {
+        const was = standing && memory.rects.get(n.id)
+        if (gone(n.id) || (!was && n.x == null)) continue
+        const r = { x: was ? was.x : round(n.x), y: was ? was.y : round(n.y), w: n.w, h: n.h, tint: n.tint }
+        rects.set(n.id, r)
+        const parent = parentOf.get(n.id)
+        out.set(n.id, {
+          id: n.id, p: n.p, kind: 'card', x: r.x, y: r.y, room: 0,
+          node: { ref: 'proposal:' + n.id, kind: 'idea', type: 'idea', title: String(n.p.text || ''), sub: n.p.note ? String(n.p.note) : 'Idea', detail: [], shore: '' },
+          tree: { role: n.root ? 'root' : n.kids.length ? 'branch' : 'leaf', w: n.w, h: n.h, tint: n.tint, parent: parent == null ? null : parent },
+        })
+      }
+      for (const [id, r] of memory.rects) if (!rects.has(id)) rects.set(id, r)
+      memory.rects = rects
+    }
+    // The spot a card ghost is drawn at: where it is carried while it is, else its slot.
+    function ghostSpot(g) {
+      const d = state.drag
+      return d && d.kind === 'ghost' && d.id === g.id && d.moved ? [d.x, d.y] : [g.x, g.y]
+    }
+    // Where the branch to a ghost in a tree starts: the ghost before it (or the
+    // placed card the tree grows from), else, when that one has been kept, where
+    // it was (a ghost dismissed is skipped: its own parent takes its place).
+    function ghostBranchFrom(g) {
+      const mem = state.ghostTree
+      let up = g.tree.parent
+      for (let hops = 0; up != null && hops < 64; hops++) {
+        if (mem && up === mem.rootRef) return endRect(up)
+        const live = state.ghosts.get(up)
+        if (live && live.tree) { const [x, y] = ghostSpot(live); return { x, y, w: live.tree.w, h: live.tree.h } }
+        const memo = mem && mem.rects.get(up)
+        if (memo && !mem.dismissed.has(up)) return memo
+        up = mem ? mem.parents.get(up) : null
+      }
+      return null
+    }
+
     // The host keeps where each ghost is drawn, so Keep All places every one
     // there.
     function postGhostLayout(force) {
@@ -3356,7 +4193,24 @@
       for (const g of state.ghosts.values()) {
         if (g.kind === 'edge') drawGhostEdge(g, L, false)
         else if (g.kind === 'thread') drawGhostThread(g, L, false)
+        else if (g.kind === 'card' && g.tree) drawGhostBranch(g)
       }
+    }
+    // A proposed branch: a dashed S-curve in ForeverLM's colour, from the right
+    // middle of the ghost (or card) before it to the left middle of this one.
+    function drawGhostBranch(g) {
+      const from = ghostBranchFrom(g)
+      if (!from) return
+      const [bx, by] = ghostSpot(g)
+      const p0 = [from.x + from.w, from.y + from.h / 2], p3 = [bx, by + g.tree.h / 2]
+      const k = Math.max(24, Math.abs(p3[0] - p0[0]) * 0.5)
+      const [a, b, c, d] = [p0, [p0[0] + k, p0[1]], [p3[0] - k, p3[1]], p3].map(pt => toScreen(pt[0], pt[1]))
+      const keeping = state.ghostGone.has(g.id)
+      ctx.save()
+      ctx.strokeStyle = state.colors.ai; ctx.lineWidth = state.ghostSelected === g.id || state.ghostHover === g.id ? 2.4 : 1.8; ctx.lineCap = 'round'
+      if (!keeping) { ctx.globalAlpha *= 0.9; ctx.setLineDash([6, 5]) }
+      ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.bezierCurveTo(b[0], b[1], c[0], c[1], d[0], d[1]); ctx.stroke()
+      ctx.restore()
     }
     function drawGhosts(L, W, H) {
       state.ghostHits = []
@@ -3381,29 +4235,33 @@
       const d = state.drag && state.drag.kind === 'ghost' && state.drag.id === g.id && state.drag.moved ? state.drag : null
       const gx = d ? d.x : g.x, gy = d ? d.y : g.y
       const [x, y] = toScreen(gx, gy)
-      const w = CARD_W * s, h = CARD_H * s
+      const w = (g.tree ? g.tree.w : CARD_W) * s, h = (g.tree ? g.tree.h : CARD_H) * s
       const keeping = state.ghostGone.has(g.id)
       const whyH = L >= 2 && g.p.why && !keeping && !d ? g.room * s : 0
       if (x > W + 40 || y > H + 40 || x + w < -40 || y + h + whyH < -40) return
       const radius = Math.max(2, (g.p.kind === 'question' ? 4 : 12) * s)
       ctx.save()
       ctx.globalAlpha = keeping ? 1 : d ? 0.92 : GHOST_ALPHA
-      drawNode(g.node, L, W, H, false, { x: gx, y: gy, lifted: !!d })
+      drawNode(g.node, L, W, H, false, { x: gx, y: gy, lifted: !!d, tree: g.tree })
       ctx.restore()
       if (keeping) return
       const picked = state.ghostSelected === g.id
-      ctx.strokeStyle = c.ai
-      ctx.lineWidth = picked ? 2 : state.ghostHover === g.id ? 1.8 : 1.4
-      if (!picked) ctx.setLineDash([5, 4])
-      roundRect(x - 3, y - 3, w + 6, h + 6, radius + 3); ctx.stroke(); ctx.setLineDash([])
+      // A tree's ghosts are outlined dashed already: the ring shows when one is picked or under the pointer.
+      if (!g.tree || picked || state.ghostHover === g.id) {
+        ctx.strokeStyle = c.ai
+        ctx.lineWidth = picked ? 2 : state.ghostHover === g.id ? 1.8 : 1.4
+        if (!picked) ctx.setLineDash([5, 4])
+        roundRect(x - 3, y - 3, w + 6, h + 6, radius + 3); ctx.stroke(); ctx.setLineDash([])
+      }
       if (L === 0) return
-      // ForeverLM's mark on its corner.
-      const br = L >= 2 ? 8 : 6.5
+      // ForeverLM's mark on its corner (on a tree's small nodes, over the corner, clear of the words).
+      const br = g.tree ? 6.5 : L >= 2 ? 8 : 6.5
+      const mx = g.tree ? x : x + 4, my = g.tree ? y : y + 4
       ctx.fillStyle = c.ai
-      ctx.beginPath(); ctx.arc(x + 4, y + 4, br, 0, Math.PI * 2); ctx.fill()
-      ctx.fillStyle = '#ffffff'; ctx.font = '600 ' + (L >= 2 ? 10 : 8.5) + 'px ' + state.font
+      ctx.beginPath(); ctx.arc(mx, my, br, 0, Math.PI * 2); ctx.fill()
+      ctx.fillStyle = '#ffffff'; ctx.font = '600 ' + (L >= 2 && !g.tree ? 10 : 8.5) + 'px ' + state.font
       ctx.textBaseline = 'middle'
-      ctx.fillText('✦', x + 4 - ctx.measureText('✦').width / 2, y + 4.5)
+      ctx.fillText('✦', mx - ctx.measureText('✦').width / 2, my + 0.5)
       ctx.textBaseline = 'top'
       // Why, in ForeverLM's voice, in the room kept under the ghost.
       const lines = Math.min(2, Math.floor((whyH - 4) / 16))
@@ -3579,6 +4437,8 @@
       if (g.kind === 'card') {
         if (at) { g.x = round(at.x); g.y = round(at.y) }
         message.x = g.x; message.y = g.y
+        const memo = g.tree && state.ghostTree && state.ghostTree.rects.get(id)
+        if (memo) { memo.x = g.x; memo.y = g.y }
       } else if (g.kind === 'thread') {
         const p = planePos(g.node)
         if (p) { message.x = round(p[0]); message.y = round(p[1]) }
@@ -3594,6 +4454,7 @@
       const g = state.ghosts.get(id)
       if (!g || state.ghostGone.has(id)) return
       state.ghostGone.set(id, { kind: 'dismissed' })
+      if (g.tree && state.ghostTree) state.ghostTree.dismissed.add(id)
       if (state.ghostSelected === id) state.ghostSelected = null
       if (state.ghostHover === id) { state.ghostHover = null; state.ghostPart = null }
       host.post('proposalDismiss', { id: g.p.id })
@@ -3894,8 +4755,8 @@
     function newRegionID() { return 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6) }
 
     // Places `refs` as one block and, when `name` is given, draws a region
-    // around them named after it: a notebook dropped from the rail or placed
-    // from the tray.
+    // around them named after it: a notebook dropped from the Library sidebar
+    // or the add box, or placed from either.
     function setDown(refs, x, y, name, notebookID) {
       const { spots, region } = gridFrom(refs, x, y)
       for (const spot of spots) state.placements[spot.ref] = spotAt(spot.ref, spot.x, spot.y)
@@ -3908,6 +4769,118 @@
         host.post('regionCreated', { region: made })
       }
       invalidate(); scheduleViewReport()
+    }
+
+    // ---- Setting cards down from the app
+    //
+    // The host sets cards down in two ways: at a point (`dropAt`: a drag let go,
+    // the add box opened there) and with no point (`dropAtCenter`: a row's
+    // Place on the Canvas, Place All, a find result). Either way the cards end
+    // up selected and ringed, so the learner sees where they went.
+
+    // Rings cards for 2.6 s: the rest of the plane dims and they wear the
+    // selection's outline (a find does the same). A later ring takes the plane
+    // over from an earlier one, so the earlier one's timer must not put it out:
+    // each timer only clears the ring it began.
+    function ringCards(refs) {
+      const token = ++state.ringToken
+      state.highlight = new Set(refs)
+      setTimeout(() => {
+        if (token !== state.ringToken) return
+        state.highlight = new Set()
+        invalidate()
+      }, 2600)
+    }
+
+    // A notebook whose frame is on the plane already is not framed twice:
+    // the frame is selected and shown instead.
+    function showFrameOf(notebookID) {
+      const frame = notebookID && Object.values(state.regions).find(r => r.notebookID === notebookID)
+      if (!frame) return false
+      selectRegion(frame.id)
+      fitTo(paddedBounds(shownRegions().find(r => r.id === frame.id) || frame))
+      return true
+    }
+
+    // The cards of `refs` the plane can set down (the ones the host has told
+    // it of), or null when nothing is to be set down: while a card is reviewed
+    // in place, or when the notebook's frame is already there.
+    function placeable(refs, notebookID) {
+      if (state.review) return null
+      if (showFrameOf(notebookID)) return null
+      const known = (refs || []).filter(ref => state.byRef.has(ref))
+      return known.length ? known : null
+    }
+
+    // The box `refs` take set down as one block with their top-left at (x, y):
+    // the cards' own sizes, and the frame's region too when a region is drawn
+    // round them (it reaches 50 and 60 units out, so it must not sit on a card).
+    function blockRect(refs, x, y, framed) {
+      const { spots, region } = gridFrom(refs, x, y)
+      let box = null
+      for (const spot of spots) {
+        const node = state.byRef.get(spot.ref)
+        box = union(box, { x: spot.x, y: spot.y, w: cardW(node), h: cardH(node) })
+      }
+      return framed ? union(box, region) : box
+    }
+
+    // Set down where a point of the view is: the block centred on it, selected
+    // and ringed. With `evidence`, sources or Docs let go on a placed Idea
+    // become its evidence instead: that is for a drag. A set-down with no spot
+    // of its own (Place on the Canvas) passes false, since whatever Idea sits
+    // under the middle of the view was never what the learner pointed at.
+    // Returns the block's box in world units, or null when the cards went in
+    // as evidence.
+    function dropCards(px, py, known, regionName, notebookID, evidence) {
+      const idea = evidence && !regionName && known.every(ref => state.byRef.get(ref).kind !== 'idea') ? hitIdea(px, py) : null
+      if (idea) { host.post('linkEvidence', { idea: idea.ref, refs: known }); return null }
+      const [x, y] = toWorld(px, py)
+      const cols = Math.max(1, Math.ceil(Math.sqrt(known.length * 1.5)))
+      const left = x - Math.min(cols, known.length) * (CARD_W + GAP) / 2, top = y - CARD_H / 2
+      const box = blockRect(known, left, top, !!regionName)
+      setDown(known, left, top, regionName, notebookID)
+      setSelection(known)
+      ringCards(known)
+      return box
+    }
+
+    // The boxes of the cards on the plane, but those in `except`: what a block
+    // set down must not land on. A card is as big as it is (`sizeOf`), not
+    // CARD_W by CARD_H.
+    function placedBoxes(except) {
+      const boxes = []
+      for (const node of state.nodes) {
+        if (except.has(node.ref) || hiddenByFold(node.ref)) continue
+        const p = planePos(node)
+        if (!p) continue
+        const [w, h] = sizeOf(node)
+        boxes.push({ x: p[0], y: p[1], w, h })
+      }
+      return boxes
+    }
+    function overlaps(a, b) { return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h }
+
+    // After a set-down from the app, the learner should see the cards. The
+    // camera stays when the block is wholly in view (40 points in from every
+    // edge); else it pans, at the zoom it has, just far enough to bring the
+    // block in; else (the block is bigger than the view at this zoom) it fits
+    // the block with `anchor`, the cards it was set beside. A flight already
+    // under way is judged by where it is going.
+    function revealBlock(block, anchor) {
+      const W = viewW(), H = viewH(), M = 40
+      if (W < 2 || H < 2 || !block) return
+      const cam = state.camTarget || { scale: state.scale, ox: state.ox, oy: state.oy }
+      const left = block.x * cam.scale + cam.ox, top = block.y * cam.scale + cam.oy
+      const right = left + block.w * cam.scale, bottom = top + block.h * cam.scale
+      if (left >= M && top >= M && right <= W - M && bottom <= H - M) return
+      if (right - left <= W - M * 2 && bottom - top <= H - M * 2) {
+        const dx = left < M ? M - left : right > W - M ? W - M - right : 0
+        const dy = top < M ? M - top : bottom > H - M ? H - M - bottom : 0
+        flyCamera(cam.scale, cam.ox + dx, cam.oy + dy, 460)
+        return
+      }
+      fitTo(paddedBounds(anchor ? union(anchor, block) : block))
     }
 
     function hitEdge(px, py) {
@@ -3975,7 +4948,8 @@
       if (!sticky && (state.drag || state.hover !== node.ref)) return
       const st = stackOf(node)
       // Close in, the card says all of it already (unless it was asked for).
-      if (!sticky && level() >= 3 && !st) return
+      // (A mind map's node has only its words close in: its note, behind the ≡, is for the peek.)
+      if (!sticky && level() >= 3 && !st && !(mindInfo(node) && ideaNote(node))) return
       const p = pos(node)
       if (!p) return
       peekEl.textContent = ''
@@ -4084,6 +5058,7 @@
       const ed = state.editor
       if (!ed || ed.closing) return
       if (ed.kind === 'idea') return positionIdeaEditor(ed)
+      if (ed.kind === 'annotation') return positionAnnotationEditor(ed)
       const r = ed.place()
       if (r) ed.last = r
       const q = ed.last
@@ -4156,8 +5131,9 @@
       const pal = spec.color ? ideaPalette(spec.color) : null
       const el = document.createElement('div')
       el.className = 'map-editor'
-      el.style.background = pal ? pal.fill : c.sticky
-      el.style.color = pal ? pal.ink : c.stickyText
+      // Plain words are written on the plane's own card colour.
+      el.style.background = spec.plain ? c.card : pal ? pal.fill : c.sticky
+      el.style.color = spec.plain ? c.text : pal ? pal.ink : c.stickyText
       el.style.width = spec.w + 'px'
       el.style.minHeight = spec.h + 'px'
       el.style.fontFamily = state.font
@@ -4245,8 +5221,9 @@
         node.title = title; node.sub = note || 'Idea'; node._auto = null
         host.post('ideaEdited', { ref: ed.ref, title, note })
       }
-      // Its words are all shown: the card keeps the height they needed.
-      if (p && Math.abs(h - ed.h0) > 1) {
+      // Its words are all shown: the card keeps the height they needed (a mind
+      // map's node is as big as its words, and keeps none of its own).
+      if (p && !mindInfo(node) && Math.abs(h - ed.h0) > 1) {
         p.h = round(h)
         host.post('placementChanged', { items: [{ ref: ed.ref, h: round(h) }] })
       }
@@ -4281,10 +5258,97 @@
       if (!(state.selection.size === 1 && state.selection.has(ref))) setSelection([ref])
       const at = pos(node) || [p.x, p.y]
       const [w, h] = sizeOf(node)
+      // A mind map's node is small: its editor is at least 240 points wide.
       openIdeaEditor({
-        ref, x: at[0], y: at[1], w, h, title: node.title, note: ideaNote(node), color: p.color || null, fresh: !!(opts && opts.fresh),
-        evidence: (state.evidence.get(ref) || []).length > 0,
+        ref, x: at[0], y: at[1], w: mindInfo(node) ? Math.max(w, 240) : w, h, title: node.title, note: ideaNote(node), color: p.color || null, fresh: !!(opts && opts.fresh),
+        evidence: (state.evidence.get(ref) || []).length > 0, plain: isPlain(node),
       })
+      return true
+    }
+    // ---- Editing the words about a card
+    //
+    // Opened by a double-click on them or the host's `editAnnotation(ref)`: a
+    // field over the card's room for them, scaled with the camera as an Idea's
+    // editor is, "Why is it on this canvas?" while empty. On a card with none
+    // it opens under the card's foot and the card grows as the words come
+    // (`annotationOf` reads what is typed). ⌘↩, a click elsewhere or blur
+    // keeps the words (`placementChanged {annotation}`, null when emptied);
+    // Esc leaves them as they were.
+    const ANN_MIN_ROOM = ANN_PAD + ANN_LINE_H
+    // The room's box in world units: the card's bottom `annotationH`, or for a
+    // card with none yet the line it would take (under the card, or at the
+    // bottom of a card the learner sized).
+    function annotationBox(node) {
+      const p = pos(node)
+      const room = Math.max(annotationH(node), ANN_MIN_ROOM)
+      const sized = placementOf(node) && placementOf(node).h > 0
+      return { x: p[0], y: p[1] + (sized ? cardH(node) - room : ownH(node)), w: cardW(node), h: room }
+    }
+    function inAnnotation(node, px, py) {
+      const room = annotationH(node)
+      if (!room || node.kind === 'idea' || level() < 2 || !pos(node)) return false
+      const b = annotationBox(node)
+      const [x, y] = toScreen(b.x, b.y)
+      return px >= x && px <= x + b.w * state.scale && py >= y && py <= y + b.h * state.scale
+    }
+    function positionAnnotationEditor(ed) {
+      const node = state.byRef.get(ed.ref)
+      if (!node || !pos(node)) return
+      const b = annotationBox(node)
+      const [sx, sy] = toScreen(b.x, b.y)
+      ed.el.style.width = b.w + 'px'
+      ed.el.style.height = b.h + 'px'
+      ed.el.style.transform = 'translate(' + (Math.round(sx * 100) / 100) + 'px,' + (Math.round(sy * 100) / 100) + 'px) scale(' + state.scale + ')'
+    }
+    function commitAnnotation(ed) {
+      const p = state.placements[ed.ref]
+      if (!p) return
+      const text = ed.ta.value.trim().slice(0, ANN_MAX_CHARS)
+      if (text === (p.annotation || '')) return
+      if (text) p.annotation = text; else delete p.annotation
+      host.post('placementChanged', { items: [{ ref: ed.ref, annotation: text || null }] })
+    }
+    function openAnnotationEditor(node, text) {
+      closeEditor(true)
+      const c = state.colors
+      const el = document.createElement('div')
+      el.className = 'map-editor map-note-editor'
+      // A page, a clip and a page face are white in either theme.
+      const white = node.kind === 'clip' || node.kind === 'page' || isPageFace(node)
+      el.style.background = white ? '#ffffff' : c.card
+      el.style.color = white ? '#1d1d1f' : c.text
+      el.style.fontFamily = state.font
+      const ta = document.createElement('textarea')
+      ta.className = 'ed-note'; ta.placeholder = 'Why is it on this canvas?'; ta.maxLength = ANN_MAX_CHARS; ta.value = text
+      ta.spellcheck = false; ta.setAttribute('autocomplete', 'off')
+      el.appendChild(ta)
+      document.body.appendChild(el)
+      const ed = state.editor = { kind: 'annotation', ref: node.ref, el, ta, text, closing: false, commit: () => commitAnnotation(ed), cancel: () => {} }
+      ta.addEventListener('input', () => { ed.text = ta.value; invalidate() })
+      el.addEventListener('keydown', (e) => {
+        e.stopPropagation()
+        if (e.isComposing || e.keyCode === 229) return
+        if (e.key === 'Escape') { e.preventDefault(); closeEditor(false) }
+        else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); closeEditor(true) }
+      })
+      el.addEventListener('focusout', (e) => { if (!e.relatedTarget || !el.contains(e.relatedTarget)) closeEditor(true) })
+      el.addEventListener('wheel', onWheel, { passive: false })
+      positionAnnotationEditor(ed)
+      const b = annotationBox(node)
+      revealForEdit(b.x, b.y, b.w, b.h)
+      invalidate()
+      ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length)
+      return ed
+    }
+    function startAnnotationEdit(ref) {
+      const node = state.byRef.get(ref)
+      const p = state.placements[ref]
+      if (!node || !p || node.kind === 'idea' || !pos(node) || state.lens || state.review) return false
+      // Editing a folded card unfolds it.
+      if (p.folded) { delete p.folded; host.post('placementChanged', { items: [{ ref, folded: null }] }); invalidate() }
+      hidePeek()
+      if (!(state.selection.size === 1 && state.selection.has(ref))) setSelection([ref])
+      openAnnotationEditor(node, p.annotation || '')
       return true
     }
     // A blank editor for a new Idea whose middle is the world point (wx, wy).
@@ -4330,6 +5394,16 @@
     function localPoint(e) {
       const b = canvas.getBoundingClientRect()
       return [e.clientX - b.left, e.clientY - b.top]
+    }
+    // The pointer's last spot over the plane, as the host is told of a click:
+    // view points and world units, the world point worked out from the camera
+    // as it is now (the plane may have scrolled under a still pointer). Empty
+    // when the pointer is not over the plane.
+    function pointerSpot() {
+      const p = state.pointer
+      if (!p) return {}
+      const [wx, wy] = toWorld(p[0], p[1])
+      return { x: round(p[0]), y: round(p[1]), wx: round(wx), wy: round(wy) }
     }
 
     // A pinch as Safari's gesture events, which WebKit sends in place of wheel
@@ -4444,6 +5518,7 @@
       const pill = state.stackPills.find(b => px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h)
       if (pill) { state.openStacks.delete(pill.key); invalidate(); return }
       const link = tool === 'select' ? hitConnectHandle(px, py) : null
+      if (link && link.plus) { addTreeChild(link.ref); return }
       if (link) { state.drag = { kind: 'connect', from: link.ref, fx: link.wx, fy: link.wy, px, py, viaHandle: true }; return }
       const grip = tool === 'select' ? hitHandle(px, py) : null
       if (grip) { beginResize(grip, px, py); return }
@@ -4467,6 +5542,11 @@
         invalidate()
         return
       }
+      // A page face's ‹ › turn its page and a question's badge marks it answered or open: neither starts a drag.
+      const turn = tool === 'select' && !state.lens ? hitPageStepper(px, py) : null
+      if (turn) { if (turn.dir) turnPage(turn.ref, turn.dir); return }
+      const asked = tool === 'select' && !state.lens ? state.questionHits.find(b => px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h) : null
+      if (asked) { toggleAnswered(asked.ref); return }
       const node = hitNode(px, py)
       if (tool === 'connect') {
         if (node) {
@@ -4537,6 +5617,7 @@
 
     canvas.addEventListener('pointermove', (e) => {
       const [px, py] = localPoint(e)
+      state.pointer = [px, py]
       if (state.lasso) { state.lasso.push([px, py]); redraw(); return }
       const d = state.drag
       if (state.spaceTap && !state.spaceTap.moved) {
@@ -4680,9 +5761,10 @@
         canvas.style.cursor = 'pointer'
         return
       }
-      if (state.tool === 'select' && !state.spaceHeld && hitConnectHandle(px, py)) {
+      const handle = state.tool === 'select' && !state.spaceHeld ? hitConnectHandle(px, py) : null
+      if (handle) {
         hidePeek()
-        canvas.style.cursor = 'crosshair'
+        canvas.style.cursor = handle.plus ? 'pointer' : 'crosshair'
         return
       }
       const grip = state.tool === 'select' && !state.spaceHeld ? hitHandle(px, py) : null
@@ -4862,6 +5944,7 @@
     })
 
     canvas.addEventListener('pointerleave', () => {
+      state.pointer = null
       hidePeek()
       if (state.hover) { state.hover = null; redraw() }
       if (state.ghostHover) { state.ghostHover = null; state.ghostPart = null; redraw() }
@@ -4889,7 +5972,10 @@
         host.post('placed', { items: spots })
         invalidate(); scheduleViewReport(); return
       }
+      // The pill of a page face never opens the paper; the words about a card are edited where they are read.
+      if (hitPageStepper(px, py)) return
       if (node && node.kind === 'idea') { startIdeaEdit(node.ref); return }
+      if (node && inAnnotation(node, px, py)) { startAnnotationEdit(node.ref); return }
       if (node) { host.post('open', { ref: node.ref }); return }
       const named = state.labelHits.find(b => b.nameRect && px >= b.nameRect.x - 4 && px <= b.nameRect.x + b.nameRect.w + 4 && py >= b.nameRect.y - 2 && py <= b.nameRect.y + b.nameRect.h + 2)
       if (named && !notebookOf(state.regions[named.id] || {})) { renameRegionOnPlane(named.id); return }
@@ -4936,6 +6022,8 @@
         if (k === 'z') host.post(e.shiftKey ? 'redo' : 'undo', {})
         else if (k === 'a') selectAll()
         else if (k === 'g') regionAroundSelection()
+        // ⌘F: the host's find field takes the focus (the plain F zooms to the selection).
+        else if (k === 'f' && !state.editor) host.post('findRequested', {})
         else if (e.key === 'ArrowUp') climbOut()
         else if (e.key === 'ArrowDown') diveIn()
         // ⌘[ and ⌘]: back and forward over the canvases opened in this window.
@@ -4943,6 +6031,8 @@
         else if (e.key === ']') host.post('navigate', { direction: 'forward' })
         // ⌘⌫: the selection goes (an Idea to Trash, anything else off the Canvas).
         else if ((e.key === 'Backspace' || e.key === 'Delete') && state.selection.size) host.post('deleteRequested', { refs: [...state.selection] })
+        // ⌘L: the selected cards join the chat's context (the bare L is the Library's).
+        else if (k === 'l' && state.selection.size && !state.editor) host.post('chatContextRequested', { refs: [...state.selection] })
         else return
         e.preventDefault()
         return
@@ -4967,6 +6057,8 @@
         if (!one) return
         if (first && first.kind === 'idea' && !st) { startIdeaEdit(first.ref); e.preventDefault(); return }
         host.post('openBeside', { ref: st ? st.leader.ref : refs[0] })
+      } else if ((e.key === 'PageUp' || e.key === 'PageDown') && onePageFace()) {
+        turnPage(onePageFace().ref, e.key === 'PageDown' ? 1 : -1)
       } else if (e.key.startsWith('Arrow')) {
         // ⌥-arrows nudge the selection (⇧ five times as far); the arrows alone
         // walk to the nearest card that way (⇧ adds it to the selection), or
@@ -4980,6 +6072,13 @@
       else if (e.key === '-' || e.key === '_') zoomBy(1 / 1.4, W / 2, H / 2)
       else if (e.key === '0') fitTo(allBounds())
       else if ((e.key === 'f' || e.key === 'F') && state.selection.size) fitTo(paddedBounds(worldBounds([...state.selection])))
+      // / asks the host for its add box, at the pointer when it is over the
+      // plane; L shows or hides the host's Library sidebar. A held key does
+      // not repeat them. Words being written on the plane keep their keys (an
+      // editor stops them reaching this listener); the `editor` test is for
+      // the case where one does get here.
+      else if (e.key === '/' && !e.altKey && !e.repeat && !state.editor) host.post('addRequested', pointerSpot())
+      else if ((e.key === 'l' || e.key === 'L') && !e.altKey && !cmd && !e.repeat && !state.editor) host.post('libraryToggled', {})
       else if (!e.altKey && TOOL_KEYS[e.key]) setTool(TOOL_KEYS[e.key])
       else return
       e.preventDefault()
@@ -5283,6 +6382,12 @@
           if (p.h > 0) q.h = p.h
           if (p.folded) q.folded = true
           if (p.color) q.color = p.color
+          // What Sapience showed: the page a paper's card shows, the words about a
+          // card on this canvas, an Idea as plain words, a question marked answered.
+          if (p.page > 0) q.page = Math.round(p.page)
+          if (typeof p.annotation === 'string' && p.annotation) q.annotation = p.annotation
+          if (p.plain) q.plain = true
+          if (p.answered) q.answered = true
           state.placements[ref] = q
         }
         state.regions = {}
@@ -5333,35 +6438,61 @@
         let b = refs && refs.length ? worldBounds(refs) : null
         if (regionID && state.regions[regionID]) b = union(b, state.regions[regionID])
         if (b) fitTo(paddedBounds(b))
-        if (refs && refs.length) { state.highlight = new Set(refs); setTimeout(() => { state.highlight = new Set(); invalidate() }, 2600) }
+        if (refs && refs.length) ringCards(refs)
         invalidate()
       },
       // Sources, Docs or a notebook dropped from elsewhere in the app, at a
       // point in the view: set down as one block there, cards already on the
-      // map moving with it.
+      // map moving with it; selected and ringed.
       dropAt(px, py, refs, regionName, notebookID) {
-        // Nothing is set down while a card is reviewed in place.
-        if (state.review) return
-        const frame = notebookID && Object.values(state.regions).find(r => r.notebookID === notebookID)
-        if (frame) {
-          selectRegion(frame.id)
-          fitTo(paddedBounds(shownRegions().find(r => r.id === frame.id) || frame))
+        // Nothing is set down while a card is reviewed in place, and a
+        // notebook whose frame is there already is shown, not framed twice.
+        const known = placeable(refs, notebookID)
+        if (!known) return
+        // Sources or Docs dropped on a placed Idea become its evidence.
+        dropCards(px, py, known, regionName, notebookID, true)
+      },
+      // What the Library sidebar, the add box and a find result place when the
+      // learner gave no point (Place on the Canvas, Place All, a pick from the
+      // list). With cards selected, the block goes to their right, level with
+      // their top and two gaps off, and moves down until it lands on no card;
+      // the camera follows it (`revealBlock`). With none selected it goes in
+      // the middle of the view. It never becomes an Idea's evidence: the card
+      // that sits under the middle of the view was not what the learner chose.
+      dropAtCenter(refs, regionName, notebookID) {
+        const known = placeable(refs, notebookID)
+        if (!known) return
+        // The selection, but for cards being placed (placing a selected card
+        // again must not anchor it to itself).
+        const anchorRefs = [...state.selection].filter(ref => state.placements[ref] && !known.includes(ref))
+        const anchor = anchorRefs.length ? worldBounds(anchorRefs) : null
+        if (!anchor) {
+          revealBlock(dropCards(viewW() / 2, viewH() / 2, known, regionName, notebookID, false), null)
           return
         }
-        const known = (refs || []).filter(ref => state.byRef.has(ref))
-        if (!known.length) return
-        // Sources or Docs dropped on a placed Idea become its evidence.
-        const idea = !regionName && known.every(ref => state.byRef.get(ref).kind !== 'idea') ? hitIdea(px, py) : null
-        if (idea) { host.post('linkEvidence', { idea: idea.ref, refs: known }); return }
-        const [x, y] = toWorld(px, py)
-        const cols = Math.max(1, Math.ceil(Math.sqrt(known.length * 1.5)))
-        setDown(known, x - Math.min(cols, known.length) * (CARD_W + GAP) / 2, y - CARD_H / 2, regionName, notebookID)
+        const size = blockRect(known, 0, 0, !!regionName)
+        const left = anchor.x + anchor.w + GAP * 2
+        const others = placedBoxes(new Set(known))
+        // Down past whatever it lands on, to a GAP below it; 40 tries, then it
+        // takes the last spot (a plane this full has no room worth looking for).
+        let top = anchor.y
+        for (let tries = 0; tries < 40; tries++) {
+          const mine = { x: left, y: top, w: size.w, h: size.h }
+          const hit = others.filter(o => overlaps(mine, o))
+          if (!hit.length) break
+          top = Math.max(...hit.map(o => o.y + o.h)) + GAP
+        }
+        // `size` was measured with the cards' top-left at the origin, so its
+        // own x, y are the frame's offset from them (0 with no frame).
+        setDown(known, left - size.x, top - size.y, regionName, notebookID)
         setSelection(known)
+        ringCards(known)
+        revealBlock({ x: left, y: top, w: size.w, h: size.h }, anchor)
       },
-      // What the tray places: set down in the middle of the view.
-      dropAtCenter(refs, regionName, notebookID) { api.dropAt(viewW() / 2, viewH() / 2, refs, regionName, notebookID) },
       select(refs) { setSelection(refs || []); if (refs && refs.length) fitTo(paddedBounds(worldBounds(refs))) },
-      highlight(refs) { state.highlight = new Set(refs || []); invalidate() },
+      // A highlight the host asks for stays until it asks again, so a ring's
+      // timer must not put it out.
+      highlight(refs) { state.ringToken++; state.highlight = new Set(refs || []); invalidate() },
       selectRegion,
       selectEdge,
       applyLens(lens) {
@@ -5406,7 +6537,7 @@
           proposals: state.proposals, lasso: state.lasso, pendingIdeas: state.pendingIdeas, fan: state.fan,
           labelHits: state.labelHits, chevronHits: state.chevronHits, lockHits: state.lockHits, stackPills: state.stackPills,
           ghostHits: state.ghostHits, ghostButtons: state.ghostButtons, badgeHits: state.badgeHits, edgePills: state.edgePills, handles: state.handles,
-          lifting: state.lifting,
+          pageHits: state.pageHits, questionHits: state.questionHits, lifting: state.lifting,
         }
         let url = null
         try {
@@ -5417,12 +6548,14 @@
           state.selection = new Set(); state.selectedRegion = null; state.selectedEdge = null; state.hover = null; state.drag = null
           state.ghostSelected = null; state.ghostHover = null; state.highlight = new Set(); state.review = null
           state.proposals = null; state.lasso = null; state.pendingIdeas = []
+          state.bundleCache = null
           draw()
           url = off.toDataURL('image/png')
         } finally {
           ctx = keep.ctx
           state.exporting = false
           Object.assign(state, keep)
+          state.bundleCache = null
           redraw()
         }
         return url
@@ -5476,6 +6609,11 @@
       editIdea(ref, opts) {
         if (!startIdeaEdit(ref, opts)) state.pendingEdit = { ref, opts, t: performance.now() }
       },
+      // The words about a card for writing in place (the menu's Annotate… and
+      // Edit Annotation…): the editor opens over the card's room for them.
+      editAnnotation(ref) { startAnnotationEdit(ref) },
+      // Turns a page face's page by `delta` (the menu's Next Page and Previous Page).
+      turnPage(ref, delta) { return turnPage(ref, Math.round(Number(delta)) || 0) },
       // Escape from the host: an open editor is left without writing (or kept
       // when `commit` is true).
       closeEditors(commit) { closeEditor(!!commit) },
@@ -5542,7 +6680,11 @@
         const cards = {}
         for (const node of state.nodes) {
           const p = pos(node)
-          if (p && !hiddenInStack(node)) { const [w, h] = sizeOf(node); cards[node.ref] = { x: p[0], y: p[1], w, h } }
+          if (!p || hiddenInStack(node)) continue
+          const [w, h] = sizeOf(node)
+          // Its face ('page', 'node', 'plain', 'card'), the page a page face shows, and the lines its annotation is drawn in.
+          const face = isPageFace(node) ? 'page' : mindInfo(node) ? 'node' : isPlain(node) ? 'plain' : 'card'
+          cards[node.ref] = { x: p[0], y: p[1], w, h, face, page: face === 'page' ? pageOf(node) : null, annotationLines: annotationLinesOf(node) }
         }
         const ghosts = {}
         for (const g of state.ghosts.values()) ghosts[g.id] = g.kind === 'card' ? { kind: g.kind, x: g.x, y: g.y } : { kind: g.kind }
@@ -5561,7 +6703,8 @@
           display: Object.assign({}, state.display),
           minimap: state.display.minimap && mm.fit ? { w: MM_W, h: MM_H, dots: mm.dots, fit: Object.assign({}, mm.fit) } : null,
           // Each arrow's route as drawn (world points) and the labels' pills on the page.
-          edges: Object.fromEntries(Object.values(state.edges).map(e => { const p = edgePath(e); return [e.id, p ? { kind: p.kind, start: p.pts[0], end: p.pts[p.pts.length - 1], mid: p.mid } : null] })),
+          // A stanced arrow's side, and the junction of a bundle it is in.
+          edges: Object.fromEntries(Object.values(state.edges).map(e => { const p = edgePath(e); return [e.id, p ? { kind: p.kind, start: p.pts[0], end: p.pts[p.pts.length - 1], mid: p.mid, stance: e.stance || null, bundle: p.bundle ? p.bundle.junction : null } : null] })),
           edgePills: state.edgePills.slice(),
         }
       },
@@ -5595,6 +6738,7 @@
         const ids = new Set(next ? next.proposals.map(p => p && String(p.id)) : [])
         if (!same) {
           state.ghosts = new Map()
+          state.ghostTree = null
           state.ghostGone = new Map()
           state.ghostSelected = null; state.ghostHover = null; state.ghostPart = null
         } else for (const id of [...state.ghostGone.keys()]) if (!ids.has(id)) state.ghostGone.delete(id)
@@ -5667,5 +6811,5 @@
     return api
   }
 
-  window.ForeverLMKnowledgeMap = { create, CARD_W, CARD_H }
+  window.ForeverLMKnowledgeMap = { create, CARD_W, CARD_H, sizes: { pageFaceFootHeight, pageFaceHeight, annotationHeight, treeNodeSize } }
 })()

@@ -134,11 +134,7 @@ extension MCPDataStore {
                     // queued for the Mac's move job, and the notebook keeps its id.
                     copies.append(copy == id ? ["original_id": id, "moving_into_space": true] : ["original_id": id, "team_copy_id": copy])
                 }
-                // The Notebooks' pages came along as pages; the ForeverLM
-                // sites among them open to the team.
-                if includeDocs ?? true { await notebookFileStorage.openPublishedSitesToTeam(teamID: team.id) }
             case .doc:
-                var sharedSite = false
                 for id in ids {
                     // The sources travel with the Doc by default: the ones
                     // the record carries always, since the copy names them
@@ -160,9 +156,7 @@ extension MCPDataStore {
                     for failure in copy.carriedSources.failed {
                         sourcesNotShared.append(["doc_id": id, "original_id": failure.originalID, "reason": failure.reason])
                     }
-                    if try store.loadArtifact(id)?.linkedKind == .foreverlmSite { sharedSite = true }
                 }
-                if sharedSite { await notebookFileStorage.openPublishedSitesToTeam(teamID: team.id) }
             case .chat:
                 for id in ids {
                     let teamNotebookID = try teamNotebookID(forChat: id, teamID: team.id, store: store)

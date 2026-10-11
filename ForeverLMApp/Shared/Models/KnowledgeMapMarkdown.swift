@@ -34,6 +34,13 @@ struct KnowledgeMapOutline: Equatable, Sendable {
         /// Where the name leads: the app's own address (`foreverlm://…`) in
         /// Markdown for the pasteboard, a public address on a page.
         var link: String? = nil
+        /// The learner's words about the card on this canvas ("why it is
+        /// here"), under its note.
+        var annotation: String? = nil
+        /// An Idea whose title is a question, written with a box before it:
+        /// ☐ while open, ☑ once the learner marked it answered.
+        var isQuestion = false
+        var isAnswered = false
     }
 
     /// A region, as a heading over its cards.
@@ -45,11 +52,13 @@ struct KnowledgeMapOutline: Equatable, Sendable {
         var entries: [Entry]
     }
 
-    /// An arrow, as "A → B: label".
+    /// An arrow, as "A → B: label (supports)".
     struct Connection: Equatable, Sendable {
         var from: String
         var to: String
         var label: String
+        /// The side of an argument the arrow is on, written after its label.
+        var stance: KnowledgeMapEdgeStance? = nil
     }
 
     var loose: [Entry]
@@ -80,7 +89,8 @@ struct KnowledgeMapOutline: Equatable, Sendable {
         if !connections.isEmpty {
             let lines = connections.map { connection -> String in
                 let ends = "\(KnowledgeMapMarkdown.inline(connection.from)) → \(KnowledgeMapMarkdown.inline(connection.to))"
-                return connection.label.isEmpty ? "- \(ends)" : "- \(ends): \(KnowledgeMapMarkdown.inline(connection.label))"
+                let line = connection.label.isEmpty ? "- \(ends)" : "- \(ends): \(KnowledgeMapMarkdown.inline(connection.label))"
+                return line + (connection.stance.map { " (\($0.rawValue))" } ?? "")
             }
             blocks.append("## \(Self.connectionsHeading)\n\n" + lines.joined(separator: "\n"))
         }
@@ -109,7 +119,8 @@ struct KnowledgeMapOutline: Equatable, Sendable {
             let items = connections.map { connection -> String in
                 let ends = "\(KnowledgeMapMarkdown.escapedHTML(connection.from)) → \(KnowledgeMapMarkdown.escapedHTML(connection.to))"
                 let label = connection.label.isEmpty ? "" : ": \(KnowledgeMapMarkdown.escapedHTML(connection.label))"
-                return "<li>\(ends)\(label)</li>"
+                let stance = connection.stance.map { " <span class=\"detail\">(\($0.rawValue))</span>" } ?? ""
+                return "<li>\(ends)\(label)\(stance)</li>"
             }
             parts.append("<h2>\(Self.connectionsHeading)</h2>\n<ul>\n" + items.joined(separator: "\n") + "\n</ul>")
         }
@@ -132,13 +143,38 @@ extension KnowledgeMapOutline.Entry {
     /// and the paper it was cut from) rather than after a dash.
     private var detailInBrackets: Bool { kind == "clip" || kind == "page" }
 
-    /// The entry as lines of a Markdown list: the item, then its note
-    /// indented under it, a line break kept between the note's lines.
+    /// The lines of some words, trimmed, with the blank ones left out.
+    private func wordLines(_ text: String?) -> [String] {
+        (text ?? "")
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+    }
+
+    /// The box a question is written with, or nothing for any other entry.
+    private var questionBox: String {
+        isQuestion ? (isAnswered ? "☑ " : "☐ ") : ""
+    }
+
+    /// The entry as lines of a Markdown list: the item, then its note and
+    /// the learner's words about it indented under it, a line break kept
+    /// between their lines.
     var markdownLines: [String] {
+        var lines = [markdownItem]
+        let words = (wordLines(note) + wordLines(annotation)).map(KnowledgeMapMarkdown.inline)
+        for (index, line) in words.enumerated() {
+            // Two spaces at the end of a line are Markdown's line break.
+            lines.append("  " + line + (index < words.count - 1 ? "  " : ""))
+        }
+        return lines
+    }
+
+    /// The first line of the entry's list item.
+    private var markdownItem: String {
         if kind == "picture" {
             let name = KnowledgeMapMarkdown.inline(title)
-            guard let link, !link.isEmpty else { return ["- ![\(name)]"] }
-            return ["- ![\(name)](\(KnowledgeMapMarkdown.destination(link)))"]
+            guard let link, !link.isEmpty else { return "- ![\(name)]" }
+            return "- ![\(name)](\(KnowledgeMapMarkdown.destination(link)))"
         }
         var text = KnowledgeMapMarkdown.inline(label)
         if kind == "idea" { text = "**\(text)**" }
@@ -146,41 +182,28 @@ extension KnowledgeMapOutline.Entry {
         if let detail, !detail.isEmpty {
             text += detailInBrackets ? " (\(KnowledgeMapMarkdown.inline(detail)))" : " — \(KnowledgeMapMarkdown.inline(detail))"
         }
-        var lines = ["- \(text)"]
-        if let note, !note.isEmpty {
-            let noteLines = note
-                .components(separatedBy: .newlines)
-                .map { $0.trimmingCharacters(in: .whitespaces) }
-                .filter { !$0.isEmpty }
-                .map(KnowledgeMapMarkdown.inline)
-            for (index, line) in noteLines.enumerated() {
-                // Two spaces at the end of a line are Markdown's line break.
-                lines.append("  " + line + (index < noteLines.count - 1 ? "  " : ""))
-            }
-        }
-        return lines
+        return "- \(questionBox)\(text)"
     }
 
     /// The entry as the inside of a list item on a page.
     var htmlFragment: String {
         let escape = KnowledgeMapMarkdown.escapedHTML
-        if kind == "picture" { return "<em>\(escape(title))</em>" }
-        var text = escape(label)
-        if kind == "idea" { text = "<strong>\(text)</strong>" }
-        if let link, KnowledgeMapMarkdown.isWebAddress(link) {
-            text = "<a href=\"\(escape(link))\">\(text)</a>"
+        var text: String
+        if kind == "picture" {
+            text = "<em>\(escape(title))</em>"
+        } else {
+            text = escape(label)
+            if kind == "idea" { text = "<strong>\(text)</strong>" }
+            if let link, KnowledgeMapMarkdown.isWebAddress(link) {
+                text = "<a href=\"\(escape(link))\">\(text)</a>"
+            }
+            if let detail, !detail.isEmpty {
+                text += detailInBrackets ? " <span class=\"detail\">(\(escape(detail)))</span>" : " <span class=\"detail\">— \(escape(detail))</span>"
+            }
         }
-        if let detail, !detail.isEmpty {
-            text += detailInBrackets ? " <span class=\"detail\">(\(escape(detail)))</span>" : " <span class=\"detail\">— \(escape(detail))</span>"
-        }
-        if let note, !note.isEmpty {
-            let lines = note.components(separatedBy: .newlines)
-                .map { $0.trimmingCharacters(in: .whitespaces) }
-                .filter { !$0.isEmpty }
-                .map(escape)
-            if !lines.isEmpty { text += "<br>\n<span class=\"note\">" + lines.joined(separator: "<br>\n") + "</span>" }
-        }
-        return text
+        let words = (wordLines(note) + wordLines(annotation)).map(escape)
+        if !words.isEmpty { text += "<br>\n<span class=\"note\">" + words.joined(separator: "<br>\n") + "</span>" }
+        return questionBox + text
     }
 }
 
@@ -251,7 +274,7 @@ enum KnowledgeMapMarkdown {
         func entries(_ list: [String]) -> [(ref: String, entry: KnowledgeMapOutline.Entry)] {
             readingOrder(list, position: position, rowHeight: rowHeight).compactMap { ref in
                 guard let node = nodes[ref] else { return nil }
-                return (ref, entry(for: node, link: linkFor(node)))
+                return (ref, entry(for: node, link: linkFor(node), placement: layout.placements[ref]))
             }
         }
 
@@ -329,15 +352,28 @@ enum KnowledgeMapMarkdown {
                 return lhs.id < rhs.id
             }
         let connections = ends.map {
-            KnowledgeMapOutline.Connection(from: $0.from, to: $0.to, label: singleLine($0.edge.label))
+            KnowledgeMapOutline.Connection(from: $0.from, to: $0.to, label: singleLine($0.edge.label), stance: $0.edge.knownStance)
         }
         return KnowledgeMapOutline(loose: looseEntries.map(\.entry), sections: sections, connections: connections)
     }
 
     // MARK: One card
 
-    /// A card as a line of the outline, from its words on the plane.
-    static func entry(for node: KnowledgeMapNode, link: String?) -> KnowledgeMapOutline.Entry {
+    /// A card as a line of the outline, from its words on the plane and, when
+    /// it is placed, what the learner wrote about it on this canvas: the
+    /// words under any card but an Idea, and whether a question is answered.
+    static func entry(for node: KnowledgeMapNode, link: String?, placement: KnowledgeMapLayout.Placement? = nil) -> KnowledgeMapOutline.Entry {
+        var written = plainEntry(for: node, link: link)
+        if written.kind == "idea" {
+            written.isQuestion = KnowledgeMap.isQuestion(node.title)
+            written.isAnswered = written.isQuestion && placement?.isAnswered == true
+        } else {
+            written.annotation = placement?.annotation
+        }
+        return written
+    }
+
+    private static func plainEntry(for node: KnowledgeMapNode, link: String?) -> KnowledgeMapOutline.Entry {
         let title = singleLine(node.title)
         let sub = singleLine(node.sub)
         switch kind(of: node.ref) {

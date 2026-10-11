@@ -84,6 +84,57 @@ struct MCPOAuthConsentLabelTests {
     }
 }
 
+/// A plugin is known by the client_name it registered, and an authorization
+/// request does not carry it. On 2026-10-10 the move to Apple team XXXXXXXXXX
+/// emptied the store of registrations; a plugin that came back with its old id
+/// was recreated with no name, so its sources would have filed under the raw
+/// `dyn_…` id instead of "Read AI Meetings".
+@Suite("MCP OAuth forgotten clients")
+struct MCPOAuthForgottenClientTests {
+    private let loopback = "http://127.0.0.1:53682/callback"
+    private let forgottenID = "dyn_0123456789abcdef"
+
+    @Test("A forgotten plugin client is refused, so it registers again under its name")
+    func forgottenPluginClientIsRefused() {
+        #expect(!MCPOAuthProvider.mayRecoverDynamicClient(
+            clientID: forgottenID, redirectURI: loopback, requestedScope: "mcp:ingest"))
+    }
+
+    @Test("A forgotten local assistant asking for full access is still recovered")
+    func forgottenFullAccessClientIsRecovered() {
+        #expect(MCPOAuthProvider.mayRecoverDynamicClient(
+            clientID: forgottenID, redirectURI: loopback, requestedScope: nil))
+        #expect(MCPOAuthProvider.mayRecoverDynamicClient(
+            clientID: forgottenID, redirectURI: loopback, requestedScope: "mcp:tools"))
+        #expect(MCPOAuthProvider.mayRecoverDynamicClient(
+            clientID: forgottenID, redirectURI: loopback, requestedScope: "mcp:ingest mcp:tools"))
+        #expect(MCPOAuthProvider.mayRecoverDynamicClient(
+            clientID: forgottenID, redirectURI: "http://localhost:8080/callback", requestedScope: nil))
+    }
+
+    @Test("Only loopback dynamic clients are ever recovered")
+    func onlyLoopbackDynamicClientsRecover() {
+        #expect(!MCPOAuthProvider.mayRecoverDynamicClient(
+            clientID: forgottenID, redirectURI: "https://example.com/callback", requestedScope: nil))
+        #expect(!MCPOAuthProvider.mayRecoverDynamicClient(
+            clientID: "foreverlm-provisioned", redirectURI: loopback, requestedScope: nil))
+    }
+
+    @Test("Refusing a forgotten client says to register again")
+    func refusalSaysToRegisterAgain() throws {
+        let response = MCPOAuthProvider.unknownClientResponse(clientID: forgottenID, status: 401)
+        #expect(response.status == 401)
+        let body = try #require(try JSONSerialization.jsonObject(with: response.body) as? [String: String])
+        #expect(body["error"] == "invalid_client")
+        #expect(body["error_description"]?.contains("/oauth/register") == true)
+        #expect(body["error_description"]?.contains("same client_name") == true)
+
+        let other = MCPOAuthProvider.unknownClientResponse(clientID: "someone-else", status: 400)
+        #expect(other.status == 400)
+        #expect(try JSONSerialization.jsonObject(with: other.body) as? [String: String] == ["error": "invalid_client"])
+    }
+}
+
 @Suite("MCP auth scopes")
 struct MCPAuthScopeTests {
     @Test("Absent or full scope requests grant full access")
@@ -1376,7 +1427,6 @@ struct MCPDataStoreTests {
         for (url, label) in [
             ("https://claude.ai/code/artifact/a1b2c3d4-1e2f-4a5b-8c6d-7e8f9a0b1c2d", "Claude Artifact"),
             ("https://docs.google.com/document/d/1AbCdEfGhIjKlMnOpQrStUvWxYz/edit", "Google Doc"),
-            ("https://sites.foreverlm.com/mito-landscape/", "ForeverLM Site"),
         ] {
             let error = #expect(throws: MCPError.self) {
                 try store.addSource(url: url, title: label, sourceType: "article", content: nil, parentGroup: nil, author: nil)
@@ -6936,8 +6986,6 @@ struct MCPDataStoreTests {
         // A publish spends its time uploading and records the result through
         // the storage actor's own connection; a list_teams waited half a minute
         // behind one on 2026-09-18.
-        #expect(MCPToolRegistry.storeGateMode(for: "publish_site") == .shared)
-        #expect(MCPToolRegistry.storeGateMode(for: "unpublish_site") == .shared)
         #expect(MCPToolRegistry.storeGateMode(for: "publish_doc") == .shared)
         #expect(MCPToolRegistry.storeGateMode(for: "unpublish_doc") == .shared)
         #expect(MCPToolRegistry.storeGateMode(for: "create_notebook") == .exclusive)
@@ -9152,9 +9200,8 @@ struct MCPDataStoreTests {
         #expect(toolNames.contains("publish_doc"))
         #expect(toolNames.contains("unpublish_doc"))
         // A chat asked to "make a site" makes a site, not a Doc (2026-09-09).
-        #expect(toolNames.contains("publish_site"))
+        #expect(toolNames.contains("save_site"))
         #expect(toolNames.contains("read_site_file"))
-        #expect(toolNames.contains("unpublish_site"))
         // Lifecycle actions the UI had and MCP did not, closed 2026-09-05.
         #expect(toolNames.contains("update_review_session"))
         #expect(toolNames.contains("set_source_read"))
@@ -10097,61 +10144,10 @@ struct MCPDataStoreTests {
         #expect(createdDoc["linked_url"] is NSNull)
     }
 
-    /// A stand-in for sites.foreverlm.com: records every publish and
-    /// take-down, and answers what it holds from the last publish, as the
-    /// service would. Saving a site must never reach it.
-    actor SiteHostRecorder {
-        var publishes: [(siteID: String, title: String, files: [SiteFile], slug: String?, source: SitePublishingSource?, access: SitePublishingAccess?)] = []
-        var unpublished: [String] = []
-        var held: [String: PublishedSiteStatus] = [:]
-        var heldFiles: [String: [SiteFile]] = [:]
-
-        func publish(_ siteID: String, _ title: String, _ files: [SiteFile], _ slug: String?, _ source: SitePublishingSource?, _ access: SitePublishingAccess?) -> PublishedSiteStatus {
-            publishes.append((siteID, title, files, slug, source, access))
-            let address = slug ?? held[siteID]?.slug ?? "abcdefghjkmn"
-            let status = PublishedSiteStatus(
-                siteID: siteID, url: URL(string: "https://sites.foreverlm.com/\(address)/")!, slug: address, title: title,
-                publishedAt: Date(), updatedAt: Date(), bytes: files.reduce(0) { $0 + $1.data.count },
-                filePaths: files.map(\.path), isCustomSlug: slug != nil, source: source, access: access ?? held[siteID]?.access
-            )
-            held[siteID] = status
-            heldFiles[siteID] = files
-            return status
-        }
-
-        func hold(_ status: PublishedSiteStatus, files: [SiteFile], under handle: String) {
-            held[handle] = status
-            heldFiles[handle] = files
-        }
-
-        func status(_ handle: String) -> PublishedSiteStatus? { held[handle] }
-
-        func file(_ handle: String, _ path: String) throws -> (data: Data, contentType: String) {
-            guard let file = heldFiles[handle]?.first(where: { $0.path == path }) else { throw DocPublishingError.malformedResponse }
-            return (file.data, "application/octet-stream")
-        }
-
-        func unpublish(_ handle: String) -> Bool {
-            unpublished.append(handle)
-            return held.removeValue(forKey: handle) != nil
-        }
-
-        nonisolated func hosting(signedIn: Bool = true) -> MCPDataStore.SiteHosting {
-            MCPDataStore.SiteHosting(
-                isSignedIn: signedIn,
-                publish: { try await self.publish($0, $1, $2, $3, $4, $5) },
-                status: { await self.status($0) },
-                readFile: { try await self.file($0, $1) },
-                unpublish: { await self.unpublish($0) }
-            )
-        }
-    }
-
-    @Test("save_site keeps the files in the library with a text copy and never reaches the host; publish_site puts a copy up, a later save updates it, and unpublish_site takes only the copy down")
-    func mcpSaveAndPublishSite() async throws {
+    @Test("save_site keeps the files in the library with a text copy, and nothing goes on the web")
+    func mcpSaveSite() async throws {
         let (store, tmpPath) = try makeStore()
         defer { cleanup(tmpPath) }
-        let host = SiteHostRecorder()
 
         // The files are checked before anything is stored.
         for (html, files, message) in [
@@ -10162,7 +10158,7 @@ struct MCPDataStoreTests {
             ("<h1>", [["path": "a.css", "content": "p{}", "content_base64": "cHt9"]] as [Any], "exactly one of"),
         ] {
             do {
-                _ = try await store.saveSite(site: nil, title: "Mito", html: html, files: files, repository: nil, repositoryPath: nil, ref: nil, homeNotebookID: nil, notebookIDs: [], hosting: host.hosting(signedIn: false))
+                _ = try await store.saveSite(site: nil, title: "Mito", html: html, files: files, repository: nil, repositoryPath: nil, ref: nil, homeNotebookID: nil, notebookIDs: [])
                 Issue.record("save_site accepted \(message)")
             } catch {
                 #expect(error.localizedDescription.contains(message), "\(error.localizedDescription)")
@@ -10170,22 +10166,20 @@ struct MCPDataStoreTests {
         }
         #expect(try await store.notebookFileStorage.loadArtifacts(notebookID: nil).isEmpty)
 
-        // Signed out is no obstacle to saving: the site is the library's. html
+        // Saving needs no account: the site is the library's. html
         // becomes index.html, the entry is a ForeverLM site at its library
         // address, and the visible text is its copy.
         let saved = try parseJSON(try await store.saveSite(
             site: nil, title: "  Mito   Landscape ", html: "<!doctype html><html><head><title>Mito</title><style>h1{}</style></head><body><h1>Mito Landscape</h1><p>Forty &amp; one companies.</p><script>x()</script></body></html>",
             files: [["path": "./css/site.css", "content": "h1{color:red}"], ["path": "img/dot.png", "content_base64": "iVBORw0KGgo="]],
-            repository: nil, repositoryPath: nil, ref: nil, homeNotebookID: nil, notebookIDs: [], hosting: host.hosting(signedIn: false)
+            repository: nil, repositoryPath: nil, ref: nil, homeNotebookID: nil, notebookIDs: []
         ))
         #expect(saved["status"] as? String == "saved")
-        #expect(saved["published"] as? Bool == false)
         let docID = try #require(saved["site_id"] as? String)
         #expect(saved["url"] as? String == "foreverlm-site://\(docID)/")
         #expect(saved["files"] as? Int == 3)
         #expect(saved["file_paths"] as? [String] == ["index.html", "css/site.css", "img/dot.png"])
-        #expect((saved["message"] as? String)?.contains("Nothing is on the web") == true)
-        #expect(await host.publishes.isEmpty, "saving never publishes")
+        #expect((saved["message"] as? String)?.contains("never puts a site on the web") == true)
         let doc = try #require(saved["doc"] as? [String: Any])
         #expect(doc["id"] as? String == docID)
         #expect(doc["kind"] as? String == "foreverlm_site")
@@ -10210,7 +10204,7 @@ struct MCPDataStoreTests {
         for handle in [docID, "foreverlm-site://\(docID)/css/site.css"] {
             let updated = try parseJSON(try await store.saveSite(
                 site: handle, title: nil, html: "<h1>Version two</h1>", files: nil,
-                repository: nil, repositoryPath: nil, ref: nil, homeNotebookID: nil, notebookIDs: [], hosting: host.hosting(signedIn: false)
+                repository: nil, repositoryPath: nil, ref: nil, homeNotebookID: nil, notebookIDs: []
             ))
             #expect(updated["status"] as? String == "updated", Comment(rawValue: handle))
             #expect(updated["site_id"] as? String == docID, Comment(rawValue: handle))
@@ -10220,63 +10214,11 @@ struct MCPDataStoreTests {
         #expect(try await store.notebookFileStorage.loadArtifacts(notebookID: nil).first?.title == "Mito Landscape", "an update without a title keeps the entry's")
         #expect((try parseJSON(try await store.readArtifact(artifactID: docID))["markdown"] as? String)?.contains("Version two") == true)
         do {
-            _ = try await store.saveSite(site: "nowhere-at-all", title: nil, html: "<h1>", files: nil, repository: nil, repositoryPath: nil, ref: nil, homeNotebookID: nil, notebookIDs: [], hosting: host.hosting(signedIn: false))
+            _ = try await store.saveSite(site: "nowhere-at-all", title: nil, html: "<h1>", files: nil, repository: nil, repositoryPath: nil, ref: nil, homeNotebookID: nil, notebookIDs: [])
             Issue.record("an unknown site was updated")
         } catch {
             #expect(error.localizedDescription.contains("No site of yours is named nowhere-at-all"))
         }
-
-        // Publishing is the account's: refused signed out, nothing sent.
-        do {
-            _ = try await store.publishSite(site: docID, title: nil, html: nil, files: nil, repository: nil, repositoryPath: nil, ref: nil, slug: nil, homeNotebookID: nil, notebookIDs: [], hosting: host.hosting(signedIn: false))
-            Issue.record("publish_site ran signed out")
-        } catch {
-            #expect(error.localizedDescription.contains("Sign in with Apple"))
-        }
-        do {
-            _ = try await store.publishSite(site: docID, title: nil, html: nil, files: nil, repository: nil, repositoryPath: nil, ref: nil, slug: "API", homeNotebookID: nil, notebookIDs: [], hosting: host.hosting())
-            Issue.record("a reserved slug was accepted")
-        } catch {
-            #expect(error.localizedDescription.contains("reserved"))
-        }
-        #expect(await host.publishes.isEmpty)
-
-        // publish_site puts the library's files up under the record's id; the
-        // record keeps its library address.
-        let published = try parseJSON(try await store.publishSite(
-            site: docID, title: nil, html: nil, files: nil, repository: nil, repositoryPath: nil, ref: nil,
-            slug: "Mito-Landscape", homeNotebookID: nil, notebookIDs: [], hosting: host.hosting()
-        ))
-        #expect(published["status"] as? String == "published")
-        #expect(published["url"] as? String == "https://sites.foreverlm.com/mito-landscape/")
-        #expect(published["library_url"] as? String == "foreverlm-site://\(docID)/")
-        #expect(published["access"] as? String == "owner")
-        let first = try #require(await host.publishes.first)
-        #expect(first.siteID == docID, "the service knows the copy by the record's id")
-        #expect(first.slug == "mito-landscape")
-        #expect(first.access == SitePublishingAccess(teamID: nil, readers: []))
-        #expect(first.files.map(\.path).sorted() == ["css/site.css", "img/dot.png", "index.html"])
-        #expect(try await store.notebookFileStorage.loadArtifacts(notebookID: nil).first?.linkedURL == "foreverlm-site://\(docID)/")
-
-        // A save of a published site updates the copy too, keeping its access.
-        let resaved = try parseJSON(try await store.saveSite(
-            site: docID, title: nil, html: "<h1>Version three</h1>", files: nil,
-            repository: nil, repositoryPath: nil, ref: nil, homeNotebookID: nil, notebookIDs: [], hosting: host.hosting()
-        ))
-        #expect(resaved["published_url"] as? String == "https://sites.foreverlm.com/mito-landscape/")
-        #expect((resaved["message"] as? String)?.contains("was updated with the change too") == true)
-        #expect(await host.publishes.count == 2)
-        #expect(await host.publishes.last?.access == nil, "an update leaves the live access alone")
-        let republishedIndex = try #require(await host.publishes.last?.files.first { $0.path == "index.html" })
-        #expect(String(data: republishedIndex.data, encoding: .utf8)?.contains("Version three") == true)
-
-        let publicResult = try parseJSON(try await store.publishSite(
-            site: docID, title: nil, html: nil, files: nil, repository: nil, repositoryPath: nil, ref: nil, slug: nil,
-            visibility: "public", homeNotebookID: nil, notebookIDs: [], hosting: host.hosting()
-        ))
-        #expect(publicResult["visibility"] as? String == "public")
-        #expect((publicResult["message"] as? String)?.contains("anyone can open it without signing in") == true)
-        #expect(await host.publishes.last?.access?.visibility == .publicSite)
 
         // Files from a repository: read through the injected reader, the
         // commit recorded, skipped files named; no index.html is a refusal.
@@ -10286,13 +10228,13 @@ struct MCPDataStoreTests {
             #expect(ref == "main")
             return MCPDataStore.SiteRepositoryRead(
                 files: [SiteFile(path: "index.html", data: Data("<h1>From git</h1>".utf8)), SiteFile(path: "app.js", data: Data("1".utf8))],
-                source: SitePublishingSource(repository: "acme/site", ref: "main", path: "public", commit: "abc123abc123"),
+                source: SiteRepositorySource(repository: "acme/site", ref: "main", path: "public", commit: "abc123abc123"),
                 skipped: ["public/logo.png (binary)"]
             )
         }
         let fromRepo = try parseJSON(try await store.saveSite(
             site: nil, title: "Acme", html: nil, files: nil, repository: "acme/site", repositoryPath: "public", ref: "main",
-            homeNotebookID: nil, notebookIDs: [], readRepository: reader, hosting: host.hosting()
+            homeNotebookID: nil, notebookIDs: [], readRepository: reader
         ))
         #expect(fromRepo["status"] as? String == "saved")
         #expect((fromRepo["source"] as? [String: Any])?["commit"] as? String == "abc123abc123")
@@ -10301,98 +10243,33 @@ struct MCPDataStoreTests {
         do {
             _ = try await store.saveSite(
                 site: nil, title: "Acme", html: "<h1>", files: nil, repository: "acme/site", repositoryPath: nil, ref: nil,
-                homeNotebookID: nil, notebookIDs: [], readRepository: reader, hosting: host.hosting()
+                homeNotebookID: nil, notebookIDs: [], readRepository: reader
             )
             Issue.record("files and a repository were both accepted")
         } catch {
             #expect(error.localizedDescription.contains("not both"))
         }
         let noIndex: MCPDataStore.SiteRepositoryReader = { _, _, _ in
-            MCPDataStore.SiteRepositoryRead(files: [SiteFile(path: "README.md", data: Data("x".utf8))], source: SitePublishingSource(repository: "acme/site"), skipped: [])
+            MCPDataStore.SiteRepositoryRead(files: [SiteFile(path: "README.md", data: Data("x".utf8))], source: SiteRepositorySource(repository: "acme/site"), skipped: [])
         }
         do {
             _ = try await store.saveSite(
                 site: nil, title: "Acme", html: nil, files: nil, repository: "acme/site", repositoryPath: nil, ref: nil,
-                homeNotebookID: nil, notebookIDs: [], readRepository: noIndex, hosting: host.hosting()
+                homeNotebookID: nil, notebookIDs: [], readRepository: noIndex
             )
             Issue.record("a repository without index.html was saved")
         } catch {
             #expect(error.localizedDescription.contains("No index.html"))
         }
 
-        // read_site_file reads the library, not the host.
-        let read = try parseJSON(try await store.readSiteFile(site: docID, path: "/css/site.css", hosting: host.hosting(signedIn: false)))
+        // read_site_file reads the library.
+        let read = try parseJSON(try await store.readSiteFile(site: docID, path: "/css/site.css"))
         #expect(read["content"] as? String == "h1{color:red}")
         #expect(read["content_type"] as? String == "text/css")
 
-        // unpublish_site takes the copy down and leaves the site in the library.
-        let down = try parseJSON(try await store.unpublishSite(site: docID, hosting: host.hosting()))
-        #expect(down["status"] as? String == "unpublished")
-        #expect(down["removed_from_sites"] as? Bool == false)
-        #expect(await host.unpublished == [docID])
-        #expect(try await store.notebookFileStorage.loadArtifacts(notebookID: nil).contains { $0.id == docID }, "the site stays in the library")
-        #expect(try await store.notebookFileStorage.localSiteFiles(artifactID: docID)?.isEmpty == false)
-        #expect(Set(MCPToolRegistry.shared.tools.map(\.name)).isSuperset(of: ["save_site", "publish_site", "read_site_file", "unpublish_site"]))
-    }
-
-    /// A site made before 2026-09-22 points at sites.foreverlm.com and has no
-    /// files in the library. The first change brings its hosted files home,
-    /// and the hosted copy comes down only once they have landed.
-    @Test("A site still on sites.foreverlm.com is brought into the library before it is changed, and the hosted copy is taken down after")
-    func mcpSiteBroughtHome() async throws {
-        let (store, tmpPath) = try makeStore()
-        defer { cleanup(tmpPath) }
-        let host = SiteHostRecorder()
-        let legacy = try await store.notebookFileStorage.createLinkedArtifact(
-            url: URL(string: "https://sites.foreverlm.com/atlas/")!, title: "Mitochondrial Therapeutics Atlas",
-            homeNotebookID: nil, linkedNotebookIDs: []
-        )
-        let hosted = [
-            SiteFile(path: "index.html", data: Data("<h1>Atlas</h1>".utf8)),
-            SiteFile(path: "css/site.css", data: Data("h1{}".utf8)),
-            SiteFile(path: "foreverlm/sources/src-1.pdf", data: Data("%PDF".utf8)),
-        ]
-        await host.hold(
-            PublishedSiteStatus(
-                siteID: "old-site-id", url: URL(string: "https://sites.foreverlm.com/atlas/")!, slug: "atlas", title: "Mitochondrial Therapeutics Atlas",
-                publishedAt: Date(), updatedAt: Date(), bytes: 0, filePaths: hosted.map(\.path)
-            ),
-            files: hosted,
-            under: "atlas"
-        )
-        #expect(HostedSiteAdoption.needsAdoption(legacy))
-
-        // Signed out it cannot be read back, and the call says so.
-        do {
-            _ = try await store.saveSite(site: legacy.id, title: nil, html: nil, files: [["path": "about.html", "content": "<p>About</p>"]], repository: nil, repositoryPath: nil, ref: nil, homeNotebookID: nil, notebookIDs: [], hosting: host.hosting(signedIn: false))
-            Issue.record("a hosted site was changed signed out")
-        } catch {
-            #expect(error.localizedDescription.contains("still on sites.foreverlm.com"))
-        }
-
-        let saved = try parseJSON(try await store.saveSite(
-            site: "https://sites.foreverlm.com/atlas/", title: nil, html: nil, files: [["path": "about.html", "content": "<p>About</p>"]],
-            repository: nil, repositoryPath: nil, ref: nil, homeNotebookID: nil, notebookIDs: [], hosting: host.hosting()
-        ))
-        #expect(saved["brought_home"] as? Bool == true)
-        #expect(saved["site_id"] as? String == legacy.id, "the same record, now kept in the library")
-        #expect(saved["url"] as? String == "foreverlm-site://\(legacy.id)/")
-        #expect(saved["kept_files"] as? [String] == ["css/site.css", "index.html"])
-        let files = try #require(try await store.notebookFileStorage.localSiteFiles(artifactID: legacy.id))
-        #expect(files.map(\.path) == ["about.html", "css/site.css", "index.html"], "a published paper's PDF is the library's own and is not copied")
-        #expect(await host.unpublished == (HostedSiteAdoption.takesDownHostedCopy ? ["atlas"] : []), "the hosted copy comes down after the files landed (never in Dev)")
-        #expect(await host.publishes.isEmpty)
-        let record = try #require(try await store.notebookFileStorage.loadArtifacts(notebookID: nil).first { $0.id == legacy.id })
-        #expect(record.linkedURL == "foreverlm-site://\(legacy.id)/")
-        #expect(!HostedSiteAdoption.needsAdoption(record))
-
-        // A record whose address the service does not hold is left as a link.
-        let orphan = try await store.notebookFileStorage.createLinkedArtifact(
-            url: URL(string: "https://sites.foreverlm.com/gone-site/")!, title: "Gone", homeNotebookID: nil, linkedNotebookIDs: []
-        )
-        let outcome = try await HostedSiteAdoption.bringHome(orphan, storage: store.notebookFileStorage, status: { _ in nil }, readFile: { _, _ in throw DocPublishingError.malformedResponse }, unpublish: { _ in true })
-        #expect(outcome == .notHosted)
-        #expect(try await store.notebookFileStorage.loadArtifacts(notebookID: nil).first { $0.id == orphan.id }?.linkedURL == "https://sites.foreverlm.com/gone-site/")
+        let toolNames = Set(MCPToolRegistry.shared.tools.map(\.name))
+        #expect(toolNames.isSuperset(of: ["save_site", "read_site_file", "replace_site_text"]))
+        #expect(toolNames.isDisjoint(with: ["publish_site", "unpublish_site"]), "sites are not put on the web")
     }
 
     /// `list_source_artifacts`, the tool behind the app's Linked in menu.
@@ -10406,7 +10283,7 @@ struct MCPDataStoreTests {
         SourceArtifactCitationCache.shared.removeAll()
 
         let animation = try await store.notebookFileStorage.createLinkedArtifact(
-            url: URL(string: "https://sites.foreverlm.com/anim/")!, title: "The animation",
+            url: URL(string: "foreverlm-site://anim/")!, title: "The animation",
             homeNotebookID: nil, linkedNotebookIDs: [], kind: .animation, sourceIDs: ["paper-1"]
         )
         let citing = try await store.notebookFileStorage.createArtifact(
@@ -10426,7 +10303,7 @@ struct MCPDataStoreTests {
         #expect(Set(byID.keys) == [animation.id, citing.id])
         #expect(byID[animation.id]?["linked_by"] as? [String] == ["grounded"])
         #expect(byID[animation.id]?["kind"] as? String == "animation")
-        #expect(byID[animation.id]?["url"] as? String == "https://sites.foreverlm.com/anim/")
+        #expect(byID[animation.id]?["url"] as? String == "foreverlm-site://anim/")
         #expect(byID[citing.id]?["linked_by"] as? [String] == ["cited"])
         #expect(byID[citing.id]?["kind"] as? String == "markdown")
 
@@ -10452,12 +10329,11 @@ struct MCPDataStoreTests {
     func mcpReplaceSiteText() async throws {
         let (store, tmpPath) = try makeStore()
         defer { cleanup(tmpPath) }
-        let host = SiteHostRecorder()
         let saved = try parseJSON(try await store.saveSite(
             site: nil, title: "Atlas",
             html: "<!doctype html><html><body><p class=\"kicker\">COMPOUNDS WITHOUT A DEVELOPER</p><h2>Real pharmacology, no one carrying it</h2><p>the atlas</p><p>the atlas</p></body></html>",
             files: [["path": "about.html", "content": "<h1>About &amp; more</h1>"], ["path": "css/site.css", "content": "h1{}"]],
-            repository: nil, repositoryPath: nil, ref: nil, homeNotebookID: nil, notebookIDs: [], hosting: host.hosting(signedIn: false)
+            repository: nil, repositoryPath: nil, ref: nil, homeNotebookID: nil, notebookIDs: []
         ))
         let siteID = try #require(saved["site_id"] as? String)
         func page(_ path: String) async throws -> String {
@@ -10469,8 +10345,7 @@ struct MCPDataStoreTests {
         // No account is needed: the site is the library's.
         let changed = try parseJSON(try await store.replaceSiteText(
             site: siteID, find: "COMPOUNDS WITHOUT A DEVELOPER\nReal pharmacology, no one carrying it",
-            replace: "COMPOUNDS WITHOUT AN OWNER\nReal pharmacology, nobody carrying it", path: nil,
-            hosting: host.hosting(signedIn: false)
+            replace: "COMPOUNDS WITHOUT AN OWNER\nReal pharmacology, nobody carrying it", path: nil
         ))
         #expect(changed["status"] as? String == "changed")
         #expect(changed["path"] as? String == "index.html")
@@ -10480,12 +10355,10 @@ struct MCPDataStoreTests {
         let html = try await page("index.html")
         #expect(html.contains("<p class=\"kicker\">COMPOUNDS WITHOUT AN OWNER</p><h2>Real pharmacology, nobody carrying it</h2>"))
         #expect(html.contains("<p>the atlas</p><p>the atlas</p>"), "nothing else moved")
-        #expect(await host.publishes.isEmpty, "an unpublished site is not published by a change")
 
         // Another page by its library address, with an entity in the source.
         let about = try parseJSON(try await store.replaceSiteText(
-            site: siteID, find: "About & more", replace: "About & less", path: "foreverlm-site://\(siteID)/about.html",
-            hosting: host.hosting(signedIn: false)
+            site: siteID, find: "About & more", replace: "About & less", path: "foreverlm-site://\(siteID)/about.html"
         ))
         #expect(about["path"] as? String == "about.html")
         #expect(about["url"] as? String == "foreverlm-site://\(siteID)/about.html")
@@ -10493,40 +10366,34 @@ struct MCPDataStoreTests {
 
         // Twice on the page: refused with the count; absent: refused; a missing file: refused.
         do {
-            _ = try await store.replaceSiteText(site: siteID, find: "the atlas", replace: "an atlas", path: nil, hosting: host.hosting(signedIn: false))
+            _ = try await store.replaceSiteText(site: siteID, find: "the atlas", replace: "an atlas", path: nil)
             Issue.record("an ambiguous passage went through")
         } catch let error as MCPError {
             #expect(error.localizedDescription.contains("appears 2 times"))
         }
         do {
-            _ = try await store.replaceSiteText(site: siteID, find: "Not on the page", replace: "x", path: nil, hosting: host.hosting(signedIn: false))
+            _ = try await store.replaceSiteText(site: siteID, find: "Not on the page", replace: "x", path: nil)
             Issue.record("an absent passage went through")
         } catch let error as MCPError {
             #expect(error.localizedDescription.contains("not found in the page's source"))
         }
         do {
-            _ = try await store.replaceSiteText(site: siteID, find: "the atlas", replace: "x", path: "missing.html", hosting: host.hosting(signedIn: false))
+            _ = try await store.replaceSiteText(site: siteID, find: "the atlas", replace: "x", path: "missing.html")
             Issue.record("a missing file went through")
         } catch let error as MCPError {
             #expect(error.localizedDescription.contains("has no file missing.html"))
         }
 
-        // A published site's copy follows the change.
-        _ = try await store.publishSite(site: siteID, title: nil, html: nil, files: nil, repository: nil, repositoryPath: nil, ref: nil, slug: "atlas", homeNotebookID: nil, notebookIDs: [], hosting: host.hosting())
-        let republished = try parseJSON(try await store.replaceSiteText(site: siteID, find: "About & less", replace: "About", path: "about.html", hosting: host.hosting()))
-        #expect((republished["message"] as? String)?.contains("https://sites.foreverlm.com/atlas/ was updated too") == true)
-        #expect(await host.publishes.count == 2)
     }
 
     @Test("An update carries only the files that change: stored files are kept, remove_files drops, replace_all replaces, and read_site_file without a path lists the files")
     func mcpSaveSitePartialUpdate() async throws {
         let (store, tmpPath) = try makeStore()
         defer { cleanup(tmpPath) }
-        let host = SiteHostRecorder()
         let first = try parseJSON(try await store.saveSite(
             site: nil, title: "Mitochondrial Therapeutics Atlas", html: "<h1>Atlas</h1>",
             files: [["path": "interventions.html", "content": "<table></table>"], ["path": "css/site.css", "content": "h1{}"]],
-            repository: nil, repositoryPath: nil, ref: nil, homeNotebookID: nil, notebookIDs: [], hosting: host.hosting(signedIn: false)
+            repository: nil, repositoryPath: nil, ref: nil, homeNotebookID: nil, notebookIDs: []
         ))
         let siteID = try #require(first["site_id"] as? String)
         func paths() async throws -> [String] {
@@ -10537,7 +10404,7 @@ struct MCPDataStoreTests {
         let updated = try parseJSON(try await store.saveSite(
             site: siteID, title: nil, html: nil,
             files: [["path": "interventions.html", "content": "<table><tr><td>Elamipretide</td></tr></table>"]],
-            repository: nil, repositoryPath: nil, ref: nil, homeNotebookID: nil, notebookIDs: [], hosting: host.hosting(signedIn: false)
+            repository: nil, repositoryPath: nil, ref: nil, homeNotebookID: nil, notebookIDs: []
         ))
         #expect(try await paths() == ["css/site.css", "index.html", "interventions.html"])
         #expect(updated["kept_files"] as? [String] == ["css/site.css", "index.html"])
@@ -10550,19 +10417,19 @@ struct MCPDataStoreTests {
         // refused, and so is removing the entry page without passing one.
         let removed = try parseJSON(try await store.saveSite(
             site: siteID, title: nil, html: nil, files: [["path": "about.html", "content": "<p>About</p>"]],
-            repository: nil, repositoryPath: nil, ref: nil, removeFiles: ["/css/site.css"], homeNotebookID: nil, notebookIDs: [], hosting: host.hosting(signedIn: false)
+            repository: nil, repositoryPath: nil, ref: nil, removeFiles: ["/css/site.css"], homeNotebookID: nil, notebookIDs: []
         ))
         #expect(try await paths() == ["about.html", "index.html", "interventions.html"])
         #expect(removed["removed_files"] as? [String] == ["css/site.css"])
         #expect((removed["message"] as? String)?.contains("Removed: css/site.css.") == true)
         do {
-            _ = try await store.saveSite(site: siteID, title: nil, html: "<h1>New</h1>", files: nil, repository: nil, repositoryPath: nil, ref: nil, removeFiles: ["index.html"], homeNotebookID: nil, notebookIDs: [], hosting: host.hosting(signedIn: false))
+            _ = try await store.saveSite(site: siteID, title: nil, html: "<h1>New</h1>", files: nil, repository: nil, repositoryPath: nil, ref: nil, removeFiles: ["index.html"], homeNotebookID: nil, notebookIDs: [])
             Issue.record("a file both passed and removed was accepted")
         } catch {
             #expect(error.localizedDescription.contains("do one or the other"))
         }
         do {
-            _ = try await store.saveSite(site: siteID, title: nil, html: nil, files: [["path": "x.css", "content": "p{}"]], repository: nil, repositoryPath: nil, ref: nil, removeFiles: ["index.html"], homeNotebookID: nil, notebookIDs: [], hosting: host.hosting(signedIn: false))
+            _ = try await store.saveSite(site: siteID, title: nil, html: nil, files: [["path": "x.css", "content": "p{}"]], repository: nil, repositoryPath: nil, ref: nil, removeFiles: ["index.html"], homeNotebookID: nil, notebookIDs: [])
             Issue.record("a site without index.html was saved")
         } catch {
             #expect(error.localizedDescription.contains("would have no index.html"))
@@ -10571,12 +10438,12 @@ struct MCPDataStoreTests {
         // replace_all: the passed files are the whole site.
         let replaced = try parseJSON(try await store.saveSite(
             site: siteID, title: nil, html: "<h1>Fresh</h1>", files: nil, repository: nil, repositoryPath: nil, ref: nil,
-            replaceAll: true, homeNotebookID: nil, notebookIDs: [], hosting: host.hosting(signedIn: false)
+            replaceAll: true, homeNotebookID: nil, notebookIDs: []
         ))
         #expect(try await paths() == ["index.html"])
         #expect(replaced["kept_files"] == nil)
         do {
-            _ = try await store.saveSite(site: siteID, title: nil, html: nil, files: [["path": "a.css", "content": "p{}"]], repository: nil, repositoryPath: nil, ref: nil, replaceAll: true, homeNotebookID: nil, notebookIDs: [], hosting: host.hosting(signedIn: false))
+            _ = try await store.saveSite(site: siteID, title: nil, html: nil, files: [["path": "a.css", "content": "p{}"]], repository: nil, repositoryPath: nil, ref: nil, replaceAll: true, homeNotebookID: nil, notebookIDs: [])
             Issue.record("replace_all without index.html was accepted")
         } catch {
             #expect(error.localizedDescription.contains("needs an index.html"))
@@ -10584,30 +10451,29 @@ struct MCPDataStoreTests {
 
         // A new site needs a title.
         do {
-            _ = try await store.saveSite(site: nil, title: nil, html: "<h1>", files: nil, repository: nil, repositoryPath: nil, ref: nil, homeNotebookID: nil, notebookIDs: [], hosting: host.hosting(signedIn: false))
+            _ = try await store.saveSite(site: nil, title: nil, html: "<h1>", files: nil, repository: nil, repositoryPath: nil, ref: nil, homeNotebookID: nil, notebookIDs: [])
             Issue.record("a new site without a title was accepted")
         } catch {
             #expect(error.localizedDescription.contains("title is required"))
         }
 
         // read_site_file without a path lists the files — not ForeverLM's own.
-        _ = try await store.saveSite(site: siteID, title: nil, html: nil, files: [["path": "pages/two.html", "content": "<p>Two</p>"]], repository: nil, repositoryPath: nil, ref: nil, homeNotebookID: nil, notebookIDs: [], hosting: host.hosting(signedIn: false))
-        let listing = try parseJSON(try await store.readSiteFile(site: siteID, path: nil, hosting: host.hosting(signedIn: false)))
+        _ = try await store.saveSite(site: siteID, title: nil, html: nil, files: [["path": "pages/two.html", "content": "<p>Two</p>"]], repository: nil, repositoryPath: nil, ref: nil, homeNotebookID: nil, notebookIDs: [])
+        let listing = try parseJSON(try await store.readSiteFile(site: siteID, path: nil))
         #expect(listing["file_paths"] as? [String] == ["index.html", "pages/two.html"])
         #expect(listing["files"] as? Int == 2)
         #expect(listing["site"] as? String == siteID)
         #expect((listing["message"] as? String)?.contains("only the files that change") == true)
         do {
-            _ = try await store.readSiteFile(site: "gone", path: "  ", hosting: host.hosting(signedIn: false))
+            _ = try await store.readSiteFile(site: "gone", path: "  ")
             Issue.record("a site the library does not hold was listed")
         } catch {
             #expect(error.localizedDescription.contains("No site or animation of yours is named gone"))
         }
-        #expect(await host.publishes.isEmpty)
     }
 
-    @Test("publish_site draws the library's banner cards: each linked source's thumbnail and one card script join the files, every page loads it once, a source linked by its web address gets the same card, and a copy passed back is remade")
-    func mcpPublishSiteSourceCards() async throws {
+    @Test("save_site draws the library's banner cards: each linked source's thumbnail and one card script join the files, every page loads it once, a source linked by its web address gets the same card, and a copy passed back is remade")
+    func mcpSaveSiteSourceCards() async throws {
         let (store, tmpPath) = try makeStore()
         defer { cleanup(tmpPath) }
         let kstore = try store.knowledgeStore()
@@ -10637,7 +10503,6 @@ struct MCPDataStoreTests {
         // A post with no file and no artwork: a card with the family glyph that opens its address.
         try Self.seedReadySource(kstore, id: "src-post-1", url: "https://example.com/post", title: "A post", sourceType: .article)
 
-        let host = SiteHostRecorder()
 
         let html = """
         <!doctype html><html><head><title>Crosswalk</title></head><body>
@@ -10652,9 +10517,8 @@ struct MCPDataStoreTests {
         <li><a href="pages/two.html">Own page</a></li></ul>
         </body></html>
         """
-        // Saved and published in one call: the cards are drawn at the save, and
-        // the paper's PDF joins only the published copy.
-        let result = try parseJSON(try await store.publishSite(
+        // The cards are drawn at the save.
+        let result = try parseJSON(try await store.saveSite(
             site: nil, title: "Crosswalk", html: html,
             files: [
                 ["path": "pages/two.html", "content": "<p><a href=\"foreverlm://source/src-levin-1\">Again</a></p>"],
@@ -10663,7 +10527,7 @@ struct MCPDataStoreTests {
                 ["path": "foreverlm/thumbnails/stale.jpg", "content_base64": "/9j/AAAA"],
                 ["path": "foreverlm/source-cards.js", "content": "// old"],
             ],
-            repository: nil, repositoryPath: nil, ref: nil, slug: "crosswalk", includeSourceFiles: true, homeNotebookID: nil, notebookIDs: [], hosting: host.hosting()
+            repository: nil, repositoryPath: nil, ref: nil, homeNotebookID: nil, notebookIDs: []
         ))
         #expect(result["source_cards"] as? Int == 2)
         #expect(result["unresolved_sources"] as? [String] == ["nope"], "an address the library does not hold is a link, not a missing source")
@@ -10673,24 +10537,16 @@ struct MCPDataStoreTests {
         // are not sources.
         #expect(result["linked_addresses"] as? [String] == ["https://example.com/post", "http://mdpi.com/2409-9287/11/1/1/"])
         #expect((result["message"] as? String)?.contains("2 of the pages' web links point at a library source") == true)
-        #expect(result["source_files"] as? [String] == ["foreverlm/sources/src-levin-1.pdf"])
-        #expect(result["skipped_source_files"] == nil)
-        #expect((result["message"] as? String)?.contains("1 stored PDF travels with the published copy") == true)
         #expect((result["message"] as? String)?.contains("2 library sources are drawn as the app's banner card") == true)
         #expect((result["message"] as? String)?.contains("No library source answers to nope") == true)
         let siteID = try #require(result["site_id"] as? String)
 
-        // The library keeps the pages, the picture and the card script; the PDF
-        // is the library's own paper and is not copied into the site.
+        // The library keeps the pages, the picture and the card script.
         let kept = try #require(try await store.notebookFileStorage.localSiteFilePaths(artifactID: siteID))
         #expect(kept == ["foreverlm/source-cards.js", "foreverlm/thumbnails/src-levin-1.jpg", "index.html", "pages/plain.html", "pages/two.html"])
-        let publishedFiles = try #require(await host.publishes.first?.files)
-        let byPath = Dictionary(uniqueKeysWithValues: publishedFiles.map { ($0.path, $0) })
-        #expect(Set(byPath.keys) == Set(kept + ["foreverlm/sources/src-levin-1.pdf"]))
-        let pdfFile = try #require(byPath["foreverlm/sources/src-levin-1.pdf"])
-        #expect(pdfFile.data == (try Data(contentsOf: pdfURL)), "the paper's stored PDF travels as is")
-        #expect(pdfFile.upload == false, "a small PDF fits the publish body")
-        #expect(pdfFile.payload["content_base64"] != nil)
+        let savedFiles = try #require(try await store.notebookFileStorage.localSiteFiles(artifactID: siteID))
+        let byPath = Dictionary(uniqueKeysWithValues: savedFiles.map { ($0.path, $0) })
+        #expect(Set(byPath.keys) == Set(kept))
         let index = try #require(byPath["index.html"].flatMap { String(data: $0.data, encoding: .utf8) })
         let tag = "<script defer src=\"foreverlm/source-cards.js\" data-foreverlm-source-cards></script>"
         #expect(index.components(separatedBy: tag).count == 2, "the entry page loads the card script once")
@@ -10709,30 +10565,28 @@ struct MCPDataStoreTests {
         #expect(script.contains("\"subtitle\":\"Michael Levin · Philosophies · 2026\""))
         #expect(script.contains("\"thumbnail\":\"foreverlm/thumbnails/src-levin-1.jpg\""))
         #expect(script.contains("\"url\":\"https://www.mdpi.com/2409-9287/11/1/1\""))
-        #expect(script.contains("\"file\":\"foreverlm/sources/src-levin-1.pdf\""))
         #expect(script.contains("\"src-post-1\":{"))
         #expect(script.contains("\"glyph\":\"A\""))
         #expect(script.contains("\"url\":\"https://example.com/post\""))
         #expect(!script.contains("\"nope\""))
         // A card found by address is keyed by the address and opens it — the
         // author's spelling, not the library's public page — with the same
-        // picture and PDF as the card found by id.
+        // picture as the card found by id.
         #expect(script.contains("\"http://mdpi.com/2409-9287/11/1/1/\":{"))
         #expect(script.contains("\"https://example.com/post\":{"))
         #expect(!script.contains("elsewhere"))
         let addressCard = try #require(script.range(of: "\"http://mdpi.com/2409-9287/11/1/1/\":{").map { script[$0.upperBound...] }.map { String($0.prefix(while: { $0 != "}" })) })
         #expect(addressCard.contains("\"url\":\"http://mdpi.com/2409-9287/11/1/1/\""))
         #expect(addressCard.contains("\"thumbnail\":\"foreverlm/thumbnails/src-levin-1.jpg\""))
-        #expect(addressCard.contains("\"file\":\"foreverlm/sources/src-levin-1.pdf\""))
         #expect(script.contains("scheme === 'http:' || scheme === 'https:'"), "the served script draws a card for a linked address too")
         #expect(script.contains("closest('nav, header, footer')"), "but never inside the page's navigation")
         #expect(script.contains("messageHandlers.linkedPageSourceLinks"), "in the app the script yields to the app's own card")
         #expect(script.contains(SiteSourceCards.cardStyle.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: "\n")[0].trimmingCharacters(in: .whitespaces)))
         #expect(!script.contains("__FOREVERLM_"))
 
-        // The published files passed back as the next save: one tag per page,
+        // The saved files passed back as the next save: one tag per page,
         // one picture per source, the script remade — nothing doubles.
-        let passedBack: [Any] = publishedFiles.map { file -> [String: Any] in
+        let passedBack: [Any] = savedFiles.map { file -> [String: Any] in
             var entry: [String: Any] = ["path": file.path]
             if let text = String(data: file.data, encoding: .utf8), !SiteFile.looksBinary(file.data) {
                 entry["content"] = text
@@ -10741,21 +10595,12 @@ struct MCPDataStoreTests {
             }
             return entry
         }
-        _ = try await store.publishSite(
+        _ = try await store.saveSite(
             site: siteID, title: nil, html: nil, files: passedBack,
-            repository: nil, repositoryPath: nil, ref: nil, slug: nil, includeSourceFiles: true, homeNotebookID: nil, notebookIDs: [],
-            hosting: host.hosting()
+            repository: nil, repositoryPath: nil, ref: nil, homeNotebookID: nil, notebookIDs: []
         )
-        let again = try #require(await host.publishes.last?.files)
+        let again = try #require(try await store.notebookFileStorage.localSiteFiles(artifactID: siteID))
         #expect(Set(again.map(\.path)) == Set(byPath.keys))
-        #expect(try await store.notebookFileStorage.localSiteFilePaths(artifactID: siteID) == kept, "a passed-back PDF never enters the library's copy")
-        // Without the ask, the PDF is not attached.
-        _ = try await store.publishSite(
-            site: siteID, title: nil, html: nil, files: passedBack,
-            repository: nil, repositoryPath: nil, ref: nil, slug: nil, homeNotebookID: nil, notebookIDs: [],
-            hosting: host.hosting()
-        )
-        #expect(Set((await host.publishes.last?.files ?? []).map(\.path)) == Set(kept))
         let indexAgain = try #require(again.first { $0.path == "index.html" }.flatMap { String(data: $0.data, encoding: .utf8) })
         #expect(indexAgain.components(separatedBy: "data-foreverlm-source-cards").count == 2)
         #expect(indexAgain == index)
@@ -10770,45 +10615,12 @@ struct MCPDataStoreTests {
         #expect(SiteSourceCards.injectingScript(into: "<html><body><p>x</p>\n</body></html>", path: "index.html") == "<html><body><p>x</p>\n<script defer src=\"foreverlm/source-cards.js\" data-foreverlm-source-cards></script>\n</body></html>")
         #expect(SiteSourceCards.thumbnailPath(forSourceID: "--src/α:1", taken: ["foreverlm/thumbnails/src---1.jpg"]) == "foreverlm/thumbnails/src---1-2.jpg")
         #expect(SiteSourceCards.isGenerated("FOREVERLM/Thumbnails/x.jpg"))
-        #expect(SiteSourceCards.isGenerated("foreverlm/sources/x.pdf"))
         #expect(!SiteSourceCards.isGenerated("foreverlm/logo.png"))
-        #expect(SiteSourceCards.sourceFilePath(forSourceID: "src-a", taken: []) == "foreverlm/sources/src-a.pdf")
 
-        // The rules for attaching PDFs: a big one streams as an upload, a
-        // paywalled one stays off a Site that is or may be public, one over the
-        // limit is named, and without the ask nothing is attached.
-        let bigPDF = URL(fileURLWithPath: tmpPath).appendingPathComponent("big.pdf")
-        try Data(count: SitePublishing.maxFileBytes + 1).write(to: bigPDF)
         func lookup(_ token: String) -> SiteSourceCards.Lookup? {
             let card = SiteSourceCards.Card(sourceID: token, title: token.uppercased(), subtitle: "Paper", kind: "paper", glyph: "P", url: "https://x/\(token)")
-            switch token {
-            case "a": return .init(card: card, thumbnailJPEG: nil, sourceFile: .init(path: bigPDF.path, bytes: SitePublishing.maxFileBytes + 1, isPaywalled: false))
-            case "b": return .init(card: card, thumbnailJPEG: nil, sourceFile: .init(path: pdfURL.path, bytes: 100, isPaywalled: true))
-            case "c": return .init(card: card, thumbnailJPEG: nil, sourceFile: .init(path: pdfURL.path, bytes: SitePublishing.maxUploadFileBytes + 1, isPaywalled: false))
-            default: return nil
-            }
+            return token == "a" ? .init(card: card, thumbnailJPEG: nil) : nil
         }
-        let linksPage = SiteFile(path: "index.html", data: Data("<p><a href=\"foreverlm://source/a\">A</a></p><p><a href=\"foreverlm://source/b\">B</a></p><p><a href=\"foreverlm://source/c\">C</a></p>".utf8))
-        var publicFiles = [linksPage]
-        let publicAttachment = await SiteSourceCards.attach(to: &publicFiles, includeSourceFiles: true, paywalledAllowed: false) { lookup($0) }
-        #expect(publicAttachment.files == ["foreverlm/sources/a.pdf"])
-        #expect(publicFiles.last?.path == "foreverlm/sources/a.pdf")
-        #expect(publicFiles.last?.upload == true, "over the inline limit, so it streams")
-        #expect(publicFiles.last?.payload["upload"] as? Bool == true)
-        #expect(publicFiles.last?.payload["bytes"] as? Int == SitePublishing.maxFileBytes + 1)
-        #expect(publicAttachment.cards["a"]?.file == "foreverlm/sources/a.pdf")
-        #expect(publicAttachment.cards["b"]?.file == nil)
-        #expect(publicAttachment.skippedFiles.count == 2)
-        #expect(publicAttachment.skippedFiles.first?.contains("B: the library marks it paywalled") == true)
-        #expect(publicAttachment.skippedFiles.last?.contains("C: its PDF is 50.0 MB, over the 50 MB limit") == true)
-        var privateFiles = [linksPage]
-        let privateAttachment = await SiteSourceCards.attach(to: &privateFiles, includeSourceFiles: true, paywalledAllowed: true) { lookup($0) }
-        #expect(privateAttachment.files == ["foreverlm/sources/a.pdf", "foreverlm/sources/b.pdf"])
-        #expect(privateFiles.last?.upload == false)
-        var plainFiles = [linksPage]
-        let plainAttachment = await SiteSourceCards.attach(to: &plainFiles) { lookup($0) }
-        #expect(plainAttachment.files.isEmpty && plainAttachment.skippedFiles.isEmpty)
-        #expect(!plainFiles.contains { $0.path.hasPrefix("foreverlm/sources/") })
 
         // Addresses are asked together, once each; a match is a card that opens
         // the address the author wrote, and a miss is a link and nothing more.
@@ -12984,7 +12796,7 @@ struct MCPDataStoreTests {
         #expect(none["configured"] as? Bool == false)
         #expect(none["router"] is NSNull)
         #expect((none["billed_to"] as? String)?.hasPrefix("leftover ForeverLM balance") == true)
-        #expect((none["billed_to"] as? String)?.contains("OpenRouter key and a ForeverLM plan") == true)
+        #expect((none["billed_to"] as? String)?.contains("the learner's own OpenRouter key") == true)
         let routers = try #require(none["routers"] as? [[String: Any]])
         #expect(routers.map { $0["id"] as? String } == ["openrouter"])
         #expect(routers.allSatisfy { ($0["keys_url"] as? String)?.hasPrefix("https://") == true })
@@ -13043,7 +12855,6 @@ struct MCPDataStoreTests {
         // The address is what the resolution being tested reads.
         try Self.seedReadySource(kstore, id: "src-empa-1", url: paperURL, title: "Empagliflozin improves cardiac energetics", sourceType: .article)
         try Self.seedReadySource(kstore, id: "src-other-1", url: "https://example.com/other", title: "Another paper", sourceType: .article)
-        let host = SiteHostRecorder()
         func files(_ id: String) async throws -> [SiteFile] {
             try #require(try await store.notebookFileStorage.localSiteFiles(artifactID: id))
         }
@@ -13062,7 +12873,7 @@ struct MCPDataStoreTests {
             description: "How empagliflozin shifts substrate use in the TCA cycle, with and without the drug.",
             html: html, files: nil,
             sources: ["src-empa-1", paperURL, "nope-xyz"],
-            homeNotebookID: nil, notebookIDs: [], hosting: host.hosting(signedIn: false)
+            homeNotebookID: nil, notebookIDs: []
         ))
         #expect(saved["status"] as? String == "saved")
         #expect(saved["section"] as? String == "animations")
@@ -13084,7 +12895,6 @@ struct MCPDataStoreTests {
         #expect(message.contains("under Animations"))
         #expect(message.contains("linked to 1 source: Empagliflozin improves cardiac energetics"))
         #expect(message.contains("No library source answers to nope-xyz"))
-        #expect(await host.publishes.isEmpty)
         #expect(try await files(animationID).map(\.path) == ["foreverlm/source-cards.js", "index.html"])
 
         // The library holds the record as an animation, and the text copy is
@@ -13124,7 +12934,7 @@ struct MCPDataStoreTests {
         do {
             _ = try await store.saveAnimation(
                 animation: nil, title: "Nowhere", description: nil, html: "<h1>x</h1>", files: nil,
-                sources: ["zzz-not-a-source"], homeNotebookID: nil, notebookIDs: [], hosting: host.hosting(signedIn: false)
+                sources: ["zzz-not-a-source"], homeNotebookID: nil, notebookIDs: []
             )
             Issue.record("unresolved sources were accepted on a new animation")
         } catch {
@@ -13135,7 +12945,7 @@ struct MCPDataStoreTests {
         let video = try parseJSON(try await store.saveAnimation(
             animation: nil, title: "Electron flow", description: "Rendered with Manim.",
             html: nil, files: [["path": "flow.mp4", "content_base64": Data(repeating: 1, count: 64).base64EncodedString()]],
-            sources: [], homeNotebookID: nil, notebookIDs: [], hosting: host.hosting(signedIn: false)
+            sources: [], homeNotebookID: nil, notebookIDs: []
         ))
         #expect(video["player_page_written"] as? Bool == true)
         #expect((video["message"] as? String)?.contains("about no library source") == true)
@@ -13153,17 +12963,17 @@ struct MCPDataStoreTests {
         let local = try parseJSON(try await store.saveAnimation(
             animation: nil, title: "TCA render", description: nil, html: nil,
             files: [["local_path": render.path]],
-            sources: ["src-empa-1"], homeNotebookID: nil, notebookIDs: [], hosting: host.hosting(signedIn: false)
+            sources: ["src-empa-1"], homeNotebookID: nil, notebookIDs: []
         ))
         #expect(local["player_page_written"] as? Bool == true)
         let localID = try #require(local["animation_id"] as? String)
         #expect(try await files(localID).first { $0.path == "tca-render.mp4" }?.data.count == 2_200_000)
         let huge = URL(fileURLWithPath: tmpPath).appendingPathComponent("huge.mp4")
-        try Data(count: SitePublishing.maxLocalSiteBytes + 1).write(to: huge)
+        try Data(count: LocalSite.maxBytes + 1).write(to: huge)
         do {
             _ = try await store.saveAnimation(
                 animation: nil, title: "Too big", description: nil, html: nil, files: [["local_path": huge.path]],
-                sources: [], homeNotebookID: nil, notebookIDs: [], hosting: host.hosting(signedIn: false)
+                sources: [], homeNotebookID: nil, notebookIDs: []
             )
             Issue.record("an animation too big to sync was saved")
         } catch {
@@ -13176,7 +12986,7 @@ struct MCPDataStoreTests {
         let updated = try parseJSON(try await store.saveAnimation(
             animation: animationID, title: nil, description: nil, html: nil,
             files: [["path": "styles.css", "content": "svg { width: 100%; }"]],
-            sources: [], homeNotebookID: nil, notebookIDs: [], hosting: host.hosting(signedIn: false)
+            sources: [], homeNotebookID: nil, notebookIDs: []
         ))
         #expect(updated["status"] as? String == "updated")
         #expect(updated["kept_files"] as? [String] == ["index.html"])
@@ -13187,7 +12997,7 @@ struct MCPDataStoreTests {
         let regrounded = try parseJSON(try await store.saveAnimation(
             animation: "foreverlm-site://\(animationID)/", title: nil, description: nil, html: nil,
             files: [["path": "styles.css", "content": "svg { width: 90%; }"]],
-            sources: ["src-other-1"], homeNotebookID: nil, notebookIDs: [], hosting: host.hosting(signedIn: false)
+            sources: ["src-other-1"], homeNotebookID: nil, notebookIDs: []
         ))
         #expect((regrounded["doc"] as? [String: Any])?["source_ids"] as? [String] == ["src-other-1"])
         #expect(try await store.notebookFileStorage.loadArtifacts(notebookID: nil).first { $0.id == animationID }?.sourceIDs == ["src-other-1"])
@@ -13195,7 +13005,7 @@ struct MCPDataStoreTests {
         // A Site's id is refused by both the maker and the remover.
         let site = try parseJSON(try await store.saveSite(
             site: nil, title: "Atlas", html: "<h1>Atlas</h1>", files: nil, repository: nil, repositoryPath: nil, ref: nil,
-            homeNotebookID: nil, notebookIDs: [], hosting: host.hosting(signedIn: false)
+            homeNotebookID: nil, notebookIDs: []
         ))
         let siteID = try #require(site["site_id"] as? String)
         #expect((site["doc"] as? [String: Any])?["kind"] as? String == "foreverlm_site")
@@ -13203,34 +13013,23 @@ struct MCPDataStoreTests {
         do {
             _ = try await store.saveAnimation(
                 animation: siteID, title: nil, description: nil, html: "<h1>x</h1>", files: nil,
-                sources: [], homeNotebookID: nil, notebookIDs: [], hosting: host.hosting(signedIn: false)
+                sources: [], homeNotebookID: nil, notebookIDs: []
             )
             Issue.record("a Site was updated as an animation")
         } catch {
             #expect(error.localizedDescription.contains("is a Site, not an animation"))
         }
         do {
-            _ = try await store.deleteAnimation(animation: siteID, hosting: host.hosting())
+            _ = try await store.deleteAnimation(animation: siteID)
             Issue.record("a Site was deleted as an animation")
         } catch {
             #expect(error.localizedDescription.contains("is a Site, not an animation"))
         }
 
-        // A published animation is updated by a save; delete_animation removes
-        // the entry with its files and takes the published copy down.
-        _ = try await store.publishSite(site: animationID, title: nil, html: nil, files: nil, repository: nil, repositoryPath: nil, ref: nil, slug: "empa-tca", homeNotebookID: nil, notebookIDs: [], hosting: host.hosting())
-        #expect(await host.publishes.first?.siteID == animationID)
-        let republished = try parseJSON(try await store.saveAnimation(
-            animation: animationID, title: nil, description: nil, html: nil,
-            files: [["path": "styles.css", "content": "svg { width: 80%; }"]],
-            sources: [], homeNotebookID: nil, notebookIDs: [], hosting: host.hosting()
-        ))
-        #expect(republished["published_url"] as? String == "https://sites.foreverlm.com/empa-tca/")
-        let deleted = try parseJSON(try await store.deleteAnimation(animation: animationID, hosting: host.hosting()))
+        // delete_animation removes the entry with its files.
+        let deleted = try parseJSON(try await store.deleteAnimation(animation: animationID))
         #expect(deleted["status"] as? String == "deleted")
         #expect(deleted["animation_id"] as? String == animationID)
-        #expect(deleted["was_published"] as? Bool == true)
-        #expect(await host.unpublished == [animationID])
         let remaining = try await store.notebookFileStorage.loadArtifacts(notebookID: nil)
         #expect(!remaining.contains { $0.id == animationID })
         #expect(try await store.notebookFileStorage.localSiteFiles(artifactID: animationID) == nil, "the files go with the entry")
@@ -13978,7 +13777,7 @@ struct MCPCanvasParityContractTests {
             #expect(try tool(name).inputSchema["required"] as? [String] == ["item_ids"])
         }
         let card = try properties("update_canvas_card")
-        #expect(Set(card.keys) == ["item_ids", "color", "folded", "w", "h", "fit_to_content"])
+        #expect(Set(card.keys) == ["item_ids", "color", "folded", "w", "h", "fit_to_content", "page", "annotation", "plain", "answered"])
         #expect((card["item_ids"] as? [String: Any])?["maxItems"] as? Int == 200)
         #expect(try property("update_canvas_card", "w")["type"] as? String == "number")
         #expect(try property("update_canvas_card", "folded")["type"] as? String == "boolean")

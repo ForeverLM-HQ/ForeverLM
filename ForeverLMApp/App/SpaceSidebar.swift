@@ -39,22 +39,30 @@ enum SpaceHub: String, CaseIterable, Identifiable, Sendable {
 ///
 /// The product owner, 2026-10-06, showing ChatGPT's Space: "maybe just copy this spaces
 /// design entirely from chatgpt; it looks good". The sidebar is ChatGPT's —
-/// New page, then All, Pages, Sites, Images, Google Drive, the Recents, the
-/// Spaces and Trash at the foot — with ForeverLM's Ideas beside the pictures,
-/// since nothing else lists them.
+/// New chat, then All, Pages, Sites, Images, Google Drive, the Recents, the
+/// Spaces and Trash at the foot. ForeverLM's Ideas had a row beside the
+/// pictures until 2026-10-10 (product owner: "goals can perhaps just be
+/// visible via chat; same with ideas perhaps"): the chat lists and jots them
+/// (`list_ideas`, `create_idea`), and a list of ideas the learner keeps is a
+/// Space item (`.list`). A window that remembered the old place opens on All.
 enum SpaceDestination: Hashable, Sendable {
     case all
     /// The learner's notebooks, and only those: the row that links them
     /// from the sidebar now that the Notebooks home is gone (product owner,
     /// 2026-10-10: "notebooks have to be linked here").
     case notebooks
+    /// Every chat, in a notebook or in none (product owner, 2026-10-10: "maybe
+    /// we should still have a separate chats page? chats don't always have to
+    /// be in a notebook?"). The chats were Home's sidebar's alone, which shows
+    /// only beside a chat or the Reader, so from the Space no list of them was
+    /// in reach.
+    case chats
     case pages
     case sites
     /// The learner's canvases (`KnowledgeMapCanvas`): a beta place, listed
     /// only where the Canvas shows (`BetaFeatures`) and in My Library.
     case canvases
     case images
-    case ideas
     case drive
     case trash
     /// What one team holds or was given, a team being a space in the sync
@@ -66,8 +74,8 @@ enum SpaceDestination: Hashable, Sendable {
     /// its page: what it holds.
     case list(String)
 
-    /// The places listed under New page, in the sidebar's order.
-    static let places: [SpaceDestination] = [.all, .notebooks, .pages, .sites, .canvases, .images, .ideas, .drive]
+    /// The places listed under New chat, in the sidebar's order.
+    static let places: [SpaceDestination] = [.all, .notebooks, .chats, .pages, .sites, .canvases, .images, .drive]
 
     /// The places this Mac lists: Canvases only where canvases are listed
     /// (`StudioViewModel.listsCanvases`).
@@ -86,11 +94,11 @@ enum SpaceDestination: Hashable, Sendable {
     init(key: String) {
         switch key {
         case "notebooks": self = .notebooks
+        case "chats": self = .chats
         case "pages": self = .pages
         case "sites": self = .sites
         case "canvases": self = .canvases
         case "images": self = .images
-        case "ideas": self = .ideas
         case "drive": self = .drive
         case "trash": self = .trash
         default:
@@ -111,11 +119,11 @@ enum SpaceDestination: Hashable, Sendable {
         switch self {
         case .all: return "all"
         case .notebooks: return "notebooks"
+        case .chats: return "chats"
         case .pages: return "pages"
         case .sites: return "sites"
         case .canvases: return "canvases"
         case .images: return "images"
-        case .ideas: return "ideas"
         case .drive: return "drive"
         case .trash: return "trash"
         case .team(let id): return Self.teamPrefix + id
@@ -146,11 +154,11 @@ enum SpaceDestination: Hashable, Sendable {
         switch self {
         case .all: return "All"
         case .notebooks: return "Notebooks"
+        case .chats: return "Chats"
         case .pages: return "Pages"
         case .sites: return "Sites"
         case .canvases: return "Canvases"
         case .images: return "Images"
-        case .ideas: return "Ideas"
         case .drive: return "Google Drive"
         case .trash: return "Trash"
         case .team, .space: return "Space"
@@ -162,17 +170,25 @@ enum SpaceDestination: Hashable, Sendable {
         switch self {
         case .all: return "rectangle.stack"
         case .notebooks: return NotebookGlyph.systemImage
+        case .chats: return "bubble.left.and.bubble.right"
         case .pages: return "doc.text"
         case .sites: return "globe"
         case .canvases: return KnowledgeMap.symbolName
         case .images: return "photo"
-        case .ideas: return "lightbulb"
         case .drive: return "externaldrive"
         case .trash: return "trash"
         case .team: return "person.2"
         case .space: return "square.stack"
         case .list: return "checklist"
         }
+    }
+
+    /// The green tag after the place's name in the sidebar: Beta on
+    /// Canvases, which is still a beta feature (`BetaFeatures`) (product
+    /// owner, 2026-10-10: "add a green 'beta' button to show that it's still
+    /// in beta"); nil for every other place.
+    var badge: String? {
+        self == .canvases ? "Beta" : nil
     }
 
     /// The Pages home's kind a place opens in a pane of its own, for the
@@ -182,7 +198,6 @@ enum SpaceDestination: Hashable, Sendable {
         switch self {
         case .pages: return .docs
         case .sites: return .sites
-        case .ideas: return .ideas
         default: return nil
         }
     }
@@ -341,7 +356,7 @@ private struct SpaceActivityPopover: View {
     }
 }
 
-/// The sidebar: New page, the places, Recents, Spaces, and Trash at the foot.
+/// The sidebar: New chat, the places, Recents, Spaces, and Trash at the foot.
 /// Drawn by the Space home and by the page pane beside an open page, with the
 /// same width, rows and colour, so opening a page from a list changes only
 /// what is beside the sidebar.
@@ -386,14 +401,16 @@ struct SpaceSidebar: View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 1) {
-                    newPageRow
+                    newChatRow
                         .padding(.bottom, 10)
-                    // Notebooks lead, Courses follow, then the rest of the places.
+                    // Notebooks lead and the chats follow them, the two places
+                    // the learner works in; then Courses and the rest.
                     placeRow(.notebooks)
+                    placeRow(.chats)
                     ForEach(SpaceHub.allCases) { hub in
                         hubRow(hub)
                     }
-                    ForEach(SpaceDestination.sidebarPlaces(listsCanvases: vm.listsCanvases).filter { $0 != .notebooks }, id: \.self) { place in
+                    ForEach(SpaceDestination.sidebarPlaces(listsCanvases: vm.listsCanvases).filter { $0 != .notebooks && $0 != .chats }, id: \.self) { place in
                         placeRow(place)
                     }
                     pinnedSection
@@ -465,12 +482,19 @@ struct SpaceSidebar: View {
 
     // MARK: Rows
 
-    private var newPageRow: some View {
+    /// New chat leads the sidebar, as it leads ChatGPT's (product owner,
+    /// 2026-10-10, of the row that was New page: "we should just have new
+    /// chat"). The icon rail beside the Space has no New chat, so this is the
+    /// window's way to one: the rail's own route (`requestNewChat`), a chat in
+    /// the window's notebook while it holds one, taking this pane as Chat
+    /// does. A page stays one step away: New Page leads the ⋯, the list's
+    /// New ▾ makes one, and ⇧⌘N still does.
+    private var newChatRow: some View {
         SpaceSidebarRow(
-            title: "New page",
+            title: "New chat",
             isSelected: false,
-            accessibilityIdentifier: "space.sidebar.newPage",
-            action: onNewPage
+            accessibilityIdentifier: "space.sidebar.newChat",
+            action: startNewChat
         ) {
             Image(systemName: "square.and.pencil")
                 .zoomedSystemFont(size: 13, weight: .regular)
@@ -514,6 +538,16 @@ struct SpaceSidebar: View {
             .help("More ways to add")
             .accessibilityLabel("More ways to add")
         }
+        .contextMenu {
+            Button("Open Beside", systemImage: "rectangle.split.2x1") {
+                let window = windowState ?? vm.activeWindowState
+                vm.inWindow(window) {
+                    vm.openCenterTabBeside(.chat)
+                    vm.requestNewChat()
+                }
+            }
+            OtherWindowMenuItem(.newChat)
+        }
         // The shortcut the Pages home's New Page button carried.
         .background {
             Button("New Page", action: onNewPage)
@@ -522,6 +556,10 @@ struct SpaceSidebar: View {
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }
+    }
+
+    private func startNewChat() {
+        vm.inWindow(windowState ?? vm.activeWindowState) { vm.requestNewChat() }
     }
 
     /// Courses: a click shows that pane in this window, the sidebar staying
@@ -565,6 +603,7 @@ struct SpaceSidebar: View {
             title: place.title,
             isSelected: selection == place,
             accessibilityIdentifier: "space.sidebar.\(place.key)",
+            badge: place.badge,
             action: { onSelect(place) }
         ) {
             placeIcon(place)
@@ -572,7 +611,7 @@ struct SpaceSidebar: View {
             EmptyView()
         }
         if let kind = place.openableKind {
-            // Pages, Sites and Ideas each open in a pane of their own as well:
+            // Pages and Sites each open in a pane of their own as well:
             // dragged to an edge of the center, or from the right-click.
             row
                 .onDrag {
@@ -606,7 +645,7 @@ struct SpaceSidebar: View {
 
     /// One Recents row: the opening, its name now, and the record or canvas
     /// it opens.
-    private struct RecentRow: Identifiable {
+    struct RecentRow: Identifiable {
         let item: SpaceRecents.Item
         let title: String
         let artifact: ArtifactRecord?
@@ -618,9 +657,21 @@ struct SpaceSidebar: View {
     /// What this Mac opened last, that the open library still holds and has
     /// not put in Trash.
     private var shownRecents: [RecentRow] {
+        Self.recentRows(recents.items, vm: vm)
+    }
+
+    /// The first `limit` of `items` the open library still holds, has not
+    /// put in Trash, and, in Screen record mode, lets on screen: a page as
+    /// `artifacts` lists it (narrowed as it loads), a canvas or a list as the
+    /// Space lists them (`listedCanvases`, `listedSpaceLists`), a picture by
+    /// the date it was drawn (`ScreenRecordScope.allowsImage`). On build 208
+    /// (2026-10-10) a take's Recents named three of the learner's canvases.
+    static func recentRows(
+        _ items: [SpaceRecents.Item], vm: StudioViewModel, limit: Int = SpaceSidebarMetrics.recentsShown
+    ) -> [RecentRow] {
         var shown: [RecentRow] = []
-        for item in recents.items {
-            guard shown.count < SpaceSidebarMetrics.recentsShown else { break }
+        for item in items {
+            guard shown.count < limit else { break }
             switch item.kind {
             case .artifact:
                 guard let artifact = vm.artifacts.first(where: { $0.id == item.id }),
@@ -629,15 +680,18 @@ struct SpaceSidebar: View {
                 shown.append(RecentRow(item: item, title: artifact.title, artifact: artifact))
             case .image:
                 // A picture is this Mac's file; a team library holds none.
-                guard vm.activeTeamID == nil else { continue }
+                guard vm.activeTeamID == nil,
+                      vm.screenRecordScope?.allowsImage(id: item.id, createdAt: item.createdAt) ?? true else { continue }
                 shown.append(RecentRow(item: item, title: item.title ?? GeneratedImageActions.untitled, artifact: nil))
             case .canvas:
                 // A canvas is the learner's own: listed where canvases are.
-                guard vm.listsCanvases, let canvas = vm.canvases.canvas(item.id), !canvas.isTrashed else { continue }
+                guard vm.listsCanvases, let canvas = vm.canvases.canvas(item.id), !canvas.isTrashed,
+                      vm.isVisibleInRecordingMode(canvas) else { continue }
                 shown.append(RecentRow(item: item, title: canvas.name, artifact: nil, canvas: canvas))
             case .list:
                 // A list is the learner's own: listed in My Library.
-                guard vm.activeTeamID == nil, let list = vm.spaceLists.list(item.id), !list.isTrashed else { continue }
+                guard vm.activeTeamID == nil, let list = vm.spaceLists.list(item.id), !list.isTrashed,
+                      vm.isVisibleInRecordingMode(list) else { continue }
                 shown.append(RecentRow(item: item, title: list.name, artifact: nil, list: list))
             }
         }
@@ -831,7 +885,8 @@ struct SpaceSidebar: View {
     /// In My Library: the learner's spaces of pages (`PageSpaces`), each row
     /// listing its pages, then the teams, the shared spaces, each row listing
     /// what is shared with that team. In a team's library the rows switch
-    /// library, My Library first.
+    /// library, My Library first. In Screen record mode only the spaces and
+    /// teams holding something on screen (`orderedPageSpaces`, `shownTeams`).
     @ViewBuilder
     private var spacesSection: some View {
         if let activeTeamID = vm.activeTeamID {
@@ -847,7 +902,7 @@ struct SpaceSidebar: View {
             } trailing: {
                 EmptyView()
             }
-            ForEach(vm.teams.filter { $0.id != activeTeamID }) { team in
+            ForEach(vm.shownTeams.filter { $0.id != activeTeamID }) { team in
                 SpaceSidebarRow(
                     title: team.name,
                     isSelected: false,
@@ -876,7 +931,7 @@ struct SpaceSidebar: View {
             ForEach(vm.orderedPageSpaces) { space in
                 pageSpaceRow(space)
             }
-            ForEach(vm.teams) { team in
+            ForEach(vm.shownTeams) { team in
                 SpaceSidebarRow(
                     title: team.name,
                     isSelected: selection == .team(team.id),
@@ -971,6 +1026,8 @@ struct SpaceSidebarRow<Icon: View, Trailing: View>: View {
     let title: String
     let isSelected: Bool
     var accessibilityIdentifier: String? = nil
+    /// A small green tag after the title, always shown (`SpaceDestination.badge`).
+    var badge: String? = nil
     let action: () -> Void
     @ViewBuilder let icon: () -> Icon
     @ViewBuilder let trailing: () -> Trailing
@@ -987,6 +1044,9 @@ struct SpaceSidebarRow<Icon: View, Trailing: View>: View {
                     .foregroundStyle(.primary)
                     .lineLimit(1)
                     .truncationMode(.tail)
+                if let badge {
+                    SpaceSidebarBadge(text: badge)
+                }
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 8)
@@ -1009,10 +1069,29 @@ struct SpaceSidebarRow<Icon: View, Trailing: View>: View {
                 .opacity(isHovering ? 1 : 0)
         }
         .onHover { isHovering = $0 }
-        .help(title)
-        .accessibilityLabel(title)
+        .help(badge.map { "\(title) (\($0))" } ?? title)
+        .accessibilityLabel(badge.map { "\(title), \($0)" } ?? title)
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
         .accessibilityIdentifier(accessibilityIdentifier ?? "")
+    }
+}
+
+/// The green tag a sidebar row wears after its name, such as Beta on
+/// Canvases: the Studio's green, its text over a pale wash, deeper in a light
+/// window and lighter in a dark one so it reads in both.
+private struct SpaceSidebarBadge: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .zoomedSystemFont(size: 10, weight: .semibold)
+            .foregroundStyle(NotebookStudioHue.green.glyph)
+            .textSelection(.disabled)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 1.5)
+            .background(Capsule(style: .continuous).fill(NotebookStudioHue.green.wash))
+            .fixedSize()
+            .accessibilityHidden(true)
     }
 }
 
@@ -1304,12 +1383,12 @@ struct SpaceNewSpaceSheet: View {
 
 /// A hub pane drawn inside the Space: the sidebar on the leading edge with
 /// the hub lit, the pane beside it, and on the chrome line the sidebar's own
-/// header over the sidebar and the pane's header over the pane. A canvas
+/// header over the sidebar, as on the Space's own pane. A canvas
 /// opens the same way (`KnowledgeMapPane`) and a page does (`ArtifactCanvas`),
 /// so going from the courses to a page changes only what is beside the
 /// sidebar. The sidebar's hide state and the room it needs are the Space's
 /// (`space.sidebarHidden`, `SpaceSidebarMetrics.minimumPaneWidth`).
-struct SpaceFrame<Content: View, Header: View>: View {
+struct SpaceFrame<Content: View>: View {
     @Environment(StudioViewModel.self) private var vm
     /// The window this pane is in. Absent outside a Studio window.
     @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
@@ -1322,12 +1401,10 @@ struct SpaceFrame<Content: View, Header: View>: View {
 
     private let hub: SpaceHub
     private let content: Content
-    private let header: Header
 
-    init(hub: SpaceHub, @ViewBuilder content: () -> Content, @ViewBuilder header: () -> Header) {
+    init(hub: SpaceHub, @ViewBuilder content: () -> Content) {
         self.hub = hub
         self.content = content()
-        self.header = header()
     }
 
     private var showsSidebar: Bool {
@@ -1371,8 +1448,7 @@ struct SpaceFrame<Content: View, Header: View>: View {
                         .frame(width: max(0, SpaceSidebarMetrics.width - headerLeadingInset))
                     StudioChromeLineDivider()
                 }
-                header
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                Spacer(minLength: 0)
             }
         }
         .sheet(item: $linkSection, onDismiss: {

@@ -22,9 +22,10 @@ extension Notification.Name {
 }
 
 /// "ForeverLM AI" — the managed rail. Since 2026-09-25 AI features run on the
-/// learner's own OpenRouter key, which a ForeverLM plan lets them use (see
-/// `ManagedAI.AppAccess`); an account's leftover prepaid balance, and operator
-/// grants and comps, still pay through this proxy.
+/// learner's own OpenRouter key, which runs while the account is unlocked
+/// (`ManagedAI.ownKeyAllowed`; see `ManagedAI.AppAccess`); an account's
+/// leftover prepaid balance, and operator grants and comps, still pay through
+/// this proxy.
 ///
 /// Requests go to the metered proxy (`workers/ai-proxy`, ai.foreverlm.com), which
 /// authenticates the user's session, meters the response server-side, debits any
@@ -303,9 +304,9 @@ enum ManagedAI {
     /// build never sets it: the key goes to its router and nowhere else.
     static let ownKeyHeader = "X-ForeverLM-Own-Key"
 
-    /// What the proxy gets instead when a key is stored but the app has seen
-    /// no plan: only that the learner holds one, so it can answer
-    /// `plan_required` by name. Never the key.
+    /// What the proxy gets instead when a key is stored but may not run (a
+    /// locked account): only that the learner holds one, so it can answer
+    /// `app_locked` by name. Never the key.
     static let ownKeyHeldHeader = "X-ForeverLM-Own-Key-Held"
 
     /// Provider credential headers a caller may have set. Cleared on both
@@ -379,9 +380,10 @@ enum ManagedAI {
     /// The single statement of the rule: `rewrite` routes by it, and the
     /// OpenRouter body builder asks it whether to request the billed cost that
     /// the proxy would otherwise have resolved on the app's behalf.
-    /// Without a plan the key never leaves direct, Free mode or not (2026-09-27:
-    /// Free mode needs a plan too): the request goes through the proxy, which
-    /// answers `plan_required` instead of quietly spending balance.
+    /// The key leaves direct only while the account is unlocked
+    /// (`ManagedAI.ownKeyAllowed`), Free mode or not. Otherwise the request
+    /// goes through the proxy, which answers `app_locked` instead of quietly
+    /// spending balance.
     /// OpenRouter's app attribution (openrouter.ai/docs/app-attribution):
     /// `HTTP-Referer` is what puts ForeverLM on its rankings and model pages,
     /// the title names it there, and the categories file it in the app
@@ -421,8 +423,9 @@ enum ManagedAI {
     /// whatever key the Dev app last stored. `.some(nil)` pins "no key".
     nonisolated(unsafe) static var ownKeyOverrideForTesting: OwnKey??
 
-    /// Pins whether a plan lets the key run, for the same reason: the stored
-    /// plan otherwise follows whatever account the Dev app last signed in.
+    /// Pins whether the account lets the key run, for the same reason: the
+    /// stored access otherwise follows whatever account the Dev app last
+    /// signed in.
     nonisolated(unsafe) static var ownKeyAllowedOverrideForTesting: Bool?
     #endif
 
@@ -806,9 +809,10 @@ enum ManagedAI {
         }
 
         // The learner's key never travels to ForeverLM. A request bound for
-        // its router lands here only when the app has seen no plan (with one
-        // it went direct above), so the proxy is told only that a key is held,
-        // and answers `plan_required` or spends a leftover balance.
+        // its router lands here only when the key may not run (a locked
+        // account; otherwise it went direct above), so the proxy is told only
+        // that a key is held, and answers `app_locked` or spends a leftover
+        // balance.
         request.setValue(nil, forHTTPHeaderField: ownKeyHeader)
         if let own = ownKey, own.router.host == host {
             request.setValue("1", forHTTPHeaderField: ownKeyHeldHeader)
@@ -1096,9 +1100,6 @@ enum ManagedAI {
         /// account-wide policy moved while this client was running, so the
         /// stored policy is stale rather than the request being wrong.
         var isStaleTextRouter: Bool { code == "text_router_required" }
-        /// An own-key request from an account without a plan. See
-        /// `ManagedAI.AppAccess`.
-        var isPlanRequired: Bool { code == "plan_required" }
         /// The proxy's catch-all for a thrown failure (a D1 outage, Apple's
         /// JWKS unreachable, an upstream fetch that threw). It says nothing
         /// about the request, so it is as retryable as an `http_5xx`. The proxy
@@ -1146,6 +1147,11 @@ enum ManagedAI {
             let comp: CompRow?
             /// The app plan. Optional so a build newer than the worker still signs in.
             let access: AppAccess?
+            /// The paid app's fields the proxy also sends beside `access`:
+            /// `state` here is the new state (`access.state` keeps the old one).
+            let state: String?
+            let unlocked: Bool?
+            let freeUntil: String?
 
             enum CodingKeys: String, CodingKey {
                 case sessionToken = "session_token"
@@ -1155,6 +1161,9 @@ enum ManagedAI {
                 case textRouter = "text_router"
                 case comp
                 case access
+                case state
+                case unlocked
+                case freeUntil = "free_until"
             }
         }
 
@@ -1166,7 +1175,14 @@ enum ManagedAI {
         // Sign-in is the first moment the app can learn the account's transport
         // policy, so the launch's very first request already uses it.
         applyTextRouterPolicy(response.textRouter, comp: response.comp)
-        storeAppAccess(response.access)
+        storeAppAccess(
+            response.access,
+            topLevel: .init(
+                state: response.state,
+                unlocked: response.unlocked,
+                freeUntil: response.freeUntil
+            )
+        )
         return response.balanceMicrousd
     }
 
@@ -1289,12 +1305,20 @@ enum ManagedAI {
                 case textRouter = "text_router"
                 case comp
                 case access
+                case state
+                case unlocked
+                case freeUntil = "free_until"
             }
 
             let spendCap: SpendCapRow?
             let textRouter: String?
             let comp: CompRow?
             let access: AppAccess?
+            /// The paid app's fields the proxy also sends beside `access`:
+            /// `state` here is the new state (`access.state` keeps the old one).
+            let state: String?
+            let unlocked: Bool?
+            let freeUntil: String?
         }
 
         let response: Response = try await get(
@@ -1307,7 +1331,14 @@ enum ManagedAI {
         // this client was already running reaches it here rather than waiting
         // for a new build.
         applyTextRouterPolicy(response.textRouter, comp: response.comp)
-        storeAppAccess(response.access)
+        storeAppAccess(
+            response.access,
+            topLevel: .init(
+                state: response.state,
+                unlocked: response.unlocked,
+                freeUntil: response.freeUntil
+            )
+        )
         return Balance(
             microUSD: response.balanceMicrousd,
             disabled: response.disabled,
@@ -1583,7 +1614,10 @@ enum ManagedAI {
     /// main-actor-bound because SwiftUI observes it at the app shell, while the
     /// network response is normally decoded on an AI or URLSession actor.
     static func surfaceIfNeeded(_ error: ServiceError) {
-        if error.isStaleTextRouter {
+        // A stale policy, or an account the proxy now says is locked: the
+        // balance fetch re-reads both, and the access it stores is what puts
+        // the pay screen up.
+        if error.isStaleTextRouter || error.code == "app_locked" {
             refreshTextRouterPolicy()
             return
         }
@@ -1708,6 +1742,8 @@ enum ManagedAI {
     private static func send<T: Decodable>(_ request: URLRequest) async throws -> T {
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
+        // The free days end on the proxy's clock, not this device's.
+        recordServerDate(http.value(forHTTPHeaderField: "Date"))
 
         guard (200...299).contains(http.statusCode) else {
             // The proxy always answers with {error:{code,message}}; surface both

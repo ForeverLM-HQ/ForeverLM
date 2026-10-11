@@ -967,7 +967,7 @@ struct AnimationWalkthroughChatPlaybackTests {
     func playsAnAnimationWalk() async throws {
         let storage = makeTemporaryStorage("anim-play")
         let animation = try await storage.createLinkedArtifact(
-            url: URL(string: "https://sites.foreverlm.com/pmf-two-components/")!, title: "One force, two components",
+            url: URL(string: "foreverlm-site://pmf-two-components/")!, title: "One force, two components",
             homeNotebookID: nil, linkedNotebookIDs: [], kind: .animation
         )
         try await storage.saveArtifactWalkthrough(PaperWalkthrough(

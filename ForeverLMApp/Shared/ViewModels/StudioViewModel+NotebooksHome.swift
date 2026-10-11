@@ -83,12 +83,12 @@ extension StudioViewModel {
         activateCenterTab(.artifacts, in: destination)
     }
 
-    /// The Space's tab bar (Space | Goals) in `destinationWindowState` (the
-    /// window in scope when nil): the pane under the pointer, showing another
-    /// of the Space's panes, shows `tab` in its place, every other pane and
-    /// pin left as they were (`StudioCenterTabGroups.showingSpaceTab`). The
-    /// Courses tab shows the list of courses, so a course's page the window
-    /// held gives way to it. With no such pane on screen — a notebook the
+    /// The Space or its Courses list, as the Space's sidebar asks for one, in
+    /// `destinationWindowState` (the window in scope when nil): the pane under
+    /// the pointer, showing the other, shows `tab` in its place, every other
+    /// pane and pin left as they were (`StudioCenterTabGroups.showingSpaceTab`).
+    /// Courses shows the list of courses, so a course's page the window held
+    /// gives way to it. With no such pane on screen — a notebook the
     /// window holds, the Space asked for from a menu — the tab opens by the
     /// ordinary rules, leaving a notebook as the Space does.
     func showSpaceTab(_ tab: SpaceTab, in destinationWindowState: StudioWindowState? = nil) {

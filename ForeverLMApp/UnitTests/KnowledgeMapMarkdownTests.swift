@@ -61,7 +61,7 @@ struct KnowledgeMapMarkdownTests {
             "",
             "## Mitochondria",
             "",
-            "- **Why does ΔΨ drop?**",
+            "- ☐ **Why does ΔΨ drop?**",
             "  Maybe the pump  ",
             "  or the leak",
             "- [PINK1 paper](foreverlm://source/s1) — Narendra · 2010 · JCB",
@@ -221,28 +221,8 @@ struct KnowledgeMapMarkdownTests {
     }
 }
 
-@Suite("Canvas: Export as Image and a published page")
+@Suite("Canvas: Export as Image")
 struct KnowledgeMapExportTests {
-    @Test("The page puts the picture at its head and the outline under it, escapes the name, and carries no script")
-    func sitePage() {
-        var layout = KnowledgeMapLayout()
-        layout.setRegion("r", .init(name: "Mito", x: 0, y: 0, w: 600, h: 400, color: "#378ADD", at: 1))
-        layout.place("idea:i", x: 40, y: 40, at: 1)
-        let node = KnowledgeMapNode(ref: "idea:i", kind: "idea", type: "idea", title: "Why?", sub: "Idea", detail: [], shore: "")
-        let outline = KnowledgeMapMarkdown.outline(layout: layout, nodes: ["idea:i": node])
-        let html = KnowledgeMapSitePage.html(title: "Mito & <friends>", outline: outline)
-        #expect(html.hasPrefix("<!doctype html>"))
-        #expect(html.contains("<title>Mito &amp; &lt;friends&gt;</title>"))
-        #expect(html.contains("<h1>Mito &amp; &lt;friends&gt;</h1>"))
-        #expect(html.contains("<img src=\"canvas.png\""))
-        #expect(html.contains("<h2>Mito</h2>\n<ul>\n<li><strong>Why?</strong></li>\n</ul>"))
-        #expect(!html.contains("<script"))
-        let picture = html.range(of: "<img")?.lowerBound
-        let heading = html.range(of: "<h2>")?.lowerBound
-        #expect(picture != nil && heading != nil)
-        if let picture, let heading { #expect(picture < heading, "the picture comes first") }
-    }
-
     @Test("The picture's file is named for the canvas, without what a file name cannot hold")
     func fileName() {
         #expect(CanvasExport.fileName(for: "PINK1 / Parkin: notes") == "PINK1 - Parkin- notes.png")
@@ -254,8 +234,6 @@ struct KnowledgeMapExportTests {
         #expect(CanvasExport.scales == [1, 2])
         #expect(CanvasExport.scaleLabel(2) == "2×")
         #expect(CanvasExport.scaleLabel(1.5) == "1.5×")
-        #expect(CanvasExport.publishScales.first == 2, "the page's picture is 2× when it fits")
-        #expect(CanvasExport.publishScales == CanvasExport.publishScales.sorted(by: >), "then smaller")
     }
 
     @Test("Why a canvas was not drawn is said in words the learner can act on")

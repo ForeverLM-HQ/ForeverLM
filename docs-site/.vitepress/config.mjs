@@ -135,6 +135,11 @@ export default defineConfig({
           { text: 'vs MarginNote', link: '/compare/marginnote' },
           { text: 'vs Recall', link: '/compare/recall' },
           { text: 'vs Snipd', link: '/compare/snipd' },
+          { text: 'vs Paper (paper.ac)', link: '/compare/paper-ac' },
+          { text: 'vs Memo', link: '/compare/memo-cards' },
+          { text: 'vs Sapience', link: '/compare/sapience' },
+          { text: 'vs Gistr', link: '/compare/gistr' },
+          { text: 'vs AnythingLLM', link: '/compare/anythingllm' },
         ],
       },
       {
@@ -145,8 +150,6 @@ export default defineConfig({
         ],
       },
     ],
-
-    socialLinks: [],
 
     footer: {
       message: 'ForeverLM',

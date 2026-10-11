@@ -1610,6 +1610,10 @@ struct ChatMarkdownView: NSViewRepresentable {
     }
 
     private final class ChatMarkdownWebView: WKWebView {
+        /// No Apple Intelligence badge on a selection (`SharedWebKit.allowsWritingToolsAffordance(in:)`).
+        @objc(allowsWritingToolsAffordance)
+        var allowsWritingToolsAffordance: Bool { SharedWebKit.allowsWritingToolsAffordance(in: self) }
+
         /// The source cards this row has resolved, by the token the page asked
         /// with and by the source's own id, so a drag that starts on a card —
         /// or on a `foreverlm://source/<id>` link in the prose — can name the

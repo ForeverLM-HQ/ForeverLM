@@ -231,7 +231,7 @@ extension KnowledgeStore {
             let full = url.resolvingSymlinksInPath().standardizedFileURL.path
             guard full.hasPrefix(root + "/") else { continue }
             let relative = String(full.dropFirst(root.count + 1))
-            if let path = SitePublishing.normalizePath(relative), path == relative { paths.append(path) }
+            if let path = LocalSite.normalizePath(relative), path == relative { paths.append(path) }
         }
         return paths.sorted()
     }
@@ -246,7 +246,7 @@ extension KnowledgeStore {
 
     /// One file of the site, or nil when it has no such file.
     func readLocalSiteFile(_ artifactID: String, path rawPath: String) throws -> Data? {
-        guard let path = SitePublishing.normalizePath(rawPath),
+        guard let path = LocalSite.normalizePath(rawPath),
               let directory = localSiteDirectoryURL(artifactID) else { return nil }
         let url = directory.appendingPathComponent(path)
         guard FileManager.default.fileExists(atPath: url.path) else { return nil }
@@ -267,7 +267,7 @@ extension KnowledgeStore {
         do {
             try fileManager.createDirectory(at: staging, withIntermediateDirectories: true)
             for file in files {
-                guard let path = SitePublishing.normalizePath(file.path) else {
+                guard let path = LocalSite.normalizePath(file.path) else {
                     throw ArtifactBodyPackageError.invalidSiteFile(file.path)
                 }
                 let url = staging.appendingPathComponent(path)

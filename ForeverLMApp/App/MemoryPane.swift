@@ -473,30 +473,9 @@ struct MemoryPane: View {
             .accessibilityIdentifier("memory.pane.cards.summary")
 
             HStack(spacing: 12) {
-                HStack(spacing: 6) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.callout)
-                        .foregroundStyle(.tertiary)
-                        .accessibilityHidden(true)
-                    TextField("Search cards", text: $query)
-                        .textFieldStyle(.plain)
-                        .accessibilityIdentifier("memory.pane.search")
-                    if !query.isEmpty {
-                        Button {
-                            query = ""
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundStyle(.tertiary)
-                        }
-                        .buttonStyle(.plain)
-                        .help("Clear the search")
-                        .accessibilityLabel("Clear the search")
-                    }
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.quaternary.opacity(0.7)))
-                .frame(maxWidth: 360)
+                // The Space's search (`SpaceSearchField`), as over every list.
+                SpaceSearchField(text: $query, prompt: "Search cards", identifier: "memory.pane.search")
+                    .frame(maxWidth: 360)
 
                 Spacer(minLength: 0)
 

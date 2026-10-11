@@ -6,7 +6,11 @@
      ?n=3000 swaps the sample for that many generated cards (a fifth of them placed in ten
      regions) with proposals, memory marks and written faces, for timing frames.
      The panel at the top left injects proposals, memory marks and faces, runs a review in
-     place, and prints every message the page posts. -->
+     place, and prints every message the page posts.
+     What Sapience showed (docs/knowledge-map-design.md): the SAPIENCE row flies to a paper
+     shown as a page (a stepper, a read mark, the words about it), a brace of stanced
+     arrows, plain Ideas, a mind map with branch colours and a question; the GHOST TREES
+     row proposes a Mind Map as a tree, grown from a placed card and in the free spot. -->
 <html><head><meta charset="utf-8"><link rel="stylesheet" href="src/knowledge-map.css">
 <style>
 html,body{margin:0;height:100%} #map{width:100%;height:100%;display:block}
@@ -28,6 +32,8 @@ html,body{margin:0;height:100%} #map{width:100%;height:100%;display:block}
   <div class="row"><b>PROPOSALS</b><button data-set="bridge">Bridge</button><button data-set="connect">Connect</button><button data-set="gaps">Gaps</button><button id="noSet">Clear</button></div>
   <div class="row"><b>LAYERS</b><button id="memory">Memory: off</button><button id="faces">Faces: off</button></div>
   <div class="row"><b>REVIEW IN PLACE</b><button id="reviewStart">Start</button><button id="reviewNext">Next</button><button id="reviewEnd">End</button></div>
+  <div class="row"><b>SAPIENCE</b><button data-look="page">Page face</button><button data-look="note">Annotation</button><button data-look="brace">Brace</button><button data-look="mind">Mind map</button><button data-look="tree">Ghost root</button></div>
+  <div class="row"><b>GHOST TREES</b><button data-set="mindRoot">Mind Map (card)</button><button data-set="mindFree">Mind Map (free)</button><button data-set="questions">Question Map</button></div>
   <div class="row"><b>DISPLAY</b><button id="minimap">Minimap: off</button><button id="focus">Focus: off</button></div>
   <div class="row"><b>WRITE</b><button id="editIdea">Edit Idea</button><button id="newIdea">New Idea</button><button id="exportPng">Export</button></div>
   <div class="row"><b>MESSAGES</b><button id="quiet">Hide view: on</button><button id="clearLog">Clear</button></div>
@@ -98,6 +104,8 @@ function sampleScene() {
   placements['chat:c0'] = {x:1000, y:1060}; placements['canvas:k0'] = {x:1270, y:1060}; placements['picture:p0'] = {x:1540, y:1180}
   for (let n = 1; n <= 8; n++) placements['page:src:18:'+n] = {x:(n-1)*(CW+G), y:1330}
   frame = {x:-50,y:-90,w:cols*(CW+G)-G+100,h:rows*(CH+G)-G+140}
+  const sap = sapienceScene()
+  Object.assign(placements, sap.placements)
   const layout = {placements, regions:{
     r1:{name:'Lifespan Scaling Laws', notebookID:'nb1', color:'#7F77DD', x:-50, y:-90, w:cols*(CW+G)-G+100, h:rows*(CH+G)-G+140},
     r2:{name:'Membrane Potential as a Readout', notebookID:'nb2', color:'#1D9E75', x:1900, y:-90, w:4*(CW+G)-G+100, h:400},
@@ -113,6 +121,8 @@ function sampleScene() {
       t1:{from:'idea:t0', to:'idea:t1', label:'', tree:true}, t2:{from:'idea:t0', to:'idea:t2', label:'', tree:true},
       t3:{from:'idea:t1', to:'idea:t3', label:'', tree:true}, t4:{from:'idea:t2', to:'idea:t4', label:'', tree:true},
       t5:{from:'idea:t2', to:'idea:t5', label:'', tree:true}, t6:{from:'idea:t5', to:'idea:t6', label:'', tree:true} }}
+  Object.assign(layout.regions, sap.regions)
+  Object.assign(layout.edges, sap.edges)
   const summaries = {regions:{r1:{short:'Scaling laws link lifespan, metabolic rate and energy across mammals, birds, bats and naked mole-rats.', long:'Scaling laws link lifespan, metabolic rate and energy across mammals, birds, bats and naked mole-rats. Titles range from heartbeats and field metabolic rate to Geoffrey West’s city analogies.',
     takeaways:['Lifespan scales with body mass to about the quarter power','Mammals share roughly a billion heartbeats per lifetime','Bats and naked mole-rats live far longer than their size predicts','Open: is the rate of living the cause, or a correlate?']},
     r3:{short:'Whether a slower metabolism is why some animals live long.', long:'Whether a slower metabolism is why some animals live long, and what bats and ROS say against it.'}}}
@@ -151,8 +161,89 @@ function sampleScene() {
       { id:'p:g1', kind:'question', text:'Is hibernation part of why bats live long?', why:'Torpor lowers the rate of living for months a year.', near:['idea:i1'] },
       { id:'p:g2', kind:'question', text:'What result would falsify the rate-of-living theory?', near:['idea:i0'] }]},
   }
+  Object.assign(proposalSets, sap.sets)
   reviewQueue = ['src:f0', 'idea:i1', 'src:m2', 'src:5', 'src:1']
   return { layout, summaries }
+}
+
+
+// ---- What Sapience showed: papers as pages, words about a card, plain Ideas in a brace of
+// stanced arrows, a mind map and the ghost trees of a Mind Map and a Question Map.
+// Everything sits right of the notebooks, from x = 3000.
+function sapienceScene() {
+  const idea = (ref, title, note) => nodes.push({ref, kind:'idea', type:'idea', title, sub: note || 'Idea', detail:[], shore:''})
+  const paper = (ref, title, sub, extra) => nodes.push(Object.assign({ref, kind:'source', type:'paper', title, sub, detail:[], shore:''}, extra))
+  // Papers whose PDF this Mac has read: the page count, the first page's shape, and whether it was read.
+  paper('src:pg0', 'Mitochondrial DNA copy number and ageing across mammals', 'Cell · 2019 · Hartwell, Okafor, Lind', {pages:12, aspect:0.7727, read:true})
+  paper('src:pg1', 'Reactive oxygen species production in the long-lived naked mole-rat and bats compared with short-lived mice', 'Aging Cell · 2016', {pages:5, aspect:1.3})
+  paper('src:pg2', 'A one-page note on heart rate', 'Letters · 2021', {pages:1, aspect:0.7727})
+  paper('src:pg3', 'A paper whose PDF is not here', 'Cell · 2020')
+  // The argument: a claim to weigh, claims for it and against it as plain words, one alone.
+  idea('idea:g0', 'Caloric restriction slows ageing in primates')
+  idea('idea:c1', 'Rhesus monkeys fed less died of age-related causes half as often')
+  idea('idea:c2', 'Mice and rats live 30% longer on restriction')
+  idea('idea:c3', 'The NIA monkeys showed no survival benefit')
+  idea('idea:c4', 'The NIA control diets were already lean')
+  idea('idea:c5', 'It needed twenty years of data')
+  // A mind map: a root, three branches, leaves, a question and one node with a note.
+  idea('idea:m0', 'Why do bats live long?')
+  idea('idea:m1', 'Metabolism'); idea('idea:m2', 'Cell defences'); idea('idea:m3', 'Ecology')
+  idea('idea:m4', 'Torpor lowers the rate'); idea('idea:m5', 'Flight keeps the rate high yet bats live long')
+  idea('idea:m6', 'Fewer reactive oxygen species per oxygen'); idea('idea:m7', 'Better DNA repair')
+  idea('idea:m8', 'Few predators'); idea('idea:m9', 'Does flight select for ROS defence?'); idea('idea:m10', 'Slow reproduction', 'Most bats have one pup a year, which tilts the trade-off toward repair.')
+  // A card the Mind Map ghosts grow from.
+  idea('idea:root', 'What explains long lifespans in bats?')
+  const placements = {
+    'src:f0': {x:1000, y:860, annotation:'Restriction lowered age-related deaths by half. The counterweight to the bats result: the rate of living is not the whole story.'},
+    'clip:c0': {x:1540, y:860, annotation:'The comparison my Idea leans on.'},
+    'src:pg0': {x:3000, y:0, page:1, annotation:'The key paper for the rate-of-living argument. Start at Figure 2 and skip the methods. The authors fit a Gompertz curve that I do not trust.'},
+    'src:pg1': {x:3320, y:0, page:3},
+    'src:pg2': {x:3640, y:0, page:1, annotation:'Short.'},
+    'src:pg3': {x:3960, y:0, page:2},
+    'idea:g0': {x:3920, y:780},
+    'idea:c1': {x:3500, y:700, plain:true}, 'idea:c2': {x:3500, y:880, plain:true},
+    'idea:c3': {x:4340, y:700, plain:true}, 'idea:c4': {x:4340, y:880, plain:true},
+    'idea:c5': {x:3900, y:1060, plain:true},
+    'idea:m0': {x:3000, y:1330}, 'idea:m1': {x:3000, y:1400}, 'idea:m2': {x:3000, y:1520}, 'idea:m3': {x:3000, y:1640},
+    'idea:m4': {x:3300, y:1380}, 'idea:m5': {x:3300, y:1440}, 'idea:m6': {x:3300, y:1500}, 'idea:m7': {x:3300, y:1560}, 'idea:m8': {x:3300, y:1620}, 'idea:m9': {x:3300, y:1680, answered:true}, 'idea:m10': {x:3300, y:1740},
+    'idea:root': {x:3000, y:2250},
+  }
+  const regions = { r6: {name:'Why do bats live long?', color:'#378ADD', layout:'tree', x:2940, y:1260, w:1100, h:600} }
+  const tree = (id, from, to) => [id, {from, to, label:'', tree:true}]
+  const edges = Object.fromEntries([
+    ['s1', {from:'idea:c1', to:'idea:g0', label:'monkeys', stance:'supports'}],
+    ['s2', {from:'idea:c2', to:'idea:g0', label:'rodents', stance:'supports'}],
+    ['s3', {from:'idea:c3', to:'idea:g0', label:'NIA study', stance:'contradicts'}],
+    ['s4', {from:'idea:c4', to:'idea:g0', label:'lean controls', stance:'contradicts'}],
+    ['s5', {from:'idea:c5', to:'idea:g0', stance:'supports'}],
+    tree('b1', 'idea:m0', 'idea:m1'), tree('b2', 'idea:m0', 'idea:m2'), tree('b3', 'idea:m0', 'idea:m3'),
+    tree('b4', 'idea:m1', 'idea:m4'), tree('b5', 'idea:m1', 'idea:m5'),
+    tree('b6', 'idea:m2', 'idea:m6'), tree('b7', 'idea:m2', 'idea:m7'),
+    tree('b8', 'idea:m3', 'idea:m8'), tree('b9', 'idea:m3', 'idea:m9'), tree('b10', 'idea:m3', 'idea:m10'),
+  ])
+  // Mind Map and Question Map proposals: a tree from a placed card, and one in the free spot.
+  const q = (id, text, note) => ({ id, kind:'question', text, note, near:['idea:root'] })
+  const branches = (pairs) => pairs.map(([from, to]) => ({ from, to, label:'' }))
+  const sets = {
+    mindRoot: { id:'set-mind-root', tool:'mindMap', title:'Mind Map', anchor:['idea:root'],
+      plan: { sourceRef:'idea:root', regionName:'What explains long lifespans in bats?', tree:true, rootRef:'idea:root',
+        arrows: branches([['idea:root','p:a'],['idea:root','p:b'],['idea:root','p:c'],['p:a','p:a1'],['p:a','p:a2'],['p:b','p:b1'],['p:b','p:b2'],['p:b','p:b3'],['p:c','p:c1'],['p:c','p:c2'],['p:b1','p:b1x']]) },
+      proposals: [q('p:a','Metabolism'), q('p:b','Cell defences'), q('p:c','Ecology and life history'),
+        q('p:a1','Torpor lowers the rate'), q('p:a2','Flight keeps the rate high yet bats live long', 'A high rate with a long life breaks the simple rate-of-living story.'),
+        q('p:b1','Fewer reactive oxygen species per oxygen'), q('p:b2','Better DNA repair'), q('p:b3','Mitochondrial quality control'),
+        q('p:c1','Few predators'), q('p:c2','Slow reproduction'), q('p:b1x','Complex I leaks least')] },
+    mindFree: { id:'set-mind-free', tool:'mindMap', title:'Mind Map', anchor:['idea:i0','idea:i1','idea:i2'],
+      plan: { sourceRef:'idea:i0', regionName:'Rate of living and ROS', tree:true,
+        arrows: branches([['p:r','p:s'],['p:r','p:t'],['p:r','p:u'],['p:s','p:s1'],['p:s','p:s2'],['p:t','p:t1'],['p:u','p:u1'],['p:u','p:u2']]) },
+      proposals: [q('p:r','Rate of living and ROS'), q('p:s','The rate-of-living theory'), q('p:t','Where it fails'), q('p:u','What replaces it'),
+        q('p:s1','Slower metabolism, longer life'), q('p:s2','Heartbeats per lifetime'), q('p:t1','Bats and birds'), q('p:u1','Radical leak per oxygen'), q('p:u2','Repair and turnover')].map(p => Object.assign(p, { near:['idea:i0','idea:i1','idea:i2'] })) },
+    questions: { id:'set-questions', tool:'questionMap', title:'Question Map', anchor:['idea:root'],
+      plan: { sourceRef:'idea:root', regionName:'Why do bats live long?', tree:true, rootRef:'idea:root',
+        arrows: branches([['idea:root','p:q1'],['idea:root','p:q2'],['p:q1','p:q3'],['p:q1','p:q4'],['p:q2','p:q5']]) },
+      proposals: [q('p:q1','Is it the metabolism?'), q('p:q2','Is it the cell defences?'), q('p:q3','Does torpor lower the lifetime rate?'),
+        q('p:q4','Do flying bats burn more than ground mammals?'), q('p:q5','Do bats make fewer radicals per unit of oxygen?')] },
+  }
+  return { placements, regions, edges, sets }
 }
 
 // ---- A big generated library, for timing: n cards, a fifth placed in ten regions.
@@ -234,6 +325,9 @@ const host = { post(type, body) {
   }
   if (type === 'proposalDismiss') { withoutProposal(body.id); return }
   if (type === 'reviewEscape') { map.endReview(); return }
+  // The Mac answers these with its add box, its Library sidebar and its find field;
+  // here they are logged above and recorded in window.posts, and nothing else happens.
+  if (type === 'addRequested' || type === 'libraryToggled' || type === 'findRequested') return
   if (type === 'undo' || type === 'redo') {
     const from = type === 'undo' ? undo : redo, to = type === 'undo' ? redo : undo
     const step = from.pop()
@@ -256,8 +350,8 @@ const host = { post(type, body) {
   else if (type === 'regionDeleted') delete layout.regions[body.id]
   else if (type === 'regionCollapsed') { const r = layout.regions[body.id]; if (r) { if (body.collapsed) r.collapsed = true; else delete r.collapsed } }
   // The parity build's writes, as the model keeps them: a missing key leaves the field, null clears it.
-  else if (type === 'placementChanged') { for (const it of body.items) { const p = layout.placements[it.ref]; if (!p) continue; for (const k of ['w', 'h', 'folded', 'color']) if (k in it) { if (it[k] == null || it[k] === false) delete p[k]; else p[k] = it[k] } } }
-  else if (type === 'edgeChanged') { const e = layout.edges[body.id]; if (!e) return; for (const k of ['route', 'dashed', 'heads', 'color', 'label']) if (k in body) { if (body[k] == null || body[k] === false) delete e[k]; else e[k] = body[k] } }
+  else if (type === 'placementChanged') { for (const it of body.items) { const p = layout.placements[it.ref]; if (!p) continue; for (const k of ['w', 'h', 'folded', 'color', 'page', 'annotation', 'plain', 'answered']) if (k in it) { if (it[k] == null || it[k] === false) delete p[k]; else p[k] = it[k] } } }
+  else if (type === 'edgeChanged') { const e = layout.edges[body.id]; if (!e) return; for (const k of ['route', 'dashed', 'heads', 'color', 'label', 'stance']) if (k in body) { if (body[k] == null || body[k] === false) delete e[k]; else e[k] = body[k] } }
   else if (type === 'edgeRequested') { layout.edges['e' + Date.now().toString(36) + Math.random().toString(36).slice(2, 4)] = Object.assign({ from: body.from, to: body.to, label: '' }, body.tree ? { tree: true } : {}) }
   else if (type === 'edgeDeleted') delete layout.edges[body.id]
   else if (type === 'regionRenamed') { const r = layout.regions[body.id]; if (r) r.name = body.name }
@@ -322,6 +416,11 @@ window.settle = async (ms) => { await new Promise(r => setTimeout(r, 40)); map.m
 window.dragAt = (x0, y0, x1, y1, steps) => { const a = scr(x0, y0), b = scr(x1, y1); return drag(a[0], a[1], b[0], b[1], steps) }
 window.drag = async (x0, y0, x1, y1, steps) => { ev('pointerdown', x0, y0); for (let i = 1; i <= (steps || 8); i++) { ev('pointermove', x0 + (x1 - x0) * i / (steps || 8), y0 + (y1 - y0) * i / (steps || 8)); await new Promise(r => setTimeout(r, 16)) } ev('pointerup', x1, y1); await new Promise(r => setTimeout(r, 80)) }
 function zoomTo(scale){ const b=frame; map.setCamera({scale, ox: 40 - b.x*scale, oy: 110 - b.y*scale}) }
+// The camera on a world point of the new scenes at a scale (the SAPIENCE row).
+function lookAt(wx, wy, scale){ map.setCamera({scale, ox: innerWidth/2 - wx*scale, oy: innerHeight/2 - wy*scale}) }
+const looks = { page: [3480, 230, 0.9], note: [1250, 920, 1.2], brace: [4080, 900, 0.75], mind: [3450, 1560, 0.8], tree: [3300, 2300, 0.7] }
+document.querySelectorAll('[data-look]').forEach(b => b.onclick = () => lookAt(...looks[b.dataset.look]))
+window.lookAt = lookAt; window.looks = looks
 zoomTo(parseFloat(q.get('s')||'0.38'))
 window.zoomTo = zoomTo
 function fakeCover(i){ const c=document.createElement('canvas'); c.width=120;c.height=160; const g=c.getContext('2d');
@@ -337,7 +436,7 @@ function fakeFigure(aspect, seed){ const c=document.createElement('canvas'); c.w
  g.fillStyle='#fff'; g.fillRect(0,0,c.width,c.height); g.strokeStyle='#222'; g.lineWidth=2; g.beginPath(); g.moveTo(40,10); g.lineTo(40,c.height-30); g.lineTo(c.width-10,c.height-30); g.stroke()
  const n=6; for(let k=0;k<n;k++){ const bh=(c.height-60)*(0.25+0.7*Math.abs(Math.sin(seed*3+k*1.3))); g.fillStyle=['#378ADD','#D85A30','#1D9E75'][k%3]; g.fillRect(55+k*(c.width-75)/n, c.height-30-bh, (c.width-75)/n-12, bh) }
  g.fillStyle='#222'; g.font='bold 28px sans-serif'; g.fillText(seed===1?'B':'3', 8, 34); return c.toDataURL('image/png') }
-if (!N) { const thumbs={}; nodes.forEach((n,i)=>{ if(n.kind==='source' && (i%2===0 || n.type==='video')) thumbs[n.ref]=fakeCover(i); if(n.kind==='clip') thumbs[n.ref]=fakeFigure(n.aspect, n.ref==='clip:c0'?1:2); if(n.kind==='page') thumbs[n.ref]=fakePage(parseInt(n.ref.split(':').pop(),10)); if(n.kind==='picture') thumbs[n.ref]=fakeFigure(1.4, 3) }); map.setThumbnails(thumbs) }
+if (!N) { const thumbs={}; nodes.forEach((n,i)=>{ if(n.pages){ thumbs[n.ref]=fakePage(1); const have = n.ref==='src:pg1' ? 3 : n.pages; for(let k=1;k<=have;k++) thumbs['page:'+n.ref+':'+k]=fakePage(k) }  if(n.kind==='source' && !n.pages && (i%2===0 || n.type==='video')) thumbs[n.ref]=fakeCover(i); if(n.kind==='clip') thumbs[n.ref]=fakeFigure(n.aspect, n.ref==='clip:c0'?1:2); if(n.kind==='page') thumbs[n.ref]=fakePage(parseInt(n.ref.split(':').pop(),10)); if(n.kind==='picture') thumbs[n.ref]=fakeFigure(1.4, 3) }); map.setThumbnails(thumbs) }
 
 // ---- The panel.
 const copy = (v) => JSON.parse(JSON.stringify(v))

@@ -326,7 +326,9 @@ struct FreeModeTests {
         #expect(!AIFreeMode.unavailableNote.contains("realtime"))
         #expect(AIFreeMode.tradeoffs.contains(AIFreeMode.unavailableNote))
         #expect(AIFreeMode.confirmationMessage(turnsOffDataPolicySwitch: false).contains(AIFreeMode.unavailableNote))
-        // Free mode needs a plan (2026-09-27), so nothing may say otherwise.
+        // Free mode runs on the key only where the account may run it (a plan
+        // from 2026-09-27; the free days or paid since 2026-10-10), so
+        // nothing may say otherwise.
         #expect(!AIFreeMode.summary.contains("no ForeverLM plan"))
         // Each model's terms are the learner's to read, on OpenRouter (2026-09-26).
         #expect(AIFreeMode.confirmationMessage(turnsOffDataPolicySwitch: false).contains(AIFreeMode.termsNote))

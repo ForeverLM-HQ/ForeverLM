@@ -35,9 +35,6 @@ enum CanvasExport {
     /// The scales Export as Image offers: one pixel to a point on the plane,
     /// and twice that.
     static let scales: [Double] = [1, 2]
-    /// The scales a published canvas tries for its picture, largest first:
-    /// the first that fits a site's file limit is the page's hero.
-    static let publishScales: [Double] = [2, 1.5, 1, 0.75, 0.5, 0.35]
 
     /// The picture's suggested file name: the canvas's name, without the
     /// characters a file name cannot hold.

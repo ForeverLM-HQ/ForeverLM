@@ -80,10 +80,12 @@ surface the error instead of guessing library contents.
 
 ## Public tool surface
 
-The plugin exposes a focused 39-tool surface for the library, highlights, meeting
-groups, Notebooks, Schedule, reviews, source filing, Slack reading, and scheduled
-tasks. Every tool carries a title and read-only, destructive, and open-world
-annotations. The gateway enforces the allowlist; calls outside it are refused.
+The plugin exposes ForeverLM's whole public MCP contract, every tool in the app's
+registry (400 on 2026-10-11): the library, highlights, meeting groups, Notebooks,
+Pages, the Schedule, reviews, cards, Settings, scheduled tasks, and reading Slack,
+Linear, GitHub and Notion. Every tool carries a title and read-only, destructive,
+and open-world annotations. The gateway enforces that contract; calls outside it
+are refused.
 
 See the full directory and behavior in the ForeverLM documentation.
 
@@ -97,12 +99,13 @@ See the full directory and behavior in the ForeverLM documentation.
 
 ## Status
 
-One package, versioned 1.0.2, serves every provider:
+One package, versioned 1.0.6, serves every provider:
 
 - **Claude Code and Cowork:** installable from this marketplace today; submission to
   Anthropic's plugin directory is in progress.
-- **Claude (claude.ai, Desktop, mobile):** the remote MCP server is being submitted to
-  the Claude Connectors Directory; until then use the custom plugin setup.
+- **Claude (claude.ai, Desktop, mobile):** the remote MCP server is in review in the
+  Claude Connectors Directory (submitted 2026-08-30); until it is listed, use the
+  custom connector setup.
 - **ChatGPT and Codex:** version 1.0.2 is in OpenAI's review.
 - **Grok Build:** installable from this marketplace today.
 

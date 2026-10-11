@@ -539,15 +539,15 @@ enum ReviewSlashCommandParser {
 
     /// The message `/site-prompt` sends the tutor: a request for a prompt the
     /// learner pastes into Claude, Codex or another assistant that has the
-    /// ForeverLM plugin, so that assistant builds the Site with
-    /// `publish_site` from what this chat worked out.
+    /// ForeverLM plugin, so that assistant builds the Site with `save_site`
+    /// from what this chat worked out.
     ///
     /// The tutor, not this code, writes the prompt, because the tutor holds the
     /// conversation and the attached source catalog; this text only fixes the
     /// shape. The two rules that matter to the other assistant are spelled out
     /// here: the prompt opens by naming the plugin, and each source travels
     /// as a `foreverlm://source/<id>` link — the one place a source id belongs
-    /// in visible text, since it is what `publish_site` turns into a source
+    /// in visible text, since it is what `save_site` turns into a source
     /// card. `focus` narrows the site to one angle of the chat; `notebookTitle`
     /// names the Notebook the new Site is filed under.
     static func sitePromptRequest(focus: String?, notebookTitle: String?) -> String {
@@ -564,8 +564,8 @@ enum ReviewSlashCommandParser {
         - Open with \u{201C}Use the ForeverLM plugin to make a ForeverLM site that explains \u{2026}\u{201D}, completing the sentence with the topic.
         - Say what the site must explain: the questions this chat worked through, the answers and distinctions it reached, where the sources disagree, what stays open, and the order to present it in. Be concrete enough that the site says what we worked out here, not a general overview of the topic.
         - List the library sources it should read and cite, each as a Markdown link [Title](foreverlm://source/SOURCE_ID) with the exact id from the attached source catalog, and say in a few words what each one contributes. Those link targets are the one place the ids belong: tell it to read each source through the plugin's get_source_content before writing, and to put each link on a line of its own in the page so ForeverLM draws it as a source card.
-        - Tell it to publish with publish_site, as one page (html) or several files (files, with index.html at the root), with a short title\(filing), and to leave the site private unless I say otherwise.
-        - End by asking it to reply with the site's address and to name anything it could not support from the sources.
+        - Tell it to save the site with save_site, as one page (html) or several files (files, with index.html at the root), with a short title\(filing). The site stays in my ForeverLM library.
+        - End by asking it to reply with the site's title and to name anything it could not support from the sources.
         """
     }
 

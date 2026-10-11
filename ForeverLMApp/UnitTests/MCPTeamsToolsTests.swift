@@ -883,54 +883,22 @@ struct MCPTeamsToolsTests {
         }
     }
 
-    /// A publisher stub for the site tools: records the access each publish
-    /// sent and answers like the host, with a fixed address for a new site.
-    actor AccessRecorder {
-        var access: [SitePublishingAccess?] = []
-        var held: [String: PublishedSiteStatus] = [:]
-        func record(_ value: SitePublishingAccess?) { access.append(value) }
-        func hold(_ status: PublishedSiteStatus) { held[status.siteID] = status }
-        func status(_ id: String) -> PublishedSiteStatus? { held[id] }
-    }
-
-    private func siteHosting(recordingAccessInto recorder: AccessRecorder, signedIn: Bool = true) -> MCPDataStore.SiteHosting {
-        MCPDataStore.SiteHosting(
-            isSignedIn: signedIn,
-            publish: { siteID, title, files, slug, source, access in
-                await recorder.record(access)
-                let address = slug ?? "atlas"
-                let status = PublishedSiteStatus(
-                    siteID: siteID, url: URL(string: "https://sites.foreverlm.com/\(address)/")!, slug: address, title: title,
-                    publishedAt: Date(), updatedAt: Date(), bytes: files.reduce(0) { $0 + $1.data.count },
-                    filePaths: files.map(\.path), isCustomSlug: slug != nil, source: source, access: access
-                )
-                await recorder.hold(status)
-                return status
-            },
-            status: { await recorder.status($0) },
-            readFile: { _, _ in throw DocPublishingError.malformedResponse },
-            unpublish: { _ in true }
-        )
-    }
-
     /// docs/teams-design.md, decision 17 (product owner, 2026-09-18: "if a doc or
     /// site is shared with the team; it should still show up under my library
     /// too"). A site saved into a team Notebook is the learner's own entry with
     /// a copy — files and all — in the team.
-    @Test("save_site into a team Notebook keeps the learner's own entry and files a copy, with its own files, in the team; publishing opens it to the team")
+    @Test("save_site into a team Notebook keeps the learner's own entry and files a copy, with its own files, in the team")
     func saveSiteIntoTeamNotebookKeepsOwnEntry() async throws {
         let (store, tmpPath) = try makeStore()
         defer { cleanup(tmpPath) }
         let notebook = try makeNotebook(store, title: "Bench Lab", sourceIDs: [])
         let teamID = try await createTeam(store, name: "Bench Lab")
         let teamNotebookID = try await notebookFileStorageShare(store, notebookID: notebook.id, teamID: teamID)
-        let recorder = AccessRecorder()
 
         let saved = try parseJSON(try await store.saveSite(
             site: nil, title: "Atlas", html: "<h1>Atlas</h1><p>Forty compounds.</p>", files: nil,
             repository: nil, repositoryPath: nil, ref: nil,
-            homeNotebookID: teamNotebookID, notebookIDs: [],
-            hosting: siteHosting(recordingAccessInto: recorder, signedIn: false)
+            homeNotebookID: teamNotebookID, notebookIDs: []
         ))
 
         let rows = try await store.notebookFileStorage.loadArtifacts(notebookID: nil).filter { $0.linkedKind == .foreverlmSite }
@@ -948,13 +916,11 @@ struct MCPTeamsToolsTests {
         #expect(saved["team_ids_holding_copy"] as? [String] == [teamID])
         #expect(try await store.notebookFileStorage.localSiteFilePaths(artifactID: copy.id) == ["index.html"])
         #expect(try await store.notebookFileStorage.teamsHoldingArtifact(own.id).map(\.id) == [teamID])
-        #expect(await recorder.access.isEmpty, "saving publishes nothing")
 
         // An update keeps one row per library and refreshes the copy's files and text.
         _ = try await store.saveSite(
             site: own.id, title: nil, html: "<h1>Atlas</h1><p>Forty-one compounds.</p>", files: nil,
-            repository: nil, repositoryPath: nil, ref: nil, homeNotebookID: nil, notebookIDs: [],
-            hosting: siteHosting(recordingAccessInto: recorder, signedIn: false)
+            repository: nil, repositoryPath: nil, ref: nil, homeNotebookID: nil, notebookIDs: []
         )
         let after = try await store.notebookFileStorage.loadArtifacts(notebookID: nil).filter { $0.linkedKind == .foreverlmSite }
         #expect(after.map(\.id).sorted() == [own.id, copy.id].sorted())
@@ -962,120 +928,6 @@ struct MCPTeamsToolsTests {
         #expect(copyText?.contains("Forty-one") == true)
         let copyPage = try await store.notebookFileStorage.readLocalSiteFile(artifactID: copy.id, path: "index.html")
         #expect(copyPage.flatMap { String(data: $0, encoding: .utf8) }?.contains("Forty-one") == true)
-
-        // Publishing the site opens the copy to the team's roster; a team copy
-        // names its original when handed to the site tools.
-        let published = try parseJSON(try await store.publishSite(
-            site: copy.id, title: nil, html: nil, files: nil, repository: nil, repositoryPath: nil, ref: nil, slug: nil,
-            homeNotebookID: nil, notebookIDs: [], hosting: siteHosting(recordingAccessInto: recorder)
-        ))
-        #expect(published["team_id"] as? String == teamID)
-        #expect(await recorder.access.first??.teamID == teamID)
-        #expect(await recorder.held[own.id] != nil, "the copy is published under the learner's own record")
-    }
-
-    /// A team row made before build 114 — a page published straight into a
-    /// team Notebook, no own entry — whose files are still on the host under
-    /// this account is brought home in place when the site tools change it.
-    /// Until 2026-09-25 every such row was refused, and a chat asked to add
-    /// one compound to the Mitochondrial Therapeutics Atlas retried the
-    /// refusal some sixty times.
-    @Test("a team row made before build 114 that this account published is brought home in place by save_site, and publish_site keeps its address")
-    func teamRowPublishedByThisAccountIsBroughtHome() async throws {
-        let (store, tmpPath) = try makeStore()
-        defer { cleanup(tmpPath) }
-        let notebook = try makeNotebook(store, title: "Bench Lab", sourceIDs: [])
-        let teamID = try await createTeam(store, name: "Bench Lab")
-        let teamNotebookID = try await notebookFileStorageShare(store, notebookID: notebook.id, teamID: teamID)
-        let url = URL(string: "https://sites.foreverlm.com/atlas/")!
-        let teamRow = try await store.notebookFileStorage.createLinkedArtifact(
-            url: url, title: "Atlas", homeNotebookID: teamNotebookID, linkedNotebookIDs: [], teamID: teamID
-        )
-        let host = MCPDataStoreTests.SiteHostRecorder()
-        let hosted = [SiteFile(path: "index.html", data: Data("<h1>Atlas</h1><p>Forty compounds.</p>".utf8))]
-        await host.hold(
-            PublishedSiteStatus(
-                siteID: teamRow.id, url: url, slug: "atlas", title: "Atlas",
-                publishedAt: Date(), updatedAt: Date(), bytes: 0, filePaths: hosted.map(\.path)
-            ),
-            files: hosted,
-            under: "atlas"
-        )
-        #expect(!HostedSiteAdoption.needsAdoption(teamRow), "the launch pass still leaves team rows to the site tools")
-
-        let saved = try parseJSON(try await store.saveSite(
-            site: "atlas", title: nil, html: nil, files: [["path": "about.html", "content": "<p>TPP-thiazole</p>"]],
-            repository: nil, repositoryPath: nil, ref: nil, homeNotebookID: nil, notebookIDs: [],
-            hosting: host.hosting()
-        ))
-        #expect(saved["brought_home"] as? Bool == true)
-        #expect(saved["site_id"] as? String == teamRow.id, "brought home in place: still the team's record")
-        #expect(saved["team_ids_holding_copy"] == nil, "the team's own record is not a copy in it")
-        #expect((saved["message"] as? String)?.contains("slug \"atlas\"") == true, "the model is told how to put it back at its address")
-        let files = try #require(try await store.notebookFileStorage.localSiteFiles(artifactID: teamRow.id))
-        #expect(files.map(\.path) == ["about.html", "index.html"])
-        let rows = try await store.notebookFileStorage.loadArtifacts(notebookID: nil).filter { $0.linkedKind == .foreverlmSite }
-        #expect(rows.map(\.id) == [teamRow.id], "no second entry and no copy of the team's own record")
-        let record = try #require(rows.first)
-        #expect(record.teamID == teamID)
-        #expect(record.linkedURL == "foreverlm-site://\(teamRow.id)/")
-        let strayCopyID = TeamContentIdentity.artifactCopyID(teamID: teamID, original: record)
-        #expect(try await store.notebookFileStorage.localSiteFilePaths(artifactID: strayCopyID) == nil, "saving a team row writes no files for a copy of itself")
-        #expect(await host.unpublished == (HostedSiteAdoption.takesDownHostedCopy ? ["atlas"] : []))
-
-        // publish_site as the first change brings the row home and puts the
-        // published copy back at the address it had.
-        let panelURL = URL(string: "https://sites.foreverlm.com/panel/")!
-        let panelRow = try await store.notebookFileStorage.createLinkedArtifact(
-            url: panelURL, title: "Panel", homeNotebookID: teamNotebookID, linkedNotebookIDs: [], teamID: teamID
-        )
-        let panelFiles = [SiteFile(path: "index.html", data: Data("<h1>Panel</h1>".utf8))]
-        await host.hold(
-            PublishedSiteStatus(
-                siteID: panelRow.id, url: panelURL, slug: "panel", title: "Panel",
-                publishedAt: Date(), updatedAt: Date(), bytes: 0, filePaths: panelFiles.map(\.path)
-            ),
-            files: panelFiles,
-            under: "panel"
-        )
-        _ = try await store.publishSite(
-            site: "panel", title: nil, html: nil, files: nil, repository: nil, repositoryPath: nil, ref: nil, slug: nil,
-            homeNotebookID: nil, notebookIDs: [], hosting: host.hosting()
-        )
-        let publish = try #require(await host.publishes.last)
-        #expect(publish.siteID == panelRow.id)
-        #expect(publish.slug == "panel")
-        #expect(try await store.notebookFileStorage.localSiteFilePaths(artifactID: panelRow.id) == ["index.html"])
-    }
-
-    /// A team row whose hosted copy belongs to a teammate cannot be read from
-    /// this account; the refusal names who can move it and asks the chat not
-    /// to retry.
-    @Test("a team row made before build 114 whose files are hosted under a teammate's account is left as a link, and save_site says who can move it")
-    func teamRowHostedByTeammateIsLeftAsLink() async throws {
-        let (store, tmpPath) = try makeStore()
-        defer { cleanup(tmpPath) }
-        let notebook = try makeNotebook(store, title: "Bench Lab", sourceIDs: [])
-        let teamID = try await createTeam(store, name: "Bench Lab")
-        let teamNotebookID = try await notebookFileStorageShare(store, notebookID: notebook.id, teamID: teamID)
-        let url = URL(string: "https://sites.foreverlm.com/atlas/")!
-        let teamRow = try await store.notebookFileStorage.createLinkedArtifact(
-            url: url, title: "Atlas", homeNotebookID: teamNotebookID, linkedNotebookIDs: [], teamID: teamID
-        )
-        #expect(!HostedSiteAdoption.needsAdoption(teamRow), "the host's automatic pass skips team rows")
-        do {
-            _ = try await store.saveSite(
-                site: "atlas", title: nil, html: "<h1>Atlas</h1>", files: nil,
-                repository: nil, repositoryPath: nil, ref: nil, homeNotebookID: nil, notebookIDs: [],
-                hosting: siteHosting(recordingAccessInto: AccessRecorder())
-            )
-            Issue.record("a teammate's hosted team row was changed")
-        } catch {
-            #expect(error.localizedDescription.contains("under the account of the teammate who published it"))
-            #expect(error.localizedDescription.contains("Do not retry"))
-        }
-        let rows = try await store.notebookFileStorage.loadArtifacts(notebookID: nil).filter { $0.linkedURL == url.absoluteString }
-        #expect(rows.map(\.id) == [teamRow.id])
     }
 
     /// Share a Notebook through the tool and return the team copy's id.

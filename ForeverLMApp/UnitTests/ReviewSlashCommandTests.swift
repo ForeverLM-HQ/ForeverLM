@@ -98,15 +98,16 @@ struct ReviewSlashCommandTests {
         #expect(ReviewSlashCommandParser.liveArgumentQuery(in: "/site-prompt mito") == nil)
     }
 
-    @Test("The site prompt request names the plugin, publish_site, the source-link form, the focus and the Notebook")
+    @Test("The site prompt request names the plugin, save_site, the source-link form, the focus and the Notebook")
     func sitePromptRequestShape() {
         let bare = ReviewSlashCommandParser.sitePromptRequest(focus: nil, notebookTitle: nil)
         #expect(bare.contains("Use the ForeverLM plugin to make a ForeverLM site that explains"))
-        #expect(bare.contains("publish_site"))
+        #expect(bare.contains("save_site"))
+        #expect(!bare.contains("publish_site"), "sites are not put on the web")
         #expect(bare.contains("[Title](foreverlm://source/SOURCE_ID)"))
         #expect(bare.contains("get_source_content"))
         #expect(bare.contains("fenced code block"))
-        #expect(bare.contains("private unless I say otherwise"))
+        #expect(bare.contains("stays in my ForeverLM library"))
         #expect(!bare.contains("focused on"))
         #expect(!bare.contains("filed under"))
 
@@ -551,9 +552,9 @@ struct ChatPluginSetupNeedTests {
             error: "Sign in with Apple in ForeverLM to read GitHub. ForeverLM reads GitHub as you, through your own ForeverLM account, so a signed-out Mac has nothing to read with."
         ) == Need(plugin: .github, kind: .signIn))
         #expect(ChatPluginRequest.setupNeed(
-            toolName: "publish_site",
+            toolName: "save_site",
             error: "No GitHub account is connected to this ForeverLM account. The learner connects one at https://app.foreverlm.com/github-connect."
-        ) == Need(plugin: .github, kind: .connect), "publish_site reads GitHub when it is given a repository")
+        ) == Need(plugin: .github, kind: .connect), "save_site reads GitHub when it is given a repository")
         #expect(ChatPluginRequest.setupNeed(
             toolName: "search_linear_issues",
             error: "No Linear workspace is connected to this ForeverLM account. The learner connects one at https://app.foreverlm.com/linear-connect."
@@ -579,7 +580,7 @@ struct ChatPluginSetupNeedTests {
             error: "path is required: the file's path within the repository, such as src/main.swift, from list_github_files."
         ) == nil)
         #expect(ChatPluginRequest.setupNeed(
-            toolName: "publish_site",
+            toolName: "save_site",
             error: "Pass the site's files: html for a one-page site, files for several, or repository to read them from GitHub."
         ) == nil, "a GitHub mention in an argument error is not a missing connection")
         #expect(ChatPluginRequest.setupNeed(
@@ -597,7 +598,7 @@ struct ChatPluginSetupNeedTests {
             (toolName: "list_github_files", error: "No GitHub account is connected to this ForeverLM account."),
             (toolName: "read_github_file", error: notInstalled),
             (toolName: "search_linear_issues", error: "No Linear workspace is connected to this ForeverLM account."),
-            (toolName: "publish_site", error: "Pass either the files (html, files) or a repository to read them from, not both."),
+            (toolName: "save_site", error: "Pass either the files (html, files) or a repository to read them from, not both."),
         ])
         #expect(needs == [Need(plugin: .github, kind: .installOrganisation), Need(plugin: .linear, kind: .connect)])
         #expect(ChatPluginRequest.setupNeeds(in: [(toolName: "read_github_file", error: nil)]).isEmpty)

@@ -11,7 +11,7 @@ The learner's spend lives in ForeverLM's AI usage ledger, and the model every ta
 
 1. Call `get_mcp_status`. Both readers and the writer are answered by the learner's Mac; if the Mac is not reachable, say so and stop.
 2. Call `get_ai_usage_report`. Default to the last 30 days; use `days`, or `from` and `to` (local `YYYY-MM-DD`, `to` inclusive), when the learner names a period. Read `totals`, `by_task` (sorted by spend, each with the models it ran, `per_call` averages and `current_route`), `by_model` and `by_day`.
-3. Call `get_ai_task_settings`. It is Settings > AI Models as data: `default_model`, `background_text`, `background_multimodal`, every background task in `tasks` with the model it runs on and which of the two Background models it `follows`, `free_models`, and the `catalogue` with each model's `price` per million input, output, cached-input and cache-write tokens, `supports_vision` and `selectable`. No background task has a model of its own: every task that follows `background_text` runs on that one model, and every task that follows `background_multimodal` on the other.
+3. Call `get_ai_task_settings`. It is Settings > AI Models as data: `default_model`, `background_text`, `background_multimodal`, every background task in `tasks` with the model it runs on and what it `follows` (`background_text`, `background_multimodal`, or `task_model` when the learner gave it a model of its own), `free_models`, and the `catalogue` with each model's `price` per million input, output, cached-input and cache-write tokens, `supports_vision` and `selectable`. Every task that follows `background_text` runs on that one model, every task that follows `background_multimodal` on the other, and a task that follows `task_model` on its own.
 
 ## What the numbers mean
 
@@ -27,9 +27,9 @@ Rank `by_task` by `cost_usd` and name the tasks that make up most of the spend. 
 
 ## Propose cheaper settings
 
-Background work has two settings, not one per task, so group the dominating tasks by the Background model they `follow` and consider, in this order:
+Background work has two shared settings, and a task can also have a model of its own. Group the dominating tasks by what they `follow` and consider, in this order:
 
-1. **A cheaper catalogued model for that Background model.** Only a model from the `catalogue` with `selectable: true`, on the same or a comparable class (a Flash, Haiku, mini, or an open-weight model on OpenRouter). `background_multimodal` takes only a model whose `supports_vision` is `true`. The change moves every task that follows it, so weigh it against the most demanding of them, not only the most expensive.
+1. **A cheaper catalogued model for that Background model.** Only a model from the `catalogue` with `selectable: true`, on the same or a comparable class (a Flash, Haiku, mini, or an open-weight model on OpenRouter). `background_multimodal` takes only a model whose `supports_vision` is `true`. The change moves every task that follows it, so weigh it against the most demanding of them, not only the most expensive. When one task dominates on its own, or already follows `task_model`, propose a cheaper catalogued model for that task alone instead; a task with `requires_vision` takes only a vision model.
 2. **A free model from `free_models`.** It costs nothing for now, but its providers may keep and train on what is sent, it is often busy or rate-limited, and it may be free only for a limited time; say all three. Meeting tasks stay on a paid model while `meetings_may_use_free` is false, so moving `background_text` to a free model does not move them.
 
 Never propose a model the catalogue does not list, a provider that is not in `accepts.providers`, or a retired model. A task that follows `default_model` runs on the chat's model; leave that alone unless the learner asks about chat itself, since a cheaper chat model changes the quality of every conversation.
@@ -52,6 +52,7 @@ Under it, note the trade-off of each row in one line (a smaller model reads fewe
 For each approved row call `set_ai_task_settings` once:
 
 - A Background model: `target: "background_text"` or `"background_multimodal"` with `provider` and `model`.
+- One task's own model: `target: "task_model"` with `task_id`, `provider` and `model`; with neither `provider` nor `model` the task goes back to following its Background model.
 - The Default Model: `target: "default_model"` with `provider` and `model`, only when the learner asked for it.
 
 The reply carries the resulting settings and `changed`; read them back and confirm each applied row against what was approved. A refused selection comes back as an error naming the rule that refused it; report it rather than retrying with a different model on your own.

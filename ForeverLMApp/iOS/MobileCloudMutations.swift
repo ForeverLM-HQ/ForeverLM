@@ -328,9 +328,9 @@ actor MobileCloudMutationService {
     /// ordinary address. The product owner (2026-09-09): "codex sites should always
     /// obviously be ingested as a 'site' not as an article". The Mac's rule is
     /// `LinkedPage.kind(of:)` (Shared/Models/LinkedPage.swift), which this
-    /// target does not compile, so the four hosts are repeated here — a Codex
+    /// target does not compile, so the three hosts are repeated here — a Codex
     /// site at `<site>.<workspace>.chatgpt.site` (the bare domain and one label
-    /// under it are OpenAI's), a Claude artifact, a Google Doc, a ForeverLM site.
+    /// under it are OpenAI's), a Claude artifact and a Google Doc.
     static func linkedPageKindLabel(for url: URL) -> String? {
         guard let host = url.host?.lowercased() else { return nil }
         let parts = url.pathComponents.filter { $0 != "/" }
@@ -345,9 +345,6 @@ actor MobileCloudMutationService {
         if host.hasSuffix(".chatgpt.site") {
             let labels = host.split(separator: ".")
             return labels.count >= 4 && labels.allSatisfy { !$0.isEmpty } ? "Codex Site" : nil
-        }
-        if host == "sites.foreverlm.com" {
-            return parts.isEmpty ? nil : "ForeverLM Site"
         }
         return nil
     }

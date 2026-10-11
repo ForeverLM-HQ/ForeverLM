@@ -657,8 +657,9 @@ actor OpenRouterRegionalEndpoints {
 /// clear that people might train on your data", and "models may error due to
 /// overload". While it is on, ForeverLM sends nothing but OpenRouter's `:free`
 /// models, on the learner's own OpenRouter key, so OpenRouter bills nothing.
-/// It needs a plan like everything else the key runs (2026-09-27; for one day
-/// it stood in for one): what it guarantees is that nothing it sends can be
+/// It runs only where the key may (2026-09-27; in the paid app of 2026-10-10,
+/// the free days or a paid account): what it guarantees is that nothing it
+/// sends can be
 /// charged on OpenRouter ("it has to be impossible that they get ANY
 /// openrouter charges"), with the zero price cap on every chat body.
 ///
@@ -737,13 +738,17 @@ enum AIFreeMode {
         }
     }
 
-    /// How to get what Free mode holds back: turn it off, and choose a plan
-    /// first if the one it went on with has since ended, since off without
-    /// one runs nothing.
+    /// How to get what Free mode holds back: turn it off, and on the Mac pay
+    /// for ForeverLM first if the account has since been locked, since off
+    /// without that runs nothing. The phone names no payment (App Review
+    /// 3.1.3(f)).
     static var leaveAdvice: String {
-        ManagedAI.ownKeyAllowed
-            ? "turn Free mode off under \(settingsLocation)"
-            : "choose a ForeverLM plan and turn Free mode off under \(settingsLocation)"
+        if ManagedAI.ownKeyAllowed { return "turn Free mode off under \(settingsLocation)" }
+        #if os(iOS)
+        return "turn Free mode off under \(settingsLocation)"
+        #else
+        return "pay for ForeverLM under Settings → Billing and turn Free mode off under \(settingsLocation)"
+        #endif
     }
 
     /// Nil when free mode is off or the request is one it allows: a read that

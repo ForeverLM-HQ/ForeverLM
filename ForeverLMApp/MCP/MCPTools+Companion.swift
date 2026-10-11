@@ -83,7 +83,7 @@ extension MCPDataStore {
         let refreshed = try knowledgeStore().loadLearningGoal(goal.id) ?? goal
         let brief = try companionGoalDetail(refreshed)
         let parentLine = resolvedParentID.map { "Tagged to Notebook \($0).\n" } ?? ""
-        let artifactLine = resolvedArtifactID.map { "For artifact \($0); the Goals tab opens it from the row.\n" } ?? ""
+        let artifactLine = resolvedArtifactID.map { "For artifact \($0); the Goal's row opens it.\n" } ?? ""
         return """
         Created timebound Goal \(goal.id) ("\(trimmedTitle)"), ending \(isoDateOnly(endAt, calendar: calendar)).
         \(parentLine)\(artifactLine)Seeds: \(seeds.count). Discovered suggestions: \(discoveredCount) (pending your approval).\(discoveryNote)
@@ -246,7 +246,7 @@ extension MCPDataStore {
                 artifactNote = "\nNo longer for any Doc, Site or animation."
             } else {
                 let title = (try? store.loadArtifact(trimmedArtifact))?.title ?? trimmedArtifact
-                artifactNote = "\nNow for “\(title)” (\(trimmedArtifact)); the Goals tab opens it from the row."
+                artifactNote = "\nNow for “\(title)” (\(trimmedArtifact)); the Goal's row opens it."
             }
         }
 

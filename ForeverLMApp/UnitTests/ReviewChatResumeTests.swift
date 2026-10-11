@@ -2227,13 +2227,13 @@ struct AttachedSiteChatTests {
                 title: "Mitochondrial phenotyping",
                 revision: "rendered-copy-revision",
                 outline: ["Proximal mitochondrial and cellular layers"],
-                linkedURL: "https://sites.foreverlm.com/mito-atlas/"
+                linkedURL: "foreverlm-site://site-a/"
             )],
             appTools: tools
         )
 
         #expect(prompt.contains("site_id: site-a"))
-        #expect(prompt.contains("site_url: https://sites.foreverlm.com/mito-atlas/"))
+        #expect(prompt.contains("site_url: foreverlm-site://site-a/"))
         #expect(prompt.contains("read_site_file"))
         #expect(prompt.contains("save_site"))
         #expect(prompt.contains("same site"))

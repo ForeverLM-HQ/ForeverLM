@@ -36,6 +36,10 @@ extension StudioViewModel {
             "\(knowledgeMapClipRevision)",
             // A page card placed or taken off (`KnowledgeMapModel.placedPagesStamp`).
             "\(knowledgeMap.placedPagesStamp)",
+            // A paper shown as its page, or put back (`placedPageFacesStamp`), and
+            // a source marked read or unread (its tick on the card).
+            "\(knowledgeMap.placedPageFacesStamp)",
+            "\(articles.reduce(0) { $0 + ($1.isRead ? 1 : 0) })",
             // Another canvas made, renamed, trashed or written, and the Images
             // library changed: the shortcut and picture cards.
             "\(knowledgeMapShortcutCanvases.map { "\($0.id)\($0.name)\($0.cardCount)\($0.regionCount)" }.joined().hashValue)",
@@ -121,7 +125,7 @@ extension StudioViewModel {
                 }
                 // A passage is a card once it is on a canvas, was just made for
                 // one, or is in a source of the open canvas's notebook, whose
-                // tray offers it. Not every highlight in the library.
+                // Library offers it. Not every highlight in the library.
                 for mark in list where ReaderClip.isPassage(mark) {
                     let ref = KnowledgeMap.ItemRef(kind: .clip, id: mark.id).description
                     if knowledgeMap.layout.placements[ref] != nil
@@ -138,6 +142,7 @@ extension StudioViewModel {
         }
         await findPassagePages(for: clips)
         await loadKnowledgeMapPageShapes()
+        await loadKnowledgeMapPageFaces()
         let captions = await knowledgeMapFigureCaptions(for: clips)
         var groupTitles: [String: String] = [:]
         var origins: [String: SourceArtwork.Origin] = [:]
@@ -317,14 +322,16 @@ extension StudioViewModel {
         }
     }
 
-    /// A card's double-click: a source opens in the Reader, a Doc where Docs
-    /// open, an Idea in Ideas, a shortcut card opens that canvas, a chat opens
-    /// beside the Canvas, a picture is shown where the Space lists Images.
+    /// A card's double-click: a source opens in the Reader (a paper shown as
+    /// its page at that page), a Doc where Docs open, an Idea in Ideas, a
+    /// shortcut card opens that canvas, a chat opens beside the Canvas, a
+    /// picture is shown where the Space lists Images.
     func openKnowledgeMapItem(_ ref: String, in windowState: StudioWindowState) async {
         guard let item = KnowledgeMap.ItemRef(ref) else { return }
         switch item.kind {
         case .source:
             await selectArticle(item.id, in: windowState, revealingReader: true)
+            requestReaderPassage(nil, page: knowledgeMap.layout.placements[ref]?.page, for: canonicalSourceID(item.id))
         case .doc:
             revealArtifact(item.id, in: windowState)
         case .idea:
@@ -502,22 +509,25 @@ extension StudioViewModel {
         )
     }
 
-    /// Opens a fresh chat beside the Map with the selected sources as its
-    /// context and the question typed, unsent, in its composer.
+    /// **Ask in Chat**: opens a fresh chat beside the Canvas with the cards as
+    /// its context: a chip each over the composer and a line each for the
+    /// model (`KnowledgeMapChatContext`), the text of the sources among them
+    /// loaded at once, and nothing typed in the composer.
     func requestChatAboutKnowledgeMapSelection(_ refs: [String]) {
-        let items = refs.compactMap(KnowledgeMap.ItemRef.init)
-        // A page card brings its paper into the chat, named with its page.
-        let sourceIDs = items.filter { $0.kind == .source }.map(\.id) + items.compactMap { $0.pageParts?.sourceID }
-        let titles = refs.prefix(12).map { ref -> String in
-            guard let parts = KnowledgeMap.ItemRef(ref)?.pageParts, let node = knowledgeMap.nodesByRef[ref] else {
-                return "“\(knowledgeMap.title(of: ref))”"
-            }
-            return "“\(node.sub)” page \(parts.page)"
-        }
-        let draft = refs.count == 1
-            ? "On my Canvas I picked \(titles.joined()). "
-            : "On my Canvas I circled \(refs.count) cards: \(titles.joined(separator: ", "))\(refs.count > titles.count ? ", and more" : ""). "
-        openChatBesideKnowledgeMap(draft: draft, sourceIDs: sourceIDs, selection: refs)
+        let cards = knowledgeMapChatCards(refs)
+        let handOff = KnowledgeMapChatCards(
+            windowID: activeWindowState.id,
+            canvasID: knowledgeMap.mapID,
+            canvasName: openCanvasName,
+            cards: cards,
+            replaces: true
+        )
+        openChatBesideKnowledgeMap(
+            draft: nil,
+            sourceIDs: knowledgeMapChatSourceIDs(cards),
+            selection: refs,
+            cards: handOff
+        )
         showToast(Self.addedToChatMessage(refs.count == 1 ? "Card" : "Selection", elsewhere: chatRequestElsewhereNotice))
     }
 }

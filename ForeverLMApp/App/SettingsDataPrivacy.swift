@@ -86,8 +86,8 @@ struct DataPrivacySettingsDetailView: View {
                         DataPrivacyFactRow(
                             icon: "link.badge.plus",
                             tint: .purple,
-                            title: "Tool calls are free and not logged",
-                            text: "ForeverLM charges nothing for a tool call and keeps no record of what was asked or returned."
+                            title: "Tool calls are not logged",
+                            text: "ForeverLM keeps no record of what was asked or returned."
                         )
                         DataPrivacyFactRow.divider
                         DataPrivacyFactRow(

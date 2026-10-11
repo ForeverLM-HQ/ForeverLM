@@ -63,9 +63,7 @@ struct WalkthroughAnimationWebView: NSViewRepresentable {
 
 /// A saved animation's page in a step's card: the page at its library
 /// address, `foreverlm-site://<id>/?embed=1&step=N&c=…`, served from the
-/// library (`LocalSiteSchemeHandler`) — or, for a record still pointing at
-/// sites.foreverlm.com, the hosted page loaded with the account's bearer — in
-/// a store of its own. Navigation stays on the animation; links out, forms
+/// library (`LocalSiteSchemeHandler`) in a store of its own. Navigation stays on the animation; links out, forms
 /// and popups go nowhere. The page shows its stage alone at
 /// the step and holds the last frame with the motion running.
 struct WalkthroughHostedAnimationWebView: NSViewRepresentable {
@@ -94,7 +92,7 @@ struct WalkthroughHostedAnimationWebView: NSViewRepresentable {
     private func load(_ url: URL, into webView: WKWebView, coordinator: Coordinator) {
         guard coordinator.loadedURL != url else { return }
         coordinator.loadedURL = url
-        webView.load(LinkedDocWebView.initialRequest(url: url, kind: .foreverlmSite))
+        webView.load(URLRequest(url: url))
     }
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
@@ -105,13 +103,12 @@ struct WalkthroughHostedAnimationWebView: NSViewRepresentable {
             decidePolicyFor navigationAction: WKNavigationAction,
             decisionHandler: @escaping @MainActor (WKNavigationActionPolicy) -> Void
         ) {
-            // The page and the host's own redirects; a link out of the site,
-            // a form or a frame to anywhere else goes nowhere.
+            // The page itself; a link out of the site, a form or a frame to
+            // anywhere else goes nowhere.
             let url = navigationAction.request.url
-            let onSiteHost = url?.host?.lowercased() == LinkedPage.foreverlmSitesHost
-                || url.flatMap(LinkedPage.localSiteID(from:)) != nil
+            let onSite = url.flatMap(LinkedPage.localSiteID(from:)) != nil
             let isDocument = navigationAction.targetFrame?.isMainFrame == true
-            decisionHandler(onSiteHost && (isDocument || navigationAction.navigationType == .other) ? .allow : .cancel)
+            decisionHandler(onSite && (isDocument || navigationAction.navigationType == .other) ? .allow : .cancel)
         }
 
         func webView(

@@ -53,6 +53,80 @@ enum KnowledgeMap {
         return min(max(picture, 70), 420)
     }
 
+    // MARK: A paper as its page, a note under a card, a mind map's nodes
+    // (docs/knowledge-map-design.md, "What Sapience showed (2026-10-10): the
+    // contract"). The renderer computes the same numbers by the same formulas
+    // (`pageFaceHeight`, `annotationHeight` and `treeNodeSize` in
+    // `knowledge-map.js`), so a card is as tall where it is drawn as where the
+    // Mac set it down.
+
+    /// The foot a page face keeps under the page: its title (two lines) and
+    /// its byline (one).
+    static let pageFaceFootHeight: Double = 70
+
+    /// A page's width over its height until the PDF has been read: US Letter.
+    static let defaultPageAspect: Double = 0.7727
+
+    /// A page face's height: the page at the card's width (within half and
+    /// two and seven tenths of the width, rounded) over the foot.
+    static func pageFaceHeight(aspect: Double?, width: Double) -> Double {
+        let shape = aspect.flatMap { $0 > 0 ? $0 : nil } ?? defaultPageAspect
+        let page = min(max(width / shape, width * 0.5), width * 2.7)
+        return page.rounded() + pageFaceFootHeight
+    }
+
+    /// The most characters of words a card carries under it on a canvas.
+    static let annotationLimit = 600
+
+    /// The most lines of them the card draws.
+    static let annotationLineLimit = 12
+
+    /// The words as a placement stores them: trimmed, at most
+    /// `annotationLimit` characters, and nothing for an empty text.
+    static func annotation(from text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let capped = String(trimmed.prefix(annotationLimit)).trimmingCharacters(in: .whitespacesAndNewlines)
+        return capped.isEmpty ? nil : capped
+    }
+
+    /// The room a card's annotation takes at the bottom of the card: nothing
+    /// for no words, else each paragraph (a line of the text) takes the lines
+    /// its characters fill at 6.5 points apiece across the card less its 28
+    /// points of padding (at least one), at most `annotationLineLimit` lines
+    /// in all, 16 points each over 10 points of padding.
+    static func annotationHeight(_ text: String?, width: Double) -> Double {
+        guard let text, !text.isEmpty else { return 0 }
+        var lines = 0
+        for paragraph in text.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline) {
+            lines += max(1, Int((Double(paragraph.count) * 6.5 / (width - 28)).rounded(.up)))
+        }
+        return 10 + Double(min(lines, annotationLineLimit)) * 16
+    }
+
+    /// How large a mind map draws a node: its words in one box, 7 points a
+    /// character (a root's 8.6) across the box less its padding, wrapped to at
+    /// most four lines, the root a little larger than the rest. A node whose
+    /// words just fill one line is one line: the division is not allowed the
+    /// rounding noise that would make it a hair over one (14 characters of a
+    /// root's, say), and the renderer takes the same care.
+    static func treeNodeSize(title: String, role: KnowledgeMapTreeNodeRole) -> (w: Double, h: Double) {
+        let isRoot = role == .root
+        let charW = isRoot ? 8.6 : 7.0
+        let padX = isRoot ? 18.0 : 12.0, padY = isRoot ? 12.0 : 7.0
+        let lineH = isRoot ? 21.0 : 17.0
+        let minW = isRoot ? 120.0 : 60.0, maxW = isRoot ? 280.0 : 220.0
+        let textW = Double(title.count) * charW
+        let w = min(max(textW + 2 * padX, minW), maxW)
+        let lines = min(4, max(1, Int((textW / (w - 2 * padX) - 1e-9).rounded(.up))))
+        return (w.rounded(), (2 * padY + Double(lines) * lineH).rounded())
+    }
+
+    /// Whether an Idea's title is a question: it ends with `?` or `？`.
+    static func isQuestion(_ title: String) -> Bool {
+        guard let last = title.trimmingCharacters(in: .whitespacesAndNewlines).last else { return false }
+        return last == "?" || last == "？"
+    }
+
     /// An arrow's end may be a region instead of a card: `region:<regionID>`.
     static let regionRefPrefix = "region:"
 
@@ -217,6 +291,21 @@ enum KnowledgeMap {
     }
 }
 
+/// A node of a mind map: the card the map hangs from (`root`: no branch leads
+/// to it), a card with branches of its own (`branch`), or one with none
+/// (`leaf`).
+enum KnowledgeMapTreeNodeRole: String, Sendable {
+    case root, branch, leaf
+}
+
+/// What this Mac has read of a source's PDF to draw a paper as its page: how
+/// many pages it has (0 once looked at and found to have none) and its first
+/// page's width over its height.
+struct KnowledgeMapPageFace: Equatable, Sendable {
+    var pageCount: Int
+    var aspect: Double?
+}
+
 // MARK: - The learner's layout
 
 /// Where the learner put things. Each entry carries the time it was last
@@ -240,8 +329,29 @@ struct KnowledgeMapLayout: Codable, Equatable, Sendable {
         /// A tint, one of `KnowledgeMapModel.regionColors`; nil is the kind's
         /// own.
         var color: String? = nil
+        /// The card is a **page face**: page `page` (one-based) of its source's
+        /// PDF drawn as the card, its title and authors under it. Nil is the
+        /// usual face. It means something only for a `source:` card whose PDF
+        /// this Mac holds; on a Mac without it the card draws its usual face
+        /// and keeps the field.
+        var page: Int? = nil
+        /// The learner's words about the card on this canvas, "why it is
+        /// here": at most `KnowledgeMap.annotationLimit` characters, trimmed,
+        /// never empty. Every kind of card but an Idea, whose own note holds
+        /// its words. They belong to the card's spot on this canvas, not to
+        /// what the card stands for.
+        var annotation: String? = nil
+        /// An Idea drawn as words on the plane, with no sticky note. Nil and
+        /// false are the same.
+        var plain: Bool? = nil
+        /// A question Idea (`KnowledgeMap.isQuestion`) marked answered on this
+        /// canvas, as a colour is the canvas's: the Idea itself is not
+        /// touched. Nil and false are the same.
+        var answered: Bool? = nil
 
         var isFolded: Bool { folded == true }
+        var isPlain: Bool { plain == true }
+        var isAnswered: Bool { answered == true }
     }
 
     struct Region: Codable, Equatable, Sendable {
@@ -292,9 +402,15 @@ struct KnowledgeMapLayout: Codable, Equatable, Sendable {
         /// A mind-map branch, parent to child: drawn as a branch, not an
         /// arrow.
         var tree: Bool? = nil
+        /// Which side of an argument the arrow is on, as `KnowledgeMapEdgeStance`
+        /// names it (`"supports"` or `"contradicts"`): drawn green or red unless
+        /// the arrow has a `color` of its own. Nil is none.
+        var stance: String? = nil
 
         var isTree: Bool { tree == true }
         var isDashed: Bool { dashed == true }
+        /// The stance, when this build knows the one stored.
+        var knownStance: KnowledgeMapEdgeStance? { stance.flatMap(KnowledgeMapEdgeStance.init(rawValue:)) }
     }
 
     /// The value of a region's `layout` for a mind map.
@@ -332,22 +448,9 @@ struct KnowledgeMapLayout: Codable, Equatable, Sendable {
     /// library; the mark says where it is listed and opened from. Nil for a
     /// canvas of no notebook; unlinking writes a mark with no `id`.
     var notebook: NotebookMark?
-    /// The Sites entry this canvas is published as (Publish… in its menu;
-    /// docs/knowledge-map-design.md, "Versions, export and publishing"): the
-    /// entry holds the page, which each Publish Changes renders over again.
-    /// Written with the row, so every Mac knows which entry is the canvas's
-    /// and none makes a second. Nil for a canvas never published; unlinking
-    /// writes a mark with no `id`.
-    var site: SiteMark?
 
     struct NotebookMark: Codable, Equatable, Sendable {
         /// The notebook's id; nil once the canvas was taken out of it.
-        var id: String?
-        var at: Double
-    }
-
-    struct SiteMark: Codable, Equatable, Sendable {
-        /// The Sites entry's id; nil once the entry was taken away.
         var id: String?
         var at: Double
     }
@@ -380,7 +483,6 @@ struct KnowledgeMapLayout: Codable, Equatable, Sendable {
         note(name?.at)
         note(trash?.at)
         note(notebook?.at)
-        note(site?.at)
         note(created)
         return latest
     }
@@ -389,14 +491,14 @@ struct KnowledgeMapLayout: Codable, Equatable, Sendable {
     /// with no `created`.
     var firstWrittenAt: Double? {
         let stamps = placements.values.map(\.at) + regions.values.map(\.at) + edges.values.map(\.at)
-            + removed.values + [name?.at, trash?.at, notebook?.at, site?.at].compactMap { $0 }
+            + removed.values + [name?.at, trash?.at, notebook?.at].compactMap { $0 }
         return stamps.min()
     }
 
     // MARK: Edits
 
-    /// Puts a card at a spot. A card already placed keeps its size, fold and
-    /// colour: moving it is not restyling it.
+    /// Puts a card at a spot. A card already placed keeps its size, fold,
+    /// colour, page, words and marks: moving it is not restyling it.
     mutating func place(_ ref: String, x: Double, y: Double, at: Double) {
         var placement = placements[ref] ?? Placement(x: x, y: y, at: at)
         placement.x = x
@@ -531,7 +633,6 @@ struct KnowledgeMapLayout: Codable, Equatable, Sendable {
         result.name = Self.newer(name, other.name, at: \.at)
         result.trash = Self.newer(trash, other.trash, at: \.at)
         result.notebook = Self.newer(notebook, other.notebook, at: \.at)
-        result.site = Self.newer(site, other.site, at: \.at)
         result.created = [created, other.created].compactMap { $0 }.min()
 
         result.placements = Self.mergeEntries(placements, other.placements, tombstonePrefix: "p:", removed: result.removed, at: \.at)
@@ -1016,6 +1117,14 @@ struct KnowledgeMapNode: Encodable, Equatable, Sendable {
     /// paper: its picture, authors, venue and year, as the Library shows it.
     var src: String? = nil
     var byline: String? = nil
+    /// How many pages the source's PDF has and its first page's width over
+    /// its height, once this Mac has read it (`KnowledgeMapModel.pageFaces`):
+    /// what a page face needs to be drawn. Nil until then.
+    var pages: Int? = nil
+    var aspect: Double? = nil
+    /// True for a source the learner has read (`StudioArticle.isRead`): the
+    /// page draws a small tick on its corner. Nil for any other.
+    var read: Bool? = nil
 }
 
 /// One page of a PDF source that is a card on a canvas: its ref and the
@@ -1066,7 +1175,7 @@ struct KnowledgeMapEdit: Equatable, Sendable {
     /// at time `at`: placements first, so an arrow coming back has both ends.
     func restore(_ target: KnowledgeMapLayout, into layout: inout KnowledgeMapLayout, at: Double) {
         for key in Self.changedKeys(before.placements, after.placements) {
-            // The whole placement comes back: its spot and its size, fold and colour.
+            // The whole placement comes back: its spot and its size, fold, colour, page, words and marks.
             if var placement = target.placements[key] { placement.at = at; layout.setPlacement(key, placement) } else { layout.unplace(key, at: at) }
         }
         for key in Self.changedKeys(before.regions, after.regions) {

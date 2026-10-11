@@ -246,7 +246,6 @@ struct KnowledgeMapVersionsTests {
         current.created = 42
         current.trash = .init(since: nil, at: 60)
         current.notebook = .init(id: "nb-1", at: 70)
-        current.site = .init(id: "site-1", at: 80)
         current.place("idea:b", x: 99, y: 99, at: 30)
         current.place("idea:c", x: 5, y: 5, at: 30)
         current.setRegion("r2", .init(name: "New", x: 0, y: 0, w: 100, h: 100, color: "#378ADD", at: 30))
@@ -269,7 +268,6 @@ struct KnowledgeMapVersionsTests {
         #expect(current.created == 42)
         #expect(current.trash == .init(since: nil, at: 60))
         #expect(current.notebook == .init(id: "nb-1", at: 70))
-        #expect(current.site == .init(id: "site-1", at: 80), "the page it is published as stays its own")
     }
 
     @Test("A restore of what is already there writes nothing, and a card taken off since comes back")
@@ -327,21 +325,5 @@ struct KnowledgeMapVersionsTests {
         edit.restore(edit.before, into: &undone, at: 200)
         #expect(undone.placements["idea:a"]?.x == 50)
         #expect(undone.placements["idea:b"]?.x == 60)
-    }
-    // MARK: The site a canvas is published as
-
-    @Test("A canvas's row carries the site it is published as: it round-trips, merges newer-wins, and counts as activity")
-    func siteMark() {
-        var published = KnowledgeMapLayout()
-        published.site = .init(id: "site-1", at: 5)
-        #expect(KnowledgeMapLayout(preferenceValue: published.preferenceValue)?.site == .init(id: "site-1", at: 5))
-        #expect(KnowledgeMapLayout(preferenceValue: #"{"version":1}"#)?.site == nil, "a row from before has none")
-        #expect(published.lastWrittenAt == 5)
-
-        var unlinked = KnowledgeMapLayout()
-        unlinked.site = .init(id: nil, at: 9)
-        #expect(published.merged(with: unlinked).site == .init(id: nil, at: 9))
-        #expect(unlinked.merged(with: published).site == .init(id: nil, at: 9))
-        #expect(published.merged(with: KnowledgeMapLayout()).site == .init(id: "site-1", at: 5))
     }
 }

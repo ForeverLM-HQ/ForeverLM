@@ -113,8 +113,14 @@ final class MCPServerLauncher {
     /// serves the tunnel (Use This Mac in Settings). The relay hands the address
     /// here and the other instance steps aside in turn, so the two do not fight.
     func startHostedTunnel(yieldingToLiveInstance: Bool = false, takingOver: Bool = false) async {
-        // No entitlement gate: MCP tool calls are free, and so is connecting a
-        // tunnel.
+        // The one entitlement gate on the tunnel: it does not connect while the
+        // app is locked (product owner, 2026-10-10: the free days over and
+        // nothing paid; `ManagedAI.isAppLocked`). The app scene stops a running
+        // tunnel when the lock comes on and starts it again when it lifts. A
+        // tool call that reaches this Mac anyway is refused by
+        // `MCPProtocolHandler.appLockRefusal`, and the hosted gateway refuses
+        // its own on the account server's word.
+        guard !ManagedAI.isAppLocked else { return }
         guard !isStartInFlight, state != .running else { return }
         isStartInFlight = true
         defer { isStartInFlight = false }
@@ -438,11 +444,14 @@ final class MCPServerLauncher {
         logger.info("MCP server ready at \(connectedURL)")
     }
 
-    /// Loopback listener exposing ONLY the same-machine OAuth approval endpoint
-    /// (see handleLocalApprove in MCPOAuth.swift). Everything else stays
-    /// relay-only so the local port opens no data surface. Zero-click approval
-    /// is a progressive enhancement: if the port is taken, the in-app prompt
-    /// still works, so a bind failure is logged and otherwise ignored.
+    /// Loopback listener (bound to 127.0.0.1, local connections only) exposing
+    /// ONLY two things: the same-machine OAuth approval endpoint (see
+    /// handleLocalApprove in MCPOAuth.swift) and `GET /mcp-url`, the personal
+    /// URL this app serves now (`personalURLResponse`). Everything else stays
+    /// relay-only so the local port opens no data surface. Both are progressive
+    /// enhancements: if the port is taken, the in-app prompt still approves and
+    /// Settings still shows the URL, so a bind failure is logged and otherwise
+    /// ignored.
     private func startLoopbackApprovalListener() {
         guard loopbackApprovalServer == nil else { return }
         let server = MCPHTTPServer()
@@ -450,12 +459,65 @@ final class MCPServerLauncher {
             let oauthProvider = await MCPOAuthProvider.sharedProvider()
             return await oauthProvider.handleLocalApprove(request)
         }
+        server.route("*", Self.personalURLPath) { [weak self] request in
+            let tunnelURL = await self?.tunnelURL
+            return Self.personalURLResponse(to: request, tunnelURL: tunnelURL, port: MCPHTTPServer.loopbackPort)
+        }
         do {
             try server.start(port: MCPHTTPServer.loopbackPort)
             loopbackApprovalServer = server
         } catch {
             logger.warning("Loopback approval listener failed to start: \(error.localizedDescription)")
         }
+    }
+
+    /// Where a program on this Mac asks for the personal URL:
+    /// `GET http://127.0.0.1:<ForeverLMRuntimeIdentity.mcpLoopbackPort>/mcp-url`.
+    nonisolated static let personalURLPath = "/mcp-url"
+
+    /// The loopback answer to `GET /mcp-url`: `{"url": <tunnel URL>}` and
+    /// nothing else, with no token and nothing from the library.
+    ///
+    /// The personal URL follows the Apple identity. On 2026-10-10 the move to
+    /// team XXXXXXXXXX gave the same learner a new Sign in with Apple `sub` and
+    /// so a new tunnel, and the old address answers 503 "app not running"
+    /// forever. A plugin whose saved URL answers that asks here, and follows
+    /// the move without anyone copying the new URL out of Settings. The
+    /// listener opens only once the relay has accepted this app's tunnel, so
+    /// the URL it names is one the relay has served to this app.
+    ///
+    /// Only a local program gets an answer. The URL is not a credential, but it
+    /// is a stable identifier that no web page should read. A browser marks
+    /// every request a page makes with `Origin` or `Sec-Fetch-Site`, and a page
+    /// that rebinds its own hostname to 127.0.0.1 still sends that hostname as
+    /// `Host`. A request with either mark, or naming any host but loopback, is
+    /// refused.
+    nonisolated static func personalURLResponse(to request: HTTPRequest, tunnelURL: String?, port: UInt16) -> HTTPResponse {
+        guard request.path == personalURLPath else {
+            return .json(["error": "Not found"], status: 404)
+        }
+        guard request.method == "GET" else {
+            return .json(["error": "method_not_allowed"], status: 405)
+        }
+        guard isLocalProgramRequest(headers: request.headers, port: port) else {
+            return .json(["error": "forbidden"], status: 403)
+        }
+        guard let tunnelURL, !tunnelURL.isEmpty else {
+            return .json(["error": "not_connected"], status: 503)
+        }
+        return .json(["url": tunnelURL])
+    }
+
+    /// True for a request a program sent to this listener by its loopback
+    /// address, and false for anything a browser sent on a page's behalf.
+    /// `Sec-Fetch-Site: none` is the learner typing the address themselves.
+    /// The listener binds 127.0.0.1 only, so those are the only names a
+    /// program can have used to reach it.
+    nonisolated static func isLocalProgramRequest(headers: [String: String], port: UInt16) -> Bool {
+        if headers["origin"] != nil { return false }
+        if let site = headers["sec-fetch-site"], site.lowercased() != "none" { return false }
+        guard let host = headers["host"]?.lowercased() else { return false }
+        return ["127.0.0.1", "localhost"].contains { host == $0 || host == "\($0):\(port)" }
     }
 
     private func provisionTunnel() async -> Bool {

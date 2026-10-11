@@ -1326,6 +1326,10 @@ struct YouTubePageNotShownView: View {
 /// the view and leave the user clicking twice.
 final class FirstMouseWebView: WKWebView {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    /// No Apple Intelligence badge on a selection (`SharedWebKit.allowsWritingToolsAffordance(in:)`).
+    @objc(allowsWritingToolsAffordance)
+    var allowsWritingToolsAffordance: Bool { SharedWebKit.allowsWritingToolsAffordance(in: self) }
 }
 
 /// Lightweight WKWebView wrapper that loads the original YouTube URL directly.

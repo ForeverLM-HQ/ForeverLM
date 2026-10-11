@@ -10,13 +10,13 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { sidebarSource } from './sidebar-source.mjs'
 
 const root = dirname(fileURLToPath(import.meta.url))
 
-// Extract sidebar page links from the VitePress config without importing it
-// (importing would require node_modules for the `vitepress` dependency).
+// Extract sidebar page links from the VitePress config without importing it.
 const config = readFileSync(join(root, '.vitepress/config.mjs'), 'utf8')
-const sidebar = config.slice(config.indexOf('sidebar:'), config.indexOf('socialLinks:'))
+const sidebar = sidebarSource(config) ?? ''
 const pages = [...sidebar.matchAll(/link:\s*['"]\/([^'"]+)['"]/g)].map((m) =>
   m[1].endsWith('/') ? `${m[1]}index.md` : `${m[1]}.md`,
 )

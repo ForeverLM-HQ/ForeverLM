@@ -1,6 +1,6 @@
 import Foundation
 
-// MARK: - Animations: moving explanations of a source, hosted like a site
+// MARK: - Animations: moving explanations of a source, kept like a site
 
 /// `save_animation`, `list_animations` and `delete_animation`: an animation is
 /// how something in a source works, drawn as code — HTML, SVG and script that
@@ -21,19 +21,16 @@ import Foundation
 /// served in the app from `foreverlm-site://<id>/` under the same sandbox and
 /// source cards — and the record is the same page a Site gets, with two
 /// things of its own: `kind = animation`, which puts it under Animations
-/// rather than Sites, and `sourceIDs`, the sources it is about. Nothing is
-/// hosted unless the learner publishes it (`publish_site`).
-/// Spec: docs/animations-design.md.
+/// rather than Sites, and `sourceIDs`, the sources it is about. Like a Site,
+/// it is never put on the web. Spec: docs/animations-design.md.
 extension MCPDataStore {
-
-    private static let animationSignedOutMessage = "Sign in with Apple in Settings › Billing first: this animation was made before animations were kept in the library, and its files are still on sites.foreverlm.com under your account."
 
     /// Video files a rendered animation arrives as. One of these alone, with
     /// no entry page, gets a player page written for it.
     static let animationVideoExtensions: Set<String> = ["mp4", "webm", "mov", "m4v"]
 
     /// The path a lone video is served under when the caller passed no page.
-    static let animationPlayerPage = SitePublishing.entryFile
+    static let animationPlayerPage = LocalSite.entryFile
 
     /// What resolving a `sources` argument found.
     struct AnimationSources: Equatable {
@@ -56,7 +53,6 @@ extension MCPDataStore {
         replaceAll: Bool = false,
         homeNotebookID: String?,
         notebookIDs: [String],
-        hosting: SiteHosting = SiteHosting(),
         readLocalFile: @Sendable (String) throws -> Data = { try Data(contentsOf: URL(fileURLWithPath: $0), options: [.mappedIfSafe]) }
     ) async throws -> String {
         // The animation being updated, when the handle names one. A handle
@@ -64,17 +60,14 @@ extension MCPDataStore {
         // Site's own tool changes it. A handle that names nothing here is
         // refused too — an update is of something this library has.
         var existing: ArtifactRecord? = nil
-        var broughtHome = false
         if let handle = Self.trimmedOrNil(animation) {
-            guard let found = try await existingSiteArtifact(handle: handle, hosting: hosting) else {
+            guard let found = try await existingSiteArtifact(handle: handle) else {
                 throw MCPError.invalidInput("No animation of yours is named \(handle). Pass the animation_id from save_animation or list_animations, or omit animation to save a new one.")
             }
             guard found.isAnimation else {
                 throw MCPError.invalidInput("‘\(found.title)’ is a Site, not an animation. Change it with save_site, or omit animation to save a new animation.")
             }
-            let home = try await bringSiteHomeIfHosted(found, hosting: hosting)
-            existing = home.artifact
-            broughtHome = home.broughtHome
+            existing = found
         }
 
         let trimmedTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression) ?? ""
@@ -122,12 +115,12 @@ extension MCPDataStore {
         // A lone video with no page around it gets one: the title, the
         // description and a looping player, from a fixed template.
         var playerPageWritten = false
-        if !siteFiles.contains(where: { $0.path == SitePublishing.entryFile }) {
+        if !siteFiles.contains(where: { $0.path == LocalSite.entryFile }) {
             let videos = siteFiles.filter { Self.isAnimationVideoPath($0.path) }
             guard videos.count == 1 else {
                 throw MCPError.invalidInput(videos.isEmpty
-                    ? "The animation would have no \(SitePublishing.entryFile): pass one as html or as a file named index.html, or pass exactly one video file (mp4, webm, mov, m4v) and a player page is written for it."
-                    : "Several video files and no \(SitePublishing.entryFile): pass a page that plays them, or one video at a time.")
+                    ? "The animation would have no \(LocalSite.entryFile): pass one as html or as a file named index.html, or pass exactly one video file (mp4, webm, mov, m4v) and a player page is written for it."
+                    : "Several video files and no \(LocalSite.entryFile): pass a page that plays them, or one video at a time.")
             }
             let page = Self.animationPlayerHTML(title: animationTitle, description: description, videoPath: videos[0].path)
             siteFiles.insert(SiteFile(path: Self.animationPlayerPage, data: Data(page.utf8)), at: 0)
@@ -147,8 +140,6 @@ extension MCPDataStore {
         let animationTeamID = existingTeamID ?? filing.teamNotebookIDs.keys.sorted().first
         let sourceCards = await SiteSourceCards.attach(
             to: &siteFiles,
-            includeSourceFiles: false,
-            paywalledAllowed: false,
             lookup: { token in await self.siteSourceCard(forToken: token) },
             lookupAddresses: { addresses in
                 await self.siteSourceCards(forWebAddresses: addresses, teamID: animationTeamID)
@@ -160,10 +151,10 @@ extension MCPDataStore {
         // page's visible text, and the sources by name. An update that names
         // sources replaces them; one that names none keeps what it had.
         let sourceIDs = existing == nil ? sources.resolved : (sources.resolved.isEmpty ? existing!.sourceIDs : sources.resolved)
-        let indexHTML = siteFiles.first(where: { $0.path == SitePublishing.entryFile }).flatMap { String(data: $0.data, encoding: .utf8) } ?? ""
+        let indexHTML = siteFiles.first(where: { $0.path == LocalSite.entryFile }).flatMap { String(data: $0.data, encoding: .utf8) } ?? ""
         let textCopy = Self.animationTextCopy(
             description: description,
-            pageText: SitePublishing.visibleText(ofHTML: indexHTML),
+            pageText: LocalSite.visibleText(ofHTML: indexHTML),
             sourceTitles: try animationSourceDescriptors(for: sourceIDs).map { $0["title"] as? String ?? "" }
         )
         var artifact: ArtifactRecord
@@ -192,8 +183,7 @@ extension MCPDataStore {
             kept: kept,
             removed: removed,
             sourceCards: sourceCards,
-            teamCopyIDs: teamCopyIDs,
-            broughtHome: broughtHome
+            teamCopyIDs: teamCopyIDs
         )
 
         let sourceDescriptors = try animationSourceDescriptors(for: artifact.sourceIDs)
@@ -219,16 +209,6 @@ extension MCPDataStore {
         payload.removeValue(forKey: "unresolved_sources")
         if !sources.unresolved.isEmpty { payload["unresolved_sources"] = sources.unresolved }
         if !sourceCards.unresolved.isEmpty { payload["unresolved_page_links"] = sourceCards.unresolved }
-        if let republished = await republishIfPublished(saved, hosting: hosting) {
-            switch republished {
-            case .success(let status):
-                message += " It is published, so the page at \(status.url.absoluteString) was updated too."
-                payload["published_url"] = status.url.absoluteString
-            case .failure(let error):
-                message += " It is published, but the page could not be updated (\(error.localizedDescription)); publish_site with site \"\(artifact.id)\" tries again."
-                payload["publish_error"] = error.localizedDescription
-            }
-        }
         payload["message"] = message
         return try jsonString(payload)
     }
@@ -280,50 +260,29 @@ extension MCPDataStore {
         var payload: [String: Any] = scope
         payload["animation_count"] = entries.count
         payload["animations"] = entries
-        payload["guidance"] = "Each animation is a moving explanation of the sources listed under sources, kept in the library (its url is the library address the app plays it from) and listed in the app's Animations section. read_doc with its id returns the description and the page's text; read_site_file with its id lists or reads its files; save_animation with animation set to its id changes only the files passed; publish_site with site set to its id puts a copy on the web when the learner wants a link. An animation is a read-only page here — write_doc and edit_doc refuse it. has_walkthrough says whether the chat can walk the learner through it step by step (get_walkthrough / save_walkthrough with animation set to its id)."
+        payload["guidance"] = "Each animation is a moving explanation of the sources listed under sources, kept in the library (its url is the library address the app plays it from) and listed in the app's Animations section. read_doc with its id returns the description and the page's text; read_site_file with its id lists or reads its files; save_animation with animation set to its id changes only the files passed. An animation is a read-only page here — write_doc and edit_doc refuse it. has_walkthrough says whether the chat can walk the learner through it step by step (get_walkthrough / save_walkthrough with animation set to its id)."
         return try jsonString(payload)
     }
 
     // MARK: delete_animation
 
-    /// Remove an animation from the library, its files with it, and take down
-    /// its published copy if it has one.
-    func deleteAnimation(
-        animation rawHandle: String,
-        hosting: SiteHosting = SiteHosting()
-    ) async throws -> String {
+    /// Remove an animation from the library, its files with it.
+    func deleteAnimation(animation rawHandle: String) async throws -> String {
         guard let handle = Self.trimmedOrNil(rawHandle) else {
             throw MCPError.invalidInput("animation is required: the animation_id from save_animation or list_animations.")
         }
-        guard let existing = try await existingSiteArtifact(handle: handle, hosting: hosting) else {
+        guard let existing = try await existingSiteArtifact(handle: handle) else {
             throw MCPError.invalidInput("No animation of yours is named \(handle).")
         }
         guard existing.isAnimation else {
             throw MCPError.invalidInput("‘\(existing.title)’ is a Site, not an animation; delete_doc removes a site from the library.")
         }
-        // Whatever still stands on the web goes too: a published copy under
-        // the record's id, or the hosted files of a record made before sites
-        // were kept in the library.
-        let hostedHandle = HostedSiteAdoption.hostedSlug(of: existing) ?? existing.id
-        var wasPublished = false
-        if hosting.isSignedIn {
-            do {
-                wasPublished = try await hosting.unpublish(hostedHandle)
-            } catch let error as DocPublishingError {
-                throw MCPError.invalidInput("‘\(existing.title)’ was not deleted: its published copy could not be taken down (\(error.localizedDescription)).")
-            }
-        } else if HostedSiteAdoption.hostedSlug(of: existing) != nil {
-            throw MCPError.invalidInput(Self.animationSignedOutMessage)
-        }
         try await notebookFileStorage.deleteArtifact(existing.id)
         return try jsonString([
             "status": "deleted",
             "animation_id": existing.id,
-            "was_published": wasPublished,
-            "message": wasPublished
-                ? "‘\(existing.title)’ was removed from Animations with its files, and its published copy is down."
-                : "‘\(existing.title)’ was removed from Animations with its files.",
-        ] as [String: Any])
+            "message": "‘\(existing.title)’ was removed from Animations with its files.",
+        ])
     }
 
     // MARK: Sources
@@ -397,15 +356,13 @@ extension MCPDataStore {
     }
 
     /// One file read from this Mac: the path it is served under (the entry's
-    /// `path`, or the file's own name), its bytes, and whether it is declared
-    /// in the publish and streamed after it because it is over the inline
-    /// limit. A directory, a missing file or one over the upload limit is
-    /// refused by name.
+    /// `path`, or the file's own name) and its bytes. A directory, a missing
+    /// file or one bigger than an animation can be is refused by name.
     /// `validate` is the client-path check every file-taking tool applies
     /// (`validateClientProvidedPath`: library, Desktop, Documents and Downloads
     /// only; never a credential store). Until 2026-09-19 a local_path was read
     /// with no check beyond "exists and is not a folder", so a connector could
-    /// have published ~/.ssh/id_ed25519 as a site file.
+    /// have saved ~/.ssh/id_ed25519 as a site file.
     static func localSiteFile(
         _ entry: [String: Any],
         validate: (String) throws -> URL = { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) },
@@ -424,7 +381,7 @@ extension MCPDataStore {
             throw MCPError.invalidInput("local_path \(rawLocal) is a folder; pass each file on its own.")
         }
         let rawPath = (entry["path"] as? String).flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 } ?? localURL.lastPathComponent
-        guard let path = SitePublishing.normalizePath(rawPath) else {
+        guard let path = LocalSite.normalizePath(rawPath) else {
             throw MCPError.invalidInput("‘\(rawPath)’ is not a file path an animation can serve: relative, forward slashes, letters, digits, dots, hyphens and underscores, no dot segments. Pass path beside local_path to name it.")
         }
         let data: Data
@@ -433,12 +390,10 @@ extension MCPDataStore {
         } catch {
             throw MCPError.invalidInput("local_path \(rawLocal) could not be read: \(error.localizedDescription)")
         }
-        guard data.count <= SitePublishing.maxUploadFileBytes else {
-            throw MCPError.invalidInput("\(path) is \(data.count / 1_000_000) MB; a file can be at most \(SitePublishing.maxUploadFileBytes / 1_000_000) MB. Render the video smaller or shorter.")
+        guard data.count <= LocalSite.maxBytes else {
+            throw MCPError.invalidInput("\(path) is \(data.count / 1_000_000) MB; an animation kept in the library can be at most \(LocalSite.maxBytes / 1_000_000) MB in all, so it syncs through iCloud with the record. Render the video smaller or shorter.")
         }
-        var file = SiteFile(path: path, data: data)
-        file.upload = data.count > SitePublishing.maxFileBytes
-        return file
+        return SiteFile(path: path, data: data)
     }
 
     static func isAnimationVideoPath(_ path: String) -> Bool {

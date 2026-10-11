@@ -5,21 +5,18 @@ import WebKit
 /// Where a walkthrough step's saved animation (`WalkthroughAnimationReference`)
 /// is shown from on the phone.
 ///
-/// A saved animation is an Artifact whose address is either the library's
-/// own `foreverlm-site://<id>/` — its files travel inside the record's
-/// CloudKit body package (under generation 2, its `body` satellite), which
-/// the phone fetches and unpacks here, then
-/// serves from Caches through `MobileLocalSiteSchemeHandler` — or, for a
-/// record not yet brought home, its hosted page at sites.foreverlm.com, which
-/// is loaded with the account's session as the Mac loads it. Either way the
-/// page gets the kit's walk parameters (`?embed=1&step=N&c=…`), so it shows
-/// its stage alone at the step and holds the last frame.
+/// A saved animation is an Artifact whose address is the library's own
+/// `foreverlm-site://<id>/`: its files travel inside the record's CloudKit
+/// body package (under generation 2, its `body` satellite), which the phone
+/// fetches and unpacks here, then serves from Caches through
+/// `MobileLocalSiteSchemeHandler`. The page gets the kit's walk parameters
+/// (`?embed=1&step=N&c=…`), so it shows its stage alone at the step and holds
+/// the last frame.
 actor MobileAnimationSiteStore {
     static let shared = MobileAnimationSiteStore()
 
     enum Page: Equatable {
         case local(URL)
-        case hosted(URLRequest)
     }
 
     enum PageError: LocalizedError {
@@ -60,16 +57,7 @@ actor MobileAnimationSiteStore {
             let address = URL(string: "\(LocalSiteServing.scheme)://\(reference.animationID.lowercased())/")!
             return .local(reference.pageURL(animationURL: address))
         }
-        guard let linked = body.linkedURL, let url = URL(string: linked), url.scheme?.lowercased() == "https" else {
-            throw PageError.noAddress
-        }
-        var request = URLRequest(url: reference.pageURL(animationURL: url))
-        // The sites host reads the account from the managed session, as the
-        // Mac's LinkedDocWebView does; no other host gets it.
-        if url.host?.lowercased() == "sites.foreverlm.com", let token = ManagedAI.requestSessionToken {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        }
-        return .hosted(request)
+        throw PageError.noAddress
     }
 
     private func unpackIfNeeded(artifactID: String, revision: String?, package: Data?) throws {
@@ -232,9 +220,6 @@ private struct MobileAnimationPageWebView: UIViewRepresentable {
         case .local(let url):
             coordinator.home = url
             webView.load(URLRequest(url: url))
-        case .hosted(let request):
-            coordinator.home = request.url
-            webView.load(request)
         }
     }
 

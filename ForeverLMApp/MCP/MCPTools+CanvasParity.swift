@@ -30,7 +30,7 @@ extension MCPToolRegistry {
         return [
             MCPToolDef(
                 name: "update_canvas_card",
-                description: "Change how cards already on the learner's Canvas look, as their right-click menu and handles do: tint them (color), fold them to their title line (folded true; false opens them), give them a width or height of their own (w from 160 to 720 and h from 40 to 2000, in the Canvas's own units; a card is 240 by 120 unless its kind says otherwise), or give them back the size their kind has (fit_to_content true: the width and height they were given are cleared). One call changes every card named; a region that holds a card made wider or taller than it is grows to hold it. Cards not on the Canvas are listed and left alone (place_on_canvas sets them down first). get_knowledge_map gives each card's rect and what it has been given. \(onTheirWord) Returns the cards as they now are.",
+                description: "Change how cards already on the learner's Canvas look, as their right-click menu and handles do: tint them (color), fold them to their title line (folded true; false opens them), give them a width or height of their own (w from 160 to 720 and h from 40 to 2000, in the Canvas's own units; a card is 240 by 120 unless its kind says otherwise), or give them back the size their kind has (fit_to_content true: the width and height they were given are cleared). Beyond the look: show a source as a page of its PDF (page, one-based, drawn as the card with its title and authors under it, as a paper placed for the first time is; 0 shows the usual card again; a page past the PDF's end is its last; sources only), write the learner's words about why a card is on this canvas under it (annotation, at most 600 characters, an empty string takes it off; any card but an Idea, whose own note holds its words, so change an Idea's with update_idea), draw an Idea as plain words with no sticky note (plain true; false brings the note back; Ideas only) and mark a question, an Idea whose title ends with ?, answered or open again (answered; questions only). One call changes every card named; a region that holds a card made wider or taller than it is grows to hold it. Cards not on the Canvas are listed and left alone (place_on_canvas sets them down first). get_knowledge_map gives each card's rect and what it has been given. \(onTheirWord) Returns the cards as they now are.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -54,6 +54,22 @@ extension MCPToolRegistry {
                         "fit_to_content": [
                             "type": "boolean",
                             "description": "Clear the width and height the cards were given, so each is the size its kind has (an Idea grows with its text, a clip, page or picture is as tall as its picture). Not with w or h.",
+                        ],
+                        "page": [
+                            "type": "integer",
+                            "description": "Show these sources as this page of their PDF (one-based), or 0 to show the usual card again. Sources only; a page past the end of the PDF is its last.",
+                        ],
+                        "annotation": [
+                            "type": "string",
+                            "description": "The learner's words about why these cards are on this canvas, drawn under them: at most 600 characters. An empty string takes them off. Not for an Idea.",
+                        ],
+                        "plain": [
+                            "type": "boolean",
+                            "description": "Draw these Ideas as plain words with no sticky note (true), or as notes again (false). Ideas only.",
+                        ],
+                        "answered": [
+                            "type": "boolean",
+                            "description": "Mark these questions (Ideas whose title ends with ?) answered (true) or open again (false). Questions only.",
                         ],
                     ] as [String: Any],
                     "required": ["item_ids"],
@@ -155,7 +171,78 @@ extension MCPDataStore {
         style.h = try cardSize(arguments["h"], named: "h", in: KnowledgeMap.cardHeightRange)
         if let folded = arguments["folded"] as? Bool, folded { style.folded = true }
         if case .set(let color) = try cardColorChange(arguments["color"]) { style.color = color }
+        if let raw = (arguments["face"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(), !raw.isEmpty {
+            switch raw {
+            case "page": style.page = 1
+            case "card": style.page = 0
+            default: throw MCPError.invalidInput("face is page or card, not \"\(raw)\".")
+            }
+        }
         return style.isEmpty ? nil : style
+    }
+
+    /// A card's page from a call: nothing leaves it as it is, 0 shows the
+    /// usual card, a whole number of one or more is that page of a source's PDF.
+    static func cardPageChange(_ value: Any?) throws -> KnowledgeMapFieldChange<Int> {
+        guard value != nil, !(value is NSNull) else { return .keep }
+        guard let number = canvasNumber(value), number.isFinite, number >= 0, number.rounded() == number else {
+            throw MCPError.invalidInput("page is a page number from 1, or 0 to show the usual card again.")
+        }
+        return number == 0 ? .clear : .set(Int(number))
+    }
+
+    /// The words a call gives a card: nothing leaves them as they are, an empty
+    /// text takes them off, else at most `KnowledgeMap.annotationLimit` characters.
+    static func cardAnnotationChange(_ value: Any?) throws -> KnowledgeMapFieldChange<String> {
+        guard value != nil, !(value is NSNull) else { return .keep }
+        guard let raw = value as? String else { throw MCPError.invalidInput("annotation is text, or an empty string to take it off.") }
+        return try cardAnnotation(raw).map { .set($0) } ?? .clear
+    }
+
+    /// Some words for a card, trimmed: nil for an empty text; a text past the
+    /// limit is refused rather than cut.
+    static func cardAnnotation(_ raw: String) throws -> String? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count <= KnowledgeMap.annotationLimit else {
+            throw MCPError.invalidInput("An annotation is at most \(KnowledgeMap.annotationLimit) characters; this one is \(trimmed.count).")
+        }
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    /// The `annotations` of a call, by card: `{item_id: words}` with each card
+    /// one of `refs` (the cards the call sets down) and not an Idea, whose own
+    /// note holds its words. Empty words write nothing.
+    @MainActor
+    static func annotationWords(_ value: Any?, among refs: [String], in map: KnowledgeMapModel) throws -> [String: String] {
+        guard value != nil, !(value is NSNull) else { return [:] }
+        guard let given = value as? [String: Any] else {
+            throw MCPError.invalidInput("annotations is an object of item_id to words.")
+        }
+        var words: [String: String] = [:]
+        for (key, raw) in given.sorted(by: { $0.key < $1.key }) {
+            guard let text = raw as? String else { throw MCPError.invalidInput("The annotation for \(key) is text.") }
+            guard let ref = cardRefs([key], in: map).known.first else {
+                throw MCPError.notFound("annotations names \(key), which is not in the library.")
+            }
+            guard refs.contains(ref) else {
+                throw MCPError.invalidInput("annotations names \(key), which this call does not set down.")
+            }
+            guard KnowledgeMap.ItemRef(ref)?.kind != .idea else {
+                throw MCPError.invalidInput("An Idea's own note holds its words, so “\(map.title(of: ref))” takes no annotation; change an Idea's note with update_idea.")
+            }
+            if let cleaned = try cardAnnotation(text) { words[ref] = cleaned }
+        }
+        return words
+    }
+
+    /// An arrow's stance from a call: nil when it names none, an empty string
+    /// takes it off, else `supports` or `contradicts`.
+    static func edgeStance(_ value: Any?) throws -> String? {
+        guard let raw = (value as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() else { return nil }
+        guard raw.isEmpty || KnowledgeMapEdgeStance(rawValue: raw) != nil else {
+            throw MCPError.invalidInput("stance is supports or contradicts, or an empty string to take it off, not \"\(raw)\".")
+        }
+        return raw
     }
 
     /// An arrow's route from a call; nil when it names none.
@@ -207,6 +294,7 @@ extension MCPDataStore {
         if let heads = edge.heads { arrow["heads"] = heads }
         if let color = edge.color { arrow["color"] = color }
         if edge.isTree { arrow["tree"] = true }
+        if let stance = edge.knownStance { arrow["stance"] = stance.rawValue }
         return arrow
     }
 
@@ -261,7 +349,19 @@ extension MCPDataStore {
             if let h = placement.h { card["h"] = h }
             if placement.isFolded { card["folded"] = true }
             if let color = placement.color { card["color"] = color }
+            // A source drawn as a page of its PDF says which page, and how many
+            // the PDF has once this Mac has read it; the learner's words and an
+            // Idea's marks are what is not default.
+            if let page = placement.page, let item = KnowledgeMap.ItemRef(ref), item.kind == .source {
+                card["page"] = page
+                if let pages = map.pageFaces[item.id]?.pageCount, pages > 0 { card["pages"] = pages }
+            }
+            if let annotation = placement.annotation { card["annotation"] = annotation }
+            if placement.isPlain { card["plain"] = true }
+            if placement.isAnswered, KnowledgeMap.isQuestion(map.title(of: ref)) { card["answered"] = true }
         }
+        // A question is an Idea whose title ends with a question mark.
+        if ref.hasPrefix("idea:"), KnowledgeMap.isQuestion(map.title(of: ref)) { card["question"] = true }
         // A clip (clip:<highlight_id>) says where it was cut from: the source,
         // the page, and the picture as a link the chat can show.
         // A page (page:<source_id>:<n>) says which page of which source.
@@ -432,6 +532,7 @@ extension MCPDataStore {
         let targets = ["region", "beside", "new_region"].filter { ((arguments[$0] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false }
         guard targets.count <= 1 else { throw MCPError.invalidInput("Pass one of region, beside and new_region, not \(targets.joined(separator: " and ")).") }
         let style = try cardStyle(from: arguments)
+        let annotations = try annotationWords(arguments["annotations"], among: refs, in: map)
         // A locked region keeps its cards where they are: nothing placed already inside one is moved,
         // and nothing is set down inside one (it would have to grow).
         let held = refs.filter { map.layout.placements[$0] != nil && map.lockedRegionID(holding: $0) != nil }
@@ -443,7 +544,7 @@ extension MCPDataStore {
             if map.layout.regions[id]?.isLocked == true {
                 throw MCPError.invalidInput("That region is locked: it would have to grow to hold the cards. Unlock it first (update_canvas_region with locked false).")
             }
-            map.place(refs, inRegion: id, style: style)
+            map.place(refs, inRegion: id, style: style, annotations: annotations)
             regionID = id
         case "beside":
             let anchor = try cardRef(arguments["beside"], named: "beside", in: map)
@@ -452,17 +553,20 @@ extension MCPDataStore {
             }
             let setDown = refs.filter { $0 != anchor }
             let widths: [Double]? = style?.w.map { width in setDown.map { _ in width } }
-            let block = KnowledgeMapArranging.block(heights: setDown.map(map.cardHeight(of:)), widths: widths, origin: .init(x: 0, y: 0)).frame
+            let heights = setDown.map { map.heightWhenSetDown($0, width: style?.w ?? KnowledgeMap.cardWidth, style: style, annotation: annotations[$0]) }
+            let block = KnowledgeMapArranging.block(heights: heights, widths: widths, origin: .init(x: 0, y: 0)).frame
             map.placeBlock(setDown, near: .init(
                 x: spot.x + map.cardWidth(of: anchor) + 60 + block.w / 2,
                 y: spot.y + block.h / 2 - KnowledgeMapArranging.insetY
-            ), style: style)
+            ), style: style, annotations: annotations)
+            // The card the cards are set down beside is on the Canvas already.
+            if let words = annotations[anchor] { map.setCardAnnotation(anchor, words) }
             regionID = map.regionID(containing: anchor)
         case "new_region":
             let title = (arguments["new_region"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            regionID = map.placeBlock(refs, near: map.arrivalCenter(), regionName: title, style: style)
+            regionID = map.placeBlock(refs, near: map.arrivalCenter(), regionName: title, style: style, annotations: annotations)
         default:
-            map.placeBlock(refs, near: map.arrivalCenter(), style: style)
+            map.placeBlock(refs, near: map.arrivalCenter(), style: style, annotations: annotations)
         }
         map.send(.focus(refs: refs, regionID: regionID))
         var result: [String: Any] = ["placed": refs.map { card($0, in: map) }]
@@ -588,7 +692,8 @@ extension MCPDataStore {
             route: try edgeRoute(arguments["route"]),
             dashed: arguments["dashed"] as? Bool,
             heads: try edgeHeads(arguments["heads"]),
-            color: try edgeColor(arguments["color"])
+            color: try edgeColor(arguments["color"]),
+            stance: try edgeStance(arguments["stance"])
         ) else {
             throw MCPError.invalidInput("The arrow could not be drawn.")
         }
@@ -624,14 +729,15 @@ extension MCPDataStore {
         let heads = try edgeHeads(arguments["heads"])
         let color = try edgeColor(arguments["color"])
         let tree = arguments["tree"] as? Bool
-        guard label != nil || route != nil || dashed != nil || heads != nil || color != nil || tree != nil else {
-            throw MCPError.invalidInput("update_canvas_arrow needs label, route, dashed, heads, color or tree.")
+        let stance = try edgeStance(arguments["stance"])
+        guard label != nil || route != nil || dashed != nil || heads != nil || color != nil || tree != nil || stance != nil else {
+            throw MCPError.invalidInput("update_canvas_arrow needs label, route, dashed, heads, color, tree or stance.")
         }
         if tree == true, let edge = map.layout.edges[edgeID], !edge.isTree,
            let reason = map.edgeRefusal(from: edge.from, to: edge.to, tree: true, replacing: edgeID) {
             throw MCPError.invalidInput(reason)
         }
-        let changed = map.updateEdgeStyle(edgeID, route: route, dashed: dashed, heads: heads, color: color, tree: tree, label: label)
+        let changed = map.updateEdgeStyle(edgeID, route: route, dashed: dashed, heads: heads, color: color, tree: tree, label: label, stance: stance)
         var entry = arrowEntry(edgeID, in: map)
         entry["changed"] = changed
         return entry
@@ -654,25 +760,56 @@ extension MCPDataStore {
         let w = try cardSize(arguments["w"], named: "w", in: KnowledgeMap.cardWidthRange)
         let h = try cardSize(arguments["h"], named: "h", in: KnowledgeMap.cardHeightRange)
         let folded: KnowledgeMapFieldChange<Bool> = (arguments["folded"] as? Bool).map { $0 ? .set(true) : .clear } ?? .keep
+        let page = try cardPageChange(arguments["page"])
+        let annotation = try cardAnnotationChange(arguments["annotation"])
+        let plain: KnowledgeMapFieldChange<Bool> = (arguments["plain"] as? Bool).map { .set($0) } ?? .keep
+        let answered: KnowledgeMapFieldChange<Bool> = (arguments["answered"] as? Bool).map { .set($0) } ?? .keep
         let fit = arguments["fit_to_content"] as? Bool ?? false
         if fit, w != nil || h != nil {
             throw MCPError.invalidInput("fit_to_content gives the cards the size their kind has; do not pass w or h with it.")
         }
-        guard fit || w != nil || h != nil || !folded.isKeep || !color.isKeep else {
-            throw MCPError.invalidInput("update_canvas_card needs color, folded, w, h or fit_to_content.")
+        guard fit || w != nil || h != nil || !folded.isKeep || !color.isKeep || !page.isKeep || !annotation.isKeep || !plain.isKeep || !answered.isKeep else {
+            throw MCPError.invalidInput("update_canvas_card needs color, folded, w, h or fit_to_content (or page, annotation, plain or answered).")
         }
-        let edits = placed.map { ref in
-            KnowledgeMapPlacementStyle(
+        // What a field is for is refused before anything is written.
+        func names(_ refs: [String]) -> String {
+            refs.prefix(5).map { "“\(map.title(of: $0))”" }.joined(separator: ", ") + (refs.count > 5 ? " and more" : "")
+        }
+        func kind(_ ref: String) -> KnowledgeMap.ItemKind? { KnowledgeMap.ItemRef(ref)?.kind }
+        let notSources = placed.filter { kind($0) != .source }
+        if !page.isKeep, !notSources.isEmpty {
+            throw MCPError.invalidInput("page shows a source as a page of its PDF; \(names(notSources)) \(notSources.count == 1 ? "is" : "are") not a source.")
+        }
+        let ideas = placed.filter { kind($0) == .idea }
+        if !annotation.isKeep, !ideas.isEmpty {
+            throw MCPError.invalidInput("An Idea's own note holds its words, so \(names(ideas)) take\(ideas.count == 1 ? "s" : "") no annotation; change an Idea's note with update_idea.")
+        }
+        let notIdeas = placed.filter { kind($0) != .idea }
+        if !plain.isKeep, !notIdeas.isEmpty {
+            throw MCPError.invalidInput("plain draws an Idea as words; \(names(notIdeas)) \(notIdeas.count == 1 ? "is" : "are") not an Idea.")
+        }
+        let notQuestions = placed.filter { !($0.hasPrefix("idea:") && KnowledgeMap.isQuestion(map.title(of: $0))) }
+        if !answered.isKeep, !notQuestions.isEmpty {
+            throw MCPError.invalidInput("answered marks a question, an Idea whose title ends with ?; \(names(notQuestions)) \(notQuestions.count == 1 ? "is" : "are") not one.")
+        }
+        let edits = placed.map { ref -> KnowledgeMapPlacementStyle in
+            var shown = page
+            if case .set(let number) = page { shown = .set(map.clampedPage(number, for: ref)) }
+            return KnowledgeMapPlacementStyle(
                 ref: ref,
                 w: fit ? .clear : (w.map { .set($0) } ?? .keep),
                 h: fit ? .clear : (h.map { .set($0) } ?? .keep),
                 folded: folded,
-                color: color
+                color: color,
+                page: shown,
+                annotation: annotation,
+                plain: plain,
+                answered: answered
             )
         }
         let changed = map.setPlacementStyle(edits)
-        // A card made larger may now reach past its region.
-        if w != nil || h != nil { map.growRegions(toHold: placed) }
+        // A card made larger, a page face or words under it may now reach past its region.
+        if w != nil || h != nil || !page.isKeep || !annotation.isKeep { map.growRegions(toHold: placed) }
         map.send(.focus(refs: placed, regionID: nil))
         var result: [String: Any] = ["updated": changed, "cards": placed.map { card($0, in: map) }]
         let off = refs.filter { map.layout.placements[$0] == nil }

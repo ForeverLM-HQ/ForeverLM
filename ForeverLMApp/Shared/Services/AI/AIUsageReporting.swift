@@ -762,8 +762,10 @@ struct AIUsageEvent: Identifiable, Codable, Sendable {
 
 /// Whether any rail can pay for an AI call right now.
 ///
-/// The learner's own OpenRouter key pays for AI work once they have a plan;
-/// without a key, only an account's leftover balance (or a comp) can.
+/// The learner's own OpenRouter key pays for AI work while the account is
+/// unlocked (the free days, or paid); without a key, only an account's
+/// leftover balance (or a comp) can. A locked app is the pay screen's, not
+/// this message's (`ManagedAI.isAppLocked`).
 ///
 /// This answers from what the app last learned, never from the network, so a
 /// caller about to start work can ask cheaply and often. It is a way to *skip*
@@ -777,23 +779,34 @@ enum AICreditEntitlement {
     /// What a learner-initiated AI action says when neither rail can pay. Chat
     /// refuses on this before sending, so the answer is immediate and no request
     /// is spent discovering what the app already knew.
-    /// The phone adds its key under its own Settings › Billing; the Mac keeps
-    /// the key in AI Usage and the plan in Billing.
+    /// An unlocked account needs only the key (the paid app, 2026-10-10): the
+    /// phone adds it under its own Settings › Key, the Mac in AI Usage.
     #if os(iOS)
     static let purchaseRequiredMessage =
-        "Chat runs on your own OpenRouter key with a ForeverLM plan. Add your key and choose a plan in Settings → Billing "
-            + "to pick up exactly where you left off — everything you've set up stays exactly as it is."
+        "Chat runs on your own OpenRouter key. Add your key in Settings → Key "
+            + "to pick up exactly where you left off. Everything you've set up stays as it is."
     #else
     static let purchaseRequiredMessage =
-        "Chat runs on your own OpenRouter key with a ForeverLM plan. Add your key in Settings → AI Usage and choose a plan in Settings → Billing "
-            + "to pick up exactly where you left off — everything you've set up stays exactly as it is."
+        "Chat runs on your own OpenRouter key. Add your key in Settings → AI Usage "
+            + "to pick up exactly where you left off. Everything you've set up stays as it is."
     #endif
 
     /// Whether a surfaced error came from a budget rather than from the model or
     /// the network — the case where Retry cannot succeed and a purchase can.
     static func isBlockedByBudget(_ message: String) -> Bool {
         message.contains(purchaseRequiredMessage)
+            || planEraPurchaseRequiredMessages.contains { message.contains($0) }
     }
+
+    /// The message's wordings from while the key needed a plan (until the
+    /// lock of 2026-10-11), the phone's first and the Mac's second. Nothing
+    /// says them now; stored chats still hold them.
+    static let planEraPurchaseRequiredMessages = [
+        "Chat runs on your own OpenRouter key with a ForeverLM plan. Add your key and choose a plan in Settings → Billing "
+            + "to pick up exactly where you left off — everything you've set up stays exactly as it is.",
+        "Chat runs on your own OpenRouter key with a ForeverLM plan. Add your key in Settings → AI Usage and choose a plan in Settings → Billing "
+            + "to pick up exactly where you left off — everything you've set up stays exactly as it is.",
+    ]
 }
 
 /// Database-aggregated task row for the activity-first usage log. Aggregation
@@ -1669,10 +1682,12 @@ enum OpenRouterSlugNormalization {
     }
 }
 
+#if os(macOS)
 /// One-shot model calls in flight, for the rail's background-work list.
 /// `AIService.call` is the one entry every library-processing step goes through
 /// (paper metadata, text cleanup, formatting, titles), so recording there lists
-/// them all without each caller reporting its own progress.
+/// them all without each caller reporting its own progress. Mac only: both
+/// callers are, and `AIProvider` (Models.swift) is not in the iPhone target.
 final class AIInFlightCalls: @unchecked Sendable {
     static let shared = AIInFlightCalls()
 
@@ -1724,3 +1739,4 @@ final class AIInFlightCalls: @unchecked Sendable {
         return Array(entries.values)
     }
 }
+#endif

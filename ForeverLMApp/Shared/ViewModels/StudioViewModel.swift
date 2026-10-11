@@ -1110,6 +1110,23 @@ class StudioViewModel {
         ) ?? true
     }
 
+    /// A canvas shows while recording when it was made during the take or
+    /// belongs to the recording Notebook (or one of its Goals). What is
+    /// placed on it earns it nothing: its name and layout are the learner's.
+    func isVisibleInRecordingMode(_ canvas: KnowledgeMapCanvas) -> Bool {
+        screenRecordScope?.allowsItem(
+            createdAt: canvas.createdAt,
+            notebookIDs: recordingNotebookIDs(linkedTo: [canvas.notebookID])
+        ) ?? true
+    }
+
+    /// A list of goals or ideas shows while recording only when it was made
+    /// during the take: it is filed under no Notebook, and its name is the
+    /// learner's own whatever it holds.
+    func isVisibleInRecordingMode(_ list: SpaceList) -> Bool {
+        isVisibleInRecordingMode(createdAt: list.createdAt)
+    }
+
     /// The Notebook ids an item linked to `goalIDs` is filed under: the ids
     /// themselves and each Goal's parent Notebook, so work filed under a Goal
     /// nested in the recording Notebook counts as filed under the Notebook —
@@ -1492,12 +1509,6 @@ class StudioViewModel {
     /// canvas. Empty while signed out or offline, which shows every doc as
     /// unpublished. It never decides a section: a published doc is a Doc.
     var publishedDocStatuses: [String: PublishedDocStatus] = [:]
-    /// Every ForeverLM Site this account can inspect, keyed by its canonical
-    /// slug. The publishing service owns this provenance rather than the
-    /// synced Artifact: a Site whose files were read from GitHub carries its
-    /// repository, ref, path and commit here. The Sites list uses only that
-    /// definite source record to exchange the generic globe for GitHub's mark.
-    var publishedSiteStatusesBySlug: [String: PublishedSiteStatus] = [:]
     /// Today's cards and the cards to check across every notebook
     /// (`refreshMemoryCardState`): what the Memory row's help says (`.line`,
     /// "6 due · 4 new · 9 to check") and the reminder follows. Zero once read means nothing is
@@ -1683,6 +1694,14 @@ class StudioViewModel {
     /// request tokens.
     var pendingChatDocAttachment: ChatDocAttachment? {
         didSet { if pendingChatDocAttachment != nil { stampChatRequestTargetWindow() } }
+    }
+    /// Cards of the open canvas the Chat panel should take into its canvas
+    /// context (Add to Chat, Ask in Chat; `KnowledgeMapChatCards`). Consumed as
+    /// `pendingChatDocAttachment` is: by the panel that accepts global requests
+    /// in the window they name, additively to the conversation it shows, or,
+    /// when a fresh chat was asked for with them, as that chat starts.
+    var pendingChatCanvasCards: KnowledgeMapChatCards? {
+        didSet { if pendingChatCanvasCards != nil { stampChatRequestTargetWindow() } }
     }
     /// The current reader text selection, if any. Read imperatively by the ⌘K
     /// handler; no view observes it, so it stays observation-ignored to avoid

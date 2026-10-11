@@ -71,9 +71,6 @@ extension SpaceCanvasMenuItems {
         Button("Versions…", systemImage: "clock.arrow.circlepath") {
             vm.showCanvasVersions(canvasID: canvas.id)
         }
-        Button("Publish…", systemImage: "globe") {
-            vm.showCanvasPublish(canvasID: canvas.id)
-        }
     }
 }
 

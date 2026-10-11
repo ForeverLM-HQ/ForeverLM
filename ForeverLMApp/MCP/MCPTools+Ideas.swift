@@ -82,7 +82,7 @@ extension MCPDataStore {
             "idea_id": idea.id,
             "title": idea.title,
             "linked": idea.links.count,
-            "guidance": "It is in the Ideas tab now, at the top. Link research or explorations to it with link_idea.",
+            "guidance": "It is saved among the learner's Ideas, newest first. Link research or explorations to it with link_idea.",
         ] as [String: Any])
     }
 

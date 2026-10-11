@@ -196,12 +196,10 @@ extension StorageService {
     /// Keep a ForeverLM site or animation in the library: its files under
     /// `Artifacts/<id>/Site/`, the entry page's visible text as the body chat
     /// reads, and the record's address `foreverlm-site://<id>/`. Nothing goes
-    /// to sites.foreverlm.com — that is `publish_site`, an explicit copy. The
-    /// files are written before the record is saved, so the sync that the
-    /// save queues always carries them. `artifactID` nil makes a new record;
-    /// an existing one keeps its Notebooks and team, takes the new title and
-    /// files, and — for a record made before 2026-09-22 that still points at
-    /// sites.foreverlm.com — moves to its own local address.
+    /// on the web. The files are written before the record is saved, so the
+    /// sync that the save queues always carries them. `artifactID` nil makes a
+    /// new record; an existing one keeps its Notebooks and team and takes the
+    /// new title and files.
     func saveLocalSite(
         artifactID: String?,
         title rawTitle: String,
@@ -273,7 +271,7 @@ extension StorageService {
     }
 
     /// The files a site keeps in the library, or nil for a record that keeps
-    /// none — a site still waiting to be brought home from sites.foreverlm.com.
+    /// none.
     func localSiteFiles(artifactID: String) throws -> [SiteFile]? {
         try notebookFilesKnowledgeStore().localSiteFiles(artifactID)
     }
@@ -284,58 +282,6 @@ extension StorageService {
 
     func readLocalSiteFile(artifactID: String, path: String) throws -> Data? {
         try notebookFilesKnowledgeStore().readLocalSiteFile(artifactID, path: path)
-    }
-
-    func hasLocalSite(artifactID: String) throws -> Bool {
-        try notebookFilesKnowledgeStore().hasLocalSite(artifactID)
-    }
-
-    /// Resolve the access policy before a Site is published. A Site may belong
-    /// to one team only; accepted participants are matched to ForeverLM's
-    /// Apple sign-in by the email CloudKit recorded for their invitation.
-    func sitePublishingAccess(
-        existingTeamID: String?,
-        homeNotebookID: String?,
-        linkedNotebookIDs: [String],
-        visibility: SitePublishingAccess.Visibility = .privateSite
-    ) throws -> SitePublishingAccess {
-        let store = try notebookFilesKnowledgeStore()
-        var teamIDs = Set<String>()
-        if let existingTeamID, !existingTeamID.isEmpty { teamIDs.insert(existingTeamID) }
-        for notebookID in Set(linkedNotebookIDs + [homeNotebookID].compactMap { $0 }) where !notebookID.isEmpty {
-            if let teamID = try store.loadLearningGoal(notebookID)?.teamID { teamIDs.insert(teamID) }
-        }
-        guard teamIDs.count <= 1 else {
-            throw KnowledgeStoreError.invalidData("A Site can belong to one team, not several teams.")
-        }
-        guard let teamID = teamIDs.first else {
-            return SitePublishingAccess(teamID: nil, readers: [], visibility: visibility)
-        }
-        guard let team = try store.loadTeam(teamID) else {
-            throw KnowledgeStoreError.invalidData("Team not found: \(teamID)")
-        }
-        guard team.canEdit else {
-            throw KnowledgeStoreError.invalidData("\(team.name) is read-only for you.")
-        }
-        // Public access is independent of the roster. Keep the team identity
-        // for the library relationship, but do not publish member addresses.
-        if visibility == .publicSite {
-            return SitePublishingAccess(teamID: teamID, readers: [], visibility: visibility)
-        }
-        let accepted = try store.loadTeamMembers(teamID: teamID)
-            .filter { $0.acceptanceStatus == "accepted" }
-        let missing = accepted.filter {
-            !$0.isCurrentUser && ($0.email?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false)
-        }
-        guard missing.isEmpty else {
-            throw KnowledgeStoreError.invalidData("Refresh \(team.name)'s members before publishing; ForeverLM is missing sign-in addresses for \(missing.count) accepted member\(missing.count == 1 ? "" : "s").")
-        }
-        let readers = Set(accepted.compactMap { member -> String? in
-            guard let email = member.email?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
-                  !email.isEmpty else { return nil }
-            return email
-        }).sorted()
-        return SitePublishingAccess(teamID: teamID, readers: readers, visibility: visibility)
     }
 
     /// Make a Markdown doc a linked doc, after its content has been copied
@@ -412,47 +358,6 @@ extension StorageService {
             scheduleImmediateCloudKitSyncForTeams()
         }
         return carried.sourceIDs
-    }
-
-    /// A linked page that moved: the record follows it to its new address. The
-    /// one case today is a ForeverLM site given a new slug, whose old address
-    /// forwards; the kind, the text copy and the Notebooks stay as they are.
-    /// A team's copies of the page are the same page, so they move with it
-    /// (docs/teams-design.md, decision 17) — best effort, since a copy in a
-    /// team this account can no longer write to is the team's to keep.
-    func relinkArtifact(artifactID: String, url: URL) throws -> ArtifactRecord {
-        let store = try notebookFilesKnowledgeStore()
-        guard var artifact = try store.loadArtifact(artifactID) else {
-            throw ArtifactError.unavailable(artifactID)
-        }
-        guard artifact.isLinked else {
-            throw KnowledgeStoreError.invalidData("“\(artifact.title)” is not a linked page.")
-        }
-        guard let previousURL = artifact.linkedURL, previousURL != url.absoluteString else { return artifact }
-        let all = try store.loadArtifacts()
-        // One page, one row per library: another record of the same library
-        // already at the address is a second entry for one thing.
-        if let holder = all.first(where: { $0.id != artifactID && $0.teamID == artifact.teamID && $0.linkedURL == url.absoluteString }) {
-            throw ArtifactError.alreadyLinked(holder.title)
-        }
-        artifact.linkedURL = url.absoluteString
-        artifact.updatedAt = Date()
-        try store.saveArtifactRecord(artifact)
-        invalidateArtifactContext(for: artifact.linkedNotebookIDs)
-        if artifact.teamID == nil {
-            let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "Teams")
-            for copy in all where copy.teamID != nil && copy.id != artifactID && copy.linkedURL == previousURL {
-                var moved = copy
-                moved.linkedURL = url.absoluteString
-                moved.updatedAt = artifact.updatedAt
-                do {
-                    try store.saveArtifactRecord(moved)
-                } catch {
-                    logger.error("Team copy \(copy.id, privacy: .public) did not follow ‘\(artifact.title, privacy: .public)’ to \(url.absoluteString, privacy: .public): \(error.localizedDescription, privacy: .public)")
-                }
-            }
-        }
-        return artifact
     }
 
     /// Where a page published into Notebooks is filed (docs/teams-design.md,

@@ -534,6 +534,13 @@ final class ReaderFindState {
         isVisible = false
         query = ""
         statusText = ""
+        takeBackMatch()
+    }
+
+    /// Takes back what the last find left on the page, once, and leaves the
+    /// bar as it is. A find run with no bar open — a search's jump into the
+    /// Reader — has no close to do it.
+    func takeBackMatch() {
         let clear = clearMatch
         clearMatch = nil
         clear?()
@@ -1850,13 +1857,20 @@ final class FindablePDFView: PDFView {
 
     private func updateCursor(for event: NSEvent) {
         let area = areaOfInterest(forMouse: event)
-        if area.contains(.linkArea) {
+        if area.contains(.linkArea) || isOverQuestionMarker(event) {
             NSCursor.pointingHand.set()
         } else if let cursor = annotationCursor(under: event) {
             cursor.set()
         } else {
             setCursorFor(area)
         }
+    }
+
+    /// A reading question's marker is a view laid over the page
+    /// (`ReaderQuestionLayer`), not an annotation, and a click opens it.
+    private func isOverQuestionMarker(_ event: NSEvent) -> Bool {
+        guard let superview else { return false }
+        return hitTest(superview.convert(event.locationInWindow, from: nil)) is ReaderQuestionMarkerView
     }
 
     /// The cursor `cursorForAnnotation` gives the mark under the pointer.
@@ -1986,6 +2000,11 @@ final class ForeverLMWebView: WKWebView {
     /// window (or moves focus back from Chat) on focus alone, so links and page
     /// controls appear dead until the learner clicks again.
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    /// No Apple Intelligence badge on a reader's selection; a Browser tab keeps
+    /// WebKit's answer (`SharedWebKit.allowsWritingToolsAffordance(in:)`).
+    @objc(allowsWritingToolsAffordance)
+    var allowsWritingToolsAffordance: Bool { SharedWebKit.allowsWritingToolsAffordance(in: self) }
 
     override func keyDown(with event: NSEvent) {
         let isFind = findTakesControlF ? event.isReaderFindShortcut : event.isCommandFindShortcut
@@ -2436,10 +2455,30 @@ enum ReaderFindPerformer {
             state.statusText = result.matchFound ? "" : "No matches"
             guard result.matchFound, let webView else { return }
             state.registerMatchClearing { [weak webView] in
-                webView?.evaluateJavaScript(clearMatchSelectionScript(matching: needle))
+                guard let webView else { return }
+                webView.evaluateJavaScript(clearMatchSelectionScript(matching: needle))
+                hideFindMatch(in: webView)
             }
         }
     }
+
+    /// WebKit also paints its match in the find colour, a yellow box that is
+    /// neither the selection nor anything a page script can reach, and the box
+    /// stays after the selection goes (measured 2026-10-10 on macOS 27 with
+    /// the configuration above). `_hideFindUI` takes it away and leaves any
+    /// selection alone. A WebKit without it gets a find that cannot match,
+    /// which clears the box too but drops whatever is selected with it.
+    static func hideFindMatch(in webView: WKWebView) {
+        let hideFindUI = Selector(("_hideFindUI"))
+        if webView.responds(to: hideFindUI) {
+            webView.perform(hideFindUI)
+        } else {
+            webView.find(unmatchableFindString, configuration: WKFindConfiguration()) { _ in }
+        }
+    }
+
+    /// Invisible separators, three in a row, which no page carries.
+    static let unmatchableFindString = "\u{2063}\u{2063}\u{2063}"
 
     /// WebKit's find selects its match, so a closed find bar would leave the
     /// word sitting in an inactive selection. Drop that selection, and only

@@ -36,6 +36,30 @@ extension StudioViewModel {
         teams.first { $0.id == id }
     }
 
+    /// The teams a list of libraries or spaces names: the Space sidebar's
+    /// Spaces, the Space's place menu and the account menu's switcher. In
+    /// Screen record mode only those the take may show
+    /// (`ScreenRecordScope.allowsTeam`), and the library on screen, which the
+    /// switcher marks; `teams` stays whole for sharing and sync.
+    var shownTeams: [TeamRecord] {
+        guard let scope = screenRecordScope else { return teams }
+        return teams.filter { team in
+            team.id == activeTeamID
+                || scope.allowsTeam(createdAt: team.createdAt, holdsShownItem: teamHoldsShownItem(team.id, scope: scope))
+        }
+    }
+
+    /// Whether a team holds something the take may show: one of its
+    /// Notebooks the scope lets on screen, or a page `artifacts` lists, which
+    /// is narrowed as it loads (`loadScopedArtifacts`).
+    private func teamHoldsShownItem(_ teamID: String, scope: ScreenRecordScope) -> Bool {
+        learningGoals.contains { goal in
+            goal.isNotebook && goal.teamID == teamID && scope.allowsNotebook(id: goal.id, createdAt: goal.createdAt)
+        } || artifacts.contains { artifact in
+            (artifactTeamIDs[artifact.id] ?? artifact.teamID.map { [$0] } ?? []).contains(teamID)
+        }
+    }
+
     /// The teams a share menu offers for something in My Library: every team
     /// this account may write into.
     var teamsAcceptingShares: [TeamRecord] {
@@ -396,9 +420,6 @@ extension StudioViewModel {
                 includeSources: includeSources,
                 includeDocs: includeDocs
             )
-            // The Notebook's pages came along as pages; the ForeverLM sites
-            // among them open to the team.
-            if includeDocs { await storage.openPublishedSitesToTeam(teamID: teamID) }
             let title = notebook(id: notebookID)?.title ?? "the notebook"
             showToast("Shared \(title) with \(team.name)")
             if activeTeamID == teamID {
@@ -417,11 +438,6 @@ extension StudioViewModel {
         do {
             let copy = try await storage.shareArtifact(artifactID, withTeam: teamID)
             let original = artifacts.first { $0.id == artifactID }
-            // A page shares as the page; a ForeverLM site of this account's
-            // also has to let the team in.
-            if original?.linkedKind == .foreverlmSite {
-                await storage.openPublishedSitesToTeam(teamID: teamID)
-            }
             let title = original?.title ?? "the Page"
             // The sources it carries and cites went with it (docs/teams-design.md,
             // decision 16); the toast says how many, and whether any stayed behind.

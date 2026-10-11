@@ -66,13 +66,6 @@ extension StudioViewModel {
             CanvasVersionsSheet(canvasID: canvasID, onClose: close)
         }
     }
-
-    /// **Publish…**: the canvas's page on the web, as a sheet.
-    func showCanvasPublish(canvasID: String) {
-        CanvasSheetPresenter.present(self, size: NSSize(width: 480, height: 340)) { close in
-            CanvasPublishSheet(canvasID: canvasID, onClose: close)
-        }
-    }
 }
 
 /// The save panel for Export as Image.

@@ -20,7 +20,7 @@ The app reads the Reading List in `~/Library/Safari/Bookmarks.plist` and adds ne
 The app reads reading list entries from Chrome and Brave's local data. No special permissions are needed. Just add articles to your reading list in either browser and they'll appear in the Studio tab.
 
 **Choosing browsers and how far back to go:**
-Setup's Articles step shows how many pages each browser's Reading List holds and asks which browsers to import from. First it asks how much of what is already saved to bring in: **Everything**, the **Last 30 days** (the starting choice), or **Only new saves**. Every page that comes in is fetched and cleaned up by AI once, so a long backlog costs more. Pages saved before the cutoff are never imported. Change either in **Settings → Sources → Reading Lists**, or from chat (`sources.reading_list_browsers` and `sources.reading_list_import_window`). A wider choice imports the pages it now reaches right away.
+Setup's Articles step asks one question, which browser you use: Safari, Chrome, Brave, or several. The Mac's default browser is marked Recommended. Pages saved in the last 30 days come in first, and everything you save after that arrives on its own. Every page that comes in is fetched and cleaned up by AI once, so a long backlog costs more. Change the browsers, or how much of what is already saved to bring in (**Everything**, the **Last 30 days**, or **Only new saves**), in **Settings → Sources → Reading Lists**, or from chat (`sources.reading_list_browsers` and `sources.reading_list_import_window`). A wider choice imports the pages it now reaches right away.
 
 **Via MCP:**
 Your AI assistant can add articles using the `add_source` tool.

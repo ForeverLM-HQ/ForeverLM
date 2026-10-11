@@ -187,6 +187,18 @@
 		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>
+			<string>com.foreverlm.canvas-card</string>
+			<key>UTTypeDescription</key>
+			<string>Canvas Card Transfer</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict/>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
 			<string>com.foreverlm.studio-goal</string>
 			<key>UTTypeDescription</key>
 			<string>Studio Goal Transfer</string>

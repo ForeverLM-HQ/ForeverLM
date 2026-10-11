@@ -645,8 +645,9 @@ struct StudioNavigationRail: View {
                                 openNewWindow: { openWindow(id: "studio") }
                             )
                         }
-                        // The Space: every page, site, picture, idea,
-                        // notebook and course.
+                        // The Space: every page, site, picture, canvas, list,
+                        // notebook and course. Goals and Ideas are the chat's
+                        // to show since 2026-10-10 (`SpaceTab`).
                         Section("Space") {
                             Button("Open Space", systemImage: "square.grid.2x2") {
                                 vm.inWindow(windowState) { vm.showSpaceAll(in: windowState) }
@@ -659,24 +660,6 @@ struct StudioNavigationRail: View {
                             }
                             OpenStudioDestinationInOtherWindowMenu(
                                 destination: .artifacts,
-                                currentWindowState: windowState,
-                                openNewWindow: { openWindow(id: "studio") }
-                            )
-                        }
-                        // The Goals tab: what the learner wants to be true by
-                        // a date, which lives in no notebook.
-                        Section("Goals") {
-                            Button("Open Goals", systemImage: "target") {
-                                vm.inWindow(windowState) { vm.showSpaceTab(.goals) }
-                            }
-                            Button("Open Goals Beside", systemImage: "rectangle.split.2x1") {
-                                vm.inWindow(windowState) {
-                                    vm.openCenterTabBeside(.goals)
-                                    vm.openGoalsInReader()
-                                }
-                            }
-                            OpenStudioDestinationInOtherWindowMenu(
-                                destination: .goals,
                                 currentWindowState: windowState,
                                 openNewWindow: { openWindow(id: "studio") }
                             )
@@ -1462,6 +1445,21 @@ struct StudioNavigationRail: View {
 
         Divider()
 
+        // The free days' count, quietly: "29 days free left". It opens
+        // Billing, where the deal is (docs/pricing-pro-design.md → The free
+        // days).
+        if let freeDays = account.freeDaysStatus {
+            accountMenuAction(
+                title: freeDays,
+                systemImage: "gift",
+                accessibilityIdentifier: "rail.freeDays"
+            ) {
+                showsAccountMenu = false
+                onOpenSettings(.aiBilling)
+            }
+            .help("Open Billing")
+        }
+
         if showsMCPStatusLight {
             accountMenuAction(
                 title: mcpStatusLightLabel,
@@ -1614,8 +1612,9 @@ struct StudioNavigationRail: View {
     }
 
     /// The switcher page: back to the root, then My Library, each team (a lock
-    /// on read-only ones) and New Team…. Managing a team happens in that
-    /// team's Settings, not here.
+    /// on read-only ones; in Screen record mode only those `shownTeams` lets
+    /// on screen) and New Team…. Managing a team happens in that team's
+    /// Settings, not here.
     @ViewBuilder
     private var libraryPage: some View {
         Button {
@@ -1650,7 +1649,7 @@ struct StudioNavigationRail: View {
         ) {
             Task { await vm.setActiveTeam(nil) }
         }
-        ForEach(vm.teams) { team in
+        ForEach(vm.shownTeams) { team in
             libraryChoice(
                 title: team.name,
                 systemImage: "person.2",
@@ -1782,7 +1781,7 @@ struct StudioNavigationRail: View {
     }
 
     /// The comp pays only for what goes through the proxy. With the learner's
-    /// own key stored and allowed to run (a comp is a plan), everything the key
+    /// own key stored and allowed to run (a comp is unlocked), everything the key
     /// covers goes straight to its router and is billed there, so the comp row
     /// said "Usage is paid for by ForeverLM · $0.00 used today" while the key
     /// paid for the day's chats (2026-09-27). The row names the key instead.
@@ -1892,8 +1891,12 @@ struct StudioNavigationRail: View {
         }
     }
 
+    /// While the app is locked (the free days over, nothing paid) the
+    /// connection is stopped on purpose (product owner, 2026-10-10), so the
+    /// light says so rather than calling it a failure.
     private var mcpStatusLightLabel: String {
         guard assistantIntegrationsEnabled else { return "MCP disabled" }
+        if account.isAppLocked { return "MCP locked" }
         switch mcpLauncher.state {
         case .running:
             return "MCP connected"
@@ -2574,7 +2577,8 @@ private struct RailNotebookRow: View {
     }
 }
 
-private func notebookDragProvider(for transfer: StudioNotebookTransfer, title: String) -> NSItemProvider {
+/// A notebook's drag: the rail's rows, and the Canvas Library's notebooks.
+func notebookDragProvider(for transfer: StudioNotebookTransfer, title: String) -> NSItemProvider {
     let provider = NSItemProvider()
     if let data = try? JSONEncoder().encode(transfer) {
         provider.registerDataRepresentation(

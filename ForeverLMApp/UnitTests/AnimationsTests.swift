@@ -18,15 +18,15 @@ struct AnimationRecordTests {
         )
     }
 
-    @Test("The kind outranks the link: an animation hosted as a ForeverLM site is an Animation, not a Site")
+    @Test("The kind outranks the link: an animation kept as a ForeverLM site is an Animation, not a Site")
     func sectionByKind() {
-        let hosted = "https://sites.foreverlm.com/empa-krebs/"
-        #expect(record(linkedURL: hosted).section == .sites)
-        #expect(record(linkedURL: hosted, kind: .animation).section == .animations)
-        #expect(record(linkedURL: hosted, kind: .animation).linkedKind == .foreverlmSite, "on the wire it is still a ForeverLM site")
-        #expect(record(linkedURL: hosted, kind: .animation).isAnimation)
-        #expect(record(linkedURL: hosted, kind: .animation).kindLabel == "Animation")
-        #expect(record(linkedURL: hosted).kindLabel == "ForeverLM Site")
+        let kept = "foreverlm-site://empa-krebs/"
+        #expect(record(linkedURL: kept).section == .sites)
+        #expect(record(linkedURL: kept, kind: .animation).section == .animations)
+        #expect(record(linkedURL: kept, kind: .animation).linkedKind == .foreverlmSite, "on the wire it is still a ForeverLM site")
+        #expect(record(linkedURL: kept, kind: .animation).isAnimation)
+        #expect(record(linkedURL: kept, kind: .animation).kindLabel == "Animation")
+        #expect(record(linkedURL: kept).kindLabel == "ForeverLM Site")
         #expect(record(linkedURL: nil).kindLabel == nil)
         #expect(ArtifactSection.animations.centerTab == .animations)
         #expect(ArtifactSection.animations.linkedKinds.isEmpty, "no linked kind lands in Animations; the record kind does")
@@ -36,7 +36,7 @@ struct AnimationRecordTests {
 
     @Test("The kind and the grounding ride the payload and come back; a record without them encodes as before")
     func payloadRoundTrip() throws {
-        let animation = record(linkedURL: "https://sites.foreverlm.com/empa-krebs/", kind: .animation, sourceIDs: ["src-empa", "src-review"])
+        let animation = record(linkedURL: "foreverlm-site://empa-krebs/", kind: .animation, sourceIDs: ["src-empa", "src-review"])
         let data = try JSONEncoder().encode(animation)
         let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
         #expect(object["kind"] as? String == "animation")
@@ -55,7 +55,7 @@ struct AnimationRecordTests {
 
     @Test("A kind this build does not know decodes as none rather than refusing the record")
     func unknownKindDecodes() throws {
-        var object = try #require(JSONSerialization.jsonObject(with: try JSONEncoder().encode(record(linkedURL: "https://sites.foreverlm.com/x-y-z/"))) as? [String: Any])
+        var object = try #require(JSONSerialization.jsonObject(with: try JSONEncoder().encode(record(linkedURL: "foreverlm-site://x-y-z/"))) as? [String: Any])
         object["kind"] = "hologram"
         object["sourceIDs"] = ["src-1"]
         let decoded = try JSONDecoder().decode(ArtifactRecord.self, from: try JSONSerialization.data(withJSONObject: object))
@@ -119,7 +119,7 @@ struct AnimationRecordTests {
         }
     }
 
-    @Test("A local file is read from this Mac, named by its own name, declared as an upload past the inline limit; a missing path or a folder is refused")
+    @Test("A local file is read from this Mac and named by its own name, past the inline limit too; a missing path or a folder is refused")
     func localFileOnDisk() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("foreverlm-animation-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -129,13 +129,7 @@ struct AnimationRecordTests {
 
         let read = try MCPDataStore.localSiteFile(["local_path": file.path]) { try Data(contentsOf: URL(fileURLWithPath: $0)) }
         #expect(read.path == "krebs-cycle.mp4", "with no path the file's own name is the path")
-        #expect(read.data.count == 2_500_000)
-        #expect(read.upload, "over the 2 MB inline limit the file is declared and streamed")
-
-        let small = directory.appendingPathComponent("poster.svg")
-        try Data("<svg/>".utf8).write(to: small)
-        let inline = try MCPDataStore.localSiteFile(["local_path": small.path]) { try Data(contentsOf: URL(fileURLWithPath: $0)) }
-        #expect(!inline.upload, "a small file travels inline")
+        #expect(read.data.count == 2_500_000, "a file read from this Mac is not held to the 2 MB inline limit")
 
         // A name the site cannot serve is refused with the way to name it.
         let spaced = directory.appendingPathComponent("Krebs Cycle.mp4")

@@ -9,8 +9,9 @@ import SwiftUI
 // the Create strip that makes one, as ChatGPT's Space makes a To-do list.
 
 /// A list opened in the Space: what it holds, with the way to add to it —
-/// Set a goal, or the jot field — and the goals or ideas already made that
-/// can join it. Drawn beside the Space sidebar in place of a list of items.
+/// the jot field for ideas; the Add pill over the page (`SpaceListAddMenu`)
+/// sets a goal or brings in one already made. Drawn beside the Space sidebar
+/// in place of a list of items.
 struct SpaceListPage: View {
     @Environment(StudioViewModel.self) private var vm
     let list: SpaceList
@@ -40,8 +41,7 @@ struct SpaceListPage: View {
                 GoalsHomeView(
                     isEmbedded: true,
                     query: query,
-                    admits: { [listID = list.id, lists = vm.spaceLists] goal in lists.listID(of: goal.id) == listID },
-                    onCreated: { goal in vm.fileRecords([goal.id], inSpaceList: list.id) }
+                    admits: { [listID = list.id, lists = vm.spaceLists] goal in lists.listID(of: goal.id) == listID }
                 )
             case .ideas:
                 IdeasHomeView(
@@ -57,12 +57,14 @@ struct SpaceListPage: View {
     }
 }
 
-/// **Add Goals ▸** or **Add Ideas ▸** on a list's page: the goals or ideas
-/// already made that are not in it yet, newest first, each moved into it as
-/// it is chosen.
+/// **Add Goals ▾** or **Add Ideas ▾** on a list's page, the place's one dark
+/// pill: for goals New Goal… first, filed in the list once set; then the goals
+/// or ideas already made that are not in it yet, newest first, each moved
+/// into it as it is chosen. A new idea is jotted in the field on the page.
 struct SpaceListAddMenu: View {
     @Environment(StudioViewModel.self) private var vm
     let list: SpaceList
+    @State private var isSettingGoal = false
     /// How many a menu offers; the rest are found by the Goals tab or Ideas.
     static let offered = 40
 
@@ -84,7 +86,12 @@ struct SpaceListAddMenu: View {
 
     var body: some View {
         let candidates = candidates
-        Menu {
+        SpaceDarkPillMenu(title: "Add \(list.kind.pluralNoun.capitalized)") {
+            if list.kind == .goals {
+                Button("New Goal\u{2026}", systemImage: "plus") { isSettingGoal = true }
+                    .accessibilityIdentifier("studio.goals.set")
+                Divider()
+            }
             if candidates.isEmpty {
                 Text("Every \(list.kind.noun) is in this list")
             }
@@ -93,13 +100,18 @@ struct SpaceListAddMenu: View {
                     vm.moveRecords([candidate.id], toSpaceList: list.id)
                 }
             }
-        } label: {
-            Label("Add \(list.kind.pluralNoun.capitalized)", systemImage: "plus.circle")
         }
-        .menuStyle(.button)
-        .fixedSize()
-        .help("Put a \(list.kind.noun) you already have in this list")
+        .help(list.kind == .goals ? "Set a goal in this list, or put one you already have in it" : "Put an idea you already have in this list")
         .accessibilityIdentifier("space.list.add")
+        .sheet(isPresented: $isSettingGoal) {
+            SetGoalSheet { title, deadline, notebookID, artifactID in
+                Task {
+                    if let goal = await vm.createGoal(title: title, deadline: deadline, notebookID: notebookID, artifactID: artifactID) {
+                        vm.fileRecords([goal.id], inSpaceList: list.id)
+                    }
+                }
+            }
+        }
     }
 }
 

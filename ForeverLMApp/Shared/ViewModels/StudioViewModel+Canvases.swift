@@ -13,9 +13,13 @@ import Foundation
 extension StudioViewModel {
     /// The canvases the Space lists: the learner's own, on a Mac that shows
     /// the Canvas (`BetaFeatures`), and none in a team's library, whose
-    /// members each place their own.
+    /// members each place their own. In Screen record mode only those the
+    /// take may show (`isVisibleInRecordingMode`), so All, Canvases, Pinned,
+    /// Recents and the canvas pickers name no other; `canvases` stays whole.
     var listedCanvases: [KnowledgeMapCanvas] {
-        listsCanvases ? canvases.all : []
+        guard listsCanvases else { return [] }
+        guard screenRecordScope != nil else { return canvases.all }
+        return canvases.all.filter { isVisibleInRecordingMode($0) }
     }
 
     /// Whether the Space lists canvases and offers New Canvas: on a Mac
@@ -79,6 +83,9 @@ extension StudioViewModel {
     /// Keeps `canvases` following the open canvas's own writes: its last
     /// activity moves as the learner places things.
     func wireCanvasModel(_ model: KnowledgeMapModel) {
+        // A paper placed for the first time shows its page, on a canvas made a
+        // moment ago as on any other.
+        model.pageFaceDefault = { [weak self] sourceID in self?.knowledgeMapSourceShowsPage(sourceID) == true }
         model.onLayoutWritten = { [weak self] id, layout in
             guard let self else { return }
             self.canvases = self.canvases.setting(layout, for: id)

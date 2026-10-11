@@ -58,7 +58,7 @@ extension MCPDataStore {
         }
     }
 
-    /// The subject a call names: `animation` (an animation's id, slug or
+    /// The subject a call names: `animation` (an animation's id or library
     /// address) or `source_id`. One of the two, never both.
     private func walkthroughToolSubject(arguments: [String: Any]) async throws -> WalkthroughToolSubject {
         let animationHandle = Self.trimmedOrNil(arguments["animation"] as? String)
@@ -70,14 +70,13 @@ extension MCPDataStore {
             return .animation(try await walkthroughAnimation(handle: animationHandle, context: "animation"))
         }
         guard sourceToken != nil else {
-            throw MCPError.invalidInput("source_id or animation is required: the paper, book chapter or article from list_sources or a search, or the animation's id, slug or address from list_animations.")
+            throw MCPError.invalidInput("source_id or animation is required: the paper, book chapter or article from list_sources or a search, or the animation's id or address from list_animations.")
         }
         return .source(try await walkthroughSubjectSource(arguments: arguments))
     }
 
-    /// The animation a handle names — its id or library address, or a
-    /// published copy's slug or address —
-    /// refused when it names nothing of the learner's, or a Site.
+    /// The animation a handle names — its id or library address — refused
+    /// when it names nothing of the learner's, or a Site.
     private func walkthroughAnimation(handle: String, context: String) async throws -> ArtifactRecord {
         guard let found = try await existingSiteArtifact(handle: handle) else {
             throw MCPError.invalidInput("No animation of yours answers to \(handle) (\(context)). Pass its animation_id from list_animations.")
@@ -271,7 +270,7 @@ extension MCPDataStore {
                     "figure_anchors": false,
                     "message": stale
                         ? "The animation's address changed since its walkthrough was written, so it is not shown. Call save_walkthrough with animation set to write a new one."
-                        : "This animation has no walkthrough. Call save_walkthrough with animation set to its slug and steps that name its own steps (animation_step, animation_conditions); a kit animation's build writes them as walkthrough.json.",
+                        : "This animation has no walkthrough. Call save_walkthrough with animation set to its id and steps that name its own steps (animation_step, animation_conditions); a kit animation's build writes them as walkthrough.json.",
                 ] as [String: Any])
             }
             var payload = try await walkthroughPayload(walkthrough, subject: subject, includeSteps: true)
@@ -510,7 +509,7 @@ extension MCPDataStore {
                 } else if case .animation(let own) = subject {
                     artifact = own
                 } else {
-                    throw MCPError.invalidInput("Step \(index + 1) names an animation step without the animation: pass animation (its id, slug or address) on the step.")
+                    throw MCPError.invalidInput("Step \(index + 1) names an animation step without the animation: pass animation (its id or address) on the step.")
                 }
                 referencedAnimations[artifact.id] = artifact
                 var conditions: [String: String] = [:]

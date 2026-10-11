@@ -35,82 +35,46 @@ extension LearningGoalRecord: NotebookHomeListing {
     var homeSourceCount: Int { approvedSourceIDs.count }
 }
 
-// MARK: - The Space's tabs
+// MARK: - The Space's panes
 
-/// The tabs on the chrome line of the Space, the Courses list and Goals
-/// (shell stage 4, 2026-10-01; the Notebooks home that led them went on
-/// 2026-10-09, docs/notebooks-design.md, "The Notebooks home, retired"): the
-/// **Space**, whose sidebar lists the courses and the places, and **Goals**,
-/// what the learner wants to be true by a date. **Courses** is not a tab of
-/// the bar but the pane the Space's Courses row opens, drawn beside the
-/// Space's sidebar, so a Courses pane's tab is the Space's (`barTab`). Each
-/// is its own pane — the Space (`.artifacts`), Courses (`.courses`, which
-/// shows one course's page once a card is opened) and Goals (`.goals`) — so
-/// each keeps its Open Beside, Open in Other Window and drag. The tab bar
-/// swaps one pane for the other in place
+/// The two panes the Space's sidebar swaps in place (shell stage 4,
+/// 2026-10-01; the Notebooks home that led them went on 2026-10-09,
+/// docs/notebooks-design.md, "The Notebooks home, retired"): the **Space**
+/// (`.artifacts`), its places beside the sidebar, and **Courses**
+/// (`.courses`), the list of courses the sidebar's Courses row opens, drawn
+/// beside the same sidebar, which shows one course's page once a card is
+/// opened. Each is its own pane, so each keeps its Open Beside, Open in Other
+/// Window and drag; a sidebar click swaps one for the other in place
 /// (`StudioCenterTabGroups.showingSpaceTab`).
-enum SpaceTab: String, CaseIterable, Identifiable, Sendable {
+///
+/// The chrome line over them once held a tab bar, Space | Goals. It went on
+/// 2026-10-10 (product owner: "i don't think it makes sense to have space and
+/// goals … goals can perhaps just be visible via chat; same with ideas
+/// perhaps"): the sidebar's header names the Space, and the chat lists, sets
+/// and changes Goals and Ideas (`list_goals`, `create_learning_goal`,
+/// `list_ideas`, `create_idea`).
+enum SpaceTab: Sendable {
     case courses
     case space
-    case goals
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .courses: return "Courses"
-        // ChatGPT's Space, copied on 2026-10-06 (docs/docs-design.md, "The
-        // Space"): Pages, Sites, Images, Ideas and Google Drive under one tab.
-        case .space: return "Space"
-        case .goals: return "Goals"
-        }
-    }
-
-    /// The tabs the chrome line shows (product owner, 2026-10-09: "perhaps that can
-    /// just be in spaces", "also courses under spaces then"): the Space and
-    /// Goals. Courses stays a pane, drawn beside the Space's sidebar, so a
-    /// pane's way back is its own tab.
-    static let barTabs: [SpaceTab] = [.space, .goals]
-
-    /// The tab of the bar that is lit while this one is on show: the Space
-    /// while Courses is.
-    var barTab: SpaceTab {
-        switch self {
-        case .courses, .space: return .space
-        case .goals: return self
-        }
-    }
 
     /// The pane the tab is.
     var centerTab: StudioCenterTab {
         switch self {
         case .courses: return .courses
         case .space: return .artifacts
-        case .goals: return .goals
-        }
-    }
-
-    /// The tab a pane is, or nil for a pane that is not the Space's.
-    init?(centerTab: StudioCenterTab) {
-        switch centerTab {
-        case .courses: self = .courses
-        case .artifacts: self = .space
-        case .goals: self = .goals
-        default: return nil
         }
     }
 }
 
 extension StudioCenterTabGroups {
-    /// The arrangement once the Space's tab bar shows `tab`: in the pane
-    /// showing one of the others, `tab` takes its place (`swapping`), so a tab
-    /// click swaps the page under the pointer. Nil when no pane shows another
-    /// tab: the caller then opens the tab by the ordinary rules
-    /// (`activating`). The Courses pane counts only while it shows the list
-    /// (`coursesShowsList`): a course's page is a document, which the Space
-    /// does not replace.
+    /// The arrangement once the Space shows `tab`: in the pane showing the
+    /// other, `tab` takes its place (`swapping`), so a sidebar click swaps the
+    /// page under the pointer. Nil when no pane shows the other: the caller
+    /// then opens the tab by the ordinary rules (`activating`). The Courses
+    /// pane counts only while it shows the list (`coursesShowsList`): a
+    /// course's page is a document, which the Space does not replace.
     func showingSpaceTab(_ tab: SpaceTab, coursesShowsList: Bool = false) -> StudioCenterTabGroups? {
-        var others: [StudioCenterTab] = [.artifacts, .goals]
+        var others: [StudioCenterTab] = [.artifacts]
         if coursesShowsList { others.append(.courses) }
         for other in others where other != tab.centerTab {
             if let layout = swapping(other, for: tab.centerTab) { return layout }

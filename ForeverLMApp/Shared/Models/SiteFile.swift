@@ -1,30 +1,14 @@
 import Foundation
 
-// A site's files as they travel: in a publish to sites.foreverlm.com, and in
-// an Artifact's CloudKit body package (`ArtifactBodyPackage`), which the
-// phone unpacks to show a walkthrough's animation by reference. Kept apart
-// from `SitePublishingService` so the phone compiles the file shape without
-// the publishing client.
+// A site's files as they travel in an Artifact's CloudKit body package
+// (`ArtifactBodyPackage`), which the phone unpacks to show a walkthrough's
+// animation by reference. Kept apart from `LocalSite` so the phone compiles
+// the file shape without the Mac's site tools.
 
-/// One file of a site as it is sent: its path inside the site and its bytes.
+/// One file of a site: its path inside the site and its bytes.
 struct SiteFile: Equatable, Sendable {
     let path: String
     let data: Data
-    /// Sent by its own streamed request after the publish rather than inline
-    /// in the JSON body — a paper's PDF, a large image. The publish declares
-    /// the path and size; the service stores the bytes when they arrive.
-    var upload: Bool = false
-
-    /// The wire form: text as `content` when the bytes are UTF-8 text, else
-    /// `content_base64`; an upload as its declaration. The site derives the
-    /// type from the extension.
-    var payload: [String: Any] {
-        if upload { return ["path": path, "upload": true, "bytes": data.count] }
-        if let text = String(data: data, encoding: .utf8), !SiteFile.looksBinary(data) {
-            return ["path": path, "content": text]
-        }
-        return ["path": path, "content_base64": data.base64EncodedString()]
-    }
 
     /// A NUL in the first 8 KB is the bytes of an image, a font or an archive;
     /// text has none.

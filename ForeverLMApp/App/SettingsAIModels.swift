@@ -222,11 +222,19 @@ enum ModelPickerSheetRequest {
 
     @MainActor
     static func open(_ slot: ModelPickerSlot) {
-        pending = slot
-        let pane: SettingsPane = slot.pane == .chat ? .aiChatModels : .aiBackgroundModels
-        NotificationCenter.default.post(name: .requestOpenStudioSettings, object: pane)
+        NotificationCenter.default.post(name: .requestOpenStudioSettings, object: stage(slot))
         // An already open pane does not appear again, so it hears this.
         NotificationCenter.default.post(name: didRequest, object: nil)
+    }
+
+    /// Leaves `slot` for its pane to take when it appears, and names that
+    /// pane, for a caller inside Settings that navigates there itself (AI
+    /// Usage › Activity's Change Model).
+    @MainActor
+    @discardableResult
+    static func stage(_ slot: ModelPickerSlot) -> SettingsPane {
+        pending = slot
+        return slot.pane == .chat ? .aiChatModels : .aiBackgroundModels
     }
 
     /// The pending slot, if it belongs to `pane`. The pane being left hears
@@ -264,10 +272,13 @@ struct BackgroundFreeModelNote: View {
     }
 }
 
-/// Settings → Voice: the dictation model and the text-to-speech model, voice and
-/// speed. Nothing else: the recordings model and the cost prompt are set from
-/// chat (`set_app_setting`), and the providers that cannot be picked any more
-/// (Apple, a local Qwen3 server) have no controls.
+/// Settings → Voice: the dictation and recordings transcription models, and
+/// the text-to-speech model, voice and speed. Nothing else: the cost prompt is
+/// set from chat (`set_app_setting`), and the providers that cannot be picked
+/// any more (Apple, a local Qwen3 server) have no controls. The recordings
+/// model left the window on 2026-09-24 and came back on 2026-10-10, when the
+/// product owner, at AI Usage › Activity's Meeting Transcription line, asked
+/// that whatever ForeverLM is charged for can have its model changed.
 ///
 /// Both model lists are OpenRouter's own directories (product owner, 2026-09-27:
 /// "show all models at https://openrouter.ai/models?output_modalities=speech
@@ -288,6 +299,7 @@ struct VoiceSettingsDetailView: View {
     private struct Snapshot: Sendable {
         var speechToTextProvider: SpeechToTextProvider
         var speechToTextModel: String
+        var recordingsModel: String
         var textToSpeechProvider: MacArticleSpeechMode
         var model: String
         var voice: String
@@ -315,6 +327,7 @@ struct VoiceSettingsDetailView: View {
             return Snapshot(
                 speechToTextProvider: sttProvider,
                 speechToTextModel: sttModel,
+                recordingsModel: mediaModel,
                 textToSpeechProvider: MacArticleSpeechSettings.provider,
                 model: selection.model,
                 voice: selection.voice
@@ -326,6 +339,9 @@ struct VoiceSettingsDetailView: View {
     // `hasLoadedStoredValues`.
     @State private var speechToTextProvider: SpeechToTextProvider = .openai
     @State private var speechToTextModel = ""
+    @State private var recordingsModel = ""
+    /// Which transcription model the Speech to text list chooses.
+    @State private var transcriptionPurpose: ManagedTranscriptionClient.Purpose = .dictation
     @State private var textToSpeechProvider = MacArticleSpeechSettings.defaultProvider
     @State private var model = ""
     @State private var voice = ""
@@ -341,16 +357,32 @@ struct VoiceSettingsDetailView: View {
             VStack(alignment: .leading, spacing: 24) {
                 SettingsSection(
                     title: "Speech to text",
-                    description: "The model that turns what you say in a chat or a review into text."
+                    description: transcriptionPurpose == .dictation
+                        ? "The model that turns what you say in a chat or a review into text."
+                        : "The model meeting recordings, podcast episodes and course videos are transcribed with."
                 ) {
+                    Picker("Speech to text", selection: $transcriptionPurpose) {
+                        Text(ManagedTranscriptionClient.Purpose.dictation.settingsLabel)
+                            .tag(ManagedTranscriptionClient.Purpose.dictation)
+                        Text(ManagedTranscriptionClient.Purpose.media.settingsLabel)
+                            .tag(ManagedTranscriptionClient.Purpose.media)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .fixedSize()
+                    .accessibilityIdentifier("settings.voice.speechToText.purpose")
+
                     storedValueCards {
-                        DictationSettingsView(
+                        TranscriptionSettingsView(
+                            purpose: transcriptionPurpose,
                             provider: speechToTextProvider,
-                            model: $speechToTextModel,
+                            model: transcriptionPurpose == .dictation ? $speechToTextModel : $recordingsModel,
                             directory: transcriptionDirectory,
                             catalogRevision: catalogRevision,
                             retryDirectory: { Task { await readDirectories(force: true) } }
                         )
+                        // A fresh list per model: the one it opened on is that model's.
+                        .id(transcriptionPurpose)
                     }
                 }
 
@@ -378,6 +410,9 @@ struct VoiceSettingsDetailView: View {
         .onReceive(NotificationCenter.default.publisher(for: .openRouterAudioDirectoryDidChange)) { _ in
             catalogRevision &+= 1
         }
+        .onAppear {
+            if let requested = TranscriptionModelRequest.take() { transcriptionPurpose = requested }
+        }
         .task {
             guard !hasLoadedStoredValues else { return }
             let snapshot = await Task.detached(priority: .userInitiated) {
@@ -385,6 +420,7 @@ struct VoiceSettingsDetailView: View {
             }.value
             speechToTextProvider = snapshot.speechToTextProvider
             speechToTextModel = snapshot.speechToTextModel
+            recordingsModel = snapshot.recordingsModel
             textToSpeechProvider = snapshot.textToSpeechProvider
             model = snapshot.model
             voice = snapshot.voice
@@ -527,13 +563,34 @@ private extension OpenRouterAudioPrices {
     }
 }
 
-/// The transcription model dictation uses: every recording is transcribed
-/// after you stop, through OpenRouter (the live realtime rail went on
-/// 2026-10-01). The transcription models are drawn as Settings › Chat draws its own
-/// (product owner, 2026-09-28): Suggested, one per maker
+/// Opens Settings › Voice on one transcription model, for AI Usage ›
+/// Activity's Change Model on a recording's or a dictation's line. The pane
+/// takes it when it appears.
+enum TranscriptionModelRequest {
+    @MainActor private static var pending: ManagedTranscriptionClient.Purpose?
+
+    @MainActor
+    static func stage(_ purpose: ManagedTranscriptionClient.Purpose) {
+        pending = purpose
+    }
+
+    @MainActor
+    static func take() -> ManagedTranscriptionClient.Purpose? {
+        defer { pending = nil }
+        return pending
+    }
+}
+
+/// A transcription model: dictation's, every recording of which is
+/// transcribed after you stop, through OpenRouter (the live realtime rail went
+/// on 2026-10-01), or the one meeting recordings, podcast episodes and course
+/// videos are transcribed with (`ManagedTranscriptionClient.Purpose`). The
+/// transcription models are drawn as Settings › Chat draws its own (product
+/// owner, 2026-09-28): Suggested, one per maker
 /// (`TranscriptionModelCatalog.suggestedModelIDs`), then all of OpenRouter's
 /// transcription directory by maker, with a search.
-private struct DictationSettingsView: View {
+private struct TranscriptionSettingsView: View {
+    let purpose: ManagedTranscriptionClient.Purpose
     let provider: SpeechToTextProvider
     @Binding var model: String
     let directory: OpenRouterAudioDirectory.ReadState
@@ -550,9 +607,11 @@ private struct DictationSettingsView: View {
         VStack(alignment: .leading, spacing: 10) {
             SettingsCard {
                 VStack(alignment: .leading, spacing: 14) {
-                    Text("The recording is transcribed after you stop.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    if purpose == .dictation {
+                        Text("The recording is transcribed after you stop.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
 
                     AudioDirectoryStatus(
                         state: directory,
@@ -580,7 +639,7 @@ private struct DictationSettingsView: View {
                 )
             }
         }
-        // Notes the model the pane opened on, and nothing else: every stored
+        // Notes the model the list opened on, and nothing else: every stored
         // value arrives already loaded from `VoiceSettingsDetailView`'s one
         // off-main snapshot. Reading the stored model here would put a
         // Keychain read back on the main actor, on the click that opens
@@ -636,7 +695,10 @@ private struct DictationSettingsView: View {
             help: option.id
         ) {
             model = option.id
-            KeychainService.setTranscriptionModel(option.id, for: provider)
+            switch purpose {
+            case .dictation: KeychainService.setTranscriptionModel(option.id, for: provider)
+            case .media: KeychainService.mediaTranscriptionModel = option.id
+            }
         }
     }
 }

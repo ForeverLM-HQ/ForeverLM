@@ -12,7 +12,7 @@ ElevenReader is ElevenLabs' mobile reading app for turning articles, PDFs, EPUB 
 
 | | ForeverLM | ElevenReader |
 |---|---|---|
-| **Price** | Free app; on-device speech is free, while cloud voices need a plan ($4/mo, or $19/yr for early believers) and run on your own OpenRouter key | Free mobile app; separate ElevenLabs services have their own pricing |
+| **Price** | 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost; on-device speech included | Free mobile app; separate ElevenLabs services have their own pricing |
 | **Platforms** | Full workflow on Mac, synced listening on iPhone | iPhone, iPad, and Android |
 | **Inputs** | Saved articles, papers, books, and transcripts in the library | PDF, EPUB, TXT, web links, scanned text, and pasted text |
 | **Voices** | Apple voices, local Qwen3-TTS, and optional cloud providers | Hundreds of ElevenLabs voices in 32 languages |

@@ -162,24 +162,17 @@ struct GoalDeadlinePopover: View {
 /// A Goal is the thing someone says out loud — "I want to understand Zara's
 /// thesis work" — so it lives at the top level rather than inside a Notebook.
 /// A Notebook is a pool of sources, which a Goal may or may not draw on; here
-/// it is a tag on the row and nothing more (goals-design.md). Since
-/// 2026-10-06 this is the **Goals** tab, beside the Space's (the product owner chose it
-/// when the Artifacts tab, which had held Goals as a chip since 2026-09-29,
-/// gave its one-off kinds to their notebooks), so the Space's tab bar is on
-/// its chrome line.
+/// it is a tag on the row and nothing more (goals-design.md). From
+/// 2026-10-06 this was the **Goals** tab beside the Space's, on the Space's
+/// tab bar; the bar went on 2026-10-10 (product owner: "goals can perhaps
+/// just be visible via chat"), so the chat lists and sets Goals
+/// (`list_goals`, `create_learning_goal`) and this pane opens only where a
+/// Goal is linked from: an Idea it grew from (`openIdeaLink`).
 struct GoalsPane: View {
     var body: some View {
         GoalsHomeView()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(nsColor: .windowBackgroundColor))
-            // The Space's tabs, on the chrome line as on the other tabs.
-            .studioChromeLineHeader {
-                ViewThatFits(in: .horizontal) {
-                    SpaceTabBar(selected: .goals)
-                    SpaceTabBar(selected: .goals, compact: true)
-                }
-                .padding(.horizontal, 24)
-            }
             .studioCenterTabCloseChrome(for: .goals)
     }
 }
@@ -195,21 +188,19 @@ struct GoalsHomeView: View {
     let query: String
     /// The goals a list holds; nil keeps every one.
     let admits: ((LearningGoalRecord) -> Bool)?
-    /// Hears of a goal set here, so a list files it.
-    let onCreated: ((LearningGoalRecord) -> Void)?
 
     @State private var isSettingGoal = false
+    /// The tab's own search, when the list is not embedded.
+    @State private var ownQuery = ""
 
     init(
         isEmbedded: Bool = false,
         query: String = "",
-        admits: ((LearningGoalRecord) -> Bool)? = nil,
-        onCreated: ((LearningGoalRecord) -> Void)? = nil
+        admits: ((LearningGoalRecord) -> Bool)? = nil
     ) {
         self.isEmbedded = isEmbedded
         self.query = query
         self.admits = admits
-        self.onCreated = onCreated
     }
 
     var body: some View {
@@ -219,9 +210,7 @@ struct GoalsHomeView: View {
             } else {
                 ScrollView {
                     list
-                        .padding(StudioDesign.Spacing.xLarge)
-                        .frame(maxWidth: 940, alignment: .leading)
-                        .frame(maxWidth: .infinity, alignment: .center)
+                        .spacePlaceColumn()
                 }
             }
         }
@@ -238,8 +227,7 @@ struct GoalsHomeView: View {
         .sheet(isPresented: $isSettingGoal) {
             SetGoalSheet { title, deadline, notebookID, artifactID in
                 Task {
-                    let goal = await vm.createGoal(title: title, deadline: deadline, notebookID: notebookID, artifactID: artifactID)
-                    if let goal { onCreated?(goal) }
+                    await vm.createGoal(title: title, deadline: deadline, notebookID: notebookID, artifactID: artifactID)
                 }
             }
         }
@@ -248,7 +236,7 @@ struct GoalsHomeView: View {
     /// The bands, kept to what the search and the list admit.
     private var bands: (inFlight: [LearningGoalRecord], later: [LearningGoalRecord], done: [LearningGoalRecord]) {
         let bands = vm.goalBands()
-        let words = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let words = (isEmbedded ? query : ownQuery).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !words.isEmpty || admits != nil else { return bands }
         let admits = admits
         let keeps: (LearningGoalRecord) -> Bool = {
@@ -261,7 +249,9 @@ struct GoalsHomeView: View {
         let bands = bands
 
         return VStack(alignment: .leading, spacing: StudioDesign.Spacing.xLarge) {
-            header
+            if !isEmbedded {
+                header
+            }
 
             if bands.inFlight.isEmpty && bands.later.isEmpty && bands.done.isEmpty {
                 empty
@@ -273,30 +263,33 @@ struct GoalsHomeView: View {
         }
     }
 
-    /// The tab bar names the tab, so the header is the way to set a Goal and
-    /// nothing else. The line under the tab bar that said what a Goal is
-    /// went on 2026-10-06 (the product owner: "cleaner and fewer buttons and bells
-    /// and whistles"): the tab's name and its rows say it.
+    /// The Space's head (`SpacePlaceHeader`), as every list of the learner's
+    /// things has: the name, the search and the one New Goal pill. On a list's
+    /// page the Space draws all three, its pill being Add Goals ▾
+    /// (`SpaceListAddMenu`), so the embedded list has no head. The line that
+    /// said what a Goal is went on 2026-10-06 (the product owner: "cleaner and fewer
+    /// buttons and bells and whistles").
     private var header: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Spacer(minLength: StudioDesign.Spacing.large)
-            Button {
+        SpacePlaceHeader(searchText: $ownQuery, searchIdentifier: "studio.goals.search") {
+            SpacePlaceTitle(title: "Goals")
+        } actions: {
+            SpaceDarkPillButton(title: "New Goal", systemImage: "plus", image: nil) {
                 isSettingGoal = true
-            } label: {
-                Label("Set a goal", systemImage: "plus")
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.regular)
             .accessibilityIdentifier("studio.goals.set")
         }
     }
 
+    /// The Space's empty line (`SpaceEmptyLine`).
     private var empty: some View {
-        VStack(alignment: .leading, spacing: StudioDesign.Spacing.small) {
-            Text("Nothing set yet.")
-                .zoomedSystemFont(size: 15, weight: .medium)
-        }
-        .padding(.vertical, StudioDesign.Spacing.large)
+        let words = (isEmbedded ? query : ownQuery).trimmingCharacters(in: .whitespacesAndNewlines)
+        return SpaceEmptyLine(
+            systemImage: words.isEmpty ? "target" : "magnifyingglass",
+            text: words.isEmpty ? "No goals yet" : "No results for “\(words)”"
+        )
+        .frame(maxWidth: .infinity)
+        .padding(.top, SpacePlaceMetrics.emptyTopPadding - StudioDesign.Spacing.xLarge)
+        .padding(.bottom, 32)
         .accessibilityIdentifier("studio.goals.empty")
     }
 

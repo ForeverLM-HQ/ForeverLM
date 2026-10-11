@@ -15,9 +15,13 @@ import WebKit
 // Messages answered here, besides the ones `KnowledgeMapCanvasView` has always
 // answered:
 //
-// - `placementChanged {items: [{ref, w?, h?, folded?, color?}]}`: a card's size,
-//   fold and colour; a missing key leaves the field, `null` clears it.
-// - `edgeChanged {id, route?, dashed?, heads?, color?, label?}`: an arrow's style and label.
+// - `placementChanged {items: [{ref, w?, h?, folded?, color?, page?, annotation?,
+//   plain?, answered?}]}`: a card's size, fold, colour, page (a paper shown as
+//   its page), words, and an Idea's plain and answered marks; a missing key
+//   leaves the field, `null` clears it.
+// - `edgeChanged {id, route?, dashed?, heads?, color?, label?, stance?}`: an
+//   arrow's style, label and stance (`supports`, `contradicts`).
+// - `chatContextRequested {refs}`: Add to Chat on cards.
 // - `regionRenamed {id, name}` and `regionLocked {id, locked}`.
 // - `ideaEdited {ref, title, note}` and `ideaRequested {x, y, title?, note?,
 //   parentRef?, regionID?, after?, copyOf?, edit?}`: an Idea written in place.
@@ -64,14 +68,16 @@ extension KnowledgeMapCanvasView.Coordinator {
             let dashed = Self.change(body, "dashed", Bool.self)
             let heads = Self.change(body, "heads", String.self)
             let color = Self.change(body, "color", String.self)
-            if route != .keep || dashed != .keep || heads != .keep || color != .keep {
+            let stance = Self.change(body, "stance", String.self)
+            if route != .keep || dashed != .keep || heads != .keep || color != .keep || stance != .keep {
                 // The model takes a value or nil (keep); its own defaults clear a field.
                 model.updateEdgeStyle(
                     id,
                     route: route.edgeValue(clearedBy: KnowledgeMapEdgeRoute.curve.rawValue),
                     dashed: dashed.edgeValue(clearedBy: false),
                     heads: heads.edgeValue(clearedBy: KnowledgeMapEdgeHeads.end.rawValue),
-                    color: color.edgeValue(clearedBy: "")
+                    color: color.edgeValue(clearedBy: ""),
+                    stance: stance.edgeValue(clearedBy: "")
                 )
             }
         case "regionRenamed":
@@ -104,6 +110,10 @@ extension KnowledgeMapCanvasView.Coordinator {
         case "deleteRequested":
             guard let actions, let refs = body["refs"] as? [String], !refs.isEmpty else { return }
             Task { @MainActor in await actions.vm.deleteKnowledgeMapItems(refs) }
+        case "chatContextRequested":
+            // ⌘L, or the toolbar's Add to Chat: the cards join the chat beside the Canvas.
+            guard let actions, let refs = body["refs"] as? [String], !refs.isEmpty else { return }
+            actions.vm.addKnowledgeMapCardsToChat(refs, in: actions.windowState)
         default:
             break
         }
@@ -154,13 +164,41 @@ extension KnowledgeMapCanvasView.Coordinator {
         style.h = change(item, "h", Double.self)
         style.folded = change(item, "folded", Bool.self)
         style.color = change(item, "color", String.self)
+        style.page = pageChange(item["page"])
+        style.annotation = change(item, "annotation", String.self)
+        style.plain = change(item, "plain", Bool.self)
+        style.answered = change(item, "answered", Bool.self)
         return style
+    }
+
+    /// A page from the page: absent leaves it, `null` shows the usual card, a
+    /// whole number of one or more sets it; anything else leaves it.
+    static func pageChange(_ raw: Any?) -> KnowledgeMapFieldChange<Int> {
+        guard let raw else { return .keep }
+        if raw is NSNull { return .clear }
+        guard let number = number(raw), number.isFinite, number >= 1, number.rounded() == number else { return .keep }
+        return .set(Int(number))
     }
 
     /// A string as a JavaScript literal.
     static func jsString(_ value: String) -> String {
         guard let data = try? JSONEncoder().encode(value) else { return "\"\"" }
         return String(decoding: data, as: UTF8.self)
+    }
+
+    // MARK: What the native menu asks of the page
+
+    /// Opens the annotation editor on a card, under its foot (an empty one when
+    /// it has no words yet): the native menu's Annotate… and Edit Annotation….
+    /// The page answers with `placementChanged {annotation}`.
+    func editAnnotation(_ ref: String) {
+        call("editAnnotation", Self.jsString(ref))
+    }
+
+    /// Turns a page face's page by `delta` (the native menu's Next Page and
+    /// Previous Page). The page answers with `placementChanged {page}`.
+    func turnPage(_ ref: String, by delta: Int) {
+        call("turnPage", Self.jsString(ref), String(delta))
     }
 
     // MARK: The native menu
@@ -174,6 +212,7 @@ extension KnowledgeMapCanvasView.Coordinator {
             model: model,
             vm: actions.vm,
             windowState: actions.windowState,
+            view: CGPoint(x: x, y: y),
             world: (Self.number(body["wx"]) ?? 0, Self.number(body["wy"]) ?? 0)
         )
         guard let built = menu.menu(kind: kind, refs: body["refs"] as? [String] ?? [], id: body["id"] as? String) else { return }

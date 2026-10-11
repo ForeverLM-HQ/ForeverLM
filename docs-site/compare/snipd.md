@@ -12,8 +12,8 @@ Snipd is the best-known AI podcast player: tap your headphones mid-episode and i
 
 | | ForeverLM | Snipd |
 |---|---|---|
-| **Price** | Free to download and free over MCP; built-in AI needs a plan ($4/mo, or $19/yr for early believers) and your own OpenRouter key | Free (AI on 2 episodes/week); Premium advertised from $6.99/mo — US App Store shows ~$11.99/mo monthly, annual plans vary by region |
-| **AI costs** | Your own OpenRouter key, billed by OpenRouter at cost with nothing added, plus a ForeverLM plan ($4/mo, or $19/yr for early believers) for any model in Chat; or free over MCP from an AI subscription you already pay for | Included in Premium, capped at 900 min of AI processing/month |
+| **Price** | 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free (AI on 2 episodes/week); Premium advertised from $6.99/mo; US App Store shows ~$11.99/mo monthly, annual plans vary by region |
+| **AI costs** | Your own OpenRouter key, billed by OpenRouter at cost with nothing added, for any model in Chat (free models cost nothing); or an AI subscription you already pay for, over MCP | Included in Premium, capped at 900 min of AI processing/month |
 | **Platforms** | Native macOS app (macOS 14+) | iOS, Android, Apple Watch, CarPlay — no Mac, Windows, or web app |
 | **Data storage** | Local SQLite + files in your private iCloud container | Snipd's cloud; App Store privacy label lists identity-linked usage data, including for advertising |
 | **Scope** | Podcasts *plus* articles, papers, books, YouTube, X posts — one library | Podcasts only (Premium adds own audio files and YouTube) |
@@ -27,7 +27,7 @@ Snipd is the best-known AI podcast player: tap your headphones mid-episode and i
 
 Snipd Premium runs roughly **$70–$100+/yr** depending on region and billing period (the website advertises from $6.99/mo; the US App Store lists ~$11.99/mo billed monthly), with a 900-minute monthly cap on AI processing. The free tier limits AI features to two episodes a week. You pay a fixed amount and still hit a ceiling.
 
-ForeverLM is **free to download**, and podcast transcripts are simply part of the app. What you pay for is built-in AI: a ForeverLM plan ($4 a month, or $19 a year while the early-believer offer lasts) plus your own OpenRouter key, which OpenRouter bills at its cost with nothing added. Review through the assistant you already subscribe to (Claude, ChatGPT, Gemini, or Grok over MCP) costs nothing from ForeverLM, with your subscription covering the inference; review in the in-app Chat costs what OpenRouter bills your key for it. Transcript cleanup and other background work bills the same way.
+ForeverLM is **7 days free, then $19 once**, and podcast transcripts are simply part of the app. AI is a separate bill you control: bring your own OpenRouter key, which OpenRouter bills at its cost with nothing added, or use free models. Review through the assistant you already subscribe to (Claude, ChatGPT, Gemini, or Grok over MCP) is included, with your subscription covering the inference; review in the in-app Chat costs what OpenRouter bills your key for it. Transcript cleanup and other background work bills the same way.
 
 ## Where Snipd is better
 

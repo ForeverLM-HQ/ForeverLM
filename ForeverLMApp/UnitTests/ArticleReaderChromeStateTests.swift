@@ -341,7 +341,7 @@ struct WebViewContextMenuTargetTests {
         #expect(opened == ["open:https://example.com/next", "tab:https://example.com/next"])
     }
 
-    @Test("A reader's web view takes system Writing Tools off, so a selection grows no badge or underlines")
+    @Test("A reader's web view configuration takes system Writing Tools off")
     func readerConfigurationDisablesWritingTools() {
         guard #available(macOS 15.0, *) else { return }
         let configuration = WKWebViewConfiguration()
@@ -350,5 +350,21 @@ struct WebViewContextMenuTargetTests {
         SharedWebKit.disableSystemWritingTools(on: configuration)
 
         #expect((configuration.value(forKey: "writingToolsBehavior") as? Int) == NSWritingToolsBehavior.none.rawValue)
+    }
+
+    @Test("A reader's web view refuses the Apple Intelligence badge; a Browser tab's answers as WebKit does")
+    func readerWebViewRefusesWritingToolsAffordance() {
+        let selector = #selector(getter: ForeverLMWebView.allowsWritingToolsAffordance)
+        guard #available(macOS 15.0, *), WKWebView.instancesRespond(to: selector) else { return }
+        let readerConfiguration = WKWebViewConfiguration()
+        SharedWebKit.disableSystemWritingTools(on: readerConfiguration)
+        let reader = ForeverLMWebView(frame: .zero, configuration: readerConfiguration)
+
+        #expect((reader.value(forKey: "allowsWritingToolsAffordance") as? Bool) == false)
+
+        let tab = ForeverLMWebView(frame: .zero, configuration: WKWebViewConfiguration())
+        let plain = WKWebView(frame: .zero, configuration: WKWebViewConfiguration())
+        #expect((tab.value(forKey: "allowsWritingToolsAffordance") as? Bool)
+            == (plain.value(forKey: "allowsWritingToolsAffordance") as? Bool))
     }
 }

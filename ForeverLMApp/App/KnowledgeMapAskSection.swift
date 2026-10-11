@@ -2,12 +2,12 @@ import SwiftUI
 
 // MARK: - Ask the Canvas in the pane (WP-B1, docs/sensemaking-design.md)
 //
-// The inspector's Ask menu: Bridge, Connect and Gaps ask ForeverLM about
-// the selected cards (or a region's), and the answer arrives on the plane as
-// proposals drawn dotted, with a banner to keep or dismiss them all; Atlas,
-// Review Here and Make Cards hand the same cards to the shapes that own them.
-// Written Faces sits with the view controls. One menu, not a block of six
-// buttons; a single clip does not show it.
+// The inspector's Ask menu: Bridge, Connect, Gaps, a Mind Map and a Question
+// Map ask ForeverLM about the selected cards (or a region's), and the answer
+// arrives on the plane as proposals drawn dotted, with a banner to keep or
+// dismiss them all; Atlas, Review Here and Make Cards hand the same cards to
+// the shapes that own them. Written Faces sits with the view controls. One
+// menu, not a block of buttons; a single clip does not show it.
 
 /// The inspector's Ask over the selected cards, or a selected region's.
 struct KnowledgeMapAskSection: View {
@@ -39,6 +39,24 @@ struct KnowledgeMapAskSection: View {
                 if let sourceID = breakDownSourceID {
                     askItem(.breakDown, enabled: vm.knowledgeMapSourceHasText(sourceID), help: "Lay this source out as 5 to 12 concept Ideas with arrows among them, in a region named for it")
                 }
+                askItem(
+                    .mindMap,
+                    enabled: asksTree,
+                    help: !asksTree
+                        ? "A mind map reads up to \(CanvasAskService.maximumCards) cards: select fewer"
+                        : hangsFromIdea
+                            ? "Hang a mind map from this Idea: the topics that follow from it, as branches to keep or set aside"
+                            : "Draw what these cards say as a mind map: a root, its branches and leaves, each one to keep or set aside"
+                )
+                askItem(
+                    .questionMap,
+                    enabled: asksTree,
+                    help: !asksTree
+                        ? "A question map reads up to \(CanvasAskService.maximumCards) cards: select fewer"
+                        : hangsFromIdea
+                            ? "Break this Idea into the questions that would answer it, narrower at every level"
+                            : "Break what these cards are about into questions, each narrower than the one above it"
+                )
                 Divider()
                 Button("Atlas") { vm.openAtlas(topic: nil, itemRefs: refs, notebookID: notebookID) }
                     .help("Lay the topic of these cards out as concepts, from the big picture down")
@@ -57,6 +75,18 @@ struct KnowledgeMapAskSection: View {
             .accessibilityIdentifier("knowledgeMap.ask.menu")
         }
         .zoomedSystemFont(size: 12)
+    }
+
+    /// A Mind Map or Question Map reads 1 to 24 cards.
+    private var asksTree: Bool {
+        (1...CanvasAskService.maximumCards).contains(refs.count)
+    }
+
+    /// Whether a tree hangs from the card asked about: the one card is an
+    /// Idea on the canvas.
+    private var hangsFromIdea: Bool {
+        guard refs.count == 1, KnowledgeMap.ItemRef(refs[0])?.kind == .idea else { return false }
+        return map.layout.placements[refs[0]] != nil
     }
 
     /// The one source a Break Down takes: the only card asked about, when it
@@ -106,6 +136,8 @@ struct KnowledgeMapAskProgress: View {
         case .gaps: return "Finding gaps…"
         case .summarize: return "Summarizing…"
         case .breakDown: return "Breaking it down…"
+        case .mindMap: return "Mapping…"
+        case .questionMap: return "Breaking into questions…"
         }
     }
 }

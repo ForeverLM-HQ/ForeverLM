@@ -182,7 +182,19 @@ final class StudioReadingProgressStore {
 @MainActor
 final class StudioSidebarStore {
     var sidebarTab: StudioSidebarTab = .articles
-    var searchText: String = ""
+    /// The query every source list filters on. While the learner types it trails
+    /// `searchFieldText` by a short pause (`SourceSearchField` commits it),
+    /// so the whole-library filter runs once per pause rather than once per
+    /// keystroke. Writing it directly — a tab switch clearing it — puts the
+    /// field in step at once.
+    var searchText: String = "" {
+        didSet {
+            if searchFieldText != searchText { searchFieldText = searchText }
+        }
+    }
+    /// What the search field shows, keystroke by keystroke. Nothing filters on
+    /// it; only the field, its scope chip and its clear button read it.
+    var searchFieldText: String = ""
     var displayLimit: Int = 40
     /// Papers-tab pagination, one limit per section, because the tab renders
     /// three lists ("Show More" on one must not grow the others).

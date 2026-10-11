@@ -325,11 +325,12 @@ struct GettingStartedTests {
         #expect(GettingStartedStep.enhancements.rawValue == 4)
     }
 
-    @Test("Setup's AI step needs the OpenRouter key and a plan, or another way to pay")
-    func aiStepNeedsKeyAndPlan() {
-        // Since 2026-09-25 the proxy refuses an own key without a plan, so a
-        // key alone, or a plan alone, pays for nothing.
-        // Free mode does not stand in for the plan either (2026-09-27).
+    @Test("Setup's AI step needs the OpenRouter key on an account that may run it, or another way to pay")
+    func aiStepNeedsKeyTheAccountMayRun() {
+        // The proxy refuses the key on an account it may not run on: a locked
+        // one in the paid app (2026-10-10; the free days run it). So a key
+        // alone, or an unlocked account alone, pays for nothing, and Free mode
+        // does not stand in (2026-09-27).
         #expect(GettingStartedAIPayment.isReady(hasOwnKey: true, ownKeyAllowed: true, canPayWithoutKey: false))
         #expect(!GettingStartedAIPayment.isReady(hasOwnKey: true, ownKeyAllowed: false, canPayWithoutKey: false))
         #expect(!GettingStartedAIPayment.isReady(hasOwnKey: false, ownKeyAllowed: true, canPayWithoutKey: false))

@@ -1368,6 +1368,8 @@ struct PDFKitInlineView: NSViewRepresentable {
         pdfView.zoomOutAction = zoomOutAction
         pdfView.resetZoomAction = resetZoomAction
         pdfView.cursorForAnnotation = Coordinator.cursorForAnnotation
+        // Before the document, so every page PDFKit lays out asks for one.
+        pdfView.pageOverlayViewProvider = context.coordinator.questionLayer
         pdfView.document = document
         pdfView.autoScales = true
         pdfView.displayMode = .singlePageContinuous
@@ -1690,12 +1692,6 @@ struct PDFKitInlineView: NSViewRepresentable {
         @MainActor
         @objc func annotationHit(_ notification: Notification) {
             guard let annotation = notification.userInfo?["PDFAnnotationHit"] as? PDFAnnotation else { return }
-            if let questionID = ReaderQuestionLayer.questionID(for: annotation) {
-                if let storage = noteViewModel?.storage {
-                    questionLayer.present(questionID, store: questions, storage: storage)
-                }
-                return
-            }
             if let pick = ReaderWalkthroughSpotlight.pickedPanel(annotation) {
                 noteViewModel?.readerPanelPickHandler?(pick.sourceID, pick.panel)
                 return
@@ -1726,7 +1722,6 @@ struct PDFKitInlineView: NSViewRepresentable {
         /// for the document's own annotations, which do nothing here.
         @MainActor
         static func cursorForAnnotation(_ annotation: PDFAnnotation) -> NSCursor? {
-            if ReaderQuestionLayer.questionID(for: annotation) != nil { return .pointingHand }
             if ReaderWalkthroughSpotlight.isOutline(annotation) { return ReaderWalkthroughSpotlight.outlineCursor }
             if ReaderWalkthroughSpotlight.pickedPanel(annotation) != nil { return .pointingHand }
             if ReaderPDFHighlightSupport.highlightID(for: annotation) != nil { return .pointingHand }

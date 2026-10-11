@@ -3,7 +3,8 @@ import SwiftUI
 // MARK: - The inspector's smaller controls (docs/knowledge-map-design.md, "Circling and the inspector")
 //
 // What `KnowledgeMapPane`'s inspector draws for a card's colour, how a card
-// opens, and an arrow's style. Each calls the view model's inspector calls
+// opens, what is written under it, which page it shows, and an arrow's style
+// and stance. Each calls the view model's inspector calls
 // (`StudioViewModel+CanvasInspector.swift`), which the plane's native menu
 // calls too. Quiet by the Canvas's rule: a colour row and pickers, and the
 // ⋯ menu for everything else, never a block of buttons.
@@ -67,6 +68,7 @@ struct KnowledgeMapCardActionItems: View {
     var body: some View {
         let placed = vm.knowledgeMapPlacedRefs(among: refs)
         if !placed.isEmpty {
+            facesAndWords(vm.knowledgeMapCardActions(for: placed))
             Button(vm.knowledgeMapCardsAreFolded(placed) ? "Unfold" : "Fold") { vm.toggleKnowledgeMapFold(placed) }
                 .help("Draw a card as its title line, or open it again")
                 .accessibilityIdentifier("knowledgeMap.selection.fold")
@@ -96,6 +98,122 @@ struct KnowledgeMapCardActionItems: View {
         }
         Button("Copy as Markdown") { vm.copyKnowledgeMapMarkdown(refs) }
             .accessibilityIdentifier("knowledgeMap.selection.copyMarkdown")
+    }
+
+    /// Show Page / Show as Card for papers with a PDF here, and Show as Words /
+    /// Show as Note for Ideas: only where it applies to every card.
+    @ViewBuilder
+    private func facesAndWords(_ actions: KnowledgeMapCardActions) -> some View {
+        switch actions.face {
+        case .showPage(let pages)?:
+            Button("Show Page") { vm.showKnowledgeMapPages(pages) }
+                .help("Draw the paper as a page of its PDF")
+                .accessibilityIdentifier("knowledgeMap.selection.showPage")
+        case .showAsCard(let pages)?:
+            Button("Show as Card") { vm.showKnowledgeMapAsCards(pages) }
+                .help("Draw the paper as its usual card again")
+                .accessibilityIdentifier("knowledgeMap.selection.showAsCard")
+        case nil:
+            EmptyView()
+        }
+        switch actions.words {
+        case .showAsWords(let ideas)?:
+            Button("Show as Words") { vm.setKnowledgeMapWords(ideas, plain: true) }
+                .help("Draw the idea as plain words, with no note behind them")
+                .accessibilityIdentifier("knowledgeMap.selection.showAsWords")
+        case .showAsNote(let ideas)?:
+            Button("Show as Note") { vm.setKnowledgeMapWords(ideas, plain: false) }
+                .help("Draw the idea as a note again")
+                .accessibilityIdentifier("knowledgeMap.selection.showAsNote")
+        case nil:
+            EmptyView()
+        }
+    }
+}
+
+/// The page a page face shows, as the inspector says it: "Page 3 of 86" with
+/// ‹ and › to turn it. The plane's own pill and the menu's Next Page and
+/// Previous Page turn the same page.
+struct KnowledgeMapPageTurner: View {
+    @Environment(StudioViewModel.self) private var vm
+
+    let turn: KnowledgeMapCardActions.PageTurn
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Button {
+                vm.turnKnowledgeMapPage(turn.ref, by: -1)
+            } label: {
+                Image(systemName: "chevron.left")
+                    .zoomedSystemFont(size: 10, weight: .semibold)
+                    .frame(width: 16, height: 16)
+            }
+            .buttonStyle(.hoverWash(in: Circle()))
+            .disabled(!turn.canGoBack)
+            .help("Previous page")
+            .accessibilityLabel("Previous page")
+            .accessibilityIdentifier("knowledgeMap.page.previous")
+            Text(turn.pageCount.map { "Page \(turn.page) of \($0)" } ?? "Page \(turn.page)")
+                .zoomedSystemFont(size: 12)
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+                .textSelection(.disabled)
+                .accessibilityIdentifier("knowledgeMap.page.label")
+            Button {
+                vm.turnKnowledgeMapPage(turn.ref, by: 1)
+            } label: {
+                Image(systemName: "chevron.right")
+                    .zoomedSystemFont(size: 10, weight: .semibold)
+                    .frame(width: 16, height: 16)
+            }
+            .buttonStyle(.hoverWash(in: Circle()))
+            .disabled(!turn.canGoForward)
+            .help("Next page")
+            .accessibilityLabel("Next page")
+            .accessibilityIdentifier("knowledgeMap.page.next")
+        }
+    }
+}
+
+/// The learner's words under a card, for this canvas: why it is here
+/// (`Placement.annotation`). A few lines; written when the field loses
+/// focus, and the card grows to hold them. The card's own source is not
+/// touched. Not offered for an Idea, whose note holds its words.
+struct KnowledgeMapAnnotationField: View {
+    @Environment(StudioViewModel.self) private var vm
+
+    let ref: String
+
+    @State private var text = ""
+    @FocusState private var focused: Bool
+
+    private var stored: String { vm.knowledgeMap.layout.placements[ref]?.annotation ?? "" }
+
+    var body: some View {
+        TextField("Why is it on this canvas?", text: $text, axis: .vertical)
+            .textFieldStyle(.roundedBorder)
+            .lineLimit(2...8)
+            .zoomedSystemFont(size: 12)
+            .focused($focused)
+            .onAppear { text = stored }
+            .onChange(of: focused) { _, isFocused in
+                if !isFocused { commit() }
+            }
+            // The words written elsewhere (the plane's editor, an assistant)
+            // show here, unless they are being typed over.
+            .onChange(of: stored) { _, words in
+                if !focused { text = words }
+            }
+            .onDisappear(perform: commit)
+            .help("Why this card is on this canvas: written under it, for this canvas only")
+            .accessibilityIdentifier("knowledgeMap.selection.annotation")
+    }
+
+    private func commit() {
+        guard text.trimmingCharacters(in: .whitespacesAndNewlines) != stored else { return }
+        vm.setKnowledgeMapAnnotation(ref, text)
+        // What the canvas kept: trimmed, and cut to the room a card has.
+        text = stored
     }
 }
 
@@ -138,7 +256,8 @@ struct KnowledgeMapOpenInMenu: View {
     }
 }
 
-/// A selected arrow's style: its route, its heads, dashed or not, its colour.
+/// A selected arrow's style: its route, its stance, its heads, dashed or not,
+/// its colour.
 /// The label and Delete Arrow stay in the pane's own arrow inspector.
 struct KnowledgeMapEdgeStyleControls: View {
     @Environment(StudioViewModel.self) private var vm
@@ -161,6 +280,23 @@ struct KnowledgeMapEdgeStyleControls: View {
             .help("How the arrow runs between its cards")
             .accessibilityLabel("Route")
             .accessibilityIdentifier("knowledgeMap.edge.route")
+            // For or against the card the arrow points at: drawn green or
+            // red. A mind map's branch takes none.
+            if !edge.isTree {
+                Picker("Stance", selection: Binding(
+                    get: { edge.stance ?? "" },
+                    set: { vm.setKnowledgeMapArrowStance(id, KnowledgeMapEdgeStance(rawValue: $0)) }
+                )) {
+                    ForEach(KnowledgeMapInspectorChoices.stances, id: \.value) { stance in
+                        Text(stance.title).tag(stance.value)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .help("Whether the arrow supports or contradicts the card it points at")
+                .accessibilityLabel("Stance")
+                .accessibilityIdentifier("knowledgeMap.edge.stance")
+            }
             Picker("Heads", selection: Binding(
                 get: { edge.heads ?? "end" },
                 set: { vm.updateKnowledgeMapArrow(id, heads: $0) }

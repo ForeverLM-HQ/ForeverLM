@@ -331,9 +331,7 @@ final class ReviewSessionManager {
                 case "list_spaces": return "Listed spaces"
                 case "update_space": return "Updated spaces"
                 case "save_site": return "Saved site"
-                case "publish_site": return "Published site"
                 case "read_site_file": return "Read site file"
-                case "unpublish_site": return "Unpublished site"
                 case "save_animation": return "Saved animation"
                 case "list_animations": return "Listed animations"
                 case "delete_animation": return "Removed animation"
@@ -1296,6 +1294,11 @@ final class ReviewSessionManager {
     /// The composer lists them and the prompt names them; the text itself is
     /// read back through `read_doc` at the revision recorded here.
     private(set) var contextDocs: [ChatDocAttachment] = []
+    /// The canvas this chat was opened from, or had cards added from, and
+    /// those cards in the order added (`KnowledgeMapChatContext`). In memory,
+    /// as `contextDocs` are: the composer shows a chip for the canvas and one
+    /// for each card, and the prompt names them (`canvasContextInstruction`).
+    private(set) var canvasContext: KnowledgeMapChatContext?
     /// Pictures dropped or pasted into the composer and not yet sent. They
     /// leave with the next message as `foreverlm://image/attached/<id>` lines
     /// in its text, or are forgotten when the chat is reset.
@@ -1866,7 +1869,7 @@ final class ReviewSessionManager {
         }
         guard let planConfig = await resolvedTaskConfigOrShowError(
             .cohortSessionPlan,
-            unavailableMessage: "The model for planning a review isn't available. Check your OpenRouter key in Settings › AI Usage and your plan in Settings › Billing."
+            unavailableMessage: "The model for planning a review isn't available. Check your OpenRouter key in Settings › AI Usage."
         ) else { return }
 
         errorMessage = nil
@@ -3432,6 +3435,40 @@ final class ReviewSessionManager {
         contextDocs.removeAll { $0.id == artifactID }
     }
 
+    // MARK: - The canvas as context
+
+    /// Gives this chat cards of canvas `canvasID`: they follow the cards it
+    /// holds from that canvas, or (`replacing`, or when it held cards of
+    /// another canvas) are all it holds from now on. Returns how many were
+    /// left out because a chat holds at most
+    /// `KnowledgeMapChatContext.cardLimit`.
+    ///
+    /// Only the chips and the prompt hold the cards; the text of a source or a
+    /// Doc among them is brought in through `addContextSources` and
+    /// `addContextDoc`, which the chat pane calls beside this.
+    @discardableResult
+    func addCanvasCards(canvasID: String, name: String, cards: [KnowledgeMapChatCard], replacing: Bool) -> Int {
+        var context = KnowledgeMapChatContext(canvasID: canvasID, name: name, cards: [])
+        if !replacing, let held = canvasContext, held.canvasID == canvasID {
+            context = held
+            context.name = name
+        }
+        let leftOut = context.add(cards)
+        canvasContext = context
+        return leftOut
+    }
+
+    /// Takes a card out of the next turn's prompt. A source or a Doc it
+    /// brought in stays attached until it is removed as any is.
+    func removeCanvasCard(_ ref: String) {
+        canvasContext?.remove(ref)
+    }
+
+    /// Drops the canvas and every card of it from this chat.
+    func removeCanvasContext() {
+        canvasContext = nil
+    }
+
     // MARK: - Attached pictures
 
     /// Holds a dropped or pasted picture for the next message. Staged in the
@@ -3888,6 +3925,7 @@ final class ReviewSessionManager {
         activeSourceIDs = []
         activeArticles = []
         contextDocs = []
+        canvasContext = nil
         discardPendingImages()
     }
 
@@ -3902,6 +3940,7 @@ final class ReviewSessionManager {
         resetHistoryDigest()
         foundSources = []
         contextDocs = []
+        canvasContext = nil
         discardPendingImages()
         sourceManifest = ""
         sourceContext = ""
@@ -3979,7 +4018,7 @@ final class ReviewSessionManager {
         }
         guard let config = await resolvedTaskConfigOrShowError(
             .reviewGrading,
-            unavailableMessage: "The selected Review Grading model isn't available. Check your OpenRouter key in Settings › AI Usage and your plan in Settings › Billing."
+            unavailableMessage: "The selected Review Grading model isn't available. Check your OpenRouter key in Settings › AI Usage."
         ) else { return }
 
         isGenerating = true
@@ -4550,7 +4589,7 @@ final class ReviewSessionManager {
         guard isSignedIn else {
             return signInRequiredMessage
         }
-        return "The selected chat model isn't available. Choose another model, or check your OpenRouter key in Settings › AI Usage and your plan in Settings › Billing."
+        return "The selected chat model isn't available. Choose another model, or check your OpenRouter key in Settings › AI Usage."
     }
 
     nonisolated static func chatConfigFailureMessageForTesting(
@@ -5895,15 +5934,12 @@ final class ReviewSessionManager {
         // here becomes ForeverLM's own published page in one call.
         "adopt_page",
         // "make a site" means a site, not a Doc (product owner, 2026-09-09): HTML
-        // the chat writes is kept in the library and served as written.
-        // Publishing a copy to sites.foreverlm.com is a separate, explicit
-        // step (2026-09-22): hosting costs money per site.
+        // the chat writes is kept in the library and served as written, and
+        // never put on the web (2026-10-10).
         "save_site",
-        "publish_site",
         "read_site_file",
-        "unpublish_site",
         // "show me how it works" on a paper means an animation (product owner,
-        // 2026-09-17): code the chat writes that plays, hosted like a site
+        // 2026-09-17): code the chat writes that plays, kept like a site
         // and linked to the paper. The chat about the paper is where it is
         // asked for, so a study chat carries the maker, the list and the
         // remover.
@@ -6246,7 +6282,7 @@ final class ReviewSessionManager {
         switch toolName {
         case "create_doc", "link_page", "link_google_doc":
             if absent("home_notebook_id"), noLinks("notebook_ids") { filled["home_notebook_id"] = notebookID }
-        case "save_site", "publish_site":
+        case "save_site":
             if absent("site"), absent("home_notebook_id"), noLinks("notebook_ids") { filled["home_notebook_id"] = notebookID }
         case "save_animation":
             if absent("animation"), absent("home_notebook_id"), noLinks("notebook_ids") { filled["home_notebook_id"] = notebookID }
@@ -9953,6 +9989,7 @@ final class ReviewSessionManager {
             nativeToolsActive: nativeToolsActive
         )
         stable += attachedDocsInstruction()
+        stable += canvasContextInstruction()
         stable += synthesisToolInstruction(nativeToolsActive: nativeToolsActive)
         stable += appToolInstruction(nativeToolsActive: nativeToolsActive)
         stable += skillCatalogInstruction()
@@ -10355,8 +10392,8 @@ final class ReviewSessionManager {
             ? """
 
             Sites:
-            - Make a site with save_site. It is kept in the learner's library and opens in the app; nothing goes on the web. Call publish_site only when the learner asks to publish, share or get a link.
-            - To change a site, read only the files you are changing — read_site_file with the site and a path; without a path it lists the site's files — and call save_site with site and just those files. The other files are kept as they are; never read back or re-send a file you are not changing, and never pass replace_all unless the learner wants the site rebuilt from what you pass. A published site's page is updated by the same save.
+            - Make a site with save_site. It is kept in the learner's library and opens in the app; ForeverLM never puts a site on the web. When the learner asks to publish or share one with a link, say so: a public link means making it as a Claude artifact and linking that with link_page.
+            - To change a site, read only the files you are changing — read_site_file with the site and a path; without a path it lists the site's files — and call save_site with site and just those files. The other files are kept as they are; never read back or re-send a file you are not changing, and never pass replace_all unless the learner wants the site rebuilt from what you pass.
             - To bring in a change from a GitHub repository, call save_site again with repository (ForeverLM cannot write to GitHub; the change goes into the repository first).
             """
             : ""
@@ -10373,7 +10410,7 @@ final class ReviewSessionManager {
             - When the learner wants to see how something works — a pathway, a cycle, a mechanism, a flow, with and without an intervention — or asks to animate, walk through, or watch it, make an animation and save it with save_animation. Never answer with a Doc, a Site, a static figure or a description of what an animation would show.
             - Think before you draw. Write down, for yourself, the one sentence the learner should be able to say after watching; what in the source's figure or text makes that hard to see; what is on the stage and what each motion stands for; the conditions the point turns on; the measured values to show. Then draw exactly that, with the sentence as the page's headline and on its last frame, every control changing something visible, nothing decorative, and the stages named in sentences that say what changed and why it matters. An animation that shows a scene with moving parts but never says its point teaches nothing.
             - Draw what the attached sources describe: read them first (get_source_content or retrieve_sources), then write one HTML document with inline SVG (or Canvas) and JavaScript that plays on load, with play/pause, a scrubber, step labels in words, and a toggle for each condition the sources compare (with and without the drug, wild type and mutant). Put every step where the sources put it — inside the mitochondrion, in the cytosol — and label it there. Use readable text sizes and no network resources; the page runs in a sandbox where localStorage and cookies throw.
-            - Pass sources: the attached sources' ids (their source_id in the catalog) the animation is drawn from, so the paper lists it and it opens the paper; pass description: two or three sentences on what it shows and how to read it. Give it a short title. It is kept in the library; publish it (publish_site with its animation_id) only when the learner asks for a link.
+            - Pass sources: the attached sources' ids (their source_id in the catalog) the animation is drawn from, so the paper lists it and it opens the paper; pass description: two or three sentences on what it shows and how to read it. Give it a short title. It is kept in the library and never put on the web.
             - Before making a second animation of the same thing, call list_animations with the source's id; to change one, pass its animation_id as animation and only the files that change. After saving, answer with the title in one line; the result card opens it.
             """
             : ""
@@ -10688,7 +10725,7 @@ final class ReviewSessionManager {
         if hasForeverLMSite {
             accessBlocks.append(canEditForeverLMSites
                 ? """
-                A ForeverLM Site is edited through its files, not through its rendered text copy. When the learner asks to update, revise, correct or fix an attached site_id, use its site_url with read_site_file to read only the HTML, CSS or JavaScript you are changing (without a path it lists the site's files), then call save_site with that same site and just those files; the other files are kept as they are, and a published copy is updated with them. Preserve behavior outside the requested change. The selected passage and page route in the learner turn identify what to find; do not create a replacement Doc or a second Site.
+                A ForeverLM Site is edited through its files, not through its rendered text copy. When the learner asks to update, revise, correct or fix an attached site_id, use its site_url with read_site_file to read only the HTML, CSS or JavaScript you are changing (without a path it lists the site's files), then call save_site with that same site and just those files; the other files are kept as they are. Preserve behavior outside the requested change. The selected passage and page route in the learner turn identify what to find; do not create a replacement Doc or a second Site.
                 """
                 : """
                 This chat cannot read or save the attached ForeverLM Site's source files. Say so plainly rather than pretending to update its rendered text copy.
@@ -10705,6 +10742,21 @@ final class ReviewSessionManager {
 
         \(access)
         """
+    }
+
+    /// The canvas the learner is working on and the cards they added to this
+    /// chat: what each is and says, so a question about "these" is about them.
+    ///
+    /// Sits in the cached head after the attached Docs. It changes only when a
+    /// card is added or its chip removed, which is a new prefix worth paying
+    /// for. The cards' words were taken when they were added: the rest of the
+    /// canvas is read live through `get_knowledge_map`, offered only when the
+    /// chat carries it.
+    private func canvasContextInstruction() -> String {
+        guard let canvasContext else { return "" }
+        let canReadCanvas = appToolExecutor != nil
+            && sessionAppToolDefinitions().contains { $0.name == "get_knowledge_map" }
+        return canvasContext.instruction(canReadCanvas: canReadCanvas)
     }
 
     /// A chat opened on one source is a conversation about that source. Every
@@ -15681,6 +15733,21 @@ extension ReviewSessionManager {
         )
         for doc in docs { manager.addContextDoc(doc) }
         return manager.attachedDocsInstruction()
+    }
+
+    static func canvasContextPromptForTesting(
+        context: KnowledgeMapChatContext?,
+        appTools: [AppToolDefinition] = []
+    ) -> String {
+        let manager = ReviewSessionManager(
+            storage: StorageService(storeRoot: temporaryTestingRoot()),
+            appToolDefinitions: { appTools },
+            appToolExecutor: appTools.isEmpty ? nil : { _, _, _ in AppToolResult(text: "", isError: false) }
+        )
+        if let context {
+            manager.addCanvasCards(canvasID: context.canvasID, name: context.name, cards: context.cards, replacing: true)
+        }
+        return manager.canvasContextInstruction()
     }
 
     /// The provider payload for a run of learner turns with the context each

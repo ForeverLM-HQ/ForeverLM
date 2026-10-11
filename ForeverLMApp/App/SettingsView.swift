@@ -29,7 +29,8 @@ enum SettingsPane: Hashable {
     case aiImages
     /// The model and resolution that film explainer videos.
     case aiVideos
-    /// The ForeverLM plan: which one, paying for it, switching, cancelling.
+    /// Paying for ForeverLM: the Early user deal, and switching or cancelling
+    /// a subscription bought before the lock.
     case aiBilling
     /// What runs AI and what it cost: the own key, Free mode, spending and
     /// limits, and the activity by task.
@@ -94,7 +95,35 @@ struct SettingsView: View {
         _path = State(initialValue: start.path)
     }
 
+    @Environment(ManagedAIAccountModel.self) private var account
+
     var body: some View {
+        // A locked app (the free days over, nothing paid) keeps only Billing
+        // and Sign Out here, as its pay screen does.
+        if account.isAppLocked {
+            lockedBody
+        } else {
+            unlockedBody
+        }
+    }
+
+    private var lockedBody: some View {
+        VStack(spacing: 0) {
+            paneView(for: .aiBilling)
+            Divider()
+            HStack {
+                Spacer()
+                Button("Sign Out") { account.signOut() }
+                    .accessibilityIdentifier("settings.locked.signOut")
+            }
+            .padding(12)
+        }
+        .navigationTitle("Settings")
+        .background(Color(nsColor: .windowBackgroundColor))
+        .frame(minWidth: 760, idealWidth: 860)
+    }
+
+    private var unlockedBody: some View {
         HStack(spacing: 0) {
             SettingsSidebar(
                 scope: scope,
@@ -366,7 +395,7 @@ private enum SettingsSearchCatalog {
                 id: "billing",
                 title: "Billing",
                 subtitle: "Account",
-                keywords: ["plan", "monthly", "yearly", "lifetime", "subscription", "manage subscription", "cancel", "cancel plan", "cancel subscription", "unsubscribe", "trial", "renew", "payment", "card", "stripe", "receipts", "invoices"],
+                keywords: ["plan", "early user deal", "deal", "paid once", "pay once", "buy", "purchase", "free days", "unlock", "monthly", "subscription", "manage subscription", "cancel", "cancel plan", "cancel subscription", "unsubscribe", "renew", "payment", "card", "stripe", "receipts", "invoices"],
                 destination: .aiBilling,
                 icon: "creditcard.fill",
                 tint: .purple
@@ -2683,9 +2712,9 @@ private struct NotionPluginSettingsView: View {
 }
 
 /// Settings › AI Usage above the activity: the learner's own key, Free mode,
-/// and spending with its limits, one card each. The plan is Settings ›
-/// Billing, the one place that says what a plan adds; the key card only
-/// points there when there is none.
+/// and spending with its limits, one card each. Paying for ForeverLM is
+/// Settings › Billing; the key card only points there when the account may
+/// not run the key.
 private struct AIUsageAccountSections: View {
     let onOpenBilling: () -> Void
 
@@ -2729,9 +2758,9 @@ private struct AIUsageAccountSections: View {
     }
 
     /// The product owner (2026-09-25): ForeverLM's AI features are bring your own key.
-    /// The key is the pane's first card: with one stored and a plan,
-    /// OpenRouter bills the learner at cost for everything ForeverLM sends
-    /// through it. OpenRouter is the only router since Ramp was removed on
+    /// The key is the pane's first card: with one stored, during the free
+    /// days or once ForeverLM is paid for, OpenRouter bills the learner at
+    /// cost for everything ForeverLM sends through it. OpenRouter is the only router since Ramp was removed on
     /// 2026-09-23. Every line that names the scope reads it off
     /// `ManagedAI.OwnKeyRouter`.
     private var ownKeySection: some View {
@@ -2741,13 +2770,13 @@ private struct AIUsageAccountSections: View {
         ) {
             billingCard {
                 VStack(alignment: .leading, spacing: 0) {
-                    // The key is what a plan unlocks. Without one the proxy
-                    // refuses it for every model, free ones and Free mode
-                    // included (`plan_required`); the plan is chosen in
-                    // Billing, so this row only goes there.
+                    // The key runs while the account is unlocked: the free
+                    // days, or paid. Otherwise the proxy refuses it for every
+                    // model, free ones and Free mode included (`app_locked`);
+                    // paying is Billing's, so this row only goes there.
                     if !account.ownKeyAllowed {
-                        billingRow(title: "No ForeverLM plan", detail: "Your key runs AI features once you have one") {
-                            Button("Choose a Plan") { onOpenBilling() }
+                        billingRow(title: AppLockWall.title, detail: "Your key runs AI features again once you pay") {
+                            Button("Open Billing") { onOpenBilling() }
                                 .buttonStyle(.bordered)
                                 .accessibilityIdentifier("billing.ownKey.choosePlan")
                         }
@@ -2933,14 +2962,16 @@ private struct AIUsageAccountSections: View {
         isReplacingOwnKey = false
     }
 
-    /// Free mode runs on the key above it and the plan in Billing (product owner,
-    /// 2026-09-26: "it should live under billing", said of the pane that
-    /// held both until the 2026-09-28 split), so it sits under the key.
+    /// Free mode runs on the key above it, while the account may run it
+    /// (product owner, 2026-09-26: "it should live under billing", said of the
+    /// pane that held both until the 2026-09-28 split), so it sits under the
+    /// key.
     private var freeModeSection: some View {
         SettingsSection(title: AIFreeMode.switchTitle) {
             billingCard {
                 FreeModeSettingsView()
-                    // A plan chosen in Billing decides whether the switch can go on.
+                    // Whether the account may run the key decides whether the
+                    // switch can go on.
                     .id(account.ownKeyAllowed)
             }
         }
@@ -3205,7 +3236,7 @@ private struct ReadOnlyPlainTextView: NSViewRepresentable {
     }
 }
 
-/// Settings → Billing: the ForeverLM plan, and nothing else
+/// Settings → Billing: paying for ForeverLM, and nothing else
 /// (`AppPlanSettingsSection`). Until 2026-09-28 this pane also held the key,
 /// Free mode, limits, usage and activity; the product owner asked for the subscription
 /// to stand apart from all the AI usage, which is Settings › AI Usage now.
@@ -3218,7 +3249,7 @@ private struct BillingSettingsDetailView: View {
                 if account.isSignedIn {
                     AppPlanSettingsSection()
                 } else {
-                    ManagedAISignInSection(title: "Plan", message: "Sign in to choose a plan.")
+                    ManagedAISignInSection(title: "Plan", message: "Sign in to see your plan.")
                 }
 
                 // Checkout, the Stripe page and Keep My Plan report here;
@@ -3488,7 +3519,10 @@ private struct AIActivitySettingsSection: View {
                 Text(Self.activityCountSummary(summary))
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
-                modelsLine(summary.models)
+                modelsLine(
+                    summary.models,
+                    change: Self.isCharged(summary) ? summary.task.flatMap(Self.modelSetting) : nil
+                )
             }
 
             Spacer(minLength: 8)
@@ -3525,6 +3559,81 @@ private struct AIActivitySettingsSection: View {
                 .frame(width: 90, alignment: .trailing)
         }
         .padding(.vertical, 3)
+    }
+
+    /// Where the model behind an activity is chosen.
+    private enum ModelSetting {
+        /// Settings › Chat, or Settings › Background on a model or a task.
+        case slot(ModelPickerSlot)
+        /// Settings › Voice › Speech to text, on dictation's or recordings' model.
+        case transcription(ManagedTranscriptionClient.Purpose)
+        /// A pane with one model for the work: Voice's text to speech, Images, Videos.
+        case pane(SettingsPane)
+    }
+
+    /// Whatever ForeverLM is charged for can have its model changed from its
+    /// line (product owner, 2026-10-10: "for things we get charged for; we
+    /// need to be able to change the model"). A free line has no link. A
+    /// line with unpriced calls may have been charged, so it keeps one.
+    private static func isCharged(_ summary: AIUsageTaskActivitySummary) -> Bool {
+        (summary.cost ?? 0) > 0 || summary.unpricedCallCount > 0
+    }
+
+    /// Where an activity's model is set. Nil for work whose model is no
+    /// learner's choice (Apple's on-device embeddings) or that no route
+    /// records; a link there would open a pane that changes nothing.
+    private static func modelSetting(for task: String) -> ModelSetting? {
+        if let aiTask = AITask(rawValue: task) {
+            if KeychainService.canHaveOwnRoute(aiTask) { return .slot(.task(aiTask)) }
+            // The chat, and the work that runs on the chat's model.
+            return aiTask.usesBackgroundModelDefault ? nil : .slot(.chat)
+        }
+        switch task {
+        // Purposes of a chat, run on the chat's model.
+        case "chat_title", "chat_history_compaction", "deep_research_chat", "chat_quiz_grading":
+            return .slot(.chat)
+        case "meeting_transcription", "podcast_transcription", "course_video_transcription":
+            return .transcription(.media)
+        case "composer_dictation", "review_dictation":
+            return .transcription(.dictation)
+        case "read_aloud", "review_speech":
+            return .pane(.aiTextToSpeech)
+        case "notebook_cover", "course_quiz_picture", "course_quiz_icon", "meeting_icon", "doc_image", "chat_image":
+            return .pane(.aiImages)
+        case "explainer_video":
+            return .pane(.aiVideos)
+        default:
+            return nil
+        }
+    }
+
+    private static func modelSettingHelp(_ setting: ModelSetting) -> String {
+        switch setting {
+        case .slot(.task(let task)):
+            return "Settings › Background › Tasks › \(task.displayName)"
+        case .slot:
+            return "Runs on your chat's model: Settings › Chat"
+        case .transcription(let purpose):
+            return "Settings › Voice › Speech to text › \(purpose.settingsLabel)"
+        case .pane(.aiTextToSpeech):
+            return "Settings › Voice › Text to speech"
+        case .pane(.aiVideos):
+            return "Settings › Videos"
+        case .pane:
+            return "Settings › Images"
+        }
+    }
+
+    private func openModelSetting(_ setting: ModelSetting) {
+        switch setting {
+        case .slot(let slot):
+            onOpenSettings(ModelPickerSheetRequest.stage(slot))
+        case .transcription(let purpose):
+            TranscriptionModelRequest.stage(purpose)
+            onOpenSettings(.aiTextToSpeech)
+        case .pane(let pane):
+            onOpenSettings(pane)
+        }
     }
 
     /// Where the learner turns off the background work behind an activity,
@@ -3711,20 +3820,30 @@ private struct AIActivitySettingsSection: View {
 
     /// The model a row ran on, beneath its counts. A row that ran on several
     /// names the two with the most calls and counts the rest; the tooltip
-    /// gives every model's share.
+    /// gives every model's share. A charged row adds a link to where its
+    /// model is set, beside the model it changes.
     @ViewBuilder
-    private func modelsLine(_ models: [AIUsageModelUse]) -> some View {
+    private func modelsLine(_ models: [AIUsageModelUse], change: ModelSetting? = nil) -> some View {
         let named = Self.namedModels(models)
         if !named.isEmpty {
-            Text(Self.modelsText(named))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .help(
-                    named.map { "\($0.name) — \(Self.exactCountText($0.calls)) call\($0.calls == 1 ? "" : "s")" }
-                        .joined(separator: "\n")
-                )
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(Self.modelsText(named))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .help(
+                        named.map { "\($0.name) — \(Self.exactCountText($0.calls)) call\($0.calls == 1 ? "" : "s")" }
+                            .joined(separator: "\n")
+                    )
+                if let change {
+                    Button("Change Model…") { openModelSetting(change) }
+                        .buttonStyle(.link)
+                        .font(.caption)
+                        .fixedSize()
+                        .help(Self.modelSettingHelp(change))
+                }
+            }
         }
     }
 
@@ -4119,7 +4238,7 @@ enum UserPluginSetupPrompt {
         let lead = """
         My \(provider.displayName) meetings have stopped arriving in ForeverLM. Get them syncing again, and make sure they keep syncing.
 
-        They arrived through a plugin before, so start by finding it rather than building a new one: look for its scheduled job (a launchd agent labelled com.foreverlm.plugin.*, or a cron entry), its script (under ~/.foreverlm/plugins, ~/Library/Application Support/ForeverLM/Plugins, or in one of my repos), and its stored tokens and log. If it exists, read the log and find out why it stopped — usually one of its two authorizations expired or was never finished, its schedule stopped loading, or a rotating refresh token was lost to overlapping runs. Reconnect only the half that dropped, keep its existing ForeverLM registration so its sources stay filed together, run it once, confirm the meetings land, and fix whatever let it drop so it does not happen again. If there are several copies, keep the one that works and remove the rest so they cannot fight over tokens.
+        They arrived through a plugin before, so start by finding it rather than building a new one: look for its scheduled job (a launchd agent labelled com.foreverlm.plugin.*, or a cron entry), its script (under ~/.foreverlm/plugins, ~/Library/Application Support/ForeverLM/Plugins, or in one of my repos), and its stored tokens and log. If it exists, read the log and find out why it stopped — usually one of its two authorizations expired or was never finished, its schedule stopped loading, or a rotating refresh token was lost to overlapping runs. Reconnect only the half that dropped, keep its existing ForeverLM registration (or, if ForeverLM no longer knows it, register again under the same client_name) so its sources stay filed together, run it once, confirm the meetings land, and fix whatever let it drop so it does not happen again. If there are several copies, keep the one that works and remove the rest so they cannot fight over tokens.
 
         Only if no plugin is left, build me one that syncs \(meetings) into ForeverLM, then set it up to run on a sensible schedule.
         """
@@ -4148,11 +4267,11 @@ enum UserPluginSetupPrompt {
 
         The plugin must follow ForeverLM's ingest-only contract:
         1. Register itself as an OAuth client: POST \(mcpURL)/oauth/register with JSON including "client_name" (a short human name — it labels every source this plugin adds), optionally "logo_uri" (an https icon URL shown in ForeverLM's plugin list), "redirect_uris" (e.g. ["http://127.0.0.1:<port>/callback"]), and "token_endpoint_auth_method": "none".
-        2. Run the OAuth 2.1 authorization-code flow with PKCE (S256) against \(mcpURL)/oauth/authorize and \(mcpURL)/oauth/token, requesting scope=mcp:ingest. I will approve it once in ForeverLM. Store the refresh token (it rotates on every refresh) and refresh as needed.
+        2. Run the OAuth 2.1 authorization-code flow with PKCE (S256) against \(mcpURL)/oauth/authorize and \(mcpURL)/oauth/token, requesting scope=mcp:ingest. I will approve it once in ForeverLM. Store the refresh token (it rotates on every refresh) and refresh as needed. If the token endpoint answers invalid_client, ForeverLM no longer knows this registration: I removed the plugin's access, or ForeverLM was reinstalled or moved to another Apple account. Stop and tell me how to reconnect it; reconnecting registers again with the same client_name and never reuses the old client_id.
         3. Speak MCP at POST \(mcpURL)/mcp: call initialize first and reuse the Mcp-Session-Id response header on later requests; push ordinary content with add_sources — items of {url, title, source_type, content}, where url is a stable canonical URL (the dedup key — the same item must produce the same URL every run), source_type is usually "article", and content is the full plain text. A meeting (source_type "meeting") also carries occurred_at (when it took place, ISO 8601) and parent_group (the recurring series it belongs to, matched to an existing meeting group by id or title or created); without them a meeting is dated by the push and sits outside every series. At most 50 items and about 1 MB per call; split larger batches. Papers must use import_connector_paper so the mandatory paper models run: pass a public paper url, or call get_connector_inbox, stage a PDF only in that returned directory, and pass its file_path plus a stable public source_url.
         4. Be idempotent: re-runs must not duplicate anything (the server dedups by URL and reports "already existed"); re-push items whose content changed with "update_existing": true, which for a meeting also applies occurred_at and parent_group.
         5. Print add_sources' per-item results and fail loudly on any error line. My credentials for the service being synced stay inside the plugin and are never sent to ForeverLM.
-        6. If the MCP URL doesn't answer, ForeverLM isn't running on my Mac — skip the run quietly and try again next time.
+        6. If the MCP URL doesn't answer, ForeverLM isn't running on my Mac — skip the run quietly and try again next time. One exception: if it answers HTTP 502, 503 or 504 and GET http://127.0.0.1:\(ForeverLMRuntimeIdentity.mcpLoopbackPort)/mcp-url (ForeverLM's own listener on this Mac, up only while it is connected) returns {"url": …} naming a different URL, my personal URL has moved. Save that URL, register there again under the same client_name, approve again, and carry on. A registration and its tokens belong to the URL they were made at, so never send them to the new one.
         """
         if !notes.isEmpty {
             prompt += "\n\n" + notes

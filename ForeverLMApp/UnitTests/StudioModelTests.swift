@@ -927,6 +927,14 @@ struct StudioArticlePropertyTests {
             )
         )
         #expect(article.paperIngestionRecoveryAction(hasUsablePDF: true) == .addBalance)
+        // The cleanup's pause from while the key also needed a plan (until
+        // 2026-10-10), still stored on older rows.
+        article.failPaperIngestionMetadata(
+            StudioArticle.paperContentCleanupFailureMessage(
+                "Source Content Cleanup paused: add your OpenRouter key in Settings → AI Usage and choose a plan in Settings → Billing to finish ingesting this source."
+            )
+        )
+        #expect(article.paperIngestionRecoveryAction(hasUsablePDF: true) == .addBalance)
 
         article.failPaperIngestionMetadata(
             "Paper ingestion failed: no readable PDF or full-text paper content was available."
@@ -2871,6 +2879,12 @@ struct UserPluginSetupPromptTests {
         // or a plugin dates every meeting by its push.
         #expect(generic.contains("occurred_at"))
         #expect(generic.contains("parent_group"))
+        // A moved personal URL is asked of this Mac's ForeverLM, not copied by
+        // hand, and a forgotten registration is never reused.
+        #expect(generic.contains("GET http://127.0.0.1:\(ForeverLMRuntimeIdentity.mcpLoopbackPort)/mcp-url"))
+        #expect(generic.contains("502, 503 or 504"))
+        #expect(generic.contains("invalid_client"))
+        #expect(generic.contains("never reuses the old client_id"))
         #expect(!generic.contains("stopped arriving"))
         #expect(!generic.contains("Notes for"))
     }

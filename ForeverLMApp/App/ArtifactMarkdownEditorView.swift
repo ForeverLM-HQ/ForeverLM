@@ -268,6 +268,10 @@ final class ArtifactEditorWebView: WKWebView {
     /// arrives here anyway, so the shortcut never dies in the web process.
     weak var findState: ReaderFindState?
 
+    /// No Apple Intelligence badge on a selection (`SharedWebKit.allowsWritingToolsAffordance(in:)`).
+    @objc(allowsWritingToolsAffordance)
+    var allowsWritingToolsAffordance: Bool { SharedWebKit.allowsWritingToolsAffordance(in: self) }
+
     /// The in-app drags — a source, a doc, a Notebook — which reach this view
     /// and nothing above it.
     ///
@@ -538,6 +542,40 @@ enum ArtifactPageGeometry {
         }
         let column = min(paneWidth, cap)
         return (paneWidth - column) / 2 + padding
+    }
+}
+
+/// A native row's side inset onto the prose's left edge
+/// (`ArtifactPageGeometry.inset`), animating the pane's width rather than the
+/// inset. While the pane's width animates — Sources sliding in beside the page —
+/// SwiftUI draws the editor's web view at each frame's width and the prose
+/// follows it there, so a padding worked out once from the width the animation
+/// ends at put the title at the end of the move before the text had begun it
+/// (product owner, 2026-10-10: "the title of the doc first shifts to the left, and
+/// then the text"). Interpolating the width and placing the row from it on every
+/// frame keeps the title on the prose's edge the whole way, the page geometry's
+/// kinks included. The width has to reach this modifier in the same transaction
+/// as the pane's resize — from a `GeometryReader`, not `onGeometryChange`, whose
+/// update lands after the animation has been decided and so jumps.
+struct ArtifactPageInset: ViewModifier, Animatable {
+    var paneWidth: CGFloat
+    var pageMaxWidth: CGFloat?
+    var hasMarginColumn: Bool
+
+    var animatableData: CGFloat {
+        get { paneWidth }
+        set { paneWidth = newValue }
+    }
+
+    func body(content: Content) -> some View {
+        content.padding(
+            .horizontal,
+            ArtifactPageGeometry.inset(
+                paneWidth: paneWidth,
+                pageMaxWidth: pageMaxWidth,
+                hasMarginColumn: hasMarginColumn
+            )
+        )
     }
 }
 

@@ -6,9 +6,10 @@ import UserNotifications
 /// at OpenRouter's free models, on the learner's own OpenRouter key. It began
 /// (2026-09-23) as the way to use ForeverLM without a plan, stopped being one
 /// on 2026-09-25, stood in for a plan again on 2026-09-26 only, and since
-/// 2026-09-27 needs one: without a plan the proxy refuses the key for every
-/// model, `:free` ones included. With a plan it guarantees nothing sent is
-/// charged to the learner's OpenRouter account.
+/// 2026-09-27 runs only where the key may: in the paid app (2026-10-10) that
+/// is the free days or a paid account, and a locked one runs nothing, `:free`
+/// models included. Where it runs it guarantees nothing sent is charged to
+/// the learner's OpenRouter account.
 /// Nothing is rerouted behind the learner's back: the choices are ordinary
 /// Settings, shown as the models they are, and any of them can be changed
 /// afterwards.
@@ -182,18 +183,27 @@ enum FreeModelsSetup {
     /// beside its pick.
     static let chatAlternatives = 3
 
+    /// Why the key may not run, for a Free mode that cannot go on: the free
+    /// days are over and nothing is paid (the paid app, 2026-10-10).
+    static let keyHeldBackReason = "Your free days are over. Pay for ForeverLM under Settings → Billing, and your OpenRouter key runs its AI features again, free models included."
+
+    /// The switch's one-line version of `keyHeldBackReason`.
+    static let keyHeldBackShort = "Your free days are over."
+
     enum Failure: LocalizedError {
         case noFreeModel
         case needsOpenRouterKey
-        case needsPlan
+        /// The account is locked, so the key may not run
+        /// (`ManagedAI.ownKeyAllowed`).
+        case appLocked
         var errorDescription: String? {
             switch self {
             case .noFreeModel:
                 "OpenRouter lists no free model that ForeverLM can chat with right now. Try again later."
             case .needsOpenRouterKey:
                 "Free mode runs on your own OpenRouter key. Add one under Settings → AI Usage first."
-            case .needsPlan:
-                "Your OpenRouter key runs ForeverLM's AI features, free models included, once you choose a plan under Settings → Billing."
+            case .appLocked:
+                FreeModelsSetup.keyHeldBackReason
             }
         }
     }
@@ -865,12 +875,13 @@ extension FreeModelsSetup {
 
     /// Turns Free mode on and returns the free models chosen. Needs the
     /// learner's own OpenRouter key, since free models never run on
-    /// ForeverLM's, and a plan, without which the proxy refuses that key.
+    /// ForeverLM's, and an account the proxy lets that key run on
+    /// (`ManagedAI.ownKeyAllowed`: the free days or paid).
     @MainActor
     @discardableResult
     static func enableFreeMode() async throws -> Choice {
         guard ManagedAI.ownKeyRouter == .openRouter else { throw Failure.needsOpenRouterKey }
-        guard ManagedAI.ownKeyAllowed else { throw Failure.needsPlan }
+        guard ManagedAI.ownKeyAllowed else { throw Failure.appLocked }
         // Captured before anything moves; a second call while on keeps the
         // first capture, which holds the learner's own picks.
         let saved = AIFreeMode.isOn ? nil : SavedSelections.capture()
@@ -902,11 +913,12 @@ extension FreeModelsSetup {
 /// The Free mode switch, with what it gives up said plainly: before it goes
 /// on, in a confirmation that lists every trade-off, and for as long as it is
 /// on, under the switch. Lives in Settings › AI Usage, under the OpenRouter
-/// key it can go on only with; the plan it also needs is Settings › Billing.
+/// key it can go on only with; paying, once the free days are over, is
+/// Settings › Billing.
 struct FreeModeSettingsView: View {
     @State private var isOn = AIFreeMode.isOn
     @State private var hasOpenRouterKey = ManagedAI.ownKeyRouter == .openRouter
-    @State private var hasPlan = ManagedAI.ownKeyAllowed
+    @State private var keyAllowed = ManagedAI.ownKeyAllowed
     @State private var confirming = false
     @State private var working = false
     @State private var chosen: FreeModelsSetup.Choice?
@@ -927,7 +939,7 @@ struct FreeModeSettingsView: View {
                     }
                 }
             ))
-            .disabled(working || (!isOn && !(hasOpenRouterKey && hasPlan)))
+            .disabled(working || (!isOn && !(hasOpenRouterKey && keyAllowed)))
             .accessibilityIdentifier("settings.ai.freeMode")
 
             Text(AIFreeMode.summary)
@@ -935,8 +947,8 @@ struct FreeModeSettingsView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if !isOn, !(hasOpenRouterKey && hasPlan) {
-                Text(hasOpenRouterKey ? "Needs a ForeverLM plan." : "Needs your own OpenRouter key and a ForeverLM plan.")
+            if !isOn, !(hasOpenRouterKey && keyAllowed) {
+                Text(hasOpenRouterKey ? FreeModelsSetup.keyHeldBackShort : "Needs your own OpenRouter key.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -997,7 +1009,7 @@ struct FreeModeSettingsView: View {
     private func refresh() {
         isOn = AIFreeMode.isOn
         hasOpenRouterKey = ManagedAI.ownKeyRouter == .openRouter
-        hasPlan = ManagedAI.ownKeyAllowed
+        keyAllowed = ManagedAI.ownKeyAllowed
     }
 
     private func enable() {

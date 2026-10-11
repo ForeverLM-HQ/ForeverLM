@@ -31,15 +31,9 @@ struct CoursesPane: View {
                     .id(courseID)
             } else {
                 // The courses are in the Space (2026-10-09): its sidebar beside
-                // the list, the Space's tabs on the chrome line over it.
+                // the list.
                 SpaceFrame(hub: .courses) {
                     CoursesHomeView()
-                } header: {
-                    ViewThatFits(in: .horizontal) {
-                        SpaceTabBar(selected: .courses)
-                        SpaceTabBar(selected: .courses, compact: true)
-                    }
-                    .padding(.horizontal, 24)
                 }
             }
         }
@@ -103,9 +97,7 @@ struct CoursesHomeView: View {
     var body: some View {
         ScrollView {
             list
-                .padding(StudioDesign.Spacing.xLarge)
-                .frame(maxWidth: 1100, alignment: .leading)
-                .frame(maxWidth: .infinity, alignment: .center)
+                .spacePlaceColumn()
         }
         .accessibilityIdentifier("studio.courses.home")
     }
@@ -113,17 +105,18 @@ struct CoursesHomeView: View {
     private var list: some View {
         let words = query.trimmingCharacters(in: .whitespacesAndNewlines)
         let courses = vm.courseGroupNames(matching: words)
-        return VStack(alignment: .leading, spacing: StudioDesign.Spacing.xLarge) {
+        return VStack(alignment: .leading, spacing: 18) {
             header
-            if vm.shownCourseGroupNames.isEmpty {
-                Text("No courses yet.")
-                    .zoomedSystemFont(size: 15, weight: .medium)
-                    .padding(.vertical, StudioDesign.Spacing.large)
-                    .accessibilityIdentifier("studio.courses.empty")
-            } else if courses.isEmpty {
-                Text(words.isEmpty ? "No course here." : "No course matches “\(words)”.")
-                    .zoomedSystemFont(size: 13)
-                    .foregroundStyle(.secondary)
+            if vm.shownCourseGroupNames.isEmpty || courses.isEmpty {
+                SpaceEmptyLine(
+                    systemImage: words.isEmpty ? "graduationcap" : "magnifyingglass",
+                    text: !words.isEmpty ? "No results for “\(words)”"
+                        : vm.shownCourseGroupNames.isEmpty ? "No courses yet" : "No courses here"
+                )
+                .frame(maxWidth: .infinity)
+                .padding(.top, SpacePlaceMetrics.emptyTopPadding - 18)
+                .padding(.bottom, 32)
+                .accessibilityIdentifier("studio.courses.empty")
             } else {
                 LazyVGrid(
                     columns: [GridItem(.adaptive(minimum: 230, maximum: 340), spacing: StudioDesign.Spacing.large, alignment: .top)],
@@ -139,20 +132,17 @@ struct CoursesHomeView: View {
         }
     }
 
+    /// The Space's head (`SpacePlaceHeader`), as every list of the learner's
+    /// things has: the name, the search, and the one New Course pill.
     private var header: some View {
-        HStack(alignment: .firstTextBaseline, spacing: StudioDesign.Spacing.medium) {
-            Spacer(minLength: StudioDesign.Spacing.large)
-            if vm.shownCourseGroupNames.count > 6 {
-                TextField("Search courses", text: $ownQuery)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(maxWidth: 220)
-                    .accessibilityIdentifier("studio.courses.search")
-            }
+        SpacePlaceHeader(searchText: $ownQuery, searchIdentifier: "studio.courses.search") {
+            SpacePlaceTitle(title: SpaceHub.courses.title)
+        } actions: {
             // One button for the two ways a course begins (2026-10-06,
             // the product owner: "cleaner and fewer buttons"): a chat that plans it,
             // which was the bordered Generate beside this, or a YouTube
             // playlist, which this button opened on its own.
-            Menu {
+            SpaceDarkPillMenu(title: "New Course") {
                 Button {
                     // A chat that plans the course with the learner before
                     // anything is written (CoursePlanningChat).
@@ -168,12 +158,7 @@ struct CoursesHomeView: View {
                     Label("From YouTube Playlist\u{2026}", systemImage: "play.rectangle")
                 }
                 .accessibilityIdentifier("studio.courses.newFromPlaylist")
-            } label: {
-                Label("New Course", systemImage: "plus")
             }
-            .menuStyle(.button)
-            .buttonStyle(.borderedProminent)
-            .fixedSize()
             .accessibilityIdentifier("studio.courses.new")
         }
     }

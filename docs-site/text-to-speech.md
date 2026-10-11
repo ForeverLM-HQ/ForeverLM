@@ -36,8 +36,8 @@ cannot be reached it says why and offers **Try Again**, showing the last list
 it read.
 
 Every model, Grok and Gemini included, is requested from OpenRouter. Cloud
-voices run on your own OpenRouter key, which needs a ForeverLM plan; OpenRouter
-bills them at its cost. The one exception is Orpheus 3B, which OpenRouter still
+voices run on your own OpenRouter key, and OpenRouter bills them at its cost
+with nothing added. The one exception is Orpheus 3B, which OpenRouter still
 lists but ForeverLM leaves out: it resets its intonation every ~180 characters,
 so it cannot read anything long.
 

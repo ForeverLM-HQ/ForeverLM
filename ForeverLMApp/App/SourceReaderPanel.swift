@@ -473,6 +473,18 @@ struct SourceReaderPanel: View {
             findState.show()
         }
         findState.search()
+        guard !showFindBar else { return }
+        // With no bar open there is no close to take the match back, and the
+        // word would stay boxed in yellow for good. It goes by itself, like a
+        // citation's flash, unless the learner has opened the bar or searched
+        // again since.
+        let state = findState
+        let revision = state.searchRevision
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(ReaderPassageFlash.holdDuration))
+            guard !state.isVisible, state.searchRevision == revision else { return }
+            state.takeBackMatch()
+        }
     }
 
     // MARK: - Toolbar

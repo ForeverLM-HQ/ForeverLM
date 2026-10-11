@@ -19,17 +19,20 @@ struct SpaceTests {
         #expect(SpaceDestination(key: "team:") == .all)
     }
 
-    @Test("The sidebar lists ChatGPT's places in its order, Canvases after Sites, Ideas beside the pictures")
+    @Test("The sidebar lists ChatGPT's places in its order, Chats after Notebooks, Canvases after Sites, and no Ideas")
     func placesAreChatGPTsOrder() {
-        #expect(SpaceDestination.places == [.all, .notebooks, .pages, .sites, .canvases, .images, .ideas, .drive])
-        #expect(SpaceDestination.places(listsCanvases: false) == [.all, .notebooks, .pages, .sites, .images, .ideas, .drive])
-        #expect(SpaceDestination.sidebarPlaces(listsCanvases: true) == [.notebooks, .pages, .sites, .canvases, .images, .ideas, .drive],
+        #expect(SpaceDestination.places == [.all, .notebooks, .chats, .pages, .sites, .canvases, .images, .drive])
+        #expect(SpaceDestination.places(listsCanvases: false) == [.all, .notebooks, .chats, .pages, .sites, .images, .drive])
+        #expect(SpaceDestination.sidebarPlaces(listsCanvases: true) == [.notebooks, .chats, .pages, .sites, .canvases, .images, .drive],
                 "All is the landing list, not a sidebar row")
-        #expect(SpaceDestination.sidebarPlaces(listsCanvases: false) == [.notebooks, .pages, .sites, .images, .ideas, .drive])
+        #expect(SpaceDestination.sidebarPlaces(listsCanvases: false) == [.notebooks, .chats, .pages, .sites, .images, .drive])
+        #expect(SpaceDestination.chats.openableKind == nil, "Chats is a list in the Space, not a pane of its own")
+        // Ideas left the sidebar on 2026-10-10 for the chat: a window that
+        // remembered the place opens on All.
+        #expect(SpaceDestination(key: "ideas") == .all)
         #expect(SpaceDestination.canvases.openableKind == nil, "a canvas opens one at a time, not as a pane of every canvas")
         #expect(SpaceDestination.pages.openableKind == .docs)
         #expect(SpaceDestination.sites.openableKind == .sites)
-        #expect(SpaceDestination.ideas.openableKind == .ideas)
         #expect(SpaceDestination.all.openableKind == nil)
         #expect(SpaceDestination.trash.openableKind == nil)
     }
@@ -190,6 +193,32 @@ struct SpaceNotebooksTests {
         #expect(ordered.map(\.id) == ["zeta", "alpha", notebooks[0].id, notebooks[1].id])
         let everyOneInTrash = ordered.allSatisfy { $0.isInTrash }
         #expect(everyOneInTrash)
+    }
+
+    @Test("Chats lists a notebook's chats beside the loose and the hidden ones, never a memory review, whatever the rail's filter")
+    func chatsPlaceListsEveryChat() {
+        let vm = makeViewModel()
+        let date = Date(timeIntervalSince1970: 1_790_000_000)
+        vm.learningGoals = [notebook("bio", teamID: vm.activeTeamID)]
+        vm.reviewSessionLinks = [
+            ReviewSessionRecord(id: "in-bio", title: "About cells", createdAt: date, status: "active", sourceIDs: ["s1"], goalID: "bio"),
+            ReviewSessionRecord(id: "loose", title: "", createdAt: date.addingTimeInterval(60), status: "active", sourceIDs: []),
+            ReviewSessionRecord(id: "tucked", title: "Put away", createdAt: date.addingTimeInterval(120), status: "active", sourceIDs: [], hiddenAt: date),
+            ReviewSessionRecord(id: MemoryReviewSession.sessionID(for: date), title: "Memory", createdAt: date, status: "active", sourceIDs: []),
+        ]
+        // The rail's chats can be narrowed to a source; the Space's Chats never is.
+        vm.reviewSessionFilter = .source("s1")
+        let items = SpaceCatalog.chatItems(vm: vm)
+        #expect(items.map(\.id) == ["tucked", "loose", "in-bio"], "newest first; a day's memory review is Memory's")
+        let byID = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
+        #expect(byID["in-bio"]?.kind == .chat)
+        #expect(byID["in-bio"]?.location == "bio", "the Notebook column names the chat's notebook")
+        #expect(byID["loose"]?.location == nil, "a chat in no notebook reads —")
+        #expect(byID["loose"]?.title == "Untitled chat")
+        #expect(byID["tucked"]?.isHidden == true, "so only the Hidden scope lists it")
+        #expect(byID["in-bio"]?.otherWindowDestination == .chat("in-bio"))
+        #expect(byID["in-bio"].map { vm.notebooksHolding($0.filing) } == ["bio"])
+        #expect(byID["loose"].map { vm.notebooksHolding($0.filing).isEmpty } == true, "Not in a Notebook finds it")
     }
 
     @Test("A page in the Trash is a Trash item and a live page is not")

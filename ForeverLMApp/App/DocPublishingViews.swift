@@ -243,6 +243,10 @@ struct PublishDocSheet: View {
 final class DocPageWebView: WKWebView {
     weak var findState: ReaderFindState?
 
+    /// No Apple Intelligence badge on a selection (`SharedWebKit.allowsWritingToolsAffordance(in:)`).
+    @objc(allowsWritingToolsAffordance)
+    var allowsWritingToolsAffordance: Bool { SharedWebKit.allowsWritingToolsAffordance(in: self) }
+
     override func keyDown(with event: NSEvent) {
         if event.isCommandFindShortcut, let findState {
             findState.show()

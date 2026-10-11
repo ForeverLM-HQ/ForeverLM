@@ -307,8 +307,8 @@ struct ChatDocAttachment: Identifiable, Equatable, Sendable {
     let outline: [String]
     /// The canonical page address when this attachment is a linked page. A
     /// ForeverLM Site needs this identity in Chat: `read_doc` is only its
-    /// rendered text copy, while `read_site_file` and `publish_site` operate on
-    /// the live site's files at this address.
+    /// rendered text copy, while `read_site_file` and `save_site` operate on
+    /// the site's files at this address.
     let linkedURL: String?
 
     init(id: String, title: String, revision: String, outline: [String], linkedURL: String? = nil) {

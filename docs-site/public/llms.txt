@@ -72,6 +72,11 @@
 - [ForeverLM vs MarginNote](https://docs.foreverlm.com/compare/marginnote)
 - [ForeverLM vs Recall](https://docs.foreverlm.com/compare/recall)
 - [ForeverLM vs Snipd](https://docs.foreverlm.com/compare/snipd)
+- [ForeverLM vs Paper (paper.ac)](https://docs.foreverlm.com/compare/paper-ac)
+- [ForeverLM vs Memo](https://docs.foreverlm.com/compare/memo-cards)
+- [ForeverLM vs Sapience](https://docs.foreverlm.com/compare/sapience)
+- [ForeverLM vs Gistr](https://docs.foreverlm.com/compare/gistr)
+- [ForeverLM vs AnythingLLM](https://docs.foreverlm.com/compare/anythingllm)
 
 ## Updates
 

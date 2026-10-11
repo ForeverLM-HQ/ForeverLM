@@ -9,20 +9,17 @@ import Foundation
 // calls the model's or the view model's own action, so the menu and the
 // inspector share their code.
 //
-//   plane:  New Idea Here, New Region Here, Paste, Add Source…, Fit All
-//   cards:  Open, Open Beside, Edit (an Idea), Ask ▸, Colour ▸, Fold, Fit to
-//           Content, Tidy Up ▸, Align ▸, Copy as Markdown, Copy Link, Move to
-//           Canvas ▸, Take Off Canvas, Delete (an Idea)
+//   plane:  Add Here…, New Idea Here, New Region Here, Paste, Fit All
+//   cards:  Open, Open Beside, Edit (an Idea), Ask in Chat, Add to Chat, Ask ▸,
+//           Show Page / Show as Card, Next Page, Previous Page, Annotate… /
+//           Edit Annotation…, Show as Words / Show as Note, Mark Answered /
+//           Mark Open (each only where it applies to every card selected, as
+//           `KnowledgeMapCardActions` says), Colour ▸, Fold, Fit to Content,
+//           Tidy Up ▸, Align ▸, Copy as Markdown, Copy Link, Move to Canvas ▸,
+//           Take Off Canvas, Delete (an Idea)
 //   region: Rename, Colour ▸, Fold Up, Fit to Content, Lock, Layout ▸, Turn
 //           into Cards and Arrows, Ask in Chat, Delete Region
-//   arrow:  Route ▸, Heads ▸, Dashed, Colour ▸, Edit Label, Delete Arrow
-
-extension Notification.Name {
-    /// Add Source… on the plane: the pane brings its tray (Add to the Canvas,
-    /// with its search over the library) back and focuses it. The object is the
-    /// canvas's id.
-    static let knowledgeMapShowTray = Notification.Name("knowledgeMapShowTray")
-}
+//   arrow:  Route ▸, Stance ▸, Heads ▸, Dashed, Colour ▸, Edit Label, Delete Arrow
 
 /// A menu item that runs a closure.
 private final class ClosureMenuItem: NSMenuItem {
@@ -47,6 +44,8 @@ struct KnowledgeMapCanvasMenu {
     let model: KnowledgeMapModel
     let vm: StudioViewModel
     let windowState: StudioWindowState
+    /// Where the click was, in the plane's points from its top left.
+    let view: CGPoint
     /// Where the click was, in world units.
     let world: (Double, Double)
 
@@ -71,6 +70,11 @@ struct KnowledgeMapCanvasMenu {
 
     private func planeMenu() -> NSMenu {
         let menu = Self.newMenu()
+        // The add box at the click, so a card is set down, or an Idea written,
+        // exactly where the learner pointed.
+        menu.addItem(item("Add Here…") {
+            model.addBox = KnowledgeMapAddBoxRequest(view: view, worldX: world.0, worldY: world.1, windowID: windowState.id)
+        })
         menu.addItem(item("New Idea Here") {
             canvas.call("newIdea", String(world.0), String(world.1))
         })
@@ -79,9 +83,6 @@ struct KnowledgeMapCanvasMenu {
         let pasteable = NSPasteboard.general.pasteboardItems?.isEmpty == false
         menu.addItem(item("Paste", enabled: pasteable) {
             (canvas.webView as? KnowledgeMapWebView)?.paste(nil)
-        })
-        menu.addItem(item("Add Source…") {
-            NotificationCenter.default.post(name: .knowledgeMapShowTray, object: model.mapID)
         })
         menu.addItem(.separator())
         menu.addItem(item("Fit All") { model.send(.fit) })
@@ -122,11 +123,18 @@ struct KnowledgeMapCanvasMenu {
         }
 
         menu.addItem(item("Ask in Chat") { vm.requestChatAboutKnowledgeMapSelection(refs) })
+        menu.addItem(item("Add to Chat") { vm.addKnowledgeMapCardsToChat(refs, in: windowState) })
         menu.addItem(submenu("Ask", CanvasAskTool.allCases.map { tool in
             // Connect needs two placed cards, as the inspector's does.
             item(tool.title, enabled: tool == .connect ? placed.count >= 2 : true) { vm.canvasAsk(tool, refs: refs) }
         }))
         menu.addItem(.separator())
+
+        // How the cards are drawn and what is written under them: each item is
+        // here only when it applies to every card selected.
+        let faceItems = cardFaceItems(vm.knowledgeMapCardActions(for: refs))
+        for entry in faceItems { menu.addItem(entry) }
+        if !faceItems.isEmpty { menu.addItem(.separator()) }
 
         menu.addItem(submenu("Colour", colourItems(current: Set(placements.map(\.color)), enabled: !placed.isEmpty) { hex in
             model.setCardColor(placed, hex)
@@ -172,6 +180,36 @@ struct KnowledgeMapCanvasMenu {
             })
         }
         return menu
+    }
+
+    /// Show Page / Show as Card, Next Page and Previous Page, Annotate… / Edit
+    /// Annotation…, Show as Words / Show as Note and Mark Answered / Mark Open,
+    /// for what `actions` says the selection takes.
+    private func cardFaceItems(_ actions: KnowledgeMapCardActions) -> [NSMenuItem] {
+        var items: [NSMenuItem] = []
+        switch actions.face {
+        case .showPage(let refs)?: items.append(item("Show Page") { vm.showKnowledgeMapPages(refs) })
+        case .showAsCard(let refs)?: items.append(item("Show as Card") { vm.showKnowledgeMapAsCards(refs) })
+        case nil: break
+        }
+        if let turn = actions.pageTurn {
+            items.append(item("Next Page", enabled: turn.canGoForward) { vm.turnKnowledgeMapPage(turn.ref, by: 1) })
+            items.append(item("Previous Page", enabled: turn.canGoBack) { vm.turnKnowledgeMapPage(turn.ref, by: -1) })
+        }
+        if let annotation = actions.annotation {
+            items.append(item(annotation.isEdit ? "Edit Annotation…" : "Annotate…") { canvas.editAnnotation(annotation.ref) })
+        }
+        switch actions.words {
+        case .showAsWords(let refs)?: items.append(item("Show as Words") { vm.setKnowledgeMapWords(refs, plain: true) })
+        case .showAsNote(let refs)?: items.append(item("Show as Note") { vm.setKnowledgeMapWords(refs, plain: false) })
+        case nil: break
+        }
+        switch actions.answered {
+        case .markAnswered(let refs)?: items.append(item("Mark Answered") { vm.setKnowledgeMapAnswered(refs, answered: true) })
+        case .markOpen(let refs)?: items.append(item("Mark Open") { vm.setKnowledgeMapAnswered(refs, answered: false) })
+        case nil: break
+        }
+        return items
     }
 
     /// The address a card has outside the Canvas: a source, a Doc, an Idea or a chat.
@@ -236,6 +274,18 @@ struct KnowledgeMapCanvasMenu {
                 item("Curve", checked: route == "curve") { model.updateEdgeStyle(id, route: "curve") },
                 item("Straight", checked: route == "straight") { model.updateEdgeStyle(id, route: "straight") },
                 item("Elbow", checked: route == "elbow") { model.updateEdgeStyle(id, route: "elbow") },
+            ]))
+            // For or against the card it points at: drawn green or red.
+            let stance = edge.stance
+            menu.addItem(submenu("Stance", [
+                item("Supports", checked: stance == KnowledgeMapEdgeStance.supports.rawValue) {
+                    vm.setKnowledgeMapArrowStance(id, .supports)
+                },
+                item("Contradicts", checked: stance == KnowledgeMapEdgeStance.contradicts.rawValue) {
+                    vm.setKnowledgeMapArrowStance(id, .contradicts)
+                },
+                .separator(),
+                item("None", checked: stance == nil) { vm.setKnowledgeMapArrowStance(id, nil) },
             ]))
             let heads = edge.heads ?? "end"
             menu.addItem(submenu("Heads", [

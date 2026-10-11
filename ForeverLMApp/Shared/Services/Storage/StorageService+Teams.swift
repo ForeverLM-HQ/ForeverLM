@@ -128,65 +128,6 @@ extension StorageService {
         return try store.loadTeamMembers(teamID: teamID)
     }
 
-    /// After a share into a team: every ForeverLM site this account published
-    /// that the team now holds opens to the team's roster, so the copy is a
-    /// page members can read rather than a link that turns them away. Best
-    /// effort — the copy is already made, and the roster refresh repeats the
-    /// same alignment — so a failure is logged, not thrown.
-    func openPublishedSitesToTeam(teamID: String) async {
-        do {
-            try await refreshPublishedSiteAccess(teamID: teamID)
-        } catch {
-            Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "Teams")
-                .warning("Opening published sites to team \(teamID, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
-        }
-    }
-
-    /// Keep each Site this account published into the team aligned with the
-    /// team's roster. Sites published by another member are present locally
-    /// too, but do not appear in this account's publishing projection and are
-    /// deliberately skipped.
-    private func refreshPublishedSiteAccess(teamID: String) async throws {
-        let store = try notebookFilesKnowledgeStore()
-        let all = try store.loadArtifacts()
-        // A team row still pointing at a hosted address names its site by
-        // slug. A site kept in the library is published under the id of the
-        // learner's own record, and the team holds a copy keyed by it.
-        var candidates = Set(all.compactMap { artifact -> String? in
-            guard artifact.teamID == teamID, let rawURL = artifact.linkedURL,
-                  let url = URL(string: rawURL) else { return nil }
-            return LinkedPage.foreverlmSiteSlug(from: url)
-        })
-        let teamRowIDs = Set(all.filter { $0.teamID == teamID }.map(\.id))
-        for original in all where original.teamID == nil && LinkedPage.localSiteID(fromURLString: original.linkedURL) != nil {
-            if teamRowIDs.contains(TeamContentIdentity.artifactCopyID(teamID: teamID, original: original)) {
-                candidates.insert(original.id)
-            }
-        }
-        guard !candidates.isEmpty else { return }
-        let owned = try await SitePublishing.statuses()
-        let statusesBySlug = Dictionary(
-            owned.values.flatMap { [($0.slug, $0), ($0.siteID, $0)] },
-            uniquingKeysWith: { first, _ in first }
-        )
-        let slugs = candidates.intersection(statusesBySlug.keys)
-        try await withThrowingTaskGroup(of: Void.self) { group in
-            for slug in slugs {
-                let visibility = statusesBySlug[slug]?.access?.visibility ?? .privateSite
-                let access = try sitePublishingAccess(
-                    existingTeamID: teamID,
-                    homeNotebookID: nil,
-                    linkedNotebookIDs: [],
-                    visibility: visibility
-                )
-                group.addTask {
-                    _ = try await SitePublishing.updateAccess(site: slug, access: access)
-                }
-            }
-            try await group.waitForAll()
-        }
-    }
-
     /// Leave a team someone else owns (`leaveTeamAsSpace`): leaving the space
     /// is how a participant removes themselves, and the team's copies then
     /// leave this Mac.
@@ -373,9 +314,7 @@ extension StorageService {
     /// cites that only this library holds (`citedSourcesToCarry`). Each source
     /// is best effort: one that cannot be copied is logged and reported in
     /// the result, and the artifact still goes. Returns the team copy's id
-    /// and what travelled. A ForeverLM site this account published is opened
-    /// to the team's roster by the caller through `openPublishedSitesToTeam`,
-    /// which needs the network this call does not.
+    /// and what travelled.
     @discardableResult
     func shareArtifact(
         _ artifactID: String,
@@ -607,7 +546,6 @@ extension StorageService {
             return try notebookShare(team: team, createdTeam: false, teamNotebookID: teamNotebookID, store: store)
         case let .team(team, nil):
             let copyID = try shareNotebook(notebookID, withTeam: team.id)
-            await openPublishedSitesToTeam(teamID: team.id)
             return try notebookShare(team: team, createdTeam: false, teamNotebookID: copyID, store: store)
         case let .newTeam(name):
             let team = try await createTeam(name: name)
@@ -618,7 +556,6 @@ extension StorageService {
                 try? await deleteTeam(team.id)
                 throw error
             }
-            await openPublishedSitesToTeam(teamID: team.id)
             return try notebookShare(team: team, createdTeam: true, teamNotebookID: copyID, store: store)
         }
     }

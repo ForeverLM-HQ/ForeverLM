@@ -86,8 +86,9 @@ extension KnowledgeMapOutsideDrop {
 
 extension StudioViewModel {
     /// The cards a drop or a paste on a Canvas's web view sets down: the
-    /// app's own (sources, Docs, a notebook with its frame, clips saved as they
-    /// land) and what came from outside (`knowledgeMapOutsideRefs`: only what
+    /// cards a Library or add-box row carried (the ones this canvas knows),
+    /// the app's own (sources, Docs, a notebook with its frame, clips saved as
+    /// they land) and what came from outside (`knowledgeMapOutsideRefs`: only what
     /// was imported). Nil when there is nothing to set down, after a toast
     /// saying why, or when the canvas the drop was made on is no longer the
     /// open one by the time an import finished: the cards are then written
@@ -96,6 +97,16 @@ extension StudioViewModel {
         for drop: KnowledgeMapWebView.Drop,
         on map: KnowledgeMapModel
     ) async -> (refs: [String], regionName: String?, notebookID: String?)? {
+        // A Library or add-box row names its cards: set down as they are, with
+        // no frame, and nothing else the drag carried.
+        if !drop.cardRefs.isEmpty {
+            let known = drop.cardRefs.filter { map.nodesByRef[$0] != nil }
+            guard !known.isEmpty else {
+                showToast("Nothing dropped is on the canvas yet")
+                return nil
+            }
+            return (known, nil, nil)
+        }
         // A clip is saved as it lands, so the page knows its card.
         let clipRefs = drop.clips.isEmpty ? [] : await knowledgeMapClipRefs(drop.clips)
         let placed = knowledgeMapDrop(sourceIDs: drop.sourceIDs, docIDs: drop.docIDs, notebookIDs: drop.notebookIDs)

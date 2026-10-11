@@ -2,10 +2,11 @@ import Foundation
 
 // MARK: - Ask the Canvas (WP-B1, docs/sensemaking-design.md)
 //
-// The inspector's Bridge, Connect and Gaps, and `ask_canvas` over MCP. One Ask
-// at a time: a new one stops the one running. Its answer replaces the
-// proposals showing; nothing is written until the learner keeps a proposal
-// (`KnowledgeMapModel+Proposals.swift`).
+// The inspector's Ask (Bridge, Connect, Gaps, Summarize, Break Down, a Mind Map
+// and a Question Map), the chat's Make a Mind Map, and `ask_canvas` over MCP
+// (Bridge, Connect and Gaps). One Ask at a time: a new one stops the one
+// running. Its answer replaces the proposals showing; nothing is written
+// until the learner keeps a proposal (`KnowledgeMapModel+Proposals.swift`).
 
 extension StudioViewModel {
     /// Why an Ask was not started.
@@ -28,8 +29,8 @@ extension StudioViewModel {
         }
     }
 
-    /// The inspector's Bridge, Connect or Gaps: the answer arrives as
-    /// proposals on the plane, a refusal or failure in the toast.
+    /// The inspector's Ask: the answer arrives as proposals on the plane, a
+    /// refusal or failure in the toast.
     func startCanvasAsk(_ tool: CanvasAskTool, refs: [String]) {
         do {
             try beginCanvasAsk(tool, refs: refs)
@@ -127,7 +128,9 @@ extension StudioViewModel {
 
     /// The asked cards as the Canvas holds them, in one cheap pass on the main
     /// actor: Ideas first, then the cards on the plane, then the rest, at most
-    /// `CanvasAskService.maximumCards`.
+    /// `CanvasAskService.maximumCards`. A Mind Map or Question Map takes any
+    /// 1 to 24 of them; when the one card is an Idea on the canvas the tree
+    /// hangs from it (`CanvasAskService.Context.rootCard`).
     func canvasAskSnapshot(_ tool: CanvasAskTool, refs: [String]) throws -> CanvasAskService.Snapshot {
         let map = knowledgeMap
         var seen: Set<String> = []

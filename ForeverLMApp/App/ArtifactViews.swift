@@ -360,8 +360,6 @@ struct ArtifactCanvas: View {
                 await vm.loadArtifacts()
                 if section == .docs {
                     await vm.refreshPublishedDocStatuses()
-                } else {
-                    await vm.refreshPublishedSiteStatuses()
                 }
                 // A reveal asked for before this canvas existed — a Docs row
                 // dropped at a workspace edge opens Docs beside and names the
@@ -769,8 +767,8 @@ struct ArtifactCanvas: View {
     /// The sidebar's search: every place at once, with the field focused.
     private func searchSpace() {
         let place = spaceDestination
-        if !showsSpaceList || place == .images || place == .ideas || place == .trash {
-            showSpacePlace(place == .images || place == .ideas || place == .trash ? .all : place)
+        if !showsSpaceList || place == .images || place == .trash {
+            showSpacePlace(place == .images || place == .trash ? .all : place)
         }
         spaceSearchFocusRequest += 1
     }
@@ -1024,9 +1022,8 @@ struct ArtifactCanvas: View {
             }
             .help("Pull the page’s text again so chat and review read the latest version")
             Divider()
-            if LinkedPage.localSiteID(fromURLString: artifact.linkedURL) != nil {
-                sitePublishingActions(for: artifact)
-            } else {
+            // A site kept in the library has no web address to open or copy.
+            if LinkedPage.localSiteID(fromURLString: artifact.linkedURL) == nil {
                 Button {
                     if let url { NSWorkspace.shared.open(url) }
                 } label: {
@@ -2140,15 +2137,16 @@ struct ArtifactCanvas: View {
             Task { await vm.assign(artifactID: artifact.id, to: member) }
         }
         Divider()
-        if LinkedPage.localSiteID(fromURLString: artifact.linkedURL) != nil {
-            sitePublishingActions(for: artifact)
-        } else if let linkedURL = artifact.linkedURL, let url = URL(string: linkedURL) {
-            Button("Open in Browser", systemImage: "safari") {
-                NSWorkspace.shared.open(url)
-            }
-        } else if !artifact.isMnemonicReading {
-            Button("Convert to Google Doc…", systemImage: LinkedGoogleDoc.symbolName) {
-                artifactToConvert = artifact
+        // A site kept in the library has no web address to open.
+        if LinkedPage.localSiteID(fromURLString: artifact.linkedURL) == nil {
+            if let linkedURL = artifact.linkedURL, let url = URL(string: linkedURL) {
+                Button("Open in Browser", systemImage: "safari") {
+                    NSWorkspace.shared.open(url)
+                }
+            } else if !artifact.isMnemonicReading {
+                Button("Convert to Google Doc…", systemImage: LinkedGoogleDoc.symbolName) {
+                    artifactToConvert = artifact
+                }
             }
         }
         Button("Add to Chat", systemImage: "message") {
@@ -2210,7 +2208,7 @@ struct ArtifactCanvas: View {
         switch homeFilter {
         case .all: filtered = visibleArtifacts
         case .published: filtered = visibleArtifacts.filter { publishedStatuses[$0.id] != nil }
-        // ForeverLM's own: a site published from here (`publish_site`).
+        // ForeverLM's own: a site made here (`save_site`).
         case .foreverlmPages: filtered = visibleArtifacts.filter { $0.linkedKind == .foreverlmSite }
         case .drafts: filtered = visibleArtifacts.filter { $0.isDraft || vm.teamDocDraftID(for: $0.id) != nil }
         case .claudeArtifacts: filtered = visibleArtifacts.filter { $0.linkedKind == .claudeArtifact }
@@ -2232,16 +2230,7 @@ struct ArtifactCanvas: View {
     private var artifactHome: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                Text(notebookID.flatMap { vm.notebook(id: $0)?.title } ?? section.title)
-                    .font(.system(size: 28, weight: .medium, design: .serif))
-                    .lineLimit(2)
-                Text(homeTagline)
-                    .zoomedSystemFont(size: 13)
-                    .foregroundStyle(.secondary)
-                    .padding(.top, 6)
-
                 homeControls
-                    .padding(.top, 22)
 
                 if homeArtifacts.isEmpty {
                     homeEmptyState
@@ -2261,63 +2250,33 @@ struct ArtifactCanvas: View {
                     .padding(.top, 18)
                 }
             }
-            .padding(.horizontal, 24)
-            .padding(.top, 18)
-            .padding(.bottom, 28)
-            .frame(maxWidth: 1040, alignment: .leading)
+            // The Space's column (`spacePlaceColumn`), less the margin the
+            // workspace already draws around this home.
+            .padding(.horizontal, SpacePlaceMetrics.horizontalPadding - StudioDesign.Metrics.pageMargin)
+            .padding(.top, SpacePlaceMetrics.topPadding - 14)
+            .padding(.bottom, SpacePlaceMetrics.bottomPadding - 12)
+            .frame(maxWidth: SpacePlaceMetrics.maxWidth - 2 * StudioDesign.Metrics.pageMargin, alignment: .leading)
             .frame(maxWidth: .infinity, alignment: .center)
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(section.title) home")
     }
 
-    /// One line on what the section is for.
-    private var homeTagline: String {
-        if notebookID != nil { return "The pages filed under this notebook." }
-        switch section {
-        case .docs:
-            return "Write with your sources beside you, or draft a page your team edits together. Publish one on foreverlm.com."
-        case .sites:
-            return "Sites that open here as themselves: the sites you publish from ForeverLM, and the Codex sites and Claude artifacts you link."
-        case .animations:
-            return "How something in a source works, in motion: animations a chat, Claude or Codex drew from your papers, each linked to the sources it explains."
-        }
-    }
-
-    /// Filters on the left, search and New Doc on the right — one row, the
-    /// way the Artifacts and Sites pages lay theirs out. A pane too narrow
-    /// for the row stacks the filters over the search and the button rather
-    /// than holding the row's width and being drawn centred and clipped,
-    /// which is what a fixed row did to a three-pane window.
+    /// The Space's head (`SpacePlaceHeader`): the name, the search and the one
+    /// prominent way in, then the filters as the Space's scope pills.
+    /// Teammates' requests for sources this library holds sit between the
+    /// two: they are the one thing on this home that waits on you.
     private var homeControls: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Teammates' requests for sources this library holds sit above the
-            // controls: they are the one thing on this home that waits on you.
+        VStack(alignment: .leading, spacing: 14) {
+            SpacePlaceHeader(searchText: $searchText, searchIdentifier: "artifacts.home.search") {
+                SpacePlaceTitle(title: notebookID.flatMap { vm.notebook(id: $0)?.title } ?? section.title)
+            } actions: {
+                homeNewDocButton
+            }
             if !vm.fulfillableShareRequests.isEmpty {
                 ShareRequestsBanner()
             }
-            homeControlsRow
-        }
-    }
-
-    private var homeControlsRow: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 10) {
-                homeFilterChips
-                Spacer(minLength: 8)
-                homeSearchField
-                    .frame(width: 220)
-                homeNewDocButton
-            }
-            VStack(alignment: .leading, spacing: 10) {
-                homeFilterChips
-                HStack(spacing: 10) {
-                    homeSearchField
-                        .frame(maxWidth: 260)
-                    Spacer(minLength: 0)
-                    homeNewDocButton
-                }
-            }
+            homeFilterChips
         }
     }
 
@@ -2327,106 +2286,45 @@ struct ArtifactCanvas: View {
     /// three-pane window once Hidden made the row five and six chips long.
     private var homeFilterChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            homeFilterChipRow
+            HStack(spacing: 2) {
+                ForEach(ArtifactHomeFilter.cases(for: section, notebookScoped: notebookID != nil)) { filter in
+                    SpaceScopePill(title: filter.title, isSelected: homeFilter == filter) {
+                        homeFilter = filter
+                    }
+                }
+            }
         }
         .scrollBounceBehavior(.basedOnSize)
         .fixedSize(horizontal: false, vertical: true)
     }
 
-    private var homeFilterChipRow: some View {
-        HStack(spacing: 2) {
-            ForEach(ArtifactHomeFilter.cases(for: section, notebookScoped: notebookID != nil)) { filter in
-                Button {
-                    homeFilter = filter
-                } label: {
-                    Text(filter.title)
-                        .lineLimit(1)
-                        .fixedSize(horizontal: true, vertical: false)
-                        .zoomedSystemFont(size: 12, weight: .medium)
-                        .foregroundStyle(homeFilter == filter ? Color.primary : Color.secondary)
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 5)
-                        .background(
-                            Color.primary.opacity(homeFilter == filter ? 0.08 : 0),
-                            in: RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        )
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.hoverWash(cornerRadius: 7, inset: 0))
-                .accessibilityAddTraits(homeFilter == filter ? [.isSelected] : [])
-                .accessibilityLabel(filter.title)
-            }
-        }
-    }
-
-    private var homeSearchField: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "magnifyingglass")
-                .zoomedSystemFont(size: 11, weight: .medium)
-                .foregroundStyle(.tertiary)
-            TextField("Search \(section.pluralNoun)", text: $searchText)
-                .textFieldStyle(.plain)
-                .zoomedSystemFont(size: 12)
-            if !searchText.isEmpty {
-                Button {
-                    searchText = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.tertiary)
-                }
-                .buttonStyle(.hoverWash(in: Circle(), inset: -3))
-                .help("Clear search")
-            }
-        }
-        .padding(.horizontal, 9)
-        .frame(height: 28)
-        .background(
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .fill(Color.primary.opacity(0.05))
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
-        }
-    }
-
-    /// The one prominent way in: New Doc on the Docs home, Link a Site… on
-    /// the Sites home, where nothing is written and every entry is a link.
+    /// The one prominent way in, as the Space's dark pill: New Page on the
+    /// Pages home, Link a Site… on the Sites home, where nothing is written
+    /// and every entry is a link, and the animation chat on Animations.
     @ViewBuilder
     private var homeNewDocButton: some View {
         switch section {
         case .docs:
-            Button {
+            SpaceDarkPillButton(
+                title: "New Page",
+                systemImage: "plus",
+                image: nil,
+                shortcut: KeyboardShortcut("n", modifiers: [.command, .shift])
+            ) {
                 beginCreation()
-            } label: {
-                Label("New Page", systemImage: "plus")
-                    .zoomedSystemFont(size: 12, weight: .semibold)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.regular)
-            .keyboardShortcut("n", modifiers: [.command, .shift])
             .help("Start a new page")
         case .sites:
-            Button {
+            SpaceDarkPillButton(title: section.linkActionTitle, systemImage: "link.badge.plus", image: nil) {
                 isLinkingPage = true
-            } label: {
-                Label("Link a Site…", systemImage: "link.badge.plus")
-                    .zoomedSystemFont(size: 12, weight: .semibold)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.regular)
             .help("Link a Codex site or a Claude artifact from its address")
         case .animations:
             // An animation is made in a chat, not linked: the button opens
             // one with the request typed, and the learner names the source.
-            Button {
+            SpaceDarkPillButton(title: section.linkActionTitle, systemImage: ArtifactKind.animation.symbolName, image: nil) {
                 vm.requestAnimationChat()
-            } label: {
-                Label(section.linkActionTitle, systemImage: ArtifactKind.animation.symbolName)
-                    .zoomedSystemFont(size: 12, weight: .semibold)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.regular)
             .help("Ask the chat for an animation of how something in a source works")
         }
     }
@@ -2515,64 +2413,6 @@ struct ArtifactCanvas: View {
         }
     }
 
-    /// Repository provenance belongs to the live Site status rather than the
-    /// synced linked-page record: a published copy knows the repository its
-    /// files came from. A site kept in the library is matched by its id, the
-    /// id its copy is published under; a record still pointing at a hosted
-    /// address by the slug both carry.
-    private func siteIsGitHubBacked(_ artifact: ArtifactRecord) -> Bool {
-        guard artifact.linkedKind == .foreverlmSite, let urlString = artifact.linkedURL else { return false }
-        if LinkedPage.localSiteID(fromURLString: urlString) != nil {
-            return vm.publishedSiteStatusesBySlug[artifact.id]?.source != nil
-        }
-        guard let url = URL(string: urlString), let slug = LinkedPage.foreverlmSiteSlug(from: url) else { return false }
-        return vm.publishedSiteStatusesBySlug[slug]?.source != nil
-    }
-
-    /// A site or animation kept in the library is not a web page until the
-    /// learner publishes one: these stand where a linked page's Open in
-    /// Browser and Copy Link are. Publishing is the account's (and, one day,
-    /// a paid feature), so it asks for sign-in; a team's copy is published by
-    /// the teammate whose site it is.
-    @ViewBuilder
-    private func sitePublishingActions(for artifact: ArtifactRecord) -> some View {
-        if let published = vm.publishedSiteStatusesBySlug[artifact.id] {
-            Button {
-                NSWorkspace.shared.open(published.url)
-            } label: {
-                Label("Open Published Page", systemImage: "arrow.up.forward.app")
-            }
-            Button {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(published.url.absoluteString, forType: .string)
-                vm.showToast("Link copied")
-            } label: {
-                Label("Copy Published Link", systemImage: "link")
-            }
-            Button {
-                Task { await vm.unpublishSite(artifact.id) }
-            } label: {
-                Label("Unpublish", systemImage: "globe.badge.chevron.backward")
-            }
-            .help("Take the copy on sites.foreverlm.com down; the \(section.noun) stays in your library")
-        } else if artifact.teamID == nil {
-            Menu {
-                Button("Private — you and your team sign in") {
-                    Task { await vm.publishSite(artifact.id, visibility: .privateSite) }
-                }
-                Button("Public — anyone with the link") {
-                    Task { await vm.publishSite(artifact.id, visibility: .publicSite) }
-                }
-            } label: {
-                Label("Publish to the Web", systemImage: "globe")
-            }
-            .disabled(!ManagedAI.isSignedIn)
-            .help(ManagedAI.isSignedIn
-                  ? "Put a copy on sites.foreverlm.com for a link to share; the \(section.noun) itself stays in your library"
-                  : "Sign in with Apple in Settings › Billing to publish")
-        }
-    }
-
     private func homeBadge(_ title: String, systemImage: String? = nil) -> some View {
         HStack(spacing: 3) {
             if let systemImage {
@@ -2612,8 +2452,7 @@ struct ArtifactCanvas: View {
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: 380)
                     HStack(spacing: 10) {
-                        Button("New Page") { beginCreation() }
-                            .buttonStyle(.bordered)
+                        SpaceDarkPillButton(title: "New Page", systemImage: "plus", image: nil) { beginCreation() }
                         Button(section.linkActionTitle) { isLinkingPage = true }
                             .buttonStyle(.plain)
                             .foregroundStyle(.secondary)
@@ -2630,8 +2469,7 @@ struct ArtifactCanvas: View {
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: 380)
-                    Button(section.linkActionTitle) { isLinkingPage = true }
-                        .buttonStyle(.bordered)
+                    SpaceDarkPillButton(title: section.linkActionTitle, systemImage: "link.badge.plus", image: nil) { isLinkingPage = true }
                         .padding(.top, 2)
                 }
             case .animations:
@@ -2647,9 +2485,10 @@ struct ArtifactCanvas: View {
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: 380)
-                    Button(section.linkActionTitle) { vm.requestAnimationChat() }
-                        .buttonStyle(.bordered)
-                        .padding(.top, 2)
+                    SpaceDarkPillButton(title: section.linkActionTitle, systemImage: ArtifactKind.animation.symbolName, image: nil) {
+                        vm.requestAnimationChat()
+                    }
+                    .padding(.top, 2)
                 }
             }
         } else {
@@ -2734,7 +2573,7 @@ struct ArtifactCanvas: View {
     }
 
     /// The glyph before a linked record's title: the product's mark for a
-    /// linked page, the animation glyph for an animation — which is hosted as
+    /// linked page, the animation glyph for an animation — which is kept as
     /// a ForeverLM site and would otherwise carry the site's mark — and
     /// nothing for a Markdown doc.
     @ViewBuilder
@@ -2745,11 +2584,7 @@ struct ArtifactCanvas: View {
                 .foregroundStyle(.secondary)
                 .accessibilityLabel(ArtifactKind.animation.label)
         } else if let kind = artifact.linkedKind {
-            LinkedPageIcon(
-                kind: kind,
-                height: height,
-                isGitHubBacked: siteIsGitHubBacked(artifact)
-            )
+            LinkedPageIcon(kind: kind, height: height)
         }
     }
 
@@ -3054,8 +2889,6 @@ private struct ArtifactEditor: View {
     @State private var pendingCommentSelection: ArtifactEditorSelection?
     @State private var commentDraft = ""
     @State private var paneWidth: CGFloat = 0
-    /// The document column's own width — the pane's, less the comments drawer.
-    @State private var pageWidth: CGFloat = 0
     @State private var findState = ReaderFindState()
     @FocusState private var titleFocused: Bool
 
@@ -3072,8 +2905,12 @@ private struct ArtifactEditor: View {
     /// page yields the column's width and sits at the left; narrower still, there
     /// is no column — the editor flows the cards below their paragraphs — and the
     /// page is where it always was.
-    private func pageInset(for width: CGFloat) -> CGFloat {
-        ArtifactPageGeometry.inset(
+    ///
+    /// `width` is the document column's own — the pane's, less the comments
+    /// drawer — read by the column's `GeometryReader`, so that while it animates
+    /// the rows move with the prose rather than ahead of it (`ArtifactPageInset`).
+    private func pageInset(for width: CGFloat) -> ArtifactPageInset {
+        ArtifactPageInset(
             paneWidth: width,
             pageMaxWidth: pageWidthPreference.maxWidth,
             hasMarginColumn: hasMarginColumn && showsMarginCardsPreference
@@ -3114,32 +2951,39 @@ private struct ArtifactEditor: View {
     var body: some View {
         HStack(spacing: 0) {
             if !chrome.isCommentsVisible || commentsFitBesidePage {
-                VStack(spacing: 0) {
-                    if chrome.showsPage {
-                        // The HTML owns its title and report header, and the
-                        // doc's controls are in the pane header: nothing of
-                        // ours stands between the chrome line and the page
-                        // until Cmd+F opens the find bar. A published doc
-                        // opens as its page, so this is where most presses
-                        // of the shortcut land.
-                        ReaderFindBar(state: findState, prompt: "Find in page")
-                        pageSurface
-                    } else {
-                        // A doc named by its first heading has its title on
-                        // the page already; the header would say it twice.
-                        // A daily note's header steps between days, so it
-                        // always stands. A subpage names the pages above it
-                        // first, quietly (docs/docs-design.md, "Subpages").
-                        PageParentTrail(pageID: artifact.id, inset: pageInset(for: pageWidth))
-                        if let dayKey = dailyNoteDayKey {
-                            dailyNoteHeader(dayKey: dayKey)
-                        } else if !titleFollowsHeading || isEditingTitle {
-                            header
+                // The column's width is read in layout, so it reaches the rows
+                // in the resize's own transaction: when the pane's width
+                // animates, the title moves with the prose instead of jumping
+                // to where the prose will end up (`ArtifactPageInset`).
+                GeometryReader { column in
+                    let inset = pageInset(for: column.size.width)
+                    VStack(spacing: 0) {
+                        if chrome.showsPage {
+                            // The HTML owns its title and report header, and the
+                            // doc's controls are in the pane header: nothing of
+                            // ours stands between the chrome line and the page
+                            // until Cmd+F opens the find bar. A published doc
+                            // opens as its page, so this is where most presses
+                            // of the shortcut land.
+                            ReaderFindBar(state: findState, prompt: "Find in page")
+                            pageSurface
+                        } else {
+                            // A doc named by its first heading has its title on
+                            // the page already; the header would say it twice.
+                            // A daily note's header steps between days, so it
+                            // always stands. A subpage names the pages above it
+                            // first, quietly (docs/docs-design.md, "Subpages").
+                            PageParentTrail(pageID: artifact.id, inset: inset)
+                            if let dayKey = dailyNoteDayKey {
+                                dailyNoteHeader(dayKey: dayKey, inset: inset)
+                            } else if !titleFollowsHeading || isEditingTitle {
+                                header(inset: inset)
+                            }
+                            ReaderFindBar(state: findState, prompt: "Find in page")
+                            heldVersionBanner(inset: inset)
+                            documentSurface
+                            referencesShelf
                         }
-                        ReaderFindBar(state: findState, prompt: "Find in page")
-                        heldVersionBanner
-                        documentSurface
-                        referencesShelf
                     }
                 }
                 // Cmd+F reaches the doc while focus is anywhere in its column —
@@ -3149,9 +2993,6 @@ private struct ArtifactEditor: View {
                 // with the app's UI zoom rather than a zoom of its own.
                 .background {
                     ReaderShortcutTarget(find: { findState.show() })
-                }
-                .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width in
-                    pageWidth = width
                 }
             }
             if chrome.isCommentsVisible {
@@ -3439,7 +3280,7 @@ private struct ArtifactEditor: View {
     /// The doc's controls — Page/Edit, its address, its overflow — are the
     /// pane header's (`ArtifactCanvas.docControls`), so this row is never drawn
     /// over the rendered page.
-    private var header: some View {
+    private func header(inset: ArtifactPageInset) -> some View {
         HStack(spacing: 8) {
             if isEditingTitle {
                 TextField("Title", text: $titleDraft)
@@ -3484,7 +3325,7 @@ private struct ArtifactEditor: View {
                 }
             }
         }
-        .padding(.horizontal, pageInset(for: pageWidth))
+        .modifier(inset)
         .padding(.top, 20)
         .padding(.bottom, 4)
     }
@@ -3498,15 +3339,15 @@ private struct ArtifactEditor: View {
     /// slots that keep their size (the product owner: "cleaner and fewer buttons");
     /// ⇧⌘D still opens today. The day drags as a doc's title does, into a
     /// chat or to the center edge.
-    private func dailyNoteHeader(dayKey: String) -> some View {
+    private func dailyNoteHeader(dayKey: String, inset: ArtifactPageInset) -> some View {
         // The hover lives in its own view, so pointing at the row never
         // re-runs the editor's body.
         NotebookHoverRow(isActive: true) { isHovered in
-            dailyNoteHeaderRow(dayKey: dayKey, revealsControls: isHovered)
+            dailyNoteHeaderRow(dayKey: dayKey, revealsControls: isHovered, inset: inset)
         }
     }
 
-    private func dailyNoteHeaderRow(dayKey: String, revealsControls: Bool) -> some View {
+    private func dailyNoteHeaderRow(dayKey: String, revealsControls: Bool, inset: ArtifactPageInset) -> some View {
         let previous = DailyNoteDays.dayKey(dayKey, offsetBy: -1)
         let next = DailyNoteDays.dayKey(dayKey, offsetBy: 1)
         return HStack(spacing: 2) {
@@ -3570,7 +3411,7 @@ private struct ArtifactEditor: View {
             }
             .opacity(revealsControls ? 1 : 0)
         }
-        .padding(.horizontal, pageInset(for: pageWidth))
+        .modifier(inset)
         .padding(.top, 20)
         .padding(.bottom, 4)
     }
@@ -4558,7 +4399,7 @@ private struct ArtifactEditor: View {
     /// Theirs is held off screen; Keep mine saves this draft over it, Use
     /// theirs takes it in place of the draft.
     @ViewBuilder
-    private var heldVersionBanner: some View {
+    private func heldVersionBanner(inset: ArtifactPageInset) -> some View {
         if heldRemoteMarkdown != nil {
             HStack(spacing: 10) {
                 Image(systemName: "arrow.triangle.branch")
@@ -4572,7 +4413,7 @@ private struct ArtifactEditor: View {
                 Button("Keep mine") { resolveHeldRemoteVersion(keepMine: true) }
                     .buttonStyle(.hoverWash)
             }
-            .padding(.horizontal, pageInset(for: pageWidth))
+            .modifier(inset)
             .padding(.vertical, 6)
         }
     }

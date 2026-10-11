@@ -30,7 +30,7 @@ enum KnowledgeMapFieldChange<Value: Equatable & Sendable>: Equatable, Sendable {
     }
 }
 
-/// An edit of one placed card's size, fold and colour
+/// An edit of one placed card's size, fold, colour, page, words and marks
 /// (`KnowledgeMapModel.setPlacementStyle`).
 struct KnowledgeMapPlacementStyle: Equatable, Sendable {
     var ref: String
@@ -38,21 +38,46 @@ struct KnowledgeMapPlacementStyle: Equatable, Sendable {
     var h: KnowledgeMapFieldChange<Double> = .keep
     var folded: KnowledgeMapFieldChange<Bool> = .keep
     var color: KnowledgeMapFieldChange<String> = .keep
+    /// The page a source shows as its card (`Placement.page`).
+    var page: KnowledgeMapFieldChange<Int> = .keep
+    /// The learner's words under a card (`Placement.annotation`).
+    var annotation: KnowledgeMapFieldChange<String> = .keep
+    /// An Idea drawn as words (`Placement.plain`).
+    var plain: KnowledgeMapFieldChange<Bool> = .keep
+    /// A question Idea marked answered (`Placement.answered`).
+    var answered: KnowledgeMapFieldChange<Bool> = .keep
 
     /// Whether the edit changes nothing.
-    var isKeep: Bool { w.isKeep && h.isKeep && folded.isKeep && color.isKeep }
+    var isKeep: Bool {
+        w.isKeep && h.isKeep && folded.isKeep && color.isKeep && page.isKeep && annotation.isKeep && plain.isKeep && answered.isKeep
+    }
 }
 
 extension KnowledgeMapLayout.Placement {
     /// This placement with `style` applied: a width and a height kept within
     /// what a card may be, a fold that is off stored as nothing, a colour
-    /// as the tint `#RRGGBB`.
+    /// as the tint `#RRGGBB`, a page of at least 1 (a source's), the words
+    /// trimmed and held to their length (any card's but an Idea's), and a
+    /// plain or answered mark that is off stored as nothing (an Idea's). The
+    /// kind of card is the one `style.ref` names; a field the kind has no use
+    /// for is left as it is.
     func styled(by style: KnowledgeMapPlacementStyle) -> KnowledgeMapLayout.Placement {
         var copy = self
         copy.w = style.w.applied(to: w).map { min(max($0, KnowledgeMap.cardWidthRange.lowerBound), KnowledgeMap.cardWidthRange.upperBound).rounded() }
         copy.h = style.h.applied(to: h).map { min(max($0, KnowledgeMap.cardHeightRange.lowerBound), KnowledgeMap.cardHeightRange.upperBound).rounded() }
         copy.folded = style.folded.applied(to: folded).flatMap { $0 ? true : nil }
         copy.color = style.color.applied(to: color).flatMap { $0.isEmpty ? nil : $0.uppercased() }
+        guard let kind = KnowledgeMap.ItemRef(style.ref)?.kind else { return copy }
+        switch kind {
+        case .source:
+            copy.page = style.page.applied(to: page).map { max($0, 1) }
+            copy.annotation = style.annotation.applied(to: annotation).flatMap(KnowledgeMap.annotation(from:))
+        case .idea:
+            copy.plain = style.plain.applied(to: plain).flatMap { $0 ? true : nil }
+            copy.answered = style.answered.applied(to: answered).flatMap { $0 ? true : nil }
+        case .doc, .clip, .page, .canvas, .chat, .picture:
+            copy.annotation = style.annotation.applied(to: annotation).flatMap(KnowledgeMap.annotation(from:))
+        }
         return copy
     }
 }
@@ -65,8 +90,17 @@ struct KnowledgeMapCardStyle: Equatable, Sendable {
     var h: Double?
     var folded: Bool?
     var color: String?
+    /// The page a source is set down showing. 0 sets it down as its usual
+    /// card, leaving out the page a paper placed for the first time shows
+    /// (`KnowledgeMapModel.pageFaceDefault`).
+    var page: Int?
+    var annotation: String?
+    var plain: Bool?
+    var answered: Bool?
 
-    var isEmpty: Bool { w == nil && h == nil && folded == nil && color == nil }
+    var isEmpty: Bool {
+        w == nil && h == nil && folded == nil && color == nil && page == nil && annotation == nil && plain == nil && answered == nil
+    }
 
     /// The style as an edit that sets every field it names.
     func edit(for ref: String) -> KnowledgeMapPlacementStyle {
@@ -75,7 +109,11 @@ struct KnowledgeMapCardStyle: Equatable, Sendable {
             w: w.map { .set($0) } ?? .keep,
             h: h.map { .set($0) } ?? .keep,
             folded: folded.map { .set($0) } ?? .keep,
-            color: color.map { .set($0) } ?? .keep
+            color: color.map { .set($0) } ?? .keep,
+            page: page.map { $0 == 0 ? .clear : .set($0) } ?? .keep,
+            annotation: annotation.map { .set($0) } ?? .keep,
+            plain: plain.map { .set($0) } ?? .keep,
+            answered: answered.map { .set($0) } ?? .keep
         )
     }
 }
@@ -91,6 +129,19 @@ enum KnowledgeMapEdgeRoute: String, Sendable, CaseIterable {
 /// default.
 enum KnowledgeMapEdgeHeads: String, Sendable, CaseIterable {
     case end, both, none
+}
+
+/// Which side of an argument an arrow is on, as stored in `Edge.stance`: for
+/// it (drawn green) or against it (red). An arrow with neither has none.
+enum KnowledgeMapEdgeStance: String, Sendable, CaseIterable {
+    case supports, contradicts
+
+    /// The stance a relation names, as a Connect proposal's `relation` says
+    /// it ("supports", "Contradicts"); nil for any other.
+    init?(relation: String?) {
+        guard let word = relation?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() else { return nil }
+        self.init(rawValue: word)
+    }
 }
 
 // MARK: Arranging a selection

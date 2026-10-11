@@ -134,6 +134,10 @@ private enum CanonicalContentCleanupOutcome: Sendable {
 /// reprocessing; only the cleaned derivative is exposed as ordinary content.
 struct PaperContentPreparationService: Sendable {
     static let contentCleanupCreditsPausedMessage =
+        "Source Content Cleanup paused: add your OpenRouter key in Settings → AI Usage to finish ingesting this source."
+    /// The wording while the key needed a plan (until 2026-10-10). Rows that
+    /// stored it are still paused for the same reason.
+    private static let planEraContentCleanupCreditsPausedMessage =
         "Source Content Cleanup paused: add your OpenRouter key in Settings → AI Usage and choose a plan in Settings → Billing to finish ingesting this source."
     /// The wording before the prepaid balance was retired (2026-09-25). Rows
     /// that stored it are still paused for the same reason.
@@ -167,6 +171,7 @@ struct PaperContentPreparationService: Sendable {
             detail = error.localizedDescription
         }
         if detail == contentCleanupCreditsPausedMessage
+            || detail == planEraContentCleanupCreditsPausedMessage
             || detail == legacyContentCleanupCreditsPausedMessage
             || detail == managedCreditsEmptyServiceMessage
             || detail == legacyManagedCreditsEmptyServiceMessage {
@@ -186,10 +191,12 @@ struct PaperContentPreparationService: Sendable {
         guard let storedMessage else { return false }
         let creditWordings = [
             contentCleanupCreditsPausedMessage,
+            planEraContentCleanupCreditsPausedMessage,
             legacyContentCleanupCreditsPausedMessage,
             managedCreditsEmptyServiceMessage,
             legacyManagedCreditsEmptyServiceMessage,
             SourceError.aiCreditsRequired.localizedDescription,
+            SourceError.planEraAICreditsRequiredMessage,
             SourceError.legacyAICreditsRequiredMessage,
         ]
         // Ingestion wraps the service message in a stage prefix, so a failure

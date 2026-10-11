@@ -136,14 +136,14 @@ enum ChatPluginRequest {
     }
 
     /// The plugin a tool reads, by its name: every GitHub tool carries
-    /// `github`, and so on. `publish_site` reads GitHub only when it is given
-    /// a repository, so it counts when the failure mentions GitHub.
+    /// `github`, and so on. `save_site` reads GitHub only when it is given a
+    /// repository, so it counts when the failure mentions GitHub.
     static func plugin(forToolName toolName: String, error: String = "") -> Plugin? {
         let name = toolName.lowercased()
         for plugin in Plugin.allCases where name.contains(plugin.rawValue) {
             return plugin
         }
-        if name == "publish_site" || name == "save_site", error.lowercased().contains("github") { return .github }
+        if name == "save_site", error.lowercased().contains("github") { return .github }
         return nil
     }
 

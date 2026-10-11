@@ -13,7 +13,7 @@ There are a lot of tools in the "learn and remember more" space, and they're gen
 The five things that most distinguish it:
 
 1. **Your data stays yours** — a local SQLite database and files in your private iCloud container, synced through your Apple account. No uploading your library to a vendor's cloud.
-2. **Free app, free over MCP, one plan for built-in AI** — no tiers and no trial clock. The in-app Chat runs any model on your own OpenRouter key, billed by OpenRouter at its cost with nothing added, and needs a ForeverLM plan ($4 a month, or $19 a year while the early-believer offer lasts). Or connect the Claude/ChatGPT/Gemini/Grok subscription you already pay for over MCP and ForeverLM charges nothing.
+2. **7 days free, then $19 once. No subscription.** No tiers: paying gets the whole app, MCP included. The in-app Chat runs any model on your own OpenRouter key, billed by OpenRouter at its cost with nothing added, or free models for nothing. Or connect the Claude/ChatGPT/Gemini/Grok subscription you already pay for over MCP.
 3. **Podcasts are first-class** — follow shows, get full episode transcripts, read, listen, and get quizzed on them.
 4. **Any model, no lock-in** — MCP works with every major assistant; in-app Chat takes any model through your own OpenRouter key; your files stay in open formats on your disk.
 5. **Review that tests understanding** — explain the source back; an AI tutor with the full text probes your gaps. Not self-graded cards, not one-shot quizzes.
@@ -24,7 +24,7 @@ The honest trade-off: **ForeverLM is Mac-centered** (macOS 14+). Its synced iPho
 
 | Tool | Pricing | Platforms | Where your data lives | AI models | Podcasts | Retention/review |
 |---|---|---|---|---|---|---|
-| **ForeverLM** | **Free app**, free over MCP; built-in AI $4/mo (or $19/yr for early believers) + your OpenRouter key | macOS + synced iPhone access | Your iCloud + local SQLite | Any (MCP or in-app Chat) | Full transcripts | AI review dialogue, scheduled |
+| **ForeverLM** | **7 days free, then $19 once** (no subscription); AI on your own OpenRouter key at cost | macOS + synced iPhone access | Your iCloud + local SQLite | Any (MCP or in-app Chat) | Full transcripts | AI review dialogue, scheduled |
 | [NotebookLM](/compare/notebooklm) | Free (capped); $7.99–$99.99+/mo Google AI bundles | Web, iOS, Android | Google's servers | Gemini only | No (generates audio, can't ingest feeds) | One-shot quizzes/flashcards, no tracking |
 | [Heptabase](/compare/heptabase) | $107.88–$647.88/yr, no free tier | Mac, Win, Linux, iOS, Android, web | Local-first + their AWS sync | Credit-metered (Gemini; more on Premium) | No | AI tutor on $215.88/yr tier; spaced repetition unshipped |
 | [Anki](/compare/anki) | Free (iOS $24.99 one-time) | Everywhere | Local + free/self-hosted sync | None built in | No | Self-graded flashcards, SM-2/FSRS |
@@ -39,10 +39,23 @@ The honest trade-off: **ForeverLM is Mac-centered** (macOS 14+). Its synced iPho
 | [Recall](/compare/recall) | Free (10 summaries/mo); $120/yr Plus; $456/yr Max | Web, iOS, Android | Local-first + their sync (Google Cloud EU) | Auto-picked; choice only on Max | Saved episodes | Spaced-repetition quizzes (paid tier) |
 | [Snipd](/compare/snipd) | Free (2 ep/wk AI); Premium ~$7–12/mo by region | iOS, Android, Watch | Their cloud | Proprietary pipeline | Core feature (highlights) | None — exports to other apps |
 | [Matter](/compare/matter) | Free | iOS, iPad, web | Their cloud | Reading assistance | Episode transcripts | None |
+| [Paper](/compare/paper-ac) | Free during its beta; paid plans announced, not priced | Web; Mac app in testing | Their cloud (Supabase on AWS) | Grok, GPT, Gemini | Generates podcasts; no feeds | FSRS flashcards, quizzes |
+| [Memo](/compare/memo-cards) | Free plan; Pro $120/yr; Max $300/yr | Web, Mac, Win, Linux, iOS; Android web app | Their cloud | Unnamed modes, no BYOK | Generates podcasts; no feeds | FSRS flashcards (cloze, image occlusion), Anki export |
+| [Gistr](/compare/gistr) | Free (500 credits/mo); $8–$40/mo | Web, Chrome, Android | Their cloud | By tier; frontier models from $16/mo | Saved episodes (Apple Podcasts or Spotify links) | Quizzes; no spaced repetition |
+| [Sapience](/compare/sapience) | Not published (invite-only early access) | Not stated | Local plain-text folders | Not stated | No | None stated |
+| [AnythingLLM](/compare/anythingllm) | Desktop app free; cloud $50–$99/mo | Mac, Win, Linux, Docker, Android | Local folders or your own server | 40+ providers + local models | No | None |
 
-*All pricing verified against official pages in July 2026. Prices change — always check the vendor's site. Annual-billed rates shown where vendors advertise them.*
+*Pricing verified against official pages in July 2026, and in October 2026 for Paper, Memo, Gistr, Sapience and AnythingLLM. Prices change — always check the vendor's site. Annual-billed rates shown where vendors advertise them.*
 
 ## More head-to-head comparisons
+
+### NotebookLM-style study workspaces
+
+- [Paper (paper.ac)](/compare/paper-ac): a free-in-beta study workspace with FSRS flashcards, quizzes, podcasts, and a Notion-style editor
+- [Memo](/compare/memo-cards): AI flashcards with FSRS, cloze and image occlusion, practice tests, and Anki export
+- [Gistr](/compare/gistr): an AI notebook for YouTube, podcasts, PDFs, and articles, with notes pinned to timestamps
+- [Sapience](/compare/sapience): a local, canvas-first workspace of plain text files, in invite-only early access
+- [AnythingLLM](/compare/anythingllm): open-source document chat on local or hosted models, desktop or self-hosted
 
 ### Research libraries and academic tools
 
@@ -77,6 +90,10 @@ The honest trade-off: **ForeverLM is Mac-centered** (macOS 14+). Its synced iPho
 
 **"I want an AI to study my documents with"** → [NotebookLM](/compare/notebooklm) is the big-tech default; ForeverLM keeps the data in your iCloud, works with any model, and adds the retention loop NotebookLM lacks.
 
+**"I want NotebookLM with flashcards built in"** → [Paper](/compare/paper-ac) (free while in beta) or [Memo](/compare/memo-cards) (FSRS cards with Anki export, on every platform). ForeverLM keeps the library in your iCloud, fills it on its own, and reviews by dialogue as well as cards.
+
+**"I want my documents and models to stay on my machine"** → [AnythingLLM](/compare/anythingllm) runs document chat on local models, on any desktop or your own server. ForeverLM keeps the library in your iCloud and adds the learning loop AnythingLLM doesn't have.
+
 **"I want to remember facts for an exam"** → [Anki](/compare/anki) (free, everywhere) or [RemNote](/compare/remnote) (integrated notes + exam scheduling). ForeverLM is better when the goal is understanding sources, not memorizing card decks.
 
 **"I highlight everything I read"** → [Readwise](/compare/readwise) is the highlight hub. ForeverLM tracks the full sources instead and tests you on them.
@@ -93,13 +110,13 @@ The honest trade-off: **ForeverLM is Mac-centered** (macOS 14+). Its synced iPho
 
 **"I want to own my notes forever"** → [Obsidian](/compare/obsidian) for writing your own notes; ForeverLM applies the same local-first philosophy to sources and review instead of notes.
 
-**"I think on a canvas"** → [Heptabase](/compare/heptabase). ForeverLM has no whiteboard — but ships the review loop Heptabase still has on its roadmap.
+**"I think on a canvas"** → [Heptabase](/compare/heptabase) has the most mature card-first whiteboards. ForeverLM now has an ideas-first Canvas over your library (in beta releases), and it ships the review loop Heptabase still has on its roadmap.
 
 **"I annotate PDFs intensively"** → [LiquidText](/compare/liquidtext) for spatial excerpting or [MarginNote](/compare/marginnote) for mind maps and flashcards. ForeverLM is better when the sources extend beyond documents.
 
 **"I learn from podcasts"** → [Snipd](/compare/snipd) for capture while listening on your phone; ForeverLM for full transcripts, scheduling, and being quizzed afterwards on your Mac.
 
-**"I save everything and want AI to organize it"** → [Recall](/compare/recall) is the closest cousin: local-first, many source types, spaced-repetition quizzes at $120/yr. ForeverLM differs on depth of review, automatic ingestion, podcasts-as-transcripts, iCloud sync, and a free MCP route or a $4 month-to-month plan instead of a required yearly subscription.
+**"I save everything and want AI to organize it"** → [Recall](/compare/recall) is the closest cousin: local-first, many source types, spaced-repetition quizzes at $120/yr. ForeverLM differs on depth of review, automatic ingestion, podcasts-as-transcripts, iCloud sync, and $19 once (MCP included) instead of a required yearly subscription.
 
 ## The pricing picture, over three years
 
@@ -108,7 +125,7 @@ A subscription bills you every year whether or not you opened the app. Here's wh
 | Tool | 3-year cost (typical paid tier, annual billing) |
 |---|---|
 | Anki | $0–$24.99 |
-| **ForeverLM** | **$0 over MCP**; built-in AI ~$140 at $4/mo ($57 for early believers) plus OpenRouter usage at cost |
+| **ForeverLM** | **$19** once; plus OpenRouter usage at cost on your own key |
 | Mochi Pro | ~$180 |
 | Reflect | $360 |
 | Readwise Full | ~$360 |
@@ -117,8 +134,8 @@ A subscription bills you every year whether or not you opened the app. Here's wh
 | Heptabase Premium | ~$648 |
 | NotebookLM via Google AI Pro | ~$720 |
 
-ForeverLM is the one row without a fixed number, and that's the honest answer: the app is $0 for three years, and the AI depends on the route you pick. Two routes, and you can mix them. The in-app Chat needs a ForeverLM plan, ~$140 over three years at $4 a month (or $57 at the early-believer $19 a year), and runs any model on your own OpenRouter key, which OpenRouter bills at its cost with nothing added by ForeverLM. Driving ForeverLM over MCP from a Claude, ChatGPT, Gemini, or Grok subscription you *already* pay for costs nothing from ForeverLM — the subscription is already in your budget, and reading and writing your library is free. In the app, some tokens also go to background work (transcript cleanup, paper metadata extraction, search embeddings) on the same key, with the model configurable per task. The app keeps a to-the-cent ledger of every conversation.
+ForeverLM is the one row without a fixed total, and that's the honest answer: the app is $19 once, and the AI depends on the route you pick. Two routes, and you can mix them. The in-app Chat runs any model on your own OpenRouter key, which OpenRouter bills at its cost with nothing added by ForeverLM; its free models cost nothing. Driving ForeverLM over MCP from a Claude, ChatGPT, Gemini, or Grok subscription you *already* pay for is included, and the subscription is already in your budget. In the app, some tokens also go to background work (transcript cleanup, paper metadata extraction, search embeddings) on the same key, with the model configurable per task. The app keeps a to-the-cent ledger of every conversation.
 
 ## Try it
 
-ForeverLM is free to download — [get it for Mac](https://foreverlm.com), point it at your reading list. If you're on Windows or Android, we'd honestly point you at Recall or RemNote today.
+ForeverLM is 7 days free, then $19 once: [get it for Mac](https://foreverlm.com) and point it at your reading list. If you're on Windows or Android, we'd honestly point you at Recall or RemNote today.

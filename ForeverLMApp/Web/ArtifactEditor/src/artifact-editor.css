@@ -526,11 +526,17 @@ body.ready #editor {
   font: 600 11px/1 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
 }
 
-.artifact-ai-edit-ask button,
+.artifact-ai-edit-ask button[data-action="ask"],
 .artifact-ai-edit-actions button[data-action="replace"] {
   background: AccentColor;
   color: Canvas;
 }
+
+.artifact-ai-edit-ask button[data-action="chat"] {
+  white-space: nowrap;
+}
+
+.artifact-ai-edit-ask button[hidden] { display: none; }
 
 .artifact-ai-edit-ask button:disabled {
   opacity: 0.5;

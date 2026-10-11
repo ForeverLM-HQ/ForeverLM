@@ -3,7 +3,7 @@ import Testing
 @testable import ForeverLM
 
 // Open and navigate (docs/knowledge-map-design.md, "Circling and the inspector"):
-// back and forward over the canvases a window opened, the tray's Regions list,
+// back and forward over the canvases a window opened, the canvas menu's Regions list,
 // how a card's ref names what opens, and (below) the suggested questions, the
 // two new Asks and a canvas made from sources.
 
@@ -101,7 +101,7 @@ struct KnowledgeMapCanvasHistoryTests {
     }
 }
 
-@Suite("The tray's Regions list")
+@Suite("The canvas menu's Regions list")
 struct KnowledgeMapRegionOutlineTests {
     private func region(_ name: String, _ x: Double, _ y: Double, _ w: Double, _ h: Double) -> KnowledgeMapLayout.Region {
         .init(name: name, x: x, y: y, w: w, h: h, color: "#7F77DD", at: 1)

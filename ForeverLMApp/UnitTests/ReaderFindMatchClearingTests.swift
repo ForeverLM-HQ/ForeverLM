@@ -7,7 +7,8 @@ import WebKit
 /// Find selects its match so the learner can see it. Closing the bar has to
 /// take that selection back, or the word stays boxed in gray over the text and
 /// over any saved highlight beneath it — while a selection the learner made in
-/// the meantime is theirs and stays.
+/// the meantime is theirs and stays. In a web reader WebKit also boxes the
+/// match in yellow, apart from the selection, and that box has to go too.
 @Suite("Reader find match clearing")
 @MainActor
 struct ReaderFindMatchClearingTests {
@@ -104,6 +105,41 @@ struct ReaderFindMatchClearingTests {
         #expect(try await selectedText(in: webView).isEmpty)
     }
 
+    @Test("Closing find takes away the yellow box WebKit paints on its match")
+    func closeClearsWebFindBox() async throws {
+        let webView = ForeverLMWebView(frame: NSRect(x: 0, y: 0, width: 600, height: 400))
+        webView.loadHTMLString(
+            "<html><body style=\"background: white\"><p>\(passage)</p></body></html>",
+            baseURL: nil
+        )
+        try await waitUntil { webView.url != nil && !webView.isLoading }
+
+        let state = ReaderFindState()
+        state.show()
+        ReaderFindPerformer.performWebFind(in: webView, state: state, query: "oxidative", backwards: false)
+        try await waitUntil { try await findBoxPixels(in: webView) > 0 }
+        #expect(try await findBoxPixels(in: webView) > 0)
+
+        state.close()
+        try await waitUntil { try await findBoxPixels(in: webView) == 0 }
+        #expect(try await findBoxPixels(in: webView) == 0)
+    }
+
+    @Test("Taking the match back runs the clearing once and leaves the bar and its query alone")
+    func takeBackMatchKeepsBar() {
+        let state = ReaderFindState()
+        state.show()
+        state.query = "oxidative"
+        var runs = 0
+        state.registerMatchClearing { runs += 1 }
+
+        state.takeBackMatch()
+        state.takeBackMatch()
+        #expect(runs == 1)
+        #expect(state.isVisible)
+        #expect(state.query == "oxidative")
+    }
+
     @Test("A doc's rendered page finds like a reader")
     func pageViewFindsInRenderedDoc() async throws {
         let state = ReaderFindState()
@@ -177,6 +213,31 @@ struct ReaderFindMatchClearingTests {
                 }
             }
         }
+    }
+
+    /// Pixels of a snapshot in WebKit's find yellow, sampling every other
+    /// pixel. The page is black on white, so nothing else on it is yellow.
+    private func findBoxPixels(in webView: WKWebView) async throws -> Int {
+        let image: NSImage = try await withCheckedThrowingContinuation { continuation in
+            webView.takeSnapshot(with: nil) { image, error in
+                if let image {
+                    continuation.resume(returning: image)
+                } else {
+                    continuation.resume(throwing: error ?? CocoaError(.featureUnsupported))
+                }
+            }
+        }
+        guard let tiff = image.tiffRepresentation, let bitmap = NSBitmapImageRep(data: tiff) else { return 0 }
+        var count = 0
+        for y in stride(from: 0, to: bitmap.pixelsHigh, by: 2) {
+            for x in stride(from: 0, to: bitmap.pixelsWide, by: 2) {
+                guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.sRGB) else { continue }
+                if color.redComponent > 0.85, color.greenComponent > 0.85, color.blueComponent < 0.5 {
+                    count += 1
+                }
+            }
+        }
+        return count
     }
 
     private func waitUntil(

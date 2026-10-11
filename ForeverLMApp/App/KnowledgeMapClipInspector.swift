@@ -3,8 +3,10 @@ import SwiftUI
 
 /// A selected clip in the Canvas's inspector: where it was cut from, the
 /// learner's note on it (the mark's note, shown under its picture on the
-/// card), Ask in Chat, and a ⋯ with Copy Picture, Take Off Canvas and Delete
-/// Clip (docs/knowledge-map-design.md, "Clips"). The paper line opens the page.
+/// card, so the note is also why it is on the canvas: no second field for an
+/// annotation), Ask in Chat and Add to Chat, and a ⋯ with Copy Picture, Take
+/// Off Canvas and Delete Clip (docs/knowledge-map-design.md, "Clips"). The
+/// paper line opens the page.
 struct KnowledgeMapClipInspector: View {
     let clipID: String
     /// The clip as the selection names it (`clip:<id>`).
@@ -54,6 +56,10 @@ struct KnowledgeMapClipInspector: View {
                     Button("Ask in Chat") { vm.requestChatAboutKnowledgeMapSelection([ref]) }
                         .buttonStyle(.hoverWash(cornerRadius: 6, inset: -4, opacity: 0.10))
                         .accessibilityIdentifier("knowledgeMap.selection.ask")
+                    Button("Add to Chat") { vm.addKnowledgeMapCardsToChat([ref], in: windowState) }
+                        .buttonStyle(.hoverWash(cornerRadius: 6, inset: -4, opacity: 0.10))
+                        .help("Give the chat beside the canvas this clip to work from, or open one with it")
+                        .accessibilityIdentifier("knowledgeMap.selection.addToChat")
                     Spacer()
                     Menu {
                         Button("Open Beside", systemImage: "rectangle.righthalf.inset.filled") {

@@ -10,13 +10,14 @@ import AppKit
 /// Suggested list, one model per maker a price tier below the chat's
 /// (`AIModelDefaults.suggestedBackgroundModels`,
 /// `suggestedBackgroundImageModels`), the free models, the backups, and under
-/// them all of OpenRouter by maker, with a search. It replaced the card grid.
+/// them all of OpenRouter as a table (`OpenRouterModelTable`), with a search.
+/// It replaced the card grid.
 ///
 /// A slot runs on one model, so a row picks it (after a test run of this
 /// work) rather than turning it on and off; its context menu adds or removes
 /// a backup, and its provider button chooses who runs it for this slot. The
 /// model the pane opened on, when neither list shows it, stays above them
-/// for the visit, so a pick in the browser does not push the browser down
+/// for the visit, so a pick in the table does not push the table down
 /// under the pointer.
 struct BackgroundModelsPane: View {
     let slot: ModelPickerSlot
@@ -79,15 +80,19 @@ struct BackgroundModelsPane: View {
                 }
             }
             SettingsCard {
-                OpenRouterModelBrowser(
-                    makers: lists.makers.map { ModelBrowserMaker(id: $0.id, identity: $0.identity, models: $0.models) },
+                OpenRouterModelTable(
+                    rows: tableRows,
                     state: browserState,
                     subject: slot.requiresVision ? "models that read images" : "models",
                     retry: { Task { await loadDirectory() } },
-                    cost: { ModelCostOrder.blended(input: $0.inputUSDPerMTokens, output: $0.outputUSDPerMTokens) },
-                    searchFields: { [$0.name, $0.id] },
-                    row: { model, showsMaker in
-                        browserRow(model, showsMaker: showsMaker)
+                    purpose: .background(slot),
+                    toggle: { rows in
+                        // A slot runs on one model: only a single row picks.
+                        if rows.count == 1, let row = rows.first { pick(row) }
+                    },
+                    accessory: { EmptyView() },
+                    actions: { rows in
+                        tableActions(rows)
                     }
                 )
             }
@@ -212,15 +217,14 @@ struct BackgroundModelsPane: View {
         let listed = Set((lists.suggestions + lists.free).map(\.slug))
         guard !listed.contains(slug) else { return nil }
         if let entry = lists.entryBySlug[slug] {
-            return AnyView(catalogRow(entry, showsMaker: true))
+            return AnyView(catalogRow(entry))
         }
         if let model = lists.directoryBySlug[slug] {
-            return AnyView(directoryRow(model, showsMaker: true))
+            return AnyView(directoryRow(model))
         }
         let maker = lists.identity(ofSlug: slug)
         return AnyView(catalogRow(
-            AIModelCatalogEntry(maker: maker.logo ?? .other, provider: openedOn.provider, modelID: openedOn.model),
-            showsMaker: true
+            AIModelCatalogEntry(maker: maker.logo ?? .other, provider: openedOn.provider, modelID: openedOn.model)
         ))
     }
 
@@ -228,15 +232,14 @@ struct BackgroundModelsPane: View {
     private func suggestionRow(_ suggestion: ChatModelLists.Suggestion) -> some View {
         switch suggestion {
         case .catalog(let entry, _):
-            catalogRow(entry, showsMaker: true)
+            catalogRow(entry)
         case .directory(let model):
-            directoryRow(model, showsMaker: true)
+            directoryRow(model)
         case .pending(let slug):
             let maker = lists.identity(ofSlug: slug)
             ChatModelRow(
                 entry: AIModelCatalogEntry(maker: maker.logo ?? .other, provider: .openRouter, modelID: slug),
                 maker: maker,
-                showsMaker: true,
                 isOffered: false,
                 isDefault: false,
                 isConfigured: true,
@@ -248,13 +251,12 @@ struct BackgroundModelsPane: View {
     }
 
     /// A catalogued model: the row picks it for this work.
-    private func catalogRow(_ entry: AIModelCatalogEntry, showsMaker: Bool) -> some View {
+    private func catalogRow(_ entry: AIModelCatalogEntry) -> some View {
         let slug = ChatModelLists.slug(of: entry)
         let selected = isPicked(provider: entry.provider, model: entry.modelID)
         return ChatModelRow(
             entry: entry,
             maker: lists.identity(ofSlug: slug),
-            showsMaker: showsMaker,
             isOffered: selected,
             isDefault: false,
             isConfigured: configuredProviders.contains(entry.provider),
@@ -277,7 +279,7 @@ struct BackgroundModelsPane: View {
 
     /// A directory model the catalog does not carry yet: picking it
     /// catalogues it, without offering it in the chat, and picks it.
-    private func directoryRow(_ model: OpenRouterDirectoryModel, showsMaker: Bool) -> some View {
+    private func directoryRow(_ model: OpenRouterDirectoryModel) -> some View {
         let maker = lists.identity(ofSlug: model.id)
         let selected = isPicked(provider: .openRouter, model: model.id)
         return ChatModelRow(
@@ -288,7 +290,6 @@ struct BackgroundModelsPane: View {
                 customName: model.name
             ),
             maker: maker,
-            showsMaker: showsMaker,
             isOffered: selected,
             isDefault: false,
             isConfigured: configuredProviders.contains(.openRouter),
@@ -309,14 +310,58 @@ struct BackgroundModelsPane: View {
         )
     }
 
-    /// A catalogued model keeps its catalog identity, so the row picked here
-    /// is the one Suggested shows.
+    // MARK: Table
+
+    /// Every model the table lists, maker by maker, newest first, each under
+    /// its catalog identity where the catalog carries it, so the row picked
+    /// here is the one Suggested shows.
+    private var tableRows: [ModelTableRow] {
+        lists.makers.flatMap(\.models).map { model in
+            var row = ModelTableRow(model, in: lists)
+            row.isOn = isPicked(provider: row.entry.provider, model: row.entry.modelID)
+            row.isConfigured = configuredProviders.contains(row.entry.provider)
+            row.isTesting = testingKey == Self.testingKey(row.entry.provider, row.entry.modelID)
+            row.backupRank = backupRank(provider: row.entry.provider, model: row.entry.modelID)
+            return row
+        }
+    }
+
+    /// Picks the row's model once it passed a test run of this work; a
+    /// directory model is catalogued first, without being offered in the chat.
+    private func pick(_ row: ModelTableRow) {
+        testThen(row.entry.provider, row.entry.modelID, name: row.name) {
+            if !row.isCatalogued { FreeModelsSetup.catalog(row.model) }
+            pick(provider: row.entry.provider, model: row.entry.modelID)
+        }
+    }
+
+    /// The table's context menu for one row: what a Suggested row's menu
+    /// holds, and the pick itself.
     @ViewBuilder
-    private func browserRow(_ model: OpenRouterDirectoryModel, showsMaker: Bool) -> some View {
-        if let entry = lists.entryBySlug[model.id.lowercased()] {
-            catalogRow(entry, showsMaker: showsMaker)
-        } else {
-            directoryRow(model, showsMaker: showsMaker)
+    private func tableActions(_ rows: [ModelTableRow]) -> some View {
+        if rows.count == 1, let row = rows.first {
+            Button {
+                pick(row)
+            } label: {
+                Label("Use for \(slot.title)", systemImage: "checkmark.circle")
+            }
+            .disabled(row.isOn)
+            // The model the work runs on is not its own backup.
+            if !row.isOn, slot.ownTask == nil {
+                ModelBackupMenuItem(backupRank: row.backupRank, backupsAreFull: backups.count >= AIBackupModels.limit) {
+                    toggleBackup(
+                        provider: row.entry.provider,
+                        model: row.entry.modelID,
+                        name: row.name,
+                        directoryModel: row.isCatalogued ? nil : row.model
+                    )
+                }
+            }
+            if AIModelCatalog.isCustom(row.entry) {
+                Button("Remove from Catalog") {
+                    AIModelCatalog.removeCustomOpenRouterModel(id: row.entry.modelID)
+                }
+            }
         }
     }
 

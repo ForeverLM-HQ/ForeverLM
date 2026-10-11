@@ -884,9 +884,16 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Lay a whole picture out on one of the learner's canvases in one call, on their word (\"lay this paper out visually on a canvas\", \"mock up how these ideas connect\"): write note cards, set them and cards from the library down in labelled groups, and draw arrows between them. Each note is an Idea of the learner's (a card with a title and a few lines of text; it is also linked to the canvas's notebook when the canvas belongs to one) that you author: a claim, a step, a question, a caveat. A note with source_id and quote is instead a passage card: the words are marked as a highlight in that source (the one the learner already has on them is reused), the card shows them, and clicking it opens the paper at those words, so quote the paper wherever a claim rests on it. Each group becomes a region of that name around its cards, set down in the order given, left to right; a card in no group is set down in free space. Cards from the library are named by item_id (source:<id>, doc:<id>, idea:<id>, canvas:<id> for a shortcut to another canvas, chat:<session_id>, picture:<image_id>), notes by the key you gave them. Arrows join two cards, each a note key or an item_id, with an optional short label. Keep what is observed apart from what is interpreted by putting them in different groups, and give each region a colour with the same meaning. A mind map is a tree: each trees entry names a region and a root note with nested children notes (all Ideas of the learner's, written the same way), set down left to right inside that region (the root at the left, each child to the right of its parent, a parent centred on its children), joined by tree branches, and the region's layout is a mind map so the Canvas keeps it one; a note in a tree may be named by its key in arrows. A paper can be laid out as its own pages too: each pdf_pages entry names a source with a PDF (a paper, or a book or hand-out kept as one), and its pages are set down as cards drawn from the PDF itself, one per page, left to right in a region named for the source, a row below the last, before the groups; name them page:<source_id>:<n> in groups and arrows, limit them to a range such as \"1-8\" (at most 60 at a time), and set collapsed to fold the region up to its name and count until the learner opens it. Nothing the learner already placed moves. Pass canvas_id (list_canvases) to build on a canvas other than the open one; it is opened. Returns the notes and passages made with their item_ids, the regions drawn, the mind maps laid out (trees: the region, the root and each note with its item_id), the pages laid out (pdf_pages: the region, the page count and each page's item_id) and the arrows drawn, and anything it could not resolve. Undo takes it back card by card, but the Ideas it made stay in the learner's Ideas.",
+    "description" : "Lay a whole picture out on one of the learner's canvases in one call, on their word (\"lay this paper out visually on a canvas\", \"mock up how these ideas connect\"): write note cards, set them and cards from the library down in labelled groups, and draw arrows between them. Each note is an Idea of the learner's (a card with a title and a few lines of text; it is also linked to the canvas's notebook when the canvas belongs to one) that you author: a claim, a step, a question, a caveat. A note with source_id and quote is instead a passage card: the words are marked as a highlight in that source (the one the learner already has on them is reused), the card shows them, and clicking it opens the paper at those words, so quote the paper wherever a claim rests on it. Each group becomes a region of that name around its cards, set down in the order given, left to right; a card in no group is set down in free space. Cards from the library are named by item_id (source:<id>, doc:<id>, idea:<id>, canvas:<id> for a shortcut to another canvas, chat:<session_id>, picture:<image_id>), notes by the key you gave them. Arrows join two cards, each a note key or an item_id, with an optional short label. Keep what is observed apart from what is interpreted by putting them in different groups, and give each region a colour with the same meaning. A mind map is a tree: each trees entry names a region and a root note with nested children notes (all Ideas of the learner's, written the same way), set down left to right inside that region (the root at the left, each child to the right of its parent, a parent centred on its children), joined by tree branches, and the region's layout is a mind map so the Canvas keeps it one; a note in a tree may be named by its key in arrows. A paper can be laid out as its own pages too: each pdf_pages entry names a source with a PDF (a paper, or a book or hand-out kept as one), and its pages are set down as cards drawn from the PDF itself, one per page, left to right in a region named for the source, a row below the last, before the groups; name them page:<source_id>:<n> in groups and arrows, limit them to a range such as \"1-8\" (at most 60 at a time), and set collapsed to fold the region up to its name and count until the learner opens it. A paper whose PDF is on the Mac is set down as its first page, its title and authors under it, rather than as a card. Pass annotations (a note key or item_id to the words) to write the learner's reason for a card being on the canvas under it: any card but a note, whose own text holds its words; and give an arrow a stance (supports draws it green, contradicts red) to argue a claim. Nothing the learner already placed moves. Pass canvas_id (list_canvases) to build on a canvas other than the open one; it is opened. Returns the notes and passages made with their item_ids, the regions drawn, the mind maps laid out (trees: the region, the root and each note with its item_id), the pages laid out (pdf_pages: the region, the page count and each page's item_id) and the arrows drawn, and anything it could not resolve. Undo takes it back card by card, but the Ideas it made stay in the learner's Ideas.",
     "inputSchema" : {
       "properties" : {
+        "annotations" : {
+          "additionalProperties" : {
+            "type" : "string"
+          },
+          "description" : "The learner's words about why a card is on the canvas, drawn under it, by note key (a passage) or item_id: at most 600 characters each. Not for an Idea or a note, whose own text holds its words.",
+          "type" : "object"
+        },
         "arrows" : {
           "description" : "Arrows to draw, at most 100.",
           "items" : {
@@ -922,6 +929,14 @@
                   "curve",
                   "straight",
                   "elbow"
+                ],
+                "type" : "string"
+              },
+              "stance" : {
+                "description" : "Which side of an argument it is on: supports (drawn green) or contradicts (red).",
+                "enum" : [
+                  "supports",
+                  "contradicts"
                 ],
                 "type" : "string"
               },
@@ -1554,7 +1569,7 @@
     "inputSchema" : {
       "properties" : {
         "artifact_id" : {
-          "description" : "Optional id of the Doc, Site or animation this Goal is for — the deliverable itself, e.g. the site behind 'Make a site of the rare mitochondrial diseases' (from list_docs, list_animations or a publish_site result). The Goals tab opens it from the row. Refused when no record has the id.",
+          "description" : "Optional id of the Doc, Site or animation this Goal is for — the deliverable itself, e.g. the site behind 'Make a site of the rare mitochondrial diseases' (from list_docs, list_animations or a save_site result). The Goals tab opens it from the row. Refused when no record has the id.",
           "type" : "string"
         },
         "daily_target" : {
@@ -2088,7 +2103,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Remove an animation saved with save_animation from the library, with its files; a published copy comes down too. Confirm with the learner first; this cannot be undone except by saving the files again. Refused for a Site — delete_doc removes those.",
+    "description" : "Remove an animation saved with save_animation from the library, with its files. Confirm with the learner first; this cannot be undone except by saving the files again. Refused for a Site — delete_doc removes those.",
     "inputSchema" : {
       "properties" : {
         "animation" : {
@@ -2683,7 +2698,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Draw an arrow between two cards on the learner's Canvas, with a short label for how one leads to the other (supports, contradicts, explains, causes, measures, extends, example of, or the learner's own words). Both cards must be on the Canvas (place_on_canvas first); an arrow already drawn between them gets the label and what else is given. An end may be a region instead of a card (region:<region_id>, or region:<name>): an arrow to a region survives its cards leaving and goes with the region; a card is not joined to the region that holds it, nor a region to one around or inside it. Give the arrow a look: route (curve, the default; straight; or elbow), dashed, heads (end, the default; both; or none) and color (#RRGGBB). With tree true it is a mind-map branch, parent to child, drawn as a branch and not an arrow: a branch joins two cards, a card has one parent, and a tree has no loop (update_canvas_region with layout tree lays a region of such cards out as a mind map). Only on the learner's word: the Canvas is where they think, so never arrange it on your own initiative; to suggest an arrangement, show a lens (apply_map_lens) or ask_canvas. Each call is one edit of theirs, which Undo (⌘Z, or undo_canvas) takes back. Returns the arrow's edge_id.",
+    "description" : "Draw an arrow between two cards on the learner's Canvas, with a short label for how one leads to the other (supports, contradicts, explains, causes, measures, extends, example of, or the learner's own words). Both cards must be on the Canvas (place_on_canvas first); an arrow already drawn between them gets the label and what else is given. An end may be a region instead of a card (region:<region_id>, or region:<name>): an arrow to a region survives its cards leaving and goes with the region; a card is not joined to the region that holds it, nor a region to one around or inside it. Give the arrow a look: route (curve, the default; straight; or elbow), dashed, heads (end, the default; both; or none), color (#RRGGBB) and a stance (supports draws it green, contradicts red, unless it has a color of its own). With tree true it is a mind-map branch, parent to child, drawn as a branch and not an arrow: a branch joins two cards, a card has one parent, and a tree has no loop (update_canvas_region with layout tree lays a region of such cards out as a mind map). Only on the learner's word: the Canvas is where they think, so never arrange it on your own initiative; to suggest an arrangement, show a lens (apply_map_lens) or ask_canvas. Each call is one edit of theirs, which Undo (⌘Z, or undo_canvas) takes back. Returns the arrow's edge_id.",
     "inputSchema" : {
       "properties" : {
         "color" : {
@@ -2717,6 +2732,14 @@
             "curve",
             "straight",
             "elbow"
+          ],
+          "type" : "string"
+        },
+        "stance" : {
+          "description" : "Which side of an argument the arrow is on: supports (drawn green) or contradicts (red).",
+          "enum" : [
+            "supports",
+            "contradicts"
           ],
           "type" : "string"
         },
@@ -4008,7 +4031,7 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "Read the ForeverLM account behind Settings › Billing (the plan) and Settings › AI Usage (the key and the monthly spending limit), freshly fetched from the account server as those panes do when they open. ForeverLM's AI features are bring your own key: the learner's own OpenRouter API key pays for every model, billed by OpenRouter at cost, and using it requires a ForeverLM plan. OpenRouter is the only supported provider. Returns whether the learner is signed in; the plan (state free, subscribed, believer_trial, forever, comped or family; which plan; renewal and price; whether the own key may run AI) and the plans on sale with their prices (believer, $19 a year that never goes up, after a free week with no card, only while that early-adopter offer is open; monthly, $4 a month); a summary of the learner's own router key (details in get_own_router_key); any balance left over from before prepaid balance was retired, which still pays for requests sent without the key until it runs out and cannot be added to; and the monthly spending limit (current value, what has been spent this month, whether it is reached, when it resets, and the options the pane's picker offers, including no_limit). This is account state, the same on every device.",
+    "description" : "Read the ForeverLM account behind Settings › Billing (paying for ForeverLM) and Settings › AI Usage (the key and the monthly spending limit), freshly fetched from the account server as those panes do when they open. ForeverLM is a paid app after 7 free days: they begin at the first sign-in, and then the app is paid once (the Early user deal), with no subscription; an account that has not paid by then is locked until it does, and nothing in it is deleted. No monthly plan is sold; one bought before still counts as paid while it is active. AI is never part of the price: the learner's own OpenRouter API key pays for every model, billed by OpenRouter at cost, ForeverLM adds nothing, and Free mode costs $0. OpenRouter is the only supported provider. Returns whether the learner is signed in; the plan (state free_days, paid_once, monthly, comped, family or locked; whether the account is unlocked, when the free days end, how many are left and how many an account gets; a monthly plan's renewal and price; whether the own key may run AI) and the plans on sale with the account server's prices (once, the Early user deal, recommended); a summary of the learner's own router key (details in get_own_router_key); any balance left over from before prepaid balance was retired, which still pays for requests sent without the key until it runs out and cannot be added to; and the monthly spending limit (current value, what has been spent this month, whether it is reached, when it resets, and the options the pane's picker offers, including no_limit). This is account state, the same on every device.",
     "inputSchema" : {
       "properties" : {
 
@@ -4353,7 +4376,7 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "Read the learner's Canvas: a zoomable plane for what they think, holding the Ideas (questions, claims, hunches) and other cards they placed, the regions they drew around them and the arrows between them; a source not placed is not on the plane unless it is an Idea's evidence. Returns the regions they drew (by name, with region_id and rect, and collapsed when folded up, its cards then placed but not drawn) with the cards placed in each, the cards placed outside any region, each placed Idea's evidence (the sources and Docs linked to it), the arrows they drew between cards with their labels and edge_id, what is in view right now (the zoom level, the regions and up to 60 cards on screen), the cards they selected or circled, the lens showing if any, and how many cards are not placed yet, by notebook. Every card has an item_id (source:<source_id>, doc:<doc_id> for a Doc or anything else a notebook made, idea:<idea_id>, page:<source_id>:<n> for one page of a PDF source laid out on the Canvas, drawn from the PDF, canvas:<canvas_id> for a shortcut to another canvas, chat:<session_id> for a chat, or picture:<image_id> for an image of the Images library) to pass to apply_map_lens, focus_map and the tools that edit the Canvas on the learner's word (place_on_canvas and the rest); a source's id works with every source tool and a Doc's with read_doc. A placed card also gives its rect (x, y and the width and height it is drawn at) and what the learner gave it (w, h, folded, color); a region says when it is locked and when its layout is a tree (a mind map); an arrow says its route (curve, straight or elbow), dashed, heads (end, both or none), color and whether it is a tree branch, and an arrow's end may be a region (region:<region_id>); what is left out is the default. Call it when the learner talks about the canvas, the area they are looking at, a region, or what they circled, before answering about it. The learner may have several canvases in their Space; this reads the one open on the Mac, named in canvas (list_canvases lists them, open_canvas opens another).",
+    "description" : "Read the learner's Canvas: a zoomable plane for what they think, holding the Ideas (questions, claims, hunches) and other cards they placed, the regions they drew around them and the arrows between them; a source not placed is not on the plane unless it is an Idea's evidence. Returns the regions they drew (by name, with region_id and rect, and collapsed when folded up, its cards then placed but not drawn) with the cards placed in each, the cards placed outside any region, each placed Idea's evidence (the sources and Docs linked to it), the arrows they drew between cards with their labels and edge_id, what is in view right now (the zoom level, the regions and up to 60 cards on screen), the cards they selected or circled, the lens showing if any, and how many cards are not placed yet, by notebook. Every card has an item_id (source:<source_id>, doc:<doc_id> for a Doc or anything else a notebook made, idea:<idea_id>, page:<source_id>:<n> for one page of a PDF source laid out on the Canvas, drawn from the PDF, canvas:<canvas_id> for a shortcut to another canvas, chat:<session_id> for a chat, or picture:<image_id> for an image of the Images library) to pass to apply_map_lens, focus_map and the tools that edit the Canvas on the learner's word (place_on_canvas and the rest); a source's id works with every source tool and a Doc's with read_doc. A placed card also gives its rect (x, y and the width and height it is drawn at) and what the learner gave it (w, h, folded, color); a source drawn as a page of its PDF says which (page) and how many the PDF has (pages), and a card says the learner's words about why it is on this canvas (annotation), an Idea drawn as plain words (plain), an Idea whose title is a question (question) and a question marked answered (answered); a region says when it is locked and when its layout is a tree (a mind map); an arrow says its route (curve, straight or elbow), dashed, heads (end, both or none), color, its stance (supports or contradicts) and whether it is a tree branch, and an arrow's end may be a region (region:<region_id>); what is left out is the default. Call it when the learner talks about the canvas, the area they are looking at, a region, or what they circled, before answering about it. The learner may have several canvases in their Space; this reads the one open on the Mac, named in canvas (list_canvases lists them, open_canvas opens another).",
     "inputSchema" : {
       "properties" : {
         "include_unplaced" : {
@@ -4629,7 +4652,7 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "Read Settings › AI Usage › Your own key: whether the learner has stored their own OpenRouter key, which router it is for, and the key's last four characters. Never the key itself. ForeverLM's AI features are bring your own key: with a key stored and a ForeverLM plan, OpenRouter bills the learner directly, at cost, for everything ForeverLM sends through it. OpenRouter is the only supported provider. Without a plan the account server refuses the key for every model, free ones included (plan_required); with one, Free mode in Settings › AI Usage points every setting at OpenRouter's free models, so nothing is charged. The response names the scope: an OpenRouter key covers chat, reviews and background tasks plus every voice, speech-to-text, image and video model OpenRouter serves, first-party ones such as Gemini and Grok speech, GPT-4o mini transcription and Veo included, so the key pays for every model ForeverLM uses.",
+    "description" : "Read Settings › AI Usage › Your own key: whether the learner has stored their own OpenRouter key, which router it is for, and the key's last four characters. Never the key itself. ForeverLM's AI features are bring your own key: with a key stored, OpenRouter bills the learner directly, at cost, for everything ForeverLM sends through it, and ForeverLM adds nothing. OpenRouter is the only supported provider. The key runs while the account is unlocked (its free days, or ForeverLM paid for; own_key_allowed); a locked account's key runs no model, free ones included. Free mode in Settings › AI Usage points every setting at OpenRouter's free models, so it costs $0. The response names the scope: an OpenRouter key covers chat, reviews and background tasks plus every voice, speech-to-text, image and video model OpenRouter serves, first-party ones such as Gemini and Grok speech, GPT-4o mini transcription and Veo included, so the key pays for every model ForeverLM uses.",
     "inputSchema" : {
       "properties" : {
 
@@ -5473,7 +5496,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Put a page in ForeverLM from its link — the app's Link a Google Doc… in Docs and Link a Site… in Sites: a Google Doc (docs.google.com/document/d/…) lands in Docs; a Claude artifact (claude.ai/code/artifact/… or claude.ai/public/artifacts/…), a Codex site (….chatgpt.site) or a ForeverLM site (sites.foreverlm.com/…, published with publish_site) lands in the Sites section. The page opens in ForeverLM as itself and the entry is read-only here (write_doc refuses it). ForeverLM takes the page's title and a text copy for chat and review when the doc is next opened in the app — a Google Doc's export, or the visible text of a rendered artifact or site — so until then read_doc returns an empty body and the title is the placeholder unless one is passed. If you can read the page yourself (Claude Code can read its own artifacts), pass its content as text so the copy is there at once. Linking a page that is already in Docs or Sites returns the existing entry, and when text is passed replaces ForeverLM's text copy with it — the way to refresh the copy after editing the page in Claude or Codex. Anything else — a Sheet, a Drive file, a site on its own domain, any other website — is refused with the reason; import those with add_source instead.",
+    "description" : "Put a page in ForeverLM from its link — the app's Link a Google Doc… in Docs and Link a Site… in Sites: a Google Doc (docs.google.com/document/d/…) lands in Docs; a Claude artifact (claude.ai/code/artifact/… or claude.ai/public/artifacts/…) or a Codex site (….chatgpt.site) lands in the Sites section. The page opens in ForeverLM as itself and the entry is read-only here (write_doc refuses it). ForeverLM takes the page's title and a text copy for chat and review when the doc is next opened in the app — a Google Doc's export, or the visible text of a rendered artifact or site — so until then read_doc returns an empty body and the title is the placeholder unless one is passed. If you can read the page yourself (Claude Code can read its own artifacts), pass its content as text so the copy is there at once. Linking a page that is already in Docs or Sites returns the existing entry, and when text is passed replaces ForeverLM's text copy with it — the way to refresh the copy after editing the page in Claude or Codex. Anything else — a Sheet, a Drive file, a site on its own domain, any other website — is refused with the reason; import those with add_source instead.",
     "inputSchema" : {
       "properties" : {
         "home_notebook_id" : {
@@ -6902,11 +6925,11 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Open ForeverLM's Settings window on the learner's Mac at one pane, for what a chat must leave to the learner — signing in, connecting a plugin through the provider's consent page, choosing a plan, managing team members in Apple's sharing sheet. team_general and team_members open the open team's own Settings, a separate window from the learner's, and need a team library open. Brings ForeverLM to the front.",
+    "description" : "Open ForeverLM's Settings window on the learner's Mac at one pane, for what a chat must leave to the learner — signing in, connecting a plugin through the provider's consent page, paying for ForeverLM, managing team members in Apple's sharing sheet. team_general and team_members open the open team's own Settings, a separate window from the learner's, and need a team library open. Brings ForeverLM to the front.",
     "inputSchema" : {
       "properties" : {
         "pane" : {
-          "description" : "The pane to show. Omit for Billing, the ForeverLM plan; ai_usage is the key, Free mode, spending and activity.",
+          "description" : "The pane to show. Omit for Billing, paying for ForeverLM; ai_usage is the key, Free mode, spending and activity.",
           "enum" : [
             "general",
             "chat",
@@ -6962,15 +6985,30 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Set cards down on the learner's Canvas, or move ones already on it: into a region or a notebook's frame (region), beside a card already placed (beside), as a block with a new region drawn around it (new_region), or, with none of these, in free space in the middle of what the learner is looking at. Any source, Doc or Idea in the library can be placed; a card already on the Canvas moves. Cards in a region fill the free cells of its grid and the region grows to hold them; a notebook's frame lays its cards out in rows. Pass at most one of region, beside and new_region. Pass color, folded, w and h to give the cards set down a look of their own at once (update_canvas_card changes it later). Only on the learner's word: the Canvas is where they think, so never arrange it on your own initiative; to suggest an arrangement, show a lens (apply_map_lens) or ask_canvas. Each call is one edit of theirs, which Undo (⌘Z, or undo_canvas) takes back. Opens the Canvas beside the chat and flies to the cards. Returns the cards placed, the region they went into, and any item_ids the library does not hold.",
+    "description" : "Set cards down on the learner's Canvas, or move ones already on it: into a region or a notebook's frame (region), beside a card already placed (beside), as a block with a new region drawn around it (new_region), or, with none of these, in free space in the middle of what the learner is looking at. Any source, Doc or Idea in the library can be placed; a card already on the Canvas moves. Cards in a region fill the free cells of its grid and the region grows to hold them; a notebook's frame lays its cards out in rows. Pass at most one of region, beside and new_region. Pass color, folded, w and h to give the cards set down a look of their own at once (update_canvas_card changes it later). A paper whose PDF is on the Mac is set down as page 1 of it, its title and authors under, rather than as a card (face card sets it down as the usual card; face page shows any source as its page); pass annotations to write the learner's reason for each card being there under it (update_canvas_card changes it later). Only on the learner's word: the Canvas is where they think, so never arrange it on your own initiative; to suggest an arrangement, show a lens (apply_map_lens) or ask_canvas. Each call is one edit of theirs, which Undo (⌘Z, or undo_canvas) takes back. Opens the Canvas beside the chat and flies to the cards. Returns the cards placed, the region they went into, and any item_ids the library does not hold.",
     "inputSchema" : {
       "properties" : {
+        "annotations" : {
+          "additionalProperties" : {
+            "type" : "string"
+          },
+          "description" : "The learner's words about why a card is on this canvas, drawn under it, by item_id: at most 600 characters each. For any card set down in this call but an Idea, whose own note holds its words.",
+          "type" : "object"
+        },
         "beside" : {
           "description" : "Set the cards down as a block beside this card, which must be on the Canvas: by item_id (source:<id>, doc:<id> or idea:<id>; a bare id is tried as a source, then a Doc, then an Idea).",
           "type" : "string"
         },
         "color" : {
           "description" : "Tint the cards as #RRGGBB (the Canvas's own eight: #7F77DD, #1D9E75, #D85A30, #D4537E, #BA7517, #378ADD, #639922, #888780).",
+          "type" : "string"
+        },
+        "face" : {
+          "description" : "page: show sources as page 1 of their PDF; card: the usual card. Without it a paper whose PDF is on the Mac is set down as its page and every other card as itself.",
+          "enum" : [
+            "page",
+            "card"
+          ],
           "type" : "string"
         },
         "folded" : {
@@ -7130,102 +7168,6 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Put a copy of a saved site or animation on the web at sites.foreverlm.com/<slug>/, so the learner has a link to share — or update the copy's address or visibility. Publish only when the learner asks to publish, share or make a link: saving is save_site (or save_animation), and a site or animation never needs publishing to be kept, opened in ForeverLM or read by chat. Pass site (the site_id from save_site, or an animation_id). Files passed here (html, files or repository, exactly as save_site takes them) are saved into the library first and then published. Pass include_source_files true to attach each linked paper's stored PDF to the published copy (up to 50 MB a file, 200 MB a site) so the web card opens the PDF itself and keeps the publisher link; a PDF the library marks paywalled is attached only when the same call sets visibility private, and the result lists skipped_source_files with reasons. Published copies default to private: the owner signs in, or accepted team members sign in when the site belongs to a team. Pass visibility public when the learner says to publish fully or make it public; anyone can then open it without signing in. On an update, omit visibility to keep the current choice. Saving the site again later updates the published copy too; unpublish_site takes the copy down and keeps the site in the library. Returns the published address. Refused when the Mac is not signed in with Apple.",
-    "inputSchema" : {
-      "properties" : {
-        "files" : {
-          "description" : "The site's files, at most 200 and 10 MB in all, 2 MB each. Must include index.html at the root unless html is passed.",
-          "items" : {
-            "properties" : {
-              "content" : {
-                "description" : "The file's text (HTML, CSS, JavaScript, SVG, JSON). Pass exactly one of content and content_base64.",
-                "type" : "string"
-              },
-              "content_base64" : {
-                "description" : "The file's bytes as base64, for an image or font.",
-                "type" : "string"
-              },
-              "path" : {
-                "description" : "The file's path inside the site: index.html, about.html, css/site.css, img/logo.png. Letters, digits, dots, hyphens and underscores; no dot segments.",
-                "type" : "string"
-              }
-            },
-            "required" : [
-              "path"
-            ],
-            "type" : "object"
-          },
-          "type" : "array"
-        },
-        "home_notebook_id" : {
-          "description" : "Optional, new site only: as save_site takes it.",
-          "type" : "string"
-        },
-        "html" : {
-          "description" : "Optional: save this entry page into the library first, as save_site does, then publish.",
-          "type" : "string"
-        },
-        "include_source_files" : {
-          "description" : "Optional, default false. Attach the stored PDF of every paper the pages link (foreverlm://source/<id>) to the published copy under foreverlm/sources/, so the web card opens the paper itself. Paywalled PDFs are attached only when this call sets visibility private.",
-          "type" : "boolean"
-        },
-        "notebook_ids" : {
-          "description" : "Optional, new site only: as save_site takes it.",
-          "items" : {
-            "type" : "string"
-          },
-          "type" : "array"
-        },
-        "ref" : {
-          "description" : "Optional. The branch, tag or commit to read; defaults to the repository's default branch.",
-          "type" : "string"
-        },
-        "remove_files" : {
-          "description" : "Optional, with files only: as save_site takes it.",
-          "items" : {
-            "type" : "string"
-          },
-          "type" : "array"
-        },
-        "replace_all" : {
-          "description" : "Optional, with files only: as save_site takes it.",
-          "type" : "boolean"
-        },
-        "repository" : {
-          "description" : "Optional. Read the files from a GitHub repository instead of passing them: owner/repo, or a github.com URL, from list_github_repositories. Text files only; images in the repo are skipped and named in the result.",
-          "type" : "string"
-        },
-        "repository_path" : {
-          "description" : "Optional. The folder inside the repository that holds the site's index.html, such as site or docs/public. Defaults to the repository root.",
-          "type" : "string"
-        },
-        "site" : {
-          "description" : "The saved site or animation to publish: its site_id from save_site or the Sites list, or its animation_id. Omit only when passing files to save and publish a new site.",
-          "type" : "string"
-        },
-        "slug" : {
-          "description" : "Optional. A custom address, the part after sites.foreverlm.com/: 3–64 lowercase letters, digits and single hyphens (for example mito-landscape). Omit to keep the current address, a random twelve-character one on a first publish. A new slug moves the copy and its old address forwards; an address another site holds is refused.",
-          "type" : "string"
-        },
-        "title" : {
-          "description" : "Optional, with files only: as save_site takes it.",
-          "type" : "string"
-        },
-        "visibility" : {
-          "description" : "Optional. private (the default for a first publish) requires the owner or accepted team members to sign in. public publishes fully to the web so anyone can open it without signing in. Omit on an update to keep its current visibility.",
-          "enum" : [
-            "private",
-            "public"
-          ],
-          "type" : "string"
-        }
-      },
-      "type" : "object"
-    },
-    "name" : "publish_site",
-    "readOnlyHint" : false
-  },
-  {
     "description" : "Read a Notion database's rows live, each a page with its properties flattened to plain values, with Notion's own filter and sorts passed through unchanged (filter: {property, <type>: {…}} with and/or compounds; sorts: [{property or timestamp, direction}]). Pages of 25 by default, 100 at most; pass next_cursor back as cursor for the next page. Call get_notion_database first for the property names and options a filter needs. Read-only: ForeverLM reads Notion as the learner through a read-only connection and cannot create, edit, move or comment.",
     "inputSchema" : {
       "properties" : {
@@ -7350,7 +7292,7 @@
           "type" : "string"
         },
         "site" : {
-          "description" : "The site's site_id from save_site or the Sites list (or an animation_id); a published copy's slug or address also resolves.",
+          "description" : "The site's site_id from save_site or the Sites list (or an animation_id); its foreverlm-site:// address also resolves.",
           "type" : "string"
         }
       },
@@ -7850,7 +7792,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Change one passage of a site kept in the library without rewriting the page — the app's Change action on a selection in an open Site. Pass find, the text as it reads on the page (one line, or several consecutive lines such as a kicker and the heading under it; entities decoded, whitespace as rendered), and replace, the new text. ForeverLM reads the stored page, finds the passage in its HTML source — the text between tags, joined across inline markup; scripts, styles, comments and attributes never match — replaces exactly that text with the new one encoded, and saves the site with every other file kept (a published copy is updated too). The passage must occur exactly once: the call is refused with the count when it appears more often (pass a longer passage) and when it is not in the source (text a script drew, or text changed since it was read). With as many lines in replace as in find, each line changes in place; otherwise the first matched element takes the whole new text and the others are emptied, tags kept. Returns the address, the path and what changed. For anything more than a passage — new markup, a new page, a stylesheet — use save_site.",
+    "description" : "Change one passage of a site kept in the library without rewriting the page — the app's Change action on a selection in an open Site. Pass find, the text as it reads on the page (one line, or several consecutive lines such as a kicker and the heading under it; entities decoded, whitespace as rendered), and replace, the new text. ForeverLM reads the stored page, finds the passage in its HTML source — the text between tags, joined across inline markup; scripts, styles, comments and attributes never match — replaces exactly that text with the new one encoded, and saves the site with every other file kept. The passage must occur exactly once: the call is refused with the count when it appears more often (pass a longer passage) and when it is not in the source (text a script drew, or text changed since it was read). With as many lines in replace as in find, each line changes in place; otherwise the first matched element takes the whole new text and the others are emptied, tags kept. Returns the address, the path and what changed. For anything more than a passage — new markup, a new page, a stylesheet — use save_site.",
     "inputSchema" : {
       "properties" : {
         "find" : {
@@ -7858,7 +7800,7 @@
           "type" : "string"
         },
         "path" : {
-          "description" : "Optional. The page's path inside the site, such as about.html, or the page's address. Defaults to index.html.",
+          "description" : "Optional. The page's path inside the site, such as about.html, or the page's foreverlm-site:// address. Defaults to index.html.",
           "type" : "string"
         },
         "replace" : {
@@ -7866,7 +7808,7 @@
           "type" : "string"
         },
         "site" : {
-          "description" : "The site's site_id from save_site or the Sites list (or an animation_id); a published copy's slug or address also resolves.",
+          "description" : "The site's site_id from save_site or the Sites list (or an animation_id); its foreverlm-site:// address also resolves.",
           "type" : "string"
         }
       },
@@ -8119,7 +8061,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Save an animation in ForeverLM: a moving explanation of how something in a source works — the flow of electrons through the electron transport chain, the intermediates of a cycle appearing in turn, which steps happen inside the mitochondrion and which outside, a mechanism with and without a drug — drawn as code you wrote (HTML with inline SVG or Canvas and JavaScript that plays, pauses, scrubs and toggles conditions) or rendered to a video file by a tool such as Manim. The animation is kept in the learner's library and syncs through their own iCloud, plays in the app's Animations section in a sandbox (scripts run; localStorage and cookies throw, so wrap storage in try/catch), and is linked to the sources it explains. Nothing is put on the web unless the learner asks: publish_site with its animation_id puts a copy there. This is the tool whenever the learner wants to see how something works, an animation, a walkthrough of a pathway, or a mechanism in motion: never answer with a Doc, a Site or a static figure instead. Pass html for a one-file animation or files for several (index.html at the root; paths relative). A file may carry content (text), content_base64 (bytes) or local_path (a file on this Mac — the way a video rendered here is saved without travelling through the call; an animation can be up to 45 MB in all, so it syncs with the record). Exactly one video file (mp4, webm, mov, m4v) with no index.html gets a player page written around it. Pass sources — the ids of the papers or articles the animation explains, from list_sources, search_sources_semantic or the chat's attached sources; a foreverlm://source/<id> link or a DOI, arXiv or publisher address the library holds also resolves — so the paper lists its animations and the animation opens its paper; a new animation whose sources resolve to nothing is refused with the tokens, and sources: [] saves an animation about no source. Pass description: two or three sentences on what it shows and how to read it, which becomes what chat, review and search know about it. Draw the mechanism the sources describe, label every step in words, use readable text sizes, prefer SVG with requestAnimationFrame or CSS animation, load nothing from the network unless the sources need it, and add controls (play/pause, a scrubber, a toggle for each condition compared). To show a source on the page, write a link to foreverlm://source/<id> standing alone in its p, li or div: ForeverLM draws it as the library's banner card and opens Reader in the app; never draw your own cards. To change an animation saved before, pass animation (its animation_id) and only the files that change; the other stored files are kept, remove_files drops named ones, replace_all makes the passed files the whole animation, and sources passed on an update replace the linked sources. If it is published, the published copy is updated too.",
+    "description" : "Save an animation in ForeverLM: a moving explanation of how something in a source works — the flow of electrons through the electron transport chain, the intermediates of a cycle appearing in turn, which steps happen inside the mitochondrion and which outside, a mechanism with and without a drug — drawn as code you wrote (HTML with inline SVG or Canvas and JavaScript that plays, pauses, scrubs and toggles conditions) or rendered to a video file by a tool such as Manim. The animation is kept in the learner's library and syncs through their own iCloud, plays in the app's Animations section in a sandbox (scripts run; localStorage and cookies throw, so wrap storage in try/catch), and is linked to the sources it explains. Nothing is put on the web. This is the tool whenever the learner wants to see how something works, an animation, a walkthrough of a pathway, or a mechanism in motion: never answer with a Doc, a Site or a static figure instead. Pass html for a one-file animation or files for several (index.html at the root; paths relative). A file may carry content (text), content_base64 (bytes) or local_path (a file on this Mac — the way a video rendered here is saved without travelling through the call; an animation can be up to 45 MB in all, so it syncs with the record). Exactly one video file (mp4, webm, mov, m4v) with no index.html gets a player page written around it. Pass sources — the ids of the papers or articles the animation explains, from list_sources, search_sources_semantic or the chat's attached sources; a foreverlm://source/<id> link or a DOI, arXiv or publisher address the library holds also resolves — so the paper lists its animations and the animation opens its paper; a new animation whose sources resolve to nothing is refused with the tokens, and sources: [] saves an animation about no source. Pass description: two or three sentences on what it shows and how to read it, which becomes what chat, review and search know about it. Draw the mechanism the sources describe, label every step in words, use readable text sizes, prefer SVG with requestAnimationFrame or CSS animation, load nothing from the network unless the sources need it, and add controls (play/pause, a scrubber, a toggle for each condition compared). To show a source on the page, write a link to foreverlm://source/<id> standing alone in its p, li or div: ForeverLM draws it as the library's banner card and opens Reader in the app; never draw your own cards. To change an animation saved before, pass animation (its animation_id) and only the files that change; the other stored files are kept, remove_files drops named ones, replace_all makes the passed files the whole animation, and sources passed on an update replace the linked sources.",
     "inputSchema" : {
       "properties" : {
         "animation" : {
@@ -8707,7 +8649,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Save a website — HTML, CSS, JavaScript and images you wrote — in the learner's ForeverLM library, or change one saved before. This is how a chat makes an actual site rather than a Doc. The site is kept in the library and syncs through the learner's own iCloud; it opens in the app's Sites section as itself, and chat can read its text. Nothing is put on the web: publish_site does that, only when the learner asks for a link to share. Pass html for a one-page site, or files for several (index.html at the root is required; paths are relative, e.g. css/site.css, and are referenced from the HTML with relative links); or pass repository (owner/repo, read through the learner's GitHub plugin, text files only) with repository_path and ref to save a folder of a repo — the commit is recorded. Every page runs in a sandbox: its own files and https resources load, scripts run, forms and links work, but localStorage, cookies and same-origin storage throw, so write pages that work without them (wrap storage in try/catch). To show a source from the learner's library, write a link to foreverlm://source/<source-id> (the id from list_sources or search_sources) with the source's title as its text, standing alone as the only content of its p, li, td or div. ForeverLM draws it as the library's banner card — the source's own thumbnail, its title, and author · venue · year: the Mac renders each source's thumbnail and stores it with the site under foreverlm/, together with the card script the pages load, so the cards are part of the site; in the app a card opens Reader beside the site, and on a published copy it opens the source's public page. A source the library holds can equally be linked by its own web address — its DOI, arXiv, publisher, YouTube or podcast page — as an ordinary https link: ForeverLM matches every address the pages link against the library (by URL, DOI or arXiv id) and draws the same card for a match; an address the library does not hold is simply the page it names. Prefer that form for a page that must read well outside ForeverLM, and foreverlm://source/<id> for a source with no web address (a local PDF, a book chapter, notes). The result's linked_addresses lists the addresses that matched. Never draw your own source cards, thumbnails or Open in Reader buttons, leave the foreverlm/ files alone (they are regenerated on every save), and check unresolved_sources in the result for ids no source answers to. To change a saved site, pass site (its site_id) and only the files that change: every other file is kept as it is, so never read back or re-send files you are not changing. read_site_file without a path lists the site's files; with a path it returns one file's current text. Pass remove_files to drop files, or replace_all true to make the passed files the whole site. A new site needs index.html; an update keeps the stored one unless a new one is passed. A site kept in the library can be up to 45 MB in all, so it syncs with the record. If the site is published, the published copy is updated with the change. Returns the site_id and the site's library address.",
+    "description" : "Save a website — HTML, CSS, JavaScript and images you wrote — in the learner's ForeverLM library, or change one saved before. This is how a chat makes an actual site rather than a Doc. The site is kept in the library and syncs through the learner's own iCloud; it opens in the app's Sites section as itself, and chat can read its text. Nothing is put on the web: ForeverLM keeps sites in the library and never hosts one. When the learner wants a public link, a Claude artifact is the way: make it there and link it with link_page. Pass html for a one-page site, or files for several (index.html at the root is required; paths are relative, e.g. css/site.css, and are referenced from the HTML with relative links); or pass repository (owner/repo, read through the learner's GitHub plugin, text files only) with repository_path and ref to save a folder of a repo — the commit is recorded. Every page runs in a sandbox: its own files and https resources load, scripts run, forms and links work, but localStorage, cookies and same-origin storage throw, so write pages that work without them (wrap storage in try/catch). To show a source from the learner's library, write a link to foreverlm://source/<source-id> (the id from list_sources or search_sources) with the source's title as its text, standing alone as the only content of its p, li, td or div. ForeverLM draws it as the library's banner card — the source's own thumbnail, its title, and author · venue · year: the Mac renders each source's thumbnail and stores it with the site under foreverlm/, together with the card script the pages load, so the cards are part of the site; in the app a card opens Reader beside the site. A source the library holds can equally be linked by its own web address — its DOI, arXiv, publisher, YouTube or podcast page — as an ordinary https link: ForeverLM matches every address the pages link against the library (by URL, DOI or arXiv id) and draws the same card for a match; an address the library does not hold is simply the page it names. Prefer that form for a paper or page with a web address, and foreverlm://source/<id> for a source with no web address (a local PDF, a book chapter, notes). The result's linked_addresses lists the addresses that matched. Never draw your own source cards, thumbnails or Open in Reader buttons, leave the foreverlm/ files alone (they are regenerated on every save), and check unresolved_sources in the result for ids no source answers to. To change a saved site, pass site (its site_id) and only the files that change: every other file is kept as it is, so never read back or re-send files you are not changing. read_site_file without a path lists the site's files; with a path it returns one file's current text. Pass remove_files to drop files, or replace_all true to make the passed files the whole site. A new site needs index.html; an update keeps the stored one unless a new one is passed. A site kept in the library can be up to 45 MB in all, so it syncs with the record. Returns the site_id and the site's library address.",
     "inputSchema" : {
       "properties" : {
         "files" : {
@@ -8844,7 +8786,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Save a walkthrough you wrote for a paper, a book chapter, an article or a YouTube video, to be played by the chat beside it in the Reader one step at a time — the in-Reader form of a figure companion site: the source stays on screen and your explanation moves over it, so never build a separate site to explain a source's figures when this will do. Read the source first (get_source_content) and, for a paper or a chapter split from a PDF, look at its figures (inspect_paper_figure, which also gives each figure's panels), then pass title and either chapters — one per claim of the source's argument, three to seven, each with a title, the claim as one sentence the learner could say back (plain words, about twenty at most, one point), and its steps, ending on a question — or a flat steps list. Teach the argument's claims, not a tour of the figures, and meet the figures in the order the source prints them (Figure 1 before Figure 2, panel a before panel b) unless the argument cannot be taught that way; a step that outlines a figure ahead of a lower-numbered one the learner has not seen yet says why, and when the earlier figures come, in its first beat, and warnings name such a jump. Walk each figure in one run of steps, with at most one deliberate return to a panel later on, and bring back a figure already walked as a step's picture rather than another step outlining it. A figure that carries no claim is left out, but a figure the walk shows has every panel inspect_paper_figure lists addressed before the walk leaves it: a step for each panel that carries a claim, a beat naming each other one, and warnings name a panel left unaddressed. Steps come in reading order, one point a step — the learner presses Next between them, so each says what to look at, what it shows and what it means, and stops. Explain it the way a good textbook does, simply and step by step, for a learner who is bright and willing but new to the field; when their About you is set (get_app_settings, account.about_you), pitch it to them instead. Teach the terms and parts the argument needs in beats of their own, in plain words, before the step that uses them, never in a more chip alone; bring in at most one or two new terms or names a card and leave out a name the walk never uses again; start an abstract claim from a concrete case the learner can picture; translate the source's language into plain words rather than rewording it; let each beat say how it follows from the one before (so, because, but); keep what is established apart from what is the author's proposal. Beyond the opening and closing field context, your own knowledge enters only as textbook background you are certain of — what a term means, a well-established mechanism, a concrete example — never as the source's finding. Write each step as beats: every beat is dealt as a card of its own — one short sentence — and a beat can name the panel it is about so the Reader's outline moves with it. A step may offer up to three more chips ({label, text, from_paper}) for context a newcomer may want and the argument can do without; from_paper is true only for the source's own words. A step whose point rests on a work the source names or cites — a paper, a book, an article, a talk — names it in cites (up to three), and its cards show it under the point as a card that opens the work where the library holds it and its page otherwise, with Add: copy the title and authors as the source or its reference list prints them, and give a doi or url only when the source prints it or you opened the page yourself, never one recalled; pass source_id when the library holds the work. Each step has kind (explain, figure or quiz), a short title, body (one to three plain paragraphs, about 60 to 150 words, blank-line separated, no Markdown headings; a figure step reads the panel before it interprets it — what that panel's own x and y axes plot (never a neighbouring panel's) and in what units, what each trace, colour or symbol is, then what the data do, then what it means — since the learner reads the body beside a figure they may find daunting). A figure step is about one panel: figure_label exactly as the source prints it (\"Figure 2\") with panel_label (\"a\"), which the Reader outlines on the page; two or three adjacent panels share a step only when they make one point together (panel_label the first, the body naming each), and no step tours a whole multi-panel figure. An explain step is the chat talking and takes an anchor only when its point is in the source's own words: passage (eight to forty words, copied exactly), which the Reader marks or flashes; a step that sets up or sums up carries no anchor and the Reader stays where it is; page_number (one-based) is a fallback. Open by situating the source in its field — what was known or believed before it, the open problem or debate it enters, why the question matters beyond the system it studies — as a journal's editorial summary would, marking what is the source's own account and what is yours and adding only what you can vouch for, and close with what changes for the field if the authors are right; a learner who reads the source alone gets only its specifics. An article and an EPUB chapter are shown as text and have no figures: anchor the steps of theirs that are about particular words with a passage; a figure_label on one is refused and named in warnings, and get_walkthrough's figure_anchors says beforehand which kind a source takes. A YouTube video is walked through by its talk, and this is the one way to write its walk: read its transcript (get_source_content, whose [m:ss] markers time each block) and look at its slides or any moment's frame (show_source_image), then give each step at, the moment of the talk it is about (\"12:34\" or whole seconds) — the Reader seeks the video there and holds it paused while the step's cards are read, so the learner sees what the talk showed then and presses play to hear it; a step that quotes the talk (passage, copied from one transcript block) and leaves at out is placed where the talk says the quote, and a step with neither leaves the video where it is. A video has no figures: its steps are explain and quiz steps, and a figure_label on one is refused. A quiz step carries quiz: {kind, question, answer, key_points, target_panel} — an open question the learner answers in their own words, graded by the chat's tutor against your reference answer and key points; never multiple choice (the old {options, correct_index, explanation} shape is still accepted for one release, saved as an open question with the correct option as the answer, and warned about). kind is recall (the default, about what the cards just showed), think_first (asked before the evidence), predict (the step points at a panel with figure_label and panel_label whose data stay hidden on the card and the page until the learner answers; answer says what the data show; one pointing at no figure is asked as think_first) or find (the step points at a figure with figure_label and no panel_label, and target_panel names the panel that answers, one of the figure's printed panels; the learner picks it on the figure). Write questions the way quantum.country's essays do: right after the point they test, usually two or three together, and at each chapter's end; one detail each, with one right answer; an answer that leads with a word, number, direction or name the learner can check at a glance; never yes or no, never a card's sentence with a word blanked out; the central ideas asked from more than one side; aimed at the argument — what a panel or passage showed and what it means for the claim, what causes what, why a control was needed — with some why and a little application; a term only when the walk keeps using it, asked for its meaning, never \"what does the author call X\"; no trivia; each question standalone, since it is read again away from the cards. Most are recall; use think_first, predict and find once or twice each where they earn it. Every point card shows a picture: a figure step's figure, or a step's picture — a figure of the source shown without outlining it, or an image drawn with generate_image (pass its image_id) — and a step without one shows the picture of the step before it in its chapter, so draw a new one only where the point moves on; an article or an EPUB chapter has no figures, so its pictures are drawn ones. A step's animation is dealt as a card of its own after the step's points, with no figure above it. A step may carry animation_html: one complete HTML document (inline SVG or Canvas, CSS and JavaScript; nothing loaded from the network, no storage, under 24,000 characters) that plays on a card of its own after the step's points and enlarged on request — at most six per walkthrough — or animation_brief, a description ForeverLM may draw later. Better than inline HTML for anything drawn more than once: a step may show a SAVED animation (from save_animation / list_animations) by reference — animation (its id, slug or address), animation_step (one-based step of the animation's own player) and animation_conditions (condition id → value, as the animation's page reads them) — and the chat's card loads the animation's page pinned to that step, with no size limit; a pane showing the animation beside the chat is pointed at the step instead. A walkthrough can also be OF an animation: pass animation in place of source_id, and every step's animation defaults to it, so the chat beside the animation plays the walk and the page follows step by step. Such steps take no figure or passage anchors. A kit animation's build writes these steps as walkthrough.json (mitochondria animations/kit/build.py --walkthrough); pass them through. Every figure label and passage is checked against the source's figure index and text; a step whose anchor is not found keeps its words and loses the anchor, and warnings name each. At most 40 steps besides the questions, and at most 20 questions. Replaces the subject's existing walkthrough. Refused when the source's text has not been read yet. A book is walked through one chapter at a time: save one walkthrough per chapter.",
+    "description" : "Save a walkthrough you wrote for a paper, a book chapter, an article or a YouTube video, to be played by the chat beside it in the Reader one step at a time — the in-Reader form of a figure companion site: the source stays on screen and your explanation moves over it, so never build a separate site to explain a source's figures when this will do. Read the source first (get_source_content) and, for a paper or a chapter split from a PDF, look at its figures (inspect_paper_figure, which also gives each figure's panels), then pass title and either chapters — one per claim of the source's argument, three to seven, each with a title, the claim as one sentence the learner could say back (plain words, about twenty at most, one point), and its steps, ending on a question — or a flat steps list. Teach the argument's claims, not a tour of the figures, and meet the figures in the order the source prints them (Figure 1 before Figure 2, panel a before panel b) unless the argument cannot be taught that way; a step that outlines a figure ahead of a lower-numbered one the learner has not seen yet says why, and when the earlier figures come, in its first beat, and warnings name such a jump. Walk each figure in one run of steps, with at most one deliberate return to a panel later on, and bring back a figure already walked as a step's picture rather than another step outlining it. A figure that carries no claim is left out, but a figure the walk shows has every panel inspect_paper_figure lists addressed before the walk leaves it: a step for each panel that carries a claim, a beat naming each other one, and warnings name a panel left unaddressed. Steps come in reading order, one point a step — the learner presses Next between them, so each says what to look at, what it shows and what it means, and stops. Explain it the way a good textbook does, simply and step by step, for a learner who is bright and willing but new to the field; when their About you is set (get_app_settings, account.about_you), pitch it to them instead. Teach the terms and parts the argument needs in beats of their own, in plain words, before the step that uses them, never in a more chip alone; bring in at most one or two new terms or names a card and leave out a name the walk never uses again; start an abstract claim from a concrete case the learner can picture; translate the source's language into plain words rather than rewording it; let each beat say how it follows from the one before (so, because, but); keep what is established apart from what is the author's proposal. Beyond the opening and closing field context, your own knowledge enters only as textbook background you are certain of — what a term means, a well-established mechanism, a concrete example — never as the source's finding. Write each step as beats: every beat is dealt as a card of its own — one short sentence — and a beat can name the panel it is about so the Reader's outline moves with it. A step may offer up to three more chips ({label, text, from_paper}) for context a newcomer may want and the argument can do without; from_paper is true only for the source's own words. A step whose point rests on a work the source names or cites — a paper, a book, an article, a talk — names it in cites (up to three), and its cards show it under the point as a card that opens the work where the library holds it and its page otherwise, with Add: copy the title and authors as the source or its reference list prints them, and give a doi or url only when the source prints it or you opened the page yourself, never one recalled; pass source_id when the library holds the work. Each step has kind (explain, figure or quiz), a short title, body (one to three plain paragraphs, about 60 to 150 words, blank-line separated, no Markdown headings; a figure step reads the panel before it interprets it — what that panel's own x and y axes plot (never a neighbouring panel's) and in what units, what each trace, colour or symbol is, then what the data do, then what it means — since the learner reads the body beside a figure they may find daunting). A figure step is about one panel: figure_label exactly as the source prints it (\"Figure 2\") with panel_label (\"a\"), which the Reader outlines on the page; two or three adjacent panels share a step only when they make one point together (panel_label the first, the body naming each), and no step tours a whole multi-panel figure. An explain step is the chat talking and takes an anchor only when its point is in the source's own words: passage (eight to forty words, copied exactly), which the Reader marks or flashes; a step that sets up or sums up carries no anchor and the Reader stays where it is; page_number (one-based) is a fallback. Open by situating the source in its field — what was known or believed before it, the open problem or debate it enters, why the question matters beyond the system it studies — as a journal's editorial summary would, marking what is the source's own account and what is yours and adding only what you can vouch for, and close with what changes for the field if the authors are right; a learner who reads the source alone gets only its specifics. An article and an EPUB chapter are shown as text and have no figures: anchor the steps of theirs that are about particular words with a passage; a figure_label on one is refused and named in warnings, and get_walkthrough's figure_anchors says beforehand which kind a source takes. A YouTube video is walked through by its talk, and this is the one way to write its walk: read its transcript (get_source_content, whose [m:ss] markers time each block) and look at its slides or any moment's frame (show_source_image), then give each step at, the moment of the talk it is about (\"12:34\" or whole seconds) — the Reader seeks the video there and holds it paused while the step's cards are read, so the learner sees what the talk showed then and presses play to hear it; a step that quotes the talk (passage, copied from one transcript block) and leaves at out is placed where the talk says the quote, and a step with neither leaves the video where it is. A video has no figures: its steps are explain and quiz steps, and a figure_label on one is refused. A quiz step carries quiz: {kind, question, answer, key_points, target_panel} — an open question the learner answers in their own words, graded by the chat's tutor against your reference answer and key points; never multiple choice (the old {options, correct_index, explanation} shape is still accepted for one release, saved as an open question with the correct option as the answer, and warned about). kind is recall (the default, about what the cards just showed), think_first (asked before the evidence), predict (the step points at a panel with figure_label and panel_label whose data stay hidden on the card and the page until the learner answers; answer says what the data show; one pointing at no figure is asked as think_first) or find (the step points at a figure with figure_label and no panel_label, and target_panel names the panel that answers, one of the figure's printed panels; the learner picks it on the figure). Write questions the way quantum.country's essays do: right after the point they test, usually two or three together, and at each chapter's end; one detail each, with one right answer; an answer that leads with a word, number, direction or name the learner can check at a glance; never yes or no, never a card's sentence with a word blanked out; the central ideas asked from more than one side; aimed at the argument — what a panel or passage showed and what it means for the claim, what causes what, why a control was needed — with some why and a little application; a term only when the walk keeps using it, asked for its meaning, never \"what does the author call X\"; no trivia; each question standalone, since it is read again away from the cards. Most are recall; use think_first, predict and find once or twice each where they earn it. Every point card shows a picture: a figure step's figure, or a step's picture — a figure of the source shown without outlining it, or an image drawn with generate_image (pass its image_id) — and a step without one shows the picture of the step before it in its chapter, so draw a new one only where the point moves on; an article or an EPUB chapter has no figures, so its pictures are drawn ones. A step's animation is dealt as a card of its own after the step's points, with no figure above it. A step may carry animation_html: one complete HTML document (inline SVG or Canvas, CSS and JavaScript; nothing loaded from the network, no storage, under 24,000 characters) that plays on a card of its own after the step's points and enlarged on request — at most six per walkthrough — or animation_brief, a description ForeverLM may draw later. Better than inline HTML for anything drawn more than once: a step may show a SAVED animation (from save_animation / list_animations) by reference — animation (its id or address), animation_step (one-based step of the animation's own player) and animation_conditions (condition id → value, as the animation's page reads them) — and the chat's card loads the animation's page pinned to that step, with no size limit; a pane showing the animation beside the chat is pointed at the step instead. A walkthrough can also be OF an animation: pass animation in place of source_id, and every step's animation defaults to it, so the chat beside the animation plays the walk and the page follows step by step. Such steps take no figure or passage anchors. A kit animation's build writes these steps as walkthrough.json (mitochondria animations/kit/build.py --walkthrough); pass them through. Every figure label and passage is checked against the source's figure index and text; a step whose anchor is not found keeps its words and loses the anchor, and warnings name each. At most 40 steps besides the questions, and at most 20 questions. Replaces the subject's existing walkthrough. Refused when the source's text has not been read yet. A book is walked through one chapter at a time: save one walkthrough per chapter.",
     "inputSchema" : {
       "properties" : {
         "animation" : {
@@ -8888,7 +8830,7 @@
           "items" : {
             "properties" : {
               "animation" : {
-                "description" : "A saved animation this step shows (its animation_id, slug or address). In a walkthrough of an animation it defaults to that animation.",
+                "description" : "A saved animation this step shows (its animation_id or address). In a walkthrough of an animation it defaults to that animation.",
                 "type" : "string"
               },
               "animation_brief" : {
@@ -9587,7 +9529,7 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "Change Settings › AI Models exactly as the pane's own controls do. target default_model sets the Default Model card (provider + model); docs sets the model Edit with AI in a Doc runs on, as the ForeverLM mark on the Edit with AI panel does (provider + model), and docs with neither goes back to following the Default Model; background_text and background_multimodal set Settings › Background's Text-only and Multimodal models, which every background task runs on unless it has a model of its own; task_model (task_id plus provider and model, or neither to go back to following) gives one task a model of its own, as its page under Background › Tasks does, and takes only a vision model for a task with requires_vision. Every selection must be a catalogue model on an offered provider, not retired — or a model from free_models for background_text or background_multimodal (reads_images for the latter), which moves only that setting and costs nothing, though its providers may keep and train on what is sent and it is often busy; background_multimodal takes only a vision model. target meetings records Setup's Meetings answer (meetings_may_use_free): false, the default, keeps meeting tasks on a paid model while their Background model is free (its first paid backup; with none the task waits, and ForeverLM picks no paid model for them); true lets them use the free one. Ask it before moving background_text to a free model. target data_privacy flips Settings › Data & Privacy's “Don't show models that train on my data” (hide_training_models): true leaves every model marked trains_on_inputs out of the pickers and the catalogue, false offers them again, labelled. target free_mode flips Settings › AI Usage's “Free mode” (free_mode): true needs the learner's own OpenRouter key and a ForeverLM plan, points every model setting at OpenRouter's free models, turns hide_training_models off and offers only free models until it goes off; anything without a free model (transcription, images, video, web search) is refused meanwhile, and nothing sent can be charged. false puts back the models it replaced. Before turning Free mode on, tell the learner that free models' providers may keep and train on everything sent to them and that free models are often overloaded or rate-limited. target host chooses which of a model's OpenRouter hosts runs chat or a Background model's work (host_for, host, host_fallback), and whether only its hosts in the US may (host_region), as a chosen model card's ⋯ in Settings › Chat does. target backups sets the backup models chat's scheduled runs or a Background model moves its work to, in order, when its model is busy, fails or sends back nothing usable (backups_for, backups), as Use as Backup on a model card does; each backup is billed at its own price. Ask before calling this: it changes which model, and so which price, the learner's work runs on. Returns the resulting settings with changed.",
+    "description" : "Change Settings › AI Models exactly as the pane's own controls do. target default_model sets the Default Model card (provider + model); docs sets the model Edit with AI in a Doc runs on, as the ForeverLM mark on the Edit with AI panel does (provider + model), and docs with neither goes back to following the Default Model; background_text and background_multimodal set Settings › Background's Text-only and Multimodal models, which every background task runs on unless it has a model of its own; task_model (task_id plus provider and model, or neither to go back to following) gives one task a model of its own, as its page under Background › Tasks does, and takes only a vision model for a task with requires_vision. Every selection must be a catalogue model on an offered provider, not retired — or a model from free_models for background_text or background_multimodal (reads_images for the latter), which moves only that setting and costs nothing, though its providers may keep and train on what is sent and it is often busy; background_multimodal takes only a vision model. target meetings records Setup's Meetings answer (meetings_may_use_free): false, the default, keeps meeting tasks on a paid model while their Background model is free (its first paid backup; with none the task waits, and ForeverLM picks no paid model for them); true lets them use the free one. Ask it before moving background_text to a free model. target data_privacy flips Settings › Data & Privacy's “Don't show models that train on my data” (hide_training_models): true leaves every model marked trains_on_inputs out of the pickers and the catalogue, false offers them again, labelled. target free_mode flips Settings › AI Usage's “Free mode” (free_mode): true needs the learner's own OpenRouter key and an unlocked account (its free days, or ForeverLM paid for), points every model setting at OpenRouter's free models, turns hide_training_models off and offers only free models until it goes off; anything without a free model (transcription, images, video, web search) is refused meanwhile, and nothing sent can be charged. false puts back the models it replaced. Before turning Free mode on, tell the learner that free models' providers may keep and train on everything sent to them and that free models are often overloaded or rate-limited. target host chooses which of a model's OpenRouter hosts runs chat or a Background model's work (host_for, host, host_fallback), and whether only its hosts in the US may (host_region), as a chosen model card's ⋯ in Settings › Chat does. target backups sets the backup models chat's scheduled runs or a Background model moves its work to, in order, when its model is busy, fails or sends back nothing usable (backups_for, backups), as Use as Backup on a model card does; each backup is billed at its own price. Ask before calling this: it changes which model, and so which price, the learner's work runs on. Returns the resulting settings with changed.",
     "inputSchema" : {
       "properties" : {
         "backups" : {
@@ -9621,7 +9563,7 @@
           "type" : "string"
         },
         "free_mode" : {
-          "description" : "For target free_mode: true turns Free mode on (only OpenRouter's free models, on the learner's own OpenRouter key, which needs a ForeverLM plan; their providers may train on what is sent); false turns it off and puts back the models it replaced.",
+          "description" : "For target free_mode: true turns Free mode on (only OpenRouter's free models, on the learner's own OpenRouter key, which runs while the account is unlocked; their providers may train on what is sent); false turns it off and puts back the models it replaced.",
           "type" : "boolean"
         },
         "hide_training_models" : {
@@ -9774,7 +9716,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Change the monthly spending limit in Settings › AI Usage › Spending exactly as the pane's picker does. monthly_spending_limit takes one of the picker's values: no_limit, or a dollar amount from monthly_spending_limit.options in get_billing_settings (5, 10, 20, 50, 100, 250). When the month's AI spend reaches the limit, AI pauses until the month resets; a limit below what has already been spent pauses AI at once. That changes whether AI keeps working, so ask the learner first. Choosing or changing a plan goes through Stripe Checkout, which only the learner can complete: use open_settings billing. The own OpenRouter key is set with set_own_router_key. Returns what get_billing_settings returns, after the change.",
+    "description" : "Change the monthly spending limit in Settings › AI Usage › Spending exactly as the pane's picker does. monthly_spending_limit takes one of the picker's values: no_limit, or a dollar amount from monthly_spending_limit.options in get_billing_settings (5, 10, 20, 50, 100, 250). When the month's AI spend reaches the limit, AI pauses until the month resets; a limit below what has already been spent pauses AI at once. That changes whether AI keeps working, so ask the learner first. Paying for ForeverLM goes through Stripe Checkout, which only the learner can complete: use open_settings billing. The own OpenRouter key is set with set_own_router_key. Returns what get_billing_settings returns, after the change.",
     "inputSchema" : {
       "properties" : {
         "monthly_spending_limit" : {
@@ -10024,7 +9966,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Turn a team's family plan on or off (team owner only). On needs this account's own ForeverLM plan and makes its plan cover every member of the team; their Macs join by themselves. Off ends the coverage for every member of that team. The same switch as Pay for members' AI in the team's Members settings.",
+    "description" : "Turn a team's family plan on or off (team owner only). On needs this account to have paid for ForeverLM itself and makes its payment cover every member of the team; their Macs join by themselves. Off ends the coverage for every member of that team. The same switch as Pay for members' AI in the team's Members settings.",
     "inputSchema" : {
       "properties" : {
         "enabled" : {
@@ -10935,7 +10877,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Take cards off the learner's Canvas, as the inspector's Take Off Canvas does: each goes back to the tray (a notebook's source is drawn flat in its notebook's frame again when the frame is on the Canvas), and the arrows drawn to it go with it. Nothing is deleted from the library. Only on the learner's word: the Canvas is where they think, so never arrange it on your own initiative; to suggest an arrangement, show a lens (apply_map_lens) or ask_canvas. Each call is one edit of theirs, which Undo (⌘Z, or undo_canvas) takes back. Returns the cards taken off and those that were not on the Canvas.",
+    "description" : "Take cards off the learner's Canvas, as the inspector's Take Off Canvas does: each waits in the canvas's Library again (a notebook's source is drawn flat in its notebook's frame again when the frame is on the Canvas), and the arrows drawn to it go with it. Nothing is deleted from the library. Only on the learner's word: the Canvas is where they think, so never arrange it on your own initiative; to suggest an arrangement, show a lens (apply_map_lens) or ask_canvas. Each call is one edit of theirs, which Undo (⌘Z, or undo_canvas) takes back. Returns the cards taken off and those that were not on the Canvas.",
     "inputSchema" : {
       "properties" : {
         "item_ids" : {
@@ -11240,23 +11182,6 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Take the published copy of a site or animation off the web, so its sites.foreverlm.com address stops working. The site stays in the library, and publish_site can put it back. A site that is not published is not an error. Use delete_doc (or delete_animation) to remove it from the library.",
-    "inputSchema" : {
-      "properties" : {
-        "site" : {
-          "description" : "The site's site_id from save_site or the Sites list (or an animation_id); a published copy's slug or address also resolves.",
-          "type" : "string"
-        }
-      },
-      "required" : [
-        "site"
-      ],
-      "type" : "object"
-    },
-    "name" : "unpublish_site",
-    "readOnlyHint" : false
-  },
-  {
     "description" : "Take sources off the Schedule. With goal_id (a Goal or a Notebook) only that goal's tag comes off, and a source it shares with another goal stays scheduled for that one; without goal_id the sources leave the Schedule entirely. The sources stay in the library and their activity history is kept.",
     "inputSchema" : {
       "properties" : {
@@ -11385,7 +11310,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Change an arrow on the learner's Canvas, named by its edge_id (get_knowledge_map lists it under arrows) or by its ends (from and to: cards, or regions as region:<region_id>): relabel it (label; an empty label clears it), set its route (curve, straight or elbow), dashed, heads (end, both or none) or color (#RRGGBB; an empty string gives it the usual one), or turn it into a mind-map branch or back into an arrow (tree). Pass only what changes. Only on the learner's word: the Canvas is where they think, so never arrange it on your own initiative; to suggest an arrangement, show a lens (apply_map_lens) or ask_canvas. Each call is one edit of theirs, which Undo (⌘Z, or undo_canvas) takes back.",
+    "description" : "Change an arrow on the learner's Canvas, named by its edge_id (get_knowledge_map lists it under arrows) or by its ends (from and to: cards, or regions as region:<region_id>): relabel it (label; an empty label clears it), set its route (curve, straight or elbow), dashed, heads (end, both or none) or color (#RRGGBB; an empty string gives it the usual one), put it on a side of an argument (stance: supports draws it green, contradicts red, an empty string takes it off), or turn it into a mind-map branch or back into an arrow (tree). Pass only what changes. Only on the learner's word: the Canvas is where they think, so never arrange it on your own initiative; to suggest an arrangement, show a lens (apply_map_lens) or ask_canvas. Each call is one edit of theirs, which Undo (⌘Z, or undo_canvas) takes back.",
     "inputSchema" : {
       "properties" : {
         "color" : {
@@ -11426,6 +11351,10 @@
           ],
           "type" : "string"
         },
+        "stance" : {
+          "description" : "supports (drawn green) or contradicts (red), or an empty string to take the stance off.",
+          "type" : "string"
+        },
         "to" : {
           "description" : "Instead of edge_id: where the arrow points to, a card by item_id or a region as region:<region_id>.",
           "type" : "string"
@@ -11444,9 +11373,17 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Change how cards already on the learner's Canvas look, as their right-click menu and handles do: tint them (color), fold them to their title line (folded true; false opens them), give them a width or height of their own (w from 160 to 720 and h from 40 to 2000, in the Canvas's own units; a card is 240 by 120 unless its kind says otherwise), or give them back the size their kind has (fit_to_content true: the width and height they were given are cleared). One call changes every card named; a region that holds a card made wider or taller than it is grows to hold it. Cards not on the Canvas are listed and left alone (place_on_canvas sets them down first). get_knowledge_map gives each card's rect and what it has been given. Only on the learner's word: the Canvas is where they think, so never arrange it on your own initiative; to suggest an arrangement, show a lens (apply_map_lens) or ask_canvas. Each call is one edit of theirs, which Undo (⌘Z, or undo_canvas) takes back. Returns the cards as they now are.",
+    "description" : "Change how cards already on the learner's Canvas look, as their right-click menu and handles do: tint them (color), fold them to their title line (folded true; false opens them), give them a width or height of their own (w from 160 to 720 and h from 40 to 2000, in the Canvas's own units; a card is 240 by 120 unless its kind says otherwise), or give them back the size their kind has (fit_to_content true: the width and height they were given are cleared). Beyond the look: show a source as a page of its PDF (page, one-based, drawn as the card with its title and authors under it, as a paper placed for the first time is; 0 shows the usual card again; a page past the PDF's end is its last; sources only), write the learner's words about why a card is on this canvas under it (annotation, at most 600 characters, an empty string takes it off; any card but an Idea, whose own note holds its words, so change an Idea's with update_idea), draw an Idea as plain words with no sticky note (plain true; false brings the note back; Ideas only) and mark a question, an Idea whose title ends with ?, answered or open again (answered; questions only). One call changes every card named; a region that holds a card made wider or taller than it is grows to hold it. Cards not on the Canvas are listed and left alone (place_on_canvas sets them down first). get_knowledge_map gives each card's rect and what it has been given. Only on the learner's word: the Canvas is where they think, so never arrange it on your own initiative; to suggest an arrangement, show a lens (apply_map_lens) or ask_canvas. Each call is one edit of theirs, which Undo (⌘Z, or undo_canvas) takes back. Returns the cards as they now are.",
     "inputSchema" : {
       "properties" : {
+        "annotation" : {
+          "description" : "The learner's words about why these cards are on this canvas, drawn under them: at most 600 characters. An empty string takes them off. Not for an Idea.",
+          "type" : "string"
+        },
+        "answered" : {
+          "description" : "Mark these questions (Ideas whose title ends with ?) answered (true) or open again (false). Questions only.",
+          "type" : "boolean"
+        },
         "color" : {
           "description" : "A tint as #RRGGBB (the Canvas's own eight: #7F77DD, #1D9E75, #D85A30, #D4537E, #BA7517, #378ADD, #639922, #888780), or an empty string to give the card its kind's own tint again.",
           "type" : "string"
@@ -11471,6 +11408,14 @@
           "maxItems" : 200,
           "minItems" : 1,
           "type" : "array"
+        },
+        "page" : {
+          "description" : "Show these sources as this page of their PDF (one-based), or 0 to show the usual card again. Sources only; a page past the end of the PDF is its last.",
+          "type" : "integer"
+        },
+        "plain" : {
+          "description" : "Draw these Ideas as plain words with no sticky note (true), or as notes again (false). Ideas only.",
+          "type" : "boolean"
         },
         "w" : {
           "description" : "The cards' width, 160 to 720.",
@@ -11847,7 +11792,7 @@
     "inputSchema" : {
       "properties" : {
         "artifact_id" : {
-          "description" : "The Doc, Site or animation this Goal is for, by id (from list_docs, list_animations or a publish_site result): the Goals tab opens it from the row. Pass an empty string to unlink. Refused when no record has the id.",
+          "description" : "The Doc, Site or animation this Goal is for, by id (from list_docs, list_animations or a save_site result): the Goals tab opens it from the row. Pass an empty string to unlink. Refused when no record has the id.",
           "type" : "string"
         },
         "daily_target" : {

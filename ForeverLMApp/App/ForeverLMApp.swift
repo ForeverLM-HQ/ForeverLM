@@ -470,6 +470,7 @@ struct ForeverLMApp: App {
         guard let state = activeWindowState else { return true }
         return !state.showSourcesPanel
             || state.collapsedPanelIDs.contains(StudioPanel.sources.rawValue)
+            || state.sourcesStepAsideForMemoryReview
     }
 
     /// The notebook the key Studio window holds, for the Notebook menu.
@@ -649,6 +650,9 @@ struct ForeverLMApp: App {
                                 await MCPRuntimeCoordinator.startPreferredRuntime()
                             }
                         }
+                        // The free days' notices, two days before the end and on
+                        // the last day, each once.
+                        FreeDaysNotices.showIfDue(account: managedAIAccount, vm: studioViewModel)
                         // App activation is the review's event: it reads
                         // today's cards again and re-asserts the one daily
                         // notification, which the one-time retirement sweep would
@@ -671,9 +675,14 @@ struct ForeverLMApp: App {
                     }
                 }
                 .task {
-                    // MCP follows its own enable toggle only — there is no purchase
-                    // gate, and tool calls are free. Non-blocking — errors are shown
-                    // in Settings -> MCP, not here.
+                    // MCP follows its own enable toggle, and stops while the app is
+                    // locked (the free days over, nothing paid): the gate is in
+                    // `MCPServerLauncher.startHostedTunnel`, and the lock's change
+                    // below stops or restarts the connection. Tool calls that reach
+                    // this Mac directly are refused while locked by
+                    // `MCPProtocolHandler.appLockRefusal`; the hosted gateway refuses
+                    // its own. Non-blocking: errors are shown in Settings -> MCP,
+                    // not here.
                     //
                     // The tunnel is provisioned under the Apple user id, which only
                     // sign-in writes. On a first launch the window is up before the
@@ -696,6 +705,25 @@ struct ForeverLMApp: App {
                             await MCPRuntimeCoordinator.stopAll()
                         }
                     }
+                }
+                .onChange(of: managedAIAccount.isAppLocked) { _, locked in
+                    // The pay screen is up: background AI, sync and the MCP
+                    // connection stop (docs/pricing-pro-design.md → Day 8). Paying
+                    // brings them back exactly as they were.
+                    guard !UITestConfiguration.isUITesting else { return }
+                    Task {
+                        if locked {
+                            await MCPRuntimeCoordinator.stopAll()
+                        } else {
+                            if AssistantIntegrationSettings.isEnabled, managedAIAccount.hasAccountAccess {
+                                await MCPRuntimeCoordinator.startPreferredRuntime()
+                            }
+                            await MacSyncSession.current?.syncNow()
+                        }
+                    }
+                }
+                .onChange(of: managedAIAccount.freeDaysLeft) { _, _ in
+                    FreeDaysNotices.showIfDue(account: managedAIAccount, vm: studioViewModel)
                 }
                 .onChange(of: managedAIAccount.hasAccountAccess) { _, hasAccess in
                     guard !UITestConfiguration.isUITesting,
@@ -751,14 +779,13 @@ struct ForeverLMApp: App {
             }
 
             CommandGroup(after: .toolbar) {
-                Button(activeWindowState?.showsNavigationRail == false ? "Show Navigation Sidebar" : "Hide Navigation Sidebar") {
+                Button(activeWindowState?.drawsNavigationRail == false ? "Show Navigation Sidebar" : "Hide Navigation Sidebar") {
                     guard let state = activeWindowState else { return }
                     withAnimation(.easeInOut(duration: 0.22)) {
-                        // A rail stepping aside for a narrow notebook comes
-                        // back on asking, as from the sidebar toggle.
-                        let shows = !state.showsNavigationRail
-                        if state.navigationRailYieldsToNotebook { state.navigationRailYieldsToNotebook = false }
-                        if state.navigationRailVisible != shows { state.navigationRailVisible = shows }
+                        // A rail stepping aside for a narrow notebook or a
+                        // memory review comes back on asking, as from the
+                        // sidebar toggle.
+                        state.setNavigationRailShown(!state.drawsNavigationRail)
                     }
                 }
                 .keyboardShortcut("s", modifiers: [.command, .control])
@@ -823,8 +850,7 @@ struct ForeverLMApp: App {
                         guard let state = activeWindowState else { return }
                         withAnimation(.easeInOut(duration: 0.22)) {
                             if activeWindowSourcesHidden {
-                                state.collapsedPanelIDs.remove(StudioPanel.sources.rawValue)
-                                state.showSourcesPanel = true
+                                state.revealSourcesPanel()
                             } else {
                                 state.collapsedPanelIDs.insert(StudioPanel.sources.rawValue)
                             }

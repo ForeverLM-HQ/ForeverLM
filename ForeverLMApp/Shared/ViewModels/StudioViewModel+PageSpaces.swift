@@ -322,12 +322,15 @@ extension StudioViewModel {
 
     /// The spaces the Space sidebar lists, by name: My Library's alone (a
     /// team is a shared space of its own). In Screen record mode only those
-    /// holding a page on screen: a space's name is the learner's own.
+    /// holding a page, canvas or list on screen: a space's name is the
+    /// learner's own. `artifacts` is narrowed as it loads, and the canvases
+    /// and lists as they are listed.
     var orderedPageSpaces: [PageSpace] {
         guard activeTeamID == nil else { return [] }
         let ordered = pageSpaces.ordered
         guard screenRecordScope != nil else { return ordered }
-        let holding = Set(artifacts.compactMap { pageSpaces.spaceID(ofPage: $0.id) })
+        let shownIDs = artifacts.map(\.id) + listedCanvases.map(\.id) + listedSpaceLists.map(\.id)
+        let holding = Set(shownIDs.compactMap { pageSpaces.spaceID(ofPage: $0) })
         return ordered.filter { holding.contains($0.id) }
     }
 

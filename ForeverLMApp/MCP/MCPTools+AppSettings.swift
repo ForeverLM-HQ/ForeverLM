@@ -211,7 +211,7 @@ extension MCPDataStore {
     static let settingsOnlyInTheWindow: [[String: String]] = [
         ["control": "Sign in with Apple", "why": "An Apple sign-in sheet only the learner can answer.", "open_settings": "billing"],
         ["control": "Connect a plugin (X, YouTube, Google Drive, Slack, GitHub)", "why": "The provider's consent page in a browser.", "open_settings": "plugins"],
-        ["control": "Choose, change or cancel a plan", "why": "Stripe Checkout or the Stripe billing portal.", "open_settings": "billing"],
+        ["control": "Pay for ForeverLM, or change or cancel a monthly plan", "why": "Stripe Checkout or the Stripe billing portal.", "open_settings": "billing"],
         ["control": "Manage team members", "why": "Apple's iCloud sharing sheet.", "open_settings": "data_privacy"],
         ["control": "Remove old iCloud data", "why": "It deletes the old iCloud library for good, so the learner confirms in its dialog after reading what remains; get_sync_status says when it is available.", "open_settings": "data_privacy"],
     ]
@@ -1248,11 +1248,11 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "open_settings",
-                description: "Open ForeverLM's Settings window on the learner's Mac at one pane, for what a chat must leave to the learner — signing in, connecting a plugin through the provider's consent page, choosing a plan, managing team members in Apple's sharing sheet. team_general and team_members open the open team's own Settings, a separate window from the learner's, and need a team library open. Brings ForeverLM to the front.",
+                description: "Open ForeverLM's Settings window on the learner's Mac at one pane, for what a chat must leave to the learner — signing in, connecting a plugin through the provider's consent page, paying for ForeverLM, managing team members in Apple's sharing sheet. team_general and team_members open the open team's own Settings, a separate window from the learner's, and need a team library open. Brings ForeverLM to the front.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
-                        "pane": ["type": "string", "enum": MCPDataStore.settingsPaneIDs.map { $0.id }, "description": "The pane to show. Omit for Billing, the ForeverLM plan; ai_usage is the key, Free mode, spending and activity."],
+                        "pane": ["type": "string", "enum": MCPDataStore.settingsPaneIDs.map { $0.id }, "description": "The pane to show. Omit for Billing, paying for ForeverLM; ai_usage is the key, Free mode, spending and activity."],
                     ],
                     "required": [] as [String],
                 ]

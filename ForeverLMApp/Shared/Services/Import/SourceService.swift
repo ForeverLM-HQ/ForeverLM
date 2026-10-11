@@ -3158,6 +3158,11 @@ enum SourceError: LocalizedError, Equatable {
     static let legacyAICreditsRequiredMessage =
         "Saved to your library, but reading it in is on hold: top up your ForeverLM AI balance to finish ingesting it. You can open and read it now."
 
+    /// `aiCreditsRequired`'s sentence while the key needed a plan (until
+    /// 2026-10-10). Sources that stored it are still on hold for that reason.
+    static let planEraAICreditsRequiredMessage =
+        "Saved to your library, but reading it in is on hold: add your OpenRouter key in Settings → AI Usage and choose a plan in Settings → Billing to finish ingesting it. You can open and read it now."
+
     var errorDescription: String? {
         switch self {
         case .invalidURL: return "Invalid source URL"
@@ -3175,7 +3180,7 @@ enum SourceError: LocalizedError, Equatable {
         case .paperIngestionFailed(let message):
             return message
         case .aiCreditsRequired:
-            return "Saved to your library, but reading it in is on hold: add your OpenRouter key in Settings → AI Usage and choose a plan in Settings → Billing to finish ingesting it. You can open and read it now."
+            return "Saved to your library, but reading it in is on hold: add your OpenRouter key in Settings → AI Usage to finish ingesting it. You can open and read it now."
         case .bookMetadataMissing: return "Could not read a book title from the file metadata or front matter"
         case .unsupportedBookFormat: return "Unsupported book format"
         case .bookChapterBoundaryMismatch(let message): return message

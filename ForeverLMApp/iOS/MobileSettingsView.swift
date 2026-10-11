@@ -216,7 +216,7 @@ struct MobileSettingsView: View {
                 NavigationLink {
                     MobileCreditsView()
                 } label: {
-                    Label("Key & plan", systemImage: "key")
+                    Label(MobileKeyScreenCopy.title, systemImage: "key")
                 }
                 .accessibilityIdentifier("settings.credits")
 
@@ -229,7 +229,7 @@ struct MobileSettingsView: View {
             } header: {
                 Text("AI")
             } footer: {
-                Text("AI runs on your OpenRouter key at cost, under your ForeverLM plan.")
+                Text(MobileKeyScreenCopy.aiFooter)
             }
 
             Section("About") {
@@ -745,9 +745,10 @@ private struct MobileAccountDeletionAuthorizationView: View {
     }
 }
 
-/// The phone's key and plan screen (product owner, 2026-09-25): AI features run on
-/// the learner's own OpenRouter key, which a ForeverLM plan lets them use. The
-/// phone stores the key and shows the plan and any leftover balance. The
+/// The phone's key screen (product owner, 2026-09-25): AI features run on the
+/// learner's own OpenRouter key, while the account is unlocked (the paid app,
+/// 2026-10-10: its free days, or paid). The phone stores the key and shows
+/// the account's status and any leftover balance. The
 /// iPhone app is a free companion to the Mac app (product owner, 2026-10-10; App
 /// Review 3.1.3(f)): it sells nothing, and nothing on it names a price, a place
 /// to buy, or a link that leads to one, so Stripe's billing pages and buying
@@ -768,7 +769,7 @@ private struct MobileCreditsView: View {
     var body: some View {
         List {
             ownKeySection
-            planSection
+            statusSection
             if showsBalanceSection {
                 balanceSection
             }
@@ -784,7 +785,7 @@ private struct MobileCreditsView: View {
             }
         }
         .listStyle(.insetGrouped)
-        .navigationTitle("Key & plan")
+        .navigationTitle(MobileKeyScreenCopy.title)
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { await refresh() }
         .task {
@@ -863,43 +864,32 @@ private struct MobileCreditsView: View {
         }
     }
 
-    /// Read-only, and says what the plan is, never what one costs or where one
-    /// is bought.
-    private var planSection: some View {
+    /// Read-only (the paid app, product owner, 2026-10-10): "Free, 6 days
+    /// left", "Paid" or "Locked". It never says what anything costs, offers a
+    /// button or says where to pay (App Review 3.1.3(f)).
+    private var statusSection: some View {
         Section {
-            LabeledContent("Plan", value: planTitle)
-                .accessibilityIdentifier("credits.plan")
+            LabeledContent("ForeverLM", value: statusTitle)
+                .accessibilityIdentifier("credits.status")
             if appAccess?.paymentFailed == true {
                 Label("Your last payment didn't go through.", systemImage: "exclamationmark.triangle.fill")
                     .foregroundStyle(.orange)
             }
-        } header: {
-            Text("ForeverLM plan")
         } footer: {
-            if appAccess?.ownKeyAllowed == false {
-                Text("A ForeverLM plan lets your own OpenRouter key run its AI features.")
+            if appAccess?.isLocked(at: ManagedAI.serverNow) == true {
+                Text(ManagedAI.appLockedMessage)
             }
         }
     }
 
-    private var planTitle: String {
+    private var statusTitle: String {
         guard let appAccess else { return isLoading ? "…" : "—" }
-        switch appAccess.state {
-        case .free: return "None"
-        case .subscribed:
-            let name: String
-            switch appAccess.appPlan {
-            case .believer: name = "Believer"
-            case .yearly: name = "Yearly"
-            case .monthly, .forever, nil: name = "Monthly"
-            }
-            if appAccess.trialing { return "\(name) (free trial)" }
-            return appAccess.cancelAtPeriodEnd ? "\(name) (ending)" : name
-        case .believerTrial: return "Believer (free week)"
-        case .forever: return "Lifetime"
-        case .comped: return "Included"
-        case .family: return "Family"
+        let now = ManagedAI.serverNow
+        if appAccess.isLocked(at: now) { return "Locked" }
+        if let days = appAccess.freeDaysLeft(at: now) {
+            return ManagedAI.AppAccess.phoneFreeDaysStatus(daysLeft: days)
         }
+        return appAccess.isPaid ? "Paid" : "Free"
     }
 
     private func loadOwnKey() async {
@@ -1011,7 +1001,7 @@ struct MobileCreditsRequiredSheet: View {
                 Text("Add your OpenRouter key")
                     .font(.title2.weight(.semibold))
 
-                Text("AI features run on your own OpenRouter API key with a ForeverLM plan. Add your key in Settings › Key & plan.")
+                Text(MobileKeyScreenCopy.creditsRequired)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             }
@@ -1045,7 +1035,7 @@ enum MobileFreeModeCopy {
 /// The phone's one-screen Settings has no room for the Mac's Data & Privacy
 /// pane, so the switch's section carries the same facts in a footer: the
 /// library is in the learner's own iCloud, the proxy's ledger holds no prompt
-/// text, an MCP tool call is free and not logged, and the
+/// text, an MCP tool call is not logged, and the
 /// first-party providers do not train on API traffic. These are privacy
 /// consequences, so 2026-10-06's one-clause rule for footers keeps them whole
 /// (AGENTS.md, "Settings holds only what a learner changes"), and every client
@@ -1054,7 +1044,7 @@ enum MobileDataPrivacyCopy {
     static let footer: String =
         "Your sources, chats, reviews and history live in your own iCloud; ForeverLM keeps no copy. "
         + "AI requests pass through ForeverLM's proxy, which bills tokens and cost and never stores the prompt or the answer. "
-        + "MCP tool calls are free and not logged. "
+        + "MCP tool calls are not logged. "
         + "Anthropic, OpenAI, Google's paid API and xAI do not train on API traffic. "
         + AIDataPolicy.switchExplanation
 }
@@ -1451,4 +1441,14 @@ extension MobileTextToSpeechVoicePreviewService: AVAudioPlayerDelegate {
             self?.playingKey = nil
         }
     }
+}
+
+/// The key screen's words (the paid app, product owner, 2026-10-10): the
+/// screen is "Key" and names no plan.
+enum MobileKeyScreenCopy {
+    static let title = "Key"
+
+    static let aiFooter = "AI runs on your own OpenRouter key, at OpenRouter's cost. ForeverLM adds nothing."
+
+    static let creditsRequired = "AI features run on your own OpenRouter API key. Add your key in Settings › Key."
 }

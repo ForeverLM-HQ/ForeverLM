@@ -58,19 +58,19 @@ struct TeamsStoreTests {
             id: "doc-team", title: "Team Doc", homeNotebookID: nil, linkedNotebookIDs: [],
             isDraft: false, teamID: team.id, createdAt: now, updatedAt: now
         ))
-        // Own site, and a pre-114 team row at the same address (the adopted copy).
+        // Own linked site, and a team row at the same address (its shared copy).
         try store.saveArtifactRecord(ArtifactRecord(
             id: "site-own", title: "Atlas", homeNotebookID: nil, linkedNotebookIDs: [],
-            isDraft: false, linkedURL: "https://sites.foreverlm.com/atlas/", teamID: nil, createdAt: now, updatedAt: now
+            isDraft: false, linkedURL: "https://atlas.learner-1234.chatgpt.site/", teamID: nil, createdAt: now, updatedAt: now
         ))
         try store.saveArtifactRecord(ArtifactRecord(
             id: "site-team-row", title: "Atlas", homeNotebookID: nil, linkedNotebookIDs: [],
-            isDraft: false, linkedURL: "https://sites.foreverlm.com/atlas/", teamID: team.id, createdAt: now, updatedAt: now
+            isDraft: false, linkedURL: "https://atlas.learner-1234.chatgpt.site/", teamID: team.id, createdAt: now, updatedAt: now
         ))
-        // A site published straight into the team, no own entry.
+        // A site linked straight into the team, no own entry.
         try store.saveArtifactRecord(ArtifactRecord(
             id: "site-team-only", title: "Team Site", homeNotebookID: nil, linkedNotebookIDs: [],
-            isDraft: false, linkedURL: "https://sites.foreverlm.com/team-site/", teamID: team.id, createdAt: now, updatedAt: now
+            isDraft: false, linkedURL: "https://team-site.learner-1234.chatgpt.site/", teamID: team.id, createdAt: now, updatedAt: now
         ))
 
         let listed = Set(try store.loadMyLibraryArtifacts().map(\.id))
@@ -94,18 +94,18 @@ struct TeamsStoreTests {
             id: "doc-private", title: "Private Doc", homeNotebookID: nil, linkedNotebookIDs: [],
             isDraft: false, teamID: nil, createdAt: now, updatedAt: now
         ))
-        // A teammate's Doc, and an own site whose team row predates build 114.
+        // A teammate's Doc, and an own linked site with a team row at its address.
         try store.saveArtifactRecord(ArtifactRecord(
             id: "doc-team", title: "Team Doc", homeNotebookID: nil, linkedNotebookIDs: [],
             isDraft: false, teamID: team.id, createdAt: now, updatedAt: now
         ))
         try store.saveArtifactRecord(ArtifactRecord(
             id: "site-own", title: "Atlas", homeNotebookID: nil, linkedNotebookIDs: [],
-            isDraft: false, linkedURL: "https://sites.foreverlm.com/atlas/", teamID: nil, createdAt: now, updatedAt: now
+            isDraft: false, linkedURL: "https://atlas.learner-1234.chatgpt.site/", teamID: nil, createdAt: now, updatedAt: now
         ))
         try store.saveArtifactRecord(ArtifactRecord(
             id: "site-team-row", title: "Atlas", homeNotebookID: nil, linkedNotebookIDs: [],
-            isDraft: false, linkedURL: "https://sites.foreverlm.com/atlas", teamID: team.id, createdAt: now, updatedAt: now
+            isDraft: false, linkedURL: "https://atlas.learner-1234.chatgpt.site", teamID: team.id, createdAt: now, updatedAt: now
         ))
 
         let teams = try store.teamIDsByMyLibraryArtifact()
@@ -860,11 +860,11 @@ struct TeamsStoreTests {
         let now = Date()
         try store.saveArtifactRecord(ArtifactRecord(
             id: "site-1", title: "Mitochondrial Therapeutics Atlas", homeNotebookID: "proj-own", linkedNotebookIDs: ["proj-own"],
-            linkedURL: "https://sites.foreverlm.com/mitochondria/", createdAt: now, updatedAt: now
+            linkedURL: "foreverlm-site://site-1/", createdAt: now, updatedAt: now
         ))
         try store.saveArtifactRecord(ArtifactRecord(
             id: "anim-1", title: "Electrons running backwards", homeNotebookID: "proj-own", linkedNotebookIDs: ["proj-own"],
-            linkedURL: "https://sites.foreverlm.com/ret-complex-i-cpt/", kind: .animation, createdAt: now, updatedAt: now
+            linkedURL: "foreverlm-site://anim-1/", kind: .animation, createdAt: now, updatedAt: now
         ))
         try store.saveArtifactRecord(ArtifactRecord(
             id: "claude-1", title: "Sketch", homeNotebookID: "proj-own", linkedNotebookIDs: ["proj-own"],
@@ -886,12 +886,12 @@ struct TeamsStoreTests {
         #expect(try store.teamNotebooksAwaitingDoc(artifactID: "doc-plain").map(\.team.id) == [team.id])
     }
 
-    @Test("A page shared with a team is the page: address and kind kept, one copy per address however often the site is rebuilt")
+    @Test("A page shared with a team is the page: address and kind kept, one copy per address however often the page is relinked")
     func linkedPageSharesAsThePage() throws {
         let store = try KnowledgeStore(inMemory: true)
         let team = try Self.makeTeam(store)
         let now = Date()
-        let url = "https://sites.foreverlm.com/mitochondria/"
+        let url = "https://mitochondria.learner-1234.chatgpt.site/"
         try store.saveArtifactRecord(ArtifactRecord(
             id: "site-1", title: "Mitochondrial Therapeutics Atlas", homeNotebookID: nil, linkedNotebookIDs: [],
             linkedURL: url, createdAt: now, updatedAt: now
@@ -904,8 +904,8 @@ struct TeamsStoreTests {
         #expect(copy.section == .sites)
         #expect(try store.teamsHoldingArtifact("site-1").map(\.id) == [team.id])
 
-        // The site rebuilt under a new record at the same address: the one
-        // team entry is updated, not joined by a second.
+        // The page linked again under a new record at the same address: the
+        // one team entry is updated, not joined by a second.
         try store.saveArtifactRecord(ArtifactRecord(
             id: "site-2", title: "Mitochondrial Therapeutics Atlas, revised", homeNotebookID: nil, linkedNotebookIDs: [],
             linkedURL: url, createdAt: now, updatedAt: now
@@ -919,7 +919,7 @@ struct TeamsStoreTests {
         // keyed by its record.
         try store.saveArtifactRecord(ArtifactRecord(
             id: "anim-1", title: "Electrons running backwards", homeNotebookID: nil, linkedNotebookIDs: [],
-            linkedURL: "https://sites.foreverlm.com/ret-complex-i-cpt/", kind: .animation, createdAt: now, updatedAt: now
+            linkedURL: "foreverlm-site://anim-1/", kind: .animation, createdAt: now, updatedAt: now
         ))
         let animationCopyID = try store.copyArtifactRowIntoTeam(artifactID: "anim-1", teamID: team.id, linkedTeamNotebookIDs: [], fileCopy: { $0 }).id
         let animationCopy = try #require(try store.loadArtifact(animationCopyID))
@@ -950,7 +950,7 @@ struct TeamsStoreTests {
         let now = Date()
         try store.saveArtifactRecord(ArtifactRecord(
             id: "anim-1", title: "Electrons running backwards", homeNotebookID: nil, linkedNotebookIDs: [],
-            linkedURL: "https://sites.foreverlm.com/ret-complex-i-cpt/", kind: .animation,
+            linkedURL: "foreverlm-site://anim-1/", kind: .animation,
             sourceIDs: ["src-paper", "src-video", "src-gone"], createdAt: now, updatedAt: now
         ))
 
@@ -996,7 +996,7 @@ struct TeamsStoreTests {
         // A record already in the team keeps the team ids it has.
         try store.saveArtifactRecord(ArtifactRecord(
             id: "team-anim", title: "Made in the team", homeNotebookID: nil, linkedNotebookIDs: [],
-            linkedURL: "https://sites.foreverlm.com/made-in-team/", teamID: team.id, kind: .animation,
+            linkedURL: "foreverlm-site://made-in-team/", teamID: team.id, kind: .animation,
             sourceIDs: [paperCopyID], createdAt: now, updatedAt: now
         ))
         let mapped = store.carrySourcesIntoTeam([paperCopyID, "src-video"], teamID: team.id) { $0 }

@@ -86,12 +86,14 @@ struct HTTPResponse {
         case 302: return "Found"
         case 400: return "Bad Request"
         case 401: return "Unauthorized"
+        case 403: return "Forbidden"
         case 404: return "Not Found"
         case 405: return "Method Not Allowed"
         case 413: return "Payload Too Large"
         case 429: return "Too Many Requests"
         case 431: return "Request Header Fields Too Large"
         case 500: return "Internal Server Error"
+        case 503: return "Service Unavailable"
         default: return "Unknown"
         }
     }
@@ -104,8 +106,10 @@ typealias RouteHandler = @Sendable (HTTPRequest) async -> HTTPResponse
 // MARK: - HTTP Server
 
 final class MCPHTTPServer: @unchecked Sendable {
-    /// Loopback port for same-machine OAuth approval; the consent waiting page
-    /// hardcodes this into its fetch URL (see waitingPageResponse in MCPOAuth.swift).
+    /// Loopback port for same-machine OAuth approval and personal-URL discovery
+    /// (`MCPServerLauncher.startLoopbackApprovalListener`); the consent waiting
+    /// page hardcodes this into its fetch URL (see waitingPageResponse in
+    /// MCPOAuth.swift), and local plugins ask it for `/mcp-url`.
     static let loopbackPort = ForeverLMRuntimeIdentity.mcpLoopbackPort
 
     private var listener: NWListener?
@@ -373,9 +377,13 @@ enum MCPAuthorization {
 /// let anyone who extracts it from one app copy read any user's knowledge base
 /// through their hosted MCP URL.
 ///
-/// There is deliberately no entitlement check here: MCP tool calls are free. The
-/// relay (workers/mcp-relay) metered them against the managed-AI balance until
-/// 2026-09-25 and no longer prices or refuses a call.
+/// No entitlement check happens here; the gate is the app lock (product owner,
+/// 2026-10-10: the free days over and nothing paid). The hosted gateway
+/// refuses `tools/call` for a locked account on the account server's word. A
+/// call on this Mac's own bearer never passes the gateway, so it is marked
+/// `arrivedWithoutGateway` and `MCPProtocolHandler.appLockRefusal` refuses it
+/// the same way. While locked the tunnel itself does not run either
+/// (`MCPServerLauncher.startHostedTunnel`).
 func authorizeMCPRequest(_ request: HTTPRequest) async -> MCPAuthorization {
     // The public ChatGPT directory uses one universal OAuth endpoint. Its
     // gateway signs the exact request with this installation's tunnel token;
@@ -391,7 +399,8 @@ func authorizeMCPRequest(_ request: HTTPRequest) async -> MCPAuthorization {
     let token = String(auth.dropFirst(7))
 
     let oauthProvider = await MCPOAuthProvider.sharedProvider()
-    if let access = await oauthProvider.validateAccessToken(token) {
+    if var access = await oauthProvider.validateAccessToken(token) {
+        access.arrivedWithoutGateway = true
         return .authorized(access)
     }
 

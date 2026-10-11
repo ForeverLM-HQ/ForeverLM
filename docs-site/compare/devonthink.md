@@ -12,7 +12,7 @@ DEVONthink is a powerful document and information manager for Mac and iOS. It ar
 
 | | ForeverLM | DEVONthink 4 |
 |---|---|---|
-| **Price** | Free app and free over MCP; built-in AI needs a plan ($4/mo, or $19/yr for early believers) and your own OpenRouter key | Standard $99, Pro $199, Server $499; one-time license with one year of updates |
+| **Price** | 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Standard $99, Pro $199, Server $499; one-time license with one year of updates |
 | **Primary job** | Research library and learning loop | General document archive and information manager |
 | **Storage** | Local SQLite and files in your private iCloud container | Local databases with flexible sync options |
 | **AI** | Configurable in-app models plus Claude, ChatGPT, Gemini, and Grok through MCP | AI chat with supported local or external models |

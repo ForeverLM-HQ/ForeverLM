@@ -105,7 +105,7 @@ struct ArtifactPersistenceTests {
 
         // Grounded by the record's own links: an animation about the paper.
         let animation = try await storage.createLinkedArtifact(
-            url: URL(string: "https://sites.foreverlm.com/anim/")!, title: "The animation",
+            url: URL(string: "foreverlm-site://anim/")!, title: "The animation",
             homeNotebookID: nil, linkedNotebookIDs: [], kind: .animation, sourceIDs: ["paper"]
         )
         // Grounded through a Doc's grounding link, and cited by its DOI.

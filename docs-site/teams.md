@@ -178,12 +178,12 @@ asks nothing.
   team's copy syncs into every member's ForeverLM, and members open it there
   like a Page of their own. Publishing to foreverlm.com remains the route for
   people outside the team, and the two actions sit apart in the menu.
-- **Sites, animations and linked pages.** A ForeverLM site, an animation, a
-  Claude artifact or a Codex site shared with a team is the page itself: the
-  team's copy keeps the address and lists under the team's Sites or
-  Animations, and sharing a rebuilt site updates that one entry rather than
-  adding another. A ForeverLM site you published is opened to the team's
-  roster when you share it, so members can read it at its address.
+- **Sites, animations and linked pages.** A Claude artifact or a Codex site
+  shared with a team is the page itself: the team's copy keeps the address
+  and lists under the team's Sites, and sharing a page linked again updates
+  that one entry rather than adding another. A ForeverLM site or an animation
+  shared with a team travels with its files into the team's library, lists
+  under the team's Sites or Animations, and follows every change you save.
 - **Chats.** A chat shared with a team is a read-only transcript. See
   [In-App Chat](/in-app-chat#sharing-a-chat-with-a-team) for what travels and
   what is stripped.

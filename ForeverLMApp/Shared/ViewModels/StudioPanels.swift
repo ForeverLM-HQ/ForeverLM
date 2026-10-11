@@ -100,8 +100,9 @@ enum StudioCenterTab: String, Codable, CaseIterable, Identifiable {
 
     static let permanentTabs: [StudioCenterTab] = [.chat, .reader, .tasks, .activity, .goals, .courses, .ideas, .notepad, .sites, .browser, .videos, .animations, .artifacts, .memory, .knowledgeMap, .atlas, .library]
 
-    /// The panes the Space's Pages, Sites and Ideas rows open, one kind each
-    /// (`ArtifactsHomeKind`).
+    /// The panes of the Space's kinds, which open beside one another: the
+    /// Pages and Sites the sidebar's rows open (`ArtifactsHomeKind`), and
+    /// Ideas, which a Doc's idea link opens beside it (`openIdea`).
     static let artifactKinds: Set<StudioCenterTab> = [.notepad, .sites, .ideas]
 
     var title: String {
@@ -469,6 +470,38 @@ final class StudioWindowState: Identifiable {
         navigationRailVisible && !navigationRailYieldsToNotebook
     }
 
+    /// Whether this window draws its rail now: as `showsNavigationRail` says,
+    /// unless a memory review has the window and the learner has not asked
+    /// for the sidebar beside it.
+    var drawsNavigationRail: Bool {
+        showsNavigationRail && (memoryReviewFocus == nil || memoryReviewFocusShowsSidebar)
+    }
+
+    /// The sidebar toggle, and View ▸ Show or Hide Navigation Sidebar. A rail
+    /// stepping aside for a narrow notebook comes back on asking, and so does
+    /// one stepping aside for a memory review: it shows beside the review,
+    /// which runs on until a row in it is picked.
+    func setNavigationRailShown(_ shown: Bool) {
+        if memoryReviewFocus != nil, memoryReviewFocusShowsSidebar != shown { memoryReviewFocusShowsSidebar = shown }
+        if navigationRailYieldsToNotebook { navigationRailYieldsToNotebook = false }
+        if navigationRailVisible != shown { navigationRailVisible = shown }
+    }
+
+    /// Whether the library's Sources panel steps aside for a memory review
+    /// that has the window: it does until the learner asks for it.
+    var sourcesStepAsideForMemoryReview: Bool {
+        memoryReviewFocus != nil && !memoryReviewFocusShowsSources
+    }
+
+    /// Brings the library's Sources panel back on screen from any of the ways
+    /// it can be off: collapsed to the edge, switched off, or stepping aside
+    /// for a memory review, beside which it then shows.
+    func revealSourcesPanel() {
+        collapsedPanelIDs.remove(StudioPanel.sources.rawValue)
+        showSourcesPanel = true
+        if memoryReviewFocus != nil, !memoryReviewFocusShowsSources { memoryReviewFocusShowsSources = true }
+    }
+
     /// Whether the Space — its lists, the Courses list drawn beside its
     /// sidebar, or the global Pages and Sites with a page open — is on one of
     /// this window's panes. A notebook's own Pages keep their list inside its
@@ -528,7 +561,26 @@ final class StudioWindowState: Identifiable {
     /// window to is a card review (`MemoryCardSessionView`); a day's review
     /// chat from before cards is focused the old way only by code that still
     /// names one (docs/memory-design.md, "The card review").
-    var memoryReviewFocus: MemoryReviewFocus?
+    ///
+    /// The rail and Sources come back beside the review only when the learner
+    /// asks with their toggles (`memoryReviewFocusShowsSidebar`,
+    /// `memoryReviewFocusShowsSources`); each review starts with the window
+    /// to itself.
+    var memoryReviewFocus: MemoryReviewFocus? {
+        didSet {
+            guard memoryReviewFocus?.id != oldValue?.id else { return }
+            if memoryReviewFocusShowsSidebar { memoryReviewFocusShowsSidebar = false }
+            if memoryReviewFocusShowsSources { memoryReviewFocusShowsSources = false }
+        }
+    }
+    /// Whether the learner brought the sidebar back beside the focused
+    /// review (`setNavigationRailShown`). A row picked in it is the learner
+    /// leaving the review, as any other surface asked for is
+    /// (`memoryReviewFocusYields`).
+    var memoryReviewFocusShowsSidebar = false
+    /// Whether the learner brought Sources back beside the focused review
+    /// (`revealSourcesPanel`).
+    var memoryReviewFocusShowsSources = false
     /// The focused review's id: the day's chat, or the card sitting's key.
     /// Setting an id focuses that chat; nil leaves the focus.
     var memoryReviewFocusSessionID: String? {

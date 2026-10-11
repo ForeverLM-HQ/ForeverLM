@@ -21,6 +21,13 @@ enum CanvasAskTool: String, Codable, CaseIterable, Identifiable, Sendable {
     /// One source taken apart into its concepts: Ideas with a sentence each,
     /// arrows among them, laid out in a region named for the source.
     case breakDown = "break_down"
+    /// A topic tree of what the selected cards say: a root, branches and
+    /// leaves of a few words each, drawn on the plane as a mind map. Hung from
+    /// the card when the one card asked is an Idea on the canvas.
+    case mindMap = "mind_map"
+    /// The same tree, every node a question: a sub-question narrower than its
+    /// parent and a leaf a literature search or an experiment could answer.
+    case questionMap = "question_map"
 
     var id: String { rawValue }
 
@@ -31,6 +38,8 @@ enum CanvasAskTool: String, Codable, CaseIterable, Identifiable, Sendable {
         case .gaps: return "Gaps"
         case .summarize: return "Summarize"
         case .breakDown: return "Break Down"
+        case .mindMap: return "Mind Map"
+        case .questionMap: return "Question Map"
         }
     }
 
@@ -39,12 +48,19 @@ enum CanvasAskTool: String, Codable, CaseIterable, Identifiable, Sendable {
         switch self {
         case .summarize: return "Summarize into an Idea"
         case .breakDown: return "Break Down This Source"
+        case .mindMap: return "Make a Mind Map"
+        case .questionMap: return "Break Into Questions"
         default: return title
         }
     }
 
+    /// Whether the answer is a tree (`KnowledgeMapBreakDownPlan.tree`): the
+    /// Mind Map and the Question Map, kept as one branching set of Ideas.
+    var drawsTree: Bool { self == .mindMap || self == .questionMap }
+
     /// The asks `ask_canvas` offers an assistant: an assistant summarizes and
-    /// breaks a source down itself, and writes the Ideas with `build_canvas`.
+    /// breaks a source down itself, draws a mind map with `build_canvas`'s
+    /// `trees`, and writes the Ideas with `build_canvas`.
     static let overMCP: [CanvasAskTool] = [.bridge, .connect, .gaps]
 }
 
@@ -77,8 +93,8 @@ struct KnowledgeMapProposal: Codable, Equatable, Identifiable, Sendable {
     /// The asked-about cards this proposal answers; it is set down near them.
     var near: [String]
     /// For a question: the note its Idea is written with (a Summarize's few
-    /// sentences, a Break Down concept's one), kept with the Idea, never
-    /// drawn on the ghost.
+    /// sentences, a Break Down concept's or a tree node's one), kept with the
+    /// Idea, never drawn on the ghost.
     var note: String?
 
     init(
@@ -108,23 +124,34 @@ struct KnowledgeMapProposal: Codable, Equatable, Identifiable, Sendable {
     }
 }
 
-/// What keeping a whole Break Down writes beyond its Ideas: the region they
-/// are laid out in, named for the source, and the arrows among them. The
-/// concepts themselves are the set's question proposals; each arrow names two
-/// of their ids. Keeping one concept alone writes just that Idea.
+/// What keeping a whole Break Down or tree writes beyond its Ideas: the region
+/// they are laid out in, named for the source (or the tree's root), and the
+/// arrows among them. The concepts themselves are the set's question
+/// proposals; each arrow names two of their ids. Keeping one concept alone
+/// writes just that Idea.
 struct KnowledgeMapBreakDownPlan: Codable, Equatable, Sendable {
     struct Arrow: Codable, Equatable, Sendable {
-        /// Proposal ids.
+        /// Proposal ids; a rooted tree's first branches start at `rootRef`.
         var from: String
         var to: String
         var label: String
     }
 
     /// The source broken down (`source:<id>`): the concepts are set down
-    /// beside its card when it is on the canvas.
+    /// beside its card when it is on the canvas. For a tree, the first card
+    /// asked about.
     var sourceRef: String
     var regionName: String
     var arrows: [Arrow]
+    /// A Mind Map or a Question Map: the proposals are the nodes of one tree,
+    /// the arrows are its branches (parent to child, labelled ""), and the
+    /// page draws the set as a ghost tree. Nil for a Break Down.
+    var tree: Bool? = nil
+    /// A tree hung from an Idea already on the canvas (`idea:<id>`): the
+    /// proposals are what hangs from it, and it is the `from` of the first
+    /// branches. Nil when the model wrote the root, which is the one
+    /// proposal no arrow leads to.
+    var rootRef: String? = nil
 }
 
 /// One answer to one Ask: its proposals, and the cards that were asked about.
@@ -135,7 +162,8 @@ struct KnowledgeMapProposalSet: Codable, Equatable, Identifiable, Sendable {
     var anchor: [String]
     var proposals: [KnowledgeMapProposal]
     var createdAt: Date
-    /// A Break Down's region and arrows; nil for every other ask.
+    /// A Break Down's region and arrows, or a tree's branches; nil for every
+    /// other ask.
     var plan: KnowledgeMapBreakDownPlan? = nil
 }
 

@@ -226,37 +226,25 @@ struct HomeSidebarTests {
 
 // MARK: - The Space's tabs
 
-@Suite("The Space's tabs")
+@Suite("The Space's panes")
 @MainActor
 struct SpaceTabTests {
-    @Test("The Space, Courses and Goals are each their own pane")
+    @Test("The Space and Courses are each their own pane")
     func tabsArePanes() {
         #expect(SpaceTab.courses.centerTab == .courses)
         #expect(SpaceTab.space.centerTab == .artifacts)
-        #expect(SpaceTab.goals.centerTab == .goals)
-        #expect(SpaceTab(centerTab: .courses) == .courses)
-        #expect(SpaceTab(centerTab: .artifacts) == .space)
-        #expect(SpaceTab(centerTab: .goals) == .goals)
-        // A kind the Space opens is its own pane, not one of its tabs.
-        #expect(SpaceTab(centerTab: .notepad) == nil)
-        #expect(SpaceTab(centerTab: .ideas) == nil)
-        #expect(SpaceTab.allCases.map(\.title) == ["Courses", "Space", "Goals"])
-        // The bar says Space and Goals; the Courses list is the Space's.
-        #expect(SpaceTab.barTabs == [.space, .goals])
-        #expect(SpaceTab.courses.barTab == .space)
     }
 
-    @Test("The Goals tab swaps with any Space pane, and back")
-    func goalsTabSwaps() throws {
+    @Test("Goals is no pane of the Space: the Space never takes its place")
+    func goalsIsNotTheSpaces() {
+        // The Space | Goals bar went on 2026-10-10: Goals are the chat's to
+        // show, and a Goals pane a link opened is left where it is.
         let layout = StudioCenterTabGroups(groups: [
             .init(tabs: [.chat], activeTab: .chat, isPinned: true),
-            .init(tabs: [.artifacts, .goals], activeTab: .artifacts),
+            .init(tabs: [.goals, .artifacts], activeTab: .goals),
         ])
-        let goals = try #require(layout.showingSpaceTab(.goals))
-        #expect(goals.groups[0] == layout.groups[0], "the pinned chat pane is untouched")
-        #expect(goals.groups[1].activeTab == .goals)
-        let space = try #require(goals.showingSpaceTab(.space))
-        #expect(space.groups[1].activeTab == .artifacts)
+        #expect(layout.showingSpaceTab(.space) == nil)
+        #expect(layout.showingSpaceTab(.courses, coursesShowsList: true) == nil)
     }
 
     @Test("The Courses tab swaps with a Space pane, but never replaces a course's page")
@@ -277,24 +265,24 @@ struct SpaceTabTests {
         #expect(page.showingSpaceTab(.space, coursesShowsList: true) != nil)
     }
 
-    @Test("A tab click swaps the page under the pointer, and leaves every other pane and pin alone")
+    @Test("A sidebar click swaps the page under the pointer, and leaves every other pane and pin alone")
     func swapsInPlace() throws {
         let layout = StudioCenterTabGroups(groups: [
             .init(tabs: [.chat], activeTab: .chat, isPinned: true),
-            .init(tabs: [.goals, .reader, .notepad, .artifacts], activeTab: .goals),
+            .init(tabs: [.courses, .reader, .notepad, .artifacts], activeTab: .courses),
         ])
-        let space = try #require(layout.showingSpaceTab(.space))
+        let space = try #require(layout.showingSpaceTab(.space, coursesShowsList: true))
         #expect(space.groups[0] == layout.groups[0], "the pinned chat pane is untouched")
         #expect(space.groups[1].activeTab == .artifacts)
         #expect(space.groups.count == 2)
 
-        let back = try #require(space.showingSpaceTab(.goals))
-        #expect(back.groups[1].activeTab == .goals)
+        let back = try #require(space.showingSpaceTab(.courses))
+        #expect(back.groups[1].activeTab == .courses)
 
         // No other pane of the Space is on screen: the caller opens the tab
         // by the ordinary rules.
-        let alone = StudioCenterTabGroups(groups: [.init(tabs: [.reader, .artifacts, .goals], activeTab: .reader)])
-        #expect(alone.showingSpaceTab(.goals) == nil)
+        let alone = StudioCenterTabGroups(groups: [.init(tabs: [.reader, .artifacts, .courses], activeTab: .reader)])
+        #expect(alone.showingSpaceTab(.courses) == nil)
     }
 
     @Test("A tab parked in another pane moves into the pane under the pointer")
@@ -335,7 +323,7 @@ struct SpaceTabTests {
         let vm = makeViewModel()
         let window = StudioWindowState()
         window.centerTabGroups = StudioCenterTabGroups(groups: [
-            .init(tabs: [.goals, .chat, .reader, .notepad, .artifacts], activeTab: .goals),
+            .init(tabs: [.courses, .chat, .reader, .notepad, .artifacts], activeTab: .courses),
         ])
         vm.showSpaceTab(.space, in: window)
         #expect(window.centerTabGroups.groups.map(\.activeTab) == [.artifacts])

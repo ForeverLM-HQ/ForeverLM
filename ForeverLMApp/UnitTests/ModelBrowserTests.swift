@@ -3,8 +3,9 @@ import Testing
 @testable import ForeverLM
 
 /// Every AI Models pane's Suggested list and "All models on OpenRouter"
-/// browser (`OpenRouterModelBrowser`): the search, the maker grouping the
-/// media panes share, and the lists themselves.
+/// (`OpenRouterModelBrowser`, and Chat's and Background's
+/// `OpenRouterModelTable`): the search, the maker grouping the media panes
+/// share, and the lists themselves.
 @Suite("Model browser")
 struct ModelBrowserTests {
     private struct Model: Identifiable, Equatable {
@@ -196,15 +197,47 @@ struct ModelBrowserTests {
         #expect(AIModelDefaults.suggestedBackgroundModels.contains(AIModelDefaults.defaultOpenRouter))
     }
 
-    @Test("The Cost sort lists the cheapest first, unpriced last, ties as given")
+    @Test("The table's Price column sorts the cheapest first, unpriced last, ties as given")
     func costSortCheapestFirst() {
-        let prices: [String: Double?] = ["a": 5, "b": nil, "c": 1, "d": 5, "e": 0]
-        let models = ["a", "b", "c", "d", "e"].map { Model(id: $0, name: $0) }
-        let sorted = ModelCostOrder.cheapestFirst(models) { prices[$0.id] ?? nil }
-        #expect(sorted.map(\.id) == ["e", "c", "a", "d", "b"])
+        let prices: [String: Double?] = ["a/a": 5, "b/b": nil, "c/c": 1, "d/d": 5, "e/e": 0]
+        let rows = ["a/a", "b/b", "c/c", "d/d", "e/e"].map { slug in
+            let price = prices[slug] ?? nil
+            return ModelTableRow(
+                OpenRouterDirectoryModel(
+                    id: slug, name: slug,
+                    inputUSDPerMTokens: price, outputUSDPerMTokens: price, contextLength: nil, price: nil,
+                    supportsTools: true, supportsTemperature: nil, supportsVision: nil
+                ),
+                in: .empty
+            )
+        }
+        let sorted = rows.sorted(using: [KeyPathComparator(\ModelTableRow.cost)])
+        #expect(sorted.map(\.id) == ["e/e", "c/c", "a/a", "d/d", "b/b"])
+        #expect(rows.allSatisfy { !$0.isCatalogued })
 
         #expect(ModelCostOrder.blended(input: 2, output: 6) == 3)
         #expect(ModelCostOrder.blended(input: nil, output: 6) == nil)
+    }
+
+    @Test("The table's Features filters read what the directory lists, and an unknown is not a yes")
+    func tableFeatures() {
+        func model(vision: Bool?, context: Int?, weights: String?) -> OpenRouterDirectoryModel {
+            OpenRouterDirectoryModel(
+                id: "x/y", name: "Y",
+                inputUSDPerMTokens: 1, outputUSDPerMTokens: 2, contextLength: context, price: nil,
+                supportsTools: true, supportsTemperature: nil, supportsVision: vision,
+                huggingFaceID: weights
+            )
+        }
+        let open = model(vision: true, context: 1_000_000, weights: "x/Y")
+        let closed = model(vision: nil, context: 262_000, weights: nil)
+        #expect(ModelTableFeature.readsImages.matches(open))
+        #expect(!ModelTableFeature.readsImages.matches(closed))
+        #expect(ModelTableFeature.longContext.matches(open))
+        #expect(!ModelTableFeature.longContext.matches(closed))
+        #expect(ModelTableFeature.openWeights.matches(open))
+        #expect(!ModelTableFeature.openWeights.matches(closed))
+        #expect(!ModelTableFeature.reasoning.matches(closed))
     }
 
     @Test("A model row's marks are one grey line, in a fixed order, and none at all says nothing")

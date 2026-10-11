@@ -81,8 +81,8 @@ extension StudioViewModel {
     // MARK: - Changing a passage of a Site
 
     /// The Change action on a selection in an open Site: one passage of the
-    /// stored page replaced and the site republished, every other file, the
-    /// address and its readers kept — the same code as `replace_site_text`,
+    /// stored page replaced, every other file kept — the same code as
+    /// `replace_site_text`,
     /// so the app and the tool cannot drift (docs/docs-design.md, "Changing a
     /// passage in place"). Returns nil when the change went, or the sentence
     /// to show when it did not: the passage was not found in the page's
@@ -98,67 +98,6 @@ extension StudioViewModel {
             return nil
         } catch {
             return error.localizedDescription
-        }
-    }
-
-    // MARK: - Publishing a site kept in the library
-
-    /// Put a copy of a site or animation on the web — the Sites menu's
-    /// Publish to the Web, through the same code as `publish_site`.
-    func publishSite(_ artifactID: String, visibility: SitePublishingAccess.Visibility) async {
-        do {
-            _ = try await MCPDataStore().publishSite(
-                site: artifactID, title: nil, html: nil, files: nil,
-                repository: nil, repositoryPath: nil, ref: nil, slug: nil,
-                visibility: visibility.rawValue,
-                homeNotebookID: nil, notebookIDs: []
-            )
-            await refreshPublishedSiteStatuses()
-            showToast(visibility == .publicSite ? "Published to the web" : "Published privately")
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    /// Take the published copy down; the site stays in the library.
-    func unpublishSite(_ artifactID: String) async {
-        do {
-            _ = try await MCPDataStore().unpublishSite(site: artifactID)
-            publishedSiteStatusesBySlug = publishedSiteStatusesBySlug.filter { $0.value.siteID != artifactID }
-            await refreshPublishedSiteStatuses()
-            showToast("Unpublished")
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    // MARK: - Site publishing provenance
-
-    /// Reload the account's Site projection without delaying the local list.
-    /// The linked Artifact intentionally stores only the site's canonical URL;
-    /// repository, ref, folder and exact commit remain server-owned publishing
-    /// state. A transient failure keeps the last known answer, so repository-
-    /// backed Sites do not blink between GitHub and the generic web mark while
-    /// offline.
-    func refreshPublishedSiteStatuses() async {
-        guard ManagedAI.isSignedIn else { return }
-        // Sites made before 2026-09-22 still live on sites.foreverlm.com;
-        // the first visit to Sites signed in brings them into the library.
-        if await HostedSiteAdoption.runIfNeeded(storage: storage) {
-            await loadArtifacts()
-        }
-        do {
-            let statuses = try await SitePublishing.statuses()
-            // By slug for a record still pointing at a hosted address, and by
-            // site id — the id of the record it was published from — for a
-            // site kept in the library.
-            publishedSiteStatusesBySlug = Dictionary(
-                statuses.values.flatMap { [($0.slug, $0), ($0.siteID, $0)] },
-                uniquingKeysWith: { first, _ in first }
-            )
-        } catch {
-            Logger(subsystem: "com.foreverlm", category: "SitePublishing")
-                .info("Published Sites list unavailable: \(error.localizedDescription, privacy: .public)")
         }
     }
 }

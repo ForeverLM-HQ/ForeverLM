@@ -15,7 +15,7 @@ extension StudioViewModel {
     /// Saves a clip as a mark on its source, the instant it is made, as a
     /// highlight is. A clip whose id is saved already (dropped a second time)
     /// is returned as it stands. `announce` says so in a toast, with the way
-    /// to the Canvas, whose tray holds it until it is placed.
+    /// to the Canvas, whose Library holds it until it is placed.
     @discardableResult
     func saveReaderClip(_ clip: StudioClipTransfer, announce: Bool) async -> SourceHighlight? {
         if let id = clip.highlightID {
@@ -36,7 +36,7 @@ extension StudioViewModel {
         knowledgeMapClipRevision &+= 1
         if announce {
             showToast(
-                "Clip saved · it waits in the Canvas's tray",
+                "Clip saved · it waits in the Canvas's Library",
                 action: StudioToastAction(title: "Open Canvas") { [weak self] window in
                     self?.openKnowledgeMap(in: window)
                 }
@@ -234,6 +234,13 @@ extension StudioViewModel {
     /// iCloud stat on the main actor).
     func knowledgeMapSourceHasPages(_ sourceID: String) -> Bool {
         articlesById[canonicalSourceID(sourceID)]?.resolvedPDFPath != nil
+    }
+
+    /// Whether a source placed on the Canvas for the first time shows its page:
+    /// a paper whose PDF this Mac holds (product owner, 2026-10-10: a paper is
+    /// a page).
+    func knowledgeMapSourceShowsPage(_ sourceID: String) -> Bool {
+        articlesById[canonicalSourceID(sourceID)]?.sourceType == .paper && knowledgeMapSourceHasPages(sourceID)
     }
 
     /// **Lay Out Pages**: one card for each of a PDF's pages, drawn from the
@@ -439,6 +446,41 @@ extension StudioViewModel {
             for page in pages {
                 // 0 is "looked, found nothing", so a refresh does not look again.
                 map.pageAspects[KnowledgeMap.pageRef(sourceID: sourceID, page: page)] = aspects[page] ?? 0
+            }
+        }
+    }
+
+    /// How many pages the PDF of each source the canvas may draw as its page
+    /// has, and the first one's shape (`KnowledgeMapModel.pageFaces`): the
+    /// sources placed with a `page`, and the papers a first placement would
+    /// give one, so a paper set down shows its page at once. Each PDF is read
+    /// once, off the main actor, eight at a time; one found to have no PDF is
+    /// read again when this Mac comes to hold it.
+    func loadKnowledgeMapPageFaces() async {
+        let map = knowledgeMap
+        var wanted: Set<String> = []
+        for (ref, placement) in map.layout.placements where placement.page != nil {
+            if let item = KnowledgeMap.ItemRef(ref), item.kind == .source { wanted.insert(item.id) }
+        }
+        for article in articles where article.status == .active && !article.isHidden && knowledgeMapSourceShowsPage(article.id) {
+            wanted.insert(article.id)
+        }
+        let unread = wanted.filter { id in
+            guard let face = map.pageFaces[id] else { return true }
+            return face.pageCount == 0 && knowledgeMapSourceHasPages(id)
+        }.sorted()
+        var start = 0
+        while start < unread.count {
+            let batch = unread[start..<min(start + 8, unread.count)]
+            start += batch.count
+            let reads = batch.map { id -> (id: String, read: Task<(pageCount: Int, aspects: [Int: Double])?, Never>?) in
+                guard let article = articlesById[id] ?? articlesById[canonicalSourceID(id)] else { return (id, nil) }
+                return (id, Task { await self.knowledgeMapPDFShape(of: article, pages: [1]) })
+            }
+            for (id, read) in reads {
+                let shape = await read?.value
+                // 0 pages is "looked, found no PDF".
+                map.pageFaces[id] = KnowledgeMapPageFace(pageCount: shape?.pageCount ?? 0, aspect: shape?.aspects[1])
             }
         }
     }

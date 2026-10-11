@@ -115,8 +115,14 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--map-bg
 }
 .map-edge-bar button.dot.on { background: transparent; }
 .map-edge-bar button.dot.on::before { box-shadow: 0 0 0 2px var(--map-card), 0 0 0 3.5px var(--dot); }
-.map-edge-bar.tree [data-route], .map-edge-bar.tree [data-heads] { display: none; }
-.map-edge-bar.tree i:first-of-type, .map-edge-bar.tree i:nth-of-type(2) { display: none; }
+.map-edge-bar.tree [data-route], .map-edge-bar.tree [data-heads], .map-edge-bar.tree [data-stance] { display: none; }
+.map-edge-bar.tree i:first-of-type, .map-edge-bar.tree i:nth-of-type(2), .map-edge-bar.tree i:nth-of-type(4) { display: none; }
+/* For and Against: an argument's side, as green and red as its arrow draws. */
+.map-edge-bar button.stance {
+  width: auto; padding: 0 8px; font: 600 11.5px/26px -apple-system, system-ui, "SF Pro Text", "Helvetica Neue", sans-serif;
+}
+.map-edge-bar button.stance[data-stance="supports"].on { background: color-mix(in srgb, var(--map-mem-solid) 18%, transparent); color: var(--map-mem-solid); }
+.map-edge-bar button.stance[data-stance="contradicts"].on { background: color-mix(in srgb, var(--map-contra) 18%, transparent); color: var(--map-contra); }
 
 /* An Idea written in place: its title and note over its card, on the card's
    own colour, scaled with the camera so the card seems to open. */
@@ -134,6 +140,11 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--map-bg
 .map-editor .ed-title { font-size: 14px; font-weight: 500; line-height: 18px; }
 .map-editor .ed-note { margin-top: 4px; font-size: 12.5px; line-height: 16px; opacity: 0.85; }
 .map-editor textarea::placeholder { color: inherit; opacity: 0.4; }
+/* The words about a card on this canvas, over the room at its foot: one field the
+   size of the room (the card grows as the words come), a hairline over it. */
+.map-note-editor { padding: 5px 14px 4px; border-radius: 0 0 10px 10px; overflow: hidden; border-top: 1px solid rgba(128, 128, 128, 0.22); }
+.map-note-editor textarea { height: 100%; overflow-y: auto; overscroll-behavior: contain; }
+.map-note-editor .ed-note { margin: 0; font-size: 12.5px; line-height: 16px; opacity: 0.9; }
 
 /* The minimap, when the display switch is on: the whole plane in 200 x 130,
    the view as a stroked rect, a press or drag moving the camera there. */

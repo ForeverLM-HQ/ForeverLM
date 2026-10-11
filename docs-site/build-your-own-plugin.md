@@ -24,9 +24,10 @@ You approve it once, in the same consent flow as any assistant — the approval
 screen says exactly this in plain words. Every source it adds is labeled with
 the plugin's name, so you can always see what came from where, and one
 command (`remove_connector_sources`, from Claude or any full-access assistant)
-removes everything a plugin ever added. Tool calls are free, like all MCP
-traffic, but the gateway rate-limits every client, so a runaway script runs
-out of rope quickly.
+removes everything a plugin ever added. A plugin connects over MCP, so, like
+any assistant, it works while your ForeverLM account is in its 7 free days or
+paid for. ForeverLM charges nothing per tool call, but the gateway
+rate-limits every client, so a runaway script runs out of rope quickly.
 
 ## The recipe (give this to your assistant)
 
@@ -55,7 +56,12 @@ Or copy the prompt from here and fill in the blanks yourself:
 >    `{my-url}/oauth/authorize` and `{my-url}/oauth/token`, requesting
 >    **`scope=mcp:ingest`**. I will approve the request in ForeverLM (or with
 >    my pairing code if I'm not at my Mac). Store the refresh token and refresh
->    as needed — the granted scope survives refresh.
+>    as needed — the granted scope survives refresh. If the token endpoint
+>    answers `invalid_client`, ForeverLM no longer knows this registration: I
+>    removed the plugin's access, or ForeverLM was reinstalled or moved to
+>    another Apple account. Stop and tell me how to reconnect it; reconnecting
+>    registers again with the same `client_name` and never reuses the old
+>    `client_id`.
 > 3. Speak MCP over `POST {my-url}/mcp`: `initialize` first (keep the
 >    `Mcp-Session-Id` response header on later requests), then push content
 >    with the `add_sources` tool. Each item: a **stable canonical `url`** (the
@@ -95,7 +101,13 @@ Or copy the prompt from here and fill in the blanks yourself:
 >
 > Note: ForeverLM's MCP URL only responds while the ForeverLM app is running
 > on my Mac, so handle connection failures by skipping the run and trying
-> again next time, not by erroring the schedule away.
+> again next time, not by erroring the schedule away. One exception: if the
+> URL answers HTTP 502, 503 or 504 and `GET http://127.0.0.1:8522/mcp-url`
+> (ForeverLM's own listener on this Mac, up only while it is connected)
+> returns `{"url": …}` naming a different URL, my personal URL has moved.
+> Save that URL, register there again under the same `client_name`, approve
+> again, and carry on. A registration and its tokens belong to the URL they
+> were made at, so never send them to the new one.
 
 That's the whole contract. The assistant writes the script; you run it on
 whatever schedule suits the material — a scheduled assistant task, `cron`,
@@ -168,3 +180,12 @@ id when a URL was already in your library).
 **Why does it say the connection failed at night?** Your ForeverLM MCP URL is
 served by the app on your Mac; if the app isn't running, plugins can't
 reach it. They should simply retry on their next scheduled run.
+
+**Can my personal URL change?** Rarely, but yes: it follows your Apple
+account, so it changes if ForeverLM is signed in under a different one. The
+old URL then answers "not running" for good. A plugin running on the same
+Mac can ask ForeverLM for the current one at
+`http://127.0.0.1:8522/mcp-url`, which answers only programs on that Mac and
+only while ForeverLM is connected. It returns the URL and nothing else.
+Plugins built from the recipe above follow the move on their own; you approve
+them once more.

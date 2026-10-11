@@ -41,6 +41,12 @@ final class SpaceRecents {
         /// from the library each time; a picture's lives in its file, which
         /// the sidebar does not read for a row.
         var title: String? = nil
+        /// When the picture's latest version was drawn, as it was opened, for
+        /// the same reason: Screen record mode lets a picture on screen by it
+        /// (`ScreenRecordScope.allowsImage`). Nil for a record, and for a
+        /// picture noted before this was kept, which then shows only when kept
+        /// on the mode's list.
+        var createdAt: Date? = nil
     }
 
     private(set) var items: [Item]
@@ -52,11 +58,12 @@ final class SpaceRecents {
     }
 
     /// Notes an opening, the latest winning: the item moves to the top.
-    func note(_ kind: Item.Kind, id: String, title: String? = nil, at date: Date = Date()) {
+    func note(_ kind: Item.Kind, id: String, title: String? = nil, createdAt: Date? = nil, at date: Date = Date()) {
         guard !id.isEmpty else { return }
-        if items.first?.kind == kind, items.first?.id == id, items.first?.title == title { return }
+        if items.first?.kind == kind, items.first?.id == id, items.first?.title == title,
+           items.first?.createdAt == createdAt { return }
         var next = items.filter { !($0.kind == kind && $0.id == id) }
-        next.insert(Item(kind: kind, id: id, openedAt: date, title: title), at: 0)
+        next.insert(Item(kind: kind, id: id, openedAt: date, title: title, createdAt: createdAt), at: 0)
         if next.count > Self.capacity { next.removeLast(next.count - Self.capacity) }
         items = next
         save()
@@ -80,7 +87,11 @@ final class SpaceRecents {
             guard let kindRaw = entry["k"] as? String, let kind = Item.Kind(rawValue: kindRaw),
                   let id = entry["id"] as? String, !id.isEmpty,
                   let seconds = (entry["t"] as? NSNumber)?.doubleValue, seconds.isFinite else { return nil }
-            return Item(kind: kind, id: id, openedAt: Date(timeIntervalSince1970: seconds), title: entry["n"] as? String)
+            let created = ((entry["c"] as? NSNumber)?.doubleValue).flatMap { $0.isFinite ? Date(timeIntervalSince1970: $0) : nil }
+            return Item(
+                kind: kind, id: id, openedAt: Date(timeIntervalSince1970: seconds), title: entry["n"] as? String,
+                createdAt: created
+            )
         }
     }
 
@@ -88,6 +99,7 @@ final class SpaceRecents {
         let raw: [[String: Any]] = items.map { item in
             var entry: [String: Any] = ["k": item.kind.rawValue, "id": item.id, "t": item.openedAt.timeIntervalSince1970]
             if let title = item.title { entry["n"] = title }
+            if let createdAt = item.createdAt { entry["c"] = createdAt.timeIntervalSince1970 }
             return entry
         }
         defaults?.set(raw, forKey: Self.preferenceKey)

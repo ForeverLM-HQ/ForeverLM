@@ -3,6 +3,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { sidebarSource } from './sidebar-source.mjs'
 
 const docsRoot = dirname(fileURLToPath(import.meta.url))
 const repoRoot = dirname(docsRoot)
@@ -30,13 +31,9 @@ function normalizedPage(path) {
 }
 
 const config = readFileSync(join(docsRoot, '.vitepress/config.mjs'), 'utf8')
-const sidebarStart = config.indexOf('sidebar:')
-const sidebarEnd = config.indexOf('socialLinks:')
-if (sidebarStart < 0 || sidebarEnd < 0 || sidebarEnd <= sidebarStart) {
-  fail('could not locate the sidebar in .vitepress/config.mjs')
-}
+const sidebar = sidebarSource(config) ?? ''
+if (!sidebar) fail('could not locate the sidebar in .vitepress/config.mjs')
 
-const sidebar = config.slice(sidebarStart, sidebarEnd)
 const sidebarPageList = [...sidebar.matchAll(/link:\s*['"]\/([^'"]*)['"]/g)].map((match) =>
   normalizedPage(match[1]),
 )

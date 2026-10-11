@@ -279,18 +279,18 @@ struct MobileBlobOnDemandTests {
             (F.library, try MobileSyncFixture.envelope(.artifact, "anim-1", ["kind": .string("animation"), "title": .string("Fission"),
                                                                              "status": .string("active"), "body": body.value,
                                                                              "linkedURL": .string("foreverlm-site://anim-1/")])),
-            (F.library, try MobileSyncFixture.envelope(.artifact, "anim-2", ["kind": .string("animation"), "title": .string("Hosted"),
+            (F.library, try MobileSyncFixture.envelope(.artifact, "anim-2", ["kind": .string("animation"), "title": .string("Unpacked"),
                                                                              "status": .string("active"),
-                                                                             "linkedURL": .string("https://sites.foreverlm.com/s/x/")])),
+                                                                             "linkedURL": .string("foreverlm-site://anim-2/")])),
         ], to: phone.device.replica)
 
         let held = try #require(try await phone.satellites.artifactBody("anim-1"))
         #expect(held.linkedURL == "foreverlm-site://anim-1/")
         #expect(held.bodyRevision == body.hash)
         #expect(held.package == bytes)
-        let hosted = try #require(try await phone.satellites.artifactBody("anim-2"))
-        #expect(hosted.linkedURL == "https://sites.foreverlm.com/s/x/")
-        #expect(hosted.bodyRevision == nil && hosted.package == nil)
+        let bodiless = try #require(try await phone.satellites.artifactBody("anim-2"))
+        #expect(bodiless.linkedURL == "foreverlm-site://anim-2/")
+        #expect(bodiless.bodyRevision == nil && bodiless.package == nil)
         #expect(try await phone.satellites.artifactBody("anim-missing") == nil)
     }
 

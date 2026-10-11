@@ -153,7 +153,7 @@ struct BetaFeaturesCanvasGateTests {
     @Test("A production Mac's Space lists no Canvases place; a beta Mac's lists it after Sites")
     func spacePlace() {
         #expect(!SpaceDestination.places(listsCanvases: false).contains(.canvases))
-        #expect(SpaceDestination.places(listsCanvases: true) == [.all, .pages, .sites, .canvases, .images, .ideas, .drive])
+        #expect(SpaceDestination.places(listsCanvases: true) == [.all, .notebooks, .pages, .sites, .canvases, .images, .drive])
     }
 
     @Test("A layout showing the Canvas or the Atlas shows another tab instead, the Space first, and nothing else moves")

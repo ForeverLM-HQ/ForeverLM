@@ -115,6 +115,17 @@ final class MobileAccountGateModel {
     var showsWall: Bool { hasAccountAccess != true || isValidatingLapsedSession }
     var isResolving: Bool { hasAccountAccess == nil }
 
+    /// Whether the app is locked (the paid app, product owner, 2026-10-10:
+    /// the free days over and nothing paid), from the access the proxy last
+    /// reported (`ManagedAI.isAppLocked`). The phone then shows only
+    /// `MobileAppLockView`. Read again after every validation and foreground.
+    private(set) var isAppLocked = ManagedAI.isAppLocked
+
+    func refreshAppLock() {
+        let locked = ManagedAI.isAppLocked
+        if locked != isAppLocked { isAppLocked = locked }
+    }
+
     /// Answers the gate locally, then asks the proxy whether the stored session is
     /// still real. Only a definitive `invalid_session` re-walls; a network failure
     /// leaves the local answer standing — that is what `ManagedAI.accountGracePeriod`
@@ -127,6 +138,9 @@ final class MobileAccountGateModel {
              needsRenewal: ManagedAI.sessionNeedsRenewal)
         }.value
         hasAccountAccess = local.access
+        // The cached answer first, so free days that ran out while the
+        // phone was away lock before the proxy is asked.
+        refreshAppLock()
 
         // No token at all — the gate already says so, and there is nothing to ask about.
         guard local.hasToken else { return }
@@ -147,6 +161,7 @@ final class MobileAccountGateModel {
             _ = try await ManagedAI.balance()
             hasAccountAccess = true
             lastValidationAt = Date()
+            refreshAppLock()
         } catch let error as ManagedAI.ServiceError where error.isInvalidSession {
             // The transport already dropped the token; mirror that here so the
             // wall comes back on this launch rather than at the next voice start.
@@ -176,6 +191,7 @@ final class MobileAccountGateModel {
     func didSignIn() {
         hasAccountAccess = true
         lastValidationAt = Date()
+        refreshAppLock()
     }
 
     /// Account deletion clears the proxy session before this is called. Publish
@@ -279,5 +295,40 @@ struct MobileSignInPrompt: View {
         }
         .padding(20)
         .frame(maxWidth: .infinity)
+    }
+}
+
+/// The phone's lock (product owner, 2026-10-10; docs/pricing-pro-design.md →
+/// App Review): shown instead of the app once the free days are over and
+/// nothing is paid. Neutral on purpose: no price, no button and no "go to
+/// the website", since the iPhone app sells nothing (App Review 3.1.3(f)).
+/// How the phone behaves when locked is still an open App Review question,
+/// so this one view is the whole of it, and changing the decision changes
+/// only this view. The root asks the proxy again on every foreground, so a
+/// payment made on the Mac unlocks the phone the next time it opens.
+struct MobileAppLockView: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        VStack(spacing: MobileDesign.Spacing.xLarge) {
+            ForeverLMMark(width: 140, motion: .still)
+                .accessibilityHidden(true)
+            Text(ManagedAI.appLockedMessage)
+                .font(.title2.bold())
+                .multilineTextAlignment(.center)
+                .accessibilityIdentifier("appLock.title")
+        }
+        .padding(MobileDesign.Spacing.xxLarge)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(alignment: .top) {
+            LinearGradient(
+                colors: [Color.accentColor.opacity(colorScheme == .dark ? 0.22 : 0.14), .clear],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 320)
+            .blur(radius: 40)
+            .ignoresSafeArea()
+        }
     }
 }

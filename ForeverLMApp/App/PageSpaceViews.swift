@@ -215,7 +215,7 @@ struct PageParentTrail: View {
     @Environment(StudioWindowState.self) private var windowState
     let pageID: String
     /// The page's own side inset, so the line stands where the title does.
-    let inset: CGFloat
+    let inset: ArtifactPageInset
 
     var body: some View {
         let ancestors = vm.pageAncestors(of: pageID)
@@ -252,7 +252,7 @@ struct PageParentTrail: View {
             }
             .zoomedSystemFont(size: 11.5)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, inset)
+            .modifier(inset)
             .padding(.top, 12)
             .textSelection(.disabled)
             .accessibilityElement(children: .contain)

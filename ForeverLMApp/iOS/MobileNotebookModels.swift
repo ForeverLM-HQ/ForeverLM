@@ -843,9 +843,8 @@ struct MobileCloudArtifact: Identifiable, Equatable, Sendable {
 
     /// The Mac's `LinkedPage.kind(of:)` for the three Site families: a
     /// library-held site (`foreverlm-site://`), a Claude artifact
-    /// (`claude.ai/code/artifact/<id>`, `claude.ai/public/artifacts/<id>`), a
-    /// Codex site (`<name>.<…>.chatgpt.site`) and a published ForeverLM site
-    /// (`sites.foreverlm.com/<slug>`). Mirrored because `LinkedPage.swift`
+    /// (`claude.ai/code/artifact/<id>`, `claude.ai/public/artifacts/<id>`) and a
+    /// Codex site (`<name>.<…>.chatgpt.site`). Mirrored because `LinkedPage.swift`
     /// carries Mac-only record types and is not on the iPhone's file list.
     static func isSiteLink(_ string: String) -> Bool {
         guard let url = URL(string: string.trimmingCharacters(in: .whitespacesAndNewlines)) else { return false }
@@ -861,10 +860,6 @@ struct MobileCloudArtifact: Identifiable, Equatable, Sendable {
         if host.hasSuffix(".chatgpt.site") {
             let labels = host.split(separator: ".")
             return labels.count >= 4 && labels.allSatisfy { !$0.isEmpty }
-        }
-        if host == "sites.foreverlm.com" {
-            guard let slug = url.pathComponents.first(where: { $0 != "/" })?.lowercased() else { return false }
-            return slug.range(of: #"^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){2,63}$"#, options: .regularExpression) != nil
         }
         return false
     }

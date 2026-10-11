@@ -47,6 +47,10 @@ struct ForeverLMMobileApp: App {
                             await viewModel.handlePendingSiriCommandIfNeeded()
                         }
                     }
+                } else if account.isAppLocked {
+                    // The free days are over and nothing is paid: a neutral
+                    // lock, and nothing else (`MobileAppLockView`).
+                    MobileAppLockView()
                 } else {
                     // Notebooks are the phone's front door: Home lists them,
                     // and a launch reopens the notebook last worked in. Voice
@@ -140,7 +144,10 @@ struct ForeverLMMobileApp: App {
                 // Event-driven recheck, like the Mac: a revocation that lands
                 // while backgrounded takes effect on next use. The interval
                 // makes the cold-launch flip a no-op after the launch check.
-                Task { await account.validateStoredSession(minimumInterval: 15 * 60) }
+                // A locked phone asks every time: a payment made on the Mac
+                // should unlock it the moment it is opened.
+                account.refreshAppLock()
+                Task { await account.validateStoredSession(minimumInterval: account.isAppLocked ? 0 : 15 * 60) }
                 Task { await resetCreditsEmptyEpisodeIfResolved() }
                 // Everything below reaches iCloud, so it waits for the same
                 // gate the launch preload waits for. A foreground on a

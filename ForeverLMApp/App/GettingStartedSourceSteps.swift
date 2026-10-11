@@ -215,148 +215,69 @@ struct PodcastShowChooser: View {
 
 // MARK: - Reading List
 
-/// Which browsers' Reading Lists come in, how many pages each holds today,
-/// and how much of that backlog to bring: everything, the last month, or only
-/// what is saved from now on. The backlog choice comes first, because turning
-/// a browser on imports right away.
-struct ReadingListSetupCard: View {
+/// Which browsers' Reading Lists come in: one tile per browser, any number
+/// ticked, the Mac's default marked Recommended. Nothing else is asked here.
+/// How much of the backlog to bring is a Settings › Sources choice that starts
+/// on the last 30 days, recorded before any browser can import.
+struct ReadingListBrowserChoices: View {
     let isEnabled: (ReadingListBrowser) -> Binding<Bool>
 
-    @Environment(StudioViewModel.self) private var vm
-    @State private var window = ReadingListSetupCard.storedWindow
-    @State private var counts: [ReadingListBrowser: BacklogCount] = [:]
-    @State private var isCounting = false
-
-    struct BacklogCount: Equatable {
-        let total: Int
-        let recent: Int
-    }
-
-    /// A learner who has not chosen yet starts on the last month: enough to
-    /// have something to read today, without a years-deep backlog to fetch
-    /// and clean up.
-    static var storedWindow: SourceDiscovery.ReadingListImportWindow {
-        SourceDiscovery.ReadingListImportWindow.chosen ?? .lastMonth
-    }
-
     /// Record the default before any browser can import, so a Reading List
-    /// turned on without touching the picker still brings only the last month.
+    /// turned on still brings only the last month, not a years-deep backlog to
+    /// fetch and clean up.
     static func holdDefaultWindowIfUnchosen() {
         guard SourceDiscovery.ReadingListImportWindow.chosen == nil else { return }
         SourceDiscovery.ReadingListImportWindow.choose(.lastMonth)
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Bring in")
-                    .font(.subheadline.weight(.medium))
-                Picker("Bring in", selection: windowBinding) {
-                    Text(windowTitle(.everything)).tag(SourceDiscovery.ReadingListImportWindow.everything)
-                    Text(windowTitle(.lastMonth)).tag(SourceDiscovery.ReadingListImportWindow.lastMonth)
-                    Text(windowTitle(.fromNowOn)).tag(SourceDiscovery.ReadingListImportWindow.fromNowOn)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                Text("Every page that comes in is fetched and cleaned up by AI once.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        HStack(spacing: 10) {
+            ForEach(ReadingListBrowser.allCases) { browser in
+                tile(browser)
             }
+        }
+        .task { Self.holdDefaultWindowIfUnchosen() }
+    }
 
-            VStack(alignment: .leading, spacing: 6) {
+    private func tile(_ browser: ReadingListBrowser) -> some View {
+        let binding = isEnabled(browser)
+        let isSelected = binding.wrappedValue
+        return Button {
+            binding.wrappedValue.toggle()
+        } label: {
+            VStack(alignment: .leading, spacing: 10) {
                 HStack {
-                    Text("From the Reading List in")
-                        .font(.subheadline.weight(.medium))
-                    if isCounting {
-                        ProgressView().controlSize(.small)
-                    }
+                    Image(browser.logoAssetName)
+                        .resizable()
+                        .renderingMode(.original)
+                        .scaledToFit()
+                        .frame(width: 28, height: 28)
+                        .accessibilityHidden(true)
+                    Spacer(minLength: 0)
+                    Image(systemName: isSelected ? "checkmark.square.fill" : "square")
+                        .font(.title3)
+                        .foregroundStyle(isSelected ? Color.accentColor : .secondary)
                 }
-                ForEach(ReadingListBrowser.allCases) { browser in
-                    Toggle(isOn: isEnabled(browser)) {
-                        HStack(spacing: 6) {
-                            ReadingListBrowserLabel(browser: browser)
-                            if let count = counts[browser] {
-                                Text(countText(count))
-                                    .foregroundStyle(.secondary)
-                            }
-                            if browser == ReadingListBrowser.systemDefault {
-                                RecommendedBadge()
-                            }
-                        }
-                    }
-                    .toggleStyle(.checkbox)
+                Text(browser.title)
+                    .font(.headline)
+                if browser == ReadingListBrowser.systemDefault {
+                    RecommendedBadge()
+                } else {
+                    // Keeps the three tiles one height.
+                    RecommendedBadge().hidden()
                 }
             }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                isSelected ? Color.accentColor.opacity(0.10) : Color.primary.opacity(0.055),
+                in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
-        .sourceSetupCard()
-        .task {
-            Self.holdDefaultWindowIfUnchosen()
-            window = Self.storedWindow
-            await count()
-        }
-    }
-
-    private var windowBinding: Binding<SourceDiscovery.ReadingListImportWindow> {
-        Binding(
-            get: { window },
-            set: { newWindow in
-                let widened = SourceDiscovery.ReadingListImportWindow.widens(from: window, to: newWindow)
-                window = newWindow
-                SourceDiscovery.ReadingListImportWindow.choose(newWindow)
-                // A wider window reaches pages the last pass left behind.
-                if widened { vm.readingListBrowsersDidChange() }
-            }
-        )
-    }
-
-    private func windowTitle(_ option: SourceDiscovery.ReadingListImportWindow) -> String {
-        let chosen = ReadingListBrowser.allCases.filter { isEnabled($0).wrappedValue }
-        let pool = chosen.isEmpty ? ReadingListBrowser.allCases : chosen
-        let known = pool.compactMap { counts[$0] }
-        switch option {
-        case .everything:
-            let total = known.reduce(0) { $0 + $1.total }
-            return known.isEmpty ? option.title : "\(option.title) (\(total))"
-        case .lastMonth:
-            let recent = known.reduce(0) { $0 + $1.recent }
-            return known.isEmpty ? option.title : "\(option.title) (\(recent))"
-        case .fromNowOn:
-            return option.title
-        }
-    }
-
-    private func countText(_ count: BacklogCount) -> String {
-        switch count.total {
-        case 0: return "· empty"
-        case 1: return "· 1 page"
-        default: return "· \(count.total) pages"
-        }
-    }
-
-    /// Read each browser's list without importing it. Needs Full Disk Access;
-    /// a browser that cannot be read simply shows no count.
-    private func count() async {
-        isCounting = true
-        let homeDir = BookmarkAccessManager.realHomeDirectory
-        let cutoff = SourceDiscovery.ReadingListImportWindow.lastMonth.cutoff() ?? .distantPast
-        var found: [ReadingListBrowser: BacklogCount] = [:]
-        for browser in ReadingListBrowser.allCases {
-            let result = await Task.detached(priority: .utility) {
-                StudioViewModel.discoverBrowserReadingListsOffMain(
-                    homeDir: homeDir,
-                    safariEnabled: browser == .safari,
-                    chromeEnabled: browser == .chrome,
-                    braveEnabled: browser == .brave,
-                    safariFolderURL: nil
-                )
-            }.value
-            guard result.warnings.isEmpty else { continue }
-            let urls = Set(result.articles.map { SourceDiscovery.normalizedURL($0.url) })
-            let recent = Set(result.articles.filter { $0.dateAdded >= cutoff }.map { SourceDiscovery.normalizedURL($0.url) })
-            found[browser] = BacklogCount(total: urls.count, recent: recent.count)
-        }
-        counts = found
-        isCounting = false
+        .buttonStyle(.hoverWash(cornerRadius: 10, inset: 0))
+        .accessibilityLabel(browser.title)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 

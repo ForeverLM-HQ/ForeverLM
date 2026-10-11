@@ -4,10 +4,11 @@ import SwiftUI
 
 /// One thing the Space lists: a page, a linked Google Doc, a site, a mnemonic
 /// reading in no notebook, a canvas, a list, a picture, or since 2026-10-09 a
-/// notebook or a course, listed under All (docs/docs-design.md, "The Space").
+/// notebook or a course, listed under All (docs/docs-design.md, "The Space");
+/// or a chat, which the Chats place alone lists.
 struct SpaceItem: Identifiable {
     enum Kind: Equatable {
-        case page, googleDoc, site, reading, canvas, goalList, ideaList, image, notebook, course
+        case page, googleDoc, site, reading, canvas, goalList, ideaList, image, notebook, course, chat
     }
 
     /// The record's id, or `image:<image id>` for a picture.
@@ -28,6 +29,8 @@ struct SpaceItem: Identifiable {
     var notebook: LearningGoalRecord?
     /// The course's id (its group name), for a course.
     var courseID: String?
+    /// The chat, for a chat.
+    var chat: ReviewSessionRecord?
     /// Where it lives, for the list's second column: its notebooks, or for a
     /// team's record the team.
     var location: String?
@@ -52,7 +55,7 @@ struct SpaceItem: Identifiable {
         artifact?.isArchived == true || canvas?.isTrashed == true || spaceList?.isTrashed == true
             || notebook?.isArchived == true
     }
-    var isHidden: Bool { artifact?.isHidden == true }
+    var isHidden: Bool { artifact?.isHidden == true || chat?.isHidden == true }
     /// What Trash lists: everything archived or trashed. A picture is deleted
     /// from its sheet and never trashed.
     var isInTrash: Bool { isArchived && kind != .image }
@@ -63,6 +66,7 @@ struct SpaceItem: Identifiable {
         if let spaceList { return .spaceList(spaceList.id) }
         if let notebook { return .notebook(notebook.id) }
         if let courseID { return .course(courseID) }
+        if let chat { return .chat(chat.id) }
         guard let artifact else { return nil }
         return teamName != nil ? .teamArtifact(artifact.id) : .doc(artifact.id)
     }
@@ -232,6 +236,41 @@ enum SpaceCatalog {
         return items
     }
 
+    /// The chats of the open library, for the Chats place (`spaceChats`):
+    /// those in a notebook beside those in none, and the hidden ones, which
+    /// only its Hidden scope shows. Built only while Chats is on screen, so a
+    /// long history is never walked for the other places.
+    static func chatItems(vm: StudioViewModel) -> [SpaceItem] {
+        // A chat on a Goal is listed under the notebook the Goal draws on,
+        // as the rail files it.
+        var titles: [String: String] = [:]
+        for goal in vm.notebooks + vm.archivedNotebooks {
+            titles[goal.id] = NotebookTitle(goal.title).text
+        }
+        var notebookOfGoal: [String: String] = [:]
+        for goal in vm.learningGoals where goal.isGoal {
+            if let parent = goal.parentNotebookID, !parent.isEmpty { notebookOfGoal[goal.id] = parent }
+        }
+        return vm.spaceChats().map { session in
+            let notebookID = session.goalID.flatMap { titles[$0] != nil ? $0 : notebookOfGoal[$0] }
+            return SpaceItem(
+                id: session.id,
+                kind: .chat,
+                title: session.title.isEmpty ? "Untitled chat" : session.title,
+                // A chat keeps no date of its last turn, so it is dated by
+                // when it began.
+                createdAt: session.createdAt,
+                updatedAt: session.createdAt,
+                chat: session,
+                location: notebookID.flatMap { titles[$0] }.flatMap { $0.isEmpty ? nil : $0 },
+                teamIDs: session.teamID.map { Set([$0]) } ?? [],
+                filing: .filed([session.goalID]),
+                // A team's snapshot is read, never renamed, refiled or deleted.
+                isOwnedHere: !session.isTeamSnapshot
+            )
+        }
+    }
+
     /// A notebook as the Space lists it: its cover or emoji on its colour,
     /// owned here unless its team shared it read-only.
     private static func notebookItem(_ goal: LearningGoalRecord, updatedAt: Date, vm: StudioViewModel) -> SpaceItem {
@@ -252,8 +291,8 @@ enum SpaceCatalog {
 /// What beside the Space sidebar shows for a place: the place's name, the
 /// search and New on one line, the filters and the view controls under it,
 /// then the items as a list (ChatGPT's default: Name | Notebook | Created) or
-/// a grid of pictures; Images as a grid of pictures always, Ideas as the
-/// Ideas' own list, Trash with Restore and Delete Forever.
+/// a grid of pictures; Images as a grid of pictures always, Trash with
+/// Restore and Delete Forever.
 struct SpaceBrowseView: View {
     @Environment(StudioViewModel.self) private var vm
     /// The window the list is in, where a canvas opens.
@@ -294,12 +333,13 @@ struct SpaceBrowseView: View {
     @AppStorage(SpaceLayout.groupsByCollectionKey) private var groupsByCollection = false
     /// The question a notebook's menu asked, answered on its row or card.
     @State private var notebookDialog: SpaceNotebookDialog?
+    /// The chat Delete… asks about.
+    @State private var deletingChat: SpaceItem?
     /// The name a collection is asked for: New Collection… under a notebook's
     /// Add to Collection ▸, or a heading's Rename Collection….
     @State private var collectionNameRequest: NotebookCollectionNameRequest?
     /// The collection a heading's Delete Collection… asks about.
     @State private var collectionToDelete: NotebookCollection?
-    @FocusState private var searchFocused: Bool
     private let previews = ArtifactPreviewStore.shared
 
     private var query: String { searchText.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -310,7 +350,10 @@ struct SpaceBrowseView: View {
     }
 
     var body: some View {
-        let all = SpaceCatalog.items(vm: vm, images: listsImages ? images : [])
+        // Chats lists the chats and nothing else, and no other place lists one.
+        let all = destination == .chats
+            ? SpaceCatalog.chatItems(vm: vm)
+            : SpaceCatalog.items(vm: vm, images: listsImages ? images : [])
         let inPlace = all.filter { lists($0) }
         let filtered = sorted(inPlace.filter { passesFilters($0) })
         // Trash lists what was trashed first, then the archived notebooks.
@@ -326,15 +369,12 @@ struct SpaceBrowseView: View {
                 if let list = openList {
                     SpaceListPage(list: list, query: searchText)
                         .padding(.top, 16)
-                } else if destination == .ideas {
-                    IdeasHomeView(isEmbedded: true, query: searchText, admits: admitsIdea)
-                        .padding(.top, 16)
                 } else if shown.isEmpty {
                     emptyState
                         .frame(maxWidth: .infinity)
-                        .padding(.top, 72)
+                        .padding(.top, SpacePlaceMetrics.emptyTopPadding)
                         .padding(.bottom, 32)
-                } else if destination == .images || layout == .grid {
+                } else if destination == .images || (layout == .grid && destination != .chats) {
                     grid(sections ?? [SpaceCollectionSection(collection: nil, items: shown)], headings: sections != nil)
                         .padding(.top, 18)
                 } else {
@@ -342,19 +382,14 @@ struct SpaceBrowseView: View {
                         .padding(.top, 14)
                 }
             }
-            .padding(.horizontal, 28)
-            .padding(.top, 22)
-            .padding(.bottom, 32)
-            .frame(maxWidth: 1120, alignment: .leading)
-            .frame(maxWidth: .infinity, alignment: .center)
+            .spacePlaceColumn()
         }
         .scrollIndicators(.automatic)
         .task(id: listsImages) { await loadImages() }
-        .onChange(of: searchFocusRequest) { _, _ in searchFocused = true }
         .onChange(of: destination) { _, _ in
             scope = .all
         }
-        .onChange(of: isMissingSpace, initial: true) { _, isMissing in
+        .onChange(of: isMissingPlace, initial: true) { _, isMissing in
             if isMissing { onSelectPlace(.all) }
         }
         // A list shown is a Recents entry, as a page opened is; one gone
@@ -372,6 +407,22 @@ struct SpaceBrowseView: View {
         .notebookCollectionDeleteConfirmation($collectionToDelete)
         .sheet(item: $movingToPage) { page in
             PageParentPickerSheet(page: page)
+        }
+        .confirmationDialog(
+            "Delete ‘\(deletingChat?.title ?? "this chat")’?",
+            isPresented: Binding(
+                get: { deletingChat != nil },
+                set: { if !$0 { deletingChat = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: deletingChat
+        ) { item in
+            Button("Delete", role: .destructive) {
+                StudioAssistantSessionStore.deleteSessionEverywhere(item.id)
+                Task { await vm.deleteReviewSessionLink(item.id) }
+            }
+        } message: { _ in
+            Text("The chat and its transcript are deleted. This can’t be undone; Hide keeps it out of the list instead.")
         }
         .sheet(item: $openedImage, onDismiss: {
             Task { await loadImages() }
@@ -425,7 +476,7 @@ struct SpaceBrowseView: View {
                 }
             }
         } message: {
-            Text("This can’t be undone. A linked Google Doc or site is only unlinked; the page itself is not touched. A list’s goals and ideas stay in Goals and Ideas.")
+            Text("This can’t be undone. A linked Google Doc or site is only unlinked; the page itself is not touched. A list’s goals and ideas are kept.")
         }
     }
 
@@ -438,13 +489,14 @@ struct SpaceBrowseView: View {
         switch destination {
         case .all: return true
         case .notebooks: return item.kind == .notebook
+        case .chats: return item.kind == .chat
         case .pages: return item.kind == .page || item.kind == .reading
         case .sites: return item.kind == .site
         case .canvases: return item.kind == .canvas
         case .images: return item.kind == .image
         case .drive: return item.kind == .googleDoc
         // A list's page draws what it holds (`SpaceListPage`), not items.
-        case .ideas, .trash, .list: return false
+        case .trash, .list: return false
         case .team(let id): return item.teamIDs.contains(id)
         case .space(let id): return item.kind != .image && vm.pageSpaces.spaceID(ofPage: item.id) == id
         }
@@ -452,10 +504,22 @@ struct SpaceBrowseView: View {
 
     /// A space gone since it was chosen — deleted here or on another device —
     /// or chosen before a team's library opened, which has none of the
-    /// learner's spaces: the list shows All instead.
-    private var isMissingSpace: Bool {
-        guard let id = destination.pageSpaceID else { return false }
-        return vm.activeTeamID != nil || vm.pageSpaces.space(id) == nil
+    /// learner's spaces; or, in Screen record mode, a space, team or list the
+    /// take may not show, left chosen from before the mode went on, whose
+    /// name the header would say: the list shows All instead.
+    private var isMissingPlace: Bool {
+        if let id = destination.pageSpaceID {
+            if vm.activeTeamID != nil || vm.pageSpaces.space(id) == nil { return true }
+            return vm.isScreenRecordModeActive && !vm.orderedPageSpaces.contains { $0.id == id }
+        }
+        guard vm.isScreenRecordModeActive else { return false }
+        if case .team(let id) = destination {
+            return !vm.shownTeams.contains { $0.id == id }
+        }
+        if let id = destination.spaceListID {
+            return !vm.listedSpaceLists.contains { $0.id == id }
+        }
+        return false
     }
 
     /// The scope, the notebook filter, the hidden rule, the daily-note rule
@@ -514,9 +578,19 @@ struct SpaceBrowseView: View {
         )
     }
 
+    /// The order as it applies here: a chat keeps no date of its last turn,
+    /// so Chats offers Date Created and Name, and Last Activity is Date Created.
+    private var effectiveSort: SpaceSort {
+        destination == .chats && sort == .activity ? .created : sort
+    }
+
+    private var sortOptions: [SpaceSort] {
+        destination == .chats ? [.created, .name] : SpaceSort.allCases
+    }
+
     private func sorted(_ items: [SpaceItem]) -> [SpaceItem] {
         items.sorted { lhs, rhs in
-            switch sort {
+            switch effectiveSort {
             case .created where lhs.createdAt != rhs.createdAt:
                 return lhs.createdAt > rhs.createdAt
             case .activity where lhs.updatedAt != rhs.updatedAt:
@@ -536,10 +610,11 @@ struct SpaceBrowseView: View {
     /// while something is hidden there.
     private func scopes(inPlace: [SpaceItem]) -> [SpaceScope] {
         // A canvas is the learner's own, never shared, published or hidden.
-        guard destination != .trash, destination != .images, destination != .ideas, destination != .canvases,
+        guard destination != .trash, destination != .images, destination != .canvases,
               destination.spaceListID == nil else { return [] }
         var scopes: [SpaceScope] = [.all]
-        if vm.activeTeamID == nil, !vm.teams.isEmpty, !isTeamPlace {
+        // The learner's chats are their own; a team's transcripts are in its library.
+        if vm.activeTeamID == nil, !vm.teams.isEmpty, !isTeamPlace, destination != .chats {
             scopes += [.yours, .shared]
         }
         if destination == .all || destination == .pages || isTeamPlace || destination.pageSpaceID != nil {
@@ -569,12 +644,6 @@ struct SpaceBrowseView: View {
     /// A notebook gone since it was chosen is every notebook again.
     private var effectiveNotebookFilter: ArtifactsNotebookFilter {
         notebookFilter.effective(notebookIDs: Set(vm.notebooks.map(\.id)))
-    }
-
-    private func admitsIdea(_ idea: IdeaRecord) -> Bool {
-        let filter = effectiveNotebookFilter
-        guard filter != .all else { return true }
-        return filter.admits(livingIn: vm.notebooksHolding(.filed(NotebookMembership.filingNotebookIDs(of: idea))))
     }
 
     private func loadImages() async {
@@ -617,24 +686,12 @@ struct SpaceBrowseView: View {
     private func header(inPlace: [SpaceItem], shown: [SpaceItem]) -> some View {
         let scopes = scopes(inPlace: inPlace)
         return VStack(alignment: .leading, spacing: 14) {
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 10) {
-                    titleView
-                    Spacer(minLength: 12)
-                    searchField
-                        .frame(width: 220)
-                    primaryActions(shown: shown)
-                }
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(spacing: 10) {
-                        titleView
-                        Spacer(minLength: 8)
-                        primaryActions(shown: shown)
-                    }
-                    searchField
-                }
+            SpacePlaceHeader(searchText: $searchText, searchFocusRequest: searchFocusRequest) {
+                titleView
+            } actions: {
+                primaryActions(shown: shown)
             }
-            if destination != .ideas, destination != .images, openList == nil, !(scopes.isEmpty && inPlace.isEmpty) {
+            if destination != .images, openList == nil, !(scopes.isEmpty && inPlace.isEmpty) {
                 HStack(spacing: 8) {
                     if !scopes.isEmpty {
                         scopePills(scopes)
@@ -658,7 +715,7 @@ struct SpaceBrowseView: View {
                         .font(.system(size: 18, weight: .medium))
                         .foregroundStyle(SpaceKindStyle.tint(list.kind == .goals ? .goalList : .ideaList))
                     Text(list.name)
-                        .font(.system(size: 22, weight: .semibold))
+                        .font(SpacePlaceMetrics.titleFont)
                         .lineLimit(1)
                     Image(systemName: "chevron.down")
                         .zoomedSystemFont(size: 11, weight: .semibold)
@@ -679,12 +736,12 @@ struct SpaceBrowseView: View {
                 ForEach(SpaceDestination.places(listsCanvases: vm.listsCanvases) + [.trash], id: \.self) { place in
                     Button(place.title, systemImage: place.symbolName) { onSelectPlace(place) }
                 }
-                if vm.activeTeamID == nil, !vm.orderedPageSpaces.isEmpty || !vm.teams.isEmpty {
+                if vm.activeTeamID == nil, !vm.orderedPageSpaces.isEmpty || !vm.shownTeams.isEmpty {
                     Section("Spaces") {
                         ForEach(vm.orderedPageSpaces) { space in
                             Button(space.name) { onSelectPlace(.space(space.id)) }
                         }
-                        ForEach(vm.teams) { team in
+                        ForEach(vm.shownTeams) { team in
                             Button(team.name) { onSelectPlace(.team(team.id)) }
                         }
                     }
@@ -692,7 +749,7 @@ struct SpaceBrowseView: View {
             } label: {
                 HStack(spacing: 6) {
                     Text(placeTitle)
-                        .font(.system(size: 22, weight: .semibold))
+                        .font(SpacePlaceMetrics.titleFont)
                         .lineLimit(1)
                     Image(systemName: "chevron.down")
                         .zoomedSystemFont(size: 11, weight: .semibold)
@@ -708,46 +765,13 @@ struct SpaceBrowseView: View {
             .fixedSize()
             .accessibilityLabel("\(placeTitle), choose a place")
         } else {
-            Text(placeTitle)
-                .font(.system(size: 22, weight: .semibold))
-                .lineLimit(1)
-                .textSelection(.disabled)
-                .accessibilityAddTraits(.isHeader)
+            SpacePlaceTitle(title: placeTitle)
         }
     }
 
-    private var searchField: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "magnifyingglass")
-                .zoomedSystemFont(size: 11.5, weight: .medium)
-                .foregroundStyle(.secondary)
-            TextField("Search by name", text: $searchText)
-                .textFieldStyle(.plain)
-                .zoomedSystemFont(size: 12.5)
-                .focused($searchFocused)
-                .accessibilityIdentifier("space.search")
-            if !searchText.isEmpty {
-                Button {
-                    searchText = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .zoomedSystemFont(size: 11.5)
-                        .foregroundStyle(.tertiary)
-                }
-                .buttonStyle(.hoverWash(in: Circle(), inset: -3))
-                .help("Clear search")
-            }
-        }
-        .padding(.horizontal, 12)
-        .frame(height: 30)
-        .background(Capsule().fill(Color(nsColor: .textBackgroundColor)))
-        .overlay {
-            Capsule().strokeBorder(Color.primary.opacity(searchFocused ? 0.22 : 0.12), lineWidth: 1)
-        }
-    }
-
-    /// The place's one next step: New ▾ where something can be made, Link a
-    /// Google Doc on Google Drive, Empty Trash in Trash, Invite on a space.
+    /// The place's one next step: New ▾ where something can be made, New
+    /// Notebook on Notebooks and New Canvas on Canvases, Link a Google Doc on
+    /// Google Drive, Empty Trash in Trash, Invite on a space.
     @ViewBuilder
     private func primaryActions(shown: [SpaceItem]) -> some View {
         switch destination {
@@ -764,11 +788,21 @@ struct SpaceBrowseView: View {
                 onLink(.docs)
             }
             .accessibilityIdentifier("space.linkGoogleDoc")
-        case .images, .ideas:
+        case .images:
             EmptyView()
+        case .notebooks:
+            // The place lists only notebooks, so its one next step makes
+            // one: a page, a list or a canvas made here would not show in it.
+            if !vm.isActiveLibraryReadOnly {
+                SpaceDarkPillButton(title: "New Notebook", systemImage: "plus", image: nil) { newNotebook() }
+                    .accessibilityIdentifier("space.newNotebook")
+            }
         case .canvases:
             SpaceDarkPillButton(title: "New Canvas", systemImage: "plus", image: nil) { newCanvas() }
                 .accessibilityIdentifier("space.newCanvas")
+        case .chats:
+            SpaceDarkPillButton(title: "New Chat", systemImage: "square.and.pencil", image: nil) { newChat() }
+                .accessibilityIdentifier("space.newChat")
         case .list:
             if let list = openList, !list.isTrashed {
                 SpaceListAddMenu(list: list)
@@ -783,7 +817,7 @@ struct SpaceBrowseView: View {
                     TeamSharingService.shared.presentMembers(for: team)
                 }
             }
-        case .all, .notebooks, .pages, .sites, .space:
+        case .all, .pages, .sites, .space:
             if !vm.isActiveLibraryReadOnly {
                 newMenu
             }
@@ -796,9 +830,7 @@ struct SpaceBrowseView: View {
             // The Notebooks home's New notebook, which the Space took over:
             // made at once, named by ForeverLM, and opened in this window.
             if destination == .all {
-                Button("Notebook", systemImage: NotebookGlyph.systemImage) {
-                    vm.makeAndOpenNotebook(in: windowState)
-                }
+                Button("Notebook", systemImage: NotebookGlyph.systemImage) { newNotebook() }
             }
             Button(ArtifactSection.docs.linkActionTitle, systemImage: "link.badge.plus") { onLink(.docs) }
             Button(ArtifactSection.sites.linkActionTitle, systemImage: "link.badge.plus") { onLink(.sites) }
@@ -830,6 +862,19 @@ struct SpaceBrowseView: View {
         .accessibilityIdentifier("space.new")
     }
 
+    /// **New ▸ Notebook** on All and **New Notebook** on Notebooks: made at
+    /// once, named by ForeverLM, and opened in this window, where an empty
+    /// notebook leads with Add sources.
+    private func newNotebook() {
+        vm.makeAndOpenNotebook(in: windowState)
+    }
+
+    /// **New Chat** on Chats: as the sidebar's New chat, in the window's
+    /// notebook while it holds one, else a chat in none.
+    private func newChat() {
+        vm.inWindow(windowState ?? vm.activeWindowState) { vm.requestNewChat() }
+    }
+
     /// **New ▸ Canvas**: made in the space on screen, when it is one, and
     /// opened in this window.
     private func newCanvas() {
@@ -840,24 +885,9 @@ struct SpaceBrowseView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 2) {
                 ForEach(scopes) { pill in
-                    let isSelected = effectiveScope == pill
-                    Button {
+                    SpaceScopePill(title: pill.title, isSelected: effectiveScope == pill) {
                         scope = pill
-                    } label: {
-                        Text(pill.title)
-                            .zoomedSystemFont(size: 12.5, weight: .medium)
-                            .foregroundStyle(isSelected ? Color.primary : Color.secondary)
-                            .lineLimit(1)
-                            .fixedSize()
-                            .padding(.horizontal, 11)
-                            .padding(.vertical, 5)
-                            .background(
-                                Capsule().fill(Color.primary.opacity(isSelected ? 0.07 : 0))
-                            )
-                            .contentShape(Capsule())
                     }
-                    .buttonStyle(.hoverWash(in: Capsule(), inset: 0, opacity: 0.05))
-                    .accessibilityAddTraits(isSelected ? [.isSelected] : [])
                     .accessibilityIdentifier("space.scope.\(pill.rawValue)")
                 }
             }
@@ -870,8 +900,8 @@ struct SpaceBrowseView: View {
     private var viewControls: some View {
         HStack(spacing: 2) {
             Menu {
-                Picker("Sort By", selection: $sort) {
-                    ForEach(SpaceSort.allCases) { option in
+                Picker("Sort By", selection: Binding(get: { effectiveSort }, set: { sort = $0 })) {
+                    ForEach(sortOptions) { option in
                         Text(option.title).tag(option)
                     }
                 }
@@ -908,8 +938,11 @@ struct SpaceBrowseView: View {
             .accessibilityLabel("Sort and filter")
             .accessibilityIdentifier("space.sortFilter")
 
-            layoutButton(.list, systemImage: "list.bullet", help: "List")
-            layoutButton(.grid, systemImage: "square.grid.2x2", help: "Grid")
+            // A chat has no preview to draw on a card: Chats is a list.
+            if destination != .chats {
+                layoutButton(.list, systemImage: "list.bullet", help: "List")
+                layoutButton(.grid, systemImage: "square.grid.2x2", help: "Grid")
+            }
         }
     }
 
@@ -935,7 +968,11 @@ struct SpaceBrowseView: View {
 
     // MARK: List
 
-    private var showsLocationColumn: Bool { listWidth <= 0 || listWidth >= 560 }
+    /// The Notebook column, while the list is wide enough; Notebooks has
+    /// none, since a notebook lives in no notebook (every row read "—").
+    private var showsLocationColumn: Bool {
+        destination != .notebooks && (listWidth <= 0 || listWidth >= 560)
+    }
     private var locationColumnWidth: CGFloat { min(240, max(120, listWidth * 0.24)) }
     private static let dateColumnWidth: CGFloat = 104
 
@@ -1060,7 +1097,7 @@ struct SpaceBrowseView: View {
                     Text(isTeamPlace ? "In" : "Notebook")
                         .frame(width: locationColumnWidth, alignment: .leading)
                 }
-                Text(destination == .trash ? "Trashed" : sort.dateColumnTitle)
+                Text(destination == .trash ? "Trashed" : effectiveSort.dateColumnTitle)
                     .frame(width: Self.dateColumnWidth, alignment: .leading)
                 Color.clear.frame(width: 26, height: 1)
             }
@@ -1130,7 +1167,7 @@ struct SpaceBrowseView: View {
             ?? item.notebook?.updatedAt {
             return archivedAt
         }
-        return sort == .activity ? item.updatedAt : item.createdAt
+        return effectiveSort == .activity ? item.updatedAt : item.createdAt
     }
 
     // MARK: Grid
@@ -1214,10 +1251,13 @@ struct SpaceBrowseView: View {
             }
         } else if let courseID = item.courseID {
             vm.openCourse(courseID, in: windowState)
+        } else if let chat = item.chat {
+            // In its notebook when it is filed in one, as the rail opens it.
+            vm.inWindow(windowState ?? vm.activeWindowState) { vm.requestResumeReviewSession(chat.id) }
         } else if let list = item.spaceList {
             onSelectPlace(.list(list.id))
         } else if let group = item.image {
-            SpaceRecents.shared.note(.image, id: group.imageID, title: GeneratedImageActions.title(for: group))
+            SpaceRecents.shared.note(.image, id: group.imageID, title: GeneratedImageActions.title(for: group), createdAt: group.updatedAt)
             openedImage = group
         } else if let artifact = item.artifact {
             onOpen(artifact)
@@ -1228,6 +1268,11 @@ struct SpaceBrowseView: View {
         // A canvas or a list is no record a pane or a space row takes by
         // dragging.
         if item.canvas != nil || item.spaceList != nil || item.notebook != nil || item.courseID != nil { return NSItemProvider() }
+        // A chat drags as the rail's row does: to a pane's edge, or onto a notebook.
+        if let chat = item.chat {
+            StudioDragVisibility.shared.begin(sessionID: chat.id)
+            return reviewSessionDragProvider(for: ReviewSessionTransfer(from: chat))
+        }
         if let listing = item.image?.latest {
             return GeneratedImageActions.dragProvider(listing)
         }
@@ -1251,6 +1296,8 @@ struct SpaceBrowseView: View {
             if let destination = item.otherWindowDestination {
                 OtherWindowMenuItem(destination)
             }
+        } else if let chat = item.chat {
+            chatMenuItems(chat, item: item)
         } else if let canvas = item.canvas {
             SpaceCanvasMenuItems(
                 canvas: canvas,
@@ -1379,6 +1426,67 @@ struct SpaceBrowseView: View {
         }
     }
 
+    /// A chat's ⋯ and right-click: the rail's, with Rename… and Delete… asking
+    /// as the Space's other menus do.
+    @ViewBuilder
+    private func chatMenuItems(_ chat: ReviewSessionRecord, item: SpaceItem) -> some View {
+        Button("Open") { open(item) }
+        if let destination = item.otherWindowDestination {
+            OtherWindowMenuItem(destination)
+        }
+        Button("Copy Link", systemImage: "link") {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(StudioEntityLink.chat(chat.id).markdownDestination, forType: .string)
+            vm.showToast("Link copied")
+        }
+        KnowledgeMapAddToCanvasMenu(refs: [KnowledgeMapOutside.chatRef(chat.id)])
+        if item.isOwnedHere {
+            Divider()
+            Button("Rename…", systemImage: "pencil") {
+                renameDraft = item.title
+                renaming = item
+            }
+            let notebooks = vm.notebooks.sorted(by: NotebooksHomeSort.titleOrder)
+            if !notebooks.isEmpty {
+                Menu {
+                    ForEach(notebooks) { notebook in
+                        let title = NotebookTitle(notebook.title).text
+                        Button {
+                            Task { await vm.moveReviewSession(chat.id, toNotebook: notebook.id) }
+                        } label: {
+                            if notebook.id == chat.goalID {
+                                Label(title, systemImage: "checkmark")
+                            } else {
+                                Text(title)
+                            }
+                        }
+                        .disabled(notebook.id == chat.goalID)
+                    }
+                    if let goalID = chat.goalID {
+                        Divider()
+                        Button(
+                            vm.notebook(id: goalID)?.isGoal == true ? "Remove from Goal" : "Remove from Notebook",
+                            systemImage: "folder.badge.minus"
+                        ) {
+                            Task { await vm.moveReviewSession(chat.id, toNotebook: nil) }
+                        }
+                    }
+                } label: {
+                    Label("Move to Notebook", systemImage: "folder")
+                }
+            }
+        }
+        Divider()
+        Button(item.isHidden ? "Show in Lists" : "Hide", systemImage: item.isHidden ? "eye" : "eye.slash") {
+            Task { await vm.setReviewSessionHidden(chat.id, hidden: !item.isHidden) }
+        }
+        if item.isOwnedHere {
+            Button("Delete…", systemImage: "trash", role: .destructive) {
+                deletingChat = item
+            }
+        }
+    }
+
     private func commitRename() {
         guard let item = renaming else { return }
         let title = renameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1388,10 +1496,12 @@ struct SpaceBrowseView: View {
             vm.renameCanvas(canvas.id, to: title)
         } else if let list = item.spaceList {
             vm.renameSpaceList(list.id, to: title)
+        } else if let chat = item.chat {
+            Task { await vm.renameReviewSession(chat.id, title: title) }
         } else if let group = item.image {
             Task {
                 if await GeneratedImageActions.rename(group, to: title) {
-                    SpaceRecents.shared.note(.image, id: group.imageID, title: title)
+                    SpaceRecents.shared.note(.image, id: group.imageID, title: title, createdAt: group.updatedAt)
                 }
                 await loadImages()
             }
@@ -1439,25 +1549,28 @@ struct SpaceBrowseView: View {
                         .buttonStyle(.bordered)
                 case .canvases:
                     emptyLine(systemImage: KnowledgeMap.symbolName, "No canvases yet")
-                    Button("New Canvas") { newCanvas() }
-                        .buttonStyle(.borderedProminent)
+                    SpaceDarkPillButton(title: "New Canvas", systemImage: "plus", image: nil) { newCanvas() }
                 case .team(let id):
                     emptyLine(systemImage: "person.2", "Nothing shared with \(vm.teams.first { $0.id == id }?.name ?? "this space") yet")
                 case .space:
                     emptyLine(systemImage: "square.stack", "No pages yet")
                     if !vm.isActiveLibraryReadOnly {
-                        Button("New Page", action: onNewPage)
-                            .buttonStyle(.borderedProminent)
+                        SpaceDarkPillButton(title: "New Page", systemImage: "plus", image: nil, action: onNewPage)
                     }
+                case .chats:
+                    emptyLine(systemImage: SpaceDestination.chats.symbolName, "No chats yet")
+                    SpaceDarkPillButton(title: "New Chat", systemImage: "square.and.pencil", image: nil) { newChat() }
                 case .notebooks:
                     emptyLine(systemImage: NotebookGlyph.systemImage, "No notebooks yet")
+                    if !vm.isActiveLibraryReadOnly {
+                        SpaceDarkPillButton(title: "New Notebook", systemImage: "plus", image: nil) { newNotebook() }
+                    }
                 case .all, .pages:
                     emptyLine(systemImage: "doc.text", destination == .pages ? "No pages yet" : "Nothing here yet")
                     if !vm.isActiveLibraryReadOnly {
-                        Button("New Page", action: onNewPage)
-                            .buttonStyle(.borderedProminent)
+                        SpaceDarkPillButton(title: "New Page", systemImage: "plus", image: nil, action: onNewPage)
                     }
-                case .ideas, .list:
+                case .list:
                     EmptyView()
                 }
             }
@@ -1465,16 +1578,7 @@ struct SpaceBrowseView: View {
     }
 
     private func emptyLine(systemImage: String, _ text: String) -> some View {
-        VStack(spacing: 10) {
-            Image(systemName: systemImage)
-                .font(.system(size: 28, weight: .light))
-                .foregroundStyle(.tertiary)
-                .accessibilityHidden(true)
-            Text(text)
-                .zoomedSystemFont(size: 13, weight: .medium)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-        }
+        SpaceEmptyLine(systemImage: systemImage, text: text)
     }
 }
 
@@ -1849,6 +1953,7 @@ enum SpaceKindStyle {
         case .image: return Color(red: 0.81, green: 0.25, blue: 0.58)
         case .notebook: return .indigo
         case .course: return .cyan
+        case .chat: return .gray
         }
     }
 
@@ -1864,6 +1969,7 @@ enum SpaceKindStyle {
         case .image: return "photo"
         case .notebook: return NotebookGlyph.systemImage
         case .course: return "graduationcap.fill"
+        case .chat: return "bubble.left.and.bubble.right.fill"
         }
     }
 }
@@ -1884,14 +1990,183 @@ enum SpaceDateText {
     }
 }
 
-// MARK: - Dark pill
+// MARK: - Place chrome
 
-/// ChatGPT's dark pill for a place's one primary action: near-black with
-/// white words in light mode, the reverse in dark mode.
+/// One look for every list of the learner's things — the Space's places, the
+/// Courses list, a notebook's own Pages — so no list draws its own head.
+/// The product owner, 2026-10-10, of the Courses list's blue New Course beside the
+/// Notebooks list's dark New pill: "make sure that this all is always
+/// consistent". A new list of things takes `SpacePlaceHeader`,
+/// `spacePlaceColumn()` and a dark pill; it never reaches for
+/// `.borderedProminent` or a search field of its own (docs/ui-design.md,
+/// "One head for every list").
+enum SpacePlaceMetrics {
+    static let titleFont = Font.system(size: 22, weight: .semibold)
+    static let searchWidth: CGFloat = 220
+    static let horizontalPadding: CGFloat = 28
+    static let topPadding: CGFloat = 22
+    static let bottomPadding: CGFloat = 32
+    static let maxWidth: CGFloat = 1120
+    /// From the head's last row to an empty list's line.
+    static let emptyTopPadding: CGFloat = 72
+}
+
+extension View {
+    /// A place's list in the Space's column: the same margins and the same
+    /// width cap, centred in a wide pane.
+    func spacePlaceColumn() -> some View {
+        padding(.horizontal, SpacePlaceMetrics.horizontalPadding)
+            .padding(.top, SpacePlaceMetrics.topPadding)
+            .padding(.bottom, SpacePlaceMetrics.bottomPadding)
+            .frame(maxWidth: SpacePlaceMetrics.maxWidth, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .center)
+    }
+}
+
+/// A list's head: its name, the search and its one primary action on a line,
+/// or the search under the other two where the pane is too narrow for it.
+struct SpacePlaceHeader<Title: View, Actions: View>: View {
+    @Binding var searchText: String
+    /// Bumped to give the search the focus (the Space sidebar's search).
+    var searchFocusRequest = 0
+    var searchIdentifier = "space.search"
+    @ViewBuilder let title: () -> Title
+    @ViewBuilder let actions: () -> Actions
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) {
+                title()
+                Spacer(minLength: 12)
+                search
+                    .frame(width: SpacePlaceMetrics.searchWidth)
+                actions()
+            }
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 10) {
+                    title()
+                    Spacer(minLength: 8)
+                    actions()
+                }
+                search
+            }
+        }
+    }
+
+    private var search: some View {
+        SpaceSearchField(text: $searchText, focusRequest: searchFocusRequest, identifier: searchIdentifier)
+    }
+}
+
+/// A list's name, plain, at its head.
+struct SpacePlaceTitle: View {
+    let title: String
+
+    var body: some View {
+        Text(title)
+            .font(SpacePlaceMetrics.titleFont)
+            .lineLimit(1)
+            .textSelection(.disabled)
+            .accessibilityAddTraits(.isHeader)
+    }
+}
+
+/// ChatGPT's search over a list: a capsule, "Search by name" where what it
+/// lists has names.
+struct SpaceSearchField: View {
+    @Binding var text: String
+    var prompt = "Search by name"
+    var focusRequest = 0
+    var identifier = "space.search"
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .zoomedSystemFont(size: 11.5, weight: .medium)
+                .foregroundStyle(.secondary)
+            TextField(prompt, text: $text)
+                .textFieldStyle(.plain)
+                .zoomedSystemFont(size: 12.5)
+                .focused($isFocused)
+                .accessibilityIdentifier(identifier)
+            if !text.isEmpty {
+                Button {
+                    text = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .zoomedSystemFont(size: 11.5)
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.hoverWash(in: Circle(), inset: -3))
+                .help("Clear search")
+            }
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 30)
+        .background(Capsule().fill(Color(nsColor: .textBackgroundColor)))
+        .overlay {
+            Capsule().strokeBorder(Color.primary.opacity(isFocused ? 0.22 : 0.12), lineWidth: 1)
+        }
+        .onChange(of: focusRequest) { _, _ in isFocused = true }
+    }
+}
+
+/// A list with nothing to show: a glyph over one line, centred under the head
+/// (`SpacePlaceMetrics.emptyTopPadding` below it).
+struct SpaceEmptyLine: View {
+    let systemImage: String
+    let text: String
+
+    var body: some View {
+        VStack(spacing: 10) {
+            Image(systemName: systemImage)
+                .font(.system(size: 28, weight: .light))
+                .foregroundStyle(.tertiary)
+                .accessibilityHidden(true)
+            Text(text)
+                .zoomedSystemFont(size: 13, weight: .medium)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+    }
+}
+
+/// One of a list's filters (All, Yours, Shared; Drafts, Published…): a word
+/// in a capsule that fills while it is chosen.
+struct SpaceScopePill: View {
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .zoomedSystemFont(size: 12.5, weight: .medium)
+                .foregroundStyle(isSelected ? Color.primary : Color.secondary)
+                .lineLimit(1)
+                .fixedSize()
+                .padding(.horizontal, 11)
+                .padding(.vertical, 5)
+                .background(
+                    Capsule().fill(Color.primary.opacity(isSelected ? 0.07 : 0))
+                )
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.hoverWash(in: Capsule(), inset: 0, opacity: 0.05))
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+        .accessibilityLabel(title)
+    }
+}
+
+/// ChatGPT's dark pill for a list's one primary action, and for the same
+/// action offered again in its empty state: near-black with white words in
+/// light mode, the reverse in dark mode.
 struct SpaceDarkPillButton: View {
     let title: String
     let systemImage: String?
     let image: String?
+    var shortcut: KeyboardShortcut?
     let action: () -> Void
     @State private var isHovering = false
 
@@ -1902,6 +2177,7 @@ struct SpaceDarkPillButton: View {
         // The pill paints its own hover (a lighter fill); a wash behind a
         // dark fill would not show.
         .buttonStyle(.plain)
+        .keyboardShortcut(shortcut)
         .ownsRowHoverWash()
         .onHover { isHovering = $0 }
         .fixedSize()

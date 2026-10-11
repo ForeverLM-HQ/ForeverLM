@@ -691,7 +691,7 @@ struct DocGraphStorageTests {
         #expect(try await storage.artifactMarkdown(vanishing.id).markdown == "- Keep")
 
         let animation = try await storage.createLinkedArtifact(
-            url: URL(string: "https://sites.foreverlm.com/anim/")!, title: "The animation",
+            url: URL(string: "foreverlm-site://anim/")!, title: "The animation",
             homeNotebookID: nil, linkedNotebookIDs: [], kind: .animation
         )
         await #expect(throws: DocGraphError.notMarkdown("The animation")) {

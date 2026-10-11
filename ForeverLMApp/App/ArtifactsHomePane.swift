@@ -7,8 +7,8 @@ import SwiftUI
 /// parity and also make sure it looks equally beautiful"), and the home since
 /// 2026-10-09, when the Notebooks home went ("it doesn't add anything") and
 /// the Space's All began to list every notebook and course. The Space sidebar
-/// on the leading edge (New page; All, Pages, Sites, Images, Ideas, Google
-/// Drive; Recents; Spaces; Trash), and beside it the place chosen
+/// on the leading edge (New chat; Notebooks, Courses, Pages, Sites, Images,
+/// Google Drive; Recents; Spaces; Trash), and beside it the place chosen
 /// (`SpaceBrowseView`). A page opens in the page pane, which draws the same
 /// sidebar beside it (`ArtifactCanvas`), so opening one changes only what is
 /// beside the sidebar (docs/docs-design.md, "The Space").
@@ -91,8 +91,9 @@ struct ArtifactsHomePane: View {
             }
         }
         .background(Color(nsColor: .windowBackgroundColor))
-        // The sidebar's own line over the sidebar, and the Space's tabs over
-        // the list, on the chrome line.
+        // The sidebar's own line over the sidebar, on the chrome line. Over
+        // the list it holds nothing: the Space | Goals tabs there went on
+        // 2026-10-10 (`SpaceTab`).
         .studioChromeLineHeader {
             HStack(spacing: 0) {
                 if showsSidebar {
@@ -102,13 +103,6 @@ struct ArtifactsHomePane: View {
                     // draws the one between its sidebar and the thread.
                     StudioChromeLineDivider()
                 }
-                // A pane too narrow for the tabs folds them into one menu.
-                ViewThatFits(in: .horizontal) {
-                    SpaceTabBar(selected: .space)
-                    SpaceTabBar(selected: .space, compact: true)
-                }
-                .padding(.horizontal, 24)
-                .background(WindowDragBlocker())
                 Spacer(minLength: 0)
             }
         }
@@ -161,7 +155,7 @@ struct ArtifactsHomePane: View {
 
     /// The sidebar's search: every place at once, with the field focused.
     private func search() {
-        if destination == .images || destination == .ideas || destination == .trash {
+        if destination == .images || destination == .trash {
             select(.all)
         }
         searchFocusRequest += 1
@@ -239,11 +233,13 @@ extension ArtifactSection: Identifiable {
 }
 
 /// One of the kinds that opens in a pane of its own from the Space sidebar —
-/// its Pages, Sites and Ideas rows, dragged to an edge or opened beside
-/// (`SpaceDestination.openableKind`). Courses and Goals are not kinds here:
-/// each is a pane of its own.
+/// its Pages and Sites rows, dragged to an edge or opened beside
+/// (`SpaceDestination.openableKind`). Courses is not a kind here: it is a
+/// pane of its own. Ideas had a row until 2026-10-10, when the chat became
+/// the way to them (`SpaceTab`); their pane still opens beside a Doc whose
+/// idea link is followed (`StudioViewModel.openIdea`).
 enum ArtifactsHomeKind: String, CaseIterable, Identifiable {
-    case docs, sites, ideas
+    case docs, sites
 
     var id: String { rawValue }
 
@@ -251,76 +247,16 @@ enum ArtifactsHomeKind: String, CaseIterable, Identifiable {
         switch self {
         case .docs: return "Pages"
         case .sites: return "Sites"
-        case .ideas: return "Ideas"
-        }
-    }
-
-    var symbolName: String {
-        switch self {
-        case .docs: return "note.text"
-        case .sites: return "globe"
-        case .ideas: return "lightbulb"
-        }
-    }
-
-    /// The kind's colour: its badge on every card, and the ground behind a
-    /// picture that is not made yet.
-    var tint: Color {
-        switch self {
-        case .docs: return .blue
-        case .sites: return .teal
-        case .ideas: return .yellow
-        }
-    }
-
-    /// "3 pages", "1 site", "No ideas yet".
-    func countLabel(_ count: Int) -> String {
-        let singular: String
-        let plural: String
-        switch self {
-        case .docs: (singular, plural) = ("page", "pages")
-        case .sites: (singular, plural) = ("site", "sites")
-        case .ideas: (singular, plural) = ("idea", "ideas")
-        }
-        if count == 0 { return "No \(plural) yet" }
-        return "\(count) \(count == 1 ? singular : plural)"
-    }
-
-    /// Where the first one comes from, under an empty chip.
-    var emptyHint: String {
-        switch self {
-        case .docs: return "Write one with your sources beside you, or link a Google Doc."
-        case .sites: return "Publish a site from ForeverLM, or link a Codex site or a Claude artifact."
-        // Ideas draw their own list, empty line included.
-        case .ideas: return ""
         }
     }
 
     /// The kind's own pane, which Open Beside and a drag to an edge put in a
-    /// column of its own, so two kinds — Docs and Ideas, say — sit side by
+    /// column of its own, so two kinds — Pages and Sites, say — sit side by
     /// side.
     var centerTab: StudioCenterTab {
         switch self {
         case .docs: return .notepad
         case .sites: return .sites
-        case .ideas: return .ideas
-        }
-    }
-
-    /// Ideas are sentences, not things with a picture, so under their chip
-    /// the home draws the Ideas' own list — the bands, the jot field —
-    /// instead of cards. An Idea is not shared with a team the way a record
-    /// is, so the team filter stands down for it.
-    var listsOwnRows: Bool { self == .ideas }
-
-    /// Where a link made under this kind's chip is filed: a Google Doc in
-    /// Docs, a Claude artifact or a Codex site in Sites. An Idea is jotted,
-    /// not linked in.
-    var linkSection: ArtifactSection? {
-        switch self {
-        case .docs: return .docs
-        case .sites: return .sites
-        case .ideas: return nil
         }
     }
 
@@ -329,7 +265,6 @@ enum ArtifactsHomeKind: String, CaseIterable, Identifiable {
         switch self {
         case .docs: return .docs
         case .sites: return .sites
-        case .ideas: return .ideas
         }
     }
 
@@ -339,7 +274,6 @@ enum ArtifactsHomeKind: String, CaseIterable, Identifiable {
         switch self {
         case .docs: vm.openNotepadInReader()
         case .sites: vm.openSitesInReader()
-        case .ideas: vm.openIdeasInReader()
         }
     }
 
@@ -359,124 +293,4 @@ enum ArtifactsHomeKind: String, CaseIterable, Identifiable {
     }
 }
 
-// MARK: - The Space's tabs
-
-/// The Space's tabs, Space and Goals (`SpaceTab.barTabs`; the notebooks and
-/// the courses are listed in the Space), on the chrome line of each of their
-/// panes (shell stage 4): a click shows that tab in the same pane
-/// (`showSpaceTab`). The Space is lit while the Courses list shows beside its
-/// sidebar. The pane's own right-click menus — its rail header's, a kind
-/// chip's — keep Open Beside and Open in Other Window.
-struct SpaceTabBar: View {
-    @Environment(StudioViewModel.self) private var vm
-    /// The window this pane is in. Absent outside a Studio window.
-    @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
-    @Environment(\.uiZoomScale) private var uiZoomScale
-    let selected: SpaceTab
-    /// One control naming the tab shown, whose menu lists the two, for a
-    /// pane too narrow for the row.
-    var compact = false
-
-    var body: some View {
-        if compact {
-            tabMenu
-        } else {
-            tabRow
-        }
-    }
-
-    @ViewBuilder
-    private var tabMenu: some View {
-        let label = HStack(spacing: 4) {
-            Text(selected.barTab.title)
-                .zoomedSystemFont(size: 13, weight: .semibold)
-                .foregroundStyle(Color.primary)
-                .lineLimit(1)
-            Image(systemName: "chevron.down")
-                .zoomedSystemFont(size: 9, weight: .semibold)
-                .foregroundStyle(.secondary)
-        }
-        if #available(macOS 14.4, *) {
-            TitlebarBandButton(
-                help: "Show another tab",
-                accessibilityLabel: "Space tab",
-                accessibilityValue: selected.barTab.title,
-                accessibilityIdentifier: "space.tabMenu",
-                controlWidth: labelWidth(selected.barTab) + 14 * uiZoomScale,
-                action: {},
-                menu: { NSHostingMenu(rootView: tabMenuItems) }
-            ) {
-                label
-            }
-        } else {
-            Menu {
-                tabMenuItems
-            } label: {
-                label
-            }
-            .menuStyle(.button)
-            .buttonStyle(.plain)
-            .hoverHighlight()
-            .menuIndicator(.hidden)
-            .fixedSize()
-            .help("Show another tab")
-        }
-    }
-
-    private var tabMenuItems: some View {
-        ForEach(SpaceTab.barTabs) { tab in
-            Button {
-                show(tab)
-            } label: {
-                if tab == selected.barTab {
-                    Label(tab.title, systemImage: "checkmark")
-                } else {
-                    Text(tab.title)
-                }
-            }
-        }
-    }
-
-    private var tabRow: some View {
-        HStack(spacing: 4) {
-            ForEach(SpaceTab.barTabs) { tab in
-                let isSelected = tab == selected.barTab
-                TitlebarBandButton(
-                    help: isSelected ? tab.title : "Show \(tab.title)",
-                    accessibilityLabel: tab.title,
-                    accessibilityValue: isSelected ? "Selected" : nil,
-                    accessibilityIdentifier: "space.tab.\(tab.rawValue)",
-                    controlWidth: labelWidth(tab),
-                    action: { show(tab) }
-                ) {
-                    Text(tab.title)
-                        .zoomedSystemFont(size: 13, weight: isSelected ? .semibold : .medium)
-                        .foregroundStyle(isSelected ? Color.primary : Color.secondary)
-                        .lineLimit(1)
-                        .frame(width: labelWidth(tab), height: StudioPanelChrome.centerTabCloseButtonSize)
-                        .background(
-                            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                .fill(Color.primary.opacity(isSelected ? 0.07 : 0))
-                        )
-                }
-            }
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Space tabs")
-    }
-
-    /// A tab's label at the window's zoom, with room for its wash.
-    private func labelWidth(_ tab: SpaceTab) -> CGFloat {
-        let font = NSFont.systemFont(ofSize: 13 * uiZoomScale, weight: .semibold)
-        let text = (tab.title as NSString).size(withAttributes: [.font: font]).width
-        return ceil(text) + 18 * uiZoomScale
-    }
-
-    private func show(_ tab: SpaceTab) {
-        guard tab != selected else { return }
-        withAnimation(.easeInOut(duration: 0.18)) {
-            vm.showSpaceTab(tab, in: windowState ?? vm.activeWindowState)
-        }
-    }
-}
 #endif

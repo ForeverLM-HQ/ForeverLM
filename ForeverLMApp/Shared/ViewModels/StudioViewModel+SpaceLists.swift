@@ -54,9 +54,12 @@ enum SpaceListRows {
 
 extension StudioViewModel {
     /// The lists the Space lists: the learner's own, in My Library. A team's
-    /// library lists none: its members' lists are each their own.
+    /// library lists none: its members' lists are each their own. In Screen
+    /// record mode only those made during the take (`isVisibleInRecordingMode`).
     var listedSpaceLists: [SpaceList] {
-        activeTeamID == nil ? spaceLists.all : []
+        guard activeTeamID == nil else { return [] }
+        guard screenRecordScope != nil else { return spaceLists.all }
+        return spaceLists.all.filter { isVisibleInRecordingMode($0) }
     }
 
     /// The learner's lists that are pinned and not in Trash, the newest pin
@@ -64,7 +67,7 @@ extension StudioViewModel {
     var pinnedSpaceLists: [SpaceList] {
         guard activeTeamID == nil else { return [] }
         return pagePins.orderedPageIDs.compactMap { id in
-            guard let list = spaceLists.list(id), !list.isTrashed else { return nil }
+            guard let list = spaceLists.list(id), !list.isTrashed, isVisibleInRecordingMode(list) else { return nil }
             return list
         }
     }

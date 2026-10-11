@@ -115,6 +115,20 @@ final class StudioAssistantSessionStore {
     ) {
         self.managerFactory = managerFactory
         activeManager = managerFactory()
+        Self.live.add(self)
+    }
+
+    /// Every store alive, in every window: what a list holding no store of its
+    /// own — the Space's Chats — ends a deleted chat in.
+    private static let live = NSHashTable<StudioAssistantSessionStore>.weakObjects()
+
+    /// Ends the chat in every pane and window that has it open or still
+    /// running, before its record goes: a turn left running would save back
+    /// into the chat the learner just deleted.
+    static func deleteSessionEverywhere(_ sessionID: String) {
+        for store in live.allObjects {
+            store.deleteSession(sessionID)
+        }
     }
 
     var activeSessionID: String? { activeManager.currentSessionID }

@@ -337,15 +337,19 @@ enum GettingStartedSection: String, CaseIterable, Identifiable {
     }
 }
 
+/// The pages of Setup's AI step: the key, then the models.
+private enum AIStepPage {
+    case key
+    case models
+}
+
 /// Setup's AI step (product owner, 2026-09-25): ForeverLM's AI features run on the
-/// learner's own OpenRouter key, billed by OpenRouter at cost, and a plan is
-/// what lets the key run them, so the step asks for both, key first. An
-/// account that can already pay another way — a comp, or balance left from
-/// before top-ups were retired — goes on without them.
-///
-/// Free mode does not stand in for the plan (2026-09-27; it did for a day):
-/// it is offered once the plan is active, for a learner who wants nothing
-/// charged to the key.
+/// learner's own OpenRouter key, billed by OpenRouter at cost, so the step
+/// asks for the key, and the key has to be one the account may run
+/// (`ownKeyAllowed`): any unlocked account, so a new learner in the free
+/// days needs only the key. An account that can already pay another way (a
+/// comp, or balance left from before top-ups were retired) goes on without
+/// one.
 enum GettingStartedAIPayment {
     static func isReady(hasOwnKey: Bool, ownKeyAllowed: Bool, canPayWithoutKey: Bool) -> Bool {
         (hasOwnKey && ownKeyAllowed) || canPayWithoutKey
@@ -486,14 +490,11 @@ struct GettingStartedGuide: View {
     @SyncedStorage("gettingStarted.welcomeSeen") private var welcomeSeen = false
     @SyncedStorage(GetStartedSuggestions.armedKey) private var arrivalSuggestionsArmed = false
     @SyncedStorage("aiBackground.usageConsented") private var hasConsentedToBackgroundAIUsage = false
-    /// False while background work is on a free model OpenRouter has not been
-    /// seen to allow: the AI step waits for the learner to allow free models,
-    /// or to pick the paid one.
-    @State private var backgroundModelReady = true
-    @SyncedStorage(AIFreeMode.enabledKey) private var freeModeOn = false
-    @State private var confirmingFreeMode = false
-    @State private var freeModeWorking = false
-    @State private var freeModeError: String?
+    /// The AI step's two pages. `modelsReady` is the models page's word that
+    /// the set is taken and OpenRouter will run it, which Continue waits for.
+    @State private var aiPage: AIStepPage = .key
+    @State private var modelsReady = false
+    @State private var showsKeyField = false
     @SyncedStorage(AISubscription.storageKey) private var aiSubscriptionAnswer = ""
     @SyncedStorage(StudioViewModel.youtubeLikedTranscriptFormattingKey)
     private var automaticallyFormatLikedVideoTranscripts = false
@@ -512,6 +513,7 @@ struct GettingStartedGuide: View {
     @State private var isChoosingLikedVideos = false
     @State private var readingListBrowser: ReadingListBrowser = .safari
     @State private var enabledReadingListBrowsers = ReadingListBrowser.enabled
+    @State private var showsReadLaterImport = false
     @State private var isFileDropTargeted = false
     @State private var fileImportError: String?
     @State private var oneTimeImportResults: [String: String] = [:]
@@ -585,7 +587,17 @@ struct GettingStartedGuide: View {
             step = firstIncompleteStep
             await prepareCurrentStep()
         }
+        .onChange(of: account.ownKey != nil) { wasConnected, isConnected in
+            // The key arriving is the answer: show it a moment, then the next page.
+            guard isConnected, !wasConnected, step == .enhancements, aiPage == .key else { return }
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(900))
+                guard step == .enhancements, aiPage == .key, canContinue else { return }
+                withAnimation(.easeInOut(duration: 0.2)) { aiPage = .models }
+            }
+        }
         .onChange(of: step) { _, newStep in
+            if newStep == .enhancements { aiPage = .key }
             startSourceAutoSync(for: newStep)
             Task {
                 if newStep == .youtube {
@@ -714,7 +726,7 @@ struct GettingStartedGuide: View {
             stepHeading(
                 icon: GettingStartedStep.podcasts.icon,
                 title: "Choose your podcasts",
-                detail: "Episodes you play in Apple Podcasts arrive here with their transcripts. Choose which shows to keep before anything comes in."
+                detail: "Pick the shows to bring in from Apple Podcasts."
             )
 
             if vm.needsPodcastAccess || !hasFullDiskAccess {
@@ -735,29 +747,39 @@ struct GettingStartedGuide: View {
         VStack(alignment: .leading, spacing: 16) {
             stepHeading(
                 icon: "globe",
-                title: "Set up your Reading List",
-                detail: "ForeverLM reads the Reading List in Safari, Chrome and Brave, so a page you save there arrives here. It is free and already in your browser."
+                title: "Which browser do you use?",
+                detail: "A page you add to its Reading List arrives in ForeverLM. Choose every browser you use."
             )
-            ReadingListSetupCard(isEnabled: readingListBrowserBinding)
+            ReadingListBrowserChoices(isEnabled: readingListBrowserBinding)
             if vm.needsBrowserAccess {
                 accessNotice("Add ForeverLM to Full Disk Access with the \"+\" button — macOS does not list it until you do — turn it on, then relaunch the app.")
             }
-            if !enabledReadingListBrowsers.isEmpty {
-                readingListBrowserPicker
-                readingListInstructions
-                HStack {
-                    Button("Open Example in \(readingListBrowser.title)") {
-                        openInReadingListBrowser(exampleArticleURL)
-                    }
-                    Button("Check Reading Lists") {
-                        run("article") { await vm.refreshTab(.articles) }
-                    }
-                    actionProgress("article")
+            Text(readingListCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if showsReadLaterImport {
+                readLaterImport
+            } else {
+                Button("Coming from a read-later app?") {
+                    withAnimation(.easeInOut(duration: 0.2)) { showsReadLaterImport = true }
                 }
+                .buttonStyle(.link)
+                .font(.caption)
             }
-            SourceCleanupProgress(types: [.article], task: .paperNarrationPreparation)
-            readLaterImport
         }
+    }
+
+    /// What happens next, in the learner's browsers' own words. Only the
+    /// pages saved in the last 30 days come in at first, which Settings ›
+    /// Sources changes.
+    private var readingListCaption: String {
+        let browsers = ReadingListBrowser.allCases.filter(enabledReadingListBrowsers.contains)
+        guard let first = browsers.first else {
+            return "Skip this if you do not save pages to a Reading List. You can choose a browser later in Settings › Sources."
+        }
+        let how = browsers.count == 1 ? first.saveInstruction : "Save a page to its Reading List"
+        return "\(how), and it arrives here on its own. Pages you saved in the last 30 days come in now, each fetched and cleaned up by AI once. Change this in Settings › Sources."
     }
 
     /// The product owner, 2026-09-24: papers come over from the reference manager they
@@ -768,7 +790,7 @@ struct GettingStartedGuide: View {
             stepHeading(
                 icon: "doc.text.magnifyingglass",
                 title: "Bring your papers",
-                detail: "Bring your library over from your reference manager, or drop PDFs. ForeverLM finds each PDF and its metadata, then cleans up the text so it reads well and quotes correctly."
+                detail: "Import from your reference manager, or drop PDFs."
             )
             ZoteroImportCard()
             referenceManagerImport
@@ -1145,7 +1167,7 @@ struct GettingStartedGuide: View {
                     .font(.headline)
                 Spacer()
                 Button("Open Apple Books") { openAppleBooks() }
-                Button(appleBooks == nil ? "Find My Books" : "Look Again") {
+                Button(appleBooks == nil ? "Import from Apple Books" : "Look Again") {
                     run("apple-books-scan") {
                         let scan = await Task.detached(priority: .userInitiated) {
                             AppleBooksLibrary.scan()
@@ -1209,7 +1231,7 @@ struct GettingStartedGuide: View {
             stepHeading(
                 icon: GettingStartedStep.moreSources.icon,
                 title: "Anything else you learn from?",
-                detail: "Open any you use to set it up now, and leave the rest. Each one can also be set up later from its place in the sidebar."
+                detail: "Set up any you use. The rest can wait."
             )
             VStack(spacing: 10) {
                 ForEach(GettingStartedStep.moreSourceRows) { source in
@@ -1406,8 +1428,8 @@ struct GettingStartedGuide: View {
         VStack(alignment: .leading, spacing: 16) {
             stepHeading(
                 icon: GettingStartedStep.subscriptions.icon,
-                title: "Do you already pay for an AI subscription?",
-                detail: "Reach everything you just brought in from the AI app you already use, on the subscription you already have."
+                title: "Do you already pay for an AI app?",
+                detail: "Reach your library from the one you already use."
             )
             LazyVGrid(
                 columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3),
@@ -1655,8 +1677,8 @@ struct GettingStartedGuide: View {
         VStack(alignment: .leading, spacing: 16) {
             stepHeading(
                 icon: GettingStartedStep.fullDiskAccess.icon,
-                title: "Let ForeverLM read Apple Podcasts and your Reading Lists",
-                detail: "The episodes you play in Apple Podcasts and the pages you save in Safari, Chrome or Brave are kept in files macOS guards with Full Disk Access. ForeverLM only reads them."
+                title: "Allow Full Disk Access",
+                detail: "So ForeverLM can read Apple Podcasts and your browsers' Reading Lists."
             )
 
             if hasFullDiskAccess {
@@ -1714,306 +1736,92 @@ struct GettingStartedGuide: View {
         ForeverLMRuntimeIdentity.isDevelopment && !ForeverLMRuntimeIdentity.isFirstRun
     }
 
-    /// The product owner, 2026-09-25: AI features run on the learner's own OpenRouter
-    /// key, billed by OpenRouter at cost, and a ForeverLM plan is what lets the
-    /// key run them. The step asks for the key, then the plan (with Free mode
-    /// offered once it is active), then the models: the one new chats start
-    /// on, and the one background work runs on, since that is most of what
-    /// the key pays for. Background work defaults to a free model (product owner,
-    /// 2026-09-26): it waits for nobody, so a busy or slower model costs it
-    /// little. Pressing Continue is also the consent to background work,
-    /// which that row says.
+    /// Setup's AI step is two pages, one question each (product owner,
+    /// 2026-10-11: "more like a Typeform"): connect OpenRouter, then pick the
+    /// models. AI features run on the learner's own OpenRouter key, billed by
+    /// OpenRouter at cost; the free days run the key, so there is no plan row
+    /// (the paid app, 2026-10-10). The data policy, Free mode and the single
+    /// Chat model left setup for Settings. Pressing Continue on the models page
+    /// is also the consent to background work, which that page says.
     private var enhancementsStep: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        Group {
+            switch aiPage {
+            case .key: openRouterKeyPage
+            case .models: GettingStartedModelsPage(isReady: $modelsReady)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .containerRelativeFrame(.vertical, alignment: .center) { length, _ in max(length - 56, 0) }
+        .id(aiPage)
+        .transition(.opacity)
+    }
+
+    private var openRouterKeyPage: some View {
+        VStack(spacing: 28) {
             stepHeading(
-                icon: "sparkles",
-                title: "Add your OpenRouter key, choose a plan and your models",
-                detail: "AI features run on your own OpenRouter API key, and OpenRouter bills you for them at cost. Right now ForeverLM supports OpenRouter. A ForeverLM plan lets your key run them. You only do this once."
+                icon: "key.fill",
+                title: "Connect OpenRouter",
+                detail: "ForeverLM's AI runs on your own OpenRouter account."
             )
+            if let own = account.ownKey {
+                Label("Connected · key ending in \(own.suffix)", systemImage: "checkmark.circle.fill")
+                    .font(.headline)
+                    .foregroundStyle(.green)
+            } else {
+                VStack(spacing: 14) {
+                    // Signing in at OpenRouter hands the app a key; pasting one
+                    // stays for anyone who already has a key to hand.
+                    Button {
+                        Task { await account.connectOpenRouter() }
+                    } label: {
+                        Group {
+                            if account.openRouterConnectInFlight {
+                                ProgressView().controlSize(.small)
+                            } else {
+                                Text("Connect OpenRouter")
+                            }
+                        }
+                        .frame(minWidth: 170)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .disabled(account.openRouterConnectInFlight || ownKeySaving)
+                    .accessibilityIdentifier("gettingStarted.connectOpenRouter")
 
-            aiSetupRow(title: "Your OpenRouter key", icon: "key", isDone: account.ownKey != nil) {
-                ownKeySetup
+                    if account.openRouterConnectInFlight {
+                        Text("Finish in your browser, then come back.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    } else if showsKeyField {
+                        HStack(spacing: 8) {
+                            SecureField("OpenRouter key", text: $ownKeyDraft)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 260)
+                                .onSubmit { saveOwnKey() }
+                            Button {
+                                saveOwnKey()
+                            } label: {
+                                if ownKeySaving {
+                                    ProgressView().controlSize(.small)
+                                } else {
+                                    Text("Save")
+                                }
+                            }
+                            .disabled(ownKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || ownKeySaving)
+                        }
+                    } else {
+                        Button("Paste a key instead") { showsKeyField = true }
+                            .buttonStyle(.plain)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
-
-            aiSetupRow(title: "Your data", icon: "hand.raised", isDone: nil) {
-                dataPolicySetup
-            }
-
-            aiSetupRow(title: "Your ForeverLM plan", icon: "star", isDone: account.ownKeyAllowed) {
-                planAndFreeMode
-            }
-
-            aiSetupRow(title: "Recommended models", icon: "checkmark.seal", isDone: nil) {
-                GettingStartedRecommendedModels()
-            }
-
-            aiSetupRow(title: "Chat", icon: "bubble.left.and.text.bubble.right", isDone: nil) {
-                GettingStartedChatModelChoice()
-            }
-
-            aiSetupRow(title: "Background work", icon: "gearshape.2", isDone: backgroundModelReady) {
-                GettingStartedBackgroundModelChoice(isReady: $backgroundModelReady)
-            }
-
             if let message = account.errorMessage {
                 Label(message, systemImage: "exclamationmark.circle.fill")
                     .font(.caption)
                     .foregroundStyle(.red)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .confirmationDialog("Turn on Free mode?", isPresented: $confirmingFreeMode, titleVisibility: .visible) {
-            Button("Turn On Free Mode") { turnOnFreeMode() }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text(AIFreeMode.confirmationMessage(turnsOffDataPolicySwitch: AIDataPolicy.deniesDataCollection))
-        }
-    }
-
-    /// The product owner (2026-09-27): during setup, say that the models' terms are the
-    /// learner's to understand, and link OpenRouter's own setting for leaving
-    /// out models that train on what is sent, then show it being changed.
-    private var dataPolicySetup: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Group {
-                Text(ManagedAI.OwnKeyRouter.openRouter.trainingNote)
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("gettingStarted.openRouterTraining")
-                Text(AIDataPolicy.openRouterAccountNote)
-                    .foregroundStyle(.secondary)
-                Link("Open OpenRouter privacy settings", destination: FreeModelsSetup.openRouterPrivacyURL)
-                    .accessibilityIdentifier("gettingStarted.openRouterPrivacy")
-            }
-            .font(.caption)
-            .fixedSize(horizontal: false, vertical: true)
-            openRouterClip(Self.openRouterPrivacyClip)
-        }
-    }
-
-    /// The plan row: the plan, then Free mode once it is active. Free mode is
-    /// offered with what it leaves out said before it goes on, and again
-    /// while it is on, so no one finds out when an image fails to draw.
-    @ViewBuilder
-    private var planAndFreeMode: some View {
-        if !account.ownKeyAllowed {
-            VStack(alignment: .leading, spacing: 8) {
-                AppPlanPicker()
-                Text("Checkout opens in your browser. Come back here once it is done.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        } else if freeModeOn {
-            VStack(alignment: .leading, spacing: 8) {
-                Label("Your plan is active, and Free mode is on. ForeverLM uses only OpenRouter's free models, and nothing is charged to your OpenRouter account.", systemImage: "checkmark.circle.fill")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.green)
-                    .fixedSize(horizontal: false, vertical: true)
-                freeModeLimits
-                Button("Turn Off Free Mode") {
-                    FreeModelsSetup.disableFreeMode()
-                    freeModeError = nil
-                }
-                .controlSize(.small)
-            }
-        } else {
-            VStack(alignment: .leading, spacing: 8) {
-                Label("Your plan is active.", systemImage: "checkmark.circle.fill")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.green)
-
-                Divider()
-                    .padding(.vertical, 4)
-
-                Text(AIFreeMode.switchTitle)
-                    .font(.subheadline.weight(.semibold))
-                Text(AIFreeMode.summary)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                freeModeLimits
-                HStack(spacing: 8) {
-                    Button("Use Free Mode…") { confirmingFreeMode = true }
-                        .disabled(account.ownKey == nil || freeModeWorking)
-                        .accessibilityIdentifier("gettingStarted.freeMode")
-                    if freeModeWorking {
-                        ProgressView().controlSize(.small)
-                        Text("Choosing free models…")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } else if account.ownKey == nil {
-                        Text("Add your OpenRouter key first.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                if let freeModeError {
-                    Label(freeModeError, systemImage: "exclamationmark.circle.fill")
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-        }
-    }
-
-    /// What Free mode leaves out, and what its models give up.
-    private var freeModeLimits: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Label(AIFreeMode.unavailableNote, systemImage: "xmark.circle")
-                .foregroundStyle(.secondary)
-            Label("Free models' providers may keep and train on what you send, and they are often busy or rate-limited.", systemImage: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
-        }
-        .font(.caption)
-        .fixedSize(horizontal: false, vertical: true)
-    }
-
-    private func turnOnFreeMode() {
-        guard !freeModeWorking else { return }
-        freeModeWorking = true
-        freeModeError = nil
-        Task { @MainActor in
-            defer { freeModeWorking = false }
-            do {
-                try await FreeModelsSetup.enableFreeMode()
-            } catch {
-                freeModeError = error.localizedDescription
-            }
-        }
-    }
-
-    /// One of the AI step's parts, with a check once it is done. `isDone`
-    /// nil is a part with nothing to finish, such as a choice that already
-    /// has a default.
-    private func aiSetupRow<Content: View>(
-        title: String,
-        icon: String,
-        isDone: Bool?,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 12) {
-                Image(systemName: isDone == true ? "checkmark.circle.fill" : "circle")
-                    .font(.title3)
-                    .foregroundStyle(isDone == true ? Color.accentColor : .secondary)
-                    .opacity(isDone == nil ? 0 : 1)
-                    .accessibilityHidden(isDone == nil)
-                    .accessibilityLabel(isDone == true ? "Done" : "Not done")
-                Label(title, systemImage: icon)
-                    .font(.subheadline.weight(.semibold))
-                Spacer(minLength: 0)
-            }
-            content()
-                .padding(.leading, 34)
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            Color.primary.opacity(0.055),
-            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
-        )
-    }
-
-    /// What OpenRouter is (the models' terms follow in "Your data"), then
-    /// the key, then the credits: the credits are shown whether or not the key is in yet, since
-    /// buying them is the step after it and a learner in Free mode still
-    /// needs them to get past 50 free requests a day.
-    private var ownKeySetup: some View {
-        let router = ManagedAI.OwnKeyRouter.openRouter
-        return VStack(alignment: .leading, spacing: 10) {
-            Text(router.aboutNote)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            Divider()
-            ownKeyStatus
-            Divider()
-            Label(router.creditsNote, systemImage: "creditcard")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            Link(router.creditsLinkTitle, destination: router.creditsURL)
-                .font(.caption)
-                .accessibilityIdentifier("gettingStarted.openRouterCredits")
-            openRouterClip(Self.openRouterCreditsClip)
-        }
-    }
-
-    /// The product owner (2026-09-27): the two things done on OpenRouter's own site,
-    /// adding the credits and changing its privacy settings, are each shown
-    /// being done in a browser, under the link that goes there. A row plays
-    /// its clip when WelcomeClipsResources carries it.
-    private static let openRouterCreditsClip = "setup-openrouter-credits"
-    private static let openRouterPrivacyClip = "setup-openrouter-privacy"
-
-    @ViewBuilder
-    private func openRouterClip(_ name: String) -> some View {
-        if let url = WelcomeClipPlayer.url(named: name) {
-            WelcomeClipPlayer(url: url)
-                .aspectRatio(16.0 / 10.0, contentMode: .fit)
-                .frame(maxWidth: 440)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .strokeBorder(.primary.opacity(0.1))
-                }
-                .accessibilityHidden(true)
-        }
-    }
-
-    @ViewBuilder
-    private var ownKeyStatus: some View {
-        if let own = account.ownKey {
-            Label("\(own.router.label) key ending in \(own.suffix)", systemImage: "checkmark.circle.fill")
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(.green)
-        } else {
-            VStack(alignment: .leading, spacing: 8) {
-                // Signing in at OpenRouter hands the app a key; pasting one
-                // stays for anyone who already has a key to hand.
-                HStack(spacing: 8) {
-                    Button {
-                        Task { await account.connectOpenRouter() }
-                    } label: {
-                        if account.openRouterConnectInFlight {
-                            ProgressView().controlSize(.small)
-                        } else {
-                            Text("Connect OpenRouter")
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(account.openRouterConnectInFlight || ownKeySaving)
-                    if account.openRouterConnectInFlight {
-                        Text("Finish in your browser, then come back.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                Text(ManagedAI.OwnKeyRouter.openRouter.accountNote)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                HStack(spacing: 8) {
-                    SecureField("Or paste a key", text: $ownKeyDraft)
-                        .textFieldStyle(.roundedBorder)
-                        .onSubmit { saveOwnKey() }
-                    Button {
-                        saveOwnKey()
-                    } label: {
-                        if ownKeySaving {
-                            ProgressView().controlSize(.small)
-                        } else {
-                            Text("Save")
-                        }
-                    }
-                    .disabled(ownKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || ownKeySaving)
-                }
-                Link(ManagedAI.OwnKeyRouter.openRouter.keysLinkTitle, destination: ManagedAI.OwnKeyRouter.openRouter.keysURL)
-                    .font(.caption)
-                Label(ManagedAI.OwnKeyRouter.openRouter.keyPrivacyNote, systemImage: "lock.fill")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -2038,7 +1846,11 @@ struct GettingStartedGuide: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            if let previous = previousStep {
+            if step == .enhancements, aiPage == .models {
+                Button("Back") {
+                    withAnimation(.easeInOut(duration: 0.2)) { aiPage = .key }
+                }
+            } else if let previous = previousStep {
                 Button("Back") {
                     withAnimation(.easeInOut(duration: 0.2)) { step = previous }
                 }
@@ -2048,8 +1860,13 @@ struct GettingStartedGuide: View {
                     withAnimation(.easeInOut(duration: 0.25)) { welcomeOverride = true }
                 }
             }
-            Button(nextIncompleteStep == nil ? "Finish" : "Continue") {
-                // The AI step says background work draws on what they chose.
+            Button(nextIncompleteStep == nil && !(step == .enhancements && aiPage == .key) ? "Finish" : "Continue") {
+                // The key page leads to the models page; the models page says
+                // background work draws on what they chose.
+                if step == .enhancements, aiPage == .key {
+                    withAnimation(.easeInOut(duration: 0.2)) { aiPage = .models }
+                    return
+                }
                 if step == .enhancements { hasConsentedToBackgroundAIUsage = true }
                 openDetectedSourceForCurrentStep()
                 completeAndAdvance()
@@ -2079,38 +1896,6 @@ struct GettingStartedGuide: View {
                 vm.readingListBrowsersDidChange()
             }
         )
-    }
-
-    /// The instructions follow one browser; the picker appears only when more
-    /// than one is chosen, since a single choice leaves nothing to pick.
-    @ViewBuilder
-    private var readingListBrowserPicker: some View {
-        let choices = ReadingListBrowser.allCases.filter(enabledReadingListBrowsers.contains)
-        if choices.count > 1 {
-            Picker("Show steps for", selection: $readingListBrowser) {
-                ForEach(choices) { browser in
-                    Text(browser.title).tag(browser)
-                }
-            }
-            .pickerStyle(.segmented)
-            .frame(maxWidth: 320)
-        }
-    }
-
-    private var readingListInstructions: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            instruction("1", "Open the example or any article you want to learn")
-            instruction("2", readingListBrowser.saveInstruction)
-            instruction("3", "Return to ForeverLM and check Reading Lists")
-            if let shortcut = readingListBrowser.shortcut {
-                Text(shortcut)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.leading, 27)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .setupCard()
     }
 
     private var podcastShowNames: [String] {
@@ -2186,11 +1971,16 @@ struct GettingStartedGuide: View {
         case .planner, .memory, .ideas, .artifacts, .assistants, .moreSources:
             return true
         case .enhancements:
-            return GettingStartedAIPayment.isReady(
-                hasOwnKey: account.ownKey != nil,
-                ownKeyAllowed: account.ownKeyAllowed,
-                canPayWithoutKey: hasUsableForeverLMCredits
-            ) && backgroundModelReady
+            switch aiPage {
+            case .key:
+                return GettingStartedAIPayment.isReady(
+                    hasOwnKey: account.ownKey != nil,
+                    ownKeyAllowed: account.ownKeyAllowed,
+                    canPayWithoutKey: hasUsableForeverLMCredits
+                )
+            case .models:
+                return modelsReady
+            }
         case .storage:
             return true
         case .subscriptions:
@@ -2672,19 +2462,23 @@ private struct SetupStepHeading: View {
 
     var body: some View {
         if !isHidden {
-            HStack(alignment: .top, spacing: 14) {
+            VStack(spacing: 10) {
                 Image(systemName: icon)
-                    .font(.title2)
+                    .font(.system(size: 26))
                     .foregroundStyle(.tint)
-                    .frame(width: 34, height: 34)
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(title).font(.title3.weight(.semibold))
-                    Text(detail)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                    .frame(width: 56, height: 56)
+                    .background(Color.accentColor.opacity(0.12), in: Circle())
+                    .accessibilityHidden(true)
+                Text(title)
+                    .font(.system(size: 26, weight: .semibold))
+                    .multilineTextAlignment(.center)
+                Text(detail)
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .frame(maxWidth: .infinity)
         }
     }
 }
@@ -3047,7 +2841,7 @@ struct WelcomeStory: View {
             promise(
                 icon: Self.yourAIIcon,
                 title: "You’re in charge of your AI.",
-                text: "Choose the models you want, at a price you’re comfortable with. Already pay for an AI subscription? ForeverLM works with it too, without locking you in."
+                text: "Choose the models you want, on your own OpenRouter key at OpenRouter’s cost, or free models for nothing at all. Already pay for an AI subscription? ForeverLM works with it too, without locking you in."
             )
             VStack(alignment: .leading, spacing: 12) {
                 promise(
@@ -3064,6 +2858,16 @@ struct WelcomeStory: View {
                 }
                 .padding(.leading, 50)
             }
+            // What ForeverLM costs, said once at the start (product owner,
+            // 2026-10-10): the count and the price are the account server's.
+            Text(EarlyUserDealOffer.headline(
+                onceCents: ManagedAI.appAccess?.prices.onceCents,
+                freeDays: ManagedAI.appAccess?.freeDaysTotal
+            ))
+                .font(.system(size: 17, weight: .semibold, design: .rounded))
+                .frame(maxWidth: .infinity)
+                .multilineTextAlignment(.center)
+                .accessibilityIdentifier("welcome.price")
         }
         .frame(maxWidth: 540)
         .padding(.horizontal, 40)
@@ -3511,76 +3315,71 @@ enum AppleBooksLibrary {
     }
 }
 
-/// Setup's Recommended models row (product owner, 2026-09-28): the whole set in one
-/// step (`RecommendedModels`). What it would take is read when the row
-/// appears and said before it is taken. The Chat and Background work rows
-/// below then show what it chose, and change one model at a time.
-private struct GettingStartedRecommendedModels: View {
+/// Setup's models page (product owner, 2026-09-28, then 2026-10-11): the whole
+/// set in one step (`RecommendedModels`) on one card, with the rest behind
+/// "Choose my own". What it would take is read when the page appears and said
+/// before it is taken. Free models run only once OpenRouter's privacy settings
+/// allow them, so a refusal is the one thing the page raises, and Continue
+/// waits for it.
+private struct GettingStartedModelsPage: View {
+    @Binding var isReady: Bool
+
     @State private var choice: RecommendedModels.Choice?
     @State private var loadError: String?
     @State private var isApplied = false
     @State private var working = false
     @State private var applyError: String?
+    /// Nil until checked, or while a check runs.
+    @State private var access: FreeModelAccess.Verdict?
+    @State private var isChecking = false
+    @State private var choosingMyself = false
+    /// The Background rows' word, for the learner who chooses their own.
+    @State private var ownChoiceReady = true
     @SyncedStorage(AIFreeMode.enabledKey) private var freeModeOn = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if let choice {
-                Group {
-                    roleLine("Chat", chatLine(choice))
-                    roleLine("Background work", backgroundLine(choice))
-                    if choice.freeText != nil {
-                        Text("Free models are not limited to US hosts. Meetings stay on \(choice.backup.model.name).")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .font(.caption)
-                .fixedSize(horizontal: false, vertical: true)
+        VStack(spacing: 24) {
+            SetupStepHeading(
+                icon: "sparkles",
+                title: "Pick your models",
+                detail: "We chose these for you. Change them any time in Settings."
+            )
 
-                HStack(spacing: 8) {
-                    if isApplied {
-                        Label("Using the recommended models", systemImage: "checkmark.circle.fill")
-                            .font(.caption)
-                            .foregroundStyle(.green)
-                    } else {
-                        Button("Use Recommended Models") { apply(choice) }
-                            .disabled(working || freeModeOn)
-                            .accessibilityIdentifier("gettingStarted.recommendedModels")
-                        if working {
-                            ProgressView().controlSize(.small)
-                        } else if freeModeOn {
-                            Text("Not in Free mode, which uses only free models.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        } else {
-                            RecommendedBadge()
-                        }
-                    }
-                }
-            } else if let loadError {
-                Label(loadError, systemImage: "exclamationmark.circle")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Button("Try Again") { Task { await load() } }
-                    .controlSize(.small)
+            if freeModeOn {
+                Label("Free mode is on, so only OpenRouter's free models are used.", systemImage: "checkmark.circle.fill")
+                    .font(.headline)
+                    .foregroundStyle(.green)
+                    .multilineTextAlignment(.center)
+            } else if choosingMyself {
+                ownChoice
             } else {
-                HStack(spacing: 6) {
-                    ProgressView().controlSize(.small)
-                    Text("Checking which models run on hosts in the US…")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                recommended
             }
 
-            if let applyError {
-                Label(applyError, systemImage: "exclamationmark.circle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .fixedSize(horizontal: false, vertical: true)
+            VStack(spacing: 6) {
+                if !choosingMyself {
+                    Text("ForeverLM also runs AI on its own, on transcripts, read-aloud and titles.")
+                }
+                Link(ManagedAI.OwnKeyRouter.openRouter.creditsLinkTitle, destination: ManagedAI.OwnKeyRouter.openRouter.creditsURL)
+                    .accessibilityIdentifier("gettingStarted.openRouterCredits")
+                    .help("Free models answer 50 requests a day until you have bought $10 of credits in total, then 1,000.")
             }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
         }
-        .task { await load() }
+        .task {
+            await load()
+            updateReadiness()
+        }
+        .onChange(of: isApplied) { _, _ in
+            access = nil
+            updateReadiness()
+            Task { await checkAccess() }
+        }
+        .onChange(of: freeModeOn) { _, _ in updateReadiness() }
+        .onChange(of: choosingMyself) { _, _ in updateReadiness() }
+        .onChange(of: ownChoiceReady) { _, _ in updateReadiness() }
         .onReceive(NotificationCenter.default.publisher(for: .aiProviderDidChange).receive(on: RunLoop.main)) { _ in
             Task { await readApplied() }
         }
@@ -3588,25 +3387,180 @@ private struct GettingStartedRecommendedModels: View {
             // The key decides whether background work can start free.
             Task { await load() }
         }
+        // Back from OpenRouter's privacy page in the browser.
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            guard isApplied, access != .allowed else { return }
+            Task { await checkAccess() }
+        }
     }
 
-    private func roleLine(_ role: String, _ text: String) -> some View {
-        (Text(role).fontWeight(.semibold) + Text("  ") + Text(text))
-            .foregroundStyle(.primary)
+    // MARK: The recommended set
+
+    @ViewBuilder
+    private var recommended: some View {
+        if let choice {
+            VStack(spacing: 18) {
+                VStack(spacing: 0) {
+                    row("Chat", choice.chat.model.name)
+                    Divider()
+                    row("Background", backgroundName(choice))
+                }
+                .background(Color.primary.opacity(0.055), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .frame(maxWidth: 400)
+
+                if isApplied {
+                    appliedStatus
+                } else {
+                    Button {
+                        apply(choice)
+                    } label: {
+                        Group {
+                            if working {
+                                ProgressView().controlSize(.small)
+                            } else {
+                                Text("Use these models")
+                            }
+                        }
+                        .frame(minWidth: 170)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .disabled(working)
+                    .accessibilityIdentifier("gettingStarted.recommendedModels")
+                }
+
+                if let applyError {
+                    Label(applyError, systemImage: "exclamationmark.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Button("Choose my own") { choosingMyself = true }
+                    .buttonStyle(.plain)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        } else if let loadError {
+            VStack(spacing: 10) {
+                Label(loadError, systemImage: "exclamationmark.circle")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 14) {
+                    Button("Try Again") { Task { await load() } }
+                    Button("Choose my own") { choosingMyself = true }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        } else {
+            ProgressView().controlSize(.small)
+        }
     }
 
-    private func chatLine(_ choice: RecommendedModels.Choice) -> String {
-        "\(choice.chat.model.name), with open weights, run only by its \(choice.chat.hosts.count) hosts in \(RecommendedModels.region.name)."
+    private func row(_ role: String, _ name: String) -> some View {
+        HStack {
+            Text(role)
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 12)
+            Text(name)
+                .fontWeight(.medium)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
     }
 
-    private func backgroundLine(_ choice: RecommendedModels.Choice) -> String {
-        let backup = "\(choice.backup.model.name) on its cheapest host in \(RecommendedModels.region.name)"
-        let price = choice.backup.cheapestPrice.map {
-            " (\(AIModelListPrice.pairLabel(input: $0.input, output: $0.output)) per 1M tokens in / out)"
-        } ?? ""
-        return choice.freeText == nil
-            ? "\(backup)\(price)."
-            : "OpenRouter's free models, then \(backup)\(price) when they fail."
+    private func backgroundName(_ choice: RecommendedModels.Choice) -> String {
+        choice.freeText == nil ? choice.backup.model.name : "Free, then \(choice.backup.model.name)"
+    }
+
+    @ViewBuilder
+    private var appliedStatus: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                Label("Ready", systemImage: "checkmark.circle.fill")
+                    .font(.headline)
+                    .foregroundStyle(.green)
+                if isChecking {
+                    ProgressView().controlSize(.small)
+                }
+            }
+            if access == .refused {
+                Text(FreeModelAccess.refusedExplanation)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: 400)
+                HStack(spacing: 14) {
+                    Link("Open OpenRouter privacy settings", destination: FreeModelsSetup.openRouterPrivacyURL)
+                    Button("Check Again") { Task { await checkAccess() } }
+                        .disabled(isChecking)
+                }
+                .font(.caption)
+            } else if case .unknown(let message)? = access {
+                Text("Could not check whether OpenRouter allows free models: \(message)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: 400)
+            }
+        }
+    }
+
+    // MARK: Choosing their own
+
+    private var ownChoice: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Chat").font(.headline)
+                GettingStartedChatModelChoice()
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Background work").font(.headline)
+                GettingStartedBackgroundModelChoice(isReady: $ownChoiceReady)
+            }
+            Button("Use the recommended models") { choosingMyself = false }
+                .buttonStyle(.plain)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: 460, alignment: .leading)
+    }
+
+    // MARK: Readiness
+
+    /// Continue waits for the set to be taken, and, while background work is
+    /// free, for OpenRouter to allow free models. A check that failed for
+    /// another reason says so and lets the learner go on.
+    private func updateReadiness() {
+        if freeModeOn { isReady = true; return }
+        if choosingMyself { isReady = ownChoiceReady; return }
+        guard isApplied, let choice else { isReady = false; return }
+        guard choice.freeText != nil else { isReady = true; return }
+        switch access {
+        case nil, .refused?: isReady = false
+        default: isReady = true
+        }
+    }
+
+    private func checkAccess() async {
+        guard isApplied, !isChecking, let free = choice?.freeText else { return }
+        isChecking = true
+        access = nil
+        updateReadiness()
+        let verdict = await Task.detached(priority: .userInitiated) {
+            await FreeModelAccess.check(model: free.id)
+        }.value
+        isChecking = false
+        guard isApplied else { return }
+        access = verdict
+        updateReadiness()
     }
 
     /// Off the main actor: the directory, the US lists and the free models'
@@ -3623,6 +3577,7 @@ private struct GettingStartedRecommendedModels: View {
             choice = nil
             loadError = error.localizedDescription
         }
+        updateReadiness()
     }
 
     /// Keychain reads, so off the main actor.

@@ -751,9 +751,11 @@ private struct InternalReviewPanelContent: View {
             guard acceptsGlobalRequests else { return }
             resetRequestedChatIfNeeded()
         }
-        // The canvas's questions are for the empty chat only.
+        // The canvas's questions are for the empty chat only. A source's text
+        // loading into it (a card added from the canvas) hides the welcome for
+        // a moment without the chat having anything in it.
         .onChange(of: showsIdleWelcome) { _, isShown in
-            if !isShown, !canvasSuggestedQuestions.isEmpty { canvasSuggestedQuestions = [] }
+            if !isShown, !manager.isSearching, !canvasSuggestedQuestions.isEmpty { canvasSuggestedQuestions = [] }
         }
         .task(id: vm.reviewChatAutoStartRequestID) {
             guard acceptsGlobalRequests else { return }
@@ -837,6 +839,16 @@ private struct InternalReviewPanelContent: View {
             guard let doc = vm.pendingChatDocAttachment else { return }
             manager.addContextDoc(doc)
             vm.pendingChatDocAttachment = nil
+        }
+        // Cards of the canvas this chat sits beside (Add to Chat) join the
+        // conversation it shows. A fresh chat asked for with them takes them
+        // as it starts (`resetRequestedChatIfNeeded`), after it has cleared.
+        .task(id: vm.pendingChatCanvasCards?.id) {
+            guard acceptsGlobalRequests, vm.reviewChatResetRequestID == nil,
+                  let handOff = vm.pendingChatCanvasCards,
+                  windowState == nil || windowState?.id == handOff.windowID else { return }
+            vm.pendingChatCanvasCards = nil
+            await takeCanvasCards(handOff)
         }
         // Keyed on both: the session changes when a chat is opened or started,
         // and the revision changes when this pane's own send writes a link into
@@ -1413,7 +1425,22 @@ private struct InternalReviewPanelContent: View {
     /// chips and chats, or at most `idleSuggestionLimit` suggestions.
     @ViewBuilder
     private var idleWelcomeOffers: some View {
-        if !canvasSuggestedQuestions.isEmpty {
+        if let context = manager.canvasContext {
+            // A chat about a canvas: its questions, when it has any, and the
+            // maps the canvas can draw from the cards.
+            VStack(alignment: .leading, spacing: StudioDesign.Spacing.small) {
+                if !canvasSuggestedQuestions.isEmpty {
+                    canvasQuestionCards
+                }
+                // The Ask draws on the canvas open on this Mac: not offered
+                // for another canvas's cards.
+                if context.canvasID == vm.knowledgeMap.mapID {
+                    KnowledgeMapChatOffers(offersQuestionMap: context.holdsQuestion) { tool in
+                        vm.startCanvasAsk(tool, from: context)
+                    }
+                }
+            }
+        } else if !canvasSuggestedQuestions.isEmpty {
             canvasQuestionCards
         } else if let notebook = notebookGuideNotebook {
             notebookGuide(notebook)
@@ -4230,10 +4257,13 @@ private struct InternalReviewPanelContent: View {
     }
 
     /// Context chips above the composer, echoing how coding assistants pin the
-    /// working folder above their input: the notebook this chat is filed in,
-    /// then the sources and Docs it can reach. A chat in no notebook shows no
-    /// notebook chip, and there is no picker here (product owner, 2026-10-06: "too
-    /// much"); a chat's notebook comes from the window it is opened in.
+    /// working folder above their input: the canvas this chat was opened from
+    /// and the cards added to it, the notebook this chat is filed in, then the
+    /// sources and Docs it can reach that no chip already shows. A chat in no
+    /// notebook shows no notebook chip, and there is no picker here (product
+    /// owner, 2026-10-06: "too much"); a chat's notebook comes from the window
+    /// it is opened in. They wrap, so a canvas with many cards takes a second
+    /// line rather than the width.
     ///
     /// In its own notebook's window neither chip is drawn (2026-10-06, the
     /// ChatGPT composer: nothing over the field the learner did not put
@@ -4245,17 +4275,41 @@ private struct InternalReviewPanelContent: View {
         let inOwnNotebookWindow = notebookGuideNotebook != nil
         let showsNotebookChip = linkedResearchNotebook != nil && !inOwnNotebookWindow
         let showsContextChip = contextItemCount > 0 && (!inOwnNotebookWindow || !manager.contextDocs.isEmpty)
-        if showsNotebookChip || showsContextChip {
-            HStack(spacing: 8) {
+        let canvasContext = manager.canvasContext
+        if showsNotebookChip || showsContextChip || canvasContext != nil {
+            FlowLayout(spacing: 8) {
+                if let canvasContext {
+                    canvasChips(canvasContext)
+                }
                 if showsNotebookChip {
                     notebookChip
                 }
                 if showsContextChip {
                     attachedSourcesChip
                 }
-                Spacer(minLength: 0)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    /// The canvas this chat was opened from as a chip, and a chip for each of
+    /// its cards the learner added (`KnowledgeMapChatChipRow`): a click shows
+    /// the canvas or the card, an × takes the canvas, or the card from the
+    /// next turn, out of the chat.
+    @ViewBuilder
+    private func canvasChips(_ context: KnowledgeMapChatContext) -> some View {
+        KnowledgeMapChatChipRow(
+            context: context,
+            symbol: { card in
+                vm.knowledgeMap.nodesByRef[card.ref].map(KnowledgeMapCardGlyph.symbol(for:)) ?? "rectangle.on.rectangle"
+            },
+            showCanvas: { vm.showKnowledgeMapChatCanvas(context.canvasID, in: windowState) },
+            showCard: { ref in
+                Task { await vm.showKnowledgeMapChatCard(ref, canvasID: context.canvasID, in: windowState) }
+            },
+            removeCard: { manager.removeCanvasCard($0) },
+            removeCanvas: { manager.removeCanvasContext() }
+        )
     }
 
     @ViewBuilder
@@ -4365,11 +4419,29 @@ private struct InternalReviewPanelContent: View {
         }
     }
 
-    /// Everything the chat is actually holding: sources whose text was read in,
-    /// plus Docs attached by identity. One number, because the learner asked one
-    /// question — what is in the context?
+    /// Everything the chat is actually holding that no chip shows: sources
+    /// whose text was read in, plus Docs attached by identity, less the ones a
+    /// canvas card's chip already names. One number, because the learner asked
+    /// one question — what is in the context?
     private var contextItemCount: Int {
-        loadedSources.count + manager.contextDocs.count
+        KnowledgeMapChatChips.pillCount(
+            loadedSourceIDs: loadedSources.map(\.id),
+            docIDs: manager.contextDocs.map(\.id),
+            cards: manager.canvasContext?.cards ?? []
+        )
+    }
+
+    /// What the "In context" popover lists: the sources and Docs the pill
+    /// counts. Taking a card's chip away leaves its source or Doc here, to be
+    /// removed from the context as any is.
+    private var sourcesOutsideChips: [StudioArticle] {
+        let shown = KnowledgeMapChatChips.sourceIDs(shownBy: manager.canvasContext?.cards ?? [])
+        return loadedSources.filter { !shown.contains($0.id) }
+    }
+
+    private var docsOutsideChips: [ChatDocAttachment] {
+        let shown = KnowledgeMapChatChips.docIDs(shownBy: manager.canvasContext?.cards ?? [])
+        return manager.contextDocs.filter { !shown.contains($0.id) }
     }
 
     private var loadedContextSummary: String {
@@ -4406,12 +4478,12 @@ private struct InternalReviewPanelContent: View {
                     LazyVStack(alignment: .leading, spacing: 2) {
                         // Docs first: a Doc is attached deliberately, one at a
                         // time, while sources arrive by the dozen from a pool.
-                        ForEach(manager.contextDocs) { doc in
+                        ForEach(docsOutsideChips) { doc in
                             ContextDocCard(doc: doc) {
                                 manager.removeContextDoc(doc.id)
                             }
                         }
-                        ForEach(loadedSources) { source in
+                        ForEach(sourcesOutsideChips) { source in
                             ContextSourceCard(
                                 source: source,
                                 metadataVisibility: metadataVisibility,
@@ -6850,13 +6922,44 @@ private struct InternalReviewPanelContent: View {
     /// the text `read_doc` returns, so the two cannot disagree about what
     /// the chat is holding.
     @MainActor
-    private func addDocToChatContext(_ artifactID: String) async {
+    private func addDocToChatContext(_ artifactID: String, announces: Bool = true) async {
         do {
             let snapshot = try await vm.artifactMarkdown(artifactID)
             manager.addContextDoc(ChatDocAttachment(snapshot: snapshot))
-            vm.showToast("Added \(snapshot.artifact.title) to Chat")
+            if announces { vm.showToast("Added \(snapshot.artifact.title) to Chat") }
         } catch {
             vm.errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Cards of the canvas, handed to this chat by Add to Chat or Ask in Chat:
+    /// they become chips and lines in what the model is told at once, and the
+    /// text of the sources and Docs among them is brought in the way a dropped
+    /// one is (`addSourceIDsToChatContext`, `addDocToChatContext`), so the
+    /// model reads it, not just their names. A Site or Page the card names is
+    /// attached; an animation, audio overview or reading has no text to read.
+    @MainActor
+    private func takeCanvasCards(_ handOff: KnowledgeMapChatCards) async {
+        let leftOut = manager.addCanvasCards(
+            canvasID: handOff.canvasID,
+            name: handOff.canvasName,
+            cards: handOff.cards,
+            replacing: handOff.replaces
+        )
+        if leftOut > 0 {
+            vm.showToast("A chat holds \(KnowledgeMapChatContext.cardLimit) cards at most: \(leftOut) were left out")
+        }
+        let held = Set(manager.canvasContext?.cards.map(\.ref) ?? [])
+        let joined = handOff.cards.filter { held.contains($0.ref) }
+        let sourceIDs = vm.knowledgeMapChatSourceIDs(joined)
+        if !sourceIDs.isEmpty {
+            await addSourceIDsToChatContext(sourceIDs)
+        }
+        for card in joined {
+            guard let item = KnowledgeMap.ItemRef(card.ref), item.kind == .doc,
+                  let artifact = vm.artifacts.first(where: { $0.id == item.id }),
+                  ["doc", "site"].contains(KnowledgeMapModel.docType(artifact)) else { continue }
+            await addDocToChatContext(item.id, announces: false)
         }
     }
 
@@ -6982,6 +7085,13 @@ private struct InternalReviewPanelContent: View {
         canvasSuggestedQuestions = vm.pendingReviewChatCanvasQuestions
         vm.pendingReviewChatCanvasQuestions = []
         manager.endSession()
+        // Cards asked for with this chat (Ask in Chat, Add to Chat with no
+        // chat beside the canvas) are its context from the first moment.
+        if let handOff = vm.pendingChatCanvasCards,
+           windowState == nil || windowState?.id == handOff.windowID {
+            vm.pendingChatCanvasCards = nil
+            Task { await takeCanvasCards(handOff) }
+        }
         // A request naming a mode of its own — a notebook Studio's Deep
         // research — opens the fresh chat in it, ready for the question.
         if let mode = vm.pendingReviewChatMode {
@@ -8267,8 +8377,9 @@ struct ChatHeaderControlButton<Label: View>: View {
 
 /// The composer's notebook chip, as a button or as the picker's menu: the
 /// label with a capsule wash on hover and press. `.menuStyle(.button)` lets
-/// a button style draw a Menu's label (`PickerPillButtonStyle`).
-private struct ComposerChipButtonStyle: ButtonStyle {
+/// a button style draw a Menu's label (`PickerPillButtonStyle`). The canvas's
+/// "+N" chip wears it too (`KnowledgeMapChatChipRow`).
+struct ComposerChipButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         ComposerChip(isPressed: configuration.isPressed, content: configuration.label)
     }

@@ -245,7 +245,7 @@ final class ReaderClipTool: NSObject {
 
     // MARK: Saving, copying, dragging
 
-    /// Saves the clip without placing it: it waits in the Canvas's tray.
+    /// Saves the clip without placing it: it waits in the Canvas's Library.
     func save() {
         guard var clip, let vm else { return }
         if savedHighlightID == nil {
@@ -623,7 +623,7 @@ struct ReaderClipPill: View {
                 .frame(maxWidth: 280, alignment: .leading)
             Divider().frame(height: 14)
             Button("Save Clip", action: save)
-                .help("Keep this clip; it waits in the Canvas's tray (Return)")
+                .help("Keep this clip; it waits in the Canvas's Library (Return)")
             Button(action: copy) { Image(systemName: "doc.on.doc") }
                 .help("Copy the picture (⌘C)")
             Button(action: close) { Image(systemName: "xmark") }

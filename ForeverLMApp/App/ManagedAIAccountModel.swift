@@ -6,7 +6,8 @@ import Security
 #endif
 import AuthenticationServices
 
-/// UI-facing state for the managed AI rail ("ForeverLM AI"): sign-in, the plan,
+/// UI-facing state for the managed AI rail ("ForeverLM AI"): sign-in, the paid
+/// app's access (the free days, payment, the lock),
 /// the own OpenRouter key, any leftover balance, and billing history. `@MainActor @Observable`, with in-flight
 /// flags and no `throws` out of its methods; failures land in `errorMessage` as a
 /// full user-facing sentence.
@@ -33,19 +34,54 @@ final class ManagedAIAccountModel {
         }
     }
 
-    /// The app's own plan: free, subscribed, forever, or comped. Nil until a
-    /// worker that reports plans has answered. See `ManagedAI.AppAccess`.
-    private(set) var appAccess: ManagedAI.AppAccess? = ManagedAI.appAccess
+    /// The paid app's access: the free days, paid once, monthly (bought
+    /// before the lock), comped, family or locked. Nil until a worker that reports plans has answered.
+    /// See `ManagedAI.AppAccess`.
+    private(set) var appAccess: ManagedAI.AppAccess? = ManagedAI.appAccess {
+        didSet {
+            guard appAccess != oldValue else { return }
+            scheduleFreeDaysTick()
+        }
+    }
     /// The plan whose checkout is being opened, so only its button spins.
     private(set) var planCheckoutInFlight: ManagedAI.AppPlan?
     /// A cancel or keep-plan call on its way to the proxy.
     private(set) var planChangeInFlight = false
+    /// "I've Paid" asking the proxy again, from the pay screen.
+    private(set) var paymentCheckInFlight = false
+    /// Set when "I've Paid" found the account still locked: Stripe's webhook
+    /// can take a moment after Checkout closes.
+    private(set) var paymentNotSeenYet = false
 
-    /// Whether the learner's own router key may pay for requests: a plan's
-    /// benefit. True until a worker that reports plans has answered.
-    var ownKeyAllowed: Bool { appAccess?.ownKeyAllowed ?? true }
-    /// What a plan costs, as the proxy last reported it.
-    var planPrices: ManagedAI.AppAccess.Prices { appAccess?.prices ?? .standard }
+    /// Moves when the free days cross a day, or end, while the app is open,
+    /// so the account menu's count and the lock are read again.
+    private(set) var freeDaysClock = 0
+    @ObservationIgnored private var freeDaysTick: Task<Void, Never>?
+
+    /// Whether the learner's own router key may pay for requests: for any
+    /// account that is not locked (`ManagedAI.ownKeyAllowed`).
+    var ownKeyAllowed: Bool { !isAppLocked }
+    /// What the app costs, as the proxy last reported it.
+    var planPrices: ManagedAI.AppAccess.Prices { appAccess?.prices ?? .unknown }
+
+    /// Whether the app is locked: the free days are over and nothing is paid
+    /// (`ManagedAI.isAppLocked`). The Mac then shows only `AppLockWall`.
+    var isAppLocked: Bool {
+        _ = freeDaysClock
+        return appAccess?.isLocked(at: ManagedAI.serverNow) ?? false
+    }
+
+    /// Whole free days left after today, while the free days run. Nil
+    /// otherwise.
+    var freeDaysLeft: Int? {
+        _ = freeDaysClock
+        return appAccess?.freeDaysLeft(at: ManagedAI.serverNow)
+    }
+
+    /// The account menu's quiet line: "29 days free left".
+    var freeDaysStatus: String? {
+        freeDaysLeft.map(ManagedAI.AppAccess.freeDaysStatus(daysLeft:))
+    }
     /// Ambient UI can keep the exhausted state visible even when the failed
     /// request arrived before the first balance fetch completed.
     private(set) var creditsAreEmpty = false
@@ -139,6 +175,9 @@ final class ManagedAIAccountModel {
         hasAccountAccess = snapshot.hasAccountAccess
         ownKey = snapshot.ownKey
         isLoadingStoredSession = false
+        // The access cached from the last launch may hold free days that
+        // run out while this one is open.
+        scheduleFreeDaysTick()
     }
 
     // MARK: - Your own router key
@@ -543,9 +582,10 @@ final class ManagedAIAccountModel {
         }
     }
 
-    /// Opens Stripe Checkout for a plan in the browser. The plan takes effect
-    /// when Stripe's webhook lands; the next refresh (the app becoming active
-    /// again) picks it up.
+    /// Opens Stripe Checkout in the browser: the Early user deal (`.once`),
+    /// the one plan the paid app sells. It takes effect when Stripe's webhook
+    /// lands; the next refresh (the app becoming active again, or I've Paid)
+    /// picks it up.
     func choosePlan(_ plan: ManagedAI.AppPlan) async {
         guard planCheckoutInFlight == nil else { return }
         planCheckoutInFlight = plan
@@ -563,29 +603,45 @@ final class ManagedAIAccountModel {
         }
     }
 
-    /// Starts Believer's free week: one click, no card (product owner, 2026-10-06).
-    /// The plan card shows it once the refresh lands.
-    func startBelieverTrial() async {
-        guard planCheckoutInFlight == nil else { return }
-        planCheckoutInFlight = .believer
-        defer { planCheckoutInFlight = nil }
-        errorMessage = nil
+    /// The pay screen's I've Paid: asks the proxy again. Still locked means
+    /// the payment has not arrived yet, and the screen says so.
+    func checkPayment() async {
+        guard !paymentCheckInFlight else { return }
+        paymentCheckInFlight = true
+        defer { paymentCheckInFlight = false }
+        paymentNotSeenYet = false
+        await refresh()
+        paymentNotSeenYet = isAppLocked && balanceErrorMessage == nil && errorMessage == nil
+    }
 
-        do {
-            _ = try await ManagedAI.startBelieverTrial()
-            await refresh()
-        } catch let error as ManagedAI.ServiceError {
-            errorMessage = error.message
-        } catch {
-            logger.warning("Believer free week failed: \(error.localizedDescription, privacy: .public)")
-            errorMessage = "Couldn't start your free week. Check your connection and try again."
+    /// Re-reads the lock and the account menu's count when the free days
+    /// next cross a day on the proxy's clock, and once more when they end,
+    /// so a Mac left open locks on time and a refresh confirms it.
+    private func scheduleFreeDaysTick() {
+        freeDaysTick?.cancel()
+        freeDaysTick = nil
+        guard let access = appAccess, access.state == .freeDays,
+              let freeUntil = access.freeUntil else { return }
+        let remaining = freeUntil.timeIntervalSince(ManagedAI.serverNow)
+        guard remaining > 0 else { return }
+        let toNextDay = remaining.truncatingRemainder(dividingBy: 86_400)
+        let delay = (toNextDay > 0 ? toNextDay : 86_400) + 1
+        let endsTheFreeDays = delay >= remaining
+        freeDaysTick = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(delay))
+            guard !Task.isCancelled, let self else { return }
+            self.freeDaysClock += 1
+            if endsTheFreeDays {
+                await self.refresh(silently: true)
+            }
+            self.scheduleFreeDaysTick()
         }
     }
 
-    /// Cancels the plan at the end of the period paid for, or of the free
-    /// week, telling the proxy why when the learner said (product owner,
-    /// 2026-09-26: "if they cancel, they should be able to let us know
-    /// why"). The plan card reads "ending" once the refresh lands.
+    /// Cancels the monthly plan at the end of the period paid for, telling
+    /// the proxy why when the learner said (product owner, 2026-09-26: "if
+    /// they cancel, they should be able to let us know why"). The plan card
+    /// reads "ending" once the refresh lands.
     func cancelPlan(reason: ManagedAI.PlanCancellationReason?, comment: String) async -> Bool {
         guard !planChangeInFlight else { return false }
         planChangeInFlight = true

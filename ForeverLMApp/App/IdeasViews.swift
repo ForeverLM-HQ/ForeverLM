@@ -78,6 +78,8 @@ struct IdeasHomeView: View {
     /// (`SpaceListPage`).
     let onJotted: ((IdeaRecord) -> Void)?
 
+    /// The pane's own search, when the pane is not embedded.
+    @State private var ownQuery = ""
     /// The next thought, typed at the top of the list. Return saves it.
     @State private var draft = ""
     @FocusState private var draftFocused: Bool
@@ -94,7 +96,7 @@ struct IdeasHomeView: View {
         self.onJotted = onJotted
     }
 
-    private var trimmedQuery: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var trimmedQuery: String { (isEmbedded ? query : ownQuery).trimmingCharacters(in: .whitespacesAndNewlines) }
 
     private var bands: (open: [IdeaRecord], archived: [IdeaRecord]) {
         let bands = vm.ideaBands()
@@ -117,9 +119,7 @@ struct IdeasHomeView: View {
             } else {
                 ScrollView {
                     list
-                        .padding(StudioDesign.Spacing.xLarge)
-                        .frame(maxWidth: 940, alignment: .leading)
-                        .frame(maxWidth: .infinity, alignment: .center)
+                        .spacePlaceColumn()
                 }
             }
         }
@@ -165,12 +165,17 @@ struct IdeasHomeView: View {
         }
     }
 
-    /// The title alone: its tagline, "Jotted down now, chased later.", went on
-    /// 2026-10-06 (the product owner: "cleaner and fewer buttons and bells and
-    /// whistles"); the jot field under it says what the pane is for.
+    /// The Space's head (`SpacePlaceHeader`), as the Space's Ideas place draws
+    /// over the same list: the name and the search, and no button, since the
+    /// jot field under it is how an idea is made. Its tagline, "Jotted down
+    /// now, chased later.", went on 2026-10-06 (the product owner: "cleaner and fewer
+    /// buttons and bells and whistles").
     private var header: some View {
-        Text("Ideas")
-            .zoomedSystemFont(size: 23, weight: .bold)
+        SpacePlaceHeader(searchText: $ownQuery, searchIdentifier: "studio.ideas.search") {
+            SpacePlaceTitle(title: "Ideas")
+        } actions: {
+            EmptyView()
+        }
     }
 
     /// The whole point of the tab: one field, always there, Return saves.

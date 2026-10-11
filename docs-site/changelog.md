@@ -4,6 +4,28 @@ All notable changes to ForeverLM are documented here. Dates are in YYYY-MM-DD fo
 
 ForeverLM follows [semantic versioning](https://semver.org) against its public surface: the MCP tool contracts, the knowledge-base/sync format, and licensing compatibility. While the version is 0.x, minor releases may include breaking changes to that surface; patch releases never do.
 
+## 0.138.1 (build 210) — 2026-10-10
+
+**Highlights:**
+- **ForeverLM is a paid app: 7 days free, then $19 once. No subscription.** Your first sign-in starts 7 free days of the whole app, with no card. After that, the Early user deal is $19, paid once, in Settings › Billing, and it covers the Mac, iPhone, iPad and web library, unlimited notebooks and sources, and Claude, ChatGPT, Grok or Gemini over MCP. AI runs on your own OpenRouter key, at OpenRouter's cost. ForeverLM adds nothing. Free mode costs $0. An unpaid account locks after its 7 free days and nothing is deleted: your library stays in your iCloud Drive (ForeverLM folder), as plain files you own, and paying restores everything. Believer, Monthly, Yearly and Lifetime are no longer sold.
+- **ForeverLM is now published under its own developer account**: the app is signed by ForeverLM and your library moves to a new iCloud store. Nothing is lost: your library stays on this Mac. Once, choose Settings › iCloud › **Upload my library to iCloud again**, sign in again, allow macOS's permissions again, and enter the keys kept in your Keychain (your own OpenRouter key, Google and Zoom) once more. Narration made before the move comes with you.
+- **The Space is home**: notebooks, pages, sites, lists and chats are items in one place, with your own spaces, a Chats list, and a sidebar like ChatGPT's.
+- **Pages work like ChatGPT's**: type / for blocks, footnotes, and a side chat from any page.
+- **A quieter window like Codex's**, with one icon rail and the calendar as a glyph above your account.
+- **Reading views and cleaner Listen**: articles and papers read cleanly, and Listen cleans every text with a model first.
+- **Paper metadata arrives in seconds**, and a preprint and its journal version sit side by side.
+- **Change the model behind anything you are charged for**, from Settings › AI Usage › Activity.
+- **Sites stay in your library**: nothing is published to the web any more.
+
+## 0.138.0 (build 209) — 2026-10-10
+
+**Highlights:**
+- **The Canvas does what Sapience showed (beta)**: a paper shows its PDF page and turns pages in place, any card carries a note on why it is on the canvas, arrows can be For or Against and gather into a brace, mind maps draw small nodes with a colour per branch, questions carry a ? that turns into ✓, Ask makes a Mind Map or breaks a question into questions, and the chat beside a canvas shows the cards you added as chips (Add to Chat, ⌘L).
+- **Sites stay in your library**: nothing is published to the web any more.
+- **Selecting text no longer brings up Apple's badge and underlines.**
+- **The Space has a Chats list**, and the Notebooks list a New Notebook button.
+- **Change the model behind anything you are charged for**, from Settings › AI Usage › Activity.
+
 ## 0.137.0 (build 208) — 2026-10-10
 
 **Highlights:**

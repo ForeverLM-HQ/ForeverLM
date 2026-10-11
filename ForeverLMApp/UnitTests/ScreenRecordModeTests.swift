@@ -589,6 +589,177 @@ struct ScreenRecordCountsTests {
     }
 }
 
+/// The Space sidebar on build 208 (2026-10-10): with the mode on and the
+/// Bioelectricity Notebook chosen, the Notebooks row showed only it, but
+/// Recents named three of the learner's canvases and Spaces named one of
+/// their teams. Recents, Pinned, the spaces and the teams now ask the
+/// scope as the Notebooks list does; the Space's own lists and the canvas
+/// pickers read the same `listedCanvases` and `listedSpaceLists`.
+@Suite("Screen record mode in the Space sidebar")
+@MainActor
+struct ScreenRecordSpaceSidebarTests {
+    private let cutoff = Date(timeIntervalSinceReferenceDate: 800_000_000)
+    private var before: Date { cutoff.addingTimeInterval(-3_600) }
+    private var after: Date { cutoff.addingTimeInterval(60) }
+
+    private func makeViewModel() -> StudioViewModel {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ScreenRecordSpaceSidebarTests_\(UUID().uuidString)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let vm = StudioViewModel(storageService: StorageService(storeRoot: root))
+        vm.screenRecordScope = nil
+        return vm
+    }
+
+    private func page(_ id: String, createdAt: Date, notebook: String? = nil, team: String? = nil) -> ArtifactRecord {
+        ArtifactRecord(
+            id: id, title: id, homeNotebookID: notebook, linkedNotebookIDs: [], teamID: team, kind: nil,
+            createdAt: createdAt, updatedAt: createdAt
+        )
+    }
+
+    private func notebook(_ id: String, createdAt: Date, team: String? = nil) -> LearningGoalRecord {
+        LearningGoalRecord(
+            id: id, title: id, startAt: createdAt, endAt: LearningGoalRecord.openEndedEndAt,
+            createdAt: createdAt, updatedAt: createdAt, status: LearningGoalStatus.active.rawValue, items: [],
+            kind: LearningGoalRecord.companionKind, teamID: team
+        )
+    }
+
+    private func team(_ id: String, createdAt: Date) -> TeamRecord {
+        TeamRecord(
+            id: id, name: id, role: .owner, permission: .readWrite, zoneScope: .privateScope,
+            zoneName: TeamRecord.zoneName(forTeamID: id), zoneOwnerRecordName: nil, shareRecordName: nil,
+            shareURL: nil, createdAt: createdAt, joinedAt: after, updatedAt: createdAt
+        )
+    }
+
+    private func list(_ id: String, createdAt: Date) -> SpaceList {
+        SpaceList(id: id, kind: .goals, name: id, createdAt: createdAt, updatedAt: createdAt, trashedAt: nil)
+    }
+
+    @Test("Recents, Pinned, the spaces and the teams show only what the take may show")
+    func sidebarFollowsTheScope() throws {
+        let vm = makeViewModel()
+        try #require(vm.activeTeamID == nil, "My Library, where the Space lists canvases and lists")
+        try #require(vm.listsCanvases, "the unit tests run in ForeverLM Dev, which shows the Canvas")
+
+        // The Notebooks first: setting them re-resolves the scope from the
+        // host's settings, so the mode is put off again after.
+        vm.learningGoals = [
+            notebook("recording", createdAt: before),
+            notebook("private-notebook", createdAt: before),
+            notebook("team-notebook", createdAt: before, team: "team-private"),
+        ]
+        vm.screenRecordScope = nil
+        let pages = [
+            page("filmed-page", createdAt: before, notebook: "recording"),
+            page("take-page", createdAt: after),
+            page("private-page", createdAt: before, notebook: "private-notebook"),
+            page("team-page", createdAt: before, team: "team-private"),
+        ]
+        vm.artifacts = pages
+        vm.artifactTeamIDs = ["filmed-page": ["team-shares-filmed"], "team-page": ["team-private"]]
+        vm.canvases = KnowledgeMapCanvases([
+            KnowledgeMapCanvas(id: "private-canvas", name: "A paper's figures", createdAt: before, updatedAt: before),
+            KnowledgeMapCanvas(id: "other-notebook-canvas", name: "Another notebook's map", createdAt: before, updatedAt: before, notebookID: "private-notebook"),
+            KnowledgeMapCanvas(id: "filmed-canvas", name: "The recording notebook's map", createdAt: before, updatedAt: before, notebookID: "recording"),
+            KnowledgeMapCanvas(id: "take-canvas", name: "Canvas", createdAt: after, updatedAt: after),
+        ])
+        vm.spaceLists = SpaceLists(lists: [
+            "private-list": list("private-list", createdAt: before),
+            "take-list": list("take-list", createdAt: after),
+        ])
+        vm.pageSpaces = PageSpaces(
+            names: ["psp-private": "Private", "psp-filmed": "Filmed", "psp-take": "Take"],
+            memberships: [
+                "private-page": "psp-private", "private-canvas": "psp-private", "private-list": "psp-private",
+                "filmed-canvas": "psp-filmed",
+                "take-list": "psp-take",
+            ]
+        )
+        vm.pagePins = PagePins(pinnedAt: ["private-canvas": 1, "filmed-canvas": 2, "private-list": 3, "take-list": 4])
+        vm.teams = [
+            team("team-private", createdAt: before),
+            team("team-shares-filmed", createdAt: before),
+            team("team-take", createdAt: after),
+        ]
+        func item(_ kind: SpaceRecents.Item.Kind, _ id: String, drawn: Date? = nil) -> SpaceRecents.Item {
+            SpaceRecents.Item(kind: kind, id: id, openedAt: after, title: id, createdAt: drawn)
+        }
+        let recents = [
+            item(.canvas, "private-canvas"), item(.canvas, "take-canvas"), item(.canvas, "other-notebook-canvas"),
+            item(.canvas, "filmed-canvas"),
+            item(.artifact, "private-page"), item(.artifact, "filmed-page"), item(.artifact, "take-page"),
+            item(.list, "private-list"), item(.list, "take-list"),
+            item(.image, "old-picture", drawn: before), item(.image, "take-picture", drawn: after),
+            item(.image, "kept-picture", drawn: before), item(.image, "undated-picture"),
+        ]
+        func shown() -> [String] { SpaceSidebar.recentRows(recents, vm: vm, limit: 100).map(\.item.id) }
+
+        // Off (every learner but the admin): everything the library holds.
+        #expect(shown() == recents.map(\.id))
+        #expect(vm.listedCanvases.count == 4)
+        #expect(vm.listedSpaceLists.count == 2)
+        #expect(vm.orderedPageSpaces.map(\.id) == ["psp-filmed", "psp-private", "psp-take"])
+        #expect(vm.shownTeams.map(\.id) == ["team-private", "team-shares-filmed", "team-take"])
+
+        // On: pages load narrowed (`loadScopedArtifacts`); the rest is
+        // narrowed where it is listed.
+        vm.screenRecordScope = ScreenRecordScope(
+            notebookID: "recording", allowedSourceIDs: [], cutoff: cutoff, allowedImageIDs: ["kept-picture"]
+        )
+        vm.artifacts = pages.filter { vm.isVisibleInRecordingMode($0) }
+        #expect(vm.artifacts.map(\.id) == ["filmed-page", "take-page"])
+
+        #expect(shown() == [
+            "take-canvas", "filmed-canvas", "filmed-page", "take-page", "take-list", "take-picture", "kept-picture",
+        ])
+        #expect(Set(vm.listedCanvases.map(\.id)) == ["take-canvas", "filmed-canvas"])
+        #expect(vm.pinnedCanvases.map(\.id) == ["filmed-canvas"])
+        #expect(vm.listedSpaceLists.map(\.id) == ["take-list"])
+        #expect(vm.pinnedSpaceLists.map(\.id) == ["take-list"])
+        // A space shows while it holds a page, canvas or list on screen.
+        #expect(vm.orderedPageSpaces.map(\.id) == ["psp-filmed", "psp-take"])
+        // A team shows when made during the take or holding a page on screen;
+        // joined during the take earns nothing (a synced row is stamped so).
+        #expect(vm.shownTeams.map(\.id) == ["team-shares-filmed", "team-take"])
+        // In memory everything stays whole.
+        #expect(vm.canvases.all.count == 4)
+        #expect(vm.spaceLists.all.count == 2)
+        #expect(vm.teams.count == 3)
+        #expect(vm.pageSpaces.ordered.count == 3)
+    }
+
+    @Test("A team's rule: made during the take, or holding something on screen")
+    func teamPredicate() {
+        let scope = ScreenRecordScope(notebookID: "recording", allowedSourceIDs: [], cutoff: cutoff)
+        #expect(!scope.allowsTeam(createdAt: before, holdsShownItem: false))
+        #expect(scope.allowsTeam(createdAt: before, holdsShownItem: true))
+        #expect(scope.allowsTeam(createdAt: after, holdsShownItem: false))
+    }
+
+    @Test("A picture's drawn date rides its Recents entry across launches")
+    func recentsKeepThePictureDate() throws {
+        let suite = "ScreenRecordSpaceSidebarTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let drawn = Date(timeIntervalSince1970: 1_790_000_000)
+        let recents = SpaceRecents(defaults: defaults)
+        recents.note(.image, id: "picture", title: "A cell", createdAt: drawn, at: Date(timeIntervalSince1970: 1_790_000_100))
+        recents.note(.artifact, id: "page", at: Date(timeIntervalSince1970: 1_790_000_200))
+        let reloaded = SpaceRecents(defaults: defaults)
+        #expect(reloaded.items == recents.items)
+        #expect(reloaded.items.first { $0.id == "picture" }?.createdAt == drawn)
+        #expect(reloaded.items.first { $0.id == "page" }?.createdAt == nil)
+
+        // A newer version drawn since moves the date with the next opening.
+        let redrawn = drawn.addingTimeInterval(600)
+        recents.note(.image, id: "picture", title: "A cell", createdAt: redrawn, at: Date(timeIntervalSince1970: 1_790_000_300))
+        #expect(SpaceRecents(defaults: defaults).items.first?.createdAt == redrawn)
+    }
+}
+
 #endif
 
 @Suite("Screen record mode hides the account name")

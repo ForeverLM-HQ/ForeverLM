@@ -79,7 +79,10 @@ struct KnowledgeMapCommand: Identifiable, Equatable {
         /// the frame of notebook `notebookID` when that is set. A notebook
         /// whose frame is on the plane already is shown there instead.
         case drop(x: Double, y: Double, refs: [String], regionName: String?, notebookID: String? = nil)
-        /// Place `refs` in the middle of the view: the tray's Place.
+        /// Place `refs` beside the selection, else in the middle of the view:
+        /// the Library's Place All, and what the add box and the find field set
+        /// down when they were not asked for at a point. The renderer reveals
+        /// the block and rings it.
         case dropAtCenter(refs: [String], regionName: String?, notebookID: String? = nil)
     }
 
@@ -225,6 +228,37 @@ final class KnowledgeMapModel {
         }
     }
 
+    /// What the add box and the find field search, lower-cased once per change
+    /// of the cards rather than on every keystroke.
+    @ObservationIgnored private var cachedAddSearchIndex: (revision: Int, index: KnowledgeMapAddSearch.Index)?
+
+    var addSearchIndex: KnowledgeMapAddSearch.Index {
+        if let cached = cachedAddSearchIndex, cached.revision == contentRevision { return cached.index }
+        let index = KnowledgeMapAddSearch.Index(content: content)
+        cachedAddSearchIndex = (contentRevision, index)
+        return index
+    }
+
+    /// Whether the Library sidebar shows beside the plane: this Mac's choice,
+    /// remembered here and never synced, closed until it is opened. It steps
+    /// aside during a review in place without changing the choice.
+    static let libraryPreferenceKey = "knowledgeMap.library.v1"
+
+    var showsLibrary = KnowledgeMapRows.defaults.bool(forKey: KnowledgeMapModel.libraryPreferenceKey) {
+        didSet {
+            guard showsLibrary != oldValue else { return }
+            KnowledgeMapRows.defaults.set(showsLibrary, forKey: Self.libraryPreferenceKey)
+        }
+    }
+
+    /// Where the add box is asked for, in the window it was asked in
+    /// (`KnowledgeMapAddBoxRequest`); nil when it is closed. Never stored.
+    var addBox: KnowledgeMapAddBoxRequest?
+
+    /// Bumped by ⌘F on the plane, so the pane moves the cursor into its find
+    /// field.
+    var findFocusRequests = 0
+
     /// Focus mode: everything but the selection and what is joined to it is
     /// dimmed. Never stored; it ends with the canvas's model.
     var focusMode = false {
@@ -289,6 +323,17 @@ final class KnowledgeMapModel {
     /// Draws one page of a PDF source as a data URL, from the PDF this Mac
     /// holds; nil when it cannot. Set by the view model.
     @ObservationIgnored var pagePicture: (@MainActor (_ sourceID: String, _ page: Int) async -> String?)?
+    /// What this Mac has read of the PDF of each source the canvas may draw as
+    /// its page (a paper placed with `page`, or one a first placement would
+    /// give a page), by source id: how many pages it has and the first one's
+    /// shape (`StudioViewModel.loadKnowledgeMapPageFaces`). A page count of 0
+    /// means looked at and no PDF.
+    @ObservationIgnored var pageFaces: [String: KnowledgeMapPageFace] = [:]
+    /// Whether a source placed for the first time shows its page: its type is
+    /// paper and its PDF is on this Mac. Set by the view model
+    /// (`StudioViewModel.knowledgeMapSourceShowsPage`); without it no card is
+    /// given a page.
+    @ObservationIgnored var pageFaceDefault: ((String) -> Bool)?
 
     /// The page cards the canvas draws: those placed on it and those just
     /// made for it. A page is a card only once it is on a canvas.
@@ -367,13 +412,20 @@ final class KnowledgeMapModel {
     /// Writes a change to the learner's row. A change the learner made is
     /// remembered for Undo; one the app makes on its own (linking a notebook's
     /// frame) is not.
-    func updateLayout(undoable: Bool = true, sealed: Bool = false, _ change: (inout KnowledgeMapLayout, Double) -> Void) {
+    ///
+    /// A source the change places for the first time shows its page
+    /// (`pageFaceDefault`) when the write is the learner's own, one Undo
+    /// takes back (`undoable`, not `sealed`): Undo, Redo, Restore and the app's
+    /// own writes never add it, and a card already placed keeps its face.
+    /// `pagesForPapers` is false for a write that asked for the usual card.
+    func updateLayout(undoable: Bool = true, sealed: Bool = false, pagesForPapers: Bool = true, _ change: (inout KnowledgeMapLayout, Double) -> Void) {
         let now = Date()
         let stamp = now.timeIntervalSince1970
         var before = KnowledgeMapLayout()
         layout = KnowledgeMapRows.update(mapID: mapID, now: now) { row in
             before = row
             change(&row, stamp)
+            if undoable, !sealed, pagesForPapers { showPapersAsPages(in: &row, placedSince: before) }
         }
         layoutRevision &+= 1
         if undoable { remember(KnowledgeMapEdit(before: before, after: layout, at: now, sealed: sealed)) }
@@ -627,9 +679,10 @@ final class KnowledgeMapModel {
         Rect(x: region.x, y: region.y, w: region.w, h: region.h)
     }
 
-    /// A card's height on the plane, as the renderer draws it: the learner's
-    /// own (`Placement.h`), or a folded card's title line, else the kind's
-    /// natural one (`naturalCardHeight(of:)`).
+    /// A card's height on the plane, as the renderer draws it: a folded card's
+    /// title line, else the learner's own (`Placement.h`), else the kind's
+    /// natural one (`naturalCardHeight(of:)`). The learner's own height holds
+    /// the card's annotation too.
     func cardHeight(of ref: String) -> Double {
         if let placement = layout.placements[ref] {
             if placement.isFolded { return KnowledgeMap.foldedCardHeight }
@@ -638,21 +691,37 @@ final class KnowledgeMapModel {
         return naturalCardHeight(of: ref)
     }
 
-    /// A card's width on the plane: the learner's own (`Placement.w`), else
-    /// the usual 240.
+    /// A card's width on the plane: the learner's own (`Placement.w`), else a
+    /// mind-map node's (`isMindMapNode`), else the usual 240.
     func cardWidth(of ref: String) -> Double {
-        layout.placements[ref]?.w ?? KnowledgeMap.cardWidth
+        if let width = layout.placements[ref]?.w { return width }
+        return mindMapNodeSize(of: ref)?.w ?? KnowledgeMap.cardWidth
     }
 
     /// The height a card has before the learner sizes it: a clip is as tall as
-    /// its picture, a page as tall as the page and a picture as tall as its
-    /// shape, every other card the one size.
+    /// its picture, a page as tall as the page, a picture as tall as its
+    /// shape, a paper shown as its page (`Placement.page`, its PDF read) as
+    /// tall as the page at the card's width over the foot naming it, a
+    /// mind-map node as tall as its words, every other card the one size;
+    /// and, for any card but an Idea, the room for its annotation under that.
     func naturalCardHeight(of ref: String) -> Double {
+        if ref.hasPrefix("idea:") { return mindMapNodeSize(of: ref)?.h ?? KnowledgeMap.cardHeight }
+        let width = cardWidth(of: ref)
+        return kindCardHeight(of: ref, width: width) + KnowledgeMap.annotationHeight(layout.placements[ref]?.annotation, width: width)
+    }
+
+    /// What kind of card `ref` is makes it: the height of its picture, its page
+    /// or its page face, else the one size.
+    func kindCardHeight(of ref: String, width: Double) -> Double {
         if ref.hasPrefix("page:") {
             return KnowledgeMap.pageHeight(aspect: pageAspects[ref].flatMap { $0 > 0 ? $0 : nil })
         }
         if ref.hasPrefix("picture:") {
             return KnowledgeMap.pictureHeight(aspect: pictureAspects[ref].flatMap { $0 > 0 ? $0 : nil })
+        }
+        if let item = KnowledgeMap.ItemRef(ref), item.kind == .source,
+           layout.placements[ref]?.page != nil, let face = pageFaces[item.id], face.pageCount > 0 {
+            return KnowledgeMap.pageFaceHeight(aspect: face.aspect, width: width)
         }
         guard let item = KnowledgeMap.ItemRef(ref), item.kind == .clip, let clip = clips[item.id] else {
             return KnowledgeMap.cardHeight
@@ -691,20 +760,21 @@ final class KnowledgeMapModel {
     /// Sets `refs` down in region `id`, in free cells of its grid; the region
     /// grows to hold them. False when there is no such region.
     ///
-    /// `style` is the look the cards take on (their size, fold and colour),
-    /// written with them in the same edit; the cells are laid out for the size
-    /// they will have.
+    /// `style` is the look the cards take on (their size, fold, colour and
+    /// page) and `annotations` the words under some of them (by ref), written
+    /// with them in the same edit; the cells are laid out for the size they
+    /// will have.
     @discardableResult
-    func place(_ refs: [String], inRegion id: String, style: KnowledgeMapCardStyle? = nil) -> Bool {
+    func place(_ refs: [String], inRegion id: String, style: KnowledgeMapCardStyle? = nil, annotations: [String: String] = [:]) -> Bool {
         guard var region = layout.regions[id] else { return false }
         guard !refs.isEmpty else { return true }
-        let sizes = sizes(of: refs, style: style)
+        let sizes = sizes(of: refs, style: style, annotations: annotations)
         let laid = KnowledgeMapArranging.spots(
             heights: sizes.heights, widths: sizes.widths, in: rect(of: region), taken: placedCards(excluding: Set(refs))
         )
-        updateLayout { layout, at in
+        updateLayout(pagesForPapers: style?.page != 0) { layout, at in
             for (ref, spot) in zip(refs, laid.spots) { layout.place(ref, x: spot.x, y: spot.y, at: at) }
-            apply(style, to: refs, in: &layout, at: at)
+            apply(style, annotations: annotations, to: refs, in: &layout, at: at)
             if laid.height > region.h {
                 region.h = laid.height.rounded(.up)
                 region.at = at
@@ -725,10 +795,11 @@ final class KnowledgeMapModel {
         notebookID: String? = nil,
         color: String? = nil,
         style: KnowledgeMapCardStyle? = nil,
-        locked: Bool = false
+        locked: Bool = false,
+        annotations: [String: String] = [:]
     ) -> String? {
         let moving = Set(refs)
-        let sizes = sizes(of: refs, style: style)
+        let sizes = sizes(of: refs, style: style, annotations: annotations)
         let size = refs.isEmpty
             ? KnowledgeMapArranging.emptyRegionSize
             : { let f = KnowledgeMapArranging.block(heights: sizes.heights, widths: sizes.widths, origin: Spot(x: 0, y: 0)).frame; return (w: f.w, h: f.h) }()
@@ -740,9 +811,9 @@ final class KnowledgeMapModel {
         let frame = refs.isEmpty ? Rect(x: origin.x, y: origin.y, w: size.w, h: size.h) : laid.frame
         let id = regionName.map { _ in Self.newRegionID() }
         let tint = color ?? nextRegionColor()
-        updateLayout { layout, at in
+        updateLayout(pagesForPapers: style?.page != 0) { layout, at in
             for (ref, spot) in zip(refs, laid.spots) { layout.place(ref, x: spot.x, y: spot.y, at: at) }
-            apply(style, to: refs, in: &layout, at: at)
+            apply(style, annotations: annotations, to: refs, in: &layout, at: at)
             if let id, let regionName {
                 layout.setRegion(id, .init(
                     name: regionName,
@@ -758,24 +829,28 @@ final class KnowledgeMapModel {
     }
 
     /// Each card's height and width as it will be drawn once set down with
-    /// `style`: the style's own where it names one, else the card's now.
-    private func sizes(of refs: [String], style: KnowledgeMapCardStyle?) -> (heights: [Double], widths: [Double]?) {
-        let heights = refs.map { ref -> Double in
-            if style?.folded == true { return KnowledgeMap.foldedCardHeight }
-            return style?.h.map { min(max($0, KnowledgeMap.cardHeightRange.lowerBound), KnowledgeMap.cardHeightRange.upperBound) } ?? cardHeight(of: ref)
-        }
+    /// `style` and `annotations`: the style's own where it names one, else
+    /// the card's now, or (a card not placed yet) what it will be given: a
+    /// paper's page when it is set down showing one, a note's room under it.
+    private func sizes(of refs: [String], style: KnowledgeMapCardStyle?, annotations: [String: String]) -> (heights: [Double], widths: [Double]?) {
         let widths: [Double]? = (style?.w == nil && !refs.contains { layout.placements[$0]?.w != nil }) ? nil : refs.map { ref in
             style?.w.map { min(max($0, KnowledgeMap.cardWidthRange.lowerBound), KnowledgeMap.cardWidthRange.upperBound) } ?? cardWidth(of: ref)
+        }
+        let heights = refs.enumerated().map { index, ref in
+            heightWhenSetDown(ref, width: widths?[index] ?? KnowledgeMap.cardWidth, style: style, annotation: annotations[ref])
         }
         return (heights, widths)
     }
 
-    /// Writes `style` onto the placements of `refs`.
-    private func apply(_ style: KnowledgeMapCardStyle?, to refs: [String], in row: inout KnowledgeMapLayout, at: Double) {
-        guard let style, !style.isEmpty else { return }
+    /// Writes `style` and `annotations` onto the placements of `refs`.
+    private func apply(_ style: KnowledgeMapCardStyle?, annotations: [String: String] = [:], to refs: [String], in row: inout KnowledgeMapLayout, at: Double) {
+        guard style?.isEmpty == false || !annotations.isEmpty else { return }
         for ref in refs {
             guard var placement = row.placements[ref] else { continue }
-            placement = placement.styled(by: style.edit(for: ref))
+            var edit = style?.edit(for: ref) ?? KnowledgeMapPlacementStyle(ref: ref)
+            if let words = annotations[ref] { edit.annotation = .set(words) }
+            guard !edit.isKeep else { continue }
+            placement = placement.styled(by: edit)
             placement.at = at
             row.setPlacement(ref, placement)
         }
@@ -1021,8 +1096,8 @@ final class KnowledgeMapModel {
         layout.placements.keys.reduce(0) { $0 + (nodesByRef[$1] != nil ? 1 : 0) }
     }
 
-    /// The open Ideas not on the map yet, newest first: what the tray offers
-    /// first, and what an empty map asks to place.
+    /// The open Ideas not on the map yet, newest first: the add box's Recent
+    /// ideas and the Library's Ideas.
     var unplacedIdeaRefs: [String] {
         content.nodes.filter { $0.kind == "idea" && layout.placements[$0.ref] == nil }.map(\.ref)
     }
@@ -1078,7 +1153,8 @@ final class KnowledgeMapModel {
             pages: pages,
             captions: captions,
             canvases: otherCanvases,
-            pictures: pictures
+            pictures: pictures,
+            pageFaces: pageFaces
         )
         self.clips = Dictionary(clips.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         notebookContexts = Dictionary(
@@ -1135,7 +1211,8 @@ final class KnowledgeMapModel {
         pages: [KnowledgeMapPageCard] = [],
         captions: [String: String] = [:],
         canvases: [KnowledgeMapCanvas] = [],
-        pictures: [KnowledgeMapPictureCard] = []
+        pictures: [KnowledgeMapPictureCard] = [],
+        pageFaces: [String: KnowledgeMapPageFace] = [:]
     ) -> KnowledgeMapContent {
         let sources = articles.filter { $0.status == .active && !$0.isHidden }
         let sourceIDs = Set(sources.map(\.id))
@@ -1167,6 +1244,8 @@ final class KnowledgeMapModel {
             if let chats = chatsBySource[source.id] { detail.append(chats == 1 ? "1 chat" : "\(chats) chats") }
             if let docs = docsBySource[source.id] { detail.append(docs == 1 ? "1 page" : "\(docs) pages") }
             if let quote = firstHighlights[source.id] { detail.append("“\(quote)”") }
+            // A paper's PDF read on this Mac gives its card the page to draw.
+            let face = pageFaces[source.id].flatMap { $0.pageCount > 0 ? $0 : nil }
             nodes.append(KnowledgeMapNode(
                 ref: KnowledgeMap.ItemRef(kind: .source, id: source.id).description,
                 kind: "source",
@@ -1176,7 +1255,10 @@ final class KnowledgeMapModel {
                 detail: detail,
                 shore: inNotebooks.first ?? "Not in a notebook",
                 group: source.parentGroup,
-                groupTitle: source.parentGroup.flatMap { groupTitles[$0] }
+                groupTitle: source.parentGroup.flatMap { groupTitles[$0] },
+                pages: face?.pageCount,
+                aspect: face?.aspect,
+                read: source.isRead ? true : nil
             ))
         }
         let notebookTitles = Dictionary(notebooks.map { ($0.id, NotebookTitle($0.title).text) }, uniquingKeysWith: { first, _ in first })
@@ -1207,7 +1289,7 @@ final class KnowledgeMapModel {
                 kind: "idea",
                 type: "idea",
                 title: idea.title,
-                sub: note.isEmpty ? "Idea" : note,
+                sub: note.isEmpty ? KnowledgeMapAddSearch.noteLessIdeaLine : note,
                 detail: [],
                 shore: notebook ?? "Ideas"
             ))

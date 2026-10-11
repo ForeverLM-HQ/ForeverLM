@@ -2831,11 +2831,13 @@ struct StudioArticle: Identifiable, Codable, Equatable {
             || message.contains(KeychainService.backgroundAIConsentMessage) {
             return .configureAI
         }
-        // Every "add your key … choose a plan" wording: today's names the key's
-        // pane (AI Usage) between the two, the one before the split did not.
-        // "AI balance is empty" and "top up" are the wordings from before the
-        // prepaid balance was retired, still stored on older rows.
-        if (message.localizedCaseInsensitiveContains("your OpenRouter key")
+        // Every "add your OpenRouter key" wording: today's, and those from
+        // while the key also needed a plan ("… and choose a plan", until
+        // 2026-10-10), still stored on older rows. "AI balance is empty" and
+        // "top up" are the wordings from before the prepaid balance was
+        // retired.
+        if message.localizedCaseInsensitiveContains("add your OpenRouter key")
+            || (message.localizedCaseInsensitiveContains("your OpenRouter key")
                 && message.localizedCaseInsensitiveContains("choose a plan"))
             || message.localizedCaseInsensitiveContains("AI balance is empty")
             || message.localizedCaseInsensitiveContains("top up") {
@@ -4880,6 +4882,11 @@ extension UTType {
     /// part of a page, with the source and page it came from
     /// (`StudioClipTransfer`).
     static let studioClip = UTType(exportedAs: "com.foreverlm.studio-clip")
+    /// Custom UTType for a card dragged out of the Canvas's Library sidebar or
+    /// its add box: the refs of the cards, so the plane sets down exactly
+    /// those (`KnowledgeMapCardTransfer`). It rides beside the card's own drag
+    /// (a source's, a Doc's, a clip's), which a chat or an Idea still takes.
+    static let knowledgeMapCard = UTType(exportedAs: "com.foreverlm.canvas-card")
     /// Finder-style web location files for dragging URL-only sources to external apps.
     static let webInternetLocation = UTType(filenameExtension: "webloc")
         ?? UTType(importedAs: "com.apple.web-internet-location")
@@ -5041,6 +5048,13 @@ struct StudioNotebookTransfer: Codable, Transferable {
     static var transferRepresentation: some TransferRepresentation {
         CodableRepresentation(contentType: .studioNotebook)
     }
+}
+
+/// The cards a Canvas Library or add-box row carries to the plane
+/// (`UTType.knowledgeMapCard`, own process only): item refs such as
+/// `source:<id>` or `idea:<id>`. A Canvas takes the ones its cards know.
+struct KnowledgeMapCardTransfer: Codable, Equatable {
+    var refs: [String]
 }
 
 /// A Goal row on its way to another row's place in the Goals tab.

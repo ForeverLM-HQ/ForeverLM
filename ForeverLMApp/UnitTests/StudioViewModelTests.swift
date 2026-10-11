@@ -6083,18 +6083,18 @@ struct ScheduleChatNavigationTests {
         #expect(vm.centerTabGroups.groups[0].isPinned)
     }
 
-    @Test("The Docs tab holds Docs, Sites and Ideas, each opening its own pane")
+    @Test("The Space's sidebar opens Pages and Sites each in its own pane")
     func artifactKindsMatchTheirPanes() {
         // The product owner, 2026-10-06: "perhaps docs and sites can be. the other
         // things are more one off per notebook" — the one-off kinds are
-        // listed in their notebook's Studio, and Goals are the home's own tab.
-        #expect(ArtifactsHomeKind.allCases == [.docs, .sites, .ideas])
-        #expect(Set(ArtifactsHomeKind.allCases.map(\.centerTab)) == StudioCenterTab.artifactKinds)
-        #expect(ArtifactsHomeKind.allCases.filter(\.listsOwnRows) == [.ideas])
+        // listed in their notebook's Studio. Ideas left the sidebar on
+        // 2026-10-10 for the chat; their pane still opens beside a Doc whose
+        // idea link is followed, so it stays one of the kinds' panes.
+        #expect(ArtifactsHomeKind.allCases == [.docs, .sites])
+        #expect(Set(ArtifactsHomeKind.allCases.map(\.centerTab)) == StudioCenterTab.artifactKinds.subtracting([.ideas]))
+        #expect(StudioCenterTab.artifactKinds.contains(.ideas))
         #expect(ArtifactsHomeKind.docs.otherWindowDestination == .docs)
         #expect(ArtifactsHomeKind.sites.otherWindowDestination == .sites)
-        #expect(ArtifactsHomeKind.ideas.otherWindowDestination == .ideas)
-        #expect(ArtifactsHomeKind.ideas.linkSection == nil)
     }
 
     @Test("workspace destinations replace a pane after the two-pane cap")

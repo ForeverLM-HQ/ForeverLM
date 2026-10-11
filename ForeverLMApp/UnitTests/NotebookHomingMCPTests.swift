@@ -370,13 +370,12 @@ struct NotebookChatMadeThingTests {
         func filled(_ tool: String, _ arguments: [String: Any]) -> [String: Any] {
             ReviewSessionManager.notebookScopedArgumentsForTesting(toolName: tool, arguments: arguments, notebookScopeID: "proj-1")
         }
-        for tool in ["create_doc", "link_page", "link_google_doc", "save_site", "publish_site", "save_animation"] {
+        for tool in ["create_doc", "link_page", "link_google_doc", "save_site", "save_animation"] {
             #expect(filled(tool, ["title": "T"])["home_notebook_id"] as? String == "proj-1", "\(tool)")
             #expect(filled(tool, ["home_notebook_id": "proj-2"])["home_notebook_id"] as? String == "proj-2", "\(tool)")
             #expect(filled(tool, ["notebook_ids": ["proj-3"]])["home_notebook_id"] == nil, "\(tool): links the model chose stand")
         }
         #expect(filled("save_site", ["site": "site-1"])["home_notebook_id"] == nil, "an update keeps where the site lives")
-        #expect(filled("publish_site", ["site": "site-1"])["home_notebook_id"] == nil)
         #expect(filled("save_animation", ["animation": "anim-1"])["home_notebook_id"] == nil)
         for tool in ["generate_course", "create_course", "import_youtube_playlist", "import_teachable_course", "create_learning_goal"] {
             #expect(filled(tool, ["topic": "t"])["notebook_id"] as? String == "proj-1", "\(tool)")

@@ -1879,7 +1879,7 @@ struct ChatRobustnessTests {
             ReviewSessionManager.chatConfigFailureMessageForTesting(
                 isSignedIn: true,
                 provider: .meta
-            ) == "The selected chat model isn't available. Choose another model, or check your OpenRouter key in Settings › AI Usage and your plan in Settings › Billing."
+            ) == "The selected chat model isn't available. Choose another model, or check your OpenRouter key in Settings › AI Usage."
         )
         #expect(
             !ReviewSessionManager.chatConfigFailureMessageForTesting(
@@ -2143,26 +2143,28 @@ struct ChatRobustnessTests {
             #expect(!value.contains("sk-or-test-key"))
         }
 
-        // Without a plan the call goes to the proxy, which is told only that
-        // a key is held. The key itself never reaches ForeverLM.
+        // On an account that may not run the key (a locked one) the call goes
+        // to the proxy, which is told only that a key is held. The key itself
+        // never reaches ForeverLM.
         ManagedAI.ownKeyAllowedOverrideForTesting = false
-        var unplanned = URLRequest(url: URL(string: "https://openrouter.ai/api/v1/chat/completions")!)
-        unplanned.httpMethod = "POST"
-        unplanned.httpBody = try JSONSerialization.data(withJSONObject: ["model": "anthropic/claude-sonnet-5"])
-        try ManagedAI.rewrite(&unplanned)
-        #expect(unplanned.url?.host == ManagedAI.baseURL.host)
-        #expect(unplanned.value(forHTTPHeaderField: ManagedAI.ownKeyHeader) == nil)
-        #expect(unplanned.value(forHTTPHeaderField: ManagedAI.ownKeyHeldHeader) == "1")
-        for (_, value) in unplanned.allHTTPHeaderFields ?? [:] {
+        var heldBack = URLRequest(url: URL(string: "https://openrouter.ai/api/v1/chat/completions")!)
+        heldBack.httpMethod = "POST"
+        heldBack.httpBody = try JSONSerialization.data(withJSONObject: ["model": "anthropic/claude-sonnet-5"])
+        try ManagedAI.rewrite(&heldBack)
+        #expect(heldBack.url?.host == ManagedAI.baseURL.host)
+        #expect(heldBack.value(forHTTPHeaderField: ManagedAI.ownKeyHeader) == nil)
+        #expect(heldBack.value(forHTTPHeaderField: ManagedAI.ownKeyHeldHeader) == "1")
+        for (_, value) in heldBack.allHTTPHeaderFields ?? [:] {
             #expect(!value.contains("sk-or-test-key"))
         }
     }
 
-    @Test("Without a plan not even a free model leaves on the key")
-    func ownKeyWithoutAPlanRunsNothing() throws {
-        // 2026-09-27: Free mode needs a plan too; for one day it stood in for
-        // one. Free, paid, or a body ForeverLM cannot read: all go to the
-        // proxy, which answers plan_required.
+    @Test("A locked account's key sends nothing direct, not even a free model")
+    func ownKeyOnALockedAccountRunsNothing() throws {
+        // The paid app (2026-10-10): a locked account's key runs no model, and
+        // Free mode neither (2026-09-27: Free mode never stood in for paying).
+        // Free, paid, or a body ForeverLM cannot read: all go to the proxy,
+        // which answers app_locked.
         ManagedAI.ownKeyOverrideForTesting = .some(
             ManagedAI.OwnKey(router: .openRouter, key: "sk-or-test-key")
         )
@@ -2173,7 +2175,7 @@ struct ChatRobustnessTests {
         }
 
         for body: Data? in [
-            try JSONSerialization.data(withJSONObject: ["model": "test/free-without-a-plan:free"]),
+            try JSONSerialization.data(withJSONObject: ["model": "test/free-on-a-locked-account:free"]),
             try JSONSerialization.data(withJSONObject: ["model": "anthropic/claude-sonnet-5"]),
             nil,
         ] {
@@ -6649,24 +6651,24 @@ struct RepeatedToolRefusalTests {
     @MainActor
     func thirdRefusalStops() {
         var refusals = Refusals()
-        let refusal = "Error: ‘Atlas’ is a team's copy of a site whose files are still on sites.foreverlm.com."
+        let refusal = "Error: ‘Atlas’ has no file companies.html. Its files: index.html."
         #expect(refusals.record(toolName: "save_site", result: Result(text: refusal, isError: true)) == refusal)
-        let respaced = "error:  ‘atlas’ is a team's copy of a site whose files are still on sites.foreverlm.com."
+        let respaced = "error:  ‘atlas’ has no file companies.html. its files: index.html."
         #expect(refusals.record(toolName: "read_site_file", result: Result(text: respaced, isError: true)) == respaced)
         #expect(refusals.withheldResult(for: "save_site") == nil, "two refusals are not yet a loop")
-        let third = refusals.record(toolName: "publish_site", result: Result(text: refusal, isError: true))
+        let third = refusals.record(toolName: "replace_site_text", result: Result(text: refusal, isError: true))
         #expect(third.hasPrefix(refusal))
-        #expect(third.contains("publish_site, read_site_file, save_site will not be run again"), "case and spacing did not make the second a new refusal")
+        #expect(third.contains("read_site_file, replace_site_text, save_site will not be run again"), "case and spacing did not make the second a new refusal")
 
         // Every tool that gave it is withheld; others still run.
         let withheld = refusals.withheldResult(for: "read_site_file")
         #expect(withheld?.isError == true)
-        #expect(withheld?.text.contains("‘Atlas’ is a team's copy") == true)
+        #expect(withheld?.text.contains("‘Atlas’ has no file") == true)
         #expect(refusals.withheldResult(for: "list_docs") == nil)
         #expect(refusals.exhaustedRefusal == nil)
         _ = refusals.withheldResult(for: "save_site")
-        _ = refusals.withheldResult(for: "publish_site")
-        #expect(refusals.exhaustedRefusal?.hasPrefix("‘Atlas’ is a team's copy") == true, "three withheld calls end the turn")
+        _ = refusals.withheldResult(for: "replace_site_text")
+        #expect(refusals.exhaustedRefusal?.hasPrefix("‘Atlas’ has no file") == true, "three withheld calls end the turn")
     }
 
     @Test("Successes and different refusals do not count toward a stop")

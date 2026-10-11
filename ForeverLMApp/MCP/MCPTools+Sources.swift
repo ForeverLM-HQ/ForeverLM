@@ -793,9 +793,10 @@ extension MCPDataStore {
                     "key_pays_for": router.billedScope,
                 ] as [String: Any]
             },
-            // Bring your own key since 2026-09-25: the key runs AI features
-            // only with a ForeverLM plan.
-            "plan_allows_key": ManagedAI.ownKeyAllowed,
+            // Bring your own key since 2026-09-25. The key runs AI features
+            // while the account is unlocked: the free days, or paid (the paid
+            // app of 2026-10-10).
+            "own_key_allowed": ManagedAI.ownKeyAllowed,
         ]
         if let own = ManagedAI.ownKey {
             payload["configured"] = true
@@ -812,7 +813,7 @@ extension MCPDataStore {
             payload["router"] = NSNull()
             payload["key_suffix"] = NSNull()
             payload["key_pays_for"] = NSNull()
-            payload["billed_to"] = "leftover ForeverLM balance, while any is left; AI features otherwise need the learner's own OpenRouter key and a ForeverLM plan"
+            payload["billed_to"] = "leftover ForeverLM balance, while any is left; AI features otherwise need the learner's own OpenRouter key, which runs during the free days and once ForeverLM is paid for"
             payload["balance_still_pays_for"] = "every AI request, while any is left"
         }
         if let changed { payload["changed"] = changed }

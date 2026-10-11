@@ -30,7 +30,8 @@ extension StudioViewModel {
 
     /// ⌥-click, Return on a selected card, the popup's and the inspector's
     /// Open Beside: the card opens beside the Canvas in `windowState`, which
-    /// keeps what it shows. It closes the popup that offered it.
+    /// keeps what it shows. It closes the popup that offered it. A paper shown
+    /// as its page opens at that page.
     func openKnowledgeMapItemBeside(_ ref: String, in windowState: StudioWindowState) async {
         dismissKnowledgeMapPopup()
         if let id = Self.knowledgeMapID(of: ref, prefix: "canvas:") {
@@ -51,6 +52,8 @@ extension StudioViewModel {
                 showToast("That source is not in the library")
                 return
             }
+            // A paper shown as its page opens at that page.
+            requestReaderPassage(nil, page: knowledgeMap.layout.placements[ref]?.page, for: canonicalSourceID(item.id))
         } else if item.kind == .doc {
             revealArtifact(item.id, in: windowState, beside: .knowledgeMap)
         } else if item.kind == .idea {

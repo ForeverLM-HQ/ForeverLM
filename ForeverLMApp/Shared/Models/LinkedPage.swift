@@ -19,9 +19,6 @@ enum LinkedPageKind: String, CaseIterable, Sendable {
     /// A site made in ForeverLM itself — HTML the learner (or a chat) wrote,
     /// kept in the library at `foreverlm-site://<id>/` (`save_site`;
     /// docs/docs-design.md → Sites) and served as written from its own files.
-    /// A record made before 2026-09-22 points at `sites.foreverlm.com/<slug>/`
-    /// until its files are brought home (`HostedSiteAdoption`); one entry per
-    /// site, the address being the slug alone whatever page was pasted.
     case foreverlmSite = "foreverlm_site"
 
     /// What the list row, the metadata caption and the menus call one of these.
@@ -212,10 +209,6 @@ enum LinkedPage {
         if isCodexSiteHost(host) {
             return codexSiteURL(from: url, host: host)
         }
-        if host == foreverlmSitesHost {
-            guard let canonical = foreverlmSiteURL(from: url) else { throw LinkedPageError.noForeverLMSite }
-            return canonical
-        }
         throw LinkedPageError.unsupported(host)
     }
 
@@ -243,7 +236,6 @@ enum LinkedPage {
             return claudeArtifactID(from: url) == nil ? nil : .claudeArtifact
         }
         if isCodexSiteHost(host) { return .codexSite }
-        if host == foreverlmSitesHost { return foreverlmSiteSlug(from: url) == nil ? nil : .foreverlmSite }
         return nil
     }
 
@@ -298,37 +290,6 @@ enum LinkedPage {
         return components.url ?? URL(string: "https://\(host)/")!
     }
 
-    // MARK: ForeverLM sites
-
-    /// The host that serves sites published from ForeverLM.
-    static let foreverlmSitesHost = "sites.foreverlm.com"
-
-    /// A site's address: lowercase letters, digits and single hyphens, three
-    /// to sixty-four of them — the rule `publish_site` and the site apply.
-    private static let foreverlmSiteSlugPattern = try! NSRegularExpression(pattern: "^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){2,63}$")
-
-    /// The slug of a `sites.foreverlm.com` link: its first path segment, when
-    /// that is an address a site can have. The host's own root is not a site.
-    static func foreverlmSiteSlug(from url: URL) -> String? {
-        guard url.host?.lowercased() == foreverlmSitesHost,
-              let first = url.pathComponents.first(where: { $0 != "/" })?.lowercased(),
-              foreverlmSiteSlugPattern.firstMatch(in: first, range: NSRange(first.startIndex..., in: first)) != nil else {
-            return nil
-        }
-        return first
-    }
-
-    /// One site, one URL: `https://sites.foreverlm.com/<slug>/`, whichever of
-    /// its pages was pasted.
-    static func foreverlmSiteURL(from url: URL) -> URL? {
-        guard let slug = foreverlmSiteSlug(from: url) else { return nil }
-        return foreverlmSiteURL(slug: slug)
-    }
-
-    static func foreverlmSiteURL(slug: String) -> URL {
-        URL(string: "https://\(foreverlmSitesHost)/\(slug)/")!
-    }
-
     // MARK: Sites kept in the library
 
     /// A ForeverLM site or animation lives in the learner's own library: its
@@ -336,9 +297,8 @@ enum LinkedPage {
     /// between devices inside the Artifact's CloudKit body asset. Its address
     /// is `foreverlm-site://<artifact-id>/`, which the app's web views serve
     /// from that folder (`LocalSiteSchemeHandler`) — each record its own
-    /// origin. Publishing to `sites.foreverlm.com` is a separate, opt-in copy;
-    /// the record never points there. The product owner (2026-09-22): "data should stay
-    /// in the user's icloud in general".
+    /// origin, and nothing is put on the web. The product owner (2026-09-22):
+    /// "data should stay in the user's icloud in general".
     static let localSiteScheme = LocalSiteServing.scheme
 
     static func localSiteURL(artifactID: String) -> URL {
@@ -374,7 +334,7 @@ enum LinkedPage {
             return host == "auth.openai.com" || host.hasSuffix(".auth.openai.com")
                 || host == "chatgpt.com" || host.hasSuffix(".chatgpt.com")
         case .foreverlmSite:
-            // A ForeverLM site is public by construction; nothing to sign in to.
+            // A ForeverLM site is served from the library; nothing to sign in to.
             return false
         }
     }
@@ -521,7 +481,6 @@ enum LinkedPageError: LocalizedError, Equatable {
     case notAURL
     case unsupported(String)
     case noClaudeArtifact
-    case noForeverLMSite
     /// A recognized link pasted into the section that does not hold its kind.
     case wrongSection(kind: LinkedPageKind, section: ArtifactSection)
 
@@ -532,11 +491,9 @@ enum LinkedPageError: LocalizedError, Equatable {
         case .notAURL:
             return "That is not a web address."
         case .unsupported(let host):
-            return "That link points at \(host). ForeverLM can link a Google Doc (docs.google.com) in Pages, and a Claude artifact (claude.ai/code/artifact/…), a Codex site (….chatgpt.site) or a ForeverLM site (sites.foreverlm.com/…) in Sites."
+            return "That link points at \(host). ForeverLM can link a Google Doc (docs.google.com) in Pages, and a Claude artifact (claude.ai/code/artifact/…) or a Codex site (….chatgpt.site) in Sites."
         case .noClaudeArtifact:
             return "That claude.ai link is not an artifact. It should look like claude.ai/code/artifact/…"
-        case .noForeverLMSite:
-            return "That sites.foreverlm.com link is not a site. It should look like sites.foreverlm.com/<address>/"
         case .wrongSection(let kind, let section):
             return "That is a \(kind.label). Link it from \(kind.section.title), not \(section.title)."
         }
@@ -551,7 +508,7 @@ extension ArtifactRecord {
     }
 
     /// Docs, Sites or Animations. The record's own kind answers first: an
-    /// animation is hosted as a ForeverLM site and would otherwise read as
+    /// animation is kept as a ForeverLM site and would otherwise read as
     /// one. Then the link alone: a Markdown doc — published or not — a linked
     /// Google Doc, and a linked URL no build recognizes are Docs; a Claude
     /// artifact, a Codex site or a ForeverLM site is a Site. An audio

@@ -159,6 +159,82 @@ struct MCPTunnelProvisioningRequestTests {
     }
 }
 
+/// `GET /mcp-url` on the loopback listener tells a plugin on this Mac which
+/// personal URL the app serves now. On 2026-10-10 a new Apple identity meant a
+/// new tunnel, and the old URL answered 503 "app not running" forever while the
+/// Read AI plugin kept calling it. The route answers local programs only, and
+/// says nothing but the URL.
+@Suite("MCP loopback personal URL")
+struct MCPLoopbackPersonalURLTests {
+    private let port: UInt16 = 8522
+    private let url = "https://be13a8b307673678.foreverlm.com"
+
+    private func request(
+        _ method: String = "GET",
+        path: String = "/mcp-url",
+        headers: [String: String] = ["host": "127.0.0.1:8522"]
+    ) -> HTTPRequest {
+        HTTPRequest(method: method, path: path, queryString: "", headers: headers, body: Data())
+    }
+
+    private func body(_ response: HTTPResponse) throws -> [String: String] {
+        try #require(try JSONSerialization.jsonObject(with: response.body) as? [String: String])
+    }
+
+    @Test("A local program gets the URL and nothing else")
+    func localProgramGetsOnlyTheURL() throws {
+        let response = MCPServerLauncher.personalURLResponse(to: request(), tunnelURL: url, port: port)
+        #expect(response.status == 200)
+        #expect(try body(response) == ["url": url])
+    }
+
+    @Test("Every loopback spelling of the address is local, and so is the learner typing it")
+    func loopbackSpellingsAreLocal() {
+        for headers in [
+            ["host": "localhost:8522"],
+            ["host": "127.0.0.1"],
+            ["host": "LOCALHOST:8522"],
+            ["host": "127.0.0.1:8522", "sec-fetch-site": "none"],
+        ] {
+            let response = MCPServerLauncher.personalURLResponse(to: request(headers: headers), tunnelURL: url, port: port)
+            #expect(response.status == 200, "\(headers)")
+        }
+    }
+
+    @Test("A web page cannot read it")
+    func browserRequestsAreRefused() {
+        for headers in [
+            ["host": "127.0.0.1:8522", "origin": "https://example.com"],
+            ["host": "127.0.0.1:8522", "sec-fetch-site": "cross-site"],
+            ["host": "127.0.0.1:8522", "sec-fetch-site": "same-origin"],
+            // DNS rebinding: the page's own hostname, resolved to 127.0.0.1.
+            ["host": "example.com:8522"],
+            ["host": "127.0.0.1:8523"],
+            [:],
+        ] {
+            let response = MCPServerLauncher.personalURLResponse(to: request(headers: headers), tunnelURL: url, port: port)
+            #expect(response.status == 403, "\(headers)")
+            #expect(!String(decoding: response.body, as: UTF8.self).contains("foreverlm.com"))
+        }
+    }
+
+    @Test("With no tunnel it says so rather than naming a URL")
+    func noTunnelIsUnavailable() throws {
+        for tunnelURL in [nil, ""] as [String?] {
+            let response = MCPServerLauncher.personalURLResponse(to: request(), tunnelURL: tunnelURL, port: port)
+            #expect(response.status == 503)
+            #expect(try body(response) == ["error": "not_connected"])
+        }
+    }
+
+    @Test("Only GET on the exact path answers")
+    func onlyGetOnTheExactPath() {
+        #expect(MCPServerLauncher.personalURLResponse(to: request("POST"), tunnelURL: url, port: port).status == 405)
+        #expect(MCPServerLauncher.personalURLResponse(to: request(path: "/mcp-url/token"), tunnelURL: url, port: port).status == 404)
+        #expect(MCPServerLauncher.personalURLPath == "/mcp-url")
+    }
+}
+
 /// The tool has run by the time its answer cannot be sent, so the answer is held
 /// for the reconnect rather than dropped — a write that landed on 2026-09-19 left
 /// its caller timing out for want of this. The relay keeps the request pending for

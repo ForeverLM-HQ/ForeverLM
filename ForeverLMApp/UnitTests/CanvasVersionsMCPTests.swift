@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import ForeverLM
 
-@Suite("MCP: a canvas's versions, export and publishing", .serialized)
+@Suite("MCP: a canvas's versions and export", .serialized)
 @MainActor
 struct CanvasVersionsMCPTests {
     /// A Studio view model over a store of its own, bound as the one the MCP
@@ -140,35 +140,6 @@ struct CanvasVersionsMCPTests {
             let schema = tools.first { $0.name == name }?.inputSchema ?? [:]
             for key in ["anyOf", "oneOf", "allOf"] { #expect(schema[key] == nil, "\(name) has a top-level \(key)") }
         }
-    }
-
-    @Test("A card links on a published page where a public address is known: a page open to anyone, or a public site; never a private one")
-    func publicLinks() throws {
-        let vm = StudioViewModel(storageService: StorageService(storeRoot: FileManager.default.temporaryDirectory
-            .appendingPathComponent("CanvasVersionsMCPTests_\(UUID().uuidString)", isDirectory: true)))
-        let now = Date()
-        vm.publishedDocStatuses = [
-            "open": PublishedDocStatus(docID: "open", url: try #require(URL(string: "https://foreverlm.com/d/open")), slug: "open", title: "Open", publishedAt: now, updatedAt: now, isProtected: false, password: nil),
-            "shared": PublishedDocStatus(docID: "shared", url: try #require(URL(string: "https://foreverlm.com/d/shared")), slug: "shared", title: "Shared", publishedAt: now, updatedAt: now, isProtected: true, password: nil),
-        ]
-        func site(_ id: String, _ visibility: SitePublishingAccess.Visibility) throws -> PublishedSiteStatus {
-            PublishedSiteStatus(
-                siteID: id, url: try #require(URL(string: "https://sites.foreverlm.com/\(id)/")), slug: id, title: id,
-                publishedAt: now, updatedAt: now, bytes: 1, filePaths: ["index.html"],
-                access: SitePublishingAccess(teamID: nil, readers: [], visibility: visibility)
-            )
-        }
-        vm.publishedSiteStatusesBySlug = ["pub": try site("pub", .publicSite), "priv": try site("priv", .privateSite)]
-        func node(_ ref: String) -> KnowledgeMapNode {
-            KnowledgeMapNode(ref: ref, kind: KnowledgeMapMarkdown.kind(of: ref), type: "doc", title: "t", sub: "", detail: [], shore: "")
-        }
-        #expect(vm.canvasPublicLink(for: node("doc:open")) == "https://foreverlm.com/d/open")
-        #expect(vm.canvasPublicLink(for: node("doc:shared")) == nil, "shared with chosen readers, not with anyone")
-        #expect(vm.canvasPublicLink(for: node("doc:pub")) == "https://sites.foreverlm.com/pub/")
-        #expect(vm.canvasPublicLink(for: node("doc:priv")) == nil)
-        #expect(vm.canvasPublicLink(for: node("doc:unpublished")) == nil)
-        #expect(vm.canvasPublicLink(for: node("idea:i")) == nil)
-        #expect(vm.canvasPublicLink(for: node("chat:c")) == nil)
     }
 
     @Test("A canvas that is not open, or has nothing on it, is not drawn, and says why; the exporter's scale and refs reach it")

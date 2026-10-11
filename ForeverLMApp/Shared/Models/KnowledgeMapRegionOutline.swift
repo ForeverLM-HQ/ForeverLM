@@ -1,10 +1,11 @@
 import Foundation
 
-// MARK: - The tray's Regions list (docs/knowledge-map-design.md, "The tray")
+// MARK: - The canvas menu's Regions list (docs/knowledge-map-design.md, "Adding to the canvas", part 4)
 //
 // Heptabase's table of contents lists a whiteboard's sections in reading
 // order. The Canvas's regions nest by their rects (`parentRegionID(of:)`), so
-// the list is an outline: a region, then the regions inside it, indented.
+// the list is an outline: a region, then the regions inside it, indented. The
+// chrome line's canvas menu lists it, each row flying to its region.
 
 extension KnowledgeMapLayout {
     /// One line of the Regions list.

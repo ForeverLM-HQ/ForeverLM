@@ -230,7 +230,7 @@ struct StudioClipTransfer: Codable, Equatable, Sendable {
     var pixelHeight: Int
     var highlightID: String?
 
-    /// A saved clip as it drags: from the Canvas's tray back onto the plane.
+    /// A saved clip as it drags: from the Canvas's Library back onto the plane.
     init?(clip highlight: SourceHighlight) {
         guard let reference = ReaderClip.reference(of: highlight), let crop = reference.crop,
               case .page(let page) = reference.location, let anchor = highlight.imageAnchors.first else { return nil }
@@ -245,7 +245,7 @@ struct StudioClipTransfer: Codable, Equatable, Sendable {
         )
     }
 
-    /// A passage as it drags: from the Reader's notes or the Canvas's tray
+    /// A passage as it drags: from the Reader's notes or the Canvas's Library
     /// onto the plane. It names a mark that exists (`highlightID`); there is
     /// no page region (`page` 0), so nothing new is ever saved from it.
     init?(passage highlight: SourceHighlight) {

@@ -23,6 +23,9 @@ enum SharedWebKit {
     /// WebKit declares `writingToolsBehavior` on the configuration only for a
     /// deployment target of macOS 15 or later, and ours is 14, so it is set by
     /// key; a system without the property never answers the selector.
+    ///
+    /// The configuration is half of it: the view answers for the badge itself,
+    /// in `allowsWritingToolsAffordance(in:)`.
     static func disableSystemWritingTools(on configuration: WKWebViewConfiguration) {
         #if os(macOS)
         if #available(macOS 15.0, *),
@@ -31,6 +34,40 @@ enum SharedWebKit {
         }
         #endif
     }
+
+    /// What every ForeverLM web view class answers when AppKit asks it
+    /// `allowsWritingToolsAffordance`: no on a page whose configuration
+    /// `disableSystemWritingTools(on:)` set, WebKit's own answer anywhere else.
+    ///
+    /// The configuration alone left the badge and the underlines up. On a
+    /// selection AppKit asks the view itself whether it may show its Apple
+    /// Intelligence badge, and WebKit answers yes for any selection whatever
+    /// the configuration says (macOS 27: `none` set, yes answered). A no makes
+    /// AppKit dismiss the badge at once, and the proofreading pass that draws
+    /// the underlines starts only from a badge that opened. One class backs a
+    /// reader and a Browser tab alike, so the configuration decides, not the
+    /// class.
+    static func allowsWritingToolsAffordance(in webView: WKWebView) -> Bool {
+        #if os(macOS)
+        // WebKit's own method, which the app's classes stand in front of.
+        let selector = NSSelectorFromString("allowsWritingToolsAffordance")
+        // A WebKit without the method has no badge to offer.
+        guard let method = class_getInstanceMethod(WKWebView.self, selector) else { return false }
+        if systemWritingToolsDisabled(in: webView.configuration) { return false }
+        typealias Getter = @convention(c) (AnyObject, Selector) -> Bool
+        return unsafeBitCast(method_getImplementation(method), to: Getter.self)(webView, selector)
+        #else
+        return false
+        #endif
+    }
+
+    #if os(macOS)
+    private static func systemWritingToolsDisabled(in configuration: WKWebViewConfiguration) -> Bool {
+        guard #available(macOS 15.0, *),
+              configuration.responds(to: Selector(("writingToolsBehavior"))) else { return false }
+        return (configuration.value(forKey: "writingToolsBehavior") as? Int) == NSWritingToolsBehavior.none.rawValue
+    }
+    #endif
 
     /// The user agent every ForeverLM web view and page scraper presents.
     ///

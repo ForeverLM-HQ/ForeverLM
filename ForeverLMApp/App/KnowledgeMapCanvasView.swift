@@ -181,6 +181,8 @@ struct KnowledgeMapCanvasView: NSViewRepresentable {
             if pushedLayout != model.layoutRevision {
                 pushedLayout = model.layoutRevision
                 call("setLayout", json(model.layout))
+                // A page turned asks for the next page's picture.
+                sendPagePictures()
             }
             if pushedLens != model.lensRevision {
                 pushedLens = model.lensRevision
@@ -252,23 +254,39 @@ struct KnowledgeMapCanvasView: NSViewRepresentable {
         /// ref: a note written on a clip changes its card, never its picture.
         private var clipTask: Task<Void, Never>?
 
-        /// Each page card's picture, drawn from its PDF's page once and kept by
-        /// ref, six to a push, the placed pages in the order they run.
+        /// Each page card's picture, and each page face's, drawn from its PDF's
+        /// page once and kept by ref (`page:<sourceID>:<n>`: a page face of that
+        /// page and a page card of it are the one picture), four to a push, the
+        /// page cards in the order they run and then the page faces.
         private var pageTask: Task<Void, Never>?
 
         private func sendPagePictures() {
-            let pending = model.content.nodes
-                .filter { $0.kind == "page" && !sentThumbnails.contains($0.ref) }
-                .sorted { $0.ref.localizedStandardCompare($1.ref) == .orderedAscending }
+            var pending: [(ref: String, sourceID: String, page: Int)] = []
+            for node in model.content.nodes where node.kind == "page" && !sentThumbnails.contains(node.ref) {
+                guard let parts = KnowledgeMap.ItemRef(node.ref)?.pageParts else { continue }
+                pending.append((node.ref, parts.sourceID, parts.page))
+            }
+            pending.sort { $0.ref.localizedStandardCompare($1.ref) == .orderedAscending }
+            // A page face shows the page its placement names, within the PDF.
+            var faces: [(ref: String, sourceID: String, page: Int)] = []
+            for (ref, placement) in model.layout.placements {
+                guard let page = placement.page, let node = model.nodesByRef[ref], node.kind == "source",
+                      let pageCount = node.pages, pageCount > 0, let item = KnowledgeMap.ItemRef(ref) else { continue }
+                let shown = KnowledgeMap.pageRef(sourceID: item.id, page: min(max(page, 1), pageCount))
+                if !sentThumbnails.contains(shown), !pending.contains(where: { $0.ref == shown }) {
+                    faces.append((shown, item.id, min(max(page, 1), pageCount)))
+                }
+            }
+            faces.sort { $0.ref.localizedStandardCompare($1.ref) == .orderedAscending }
+            pending += faces
             guard !pending.isEmpty, let draw = model.pagePicture else { return }
             sentThumbnails.formUnion(pending.map(\.ref))
             pageTask = Task { [weak self] in
                 var batch: [String: String] = [:]
-                for node in pending {
+                for item in pending {
                     if Task.isCancelled { return }
-                    guard let parts = KnowledgeMap.ItemRef(node.ref)?.pageParts,
-                          let dataURL = await draw(parts.sourceID, parts.page) else { continue }
-                    batch[node.ref] = dataURL
+                    guard let dataURL = await draw(item.sourceID, item.page) else { continue }
+                    batch[item.ref] = dataURL
                     if batch.count >= 4 {
                         self?.pushThumbnails(batch)
                         batch = [:]
@@ -477,6 +495,25 @@ struct KnowledgeMapCanvasView: NSViewRepresentable {
             case "shortcuts":
                 // The pane's own window shows them; the window extended to has no toolbar.
                 if role == .pane { model.showsShortcuts.toggle() }
+            // MARK: Adding to the canvas (docs/knowledge-map-design.md, "Adding to the canvas")
+            case "addRequested":
+                // /: the add box, at the pointer when it is over the plane (the
+                // message is empty when it is not), in this canvas's window.
+                guard role == .pane, let windowID = actions?.windowState.id else { return }
+                var spot: CGPoint?
+                if let x = Self.number(body["x"]), let y = Self.number(body["y"]) { spot = CGPoint(x: x, y: y) }
+                model.addBox = KnowledgeMapAddBoxRequest(
+                    view: spot,
+                    worldX: Self.number(body["wx"]),
+                    worldY: Self.number(body["wy"]),
+                    windowID: windowID
+                )
+            case "libraryToggled":
+                // L: the Library sidebar, shown or hidden on this Mac.
+                if role == .pane { model.showsLibrary.toggle() }
+            case "findRequested":
+                // ⌘F: the cursor goes to the find field.
+                if role == .pane { model.findFocusRequests += 1 }
             case "undo":
                 model.undo()
             case "redo":
@@ -523,16 +560,26 @@ final class KnowledgeMapWebView: WKWebView {
         /// pictures, chats from a list, addresses and words pasted
         /// (`KnowledgeMapOutsideDrop`).
         var outside = KnowledgeMapOutsideDrop()
+        /// The cards a Library or add-box row carried (`KnowledgeMapCardTransfer`):
+        /// the only thing such a drag is taken for.
+        var cardRefs: [String] = []
     }
 
     var onDrop: ((Drop) -> Void)?
     /// A pinch, as a zoom factor about a point in the page.
     var onPinch: ((Double, CGPoint) -> Void)?
+
+    /// No Apple Intelligence badge on a selection (`SharedWebKit.allowsWritingToolsAffordance(in:)`).
+    @objc(allowsWritingToolsAffordance)
+    var allowsWritingToolsAffordance: Bool { SharedWebKit.allowsWritingToolsAffordance(in: self) }
     /// A two-finger double tap at a point in the page.
     var onSmartZoom: ((CGPoint) -> Void)?
     private var ownsCurrentDrag = false
 
+    private static let cardType = NSPasteboard.PasteboardType(UTType.knowledgeMapCard.identifier)
+
     private static let carriedTypes = [
+        cardType,
         ArtifactEditorWebView.sourceTransferType,
         ArtifactEditorWebView.artifactTransferType,
         ArtifactEditorWebView.notebookTransferType,
@@ -573,6 +620,17 @@ final class KnowledgeMapWebView: WKWebView {
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
         guard ownsCurrentDrag, let onDrop else { return super.performDragOperation(sender) }
         let pasteboard = sender.draggingPasteboard
+        // A row of the Library or the add box carries the cards themselves, and
+        // its kind's own drag besides, for a chat or an Idea to take: here the
+        // cards are all it is.
+        let cardRefs = (pasteboard.pasteboardItems ?? []).flatMap { item in
+            item.data(forType: Self.cardType)
+                .flatMap { try? JSONDecoder().decode(KnowledgeMapCardTransfer.self, from: $0) }?.refs ?? []
+        }
+        if !cardRefs.isEmpty {
+            onDrop(Drop(point: pagePoint(sender.draggingLocation), sourceIDs: [], docIDs: [], notebookIDs: [], cardRefs: cardRefs))
+            return true
+        }
         var sourceIDs: [String] = []
         for transfer in ArtifactEditorWebView.sourceTransfers(on: pasteboard) {
             sourceIDs.append(contentsOf: transfer.articleIds ?? [transfer.articleId])

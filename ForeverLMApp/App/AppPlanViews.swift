@@ -1,148 +1,94 @@
 import AppKit
 import SwiftUI
 
-/// The plans on sale (docs/managed-ai-billing.md → App plans), as the proxy
-/// lists them. A plan is what lets the learner's own OpenRouter key run every
-/// model. Since 2026-10-06: Believer first while the early-adopter offer is
-/// open, recommended, at $19 a year that never goes up, and its free week
-/// starts here with one click and no card; then Monthly at $4, which starts
-/// with 30 free days when the account has never had a trial (2026-09-27:
-/// "make it a 30 day free trial"; the product owner, 2026-09-26: "but people should
-/// actually sign up"): the card is taken at Checkout, and the line under the
-/// picker says how to get out before the trial ends.
-struct AppPlanPicker: View {
+/// What ForeverLM sells (product owner, 2026-10-10; docs/pricing-pro-design.md
+/// → How it is sold): the Early user deal, $19 paid once, and nothing beside
+/// it. There is no monthly plan ("I personally don't like monthly
+/// subscriptions!!"), so nothing here shows a monthly price or compares the
+/// deal with one. The price is the proxy's (`AppAccess.prices`), never this
+/// build's, and the deal is offered only while `plans_on_sale` lists it. Mac
+/// only: the iPhone and iPad app never shows a price or a way to buy.
+struct EarlyUserDealOffer: View {
     @Environment(ManagedAIAccountModel.self) private var account
 
+    static let title = "Early user deal"
+    static let terms = "paid once, no subscription"
+    /// The line every surface says what AI costs with.
+    static let ownKeyLine = "AI runs on your own OpenRouter key, at OpenRouter's cost. ForeverLM adds nothing. Free mode costs $0."
+
+    /// "Get the Early User Deal: $19", or without the price while the proxy
+    /// has not said it.
+    static func buyTitle(onceCents: Int?) -> String {
+        onceCents.map { "Get the Early User Deal: \(ManagedAI.dollars($0))" } ?? "Get the Early User Deal"
+    }
+
+    /// "7 days free, then $19 once. No subscription." The count of free days
+    /// is the proxy's (`AppAccess.freeDaysTotal`), like the price; a part the
+    /// proxy has not said is left unnamed rather than guessed.
+    static func headline(onceCents: Int?, freeDays: Int?) -> String {
+        let start = freeDays.map { "\($0) days free" } ?? "Free to start"
+        let price = onceCents.map { "\(ManagedAI.dollars($0)) once" } ?? "pay once"
+        return "\(start), then \(price). No subscription."
+    }
+
     private var prices: ManagedAI.AppAccess.Prices { account.planPrices }
-    private var access: ManagedAI.AppAccess? { account.appAccess }
-    private var plans: [ManagedAI.AppPlan] { access?.plansOnSale ?? ManagedAI.AppAccess.plansSoldBeforeBeliever }
-
-    /// The free days a plan starts with, if the account has never had a
-    /// trial: Believer's week needs no card, Monthly's 30 days take one.
-    private func trialDays(_ plan: ManagedAI.AppPlan) -> Int? {
-        guard let access, access.trialAvailable else { return nil }
-        switch plan {
-        case .believer: return access.believerOffer?.trialDays
-        case .monthly, .yearly: return access.trialDays
-        case .forever: return nil
-        }
-    }
-
-    /// Whether a plan here starts a trial that takes a card at checkout.
-    private var cardTrialOffered: Bool {
-        plans.contains { $0 != .believer && trialDays($0) != nil }
-    }
-
-    static func dollars(_ cents: Int) -> String {
-        let value = Double(cents) / 100
-        // Prices are set in US dollars, so they read the same everywhere.
-        return value.formatted(
-            .currency(code: "USD")
-                .locale(Locale(identifier: "en_US"))
-                .precision(.fractionLength(cents % 100 == 0 ? 0 : 2))
-        )
-    }
+    private var onSale: [ManagedAI.AppPlan] { account.appAccess?.plansOnSale ?? ManagedAI.AppAccess.paidAppPlans }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            ForEach(plans) { plan in
-                option(plan)
-            }
-            if cardTrialOffered {
-                Text("Monthly's free days start at checkout, where you add a card. Cancel before they end, here or at foreverlm.com/account/billing, and you pay nothing.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("billing.plan.trialNote")
-            }
+        if onSale.contains(.once) {
+            deal
         }
     }
 
-    private func option(_ plan: ManagedAI.AppPlan) -> some View {
-        let isRecommended = plan == access?.recommendedPlan
-        return Button {
-            Task {
-                if plan == .believer, access?.believerTrialAvailable == true {
-                    await account.startBelieverTrial()
-                } else {
-                    await account.choosePlan(plan)
-                }
-            }
-        } label: {
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 8) {
-                        Text(title(plan))
-                            .font(.subheadline.weight(.semibold))
-                        if isRecommended { RecommendedBadge() }
-                    }
-                    Text(detail(plan))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .multilineTextAlignment(.leading)
-                }
+    private var deal: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(Self.title)
+                    .font(.subheadline.weight(.semibold))
+                RecommendedBadge()
                 Spacer(minLength: 12)
-                if account.planCheckoutInFlight == plan {
-                    ProgressView().controlSize(.small)
-                } else {
-                    Text(price(plan))
-                        .font(.subheadline.weight(.semibold))
+                if let once = prices.onceCents {
+                    Text(ManagedAI.dollars(once))
+                        .font(.title3.weight(.semibold))
                         .monospacedDigit()
                 }
             }
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                (isRecommended ? Color.accentColor.opacity(0.10) : Color.primary.opacity(0.055)),
-                in: RoundedRectangle(cornerRadius: 10, style: .continuous)
-            )
-            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            Text(Self.terms)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            HStack {
+                Spacer()
+                if account.planCheckoutInFlight == .once {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Button(Self.buyTitle(onceCents: prices.onceCents)) {
+                        Task { await account.choosePlan(.once) }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(account.planCheckoutInFlight != nil || !account.isSignedIn)
+                    .accessibilityIdentifier("billing.plan.once")
+                }
+            }
+            .padding(.top, 4)
         }
-        .buttonStyle(.hoverWash(cornerRadius: 10, inset: 0))
-        .disabled(account.planCheckoutInFlight != nil)
-    }
-
-    private func title(_ plan: ManagedAI.AppPlan) -> String {
-        switch plan {
-        case .believer: return "Believer"
-        case .monthly: return "Monthly"
-        case .yearly: return "Yearly"
-        case .forever: return "Lifetime"
-        }
-    }
-
-    private func price(_ plan: ManagedAI.AppPlan) -> String {
-        switch plan {
-        case .believer: return "\(Self.dollars(prices.believerCents))/yr"
-        case .monthly: return "\(Self.dollars(prices.monthlyCents))/mo"
-        case .yearly: return "\(Self.dollars(prices.yearlyCents))/yr"
-        case .forever: return Self.dollars(prices.foreverCents)
-        }
-    }
-
-    private func detail(_ plan: ManagedAI.AppPlan) -> String {
-        let trial = trialDays(plan).map { "First \($0) days free, then " } ?? ""
-        switch plan {
-        case .believer:
-            let price = Self.dollars(prices.believerCents)
-            return trialDays(.believer).map {
-                "\($0) days free, no card needed. Then \(price) a year, a price that never goes up."
-            } ?? "\(price) a year, a price that never goes up. For early believers."
-        case .monthly: return trial.isEmpty ? "Cancel anytime." : "\(trial)\(Self.dollars(prices.monthlyCents)) a month. Cancel anytime."
-        case .yearly: return trial.isEmpty ? "Two months free." : "\(trial)\(Self.dollars(prices.yearlyCents)) a year. Two months free."
-        case .forever: return "Pay once, keep it for good."
-        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.accentColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("billing.plan.deal")
     }
 }
 
-/// Settings → Billing: the ForeverLM plan and nothing else. The product owner
+/// Settings → Billing: paying for ForeverLM, in one card. The product owner
 /// (2026-09-28): "there should be a place where people can cancel their
 /// subscription or manage their subscription … separate from all the AI
 /// usage". The key, Free mode, limits and activity are Settings › AI Usage.
-/// Without a plan the pane is the picker. With one it is a single card: which
-/// plan and what happens next, then paying, switching and cancelling, one row
-/// each, so cancelling is never a search.
+///
+/// In the free days, or locked, the card is the offer. A buyer sees "Paid
+/// once". A subscriber from before the lock (nothing sells a subscription
+/// now) sees the plan, Switch to Paid Once, and paying and cancelling, one
+/// row each, so cancelling is never a search. A comped account sees
+/// "Included with your account".
 struct AppPlanSettingsSection: View {
     @Environment(ManagedAIAccountModel.self) private var account
     @State private var isCancelling = false
@@ -178,74 +124,83 @@ struct AppPlanSettingsSection: View {
 
     @ViewBuilder
     private func planContent(_ access: ManagedAI.AppAccess) -> some View {
-        if access.state == .free {
-            SettingsSection(title: "Choose a plan", description: freeSummary(access)) {
-                AppPlanPicker()
+        switch access.state {
+        case .freeDays, .locked:
+            SettingsSection(title: "ForeverLM", description: offerSummary(access)) {
+                VStack(alignment: .leading, spacing: 10) {
+                    EarlyUserDealOffer()
+                    Text(EarlyUserDealOffer.ownKeyLine)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
-        } else {
+        case .paidOnce, .monthly, .comped, .family:
             SettingsSection(title: "Plan") {
-                BillingCard {
-                    if access.state == .subscribed, access.paymentFailed {
-                        HStack(spacing: 20) {
-                            Label("Your last payment didn't go through. Update your card to keep your plan.", systemImage: "exclamationmark.triangle.fill")
-                                .font(.caption)
-                                .foregroundStyle(.orange)
-                                .fixedSize(horizontal: false, vertical: true)
-                            Spacer(minLength: 12)
-                            Button("Update Card") { Task { await account.openBillingHistory() } }
-                                .buttonStyle(.borderedProminent)
-                        }
-                        BillingRowDivider()
-                    }
+                planCard(access)
+            }
+        }
+    }
 
-                    BillingRow(title: planTitle(access), detail: planDetail(access)) {
-                        if let price = price(access) {
-                            Text(price)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                                .monospacedDigit()
-                        }
-                    }
-                    // A group of its own, so the identifier stays on the row
-                    // rather than stamping both texts.
-                    .accessibilityElement(children: .contain)
-                    .accessibilityIdentifier("billing.subscription.status")
+    @ViewBuilder
+    private func planCard(_ access: ManagedAI.AppAccess) -> some View {
+        BillingCard {
+            if access.state == .monthly, access.paymentFailed {
+                HStack(spacing: 20) {
+                    Label("Your last payment didn't go through. Update your card to keep your plan.", systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 12)
+                    Button("Update Card") { Task { await account.openBillingHistory() } }
+                        .buttonStyle(.borderedProminent)
+                }
+                BillingRowDivider()
+            }
 
-                    if paysThroughStripe(access) {
-                        BillingRowDivider()
-                        BillingRow(
-                            title: "Payment method and invoices",
-                            detail: "Change your card or download receipts, in Stripe"
-                        ) {
-                            Button("Open") { Task { await account.openBillingHistory() } }
-                                .buttonStyle(.bordered)
-                        }
-                    }
+            BillingRow(title: planTitle(access), detail: planDetail(access)) {
+                if let price = price(access) {
+                    Text(price)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+            }
+            // A group of its own, so the identifier stays on the row
+            // rather than stamping both texts.
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("billing.subscription.status")
 
-                    // The free week has nothing at Stripe to cancel: it ends by
-                    // itself. Keeping Believer is its $19 checkout.
-                    if access.state == .believerTrial {
-                        BillingRowDivider()
-                        BillingRow(
-                            title: "Keep Believer",
-                            detail: "\(AppPlanPicker.dollars(access.prices.believerCents)) a year, a price that never goes up"
-                        ) {
-                            if account.planCheckoutInFlight == .believer {
-                                ProgressView().controlSize(.small)
-                            } else {
-                                Button("Keep Believer") { Task { await account.choosePlan(.believer) } }
-                                    .buttonStyle(.borderedProminent)
-                                    .disabled(account.planCheckoutInFlight != nil)
-                                    .accessibilityIdentifier("billing.plan.keepBeliever")
-                            }
-                        }
-                    }
+            if paysThroughStripe(access) {
+                BillingRowDivider()
+                BillingRow(
+                    title: "Payment method and invoices",
+                    detail: "Change your card or download receipts, in Stripe"
+                ) {
+                    Button("Open") { Task { await account.openBillingHistory() } }
+                        .buttonStyle(.bordered)
+                }
+            }
 
-                    if access.state == .subscribed {
-                        BillingRowDivider()
-                        cancelRow(access)
+            // A subscriber who pays once has the subscription cancelled by the
+            // proxy when the payment lands.
+            if access.state == .monthly, access.plansOnSale.contains(.once) {
+                BillingRowDivider()
+                BillingRow(title: "Switch to Paid Once", detail: switchDetail(access)) {
+                    if account.planCheckoutInFlight == .once {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Button("Switch to Paid Once") { Task { await account.choosePlan(.once) } }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(account.planCheckoutInFlight != nil)
+                            .accessibilityIdentifier("billing.plan.switchToOnce")
                     }
                 }
+            }
+
+            if access.state == .monthly {
+                BillingRowDivider()
+                cancelRow(access)
             }
         }
     }
@@ -280,36 +235,36 @@ struct AppPlanSettingsSection: View {
         }
     }
 
-    private func freeSummary(_ access: ManagedAI.AppAccess) -> String {
-        "A plan lets your own OpenRouter key run ForeverLM's AI features, every model included."
+    /// Above the offer: how many of the free days are left, or that they are
+    /// over.
+    private func offerSummary(_ access: ManagedAI.AppAccess) -> String {
+        if let status = account.freeDaysStatus { return status }
+        if account.isAppLocked { return AppLockWall.title }
+        return EarlyUserDealOffer.headline(onceCents: access.prices.onceCents, freeDays: access.freeDaysTotal)
+    }
+
+    private func switchDetail(_ access: ManagedAI.AppAccess) -> String {
+        let price = access.prices.onceCents.map { "\(ManagedAI.dollars($0)) once, no subscription" } ?? "Paid once, no subscription"
+        return "\(price). Your subscription stops when you pay"
     }
 
     private func planTitle(_ access: ManagedAI.AppAccess) -> String {
         switch access.state {
-        case .free: return "No plan"
-        case .subscribed:
-            switch access.appPlan {
-            case .believer: return "Believer plan"
-            case .yearly: return "Yearly plan"
-            case .monthly: return "Monthly plan"
-            case .forever, nil: return "Plan"
-            }
-        case .believerTrial: return "Believer plan"
-        case .forever: return "Lifetime plan"
+        case .paidOnce: return "Paid once"
+        case .monthly: return "\(access.planName) plan"
         case .comped: return "Plan"
         case .family: return "Family plan"
+        case .freeDays, .locked: return "Plan"
         }
     }
 
     private func planDetail(_ access: ManagedAI.AppAccess) -> String {
         switch access.state {
-        case .free:
-            return "Choose a plan to run AI features on your key"
-        case .believerTrial:
-            let keep = "Keep it for \(AppPlanPicker.dollars(access.prices.believerCents)) a year, a price that never goes up."
-            guard let endsAt = access.trialEndsAt else { return "Free week. \(keep)" }
-            return "Free until \(endsAt.formatted(date: .abbreviated, time: .omitted)), no card needed. \(keep)"
-        case .subscribed:
+        case .paidOnce:
+            return access.founding
+                ? "Granted to early users. No subscription"
+                : "ForeverLM is yours to use. No subscription"
+        case .monthly:
             guard let renewsAt = access.renewsAt else {
                 return access.trialing ? "Free trial" : "Renews automatically"
             }
@@ -319,38 +274,86 @@ struct AppPlanSettingsSection: View {
                 return price(access).map { "Free until \(date), then \($0)" } ?? "Free until \(date)"
             }
             if access.cancelAtPeriodEnd { return "Ends \(date) and won't renew" }
-            return access.isBeliever ? "Renews \(date). Your price never goes up." : "Renews \(date)"
-        case .forever:
-            return access.founding
-                ? "You were here before plans existed, so it's yours for good"
-                : "Paid once, never renews"
+            return access.plan == "believer" ? "Renews \(date). Your price never goes up." : "Renews \(date)"
         case .comped:
             return "Included with your account"
         case .family:
             return "Covered by your family's plan"
+        case .freeDays, .locked:
+            return ""
         }
     }
 
-    /// What the plan costs, beside its name: what the subscription charges,
-    /// which is the price it started at. A lifetime plan was paid once.
+    /// What the subscription charges, beside its name: the price it started
+    /// at. Paid once has nothing more to charge.
     private func price(_ access: ManagedAI.AppAccess) -> String? {
         guard let cents = access.subscriptionPriceCents else { return nil }
-        switch access.appPlan {
-        case .believer, .yearly: return "\(AppPlanPicker.dollars(cents))/yr"
-        case .monthly: return "\(AppPlanPicker.dollars(cents))/mo"
-        case .forever, nil: return nil
-        }
+        return "\(ManagedAI.dollars(cents))/\(access.renewsYearly ? "yr" : "mo")"
     }
 
     /// Whether there is a Stripe customer to open: the proxy refuses the page
     /// (`no_purchases`) for an account that has never paid, which a founding
-    /// lifetime, a comped or a family account has not.
+    /// grant, a comped or a family account has not.
     private func paysThroughStripe(_ access: ManagedAI.AppAccess) -> Bool {
         switch access.state {
-        case .subscribed: return true
-        case .forever: return !access.founding
-        case .free, .comped, .family, .believerTrial: return false
+        case .monthly: return true
+        case .paidOnce: return !access.founding
+        case .freeDays, .locked, .comped, .family: return false
         }
+    }
+}
+
+/// The free days' two notices (docs/pricing-pro-design.md → The free days):
+/// one two days before the end and one on the last day, each shown once, each
+/// offering the deal, so the free days never end as a surprise. They count
+/// from the end, so they fall on days 5 and 7 of the 7. They ride the
+/// Studio status banner (`StudioViewModel.showToast`). Keyed by the free
+/// days' end, so new free days (the cutover's) show them again.
+@MainActor
+enum FreeDaysNotices {
+    enum Notice: String {
+        case twoDaysLeft
+        case lastDay
+    }
+
+    /// Which notice is due with `daysLeft` free days left after today. The
+    /// two-days notice still shows with one day left if the app was not
+    /// opened the day before.
+    static func due(daysLeft: Int) -> Notice? {
+        switch daysLeft {
+        case ...0: return .lastDay
+        case 1...2: return .twoDaysLeft
+        default: return nil
+        }
+    }
+
+    /// "2 days free left. Keep everything you've built with the Early user
+    /// deal, $19 paid once, no subscription."
+    static func message(daysLeft: Int, onceCents: Int?) -> String {
+        let deal = onceCents.map { "the Early user deal, \(ManagedAI.dollars($0)) paid once" } ?? "the Early user deal, paid once"
+        return "\(ManagedAI.AppAccess.freeDaysStatus(daysLeft: daysLeft)). Keep everything you've built with \(deal), no subscription."
+    }
+
+    private static func shownKey(_ notice: Notice, freeUntil: Date) -> String {
+        "freeDaysNotice.\(notice.rawValue).\(Int(freeUntil.timeIntervalSince1970))"
+    }
+
+    /// Shows the notice that is due, once. Device-local: a notice seen on
+    /// one Mac is not owed to another.
+    static func showIfDue(account: ManagedAIAccountModel, vm: StudioViewModel) {
+        guard let daysLeft = account.freeDaysLeft,
+              let freeUntil = account.appAccess?.freeUntil,
+              let notice = due(daysLeft: daysLeft) else { return }
+        let key = shownKey(notice, freeUntil: freeUntil)
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        UserDefaults.standard.set(true, forKey: key)
+        let onceCents = account.planPrices.onceCents
+        vm.showToast(
+            message(daysLeft: daysLeft, onceCents: onceCents),
+            action: StudioToastAction(title: EarlyUserDealOffer.buyTitle(onceCents: onceCents)) { _ in
+                await account.choosePlan(.once)
+            }
+        )
     }
 }
 
@@ -423,8 +426,8 @@ struct BillingRowDivider: View {
 
 /// Cancelling asks why, and both answers are optional (product owner, 2026-09-26:
 /// "if they cancel, they should be able to let us know why"). The plan runs
-/// to the end of what is paid for, or of the free trial, which is then never
-/// charged.
+/// to the end of what is paid for; a subscription still in its free trial is
+/// never charged.
 struct CancelPlanSheet: View {
     let access: ManagedAI.AppAccess
 
@@ -513,6 +516,7 @@ struct CancelPlanSheet: View {
             ?? "Your plan stays until the end of the period you have paid for."
         // The believer price is for those who keep it; it may not be on offer
         // again.
-        return access.isBeliever ? "\(stays) Its \(AppPlanPicker.dollars(access.subscriptionPriceCents ?? access.prices.believerCents)) believer price ends with it." : stays
+        guard access.plan == "believer", let cents = access.subscriptionPriceCents else { return stays }
+        return "\(stays) Its \(ManagedAI.dollars(cents)) believer price ends with it."
     }
 }

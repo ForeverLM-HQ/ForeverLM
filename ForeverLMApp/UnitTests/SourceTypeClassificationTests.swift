@@ -39,7 +39,6 @@ struct SourceTypeClassificationTests {
             ("  https://Techbio-Companies-Landscape.learner-1234.chatgpt.site/  ", .codexSite),
             ("https://claude.ai/code/artifact/a1b2c3d4-1e2f-4a5b-8c6d-7e8f9a0b1c2d", .claudeArtifact),
             ("https://docs.google.com/document/d/1AbCdEfGhIjKlMnOpQrStUvWxYz/edit", .googleDoc),
-            ("https://sites.foreverlm.com/mito-landscape/companies/recursion.html", .foreverlmSite),
         ])
         func recognizesLinkedPages(url: String, kind: LinkedPageKind) {
             #expect(StudioViewModel.linkedPageKind(forSourceURL: url) == kind)
@@ -51,7 +50,6 @@ struct SourceTypeClassificationTests {
             "https://openai.com/chatgpt.site/blog",
             "https://claude.ai/chat/abc",
             "https://docs.google.com/spreadsheets/d/1AbC/edit",
-            "https://sites.foreverlm.com/",
             "https://paulgraham.com/greatwork.html",
             "https://www.nature.com/articles/s41586-023-06600-9",
             "/Users/test/ForeverLM/Papers/aging_review.pdf",

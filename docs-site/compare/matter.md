@@ -6,13 +6,13 @@ description: Compare ForeverLM and Matter for reading articles and newsletters, 
 
 # ForeverLM vs Matter
 
-Matter is a polished read-later app for articles and newsletters on iPhone, iPad, and the web. It offers a clean reader, highlighting, feeds, and listening. ForeverLM includes a free reading list, but expands it into a research library for papers, books, podcasts, videos, and courses with notebooks, chat, scheduling, and review.
+Matter is a polished read-later app for articles and newsletters on iPhone, iPad, and the web. It offers a clean reader, highlighting, feeds, and listening. ForeverLM includes a reading list, but expands it into a research library for papers, books, podcasts, videos, and courses with notebooks, chat, scheduling, and review.
 
 ## At a glance
 
 | | ForeverLM | Matter |
 |---|---|---|
-| **Price** | Free app and free over MCP; built-in AI and cloud voices need a plan ($4/mo, or $19/yr for early believers) and your own OpenRouter key | Free |
+| **Price** | 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free |
 | **Platforms** | Mac-centered, with synced iPhone access | iPhone, iPad, and web |
 | **Best for** | Managing and learning from many source types | A focused queue for articles and newsletters |
 | **Capture** | Reading lists, URLs, files, feeds, reference tools, podcasts, and plugins | Share sheet, browser, email newsletters, and feeds |

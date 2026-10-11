@@ -327,7 +327,7 @@ final class NotebookDiscoverySession {
         }
         guard let config = services.resolveConfig() else {
             let reason = KeychainService.backgroundAIUnavailableMessage(for: .sourceDiscovery)
-                ?? "Discover has no available AI model, or nothing to pay for it. Check your OpenRouter key in Settings › AI Usage and your plan in Settings › Billing."
+                ?? "Discover has no available AI model, or nothing to pay for it. Check your OpenRouter key in Settings › AI Usage."
             update(.web) { $0.phase = .failed(reason) }
             return
         }
