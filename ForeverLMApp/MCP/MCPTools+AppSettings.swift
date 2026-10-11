@@ -998,6 +998,7 @@ extension MCPDataStore {
         ["action": "sync_icloud_now", "pane": "Data & Privacy › iCloud", "does": "Sync now: push and pull every pending iCloud change."],
         ["action": "confirm_this_mac_holds_my_library", "pane": "Data & Privacy › iCloud", "does": "This Mac holds my library: upload this Mac's library to the new iCloud store, catching up with the old one first. Only after the learner has said this Mac's library is the one to keep; get_sync_status migration.this_mac_holds_my_library says when it is offered."],
         ["action": "upload_library_to_icloud_again", "pane": "Data & Privacy › iCloud", "does": "Upload my library to iCloud again, after iCloud lost the library (get_sync_status migration.private_database_stopped)."],
+        ["action": "replace_icloud_library", "pane": "Data & Privacy › iCloud", "does": "Delete this account's ForeverLM library from iCloud, then upload this Mac's library from the start. For when iCloud holds only a stub of the library (get_sync_status shows little uploading and the phone shows no notebooks). Only on the Mac that holds the library, and only after the learner has said so: iCloud's copy is removed for every device."],
         ["action": "apply_old_library_removals", "pane": "Data & Privacy › iCloud", "does": "Apply: an older ForeverLM removed more than 5% of the old iCloud library, and the learner chose to apply those removals here too."],
         ["action": "keep_old_library_removals", "pane": "Data & Privacy › iCloud", "does": "Keep: apply everything else from the old iCloud library and list those removals under Kept from an older ForeverLM."],
         ["action": "prepare_memory_review_now", "pane": "no pane", "does": "Select today's cards for the memory review now, whatever the hour."],
@@ -1025,7 +1026,7 @@ extension MCPDataStore {
             result["done"] = waiting == 0
                 ? "Synced with iCloud now; everything on this Mac has reached iCloud."
                 : "Synced with iCloud now; \(waiting) local change\(waiting == 1 ? " still waits" : "s still wait") to upload. get_sync_status says why."
-        case "confirm_this_mac_holds_my_library", "upload_library_to_icloud_again", "apply_old_library_removals", "keep_old_library_removals":
+        case "confirm_this_mac_holds_my_library", "upload_library_to_icloud_again", "replace_icloud_library", "apply_old_library_removals", "keep_old_library_removals":
             result["done"] = try await Self.runICloudMoveAction(action)
         case "prepare_memory_review_now":
             // Since the card review (2026-10-01): today's cards selected
@@ -1064,6 +1065,7 @@ extension MCPDataStore {
         switch action {
         case "confirm_this_mac_holds_my_library": await model.confirmHoldsMyLibrary()
         case "upload_library_to_icloud_again": await model.uploadAgain()
+        case "replace_icloud_library": await model.replaceICloudLibrary()
         case "apply_old_library_removals": await model.answerImportQuestion(.apply)
         default: await model.answerImportQuestion(.keep)
         }

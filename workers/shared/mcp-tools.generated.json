@@ -8037,6 +8037,7 @@
             "sync_icloud_now",
             "confirm_this_mac_holds_my_library",
             "upload_library_to_icloud_again",
+            "replace_icloud_library",
             "apply_old_library_removals",
             "keep_old_library_removals",
             "prepare_memory_review_now",

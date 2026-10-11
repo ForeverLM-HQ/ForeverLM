@@ -113,6 +113,25 @@ final class ICloudMigrationModel {
         await refresh(forceParity: true)
     }
 
+    /// Replaces what iCloud holds of this Mac's library with this Mac's copy: the zones go, then the
+    /// library uploads from the start. Has no button; MCP `replace_icloud_library` presses it.
+    func replaceICloudLibrary() async {
+        notice = nil
+        guard let coordinator = SyncCoordinator.current else {
+            notice = "iCloud sync is not running on this Mac."
+            return
+        }
+        work = .uploadingAgain
+        defer { work = nil }
+        do {
+            try await coordinator.replaceICloudLibrary()
+            notice = "iCloud's copy was removed and this Mac is uploading its library again."
+        } catch {
+            notice = "Could not replace the iCloud library: \(error.localizedDescription)"
+        }
+        await refresh()
+    }
+
     /// "Upload my library to iCloud again" after iCloud lost the library (§2.5).
     func uploadAgain() async {
         notice = nil

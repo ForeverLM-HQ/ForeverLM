@@ -8,7 +8,7 @@ import Testing
 @Suite("MCP iCloud migration")
 struct MCPICloudMigrationTests {
     private static let moveActions = [
-        "confirm_this_mac_holds_my_library", "upload_library_to_icloud_again", "apply_old_library_removals", "keep_old_library_removals",
+        "confirm_this_mac_holds_my_library", "upload_library_to_icloud_again", "replace_icloud_library", "apply_old_library_removals", "keep_old_library_removals",
     ]
 
     @Test("The move's buttons are actions of run_settings_action, listed by get_app_settings and in its schema")
