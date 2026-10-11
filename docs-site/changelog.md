@@ -4,6 +4,11 @@ All notable changes to ForeverLM are documented here. Dates are in YYYY-MM-DD fo
 
 ForeverLM follows [semantic versioning](https://semver.org) against its public surface: the MCP tool contracts, the knowledge-base/sync format, and licensing compatibility. While the version is 0.x, minor releases may include breaking changes to that surface; patch releases never do.
 
+## 0.139.2 (build 213) — 2026-10-11
+
+**Highlights:**
+- **Dragging the Library to the edge of the window docks it.** With the Library filling the window, dragging its sidebar row to an edge now docks it there and Chat takes the rest of the window; dropped on the other edge, it moves across.
+
 ## 0.139.1 (build 212) — 2026-10-11
 
 **Highlights:**
