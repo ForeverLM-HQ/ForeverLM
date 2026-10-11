@@ -56,8 +56,14 @@ struct PurgeHandlingTests {
         #expect(try await mac.bootstrap(.macHoldingLibrary, salt: 2, server: server).run() == .purged(.zoneDeleted(reason: .purged)))
         #expect(!server.calls.contains { $0.operation == .modifyZones || $0.operation == .modifyRecords })
 
+        // The Mac's seed bookkeeping: a pass finished against the old zones must not stand for the new ones.
+        try await mac.store.perform { state in
+            try state.connection.executeScript("CREATE TABLE ck_seed_cursor (pass TEXT PRIMARY KEY, cursor TEXT, completed_at REAL, updated_at REAL NOT NULL)")
+            try state.connection.execute("INSERT INTO ck_seed_cursor (pass, cursor, completed_at, updated_at) VALUES ('seed.p0', NULL, 1, 1)")
+        }
         try await mac.store.perform { try PurgeHandler.reupload(in: $0) }
         #expect(try await Self.held(mac).stop == nil)
+        #expect(try await mac.store.perform { try $0.connection.scalarInteger("SELECT COUNT(*) FROM ck_seed_cursor") } == 0, "every seed pass runs again")
         #expect(try await mac.bootstrap(.macHoldingLibrary, salt: 2, server: server).run() == .created(saltID: RecordNaming.saltID(Data(repeating: 2, count: 32))))
     }
 
