@@ -344,8 +344,8 @@ final class BackgroundWorkMonitor: ObservableObject {
     }
 }
 
-/// The rail's button: a small spinner (a ring, when one thing reports its
-/// share) that appears only while paid work runs, and opens the list.
+/// The rail's button: a still grey OpenRouter logo (a ring, when one thing
+/// reports its share) that appears only while paid work runs, and opens the list.
 struct BackgroundWorkButton: View {
     @ObservedObject var monitor: BackgroundWorkMonitor
     @Environment(StudioViewModel.self) private var vm
@@ -395,7 +395,15 @@ struct BackgroundWorkButton: View {
             }
             .frame(width: 16, height: 16)
         } else {
-            ProgressView().controlSize(.small)
+            // Still and grey: a spinning wheel in the rail is a distraction
+            // (product owner, 2026-10-11: "not spinning because that's
+            // distraction"). The popover says what is running.
+            Image("OpenRouterIcon")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 18, height: 18)
+                .foregroundStyle(Color.secondary)
         }
     }
 
