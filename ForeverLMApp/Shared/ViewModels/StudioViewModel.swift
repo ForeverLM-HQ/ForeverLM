@@ -1355,6 +1355,12 @@ class StudioViewModel {
             resetDisplayLimits()
         }
     }
+    var meetingListOrder: MeetingListOrder = MeetingListOrder(rawValue: UserDefaults.standard.string(forKey: "meetingListOrder") ?? "") ?? .bySeries {
+        didSet {
+            PreferenceStore.set(meetingListOrder.rawValue, forKey: "meetingListOrder")
+            resetDisplayLimits()
+        }
+    }
     var reviewSessionLinks: [ReviewSessionRecord] = [] {
         didSet {
             reviewSessionLinksRevision &+= 1

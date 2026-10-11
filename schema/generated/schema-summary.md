@@ -1017,6 +1017,7 @@ The Setting record keys (§3.5.3): one record per key, account scope in Library 
 | `showSyncSubtitles` | bool | account |  | Retired: whether the Sources list showed its sync captions; no code reads it. Retired. |
 | `podcastSortMode` | string | account | `set_app_setting` sources.podcast_sort_mode | How podcast episodes sort (PodcastSortMode). |
 | `videoSortMode` | string | account | `set_app_setting` sources.video_sort_mode | How videos sort. |
+| `meetingListOrder` | string | account | `set_app_setting` sources.meeting_list_order | How the Meetings tab lists sessions: by series, or every session by date (MeetingListOrder). |
 | `readerOriginalPageColors` | bool | account | `set_app_setting` appearance.reader_original_page_colors | Read sources as published rather than darkened in Dark Mode (ReaderDarkMode). |
 | `notepad.pageWidth` | string | account | `set_app_setting` docs.page_width | How wide a Doc's page is drawn (ArtifactPageWidth). |
 | `notepad.showsMarginCards` | bool | account | `set_app_setting` docs.shows_margin_cards | Whether a Doc draws its margin cards; true when absent. |

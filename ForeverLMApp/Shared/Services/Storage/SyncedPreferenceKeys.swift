@@ -170,7 +170,7 @@ enum SyncedPreferenceKeys {
         // Chat's pinch zoom is one offset per chat panel, in memory on the
         // panel's session store, so it is neither stored nor synced.
         "uiZoomStep", "metadataVisibility", "showReadStatus", "showReviewedStatus",
-        "showSyncSubtitles", "podcastSortMode", "videoSortMode",
+        "showSyncSubtitles", "podcastSortMode", "videoSortMode", "meetingListOrder",
         // Reading a paper as published rather than inverted for Dark Mode. It is
         // a property of the reader and the figures they are reading, not of the
         // Mac they happen to be at, so it follows the account like the rest of
