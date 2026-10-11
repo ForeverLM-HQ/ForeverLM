@@ -466,13 +466,6 @@ struct ForeverLMApp: App {
         StudioWindowRegistry.shared.activeState
     }
 
-    private var activeWindowSourcesHidden: Bool {
-        guard let state = activeWindowState else { return true }
-        return !state.showSourcesPanel
-            || state.collapsedPanelIDs.contains(StudioPanel.sources.rawValue)
-            || state.sourcesStepAsideForMemoryReview
-    }
-
     /// The notebook the key Studio window holds, for the Notebook menu.
     private var activeWindowNotebook: NotebookWorkspace? {
         activeWindowState?.notebook
@@ -834,27 +827,12 @@ struct ForeverLMApp: App {
                 }
                 .keyboardShortcut("d", modifiers: [.command, .shift])
 
-                // Sources collapses to nothing — no rail is left behind to
-                // click — so it needs a home outside the panel. A window
-                // holding a notebook shows no library Sources list; the
-                // Notebook menu's Sources item takes ⌥⌘S there.
                 // While the key window shows a canvas, ⌥⌘S saves a version of
-                // it instead (Heptabase's shortcut), here and nowhere else.
+                // it (Heptabase's shortcut), here and nowhere else; the
+                // Notebook menu's Sources item takes ⌥⌘S in a notebook.
                 if activeWindowShowsCanvas {
                     Button("Save Canvas Version…") {
                         studioViewModel.promptSaveCanvasVersion(canvasID: studioViewModel.knowledgeMap.mapID)
-                    }
-                    .keyboardShortcut("s", modifiers: [.command, .option])
-                } else if activeWindowNotebook == nil {
-                    Button(activeWindowSourcesHidden ? "Show Sources" : "Hide Sources") {
-                        guard let state = activeWindowState else { return }
-                        withAnimation(.easeInOut(duration: 0.22)) {
-                            if activeWindowSourcesHidden {
-                                state.revealSourcesPanel()
-                            } else {
-                                state.collapsedPanelIDs.insert(StudioPanel.sources.rawValue)
-                            }
-                        }
                     }
                     .keyboardShortcut("s", modifiers: [.command, .option])
                 }

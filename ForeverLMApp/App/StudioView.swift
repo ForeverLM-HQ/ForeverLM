@@ -5,7 +5,7 @@ import PDFKit
 import WebKit
 import AppKit
 
-/// Studio — Knowledge Base interface with Chat on the left and Sources on the right.
+/// Studio — Knowledge Base interface: the navigation rail on the left and the center panes beside it.
 /// Inspired by NotebookLM but with one persistent knowledge base (not per-notebook).
 struct StudioView: View {
     @Environment(StudioViewModel.self) private var vm
@@ -47,14 +47,11 @@ struct StudioView: View {
     @SyncedStorage("aiBackground.usageConsented") private var backgroundAIUsageConsented = false
     @State private var showGettingStarted = false
     @State private var whatsNew = WhatsNewCenter.shared
-    @State private var studioDividerFractions: [CGFloat] = []
     /// Read only so finished side-panel drags re-render this root. The static
     /// resolvers still read defaults directly because only there can they tell
     /// "never dragged" from "dragged to the same value as the fallback".
     @AppStorage(StudioNavigationRail.widthKey) private var storedNavigationRailWidth =
         Double(StudioNavigationRail.defaultRailWidth)
-    @AppStorage(StudioSourcesPanelPreference.widthKey) private var storedSourcesPanelWidth =
-        Double(StudioSourcesPanelPreference.defaultWidth)
     @State private var studioAssistantSessions = StudioAssistantSessionStore()
     @State private var comparisonAssistantSessions = StudioAssistantSessionStore()
     /// The chat drawn by the card floating over this window's open page
@@ -63,40 +60,14 @@ struct StudioView: View {
     @State private var pageSideChatSessions = StudioAssistantSessionStore()
     @State private var studioAssistantWindow: NSWindow?
 
-    /// Whether this window has given itself over to today's review. The rail,
-    /// Sources, and every other center tab step aside while it has: fifteen
+    /// Whether this window has given itself over to today's review. The rail
+    /// and every other center tab step aside while it has: fifteen
     /// minutes of retrieval is what the review is, and retrieval is the first
     /// thing to go when something else is one click away. The sidebar toggle
-    /// and the Sources toggle still work: each brings its side back beside
-    /// the review (`StudioWindowState.drawsNavigationRail`,
-    /// `sourcesStepAsideForMemoryReview`).
+    /// still works: it brings the rail back beside the review
+    /// (`StudioWindowState.drawsNavigationRail`).
     private var isMemoryReviewFocused: Bool {
         windowState.memoryReviewFocusSessionID != nil
-    }
-
-    /// The outer layout always places the center tab area before Sources.
-    private var dockedStudioPanelOrder: [StudioPanel] {
-        StudioPanel.fixedOrder
-    }
-
-    /// Immersive reader presentations temporarily remove Sources from the
-    /// layout instead of collapsing it to the trailing rail. Keep this separate
-    /// from `showSourcesPanel`, which is the user's persisted preference.
-    /// A window holding a notebook shows no library list beside it: the
-    /// notebook workspace draws its own three columns, Sources to Studio, and
-    /// its Sources column's search reaches the library. While the full-window
-    /// Library is on screen the window's library list is in its center, so
-    /// the panel steps aside (and comes back as it was when the Library
-    /// closes).
-    private var shouldShowSourcesPanel: Bool {
-        guard !windowState.isDockedReaderImmersive else { return false }
-        if windowState.notebook != nil { return false }
-        return windowState.showSourcesPanel && !vm.libraryViewIsOnScreen(in: windowState)
-    }
-
-    /// The library Sources panel's collapse, as the outer layout reads it.
-    private var sourcesCollapsedPanelIDs: Set<String> {
-        windowState.collapsedPanelIDs.intersection([StudioPanel.sources.rawValue])
     }
 
     /// The sidebar toggle, the window's only one (ChatGPT's): it folds the
@@ -115,27 +86,22 @@ struct StudioView: View {
     }
 
     @ViewBuilder
-    private func studioContent(sidePanelWidth: CGFloat, railWidth: CGFloat) -> some View {
+    private func studioContent(railWidth: CGFloat) -> some View {
         GeometryReader { geo in
-            studioPanelContent(totalWidth: geo.size.width, sidePanelWidth: sidePanelWidth, railWidth: railWidth)
+            studioPanelContent(totalWidth: geo.size.width, railWidth: railWidth)
         }
     }
 
     /// The golden width for this window: every center pane opens φ times as
-    /// wide as one side panel. It depends on how many center panes are open —
-    /// a second pane makes the row owe φ twice, so both sides narrow — which
-    /// is why only the root, where the rail and the panels are measured
+    /// wide as the sidebar. It depends on how many center panes are open —
+    /// a second pane makes the row owe φ twice, so the sidebar narrows —
+    /// which is why only the root, where the rail and the panes are measured
     /// together, can work it out.
     /// The width the navigation rail actually opens at: the golden width,
     /// unless the learner has dragged it to a width of their own.
     private func resolvedSideWidth(golden: CGFloat) -> CGFloat {
         _ = storedNavigationRailWidth
         return StudioNavigationRail.resolvedRailWidth(goldenDefault: golden)
-    }
-
-    private func resolvedSourcesWidth(golden: CGFloat) -> CGFloat {
-        _ = storedSourcesPanelWidth
-        return StudioSourcesPanelPreference.resolvedWidth(goldenDefault: golden)
     }
 
     private func goldenSideWidth(windowWidth: CGFloat) -> CGFloat {
@@ -147,11 +113,10 @@ struct StudioView: View {
     }
 
     /// The whole Studio surface: the chat navigation rail sits on the outer
-    /// edge beside Chat, with Reader in the middle and Sources opposite it.
+    /// edge beside the center panes.
     private var studioRootLayout: some View {
         GeometryReader { geo in
             let golden = goldenSideWidth(windowWidth: geo.size.width)
-            let sourcesWidth = resolvedSourcesWidth(golden: golden)
             HStack(spacing: 0) {
                 if windowState.drawsNavigationRail {
                     StudioNavigationRail(
@@ -192,9 +157,8 @@ struct StudioView: View {
                         .transition(.move(edge: .leading).combined(with: .opacity))
                     }
                     // The rail is the icon strip, and Home's sidebar adds its
-                    // own width while it shows, so the panels fit beside both.
+                    // own width while it shows, so the panes fit beside both.
                     studioContent(
-                        sidePanelWidth: sourcesWidth,
                         railWidth: StudioNavigationRail.compactRailWidth
                             + (windowState.showsHomeSidebar ? resolvedSideWidth(golden: golden) : 0)
                     )
@@ -206,93 +170,87 @@ struct StudioView: View {
         }
     }
 
+    /// What the center area needs at the least: the notebook's columns and
+    /// slots, or the sum of the panes' minima. The center is laid out at no
+    /// less and clipped at the window's width, so a squeezed window never
+    /// hands its panes a degenerate proposal.
+    private var centerMinimumWidth: CGFloat {
+        max(
+            StudioOuterPanelSizing.minimumContentWidth,
+            windowState.notebook.map {
+                NotebookWorkspaceSizing.minimumWidth(for: $0, studioShows: !windowState.isDockedReaderImmersive)
+            } ?? StudioCenterTabGroupSizing.minimumWidth(for: windowState.centerTabGroups.groups)
+        )
+    }
+
     @ViewBuilder
-    private func studioPanelContent(totalWidth: CGFloat, sidePanelWidth: CGFloat, railWidth: CGFloat) -> some View {
-        // The old columns/reader-stack modes collapsed into one layout when the
-        // center became tab groups: the outer panel layout arranges only the
-        // center area and the Sources panel, and the groups arrange themselves.
-        StudioPanelLayout(
-            totalWidth: totalWidth,
-            panelOrder: dockedStudioPanelOrder,
-            showSources: shouldShowSourcesPanel && !windowState.sourcesStepAsideForMemoryReview,
-            showReader: true,
-            // Only the Sources panel collapses away; the center tab
-            // area is the app and always stays expanded. Stale panel ids
-            // from the pre-tab layout are filtered rather than migrated
-            // so the synced value keeps working on older builds.
-            collapsedPanelIds: sourcesCollapsedPanelIDs,
-            // Dragging the divider all the way to the edge collapses Sources
-            // to the same rail as its header toggle, instead of stranding the
-            // panel at zero width with no expand button.
-            collapsibleEdgePanelIds: [StudioPanel.sources.rawValue],
-            sidePanelWidth: sidePanelWidth,
-            onToggleCollapse: toggleStudioPanelCollapsed,
-            dividerFractions: $studioDividerFractions
-        ) {
-            sourcesPanel
-        } reader: {
-            centerTabArea
-        }
+    private func studioPanelContent(totalWidth: CGFloat, railWidth: CGFloat) -> some View {
+        // The center area is the app: the tab groups arrange themselves, and
+        // the library comes in as one of them (the rail's Library row, dragged
+        // to an edge or clicked).
+        let contentWidth = max(totalWidth, centerMinimumWidth)
+        Color.clear
+            .frame(width: totalWidth)
+            .frame(maxHeight: .infinity)
+            .overlay(alignment: .leading) {
+                centerTabArea
+                    .frame(width: contentWidth)
+                    .frame(maxHeight: .infinity)
+                    .environment(\.studioPanelTrailingOverflow, contentWidth - totalWidth)
+            }
+            .clipShape(StudioPanelColumnClipShape())
+            .allowsHitTesting(totalWidth > 1)
         .onChange(of: vm.readerChatSpaceRequestID) { _, requestID in
             guard requestID != nil else { return }
-            makeRoomForCenterPanes(totalWidth: totalWidth, sidePanelWidth: sidePanelWidth, railWidth: railWidth, animated: true)
+            makeRoomForCenterPanes(totalWidth: totalWidth, railWidth: railWidth, animated: true)
         }
         .onChange(of: StudioCenterTabGroupSizing.minimumWidth(for: windowState.centerTabGroups.groups)) { _, _ in
-            makeRoomForCenterPanes(totalWidth: totalWidth, sidePanelWidth: sidePanelWidth, railWidth: railWidth, animated: true)
+            makeRoomForCenterPanes(totalWidth: totalWidth, railWidth: railWidth, animated: true)
         }
         // The notebook's center only: a column the learner unfolds is theirs,
         // and must not fold straight back in a narrow window.
         .onChange(of: windowState.notebook.map(NotebookWorkspaceSizing.centerMinimumWidth(for:))) { _, _ in
-            makeRoomForCenterPanes(totalWidth: totalWidth, sidePanelWidth: sidePanelWidth, railWidth: railWidth, animated: true)
+            makeRoomForCenterPanes(totalWidth: totalWidth, railWidth: railWidth, animated: true)
         }
         .onAppear {
             // A restored multi-pane layout can meet a restored narrow window
             // before either side panel has had a state transition of its own.
             // Resolve that launch shape immediately instead of waiting for a
             // later navigation action to make room.
-            makeRoomForCenterPanes(totalWidth: totalWidth, sidePanelWidth: sidePanelWidth, railWidth: railWidth, animated: false)
+            makeRoomForCenterPanes(totalWidth: totalWidth, railWidth: railWidth, animated: false)
         }
         // A notebook's rail steps aside as the window narrows past what the
         // notebook needs, and comes back as it widens; the folds above stay
         // the learner's once made.
         .onChange(of: totalWidth) { _, width in
-            updateNotebookRailYield(totalWidth: width, sidePanelWidth: sidePanelWidth, railWidth: railWidth, animated: true)
+            updateNotebookRailYield(totalWidth: width, railWidth: railWidth, animated: true)
         }
         .onChange(of: windowState.notebook == nil) { _, _ in
-            updateNotebookRailYield(totalWidth: totalWidth, sidePanelWidth: sidePanelWidth, railWidth: railWidth, animated: true)
+            updateNotebookRailYield(totalWidth: totalWidth, railWidth: railWidth, animated: true)
         }
     }
 
     /// Keep every center pane at or above the same minimum width its internal
-    /// divider enforces. Sources yields first; if that is not enough, the
-    /// navigation rail yields too. This applies to restored launch state as
+    /// divider enforces: when they do not fit, the navigation rail yields.
+    /// This applies to restored launch state as
     /// well as newly opened panes so titlebar controls never begin life in a
     /// clipped, mutually overlapping viewport.
-    private func makeRoomForCenterPanes(totalWidth: CGFloat, sidePanelWidth: CGFloat, railWidth: CGFloat, animated: Bool) {
+    private func makeRoomForCenterPanes(totalWidth: CGFloat, railWidth: CGFloat, animated: Bool) {
         guard totalWidth > 0 else { return }
         if let notebook = windowState.notebook {
             makeRoomForNotebook(notebook, totalWidth: totalWidth, animated: animated)
-            updateNotebookRailYield(totalWidth: totalWidth, sidePanelWidth: sidePanelWidth, railWidth: railWidth, animated: animated)
+            updateNotebookRailYield(totalWidth: totalWidth, railWidth: railWidth, animated: animated)
             return
         }
         let requiredCenterWidth = StudioCenterTabGroupSizing.minimumWidth(for: windowState.centerTabGroups.groups)
         guard requiredCenterWidth > 0 else { return }
 
-        let sourcesAreExpanded = shouldShowSourcesPanel
-            && !windowState.collapsedPanelIDs.contains(StudioPanel.sources.rawValue)
-        let shouldCollapseSources = sourcesAreExpanded
-            && totalWidth - StudioOuterPanelSizing.sourcesFootprint < requiredCenterWidth
         let shouldCollapseNavigationRail = windowState.navigationRailVisible
             && totalWidth < requiredCenterWidth
 
-        guard shouldCollapseSources || shouldCollapseNavigationRail else { return }
+        guard shouldCollapseNavigationRail else { return }
         let changes = {
-            if shouldCollapseSources {
-                windowState.collapsedPanelIDs.insert(StudioPanel.sources.rawValue)
-            }
-            if shouldCollapseNavigationRail {
-                windowState.navigationRailVisible = false
-            }
+            windowState.navigationRailVisible = false
         }
         if animated {
             withAnimation(.easeInOut(duration: 0.22), changes)
@@ -306,7 +264,7 @@ struct StudioView: View {
     /// window's presentation changes (`navigationRailYieldsToNotebook`), never
     /// the rail's synced visibility. A window holding no notebook draws the
     /// rail as the learner left it.
-    private func updateNotebookRailYield(totalWidth: CGFloat, sidePanelWidth: CGFloat, railWidth: CGFloat, animated: Bool) {
+    private func updateNotebookRailYield(totalWidth: CGFloat, railWidth: CGFloat, animated: Bool) {
         let yields: Bool
         if let notebook = windowState.notebook, windowState.navigationRailVisible {
             yields = NotebookWorkspaceSizing.railYields(
@@ -399,19 +357,6 @@ struct StudioView: View {
                 .transition(.opacity)
             }
         }
-        // Published once, for the whole center area: the Sources restore
-        // control holds the window's outermost top-right position while
-        // Sources is collapsed, so every header row on the chrome line below
-        // reserves its width. StudioCenterTabGroupsView narrows this to the
-        // trailing group and adds the pane close target's share.
-        .environment(
-            \.studioChromeLineReservation,
-            StudioChromeLineReservation(
-                sourcesRestoreControl: isSourcesPanelCollapsed
-                    ? StudioTopBar.sourcesRestoreControlReservedWidth
-                    : 0
-            )
-        )
         .animation(.easeInOut(duration: 0.18), value: isMemoryReviewFocused)
         .animation(.easeInOut(duration: 0.18), value: windowState.NotebookID)
     }
@@ -505,12 +450,11 @@ struct StudioView: View {
         }
     }
 
-    /// Extra leading room for a panel's header while it sits in the titlebar
-    /// band: when the navigation rail is hidden, the leftmost *expanded* panel's
-    /// header would otherwise run underneath the traffic lights and the sidebar
-    /// toggle. A collapsed panel takes no width, so the clearance is the same
-    /// whether or not one of its neighbors is collapsed.
-    private func headerLeadingClearance(for panel: StudioPanel, hasTitlebarBand: Bool) -> CGFloat {
+    /// Extra leading room for the center area's header while it sits in the
+    /// titlebar band: when the navigation rail is hidden, the leftmost pane's
+    /// header would otherwise run underneath the traffic lights and the
+    /// sidebar toggle.
+    private func headerLeadingClearance(hasTitlebarBand: Bool) -> CGFloat {
         // The rail is a 52-point icon strip: the traffic
         // lights and the sidebar toggle reach past it into the band over the
         // notebook's first column, which sits in the center column.
@@ -521,72 +465,18 @@ struct StudioView: View {
         // the lights reach into the pane beside the strip.
         if windowState.drawsNavigationRail, windowState.showsHomeSidebar { return 0 }
         if windowState.drawsNavigationRail {
-            guard panel == .reader, hasTitlebarBand else { return 0 }
+            guard hasTitlebarBand else { return 0 }
             return max(0, StudioTopBar.headerLeadingClearance - StudioNavigationRail.compactRailWidth)
         }
-        // The navigation rail is always leading and already keeps the panels
+        // The navigation rail is always leading and already keeps the panes
         // clear of the traffic lights when it is visible.
         guard !windowState.showsNavigationRail else { return 0 }
-        let edges = StudioEdgeCollapseLayout.resolve(
-            visibleIds: visibleDockedColumnIds,
-            collapsed: windowState.collapsedPanelIDs
-        )
-        guard edges.expanded.first == dockedColumnID(for: panel) else { return 0 }
         // No band (fullscreen): no traffic lights, so the leftmost header only
         // needs to clear the toggle cluster itself.
         guard hasTitlebarBand else {
             return StudioTopBar.fullscreenHeaderLeadingClearance
         }
         return StudioTopBar.headerLeadingClearance
-    }
-
-    /// Whether the Sources panel is off screen while it could be on it, which is
-    /// when the top-right chrome offers the button that brings it back. An
-    /// immersive reader presentation hides Sources on its own terms and puts its
-    /// own chrome up there, so it does not count.
-    private var isSourcesPanelCollapsed: Bool {
-        guard !windowState.isDockedReaderImmersive else { return false }
-        // A notebook's columns fold to strips of their own, which bring
-        // them back; no library list waits off screen.
-        if windowState.notebook != nil { return false }
-        // The full-window Library is the list, not a panel waiting off screen.
-        if vm.libraryViewIsOnScreen(in: windowState) { return false }
-        // Stepping aside for a memory review, it waits off screen too, and
-        // the same control brings it back beside the review.
-        if windowState.sourcesStepAsideForMemoryReview { return true }
-        return !windowState.showSourcesPanel
-            || windowState.collapsedPanelIDs.contains(StudioPanel.sources.rawValue)
-    }
-
-    /// Puts Sources back on screen, from any of the ways it can be off:
-    /// collapsed to the edge, switched off outright, or stepping aside for a
-    /// memory review (`revealSourcesPanel`).
-    private func expandSourcesPanel() {
-        withAnimation(.easeInOut(duration: 0.22)) {
-            windowState.revealSourcesPanel()
-        }
-    }
-
-    /// The columns the outer layout actually renders, in order; the collapse
-    /// layout is resolved against these ids.
-    private var visibleDockedColumnIds: [String] {
-        dockedStudioPanelOrder
-            .compactMap { isDockedPanelVisible($0) ? dockedColumnID(for: $0) : nil }
-            .reduce(into: [String]()) { ids, id in
-                if !ids.contains(id) { ids.append(id) }
-            }
-    }
-
-    private func dockedColumnID(for panel: StudioPanel) -> String {
-        StudioPanelIdentity.panelId(for: panel)
-    }
-
-    private func isDockedPanelVisible(_ panel: StudioPanel) -> Bool {
-        switch panel {
-        case .sources: return shouldShowSourcesPanel
-        // The center tab area is the app; it is always on screen.
-        case .reader: return true
-        }
     }
 
     private var dockedChatPanel: some View {
@@ -631,28 +521,6 @@ struct StudioView: View {
         comparisonAssistantSessions.requestOpen(sessionID: sessionID)
         withAnimation(.easeInOut(duration: 0.22)) {
             vm.openSecondaryChatPane(atLeadingEdge: atLeadingEdge)
-        }
-    }
-
-    /// The sources panel's tab bar reaches the titlebar band from an overlay
-    /// inside StudioSidebar. Deliberately NO .ignoresSafeArea here: on macOS 26
-    /// a safe-area-ignoring ancestor of a List stops the subtree's SwiftUI
-    /// content from painting (the tab icons went blank while the NSTableView-
-    /// backed rows kept drawing).
-    private var sourcesPanel: some View {
-        NavigationStack {
-            StudioSidebar()
-                .equatable()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .dynamicTypeSize(UIZoom.size(for: uiZoomStep))
-    }
-
-    /// Collapse an outer panel away from the edge, or expand it back. Collapsing
-    /// reclaims the panel's full width; the top chrome keeps the way back.
-    private func toggleStudioPanelCollapsed(_ id: String) {
-        withAnimation(.easeInOut(duration: 0.22)) {
-            vm.togglePanelCollapsed(id)
         }
     }
 
@@ -717,7 +585,7 @@ struct StudioView: View {
         // lifting it by the AppKit inset (the band's portion above the content)
         // puts its vertical center on the traffic lights' center line. With no
         // band (fullscreen — the toolbar hides and the inset collapses), use
-        // the same in-flow header row as the center tabs and Sources controls.
+        // the same in-flow header row as the center tabs.
         // That keeps every top control on one baseline.
         let band = titlebarBand ?? StudioPanelChrome.headerHeight
         let lift = titlebarBand == nil ? 0 : topSafeAreaInset
@@ -749,29 +617,6 @@ struct StudioView: View {
                     .padding(.leading, toggleLeading)
                     .offset(y: -lift)
             }
-            // The way back for a collapsed Sources panel, on the same line at
-            // the opposite corner. Collapsing takes the panel's whole width
-            // away rather than leaving a rail behind, so this button — not a
-            // strip of empty chrome — is what holds its place. It owns the
-            // outside/right position; the active center pane's close control
-            // lives in the tab strip when visible and in the pane header when
-            // hidden, reserving room immediately to the left.
-            .overlay(alignment: .topTrailing) {
-                if isSourcesPanelCollapsed {
-                    SourcesPanelExpandToggle(
-                        label: "Show sources",
-                        onExpand: expandSourcesPanel
-                    )
-                        .frame(height: band)
-                        .padding(
-                            .trailing,
-                            StudioTopBar.sourcesToggleTrailingInset(tabStripVisible: false)
-                        )
-                        .offset(y: -lift)
-                        .transition(.opacity)
-                }
-            }
-            .animation(.easeInOut(duration: 0.22), value: isSourcesPanelCollapsed)
             .overlay {
                 if showGettingStarted {
                     GettingStartedGuide(isPresented: $showGettingStarted)
@@ -1134,8 +979,7 @@ struct StudioView: View {
                     measuredTopSafeAreaInset = inset
                 }
                 .environment(\.studioTitlebarBandHeight, titlebarBand)
-                .environment(\.studioCenterPaneHeaderLeadingInset, headerLeadingClearance(for: .reader, hasTitlebarBand: titlebarBand != nil))
-                .environment(\.studioSourcesHeaderLeadingInset, headerLeadingClearance(for: .sources, hasTitlebarBand: titlebarBand != nil))
+                .environment(\.studioCenterPaneHeaderLeadingInset, headerLeadingClearance(hasTitlebarBand: titlebarBand != nil))
                 .background {
                     // Native fullscreen retains a small screen-edge safe area
                     // even after the empty toolbar is hidden. Paint behind that
@@ -2036,8 +1880,8 @@ struct SidebarTabIcon: View {
     /// keeps inheriting the outer foreground so selection still reads there.
     var colorfulIcon = false
     /// Draws the type's SF Symbol (X its bare logo) in the inherited
-    /// foreground instead of the full-colour badge: the Sources panel's tab
-    /// strip, the Library's kind chips and the Customize popover, where the
+    /// foreground instead of the full-colour badge: the Library's tab
+    /// strip, its kind chips and the Customize popover, where the
     /// list is monochrome and selection reads as primary over secondary
     /// (docs/ui-design.md, "Lists are monochrome"; the product owner, 2026-10-06, "kind
     /// of like the chatgpt app"). Overrides `colorfulIcon`.

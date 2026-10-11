@@ -24,14 +24,10 @@ struct StudioLastSessionTests {
 
         let firstSnapshot = StudioWindowState.Snapshot(
             centerTabGroups: ["notebooks*", "!|reader*"],
-            showSourcesPanel: true,
-            collapsedPanelIDs: [],
             navigationRailVisible: false
         )
         let secondSnapshot = StudioWindowState.Snapshot(
             centerTabGroups: ["chat*", "!|notepad*"],
-            showSourcesPanel: false,
-            collapsedPanelIDs: [StudioPanel.sources.rawValue],
             navigationRailVisible: true
         )
 
@@ -113,8 +109,6 @@ struct StudioLastSessionTests {
         ) }
         let snapshot = StudioWindowState.Snapshot(
             centerTabGroups: ["chat*", "!|notepad*"],
-            showSourcesPanel: true,
-            collapsedPanelIDs: [],
             navigationRailVisible: false
         )
         let content = StudioWindowContent(
@@ -163,8 +157,6 @@ struct StudioLastSessionTests {
         // the store folds exact copies into one window.)
         let otherSnapshot = StudioWindowState.Snapshot(
             centerTabGroups: ["notebooks*", "!|reader*"],
-            showSourcesPanel: false,
-            collapsedPanelIDs: [],
             navigationRailVisible: true
         )
         StudioLastSessionStore.save([
@@ -262,8 +254,6 @@ struct StudioLastSessionTests {
 
         let snapshot = StudioWindowState.Snapshot(
             centerTabGroups: ["chat*"],
-            showSourcesPanel: true,
-            collapsedPanelIDs: [],
             navigationRailVisible: true
         )
         let placement = { (x: Double) in StudioWindowPlacement(
@@ -333,14 +323,10 @@ struct StudioLastSessionTests {
         let snapshots = [
             StudioWindowState.Snapshot(
                 centerTabGroups: ["chat*|tasks", "reader*"],
-                showSourcesPanel: true,
-                collapsedPanelIDs: [],
                 navigationRailVisible: false
             ),
             StudioWindowState.Snapshot(
                 centerTabGroups: ["notebooks*"],
-                showSourcesPanel: false,
-                collapsedPanelIDs: [],
                 navigationRailVisible: true
             ),
         ]
@@ -501,8 +487,6 @@ struct StudioLastSessionTests {
             .init(
                 snapshot: StudioWindowState.Snapshot(
                     centerTabGroups: ["chat*"],
-                    showSourcesPanel: true,
-                    collapsedPanelIDs: [],
                     navigationRailVisible: true
                 ),
                 placement: nil
@@ -524,7 +508,6 @@ struct StudioLastSessionTests {
         let legacy = try JSONDecoder().decode(StudioWindowState.Snapshot.self, from: Data(legacyJSON.utf8))
         #expect(legacy.notebook == nil)
         #expect(legacy.centerTabGroups == ["notebooks*", "!|reader*"])
-        #expect(legacy.collapsedPanelIDs == [StudioPanel.sources.rawValue])
         #expect(legacy.navigationRailVisible == false)
         let restoredLegacy = StudioWindowState()
         restoredLegacy.restore(from: legacyJSON)
@@ -573,8 +556,7 @@ struct StudioLastSessionTests {
         let saved = UserDefaults.standard.data(forKey: StudioLastSessionStore.preferenceKey)
         // Applying a saved window writes the layout template; put it back.
         let templateKeys = [
-            "studio.centerTabGroups.v1", "studio.showSourcesPanel",
-            "studio.collapsedPanelIds", "studio.navigationRailVisible",
+            "studio.centerTabGroups.v1", "studio.navigationRailVisible",
         ]
         let template = templateKeys.map { UserDefaults.standard.object(forKey: $0) }
         defer {
@@ -593,8 +575,6 @@ struct StudioLastSessionTests {
         }
         let layout = StudioWindowState.Snapshot(
             centerTabGroups: ["notebooks*", "!|reader*"],
-            showSourcesPanel: true,
-            collapsedPanelIDs: [],
             navigationRailVisible: true
         )
         var bio = layout

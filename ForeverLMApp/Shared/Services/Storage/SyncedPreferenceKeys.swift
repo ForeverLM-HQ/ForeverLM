@@ -153,8 +153,7 @@ enum SyncedPreferenceKeys {
         // the orders beside it, an arranged rail is work that has to reach the
         // other Mac.
         NotebookPins.preferenceKey,
-        "studio.expandedPanel", "studio.collapsedPanelIds",
-        "studio.showSourcesPanel", "studio.showSearchPanel",
+        "studio.expandedPanel", "studio.showSearchPanel",
         "studio.navigationRailVisible", "studio.sourceTabBarLayout",
         "studio.showSourceTabLabels", "studio.sourceTabIconSize",
         "studio.assistantIntegrationsEnabled", "studio.showMCPStatusLight",

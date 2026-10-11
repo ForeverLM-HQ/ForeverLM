@@ -67,7 +67,7 @@ struct MemoryCardSessionView: View {
                     .frame(width: geo.size.width - readerWidth - (readerWidth > 0 ? 1 : 0))
                 if readerWidth > 0 {
                     StudioColumnHairline()
-                    StudioPaneHost(activeTab: .reader, width: readerWidth, isTrailing: true) {
+                    StudioPaneHost(activeTab: .reader, width: readerWidth) {
                         reader()
                     }
                     .accessibilityElement(children: .contain)

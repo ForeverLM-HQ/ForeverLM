@@ -428,13 +428,14 @@ extension StudioViewModel {
         }
     }
 
-    /// Shows a course's source in its own Sources tab, scrolled to its row:
+    /// Shows a course's source in its own Library tab, scrolled to its row:
     /// the lecture video under YouTube, the paper under Papers. Nothing for
-    /// course material, which has no tab.
+    /// course material, which has no tab. The Library opens beside what the
+    /// window shows.
     func showCourseSourceInSources(_ article: StudioArticle, in windowState: StudioWindowState) {
         guard let tab = sidebarTab(listing: article) else { return }
-        windowState.showSourcesPanel = true
         inWindow(windowState) {
+            openCenterTabBeside(.library)
             switchTab(to: tab)
             if let group = article.parentGroup {
                 sidebarStore.expandedGroups.insert(group)

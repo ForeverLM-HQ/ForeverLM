@@ -178,17 +178,6 @@ enum SourceTabIconSize: String, CaseIterable, Hashable {
     }
 }
 
-/// Maps a panel to the string id the column layout, collapse state, and
-/// divider-fraction bookkeeping key off.
-enum StudioPanelIdentity {
-    static func panelId(for panel: StudioPanel) -> String {
-        switch panel {
-        case .sources: return "sources"
-        case .reader: return "reader"
-        }
-    }
-}
-
 /// Clips a panel column horizontally and at the bottom like `.clipped()`, but
 /// leaves headroom above the top edge so the reader header can rise into the
 /// hidden-titlebar band without being cut off.
@@ -230,15 +219,9 @@ enum StudioPanelChrome {
     static let panelToggleBarHeight: CGFloat = 34
     static let headerHorizontalPadding: CGFloat = 16
     /// Shared target widths for the close controls that occupy a center pane's
-    /// trailing chrome. When Sources is collapsed, these targets shift left to
-    /// reserve the outermost position for its restore button.
+    /// trailing chrome.
     static let centerTabCloseButtonSize: CGFloat = 22
     static let readerCloseButtonSize: CGFloat = 26
-    /// How narrow a collapsible edge panel has to be dragged before releasing
-    /// the divider turns the drag into a real collapse. A collapsed panel takes
-    /// no width at all — the toggle that brings it back lives in the window's
-    /// top chrome — so this is only the "you clearly meant to close it" cutoff.
-    static let edgeCollapseDragThreshold: CGFloat = 46
 }
 
 /// Where a center pane's trailing chrome — the pin and the close target that
@@ -269,12 +252,10 @@ enum StudioPaneClosePlacement: Equatable {
     static func resolve(
         visibleWidth: CGFloat,
         leadingReservation: CGFloat,
-        trailingReservation: CGFloat,
         controlWidth: CGFloat,
         horizontalPadding: CGFloat = StudioPanelChrome.headerHorizontalPadding
     ) -> Self {
         let controlsLeftEdge = visibleWidth
-            - trailingReservation
             - horizontalPadding
             - controlWidth
         guard controlsLeftEdge >= 0 else { return .hidden }
@@ -354,60 +335,6 @@ enum StudioChatHeaderClearance {
     }
 }
 
-/// Title for a panel (or stack column) id, shared by the chrome toggles and
-/// any other view that needs to label a panel by its identifier.
-enum StudioPanelMetadata {
-    static func title(forPanelId id: String) -> String {
-        switch id {
-        case "sources": return "Sources"
-        case "reader", "readerChat": return "Reader"
-        default: return "Panel"
-        }
-    }
-}
-
-/// Resolves which visible panels sit at the left/right edges and are collapsed
-/// away entirely, versus the expanded panels that fill the whole width. A
-/// collapsed panel leaves no residual rail behind — the toggle that brings it
-/// back lives in the window's top chrome, so the panel's width is fully
-/// reclaimed by its neighbors. Only the outermost visible panels are
-/// collapsible; collapsing never leaves the layout with zero expanded panels.
-struct StudioEdgeCollapseLayout {
-    var hiddenLeading: String?
-    var hiddenTrailing: String?
-    var expanded: [String]
-
-    static func resolve(visibleIds ids: [String], collapsed: Set<String>) -> StudioEdgeCollapseLayout {
-        guard ids.count > 1, let firstId = ids.first, let lastId = ids.last else {
-            return StudioEdgeCollapseLayout(hiddenLeading: nil, hiddenTrailing: nil, expanded: ids)
-        }
-
-        var hiddenLeading = collapsed.contains(firstId) ? firstId : nil
-        var hiddenTrailing = (lastId != firstId && collapsed.contains(lastId)) ? lastId : nil
-
-        var expanded = ids
-        if hiddenLeading != nil { expanded.removeFirst() }
-        if hiddenTrailing != nil, !expanded.isEmpty { expanded.removeLast() }
-
-        // Never collapse everything — keep at least one expanded panel.
-        if expanded.isEmpty {
-            if hiddenTrailing != nil {
-                hiddenTrailing = nil
-                expanded = [lastId]
-            } else if hiddenLeading != nil {
-                hiddenLeading = nil
-                expanded = [firstId]
-            }
-        }
-
-        return StudioEdgeCollapseLayout(
-            hiddenLeading: hiddenLeading,
-            hiddenTrailing: hiddenTrailing,
-            expanded: expanded
-        )
-    }
-}
-
 enum StudioBottomPanelSizing {
     static let defaultHeight: CGFloat = 168
     static let minHeight: CGFloat = 92
@@ -440,26 +367,23 @@ enum StudioTopBar {
     /// Left edge of the sidebar toggle: clear of the lights, with room to spare.
     /// The 30pt sidebar toggle runs ~92→122pt.
     static let railToggleLeading: CGFloat = 92
-    /// Gap between the active center pane's close target and the Sources
-    /// restore control. Sources owns the outermost top-right position; the
-    /// close target shifts left by this control width plus the gap.
-    static let sourcesToggleCloseSpacing: CGFloat = 12
-    static let sourcesRestoreControlReservedWidth =
-        StudioDesign.Metrics.chromeButtonWidth + sourcesToggleCloseSpacing
+    /// Gap between the controls drawn over a pane's top-right corner: its
+    /// pin, its close target and a header's own trailing controls.
+    static let paneControlSpacing: CGFloat = 12
     /// What the active center pane's close target claims at the top-right,
-    /// with the same gap Sources keeps. The target is drawn as an overlay on
+    /// with the same gap. The target is drawn as an overlay on
     /// top of the pane, so nothing in a pane's own header row can push it
     /// aside — a header with trailing controls of its own reserves this much
     /// instead, or the two draw in the same place.
     static let centerPaneCloseControlReservedWidth =
-        StudioPanelChrome.centerTabCloseButtonSize + sourcesToggleCloseSpacing
+        StudioPanelChrome.centerTabCloseButtonSize + paneControlSpacing
     /// The same claim for a pane whose close target is Reader's own, which is
     /// the larger of the two close controls. Reserving the shared width for it
     /// left its hover wash — and so its hit surface — 2pt inside the pin's.
     static let readerPaneCloseControlReservedWidth =
-        StudioPanelChrome.readerCloseButtonSize + sourcesToggleCloseSpacing
+        StudioPanelChrome.readerCloseButtonSize + paneControlSpacing
     static let centerPanePinControlReservedWidth =
-        StudioPanelChrome.centerTabCloseButtonSize + sourcesToggleCloseSpacing
+        StudioPanelChrome.centerTabCloseButtonSize + paneControlSpacing
     static let centerTabStripHorizontalPadding: CGFloat = 10
 
     /// Whether the pane showing `activeTab` draws a close target while the
@@ -481,12 +405,6 @@ enum StudioTopBar {
         !memoryReviewFocused
     }
 
-    static func sourcesToggleTrailingInset(tabStripVisible: Bool) -> CGFloat {
-        if tabStripVisible {
-            return centerTabStripHorizontalPadding
-        }
-        return StudioPanelChrome.headerHorizontalPadding
-    }
     /// Left edge of the leftmost panel's in-band header, so its title clears the
     /// lights and the sidebar toggle (which ends at 122pt) and stands a short
     /// step after it, as Codex's thread title does after its arrows. It was 170,
@@ -508,15 +426,11 @@ enum StudioTopBar {
 /// and it does so from this one value rather than each pane re-deriving the
 /// arithmetic (and forgetting a control).
 struct StudioChromeLineReservation: Equatable {
-    /// The Sources restore control, at the window's outermost top-right
-    /// position while the Sources panel is collapsed. Only the pane against the
-    /// window's trailing edge meets it.
-    var sourcesRestoreControl: CGFloat = 0
-    /// The active pane's pin and optional close targets, immediately to the
-    /// restore control's left while the center tab strip is hidden.
+    /// The active pane's pin and optional close targets, at the pane's
+    /// top-right corner while the center tab strip is hidden.
     var paneControls: CGFloat = 0
 
-    var total: CGFloat { sourcesRestoreControl + paneControls }
+    var total: CGFloat { paneControls }
 }
 
 /// NSToolbar that tolerates unbalanced KVO removals.
@@ -1823,7 +1737,7 @@ private struct StudioCenterTabCloseChrome: ViewModifier {
                                 height: titlebarBandHeight ?? StudioPanelChrome.headerHeight
                             )
                             .offset(
-                                x: -trailingOverflow - sourcesRestoreReservedWidth,
+                                x: -trailingOverflow,
                                 y: placement == .chromeLine ? -(titlebarBandHeight ?? 0) : 0
                             )
                             .frame(
@@ -1852,10 +1766,6 @@ private struct StudioCenterTabCloseChrome: ViewModifier {
                     height: StudioPanelChrome.centerTabCloseButtonSize
                 )
         }
-    }
-
-    private var sourcesRestoreReservedWidth: CGFloat {
-        chromeReservation.sourcesRestoreControl
     }
 
     private var drawsCloseControl: Bool {
@@ -1923,12 +1833,6 @@ private struct StudioPaneChromePlacementKey: EnvironmentKey {
     static let defaultValue = StudioPaneClosePlacement.chromeLine
 }
 
-/// Same clearance for the sources panel's tab bar when the sources panel is
-/// the leftmost panel with the navigation rail hidden.
-private struct StudioSourcesHeaderLeadingInsetKey: EnvironmentKey {
-    static let defaultValue: CGFloat = 0
-}
-
 /// Accumulated points that enclosing panel layouts clip off this content's
 /// trailing edge.
 ///
@@ -1975,11 +1879,6 @@ extension EnvironmentValues {
     var studioPaneChromePlacement: StudioPaneClosePlacement {
         get { self[StudioPaneChromePlacementKey.self] }
         set { self[StudioPaneChromePlacementKey.self] = newValue }
-    }
-
-    var studioSourcesHeaderLeadingInset: CGFloat {
-        get { self[StudioSourcesHeaderLeadingInsetKey.self] }
-        set { self[StudioSourcesHeaderLeadingInsetKey.self] = newValue }
     }
 }
 
@@ -2231,119 +2130,31 @@ extension View {
 enum StudioPanelDefaultSizing {
     static let goldenRatio: CGFloat = 1.618_033_988_75
 
-    static func fractions(for ids: [String]) -> [CGFloat] {
-        guard ids.count > 1 else { return [] }
-
-        let weights = ids.map(defaultWeight)
-        let totalWeight = weights.reduce(0, +)
-        guard totalWeight > 0 else {
-            return (1..<ids.count).map { CGFloat($0) / CGFloat(ids.count) }
-        }
-
-        var runningWeight: CGFloat = 0
-        return weights.dropLast().map { weight in
-            runningWeight += weight
-            return runningWeight / totalWeight
-        }
-    }
-
-    /// The width both side panels open at so that every center pane is exactly
-    /// φ times as wide as one of them. Solving
+    /// The width the sidebar opens at so that every center pane is exactly
+    /// φ times as wide as it. The row is sized as if an equal side column
+    /// shared the window, which keeps the center φ times a side however wide
+    /// the window is. Solving
     ///
     ///     window = 2·side + panes·φ·side + panes·divider
     ///
     /// for `side` is what keeps that ratio true at any window size — the old
     /// pinned point width held only at one width and drifted everywhere else
-    /// (at 2560pt it had stretched the center to 2.5× the sides). The rail has
-    /// no divider of its own; the dividers counted here are the one before
-    /// Sources plus one between each pair of center panes.
+    /// (at 2560pt it had stretched the center to 2.5× the sides).
     ///
-    /// Splitting the center therefore narrows both sides, since the row now
-    /// owes φ to two panes instead of one. Collapsing a side panel does not
-    /// re-solve: the surviving side keeps its width and the center takes the
-    /// space, which is what collapsing it is for.
+    /// Splitting the center narrows the sidebar, since the row now owes φ to
+    /// two panes instead of one.
     static func goldenSideWidth(windowWidth: CGFloat, centerPaneCount: Int) -> CGFloat {
         let panes = CGFloat(max(1, centerPaneCount))
         let dividers = panes * StudioOuterPanelSizing.dividerWidth
         let side = (windowWidth - dividers) / (2 + panes * goldenRatio)
         return min(max(side, StudioNavigationRail.minRailWidth), StudioNavigationRail.maxRailWidth)
     }
-
-    /// Resolves a completed Sources-divider drag into its own persisted width.
-    /// A hairline result means Sources is being collapsed and must not replace
-    /// the last usable preference.
-    static func trailingSideWidth(
-        trailingDividerFraction: CGFloat,
-        totalWidth: CGFloat,
-        panelCount: Int
-    ) -> CGFloat? {
-        guard panelCount > 1 else { return nil }
-        let usable = totalWidth - CGFloat(panelCount - 1) * StudioOuterPanelSizing.dividerWidth
-        guard usable > 0 else { return nil }
-        let fraction = min(max(trailingDividerFraction, 0), 1)
-        let width = (1 - fraction) * usable
-        guard width >= StudioPanelChrome.edgeCollapseDragThreshold else { return nil }
-        return min(
-            max(width, StudioNavigationRail.minRailWidth),
-            StudioNavigationRail.maxRailWidth
-        )
-    }
-
-    /// Default divider positions for a row that is `totalWidth` wide. Sources
-    /// is pinned to the point width the caller resolved from its own default or
-    /// persisted preference. Everything else splits the remainder by weight.
-    static func fractions(
-        for ids: [String],
-        totalWidth: CGFloat,
-        sidePanelWidth: CGFloat? = nil
-    ) -> [CGFloat] {
-        guard ids.count > 1 else { return [] }
-        let usable = totalWidth - CGFloat(ids.count - 1) * StudioOuterPanelSizing.dividerWidth
-        guard usable > 0, ids.contains("sources") else { return fractions(for: ids) }
-
-        // Never let the pinned width crowd out the center: in a narrow window
-        // Sources takes at most half the row, and the ordinary drag minimum
-        // still applies below that.
-        let requested = sidePanelWidth ?? StudioOuterPanelSizing.sourcesDefaultWidth
-        let pinned = min(
-            max(requested, StudioOuterPanelSizing.minimumContentWidth),
-            usable / 2
-        )
-        let sourcesShare = pinned / usable
-        let remainder = max(0, 1 - sourcesShare)
-
-        let otherIds = ids.filter { $0 != "sources" }
-        let weights = otherIds.map(defaultWeight)
-        let totalWeight = weights.reduce(0, +)
-        var shares: [String: CGFloat] = ["sources": sourcesShare]
-        for (id, weight) in zip(otherIds, weights) {
-            shares[id] = totalWeight > 0
-                ? remainder * weight / totalWeight
-                : remainder / CGFloat(otherIds.count)
-        }
-
-        var running: CGFloat = 0
-        return ids.dropLast().map { id in
-            running += shares[id] ?? 0
-            return running
-        }
-    }
-
-    private static func defaultWeight(for id: String) -> CGFloat {
-        switch id {
-        case "reader", "readerChat":
-            return goldenRatio
-        default:
-            return 1
-        }
-    }
 }
 
 /// Keeps adjacent panes usable while a divider moves. When the available span
 /// cannot fit both minimums (for example in a genuinely narrow window), the
 /// divider retains its ordinary hard bounds and the existing clipping behavior
-/// remains the last resort. Collapsible outer panes may still enter the small
-/// edge zone that turns a drag into a real collapse on release.
+/// remains the last resort.
 enum StudioPaneDividerConstraint {
     static func clamp(
         _ proposed: CGFloat,
@@ -2351,547 +2162,25 @@ enum StudioPaneDividerConstraint {
         hardUpper: CGFloat,
         leadingMinimumWidth: CGFloat,
         trailingMinimumWidth: CGFloat,
-        usableWidth: CGFloat,
-        leadingMayCollapse: Bool = false,
-        trailingMayCollapse: Bool = false,
-        collapseThreshold: CGFloat = 0
+        usableWidth: CGFloat
     ) -> CGFloat {
         let hardClamped = min(max(proposed, hardLower), hardUpper)
         guard usableWidth > 0,
               (hardUpper - hardLower) * usableWidth >= leadingMinimumWidth + trailingMinimumWidth
         else { return hardClamped }
 
-        var lower = hardLower + leadingMinimumWidth / usableWidth
-        var upper = hardUpper - trailingMinimumWidth / usableWidth
-        if leadingMayCollapse,
-           (hardClamped - hardLower) * usableWidth < collapseThreshold {
-            lower = hardLower
-        }
-        if trailingMayCollapse,
-           (hardUpper - hardClamped) * usableWidth < collapseThreshold {
-            upper = hardUpper
-        }
+        let lower = hardLower + leadingMinimumWidth / usableWidth
+        let upper = hardUpper - trailingMinimumWidth / usableWidth
         guard lower <= upper else { return hardClamped }
         return min(max(hardClamped, lower), upper)
     }
 }
 
-/// Maps stored divider fractions for the full visible panel row onto the subset
-/// of expanded panels when edge panels are collapsed away.
-enum StudioPanelFractionRemapping {
-    struct PanelBound {
-        let id: String
-        let start: CGFloat
-        let end: CGFloat
-        var width: CGFloat { end - start }
-    }
-
-    static func resolvedFractions(for ids: [String], stored: [CGFloat]) -> [CGFloat] {
-        guard ids.count > 1 else { return [] }
-        if stored.count == ids.count - 1 { return stored }
-        return StudioPanelDefaultSizing.fractions(for: ids)
-    }
-
-    static func panelBounds(ids: [String], fractions: [CGFloat]) -> [PanelBound] {
-        guard !ids.isEmpty else { return [] }
-        let dividerFractions = resolvedFractions(for: ids, stored: fractions)
-        return ids.enumerated().map { index, id in
-            let start = index == 0 ? 0 : dividerFractions[index - 1]
-            let end = index == ids.count - 1 ? 1 : dividerFractions[index]
-            return PanelBound(id: id, start: start, end: end)
-        }
-    }
-
-    static func expandedFractions(
-        visibleIds: [String],
-        expandedIds: [String],
-        storedFractions: [CGFloat]
-    ) -> [CGFloat] {
-        guard expandedIds.count > 1 else { return [] }
-        if visibleIds == expandedIds {
-            return resolvedFractions(for: visibleIds, stored: storedFractions)
-        }
-
-        let bounds = panelBounds(ids: visibleIds, fractions: storedFractions)
-        let collapsedPrefix = leadingCollapsedWidth(bounds: bounds, expandedIds: expandedIds)
-        let collapsedSuffix = trailingCollapsedWidth(bounds: bounds, expandedIds: expandedIds)
-        let expandedSpan = max(0, 1 - collapsedPrefix - collapsedSuffix)
-        guard expandedSpan > 0 else {
-            return StudioPanelDefaultSizing.fractions(for: expandedIds)
-        }
-
-        var running: CGFloat = 0
-        return expandedIds.dropLast().map { id in
-            guard let bound = bounds.first(where: { $0.id == id }) else { return running }
-            running += bound.width / expandedSpan
-            return running
-        }
-    }
-
-    static func updatingExpandedBoundaries(
-        visibleIds: [String],
-        expandedIds: [String],
-        storedFractions: [CGFloat],
-        expandedDividerFractions: [CGFloat]
-    ) -> [CGFloat] {
-        guard visibleIds.count > 1 else { return [] }
-        var result = resolvedFractions(for: visibleIds, stored: storedFractions)
-        guard expandedDividerFractions.count == expandedIds.count - 1 else { return result }
-
-        let bounds = panelBounds(ids: visibleIds, fractions: result)
-        let collapsedPrefix = leadingCollapsedWidth(bounds: bounds, expandedIds: expandedIds)
-        let collapsedSuffix = trailingCollapsedWidth(bounds: bounds, expandedIds: expandedIds)
-        let expandedSpan = max(0, 1 - collapsedPrefix - collapsedSuffix)
-        guard expandedSpan > 0 else { return result }
-
-        for (index, expandedFraction) in expandedDividerFractions.enumerated() {
-            let leftExpandedId = expandedIds[index]
-            guard let visibleIndex = visibleIds.firstIndex(of: leftExpandedId) else { continue }
-            let fullBoundary = collapsedPrefix + expandedFraction * expandedSpan
-            // Clamp between the neighboring dividers, not this divider's own
-            // current value — clamping against result[visibleIndex] itself made
-            // every rightward drag a no-op (the divider could only ratchet left).
-            let lower = visibleIndex == 0 ? 0 : result[visibleIndex - 1]
-            let upper = visibleIndex >= result.count - 1 ? 1 : result[visibleIndex + 1]
-            result[visibleIndex] = min(max(fullBoundary, lower), upper)
-        }
-        return result
-    }
-
-    private static func leadingCollapsedWidth(bounds: [PanelBound], expandedIds: [String]) -> CGFloat {
-        var total: CGFloat = 0
-        for bound in bounds {
-            if expandedIds.contains(bound.id) { break }
-            total += bound.width
-        }
-        return total
-    }
-
-    private static func trailingCollapsedWidth(bounds: [PanelBound], expandedIds: [String]) -> CGFloat {
-        var total: CGFloat = 0
-        for bound in bounds.reversed() {
-            if expandedIds.contains(bound.id) { break }
-            total += bound.width
-        }
-        return total
-    }
-}
-
-/// Shared width contract for the outer Sources + center columns. The shell and
-/// the divider must use the same values or one can decide the workspace fits
-/// while the other is already clipping its titlebar controls.
+/// Width contract for the center column: the pane minimum, and the gap a
+/// divider between two center panes takes.
 enum StudioOuterPanelSizing {
     static let dividerWidth: CGFloat = 10
     static let minimumContentWidth: CGFloat = 200
-
-    static var sourcesFootprint: CGFloat { minimumContentWidth + dividerWidth }
-
-    /// Fallback for layouts without a live window measurement.
-    static var sourcesDefaultWidth: CGFloat {
-        StudioSourcesPanelPreference.resolvedWidth(goldenDefault: nil)
-    }
-}
-
-enum StudioSourcesPanelPreference {
-    static let widthKey = "studio.sourcesPanelWidth"
-    static let defaultWidth: CGFloat = StudioNavigationRail.defaultRailWidth
-
-    private static var draggedWidthPreference: CGFloat? {
-        (UserDefaults.standard.object(forKey: widthKey) as? Double).map { CGFloat($0) }
-    }
-
-    static func resolvedWidth(goldenDefault: CGFloat?) -> CGFloat {
-        let value = draggedWidthPreference ?? goldenDefault ?? defaultWidth
-        return min(
-            max(value, StudioNavigationRail.minRailWidth),
-            StudioNavigationRail.maxRailWidth
-        )
-    }
-}
-
-/// Golden-ratio weighted panels with draggable dividers. Untouched Sources
-/// starts at the same golden-ratio default as the chat rail; each panel becomes
-/// an independent persisted preference once the learner resizes it.
-/// When panel visibility changes, fractions reset to the default weights.
-///
-/// Uses indexed panel slots instead of AnyView for efficient SwiftUI diffing.
-struct StudioPanelLayout<Sources: View, Reader: View>: View {
-    @Environment(StudioViewModel.self) private var vm
-    @Environment(StudioWindowState.self) private var windowState
-
-    let totalWidth: CGFloat
-    let panelOrder: [StudioPanel]
-    let showSources: Bool
-    let showReader: Bool
-    let collapsedPanelIds: Set<String>
-    /// Edge panels that may collapse away entirely. A divider drag that ends
-    /// with one of these hairline-narrow converts into a real collapse, so the
-    /// panel's collapsed flag matches what the user sees and the top chrome
-    /// offers its toggle.
-    let collapsibleEdgePanelIds: Set<String>
-    /// The width Sources opens at: its golden default or its own persisted
-    /// learner override.
-    let sidePanelWidth: CGFloat
-    let onToggleCollapse: (String) -> Void
-
-    private let sources: () -> Sources
-    private let reader: () -> Reader
-
-    // Stores the x-position of each divider as a fraction of totalWidth (0…1).
-    // For N visible panels there are N-1 dividers.
-    @Binding private var dividerFractions: [CGFloat]
-    @State private var dragStartFractions: [CGFloat] = []
-    /// Set once the learner drags an outer divider themselves. The golden
-    /// ratio then stops re-solving as the window resizes: it is where the row
-    /// starts, not a shape the layout keeps snapping back to.
-    @State private var hasDraggedDivider = false
-
-    @AppStorage(StudioSourcesPanelPreference.widthKey) private var storedSourcesPanelWidth =
-        Double(StudioSourcesPanelPreference.defaultWidth)
-
-    private let dividerWidth = StudioOuterPanelSizing.dividerWidth
-    private let minimumContentWidth = StudioOuterPanelSizing.minimumContentWidth
-
-    init(
-        totalWidth: CGFloat,
-        panelOrder: [StudioPanel],
-        showSources: Bool,
-        showReader: Bool,
-        collapsedPanelIds: Set<String>,
-        collapsibleEdgePanelIds: Set<String> = [],
-        sidePanelWidth: CGFloat,
-        onToggleCollapse: @escaping (String) -> Void,
-        dividerFractions: Binding<[CGFloat]>,
-        @ViewBuilder sources: @escaping () -> Sources,
-        @ViewBuilder reader: @escaping () -> Reader
-    ) {
-        self.totalWidth = totalWidth
-        self.panelOrder = panelOrder
-        self.showSources = showSources
-        self.showReader = showReader
-        self.collapsedPanelIds = collapsedPanelIds
-        self.collapsibleEdgePanelIds = collapsibleEdgePanelIds
-        self.sidePanelWidth = sidePanelWidth
-        self.onToggleCollapse = onToggleCollapse
-        self._dividerFractions = dividerFractions
-        self.sources = sources
-        self.reader = reader
-    }
-
-    /// Ordered list of visible panel identifiers, following the user's custom panel order.
-    private var visiblePanelIds: [String] {
-        panelOrder.compactMap { panel in
-            isVisible(panel) ? panelId(for: panel) : nil
-        }
-    }
-
-    var body: some View {
-        let edges = StudioEdgeCollapseLayout.resolve(visibleIds: visiblePanelIds, collapsed: collapsedPanelIds)
-        let ids = edges.expanded
-        let visibleKey = visiblePanelIds.joined(separator: ",")
-        let fracs = validFractions(for: ids)
-
-        // A collapsed edge panel is simply absent: the expanded panels divide
-        // the full width between them, with no leftover rail at the window's
-        // edge. Bringing it back is the job of the top chrome's toggle.
-        core(ids: ids, coreWidth: totalWidth, fractions: fracs)
-            .frame(width: totalWidth)
-            .coordinateSpace(.named("panels"))
-            .onChange(of: visibleKey) { _, _ in
-                resetFractions(for: visiblePanelIds)
-            }
-            .onChange(of: sidePanelWidth) { _, _ in
-                // The side panels are a golden share of the window, so a
-                // window resize (or a center pane opening, which changes the
-                // share) re-solves the row. A divider the learner dragged
-                // outranks that and is left alone.
-                guard !hasDraggedDivider else { return }
-                resetFractions(for: visiblePanelIds)
-            }
-            .onChange(of: totalWidth) { _, _ in
-                // Divider positions are fractional, but a learner-resized
-                // Sources width is an absolute local preference. Reapply it
-                // after a window resize instead of scaling it with the row.
-                resetFractions(for: visiblePanelIds)
-            }
-            .onChange(of: collapsedPanelIds) { oldValue, newValue in
-                // Expanding a collapsed edge panel reopens it at its default
-                // width — for Sources, its own persisted override or golden
-                // default — rather than whatever collapsed fraction remained.
-                guard !oldValue.subtracting(newValue).isEmpty else { return }
-                withAnimation(.easeInOut(duration: 0.22)) {
-                    resetFractions(for: visiblePanelIds)
-                }
-            }
-            .onAppear {
-                if dividerFractions.count != max(visiblePanelIds.count - 1, 0) {
-                    resetFractions(for: visiblePanelIds)
-                }
-            }
-    }
-
-    @ViewBuilder
-    private func core(ids: [String], coreWidth: CGFloat, fractions: [CGFloat]) -> some View {
-        HStack(spacing: 0) {
-            ForEach(Array(ids.enumerated()), id: \.element) { index, panelId in
-                let width = panelWidth(at: index, fractions: fractions, panelCount: ids.count, totalWidth: coreWidth)
-
-                // Use Color.clear as the layout base; overlay the real content
-                // at a minimum width so complex views (NavigationStack etc.) never
-                // receive a degenerate 0-width proposal that fights the layout.
-                Color.clear
-                    .frame(width: width)
-                    .frame(maxHeight: .infinity)
-                    .overlay(alignment: .leading) {
-                        let contentWidth = max(width, minimumContentWidth(for: panelId))
-                        panelContent(for: panelId)
-                            .frame(width: contentWidth)
-                            .frame(maxHeight: .infinity)
-                            .environment(\.studioPanelTrailingOverflow, contentWidth - width)
-                    }
-                    .clipShape(StudioPanelColumnClipShape())
-                    .allowsHitTesting(width > 1)
-
-                if index < ids.count - 1 {
-                    dividerHandle(
-                        at: index,
-                        expandedIds: ids,
-                        panelCount: ids.count,
-                        totalWidth: coreWidth
-                    )
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func panelContent(for id: String) -> some View {
-        switch id {
-        case "sources": sources()
-        case "reader":  reader()
-        default:        EmptyView()
-        }
-    }
-
-    private func minimumContentWidth(for id: String) -> CGFloat {
-        switch id {
-        case "reader":
-            // The outer Reader column contains every center pane. Let its
-            // divider contract use the same sum of pane minima as the inner
-            // layout, so Sources cannot be dragged across usable center chrome.
-            // A notebook's columns and slots stand in for the groups.
-            return max(
-                minimumContentWidth,
-                windowState.notebook.map {
-                    NotebookWorkspaceSizing.minimumWidth(for: $0, studioShows: !windowState.isDockedReaderImmersive)
-                } ?? StudioCenterTabGroupSizing.minimumWidth(for: windowState.centerTabGroups.groups)
-            )
-        default:
-            return minimumContentWidth
-        }
-    }
-
-    private func panelId(for panel: StudioPanel) -> String {
-        StudioPanelIdentity.panelId(for: panel)
-    }
-
-    private func isVisible(_ panel: StudioPanel) -> Bool {
-        switch panel {
-        case .sources: return showSources
-        case .reader: return showReader
-        }
-    }
-
-    private func resetFractions(for ids: [String]) {
-        dividerFractions = StudioPanelDefaultSizing.fractions(
-            for: ids,
-            totalWidth: totalWidth,
-            sidePanelWidth: sidePanelWidth
-        )
-    }
-
-    private func validFractions(for expandedIds: [String]) -> [CGFloat] {
-        guard expandedIds.count > 1 else { return [] }
-        return StudioPanelFractionRemapping.expandedFractions(
-            visibleIds: visiblePanelIds,
-            expandedIds: expandedIds,
-            storedFractions: dividerFractions
-        )
-    }
-
-    private func panelWidth(at index: Int, fractions: [CGFloat], panelCount: Int, totalWidth: CGFloat) -> CGFloat {
-        guard panelCount > 1 else { return totalWidth }
-        let totalDividers = CGFloat(panelCount - 1) * dividerWidth
-        let usable = totalWidth - totalDividers
-        let left = index == 0 ? 0 : fractions[index - 1]
-        let right = index == panelCount - 1 ? 1 : fractions[index]
-        return max(0, (right - left) * usable)
-    }
-
-    private func dividerHandle(
-        at index: Int,
-        expandedIds: [String],
-        panelCount: Int,
-        totalWidth: CGFloat
-    ) -> some View {
-        Rectangle()
-            .fill(Color.clear)
-            .frame(width: dividerWidth)
-            // The visible line, with its short stroke in the titlebar band
-            // between the panes' chrome lines.
-            .overlay(StudioColumnHairline())
-            // The grab area is the divider's own width and nothing more. It
-            // used to reach 6 pt into each neighbour, and that strip is where
-            // a pane's overlay scroll bar draws its knob: on a long document
-            // — a 1,500-page book — the knob is the only way to move far, and
-            // taking hold of it resized the pane instead of scrolling it.
-            .contentShape(Rectangle())
-            .cursor(.resizeLeftRight)
-            .onTapGesture(count: 2) {
-                guard expandedIds.last == StudioPanel.sources.rawValue,
-                      index == panelCount - 2 else { return }
-                UserDefaults.standard.removeObject(forKey: StudioSourcesPanelPreference.widthKey)
-                hasDraggedDivider = false
-            }
-            .gesture(
-                DragGesture(minimumDistance: 1, coordinateSpace: .named("panels"))
-                    .onChanged { value in
-                        if dragStartFractions.isEmpty {
-                            dragStartFractions = validFractions(for: expandedIds)
-                            hasDraggedDivider = true
-                        }
-                        let totalDividers = CGFloat(panelCount - 1) * dividerWidth
-                        let usable = totalWidth - totalDividers
-                        guard usable > 0, dragStartFractions.count == max(expandedIds.count - 1, 0) else { return }
-
-                        let deltaFrac = value.translation.width / usable
-                        let rawFrac = dragStartFractions[index] + deltaFrac
-
-                        // Keep ordinary expanded panels large enough to remain
-                        // legible. A collapsible outer panel can still enter the
-                        // tiny edge zone that becomes a real collapse on release.
-                        var expandedFractions = validFractions(for: expandedIds)
-                        let hardLower: CGFloat = index == 0 ? 0 : expandedFractions[index - 1]
-                        let hardUpper: CGFloat = index == panelCount - 2 ? 1 : expandedFractions[index + 1]
-                        let leadingID = expandedIds[index]
-                        let trailingID = expandedIds[index + 1]
-                        expandedFractions[index] = StudioPaneDividerConstraint.clamp(
-                            rawFrac,
-                            hardLower: hardLower,
-                            hardUpper: hardUpper,
-                            leadingMinimumWidth: minimumContentWidth(for: leadingID),
-                            trailingMinimumWidth: minimumContentWidth(for: trailingID),
-                            usableWidth: usable,
-                            leadingMayCollapse: index == 0 && collapsibleEdgePanelIds.contains(leadingID),
-                            trailingMayCollapse: index == panelCount - 2 && collapsibleEdgePanelIds.contains(trailingID),
-                            collapseThreshold: StudioPanelChrome.edgeCollapseDragThreshold
-                        )
-                        dividerFractions = StudioPanelFractionRemapping.updatingExpandedBoundaries(
-                            visibleIds: visiblePanelIds,
-                            expandedIds: expandedIds,
-                            storedFractions: dividerFractions,
-                            expandedDividerFractions: expandedFractions
-                        )
-                    }
-                    .onEnded { _ in
-                        dragStartFractions = []
-                        collapseEdgePanelIfDraggedClosed(
-                            dividerIndex: index,
-                            expandedIds: expandedIds,
-                            panelCount: panelCount,
-                            totalWidth: totalWidth
-                        )
-                        persistTrailingSourcesWidth(
-                            dividerIndex: index,
-                            expandedIds: expandedIds,
-                            panelCount: panelCount,
-                            totalWidth: totalWidth
-                        )
-                    }
-            )
-    }
-
-    /// Persist only the Sources width at the end of its drag. Writing during
-    /// pointer movement would rebuild the layout underneath the active handle.
-    private func persistTrailingSourcesWidth(
-        dividerIndex index: Int,
-        expandedIds: [String],
-        panelCount: Int,
-        totalWidth: CGFloat
-    ) {
-        guard expandedIds.last == StudioPanel.sources.rawValue,
-              index == panelCount - 2,
-              panelCount > 1 else { return }
-
-        let fractions = validFractions(for: expandedIds)
-        guard fractions.count == panelCount - 1 else { return }
-        guard let width = StudioPanelDefaultSizing.trailingSideWidth(
-            trailingDividerFraction: fractions[index],
-            totalWidth: totalWidth,
-            panelCount: panelCount
-        ) else { return }
-        storedSourcesPanelWidth = Double(width)
-    }
-
-    /// A divider drag can push an outermost panel to zero width, which looks
-    /// exactly like collapsing it but leaves the panel's collapsed flag off —
-    /// so the top chrome still believes the panel is on screen and offers no
-    /// way back. When a drag ends with a collapsible edge panel below the
-    /// threshold, turn that into the real collapsed state, same as its toggle.
-    private func collapseEdgePanelIfDraggedClosed(
-        dividerIndex index: Int,
-        expandedIds: [String],
-        panelCount: Int,
-        totalWidth: CGFloat
-    ) {
-        let fractions = validFractions(for: expandedIds)
-        guard panelCount > 1, fractions.count == panelCount - 1 else { return }
-        let usable = totalWidth - CGFloat(panelCount - 1) * dividerWidth
-        guard usable > 0 else { return }
-
-        // Only the outermost visible panels can become rails, and only the
-        // divider adjacent to an edge panel can drag it shut.
-        var candidates: [(id: String, width: CGFloat)] = []
-        if index == 0, let id = expandedIds.first, id == visiblePanelIds.first {
-            candidates.append((id, fractions[0] * usable))
-        }
-        if index == panelCount - 2, let id = expandedIds.last, id == visiblePanelIds.last {
-            candidates.append((id, (1 - fractions[panelCount - 2]) * usable))
-        }
-
-        guard let closed = candidates.first(where: {
-            collapsibleEdgePanelIds.contains($0.id) && $0.width < StudioPanelChrome.edgeCollapseDragThreshold
-        }) else { return }
-
-        restoreDefaultStoredWidth(forEdgePanel: closed.id)
-        onToggleCollapse(closed.id)
-    }
-
-    /// Puts a dragged-shut edge panel's stored boundary back at its default
-    /// before the panel collapses, so expanding it later restores a usable
-    /// width instead of the zero width it was dragged to.
-    private func restoreDefaultStoredWidth(forEdgePanel panelId: String) {
-        let ids = visiblePanelIds
-        guard ids.count > 1 else { return }
-        var stored = StudioPanelFractionRemapping.resolvedFractions(for: ids, stored: dividerFractions)
-        let defaults = StudioPanelDefaultSizing.fractions(
-            for: ids,
-            totalWidth: totalWidth,
-            sidePanelWidth: sidePanelWidth
-        )
-        guard stored.count == defaults.count, !stored.isEmpty else { return }
-        if panelId == ids.first {
-            // Clamp against the neighboring divider so restoring the default
-            // never pushes this boundary past the next one.
-            let upper = stored.count > 1 ? stored[1] : 1
-            stored[0] = min(defaults[0], upper)
-        } else if panelId == ids.last {
-            let last = stored.count - 1
-            let lower = last > 0 ? stored[last - 1] : 0
-            stored[last] = max(defaults[last], lower)
-        }
-        dividerFractions = stored
-    }
 }
 
 // MARK: - Center tab groups
@@ -3151,7 +2440,6 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
     @Environment(StudioWindowState.self) private var windowState
     @Environment(\.studioTitlebarBandHeight) private var titlebarBandHeight
     @Environment(\.studioCenterPaneHeaderLeadingInset) private var headerLeadingInset
-    @Environment(\.studioChromeLineReservation) private var windowChromeReservation
     @Environment(\.studioPanelTrailingOverflow) private var outerTrailingOverflow
 
     private let stripsVisible = false
@@ -3289,7 +2577,6 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
         // chrome the band is cleared so panes render their compact in-flow
         // toolbars below it; with the strips hidden it passes through, and
         // hiding the tab bar actually hands the row's height back to content.
-        let groupCount = windowState.centerTabGroups.groups.count
         let minWidth = StudioPaneHostMetrics.minimumContentWidth(for: group.activeTab)
         let stripOverflow = max(width, minWidth) - width
         return StudioPaneHost(
@@ -3297,7 +2584,6 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
             width: width,
             enclosingClip: enclosingClip,
             leadingReservation: index == 0 ? headerLeadingInset : 0,
-            isTrailing: index == groupCount - 1,
             reservesPin: true,
             bandPassesThrough: !stripsVisible
         ) {
@@ -3314,7 +2600,6 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
                 at: index,
                 placement: corner.placement,
                 trailingOverflow: corner.trailingOverflow,
-                sourcesReservation: corner.sourcesReservation,
                 closeReservation: corner.closeReservation,
                 hover: corner
             )
@@ -3336,7 +2621,6 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
         at groupIndex: Int,
         placement: StudioPaneClosePlacement,
         trailingOverflow: CGFloat,
-        sourcesReservation: CGFloat,
         closeReservation: CGFloat,
         hover: StudioPaneHostCorner
     ) -> some View {
@@ -3372,7 +2656,6 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
         .animation(.easeOut(duration: 0.15), value: hover.isPointerOver)
         .padding(.trailing, StudioPanelChrome.headerHorizontalPadding
             + trailingOverflow
-            + sourcesReservation
             + closeReservation)
         .frame(height: titlebarBandHeight ?? StudioPanelChrome.headerHeight)
         .offset(y: placement == .chromeLine ? -(titlebarBandHeight ?? 0) : 0)
@@ -3468,13 +2751,7 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
             .leading,
             (groupIndex == 0 ? headerLeadingInset : 0) + StudioTopBar.centerTabStripHorizontalPadding
         )
-        .padding(
-            .trailing,
-            StudioTopBar.centerTabStripHorizontalPadding
-                + (groupIndex == windowState.centerTabGroups.groups.count - 1
-                    ? windowChromeReservation.sourcesRestoreControl
-                    : 0)
-        )
+        .padding(.trailing, StudioTopBar.centerTabStripHorizontalPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // The strip sits in the titlebar band; without this, every click on it
         // would start a window drag instead of reaching the tabs.
@@ -4422,19 +3699,6 @@ enum StudioPlainTextDrop {
                   let raw = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
                   !raw.isEmpty else { return }
             completion(raw)
-        }
-    }
-}
-
-extension StudioPanel {
-    init?(panelId: String) {
-        switch panelId {
-        case "sources":
-            self = .sources
-        case "reader":
-            self = .reader
-        default:
-            return nil
         }
     }
 }

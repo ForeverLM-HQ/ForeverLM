@@ -2223,18 +2223,9 @@ class StudioViewModel {
         }
     }
 
-    /// Per-panel visibility toggles. The Reader must start visible: the old top-bar
-    /// control that could hide it was removed, so honoring its legacy persisted
-    /// value can strand the app in a two-column layout with no way to restore it.
-    var showSourcesPanel: Bool {
-        get { activeWindowState.showSourcesPanel }
-        set { activeWindowState.showSourcesPanel = newValue }
-    }
     /// Transient presentation state owned by the docked reader. Immersive video
-    /// modes remove Sources from the outer layout altogether rather than leaving
-    /// its expand button in the chrome beside the player. This must not change the
-    /// persisted Sources preference: exiting the mode restores exactly the
-    /// expanded/collapsed state the user had before it.
+    /// modes take a notebook's Studio column off screen rather than leaving a
+    /// strip of it beside the player; exiting the mode puts it back as it was.
     var isDockedReaderImmersive: Bool {
         get { activeWindowState.isDockedReaderImmersive }
         set { activeWindowState.isDockedReaderImmersive = newValue }
@@ -3379,24 +3370,6 @@ class StudioViewModel {
         return notebooks.first { $0.id == notebookID }
     }
 
-    /// Panels the user has collapsed away from the window edge (persisted). Only
-    /// honored for panels currently at the left/right edge of the visible set; a
-    /// flag for a panel that is inner or hidden is ignored and reactivates if it
-    /// returns to an edge. A collapsed panel leaves no rail behind — its expand
-    /// button lives in the window's top chrome.
-    var collapsedPanelIds: Set<String> {
-        get { activeWindowState.collapsedPanelIDs }
-        set { activeWindowState.collapsedPanelIDs = newValue }
-    }
-
-    func togglePanelCollapsed(_ id: String) {
-        if collapsedPanelIds.contains(id) {
-            collapsedPanelIds.remove(id)
-        } else {
-            collapsedPanelIds.insert(id)
-        }
-    }
-
     /// Article shown in the second reader panel. Nil = shows same as primary.
     var secondaryReaderArticleId: String?
 
@@ -3812,16 +3785,6 @@ class StudioViewModel {
     func applySyncedCenterTabGroupsDefault(_ groups: StudioCenterTabGroups) {
         guard !usesStudioWindowRegistry || StudioWindowRegistry.shared.activeState == nil else { return }
         fallbackWindowState.replaceCenterTabGroupsFromDefault(groups)
-    }
-
-    func applySyncedShowSourcesPanelDefault(_ isVisible: Bool) {
-        guard !usesStudioWindowRegistry || StudioWindowRegistry.shared.activeState == nil else { return }
-        fallbackWindowState.replaceShowSourcesPanelFromDefault(isVisible)
-    }
-
-    func applySyncedCollapsedPanelIDsDefault(_ ids: Set<String>) {
-        guard !usesStudioWindowRegistry || StudioWindowRegistry.shared.activeState == nil else { return }
-        fallbackWindowState.replaceCollapsedPanelIDsFromDefault(ids)
     }
 
     let storage: StorageService

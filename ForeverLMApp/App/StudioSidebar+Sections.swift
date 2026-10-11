@@ -175,8 +175,17 @@ extension StudioSidebar {
     // MARK: - Extracted Subviews
 
 
-    @ViewBuilder
     var sidebarTabBar: some View {
+        sourceTabBarRows
+            // Customize hangs from the row, which has no button of its own for
+            // it; every tab's context menu offers it too.
+            .popover(isPresented: $isSourceTabCustomizePresented, arrowEdge: .bottom) {
+                SourceTypesCustomizePopover()
+            }
+    }
+
+    @ViewBuilder
+    private var sourceTabBarRows: some View {
         // Docked in Studio the compact tab bar rises into the hidden-titlebar
         // band: a row exactly the band's height, so the source-type icons sit
         // on the traffic lights' center line instead of in their own row below
@@ -208,7 +217,6 @@ extension StudioSidebar {
                 }
                 .frame(maxHeight: .infinity)
             }
-            .padding(.leading, sourcesHeaderLeadingInset)
             .padding(.horizontal, 12)
             .frame(height: band)
         } else {
@@ -255,7 +263,6 @@ extension StudioSidebar {
                 }
             }
             .frame(height: (sourceTabBarLayout == .roomy ? 78 : 42) * sourceTabIconSize.scale)
-            .padding(.leading, sourcesHeaderLeadingInset)
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
         }
@@ -267,8 +274,7 @@ extension StudioSidebar {
     /// its width out evenly, which across a whole window left each type a
     /// small mark over a smaller name in a wide empty cell. A Library too
     /// narrow for every chip scrolls the row rather than hiding types behind
-    /// a ⋯, and the Customize popover hangs from the row, since the Library
-    /// has no Hide sources toggle for it to hang from.
+    /// a ⋯.
     private var wideSourceTabBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 2) {
@@ -283,9 +289,6 @@ extension StudioSidebar {
             }
         }
         .scrollBounceBehavior(.basedOnSize)
-        .popover(isPresented: $isSourceTabCustomizePresented, arrowEdge: .bottom) {
-            SourceTypesCustomizePopover()
-        }
         .padding(.horizontal, 8)
         .padding(.top, 8)
         .padding(.bottom, 2)
@@ -300,32 +303,6 @@ extension StudioSidebar {
         guard let band = titlebarBandHeight, sourceTabBarLayout == .roomy else { return 0 }
         let barHeight = 78 * sourceTabIconSize.scale + 12
         return max(0, barHeight - band)
-    }
-
-    /// Compact collapse control at the trailing end of the source-type tab bar,
-    /// styled to mirror the navigation-rail toggle in the window's top-left
-    /// chrome. Collapses the Sources panel away entirely; the matching
-    /// `SourcesPanelExpandToggle` in the top-right chrome brings it back. It
-    /// is not drawn in the full-window Library, a center pane with its own ×.
-    struct SourcesPanelCollapseToggle: View {
-        @Environment(StudioViewModel.self) private var vm
-        @Environment(StudioWindowState.self) private var windowState
-        @Environment(\.sourcesListLayout) private var sourcesListLayout
-
-        var body: some View {
-            if windowState.notebook == nil, sourcesListLayout == .sidebar {
-                StudioChromeIconButton(
-                    systemImage: "sidebar.right",
-                    label: "Hide sources"
-                ) {
-                    withAnimation(.easeInOut(duration: 0.22)) {
-                        vm.inWindow(windowState) {
-                            vm.togglePanelCollapsed(StudioPanel.sources.rawValue)
-                        }
-                    }
-                }
-            }
-        }
     }
 
     /// Gives up focus, and optionally the query with it. The row itself stays
@@ -372,27 +349,21 @@ extension StudioSidebar {
     }
 
     /// The trailing end of the tab bar: the ⋯ when some pinned types had no
-    /// room, then the Hide sources toggle. The product owner (2026-09-29): a ⋯ with
-    /// nothing hidden behind it is not needed, so it no longer stands on the
-    /// row just to hold Customize — every tab's context menu offers that. The
-    /// Customize popover hangs from the toggle, which is always there, so it
-    /// opens whether or not the ⋯ is.
+    /// room. The product owner (2026-09-29): a ⋯ with nothing hidden behind it
+    /// is not needed, so it no longer stands on the row just to hold Customize
+    /// — every tab's context menu offers that.
     @ViewBuilder
     private func sourceTabBarTrailingControls(overflow: [StudioSidebarTab]) -> some View {
         if !overflow.isEmpty {
             sourceTabOverflowMenu(overflow)
         }
-        SourcesPanelCollapseToggle()
-            .popover(isPresented: $isSourceTabCustomizePresented, arrowEdge: .bottom) {
-                SourceTypesCustomizePopover()
-            }
     }
 
     /// The ⋯ at the trailing end of the tab bar. It lists the pinned types the
     /// row had no room for, then Customize, which opens the popover where
     /// every source type is pinned, unpinned and reordered.
     ///
-    /// Drawn as the Hide sources toggle beside it is: same glyph weight, grey,
+    /// Drawn as the chrome's icon buttons are: same glyph weight, grey,
     /// square and hover wash. A borderless Menu would let AppKit redraw the
     /// label as its own glyph, which is how a bright, heavier ⋯-in-a-circle
     /// ended up next to a grey sidebar icon; a button-style Menu keeps the
@@ -741,7 +712,6 @@ extension StudioSidebar {
         }
         // Align the field with the first tab rather than sitting at the
         // default 16pt.
-        .padding(.leading, sourcesHeaderLeadingInset)
         .padding(.leading, 8)
         .padding(.trailing, 12)
         // A little air under the tab bar, so the field's edge does not run

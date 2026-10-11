@@ -144,21 +144,14 @@ extension StudioViewModel {
         )
     }
 
-    // MARK: The full-window Library
+    // MARK: The Library
 
-    /// The full-window Library in `destinationWindowState` (the window in
+    /// The Library in `destinationWindowState` (the window in
     /// scope when nil): the rail's Library row and ⇧⌘L. A notebook the
     /// window holds leaves the way it does for the Space
     /// (`.library` routes `.leave`), and the Library's ‹ brings it back.
     func openLibraryView(in destinationWindowState: StudioWindowState? = nil) {
         activateCenterTab(.library, in: destinationWindowState ?? activeWindowState)
-    }
-
-    /// Whether `windowState` shows the full-window Library: the window's one
-    /// library list is then in its center, and the trailing Sources panel
-    /// steps aside rather than draw the same list twice.
-    func libraryViewIsOnScreen(in windowState: StudioWindowState) -> Bool {
-        windowState.notebook == nil && windowState.centerTabGroups.groups.contains { $0.activeTab == .library }
     }
 
     /// The notebook the Library's ‹ goes back to: the one `window` last

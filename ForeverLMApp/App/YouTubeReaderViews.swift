@@ -135,29 +135,6 @@ struct YouTubeVideoReaderView: View {
     /// takeover). Transient per opened video, like theater mode, so a new video
     /// always opens with its transcript showing.
     @State private var isTranscriptHidden = false
-    /// True while the reader is holding the Sources panel collapsed on its
-    /// behalf: opening a video takes the panel so the player gets the pane, and
-    /// theater view and the side-by-side layout take it for the same reason.
-    /// Only a collapse this view performed is ever undone, so a panel the user
-    /// collapsed beforehand keeps their choice.
-    @State private var didBorrowSourcesPanel = false
-    /// Set when the user re-opens the Sources panel while the reader is holding
-    /// it, so the automatic borrow stands down for the video being watched
-    /// rather than yanking the panel shut again mid-view. Opening the next video
-    /// re-arms it (a fresh reader instance, and `onAppear` clears this); an
-    /// explicit theater or layout click also takes the width back. A course
-    /// keeps one player across its videos, so moving along a course leaves the
-    /// panel exactly as the learner has it: nothing re-arms mid-course, and the
-    /// playlist moving on is never a reason to pull the panel shut.
-    @State private var userReclaimedSourcesPanel = false
-    /// True when theater view is the one holding the Sources panel, rather than
-    /// having found the side-by-side layout already holding it.
-    @State private var theaterTookSourcesPanel = false
-    /// Set when a newly opened video still needs its one width check.
-    @State private var pendingSideBySideWidthCheck = true
-    /// Live reader-pane width, mirrored out of the layout so button actions can
-    /// judge whether the pane is wide enough without reading geometry mid-render.
-    @State private var readerPaneWidth: CGFloat = 0
     /// Duration reported by the watch page's video element.
     @State private var videoDuration: Double?
     /// Live watch-progress tracker for the open video; persisted on a coarse
@@ -425,15 +402,6 @@ struct YouTubeVideoReaderView: View {
                     transcriptSection
                 }
             }
-            .onChange(of: geo.size.width, initial: true) { _, width in
-                readerPaneWidth = width
-                // One check per opened video, not per resize: reacting to every
-                // width change would re-collapse the panel each time the user
-                // pulled it back open.
-                guard pendingSideBySideWidthCheck, width > 0 else { return }
-                pendingSideBySideWidthCheck = false
-                borrowWidthForSideBySideIfNeeded(paneWidth: width, explicit: false)
-            }
         }
         .overlay(alignment: .topTrailing) {
             // The papers list hangs below the Reader's ⋯, where Papers is
@@ -448,14 +416,6 @@ struct YouTubeVideoReaderView: View {
         }
         .onChange(of: videoCommandsKey, initial: true) { _, _ in
             publishVideoCommands()
-        }
-        .onChange(of: windowState.collapsedPanelIDs.contains(StudioPanel.sources.rawValue)) { _, isCollapsed in
-            // `returnSourcesPanelWidth` drops the flag before it expands the
-            // panel, so an expansion still marked as borrowed can only be the
-            // user taking their panel back.
-            guard didBorrowSourcesPanel, !isCollapsed else { return }
-            didBorrowSourcesPanel = false
-            userReclaimedSourcesPanel = true
         }
         .onChange(of: isTranscriptHidden, initial: true) { _, _ in
             updateDockedReaderImmersiveState()
@@ -510,7 +470,6 @@ struct YouTubeVideoReaderView: View {
             isPlayerPaused = nil
             isExtractingSlides = false
             slideExtractionAttempted = false
-            pendingSideBySideWidthCheck = true
             isTranscriptHidden = false
             exitTheaterMode()
         }
@@ -545,14 +504,6 @@ struct YouTubeVideoReaderView: View {
             recordPlayback(time: playbackTime)
         }
         .onAppear {
-            // Opening a video hands the reader pane to the player, so collapse
-            // the Sources browser away to give the video the room.
-            // The content is keyed by source id, so every video the user opens
-            // is a fresh reader instance; clearing the reclaim flag keeps the
-            // collapse firing even after they pulled the panel back on the last
-            // one. Only videos borrow the panel — every other reader leaves it.
-            userReclaimedSourcesPanel = false
-            borrowSourcesPanelWidth(explicit: false)
             applyChatTimeTarget()
         }
         .onDisappear {
@@ -560,22 +511,6 @@ struct YouTubeVideoReaderView: View {
             flushWatchProgress(sourceID: article.id)
             windowState.videoPlayheadsOnScreen.removeValue(forKey: article.id)
             windowState.isDockedReaderImmersive = false
-            // Teardown loses the @State that says theater is on, so the mode
-            // cannot survive it; give the Sources panel back with it. But a
-            // video→video switch also tears this view down (the content is keyed
-            // by source id, outside a course, where one player is kept) and
-            // the next instance re-takes the panel, so only hand it back when
-            // the docked reader is truly leaving video behind
-            // — closed, popped out to its own window, or moved to a non-video
-            // source — never for a docked video→video switch, or the panel would
-            // flicker open between the two videos.
-            let nextIsDockedVideo = vm.selectedArticle?.isYouTubeURL == true
-                && !vm.readerPoppedOut
-            if !nextIsDockedVideo {
-                returnSourcesPanelWidth()
-            }
-            userReclaimedSourcesPanel = false
-            pendingSideBySideWidthCheck = true
         }
     }
 
@@ -583,21 +518,14 @@ struct YouTubeVideoReaderView: View {
 
     /// The docked player owns the entire Studio width in either video-only
     /// presentation. A popped-out reader already owns its window, so it must
-    /// never alter the Sources layout in the main window.
+    /// never alter the layout of the main window.
     private func updateDockedReaderImmersiveState() {
         windowState.isDockedReaderImmersive =
             !vm.readerPoppedOut && (isTranscriptHidden || isTheaterMode)
     }
 
-    /// Entering theater view is a bid for the whole window, so the Sources
-    /// panel collapses away as part of the same gesture.
     private func enterTheaterMode() {
-        // Theater and side-by-side borrow the same panel, so note which of them
-        // is holding it: if side-by-side already had it, theater is only passing
-        // through and must not hand it back on the way out.
-        theaterTookSourcesPanel = !didBorrowSourcesPanel
         isTheaterMode = true
-        borrowSourcesPanelWidth(explicit: true)
     }
 
     /// The moment a chat citation asked this video to open at, while it names
@@ -621,52 +549,6 @@ struct YouTubeVideoReaderView: View {
 
     private func exitTheaterMode() {
         isTheaterMode = false
-        if theaterTookSourcesPanel {
-            returnSourcesPanelWidth()
-        }
-        theaterTookSourcesPanel = false
-    }
-
-    // MARK: Sources panel width
-
-    /// Collapse the Sources panel away so the reader can use its
-    /// width — unless it is already out of the way, or the reader is popped out
-    /// into its own window where the panel doesn't constrain it. An automatic
-    /// borrow also defers to a user who has taken the panel back; an `explicit`
-    /// one is a button press, which outranks that.
-    private func borrowSourcesPanelWidth(explicit: Bool) {
-        if explicit {
-            userReclaimedSourcesPanel = false
-        } else if userReclaimedSourcesPanel {
-            return
-        }
-        guard !vm.readerPoppedOut,
-              windowState.showSourcesPanel,
-              !windowState.collapsedPanelIDs.contains(StudioPanel.sources.rawValue)
-        else { return }
-        didBorrowSourcesPanel = true
-        withAnimation(.easeInOut(duration: 0.22)) {
-            _ = windowState.collapsedPanelIDs.insert(StudioPanel.sources.rawValue)
-        }
-    }
-
-    private func returnSourcesPanelWidth() {
-        guard didBorrowSourcesPanel else { return }
-        didBorrowSourcesPanel = false
-        guard windowState.collapsedPanelIDs.contains(StudioPanel.sources.rawValue) else { return }
-        withAnimation(.easeInOut(duration: 0.22)) {
-            _ = windowState.collapsedPanelIDs.remove(StudioPanel.sources.rawValue)
-        }
-    }
-
-    /// Side-by-side only renders above `minSideBySidePaneWidth`; below it the
-    /// preference silently falls back to stacked. When the Sources panel is all
-    /// that stands between the pane and that threshold, take its width so the
-    /// layout the user asked for actually appears instead of nothing happening.
-    private func borrowWidthForSideBySideIfNeeded(paneWidth: CGFloat, explicit: Bool) {
-        guard videoBesideTranscript, !isTheaterMode else { return }
-        guard paneWidth > 0, paneWidth < Self.minSideBySidePaneWidth else { return }
-        borrowSourcesPanelWidth(explicit: explicit)
     }
 
     // MARK: Watch progress
@@ -1140,14 +1022,6 @@ struct YouTubeVideoReaderView: View {
 
     private func toggleTranscriptPlacement() {
         videoBesideTranscript.toggle()
-        if videoBesideTranscript {
-            // Asking for two columns in a pane too narrow to hold them used
-            // to flip the icon and change nothing. Take the Sources panel's
-            // width so the command has its effect.
-            borrowWidthForSideBySideIfNeeded(paneWidth: readerPaneWidth, explicit: true)
-        } else {
-            returnSourcesPanelWidth()
-        }
     }
 
     /// Floating restore control shown over the video while the transcript is

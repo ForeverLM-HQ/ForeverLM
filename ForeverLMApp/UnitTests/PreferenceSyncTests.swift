@@ -250,14 +250,14 @@ struct PreferenceSyncTests {
         let store = try KnowledgeStore(inMemory: true)
         let xml = try #require(PreferenceStore.encodePlist(true))
 
-        try store.writePreference(key: "studio.showSourcesPanel", valuePlistXML: xml)
+        try store.writePreference(key: "studio.showSearchPanel", valuePlistXML: xml)
 
-        let payload = try #require(try store.loadPreferenceForSync("studio.showSourcesPanel"))
-        #expect(payload.key == "studio.showSourcesPanel")
+        let payload = try #require(try store.loadPreferenceForSync("studio.showSearchPanel"))
+        #expect(payload.key == "studio.showSearchPanel")
         #expect(PreferenceStore.decodePlist(payload.valuePlistXML) as? Bool == true)
 
         let pending = try store.pendingSyncChanges()
-        #expect(pending.contains { $0.entity == .preference && $0.logicalKey == "studio.showSourcesPanel" })
+        #expect(pending.contains { $0.entity == .preference && $0.logicalKey == "studio.showSearchPanel" })
     }
 
     @Test("Legacy model choices migrate into durable preference rows")
@@ -349,7 +349,6 @@ struct PreferenceSyncTests {
             "studio.hiddenTabs",
             NotebookPins.preferenceKey,
             "studio.expandedPanel",
-            "studio.collapsedPanelIds",
         ] {
             #expect(SyncedPreferenceKeys.isSynced(key, for: .one), "\(key) should follow the account")
             // Under generation 2 the fold and the pins are fields of the member's NotebookState; the
@@ -588,7 +587,7 @@ struct PreferenceSyncTests {
         let store = try KnowledgeStore(inMemory: true)
         let url = "https://images.example.com/favicon.ico?format=300w"
         let brokenKey = MeetingMetadata.folderImagePreferenceKey(for: "acme")
-        let soundKey = "studio.showSourcesPanel"
+        let soundKey = "studio.showSearchPanel"
         let garbageKey = "podcastSortMode"
         let emptyKey = "videoSortMode"
         let localKey = "some.key.nobody.declared"

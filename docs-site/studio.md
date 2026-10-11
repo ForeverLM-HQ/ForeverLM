@@ -223,7 +223,7 @@ with this notebook's chats, the Now chip's dot while something is happening,
 and your account. "Plan your day?"
 then waits in the window's corner. A rail you hid stays hidden.
 
-### The full-window Library
+### The Library
 
 **Library** — the rail's row or View → Library (⇧⌘L) —
 spreads the whole library across the window for managing it: every source
@@ -234,6 +234,12 @@ a bar: "N selected", **Add to Notebook ▸**, **New Notebook with N Sources…**
 selection. Opened from inside a notebook, its top line starts with **‹** and
 the notebook's name, which opens it again. A source
 clicked here opens in the Reader beside the list.
+
+To have the library beside what you are doing, drag the rail's **Library**
+row to an edge of the window, or choose **Open Beside** on its
+right-click menu. It docks as a pane next to your chat, a Page or a canvas
+and draws the compact list, with the same tabs, search and row menus; drag a
+source from it into a chat, or onto a canvas. Close it with its ×.
 
 ### Pages, Goals and Not in a Notebook
 
@@ -357,15 +363,15 @@ results, highlights and the Schedule stay private to each member. See
 
 ## Layout
 
-Outside a notebook, the window has the navigation rail, a center workspace of
-up to two resizable panes, and the library's **Sources** panel on the right.
+Outside a notebook, the window has the navigation rail and a center workspace
+of up to two resizable panes. The library is one of those panes: drag the
+rail's **Library** row to an edge to dock it beside another.
 
 | Panel | What it does |
 |-------|-------------|
 | **Navigation** (left) | **New chat**, **Memory** (where today's cards wait), **Browser** and **Library**; then **Notebooks**, which opens the Space's All list, with each of your notebooks and its chats; then your library's own **Chats**. The **Now** chip at its foot shows today's events from the Mac's Calendar and opens **Activity** |
-| **Sources** (right) | Your library, organized by type |
 | **Notebooks** | The home: a card per notebook, and the **Collections**, **Courses**, **Pages** and **Goals** tabs. A notebook opens across the window ([Inside a notebook](#inside-a-notebook)) |
-| **Library** | The whole library across the window, for managing it ([The full-window Library](#the-full-window-library)) |
+| **Library** | The whole library, organized by type, across the window for managing it or docked beside another pane ([The Library](#the-library)) |
 | **Reader** | Displays the selected source: web article, PDF, video, or transcript |
 | **Chat** | In-app source-grounded chat and review sessions |
 | **Memory** | Your cards across every notebook ([Memory](#memory)) |

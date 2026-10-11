@@ -2324,7 +2324,6 @@ extension StudioViewModel {
     func startScheduleItem(_ item: SchedulePlanItem) async {
         guard !item.isMissingSource else { return }
         setContextSources([item.sourceID])
-        showSourcesPanel = true
         showReaderPanel = true
         showAssistantOverlay = true
         readerPoppedOut = false
@@ -3047,14 +3046,8 @@ extension StudioViewModel {
         }
         let expanded = defaults.string(forKey: "studio.expandedPanel").flatMap(StudioExpandedPanel.init(rawValue:))
         if expanded != expandedPanel { expandedPanel = expanded }
-        if let value = defaults.object(forKey: "studio.showSourcesPanel") as? Bool {
-            applySyncedShowSourcesPanelDefault(value)
-        }
         if let value = defaults.object(forKey: "studio.showSearchPanel") as? Bool, value != showSearchPanel {
             showSearchPanel = value
-        }
-        if let raw = defaults.stringArray(forKey: "studio.collapsedPanelIds") {
-            applySyncedCollapsedPanelIDsDefault(Set(raw))
         }
 
         invalidateFilteredSidebarCache()

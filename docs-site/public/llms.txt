@@ -17,7 +17,7 @@
 
 ## Adding Content
 
-- [Studio](https://docs.foreverlm.com/studio): Notebooks (the Notebooks home, a notebook's Sources, Chat and Studio, Add sources), the full-window Library, the Reader, in-app Chat, Memory, semantic search, and source review state.
+- [Studio](https://docs.foreverlm.com/studio): Notebooks (the Notebooks home, a notebook's Sources, Chat and Studio, Add sources), the Library, the Reader, in-app Chat, Memory, semantic search, and source review state.
 - [Teams](https://docs.foreverlm.com/teams): Shared team libraries in the creator's iCloud: inviting members, sharing sources, notebooks, Pages and chat transcripts by copy, and the notebook task board.
 - [Articles](https://docs.foreverlm.com/articles): Auto-discover articles from browser reading lists or paste URLs manually.
 - [Papers](https://docs.foreverlm.com/papers): Academic paper URLs are detected automatically and routed to Papers. Save paywalled PDFs to iCloud for automatic local fallback.

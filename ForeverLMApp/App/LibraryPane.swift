@@ -42,12 +42,12 @@ enum StudioShellCommand: CaseIterable {
 
 // MARK: - The Sources list's two layouts
 
-/// How the library's Sources list (`StudioSidebar`) lays itself out: as the
-/// trailing panel, or across the full-window
-/// Library, where its rows carry more of what each source is — when it was
-/// added, the notebooks it is in — and a multi-selection gets a bar of its
-/// own. One list either way: the same tabs, search, rows, menus, imports and
-/// attention rows; only the layout differs.
+/// How the library's Sources list (`StudioSidebar`) lays itself out: compact
+/// while the Library is docked narrow beside another pane, or across the
+/// full-window Library, where its rows carry more of what each source is —
+/// when it was added, the notebooks it is in — and a multi-selection gets a
+/// bar of its own. One list either way: the same tabs, search, rows, menus,
+/// imports and attention rows; only the layout differs.
 enum SourcesListLayout: Equatable, Sendable {
     case sidebar
     case wide
@@ -66,20 +66,25 @@ extension EnvironmentValues {
 
 // MARK: - The full-window Library
 
-/// The full-window Library (decisions v5, 2; docs/notebooks-design.md, "The
-/// full-window Library"): the library's Sources list across the center, for
-/// managing the whole library — every kind's tab, search, the lists and their
-/// row menus, imports and attention rows, as the Sources panel has them — with
-/// wider rows that say when each source came in and which notebooks hold it,
-/// and a bar for a multi-selection. A center pane like any other: its close ×,
-/// Open Beside, Open in Other Window; a source clicked in it opens in the
-/// Reader beside it (`clearReaderSurfaces`). While it is on screen the
-/// trailing Sources panel steps aside, so the window's one library list is
-/// mounted once. Opened from a notebook it leaves the notebook as the home
-/// does, and its ‹ goes back to it.
+/// The Library (decisions v5, 2; docs/notebooks-design.md, "The Library"): the
+/// library's Sources list as a center pane, the window's one library list —
+/// every kind's tab, search, the lists and their row menus, imports and
+/// attention rows. Clicked in the rail it fills the window, with wider rows
+/// that say when each source came in and which notebooks hold it, and a bar
+/// for a multi-selection; dragged to the window's edge it docks beside the
+/// pane in use and draws the compact list, whose rows drag into a chat or a
+/// canvas. A center pane like any other: its close ×, Open Beside, Open in
+/// Other Window; a source clicked in it opens in the Reader beside it
+/// (`clearReaderSurfaces`). Opened from a notebook it leaves the notebook as
+/// the home does, and its ‹ goes back to it.
 struct LibraryPane: View {
     @Environment(StudioViewModel.self) private var vm
     @Environment(StudioWindowState.self) private var windowState
+
+    /// Below this width the wide rows have no room for what they add.
+    private static let wideLayoutMinimumWidth: CGFloat = 560
+
+    @State private var isNarrow = false
 
     var body: some View {
         NavigationStack {
@@ -88,8 +93,8 @@ struct LibraryPane: View {
         }
         // The kind tabs draw in flow under the pane's chrome line.
         .environment(\.studioTitlebarBandHeight, nil)
-        .environment(\.studioSourcesHeaderLeadingInset, 0)
-        .environment(\.sourcesListLayout, .wide)
+        .environment(\.sourcesListLayout, isNarrow ? .sidebar : .wide)
+        .onGeometryChange(for: Bool.self, of: { $0.size.width < Self.wideLayoutMinimumWidth }) { isNarrow = $0 }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .windowBackgroundColor))
         .studioChromeLineHeader { header }

@@ -7,9 +7,6 @@ struct StudioPaneHostCorner {
     let placement: StudioPaneClosePlacement
     /// How far the pane's laid-out content runs past what is visible.
     let trailingOverflow: CGFloat
-    /// The Sources restore control's claim, on the pane at the window's
-    /// trailing edge only.
-    let sourcesReservation: CGFloat
     /// The pane close control's claim, immediately left of the restore
     /// control.
     let closeReservation: CGFloat
@@ -119,7 +116,6 @@ struct StudioPaneSwapAffordance: ViewModifier {
 /// in either shell; a notebook slot simply draws no pin.
 struct StudioPaneHost<Content: View, Corner: View, Band: View>: View {
     @Environment(\.studioTitlebarBandHeight) private var titlebarBandHeight
-    @Environment(\.studioChromeLineReservation) private var windowChromeReservation
 
     /// What the pane shows, which sets its minimum width and its close's.
     let activeTab: StudioCenterTab
@@ -132,9 +128,6 @@ struct StudioPaneHost<Content: View, Corner: View, Band: View>: View {
     /// The leading chrome this pane's header must clear: non-zero only for a
     /// pane at the window's leading edge while the navigation rail is hidden.
     var leadingReservation: CGFloat = 0
-    /// Whether the pane meets the window's trailing edge, where the Sources
-    /// restore control sits while Sources is collapsed.
-    var isTrailing: Bool
     /// Whether a pin shares the pane's corner with its close. Center groups
     /// draw one; a notebook slot never pins.
     var reservesPin: Bool = true
@@ -154,7 +147,6 @@ struct StudioPaneHost<Content: View, Corner: View, Band: View>: View {
         width: CGFloat,
         enclosingClip: CGFloat = 0,
         leadingReservation: CGFloat = 0,
-        isTrailing: Bool,
         reservesPin: Bool = true,
         bandPassesThrough: Bool = true,
         @ViewBuilder content: @escaping () -> Content,
@@ -165,7 +157,6 @@ struct StudioPaneHost<Content: View, Corner: View, Band: View>: View {
         self.width = width
         self.enclosingClip = enclosingClip
         self.leadingReservation = leadingReservation
-        self.isTrailing = isTrailing
         self.reservesPin = reservesPin
         self.bandPassesThrough = bandPassesThrough
         self.content = content
@@ -181,7 +172,6 @@ struct StudioPaneHost<Content: View, Corner: View, Band: View>: View {
         // enclosing column clips off this column in particular.
         let visibleWidth = max(0, width - enclosingClip)
         let trailingOverflow = enclosingClip + contentWidth - width
-        let sourcesReservation = isTrailing ? windowChromeReservation.sourcesRestoreControl : 0
         let closeReservation = StudioPaneHostMetrics.closeReservation(
             for: activeTab,
             bandPassesThrough: bandPassesThrough
@@ -191,14 +181,12 @@ struct StudioPaneHost<Content: View, Corner: View, Band: View>: View {
         let placement = StudioPaneClosePlacement.resolve(
             visibleWidth: visibleWidth,
             leadingReservation: leadingReservation,
-            trailingReservation: sourcesReservation,
             controlWidth: (reservesPin ? StudioPanelChrome.centerTabCloseButtonSize : 0) + closeReservation
         )
         let pointer = pointer
         let corner = StudioPaneHostCorner(
             placement: placement,
             trailingOverflow: trailingOverflow,
-            sourcesReservation: sourcesReservation,
             closeReservation: closeReservation,
             isPointerOver: pointer.isActive,
             reportHover: { pointer.set($0, from: "corner") }
@@ -216,7 +204,7 @@ struct StudioPaneHost<Content: View, Corner: View, Band: View>: View {
                     .environment(\.studioTitlebarBandHeight, bandPassesThrough ? titlebarBandHeight : nil)
                     .environment(\.studioCenterPaneHeaderLeadingInset, bandPassesThrough ? leadingReservation : 0)
                     .environment(\.studioCenterTabStripVisible, !bandPassesThrough)
-                    .environment(\.studioChromeLineReservation, chromeLineReservation(sourcesReservation: sourcesReservation))
+                    .environment(\.studioChromeLineReservation, chromeLineReservation())
                     .environment(\.studioPaneChromePlacement, placement)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .frame(width: contentWidth)
@@ -239,12 +227,10 @@ struct StudioPaneHost<Content: View, Corner: View, Band: View>: View {
     }
 
     /// What the chrome over this pane's top-right corner claims, resolved
-    /// beside the code that draws it rather than in each pane: the window's
-    /// Sources restore control only ever meets the trailing pane; the pin
-    /// and the close ride over every pane once the strip is hidden.
-    private func chromeLineReservation(sourcesReservation: CGFloat) -> StudioChromeLineReservation {
+    /// beside the code that draws it rather than in each pane: the pin and
+    /// the close ride over every pane once the strip is hidden.
+    private func chromeLineReservation() -> StudioChromeLineReservation {
         var reservation = StudioChromeLineReservation()
-        reservation.sourcesRestoreControl = sourcesReservation
         if bandPassesThrough {
             let drawsClose = StudioTopBar.paneDrawsCloseControl()
             reservation.paneControls = (reservesPin ? StudioTopBar.centerPanePinControlReservedWidth : 0)
@@ -262,7 +248,6 @@ extension StudioPaneHost where Corner == EmptyView, Band == EmptyView {
         width: CGFloat,
         enclosingClip: CGFloat = 0,
         leadingReservation: CGFloat = 0,
-        isTrailing: Bool,
         reservesPin: Bool = false,
         @ViewBuilder content: @escaping () -> Content
     ) {
@@ -271,7 +256,6 @@ extension StudioPaneHost where Corner == EmptyView, Band == EmptyView {
             width: width,
             enclosingClip: enclosingClip,
             leadingReservation: leadingReservation,
-            isTrailing: isTrailing,
             reservesPin: reservesPin,
             content: content,
             corner: { _ in EmptyView() },

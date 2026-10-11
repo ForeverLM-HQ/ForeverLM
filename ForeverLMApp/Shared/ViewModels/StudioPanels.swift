@@ -2,17 +2,6 @@ import Foundation
 import Observation
 import SwiftUI
 
-// MARK: - Studio Panel
-
-enum StudioPanel: String, Codable, Hashable {
-    case sources
-    case reader
-
-    /// The only supported Studio arrangement: the center area (`reader`),
-    /// then Sources on the right. The navigation rail sits outside it.
-    static let fixedOrder: [StudioPanel] = [.reader, .sources]
-}
-
 // MARK: - Center Tabs
 
 /// One of the center surfaces, shown in a center group. Permanent destinations
@@ -391,8 +380,6 @@ struct StudioExternalReaderPage: Equatable, Identifiable {
 final class StudioWindowState: Identifiable {
     struct Snapshot: Codable, Equatable {
         var centerTabGroups: [String]
-        var showSourcesPanel: Bool
-        var collapsedPanelIDs: [String]
         var navigationRailVisible: Bool
         /// The notebook the window holds, without its moments
         /// (`NotebookWorkspace.persisted`). Scene-only: it rides the scene
@@ -425,22 +412,6 @@ final class StudioWindowState: Identifiable {
             }
             recordPersistentChange {
                 PreferenceStore.set(reconciled.persistedRepresentation, forKey: "studio.centerTabGroups.v1")
-            }
-        }
-    }
-
-    var showSourcesPanel: Bool {
-        didSet {
-            recordPersistentChange {
-                PreferenceStore.set(showSourcesPanel, forKey: "studio.showSourcesPanel")
-            }
-        }
-    }
-
-    var collapsedPanelIDs: Set<String> {
-        didSet {
-            recordPersistentChange {
-                PreferenceStore.set(Array(collapsedPanelIDs), forKey: "studio.collapsedPanelIds")
             }
         }
     }
@@ -485,21 +456,6 @@ final class StudioWindowState: Identifiable {
         if memoryReviewFocus != nil, memoryReviewFocusShowsSidebar != shown { memoryReviewFocusShowsSidebar = shown }
         if navigationRailYieldsToNotebook { navigationRailYieldsToNotebook = false }
         if navigationRailVisible != shown { navigationRailVisible = shown }
-    }
-
-    /// Whether the library's Sources panel steps aside for a memory review
-    /// that has the window: it does until the learner asks for it.
-    var sourcesStepAsideForMemoryReview: Bool {
-        memoryReviewFocus != nil && !memoryReviewFocusShowsSources
-    }
-
-    /// Brings the library's Sources panel back on screen from any of the ways
-    /// it can be off: collapsed to the edge, switched off, or stepping aside
-    /// for a memory review, beside which it then shows.
-    func revealSourcesPanel() {
-        collapsedPanelIDs.remove(StudioPanel.sources.rawValue)
-        showSourcesPanel = true
-        if memoryReviewFocus != nil, !memoryReviewFocusShowsSources { memoryReviewFocusShowsSources = true }
     }
 
     /// Whether the Space — its lists, the Courses list drawn beside its
@@ -562,15 +518,13 @@ final class StudioWindowState: Identifiable {
     /// chat from before cards is focused the old way only by code that still
     /// names one (docs/memory-design.md, "The card review").
     ///
-    /// The rail and Sources come back beside the review only when the learner
-    /// asks with their toggles (`memoryReviewFocusShowsSidebar`,
-    /// `memoryReviewFocusShowsSources`); each review starts with the window
-    /// to itself.
+    /// The rail comes back beside the review only when the learner asks with
+    /// its toggle (`memoryReviewFocusShowsSidebar`); each review starts with
+    /// the window to itself.
     var memoryReviewFocus: MemoryReviewFocus? {
         didSet {
             guard memoryReviewFocus?.id != oldValue?.id else { return }
             if memoryReviewFocusShowsSidebar { memoryReviewFocusShowsSidebar = false }
-            if memoryReviewFocusShowsSources { memoryReviewFocusShowsSources = false }
         }
     }
     /// Whether the learner brought the sidebar back beside the focused
@@ -578,9 +532,6 @@ final class StudioWindowState: Identifiable {
     /// leaving the review, as any other surface asked for is
     /// (`memoryReviewFocusYields`).
     var memoryReviewFocusShowsSidebar = false
-    /// Whether the learner brought Sources back beside the focused review
-    /// (`revealSourcesPanel`).
-    var memoryReviewFocusShowsSources = false
     /// The focused review's id: the day's chat, or the card sitting's key.
     /// Setting an id focuses that chat; nil leaves the focus.
     var memoryReviewFocusSessionID: String? {
@@ -843,10 +794,6 @@ final class StudioWindowState: Identifiable {
             .stringArray(forKey: "studio.centerTabGroups.v1")
             .flatMap(StudioCenterTabGroups.fromPersisted)
             ?? .defaultLayout
-        let storedShowSources = UserDefaults.standard.object(forKey: "studio.showSourcesPanel") as? Bool ?? true
-        let storedCollapsed = Set(
-            UserDefaults.standard.stringArray(forKey: "studio.collapsedPanelIds") ?? []
-        )
         let storedNavigation = UserDefaults.standard.object(
             forKey: Self.navigationRailVisibilityKey
         ) as? Bool ?? true
@@ -857,8 +804,6 @@ final class StudioWindowState: Identifiable {
         if let snapshot {
             centerTabGroups = (StudioCenterTabGroups.fromPersisted(snapshot.centerTabGroups) ?? storedGroups)
                 .withoutShowing(unoffered)
-            showSourcesPanel = snapshot.showSourcesPanel
-            collapsedPanelIDs = Set(snapshot.collapsedPanelIDs)
             navigationRailVisible = snapshot.navigationRailVisible
             notebook = snapshot.notebook?.persisted
             notebookChats = snapshot.notebookChats ?? [:]
@@ -869,8 +814,6 @@ final class StudioWindowState: Identifiable {
             // window registers (`StudioWorkspaceWindowCoordinator.register`,
             // `StudioViewModel.openNotebookOrSpaceInNewWindow`).
             centerTabGroups = storedGroups.withoutShowing(unoffered)
-            showSourcesPanel = storedShowSources
-            collapsedPanelIDs = storedCollapsed
             navigationRailVisible = storedNavigation
         }
         readerArticleID = nil
@@ -913,8 +856,6 @@ final class StudioWindowState: Identifiable {
     var snapshot: Snapshot {
         Snapshot(
             centerTabGroups: centerTabGroups.persistedRepresentation,
-            showSourcesPanel: showSourcesPanel,
-            collapsedPanelIDs: collapsedPanelIDs.sorted(),
             navigationRailVisible: navigationRailVisible,
             notebook: notebook?.persisted,
             notebookChats: notebookChats.isEmpty ? nil : notebookChats
@@ -929,8 +870,6 @@ final class StudioWindowState: Identifiable {
         }
         isRestoringSnapshot = true
         centerTabGroups = StudioCenterTabGroups.fromPersisted(snapshot.centerTabGroups) ?? .defaultLayout
-        showSourcesPanel = snapshot.showSourcesPanel
-        collapsedPanelIDs = Set(snapshot.collapsedPanelIDs)
         navigationRailVisible = snapshot.navigationRailVisible
         notebook = snapshot.notebook?.persisted
         notebookChats = snapshot.notebookChats ?? [:]
@@ -945,8 +884,6 @@ final class StudioWindowState: Identifiable {
     /// holds the one the record names, or none for a record without one.
     func applyWorkspaceSnapshot(_ snapshot: Snapshot) {
         centerTabGroups = StudioCenterTabGroups.fromPersisted(snapshot.centerTabGroups) ?? .defaultLayout
-        showSourcesPanel = snapshot.showSourcesPanel
-        collapsedPanelIDs = Set(snapshot.collapsedPanelIDs)
         navigationRailVisible = snapshot.navigationRailVisible
         notebook = snapshot.notebook?.persisted
         notebookChats = snapshot.notebookChats ?? [:]
@@ -995,17 +932,6 @@ final class StudioWindowState: Identifiable {
         }
     }
 
-    func replaceShowSourcesPanelFromDefault(_ isVisible: Bool) {
-        withoutRecordingPersistentChanges {
-            showSourcesPanel = isVisible
-        }
-    }
-
-    func replaceCollapsedPanelIDsFromDefault(_ ids: Set<String>) {
-        withoutRecordingPersistentChanges {
-            collapsedPanelIDs = ids
-        }
-    }
 
     func encodedSnapshot() -> String {
         guard let data = try? JSONEncoder().encode(snapshot) else { return "" }
@@ -1272,18 +1198,13 @@ struct StudioSavedWorkspaceView: Identifiable, Equatable {
             }
             guard !windows.isEmpty else { return nil }
         } else {
-            guard let navigation = values.first(where: { $0.hasPrefix("navigation:") }),
-                  let sources = values.first(where: { $0.hasPrefix("sources:") }) else {
+            guard let navigation = values.first(where: { $0.hasPrefix("navigation:") }) else {
                 return nil
             }
             windows = [.init(
                 snapshot: StudioWindowState.Snapshot(
                     centerTabGroups: values.compactMap {
                         $0.hasPrefix("group:") ? String($0.dropFirst("group:".count)) : nil
-                    },
-                    showSourcesPanel: sources == "sources:1",
-                    collapsedPanelIDs: values.compactMap {
-                        $0.hasPrefix("collapsed:") ? String($0.dropFirst("collapsed:".count)) : nil
                     },
                     navigationRailVisible: navigation == "navigation:1"
                 ),

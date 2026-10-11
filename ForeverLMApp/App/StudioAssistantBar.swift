@@ -532,7 +532,7 @@ struct StudioDockedAssistantPanel: View {
                             height: titlebarBandHeight ?? StudioPanelChrome.headerHeight
                         )
                         .offset(
-                            x: -trailingOverflow - sourcesRestoreReservedWidth,
+                            x: -trailingOverflow,
                             y: placement == .chromeLine ? -(titlebarBandHeight ?? 0) : 0
                         )
                         .frame(
@@ -568,10 +568,6 @@ struct StudioDockedAssistantPanel: View {
         withAnimation(.easeInOut(duration: 0.22)) {
             onDismiss()
         }
-    }
-
-    private var sourcesRestoreReservedWidth: CGFloat {
-        chromeReservation.sourcesRestoreControl
     }
 
     /// Always drawn, even when Chat is the only pane; see

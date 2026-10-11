@@ -60,8 +60,6 @@ private func capturedCenterTabLayout() -> () -> Void {
 private func capturedStudioWindowTemplate() -> () -> Void {
     let keys = [
         "studio.centerTabGroups.v1",
-        "studio.showSourcesPanel",
-        "studio.collapsedPanelIds",
         "studio.navigationRailVisible",
     ]
     let prior = keys.reduce(into: [String: Any]()) { result, key in
@@ -2607,11 +2605,6 @@ struct TabManagementTests {
         #expect(StudioViewModel.integrationTabUnpinState().pending.isEmpty)
     }
 
-    @Test("Studio panel order is fixed with the center area left of Sources")
-    func studioPanelOrderIsFixed() {
-        #expect(StudioPanel.fixedOrder == [.reader, .sources])
-    }
-
     @Test("reorderTab no-op for same source and destination")
     func reorderTabSamePosition() {
         let vm = makeViewModel()
@@ -2672,8 +2665,6 @@ struct CrossWindowStudioDropTests {
         let sourceLayout = vm.centerTabGroups
         let destination = StudioWindowState(snapshot: .init(
             centerTabGroups: ["chat|reader*|tasks|notepad|notebooks"],
-            showSourcesPanel: true,
-            collapsedPanelIDs: [],
             navigationRailVisible: true
         ))
 
@@ -2701,14 +2692,10 @@ struct CrossWindowStudioDropTests {
     func docsIndexAndRevealStayInTheirWindow() {
         let leftDisplay = StudioWindowState(snapshot: .init(
             centerTabGroups: ["chat|reader|tasks|activity|notepad*|sites|browser|videos|notebooks"],
-            showSourcesPanel: true,
-            collapsedPanelIDs: [],
             navigationRailVisible: true
         ))
         let rightDisplay = StudioWindowState(snapshot: .init(
             centerTabGroups: ["chat*|reader|tasks|activity|notepad|sites|browser|videos|notebooks"],
-            showSourcesPanel: true,
-            collapsedPanelIDs: [],
             navigationRailVisible: true
         ))
         let vm = makeViewModel()
@@ -2743,8 +2730,6 @@ struct CrossWindowStudioDropTests {
     func webCitationIsTransientUntilSaved() async throws {
         let destination = StudioWindowState(snapshot: .init(
             centerTabGroups: ["chat*|reader|tasks|notepad|notebooks"],
-            showSourcesPanel: true,
-            collapsedPanelIDs: [],
             navigationRailVisible: true
         ))
         let vm = makeViewModel()
@@ -2758,7 +2743,6 @@ struct CrossWindowStudioDropTests {
         #expect(page.title == "Primary research")
         #expect(page.article.sourceType == .paper)
         #expect(vm.articles.map(\.id) == initialSourceIDs)
-        #expect(destination.showSourcesPanel == true)
         #expect(destination.centerTabGroups.groups.count == 2)
         #expect(destination.centerTabGroups.groups.map(\.activeTab) == [.chat, .reader])
 
@@ -2822,8 +2806,6 @@ struct CrossWindowStudioDropTests {
         let sourceLayout = vm.centerTabGroups
         let destination = StudioWindowState(snapshot: .init(
             centerTabGroups: ["chat*|reader|tasks|notepad|notebooks"],
-            showSourcesPanel: true,
-            collapsedPanelIDs: [],
             navigationRailVisible: true
         ))
 
@@ -3157,8 +3139,6 @@ struct CrossWindowStudioDropTests {
     func sidebarRowClickReadsInItsOwnWindow() async {
         let clicked = StudioWindowState(snapshot: .init(
             centerTabGroups: ["chat*|reader|tasks|notepad|notebooks"],
-            showSourcesPanel: true,
-            collapsedPanelIDs: [StudioPanel.reader.rawValue],
             navigationRailVisible: true
         ))
         let vm = makeViewModel()
@@ -3170,7 +3150,6 @@ struct CrossWindowStudioDropTests {
 
         #expect(clicked.readerArticleID == "post-clicked-here")
         #expect(clicked.sidebarSelectedSourceIDs == ["post-clicked-here"])
-        #expect(!clicked.collapsedPanelIDs.contains(StudioPanel.reader.rawValue))
         #expect(clicked.centerTabGroups.groups.map(\.activeTab) == [.chat, .reader])
         // The window the registry still called key keeps what it was showing.
         #expect(keyWindow.readerArticleID == "post-already-open")
@@ -4743,14 +4722,10 @@ struct ScheduleChatNavigationTests {
 
         let first = StudioWindowState(snapshot: .init(
             centerTabGroups: StudioCenterTabGroups.defaultLayout.persistedRepresentation,
-            showSourcesPanel: true,
-            collapsedPanelIDs: [],
             navigationRailVisible: true
         ))
         let second = StudioWindowState(snapshot: .init(
             centerTabGroups: StudioCenterTabGroups.defaultLayout.persistedRepresentation,
-            showSourcesPanel: true,
-            collapsedPanelIDs: [],
             navigationRailVisible: true
         ))
         // The default layout is one pane since the Notebooks home leads it;
@@ -4758,7 +4733,6 @@ struct ScheduleChatNavigationTests {
         var firstLayout = first.centerTabGroups
         firstLayout.groups[firstLayout.groups.count - 1].activeTab = .tasks
         first.centerTabGroups = firstLayout
-        first.collapsedPanelIDs.insert(StudioPanel.sources.rawValue)
         first.navigationRailVisible = false
 
         var secondLayout = second.centerTabGroups
@@ -4767,12 +4741,10 @@ struct ScheduleChatNavigationTests {
 
         #expect(first.centerTabGroups.groups.contains { $0.activeTab == .tasks })
         #expect(!first.centerTabGroups.groups.contains { $0.activeTab == .notepad })
-        #expect(first.collapsedPanelIDs == [StudioPanel.sources.rawValue])
         #expect(first.navigationRailVisible == false)
 
         #expect(second.centerTabGroups.groups.contains { $0.activeTab == .notepad })
         #expect(!second.centerTabGroups.groups.contains { $0.activeTab == .tasks })
-        #expect(second.collapsedPanelIDs.isEmpty)
         #expect(second.navigationRailVisible == true)
     }
 
@@ -4780,8 +4752,6 @@ struct ScheduleChatNavigationTests {
     func studioWindowSnapshotsRoundTrip() {
         let original = StudioWindowState(snapshot: .init(
             centerTabGroups: ["chat", "reader|tasks|notepad*|notebooks"],
-            showSourcesPanel: false,
-            collapsedPanelIDs: [StudioPanel.sources.rawValue],
             navigationRailVisible: false
         ))
         let encoded = original.encodedSnapshot()
@@ -4790,8 +4760,6 @@ struct ScheduleChatNavigationTests {
 
         #expect(restored.snapshot == original.snapshot)
         #expect(restored.centerTabGroups.groups.contains { $0.activeTab == .notepad })
-        #expect(restored.showSourcesPanel == false)
-        #expect(restored.collapsedPanelIDs == [StudioPanel.sources.rawValue])
         #expect(restored.navigationRailVisible == false)
     }
 
@@ -4855,7 +4823,7 @@ struct ScheduleChatNavigationTests {
         #expect(UserDefaults.standard.stringArray(forKey: "studio.centerTabGroups.v1") == stored)
     }
 
-    @Test("pane dividers preserve usable widths and retain an edge collapse zone")
+    @Test("pane dividers preserve usable widths")
     func paneDividerConstraint() {
         #expect(StudioPaneDividerConstraint.clamp(
             0.05,
@@ -4873,16 +4841,6 @@ struct ScheduleChatNavigationTests {
             trailingMinimumWidth: 200,
             usableWidth: 1_000
         ) == 0.8)
-        #expect(StudioPaneDividerConstraint.clamp(
-            0.97,
-            hardLower: 0,
-            hardUpper: 1,
-            leadingMinimumWidth: 200,
-            trailingMinimumWidth: 200,
-            usableWidth: 1_000,
-            trailingMayCollapse: true,
-            collapseThreshold: 46
-        ) == 0.97)
         // An actually narrow window keeps hard divider behavior because both
         // minimums cannot fit; clipping remains preferable to a stuck handle.
         #expect(StudioPaneDividerConstraint.clamp(
@@ -4895,68 +4853,15 @@ struct ScheduleChatNavigationTests {
         ) == 0.25)
     }
 
-    @Test("Sources uses its own persisted width after the golden default")
-    func sourcesWidthIsIndependentFromNavigationRail() {
-        let key = StudioSourcesPanelPreference.widthKey
-        let restore = UserDefaults.standard.object(forKey: key)
-        let navigationRestore = UserDefaults.standard.object(forKey: StudioNavigationRail.widthKey)
-        defer {
-            if let restore {
-                UserDefaults.standard.set(restore, forKey: key)
-            } else {
-                UserDefaults.standard.removeObject(forKey: key)
-            }
-            if let navigationRestore {
-                UserDefaults.standard.set(navigationRestore, forKey: StudioNavigationRail.widthKey)
-            } else {
-                UserDefaults.standard.removeObject(forKey: StudioNavigationRail.widthKey)
-            }
-        }
-        UserDefaults.standard.set(300.0, forKey: key)
-        UserDefaults.standard.set(470.0, forKey: StudioNavigationRail.widthKey)
-        #expect(StudioSourcesPanelPreference.resolvedWidth(goldenDefault: 410) == 300)
-
-        let ids = ["reader", "sources"]
-        let totalWidth: CGFloat = 1_200
-        let usable = totalWidth - StudioOuterPanelSizing.dividerWidth
-        let fractions = StudioPanelDefaultSizing.fractions(for: ids, totalWidth: totalWidth)
-
-        #expect(fractions.count == 1)
-        let sourcesWidth = (1 - fractions[0]) * usable
-        #expect(abs(sourcesWidth - 300) < 0.5)
-
-        // A genuinely narrow row caps Sources at half the space rather than
-        // letting a wide rail crowd the center out.
-        let narrowTotal: CGFloat = 400
-        let narrowUsable = narrowTotal - StudioOuterPanelSizing.dividerWidth
-        let narrow = StudioPanelDefaultSizing.fractions(for: ids, totalWidth: narrowTotal)
-        #expect(abs((1 - narrow[0]) * narrowUsable - narrowUsable / 2) < 0.5)
-
-        // With no Sources width ever dragged and no measured window, it falls
-        // back to the common untouched default rather than a share of the row.
-        UserDefaults.standard.removeObject(forKey: key)
-        #expect(StudioSourcesPanelPreference.resolvedWidth(goldenDefault: 410) == 410)
-        let untouched = StudioPanelDefaultSizing.fractions(for: ids, totalWidth: totalWidth)
-        #expect(abs((1 - untouched[0]) * usable - StudioNavigationRail.defaultRailWidth) < 0.5)
-
-        // The measured layout passes the Sources width explicitly; the
-        // navigation rail's independent preference never changes it.
-        let measured = StudioPanelDefaultSizing.fractions(
-            for: ids,
-            totalWidth: totalWidth,
-            sidePanelWidth: 420
-        )
-        #expect(abs((1 - measured[0]) * usable - 420) < 0.5)
-    }
-
-    @Test("every center pane opens the golden ratio wider than a side panel")
+    @Test("every center pane opens the golden ratio wider than the sidebar")
     func goldenSideWidthKeepsCenterPanesPhiTimesTheSides() {
         let windowWidth: CGFloat = 2_560
         let divider = StudioOuterPanelSizing.dividerWidth
         let phi = StudioPanelDefaultSizing.goldenRatio
 
-        // One divider before Sources plus one between each pair of center
-        // panes; the rail has none of its own.
+        // The row is sized as if a second, equal side shared the window; one
+        // divider falls between each pair of center panes and one after the
+        // sidebar.
         for panes in 1...3 {
             let side = StudioPanelDefaultSizing.goldenSideWidth(
                 windowWidth: windowWidth,
@@ -4967,8 +4872,8 @@ struct ScheduleChatNavigationTests {
             #expect(abs(pane / side - phi) < 0.01)
         }
 
-        // Splitting the center makes the row owe φ one more time, so both
-        // sides narrow rather than the panes growing past the ratio.
+        // Splitting the center makes the row owe φ one more time, so the
+        // sidebar narrows rather than the panes growing past the ratio.
         let one = StudioPanelDefaultSizing.goldenSideWidth(windowWidth: windowWidth, centerPaneCount: 1)
         let two = StudioPanelDefaultSizing.goldenSideWidth(windowWidth: windowWidth, centerPaneCount: 2)
         #expect(two < one)
@@ -4977,28 +4882,6 @@ struct ScheduleChatNavigationTests {
         // width; the minimum wins there.
         #expect(StudioPanelDefaultSizing.goldenSideWidth(windowWidth: 900, centerPaneCount: 2)
             == StudioNavigationRail.minRailWidth)
-    }
-
-    @Test("dragging Sources resolves its own bounded persisted width")
-    func sourcesDividerResolvesPersistedWidth() {
-        let totalWidth: CGFloat = 1_207
-        let usable = totalWidth - StudioOuterPanelSizing.dividerWidth
-
-        #expect(StudioPanelDefaultSizing.trailingSideWidth(
-            trailingDividerFraction: 1 - 420 / usable,
-            totalWidth: totalWidth,
-            panelCount: 2
-        ) == 420)
-        #expect(StudioPanelDefaultSizing.trailingSideWidth(
-            trailingDividerFraction: 0,
-            totalWidth: totalWidth,
-            panelCount: 2
-        ) == StudioNavigationRail.maxRailWidth)
-        #expect(StudioPanelDefaultSizing.trailingSideWidth(
-            trailingDividerFraction: 1,
-            totalWidth: totalWidth,
-            panelCount: 2
-        ) == nil)
     }
 
     @Test("opening a source from the launch pane keeps the greeting beside it")
@@ -5256,14 +5139,10 @@ struct ScheduleChatNavigationTests {
     func savedWorkspaceViewsRoundTripEveryWindow() {
         let left = StudioWindowState(snapshot: .init(
             centerTabGroups: ["notebooks*", "reader*"],
-            showSourcesPanel: true,
-            collapsedPanelIDs: [],
             navigationRailVisible: false
         ))
         let right = StudioWindowState(snapshot: .init(
             centerTabGroups: ["chat*", "!|notepad*"],
-            showSourcesPanel: false,
-            collapsedPanelIDs: [StudioPanel.sources.rawValue],
             navigationRailVisible: true
         ))
         let leftPlacement = StudioWindowPlacement(
@@ -5405,14 +5284,10 @@ struct ScheduleChatNavigationTests {
         coordinator.register(state: firstState, window: firstWindow)
         let firstSnapshot = StudioWindowState.Snapshot(
             centerTabGroups: ["notebooks*", "!|reader*"],
-            showSourcesPanel: true,
-            collapsedPanelIDs: [],
             navigationRailVisible: false
         )
         let secondSnapshot = StudioWindowState.Snapshot(
             centerTabGroups: ["chat*", "!|notepad*"],
-            showSourcesPanel: false,
-            collapsedPanelIDs: [StudioPanel.sources.rawValue],
             navigationRailVisible: true
         )
         let firstPlacement = StudioWindowPlacement(
@@ -5944,8 +5819,6 @@ struct ScheduleChatNavigationTests {
         let vm = makeViewModel()
         let destination = StudioWindowState(snapshot: .init(
             centerTabGroups: ["chat*", "reader|tasks*|notepad|notebooks"],
-            showSourcesPanel: true,
-            collapsedPanelIDs: [],
             navigationRailVisible: true
         ))
         let sourceLayout = vm.centerTabGroups
@@ -5972,8 +5845,6 @@ struct ScheduleChatNavigationTests {
         let vm = makeViewModel()
         let destination = StudioWindowState(snapshot: .init(
             centerTabGroups: ["chat*", "reader|tasks*|notepad|notebooks"],
-            showSourcesPanel: true,
-            collapsedPanelIDs: [],
             navigationRailVisible: true
         ))
         let chatPane = destination.centerTabGroups.groups[0].id
@@ -6390,17 +6261,11 @@ struct ScheduleChatNavigationTests {
         #expect(vm.centerTabGroups.groups.map(\.isPinned) == [true, false, true])
     }
 
-    @Test("opening a Chat citation leaves the Sources panel as the learner set it")
-    func linkedSourceKeepsSourcesPanel() async {
+    @Test("opening a Chat citation opens the Reader beside the chat")
+    func linkedSourceOpensReaderBesideChat() async {
         let restoreLayout = capturedCenterTabLayout()
         defer { restoreLayout() }
         let vm = makeViewModel()
-        let priorShowSources = vm.showSourcesPanel
-        let priorCollapsedPanels = vm.collapsedPanelIds
-        defer {
-            vm.showSourcesPanel = priorShowSources
-            vm.collapsedPanelIds = priorCollapsedPanels
-        }
         var source = makeArticle(
             url: "https://example.com/cited-source",
             title: "Cited Source",
@@ -6410,22 +6275,12 @@ struct ScheduleChatNavigationTests {
         source.content = "Already loaded."
         vm.articles = [source]
         vm.centerTabGroups = .defaultLayout
-        vm.showSourcesPanel = true
 
         await vm.openLinkedSourceInReader(source.id)
 
-        // An open panel stays open: following a citation is navigation, not a
-        // request to rearrange the window.
-        #expect(vm.showSourcesPanel == true)
         #expect(vm.selectedArticleId == source.id)
         #expect(vm.activeCenterTabs.contains(.chat))
         #expect(vm.activeCenterTabs.contains(.reader))
-
-        // A panel that was already collapsed must stay collapsed. In
-        // particular, following another citation must not clear this marker.
-        vm.collapsedPanelIds.insert(StudioPanel.sources.rawValue)
-        await vm.openLinkedSourceInReader(source.id)
-        #expect(vm.collapsedPanelIds.contains(StudioPanel.sources.rawValue))
     }
 
     @Test("A source opened from a doc keeps the doc beside the Reader")
@@ -11438,8 +11293,6 @@ struct CrossWindowReaderNavigationTests {
         let here = vm.activeWindowState
         let there = StudioWindowState(snapshot: .init(
             centerTabGroups: ["!|reader*|tasks|notepad|notebooks", "chat*"],
-            showSourcesPanel: true,
-            collapsedPanelIDs: [],
             navigationRailVisible: true
         ))
         StudioWindowRegistry.shared.register(here, makeActive: true)
@@ -11484,8 +11337,6 @@ struct CrossWindowReaderNavigationTests {
         let here = vm.activeWindowState
         let there = StudioWindowState(snapshot: .init(
             centerTabGroups: ["!|reader*|tasks|notepad|notebooks", "chat*"],
-            showSourcesPanel: true,
-            collapsedPanelIDs: [],
             navigationRailVisible: true
         ))
         StudioWindowRegistry.shared.register(here, makeActive: true)
@@ -11516,8 +11367,6 @@ struct CrossWindowReaderNavigationTests {
         let here = vm.activeWindowState
         let there = StudioWindowState(snapshot: .init(
             centerTabGroups: ["reader*|tasks|notepad|notebooks", "chat*"],
-            showSourcesPanel: true,
-            collapsedPanelIDs: [],
             navigationRailVisible: true
         ))
         StudioWindowRegistry.shared.register(here, makeActive: true)
@@ -11712,10 +11561,10 @@ struct CrossWindowReaderNavigationTests {
     }
 }
 
-/// Two Studio windows browse the same library through two Sources panels.
+/// Two Studio windows browse the same library through two Library panes.
 /// The tab, the search, the filters and the page each window is on are its
 /// own; only the library underneath is shared.
-@Suite("Cross-window Sources panel", .serialized)
+@Suite("Cross-window Library list", .serialized)
 @MainActor
 struct CrossWindowSidebarStateTests {
     /// The view model's own accessors answer for the key window — the fallback
@@ -12119,8 +11968,6 @@ struct ChatRequestElsewhereNoticeTests {
     private func window(_ layout: [String]) -> StudioWindowState {
         StudioWindowState(snapshot: .init(
             centerTabGroups: layout,
-            showSourcesPanel: true,
-            collapsedPanelIDs: [],
             navigationRailVisible: true
         ))
     }
@@ -13173,8 +13020,6 @@ struct LibraryURLIndexTests {
     func webCitationOfSavedPaperOpensTheSource() async throws {
         let destination = StudioWindowState(snapshot: .init(
             centerTabGroups: ["chat*|reader|tasks|notepad|notebooks"],
-            showSourcesPanel: true,
-            collapsedPanelIDs: [],
             navigationRailVisible: true
         ))
         let vm = makeViewModel()

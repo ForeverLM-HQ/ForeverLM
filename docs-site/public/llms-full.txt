@@ -136,7 +136,7 @@ ForeverLM asks you to **Sign in with Apple** before anything else. Your Apple Ac
 
 The in-app Chat, quizzes and background AI work run on your own [OpenRouter API key](https://openrouter.ai/keys), billed by OpenRouter at its cost with nothing added; OpenRouter is the provider supported today. ForeverLM adds nothing to it: add the key in **Settings → AI Usage**, then pay models at cost or use free models, and Free mode costs $0. Connecting Claude, ChatGPT, Gemini, or Grok [over MCP](/setup-mcp) needs no key and nothing extra to buy.
 
-After signing in, the **Set up ForeverLM** guide opens over the Studio. Its first step asks for your OpenRouter key, then the model new chats start on and the one background work (transcripts, cleanup, metadata) runs on: one of OpenRouter's free models by default, whose providers may keep what you send, or a paid one. With a free model it also asks about meetings, which stay on a paid model unless you let them use the free one too, since a meeting's transcript holds private conversations. Continuing lets ForeverLM use the key for that work, and **Settings → Background** changes the model later, for text-only work and for multimodal work (work that looks at a figure or a slide), a free model included, and gives any one task a model of its own on the Tasks tab; while meetings are kept off a free model, it names the model they use. The other steps walk through the first ways to bring sources in: an article or paper saved to your browser's Reading List, Apple Podcasts, and YouTube. **Skip this step** moves on, and **Continue later** closes the guide; **ForeverLM → Set Up ForeverLM…** brings it back at any time. The app then opens on the **Notebooks** home, where **New notebook** starts your first notebook; after that, each window opens in the notebook you last worked in.
+After signing in, the **Set up ForeverLM** guide opens over the Studio. Its first step is two short pages: **Connect OpenRouter**, then **Pick your models**, where one tap takes the recommended set (chat on an open-weights model run by US hosts, background work on OpenRouter's free models with a cheap backup). **Choose my own** opens the model the chat starts on and the one background work (transcripts, cleanup, metadata) runs on, a free model whose providers may keep what you send or a paid one, and, with a free model, an answer about meetings, which stay on a paid model unless you let them use the free one too, since a meeting's transcript holds private conversations. Free mode and OpenRouter's privacy settings are in **Settings → AI Usage**. Continuing lets ForeverLM use the key for that work, and **Settings → Background** changes the model later, for text-only work and for multimodal work (work that looks at a figure or a slide), a free model included, and gives any one task a model of its own on the Tasks tab; while meetings are kept off a free model, it names the model they use. The other steps walk through the first ways to bring sources in: an article or paper saved to your browser's Reading List, Apple Podcasts, and YouTube. **Skip this step** moves on, and **Continue later** closes the guide; **ForeverLM → Set Up ForeverLM…** brings it back at any time. The app then opens on the **Notebooks** home, where **New notebook** starts your first notebook; after that, each window opens in the notebook you last worked in.
 
 ## Safari Reading List Access
 
@@ -582,7 +582,7 @@ with this notebook's chats, the Now chip's dot while something is happening,
 and your account. "Plan your day?"
 then waits in the window's corner. A rail you hid stays hidden.
 
-### The full-window Library
+### The Library
 
 **Library** — the rail's row or View → Library (⇧⌘L) —
 spreads the whole library across the window for managing it: every source
@@ -593,6 +593,12 @@ a bar: "N selected", **Add to Notebook ▸**, **New Notebook with N Sources…**
 selection. Opened from inside a notebook, its top line starts with **‹** and
 the notebook's name, which opens it again. A source
 clicked here opens in the Reader beside the list.
+
+To have the library beside what you are doing, drag the rail's **Library**
+row to an edge of the window, or choose **Open Beside** on its
+right-click menu. It docks as a pane next to your chat, a Page or a canvas
+and draws the compact list, with the same tabs, search and row menus; drag a
+source from it into a chat, or onto a canvas. Close it with its ×.
 
 ### Pages, Goals and Not in a Notebook
 
@@ -716,15 +722,15 @@ results, highlights and the Schedule stay private to each member. See
 
 ## Layout
 
-Outside a notebook, the window has the navigation rail, a center workspace of
-up to two resizable panes, and the library's **Sources** panel on the right.
+Outside a notebook, the window has the navigation rail and a center workspace
+of up to two resizable panes. The library is one of those panes: drag the
+rail's **Library** row to an edge to dock it beside another.
 
 | Panel | What it does |
 |-------|-------------|
 | **Navigation** (left) | **New chat**, **Memory** (where today's cards wait), **Browser** and **Library**; then **Notebooks**, which opens the Space's All list, with each of your notebooks and its chats; then your library's own **Chats**. The **Now** chip at its foot shows today's events from the Mac's Calendar and opens **Activity** |
-| **Sources** (right) | Your library, organized by type |
 | **Notebooks** | The home: a card per notebook, and the **Collections**, **Courses**, **Pages** and **Goals** tabs. A notebook opens across the window ([Inside a notebook](#inside-a-notebook)) |
-| **Library** | The whole library across the window, for managing it ([The full-window Library](#the-full-window-library)) |
+| **Library** | The whole library, organized by type, across the window for managing it or docked beside another pane ([The Library](#the-library)) |
 | **Reader** | Displays the selected source: web article, PDF, video, or transcript |
 | **Chat** | In-app source-grounded chat and review sessions |
 | **Memory** | Your cards across every notebook ([Memory](#memory)) |
@@ -1961,7 +1967,7 @@ The app reads the Reading List in `~/Library/Safari/Bookmarks.plist` and adds ne
 The app reads reading list entries from Chrome and Brave's local data. No special permissions are needed. Just add articles to your reading list in either browser and they'll appear in the Studio tab.
 
 **Choosing browsers and how far back to go:**
-Setup's Articles step shows how many pages each browser's Reading List holds and asks which browsers to import from. First it asks how much of what is already saved to bring in: **Everything**, the **Last 30 days** (the starting choice), or **Only new saves**. Every page that comes in is fetched and cleaned up by AI once, so a long backlog costs more. Pages saved before the cutoff are never imported. Change either in **Settings → Sources → Reading Lists**, or from chat (`sources.reading_list_browsers` and `sources.reading_list_import_window`). A wider choice imports the pages it now reaches right away.
+Setup's Articles step asks one question, which browser you use: Safari, Chrome, Brave, or several. The Mac's default browser is marked Recommended. Pages saved in the last 30 days come in first, and everything you save after that arrives on its own. Every page that comes in is fetched and cleaned up by AI once, so a long backlog costs more. Change the browsers, or how much of what is already saved to bring in (**Everything**, the **Last 30 days**, or **Only new saves**), in **Settings → Sources → Reading Lists**, or from chat (`sources.reading_list_browsers` and `sources.reading_list_import_window`). A wider choice imports the pages it now reaches right away.
 
 **Via MCP:**
 Your AI assistant can add articles using the `add_source` tool.
@@ -2527,13 +2533,12 @@ Don't see your service here? You can [build your own plugin](/build-your-own-plu
 Use the Google Drive plugin to import meeting recordings, transcripts, and notes from folders you choose. Drive shortcuts are followed to their underlying files, so shared Meet recordings and transcript Docs import the same way as files owned directly in the selected folder.
 
 1. In ForeverLM, open **Settings -> Plugins -> Google Drive**.
-2. Select **Connect and Choose Folder**.
-3. Sign in with Google and choose a meeting folder.
-4. Grant read-only Drive access with the same Google account.
+2. Select **Connect Google Drive** and approve read-only Drive access in your browser, once.
+3. Back in ForeverLM, choose your meeting folder from My Drive, Shared with me or a shared drive, or search for it by name.
 
-Google Picker's `drive.file` permission covers only the folder object you select; Google does not extend it to files already inside that folder or files added later. A working folder plugin therefore also requires Google's read-only Drive permission (`drive.readonly`). That permission can read files across your Drive, but ForeverLM's plugin traverses and imports only folders you explicitly link. OAuth tokens stay in your Apple Keychain and are not sent to ForeverLM servers.
+Google's read-only Drive permission (`drive.readonly`) can read files across your Drive, but ForeverLM's plugin traverses and imports only folders you explicitly link. OAuth tokens stay in your Apple Keychain and are not sent to ForeverLM servers.
 
-Connections made before this correction show **Reconnect needed**. Reconnect once, choose the folder again, and approve the read-only permission. The linked folder then refreshes when the Drive tab opens, when the app becomes active, or when you refresh Studio.
+If Google Drive stops working, ForeverLM says so in an orange bar above the meeting recording and at the top of the Meetings list, with a **Reconnect Google Drive** button. Reconnecting asks Google for access once more and refreshes the folders you already linked; you do not choose them again. If the browser page goes nowhere, **Cancel** stops the wait. The linked folder refreshes when the Drive tab opens, when the app becomes active, or when you refresh Studio.
 
 Open an imported meeting recording and select **Find mentioned papers** to read its complete transcript and notes for academic papers participants explicitly discussed or recommended. A recording-only session is transcribed on-device first. Web Studio's **Find papers** reader action opens the same source in the Mac app and starts that scan. Resolved candidates can be added through the normal paper import pipeline; incomplete mentions remain visible as unmatched rather than being silently discarded. The same workflow is available to MCP assistants through `scan_meeting_for_mentioned_papers` and `list_video_cited_papers`.
 
@@ -3978,30 +3983,43 @@ The honest trade-off: **ForeverLM is Mac-centered** (macOS 14+). Its synced iPho
 
 ## The full comparison
 
-| Tool | Pricing | Platforms | Where your data lives | AI models | Podcasts | Retention/review |
-|---|---|---|---|---|---|---|
-| **ForeverLM** | **7 days free, then $19 once** (no subscription); AI on your own OpenRouter key at cost | macOS + synced iPhone access | Your iCloud + local SQLite | Any (MCP or in-app Chat) | Full transcripts | AI review dialogue, scheduled |
-| [NotebookLM](/compare/notebooklm) | Free (capped); $7.99–$99.99+/mo Google AI bundles | Web, iOS, Android | Google's servers | Gemini only | No (generates audio, can't ingest feeds) | One-shot quizzes/flashcards, no tracking |
-| [Heptabase](/compare/heptabase) | $107.88–$647.88/yr, no free tier | Mac, Win, Linux, iOS, Android, web | Local-first + their AWS sync | Credit-metered (Gemini; more on Premium) | No | AI tutor on $215.88/yr tier; spaced repetition unshipped |
-| [Anki](/compare/anki) | Free (iOS $24.99 one-time) | Everywhere | Local + free/self-hosted sync | None built in | No | Self-graded flashcards, SM-2/FSRS |
-| [RemNote](/compare/remnote) | Free (capped); $96–$216/yr; $395 lifetime (AI extra) | Everywhere | Their cloud (local-only mode loses sync) | Credit-metered (OpenAI/Anthropic/Google) | No | Flashcards + AI quizzes/grading, exam scheduler |
-| Mochi | Free offline; Pro $5/mo for sync | Everywhere | Local-first + their sync (paid) | Minimal (GPT text fields, Pro) | No | Flashcards, simple two-button or FSRS |
-| [Speechify](/compare/speechify) | Free tier; Premium $29/mo monthly | Web, Mac, Win, iOS, Android | Their cloud | Built-in summaries, chat, voice assistant | Turns text into AI podcasts | No learning schedule or linked active review |
-| [Readwise Reader](/compare/readwise) | $9.99–$12.99/mo after trial | Web, Mac, Win, iOS, Android | Their cloud, with full exports | Ghostreader + MCP to external assistants | Saved episodes and transcripts | Daily Review resurfacing + self-graded Mastery cards |
-| [Zotero](/compare/zotero) | Free; file sync $20–$120/yr above 300 MB | Mac, Win, Linux, iOS, Android | Local-first + optional Zotero/WebDAV sync | Community plugins | No | No built-in learning review; excellent citation workflow |
-| [Paperpile](/compare/paperpile) | $99.60–$138/yr; academic pricing 50% lower | Web, iOS, Android | Their cloud + optional Drive/OneDrive sync | Ask AI sends PDFs to external assistants | No | No built-in learning review; excellent citation workflow |
-| [Obsidian](/compare/obsidian) | Free; Sync $4–8/mo | Everywhere | Local Markdown files | Plugins, bring-your-own-key | No | Community plugins only |
-| Reflect | $10/mo billed annually, no free tier | Mac, iOS, web | Their cloud, end-to-end encrypted | GPT/Claude/Gemini, BYOK, MCP beta | No | None |
-| [Recall](/compare/recall) | Free (10 summaries/mo); $120/yr Plus; $456/yr Max | Web, iOS, Android | Local-first + their sync (Google Cloud EU) | Auto-picked; choice only on Max | Saved episodes | Spaced-repetition quizzes (paid tier) |
-| [Snipd](/compare/snipd) | Free (2 ep/wk AI); Premium ~$7–12/mo by region | iOS, Android, Watch | Their cloud | Proprietary pipeline | Core feature (highlights) | None — exports to other apps |
-| [Matter](/compare/matter) | Free | iOS, iPad, web | Their cloud | Reading assistance | Episode transcripts | None |
-| [Paper](/compare/paper-ac) | Free during its beta; paid plans announced, not priced | Web; Mac app in testing | Their cloud (Supabase on AWS) | Grok, GPT, Gemini | Generates podcasts; no feeds | FSRS flashcards, quizzes |
-| [Memo](/compare/memo-cards) | Free plan; Pro $120/yr; Max $300/yr | Web, Mac, Win, Linux, iOS; Android web app | Their cloud | Unnamed modes, no BYOK | Generates podcasts; no feeds | FSRS flashcards (cloze, image occlusion), Anki export |
-| [Gistr](/compare/gistr) | Free (500 credits/mo); $8–$40/mo | Web, Chrome, Android | Their cloud | By tier; frontier models from $16/mo | Saved episodes (Apple Podcasts or Spotify links) | Quizzes; no spaced repetition |
-| [Sapience](/compare/sapience) | Not published (invite-only early access) | Not stated | Local plain-text folders | Not stated | No | None stated |
-| [AnythingLLM](/compare/anythingllm) | Desktop app free; cloud $50–$99/mo | Mac, Win, Linux, Docker, Android | Local folders or your own server | 40+ providers + local models | No | None |
+| Tool | Best at | Pricing | AI | Retention/review |
+|---|---|---|---|---|
+| **ForeverLM** | Learning from the sources you keep, by AI review dialogue | **7 days free, then $19 once** (no subscription); AI on your own OpenRouter key at cost | Any (MCP or in-app Chat) | AI review dialogue, scheduled |
+| [NotebookLM](/compare/notebooklm) | Study material and audio overviews from uploads | Free (capped); $7.99–$99.99+/mo Google AI bundles | Gemini only | One-shot quizzes/flashcards, no tracking |
+| [Heptabase](/compare/heptabase) | Card-first whiteboards for thinking | $107.88–$647.88/yr, no free tier | Credit-metered (Gemini; more on Premium) | AI tutor on $215.88/yr tier; spaced repetition unshipped |
+| [Anki](/compare/anki) | Memorizing with self-graded flashcards | Free (iOS $24.99 one-time) | None built in | Self-graded flashcards, SM-2/FSRS |
+| [RemNote](/compare/remnote) | Notes with flashcards and exam scheduling | Free (capped); $96–$216/yr; $395 lifetime (AI extra) | Credit-metered (OpenAI/Anthropic/Google) | Flashcards + AI quizzes/grading, exam scheduler |
+| [Quizlet](/compare/quizlet) | Memorization and shared class sets | Free; Plus $35.99/yr; Plus Unlimited $44.99/yr | Built-in study and tutoring features | Flashcards, Learn mode, tests, games |
+| Mochi | Simple flashcards | Free offline; Pro $5/mo for sync | Minimal (GPT text fields, Pro) | Flashcards, simple two-button or FSRS |
+| [Paper](/compare/paper-ac) | Study workspace with FSRS cards and quizzes | Free during its beta; paid plans announced, not priced | Grok, GPT, Gemini | FSRS flashcards, quizzes |
+| [Memo](/compare/memo-cards) | AI flashcards with FSRS and Anki export | Free plan; Pro $120/yr; Max $300/yr | Unnamed modes, no BYOK | FSRS flashcards (cloze, image occlusion), Anki export |
+| [Gistr](/compare/gistr) | AI notebook for video, podcasts, PDFs and articles | Free (500 credits/mo); $8–$40/mo | By tier; frontier models from $16/mo | Quizzes; no spaced repetition |
+| [Sapience](/compare/sapience) | Local, canvas-first workspace of plain text | Not published (invite-only early access) | Not stated | None stated |
+| [AnythingLLM](/compare/anythingllm) | Document chat on local or hosted models | Desktop app free; cloud $50–$99/mo | 40+ providers + local models | None |
+| [Speechify](/compare/speechify) | Text to speech across devices | Free tier; Premium $29/mo monthly | Built-in summaries, chat, voice assistant | No learning schedule or linked active review |
+| [ElevenReader](/compare/elevenreader) | Natural narration of PDFs, EPUBs and articles | Free mobile app; ElevenLabs services priced separately | GenFM AI-hosted podcasts from your content | None: builds a listening habit |
+| [Readwise Reader](/compare/readwise) | Read-later and highlight hub | $9.99–$12.99/mo after trial | Ghostreader + MCP to external assistants | Daily Review resurfacing + self-graded Mastery cards |
+| [Instapaper](/compare/instapaper) | Read-later queue with Kindle and Kobo delivery | Free; Premium $6/mo or $60/yr | Narration and voice playlists on Premium | Highlights and notes only |
+| [Matter](/compare/matter) | Free reading queue for articles and newsletters | Free | Reading assistance | None |
+| [Raindrop.io](/compare/raindrop) | Bookmarks, collections and web archives | Free; optional Pro subscription | AI Assistant and suggestions on Pro | None |
+| [Glasp](/compare/glasp) | Social highlighting and shareable notes | Free; Pro $150/yr; Unlimited $360/yr | Summaries, transcription, AI clone | Highlight resurfacing only |
+| [Snipd](/compare/snipd) | Podcast capture and highlights on your phone | Free (2 ep/wk AI); Premium ~$7–12/mo by region | Proprietary pipeline | None: exports to other apps |
+| [Recall](/compare/recall) | Saving and summarizing everything you read and watch | Free (10 summaries/mo); $120/yr Plus; $456/yr Max | Auto-picked; choice only on Max | Spaced-repetition quizzes (paid tier) |
+| [Zotero](/compare/zotero) | Free, open-source citation management | Free; file sync $20–$120/yr above 300 MB | Community plugins | None built in |
+| [Paperpile](/compare/paperpile) | Cloud reference manager for Docs and Word | $99.60–$138/yr; academic pricing 50% lower | Ask AI sends PDFs to external assistants | None built in |
+| [Papers](/compare/papers) | Reference management with AI across papers | Essentials $65/yr; Pro $130/yr; 40% academic discount | Chat with 1 PDF (Essentials) or up to 20 papers (Pro) | None |
+| [Mendeley](/compare/mendeley) | Elsevier's reference library with Word citations | Free with 2 GB; Plus $55/yr; Pro $110/yr; Max $165/yr | Reading Assistant; Ask My Library on Pro and Max | None |
+| [EndNote](/compare/endnote) | Professional bibliographies and manuscripts | $275 license; $150 student; $125 upgrade | EndNote Research Assistant | None |
+| [Elicit](/compare/elicit) | Literature discovery, screening and systematic reviews | Free; Plus $132/yr; Pro $480/yr; Scale $1,068/yr | Reports, evidence tables, extraction, paper chat | None: research synthesis |
+| [SciSpace](/compare/scispace) | Academic search, PDF explanation and writing | Free with credits; Premium from $12/mo billed annually | Literature Review, Deep Review, Chat with PDF | None: research synthesis |
+| [Obsidian](/compare/obsidian) | Owning your notes as local Markdown | Free; Sync $4–8/mo | Plugins, bring-your-own-key | Community plugins only |
+| Reflect | Fast networked notes | $10/mo billed annually, no free tier | GPT/Claude/Gemini, BYOK, MCP beta | None |
+| [LiquidText](/compare/liquidtext) | Close PDF reading and spatial excerpts | Free Basic; paid plans vary by platform and region | Not a focus | None: active reading and synthesis |
+| [MarginNote](/compare/marginnote) | PDF study with mind maps and flashcards | Pro $12.99 lifetime; Max $16.99/yr or $51.99 lifetime | Credit-based summary, Q&A, OCR, cards | Flashcards, FSRS, document and mind-map recall |
+| [DEVONthink](/compare/devonthink) | Private Mac document databases | Standard $99, Pro $199, Server $499 (one year of updates) | AI chat with local or external models | None |
 
-*Pricing verified against official pages in July 2026, and in October 2026 for Paper, Memo, Gistr, Sapience and AnythingLLM. Prices change — always check the vendor's site. Annual-billed rates shown where vendors advertise them.*
+*Pricing verified against official pages in July 2026, and in October 2026 for Paper, Memo, Gistr, Sapience and AnythingLLM; the other rows follow each tool's own page, which says when its prices were checked. Prices change — always check the vendor's site. Annual-billed rates shown where vendors advertise them.*
 
 ## More head-to-head comparisons
 

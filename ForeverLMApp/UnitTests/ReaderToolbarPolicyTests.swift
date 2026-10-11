@@ -218,7 +218,7 @@ struct ReaderToolbarPolicyTests {
         // shared width for it put its hover wash — and so its hit surface —
         // inside the pin's, and the pin then owned part of the visible X.
         #expect(StudioTopBar.readerPaneCloseControlReservedWidth
-            == StudioPanelChrome.readerCloseButtonSize + StudioTopBar.sourcesToggleCloseSpacing)
+            == StudioPanelChrome.readerCloseButtonSize + StudioTopBar.paneControlSpacing)
         #expect(StudioTopBar.readerPaneCloseControlReservedWidth
             > StudioTopBar.centerPaneCloseControlReservedWidth)
     }
@@ -253,19 +253,11 @@ struct ReaderToolbarPolicyTests {
         #expect(StudioPaneClosePlacement.resolve(
             visibleWidth: 180,
             leadingReservation: 130,
-            trailingReservation: 0,
             controlWidth: 22
         ) == .chromeLine)
         #expect(StudioPaneClosePlacement.resolve(
             visibleWidth: 179,
             leadingReservation: 130,
-            trailingReservation: 0,
-            controlWidth: 22
-        ) == .contentTop)
-        #expect(StudioPaneClosePlacement.resolve(
-            visibleWidth: 220,
-            leadingReservation: 130,
-            trailingReservation: 42,
             controlWidth: 22
         ) == .contentTop)
         // A pane that begins after the navigation rail has no window-level
@@ -273,7 +265,6 @@ struct ReaderToolbarPolicyTests {
         #expect(StudioPaneClosePlacement.resolve(
             visibleWidth: 40,
             leadingReservation: 0,
-            trailingReservation: 0,
             controlWidth: 22
         ) == .chromeLine)
         // Once the visible pane cannot hold the controls at all, they are not
@@ -282,19 +273,16 @@ struct ReaderToolbarPolicyTests {
         #expect(StudioPaneClosePlacement.resolve(
             visibleWidth: 37,
             leadingReservation: 0,
-            trailingReservation: 0,
             controlWidth: 22
         ) == .hidden)
         #expect(StudioPaneClosePlacement.resolve(
-            visibleWidth: 90,
+            visibleWidth: 70,
             leadingReservation: 170,
-            trailingReservation: 42,
             controlWidth: 56
         ) == .hidden)
         #expect(StudioPaneClosePlacement.resolve(
             visibleWidth: 0,
             leadingReservation: 170,
-            trailingReservation: 0,
             controlWidth: 56
         ) == .hidden)
     }

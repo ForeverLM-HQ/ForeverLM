@@ -497,8 +497,6 @@ struct NotebooksHomeRoutingTests {
 
     private static let templateKeys = [
         "studio.centerTabGroups.v1",
-        "studio.showSourcesPanel",
-        "studio.collapsedPanelIds",
         "studio.navigationRailVisible",
     ]
 
@@ -704,14 +702,14 @@ struct NotebooksHomeRoutingTests {
 
         vm.openLibraryView(in: target)
         #expect(target.notebook == nil)
-        #expect(vm.libraryViewIsOnScreen(in: target))
+        #expect(target.centerTabGroups.groups.contains { $0.activeTab == .library })
         #expect(vm.notebookToReturnTo(in: target)?.id == "bio")
 
         vm.returnToNotebook(in: target)
         #expect(target.NotebookID == "bio")
         #expect(target.notebook?.sourcesCollapsed == true)
         #expect(target.notebook?.studioCollapsed == true)
-        #expect(!vm.libraryViewIsOnScreen(in: target), "a notebook's window shows the notebook")
+        #expect(!target.centerTabGroups.groups.contains { $0.activeTab == .library }, "a notebook's window shows the notebook")
         #expect(vm.notebookToReturnTo(in: target) == nil, "nothing to go back to while it is open")
 
         // A notebook deleted meanwhile offers no way back.
@@ -730,7 +728,6 @@ struct NotebooksHomeRoutingTests {
         ]))
         vm.clearReaderSurfaces(in: target)
         #expect(target.centerTabGroups.groups.map(\.activeTab) == [.library, .reader])
-        #expect(vm.libraryViewIsOnScreen(in: target))
     }
 
     @Test("A Library row's chips are the open library's notebooks holding it, by title")

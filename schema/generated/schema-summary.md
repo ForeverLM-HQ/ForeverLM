@@ -998,8 +998,6 @@ The Setting record keys (§3.5.3): one record per key, account scope in Library 
 | `studio.centerTabGroups.v1` | array | account | `set_app_setting` window.center_tab_groups | The center pane's tab groups (strings). |
 | `studio.chatOrder` | array | account | `set_app_setting` window.chat_order | The chats' order in the rail (strings). |
 | `studio.expandedPanel` | string | account | `set_app_setting` window.expanded_panel | Which Studio panel is expanded (StudioExpandedPanel); absent is none. |
-| `studio.collapsedPanelIds` | array | account | `set_app_setting` window.collapsed_panels | The panels the learner folded (strings). |
-| `studio.showSourcesPanel` | bool | account | `set_app_setting` window.show_sources_panel | Whether the Sources panel shows; true when absent. |
 | `studio.showSearchPanel` | bool | account | `set_app_setting` window.show_search_panel | Whether the Search panel shows. |
 | `studio.navigationRailVisible` | bool | account | `set_app_setting` window.navigation_rail_visible | Whether the navigation rail shows. |
 | `studio.sourceTabBarLayout` | string | account | `set_app_setting` sources.tab_bar_layout | The source tab bar's layout (SourceTabBarLayout). |

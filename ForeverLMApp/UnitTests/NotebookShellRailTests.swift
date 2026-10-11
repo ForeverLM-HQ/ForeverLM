@@ -43,8 +43,6 @@ private func notebookRecord(
 private func capturingWindowDefaults() -> () -> Void {
     let keys = [
         "studio.centerTabGroups.v1",
-        "studio.showSourcesPanel",
-        "studio.collapsedPanelIds",
         "studio.navigationRailVisible",
         NotebookRecency.preferenceKey,
     ]

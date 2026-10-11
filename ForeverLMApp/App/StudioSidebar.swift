@@ -50,9 +50,8 @@ struct StudioSidebar: View, Equatable {
     @ObservedObject var walkthroughCoordinator = WalkthroughGenerationCoordinator.shared
     @Environment(\.openWindow) var openWindow
     @Environment(\.studioTitlebarBandHeight) var titlebarBandHeight
-    @Environment(\.studioSourcesHeaderLeadingInset) var sourcesHeaderLeadingInset
-    /// The trailing panel's layout, or the full-window Library's
-    /// (`LibraryPane`): wider rows, and a bar for a multi-selection.
+    /// The Library's layout (`LibraryPane`): a narrow pane draws the compact
+    /// list, a wide one wider rows and a bar for a multi-selection.
     @Environment(\.sourcesListLayout) var sourcesListLayout
 
     /// The source this window's Reader shows — the row a rebuilt list lands on

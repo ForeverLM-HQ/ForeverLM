@@ -872,19 +872,12 @@ struct NotebookWorkspaceView: View {
         let documentStart = documentLeads
             ? start
             : start + (layout.leadingWidth.map { $0 + Sizing.dividerWidth } ?? 0)
-        // The Studio column, open or folded, meets the window's trailing
-        // edge; the center's panes never do, except while an immersive video
-        // has the Studio step aside.
-        let documentIsTrailing = !studioShows && workspace.document == nil
-        let slotIsTrailing = !studioShows
-        let chatIsTrailing = documentLeads ? slotIsTrailing : documentIsTrailing
-        let documentSlotIsTrailing = documentLeads ? false : slotIsTrailing
         // Keyed by pane, so a swap moves the views and never rebuilds them.
         return HStack(spacing: 0) {
             ForEach(centerPanes(layout: layout, documentLeads: documentLeads), id: \.self) { pane in
                 switch pane {
                 case .chat:
-                    chatSlot(width: leadingWidth, start: chatStart, totalWidth: totalWidth, isTrailing: chatIsTrailing)
+                    chatSlot(width: leadingWidth, start: chatStart, totalWidth: totalWidth)
                 case .leadingDocument:
                     if let lead = layout.leadingDocument {
                         documentSlot(
@@ -892,7 +885,6 @@ struct NotebookWorkspaceView: View {
                             width: leadingWidth,
                             start: start,
                             totalWidth: totalWidth,
-                            isTrailing: documentIsTrailing,
                             identifier: "notebook.document.leading"
                         )
                     }
@@ -905,7 +897,6 @@ struct NotebookWorkspaceView: View {
                             width: documentWidth,
                             start: documentStart,
                             totalWidth: totalWidth,
-                            isTrailing: documentSlotIsTrailing,
                             identifier: "notebook.document"
                         )
                     }
@@ -954,13 +945,12 @@ struct NotebookWorkspaceView: View {
         )
     }
 
-    private func chatSlot(width: CGFloat, start: CGFloat, totalWidth: CGFloat, isTrailing: Bool) -> some View {
+    private func chatSlot(width: CGFloat, start: CGFloat, totalWidth: CGFloat) -> some View {
         StudioPaneHost(
             activeTab: .chat,
             width: width,
             enclosingClip: clip(start: start, width: width, totalWidth: totalWidth),
-            leadingReservation: leadingReservation(start: start),
-            isTrailing: isTrailing
+            leadingReservation: leadingReservation(start: start)
         ) {
             chat()
         }
@@ -974,15 +964,13 @@ struct NotebookWorkspaceView: View {
         width: CGFloat,
         start: CGFloat,
         totalWidth: CGFloat,
-        isTrailing: Bool,
         identifier: String
     ) -> some View {
         StudioPaneHost(
             activeTab: document.centerTab ?? .reader,
             width: width,
             enclosingClip: clip(start: start, width: width, totalWidth: totalWidth),
-            leadingReservation: leadingReservation(start: start),
-            isTrailing: isTrailing
+            leadingReservation: leadingReservation(start: start)
         ) {
             self.document(document)
         }

@@ -514,10 +514,6 @@ struct SourceReaderPanel: View {
         // A clipped pane keeps a usable logical content width. Bring the row
         // back to the visible viewport before placing either edge control.
         .padding(.trailing, panelTrailingOverflow)
-        // Sources owns the window's outermost top-right chrome position while
-        // collapsed, so the Reader close target sits to its left with the same
-        // reservation used by the open-source toolbar.
-        .padding(.trailing, chromeReservation.sourcesRestoreControl)
         .studioPanelHeaderChrome(
             height: titlebarBandHeight ?? StudioPanelChrome.headerHeight,
             extraLeadingPadding: headerLeadingInset,
@@ -571,7 +567,7 @@ struct SourceReaderPanel: View {
                 }
             )
         } trailing: {
-            HStack(spacing: StudioTopBar.sourcesToggleCloseSpacing) {
+            HStack(spacing: StudioTopBar.paneControlSpacing) {
                 readerOverflowMenuWithCitedPapers(for: article)
                 if showsCloseButton {
                     // The pane pin is drawn by the shared center-pane chrome
@@ -592,11 +588,6 @@ struct SourceReaderPanel: View {
         // viewport. Feed that clipped width back into the toolbar proposal so
         // its adaptive policy changes tier before trailing buttons disappear.
         .padding(.trailing, panelTrailingOverflow)
-        // The Sources restore control hangs over this corner while Sources is
-        // collapsed. The whole row stands off it, not just the close button:
-        // with no close button the overflow menu used to sit underneath it.
-        // Only that control — this row lays its own close target out.
-        .padding(.trailing, chromeReservation.sourcesRestoreControl)
         // In a window the toolbar hangs into the titlebar band and shares the
         // traffic lights' center line. Full screen has no band, so it uses the
         // regular in-flow header height rather than the old compact tab-strip

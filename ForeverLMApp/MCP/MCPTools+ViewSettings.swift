@@ -227,11 +227,6 @@ extension MCPDataStore {
     private static func windowLayoutSettingEntries() -> [AppSettingEntry] {
         [
             preferenceEntry(
-                id: "window.show_sources_panel", pane: "Window › Sources panel (no pane)", title: "Show the Sources panel",
-                detail: "Whether a new Studio window shows its Sources panel. On by default.",
-                key: "studio.showSourcesPanel", kind: .boolean, absent: true
-            ),
-            preferenceEntry(
                 id: "window.show_search_panel", pane: "Window › Search panel (no pane)", title: "Show the Search panel",
                 detail: "Whether a new Studio window shows its Search panel. On by default.",
                 key: "studio.showSearchPanel", kind: .boolean, absent: true
@@ -246,11 +241,6 @@ extension MCPDataStore {
                 detail: "Which Studio panel is expanded to fill the window: sources, reader or search; none leaves them side by side.",
                 key: "studio.expandedPanel", kind: .choice, absent: "none",
                 options: [("none", "None"), ("sources", "Sources"), ("reader", "Reader"), ("search", "Search")]
-            ),
-            preferenceEntry(
-                id: "window.collapsed_panels", pane: "Window (no pane)", title: "Folded panels",
-                detail: "The ids of the panels the learner folded away. The whole list is replaced.",
-                key: "studio.collapsedPanelIds", kind: .stringList, absent: [String]()
             ),
             preferenceEntry(
                 id: "window.center_tab_groups", pane: "Window (no pane)", title: "Center tab groups",

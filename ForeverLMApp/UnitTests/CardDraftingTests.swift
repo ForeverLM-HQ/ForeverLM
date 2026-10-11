@@ -761,8 +761,6 @@ struct MakeCardsViewModelTests {
 
     private static let templateKeys = [
         "studio.centerTabGroups.v1",
-        "studio.showSourcesPanel",
-        "studio.collapsedPanelIds",
         "studio.navigationRailVisible",
     ]
 

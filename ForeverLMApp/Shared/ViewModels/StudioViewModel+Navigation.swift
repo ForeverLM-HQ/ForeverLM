@@ -85,7 +85,6 @@ extension StudioViewModel {
         // Selecting a source is an explicit read: reveal the reader column,
         // which stays closed at launch and after the user dismisses it.
         showReaderPanel = true
-        destination.collapsedPanelIDs.remove(StudioPanel.reader.rawValue)
         // Explicit destinations come from a Reader drop target (already on
         // screen) or an edge drop that placed Reader before selecting, unless
         // the caller is a row clicked in that very window. Legacy navigation

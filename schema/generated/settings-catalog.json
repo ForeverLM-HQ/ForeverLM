@@ -98,8 +98,6 @@
     "studio.centerTabGroups.v1": {"type":"array","scope":["account"],"mcp":{"tool":"set_app_setting","setting":"window.center_tab_groups"},"doc":"The center pane's tab groups (strings)."},
     "studio.chatOrder": {"type":"array","scope":["account"],"mcp":{"tool":"set_app_setting","setting":"window.chat_order"},"doc":"The chats' order in the rail (strings)."},
     "studio.expandedPanel": {"type":"string","scope":["account"],"mcp":{"tool":"set_app_setting","setting":"window.expanded_panel"},"doc":"Which Studio panel is expanded (StudioExpandedPanel); absent is none."},
-    "studio.collapsedPanelIds": {"type":"array","scope":["account"],"mcp":{"tool":"set_app_setting","setting":"window.collapsed_panels"},"doc":"The panels the learner folded (strings)."},
-    "studio.showSourcesPanel": {"type":"bool","scope":["account"],"mcp":{"tool":"set_app_setting","setting":"window.show_sources_panel"},"doc":"Whether the Sources panel shows; true when absent."},
     "studio.showSearchPanel": {"type":"bool","scope":["account"],"mcp":{"tool":"set_app_setting","setting":"window.show_search_panel"},"doc":"Whether the Search panel shows."},
     "studio.navigationRailVisible": {"type":"bool","scope":["account"],"mcp":{"tool":"set_app_setting","setting":"window.navigation_rail_visible"},"doc":"Whether the navigation rail shows."},
     "studio.sourceTabBarLayout": {"type":"string","scope":["account"],"mcp":{"tool":"set_app_setting","setting":"sources.tab_bar_layout"},"doc":"The source tab bar's layout (SourceTabBarLayout)."},

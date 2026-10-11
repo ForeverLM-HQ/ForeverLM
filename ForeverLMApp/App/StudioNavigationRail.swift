@@ -1106,7 +1106,7 @@ struct StudioNavigationRail: View {
         }
     }
 
-    /// The full-window Library (decisions v5, 2): the whole library, every
+    /// The Library (decisions v5, 2): the whole library, every
     /// kind, laid out for managing it. A place, like Memory: a pane with its
     /// ×, Open Beside, Open in Other Window and a drag. In a window holding a
     /// notebook it leaves the notebook the way the Space does; the notebook's
@@ -2155,27 +2155,6 @@ struct NavigationRailToggle: View {
         ) {
             isVisible.toggle()
         }
-    }
-}
-
-/// Brings the Sources panel back after it has been collapsed, from the window's
-/// top-right chrome. The panel collapses to nothing rather than to a rail, so
-/// this button is the only on-screen way back (⌥⌘S and View → Show Sources are
-/// the others) and it deliberately renders only while Sources is away — its
-/// counterpart while the panel is open is the toggle in the sources tab bar,
-/// which sits on the same line a short way to the left.
-struct SourcesPanelExpandToggle: View {
-    /// What the button brings back: the library's Sources. A notebook's
-    /// columns fold to strips of their own and never ask for it.
-    var label = "Show sources"
-    let onExpand: () -> Void
-
-    var body: some View {
-        StudioChromeIconButton(
-            systemImage: "sidebar.right",
-            label: label,
-            action: onExpand
-        )
     }
 }
 
