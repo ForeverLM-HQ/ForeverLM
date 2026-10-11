@@ -417,6 +417,22 @@ actor SyncCoordinator {
         await start()
     }
 
+    /// Deletes this account's private library zones from iCloud, then uploads this Mac's library from the
+    /// start. For a library iCloud holds only a stub of: a root a seed finished against nothing, or a move
+    /// to another container. Only a Mac that holds the library may do it, since what iCloud held is gone
+    /// afterwards, and other devices see the deletion like a purge (`.deleted`) and stop until the
+    /// learner uploads from them or lets this Mac's copy sync down.
+    func replaceICloudLibrary() async throws {
+        guard client == .macHoldingLibrary else {
+            throw CloudError(.invalidArguments, message: "this Mac does not hold the library, so it cannot replace iCloud's copy")
+        }
+        // Stop first, so the zones' deletion is not read back as a purge by a running engine.
+        try await engine.stop(.zoneDeleted(reason: .deleted))
+        engineStale = true
+        _ = try await transport.modifyZones(saving: [], deleting: PrivateSyncZones.all, in: .private)
+        try await uploadAgain()
+    }
+
     fileprivate func stopped(_ event: PurgeHandler.Event) {
         engineStale = true
         publish { $0.phase = .stopped(event) }
