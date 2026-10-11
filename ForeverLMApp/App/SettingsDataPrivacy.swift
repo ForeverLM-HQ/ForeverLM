@@ -200,8 +200,9 @@ struct AIDataPolicySettingsView: View {
 }
 
 /// Admin only: filming product videos against the real library. While on,
-/// every list, search and chat pick shows only the chosen Notebook's sources
-/// and what was made after the mode went on (`ScreenRecordScope`). It sits
+/// every list, search and chat pick shows only the chosen Notebook's sources,
+/// safe public captures and work made after the mode went on
+/// (`ScreenRecordScope`). It sits
 /// here because it decides what the screen shows; this pane and the app menu
 /// are the only places that say the mode is on, so the recorded window shows
 /// nothing of it. Both values are device-local and read through `@AppStorage`
@@ -209,11 +210,17 @@ struct AIDataPolicySettingsView: View {
 /// written only through `ScreenRecordMode`, which stamps the cutoff and tells
 /// the windows.
 private struct ScreenRecordingSettingsSection: View {
+    private struct MeetingGroupChoice: Identifiable {
+        let id: String
+        let title: String
+    }
+
     @Environment(StudioViewModel.self) private var vm
     @AppStorage(ScreenRecordMode.confirmedAdminKey) private var isAdmin = false
     @AppStorage(ScreenRecordMode.enabledKey) private var isOn = false
     @AppStorage(ScreenRecordMode.notebookIDKey) private var notebookID = ""
     @AppStorage(ScreenRecordMode.librarySourcesKey) private var showsLibrarySources = false
+    @State private var shownMeetingGroupIDs = Set(ScreenRecordMode.meetingGroupIDs)
 
     var body: some View {
         if isAdmin {
@@ -228,8 +235,8 @@ private struct ScreenRecordingSettingsSection: View {
                                 Text("Screen record mode")
                                     .font(.headline)
                                 Text(isOn
-                                    ? "On since \(cutoffText). Only the notebook below and anything made since show."
-                                    : "Shows only one notebook's sources and what you make while recording. This Mac only.")
+                                    ? "On since \(cutoffText). Only the choices below, new public Reading List pages, X bookmarks and work made since show."
+                                    : "Shows one curated notebook, new public Reading List pages, X bookmarks and selected meetings. This Mac only.")
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
                                     .fixedSize(horizontal: false, vertical: true)
@@ -243,7 +250,7 @@ private struct ScreenRecordingSettingsSection: View {
                             VStack(alignment: .leading, spacing: 3) {
                                 Text("Show only this notebook's sources")
                                     .font(.headline)
-                                Text("Other notebooks, chats, Pages and meetings stay off screen.")
+                                Text("Other notebooks and their sources stay off screen. Use this notebook as the exact recording source list.")
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
                                     .fixedSize(horizontal: false, vertical: true)
@@ -271,15 +278,62 @@ private struct ScreenRecordingSettingsSection: View {
                             VStack(alignment: .leading, spacing: 3) {
                                 Text("Also show the library's public sources")
                                     .font(.headline)
-                                Text("Published papers, articles, podcasts, books and public videos. Meetings, X posts, uploads and your own chats and Pages stay off screen.")
+                                Text("Published papers, articles, podcasts, books and public videos. This never adds meetings, old X posts, uploads or your own chats and Pages.")
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
                         }
                         .toggleStyle(.switch)
+
+                        Divider()
+
+                        HStack(alignment: .center, spacing: 20) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("Meeting folders kept on screen")
+                                    .font(.headline)
+                                Text("Choose only public seminar series intended for the recording. Every other meeting stays off screen.")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            Spacer(minLength: 12)
+                            Menu {
+                                if meetingGroupChoices.isEmpty {
+                                    Text("No meeting folders")
+                                } else {
+                                    ForEach(meetingGroupChoices) { choice in
+                                        Button {
+                                            toggleMeetingGroup(choice.id)
+                                        } label: {
+                                            Label(
+                                                choice.title,
+                                                systemImage: shownMeetingGroupIDs.contains(choice.id) ? "checkmark" : "circle"
+                                            )
+                                        }
+                                    }
+                                }
+                                if !shownMeetingGroupIDs.isEmpty {
+                                    Divider()
+                                    Button("Show no meetings") {
+                                        ScreenRecordMode.setMeetingGroupIDs([])
+                                    }
+                                }
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Text(meetingSelectionLabel)
+                                        .lineLimit(1)
+                                    Image(systemName: "chevron.up.chevron.down")
+                                        .font(.caption2)
+                                }
+                            }
+                            .frame(width: 220)
+                        }
                     }
                     .padding(.vertical, 4)
+                    .onReceive(NotificationCenter.default.publisher(for: ScreenRecordMode.didChangeNotification)) { _ in
+                        shownMeetingGroupIDs = Set(ScreenRecordMode.meetingGroupIDs)
+                    }
                 }
             }
         }
@@ -296,5 +350,31 @@ private struct ScreenRecordingSettingsSection: View {
     private var cutoffText: String {
         guard let cutoff = ScreenRecordMode.cutoff else { return "now" }
         return cutoff.formatted(date: .abbreviated, time: .shortened)
+    }
+
+    private var meetingGroupChoices: [MeetingGroupChoice] {
+        vm.allMeetingGroupNames.map { MeetingGroupChoice(id: $0, title: vm.meetingDisplayName($0)) }
+    }
+
+    private var meetingSelectionLabel: String {
+        switch shownMeetingGroupIDs.count {
+        case 0:
+            return "None"
+        case 1:
+            let id = shownMeetingGroupIDs.first ?? ""
+            return vm.meetingDisplayName(id)
+        default:
+            return "\(shownMeetingGroupIDs.count) folders"
+        }
+    }
+
+    private func toggleMeetingGroup(_ id: String) {
+        var next = shownMeetingGroupIDs
+        if next.contains(id) {
+            next.remove(id)
+        } else {
+            next.insert(id)
+        }
+        ScreenRecordMode.setMeetingGroupIDs(meetingGroupChoices.map(\.id).filter { next.contains($0) })
     }
 }

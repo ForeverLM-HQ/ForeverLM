@@ -4584,7 +4584,7 @@ struct ScheduleChatNavigationTests {
         #expect(groups.outsideNotebooks.map(\.id) == ["loose-new", "loose-old"])
     }
 
-    @Test("screen record scope shows only the recording Notebook, its sources, and new work")
+    @Test("screen record scope shows only the recording Notebook, safe captures, and new work")
     func screenRecordScopeFiltersNotebooksChatsSourcesAndArtifacts() {
         let cutoff = Date()
         let oldDate = cutoff.addingTimeInterval(-60)
@@ -4607,8 +4607,8 @@ struct ScheduleChatNavigationTests {
                 kind: LearningGoalRecord.companionKind
             )
         }
-        func source(_ id: String, addedAt: Date) -> StudioArticle {
-            var article = makeArticle(title: id, state: .ready, id: id)
+        func source(_ id: String, addedAt: Date, origin: DiscoveryOrigin? = nil) -> StudioArticle {
+            var article = makeArticle(title: id, state: .ready, discoveryOrigin: origin, id: id)
             article.dateAdded = addedAt
             return article
         }
@@ -4627,7 +4627,7 @@ struct ScheduleChatNavigationTests {
         vm.articles = [
             source("filmed-source", addedAt: oldDate),
             source("private-source", addedAt: oldDate),
-            source("new-source", addedAt: newDate),
+            source("new-source", addedAt: newDate, origin: .safari),
         ]
         vm.learningGoals = [
             notebook(id: "recording-notebook", createdAt: oldDate, sourceIDs: ["filmed-source"]),
@@ -11780,9 +11780,15 @@ struct EventPluginSyncTests {
     private func due(
         _ tab: StudioSidebarTab?,
         _ lastSyncedAt: [Plugin: Date],
-        now: Date
+        now: Date,
+        screenRecordMode: Bool = false
     ) -> Set<Plugin> {
-        StudioViewModel.dueEventPlugins(for: tab, lastSyncedAt: lastSyncedAt, now: now)
+        StudioViewModel.dueEventPlugins(
+            for: tab,
+            lastSyncedAt: lastSyncedAt,
+            now: now,
+            screenRecordMode: screenRecordMode
+        )
     }
 
     @Test("A plugin that never synced is due; one that just did is not")
@@ -11826,6 +11832,18 @@ struct EventPluginSyncTests {
         #expect(due(.xPosts, vm.lastPluginSyncAt, now: now.addingTimeInterval(20)).isEmpty)
         #expect(due(.videos, vm.lastPluginSyncAt, now: now.addingTimeInterval(20)).isEmpty)
         #expect(due(nil, vm.lastPluginSyncAt, now: now.addingTimeInterval(20)).isEmpty)
+    }
+
+    @Test("Screen Record mode checks X and Reading Lists again on returning from the browser")
+    func recordingBrowserCaptureSyncsImmediately() {
+        let now = Date()
+        let justNow = Dictionary(
+            uniqueKeysWithValues: Plugin.allCases.map { ($0, now) }
+        )
+
+        #expect(due(nil, justNow, now: now, screenRecordMode: true) == [.xBookmarks, .browserReadingLists])
+        #expect(due(.xPosts, justNow, now: now, screenRecordMode: true) == [.xBookmarks])
+        #expect(due(.articles, justNow, now: now, screenRecordMode: true) == [.browserReadingLists])
     }
 
     @Test("Tabs with nothing upstream sync nothing")

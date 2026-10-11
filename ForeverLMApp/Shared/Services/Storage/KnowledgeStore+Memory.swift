@@ -769,7 +769,8 @@ extension KnowledgeStore {
         if let restrictToSourceIDs, restrictToSourceIDs.isEmpty { return [] }
         var shown: Set<String> = []
         try queryBind("""
-            SELECT id, date_added, source_type, url, parent_group, domain FROM source_projection
+            SELECT id, date_added, source_type, url, parent_group, domain, discovery_origin
+            FROM source_projection
         """, bind: { _ in }) { stmt in
             guard let id = self.string(stmt, 0) else { return }
             if let restrictToSourceIDs, !restrictToSourceIDs.contains(id) { return }
@@ -777,7 +778,8 @@ extension KnowledgeStore {
             if scope.allowsSource(
                 id: id, addedAt: addedAt,
                 kind: self.string(stmt, 2), url: self.string(stmt, 3), group: self.string(stmt, 4),
-                show: self.string(stmt, 5)
+                show: self.string(stmt, 5),
+                origin: self.string(stmt, 6).flatMap { DiscoveryOrigin(rawValue: $0) }
             ) {
                 shown.insert(id)
             }
