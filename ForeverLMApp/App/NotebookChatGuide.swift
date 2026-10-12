@@ -43,9 +43,12 @@ struct NotebookChatGuideHeading: View {
 /// The empty state of a notebook's chat, in the notebook workspace, under
 /// the composer: the notebook's guide (docs/notebooks-design.md, "The
 /// notebook guide"). Only when it has sources, a row of chips that ask for
-/// something; Add sources for an empty one. How many sources the chat reads
-/// is the Sources column's Select all row, beside it ("N of M in chat" while
-/// not every source is ticked), and is not said twice. Nothing here calls a
+/// something; an empty one offers nothing here, since the notebook's ⋯ and
+/// the Notebook menu (⇧⌘A) add sources, and its Sources column suggests them
+/// (product owner, 2026-10-12: "get rid of this add sources button"). How
+/// many sources the chat reads is the Sources column's Select all row,
+/// beside it ("N of M in chat" while not every source is ticked), and is
+/// not said twice. Nothing here calls a
 /// model: questions are suggested when asked for, once for the notebook's
 /// sources: the questions an answer suggested are kept with the notebook and
 /// offered here as cards until each is asked (`NotebookSuggestedQuestions`),
@@ -67,8 +70,6 @@ struct NotebookChatGuide: View {
     /// are offered and enabled by.
     let inChat: Int
     let total: Int
-    /// A read-only team's notebook, or an archived one, takes no sources.
-    let canAddSources: Bool
     var columnWidth: CGFloat = 420
     /// The notebook's chats, newest first; empty for a notebook with none.
     /// The guide lists the first `recentChatLimit`, and All chats every one.
@@ -76,7 +77,6 @@ struct NotebookChatGuide: View {
     /// The kept questions, or the chip that asks for them
     /// (`StudioViewModel.notebookQuestionOffer`).
     var questions: NotebookSuggestedQuestions.Offer = .suggest
-    let addSources: () -> Void
     let suggestQuestions: () -> Void
     /// Asks one of the kept questions in this chat.
     var askQuestion: (String) -> Void = { _ in }
@@ -119,12 +119,6 @@ struct NotebookChatGuide: View {
                     .disabled(inChat == 0)
                     .accessibilityIdentifier("notebook.guide.questions")
                 }
-            } else if canAddSources {
-                Button(action: addSources) {
-                    Label("Add sources", systemImage: "plus")
-                }
-                .buttonStyle(.bordered)
-                .accessibilityIdentifier("notebook.guide.addSources")
             }
 
             if !chats.isEmpty {

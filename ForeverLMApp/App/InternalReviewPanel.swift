@@ -1514,15 +1514,11 @@ private struct InternalReviewPanelContent: View {
         return NotebookChatGuide(
             inChat: tally.inChat,
             total: tally.total,
-            canAddSources: vm.importableNotebook(notebook.id) != nil,
             columnWidth: idleWelcomeColumnWidth,
             chats: vm.notebookChats(notebookID: notebook.id)
                 .filter { $0.id != manager.currentSessionID }
                 .map { NotebookChatGuide.RecentChat(id: $0.id, title: $0.title.isEmpty ? "Untitled chat" : $0.title, date: $0.createdAt) },
             questions: vm.notebookQuestionOffer(notebook),
-            addSources: {
-                NotificationCenter.default.post(name: .showNotebookAddSources, object: windowState?.id)
-            },
             suggestQuestions: {
                 Task { await suggestNotebookQuestions() }
             },

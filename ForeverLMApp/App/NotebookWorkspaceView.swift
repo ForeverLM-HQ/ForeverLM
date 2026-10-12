@@ -3,8 +3,7 @@ import AppKit
 
 extension Notification.Name {
     /// Opens the Add sources sheet of the notebook in the window whose id is
-    /// the notification's object: the Notebook menu, and the empty notebook
-    /// guide's Add sources.
+    /// the notification's object: the Notebook menu.
     static let showNotebookAddSources = Notification.Name("showNotebookAddSources")
     /// Asks the notebook in the window whose id is the object for a new name:
     /// the Notebook menu's Rename Notebook….
