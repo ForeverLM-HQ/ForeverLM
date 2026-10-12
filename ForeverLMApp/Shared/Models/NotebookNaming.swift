@@ -70,6 +70,18 @@ enum NotebookNaming {
         return "\(placeholderTitle) \(number)"
     }
 
+    /// Whether `title` is a placeholder ("New notebook", "New notebook 2"…):
+    /// a name that says nothing of what the notebook is about, so nothing is
+    /// suggested from it.
+    static func isPlaceholder(_ title: String) -> Bool {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let base = placeholderTitle.lowercased()
+        if trimmed == base { return true }
+        guard trimmed.hasPrefix(base + " ") else { return false }
+        let number = trimmed.dropFirst(base.count + 1)
+        return !number.isEmpty && number.allSatisfy(\.isNumber)
+    }
+
     enum Decision: Equatable, Sendable {
         /// ForeverLM leaves the name alone.
         case keep

@@ -478,7 +478,8 @@ struct NotebookSourcePoolColumnActions {
 /// under the pointer a row shows its ⋯ with Open, Open in
 /// Other Window and Remove from Notebook; a row click opens the Reader in the
 /// document slot, the notebook's ⋯ opens the Add sources sheet, and an empty
-/// notebook leads with "Suggested from your library". Under the notebook's
+/// notebook with a name or instructions leads with "Suggested from your
+/// library" (a blank one suggests nothing). Under the notebook's
 /// own sources, each context notebook is a group of its own with a box that
 /// puts it into the chats
 /// (`NotebookContextNotebookGroup`). Its one field searches the notebook,
@@ -828,9 +829,10 @@ struct NotebookSourcePoolView: View {
                     // The library's matches for the words, under the
                     // notebook's own, and the way to the web and PubMed.
                     NotebookLibraryMatches(goal: goal, query: typedSearchQuery, searchElsewhere: runDiscovery)
-                } else if isEmptyNotebook, column != nil {
+                } else if isEmptyNotebook, column != nil, vm.notebookCanSuggestSources(goal) {
                     // A notebook with nothing in it leads with what the library
-                    // already holds for it, one click from joining.
+                    // already holds for it, one click from joining, once it
+                    // has a name or instructions to suggest from.
                     EmptyNotebookSuggestions(goal: goal, metadataVisibility: metadataVisibility)
                 } else if isEmptyNotebook {
                     VStack(spacing: 8) {

@@ -512,6 +512,24 @@ struct NotebookSourceRecommendationTests {
         #expect(seed.embeddingText.split(whereSeparator: { $0.isWhitespace }).count <= 120)
     }
 
+    /// A blank notebook under the placeholder said nothing of its subject, yet
+    /// its Sources column listed a dozen library sources nearest the word "new".
+    @Test("a blank notebook under the placeholder seeds nothing")
+    func blankPlaceholderNotebookSeedsNothing() {
+        for title in ["New notebook", "New notebook 3"] {
+            let seed = notebookSourceRecommendationSeed(goal: goal(title: title), childGoals: [], articlesById: [:])
+            #expect(seed.embeddingText.isEmpty)
+            #expect(seed.lexicalQuery.isEmpty)
+        }
+        let instructed = notebookSourceRecommendationSeed(
+            goal: goal(title: "New notebook", description: "Bioelectric patterning"),
+            childGoals: [],
+            articlesById: [:]
+        )
+        #expect(instructed.lexicalQuery == "Bioelectric patterning")
+        #expect(!instructed.embeddingText.contains("New notebook"))
+    }
+
     /// The lexical branch ranks by how many exact terms a source matches, so the
     /// vocabulary of the sources a Notebook already holds must not become the terms it
     /// searches by — that is what let a Notebook named for a gene symbol rank papers

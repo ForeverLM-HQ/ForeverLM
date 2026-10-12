@@ -1443,9 +1443,11 @@ struct MobileNotebookAddSourcesSheet: View {
     }
 
     /// The library's nearest titles to the notebook's name, card line and
-    /// instructions, by meaning, on the device.
+    /// instructions, by meaning, on the device. A placeholder title ("New
+    /// notebook") seeds nothing, so a blank notebook suggests nothing.
     private func loadSuggestions() async {
-        let seed = [notebook.title, notebook.summary, notebook.instructions]
+        let title = NotebookNaming.isPlaceholder(notebook.title) ? nil : notebook.title
+        let seed = [title, notebook.summary, notebook.instructions]
             .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
             .joined(separator: ". ")

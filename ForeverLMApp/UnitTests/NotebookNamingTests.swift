@@ -16,6 +16,17 @@ struct NotebookNamingRuleTests {
         #expect(NotebookNaming.placeholder(existingTitles: ["New notebook", "New notebook 2", "New notebook 4"]) == "New notebook 3")
     }
 
+    @Test("Only New notebook and its numbered forms are placeholders")
+    func placeholderRecognised() {
+        #expect(NotebookNaming.isPlaceholder("New notebook"))
+        #expect(NotebookNaming.isPlaceholder(" new Notebook "))
+        #expect(NotebookNaming.isPlaceholder("New notebook 12"))
+        #expect(!NotebookNaming.isPlaceholder("New notebook on aging"))
+        #expect(!NotebookNaming.isPlaceholder("New notebook 2b"))
+        #expect(!NotebookNaming.isPlaceholder("New notebooks"))
+        #expect(!NotebookNaming.isPlaceholder("Bioelectricity"))
+    }
+
     @Test("A mark round-trips as a JSON string; anything else is no row")
     func markCodec() {
         let mark = NotebookNaming.Mark(title: "Complex I assembly", summary: "How complex I is put together", sources: 1, exchanges: 0)
