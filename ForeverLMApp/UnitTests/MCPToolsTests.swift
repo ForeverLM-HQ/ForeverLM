@@ -1001,7 +1001,9 @@ struct MCPDataStoreTests {
     /// The product owner, 2026-09-24: a filmed "@ForeverLM" take must see only the
     /// recording Notebook's sources and what the take itself made. Everything
     /// here was made before the cutoff except the one source and the one
-    /// chat stamped after it.
+    /// chat stamped after it. A source added during the take shows only as a
+    /// deliberate browser Reading List capture (70f8842), and older work filed
+    /// under the recording Notebook stays off screen (560f8a8).
     @Test("Screen record mode narrows the connector's listings to the recording Notebook and the take's own work")
     func screenRecordModeNarrowsListings() throws {
         let (store, path) = try makeStore()
@@ -1011,9 +1013,9 @@ struct MCPDataStoreTests {
         let before = cutoff.addingTimeInterval(-3_600)
         let after = cutoff.addingTimeInterval(60)
 
-        func seedArticle(_ id: String, title: String, addedAt: Date) throws {
+        func seedArticle(_ id: String, title: String, addedAt: Date, origin: DiscoveryOrigin = .manual) throws {
             let url = "https://example.org/\(id)"
-            var article = StudioArticle(url: url, title: title, sourceType: .article, discoveryOrigin: .manual, id: id)
+            var article = StudioArticle(url: url, title: title, sourceType: .article, discoveryOrigin: origin, id: id)
             article.domain = "example.org"
             article.normalizedURL = URLNormalizer.normalize(url)
             article.content = "Readable text this library holds for the test."
@@ -1024,7 +1026,8 @@ struct MCPDataStoreTests {
         }
         try seedArticle("src-recording", title: "Recording Notebook paper", addedAt: before)
         try seedArticle("src-private", title: "Private older reading", addedAt: before)
-        try seedArticle("src-during-take", title: "Saved during the take", addedAt: after)
+        try seedArticle("src-during-take", title: "Saved during the take", addedAt: after, origin: .safari)
+        try seedArticle("src-synced-during-take", title: "Arrived by sync during the take", addedAt: after)
 
         let recording = try ks.createCompanionGoal(
             title: "Filmed Notebook", topic: "demo", startAt: before, endAt: LearningGoalRecord.openEndedEndAt,
@@ -1048,6 +1051,7 @@ struct MCPDataStoreTests {
             let sources = try store.listSources()
             #expect(sources.contains("src-recording"))
             #expect(sources.contains("src-during-take"))
+            #expect(!sources.contains("src-synced-during-take"))
             #expect(!sources.contains("src-private"))
 
             let filtered = try store.filterSources(

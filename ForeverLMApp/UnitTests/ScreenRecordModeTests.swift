@@ -702,12 +702,17 @@ struct ScreenRecordCountsTests {
         return (vm, storage)
     }
 
+    /// `origin` is where the source came from. Added during the take, only a
+    /// browser Reading List capture earns the cutoff pass (70f8842), so the
+    /// sources these tests add on camera are Reading List captures.
     private func source(
-        _ id: String, _ type: StudioSourceType, addedAt: Date, hidden: Bool = false, group: String? = nil, show: String? = nil
+        _ id: String, _ type: StudioSourceType, addedAt: Date, hidden: Bool = false, group: String? = nil, show: String? = nil,
+        origin: DiscoveryOrigin? = nil
     ) -> StudioArticle {
         var article = StudioArticle(url: "https://example.org/\(id)", title: id, sourceType: type, parentGroup: group, id: id)
         article.dateAdded = addedAt
         article.isHidden = hidden
+        article.discoveryOrigin = origin
         if let show { article.domain = show }
         return article
     }
@@ -722,7 +727,7 @@ struct ScreenRecordCountsTests {
         let (vm, _) = makeViewModel()
         vm.articles = [
             source("filmed", .article, addedAt: before, hidden: true),
-            source("added-on-camera", .article, addedAt: after, hidden: true),
+            source("added-on-camera", .article, addedAt: after, hidden: true, origin: .safari),
             source("private-1", .article, addedAt: before, hidden: true),
             source("private-2", .article, addedAt: before, hidden: true),
             source("on-screen", .article, addedAt: before),
@@ -771,7 +776,7 @@ struct ScreenRecordCountsTests {
         let (vm, _) = makeViewModel()
         vm.articles = [
             source("filmed-paper", .paper, addedAt: before),
-            source("paper-added-on-camera", .paper, addedAt: after),
+            source("paper-added-on-camera", .paper, addedAt: after, origin: .safari),
             source("private-paper", .paper, addedAt: before),
         ]
         await vm.refreshPapersWithoutPDFBadgeNow()
