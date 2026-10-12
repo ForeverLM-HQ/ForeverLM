@@ -1284,6 +1284,10 @@ class StudioViewModel {
     /// Progress message shown during book import (e.g. "Splitting chapter 3/8…")
     var bookImportStatus: String = ""
     var showBookImportError = false
+    /// Said after a book import that succeeded with parts missing, such as a
+    /// damaged EPUB whose lost chapters the learner should replace.
+    var bookImportNotice: String?
+    var showBookImportNotice = false
     /// Bulk Zotero/Paperpile import is catalog-first: this progress covers the
     /// fast inventory/copy pass while the normal serial paper queue handles the
     /// expensive ingestion work afterward.

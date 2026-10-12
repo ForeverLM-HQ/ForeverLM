@@ -320,6 +320,11 @@ struct SidebarAlertsGroup2: ViewModifier {
             } message: {
                 Text(vm.errorMessage ?? "An unknown error occurred during book import.")
             }
+            .alert("Book Imported With Parts Missing", isPresented: $bindableVM.showBookImportNotice) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(vm.bookImportNotice ?? "")
+            }
             .alert("Remove Book", isPresented: $showDeleteBookAlert) {
                 Button("Remove from Library", role: .destructive) {
                     if let group = deletingBookGroup {

@@ -42,8 +42,7 @@ enum EPUBParser {
         let opfDir = (tempDir as NSString).appendingPathComponent(
             (opfRelPath as NSString).deletingLastPathComponent
         )
-        let opfContent = try String(contentsOfFile:
-            (tempDir as NSString).appendingPathComponent(opfRelPath), encoding: .utf8)
+        let opfContent = try readOPF(in: tempDir, relativePath: opfRelPath)
 
         let manifest = parseManifest(from: opfContent)
         let spineIds = parseSpine(from: opfContent)
@@ -120,10 +119,7 @@ enum EPUBParser {
         let opfDir = (destDir as NSString).appendingPathComponent(
             (opfRelPath as NSString).deletingLastPathComponent
         )
-        let opfContent = try String(
-            contentsOfFile: (destDir as NSString).appendingPathComponent(opfRelPath),
-            encoding: .utf8
-        )
+        let opfContent = try readOPF(in: destDir, relativePath: opfRelPath)
 
         let manifest = parseManifest(from: opfContent)
         let spineIds = parseSpine(from: opfContent)
@@ -162,6 +158,187 @@ enum EPUBParser {
             return (title: title, xhtmlPath: item.path)
         }
         logger.info("[EPUBParser] Returning \(result.count) chapters from spine fallback")
+        return result
+    }
+
+    // MARK: - Inventory for the chapter model
+
+    /// Everything readable in an unpacked book, laid out for the chapter model
+    /// to judge: each content document in reading order with its headings and
+    /// opening words, the book's own table of contents, and the documents the
+    /// package names but the file no longer holds.
+    struct Inventory: Sendable {
+        struct Document: Sendable {
+            let index: Int
+            /// Absolute path inside the unpacked book.
+            let path: String
+            /// Path relative to the unpacked book's root, as the model sees it.
+            let file: String
+            /// False for a document found in the folder but not in the spine.
+            let inSpine: Bool
+            let headings: [String]
+            let opening: String
+            let wordCount: Int
+        }
+
+        struct TOCItem: Sendable {
+            let title: String
+            /// The document the entry points at, or nil when that file is missing.
+            let documentIndex: Int?
+            let file: String
+        }
+
+        let rootDir: String
+        let documents: [Document]
+        let tableOfContents: [TOCItem]
+        /// Spine documents the archive no longer holds, relative to the root.
+        let missingFiles: [String]
+        let unreadableEntryCount: Int
+
+        /// The same inventory after its folder was moved to `newRoot`.
+        func relocated(to newRoot: String) -> Inventory {
+            Inventory(
+                rootDir: newRoot,
+                documents: documents.map { document in
+                    Document(
+                        index: document.index,
+                        path: (newRoot as NSString).appendingPathComponent(document.file),
+                        file: document.file,
+                        inSpine: document.inSpine,
+                        headings: document.headings,
+                        opening: document.opening,
+                        wordCount: document.wordCount
+                    )
+                },
+                tableOfContents: tableOfContents,
+                missingFiles: missingFiles,
+                unreadableEntryCount: unreadableEntryCount
+            )
+        }
+    }
+
+    /// A chapter as the model chose it: a run of consecutive documents.
+    struct ChapterSpan: Sendable, Equatable {
+        let title: String
+        let firstDocument: Int
+        let lastDocument: Int
+    }
+
+    /// Unpack the book into `destDir` (which must not exist) and take its
+    /// inventory. Nothing here decides what a chapter is: a damaged archive
+    /// gives up its intact files, a package with prefixed elements or without
+    /// `container.xml` still opens, and when there is no usable spine every
+    /// content document in the folder is listed in file order.
+    static func extractInventory(from epubPath: String, to destDir: String) throws -> Inventory {
+        logger.info("[EPUBParser] extractInventory from: \(epubPath)")
+        guard !FileManager.default.fileExists(atPath: destDir) else {
+            throw EPUBError.unzipFailed("Destination directory already exists: \(destDir)")
+        }
+        let unreadable = try expandEPUB(from: URL(fileURLWithPath: epubPath), to: URL(fileURLWithPath: destDir))
+        normalizeExtractedHTMLImageDataURIs(in: destDir)
+        let root = URL(fileURLWithPath: destDir).standardizedFileURL.path
+        func relative(_ path: String) -> String {
+            let standardized = URL(fileURLWithPath: path).standardizedFileURL.path
+            return standardized.hasPrefix(root + "/") ? String(standardized.dropFirst(root.count + 1)) : standardized
+        }
+
+        var spinePaths: [String] = []
+        var missingFiles: [String] = []
+        var tocEntries: [TOCEntry] = []
+        var navPath: String?
+        if let opfRelPath = try? findOPFPath(in: destDir),
+           let opfContent = try? readOPF(in: destDir, relativePath: opfRelPath) {
+            let opfDir = (destDir as NSString).appendingPathComponent((opfRelPath as NSString).deletingLastPathComponent)
+            let manifest = parseManifest(from: opfContent)
+            for itemId in parseSpine(from: opfContent) {
+                guard let href = manifest[itemId], let path = safeResolvedPath(base: opfDir, href: href) else { continue }
+                if FileManager.default.fileExists(atPath: path) {
+                    spinePaths.append(path)
+                } else {
+                    missingFiles.append(relative(path))
+                }
+            }
+            tocEntries = parseTOC(opfContent: opfContent, manifest: manifest, opfDir: opfDir)
+            if let navHref = firstRegexCapture(#"<item\b(?=[^>]*properties="[^"]*\bnav\b)[^>]*href="([^"]+)""#, in: opfContent) {
+                navPath = safeResolvedPath(base: opfDir, href: navHref.removingPercentEncoding ?? navHref)
+            }
+        }
+
+        // Content documents the spine leaves out (or every one, without a
+        // spine) follow in file order, so nothing readable is dropped unseen.
+        let contentExtensions: Set<String> = ["xhtml", "html", "htm"]
+        let listed = Set(spinePaths)
+        let unlisted = (FileManager.default.subpaths(atPath: destDir) ?? [])
+            .filter { contentExtensions.contains(($0 as NSString).pathExtension.lowercased()) }
+            .map { URL(fileURLWithPath: (destDir as NSString).appendingPathComponent($0)).standardizedFileURL.path }
+            .filter { !listed.contains($0) && $0 != navPath }
+            .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+
+        var documents: [Inventory.Document] = []
+        for (path, inSpine) in spinePaths.map({ ($0, true) }) + unlisted.map({ ($0, false) }) {
+            let html = readText(atPath: path) ?? ""
+            let text = stripHTML(extractBodyHTML(html))
+            let opening = text.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            documents.append(Inventory.Document(
+                index: documents.count,
+                path: path,
+                file: relative(path),
+                inSpine: inSpine,
+                headings: Array(extractHeadingsFromHTML(html).prefix(4)),
+                opening: String(opening.prefix(240)),
+                wordCount: text.split(whereSeparator: { $0.isWhitespace }).count
+            ))
+        }
+        guard !documents.isEmpty else { throw EPUBError.noContentFiles }
+
+        var indexByFilename: [String: Int] = [:]
+        for document in documents {
+            let key = URL(fileURLWithPath: document.path).lastPathComponent.lowercased()
+            if indexByFilename[key] == nil { indexByFilename[key] = document.index }
+        }
+        let tableOfContents = tocEntries.map { entry in
+            Inventory.TOCItem(
+                title: normalizeChapterTitle(entry.title),
+                documentIndex: indexByFilename[URL(fileURLWithPath: entry.href).lastPathComponent.lowercased()],
+                file: entry.href
+            )
+        }
+
+        logger.info("[EPUBParser] Inventory: \(documents.count) documents, \(tableOfContents.count) TOC entries, \(missingFiles.count) missing, \(unreadable.count) unreadable entries")
+        return Inventory(
+            rootDir: destDir,
+            documents: documents,
+            tableOfContents: tableOfContents,
+            missingFiles: missingFiles,
+            unreadableEntryCount: unreadable.count
+        )
+    }
+
+    /// The chapter files for `spans`: a one-document chapter is that document;
+    /// a longer one is written as a combined file beside it.
+    static func buildStructure(
+        from inventory: Inventory,
+        spans: [ChapterSpan]
+    ) throws -> [(title: String, xhtmlPath: String)] {
+        let combinedDir = (inventory.rootDir as NSString).appendingPathComponent("ForeverLMCombinedChapters")
+        var result: [(title: String, xhtmlPath: String)] = []
+        for (idx, span) in spans.enumerated() {
+            guard span.firstDocument >= 0,
+                  span.firstDocument <= span.lastDocument,
+                  span.lastDocument < inventory.documents.count else { continue }
+            let title = normalizeChapterTitle(span.title)
+            let chapterFiles = inventory.documents[span.firstDocument...span.lastDocument].map(\.path)
+            if chapterFiles.count == 1 {
+                result.append((title: title, xhtmlPath: chapterFiles[0]))
+                continue
+            }
+            try FileManager.default.createDirectory(atPath: combinedDir, withIntermediateDirectories: true)
+            let filename = String(format: "%02d %@.xhtml", idx + 1, safeCombinedChapterFilename(fromNormalizedTitle: title))
+            let combinedPath = (combinedDir as NSString).appendingPathComponent(filename)
+            let combinedHTML = combinedChapterHTML(title: title, chapterFiles: Array(chapterFiles), combinedPath: combinedPath)
+            try combinedHTML.write(toFile: combinedPath, atomically: true, encoding: .utf8)
+            result.append((title: title, xhtmlPath: combinedPath))
+        }
         return result
     }
 
@@ -302,8 +479,7 @@ enum EPUBParser {
         defer { try? FileManager.default.removeItem(atPath: tempDir) }
 
         guard let opfRelPath = try? findOPFPath(in: tempDir),
-              let opfContent = try? String(contentsOfFile:
-                  (tempDir as NSString).appendingPathComponent(opfRelPath), encoding: .utf8) else {
+              let opfContent = try? readOPF(in: tempDir, relativePath: opfRelPath) else {
             return nil
         }
 
@@ -382,8 +558,7 @@ enum EPUBParser {
         defer { try? FileManager.default.removeItem(atPath: tempDir) }
 
         guard let opfRelPath = try? findOPFPath(in: tempDir),
-              let opfContent = try? String(contentsOfFile:
-                  (tempDir as NSString).appendingPathComponent(opfRelPath), encoding: .utf8) else {
+              let opfContent = try? readOPF(in: tempDir, relativePath: opfRelPath) else {
             return EPUBMetadata(title: nil, subtitle: nil, author: nil, edition: nil)
         }
 
@@ -456,7 +631,12 @@ enum EPUBParser {
         return FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory) && isDirectory.boolValue
     }
 
-    private static func expandEPUB(from sourceURL: URL, to destURL: URL) throws {
+    /// Unpack the book into `destURL`, returning the names of the archive
+    /// entries that could not be read. A damaged file still gives up every
+    /// entry that is intact: the import then knows which chapters are missing
+    /// instead of failing outright.
+    @discardableResult
+    private static func expandEPUB(from sourceURL: URL, to destURL: URL) throws -> [String] {
         if isDirectoryEPUB(at: sourceURL.path) {
             logger.info("[EPUBParser] Source is an unpacked EPUB folder; copying instead of unzipping")
             do {
@@ -465,82 +645,207 @@ enum EPUBParser {
                 logger.error("[EPUBParser] Copying unpacked EPUB folder failed: \(error.localizedDescription)")
                 throw EPUBError.unzipFailed(error.localizedDescription)
             }
-            return
+            return []
         }
         if let damage = damagedZIPEntries(at: sourceURL), damage.unreadable > 0 {
-            logger.error("[EPUBParser] EPUB is damaged: \(damage.unreadable) of \(damage.total) entries have no local header")
-            throw EPUBError.damagedArchive(unreadable: damage.unreadable, total: damage.total)
+            logger.error("[EPUBParser] EPUB is damaged: \(damage.unreadable) of \(damage.total) entries have no local header; salvaging the rest")
+            return try salvageZIP(at: sourceURL, to: destURL)
         }
         do {
             try FileManager.default.unzipItem(at: sourceURL, to: destURL)
+            return []
         } catch {
-            logger.error("[EPUBParser] ZIPFoundation unzip failed: \(error.localizedDescription)")
-            throw EPUBError.unzipFailed(error.localizedDescription)
+            // A bad checksum or an unreadable entry stops ZIPFoundation at that
+            // entry. Read the archive entry by entry instead.
+            logger.error("[EPUBParser] ZIPFoundation unzip failed: \(error.localizedDescription); salvaging entry by entry")
+            try? FileManager.default.removeItem(at: destURL)
+            do {
+                return try salvageZIP(at: sourceURL, to: destURL)
+            } catch EPUBError.damagedArchive(let unreadable, let total) {
+                throw EPUBError.damagedArchive(unreadable: unreadable, total: total)
+            } catch {
+                throw EPUBError.unzipFailed(error.localizedDescription)
+            }
         }
+    }
+
+    /// One file as the ZIP's central directory describes it.
+    struct ZIPEntryRecord {
+        let name: String
+        let flags: Int
+        let method: Int
+        let crc: UInt32
+        let compressedSize: Int
+        let uncompressedSize: Int
+        let localHeaderOffset: Int
+    }
+
+    private static func zipU16(_ data: Data, _ offset: Int) -> Int { Int(data[offset]) | Int(data[offset + 1]) << 8 }
+    private static func zipU32(_ data: Data, _ offset: Int) -> Int { zipU16(data, offset) | zipU16(data, offset + 2) << 16 }
+    private static func zipHasSignature(_ data: Data, _ signature: [UInt8], at offset: Int) -> Bool {
+        offset >= 0 && offset + 4 <= data.count && data[offset..<offset + 4].elementsEqual(signature)
+    }
+    private static let zipLocalHeaderSignature: [UInt8] = [0x50, 0x4B, 0x03, 0x04]
+
+    /// The entries the archive's central directory lists, or nil when the file
+    /// is not a ZIP this reader understands (ZIP64 included).
+    static func zipCentralDirectory(_ data: Data) -> [ZIPEntryRecord]? {
+        // The end-of-central-directory record is 22 bytes plus a comment of at most 64 KB.
+        let endRecordSize = 22
+        guard data.count >= endRecordSize else { return nil }
+        let earliest = max(0, data.count - endRecordSize - 0xFFFF)
+        guard let endRecord = stride(from: data.count - endRecordSize, through: earliest, by: -1)
+            .first(where: { zipHasSignature(data, [0x50, 0x4B, 0x05, 0x06], at: $0) }) else { return nil }
+
+        let total = zipU16(data, endRecord + 10)
+        var cursor = zipU32(data, endRecord + 16)
+        guard total != 0xFFFF, cursor != 0xFFFF_FFFF else { return nil }
+
+        var entries: [ZIPEntryRecord] = []
+        for _ in 0..<total {
+            guard zipHasSignature(data, [0x50, 0x4B, 0x01, 0x02], at: cursor), cursor + 46 <= data.count else { return nil }
+            let nameLength = zipU16(data, cursor + 28)
+            guard cursor + 46 + nameLength <= data.count else { return nil }
+            let entry = ZIPEntryRecord(
+                name: String(decoding: data[(cursor + 46)..<(cursor + 46 + nameLength)], as: UTF8.self),
+                flags: zipU16(data, cursor + 8),
+                method: zipU16(data, cursor + 10),
+                crc: UInt32(zipU32(data, cursor + 16)),
+                compressedSize: zipU32(data, cursor + 20),
+                uncompressedSize: zipU32(data, cursor + 24),
+                localHeaderOffset: zipU32(data, cursor + 42)
+            )
+            guard entry.localHeaderOffset != 0xFFFF_FFFF,
+                  entry.compressedSize != 0xFFFF_FFFF,
+                  entry.uncompressedSize != 0xFFFF_FFFF else { return nil }
+            entries.append(entry)
+            cursor += 46 + nameLength + zipU16(data, cursor + 30) + zipU16(data, cursor + 32)
+        }
+        return entries
     }
 
     /// Count the entries whose data is gone. A download that broke part-way can
     /// leave a ZIP whose central directory (at the end of the file) is intact
     /// while a stretch of the file before it is zeroed. ZIPFoundation's entry
     /// iterator ends silently at the first entry whose local header is missing,
-    /// so `unzipItem` succeeds having written nothing, and the import then
-    /// reports a missing `container.xml`. Walk the central directory and check
-    /// each local header's signature, so the learner is told the file is damaged.
-    /// Returns nil when the file is not a ZIP this check can read (ZIP64 included);
-    /// ZIPFoundation then reports what it finds.
+    /// so `unzipItem` succeeds having written nothing. Returns nil when the file
+    /// is not a ZIP this check can read; ZIPFoundation then reports what it finds.
     static func damagedZIPEntries(at url: URL) -> (unreadable: Int, total: Int)? {
-        guard let data = try? Data(contentsOf: url, options: .alwaysMapped) else { return nil }
-        func u16(_ offset: Int) -> Int { Int(data[offset]) | Int(data[offset + 1]) << 8 }
-        func u32(_ offset: Int) -> Int { u16(offset) | u16(offset + 2) << 16 }
-        func hasSignature(_ signature: [UInt8], at offset: Int) -> Bool {
-            offset >= 0 && offset + 4 <= data.count && data[offset..<offset + 4].elementsEqual(signature)
+        guard let data = try? Data(contentsOf: url, options: .alwaysMapped),
+              let entries = zipCentralDirectory(data) else { return nil }
+        let unreadable = entries.count(where: { !zipHasSignature(data, zipLocalHeaderSignature, at: $0.localHeaderOffset) })
+        return (unreadable, entries.count)
+    }
+
+    /// Extract every entry that reads back whole (local header present, data
+    /// inflates, size and CRC-32 match), skipping the rest. Throws
+    /// `damagedArchive` when nothing at all could be read.
+    static func salvageZIP(at url: URL, to destURL: URL) throws -> [String] {
+        guard let data = try? Data(contentsOf: url, options: .alwaysMapped),
+              let entries = zipCentralDirectory(data) else {
+            throw EPUBError.unzipFailed("The file is not a ZIP archive.")
         }
-
-        // The end-of-central-directory record is 22 bytes plus a comment of at most 64 KB.
-        let endRecordSize = 22
-        guard data.count >= endRecordSize else { return nil }
-        let earliest = max(0, data.count - endRecordSize - 0xFFFF)
-        guard let endRecord = stride(from: data.count - endRecordSize, through: earliest, by: -1)
-            .first(where: { hasSignature([0x50, 0x4B, 0x05, 0x06], at: $0) }) else { return nil }
-
-        let total = u16(endRecord + 10)
-        var cursor = u32(endRecord + 16)
-        guard total != 0xFFFF, cursor != 0xFFFF_FFFF else { return nil }
-
-        var unreadable = 0
-        for _ in 0..<total {
-            guard hasSignature([0x50, 0x4B, 0x01, 0x02], at: cursor), cursor + 46 <= data.count else { return nil }
-            let localHeader = u32(cursor + 42)
-            guard localHeader != 0xFFFF_FFFF else { return nil }
-            if !hasSignature([0x50, 0x4B, 0x03, 0x04], at: localHeader) { unreadable += 1 }
-            cursor += 46 + u16(cursor + 28) + u16(cursor + 30) + u16(cursor + 32)
+        let fm = FileManager.default
+        try fm.createDirectory(at: destURL, withIntermediateDirectories: true)
+        let rootPath = destURL.standardizedFileURL.path
+        var unreadable: [String] = []
+        var extracted = 0
+        for entry in entries {
+            let target = destURL.appendingPathComponent(entry.name).standardizedFileURL
+            guard target.path.hasPrefix(rootPath + "/") else {
+                unreadable.append(entry.name)
+                continue
+            }
+            if entry.name.hasSuffix("/") {
+                try fm.createDirectory(at: target, withIntermediateDirectories: true)
+                continue
+            }
+            guard let contents = zipEntryContents(entry, in: data) else {
+                unreadable.append(entry.name)
+                continue
+            }
+            try fm.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try contents.write(to: target)
+            extracted += 1
         }
-        return (unreadable, total)
+        guard extracted > 0 else {
+            throw EPUBError.damagedArchive(unreadable: unreadable.count, total: entries.count)
+        }
+        logger.info("[EPUBParser] Salvaged \(extracted) of \(entries.count) entries; \(unreadable.count) unreadable")
+        return unreadable
+    }
+
+    private static func zipEntryContents(_ entry: ZIPEntryRecord, in data: Data) -> Data? {
+        let header = entry.localHeaderOffset
+        guard entry.flags & 1 == 0,
+              zipHasSignature(data, zipLocalHeaderSignature, at: header),
+              header + 30 <= data.count else { return nil }
+        let start = header + 30 + zipU16(data, header + 26) + zipU16(data, header + 28)
+        guard start + entry.compressedSize <= data.count else { return nil }
+        if entry.uncompressedSize == 0 { return Data() }
+        let raw = data.subdata(in: start..<(start + entry.compressedSize))
+        let contents: Data
+        switch entry.method {
+        case 0:
+            contents = raw
+        case 8:
+            // Apple's zlib algorithm is raw DEFLATE, the format a ZIP stores.
+            guard let inflated = try? (raw as NSData).decompressed(using: .zlib) as Data else { return nil }
+            contents = inflated
+        default:
+            return nil
+        }
+        guard contents.count == entry.uncompressedSize,
+              contents.crc32(checksum: 0) == entry.crc else { return nil }
+        return contents
     }
 
     // MARK: - OPF Discovery
 
+    /// The package document's path relative to `tempDir`. `container.xml`
+    /// names it; when that file is missing or points nowhere, the first `.opf`
+    /// in the book is used, so a damaged or careless package still opens.
     private static func findOPFPath(in tempDir: String) throws -> String {
         let containerPath = (tempDir as NSString).appendingPathComponent("META-INF/container.xml")
-        guard FileManager.default.fileExists(atPath: containerPath),
-              let containerXML = try? String(contentsOfFile: containerPath, encoding: .utf8) else {
-            throw EPUBError.containerNotFound
+        if let containerXML = readText(atPath: containerPath),
+           let opfRelPath = firstRegexCapture(#"full-path\s*=\s*["']([^"']+)["']"#, in: containerXML),
+           let opfFullPath = safeResolvedPath(base: tempDir, href: opfRelPath),
+           FileManager.default.fileExists(atPath: opfFullPath) {
+            return opfRelPath
         }
 
-        // Extract rootfile full-path attribute
-        // <rootfile full-path="OEBPS/content.opf" .../>
-        guard let match = containerXML.range(of: #"full-path="([^"]+)""#, options: .regularExpression),
-              let pathRange = containerXML[match].range(of: #"(?<=")(.*?)(?=")"#, options: .regularExpression) else {
+        let found = (FileManager.default.subpaths(atPath: tempDir) ?? [])
+            .filter { $0.lowercased().hasSuffix(".opf") }
+            .sorted { ($0.split(separator: "/").count, $0) < ($1.split(separator: "/").count, $1) }
+        if let opfRelPath = found.first {
+            logger.info("[EPUBParser] container.xml did not lead to a package; using \(opfRelPath, privacy: .public)")
+            return opfRelPath
+        }
+        throw FileManager.default.fileExists(atPath: containerPath) ? EPUBError.opfNotFound : EPUBError.containerNotFound
+    }
+
+    /// The package document, read leniently: any of the encodings books are
+    /// written in, and with the OPF elements' namespace prefix dropped
+    /// (`<opf:item>` → `<item>`), which every parser below expects. Calibre
+    /// writes prefixed packages.
+    private static func readOPF(in tempDir: String, relativePath: String) throws -> String {
+        guard let raw = readText(atPath: (tempDir as NSString).appendingPathComponent(relativePath)) else {
             throw EPUBError.opfNotFound
         }
+        return raw.replacingOccurrences(
+            of: #"<(/?)[A-Za-z_][\w.-]*:(package|metadata|manifest|item|spine|itemref|guide|reference|meta)\b"#,
+            with: "<$1$2",
+            options: .regularExpression
+        )
+    }
 
-        let opfRelPath = String(containerXML[pathRange])
-        guard let opfFullPath = safeResolvedPath(base: tempDir, href: opfRelPath),
-              FileManager.default.fileExists(atPath: opfFullPath) else {
-            throw EPUBError.opfNotFound
+    /// A text file in UTF-8, UTF-16 (with a byte-order mark), or Windows Latin-1.
+    static func readText(atPath path: String) -> String? {
+        guard let data = FileManager.default.contents(atPath: path) else { return nil }
+        if data.starts(with: [0xFF, 0xFE]) || data.starts(with: [0xFE, 0xFF]) {
+            return String(data: data, encoding: .utf16)
         }
-
-        return opfRelPath
+        return String(data: data, encoding: .utf8) ?? String(data: data, encoding: .windowsCP1252)
     }
 
     // MARK: - OPF Parsing

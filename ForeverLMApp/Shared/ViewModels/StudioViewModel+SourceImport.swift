@@ -1226,30 +1226,72 @@ extension StudioViewModel {
         return drafts
     }
 
-    /// Import chapters from an EPUB book — extracts the full EPUB structure (XHTML + assets)
-    /// into `chaptersDir` and inserts each chapter as a source in the DB.
+    /// Import chapters from an EPUB book. The code unpacks the book (keeping
+    /// every intact file of a damaged one) and lists what it holds; the book
+    /// chapter splitting model decides which documents make each chapter, names
+    /// them, and names the chapters a damaged file has lost, which the learner
+    /// is then told about.
     func importEPUBChapters(from epubPath: String, bookID: String, bookTitle: String, bookDir: String, chaptersDir: String) async throws {
         bookImportStatus = "Reading EPUB…"
         logger.info("[BookImport] EPUB path: \(epubPath)")
 
-        let progress = BookImportProgress(self)
-        let drafts: [BookChapterImportDraft]
+        // Unpack beside the current chapters and swap in only once the model
+        // has answered, so a failed re-import leaves the book's files alone.
+        let stagingDir = chaptersDir + ".incoming-\(UUID().uuidString)"
+        var installed = false
+        defer {
+            if !installed { try? FileManager.default.removeItem(atPath: stagingDir) }
+        }
+        let staged: EPUBParser.Inventory
         do {
-            drafts = try await Task.detached(priority: .userInitiated) {
-                try Self.prepareEPUBChapterDrafts(
-                    epubPath: epubPath,
-                    bookTitle: bookTitle,
-                    bookDir: bookDir,
-                    chaptersDir: chaptersDir,
-                    progress: progress
-                )
+            staged = try await Task.detached(priority: .userInitiated) {
+                try EPUBParser.extractInventory(from: epubPath, to: stagingDir)
             }.value
-            logger.info("[BookImport] EPUBParser returned \(drafts.count) chapters")
         } catch {
-            logger.error("[BookImport] EPUBParser.extractStructure failed: \(error.localizedDescription)")
-            errorMessage = "Could not extract chapters from EPUB: \(error.localizedDescription)."
+            logger.error("[BookImport] EPUBParser.extractInventory failed: \(error.localizedDescription)")
+            errorMessage = "Could not read the EPUB: \(error.localizedDescription)."
             throw error
         }
+
+        guard let config = KeychainService.resolveConfig(for: .bookChapterSplitting) else {
+            let message = "Book chapter splitting AI is not configured."
+            errorMessage = message
+            throw SourceError.bookChapterBoundaryMismatch(message)
+        }
+        bookImportStatus = "Asking AI to identify chapters…"
+        let selection = try await aiService.selectEPUBChapters(
+            source: AIUsageSource(id: bookID, type: "book", title: bookTitle),
+            bookTitle: bookTitle,
+            inventory: staged,
+            config: config
+        )
+        guard !selection.chapters.isEmpty else {
+            let message = "The book chapter splitting AI did not identify any chapters in this EPUB."
+            errorMessage = message
+            throw SourceError.bookChapterBoundaryMismatch(message)
+        }
+        logger.info("[BookImport] Chapter model chose \(selection.chapters.count) chapters; \(selection.missingChapters.count) missing")
+
+        let inventory = try await Task.detached(priority: .userInitiated) {
+            if FileManager.default.fileExists(atPath: chaptersDir) {
+                try FileManager.default.removeItem(atPath: chaptersDir)
+            }
+            try FileManager.default.moveItem(atPath: stagingDir, toPath: chaptersDir)
+            return staged.relocated(to: chaptersDir)
+        }.value
+        installed = true
+
+        let progress = BookImportProgress(self)
+        let drafts = try await Task.detached(priority: .userInitiated) {
+            try Self.prepareEPUBChapterDrafts(
+                epubPath: epubPath,
+                inventory: inventory,
+                spans: selection.chapters,
+                bookTitle: bookTitle,
+                bookDir: bookDir,
+                progress: progress
+            )
+        }.value
 
         guard !drafts.isEmpty else {
             logger.error("[BookImport] No chapters found in EPUB")
@@ -1279,6 +1321,37 @@ extension StudioViewModel {
         }
 
         logger.info("[BookImport] Inserted \(drafts.count) chapter sources for \"\(bookTitle)\"")
+        if let notice = Self.damagedEPUBNotice(
+            bookTitle: bookTitle,
+            missingChapters: selection.missingChapters,
+            missingFileCount: inventory.missingFiles.count
+        ) {
+            bookImportNotice = notice
+            showBookImportNotice = true
+        }
+    }
+
+    /// What the learner is told when a damaged file left chapters behind, or
+    /// nil when the book came in whole.
+    nonisolated static func damagedEPUBNotice(
+        bookTitle: String,
+        missingChapters: [String],
+        missingFileCount: Int
+    ) -> String? {
+        let lost: String
+        if !missingChapters.isEmpty {
+            lost = missingChapters.count == 1
+                ? "this part of the file is damaged and could not be read: \(missingChapters[0])"
+                : "these \(missingChapters.count) parts of the file are damaged and could not be read: "
+                    + missingChapters.joined(separator: "; ")
+        } else if missingFileCount > 0 {
+            lost = missingFileCount == 1
+                ? "one part of the file is damaged and could not be read"
+                : "\(missingFileCount) parts of the file are damaged and could not be read"
+        } else {
+            return nil
+        }
+        return "\(bookTitle) was imported, but \(lost). Drop a fresh copy of the book on Add Book to fill them in."
     }
 
     private func saveImportedBookChapterDraft(_ article: StudioArticle) async throws {
@@ -1349,17 +1422,13 @@ extension StudioViewModel {
 
     nonisolated private static func prepareEPUBChapterDrafts(
         epubPath: String,
+        inventory: EPUBParser.Inventory,
+        spans: [EPUBParser.ChapterSpan],
         bookTitle: String,
         bookDir: String,
-        chaptersDir: String,
         progress: BookImportProgress
     ) throws -> [BookChapterImportDraft] {
-        progress.update("Reading EPUB…")
-        if FileManager.default.fileExists(atPath: chaptersDir) {
-            try FileManager.default.removeItem(atPath: chaptersDir)
-        }
-        let chapters = try EPUBParser.extractStructure(from: epubPath, to: chaptersDir)
-        EPUBParser.repairLegacyCombinedChapterDoctype(in: chaptersDir)
+        let chapters = try EPUBParser.buildStructure(from: inventory, spans: spans)
         guard !chapters.isEmpty else { return [] }
 
         // Save cover image into the per-book folder.
@@ -1374,7 +1443,7 @@ extension StudioViewModel {
 
             // Extract plain text for MCP/search (stored in DB content field).
             let plainText: String
-            if let raw = try? String(contentsOfFile: chapter.xhtmlPath, encoding: .utf8), !raw.isEmpty {
+            if let raw = EPUBParser.readText(atPath: chapter.xhtmlPath), !raw.isEmpty {
                 plainText = EPUBParser.stripHTML(raw)
             } else {
                 plainText = ""

@@ -1422,6 +1422,25 @@ enum Prompts {
     - If there are no valid chapters, return {"chapters":[]}.
     """
 
+    /// Read an unpacked EPUB's inventory and choose its chapters
+    /// (`AIService.selectEPUBChapters`). Runs on the book chapter splitting route.
+    static let epubChapterSelection = """
+    You turn an EPUB book's inventory into the list of chapters a reader will see. The inventory lists every readable content document in reading order (index, file, whether the package's spine lists it, its h1/h2 headings, its opening words, and its word count), the book's own table of contents when one survives, and missingFiles: documents the package names but the file no longer holds because it is damaged.
+
+    Return ONLY valid JSON in this shape:
+    {"chapters":[{"title":"1) Oil Drops","firstDocument":3,"lastDocument":3}],"missingChapters":["4) Title or Chapter 4"]}
+
+    Rules:
+    - A chapter is a run of consecutive documents: firstDocument through lastDocument, both inclusive. Chapters are in reading order and never overlap.
+    - Keep everything a learner would read: introduction, preface or prologue written for this book, every chapter, epilogue, afterword or conclusion, appendices, and the notes and bibliography.
+    - Leave out the cover, title and half-title pages, copyright, dedication, epigraph-only pages, the table of contents, "also by" lists, about-the-author pages, image credits, acknowledgements, and the index.
+    - A part-title page ("Part Two", a part name with no text of its own) joins the chapter that follows it. A chapter split over several files ("chapter03a", "chapter03b", or a file that only continues the text) is one chapter.
+    - Titles: use the table of contents when it names the chapter; otherwise the document's headings. A number heading spelled as a word ("One", "Chapter Two") with a name beside it becomes "1) Name". Use the book's capitalization, except that an all-capitals name is written in title case. Never use a file name as a title.
+    - Documents outside the spine are usually leftovers; include one only when its headings and words show it is part of the book's text.
+    - missingChapters: name, in reading order, each chapter or other kept part whose document is in missingFiles. Take the name from the table of contents when it lists it; otherwise infer it from the file name and the neighbouring chapters' numbering (for example "Chapter 4"). Leave out missing files you would have left out anyway, such as a lost index or copyright page. Use [] when nothing is missing.
+    - If the inventory holds no readable text, return {"chapters":[],"missingChapters":[]}.
+    """
+
     // MARK: - Organization
 
     /// Match YouTube lecture titles to PDF note filenames.

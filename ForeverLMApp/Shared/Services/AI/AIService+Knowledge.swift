@@ -475,6 +475,109 @@ extension AIService {
         return validated
     }
 
+    struct EPUBChapterSelection: Sendable, Equatable {
+        let chapters: [EPUBParser.ChapterSpan]
+        /// The model's names for the parts the file no longer holds, in reading order.
+        let missingChapters: [String]
+    }
+
+    private struct EPUBChapterSelectionResponse: Codable {
+        struct Chapter: Codable {
+            let title: String
+            let firstDocument: Int
+            let lastDocument: Int
+        }
+        let chapters: [Chapter]
+        let missingChapters: [String]?
+    }
+
+    /// Ask the configured LLM which of an EPUB's documents make up each
+    /// chapter, what each is called, and which chapters the file has lost.
+    /// The code only unpacks and lists the book; reading its shape is the
+    /// model's job. The answer is checked against the inventory before use.
+    func selectEPUBChapters(
+        source: AIUsageSource,
+        bookTitle: String,
+        inventory: EPUBParser.Inventory,
+        config: AITaskConfig
+    ) async throws -> EPUBChapterSelection {
+        let documents = inventory.documents.map { document in
+            [
+                "index": document.index,
+                "file": document.file,
+                "inSpine": document.inSpine,
+                "headings": document.headings,
+                "opening": document.opening,
+                "words": document.wordCount,
+            ] as [String: Any]
+        }
+        let tableOfContents = inventory.tableOfContents.map { item in
+            var entry = ["title": item.title, "file": item.file] as [String: Any]
+            if let documentIndex = item.documentIndex { entry["document"] = documentIndex }
+            return entry
+        }
+        let payload = [
+            "documents": documents,
+            "tableOfContents": tableOfContents,
+            "missingFiles": inventory.missingFiles,
+        ] as [String: Any]
+        let payloadData = try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys, .withoutEscapingSlashes])
+        let payloadJSON = String(data: payloadData, encoding: .utf8) ?? "{}"
+
+        let userPrompt = """
+        Book title: \(bookTitle)
+        Archive entries that could not be read: \(inventory.unreadableEntryCount)
+
+        Inventory:
+        \(payloadJSON)
+        """
+
+        let response = try await call(
+            config: config,
+            system: Prompts.epubChapterSelection,
+            user: userPrompt,
+            maxTokens: 6000,
+            temperature: 0.0,
+            jsonMode: true,
+            sourceTitle: source.title,
+            subjectID: source.id,
+            subjectType: source.type,
+            activityID: AIUsageAttribution.activityID ?? UUID().uuidString
+        )
+
+        var jsonString = response.trimmingCharacters(in: .whitespacesAndNewlines)
+        if jsonString.hasPrefix("```") {
+            let lines = jsonString.components(separatedBy: "\n")
+            jsonString = lines.dropFirst().dropLast().joined(separator: "\n")
+        }
+        guard let data = jsonString.data(using: .utf8),
+              let parsed = try? JSONDecoder().decode(EPUBChapterSelectionResponse.self, from: data) else {
+            throw AIError.apiError("Book chapter splitter returned invalid JSON for the EPUB.")
+        }
+
+        var lastDocument = -1
+        var chapters: [EPUBParser.ChapterSpan] = []
+        for chapter in parsed.chapters {
+            let title = chapter.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !title.isEmpty,
+                  chapter.firstDocument > lastDocument,
+                  chapter.firstDocument <= chapter.lastDocument,
+                  chapter.lastDocument < inventory.documents.count else {
+                throw AIError.apiError("Book chapter splitter returned EPUB chapters out of order or outside the book.")
+            }
+            chapters.append(EPUBParser.ChapterSpan(
+                title: title,
+                firstDocument: chapter.firstDocument,
+                lastDocument: chapter.lastDocument
+            ))
+            lastDocument = chapter.lastDocument
+        }
+        let missing = (parsed.missingChapters ?? [])
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return EPUBChapterSelection(chapters: chapters, missingChapters: missing)
+    }
+
     // MARK: - Text Embedding
 
     /// Embed text for semantic source search using Apple's on-device contextual model.

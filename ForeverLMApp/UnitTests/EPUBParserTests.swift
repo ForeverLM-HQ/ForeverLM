@@ -708,42 +708,134 @@ struct EPUBStructureExtractionTests {
         #expect(FileManager.default.fileExists(atPath: epubDir.appendingPathComponent("mimetype").path))
     }
 
-    @Test("Says a broken download is damaged instead of blaming container.xml")
-    func reportsDamagedArchive() throws {
+    /// A small EPUB package written to `packageRoot`: a container, a package
+    /// document, and one XHTML file per chapter text.
+    private func writePackage(
+        at packageRoot: URL,
+        opf: String,
+        chapters: [(file: String, html: String)],
+        writesContainer: Bool = true
+    ) throws {
+        let metaInf = packageRoot.appendingPathComponent("META-INF", isDirectory: true)
+        let ops = packageRoot.appendingPathComponent("OPS", isDirectory: true)
+        try FileManager.default.createDirectory(at: metaInf, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: ops, withIntermediateDirectories: true)
+        try "application/epub+zip".write(to: packageRoot.appendingPathComponent("mimetype"), atomically: true, encoding: .utf8)
+        if writesContainer {
+            try """
+            <container xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+              <rootfiles><rootfile full-path="OPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles>
+            </container>
+            """.write(to: metaInf.appendingPathComponent("container.xml"), atomically: true, encoding: .utf8)
+        }
+        try opf.write(to: ops.appendingPathComponent("content.opf"), atomically: true, encoding: .utf8)
+        for chapter in chapters {
+            try chapter.html.write(to: ops.appendingPathComponent(chapter.file), atomically: true, encoding: .utf8)
+        }
+    }
+
+    private static let twoChapterOPF = """
+    <package version="2.0" xmlns="http://www.idpf.org/2007/opf">
+      <manifest>
+        <item id="one" href="one.xhtml" media-type="application/xhtml+xml"/>
+        <item id="two" href="two.xhtml" media-type="application/xhtml+xml"/>
+      </manifest>
+      <spine><itemref idref="one"/><itemref idref="two"/></spine>
+    </package>
+    """
+
+    private static let twoChapters = [
+        (file: "one.xhtml", html: "<html><body><h1>One</h1><h1>OIL DROPS</h1><p>Opening words.</p></body></html>"),
+        (file: "two.xhtml", html: "<html><body><h1>Two</h1><h1>WEST TO EAST</h1><p>More words.</p></body></html>"),
+    ]
+
+    @Test("Keeps the intact files of a broken download and lists the lost chapter")
+    func salvagesDamagedArchive() throws {
         let root = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("damaged-epub-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }
         let packageRoot = root.appendingPathComponent("package", isDirectory: true)
-        let metaInf = packageRoot.appendingPathComponent("META-INF", isDirectory: true)
-        try FileManager.default.createDirectory(at: metaInf, withIntermediateDirectories: true)
-        try "application/epub+zip".write(to: packageRoot.appendingPathComponent("mimetype"), atomically: true, encoding: .utf8)
-        try """
-        <container xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
-          <rootfiles><rootfile full-path="content.opf" media-type="application/oebps-package+xml"/></rootfiles>
-        </container>
-        """.write(to: metaInf.appendingPathComponent("container.xml"), atomically: true, encoding: .utf8)
-        try "<package><manifest/><spine/></package>"
-            .write(to: packageRoot.appendingPathComponent("content.opf"), atomically: true, encoding: .utf8)
+        try writePackage(at: packageRoot, opf: Self.twoChapterOPF, chapters: Self.twoChapters)
 
         let epubURL = root.appendingPathComponent("book.epub")
         try zipDirectory(packageRoot, to: epubURL)
         #expect(EPUBParser.damagedZIPEntries(at: epubURL)?.unreadable == 0)
 
-        // Zero the first entry's local header, as a download that broke part-way leaves it.
+        // Zero chapter two's local header, as a download that broke part-way leaves it.
         var bytes = try Data(contentsOf: epubURL)
-        bytes.replaceSubrange(0..<30, with: Data(count: 30))
+        let entries = try #require(EPUBParser.zipCentralDirectory(bytes))
+        let lost = try #require(entries.first { $0.name.hasSuffix("two.xhtml") })
+        bytes.replaceSubrange(lost.localHeaderOffset..<(lost.localHeaderOffset + 30), with: Data(count: 30))
         try bytes.write(to: epubURL)
+        #expect(EPUBParser.damagedZIPEntries(at: epubURL)?.unreadable == 1)
 
-        let damage = try #require(EPUBParser.damagedZIPEntries(at: epubURL))
-        #expect(damage.unreadable == 1)
-        #expect(damage.total == 4)
         let outputDir = root.appendingPathComponent("out", isDirectory: true)
-        #expect {
-            try EPUBParser.extractStructure(from: epubURL.path, to: outputDir.path)
-        } throws: { error in
-            guard case EPUBParser.EPUBError.damagedArchive(1, 4) = error else { return false }
-            return true
-        }
+        let inventory = try EPUBParser.extractInventory(from: epubURL.path, to: outputDir.path)
+        #expect(inventory.unreadableEntryCount == 1)
+        #expect(inventory.missingFiles == ["OPS/two.xhtml"])
+        #expect(inventory.documents.map(\.file) == ["OPS/one.xhtml"])
+        #expect(inventory.documents.first?.headings == ["One", "OIL DROPS"])
+        #expect(inventory.documents.first?.opening.contains("Opening words.") == true)
+    }
+
+    @Test("Reads a package whose elements carry the opf: prefix")
+    func readsPrefixedPackage() throws {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("prefixed-opf-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let packageRoot = root.appendingPathComponent("package", isDirectory: true)
+        let prefixed = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <opf:package xmlns:opf="http://www.idpf.org/2007/opf" xmlns:dc="http://purl.org/dc/elements/1.1/" version="2.0">
+          <opf:metadata><dc:title>A Prefixed Book</dc:title><dc:creator>Ada Example</dc:creator></opf:metadata>
+          <opf:manifest>
+            <opf:item href="one.xhtml" id="one" media-type="application/xhtml+xml"/>
+            <opf:item href="two.xhtml" id="two" media-type="application/xhtml+xml"/>
+          </opf:manifest>
+          <opf:spine><opf:itemref idref="one"/><opf:itemref idref="two"/></opf:spine>
+        </opf:package>
+        """
+        try writePackage(at: packageRoot, opf: prefixed, chapters: Self.twoChapters)
+        let epubURL = root.appendingPathComponent("book.epub")
+        try zipDirectory(packageRoot, to: epubURL)
+
+        let inventory = try EPUBParser.extractInventory(
+            from: epubURL.path,
+            to: root.appendingPathComponent("out", isDirectory: true).path
+        )
+        #expect(inventory.documents.map(\.file) == ["OPS/one.xhtml", "OPS/two.xhtml"])
+        #expect(inventory.documents.allSatisfy { $0.inSpine })
+        #expect(EPUBParser.extractMetadata(from: epubURL.path).title == "A Prefixed Book")
+
+        let chapters = try EPUBParser.buildStructure(from: inventory, spans: [
+            EPUBParser.ChapterSpan(title: "1) Oil Drops", firstDocument: 0, lastDocument: 0),
+            EPUBParser.ChapterSpan(title: "2) West to East", firstDocument: 1, lastDocument: 1),
+        ])
+        #expect(chapters.map(\.title) == ["1) Oil Drops", "2) West to East"])
+        #expect(chapters[1].xhtmlPath.hasSuffix("OPS/two.xhtml"))
+    }
+
+    @Test("Finds the package without container.xml and joins a span into one file")
+    func opensPackageWithoutContainer() throws {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("no-container-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let packageRoot = root.appendingPathComponent("package", isDirectory: true)
+        try writePackage(at: packageRoot, opf: Self.twoChapterOPF, chapters: Self.twoChapters, writesContainer: false)
+        let epubURL = root.appendingPathComponent("book.epub")
+        try zipDirectory(packageRoot, to: epubURL)
+
+        let inventory = try EPUBParser.extractInventory(
+            from: epubURL.path,
+            to: root.appendingPathComponent("out", isDirectory: true).path
+        )
+        #expect(inventory.documents.count == 2)
+        let chapters = try EPUBParser.buildStructure(from: inventory, spans: [
+            EPUBParser.ChapterSpan(title: "The Whole Book", firstDocument: 0, lastDocument: 1),
+        ])
+        let html = try String(contentsOfFile: try #require(chapters.first).xhtmlPath, encoding: .utf8)
+        #expect(html.contains("Opening words."))
+        #expect(html.contains("More words."))
     }
 
     private func zipDirectory(_ source: URL, to destination: URL) throws {
@@ -883,6 +975,20 @@ struct ChapterTitleCleaningTests {
 @Suite("StudioViewModel book chapter AI selection validation")
 @MainActor
 struct BookChapterAISelectionValidationTests {
+
+    @Test("Tells the learner which chapters a damaged EPUB lost")
+    func damagedEPUBNoticeNamesLostChapters() {
+        let notice = StudioViewModel.damagedEPUBNotice(
+            bookTitle: "A Sample Book",
+            missingChapters: ["4) Chapter Four", "7) Chapter Seven"],
+            missingFileCount: 3
+        )
+        #expect(notice == "A Sample Book was imported, but these 2 parts of the file are damaged and could not be read: "
+            + "4) Chapter Four; 7) Chapter Seven. Drop a fresh copy of the book on Add Book to fill them in.")
+        #expect(StudioViewModel.damagedEPUBNotice(bookTitle: "A Sample Book", missingChapters: [], missingFileCount: 0) == nil)
+        #expect(StudioViewModel.damagedEPUBNotice(bookTitle: "A Sample Book", missingChapters: [], missingFileCount: 2)?
+            .contains("2 parts of the file are damaged") == true)
+    }
 
     @Test("Does not second-guess the chapter-splitting AI semantically")
     func doesNotSecondGuessSelection() {
