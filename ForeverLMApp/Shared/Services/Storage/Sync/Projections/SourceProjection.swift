@@ -182,6 +182,13 @@ struct SourceRows: Equatable, Sendable {
     }
 
     var isPaywalled: Bool { integer("is_paywalled") == 1 }
+
+    /// Whether it holds its PDF: the record names one (`files.pdf`), or this Mac has one whose upload
+    /// has not been recorded yet.
+    var holdsPDF: Bool {
+        (files["pdf"].map { !$0.isNull } ?? false)
+            || text("local_file_path")?.lowercased().hasSuffix(".pdf") == true
+    }
 }
 
 /// The Source record's projection (§3.5.4) into `sources`, its per-type table, its collection
@@ -529,9 +536,12 @@ struct SourceProjection: RecordProjection {
         }
     }
 
-    /// The paper's paywall is its own wire state while it is not ready.
+    /// The paper's paywall is its own wire state until the paper holds its PDF: a paper is `ready`
+    /// only with a PDF (§3.5.4), and `ingest` is the only place the wire has for the flag. Generation 1
+    /// left papers `ready` on their abstract and paywalled; sent as `ready`, the device applying the
+    /// record cleared the flag and the paper came back as PDF needed (2026-10-11).
     static func wireIngestState(_ rows: SourceRows) -> String {
-        if rows.isPaywalled, rows.state != "ready" { return "paywalled" }
+        if rows.isPaywalled, rows.state != "ready" || !rows.holdsPDF { return "paywalled" }
         switch rows.state {
         case "ready", "fetching", "error": return rows.state
         default: return "queued"

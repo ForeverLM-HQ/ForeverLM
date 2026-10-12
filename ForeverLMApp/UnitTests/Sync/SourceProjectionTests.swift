@@ -208,6 +208,34 @@ struct SourceProjectionTests {
         #expect(Fixture.savedFields(try Fixture.pending(store)["Source:\(Self.paperID)"])?["ingest"]?["state"] == "paywalled")
     }
 
+    @Test("A paywalled paper that reads ready on its abstract goes out paywalled, and the device applying it keeps the flag")
+    func paywalledPaperWithoutPDFIsNeverSentReady() throws {
+        let (root, store) = try Fixture.makeStore("source-paywalled-ready")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Fixture.prepareReplica(store)
+        var abstractOnly = Self.fullPaper()
+        for field in ["collectionID", "collectionOrder", "mergedInto"] { abstractOnly.removeValue(forKey: field) }
+        abstractOnly["files"] = .object(["text": Self.fileRef("text", "The abstract.").value])
+        try Fixture.apply(store, [try Fixture.record(.source, Self.paperID, abstractOnly)])
+        // Generation 1's shape: ready on the abstract, marked paywalled, no PDF.
+        try store.execForTesting("UPDATE papers SET is_paywalled = 1 WHERE source_id = '\(Self.paperID)'")
+        let ingest = try #require(Fixture.savedFields(try Fixture.pending(store)["Source:\(Self.paperID)"])?["ingest"])
+        #expect(ingest["state"] == "paywalled")
+        #expect(ingest["ord"] == .array([2, 3]), "ranked below the ready it was held at, so the next generation")
+
+        // Another Mac applies it: still paywalled, so it stays out of Papers that need attention.
+        let (otherRoot, other) = try Fixture.makeStore("source-paywalled-ready-other")
+        defer { try? FileManager.default.removeItem(at: otherRoot) }
+        try Fixture.prepareReplica(other)
+        abstractOnly["ingest"] = ingest
+        try Fixture.apply(other, [try Fixture.record(.source, Self.paperID, abstractOnly)])
+        #expect(try Fixture.text(other, "SELECT s.state || '|' || p.is_paywalled FROM sources s JOIN papers p ON p.source_id = s.id") == "error|1")
+
+        // Holding its PDF, the paper is ready and the paywall no longer needs the wire.
+        try store.execForTesting("UPDATE papers SET local_file_path = 'Papers/abstract-only.pdf' WHERE source_id = '\(Self.paperID)'")
+        #expect(SourceProjection.wireIngestState(try #require(try SourceProjection.loadRows(localID: Self.paperID, connection: store))) == "ready")
+    }
+
     @Test("A deleted source deletes its record; the member's own rows about it stay")
     func deleteKeepsPersonalRows() throws {
         let (root, store) = try Fixture.makeStore("source-delete")
