@@ -4,6 +4,14 @@ All notable changes to ForeverLM are documented here. Dates are in YYYY-MM-DD fo
 
 ForeverLM follows [semantic versioning](https://semver.org) against its public surface: the MCP tool contracts, the knowledge-base/sync format, and licensing compatibility. While the version is 0.x, minor releases may include breaking changes to that surface; patch releases never do.
 
+## 0.142.0 (build 216) — 2026-10-11
+
+**Highlights:**
+- **Check checks your answer.** Type or say what you remember and a model judges it: right, partly or not quite, with what was missing. Its verdict is the grade you confirm with one key, or overrule.
+- **A card never asks about "this lecture".** Every card is checked before it is saved, and the cards you already have are rewritten once where they point at a lecture, paper or talk without naming it.
+- **Feynman Technique in a notebook's Studio.** Pick a paper and explain it from memory; the chat asks, one question at a time, where your explanation has a gap.
+- **Clicks feel instant.** The Library, its search and Settings no longer redo whole-library work on every click or keystroke.
+
 ## 0.141.0 (build 215) — 2026-10-11
 
 **Highlights:**
