@@ -40,6 +40,8 @@ struct ArticleRow: View {
     /// The full-window Library's rows say more: when the source was added
     /// (`LibraryRowDetails`).
     @Environment(\.sourcesListLayout) private var sourcesListLayout
+    /// `.increased` while the list draws this row selected in the accent colour.
+    @Environment(\.backgroundProminence) private var backgroundProminence
     private let dragVisibility = StudioDragVisibility.shared
     @State private var isHovering = false
 
@@ -224,6 +226,20 @@ struct ArticleRow: View {
         return article.paperIngestionFailureDetail
     }
 
+    /// A paper's "PDF needed" or "Metadata incomplete" sits at the end of its
+    /// byline rather than alone on a line of its own, unless a status line is
+    /// drawn anyway.
+    private var paperAttentionRidesByline: Bool {
+        article.sourceType == .paper && !filteredPaperParts.isEmpty && visibleStatusLabel == nil
+    }
+
+    /// `color`, or the row's own foreground while the list draws the row
+    /// selected: the byline's link blue and an orange badge vanish into the
+    /// accent-coloured selection.
+    private func rowTint(_ color: Color) -> AnyShapeStyle {
+        backgroundProminence == .increased ? AnyShapeStyle(.primary) : AnyShapeStyle(color)
+    }
+
     private var paperIngestionRecoveryAction: PaperIngestionRecoveryAction? {
         article.paperIngestionRecoveryAction(hasUsablePDF: vm.displayHasUsablePDF(article))
     }
@@ -361,7 +377,7 @@ struct ArticleRow: View {
                                         .zoomedSystemFont(size: 11)
                                         .lineLimit(1)
                                 }
-                                .foregroundStyle(.blue)
+                                .foregroundStyle(rowTint(.blue))
                             }
                         } else {
                             Image(systemName: "globe")
@@ -372,66 +388,47 @@ struct ArticleRow: View {
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
                         }
+                        if paperAttentionRidesByline, let paperAttentionReason {
+                            Spacer(minLength: 8)
+                            paperAttentionBadge(paperAttentionReason)
+                        }
                     }
                 }
 
-                HStack(spacing: 6) {
-                    let parts = nonPaperMetadataParts
-                    if let visibleStatusLabel {
-                        Text(visibleStatusLabel)
-                            .zoomedSystemFont(size: 11)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                    ForEach(Array(parts.enumerated()), id: \.offset) { index, part in
-                        if index > 0 || visibleStatusLabel != nil {
-                            Text("·")
-                                .foregroundStyle(.tertiary)
-                        }
-                        Text(part)
-                            .zoomedSystemFont(size: 11)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                    }
-
-                    Spacer()
-
-                    if let paperAttentionReason {
-                        if paperAttentionReason == .metadataIncomplete {
-                            Button {
-                                SourceDetailsEditRequest.post(sourceID: article.id, windowID: windowState?.id)
-                            } label: {
-                                Label(paperAttentionReason.rawValue, systemImage: "exclamationmark.circle")
-                                    .font(.caption2)
-                                    .foregroundStyle(.orange)
-                                    .lineLimit(1)
-                            }
-                            .buttonStyle(.hoverWash(inset: -3))
-                            .help("Edit metadata")
-                            .accessibilityLabel("Metadata incomplete — edit details")
-                        } else {
-                            if let suggestedPaywallReason {
-                                markPaywalledButton(reason: suggestedPaywallReason)
-                            }
-                            Label(paperAttentionReason.rawValue, systemImage: "exclamationmark.circle")
-                                .font(.caption2)
-                                .foregroundStyle(.orange)
+                if !(paperAttentionRidesByline && paperAttentionReason != nil) {
+                    HStack(spacing: 6) {
+                        let parts = nonPaperMetadataParts
+                        if let visibleStatusLabel {
+                            Text(visibleStatusLabel)
+                                .zoomedSystemFont(size: 11)
+                                .foregroundStyle(.secondary)
                                 .lineLimit(1)
-                                .help(paperAttentionReason.rawValue)
-                                // Selectable text cannot carry its own AX label on
-                                // macOS; see AGENTS.md, "Text that speaks for itself".
-                                .textSelection(.disabled)
-                                .accessibilityLabel(paperAttentionReason.rawValue)
                         }
-                    } else if paperIngestionFailureDetail == nil,
-                              !article.isPaperContentCleanupFailure,
-                              (article.state == .error || article.hasPaywallMarker) {
-                        ArticleStateBadge(
-                            state: article.state,
-                            errorMessage: articleCreditsMessage ?? article.errorMessage,
-                            errorLabel: stateBadgeLabel
-                        )
+                        ForEach(Array(parts.enumerated()), id: \.offset) { index, part in
+                            if index > 0 || visibleStatusLabel != nil {
+                                Text("·")
+                                    .foregroundStyle(.tertiary)
+                            }
+                            Text(part)
+                                .zoomedSystemFont(size: 11)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                        }
+
+                        Spacer()
+
+                        if let paperAttentionReason {
+                            paperAttentionBadge(paperAttentionReason)
+                        } else if paperIngestionFailureDetail == nil,
+                                  !article.isPaperContentCleanupFailure,
+                                  (article.state == .error || article.hasPaywallMarker) {
+                            ArticleStateBadge(
+                                state: article.state,
+                                errorMessage: articleCreditsMessage ?? article.errorMessage,
+                                errorLabel: stateBadgeLabel
+                            )
+                        }
                     }
                 }
 
@@ -450,6 +447,9 @@ struct ArticleRow: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            // The list's separator starts under the title. Left to itself it
+            // starts under the row's last text, a trailing badge's.
+            .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
         }
         .padding(.vertical, 2)
         .frame(maxWidth: .infinity, minHeight: Self.thumbnailSize.height, alignment: .topLeading)
@@ -535,6 +535,41 @@ struct ArticleRow: View {
         .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
     }
 
+    /// Why a paper is in "Papers that need attention": Metadata incomplete
+    /// opens its details; PDF needed says so, with Mark as Paywalled beside it
+    /// when the AI browser suspects a paywall.
+    @ViewBuilder
+    private func paperAttentionBadge(_ reason: PaperAttentionReason) -> some View {
+        if reason == .metadataIncomplete {
+            Button {
+                SourceDetailsEditRequest.post(sourceID: article.id, windowID: windowState?.id)
+            } label: {
+                Label(reason.rawValue, systemImage: "exclamationmark.circle")
+                    .font(.caption2)
+                    .foregroundStyle(rowTint(.orange))
+                    .lineLimit(1)
+            }
+            .buttonStyle(.hoverWash(inset: -3))
+            .fixedSize()
+            .help("Edit metadata")
+            .accessibilityLabel("Metadata incomplete — edit details")
+        } else {
+            if let suggestedPaywallReason {
+                markPaywalledButton(reason: suggestedPaywallReason)
+            }
+            Label(reason.rawValue, systemImage: "exclamationmark.circle")
+                .font(.caption2)
+                .foregroundStyle(rowTint(.orange))
+                .lineLimit(1)
+                .fixedSize()
+                .help(reason.rawValue)
+                // Selectable text cannot carry its own AX label on
+                // macOS; see AGENTS.md, "Text that speaks for itself".
+                .textSelection(.disabled)
+                .accessibilityLabel(reason.rawValue)
+        }
+    }
+
     /// One click does what the AI browser stopped short of: the paper moves to
     /// "Marked paywalled", where a dropped PDF finishes it. The browser's reason
     /// sits in the tooltip so the learner can disagree and leave the row alone.
@@ -544,9 +579,10 @@ struct ArticleRow: View {
         } label: {
             Label("Mark as Paywalled", systemImage: "lock.doc")
                 .font(.caption2.weight(.semibold))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(rowTint(.accentColor))
                 .lineLimit(1)
         }
+        .fixedSize()
         .buttonStyle(.hoverWash(inset: -3))
         .help("The AI browser thinks this paper is paywalled: \(reason)")
         .accessibilityLabel("Mark as paywalled")

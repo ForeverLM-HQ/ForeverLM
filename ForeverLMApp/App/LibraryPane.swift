@@ -225,12 +225,15 @@ struct LibraryBulkBar: View {
                 .help("Add the selected sources to a notebook")
                 .accessibilityIdentifier("library.bulk.addToNotebook")
                 if let newNotebookTitle {
-                    barButton(newNotebookTitle, systemImage: "plus.rectangle.on.folder", identifier: "library.bulk.newNotebook") {
+                    // "N selected" already gives the count, and the bar's
+                    // labels stay on one line.
+                    barButton("New Notebook", systemImage: "plus.rectangle.on.folder", identifier: "library.bulk.newNotebook") {
                         let ids = vm.inWindow(windowState) {
                             vm.libraryBulkSourceIDs(for: selection, inBooksTab: inBooks)
                         }
                         onNewNotebook(ids)
                     }
+                    .help(newNotebookTitle)
                 }
             }
             if let readToggle {
@@ -286,6 +289,7 @@ struct LibraryBulkBar: View {
         Button(action: action) {
             Label(title, systemImage: systemImage)
                 .zoomedSystemFont(size: 12)
+                .lineLimit(1)
         }
         .buttonStyle(.hoverWash)
         .accessibilityIdentifier(identifier)

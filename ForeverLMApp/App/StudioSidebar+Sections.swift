@@ -1223,6 +1223,8 @@ extension StudioSidebar {
                     .onDrop(of: [.fileURL, .pdf], isTargeted: $isUploadPapersButtonDropTargeted) { providers in
                         handlePaperFileDrop(providers)
                     }
+                    // A button, not a source: no separator under it.
+                    .listRowSeparator(.hidden)
                 }
             }
 
