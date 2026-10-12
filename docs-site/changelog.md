@@ -4,6 +4,13 @@ All notable changes to ForeverLM are documented here. Dates are in YYYY-MM-DD fo
 
 ForeverLM follows [semantic versioning](https://semver.org) against its public surface: the MCP tool contracts, the knowledge-base/sync format, and licensing compatibility. While the version is 0.x, minor releases may include breaking changes to that surface; patch releases never do.
 
+## 0.144.0 (build 223) — 2026-10-12
+
+**Highlights:**
+- **To Check deals a card at a time**, with Skip, Edit and Keep under it.
+- **Chat answers much sooner**: a request carries the everyday tools and loads the rest when it needs them.
+- **Explainer and Feynman Technique take podcast episodes**, not only papers.
+
 ## 0.143.4 (build 222) — 2026-10-12
 
 **Highlights:**
