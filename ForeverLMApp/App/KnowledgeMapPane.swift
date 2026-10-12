@@ -54,6 +54,11 @@ struct KnowledgeMapPane: View {
         map.showsLibrary && map.memory.review == nil
     }
 
+    /// Nothing placed yet on a canvas with a library to place from.
+    private var isBlankCanvas: Bool {
+        map.placedCount == 0 && map.lens == nil && !map.content.nodes.isEmpty
+    }
+
     /// The sidebar shows unless the learner hid it or the pane is too narrow
     /// for it beside the canvas.
     private var showsSpaceSidebar: Bool {
@@ -130,8 +135,8 @@ struct KnowledgeMapPane: View {
                 // Each canvas its own page: another canvas loads afresh rather
                 // than taking over the last one's drawn state.
                 .id(map.mapID)
-                if map.placedCount == 0, map.lens == nil, !map.content.nodes.isEmpty {
-                    emptyMapCard
+                if isBlankCanvas {
+                    blankCanvasHint
                 }
                 // Freeform's arrangement: the tools float over the plane, the
                 // find field top right, zoom bottom left, and what is selected in
@@ -227,6 +232,11 @@ struct KnowledgeMapPane: View {
             // Opening a canvas is a Recents entry, as opening a page is.
             .onChange(of: map.mapID, initial: true) { _, id in
                 SpaceRecents.shared.note(.canvas, id: id)
+            }
+            // A blank canvas opens with the Library beside it, so there is
+            // something to drag on; closing it keeps it closed.
+            .onChange(of: "\(map.mapID)|\(isBlankCanvas)", initial: true) {
+                if isBlankCanvas { map.showsLibrary = true }
             }
             // What was linked from the sidebar opens in its pane once the sheet
             // has gone, as from the Space.
@@ -812,34 +822,17 @@ struct KnowledgeMapPane: View {
         }
     }
 
-    /// What an empty map says: what it is for, and the first moves.
-    private var emptyMapCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("A canvas for what you think")
-                .zoomedSystemFont(size: 17, weight: .semibold)
-                .textSelection(.disabled)
-            Text("Put your ideas here, group them into regions and draw how they connect. A source comes in as an idea's evidence: drop it on the idea. Or ask the chat to lay a topic out, its papers in context, and keep what helps.")
-                .zoomedSystemFont(size: 13)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .textSelection(.disabled)
-            HStack(spacing: 10) {
-                Button("Add from Your Library") {
-                    map.addBox = KnowledgeMapAddBoxRequest(view: nil, worldX: nil, worldY: nil, windowID: windowState.id)
-                }
-                .buttonStyle(.borderedProminent)
-                .help("Find a card of your library, or an idea of your own, to put on the canvas (/)")
-                .accessibilityIdentifier("knowledgeMap.empty.add")
-                Button("Write an Idea") { map.send(.tool("note")) }
-                    .help("Click anywhere on the canvas to write it there (N); double-click the canvas any time")
-                Button("Lay Out a Topic…") { vm.requestKnowledgeMapTopicChat() }
-                    .help("Ask the chat to show a topic on the canvas, its papers in context")
-                    .accessibilityIdentifier("knowledgeMap.empty.topic")
-            }
-        }
-        .padding(20)
-        .frame(width: 440, alignment: .leading)
-        .mapFloatingChrome(cornerRadius: 16)
+    /// What an empty canvas says, in a line under everything: the plane is
+    /// the drop target, so nothing here takes a click or a drag.
+    private var blankCanvasHint: some View {
+        Text("Drag sources, Pages, clips or files here. Double-click to write an idea.")
+            .zoomedSystemFont(size: 13)
+            .foregroundStyle(.tertiary)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: 360)
+            .textSelection(.disabled)
+            .allowsHitTesting(false)
+            .accessibilityIdentifier("knowledgeMap.empty.hint")
     }
 
     /// ForeverLM's sentence about what is on screen, in its own voice.

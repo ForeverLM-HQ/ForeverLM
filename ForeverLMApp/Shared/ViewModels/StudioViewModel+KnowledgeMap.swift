@@ -501,16 +501,6 @@ extension StudioViewModel {
         return KnowledgeMapNewIdea(ref: ref, fresh: fresh)
     }
 
-    /// Opens a fresh chat beside the Map with the start of a request typed,
-    /// unsent: the chat finds the papers on a topic and lays them out on the
-    /// Map as a concepts lens, the learner's to keep or put back.
-    func requestKnowledgeMapTopicChat() {
-        openChatBesideKnowledgeMap(
-            draft: "On my Canvas, zoom in on  and lay the papers out in context: the concepts in the order they connect, each with the papers that bear on it.",
-            sourceIDs: nil
-        )
-    }
-
     /// **Ask in Chat**: opens a fresh chat beside the Canvas with the cards as
     /// its context: a chip each over the composer and a line each for the
     /// model (`KnowledgeMapChatContext`), the text of the sources among them

@@ -3,8 +3,8 @@ import Foundation
 // MARK: - Suggested questions for a chat opened from the Canvas (docs/heptabase-canvas-parity.md, "AI on the whiteboard")
 //
 // Heptabase starts a chat about a board with a few questions to ask. A chat
-// opened beside a canvas (Ask in Chat, Lay Out a Topic, a canvas made from
-// sources) offers three, drawn from what the learner wrote on it: their Ideas'
+// opened beside a canvas (Ask in Chat, a canvas made from sources) offers
+// three, drawn from what the learner wrote on it: their Ideas'
 // sentences and their regions' names, in templates. No model is asked; a
 // canvas with nothing written on it offers none.
 

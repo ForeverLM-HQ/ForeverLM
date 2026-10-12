@@ -4,8 +4,8 @@ import Foundation
 //
 // Ask in Chat on a selection or a region opens a fresh chat beside the Canvas
 // with the cards as chips over its composer (`KnowledgeMapChatContext`) and
-// nothing typed; Lay Out a Topic and a canvas made from sources open one with
-// something typed, unsent, and no cards. Add to Chat gives the cards to the chat
+// nothing typed; a canvas made from sources opens one with something typed,
+// unsent, and no cards. Add to Chat gives the cards to the chat
 // already beside the Canvas, or opens one. The chat's empty state also offers
 // three suggested questions drawn from the canvas
 // (`KnowledgeMapSuggestedQuestions`), which the chat pane takes from
