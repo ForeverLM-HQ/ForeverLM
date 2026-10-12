@@ -252,9 +252,10 @@ enum SpaceSidebarMetrics {
     /// ChatGPT's sidebar is a step off the page: #F9F9F9 beside white.
     static let background = Color.primary.opacity(0.028)
     /// Codex's selected row, measured off its window (2026-10-12): #EDEDED
-    /// on #FAFAFA, a 5% step; a hover is a lighter one (`StudioDesign.selectionFill`).
+    /// on #FAFAFA, a 5% step; a hover is under half of it, so it never reads
+    /// as a second selection (`StudioDesign.selectionFill`).
     static let selectedFill = Color.primary.opacity(0.05)
-    static let hoverFill = Color.primary.opacity(0.035)
+    static let hoverFill = Color.primary.opacity(0.02)
 }
 
 /// The sidebar's top line, its first row: the Space's name, the bell and the

@@ -41,11 +41,13 @@ enum StudioDesign {
     /// stray colour beside Codex's chrome (product owner, 2026-10-12: "this
     /// top left still looks a bit bad with colors; make it look more like
     /// codex"). 5% is Codex's own step, measured off its window the same day
-    /// (#E5E4E5 on its #F1F1F0 strip, #EDEDED on its #FAFAFA sidebar); a
-    /// hover stays a lighter step under it.
+    /// (#E5E4E5 on its #F1F1F0 strip, #EDEDED on its #FAFAFA sidebar). A
+    /// hover is under half of it: at 3.5% the row under the pointer read as
+    /// a second selection beside the selected one (product owner,
+    /// 2026-10-12, of Pages and Sites both grey in the Space sidebar).
     static func selectionFill(isSelected: Bool, isHovered: Bool) -> Color {
         if isSelected { return Color.primary.opacity(0.05) }
-        if isHovered { return Color.primary.opacity(0.035) }
+        if isHovered { return Color.primary.opacity(0.02) }
         return .clear
     }
 }
