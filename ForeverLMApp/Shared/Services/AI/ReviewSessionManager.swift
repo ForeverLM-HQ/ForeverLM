@@ -6443,18 +6443,28 @@ final class ReviewSessionManager {
                     "required": ["source_id"],
                 ]
             ))
-            // The walkthrough's focus, callable by the tutor: the Reader
-            // scrolls to and outlines what the reply is about, the way a
-            // played step does (walkthrough-design.md, "Focus is a chat tool").
+        }
+
+        // The walkthrough's focus, callable by the tutor: the Reader opens
+        // beside the chat and scrolls to and outlines what the reply is about,
+        // the way a played step does (walkthrough-design.md, "Focus is a chat
+        // tool"). Like the picture tools it takes any source in the library,
+        // so it rides every chat a pane shows: on 2026-10-11 "explain the key
+        // points and walk through the figures" of a paper a search had just
+        // found left the Reader shut, because the tool came only with an
+        // attached source (product owner: "from the chat it should be able to
+        // open the reader and show what it means"). A manager no pane shows
+        // has no Reader to point, so it is not offered there.
+        if walkthroughFocusHandler != nil {
             specs.append(AIToolSpec(
                 name: "focus_source_anchor",
-                description: "Point the learner's Reader at one place in an attached paper — a PDF not yet open beside the chat is opened there first —, book chapter or article while you explain it: a figure (outlined on the PDF page), one panel of a figure (outlined alone; a chat with no Reader beside it gets a Markdown image line showing it enlarged instead), a passage copied from the source's text (outlined on the page, or scrolled to and flashed when the source is shown as text), or a page. Call it when your reply walks the learner through a figure, a panel or a passage — before or as you explain it — so what you say is what they see. Every anchor is checked against the source's figure index and text, so use the printed figure label exactly as the source prints it and copy a passage exactly, eight to thirty words in order; an anchor the source does not print is refused. One call points at one place; call again for the next.",
+                description: "Open a paper, book chapter or article from the learner's library in the Reader beside this chat and point at one place in it while you explain: a figure (outlined on its PDF page), one panel of a figure (outlined alone; a chat with no Reader beside it gets a Markdown image line showing it enlarged instead), a passage copied from the source's text (outlined on the page, or scrolled to and flashed when the source is shown as text), or a page. The source need not be attached to this chat: take its source_id from the attached catalog, a search result or list_open_panes. Call it whenever your reply explains what a source says — its key points, a figure, a panel, a passage — pointing first and then explaining what is there, so the learner reads along in the source itself. The Reader shows one place at a time and is left on the last place a reply points at, so when the learner asks you to go through a source or walk through its figures, take one place per reply — point at it, explain it, and end by offering the next. A reply that covers several places, such as an overview of the key points, points at the one it starts with and cites the others with their excerpt links, which open the Reader there when clicked. To explain what a figure shows, inspect_paper_figure outlines it the same way and adds its vision reading; this tool only points, and costs nothing. Every anchor is checked against the source's figure index and text, so use the printed figure label exactly as the source prints it and copy a passage exactly, eight to thirty words in order; an anchor the source does not print is refused.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
                         "source_id": [
                             "type": "string",
-                            "description": "Attached source ID from the catalog."
+                            "description": "Source ID from the attached catalog, a search result or list_open_panes; the source need not be attached to this chat."
                         ],
                         "figure_label": [
                             "type": "string",
@@ -6541,7 +6551,7 @@ final class ReviewSessionManager {
         if openPanesProvider != nil {
             specs.append(AIToolSpec(
                 name: "list_open_panes",
-                description: "List what the learner has open in ForeverLM right now: each pane of the window this chat is in, left to right, with the tab on screen and what it shows — the source in the Reader (its source_id, and the PDF page the learner is on), the Doc, Site or animation, the Browser's page, the Activity pane's day — plus tabs behind it that still hold something, and the same for any other ForeverLM window. Call it when the learner refers to something without naming it and neither the on-screen list on their message nor anything attached settles it: \"figure 2D\", \"this paper\", \"this page\", \"what I'm reading\", \"the doc on the right\". What is attached to this chat is what the learner gave it, not necessarily what they have open. A source it lists is in the library, so pass its source_id straight to inspect_paper_figure, show_source_image or get_source_content. Free and instant; it reads the window, nothing else.",
+                description: "List what the learner has open in ForeverLM right now: each pane of the window this chat is in, left to right, with the tab on screen and what it shows — the source in the Reader (its source_id, and the PDF page the learner is on), the Doc, Site or animation, the Browser's page, the Activity pane's day — plus tabs behind it that still hold something, and the same for any other ForeverLM window. Call it when the learner refers to something without naming it and neither the on-screen list on their message nor anything attached settles it: \"figure 2D\", \"this paper\", \"this page\", \"what I'm reading\", \"the doc on the right\". What is attached to this chat is what the learner gave it, not necessarily what they have open. A source it lists is in the library, so pass its source_id straight to focus_source_anchor, inspect_paper_figure, show_source_image or get_source_content. Free and instant; it reads the window, nothing else.",
                 inputSchema: [
                     "type": "object",
                     "properties": [:] as [String: Any],
@@ -7175,6 +7185,55 @@ final class ReviewSessionManager {
         return await resolver.resolve(PaperWalkthroughAnchor(figureLabel: figureLabel, panelLabel: panelLabel))
     }
 
+    /// Outline `figureLabel` (and `panelLabel` within it) on its page in a
+    /// Reader beside this chat, opening the paper there first. Nil when the
+    /// figure cannot be placed on its page or no Reader beside the chat can
+    /// show the paper's pages (a chat in a window of its own).
+    private func outlineFigureBesideChat(
+        _ article: StudioArticle,
+        figures: [PaperFigureRecord],
+        figureLabel: String,
+        panelLabel: String?
+    ) async -> WalkthroughResolvedAnchor? {
+        guard let resolved = await paperFigureGeometry(
+            sourceID: article.id,
+            figures: figures,
+            figureLabel: figureLabel,
+            panelLabel: panelLabel
+        ), await readerBesideChatShowsPDF(of: article) else { return nil }
+        walkthroughFocusHandler?(.outline(resolved.target, stepID: "figure-\(UUID().uuidString)", sourceID: article.id))
+        return resolved
+    }
+
+    /// What `inspect_paper_figure` says when the figure is indexed but its
+    /// vision reading was not had — `failure` is the reading's error, nil when
+    /// no model is set up to read figures. It names where the learner can
+    /// still see the figure: outlined in the Reader beside the chat when it
+    /// was pointed at before the reading was asked for, otherwise through
+    /// `show_source_image`. The caption is the paper's own text; nothing here
+    /// stands in for the reading.
+    nonisolated static func figureReadingUnavailableMessage(
+        figureLabel: String,
+        pageNumber: Int,
+        caption: String,
+        failure: String?,
+        outlinedBesideChat: Bool
+    ) -> String {
+        var text = failure.map { reason in
+            let trimmed = reason.trimmingCharacters(in: .whitespacesAndNewlines)
+            let closed = trimmed.last.map { ".!?".contains($0) } == true ? trimmed : trimmed + "."
+            return "Error: the visual reading of \(figureLabel) failed: \(closed)"
+        } ?? "Error: \(figureLabel) is indexed, but its visual understanding could not be prepared."
+        if outlinedBesideChat {
+            text += " \(figureLabel) is outlined on PDF page \(pageNumber) in the Reader beside this chat, so the learner can see it there."
+                + " Tell them its reading failed, and do not describe what the figure shows as if you had seen it."
+                + " Its printed caption, which is the paper's text rather than a reading of the picture: \(caption)"
+        } else {
+            text += " Use show_source_image for page \(pageNumber) to show the figure without an explanation."
+        }
+        return text
+    }
+
     private nonisolated static func bareFigurePanelLabel(_ label: String) -> String {
         var trimmed = label.trimmingCharacters(in: .whitespacesAndNewlines)
         trimmed = trimmed.trimmingCharacters(in: CharacterSet(charactersIn: "()[]."))
@@ -7217,12 +7276,51 @@ final class ReviewSessionManager {
             // index — before this, the tool read a table that only a voice
             // review ever filled, so on any paper the learner had merely opened
             // it reported the index as "still being prepared" forever, and the
-            // figure came back as an uncropped page. Only the requested figure
-            // is explained, so the cost is one figure rather than the paper.
-            let figures = try await paperFigureIndexer.prepare(
-                sourceID: sourceID,
-                figureLabel: requested
-            )
+            // figure came back as an uncropped page. The structural half comes
+            // first: the printed captions say which figures the paper has and
+            // where each sits, with no model call.
+            var figures = try await storage.paperFigures(sourceID: sourceID)
+            if figures.isEmpty {
+                figures = try await paperFigureIndexer.prepareStructure(sourceID: sourceID)
+            }
+            let requestedPanel = ((arguments["panel_label"] as? String) ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            // Show the figure before explaining it. The vision reading takes
+            // seconds and can fail — on 2026-10-11 a rate-limited free model
+            // failed it, and the learner who asked to walk through a paper's
+            // figures saw nothing, though where Figure 1 sits was known all
+            // along. The paper opens beside the chat with the figure outlined
+            // now; a failed reading is still reported as a failure.
+            var outlinedEarly: WalkthroughResolvedAnchor?
+            if let indexed = PaperFigureIndexer.figure(labelled: requested, in: figures),
+               indexed.analysis?.analysisVersion != PaperFigureAnalysis.currentVersion {
+                outlinedEarly = await outlineFigureBesideChat(
+                    article,
+                    figures: figures,
+                    figureLabel: indexed.figureLabel,
+                    panelLabel: requestedPanel.isEmpty ? nil : requestedPanel
+                )
+            }
+            // Then the vision half: only the requested figure is explained,
+            // so the cost is one figure rather than the paper.
+            do {
+                figures = try await paperFigureIndexer.prepare(
+                    sourceID: sourceID,
+                    figureLabel: requested
+                )
+            } catch {
+                guard let indexed = PaperFigureIndexer.figure(labelled: requested, in: figures) else { throw error }
+                return AppToolResult(
+                    text: Self.figureReadingUnavailableMessage(
+                        figureLabel: indexed.figureLabel,
+                        pageNumber: indexed.pageNumber,
+                        caption: indexed.caption,
+                        failure: error.localizedDescription,
+                        outlinedBesideChat: outlinedEarly != nil
+                    ),
+                    isError: true
+                )
+            }
             guard let figure = PaperFigureIndexer.figure(labelled: requested, in: figures) else {
                 // A miss here rarely means the picture does not exist. A
                 // supplementary figure ("Figure S17") is printed in a separate
@@ -7243,12 +7341,16 @@ final class ReviewSessionManager {
             }
             guard let analysis = figure.analysis else {
                 return AppToolResult(
-                    text: "Error: \(figure.figureLabel) is indexed, but its visual understanding could not be prepared. Use show_source_image for page \(figure.pageNumber) to show the figure without an explanation.",
+                    text: Self.figureReadingUnavailableMessage(
+                        figureLabel: figure.figureLabel,
+                        pageNumber: figure.pageNumber,
+                        caption: figure.caption,
+                        failure: nil,
+                        outlinedBesideChat: outlinedEarly != nil
+                    ),
                     isError: true
                 )
             }
-            let requestedPanel = ((arguments["panel_label"] as? String) ?? "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
             let panel = Self.paperFigurePanel(labelled: requestedPanel, in: analysis)
             if !requestedPanel.isEmpty, panel == nil {
                 let labels = analysis.panels.map(\.label).joined(separator: ", ")
@@ -7319,7 +7421,12 @@ final class ReviewSessionManager {
                 }
             }
             if let outline {
-                walkthroughFocusHandler?(.outline(outline.target, stepID: "figure-\(UUID().uuidString)", sourceID: sourceID))
+                // The reading measured the figure, so the outline drawn before
+                // it moves onto the analysed rectangle or the panel asked for;
+                // one already there is left alone rather than drawn again.
+                if outline.target != outlinedEarly?.target {
+                    walkthroughFocusHandler?(.outline(outline.target, stepID: "figure-\(UUID().uuidString)", sourceID: sourceID))
+                }
                 lines.append("")
                 lines.append(
                     "The paper is open in the Reader beside this chat, and \(shownLabel) is now outlined on its page there. "
@@ -11793,7 +11900,16 @@ final class ReviewSessionManager {
     /// part of the paper"; asked whether to open the paper when it was not
     /// open: "yes").
     private func readerBesideChatShowsPDF(of article: StudioArticle) async -> Bool {
-        guard WalkthroughAnchorResolver.readerShowsPDF(article), walkthroughFocusHandler != nil else { return false }
+        guard WalkthroughAnchorResolver.readerShowsPDF(article) else { return false }
+        return await readerBesideChatShowsOpening(article)
+    }
+
+    /// Whether a Reader beside this chat shows `article`, as pages or as
+    /// text — opening it there first when none does. A passage of an article
+    /// is flashed by the Reader showing it, so pointing at one with no Reader
+    /// open showed nothing at all.
+    private func readerBesideChatShowsOpening(_ article: StudioArticle) async -> Bool {
+        guard walkthroughFocusHandler != nil else { return false }
         if readerBesideChatShows(article.id) { return true }
         // A tutor going through a figure panel by panel calls again before
         // the Reader it just opened has mounted; opening it a second time
@@ -12628,7 +12744,7 @@ final class ReviewSessionManager {
     /// live tutor too.
     private func focusSourceAnchor(arguments: [String: Any]) async -> AppToolResult {
         guard let requestedID = Self.nonEmptyTrimmed(arguments["source_id"] as? String) else {
-            return AppToolResult(text: "Error: focus_source_anchor needs a source_id, from the attached catalog.", isError: true)
+            return AppToolResult(text: "Error: focus_source_anchor needs a source_id, from the attached catalog or a search result.", isError: true)
         }
         guard let article = await librarySourceArticle(forRequestedID: requestedID) else {
             return AppToolResult(text: Self.sourceNotInLibraryMessage(requestedID), isError: true)
@@ -12704,9 +12820,13 @@ final class ReviewSessionManager {
         }
         let showsPDF = WalkthroughAnchorResolver.readerShowsPDF(article)
         let resolved = showsPDF ? await resolver.resolve(anchor) : nil
-        // Pointing a Reader that is not there shows nothing: open the paper
-        // beside the chat first, as inspect_paper_figure does.
-        let besideChat = resolved != nil ? await readerBesideChatShowsPDF(of: article) : readerBesideChatShows(sourceID)
+        // Pointing a Reader that is not there shows nothing: open the source
+        // beside the chat first — a paper to outline on, or an article whose
+        // passage the Reader scrolls to and flashes — as inspect_paper_figure
+        // does.
+        let besideChat = resolved != nil || anchor.passage != nil
+            ? await readerBesideChatShowsOpening(article)
+            : readerBesideChatShows(sourceID)
         let stepID = "focus-\(UUID().uuidString)"
         if showsPDF, let resolved {
             walkthroughFocusHandler?(.outline(resolved.target, stepID: stepID, sourceID: sourceID))
@@ -15967,7 +16087,8 @@ extension ReviewSessionManager {
         notebookScopeID: String? = nil,
         webSearch: WebSearchAccess = .unavailable,
         browserAgent: ChatBrowserAgent? = nil,
-        openPanes: ChatOpenPanes? = nil
+        openPanes: ChatOpenPanes? = nil,
+        pointsReader: Bool = false
     ) -> [AIToolSpec] {
         let manager = ReviewSessionManager(
             storage: StorageService(storeRoot: temporaryTestingRoot()),
@@ -15987,7 +16108,16 @@ extension ReviewSessionManager {
         if let openPanes {
             manager.openPanesProvider = { openPanes }
         }
+        // A pane showing the chat lends it a way to point the Reader.
+        if pointsReader {
+            manager.walkthroughFocusHandler = { _ in }
+        }
         return manager.nativeToolSpecs(webSearch: webSearch)
+    }
+
+    /// `focus_source_anchor` as the chat runs it.
+    func focusSourceAnchorForTesting(arguments: [String: Any]) async -> AppToolResult {
+        await focusSourceAnchor(arguments: arguments)
     }
 
     static func notebookScopedArgumentsForTesting(

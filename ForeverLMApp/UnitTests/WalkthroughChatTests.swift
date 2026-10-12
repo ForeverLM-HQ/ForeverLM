@@ -1189,3 +1189,129 @@ struct WalkthroughProgressStorageTests {
     }
 
 }
+
+// MARK: - A chat pointing the Reader
+
+/// "Explain the key points and walk through the figures" of a paper a search
+/// had just found: the chat opens the source beside itself and points at
+/// what its reply is about, attached or not.
+@Suite("Chat points the Reader")
+@MainActor
+struct ChatReaderFocusTests {
+    private enum Event: Equatable {
+        case opened(String)
+        case focused(WalkthroughReaderFocus)
+    }
+
+    private let text = "Identity is written in development. Development writes deep valleys of cell identity that adult maintenance slowly erodes with age. Ageing flattens the valleys."
+
+    private func seedArticle(_ storage: StorageService) async throws -> StudioArticle {
+        var article = StudioArticle(url: "https://example.org/grammar-of-identity", title: "Grammar of identity", sourceType: .article, discoveryOrigin: .manual)
+        article.author = "Zara Holt"
+        article.content = text
+        article.wordCount = text.split(separator: " ").count
+        article.state = .ready
+        try await storage.saveSource(article)
+        return article
+    }
+
+    @Test("focus_source_anchor rides every chat a pane shows, a source attached or not, and no manager without a pane")
+    func offeredWhereverAReaderCanBePointed() {
+        let detached = ReviewSessionManager.nativeToolSpecsForTesting(
+            hasAttachedSource: false, appTools: [], hasSynthesisContext: false, pointsReader: true
+        )
+        let focus = detached.first { $0.name == "focus_source_anchor" }
+        #expect(focus != nil)
+        #expect(focus?.description.contains("need not be attached") == true)
+        #expect(focus?.description.contains("one place per reply") == true)
+        let sourceProperty = (focus?.inputSchema["properties"] as? [String: Any])?["source_id"] as? [String: Any]
+        #expect((sourceProperty?["description"] as? String)?.contains("search result") == true)
+
+        // No pane lent a way to point the Reader: nothing to offer, whatever
+        // is attached.
+        for attached in [false, true] {
+            let paneless = ReviewSessionManager.nativeToolSpecsForTesting(
+                hasAttachedSource: attached, appTools: [], hasSynthesisContext: false
+            )
+            #expect(!paneless.contains { $0.name == "focus_source_anchor" })
+        }
+    }
+
+    @Test("A passage of an article no Reader shows opens the article beside the chat first, then flashes there")
+    func passageOpensTheSourceFirst() async throws {
+        let storage = makeTemporaryStorage("focus-opens")
+        let article = try await seedArticle(storage)
+        let manager = ReviewSessionManager(storage: storage)
+        var events: [Event] = []
+        manager.walkthroughFocusHandler = { events.append(.focused($0)) }
+        manager.walkthroughReaderShowsSource = { _ in false }
+        manager.readerBesideChatOpener = { sourceID in
+            events.append(.opened(sourceID))
+            return true
+        }
+
+        let passage = "Development writes deep valleys of cell identity that adult maintenance slowly erodes"
+        let result = await manager.focusSourceAnchorForTesting(arguments: ["source_id": article.id, "passage": passage])
+
+        #expect(!result.isError)
+        #expect(result.text.contains("flashed"))
+        #expect(events == [.opened(article.id), .focused(.flash(passage: passage, sourceID: article.id))])
+    }
+
+    @Test("An article already beside the chat is pointed at in place; a passage it does not print opens nothing")
+    func shownSourceIsNotOpenedAgain() async throws {
+        let storage = makeTemporaryStorage("focus-shown")
+        let article = try await seedArticle(storage)
+        #expect(try #require(await storage.loadSourceContent(article.id)).contains("deep valleys"))
+        let manager = ReviewSessionManager(storage: storage)
+        var events: [Event] = []
+        manager.walkthroughFocusHandler = { events.append(.focused($0)) }
+        manager.walkthroughReaderShowsSource = { $0 == article.id }
+        manager.readerBesideChatOpener = { sourceID in
+            events.append(.opened(sourceID))
+            return true
+        }
+
+        let passage = "Ageing flattens the valleys"
+        let shown = await manager.focusSourceAnchorForTesting(arguments: ["source_id": article.id, "passage": passage])
+        #expect(!shown.isError)
+        #expect(events == [.focused(.flash(passage: passage, sourceID: article.id))])
+
+        events = []
+        let invented = await manager.focusSourceAnchorForTesting(arguments: [
+            "source_id": article.id,
+            "passage": "Ageing is a programme the genome runs on purpose",
+        ])
+        #expect(invented.isError)
+        #expect(events.isEmpty)
+    }
+
+    @Test("A figure whose reading failed is reported as a failure that says where it is outlined, and never reads the picture")
+    func failedFigureReadingSaysWhereTheFigureIs() {
+        let outlined = ReviewSessionManager.figureReadingUnavailableMessage(
+            figureLabel: "Figure 1",
+            pageNumber: 2,
+            caption: "Fig. 1 | Three layers of regulation.",
+            failure: "The free model is rate-limited upstream (429)",
+            outlinedBesideChat: true
+        )
+        #expect(outlined.hasPrefix("Error: the visual reading of Figure 1 failed: The free model is rate-limited upstream (429)."))
+        #expect(outlined.contains("outlined on PDF page 2 in the Reader beside this chat"))
+        #expect(outlined.contains("do not describe what the figure shows as if you had seen it"))
+        #expect(outlined.contains("Fig. 1 | Three layers of regulation."))
+        #expect(!outlined.contains("show_source_image"))
+
+        // No Reader beside the chat, and no model set up to read figures:
+        // the picture is still one call away.
+        let unopened = ReviewSessionManager.figureReadingUnavailableMessage(
+            figureLabel: "Figure 1",
+            pageNumber: 2,
+            caption: "Fig. 1 | Three layers of regulation.",
+            failure: nil,
+            outlinedBesideChat: false
+        )
+        #expect(unopened.hasPrefix("Error: Figure 1 is indexed, but its visual understanding could not be prepared."))
+        #expect(unopened.contains("show_source_image for page 2"))
+        #expect(!unopened.contains("outlined"))
+    }
+}
