@@ -6,7 +6,7 @@ description: How ForeverLM compares to RemNote on pricing, AI costs, data owners
 
 # ForeverLM vs RemNote
 
-RemNote is an all-in-one student platform: notes that auto-generate flashcards, PDF annotation, exam schedulers, and a growing AI layer. It's arguably the most feature-complete study app for coursework. ForeverLM is narrower and more opinionated: track every source you consume, schedule it, and verify understanding through review-style AI dialogue — with your data in your own iCloud and the AI you already pay for.
+RemNote is an all-in-one student platform: notes that auto-generate flashcards, PDF annotation, exam schedulers, and a growing AI layer. It's arguably the most feature-complete study app for coursework. ForeverLM is narrower and more opinionated: track every source you consume, schedule it, and verify understanding through an AI review dialogue — with your data in your own iCloud and the AI you already pay for.
 
 ## At a glance
 
@@ -17,9 +17,9 @@ RemNote is an all-in-one student platform: notes that auto-generate flashcards, 
 | **Platforms** | Native macOS app (macOS 14+) | Web, Mac, Windows, Linux, iOS, Android |
 | **Data storage** | Local SQLite + files in your private iCloud container | RemNote's cloud by default; local-only knowledge bases on desktop lose sync |
 | **Source ingestion** | Automatic: articles, papers, podcasts, books, YouTube, X posts | PDFs, slides, lecture recordings, web clipper — no podcasts or YouTube |
-| **Review method** | review dialogue with an AI tutor | Spaced-repetition flashcards (SM-2/FSRS), AI-generated cards, AI quizzes and grading |
+| **Review method** | Review dialogue with an AI tutor | Spaced-repetition flashcards (SM-2/FSRS), AI-generated cards, AI quizzes and grading |
 | **Model choice** | Any MCP-compatible AI (Claude, ChatGPT, Gemini, Grok), or any model in-app through your own OpenRouter key | OpenAI/Anthropic/Google behind RemNote's credit system |
-| **Export** | Files in your iCloud Drive; SQLite you can open | Markdown/JSON export; rich structure and scheduling history don't survive cleanly |
+| **Export** | Files on your Mac; SQLite you can open | Markdown/JSON export; rich structure and scheduling history don't survive cleanly |
 
 *Pricing verified July 2026 — check [remnote.com/pricing](https://www.remnote.com/pricing) for current numbers.*
 
@@ -27,7 +27,7 @@ RemNote is an all-in-one student platform: notes that auto-generate flashcards, 
 
 Meaningful AI use on RemNote costs **$216/yr** (Pro + AI), and even the $395 lifetime license excludes AI credits — AI stays a $10/mo add-on forever. The credits are RemNote-denominated: you can't bring your own key or your existing ChatGPT/Claude subscription.
 
-ForeverLM is **7 days free, then $19 once**, built-in AI included, and its AI takes two routes, mixable: any model in the in-app Chat, on your own OpenRouter key, billed by OpenRouter at its cost with nothing added (free models cost nothing); or drive ForeverLM over MCP from the Claude, ChatGPT, Gemini, or Grok subscription you're already paying for. The inference is on that subscription. Per-conversation costs in the app are shown to the cent.
+ForeverLM is **7 days free, then $19 once**, and its AI takes two routes, mixable: any model in the in-app Chat, on your own OpenRouter key, billed by OpenRouter at its cost with nothing added (free models cost nothing); or drive ForeverLM over MCP from the Claude, ChatGPT, Gemini, or Grok subscription you're already paying for. The inference is on that subscription. Per-conversation costs in the app are shown to the cent.
 
 Three years of RemNote Pro + AI is ~$648 committed up front. ForeverLM's equivalent number is $19 once for the app, MCP included, plus whatever OpenRouter bills for the AI you chose to run. That is the honest answer, not a dodge: usage is the one line item you control directly.
 

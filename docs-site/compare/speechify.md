@@ -14,10 +14,10 @@ The short version: choose Speechify when the voice reader itself is the product.
 
 | | ForeverLM | Speechify |
 |---|---|---|
-| **Price** | 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost; on-device and local speech included | Free voice-reader tier; Premium is $29/month on the monthly plan |
-| **Platforms** | Mac for the full library and reader; synced listening and voice interaction on iPhone and CarPlay | Web, Mac, Windows, iPhone, iPad, Android, Chrome, and Edge |
+| **Price** | 7 days free, then $19 once (no subscription); AI and voices on your own OpenRouter key at cost (free voices cost nothing) | Free voice-reader tier; Premium is $29/month on the monthly plan |
+| **Platforms** | Mac for the full library and reader; synced listening and voice interaction on iPhone | Web, Mac, Windows, iPhone, iPad, Android, Chrome, and Edge |
 | **What it reads** | Articles, papers, books, and transcript-only sources already organized in your ForeverLM library | Webpages, PDFs, documents, scans, and text imported from cloud drives |
-| **Voices** | On-device macOS voices, local Qwen3-TTS, or cloud voices from multiple providers | Premium advertises 1,000+ voices in 60+ languages |
+| **Voices** | Every speech model OpenRouter serves, from many makers; free ones cost nothing | Premium advertises 1,000+ voices in 60+ languages |
 | **Playback** | Pause, 15-second seek, 0.75–2x speed, cached audio, iCloud sync | Up to 1.5x on Free and 5x on Premium, with synchronized highlighting |
 | **AI conversation** | Source-grounded Chat inside the app, or Claude, ChatGPT, Gemini, and Grok through MCP | Premium AI summaries, chat, and a general voice assistant |
 | **After listening** | Put the source on Schedule, run a review, and keep the review linked to it | No learning schedule or source-linked active-recall history |
@@ -46,7 +46,7 @@ In ForeverLM, the source already belongs to a library that includes articles, ac
 - **One library for every learning source.** The same place holds the paper you listen to, the podcast you heard yesterday, the article you saved for Friday, and the chat where you connected their ideas.
 - **Listening leads somewhere.** Schedule the source, track whether it is pending or reviewed, and use [review dialogue](/why-quizzing) to check understanding instead of treating playback as completion.
 - **Chat stays integrated.** Ask about the current selection or the full source without exporting it into a separate workflow. Completed reviews remain linked to the sources they covered.
-- **Choose the voice rail.** Use free on-device speech, run Qwen3-TTS locally, or choose a supported cloud provider and voice. You are not locked into one voice catalog or subscription.
+- **Choose the voice.** Pick any speech model OpenRouter serves, from many makers, and one of its voices; free ones cost nothing. You are not locked into one voice catalog or subscription.
 - **Reusable audio.** Cloud narration can be cached and synced through iCloud so the iPhone can play the prepared source without regenerating every chunk.
 - **Your source library stays yours.** Files and metadata live in your iCloud and local SQLite database, not in a required vendor reading account.
 
@@ -56,4 +56,4 @@ Choose **Speechify** if your main question is, “What is the best way to have a
 
 Choose **ForeverLM** if your question is, “How do I keep up with everything I want to learn, listen when reading is inconvenient, and still remember it later?” Text to Speech is included in the same system as your reading list, papers, notebooks, Schedule, source-grounded chat, and review history.
 
-If you only need occasional narration on a Mac, start with ForeverLM's free on-device voice. If listening is the center of your day across Android, Windows, and the web, Speechify will probably fit better.
+If you only need occasional narration on a Mac, start with a free voice in ForeverLM. If listening is the center of your day across Android, Windows, and the web, Speechify will probably fit better.

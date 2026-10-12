@@ -18,9 +18,9 @@ Obsidian is the gold standard for owning your notes: free, local Markdown files,
 | **Data storage** | Local SQLite + files in your private iCloud container, CloudKit sync | Local Markdown files; optional E2E-encrypted paid sync, or DIY iCloud/git sync |
 | **Source ingestion** | Automatic: Safari reading list, Apple Podcasts, PDFs, papers, books, YouTube, X posts | None built in — web clipper for articles; everything else via plugins or manual |
 | **Podcasts** | Follow shows, full episode transcripts | Not supported natively |
-| **Review method** | review dialogue with an AI tutor | None built in; community spaced-repetition plugins, self-graded |
+| **Review method** | Review dialogue with an AI tutor | None built in; community spaced-repetition plugins, self-graded |
 | **Model choice** | Any MCP-compatible AI, or any model in-app through your own OpenRouter key | Whatever a plugin supports (BYOK, incl. local models via Ollama) |
-| **Export** | Files in your iCloud Drive; SQLite you can open | Zero lock-in — it's already a folder of .md files |
+| **Export** | Files on your Mac; SQLite you can open | Zero lock-in — it's already a folder of .md files |
 
 *Pricing verified July 2026 — check [obsidian.md/pricing](https://obsidian.md/pricing) for current numbers.*
 
@@ -40,8 +40,8 @@ ForeverLM is 7 days free, then $19 once, and iCloud sync is included: there's no
 
 ## Where ForeverLM is better
 
-- **Capture is automatic.** Obsidian ingests nothing by itself — no articles, no podcasts, no papers, no highlights. ForeverLM auto-discovers sources from your Safari reading list, Apple Podcasts follows, iCloud folders, and reference managers. Many Obsidian users pay $120/yr for Readwise just to pipe content in.
-- **A learning loop exists out of the box.** Obsidian has no review system; spaced-repetition plugins are self-graded flashcards you configure and maintain yourself. ForeverLM ships a weekly Schedule, review-style AI review sessions, and per-source understanding history — no assembly required.
+- **Capture is automatic.** Obsidian ingests nothing by itself — no articles, no podcasts, no papers, no highlights. ForeverLM auto-discovers sources from your Safari reading list, Apple Podcasts follows, and reference managers. Many Obsidian users pay $120/yr for Readwise just to pipe content in.
+- **A learning loop exists out of the box.** Obsidian has no review system; spaced-repetition plugins are self-graded flashcards you configure and maintain yourself. ForeverLM ships a weekly Schedule, AI review sessions, and per-source understanding history — no assembly required.
 - **The AI reads your actual sources.** Through MCP, Claude, ChatGPT, Gemini, or Grok can search your whole library, pull full source text, quiz you on it, and save the review back. Obsidian AI plugins mostly operate on your notes, not on original source material.
 - **Sources, not just notes about sources.** ForeverLM tracks the article, the paper PDF, the episode transcript itself — with a built-in Reader and Text to Speech — so review is grounded in what the author wrote, not what you managed to write down.
 - **Zero blank-canvas problem.** Obsidian's flexibility is also its tax: you design and maintain your own system. ForeverLM has one opinionated loop: track, schedule, read or listen, explain it back.

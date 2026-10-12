@@ -21,7 +21,7 @@ The best PDF listening app depends on what happens around the audio. Some apps a
 
 ## Best for research and learning: ForeverLM
 
-ForeverLM cleans papers for narration, can skip reference clutter, and offers free on-device voices, a local speech model, or optional cloud voices. More importantly, the audio stays attached to the source.
+ForeverLM cleans papers for narration, can skip reference clutter, and offers every speech model OpenRouter serves, free ones included. More importantly, the audio stays attached to the source.
 
 You can pause and ask about a claim, compare the paper with another source, add it to a notebook, and finish with a review that tests your explanation. That makes it the strongest choice when listening is a way to study rather than only a way to consume text.
 

@@ -18,8 +18,8 @@ Snipd is the best-known AI podcast player: tap your headphones mid-episode and i
 | **Data storage** | Local SQLite + files in your private iCloud container | Snipd's cloud; App Store privacy label lists identity-linked usage data, including for advertising |
 | **Scope** | Podcasts *plus* articles, papers, books, YouTube, X posts — one library | Podcasts only (Premium adds own audio files and YouTube) |
 | **Podcast model** | Follow shows via Apple Podcasts, full episode transcripts as readable sources | Streaming player with tap-to-snip highlights, AI summaries, chapters |
-| **Review method** | review dialogue with an AI tutor | None — snips export to Readwise/Notion/Obsidian for someone else to resurface |
-| **Export** | Files in your iCloud Drive; SQLite you can open | Good: auto-sync of snips to Readwise, Notion, Obsidian; markdown |
+| **Review method** | Review dialogue with an AI tutor | None — snips export to Readwise/Notion/Obsidian for someone else to resurface |
+| **Export** | Files on your Mac; SQLite you can open | Good: auto-sync of snips to Readwise, Notion, Obsidian; markdown |
 
 *Pricing verified July 2026 — Snipd's price varies by region and billing period; check [snipd.com/pricing](https://www.snipd.com/pricing) and your local App Store.*
 
@@ -38,7 +38,7 @@ ForeverLM is **7 days free, then $19 once**, and podcast transcripts are simply 
 
 ## Where ForeverLM is better
 
-- **Retention actually happens.** Snipd captures highlights; it has no review system — remembering is outsourced to whatever app you export to. ForeverLM closes the loop: episodes land on your weekly Schedule and you review them in review dialogue with an AI that has the full transcript. See [Why Quizzing?](/why-quizzing)
+- **Retention actually happens.** Snipd captures highlights; it has no review system — remembering is outsourced to whatever app you export to. ForeverLM closes the loop: episodes land on your weekly Schedule and you review them in a review dialogue with an AI that has the full transcript. See [Why Quizzing?](/why-quizzing)
 - **The whole episode, not just the moments you caught.** A snip is the sentence you reacted to. ForeverLM ingests the complete transcript — readable, searchable, quotable in review — so the AI can quiz you on the argument, not the soundbite.
 - **Podcasts beside everything else.** Your podcast episodes sit in the same library and same review loop as articles, papers, books, and videos. Snipd is podcasts-only.
 - **Privacy posture.** Your library lives in your iCloud; ForeverLM servers don't store it. Snipd's processing is cloud-side, and its App Store privacy label discloses identity-linked data collection including for advertising.

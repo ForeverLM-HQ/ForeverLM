@@ -12,11 +12,11 @@ ElevenReader is ElevenLabs' mobile reading app for turning articles, PDFs, EPUB 
 
 | | ForeverLM | ElevenReader |
 |---|---|---|
-| **Price** | 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost; on-device speech included | Free mobile app; separate ElevenLabs services have their own pricing |
+| **Price** | 7 days free, then $19 once (no subscription); AI and voices on your own OpenRouter key at cost (free voices cost nothing) | Free mobile app; separate ElevenLabs services have their own pricing |
 | **Platforms** | Full workflow on Mac, synced listening on iPhone | iPhone, iPad, and Android |
 | **Inputs** | Saved articles, papers, books, and transcripts in the library | PDF, EPUB, TXT, web links, scanned text, and pasted text |
-| **Voices** | Apple voices, local Qwen3-TTS, and optional cloud providers | Hundreds of ElevenLabs voices in 32 languages |
-| **Generated podcasts** | Keeps original podcasts and transcripts as sources | GenFM creates AI-hosted podcasts from imported content |
+| **Voices** | Every speech model OpenRouter serves, from many makers; free ones cost nothing | Hundreds of ElevenLabs voices in 32 languages |
+| **Generated podcasts** | A notebook's audio overview, one narrator over its sources; real podcasts kept as sources with transcripts | GenFM creates AI-hosted podcasts from imported content |
 | **Chat** | Source-grounded Chat and external MCP assistants | Listening-focused rather than a persistent research chat system |
 | **After listening** | Schedule, review, and keep learning history | Build a listening library and reading habit |
 
@@ -34,7 +34,7 @@ ElevenReader is ElevenLabs' mobile reading app for turning articles, PDFs, EPUB 
 
 - **The text remains a research source.** The PDF or article stays searchable, in its notebooks, and available to Chat after narration ends.
 - **Listening connects to action.** Put a source on Schedule, mark it complete, and review it through an AI dialogue.
-- **Multiple voice rails.** Use free on-device speech, a local model, or a supported cloud voice rather than depending on one provider.
+- **Many voice makers.** Pick any speech model OpenRouter serves rather than depending on one provider's voices.
 - **Podcasts are original sources too.** Follow real shows, keep full transcripts, and discuss them beside papers and articles.
 - **A long-term knowledge library.** ForeverLM is designed to accumulate years of reading and listening in your own iCloud.
 

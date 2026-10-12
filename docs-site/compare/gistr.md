@@ -20,7 +20,7 @@ Gistr calls itself an AI-native notebook. You save YouTube videos, podcasts, PDF
 | **Sources** | Papers with their PDFs, articles, books, podcasts (follow shows, full transcripts), YouTube, X posts, meetings; reading lists and Apple Podcasts arrive on their own | What you save or upload: YouTube (playlists from Explorer), podcasts from Apple Podcasts or Spotify links, web pages, PDF, Word, PowerPoint, EPUB, Markdown, audio, images |
 | **Retention** | Weekly Schedule, cards drafted as you finish sources, and a review dialogue saved per source | One-click quizzes; no flashcards or spaced repetition documented |
 | **Notes** | Pages in notebooks, linked to the passages they cite | Notes linked to timestamps and pages, in threads and collections |
-| **Export** | Files in your iCloud Drive; SQLite you can open | Notes as PDF, image or Markdown; other data on request |
+| **Export** | Files on your Mac; SQLite you can open | Notes as PDF, image or Markdown; other data on request |
 
 *Checked against gistr.so's pricing, FAQ, privacy policy and terms, and its Chrome Web Store and Google Play listings, in October 2026. Check [gistr.so/pricing](https://gistr.so/pricing) for current numbers.*
 
@@ -41,7 +41,7 @@ ForeverLM is 7 days free, then $19 once, with no subscription and no tiers: payi
 - **Saving is not the end.** ForeverLM schedules what you saved, drafts cards as you finish sources, and runs a review dialogue in which a tutor who has read the whole source checks that you understood it. Gistr documents quizzes, but no flashcards or spaced repetition. See [Why Quizzing?](/why-quizzing)
 - **Every model, no tiers.** No tier decides which model you may use, and nothing goes cold.
 - **Your library stays in your iCloud.** ForeverLM's library is a SQLite database and files in your private iCloud container, and its servers never hold it. Gistr's library lives on its cloud.
-- **Sources arrive on their own.** Reading lists, Apple Podcasts episodes with full transcripts, PDFs dropped into iCloud folders, X bookmarks, YouTube likes and meeting transcripts, without a save button.
+- **Sources arrive on their own.** Reading lists, Apple Podcasts episodes with full transcripts, X bookmarks, YouTube likes and meeting transcripts, without a save button.
 - **The assistant you already use.** Claude, ChatGPT, Gemini or Grok can search your library, add to it and run your reviews over MCP.
 - **Gemini Notebook moves in whole.** Paste a notebook's link and its sources, chats and notes arrive as a ForeverLM notebook ([Importing a Gemini Notebook](/studio#importing-a-gemini-notebook)).
 

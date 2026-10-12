@@ -19,7 +19,7 @@ Recall (recall.it, formerly getrecall.ai) is a self-organizing AI knowledge base
 | **Source ingestion** | Automatic: Safari reading list, Apple Podcasts follows, PDFs, papers, books, YouTube, X posts | Manual saves via extension/app: articles, YouTube, PDFs, podcasts, X, Reddit |
 | **Review method** | Cards you keep from your sources on a spaced schedule, and review dialogue with an AI tutor that reads the full source | Spaced-repetition quizzes (question/answer style) — paid tier only |
 | **MCP / assistant access** | Full MCP control surface: search, schedule, run and save review sessions | MCP + API access (retrieval) |
-| **Export** | Files in your iCloud Drive; SQLite you can open | Markdown zip export (web app only), API |
+| **Export** | Files on your Mac; SQLite you can open | Markdown zip export (web app only), API |
 
 *Pricing verified July 2026 — check [recall.it/pricing](https://www.recall.it/pricing) for current numbers; Recall raised Plus pricing at its 2.0 relaunch in April 2026.*
 
@@ -40,7 +40,7 @@ ForeverLM has no tiers to climb, because it has no tiers: the app is **7 days fr
 ## Where ForeverLM is better
 
 - **Deeper review.** Recall's spaced-repetition quizzes are generated Q&A cards. ForeverLM runs an explain-it-back conversation: you explain the source in your own words and an AI tutor with the full text probes for gaps and follows up. And review isn't paywalled behind a higher tier — see [Why Quizzing?](/why-quizzing)
-- **Sources arrive by themselves.** Recall ingestion is save-by-save via the extension. ForeverLM auto-discovers from your Safari reading list, Apple Podcasts follows, iCloud folders, and reference managers — your library reflects what you actually consume.
+- **Sources arrive by themselves.** Recall ingestion is save-by-save via the extension. ForeverLM auto-discovers from your Safari reading list, Apple Podcasts follows, and reference managers — your library reflects what you actually consume.
 - **Podcasts as first-class sources.** Follow shows, get full episode transcripts, read or listen, and get quizzed on them — not just saved links.
 - **Your cloud, not theirs.** Both apps are local-first, but Recall syncs through Recall's servers on Google Cloud; ForeverLM syncs through your own iCloud account, and the app's servers never store your library.
 - **A study planner.** The weekly Schedule assigns sources to days with completion tracking and review history; Recall has a review queue but no planning surface.

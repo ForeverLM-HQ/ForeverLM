@@ -8,7 +8,7 @@ description: Compare ForeverLM with NotebookLM, Speechify, Readwise, Zotero, Pap
 
 There are a lot of tools in the "learn and remember more" space, and they're genuinely different products: AI research assistants, flashcard apps, read-later services, note-taking systems, podcast players. This page compares them honestly — including where each one beats ForeverLM.
 
-**Where ForeverLM sits:** it's a source tracker plus learning loop. It gathers everything you read, watch, and listen to into one Mac-native library stored in *your* iCloud, schedules your week, and verifies understanding through [review-style AI review](/why-quizzing) — with whichever AI you already use.
+**Where ForeverLM sits:** it's a source tracker plus learning loop. It gathers everything you read, watch, and listen to into one Mac-native library stored in *your* iCloud, schedules your week, and verifies understanding through [AI review](/why-quizzing) — with whichever AI you already use.
 
 The five things that most distinguish it:
 
@@ -147,7 +147,7 @@ A subscription bills you every year whether or not you opened the app. Here's wh
 | Heptabase Premium | ~$648 |
 | NotebookLM via Google AI Pro | ~$720 |
 
-ForeverLM is the one row without a fixed total, and that's the honest answer: the app is $19 once, and the AI depends on the route you pick. Two routes, and you can mix them. The in-app Chat runs any model on your own OpenRouter key, which OpenRouter bills at its cost with nothing added by ForeverLM; its free models cost nothing. Driving ForeverLM over MCP from a Claude, ChatGPT, Gemini, or Grok subscription you *already* pay for is included, and the subscription is already in your budget. In the app, some tokens also go to background work (transcript cleanup, paper metadata extraction, search embeddings) on the same key, with the model configurable per task. The app keeps a to-the-cent ledger of every conversation.
+ForeverLM is the one row without a fixed total, and that's the honest answer: the app is $19 once, and the AI depends on the route you pick. Two routes, and you can mix them. The in-app Chat runs any model on your own OpenRouter key, which OpenRouter bills at its cost with nothing added by ForeverLM; its free models cost nothing. Driving ForeverLM over MCP from a Claude, ChatGPT, Gemini, or Grok subscription you *already* pay for is included, and the subscription is already in your budget. In the app, some tokens also go to background work (transcript cleanup, paper metadata extraction) on the same key, with the model configurable per task. The app keeps a to-the-cent ledger of every conversation.
 
 ## Try it
 
