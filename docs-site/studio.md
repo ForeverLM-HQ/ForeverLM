@@ -747,3 +747,7 @@ For papers specifically, open-access sources (arxiv, bioRxiv, PLOS, PMC) are fet
 - **Add sources to the context tray before dragging.** Only sources in the tray are included when you drag into a chat.
 - **Use semantic search** to find connections between sources you might not have noticed.
 - **Batch processing:** sources stay in your queue until you're ready. No rush to process everything immediately.
+
+## Screen record mode (admin only)
+
+On the Mac, **Settings → Data & Privacy → Screen recording** limits what appears while filming. The selected notebook and permitted sources can remain visible. Chats, notes, Pages, walkthroughs, generated outputs, and cards appear only if created after screen record mode was turned on. Filing older work into the notebook or citing a permitted source does not reveal it. Turn the mode off and on to start a new take. Nothing is deleted, and these settings do not sync to other devices.

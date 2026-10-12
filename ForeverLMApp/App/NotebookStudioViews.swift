@@ -123,7 +123,7 @@ struct NotebookStudioColumn: View {
     }
 
     private var walkthroughsKey: String {
-        "\(goal.id)#\(vm.readerWalkthroughRevision)#\(walkthroughWriter.runs.count)#\(vm.notebookMembershipRevision)#\(vm.activeTeamID ?? "")"
+        "\(goal.id)#\(vm.readerWalkthroughRevision)#\(walkthroughWriter.runs.count)#\(vm.notebookMembershipRevision)#\(vm.recordingScopeRevision)#\(vm.activeTeamID ?? "")"
     }
 
     /// Following a course touches the notebook's record, so its date reads
@@ -136,7 +136,7 @@ struct NotebookStudioColumn: View {
     /// notebook, or a new day (a draft expires and a card falls due on
     /// reading) reads the counts again.
     private var cardsKey: String {
-        "\(goal.id)#\(goal.updatedAt.timeIntervalSinceReferenceDate)#\(vm.memoryCardRevision)#\(vm.notebookMembershipRevision)#\(MemoryReviewGoal.dayKey(for: Date()))"
+        "\(goal.id)#\(goal.updatedAt.timeIntervalSinceReferenceDate)#\(vm.memoryCardRevision)#\(vm.notebookMembershipRevision)#\(vm.recordingScopeRevision)#\(MemoryReviewGoal.dayKey(for: Date()))"
     }
 
     var body: some View {
@@ -163,7 +163,10 @@ struct NotebookStudioColumn: View {
             linkedCourseIDs = await vm.notebookLinkedCourseIDs(notebookID: goal.id)
         }
         .task(id: cardsKey) {
-            if let counts = await vm.notebookCardCounts(notebookID: goal.id), counts != cardCounts { cardCounts = counts }
+            cardCounts = nil
+            let counts = await vm.notebookCardCounts(notebookID: goal.id)
+            guard !Task.isCancelled else { return }
+            cardCounts = counts
         }
         .modifier(NotebookStudioMadeExtras(goal: goal, cardsKey: cardsKey, extras: $extras, openedImage: $openedImage))
         // The records are the view model's; a notebook opened first after a
@@ -324,11 +327,11 @@ struct NotebookStudioStrip: View {
     @State private var openedImage: GeneratedImageStore.ImageGroup?
 
     private var walkthroughsKey: String {
-        "\(goal.id)#\(vm.readerWalkthroughRevision)#\(walkthroughWriter.runs.count)#\(vm.notebookMembershipRevision)#\(vm.activeTeamID ?? "")"
+        "\(goal.id)#\(vm.readerWalkthroughRevision)#\(walkthroughWriter.runs.count)#\(vm.notebookMembershipRevision)#\(vm.recordingScopeRevision)#\(vm.activeTeamID ?? "")"
     }
 
     private var cardsKey: String {
-        "\(goal.id)#\(vm.memoryCardRevision)#\(vm.notebookMembershipRevision)"
+        "\(goal.id)#\(vm.memoryCardRevision)#\(vm.notebookMembershipRevision)#\(vm.recordingScopeRevision)"
     }
 
     var body: some View {
@@ -460,7 +463,7 @@ struct NotebookStudioMadeExtras: ViewModifier {
     /// The notebook's sources and the library's, so a source added, or its
     /// narration made, reads the narrations again.
     private var narrationsKey: String {
-        "\(goal.id)#\(vm.notebookMembershipRevision)#\(vm.articles.count)#\(narrationRevision)#\(vm.activeTeamID ?? "")"
+        "\(goal.id)#\(vm.notebookMembershipRevision)#\(vm.recordingScopeRevision)#\(vm.articles.count)#\(narrationRevision)#\(vm.activeTeamID ?? "")"
     }
 
     func body(content: Content) -> some View {

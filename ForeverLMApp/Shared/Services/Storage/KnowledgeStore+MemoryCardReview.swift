@@ -189,7 +189,7 @@ extension KnowledgeStore {
         now: Date
     ) throws -> [MemoryCardToCheck] {
         let available = try memoryCardDraftSourcesAvailable(Set(drafts.map(\.sourceID)))
-        let decks = drafts.filter { deck in
+        let decks = (screenRecordScope()?.scopedCardDrafts(drafts) ?? drafts).filter { deck in
             available.contains(deck.sourceID)
                 && (scope?.contains(anchorSourceIDs: [deck.sourceID], goalID: nil) ?? true)
         }

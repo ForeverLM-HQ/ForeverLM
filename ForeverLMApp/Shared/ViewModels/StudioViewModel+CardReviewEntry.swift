@@ -614,8 +614,10 @@ extension StudioViewModel {
     /// and when another device or an assistant changed the library. A failed
     /// read leaves the last counts standing rather than inventing zero.
     func refreshMemoryCardCounts() async {
+        let recordingRevision = recordingScopeRevision
         do {
             let snapshot = try await memoryCardReviewSnapshot(scope: .allNotebooks, includesListings: false)
+            guard recordingRevision == recordingScopeRevision else { return }
             let counts = snapshot.counts
             if counts != memoryCardCounts { memoryCardCounts = counts }
             let bySource = Dictionary(grouping: snapshot.toCheck, by: \.sourceID).mapValues(\.count)

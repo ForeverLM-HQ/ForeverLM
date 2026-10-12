@@ -102,9 +102,9 @@ struct NotebookMembershipTests {
         let cutoff = day
         let scope = ScreenRecordScope(notebookID: "proj", allowedSourceIDs: ["filmed"], cutoff: cutoff)
         let before = cutoff.addingTimeInterval(-60)
-        #expect(scope.allowsItem(createdAt: before, notebookIDs: ["proj"]) == NotebookMembership.isFiled(in: "proj", notebookIDs: ["proj"]))
+        #expect(!scope.allowsItem(createdAt: before, notebookIDs: ["proj"]), "filing never reveals work from before the take")
         #expect(scope.allowsItem(createdAt: before, notebookIDs: ["other"]) == false)
-        #expect(scope.allowsSourceDerived(createdAt: before, sourceID: "filmed"))
+        #expect(!scope.allowsSourceDerived(createdAt: before, sourceID: "filmed"))
         #expect(!scope.allowsSourceDerived(createdAt: before, sourceID: "private"))
     }
 

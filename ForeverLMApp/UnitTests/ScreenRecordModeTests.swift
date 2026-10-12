@@ -163,19 +163,76 @@ struct ScreenRecordModeTests {
         #expect(!scope.allowsNotebook(id: "private-notebook", createdAt: before))
 
         #expect(scope.allowsItem(createdAt: after))
-        #expect(scope.allowsItem(createdAt: before, notebookIDs: ["notebook"]))
-        #expect(scope.allowsItem(createdAt: before, notebookIDs: [nil, "notebook"]))
+        #expect(!scope.allowsItem(createdAt: before, notebookIDs: ["notebook"]))
+        #expect(!scope.allowsItem(createdAt: before, notebookIDs: [nil, "notebook"]))
         #expect(!scope.allowsItem(createdAt: before, notebookIDs: ["private-notebook"]))
         #expect(!scope.allowsItem(createdAt: nil))
 
-        // A walkthrough rides its source; the learner's own chat about the
-        // same filmed source does not (it is filed nowhere, made before).
-        #expect(scope.allowsSourceDerived(createdAt: before, sourceID: "filmed"))
+        // Neither an older walkthrough nor a chat gets a pass from its source.
+        #expect(!scope.allowsSourceDerived(createdAt: before, sourceID: "filmed"))
         #expect(scope.allowsSourceDerived(createdAt: after, sourceID: "private"))
         #expect(!scope.allowsSourceDerived(createdAt: before, sourceID: "private"))
 
         let noNotebook = ScreenRecordScope(notebookID: nil, allowedSourceIDs: [], cutoff: cutoff)
         #expect(!noNotebook.allowsItem(createdAt: before, notebookIDs: [nil]))
+    }
+
+    @Test("Old notebook outputs stay hidden, including undated work; the exact cutoff is included")
+    func notebookMembershipNeverExposesOldOutputs() {
+        let cutoff = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        let before = cutoff.addingTimeInterval(-60)
+        let scope = ScreenRecordScope(notebookID: "notebook", allowedSourceIDs: ["filmed"], cutoff: cutoff)
+        #expect(!scope.allowsItem(createdAt: nil, notebookIDs: ["notebook"]))
+        #expect(!scope.allowsItem(createdAt: before, notebookIDs: ["notebook"]))
+        #expect(scope.allowsItem(createdAt: cutoff, notebookIDs: ["notebook"]))
+        #expect(scope.allowsSourceDerived(createdAt: cutoff, sourceID: "filmed"))
+        #expect(!scope.allowsSourceDerived(createdAt: before, sourceID: "filmed"))
+    }
+
+    @Test("A mixed source deck shows only the cards drafted during this take")
+    func mixedDraftDeckKeepsOnlyNewCards() {
+        let cutoff = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        let before = cutoff.addingTimeInterval(-60)
+        let scope = ScreenRecordScope(notebookID: "notebook", allowedSourceIDs: ["filmed"], cutoff: cutoff)
+        let cards = [
+            Flashcard(id: "old", front: "Old", back: "Old", draftedAt: before),
+            Flashcard(id: "new", front: "New", back: "New", draftedAt: cutoff),
+            Flashcard(id: "undated", front: "Undated", back: "Undated"),
+        ]
+        let decks = [MemoryCardDraftDeck(deckID: "deck", sourceID: "filmed", deck: FlashcardDeck(title: "Cards", cards: cards))]
+        let shown = scope.scopedCardDrafts(decks)
+        #expect(shown.map(\.deckID) == ["deck"])
+        #expect(shown[0].deck.cards.map(\.id) == ["new"])
+        #expect(decks[0].deck.cards.count == 3, "the stored deck stays intact")
+    }
+
+    @Test("Kept cards on a curated source obey the cutoff in listings and due picks, then return when recording stops")
+    func keptCardsRespectCutoffWithoutDeletingHistory() async throws {
+        let cutoff = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        let before = cutoff.addingTimeInterval(-60)
+        try await withCleanDefaults {
+            let store = try KnowledgeStore(inMemory: true)
+            try ScreenRecordCourseFixtures.saveSource(store, "filmed", .article, url: "https://example.org/article", addedAt: before)
+            let notebook = try store.createCompanionGoal(
+                title: "Recording", topic: "demo", startAt: before, endAt: LearningGoalRecord.openEndedEndAt,
+                dailyTarget: 3, discoveryEnabled: false, seedSourceIDs: ["filmed"]
+            )
+            func card(_ id: String) -> MemoryCard {
+                MemoryCard(cardID: id, front: id, back: id, origin: .drafted, deckID: MemoryCard.draftDeckID(sourceID: "filmed"))
+            }
+            let old = try store.keepMemoryCard(card("old"), sourceID: "filmed", quote: "Readable text", at: before)
+            let fresh = try store.keepMemoryCard(card("fresh"), sourceID: "filmed", quote: "Readable text", at: cutoff)
+            for item in [old, fresh] {
+                _ = try store.recordSelfGradedMemoryCardAttempt(memoryItemID: item.id, prompt: item.id, remembered: false, sessionKey: item.id, at: item.createdAt)
+            }
+            ScreenRecordMode.recordAdminStatus(true)
+            ScreenRecordMode.setNotebookID(notebook.id)
+            ScreenRecordMode.setEnabled(true, now: cutoff)
+            #expect(try store.reviewableMemoryItems().items.map(\.id) == [fresh.id])
+            #expect(try store.dueMemoryItems(now: cutoff.addingTimeInterval(86_400 * 10), limit: 1, goalID: nil).map { $0.item.id } == [fresh.id])
+            ScreenRecordMode.setEnabled(false)
+            #expect(Set(try store.reviewableMemoryItems().items.map(\.id)) == [old.id, fresh.id])
+        }
     }
 
     @Test("Sources added during a take admit public browser captures, never incidental private sync")
@@ -932,20 +989,20 @@ struct ScreenRecordSpaceSidebarTests {
             notebookID: "recording", allowedSourceIDs: [], cutoff: cutoff, allowedImageIDs: ["kept-picture"]
         )
         vm.artifacts = pages.filter { vm.isVisibleInRecordingMode($0) }
-        #expect(vm.artifacts.map(\.id) == ["filmed-page", "take-page"])
+        #expect(vm.artifacts.map(\.id) == ["take-page"])
 
         #expect(shown() == [
-            "take-canvas", "filmed-canvas", "filmed-page", "take-page", "take-list", "take-picture", "kept-picture",
+            "take-canvas", "take-page", "take-list", "take-picture", "kept-picture",
         ])
-        #expect(Set(vm.listedCanvases.map(\.id)) == ["take-canvas", "filmed-canvas"])
-        #expect(vm.pinnedCanvases.map(\.id) == ["filmed-canvas"])
+        #expect(Set(vm.listedCanvases.map(\.id)) == ["take-canvas"])
+        #expect(vm.pinnedCanvases.isEmpty)
         #expect(vm.listedSpaceLists.map(\.id) == ["take-list"])
         #expect(vm.pinnedSpaceLists.map(\.id) == ["take-list"])
         // A space shows while it holds a page, canvas or list on screen.
-        #expect(vm.orderedPageSpaces.map(\.id) == ["psp-filmed", "psp-take"])
+        #expect(vm.orderedPageSpaces.map(\.id) == ["psp-take"])
         // A team shows when made during the take or holding a page on screen;
         // joined during the take earns nothing (a synced row is stamped so).
-        #expect(vm.shownTeams.map(\.id) == ["team-shares-filmed", "team-take"])
+        #expect(vm.shownTeams.map(\.id) == ["team-take"])
         // In memory everything stays whole.
         #expect(vm.canvases.all.count == 4)
         #expect(vm.spaceLists.all.count == 2)

@@ -1039,9 +1039,18 @@ class StudioViewModel {
     /// whenever the Notebooks load or the setting changes.
     var screenRecordScope: ScreenRecordScope? = ScreenRecordScope.resolve { _ in [] } {
         didSet {
-            if screenRecordScope != oldValue { refreshScreenRecordShownCourses() }
+            if screenRecordScope != oldValue {
+                recordingScopeRevision &+= 1
+                memoryCardCounts = .zero
+                memoryCardsToCheckBySource = [:]
+                refreshScreenRecordShownCourses()
+                Task { [weak self] in await self?.refreshMemoryCardCounts() }
+            }
         }
     }
+
+    /// Invalidates presentation reads whenever the recording boundary or permissions change.
+    var recordingScopeRevision = 0
 
     /// The courses Screen record mode lets on screen (`ScreenRecordScope.allowsCourse`), read off the
     /// main actor by `refreshScreenRecordShownCourses`; nil while the mode is off. The lists that

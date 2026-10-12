@@ -62,6 +62,7 @@ struct MemoryPane: View {
             .studioCenterTabCloseChrome(for: .memory)
             .onAppear { goalTracker.configure(storage: vm.storage) }
             .task(id: loadKey) { await load() }
+            .onChange(of: vm.recordingScopeRevision) { _, _ in snapshot = .empty }
             .sheet(item: $editing) { card in
                 MemoryCardEditorSheet(card: card, wording: wording(of: card)) { edit in
                     editing = nil
@@ -103,13 +104,14 @@ struct MemoryPane: View {
     private var section: MemoryPaneSection { windowState.memoryPaneSection }
 
     private var loadKey: String {
-        "\(scopeTag)#\(vm.memoryCardRevision)#\(MemoryReviewGoal.dayKey(for: Date()))"
+        "\(scopeTag)#\(vm.memoryCardRevision)#\(vm.recordingScopeRevision)#\(MemoryReviewGoal.dayKey(for: Date()))"
     }
 
     private func load() async {
         let scope = scope
         do {
             let read = try await vm.memoryCardReviewSnapshot(scope: scope, includesListings: true)
+            guard !Task.isCancelled else { return }
             snapshot = read
             wordings = Self.wordings(of: read.cards)
             alwaysAsked = Self.alwaysAsked(read.cards)

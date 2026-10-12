@@ -37,7 +37,8 @@ extension StudioViewModel {
         let members = notebookOutputMemberIDs(notebook)
         let explainers: [NotebookOutputs.Explainer] = members.compactMap { sourceID in
             guard let explainer = explainer(explaining: sourceID),
-                  isVisibleInRecordingMode(explainer) else { return nil }
+                  isVisibleInRecordingMode(explainer),
+                  isVisibleInRecordingMode(createdAt: explainer.dateAdded) else { return nil }
             return NotebookOutputs.Explainer(
                 id: explainer.id,
                 explainedSourceID: sourceID,
@@ -48,7 +49,8 @@ extension StudioViewModel {
         let videos: [NotebookOutputs.VideoOverview] = members.compactMap { sourceID in
             guard let video = articlesById[sourceID],
                   GeneratedExplainerVideo.isVideoURL(video.url),
-                  isVisibleInRecordingMode(video) else { return nil }
+                  isVisibleInRecordingMode(video),
+                  isVisibleInRecordingMode(createdAt: video.dateAdded) else { return nil }
             return NotebookOutputs.VideoOverview(
                 sourceID: sourceID,
                 title: displayTitle(for: video),
@@ -56,7 +58,8 @@ extension StudioViewModel {
             )
         }
         let walks: [NotebookOutputs.Walkthrough] = walkthroughs.compactMap { walk in
-            guard let article = articlesById[walk.sourceID] else { return nil }
+            guard let article = articlesById[walk.sourceID],
+                  isVisibleInRecordingMode(createdAt: walk.generatedAt) else { return nil }
             return NotebookOutputs.Walkthrough(
                 sourceID: walk.sourceID,
                 title: walk.title.isEmpty ? displayTitle(for: article) : walk.title,
@@ -76,7 +79,7 @@ extension StudioViewModel {
         return NotebookOutputs.outputs(
             in: notebookID,
             memberSourceIDs: members,
-            records: artifacts,
+            records: artifacts.filter { isVisibleInRecordingMode($0) },
             audioOverviewIDs: articlesStore.audioOverviewArtifactIDs,
             runs: runs,
             courses: courses,
@@ -84,9 +87,9 @@ extension StudioViewModel {
             walkthroughs: walks,
             explainers: explainers,
             videoOverviews: videos,
-            cardRuns: cardRuns,
+            cardRuns: cardRuns.filter { isVisibleInRecordingMode(createdAt: $0.draftedAt) },
             pictures: pictures,
-            narrations: narrations
+            narrations: narrations.filter { isVisibleInRecordingMode(createdAt: $0.date) }
         )
     }
 
@@ -99,7 +102,7 @@ extension StudioViewModel {
         let members = notebookOutputMemberIDs(notebook)
         do {
             let decks = try await storage.loadCardDrafts(forSourceIDs: members)
-            return NotebookOutputs.cardRuns(decks, memberSourceIDs: members)
+            return NotebookOutputs.cardRuns(screenRecordScope?.scopedCardDrafts(decks) ?? decks, memberSourceIDs: members)
         } catch {
             logger.error("Reading a notebook's card runs failed: \(error.localizedDescription)")
             return []

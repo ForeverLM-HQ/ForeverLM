@@ -674,6 +674,7 @@ extension KnowledgeStore {
     func reviewableMemoryItems(
         restrictToSourceIDs requestedSourceIDs: Set<String>? = nil
     ) throws -> (items: [MemoryItem], attempts: [MemoryAttempt]) {
+        let recordingCutoff = screenRecordScope()?.cutoff
         let restrictToSourceIDs = try screenRecordNarrowedMemorySourceIDs(requestedSourceIDs)
         if let restrictToSourceIDs, restrictToSourceIDs.isEmpty { return ([], []) }
         let sourceIDs = restrictToSourceIDs.map { Array($0).sorted() }
@@ -689,10 +690,14 @@ extension KnowledgeStore {
                       AND conflict.logical_key = mi.id
               )
               \(reviewableMemoryAnchorPredicate(sourceIDs: sourceIDs))
+              \(recordingCutoff == nil ? "" : "AND mi.created_at >= ?")
             ORDER BY mi.id
         """, bind: { statement in
             for (index, sourceID) in (sourceIDs ?? []).enumerated() {
                 bind(statement, index + 1, sourceID)
+            }
+            if let recordingCutoff {
+                sqlite3_bind_double(statement, Int32((sourceIDs?.count ?? 0) + 1), recordingCutoff.timeIntervalSinceReferenceDate)
             }
         }) { statement in
             if let id = self.string(statement, 0) {
@@ -798,6 +803,7 @@ extension KnowledgeStore {
     ) throws -> [DueMemoryItem] {
         let boundedLimit = max(0, limit)
         guard boundedLimit > 0 else { return [] }
+        let recordingCutoff = screenRecordScope()?.cutoff
         let restrictToSourceIDs = try screenRecordNarrowedMemorySourceIDs(requestedSourceIDs)
         if let restrictToSourceIDs, restrictToSourceIDs.isEmpty { return [] }
 
@@ -820,6 +826,7 @@ extension KnowledgeStore {
                       AND conflict.logical_key = mi.id
               )
               \(sourcePredicate)
+              \(recordingCutoff == nil ? "" : "AND mi.created_at >= ?")
             ORDER BY
                 CASE WHEN (
                     COALESCE(TRIM(mi.learner_context), '') <> ''
@@ -843,6 +850,10 @@ extension KnowledgeStore {
                     bind(statement, Int(index), sourceID)
                     index += 1
                 }
+            }
+            if let recordingCutoff {
+                sqlite3_bind_double(statement, index, recordingCutoff.timeIntervalSinceReferenceDate)
+                index += 1
             }
             sqlite3_bind_int64(statement, index, Int64(boundedLimit))
         }) { statement in

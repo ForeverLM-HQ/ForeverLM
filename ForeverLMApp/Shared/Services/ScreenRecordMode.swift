@@ -448,30 +448,35 @@ struct ScreenRecordScope: Sendable, Equatable {
         id == notebookID || createdAt >= cutoff
     }
 
-    /// The learner's own work — chats, Goals, Ideas, tasks, Docs, Sites,
-    /// Animations, images, learning bouts: made during the take, or filed
-    /// under the recording Notebook. Citing one of the Notebook's sources earns
-    /// no pass. A filmed source is usually one the learner has studied in
-    /// private too, and the product owner (2026-09-24) wants every chat, artifact and
-    /// Goal of his own off screen, with only the curated recording Notebook's
-    /// work showing. Filed under is the notebook rule
-    /// (`NotebookMembership.isFiled`); callers expand a Goal to its Notebook
-    /// first (`NotebookMembership.filingNotebookIDs`).
+    /// The learner's own work shows only when created during this take.
+    /// Notebook membership and visible source citations never expose older work.
+    /// Missing dates fail closed; turning recording off leaves stored work intact.
     func allowsItem(createdAt: Date?, notebookIDs: [String?] = []) -> Bool {
-        if let createdAt, createdAt >= cutoff { return true }
-        return NotebookMembership.isFiled(in: notebookID, notebookIDs: notebookIDs)
+        guard let createdAt else { return false }
+        return createdAt >= cutoff
     }
 
-    /// What the app derived from one source rather than the learner wrote — a
-    /// paper walkthrough, a generated overview: it rides its source, so it
-    /// shows when the source does (`NotebookMembership.isDerived`).
+    /// Generated walkthroughs and overviews follow the same creation boundary,
+    /// even when their source is one of the curated recording sources.
     func allowsSourceDerived(createdAt: Date, sourceID: String) -> Bool {
-        NotebookMembership.isDerived(sourceID: sourceID, from: allowedSourceIDs) || createdAt >= cutoff
+        allowsItem(createdAt: createdAt)
+    }
+
+    /// Filter individual drafts, not whole decks: a source's deck can contain
+    /// cards from both before and during this take. This is a presentation read;
+    /// drafting, sync and persisted deck contents remain unchanged.
+    func scopedCardDrafts(_ decks: [MemoryCardDraftDeck]) -> [MemoryCardDraftDeck] {
+        decks.compactMap { record in
+            var deck = record.deck
+            deck.cards = deck.cards.filter { allowsItem(createdAt: $0.draftedAt) }
+            guard !deck.cards.isEmpty else { return nil }
+            return MemoryCardDraftDeck(deckID: record.deckID, sourceID: record.sourceID, deck: deck)
+        }
     }
 
     /// A course shows when the recording Notebook follows it — a course is
     /// linked to notebooks (`NotebookMembership`), and it keeps no date of its
-    /// own, so this is `allowsItem`'s filed half — or when one of
+    /// own, so it follows notebook membership — or when one of
     /// its lessons, the course-typed sources it groups, is a source the take
     /// may show (`allowsSource`): filmed, safely captured during the take, or
     /// public with library sources on. A lecture's other sources earn it
@@ -480,8 +485,8 @@ struct ScreenRecordScope: Sendable, Equatable {
     /// `hasShownLesson` from the store it reads
     /// (`KnowledgeStore.screenRecordCoursesWithShownLesson`).
     func allowsCourse(followedBy notebookIDs: [String], hasShownLesson: Bool) -> Bool {
-        hasShownLesson || allowsItem(
-            createdAt: nil,
+        hasShownLesson || NotebookMembership.isFiled(
+            in: notebookID,
             notebookIDs: NotebookMembership.filingNotebookIDs(followedBy: notebookIDs)
         )
     }

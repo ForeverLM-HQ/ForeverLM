@@ -310,7 +310,8 @@ extension StorageService {
         stateDefaults: UserDefaults = .standard
     ) throws -> [ChatSavedCard] {
         let store = try notebookFilesKnowledgeStore()
-        let decks = try loadCardDrafts(forSourceIDs: Set(cards.sourceIDs))
+        let loadedDecks = try loadCardDrafts(forSourceIDs: Set(cards.sourceIDs))
+        let decks = store.screenRecordScope()?.scopedCardDrafts(loadedDecks) ?? loadedDecks
         let deckStates = try cardDeckStates(stateDefaults: stateDefaults)
         let available = try store.memoryCardDraftSourcesAvailable(Set(decks.map(\.sourceID)))
         let itemIDs = Set(try store.loadAllMemoryItemIDs())
