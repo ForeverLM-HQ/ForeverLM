@@ -105,16 +105,34 @@ struct CoursesHomeView: View {
     private var list: some View {
         let words = query.trimmingCharacters(in: .whitespacesAndNewlines)
         let courses = vm.courseGroupNames(matching: words)
-        return VStack(alignment: .leading, spacing: 18) {
-            header
+        // The Space's places' layout (product owner, 2026-10-12: "this needs
+        // to look much more consistent"): the head, the scope row, then the
+        // list 18 pt under it or the empty line at the Space's height.
+        return VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 14) {
+                header
+                HStack(spacing: 2) {
+                    SpaceScopePill(title: SpaceScope.all.title, isSelected: true) {}
+                        .accessibilityIdentifier("space.scope.all")
+                    Spacer(minLength: 8)
+                }
+                // As tall as the Space's row, whose sort and layout buttons
+                // are 26 pt.
+                .frame(minHeight: 26)
+            }
             if vm.shownCourseGroupNames.isEmpty || courses.isEmpty {
-                SpaceEmptyLine(
-                    systemImage: words.isEmpty ? "graduationcap" : "magnifyingglass",
-                    text: !words.isEmpty ? "No results for “\(words)”"
-                        : vm.shownCourseGroupNames.isEmpty ? "No courses yet" : "No courses here"
-                )
+                VStack(spacing: 12) {
+                    SpaceEmptyLine(
+                        systemImage: words.isEmpty ? SpaceHub.courses.symbolName : "magnifyingglass",
+                        text: !words.isEmpty ? "No results for “\(words)”"
+                            : vm.shownCourseGroupNames.isEmpty ? "No courses yet" : "No courses here"
+                    )
+                    if words.isEmpty {
+                        newCourseMenu
+                    }
+                }
                 .frame(maxWidth: .infinity)
-                .padding(.top, SpacePlaceMetrics.emptyTopPadding - 18)
+                .padding(.top, SpacePlaceMetrics.emptyTopPadding)
                 .padding(.bottom, 32)
                 .accessibilityIdentifier("studio.courses.empty")
             } else {
@@ -127,6 +145,7 @@ struct CoursesHomeView: View {
                         CourseCard(courseID: courseID)
                     }
                 }
+                .padding(.top, 18)
                 .animation(.easeInOut(duration: 0.16), value: courses)
             }
         }
@@ -142,23 +161,28 @@ struct CoursesHomeView: View {
             // the product owner: "cleaner and fewer buttons"): a chat that plans it,
             // which was the bordered Generate beside this, or a YouTube
             // playlist, which this button opened on its own.
-            SpaceDarkPillMenu(title: "New Course", sections: [[
-                // A chat that plans the course with the learner before
-                // anything is written (CoursePlanningChat).
-                SpaceMenuItem(
-                    id: "studio.courses.generate",
-                    title: "Plan with Chat\u{2026}",
-                    systemImage: "sparkles",
-                    help: "Plan a course in chat, then generate it"
-                ) { vm.startCoursePlanningChat() },
-                SpaceMenuItem(
-                    id: "studio.courses.newFromPlaylist",
-                    title: "From YouTube Playlist\u{2026}",
-                    systemImage: "play.rectangle"
-                ) { actions.present(.createCourse) },
-            ]])
-            .accessibilityIdentifier("studio.courses.new")
+            newCourseMenu
+                .accessibilityIdentifier("studio.courses.new")
         }
+    }
+
+    /// New Course ▾, in the head and again in an empty list.
+    private var newCourseMenu: some View {
+        SpaceDarkPillMenu(title: "New Course", sections: [[
+            // A chat that plans the course with the learner before
+            // anything is written (CoursePlanningChat).
+            SpaceMenuItem(
+                id: "studio.courses.generate",
+                title: "Plan with Chat\u{2026}",
+                systemImage: "sparkles",
+                help: "Plan a course in chat, then generate it"
+            ) { vm.startCoursePlanningChat() },
+            SpaceMenuItem(
+                id: "studio.courses.newFromPlaylist",
+                title: "From YouTube Playlist\u{2026}",
+                systemImage: "play.rectangle"
+            ) { actions.present(.createCourse) },
+        ]])
     }
 }
 

@@ -623,13 +623,13 @@ struct SpaceBrowseView: View {
         }
     }
 
-    /// The scopes the place offers: Yours and Shared only in My Library with a
-    /// team to share into; Published only where a page can be; Hidden only
-    /// while something is hidden there.
+    /// The scopes the place offers, All always: Yours and Shared only in My
+    /// Library with a team to share into; Published only where a page can be;
+    /// Hidden only while something is hidden there.
     private func scopes(inPlace: [SpaceItem]) -> [SpaceScope] {
         // A canvas is the learner's own, never shared, published or hidden.
         guard destination != .trash, destination != .images, destination != .canvases,
-              destination.spaceListID == nil else { return [] }
+              destination.spaceListID == nil else { return [.all] }
         var scopes: [SpaceScope] = [.all]
         // The learner's chats are their own; a team's transcripts are in its library.
         if vm.activeTeamID == nil, !vm.teams.isEmpty, !isTeamPlace, destination != .chats {
@@ -641,7 +641,10 @@ struct SpaceBrowseView: View {
         if inPlace.contains(where: \.isHidden) {
             scopes.append(.hidden)
         }
-        return scopes.count > 1 ? scopes : []
+        // All alone too: every place draws the same row, so each list starts
+        // at the same height (product owner, 2026-10-12: "this needs to look
+        // much more consistent").
+        return scopes
     }
 
     private var isTeamPlace: Bool {
@@ -709,11 +712,11 @@ struct SpaceBrowseView: View {
             } actions: {
                 primaryActions(shown: shown)
             }
-            if destination != .images, openList == nil, !(scopes.isEmpty && inPlace.isEmpty) {
+            // The same row on every place, empty or not: the scopes, then
+            // sort and filter. A list's page has its own.
+            if openList == nil {
                 HStack(spacing: 8) {
-                    if !scopes.isEmpty {
-                        scopePills(scopes)
-                    }
+                    scopePills(scopes)
                     Spacer(minLength: 8)
                     viewControls
                 }
@@ -787,9 +790,11 @@ struct SpaceBrowseView: View {
         }
     }
 
-    /// The place's one next step: New ▾ where something can be made, New
-    /// Notebook on Notebooks and New Canvas on Canvases, Link a Google Doc on
-    /// Google Drive, Empty Trash in Trash, Invite on a space.
+    /// The place's one next step, a dark pill named for what the place lists
+    /// and with no glyph, as Codex's New is: New ▾ on All and a space, New
+    /// Page, Link a Site…, New Notebook, New Chat, New Canvas, Link a Google
+    /// Doc… on theirs, Empty Trash in Trash, Invite on a team's space. An
+    /// empty place offers the same pill under its line.
     @ViewBuilder
     private func primaryActions(shown: [SpaceItem]) -> some View {
         switch destination {
@@ -802,7 +807,7 @@ struct SpaceBrowseView: View {
                     .accessibilityIdentifier("space.emptyTrash")
             }
         case .drive:
-            SpaceDarkPillButton(title: ArtifactSection.docs.linkActionTitle, systemImage: nil, image: "GoogleDriveIcon") {
+            SpaceDarkPillButton(title: ArtifactSection.docs.linkActionTitle, systemImage: nil, image: nil) {
                 onLink(.docs)
             }
             .accessibilityIdentifier("space.linkGoogleDoc")
@@ -812,14 +817,14 @@ struct SpaceBrowseView: View {
             // The place lists only notebooks, so its one next step makes
             // one: a page, a list or a canvas made here would not show in it.
             if !vm.isActiveLibraryReadOnly {
-                SpaceDarkPillButton(title: "New Notebook", systemImage: "plus", image: nil) { newNotebook() }
+                SpaceDarkPillButton(title: "New Notebook", systemImage: nil, image: nil) { newNotebook() }
                     .accessibilityIdentifier("space.newNotebook")
             }
         case .canvases:
-            SpaceDarkPillButton(title: "New Canvas", systemImage: "plus", image: nil) { newCanvas() }
+            SpaceDarkPillButton(title: "New Canvas", systemImage: nil, image: nil) { newCanvas() }
                 .accessibilityIdentifier("space.newCanvas")
         case .chats:
-            SpaceDarkPillButton(title: "New Chat", systemImage: "square.and.pencil", image: nil) { newChat() }
+            SpaceDarkPillButton(title: "New Chat", systemImage: nil, image: nil) { newChat() }
                 .accessibilityIdentifier("space.newChat")
         case .list:
             if let list = openList, !list.isTrashed {
@@ -831,11 +836,24 @@ struct SpaceBrowseView: View {
                     .buttonStyle(.bordered)
                     .controlSize(.regular)
                     .help("Switch to \(team.name)’s library")
-                SpaceDarkPillButton(title: "Invite", systemImage: "person.badge.plus", image: nil) {
+                SpaceDarkPillButton(title: "Invite", systemImage: nil, image: nil) {
                     TeamSharingService.shared.presentMembers(for: team)
                 }
             }
-        case .all, .pages, .sites, .space:
+        // Pages and Sites list only pages and sites, so their one next step
+        // makes one, as Notebooks' does; New ▾ with every kind stays where
+        // every kind is listed.
+        case .pages:
+            if !vm.isActiveLibraryReadOnly {
+                SpaceDarkPillButton(title: "New Page", systemImage: nil, image: nil, action: onNewPage)
+                    .accessibilityIdentifier("space.newPage")
+            }
+        case .sites:
+            if !vm.isActiveLibraryReadOnly {
+                SpaceDarkPillButton(title: ArtifactSection.sites.linkActionTitle, systemImage: nil, image: nil) { onLink(.sites) }
+                    .accessibilityIdentifier("space.linkSite")
+            }
+        case .all, .space:
             if !vm.isActiveLibraryReadOnly {
                 newMenu
             }
@@ -964,8 +982,9 @@ struct SpaceBrowseView: View {
             .accessibilityLabel("Sort and filter")
             .accessibilityIdentifier("space.sortFilter")
 
-            // A chat has no preview to draw on a card: Chats is a list.
-            if destination != .chats {
+            // A chat has no preview to draw on a card: Chats is a list; the
+            // Images are pictures: always a grid.
+            if destination != .chats, destination != .images {
                 layoutButton(.list, systemImage: "list.bullet", help: "List")
                 layoutButton(.grid, systemImage: "square.grid.2x2", help: "Grid")
             }
@@ -1561,40 +1580,35 @@ struct SpaceBrowseView: View {
                 case .images:
                     emptyLine(systemImage: "photo", "No images yet")
                 case .drive:
-                    Image("GoogleDriveIcon")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 34, height: 34)
-                        .accessibilityHidden(true)
-                    Text("No Google Docs linked")
-                        .zoomedSystemFont(size: 13, weight: .medium)
-                        .foregroundStyle(.secondary)
+                    emptyLine(systemImage: SpaceDestination.drive.symbolName, "No Google Docs linked")
+                    SpaceDarkPillButton(title: ArtifactSection.docs.linkActionTitle, systemImage: nil, image: nil) { onLink(.docs) }
                 case .sites:
-                    emptyLine(systemImage: "globe", "No sites yet")
-                    Button(ArtifactSection.sites.linkActionTitle) { onLink(.sites) }
-                        .buttonStyle(.bordered)
+                    emptyLine(systemImage: SpaceDestination.sites.symbolName, "No sites yet")
+                    if !vm.isActiveLibraryReadOnly {
+                        SpaceDarkPillButton(title: ArtifactSection.sites.linkActionTitle, systemImage: nil, image: nil) { onLink(.sites) }
+                    }
                 case .canvases:
                     emptyLine(systemImage: KnowledgeMap.symbolName, "No canvases yet")
-                    SpaceDarkPillButton(title: "New Canvas", systemImage: "plus", image: nil) { newCanvas() }
+                    SpaceDarkPillButton(title: "New Canvas", systemImage: nil, image: nil) { newCanvas() }
                 case .team(let id):
                     emptyLine(systemImage: "person.2", "Nothing shared with \(vm.teams.first { $0.id == id }?.name ?? "this space") yet")
                 case .space:
                     emptyLine(systemImage: "square.stack", "No pages yet")
                     if !vm.isActiveLibraryReadOnly {
-                        SpaceDarkPillButton(title: "New Page", systemImage: "plus", image: nil, action: onNewPage)
+                        SpaceDarkPillButton(title: "New Page", systemImage: nil, image: nil, action: onNewPage)
                     }
                 case .chats:
                     emptyLine(systemImage: SpaceDestination.chats.symbolName, "No chats yet")
-                    SpaceDarkPillButton(title: "New Chat", systemImage: "square.and.pencil", image: nil) { newChat() }
+                    SpaceDarkPillButton(title: "New Chat", systemImage: nil, image: nil) { newChat() }
                 case .notebooks:
                     emptyLine(systemImage: NotebookGlyph.systemImage, "No notebooks yet")
                     if !vm.isActiveLibraryReadOnly {
-                        SpaceDarkPillButton(title: "New Notebook", systemImage: "plus", image: nil) { newNotebook() }
+                        SpaceDarkPillButton(title: "New Notebook", systemImage: nil, image: nil) { newNotebook() }
                     }
                 case .all, .pages:
-                    emptyLine(systemImage: "doc.text", destination == .pages ? "No pages yet" : "Nothing here yet")
+                    emptyLine(systemImage: SpaceDestination.pages.symbolName, destination == .pages ? "No pages yet" : "Nothing here yet")
                     if !vm.isActiveLibraryReadOnly {
-                        SpaceDarkPillButton(title: "New Page", systemImage: "plus", image: nil, action: onNewPage)
+                        SpaceDarkPillButton(title: "New Page", systemImage: nil, image: nil, action: onNewPage)
                     }
                 case .list:
                     EmptyView()

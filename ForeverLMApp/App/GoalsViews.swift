@@ -273,7 +273,7 @@ struct GoalsHomeView: View {
         SpacePlaceHeader(searchText: $ownQuery, searchIdentifier: "studio.goals.search") {
             SpacePlaceTitle(title: "Goals")
         } actions: {
-            SpaceDarkPillButton(title: "New Goal", systemImage: "plus", image: nil) {
+            SpaceDarkPillButton(title: "New Goal", systemImage: nil, image: nil) {
                 isSettingGoal = true
             }
             .accessibilityIdentifier("studio.goals.set")

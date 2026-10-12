@@ -2308,7 +2308,7 @@ struct ArtifactCanvas: View {
         case .docs:
             SpaceDarkPillButton(
                 title: "New Page",
-                systemImage: "plus",
+                systemImage: nil,
                 image: nil,
                 shortcut: KeyboardShortcut("n", modifiers: [.command, .shift])
             ) {
@@ -2316,14 +2316,14 @@ struct ArtifactCanvas: View {
             }
             .help("Start a new page")
         case .sites:
-            SpaceDarkPillButton(title: section.linkActionTitle, systemImage: "link.badge.plus", image: nil) {
+            SpaceDarkPillButton(title: section.linkActionTitle, systemImage: nil, image: nil) {
                 isLinkingPage = true
             }
             .help("Link a Codex site or a Claude artifact from its address")
         case .animations:
             // An animation is made in a chat, not linked: the button opens
             // one with the request typed, and the learner names the source.
-            SpaceDarkPillButton(title: section.linkActionTitle, systemImage: ArtifactKind.animation.symbolName, image: nil) {
+            SpaceDarkPillButton(title: section.linkActionTitle, systemImage: nil, image: nil) {
                 vm.requestAnimationChat()
             }
             .help("Ask the chat for an animation of how something in a source works")
@@ -2453,7 +2453,7 @@ struct ArtifactCanvas: View {
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: 380)
                     HStack(spacing: 10) {
-                        SpaceDarkPillButton(title: "New Page", systemImage: "plus", image: nil) { beginCreation() }
+                        SpaceDarkPillButton(title: "New Page", systemImage: nil, image: nil) { beginCreation() }
                         Button(section.linkActionTitle) { isLinkingPage = true }
                             .buttonStyle(.plain)
                             .foregroundStyle(.secondary)
@@ -2470,7 +2470,7 @@ struct ArtifactCanvas: View {
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: 380)
-                    SpaceDarkPillButton(title: section.linkActionTitle, systemImage: "link.badge.plus", image: nil) { isLinkingPage = true }
+                    SpaceDarkPillButton(title: section.linkActionTitle, systemImage: nil, image: nil) { isLinkingPage = true }
                         .padding(.top, 2)
                 }
             case .animations:
@@ -2486,7 +2486,7 @@ struct ArtifactCanvas: View {
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: 380)
-                    SpaceDarkPillButton(title: section.linkActionTitle, systemImage: ArtifactKind.animation.symbolName, image: nil) {
+                    SpaceDarkPillButton(title: section.linkActionTitle, systemImage: nil, image: nil) {
                         vm.requestAnimationChat()
                     }
                     .padding(.top, 2)
