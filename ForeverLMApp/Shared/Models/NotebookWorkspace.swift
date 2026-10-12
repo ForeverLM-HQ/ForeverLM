@@ -243,8 +243,8 @@ extension NotebookWorkspace {
         // it, so it opens in the slot rather than leaving the notebook.
         case .memory: return .document(.memory)
         // The Space and the full-window Library are the library's places:
-        // they leave the notebook, which its rail row, its row in the Space
-        // and the Library's ‹ bring back as it was (`notebookLeft`). Inside
+        // they leave the notebook, which its rail row and its row in the
+        // Space bring back as it was (`notebookLeft`). Inside
         // the notebook the library is its Sources column's search.
         case .library, .knowledgeMap, .atlas: return .leave
         case .activity, .tasks, .goals, .ideas, .videos, .artifacts: return .leave

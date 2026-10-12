@@ -149,26 +149,9 @@ extension StudioViewModel {
     /// The Library in `destinationWindowState` (the window in
     /// scope when nil): the rail's Library row and ⇧⌘L. A notebook the
     /// window holds leaves the way it does for the Space
-    /// (`.library` routes `.leave`), and the Library's ‹ brings it back.
+    /// (`.library` routes `.leave`), and its rail row brings it back.
     func openLibraryView(in destinationWindowState: StudioWindowState? = nil) {
         activateCenterTab(.library, in: destinationWindowState ?? activeWindowState)
-    }
-
-    /// The notebook the Library's ‹ goes back to: the one `window` left for
-    /// the Library, while the Library stays on screen and it is still an
-    /// active notebook of the open library
-    /// (`StudioWindowState.libraryReturnsToNotebook`).
-    func notebookToReturnTo(in window: StudioWindowState) -> LearningGoalRecord? {
-        guard window.notebook == nil, window.libraryReturnsToNotebook,
-              let left = window.notebookLeft else { return nil }
-        return notebooks.first { $0.id == left.notebookID }
-    }
-
-    /// The Library's ‹: the notebook `window` left opens there again, as it
-    /// was arranged, with the chat it last had open.
-    func returnToNotebook(in window: StudioWindowState) {
-        guard let goal = notebookToReturnTo(in: window) else { return }
-        openNotebook(goal.id, in: window)
     }
 
     /// The notebooks of the open library holding the Sources row `rowID`, by

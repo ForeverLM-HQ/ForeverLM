@@ -689,7 +689,7 @@ struct NotebooksHomeRoutingTests {
         #expect(target.centerTabGroups.groups[0].activeTab == .chat, "the Space cannot close onto itself")
     }
 
-    @Test("The Library leaves a notebook the way the Space does, and its ‹ brings it back as it was")
+    @Test("The Library leaves a notebook the way the Space does, and the notebook comes back as it was")
     func libraryLeavesAndReturns() {
         let restore = capturingSharedDefaults()
         defer { restore() }
@@ -710,19 +710,13 @@ struct NotebooksHomeRoutingTests {
         vm.openLibraryView(in: target)
         #expect(target.notebook == nil)
         #expect(libraryIsOnScreen())
-        #expect(vm.notebookToReturnTo(in: target)?.id == "bio")
 
-        vm.returnToNotebook(in: target)
+        // Its rail row opens it again as the window left it.
+        vm.openNotebook("bio", in: target)
         #expect(target.NotebookID == "bio")
         #expect(target.notebook?.sourcesCollapsed == true)
         #expect(target.notebook?.studioCollapsed == true)
         #expect(!libraryIsOnScreen(), "a notebook's window shows the notebook")
-        #expect(vm.notebookToReturnTo(in: target) == nil, "nothing to go back to while it is open")
-
-        // A notebook deleted meanwhile offers no way back.
-        vm.openLibraryView(in: target)
-        vm.learningGoals = []
-        #expect(vm.notebookToReturnTo(in: target) == nil)
     }
 
     @Test("A source clicked in the Library opens in the Reader beside it, and the Library stays")
@@ -735,32 +729,6 @@ struct NotebooksHomeRoutingTests {
         ]))
         vm.clearReaderSurfaces(in: target)
         #expect(target.centerTabGroups.groups.map(\.activeTab) == [.library, .reader])
-    }
-
-    @Test("The Library's ‹ names only the notebook it took the place of, while it stays on screen")
-    func libraryReturnsOnlyToTheNotebookItReplaced() {
-        let restore = capturingSharedDefaults()
-        defer { restore() }
-        let vm = makeViewModel()
-        vm.learningGoals = inLibrary(vm, [notebook("bio")])
-        let target = window(.defaultLayout)
-
-        // A notebook left for the Space long ago is not the way back from a
-        // Library opened from the Space.
-        vm.openNotebook("bio", in: target, startsNotebookChat: false)
-        vm.showSpaceAll(in: target)
-        #expect(target.notebook == nil)
-        vm.openLibraryView(in: target)
-        #expect(vm.notebookToReturnTo(in: target) == nil, "opened from the Space, the Library is a place of its own")
-
-        vm.openNotebook("bio", in: target, startsNotebookChat: false)
-        vm.openLibraryView(in: target)
-        #expect(vm.notebookToReturnTo(in: target)?.id == "bio")
-
-        // The Library leaving the screen ends the trip.
-        vm.showSpaceAll(in: target)
-        vm.openLibraryView(in: target)
-        #expect(vm.notebookToReturnTo(in: target) == nil)
     }
 
     @Test("A source opened over the Library goes back to the Library, after any source read since")

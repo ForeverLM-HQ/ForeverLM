@@ -411,9 +411,6 @@ final class StudioWindowState: Identifiable {
                 return
             }
             noteReaderCover(from: oldValue)
-            if libraryReturnsToNotebook, !reconciled.groups.contains(where: { $0.activeTab == .library }) {
-                libraryReturnsToNotebook = false
-            }
             recordPersistentChange {
                 PreferenceStore.set(reconciled.persistedRepresentation, forKey: "studio.centerTabGroups.v1")
             }
@@ -485,22 +482,6 @@ final class StudioWindowState: Identifiable {
         layout.groups[index].isPinned = readerCover.wasPinned
         centerTabGroups = layout
         return true
-    }
-
-    /// Whether the Library's ‹ <Notebook> is offered: the Library took the
-    /// place of the notebook this window held (`leaveNotebook(for:)`) and has
-    /// stayed on screen since. Opened from the Space, or again after it left
-    /// the screen, the Library is a place of its own and offers nothing.
-    /// Until 2026-10-12 ‹ named whichever notebook the window had last left,
-    /// however long ago.
-    private(set) var libraryReturnsToNotebook = false
-
-    /// The notebook leaves for `tab`, a surface it has no place for: the
-    /// panes underneath come back, and the Library, if that is what was
-    /// asked for, offers the way back.
-    func leaveNotebook(for tab: StudioCenterTab) {
-        notebook = nil
-        libraryReturnsToNotebook = tab == .library
     }
 
     var navigationRailVisible: Bool {
@@ -772,9 +753,6 @@ final class StudioWindowState: Identifiable {
             if let oldValue, oldValue.notebookID != notebook?.notebookID {
                 notebookLeft = oldValue.persisted
             }
-            if notebook?.notebookID != oldValue?.notebookID, libraryReturnsToNotebook {
-                libraryReturnsToNotebook = false
-            }
             // The rail steps aside only for a notebook; leaving it brings
             // the rail back.
             if notebook == nil, navigationRailYieldsToNotebook { navigationRailYieldsToNotebook = false }
@@ -787,9 +765,8 @@ final class StudioWindowState: Identifiable {
     }
 
     /// The notebook this window last left, and how it had it arranged (its
-    /// faces and folds, not its moments): the full-window Library's ‹ goes
-    /// back to it, and opening it here again — that ‹, its rail row, its
-    /// card — brings its columns back as they were (decisions v5, 2: "the
+    /// faces and folds, not its moments): opening it here again — its rail
+    /// row, its card — brings its columns back as they were (decisions v5, 2: "the
     /// rail brings the notebook back"). Presentation: absent from `Snapshot`,
     /// so a relaunch opens a notebook fresh, as before.
     private(set) var notebookLeft: NotebookWorkspace? = nil

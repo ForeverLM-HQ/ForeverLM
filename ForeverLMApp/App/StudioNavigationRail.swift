@@ -1110,7 +1110,7 @@ struct StudioNavigationRail: View {
     /// kind, laid out for managing it. A place, like Memory: a pane with its
     /// ×, Open Beside, Open in Other Window and a drag. In a window holding a
     /// notebook it leaves the notebook the way the Space does; the notebook's
-    /// row below, and the Library's ‹, bring it back.
+    /// row below brings it back.
     private func libraryButton(compact: Bool = false) -> some View {
         RailButtonRow(
             title: "Library",

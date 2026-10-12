@@ -76,11 +76,10 @@ extension EnvironmentValues {
 /// canvas. A center pane like any other: its close ×, Open Beside, Open in
 /// Other Window; a source clicked in it opens in the Reader beside it
 /// (`clearReaderSurfaces`). Opened from a notebook it leaves the notebook as
-/// the home does, and its ‹ goes back to it.
+/// the home does; the notebook's rail row brings it back. It has no ‹ of its
+/// own (product owner, 2026-10-12: "i don't want this back button for the
+/// library anymore").
 struct LibraryPane: View {
-    @Environment(StudioViewModel.self) private var vm
-    @Environment(StudioWindowState.self) private var windowState
-
     /// Below this width the wide rows have no room for what they add.
     private static let wideLayoutMinimumWidth: CGFloat = 560
 
@@ -104,17 +103,9 @@ struct LibraryPane: View {
         .accessibilityIdentifier("library.pane")
     }
 
-    /// ‹ to the notebook the window left, while it is still one, then the
-    /// pane's name.
+    /// The pane's name.
     private var header: some View {
         HStack(spacing: 6) {
-            if let goal = vm.notebookToReturnTo(in: windowState) {
-                LibraryReturnButton(title: NotebookTitle(goal.title).text) {
-                    withAnimation(.easeInOut(duration: 0.22)) {
-                        vm.returnToNotebook(in: windowState)
-                    }
-                }
-            }
             Text("Library")
                 .zoomedSystemFont(size: 13, weight: .semibold)
                 .lineLimit(1)
@@ -122,43 +113,6 @@ struct LibraryPane: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 14)
-    }
-}
-
-/// The Library's ‹ <Notebook>: a titlebar-band control, as everything on the
-/// chrome line is, sized to its label.
-private struct LibraryReturnButton: View {
-    @Environment(\.uiZoomScale) private var uiZoomScale
-    let title: String
-    let action: () -> Void
-
-    private static let fontSize: CGFloat = 12
-    private static let maximumWidth: CGFloat = 220
-
-    var body: some View {
-        TitlebarBandButton(
-            help: "Back to \(title)",
-            accessibilityLabel: "Back to \(title)",
-            accessibilityIdentifier: "library.backToNotebook",
-            controlWidth: labelWidth,
-            action: action
-        ) {
-            HStack(spacing: 4) {
-                Image(systemName: "chevron.left")
-                    .zoomedSystemFont(size: 10, weight: .semibold)
-                Text(title)
-                    .zoomedSystemFont(size: Self.fontSize, weight: .medium)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-            }
-            .foregroundStyle(.secondary)
-        }
-    }
-
-    private var labelWidth: CGFloat {
-        let font = NSFont.systemFont(ofSize: Self.fontSize * uiZoomScale, weight: .medium)
-        let text = (title as NSString).size(withAttributes: [.font: font]).width
-        return min(Self.maximumWidth, ceil(text) + 20 * uiZoomScale)
     }
 }
 
