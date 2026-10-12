@@ -338,4 +338,46 @@ struct BookSectionIndexTests {
         #expect(fromFlat.map { $0.title } == ["A", "B"])
         #expect(fromFlat.map { $0.pageIndex } == [1, 3])
     }
+
+    @Test("A chapter split from a book without bookmarks keeps its sections on disk")
+    func chapterOutlineSurvivesTheWrite() throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("BookSectionIndexTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        // Drawn by Core Graphics with no outline: the case PDFKit loses an
+        // outline in when the opened document itself is rewritten.
+        let bookURL = folder.appendingPathComponent("book.pdf")
+        var mediaBox = CGRect(x: 0, y: 0, width: 400, height: 200)
+        let context = try #require(CGContext(bookURL as CFURL, mediaBox: &mediaBox, nil))
+        for index in 0..<8 {
+            context.beginPDFPage(nil)
+            NSGraphicsContext.saveGraphicsState()
+            NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
+            NSAttributedString(string: "book page \(index)", attributes: [.font: NSFont.systemFont(ofSize: 14)])
+                .draw(at: CGPoint(x: 20, y: 100))
+            NSGraphicsContext.restoreGraphicsState()
+            context.endPDFPage()
+        }
+        context.closePDF()
+        let book = try #require(PDFDocument(url: bookURL))
+        #expect(book.outlineRoot == nil)
+
+        let chapterPath = folder.appendingPathComponent("01 Chapter.pdf").path
+        #expect(StudioViewModel.writePDFChapter(
+            pages: 2...6,
+            of: book,
+            sections: [(title: "Water", pageIndex: 1), (title: "Ions", pageIndex: 3)],
+            toFile: chapterPath
+        ))
+
+        let chapter = try #require(PDFDocument(url: URL(fileURLWithPath: chapterPath)))
+        #expect(chapter.pageCount == 5)
+        #expect(chapter.page(at: 0)?.string?.contains("book page 2") == true)
+        #expect(BookSectionIndex.outlineSections(of: chapter) == [
+            BookChapterSection(title: "Water", pageInChapter: 1),
+            BookChapterSection(title: "Ions", pageInChapter: 3),
+        ])
+    }
 }

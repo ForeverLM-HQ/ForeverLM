@@ -1247,24 +1247,17 @@ extension StudioViewModel {
 
             guard startPage <= endPage else { continue }
 
-            let chapterDoc = PDFDocument()
-            for p in startPage...endPage {
-                guard let page = doc.page(at: p) else { continue }
-                chapterDoc.insert(page, at: chapterDoc.pageCount)
-            }
-            if chapterDoc.pageCount == endPage - startPage + 1 {
-                addPDFChapterSectionOutline(
-                    to: chapterDoc,
-                    sections: pdfChapterSectionEntries(outlineEntries, pages: startPage...endPage)
-                )
-            }
-
             let title = sanitizedPDFOutlineLabel(chapter.title)
             let chapterTitle = importedBookChapterTitle(title, bookTitle: bookTitle)
             let safeTitle = cleanChapterTitle(chapterTitle)
             let chapterFilename = String(format: "%02d %@.pdf", i + 1, safeTitle)
             let chapterPath = (chaptersDir as NSString).appendingPathComponent(chapterFilename)
-            guard chapterDoc.write(toFile: chapterPath) else {
+            guard writePDFChapter(
+                pages: startPage...endPage,
+                of: doc,
+                sections: pdfChapterSectionEntries(outlineEntries, pages: startPage...endPage),
+                toFile: chapterPath
+            ) else {
                 throw SourceError.pdfReadFailed
             }
 
@@ -1812,6 +1805,30 @@ extension StudioViewModel {
         return inside
             .filter { $0.depth == level }
             .map { (title: $0.title, pageIndex: $0.pageIndex - pages.lowerBound) }
+    }
+
+    /// Writes one chapter of a PDF book as its own file, from `doc`'s pages,
+    /// with `sections` (page indexes relative to the chapter) as the file's
+    /// outline: the Reader's Contents lists them under the chapter.
+    ///
+    /// The chapter is a fresh `PDFDocument`. PDFKit drops an outline assigned
+    /// to a document opened from a file that had none, so opening the book and
+    /// removing the other pages would write the chapter without its sections.
+    nonisolated static func writePDFChapter(
+        pages: ClosedRange<Int>,
+        of doc: PDFDocument,
+        sections: [(title: String, pageIndex: Int)],
+        toFile path: String
+    ) -> Bool {
+        let chapterDoc = PDFDocument()
+        for p in pages {
+            guard let page = doc.page(at: p) else { continue }
+            chapterDoc.insert(page, at: chapterDoc.pageCount)
+        }
+        if chapterDoc.pageCount == pages.count {
+            addPDFChapterSectionOutline(to: chapterDoc, sections: sections)
+        }
+        return chapterDoc.write(toFile: path)
     }
 
     nonisolated private static func addPDFChapterSectionOutline(
