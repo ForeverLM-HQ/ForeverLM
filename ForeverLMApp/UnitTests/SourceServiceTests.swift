@@ -1363,6 +1363,108 @@ struct PaperMetadataResultValidationTests {
         }
     }
 
+    /// Page 0 of Precambrian Research 23 (1983) 1-8 as PDFKit reads it, down
+    /// to the abstract's citation line.
+    static let ancientMicrospheresFrontMatter = """
+    Precambrian Research, 23 (1983) 1-8
+    Elsevier Science Publishers B.V.. Amsterdam -Printed in The Netherlands
+    ANCIENT MICROSPHERES: ABIOGENIC, PROTOBIOGENIC, OR
+    BIOGENIC?
+    SIDNEY W. FOX and ROBERT M. SYREN
+    NFCR Laboratory of the Institute for Molecular and Cellular Evolution, University of
+    Miami, Coral Gables, FL 33134 (U.S.A.)
+    MARYLOU INGRAM*, BRANDON J. PRICE** and JOHN COSTELLO
+    Institute for Cell Analysis, University of Miami Medical School, Miami, FL 33136
+    (U.S.A.)
+    (Received January 1, 1983; revision accepted May 15, 1983)
+    ABSTRACT
+    Fox, S.W., Syren, R.M., Ingram, M., Price, B.J. and Costello, J., 1983. Ancient micro-
+    spheres: abiogenic, protobiogenic, or biogenic? Precambrian Res., 23: l-8.
+    """
+
+    @Test("A title with words the front matter does not print is refused")
+    func refusesRewrittenTitle() {
+        // 2026-10-12, production build 222: liquid/lfm-2.5-2.6b:free answered
+        // this, word for word, and the import kept the title.
+        let reply = """
+        TITLE: Ancient Microscopes: Abiogenic, Protobionic, or Biogenic?
+        AUTHORS: Sidney W. Fox; Robert M. Syren; Marylou Ingram; Brandon J. Price; John Costello
+        JOURNAL: Precambrian Research
+        YEAR: 1983
+        DOI: ?
+        """
+        #expect(
+            AIService.wordsNotPrinted(
+                in: "Ancient Microscopes: Abiogenic, Protobionic, or Biogenic?",
+                given: Self.ancientMicrospheresFrontMatter
+            ) == ["Microscopes", "Protobionic"]
+        )
+        #expect(throws: AIError.self) {
+            _ = try AIService.paperMetadata(fromReply: reply, given: Self.ancientMicrospheresFrontMatter)
+        }
+    }
+
+    @Test("The printed title and every author are kept, with the AUTHORS label read")
+    func keepsPrintedTitleAndAuthors() throws {
+        let result = try AIService.paperMetadata(fromReply: """
+        TITLE: Ancient Microspheres: Abiogenic, Protobiogenic, or Biogenic?
+        AUTHORS: Sidney W. Fox; Robert M. Syren; Marylou Ingram; Brandon J. Price; John Costello
+        JOURNAL: Precambrian Research
+        YEAR: 1983
+        DOI: ?
+        """, given: Self.ancientMicrospheresFrontMatter)
+
+        #expect(result.title == "Ancient Microspheres: Abiogenic, Protobiogenic, or Biogenic?")
+        #expect(result.author == "Sidney W. Fox; Robert M. Syren; Marylou Ingram; Brandon J. Price; John Costello")
+        #expect(result.journal == "Precambrian Research")
+        #expect(result.year == "1983")
+        #expect(result.doi == nil)
+    }
+
+    @Test("Authors the front matter does not print are refused")
+    func refusesUnprintedAuthor() {
+        #expect(throws: AIError.self) {
+            _ = try AIService.paperMetadata(fromReply: """
+            TITLE: ANCIENT MICROSPHERES: ABIOGENIC, PROTOBIOGENIC, OR BIOGENIC?
+            AUTHOR: Sidney W. Fox; Zara Holt
+            JOURNAL: Precambrian Research
+            YEAR: 1983
+            DOI: ?
+            """, given: Self.ancientMicrospheresFrontMatter)
+        }
+    }
+
+    @Test("A reply that leaves a label out is refused, not read as a blank")
+    func refusesMissingLabel() {
+        #expect(throws: AIError.self) {
+            _ = try AIService.paperMetadata(fromReply: """
+            TITLE: Ancient Microspheres: Abiogenic, Protobiogenic, or Biogenic?
+            JOURNAL: Precambrian Research
+            YEAR: 1983
+            DOI: ?
+            """)
+        }
+    }
+
+    @Test("Accents, ligatures, line breaks and a glyph PDF text lost are no difference")
+    func toleratesExtractionDifferences() {
+        let frontMatter = """
+        Catalyzed by -Ketoglutarate Dehydrogenase: an eﬃcient sig-
+        nal in Mitochondria with arti cial, cell-type-speci c and ef cient E ects
+        ZARA HOLT and ŁUKASZ FRÖHLICH
+        """
+        #expect(AIService.wordsNotPrinted(
+            in: "Catalyzed by α-Ketoglutarate Dehydrogenase: an Efficient Signal in Mitochondria",
+            given: frontMatter
+        ).isEmpty)
+        #expect(AIService.wordsNotPrinted(
+            in: "Artificial, Cell-Type-Specific and Efficient Effects",
+            given: frontMatter
+        ).isEmpty)
+        #expect(AIService.wordsNotPrinted(in: "Zara Holt; Lukasz Frohlich", given: frontMatter).isEmpty)
+        #expect(AIService.wordsNotPrinted(in: "Zara Holt; Lukasz Fischer", given: frontMatter) == ["Fischer"])
+    }
+
     @Test("Preserves the LLM's paper title without a second heuristic cleaner")
     func preservesLLMPaperTitle() {
         let result = AIService.PaperMetadataResult.validated(

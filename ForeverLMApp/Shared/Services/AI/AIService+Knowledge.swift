@@ -1638,7 +1638,11 @@ extension AIService {
 
         // The budget covers front matter, not one page: a repository cover sheet
         // can consume most of it before the real title page starts.
-        let user = "URL: \(url)\nTitle: \(title)\n\nFront matter text:\n\(String(firstPageText.prefix(characterLimit)))"
+        let frontMatter = String(firstPageText.prefix(characterLimit))
+        let user = "URL: \(url)\nTitle: \(title)\n\nFront matter text:\n\(frontMatter)"
+        // What the title and authors may be copied from. The title on record is
+        // the page's own for a web-page paper whose text does not repeat it.
+        let given = "\(title)\n\(frontMatter)"
 
         let response = try await call(
             config: config,
@@ -1651,50 +1655,133 @@ extension AIService {
             maxTokens: 4096,
             temperature: 0.0,
             allowsReasoningInflation: false,
-            // A reply naming none of the five fields is not kept: the backups
+            // A reply that is not five field lines, or whose title or authors
+            // carry a word the model was not given, is not kept: the backups
             // answer, and Retry asks a model again instead of replaying it.
-            validateResponse: { _ = try AIService.paperMetadata(fromReply: $0) },
+            validateResponse: { _ = try AIService.paperMetadata(fromReply: $0, given: given) },
             sourceTitle: source.title,
             subjectID: source.id,
             subjectType: source.type,
             activityID: AIUsageAttribution.activityID ?? UUID().uuidString
         )
-        return try Self.paperMetadata(fromReply: response)
+        return try Self.paperMetadata(fromReply: response, given: given)
     }
 
-    /// The fields read from a Paper Metadata reply, one `FIELD: value` line
-    /// each, or `AIError.invalidResponse` when it names none of them.
-    static func paperMetadata(fromReply response: String) throws -> PaperMetadataResult {
-        var extractedTitle: String?
-        var author: String?
-        var journal: String?
-        var year: String?
-        var doi: String?
+    /// The labels a Paper Metadata reply answers, one line each.
+    static let paperMetadataReplyLabels = ["TITLE", "AUTHOR", "JOURNAL", "YEAR", "DOI"]
 
+    /// The fields read from a Paper Metadata reply, one `FIELD: value` line
+    /// each, with `?` for a field the document does not print.
+    ///
+    /// A reply that leaves a label out has not said the document lacks that
+    /// field, so it is refused rather than read as a blank. On 2026-10-12 a
+    /// small model wrote "AUTHORS:" for "AUTHOR:"; the line was skipped, and
+    /// the import reported that the paper printed no author over five names
+    /// on its first page. Labels are read in any case, and "AUTHORS" is the
+    /// plural of the one label that asks for a list.
+    static func paperMetadata(fromReply response: String) throws -> PaperMetadataResult {
+        var fields: [String: String] = [:]
         for line in response.components(separatedBy: .newlines) {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.hasPrefix("TITLE:") {
-                let val = trimmed.dropFirst("TITLE:".count).trimmingCharacters(in: .whitespaces)
-                if val != "?" && !val.isEmpty { extractedTitle = val }
-            } else if trimmed.hasPrefix("AUTHOR:") {
-                let val = trimmed.dropFirst("AUTHOR:".count).trimmingCharacters(in: .whitespaces)
-                if val != "?" && !val.isEmpty { author = val }
-            } else if trimmed.hasPrefix("JOURNAL:") {
-                let val = trimmed.dropFirst("JOURNAL:".count).trimmingCharacters(in: .whitespaces)
-                if val != "?" && !val.isEmpty { journal = val }
-            } else if trimmed.hasPrefix("YEAR:") {
-                let val = trimmed.dropFirst("YEAR:".count).trimmingCharacters(in: .whitespaces)
-                if val != "?" && !val.isEmpty { year = val }
-            } else if trimmed.hasPrefix("DOI:") {
-                let val = trimmed.dropFirst("DOI:".count).trimmingCharacters(in: .whitespaces)
-                if val != "?" && !val.isEmpty && val.hasPrefix("10.") { doi = val }
-            }
+            guard let colon = trimmed.firstIndex(of: ":") else { continue }
+            var label = trimmed[..<colon].trimmingCharacters(in: .whitespaces).uppercased()
+            if label == "AUTHORS" { label = "AUTHOR" }
+            guard paperMetadataReplyLabels.contains(label) else { continue }
+            fields[label] = trimmed[trimmed.index(after: colon)...].trimmingCharacters(in: .whitespaces)
         }
 
-        guard extractedTitle != nil || author != nil || journal != nil || year != nil || doi != nil else {
+        let missing = paperMetadataReplyLabels.filter { fields[$0] == nil }
+        guard missing.count < paperMetadataReplyLabels.count else {
             throw AIError.invalidResponse
         }
-        return PaperMetadataResult.validated(title: extractedTitle, author: author, journal: journal, year: year, doi: doi)
+        guard missing.isEmpty else {
+            throw AIError.apiError(
+                "The Paper Metadata reply left out \(missing.joined(separator: ", ")), so it was refused."
+            )
+        }
+
+        func answer(_ label: String) -> String? {
+            guard let value = fields[label], !value.isEmpty, value != "?" else { return nil }
+            return value
+        }
+        return PaperMetadataResult.validated(
+            title: answer("TITLE"),
+            author: answer("AUTHOR"),
+            journal: answer("JOURNAL"),
+            year: answer("YEAR"),
+            doi: answer("DOI").flatMap { $0.hasPrefix("10.") ? $0 : nil }
+        )
+    }
+
+    /// `paperMetadata(fromReply:)`, refused when the title or the authors
+    /// carry a word that `given`, the text the model was given, does not print.
+    ///
+    /// Title and authors are copied off the page, so the model decides which
+    /// words they are and the app checks that each one is there, as Source
+    /// Content Cleanup checks that every passage it deletes occurs. On
+    /// 2026-10-12 a 2.6B model read "ANCIENT MICROSPHERES: ABIOGENIC,
+    /// PROTOBIOGENIC, OR BIOGENIC?" and answered "Ancient Microscopes:
+    /// Abiogenic, Protobionic, or Biogenic?"; that reply now goes to the backups.
+    static func paperMetadata(fromReply response: String, given: String) throws -> PaperMetadataResult {
+        let result = try paperMetadata(fromReply: response)
+        let unprinted = [result.title, result.author]
+            .compactMap { $0 }
+            .flatMap { wordsNotPrinted(in: $0, given: given) }
+        guard unprinted.isEmpty else {
+            let words = unprinted.map { "\u{201C}\($0)\u{201D}" }.joined(separator: ", ")
+            throw AIError.apiError(
+                "The Paper Metadata reply has words the document does not print (\(words)), so it was refused."
+            )
+        }
+        return result
+    }
+
+    /// The words of `value` that `given` does not print, in order.
+    ///
+    /// Both sides are compared by their letters and digits alone, transliterated
+    /// to lowercase ASCII, so case, accents, ligatures, punctuation and line
+    /// breaks are no difference; the search runs over `given`'s letters run
+    /// together, so a word hyphenated across a line ("PROTO-" /
+    /// "BIOGENIC") still occurs. PDF text can lose a non-ASCII glyph its font
+    /// cannot map ("α-Ketoglutarate" read as "-Ketoglutarate",
+    /// `RegisteredPaperTitle`), so a word also occurs when it does without its
+    /// non-ASCII characters, and a word of nothing else is not checked. It
+    /// loses an f-ligature the same way ("arti cial intelligence", "cell-type-
+    /// speci c" in Nature PDFs), so a word also occurs without its ligated letters.
+    static func wordsNotPrinted(in value: String, given: String) -> [String] {
+        let printed = printedLetters(given)
+        return value
+            .split(whereSeparator: { !($0.isLetter || $0.isNumber) })
+            .compactMap { word -> String? in
+                let ascii = printedLetters(String(String.UnicodeScalarView(word.unicodeScalars.filter(\.isASCII))))
+                guard !ascii.isEmpty else { return nil }
+                let readings = [printedLetters(String(word)), ascii] + lostLigatureReadings.map { ligatures in
+                    ligatures.reduce(ascii) { $0.replacingOccurrences(of: $1, with: "") }
+                }
+                if readings.contains(where: { !$0.isEmpty && printed.contains($0) }) { return nil }
+                return String(word)
+            }
+    }
+
+    /// The letters a lost ligature glyph takes with it, longest first. A lost
+    /// "ﬃ" can take all three letters, or leave its first "f" when the font
+    /// set it as "f" + "ﬁ".
+    private static let lostLigatureReadings: [[String]] = [
+        ["ffi", "ffl", "ff", "fi", "fl"],
+        ["fi", "fl"]
+    ]
+
+    private static let printedLettersTransform = StringTransform(rawValue: "Any-Latin; Latin-ASCII; Any-Lower")
+
+    /// `text`'s letters and digits, transliterated to lowercase ASCII and run together.
+    private static func printedLetters(_ text: String) -> String {
+        let compatible = text.precomposedStringWithCompatibilityMapping
+        // A transform ID Foundation does not know returns nil; this one is fixed
+        // and covered by the paper metadata tests.
+        let latin = compatible.applyingTransform(printedLettersTransform, reverse: false) ?? compatible.lowercased()
+        return String(String.UnicodeScalarView(latin.unicodeScalars.filter {
+            $0.isASCII && ($0.properties.isAlphabetic || $0.properties.numericType != nil)
+        }))
     }
 
     struct PaperContentBlock: Sendable, Equatable {
