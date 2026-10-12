@@ -1468,13 +1468,22 @@ extension MCPDataStore {
 
     /// Finds library sources that fit the goal and inserts them as pending suggestions.
     /// When incremental, only sources added since the goal's last discovery pass are considered.
+    /// `seedSourceIDs` are the sources that steer the search, best first; nil is the goal's
+    /// own (`companionDiscoverySeeds`). A caller that has just made the goal passes the
+    /// order it was given, which the goal's items, all added at once, do not keep.
     @discardableResult
-    func runCompanionDiscovery(goal: LearningGoalRecord, excluding: Set<String>, incremental: Bool) async throws -> Int {
+    func runCompanionDiscovery(
+        goal: LearningGoalRecord,
+        excluding: Set<String>,
+        incremental: Bool,
+        seedSourceIDs: [String]? = nil
+    ) async throws -> Int {
         let topic = (goal.topic ?? goal.title).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !topic.isEmpty else { return 0 }
         let since = incremental ? goal.lastDiscoveryAt?.timeIntervalSinceReferenceDate : nil
         let candidates = try await companionDiscover(
             topic: topic,
+            seedSourceIDs: seedSourceIDs ?? companionDiscoverySeeds(goal),
             excluding: excluding,
             sinceReferenceTimestamp: since,
             limit: companionDiscoveryPool
@@ -1486,14 +1495,38 @@ extension MCPDataStore {
         return added
     }
 
-    /// The library's nearest sources to `topic`, best first: the hybrid search the
-    /// app's own search runs (`SourceSearchEngine`), so a paper titled with the
-    /// topic's own words is never outranked by one whose single chunk happens to sit
-    /// near it. Relevance is the search's fused score, which orders hits within this
-    /// one search and means nothing on its own; whether a candidate belongs is
-    /// `sourcesFitting`'s call.
+    /// The sources a goal already holds that steer its discovery: its approved sources in
+    /// the learner's study order (`sequence`, then when each was added, as the Notebook
+    /// lists them), at most `companionDiscoverySeedLimit`, so the founding sources of a
+    /// large Notebook speak for it.
+    func companionDiscoverySeeds(_ goal: LearningGoalRecord) -> [String] {
+        let approved = goal.items.enumerated().filter { $0.element.isApproved }
+        return approved
+            .sorted { lhs, rhs in
+                let left = (lhs.element.sequence ?? .greatestFiniteMagnitude, lhs.element.addedAt, lhs.offset)
+                let right = (rhs.element.sequence ?? .greatestFiniteMagnitude, rhs.element.addedAt, rhs.offset)
+                return left < right
+            }
+            .prefix(companionDiscoverySeedLimit)
+            .map(\.element.sourceID)
+    }
+
+    /// The library's nearest sources to the goal, best first, as the pool
+    /// `sourcesFitting` judges. Two kinds of evidence, fused by rank
+    /// (`SourceSearchEngine.fusedRanking`):
+    /// - the topic's words, through the hybrid search the app's own search runs
+    ///   (`SourceSearchEngine`), so a paper titled with the topic's own words is never
+    ///   outranked by one whose single chunk happens to sit near it;
+    /// - each seed's distinctive words (`SourceSearchEngine.moreLikeThis`): a Notebook
+    ///   made from a paper is about that paper, whatever its title says. The seeds share
+    ///   one vote, as much as the topic's, so what several of them have in common rises
+    ///   and one seed's quirks are outvoted (a meeting transcript's most distinctive words
+    ///   are its speakers' names).
+    /// Relevance is the fused score, which orders this one pool and means nothing on its
+    /// own; whether a candidate belongs is `sourcesFitting`'s call.
     func companionDiscover(
         topic: String,
+        seedSourceIDs: [String] = [],
         excluding: Set<String>,
         sinceReferenceTimestamp: Double?,
         limit: Int
@@ -1515,21 +1548,45 @@ extension MCPDataStore {
             restrictedTo = recent
         }
 
+        let seeds = Array(sanitizedSourceIDs(seedSourceIDs).prefix(companionDiscoverySeedLimit))
+        let excludedFromPool = excluding.union(seeds)
         // Over-fetch by the exclusion count so a goal already holding many of the
         // nearest sources still yields a full pool of new ones.
-        let hits = StorageService.searchSources(
+        let rankingLimit = min(limit + excludedFromPool.count, SourceSearchEngine.maximumCandidatePool)
+        let topicHits = StorageService.searchSources(
             queryText: topic,
             queryVector: queryVector,
-            limit: min(limit + excluding.count, SourceSearchEngine.maximumCandidatePool),
+            limit: rankingLimit,
             threshold: EmbeddingSettings.similarityThreshold,
             restrictedTo: restrictedTo,
             using: store
         )
+        var rankings: [(ids: [String], weight: Float)] = [(topicHits.map(\.sourceId), 1)]
+        if !seeds.isEmpty {
+            // The sources search never reads (a hidden show's episodes, a tab kept from
+            // AI) stay out of the seeds' rankings as they stay out of the topic's.
+            let seedRankings = try SourceSearchEngine.moreLikeThis(
+                sourceIDs: seeds,
+                limit: rankingLimit,
+                store: store,
+                restrictedTo: restrictedTo,
+                excludedSources: excludedFromPool.union(try store.knowledgeSearchExcludedSourceIDs())
+            ).filter { !$0.isEmpty }
+            // A seed with nothing to say (no full-text row yet) gives up its share of the
+            // vote rather than diluting the others'.
+            for ranking in seedRankings {
+                rankings.append((ranking, 1 / Float(seedRankings.count)))
+            }
+        }
+        let fused = SourceSearchEngine.fusedRanking(rankings)
+            .filter { !excludedFromPool.contains($0.id) }
+            .prefix(rankingLimit)
+        let active = try persistedMCPSourceIDs(fused.map(\.id))
         return Array(
-            hits.lazy
-                .filter { !excluding.contains($0.sourceId) }
+            fused.lazy
+                .filter { active.contains($0.id) }
                 .prefix(limit)
-                .map { (sourceID: $0.sourceId, relevance: Double($0.score)) }
+                .map { (sourceID: $0.id, relevance: Double($0.score)) }
         )
     }
 

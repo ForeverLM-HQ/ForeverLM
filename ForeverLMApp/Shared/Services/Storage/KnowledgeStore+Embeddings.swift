@@ -356,9 +356,7 @@ extension KnowledgeStore {
         }) { stmt in
             indexed = Int(sqlite3_column_int(stmt, 0))
         }
-        try queryBind("SELECT count(*) FROM source_fts", bind: { _ in }) { stmt in
-            fts = Int(sqlite3_column_int(stmt, 0))
-        }
+        fts = try sourceFTSDocumentCount()
         chunks = try embeddingCount(entityType: .sourceChunk, model: model)
         return (active, indexed, fts, chunks)
     }
@@ -544,6 +542,24 @@ extension KnowledgeStore {
         }
     }
 
+    /// A source's full-text row as the index holds it: its title and the opening
+    /// `maxCharacters` of its body, analyzed (`SourceSearchEngine.indexAnalyzedText`). Read by
+    /// the rowid `source_fts_rows` holds, for the reason `deleteSourceFTSRow` gives. Nil when no
+    /// row is recorded for the source: not indexed yet, or written before schema 168 and not yet
+    /// reached by `recordSourceFTSRows`.
+    func sourceFTSText(sourceID: String, maxCharacters: Int) throws -> (title: String, body: String)? {
+        guard let rowid = try recordedSourceFTSRowid(sourceID: sourceID) else { return nil }
+        var text: (title: String, body: String)?
+        try queryBind("SELECT title, substr(body, 1, ?) FROM source_fts WHERE rowid = ? AND source_id = ?", bind: { stmt in
+            sqlite3_bind_int64(stmt, 1, Int64(maxCharacters))
+            sqlite3_bind_int64(stmt, 2, rowid)
+            self.bind(stmt, 3, sourceID)
+        }) { stmt in
+            text = (self.string(stmt, 0) ?? "", self.string(stmt, 1) ?? "")
+        }
+        return text
+    }
+
     private func recordedSourceFTSRowid(sourceID: String) throws -> Int64? {
         var rowid: Int64?
         try queryBind("SELECT fts_rowid FROM source_fts_rows WHERE source_id = ?", bind: { stmt in
@@ -647,9 +663,14 @@ extension KnowledgeStore {
 
     /// Number of sources in the full-text index. Zero means the indexer has not run yet,
     /// and callers should fall back to a substring scan rather than return nothing.
+    ///
+    /// Counted from FTS5's own one-row-per-document table, `source_fts_docsize`, which
+    /// holds as many rows as `source_fts`: `count(*)` over `source_fts` walks every row of
+    /// its content, 52 ms on a library of 4,800 sources against under 1 ms here, and every
+    /// search asks.
     func sourceFTSDocumentCount() throws -> Int {
         var count = 0
-        try queryBind("SELECT count(*) FROM source_fts", bind: { _ in }) { stmt in
+        try queryBind("SELECT count(*) FROM source_fts_docsize", bind: { _ in }) { stmt in
             count = Int(sqlite3_column_int(stmt, 0))
         }
         return count

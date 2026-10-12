@@ -3698,6 +3698,149 @@ struct MCPDataStoreTests {
         }
     }
 
+    /// A library shaped like the one the 2026-10-11 notebook was made in. Its embedding
+    /// is anisotropic, so every source sits near every query, and here the three
+    /// off-topic ones sit nearest the topic. The paper the chat was about (`seed-paper`)
+    /// and the one on-topic source share its rare words (Polycomb, bivalent, H3K27me3,
+    /// chromatin); nothing else does, and neither title says the topic's words.
+    private func makeSeededDiscoveryLibrary(_ ks: KnowledgeStore, dbPath: String) throws {
+        func vector(_ weights: [Int: Float]) -> [Float] {
+            var values = [Float](repeating: 0, count: StorageService.sourceEmbeddingDimensions)
+            for (axis, weight) in weights { values[axis] = weight }
+            return values
+        }
+        func add(_ id: String, title: String, body: String, near weights: [Int: Float]?) throws {
+            try insertSource(dbPath: dbPath, id: id, title: title, content: body)
+            try ks.replaceSourceFTS(sourceID: id, title: title, author: "", body: body)
+            if let weights {
+                try ks.saveEmbedding(
+                    entityType: .sourceChunk,
+                    entityId: StorageService.sourceChunkEmbeddingId(sourceId: id, index: 0),
+                    vector: vector(weights),
+                    model: StorageService.sourceEmbeddingModel
+                )
+            }
+        }
+        try add("far-terahertz", title: "Terahertz waves and conscious experience",
+                body: "Terahertz radiation, microtubules and awareness.", near: [0: 1])
+        try add("far-deglycase", title: "A deglycase in early parkinsonism",
+                body: "Oxidative stress, a deglycase and dopaminergic neurons.", near: [0: 0.98, 1: 0.2])
+        try add("far-tunnelling", title: "Proton tunnelling in enzymes",
+                body: "Quantum tunnelling of protons speeds enzyme catalysis.", near: [0: 0.95, 1: 0.31])
+        try add("seed-paper", title: "Polycomb marks and bivalent chromatin in development",
+                body: "Polycomb complexes keep bivalent promoters poised. H3K27me3 spreads where Polycomb silences. "
+                    + "Bivalent chromatin resolves in development, and H3K27me3 returns with Polycomb.",
+                near: [0: 0.8, 1: 0.6])
+        try add("on-topic", title: "Silencing drift in old tissue",
+                body: "Polycomb occupancy and H3K27me3 fall with age, and bivalent promoters lose their poise. "
+                    + "Chromatin drifts as Polycomb is lost.",
+                near: [0: 0.6, 1: 0.8])
+        // Enough of a library that the shared words are rare in it.
+        for index in 0..<20 {
+            try add("filler-\(index)", title: "Unrelated note \(index)",
+                    body: "General prose about compilers, history and exercise.", near: nil)
+        }
+    }
+
+    /// The query vector the topic embeds to in `makeSeededDiscoveryLibrary`'s library.
+    private static let seededDiscoveryQuery: [Float] = {
+        var values = [Float](repeating: 0, count: StorageService.sourceEmbeddingDimensions)
+        values[0] = 1
+        return values
+    }()
+
+    @Test("Discovery seeded by a Notebook's own source ranks what shares its rare words first")
+    func discoverySeededBySourceRanksSharedRareTermsFirst() async throws {
+        let (_, tmpPath) = try makeStore()
+        defer { cleanup(tmpPath) }
+        let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
+        let store = MCPDataStore(dbPath: dbPath, sourceEmbeddingProvider: { _ in Self.seededDiscoveryQuery })
+        let ks = try store.knowledgeStore()
+        try makeSeededDiscoveryLibrary(ks, dbPath: dbPath)
+
+        // The topic alone: the embedding puts every off-topic source ahead of the one
+        // that belongs, which is how twelve unrelated papers were suggested.
+        let topicOnly = try await store.companionDiscover(
+            topic: "Grammar of cellular identity", excluding: ["seed-paper"],
+            sinceReferenceTimestamp: nil, limit: 24
+        )
+        #expect(topicOnly.map(\.sourceID) == ["far-terahertz", "far-deglycase", "far-tunnelling", "on-topic"])
+
+        // Seeded by the paper the Notebook was made from, the source sharing its rare
+        // words leads, and the seed itself is never suggested back.
+        let seeded = try await store.companionDiscover(
+            topic: "Grammar of cellular identity", seedSourceIDs: ["seed-paper"], excluding: [],
+            sinceReferenceTimestamp: nil, limit: 24
+        )
+        #expect(seeded.first?.sourceID == "on-topic")
+        #expect(!seeded.map(\.sourceID).contains("seed-paper"))
+        #expect(Set(seeded.map(\.sourceID)) == ["on-topic", "far-terahertz", "far-deglycase", "far-tunnelling"])
+
+        // A seed with no full-text row yet gives up its share of the vote rather than
+        // diluting the others': the ranking comes out as if it were not there.
+        let withUnindexedSeed = try await store.companionDiscover(
+            topic: "Grammar of cellular identity", seedSourceIDs: ["not-indexed", "seed-paper"], excluding: [],
+            sinceReferenceTimestamp: nil, limit: 24
+        )
+        #expect(withUnindexedSeed.map(\.sourceID) == seeded.map(\.sourceID))
+        #expect(withUnindexedSeed.map(\.relevance) == seeded.map(\.relevance))
+    }
+
+    @Test("A Notebook made from a chat starts with the sources the chat discussed, and they steer its suggestions")
+    func notebookFromChatIsSeededByWhatTheChatDiscussed() async throws {
+        let (_, tmpPath) = try makeStore()
+        defer { cleanup(tmpPath) }
+        let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
+        let judged = JudgedCandidates()
+        let store = MCPDataStore(
+            dbPath: dbPath,
+            sourceEmbeddingProvider: { _ in Self.seededDiscoveryQuery },
+            libraryFitJudge: { notebook, candidates in
+                await judged.record(notebook: notebook.title, candidates: candidates.map(\.title))
+                return Set(candidates.map(\.id).filter { $0 == "on-topic" })
+            }
+        )
+        let ks = try store.knowledgeStore()
+        try makeSeededDiscoveryLibrary(ks, dbPath: dbPath)
+
+        // The chat was opened on no source; its reply cites the paper by in-app link,
+        // and once a source the library does not hold.
+        try ks.createReviewSession(id: "chat-host", topic: "About a paper", sourceIDs: [])
+        _ = try ks.addReviewExchange(
+            sessionID: "chat-host",
+            question: "",
+            answer: "Turn this into a notebook",
+            evaluation: "As [the paper](foreverlm://source/seed-paper) argues, and [a lost one](foreverlm://source/not-in-library-0000) too.",
+            score: nil,
+            knowledgeNote: nil,
+            sourceRefs: []
+        )
+
+        let result = try await store.createNotebook(
+            title: "Grammar of cellular identity", description: nil, topic: nil, endDateString: "",
+            sourceIDs: [], dailyTarget: nil, discover: true, hostSessionID: "chat-host"
+        )
+
+        let notebookID = try #require(result.split(separator: " ").dropFirst(2).first.map(String.init))
+        let notebook = try #require(try ks.loadLearningGoal(notebookID))
+        #expect(notebook.items.filter(\.isApproved).map(\.sourceID) == ["seed-paper"])
+        #expect(notebook.items.filter(\.isPendingApproval).map(\.sourceID) == ["on-topic"])
+        #expect(result.contains("Seeds: 1, 1 of them the sources this chat discussed."))
+        // The judge read the seeded ranking: the source sharing the paper's words first.
+        #expect(await judged.candidates.first == "Silencing drift in old tissue")
+        #expect(try ks.loadReviewSessionGoalID(sessionID: "chat-host") == notebookID)
+
+        // A caller's own sources come first, and the chat's are not repeated.
+        let given = try await store.createNotebook(
+            title: "Grammar of cellular identity, again", description: nil, topic: nil, endDateString: "",
+            sourceIDs: ["far-terahertz", "seed-paper"], dailyTarget: nil, discover: false, hostSessionID: "chat-host"
+        )
+        let givenID = try #require(given.split(separator: " ").dropFirst(2).first.map(String.init))
+        let givenNotebook = try #require(try ks.loadLearningGoal(givenID))
+        #expect(Set(givenNotebook.items.filter(\.isApproved).map(\.sourceID)) == ["far-terahertz", "seed-paper"])
+        #expect(given.contains("Seeds: 2."))
+    }
+
     @Test("searchSourcesSemantic filters a relative-date meeting lookup deterministically")
     func searchSourcesSemanticFiltersMeetingDateWithoutEmbeddingGuesswork() async throws {
         let (_, tmpPath) = try makeStore()
@@ -4050,6 +4193,54 @@ struct MCPDataStoreTests {
         let hyphenated = SourceSearchEngine.analyzedWords(for: "GDF-15 biomarker")
         #expect(SourceSearchEngine.ftsMatchExpression(for: hyphenated)
             == SourceSearchEngine.ftsMatchExpression(for: words))
+    }
+
+    @Test("more like this keeps a source's own rare words, by how often it says them and how rare they are")
+    func moreLikeThisChoosesDistinctiveTerms() {
+        let text = "Polycomb POLYCOMB polycomb bivalent Bivalent the the the the cells cells cells "
+            + "Ezh2 EZH2 2026 2026 ab ab once café cafe"
+        // Folded as the index folds; a number, a two-letter token and a word said once
+        // never name a subject. Most frequent first, ties by spelling.
+        let candidates = SourceSearchEngine.moreLikeThisCandidateTerms(in: text)
+        #expect(candidates.map(\.term) == ["the", "cells", "polycomb", "bivalent", "cafe", "ezh2"])
+        #expect(candidates.map(\.count) == [4, 3, 3, 2, 2, 2])
+
+        // In a library of 100: "the" and "cells" are ordinary vocabulary, "ezh2" is held
+        // by no other source and can retrieve nothing, and a word never measured is
+        // left out. The rest by tf·idf: polycomb (3 × 3.36) before bivalent (2 × 2.91)
+        // before cafe (2 × 1.60).
+        let terms = SourceSearchEngine.moreLikeThisTerms(
+            candidates: candidates,
+            documentFrequencies: ["the": 99, "cells": 60, "polycomb": 3, "bivalent": 5, "ezh2": 1, "cafe": 20],
+            corpusSize: 100
+        )
+        #expect(terms == ["polycomb", "bivalent", "cafe"])
+
+        // A long source still asks with a bounded number of words.
+        let many = (0..<30).map { (term: "term\(String(format: "%02d", $0))", count: 2) }
+        let bounded = SourceSearchEngine.moreLikeThisTerms(
+            candidates: many,
+            documentFrequencies: Dictionary(uniqueKeysWithValues: many.map { ($0.term, 2) }),
+            corpusSize: 100
+        )
+        #expect(bounded.count == SourceSearchEngine.moreLikeThisTermCount)
+        #expect(bounded.first == "term00")
+    }
+
+    @Test("fused ranking adds each ranking's weighted reciprocal rank, an id once per ranking")
+    func fusedRankingAddsWeightedReciprocalRanks() {
+        let fused = SourceSearchEngine.fusedRanking([
+            (ids: ["a", "b", "c"], weight: 1),
+            (ids: ["c", "d"], weight: 0.5),
+            (ids: ["c", "e", "c"], weight: 0.5),
+        ])
+        // c is in all three, so it leads though no ranking put it first alone; d and e
+        // tie and go by id.
+        #expect(fused.map(\.id) == ["c", "a", "b", "d", "e"])
+        let k = SourceSearchEngine.rrfK
+        let c = fused.first { $0.id == "c" }?.score ?? 0
+        #expect(abs(c - (1 / (k + 3) + 0.5 / (k + 1) + 0.5 / (k + 1))) < 1e-6)
+        #expect(SourceSearchEngine.fusedRanking([]).isEmpty)
     }
 
     @Test("body-text search finds a term written the other way round")

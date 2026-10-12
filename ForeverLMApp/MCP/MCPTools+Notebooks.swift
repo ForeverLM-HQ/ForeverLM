@@ -121,8 +121,15 @@ extension MCPDataStore {
         let calendar = Calendar.current
         let startAt = calendar.startOfDay(for: Date())
         let endAt = LearningGoalRecord.openEndedEndAt
-        let seeds = sanitizedSourceIDs(sourceIDs)
-        try validateSourcesExist(seeds)
+        let givenSeeds = sanitizedSourceIDs(sourceIDs)
+        try validateSourcesExist(givenSeeds)
+        // Made from a chat, the Notebook starts with what that chat discussed: the
+        // source it was opened on and the sources its turns cite. Asked to "turn this
+        // into a notebook", a chat on one paper passed no source_ids, and the Notebook
+        // began empty of the very paper it was about.
+        let hostChatID = try resolvedHostSessionID(hostSessionID)
+        let chatSeeds = try hostChatID.map { try notebookSeedsDiscussed(inChat: $0, besides: givenSeeds) } ?? []
+        let seeds = givenSeeds + chatSeeds
         let resolvedTopic = givenTopic ?? trimmedTitle
         let resolvedDescription = (description?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap { $0.isEmpty ? nil : $0 }
 
@@ -157,7 +164,12 @@ extension MCPDataStore {
         var discoveryNote = ""
         if discover {
             do {
-                discoveredCount = try await runCompanionDiscovery(goal: goal, excluding: Set(seeds), incremental: false)
+                discoveredCount = try await runCompanionDiscovery(
+                    goal: goal,
+                    excluding: Set(seeds),
+                    incremental: false,
+                    seedSourceIDs: seeds
+                )
             } catch let error as MCPError {
                 discoveryNote = "\nDiscovery skipped: \(error.errorDescription ?? "unavailable")."
             }
@@ -167,13 +179,14 @@ extension MCPDataStore {
         // (`ReviewSessionManager.followNotebookThisChatMade`) — rather than a
         // reply that lists what was made (product owner, 2026-10-11: "it should
         // JUST open that notebook and move the chat to there").
-        if let hostChatID = try resolvedHostSessionID(hostSessionID) {
+        if let hostChatID {
             try store.updateReviewSessionGoal(sessionID: hostChatID, goalID: goal.id)
+            let fromChat = chatSeeds.isEmpty ? "" : ", \(chatSeeds.count) of them the sources this chat discussed"
             let suggestionLine = discoveredCount > 0
                 ? " \(discoveredCount) more source\(discoveredCount == 1 ? "" : "s") from the library that fit wait in its Sources as suggestions for the learner to keep or drop there."
                 : ""
             return """
-            Created Notebook ‘\(trimmedTitle)’, filed this chat in it, and the window now shows the Notebook with this chat in it. Seeds: \(seeds.count).\(suggestionLine)\(discoveryNote)
+            Created Notebook ‘\(trimmedTitle)’, filed this chat in it, and the window now shows the Notebook with this chat in it. Seeds: \(seeds.count)\(fromChat).\(suggestionLine)\(discoveryNote)
             notebook_id: \(goal.id)
             Tell the learner in one short sentence that the Notebook is open, by its title, and carry on with what they asked. Do not list its sources or the suggestions, print the Notebook's id, or name a tool. The notebook_id is for later calls only.
             """
@@ -185,6 +198,22 @@ extension MCPDataStore {
 
         \(try companionGoalDetail(refreshed))
         """
+    }
+
+    /// The sources a chat discussed (`KnowledgeStore.chatDiscussedSourceIDs`) that a
+    /// Notebook made from it starts with, beside the `given` ones: active and outside a
+    /// hidden show or channel (`persistedMCPSourceIDs`), not already given, in the order
+    /// the chat took them up, and only as many as bring the seeds to
+    /// `companionDiscoverySeedLimit`.
+    /// A long chat cites more sources than it is about; the first it took up say what it is.
+    func notebookSeedsDiscussed(inChat sessionID: String, besides given: [String]) throws -> [String] {
+        let room = companionDiscoverySeedLimit - given.count
+        guard room > 0 else { return [] }
+        let givenSet = Set(given)
+        let discussed = try knowledgeStore().chatDiscussedSourceIDs(sessionID: sessionID)
+            .filter { !givenSet.contains($0) }
+        let present = try persistedMCPSourceIDs(discussed)
+        return Array(discussed.filter { present.contains($0) }.prefix(room))
     }
 
     /// nil when the caller omitted `repository` (keep), "" when it asked to

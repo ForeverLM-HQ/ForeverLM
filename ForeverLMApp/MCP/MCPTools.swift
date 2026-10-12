@@ -7193,6 +7193,8 @@ final class MCPDataStore {
     // terahertz waves (product owner, 2026-10-11: "it finds weird sources that are barely
     // related").
     let companionDiscoveryPool = 24
+    /// Most of a goal's own sources that steer its discovery (`companionDiscoverySeeds`).
+    let companionDiscoverySeedLimit = 6
     let companionDiscoveryLimit = 12
     /// Which of a discovery pass's candidates fit the Notebook or Goal, by
     /// candidate id. Nil is the live model (`liveLibraryFitJudge`); a test

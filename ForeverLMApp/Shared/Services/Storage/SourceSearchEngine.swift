@@ -459,11 +459,16 @@ enum SourceSearchEngine {
         var idfs: [String: Double] = [:]
         for term in terms {
             guard let frequency = try? store.sourceFTSDocumentFrequency(term: term), frequency > 0 else { continue }
-            let n = Double(corpusSize)
-            let df = Double(frequency)
-            idfs[term] = log((n - df + 0.5) / (df + 0.5) + 1)
+            idfs[term] = inverseDocumentFrequency(documentFrequency: frequency, corpusSize: corpusSize)
         }
         return idfs
+    }
+
+    /// `idf = ln((N - df + 0.5) / (df + 0.5) + 1)`, the BM25 form (`termIDFs`).
+    static func inverseDocumentFrequency(documentFrequency: Int, corpusSize: Int) -> Double {
+        let n = Double(corpusSize)
+        let df = Double(documentFrequency)
+        return log((n - df + 0.5) / (df + 0.5) + 1)
     }
 
     /// How much to trust the lexical ranking for this query, in 0…1, driven by the
@@ -524,6 +529,138 @@ enum SourceSearchEngine {
             }
             .prefix(maximumPrecisionTerms)
             .map(\.term)
+    }
+
+    // MARK: - More Like This
+
+    /// Most terms one source puts into its query. Twelve is enough to name a paper's
+    /// subject (PRC2, H3K27me3, Polycomb, bivalent, grammar…) without the vocabulary of its
+    /// whole field coming along.
+    static let moreLikeThisTermCount = 12
+
+    /// Most of a source's words whose rarity is measured, its most frequent first, so a
+    /// source costs a bounded number of probes whatever its length. On a library of 4,800
+    /// sources the probes of one paper take about 50 ms, and seeds share their probes of
+    /// the words they have in common (`moreLikeThis`).
+    static let moreLikeThisProbedTermCount = 96
+
+    /// How much of a source's indexed text is read for its terms: a paper states its
+    /// subject in its opening pages, and a book's opening chapter says what it is about.
+    static let moreLikeThisTextLimit = 40_000
+
+    /// The words of a source that can say what it is about, with how often each occurs,
+    /// most frequent first: tokens as the full-text index splits them (case and diacritics
+    /// folded, broken at anything not a letter or digit), at least three characters long,
+    /// holding a letter, and said more than once. A number (a year, a timestamp, a figure
+    /// label) or a two-letter token never names a subject, and neither does a word said once.
+    static func moreLikeThisCandidateTerms(in text: String) -> [(term: String, count: Int)] {
+        var counts: [String: Int] = [:]
+        let folded = text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+        for token in folded.split(whereSeparator: { !$0.isLetter && !$0.isNumber }) {
+            guard token.count >= 3, token.contains(where: \.isLetter) else { continue }
+            counts[String(token), default: 0] += 1
+        }
+        return counts
+            .filter { $0.value >= 2 }
+            .map { (term: $0.key, count: $0.value) }
+            .sorted { lhs, rhs in
+                if lhs.count == rhs.count { return lhs.term < rhs.term }
+                return lhs.count > rhs.count
+            }
+            .prefix(moreLikeThisProbedTermCount)
+            .map { $0 }
+    }
+
+    /// The terms that say what one source is about, best first. This is Lucene's
+    /// MoreLikeThis choice, how often the source says a word times how rare the word is in
+    /// the library (tf·idf), with two words left out: ordinary vocabulary (`commonTermIDF`),
+    /// and a word no other source holds (`documentFrequencies` counts the source itself),
+    /// which can retrieve nothing.
+    static func moreLikeThisTerms(
+        candidates: [(term: String, count: Int)],
+        documentFrequencies: [String: Int],
+        corpusSize: Int
+    ) -> [String] {
+        candidates
+            .compactMap { candidate -> (term: String, weight: Double)? in
+                guard let frequency = documentFrequencies[candidate.term], frequency >= 2 else { return nil }
+                let idf = inverseDocumentFrequency(documentFrequency: frequency, corpusSize: corpusSize)
+                guard idf >= commonTermIDF else { return nil }
+                return (candidate.term, Double(candidate.count) * idf)
+            }
+            .sorted { lhs, rhs in
+                if lhs.weight == rhs.weight { return lhs.term < rhs.term }
+                return lhs.weight > rhs.weight
+            }
+            .prefix(moreLikeThisTermCount)
+            .map(\.term)
+    }
+
+    /// For each of `sourceIDs`, the sources whose text shares its distinctive terms
+    /// (`moreLikeThisTerms`), best first by BM25 over those terms, the source itself and
+    /// `excludedSources` left out: one ranking per source, in the order given, empty for a
+    /// source with no full-text row yet.
+    ///
+    /// What "about the same thing" means for a source the learner already holds. Not its
+    /// embedding: the contextual embedding is anisotropic (on a library of 4,800 sources
+    /// the mean of the unit chunk vectors has norm 0.97, so every chunk is mostly one shared
+    /// direction), and what is left over says more about style and length than subject. A
+    /// meeting's nearest sources by its chunk centroid were other meetings, whatever they
+    /// discussed. The words a source uses and few others do say what it is about.
+    ///
+    /// The library's size and each word's document frequency are measured once for all the
+    /// sources: their ordinary words ("the", "cells") are mostly the same words.
+    static func moreLikeThis(
+        sourceIDs: [String],
+        limit: Int,
+        store: KnowledgeStore,
+        restrictedTo: Set<String>? = nil,
+        excludedSources: Set<String> = []
+    ) throws -> [[String]] {
+        guard limit > 0, !sourceIDs.isEmpty else { return sourceIDs.map { _ in [] } }
+        let corpusSize = try store.sourceFTSDocumentCount()
+        var frequencies: [String: Int] = [:]
+        var rankings: [[String]] = []
+        for sourceID in sourceIDs {
+            guard let text = try store.sourceFTSText(sourceID: sourceID, maxCharacters: moreLikeThisTextLimit) else {
+                rankings.append([])
+                continue
+            }
+            let candidates = moreLikeThisCandidateTerms(in: text.title + "\n" + text.body)
+            for candidate in candidates where frequencies[candidate.term] == nil {
+                frequencies[candidate.term] = try store.sourceFTSDocumentFrequency(term: candidate.term)
+            }
+            let terms = moreLikeThisTerms(candidates: candidates, documentFrequencies: frequencies, corpusSize: corpusSize)
+            guard let expression = ftsMatchExpression(for: terms) else {
+                rankings.append([])
+                continue
+            }
+            rankings.append(try store.searchSourceFTS(
+                matchExpression: expression,
+                limit: limit,
+                restrictedTo: restrictedTo,
+                excludedSources: excludedSources.union([sourceID])
+            ).map(\.id))
+        }
+        return rankings
+    }
+
+    /// Weighted Reciprocal Rank Fusion of several rankings of source ids, best first: each
+    /// ranking adds `weight / (rrfK + rank)` to every id it holds, counting an id once, at
+    /// its best rank. Rank, not score, for the reason the hybrid search fuses by rank: the
+    /// rankings come from incomparable scales. A score here orders this one fusion and
+    /// means nothing alone; ties go to the smaller id, so the order is the same every time.
+    static func fusedRanking(_ rankings: [(ids: [String], weight: Float)]) -> [(id: String, score: Float)] {
+        var scores: [String: Float] = [:]
+        for ranking in rankings {
+            var seen = Set<String>()
+            for (rank, id) in ranking.ids.enumerated() where seen.insert(id).inserted {
+                scores[id, default: 0] += ranking.weight / (rrfK + Float(rank + 1))
+            }
+        }
+        return scores
+            .map { (id: $0.key, score: $0.value) }
+            .sorted(by: rankOrder)
     }
 
     // MARK: - Search
