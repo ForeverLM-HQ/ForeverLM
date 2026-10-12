@@ -323,7 +323,10 @@ enum MemoryCardWording {
 /// - Each card shows its wording; the learner's answer, typed or said, turns
 ///   it (never a bare flip: product owner, 2026-10-11, "I should always be
 ///   forced to actually type or say the answer"), or "I don't know", which
-///   can only be answered Forgot; Forgot or Remembered moves on. An answer is for the record only the first time a card is
+///   can only be answered Forgot. The answer is checked by a model
+///   (`answerCheck`, docs/memory-design.md "The answer is checked"), whose
+///   verdict suggests the grade; Forgot or Remembered — the verdict's, or
+///   the learner's own over it — moves on. An answer is for the record only the first time a card is
 ///   dealt in the sitting: **Review forgotten** deals the round's forgotten
 ///   cards again and writes nothing (storage would refuse the repeat anyway,
 ///   since the attempt's id is the sitting's key and the card's), and
@@ -520,6 +523,19 @@ struct MemoryCardSitting: Equatable, Sendable {
         }
     }
 
+    /// Where the check of the answer on screen stands
+    /// (`MemoryCardAnswerCheck`).
+    enum AnswerCheck: Equatable, Sendable {
+        /// Sent; the card shows a short wait.
+        case checking
+        /// The verdict and its line, which suggest the grade.
+        case judged(MemoryCardAnswerCheck.Result)
+        /// No verdict: no model is set up, or the call failed. The line says
+        /// so, and the learner grades themselves; never a grade of the
+        /// app's own (AGENTS.md, "AI failures surface").
+        case failed(String)
+    }
+
     /// What one answer asks storage to write
     /// (`recordSelfGradedMemoryCardAttempt`).
     struct Answer: Equatable, Sendable {
@@ -551,6 +567,14 @@ struct MemoryCardSitting: Equatable, Sendable {
     /// Whether the back shows because the learner said they did not know:
     /// the card can only be answered Forgot.
     private(set) var saidNotKnown = false
+    /// What the model made of the answer on the card on screen: nil until a
+    /// check is begun (and for a review that checks nothing, or a card the
+    /// learner did not know), then checking, then the verdict or why there
+    /// is none.
+    private(set) var answerCheck: AnswerCheck?
+    /// Counts the answers checked in the sitting, so a verdict that comes
+    /// back after its card moved on is dropped.
+    private(set) var checkToken = 0
     /// Whether this round repeats cards already answered in the sitting.
     private(set) var isRepeat = false
     /// This round's answers by card.
@@ -612,11 +636,46 @@ struct MemoryCardSitting: Equatable, Sendable {
         isAnswerShown = true
     }
 
+    /// The check of the answer on screen begins: what to send, and the token
+    /// its verdict must come back with. Nil when there is nothing to check —
+    /// no back shown, no answer (I Don't Know), or a check already begun.
+    mutating func beginAnswerCheck() -> (request: MemoryCardAnswerCheck.Request, token: Int, itemID: String)? {
+        guard isAnswerShown, !saidNotKnown, answerCheck == nil,
+              let card = current, let attempt else { return nil }
+        checkToken += 1
+        answerCheck = .checking
+        let request = MemoryCardAnswerCheck.Request(
+            front: card.prompt,
+            back: card.back,
+            why: card.why,
+            quote: card.quote,
+            answer: attempt
+        )
+        return (request, checkToken, card.itemID)
+    }
+
+    /// The check's outcome, kept only while its card is still on screen
+    /// waiting for it: one that comes back after the card was answered, or
+    /// after another check began, is dropped.
+    mutating func settleAnswerCheck(_ outcome: AnswerCheck, token: Int) {
+        guard token == checkToken, isAnswerShown, answerCheck == .checking, outcome != .checking else { return }
+        answerCheck = outcome
+    }
+
+    /// The grade the verdict suggests: Remembered for a right answer, Forgot
+    /// for one partly right or wrong (`Verdict.remembers`). Nil while there
+    /// is no verdict: checking, failed, or nothing checked.
+    var verdictRemembers: Bool? {
+        guard isAnswerShown, !saidNotKnown, case .judged(let result) = answerCheck else { return nil }
+        return result.verdict.remembers
+    }
+
     /// The card on screen back to its question, nothing answered on it.
     private mutating func hideAnswer() {
         isAnswerShown = false
         attempt = nil
         saidNotKnown = false
+        answerCheck = nil
     }
 
     /// The card on screen asked in its own words, its answer hidden again:

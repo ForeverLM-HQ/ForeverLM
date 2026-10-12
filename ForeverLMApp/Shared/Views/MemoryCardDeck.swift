@@ -153,6 +153,61 @@ struct MemoryCardWhyLine: View {
     }
 }
 
+/// What the model made of the learner's answer, on the card under the fold
+/// (docs/memory-design.md, "The answer is checked"): a short wait while it
+/// checks, then the verdict in a word and its one line, or why there is no
+/// verdict and the learner grades themselves. The grade buttons under the
+/// card carry the verdict's suggestion; this line only says it.
+struct MemoryCardVerdictLine: View {
+    let check: MemoryCardSitting.AnswerCheck
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            switch check {
+            case .checking:
+                ProgressView()
+                    .controlSize(.small)
+                    .accessibilityHidden(true)
+                Text("Checking your answer\u{2026}")
+                    .foregroundStyle(.secondary)
+            case .judged(let result):
+                Image(systemName: Self.symbol(result.verdict))
+                    .foregroundStyle(result.verdict == .right ? Color.primary : Color.orange)
+                    .accessibilityHidden(true)
+                Text("\(Text(Self.word(result.verdict)).fontWeight(.semibold)) \(result.note)")
+                    .fixedSize(horizontal: false, vertical: true)
+            case .failed(let line):
+                Image(systemName: "exclamationmark.triangle")
+                    .foregroundStyle(.orange)
+                    .accessibilityHidden(true)
+                Text(line)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .font(.callout)
+        .textSelection(.disabled)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("memory.cards.verdict")
+    }
+
+    static func word(_ verdict: MemoryCardAnswerCheck.Verdict) -> String {
+        switch verdict {
+        case .right: return "Right."
+        case .partly: return "Partly."
+        case .wrong: return "Not quite."
+        }
+    }
+
+    private static func symbol(_ verdict: MemoryCardAnswerCheck.Verdict) -> String {
+        switch verdict {
+        case .right: return "checkmark.circle"
+        case .partly: return "circle.lefthalf.filled"
+        case .wrong: return "xmark.circle"
+        }
+    }
+}
+
 /// Where a card folds between its question and its answer: a dashed hairline.
 struct MemoryCardFold: View {
     var body: some View {

@@ -302,7 +302,8 @@ extension StudioViewModel {
                     storage: self.storage,
                     // Practice deals the notebook whole and nothing after it.
                     followup: { MemoryCardSessionModel.Followup(cards: [], dayHasCardsLeft: true) },
-                    deeper: self.memoryCardDeeperSteps()
+                    deeper: self.memoryCardDeeperSteps(),
+                    answerCheck: self.memoryCardAnswerCheck()
                 )
                 self.enterMemoryCardFocus(session, in: window)
             } catch {
@@ -375,7 +376,8 @@ extension StudioViewModel {
                     firstDealAnswered: { dayHasCardsLeft in
                         StudioViewModel.cardReviewAnsweredFirstDeal(isCommitted: isCommitted, dayHasCardsLeft: dayHasCardsLeft)
                     },
-                    deeper: self.memoryCardDeeperSteps()
+                    deeper: self.memoryCardDeeperSteps(),
+                    answerCheck: self.memoryCardAnswerCheck()
                 )
                 self.enterMemoryCardFocus(session, in: window)
             } catch {
@@ -420,6 +422,30 @@ extension StudioViewModel {
                 try await ai.goDeeperReply(request, cardID: cardID, config: try config())
             }
         )
+    }
+
+    /// Check's step for a card review (docs/memory-design.md, "The answer is
+    /// checked"): the Card Answer Check task's route, resolved at each check
+    /// so a model picked mid-review is the one asked. No model set up is said
+    /// on the card, and the learner grades themselves.
+    func memoryCardAnswerCheck() -> MemoryCardSessionModel.AnswerCheckStep {
+        let ai = aiService
+        return { request, cardID, sourceTitle in
+            guard let config = KeychainService.resolveConfig(for: .cardAnswerCheck) else {
+                throw CardAnswerCheckUnavailable(
+                    message: KeychainService.backgroundAIUnavailableMessage(for: .cardAnswerCheck)
+                        ?? "No model is set up for Card Answer Check. Sign in and check Settings › AI Models."
+                )
+            }
+            return try await ai.checkCardAnswer(request, cardID: cardID, sourceTitle: sourceTitle, config: config)
+        }
+    }
+
+    /// Check with no model to ask: said on the card in the words Settings
+    /// would use.
+    struct CardAnswerCheckUnavailable: LocalizedError {
+        let message: String
+        var errorDescription: String? { message }
     }
 
     /// Queue entries as the sitting's cards: each card's face in the wording

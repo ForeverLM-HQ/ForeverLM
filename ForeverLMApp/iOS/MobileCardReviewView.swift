@@ -80,6 +80,11 @@ final class MobileCardReviewSession: ObservableObject {
         var askedSomethingElse: @MainActor (_ itemID: String, _ prompt: String, _ variantIndex: Int, _ sessionKey: String, _ at: Date) async throws -> Void = { _, _, _, _, _ in }
         /// "Always ask it this way" on a card, or off again.
         var setAlwaysAsk: @MainActor (_ itemID: String, _ on: Bool) async throws -> Void = { _, _ in }
+        /// Check on an answer: the Card Answer Check task's verdict
+        /// (docs/memory-design.md, "The answer is checked"). Nil checks
+        /// nothing, and the learner grades alone (a test's backend).
+        var checkAnswer: (@MainActor (_ request: MemoryCardAnswerCheck.Request, _ cardID: String, _ sourceTitle: String?) async throws
+            -> MemoryCardAnswerCheck.Result)? = nil
     }
 
     @Published private(set) var mode: Mode
@@ -113,6 +118,8 @@ final class MobileCardReviewSession: ObservableObject {
     private var dealGeneration = 0
     private var writes: Task<Void, Never>?
     private var followupRead: Task<Void, Never>?
+    /// The check of the answer on screen, while it runs.
+    private var checkWork: Task<Void, Never>?
     private static let logger = Logger(subsystem: "com.foreverlm.mobile", category: "CardReview")
 
     init(mode: Mode, opensAsPractice: Bool = false, backend: Backend) {
@@ -218,7 +225,44 @@ final class MobileCardReviewSession: ObservableObject {
         self.sitting = sitting
         attemptDraft = ""
         revealCount += 1
+        startAnswerCheck()
         return true
+    }
+
+    /// Sends the answer on screen to the check (the Mac's
+    /// `MemoryCardSessionModel` does the same): the verdict lands in the
+    /// sitting only while its card still waits for it, and a check that
+    /// fails is said on the card for the learner to grade themselves.
+    private func startAnswerCheck() {
+        guard let check = backend.checkAnswer, var sitting, let begun = sitting.beginAnswerCheck() else { return }
+        self.sitting = sitting
+        let sourceTitle = sitting.current?.sourceID.flatMap { sourceTitles[$0] }
+        checkWork?.cancel()
+        checkWork = Task { [weak self] in
+            let outcome: MemoryCardSitting.AnswerCheck
+            do {
+                let result = try await check(begun.request, begun.itemID, sourceTitle)
+                outcome = .judged(result)
+            } catch {
+                if error is CancellationError || Task.isCancelled { return }
+                Self.logger.error("A card answer was not checked: \(error.localizedDescription, privacy: .public)")
+                outcome = .failed(MemoryCardAnswerCheck.failureLine(error.localizedDescription))
+            }
+            guard !Task.isCancelled, let self, var current = self.sitting else { return }
+            current.settleAnswerCheck(outcome, token: begun.token)
+            self.sitting = current
+        }
+    }
+
+    /// The verdict's grade, once it is in: the dark pill's.
+    func confirmVerdict() {
+        guard let remembered = sitting?.verdictRemembers else { return }
+        answer(remembered: remembered)
+    }
+
+    /// The check of the answer on screen, for a test to wait on.
+    func waitForAnswerCheck() async {
+        await checkWork?.value
     }
 
     /// "I don't know": the back shows, and the card can only be Forgot.
@@ -235,6 +279,9 @@ final class MobileCardReviewSession: ObservableObject {
     /// rules say it counts); a repeat is shown and writes nothing.
     func answer(remembered: Bool) {
         guard var sitting, sitting.isAnswerShown else { return }
+        // Graded before the verdict came: the learner's own grade stands.
+        checkWork?.cancel()
+        checkWork = nil
         let answeredAt = backend.now()
         let answer = sitting.answer(remembered: remembered)
         self.sitting = sitting
@@ -422,6 +469,9 @@ extension MobileCardReviewSession.Backend {
             },
             setAlwaysAsk: { itemID, on in
                 try await vm.setCardAlwaysAsk(on, itemID: itemID)
+            },
+            checkAnswer: { request, cardID, sourceTitle in
+                try await MobileCardAnswerCheck.check(request, cardID: cardID, sourceTitle: sourceTitle)
             }
         )
     }
@@ -447,6 +497,40 @@ extension MobileCardReviewSession.Backend {
             if !title.isEmpty { titles[sourceID] = title }
         }
         return titles
+    }
+}
+
+/// Check on the phone: the Card Answer Check task on the phone's route
+/// (`MobileManagedTextCall`, as the course quiz's grader), sent the card and
+/// the answer and nothing else. A reply with no readable verdict is asked
+/// for once more; any other failure is thrown for the card to say.
+enum MobileCardAnswerCheck {
+    static func check(
+        _ request: MemoryCardAnswerCheck.Request,
+        cardID: String,
+        sourceTitle: String?
+    ) async throws -> MemoryCardAnswerCheck.Result {
+        let usage = AIUsageSource(id: cardID, type: "memory_card", title: sourceTitle ?? "Memory card")
+        return try await AIUsageAttribution.withSource(usage, activityID: "mobile-card-check-\(cardID)") { () async throws -> MemoryCardAnswerCheck.Result in
+            var lastError: Error = MemoryCardAnswerCheck.ReplyError.unreadable
+            for tryNumber in 1...2 {
+                let reply = try await MobileManagedTextCall.complete(
+                    task: .cardAnswerCheck,
+                    system: Prompts.cardAnswerCheck,
+                    messages: [(role: "user", content: MemoryCardAnswerCheck.message(request))],
+                    maxTokens: MemoryCardAnswerCheck.maxTokens,
+                    jsonMode: true,
+                    operation: "mobile_card_answer_check"
+                )
+                do {
+                    return try MemoryCardAnswerCheck.result(from: reply.text)
+                } catch {
+                    lastError = error
+                    if tryNumber < 2 { try await Task.sleep(for: .seconds(1)) }
+                }
+            }
+            throw lastError
+        }
     }
 }
 
@@ -896,6 +980,10 @@ struct MobileCardReviewScreen: View {
         VStack(alignment: .leading, spacing: 0) {
             MemoryCardFold()
                 .padding(.vertical, 20)
+            if let check = session.sitting?.answerCheck {
+                MemoryCardVerdictLine(check: check)
+                    .padding(.bottom, 14)
+            }
             Text(card.back)
                 .font(.system(size: backSize))
                 .lineSpacing(2)
@@ -1030,6 +1118,11 @@ struct MobileCardReviewScreen: View {
                 .accessibilityHint("You didn't know it")
                 .accessibilityIdentifier("memory.cards.forgot")
             } else if sitting.isAnswerShown {
+                // The check's verdict fills its grade's pill; the other is
+                // the override. While it checks both are pale; with no
+                // verdict, the learner's own grade as before.
+                let verdict = sitting.verdictRemembers
+                let checking = sitting.answerCheck == .checking
                 let layout = dynamicTypeSize.isAccessibilitySize
                     ? AnyLayout(VStackLayout(spacing: MobileDesign.Spacing.medium))
                     : AnyLayout(HStackLayout(spacing: MobileDesign.Spacing.medium))
@@ -1037,18 +1130,20 @@ struct MobileCardReviewScreen: View {
                     Button {
                         answer(remembered: false)
                     } label: {
-                        Text("Forgot")
+                        Text(verdict == true ? "I Was Wrong" : "Forgot")
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(MobileMemoryPillStyle(kind: .secondary))
+                    .buttonStyle(MobileMemoryPillStyle(kind: verdict == false ? .primary : .secondary))
+                    .accessibilityHint(verdict == true ? "The check was wrong: counts the card as forgot" : "")
                     .accessibilityIdentifier("memory.cards.forgot")
                     Button {
                         answer(remembered: true)
                     } label: {
-                        Text("Remembered")
+                        Text(verdict == false ? "I Was Right" : "Remembered")
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(MobileMemoryPillStyle(kind: .primary))
+                    .buttonStyle(MobileMemoryPillStyle(kind: verdict == true || (verdict == nil && !checking) ? .primary : .secondary))
+                    .accessibilityHint(verdict == false ? "The check was wrong: counts the card as remembered" : "")
                     .accessibilityIdentifier("memory.cards.remembered")
                 }
             } else {

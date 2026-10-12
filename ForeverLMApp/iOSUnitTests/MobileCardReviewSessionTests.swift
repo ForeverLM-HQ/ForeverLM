@@ -137,6 +137,51 @@ final class MobileCardReviewSessionTests: XCTestCase {
         XCTAssertEqual(cards.awake, 0)
     }
 
+    /// Check on the phone (docs/memory-design.md, "The answer is checked"):
+    /// the card and the answer go to the check, its verdict suggests the
+    /// grade, the learner's override is what is written, and a check that
+    /// fails is said on the card and leaves the grade to the learner.
+    func testCheckSuggestsTheGradeAndTheOverrideIsWritten() async throws {
+        let (due, missed) = try dueCard("due")
+        let (other, otherMissed) = try dueCard("other")
+        let cards = Cards(items: [due, other], attempts: [missed, otherMissed])
+        var backend = cards.backend(now: now)
+        var asked: [MemoryCardAnswerCheck.Request] = []
+        backend.checkAnswer = { request, cardID, sourceTitle in
+            asked.append(request)
+            XCTAssertEqual(sourceTitle, "Mitochondria")
+            if cardID == due.id { return .init(verdict: .wrong, note: "That is another card's answer.") }
+            throw URLError(.timedOut)
+        }
+        let session = MobileCardReviewSession(mode: .today(.allNotebooks), backend: backend)
+        await session.open()
+
+        XCTAssertTrue(session.showAnswer(attempt: "A guess"))
+        XCTAssertEqual(session.sitting?.answerCheck, .checking)
+        await session.waitForAnswerCheck()
+        XCTAssertEqual(asked.first?.answer, "A guess")
+        XCTAssertEqual(asked.first?.back, "Back due")
+        XCTAssertEqual(session.sitting?.verdictRemembers, false, "Forgot is suggested")
+        // The learner overrides it: Remembered is what is written.
+        session.answer(remembered: true)
+        await session.waitForWrites()
+        XCTAssertEqual(cards.written.last?.scheduleRating, .good)
+
+        // The second check fails: said on the card, nothing suggested.
+        session.showAnswer(attempt: "Another guess")
+        await session.waitForAnswerCheck()
+        guard case .failed(let line)? = session.sitting?.answerCheck else {
+            return XCTFail("a failed check is said on the card")
+        }
+        XCTAssertTrue(line.hasPrefix("Your answer could not be checked"))
+        XCTAssertNil(session.sitting?.verdictRemembers)
+        session.confirmVerdict()
+        XCTAssertEqual(session.sitting?.cardNumber, 2, "Return takes no verdict there is not")
+        session.answer(remembered: false)
+        await session.waitForWrites()
+        XCTAssertEqual(cards.written.last?.scheduleRating, .again)
+    }
+
     func testEachFirstAnswerIsWrittenOnceAsTheMacWritesIt() async throws {
         let (due, missed) = try dueCard("due")
         let newCard = try card("new", keptAt: now.addingTimeInterval(-2 * day))
