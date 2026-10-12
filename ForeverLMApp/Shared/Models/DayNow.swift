@@ -267,7 +267,7 @@ enum DayNowMenuRow: String, Equatable, Sendable, CaseIterable {
     /// calendar's events.
     case planDay
     /// A bout on the clock, offered while none runs and the clock is in no
-    /// event (an event's own Start a Bout is beside its title).
+    /// event (an event's own Start Pomodoro Timer… is beside its title).
     case startBout
     case openCalendar
     /// macOS refused Calendar access: the way to Privacy & Security.
