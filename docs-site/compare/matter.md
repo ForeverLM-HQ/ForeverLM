@@ -16,7 +16,7 @@ Matter is a polished read-later app for articles and newsletters on iPhone, iPad
 | **Platforms** | Mac-centered, with synced iPhone access | iPhone, iPad, and web |
 | **Best for** | Managing and learning from many source types | A focused queue for articles and newsletters |
 | **Capture** | Reading lists, URLs, files, feeds, reference tools, podcasts, and plugins | Share sheet, browser, email newsletters, and feeds |
-| **Listening** | On-device, local, or cloud narration tied to the source | Built-in article listening |
+| **Listening** | Narration from any speech model OpenRouter serves, tied to the source | Built-in article listening |
 | **AI** | Cross-source Chat and MCP assistants that can operate the library | Reading assistance inside the article workflow |
 | **Retention** | Schedule plus source-linked review | Highlights and reading history, without an active-review loop |
 

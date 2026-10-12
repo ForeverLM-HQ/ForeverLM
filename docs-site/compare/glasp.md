@@ -36,7 +36,7 @@ Glasp is a social web highlighter for collecting passages and notes from article
 - **Privacy is the default.** The library lives in your iCloud instead of starting from a public knowledge profile.
 - **More source types share one workflow.** Podcasts, courses, meetings, and academic papers are first-class records.
 - **AI can organize and schedule.** MCP assistants do more than summarize or imitate a knowledge profile.
-- **The learner must explain.** review asks for reconstruction in your own words and records the result.
+- **The learner must explain.** Review asks for reconstruction in your own words and records the result.
 
 ## Which should you choose?
 

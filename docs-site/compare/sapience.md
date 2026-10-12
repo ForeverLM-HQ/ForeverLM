@@ -20,7 +20,7 @@ Sapience is a local knowledge workspace built around a visual canvas. Each "spac
 | **AI models** | Any model through your own OpenRouter key, or Claude, ChatGPT, Gemini or Grok over MCP | Not stated |
 | **Sources** | Papers with their PDFs, articles, books, podcasts (follow shows, full transcripts), YouTube, X posts, meetings; reading lists and Apple Podcasts arrive on their own | Books, papers, websites and YouTube videos, "and more" |
 | **Retention** | Weekly Schedule, cards drafted as you finish sources, and a review dialogue saved per source | None stated; its AI can draw up a learning curriculum |
-| **Export** | Files in your iCloud Drive; SQLite you can open | Nothing to export: notes, canvases and chats are already plain files |
+| **Export** | Files on your Mac; SQLite you can open | Nothing to export: notes, canvases and chats are already plain files |
 
 *Checked against sapience.so in October 2026. Sapience is in early access and publishes little so far, so this page will change as it does; check [sapience.so](https://sapience.so) for its current state.*
 
@@ -33,7 +33,7 @@ Sapience is a local knowledge workspace built around a visual canvas. Each "spac
 ## Where ForeverLM is better
 
 - **Available, and documented.** ForeverLM ships today, with its platforms, prices and models stated. Sapience is invite-only, and says nothing yet about its platforms, models or price.
-- **The library fills itself.** Reading lists, Apple Podcasts episodes with full transcripts, PDFs dropped into iCloud folders, X bookmarks, YouTube likes and meeting transcripts arrive without being dragged in.
+- **The library fills itself.** Reading lists, Apple Podcasts episodes with full transcripts, X bookmarks, YouTube likes and meeting transcripts arrive without being dragged in.
 - **Saving leads to remembering.** A Schedule, cards drafted as you finish sources, and a review dialogue in which a tutor who has read the whole source checks that you understood it. See [Why Quizzing?](/why-quizzing)
 - **A canvas wired to its sources.** On ForeverLM's Canvas a paper can show only its figures, a passage card opens the paper at that passage, and a figure boxed in the Reader drags onto the board.
 - **Any model, and the assistant you already use.** Claude, ChatGPT, Gemini or Grok can search your library, add to it and run your reviews over MCP.

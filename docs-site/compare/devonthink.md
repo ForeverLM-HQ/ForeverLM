@@ -35,8 +35,8 @@ DEVONthink is a powerful document and information manager for Mac and iOS. It ar
 - **It understands learning sources.** A podcast episode, paper, book, and course are not generic files. Each gets source-specific ingestion, reading, and playback behavior.
 - **The queue has a purpose.** Schedule what to learn this week and track whether it was reviewed, not merely archived.
 - **AI interaction is portable.** Use in-app Chat or let an external MCP assistant operate the library and save the resulting review.
-- **Active understanding is built in.** review dialogue probes gaps and preserves the session against the sources covered.
-- **It starts free.** There is no license decision before building a library.
+- **Active understanding is built in.** Review dialogue probes gaps and preserves the session against the sources covered.
+- **A lower one-time price.** ForeverLM is $19 once after a 7-day free start, against $99 for DEVONthink Standard.
 
 ## Which should you choose?
 

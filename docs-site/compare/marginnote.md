@@ -17,7 +17,7 @@ MarginNote 4 combines PDF and EPUB reading, highlighting, mind maps, flashcards,
 | **Reading** | Papers, articles, books, and transcripts | Deep PDF and EPUB reading with OCR and visual extraction |
 | **Knowledge structure** | Notebooks, source relationships, search, and Schedule | One card can be a highlight, mind-map node, and flashcard |
 | **AI** | Configurable models, source chat, and external MCP assistants | Credit-based summary, Q&A, OCR, translation, and card generation |
-| **Review** | review dialogue grounded in complete sources | Flashcards, FSRS, document recall, and mind-map recall |
+| **Review** | Review dialogue grounded in complete sources | Flashcards, FSRS, document recall, and mind-map recall |
 | **Beyond documents** | Podcasts, videos, courses, meetings, and X posts | Local and online video notes, but primarily document-centered |
 
 *MarginNote pricing and AI credit rules checked against its [official pricing page](https://www.marginnote.com/en/pricing/) in August 2026.*
@@ -35,7 +35,7 @@ MarginNote 4 combines PDF and EPUB reading, highlighting, mind maps, flashcards,
 - **More source streams arrive automatically.** Articles, papers, podcasts, books, videos, courses, meetings, and plugins share one library.
 - **Podcasts are first-class.** Follow shows, keep episode transcripts, and review them like any other source.
 - **AI can operate across the system.** MCP assistants can retrieve sources, plan days, move work, and save review transcripts.
-- **Conversation tests explanation.** review emphasizes articulating the full idea rather than recognizing a card answer.
+- **Conversation tests explanation.** Review emphasizes articulating the full idea rather than recognizing a card answer.
 - **Data and model flexibility.** Source files stay in your iCloud, and the model can be chosen per task.
 
 ## Which should you choose?

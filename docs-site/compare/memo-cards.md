@@ -21,7 +21,7 @@ Memo (memo.cards, formerly PDF2Anki) was built by medical students to turn study
 | **Flashcards** | Cards drafted from what you finish, kept or skipped by you, reviewed with Forgot and Remembered | FSRS scheduling; basic, quiz, cloze and image-occlusion cards; Anki (.apkg) and RemNote export |
 | **Review** | Explain a source back to a tutor that reads its whole text; saved per source | Practice tests and AI tutors, including a voice tutor |
 | **Audio** | A one-narrator audio overview (deep dive, brief or critique); Text to Speech reads the source itself | Podcasts of about 3 to 15 minutes; guided voice walkthroughs (Track Mode) |
-| **Export** | Files in your iCloud Drive; SQLite you can open | Cards to Anki and RemNote; notes as PDF, Markdown or text |
+| **Export** | Files on your Mac; SQLite you can open | Cards to Anki and RemNote; notes as PDF, Markdown or text |
 
 *Checked against memo.cards's pricing, FAQ, help center and download pages and its App Store listing in October 2026. Prices are the web prices; the iOS app lists different in-app prices, so check [memo.cards](https://www.memo.cards/en/pricing) for the offer where you buy.*
 
@@ -43,7 +43,7 @@ ForeverLM is 7 days free, then $19 once, with no subscription and no tiers. The 
 - **Your library stays in your iCloud.** Memo keeps your material on its own cloud and names neither its hosting provider nor most of its AI providers. ForeverLM's library is a SQLite database and files in your private iCloud container, and its servers never hold it.
 - **Any model, and the assistant you already use.** Memo's modes don't say which model answers. ForeverLM runs any model you choose on your own key, and Claude, ChatGPT, Gemini or Grok can work in your library over MCP.
 - **Costs you can read.** An energy balance makes cost a guess. ForeverLM records every call's price.
-- **Sources arrive on their own.** Reading lists, Apple Podcasts episodes with full transcripts, PDFs dropped into iCloud folders, X bookmarks, YouTube likes and meeting transcripts. Memo holds what you upload.
+- **Sources arrive on their own.** Reading lists, Apple Podcasts episodes with full transcripts, X bookmarks, YouTube likes and meeting transcripts. Memo holds what you upload.
 - **A library, not decks.** Every source lives once in your library and can sit in any number of notebooks, with a Schedule and a review dialogue tied to the source. The tutor reads the whole source and probes the gaps a card can't know about. See [Why Quizzing?](/why-quizzing)
 - **Gemini Notebook moves in whole.** Paste a notebook's link and its sources, chats and notes arrive as a ForeverLM notebook ([Importing a Gemini Notebook](/studio#importing-a-gemini-notebook)).
 

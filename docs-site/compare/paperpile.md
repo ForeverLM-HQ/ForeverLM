@@ -47,10 +47,10 @@ First, Chat is built into the source library. You can discuss the current paper 
 
 - **Everything belongs to the same research context.** A paper can sit in a notebook with a podcast interview, an article, a conference video, meeting notes, and a book chapter—and Chat can reason across them together.
 - **AI is not an export step.** Source-grounded conversation lives in the app, while MCP gives external assistants structured access to the full library instead of attaching a few PDFs to one thread.
-- **The result comes back.** review sessions retain their transcript, summary, score, and source links. The library records what was covered rather than forgetting the interaction when the external tab closes.
+- **The result comes back.** Review sessions retain their transcript, summary, score, and source links. The library records what was covered rather than forgetting the interaction when the external tab closes.
 - **Papers can be heard as well as read.** Text to Speech cleans academic text for narration, skips citation clutter and reference sections, caches the audio, and syncs it to iPhone.
 - **The reading queue is actionable.** Schedule papers for specific days, move them when plans change, and connect completion to a real review.
-- **No reference-manager subscription.** The paper library, notebooks, Schedule, local reading, on-device speech, built-in AI and MCP all come with the app: 7 days free, then $19 once. AI and cloud voices run on your own OpenRouter key at OpenRouter's cost.
+- **No reference-manager subscription.** The paper library, notebooks, Schedule, local reading, Text to Speech, built-in AI and MCP all come with the app: 7 days free, then $19 once. AI and voices run on your own OpenRouter key at OpenRouter's cost.
 
 ## Which should you choose?
 

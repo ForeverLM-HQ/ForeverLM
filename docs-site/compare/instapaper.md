@@ -15,7 +15,7 @@ Instapaper is a long-running read-later service that turns web content into a cl
 | **Price** | 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free tier; Premium $6/month or $60/year |
 | **Platforms** | Mac-centered with synced iPhone access | Web, iPhone, iPad, Android, Kindle, and Kobo workflows |
 | **Content** | Articles, papers, books, podcasts, videos, courses, and more | Articles, videos, long email, X saves, and PDFs on Premium |
-| **Listening** | Free on-device speech plus local and cloud options | AI voice playlists and text-to-speech on Premium |
+| **Listening** | Any speech model OpenRouter serves, free ones included | AI voice playlists and text-to-speech on Premium |
 | **Archive** | Local source files and extracted content in iCloud | Permanent web archive on Premium |
 | **AI** | Cross-source Chat and MCP assistants | Reading and narration features rather than full-library research chat |
 | **Review** | Schedule and source-linked review dialogue | Highlights, notes, speed reading, and reading history |
@@ -33,7 +33,7 @@ Instapaper is a long-running read-later service that turns web content into a cl
 ## Where ForeverLM is more complete
 
 - **Articles join the rest of the research.** A saved essay can live beside papers, podcasts, books, videos, and meetings.
-- **Listening has several cost and privacy options.** Use Apple voices, run speech locally, or choose a cloud provider.
+- **Listening offers many voices.** Pick any speech model OpenRouter serves, free ones included.
 - **Chat sees the full context.** Ask about one article or compare it with a whole notebook.
 - **An assistant can plan the work.** MCP tools expose the learning schedule and let an external AI move and complete sources.
 - **Review goes beyond resurfacing.** Explain the source and keep a record of what you understood.

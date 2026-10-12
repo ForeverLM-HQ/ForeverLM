@@ -21,7 +21,7 @@ Paper (paper.ac) is a study workspace that sets out to replace NotebookLM, Notio
 | **Flashcards** | Cards drafted from what you finish, kept or skipped by you, reviewed on a schedule | FSRS flashcards (basic and cloze), up to 75 per generation |
 | **Review** | Explain a source back to a tutor that reads its whole text; saved per source | Quizzes and self-graded review sessions of 8–15 questions |
 | **Audio** | A one-narrator audio overview (deep dive, brief or critique); Text to Speech reads the source itself | Generated podcasts, solo or two hosts, up to 60 minutes |
-| **Export** | Files in your iCloud Drive; SQLite you can open | Notes as Markdown; a full-account export by email request |
+| **Export** | Files on your Mac; SQLite you can open | Notes as Markdown; a full-account export by email request |
 
 *Checked against paper.ac's own pages (FAQ, How it works, Security, Docs, Roadmap and Changelog) in October 2026. Paper is in beta and changes quickly, so check [paper.ac](https://paper.ac) for its current state.*
 
@@ -43,7 +43,7 @@ ForeverLM is 7 days free, then $19 once, with no subscription and no tiers. The 
 
 - **Your library stays in your iCloud.** Paper keeps everything on its own cloud, without end-to-end encryption or a SOC 2 report, and a full export means emailing them. ForeverLM's library is a SQLite database and files in your private iCloud container, and its servers never hold it.
 - **Any model, and the assistant you already use.** Paper chooses among Grok, GPT and Gemini, with no key of your own. ForeverLM runs any model on your OpenRouter key, and Claude, ChatGPT, Gemini or Grok can work in your library over MCP.
-- **Sources arrive on their own.** Safari, Chrome and Brave reading lists, Apple Podcasts episodes with full transcripts, PDFs dropped into iCloud folders, X bookmarks, YouTube likes and meeting transcripts. Paper holds what you upload or paste.
+- **Sources arrive on their own.** Safari, Chrome and Brave reading lists, Apple Podcasts episodes with full transcripts, X bookmarks, YouTube likes and meeting transcripts. Paper holds what you upload or paste.
 - **Review that checks understanding.** You explain a source back to a tutor that has read all of it and probes the gaps, and the result stays with the source. Cards are drafted for you as you finish things. See [Why Quizzing?](/why-quizzing)
 - **A price you can read today.** ForeverLM states what it costs now. Paper's paid tiers are announced but not priced.
 - **Gemini Notebook moves in whole.** Paste a notebook's link and its sources, chats and notes arrive as a ForeverLM notebook ([Importing a Gemini Notebook](/studio#importing-a-gemini-notebook)).

@@ -18,7 +18,7 @@ Raindrop.io is a polished bookmark manager for saving, organizing, highlighting,
 | **Organization** | Notebooks, status, source types, relationships, and Schedule | Collections, nested structure, tags, filters, highlights, and collaboration |
 | **Search** | Metadata, extracted content, and semantic source search | Full-text search and permanent archive on Pro |
 | **AI** | Cross-source Chat and MCP assistants | AI Assistant and suggestions on Pro |
-| **Review** | review dialogue and saved learning history | No active-review workflow |
+| **Review** | Review dialogue and saved learning history | No active-review workflow |
 
 *Raindrop.io features checked against its [official pricing page](https://raindrop.io/pro/buy) in August 2026. Local pricing is shown at checkout.*
 

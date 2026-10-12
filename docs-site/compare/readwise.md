@@ -19,7 +19,7 @@ ForeverLM overlaps with that first job: it gives you a reading list for articles
 | **Platforms** | Mac-centered library with synced iPhone reading, listening, and voice access | Web, Mac, Windows, iOS, Android, browser extensions, and e-ink viewing |
 | **Capture** | Safari, Chrome, and Brave reading lists; URL paste; local files; plugins; MCP | Browser extensions, share sheet, email newsletters, RSS, file upload, and imports |
 | **Content** | Articles, papers, books, podcasts, videos, courses, meetings, and X posts | Articles, newsletters, RSS, PDFs, EPUBs, videos, podcasts, and X posts |
-| **Listening** | Free on-device speech, local or cloud voice choice, cached audio, iPhone and CarPlay voice control | Natural AI voices, adjustable speed, and many languages across platforms |
+| **Listening** | Any speech model OpenRouter serves (free ones cost nothing), cached audio, iPhone voice control | Natural AI voices, adjustable speed, and many languages across platforms |
 | **AI conversation** | Multi-source in-app Chat with model choice, plus full-library MCP read/write tools | Ghostreader in Reader, plus MCP access for external assistants to read and organize documents |
 | **Review method** | Source-linked review dialogue: explain the ideas, answer follow-ups, and keep the transcript and result | Daily Review resurfaces highlights; Mastery cards are self-graded |
 | **Storage** | Local SQLite + files in your private iCloud container | Readwise cloud with full exports available |
@@ -33,7 +33,7 @@ Readwise Full costs **$119.88 per year** on annual billing or **$155.88 per year
 
 ForeverLM's reading list comes with the app: **7 days free, then $19 once**. Articles saved in Safari, Chrome, or Brave flow into Studio, where you can read them, organize them into notebooks, and put them on Schedule without a subscription. Papers, books, podcasts, videos, courses, and meetings share the same library.
 
-Beyond that, only AI and cloud voices cost anything, and ForeverLM never charges for them. On-device Mac speech costs nothing. In-app Chat runs on your own OpenRouter key, billed by OpenRouter at its cost with nothing added, or on free models for nothing. Connecting a Claude, ChatGPT, Gemini, or Grok subscription through MCP is included. A quiet reading month adds nothing to your OpenRouter bill.
+Beyond that, only AI and voices cost anything, and ForeverLM never charges for them. Free voices cost nothing. In-app Chat runs on your own OpenRouter key, billed by OpenRouter at its cost with nothing added, or on free models for nothing. Connecting a Claude, ChatGPT, Gemini, or Grok subscription through MCP is included. A quiet reading month adds nothing to your OpenRouter bill.
 
 ## Where Readwise is better
 
@@ -52,7 +52,7 @@ Beyond that, only AI and cloud voices cost anything, and ForeverLM never charges
 - **Chat is part of the notebook.** Discuss one source or combine papers, articles, podcasts, meetings, and videos in the same conversation. In-app Chat supports model choice, and MCP lets external assistants search and operate the library.
 - **Podcasts and meetings are first-class sources.** Full transcripts can be read, searched, scheduled, discussed, and reviewed alongside written material.
 - **Local ownership by default.** The knowledge base lives in local SQLite and your private iCloud container instead of requiring a vendor cloud account for the library.
-- **Choose how listening works.** Use free on-device speech, local Qwen3-TTS, or a cloud provider of your choice; cached audio remains attached to the source and syncs through iCloud.
+- **Choose how listening works.** Pick any speech model OpenRouter serves, free ones included; cached audio remains attached to the source and syncs through iCloud.
 
 ## Which should you choose?
 

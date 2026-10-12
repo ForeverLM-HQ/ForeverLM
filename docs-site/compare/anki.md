@@ -17,9 +17,9 @@ Anki is the standard-bearer of spaced repetition: free, open source, fifteen-plu
 | **Platforms** | Native macOS app (macOS 14+) | Windows, macOS, Linux, iOS, Android, web review |
 | **Data storage** | Local SQLite + files in your private iCloud container | Local SQLite; free AnkiWeb sync or self-hosted sync |
 | **Source ingestion** | Automatic: articles, papers, podcasts, books, YouTube, X posts | None — cards only; you author or import decks |
-| **Review method** | review dialogue: explain it back, AI probes gaps | Self-graded flashcards (Again/Hard/Good/Easy), SM-2 or FSRS |
+| **Review method** | Review dialogue: explain it back, AI probes gaps | Self-graded flashcards (Again/Hard/Good/Easy), SM-2 or FSRS |
 | **Adaptivity** | AI rephrases, follows up on weak spots, asks *why* | Cards are static; scheduling adapts, questions don't |
-| **Export** | Files in your iCloud Drive; SQLite you can open | Excellent: .apkg/.colpkg/plain text, open format |
+| **Export** | Files on your Mac; SQLite you can open | Excellent: .apkg/.colpkg/plain text, open format |
 
 *Pricing verified July 2026 — see [apps.ankiweb.net](https://apps.ankiweb.net/).*
 
