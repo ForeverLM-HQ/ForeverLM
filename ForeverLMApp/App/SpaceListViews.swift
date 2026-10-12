@@ -84,23 +84,28 @@ struct SpaceListAddMenu: View {
         }
     }
 
+    /// New Goal… on a list of goals, then the goals or ideas to put in it,
+    /// each named with the list it is in now.
+    private func sections(_ candidates: [(id: String, title: String, listName: String?)]) -> [[SpaceMenuItem]] {
+        let new: [SpaceMenuItem] = list.kind == .goals
+            ? [SpaceMenuItem(id: "studio.goals.set", title: "New Goal\u{2026}", systemImage: "plus") { isSettingGoal = true }]
+            : []
+        let existing: [SpaceMenuItem] = candidates.isEmpty
+            ? [SpaceMenuItem(id: "space.list.add.none", title: "Every \(list.kind.noun) is in this list", systemImage: "checkmark", isEnabled: false) {}]
+            : candidates.map { candidate in
+                SpaceMenuItem(
+                    id: "space.list.add.\(candidate.id)",
+                    title: candidate.title,
+                    systemImage: list.kind.symbolName,
+                    trailing: candidate.listName.map { "in \($0)" }
+                ) { vm.moveRecords([candidate.id], toSpaceList: list.id) }
+            }
+        return [new, existing]
+    }
+
     var body: some View {
         let candidates = candidates
-        SpaceDarkPillMenu(title: "Add \(list.kind.pluralNoun.capitalized)") {
-            if list.kind == .goals {
-                Button("New Goal\u{2026}", systemImage: "plus") { isSettingGoal = true }
-                    .accessibilityIdentifier("studio.goals.set")
-                Divider()
-            }
-            if candidates.isEmpty {
-                Text("Every \(list.kind.noun) is in this list")
-            }
-            ForEach(candidates, id: \.id) { candidate in
-                Button(candidate.listName.map { "\(candidate.title) — in \($0)" } ?? candidate.title) {
-                    vm.moveRecords([candidate.id], toSpaceList: list.id)
-                }
-            }
-        }
+        SpaceDarkPillMenu(title: "Add \(list.kind.pluralNoun.capitalized)", sections: sections(candidates))
         .help(list.kind == .goals ? "Set a goal in this list, or put one you already have in it" : "Put an idea you already have in this list")
         .accessibilityIdentifier("space.list.add")
         .sheet(isPresented: $isSettingGoal) {

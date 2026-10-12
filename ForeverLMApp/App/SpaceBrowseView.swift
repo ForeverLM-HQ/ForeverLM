@@ -843,41 +843,49 @@ struct SpaceBrowseView: View {
     }
 
     private var newMenu: some View {
-        SpaceDarkPillMenu(title: "New") {
-            Button("Page", systemImage: "doc.badge.plus", action: onNewPage)
-            // The Notebooks home's New notebook, which the Space took over:
-            // made at once, named by ForeverLM, and opened in this window.
-            if destination == .all {
-                Button("Notebook", systemImage: NotebookGlyph.systemImage) { newNotebook() }
-            }
-            Button(ArtifactSection.docs.linkActionTitle, systemImage: "link.badge.plus") { onLink(.docs) }
-            Button(ArtifactSection.sites.linkActionTitle, systemImage: "link.badge.plus") { onLink(.sites) }
-            if vm.activeTeamID == nil {
-                Button("Goals List", systemImage: SpaceList.Kind.goals.symbolName) {
-                    vm.makeAndOpenSpaceList(.goals, inPageSpace: destination.pageSpaceID, in: windowState)
+        SpaceDarkPillMenu(title: "New", sections: newMenuSections)
+            .accessibilityIdentifier("space.new")
+    }
+
+    /// New's rows, in Codex's groups: what you make, then a space, then what
+    /// you link from elsewhere.
+    private var newMenuSections: [[SpaceMenuItem]] {
+        var make: [SpaceMenuItem] = [
+            SpaceMenuItem(id: "space.new.page", title: "Page", systemImage: "doc.text", action: onNewPage),
+        ]
+        // The Notebooks home's New notebook, which the Space took over:
+        // made at once, named by ForeverLM, and opened in this window.
+        if destination == .all {
+            make.append(SpaceMenuItem(id: "space.new.notebook", title: "Notebook", systemImage: NotebookGlyph.systemImage) { newNotebook() })
+        }
+        if vm.listsCanvases {
+            make.append(SpaceMenuItem(id: "space.new.canvas", title: "Canvas", systemImage: KnowledgeMap.symbolName) { newCanvas() })
+            // The sources selected in the Sources list, on a canvas of their own.
+            if let windowState {
+                let selected = vm.inWindow(windowState) { vm.sourceIDsInCurrentDisplayOrder(windowState.sidebarSelectedSourceIDs) }
+                if !selected.isEmpty {
+                    make.append(SpaceMenuItem(id: "space.new.canvasFromSources", title: "Canvas from Selected Sources", systemImage: "square.on.square.dashed") {
+                        vm.makeCanvasFromSources(sourceIDs: selected, in: windowState)
+                    })
                 }
-                Button("Ideas List", systemImage: SpaceList.Kind.ideas.symbolName) {
-                    vm.makeAndOpenSpaceList(.ideas, inPageSpace: destination.pageSpaceID, in: windowState)
-                }
-            }
-            if vm.listsCanvases {
-                Button("Canvas", systemImage: KnowledgeMap.symbolName) { newCanvas() }
-                // The sources selected in the Sources list, on a canvas of their own.
-                if let windowState {
-                    let selected = vm.inWindow(windowState) { vm.sourceIDsInCurrentDisplayOrder(windowState.sidebarSelectedSourceIDs) }
-                    if !selected.isEmpty {
-                        Button("Canvas from Selected Sources", systemImage: KnowledgeMap.symbolName) {
-                            vm.makeCanvasFromSources(sourceIDs: selected, in: windowState)
-                        }
-                    }
-                }
-            }
-            if vm.activeTeamID == nil {
-                Divider()
-                Button("Space…", systemImage: "square.stack", action: onNewSpace)
             }
         }
-        .accessibilityIdentifier("space.new")
+        if vm.activeTeamID == nil {
+            make.append(SpaceMenuItem(id: "space.new.goalsList", title: "Goals List", systemImage: SpaceList.Kind.goals.symbolName) {
+                vm.makeAndOpenSpaceList(.goals, inPageSpace: destination.pageSpaceID, in: windowState)
+            })
+            make.append(SpaceMenuItem(id: "space.new.ideasList", title: "Ideas List", systemImage: SpaceList.Kind.ideas.symbolName) {
+                vm.makeAndOpenSpaceList(.ideas, inPageSpace: destination.pageSpaceID, in: windowState)
+            })
+        }
+        let space: [SpaceMenuItem] = vm.activeTeamID == nil
+            ? [SpaceMenuItem(id: "space.new.space", title: "Space\u{2026}", systemImage: "square.stack", action: onNewSpace)]
+            : []
+        let link: [SpaceMenuItem] = [
+            SpaceMenuItem(id: "space.new.linkDoc", title: ArtifactSection.docs.linkActionTitle, systemImage: "link") { onLink(.docs) },
+            SpaceMenuItem(id: "space.new.linkSite", title: ArtifactSection.sites.linkActionTitle, systemImage: "globe") { onLink(.sites) },
+        ]
+        return [make, space, link]
     }
 
     /// **New ▸ Notebook** on All and **New Notebook** on Notebooks: made at
@@ -2213,23 +2221,269 @@ struct SpaceDarkPillButton: View {
     }
 }
 
-struct SpaceDarkPillMenu<Items: View>: View {
+/// One row of a Space menu card (`SpaceDarkPillMenu`): a glyph and a name,
+/// as Codex's New menu draws them, and on the right what is not ready yet.
+struct SpaceMenuItem: Identifiable {
+    /// Also the row's accessibility identifier.
+    let id: String
     let title: String
-    @ViewBuilder let items: () -> Items
+    let systemImage: String
+    /// Quiet words at the row's end ("in Reading list", "Coming soon").
+    var trailing: String? = nil
+    var isEnabled = true
+    var help: String? = nil
+    let action: () -> Void
+}
+
+/// The dark pill with its menu: a click drops a card under it, Codex's (product
+/// owner, 2026-10-12, beside Codex's New menu: "the codex list of things looks
+/// way better!", "things should have icons and be spaced more nicely"). Each
+/// group of rows is one section, a hairline between them. The card is a panel
+/// of its own (`SpaceMenuPanel`), so it floats over the list under the head
+/// and has no popover's arrow.
+struct SpaceDarkPillMenu: View {
+    let title: String
+    let sections: [[SpaceMenuItem]]
     @State private var isHovering = false
+    @State private var anchor = SpaceMenuAnchor()
 
     var body: some View {
-        Menu {
-            items()
+        Button {
+            anchor.toggle(sections: sections.filter { !$0.isEmpty })
         } label: {
             SpaceDarkPillLabel(title: title, systemImage: nil, image: nil, showsChevron: true, isHovering: isHovering)
         }
-        .menuStyle(.button)
-        .menuIndicator(.hidden)
         .buttonStyle(.plain)
+        .background(SpaceMenuAnchorView(anchor: anchor))
         .ownsRowHoverWash()
         .onHover { isHovering = $0 }
         .fixedSize()
+        .onDisappear { anchor.close() }
+    }
+}
+
+/// Where a pill's card hangs from: the pill's own view, and whether its card
+/// is the one open.
+@MainActor
+final class SpaceMenuAnchor {
+    weak var view: NSView?
+    let id = UUID()
+
+    func toggle(sections: [[SpaceMenuItem]]) {
+        // The press that closed the card (the panel losing key) is the same
+        // click as this one: it is a close, not a reopen.
+        if SpaceMenuPanel.shared.closedRecently(anchor: id) { return }
+        guard let view else { return }
+        SpaceMenuPanel.shared.show(sections: sections, below: view, anchor: id)
+    }
+
+    func close() {
+        SpaceMenuPanel.shared.close(anchor: id)
+    }
+}
+
+private struct SpaceMenuAnchorView: NSViewRepresentable {
+    let anchor: SpaceMenuAnchor
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        anchor.view = view
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        anchor.view = nsView
+    }
+}
+
+/// The one open menu card. Its panel takes key, so the rows light under the
+/// pointer and Escape closes it, but never main, so the window behind keeps
+/// its active title bar, as with a native menu. A click anywhere else takes
+/// key from it and closes it.
+@MainActor
+final class SpaceMenuPanel: NSObject, NSWindowDelegate {
+    static let shared = SpaceMenuPanel()
+
+    private var panel: KeyPanel?
+    private var anchorID: UUID?
+    private var closedAt = Date.distantPast
+    private var closedAnchorID: UUID?
+
+    private final class KeyPanel: NSPanel {
+        override var canBecomeKey: Bool { true }
+        override var canBecomeMain: Bool { false }
+        var onCancel: (() -> Void)?
+        override func cancelOperation(_ sender: Any?) { onCancel?() }
+    }
+
+    func closedRecently(anchor: UUID) -> Bool {
+        closedAnchorID == anchor && Date().timeIntervalSince(closedAt) < 0.3
+    }
+
+    func show(sections: [[SpaceMenuItem]], below view: NSView, anchor: UUID) {
+        close()
+        guard let window = view.window, window.isVisible else { return }
+        let card = SpaceMenuCard(sections: sections) { [weak self] item in
+            self?.close()
+            item.action()
+        }
+        let hosting = NSHostingView(rootView: card)
+        let fitting = hosting.fittingSize
+        let size = NSSize(width: ceil(fitting.width), height: ceil(fitting.height))
+        // Measured once, then the hosting view sizes nothing: as a panel's
+        // content view with the default options it pins the panel's size on
+        // every constraints pass, which looped until AppKit ended the app
+        // (build 210, the rail's tooltip panel).
+        hosting.sizingOptions = []
+        let container = NSView(frame: NSRect(origin: .zero, size: size))
+        hosting.frame = container.bounds
+        hosting.autoresizingMask = [.width, .height]
+        container.addSubview(hosting)
+
+        // Right edges in line, the card's shadow margin outside the pill's.
+        let pill = window.convertToScreen(view.convert(view.bounds, to: nil))
+        var origin = NSPoint(
+            x: pill.maxX - size.width + SpaceMenuCard.shadowMargin,
+            y: pill.minY - 2 - size.height + SpaceMenuCard.shadowMargin
+        )
+        if let visible = window.screen?.visibleFrame {
+            origin.x = min(max(origin.x, visible.minX + 4), visible.maxX - size.width - 4)
+            origin.y = max(origin.y, visible.minY + 4)
+        }
+
+        let panel = KeyPanel(
+            contentRect: NSRect(origin: origin, size: size),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = false
+        panel.level = .popUpMenu
+        panel.isReleasedWhenClosed = false
+        panel.collectionBehavior = [.transient, .ignoresCycle, .fullScreenAuxiliary]
+        panel.contentView = container
+        panel.delegate = self
+        panel.onCancel = { [weak self] in self?.close() }
+        window.addChildWindow(panel, ordered: .above)
+        panel.makeKeyAndOrderFront(nil)
+        self.panel = panel
+        anchorID = anchor
+    }
+
+    /// Closes the card, or only the one `anchor` opened.
+    func close(anchor: UUID? = nil) {
+        guard let panel, anchor == nil || anchor == anchorID else { return }
+        self.panel = nil
+        closedAnchorID = anchorID
+        closedAt = Date()
+        anchorID = nil
+        panel.delegate = nil
+        panel.parent?.removeChildWindow(panel)
+        panel.orderOut(nil)
+    }
+
+    func windowDidResignKey(_ notification: Notification) {
+        close()
+    }
+}
+
+/// The card: white with a hairline and a soft shadow, a glyph and a name per
+/// row with room around them, a hairline between groups.
+private struct SpaceMenuCard: View {
+    static let shadowMargin: CGFloat = 14
+    let sections: [[SpaceMenuItem]]
+    let choose: (SpaceMenuItem) -> Void
+
+    /// More rows than this scroll, so a long list of goals fits the screen.
+    static let rowsShown = 12
+
+    var body: some View {
+        Group {
+            if sections.reduce(0, { $0 + $1.count }) > Self.rowsShown {
+                ScrollView(.vertical) { rows }
+                    .frame(height: CGFloat(Self.rowsShown) * SpaceMenuRow.height + 12)
+            } else {
+                rows
+            }
+        }
+        .padding(6)
+        // A long name is cut short rather than widening the card.
+        .frame(minWidth: 236, maxWidth: 360, alignment: .leading)
+        .fixedSize()
+        // The shadow on the card alone; on the whole view it haloed every
+        // word.
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(nsColor: .textBackgroundColor))
+                .shadow(color: .black.opacity(0.12), radius: 12, y: 4)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.09), lineWidth: 1)
+        )
+        .padding(Self.shadowMargin)
+    }
+
+    private var rows: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(sections.enumerated()), id: \.offset) { index, section in
+                if index > 0 {
+                    Rectangle()
+                        .fill(Color(nsColor: .separatorColor))
+                        .frame(height: 1)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                }
+                ForEach(section) { item in
+                    SpaceMenuRow(item: item) { choose(item) }
+                }
+            }
+        }
+    }
+}
+
+private struct SpaceMenuRow: View {
+    static let height: CGFloat = 34
+    let item: SpaceMenuItem
+    let action: () -> Void
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 11) {
+                Image(systemName: item.systemImage)
+                    .zoomedSystemFont(size: 14, weight: .regular)
+                    .frame(width: 18)
+                Text(item.title)
+                    .zoomedSystemFont(size: 13.5)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Spacer(minLength: 16)
+                if let trailing = item.trailing {
+                    Text(trailing)
+                        .zoomedSystemFont(size: 12.5)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .fixedSize()
+                }
+            }
+            .foregroundStyle(Color.primary.opacity(item.isEnabled ? 0.88 : 0.35))
+            .padding(.horizontal, 10)
+            // Every row the card's width, so each lights the same band.
+            .frame(maxWidth: .infinity, minHeight: Self.height, maxHeight: Self.height, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(Color.primary.opacity(isHovering && item.isEnabled ? 0.05 : 0))
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .disabled(!item.isEnabled)
+        .onHover { isHovering = $0 }
+        .help(item.help ?? "")
+        .accessibilityIdentifier(item.id)
     }
 }
 

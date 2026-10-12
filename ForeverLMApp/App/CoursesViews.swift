@@ -142,23 +142,21 @@ struct CoursesHomeView: View {
             // the product owner: "cleaner and fewer buttons"): a chat that plans it,
             // which was the bordered Generate beside this, or a YouTube
             // playlist, which this button opened on its own.
-            SpaceDarkPillMenu(title: "New Course") {
-                Button {
-                    // A chat that plans the course with the learner before
-                    // anything is written (CoursePlanningChat).
-                    vm.startCoursePlanningChat()
-                } label: {
-                    Label("Plan with Chat\u{2026}", systemImage: "sparkles")
-                }
-                .help("Plan a course in chat, then generate it")
-                .accessibilityIdentifier("studio.courses.generate")
-                Button {
-                    actions.present(.createCourse)
-                } label: {
-                    Label("From YouTube Playlist\u{2026}", systemImage: "play.rectangle")
-                }
-                .accessibilityIdentifier("studio.courses.newFromPlaylist")
-            }
+            SpaceDarkPillMenu(title: "New Course", sections: [[
+                // A chat that plans the course with the learner before
+                // anything is written (CoursePlanningChat).
+                SpaceMenuItem(
+                    id: "studio.courses.generate",
+                    title: "Plan with Chat\u{2026}",
+                    systemImage: "sparkles",
+                    help: "Plan a course in chat, then generate it"
+                ) { vm.startCoursePlanningChat() },
+                SpaceMenuItem(
+                    id: "studio.courses.newFromPlaylist",
+                    title: "From YouTube Playlist\u{2026}",
+                    systemImage: "play.rectangle"
+                ) { actions.present(.createCourse) },
+            ]])
             .accessibilityIdentifier("studio.courses.new")
         }
     }
