@@ -3821,7 +3821,7 @@ struct MCPDataStoreTests {
             sourceIDs: [], dailyTarget: nil, discover: true, hostSessionID: "chat-host"
         )
 
-        let notebookID = try #require(result.split(separator: " ").dropFirst(2).first.map(String.init))
+        let notebookID = try #require(createdNotebookID(in: result))
         let notebook = try #require(try ks.loadLearningGoal(notebookID))
         #expect(notebook.items.filter(\.isApproved).map(\.sourceID) == ["seed-paper"])
         #expect(notebook.items.filter(\.isPendingApproval).map(\.sourceID) == ["on-topic"])
@@ -3835,7 +3835,7 @@ struct MCPDataStoreTests {
             title: "Grammar of cellular identity, again", description: nil, topic: nil, endDateString: "",
             sourceIDs: ["far-terahertz", "seed-paper"], dailyTarget: nil, discover: false, hostSessionID: "chat-host"
         )
-        let givenID = try #require(given.split(separator: " ").dropFirst(2).first.map(String.init))
+        let givenID = try #require(createdNotebookID(in: given))
         let givenNotebook = try #require(try ks.loadLearningGoal(givenID))
         #expect(Set(givenNotebook.items.filter(\.isApproved).map(\.sourceID)) == ["far-terahertz", "seed-paper"])
         #expect(given.contains("Seeds: 2."))
