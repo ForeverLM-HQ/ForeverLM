@@ -129,6 +129,20 @@ and makes on the second press:
   [Generating a course](/courses#generating-a-course)).
 - **Explainer**: pick one of the ticked papers or articles for its spoken
   [explainer](#explainers).
+- **Feynman Technique**: pick one of the ticked papers or articles and explain
+  it yourself. A chat opens in the notebook asking you to explain it in your
+  own words, from memory, as you would to a bright friend who hasn't read it.
+  The tutor plays that friend and never explains first: after each answer it
+  says what came across, then asks one question at the biggest gap, such as a
+  term you didn't define, a step you skipped, a claim with no evidence or a
+  mechanism you waved through. When something you say is wrong it asks a
+  question that lets you notice; if your second try still misses, it shows you
+  the place in the paper, in the Reader beside the chat, and asks you to
+  explain that part again. Once your explanation holds, it asks for the
+  simplest version, then for the paper's assumptions and limits. It goes on
+  until you stop. The chat is kept as a [review](/in-app-chat#reviews), and
+  reopened later, on this Mac or another, it goes on probing. The **Notebook**
+  menu's **Make ▸** has it too, and so does [Web Studio](/web-library).
 - **Add note** (floating at the foot of the column): a new Page in the
   notebook, open beside the chat.
 

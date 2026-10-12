@@ -4978,6 +4978,10 @@ private struct InternalReviewPanelContent: View {
         if manager.currentPromptMode == .deepRead {
             return "Understand your sources in detail…"
         }
+        // The Feynman Technique's answers are the learner's explanation.
+        if manager.isTeachBackSession {
+            return "Explain it in your own words…"
+        }
         // ChatGPT's page chat says what it is for, in the field.
         if pageSideChat != nil { return "Work with this page…" }
         if let notebook = linkedResearchNotebook {
@@ -7239,6 +7243,32 @@ private struct InternalReviewPanelContent: View {
             pendingReaderSelection = nil
             let articles = pending.sourceIDs.compactMap { vm.articlesById[$0] }
             await manager.startCourseQuiz(pending, articles: articles)
+            await vm.loadReviewSessionLinks()
+            return
+        }
+
+        // The Studio's Feynman Technique asked for a chat on one paper: a
+        // new chat in the notebook, the paper loaded in full, opening on the
+        // written ask to explain it (`ReviewSessionManager.startTeachBack`).
+        if let pending = vm.pendingTeachBack {
+            vm.pendingTeachBack = nil
+            // A turn under way keeps the chat: the press says so rather
+            // than doing nothing where the learner can see.
+            guard !manager.isSearching, !manager.isGenerating else {
+                vm.showToast("Start the Feynman Technique once this answer finishes")
+                return
+            }
+            if manager.sessionActive || !manager.chatMessages.isEmpty {
+                manager.endSession()
+            }
+            clearComposer()
+            pendingReaderSelection = nil
+            linkedResearchNotebookID = vm.notebook(id: pending.notebookID)?.id
+            readsNotebookTicksLive = false
+            guard await syncSynthesisToolContext() else { return }
+            await vm.ensureContextSourceContentLoaded(sourceIDs: [pending.sourceID])
+            guard let paper = vm.articlesById[pending.sourceID] else { return }
+            await manager.startTeachBack(pending, articles: [paper])
             await vm.loadReviewSessionLinks()
             return
         }

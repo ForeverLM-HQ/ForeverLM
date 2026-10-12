@@ -107,6 +107,8 @@ On the Mac, a trackpad pinch over a chat makes that chat's text larger or smalle
 
 ForeverLM's review flow asks you to explain ideas in your own words. The tutor probes gaps, asks follow-up questions, and records the exchange as a review session.
 
+A notebook's **Feynman Technique** tile turns this around: you explain one paper first, from memory, and the tutor only asks, one question at a time at the biggest gap in your explanation, with no plan and no explaining of its own (see [The Studio column](/studio#the-studio-column)). It is kept as a review too, and a reopened one goes on asking. On the iPhone it reads like any review, and continues on your Mac.
+
 Completed in-app reviews are linked to the source IDs they covered. That link is what updates Reviewed status in Studio and allows Schedule items to be marked done.
 
 ## Memory review

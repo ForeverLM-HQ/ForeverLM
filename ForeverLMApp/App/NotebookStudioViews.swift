@@ -671,6 +671,29 @@ struct NotebookStudioTileControl: View {
             .disabled(!usable)
             .help(candidates.isEmpty ? "Tick a paper or article to explain it" : tile.help)
             .accessibilityIdentifier(identifier)
+        case .teachBack:
+            // One ticked paper, picked here: the chat opens asking the
+            // learner to explain it from memory (`TeachBack`).
+            let candidates = vm.notebookTeachBackCandidates(goal.id)
+            let usable = enabled && !candidates.isEmpty
+            Menu {
+                ForEach(candidates) { article in
+                    Button(vm.displayTitle(for: article)) {
+                        vm.inWindow(windowState) {
+                            vm.requestNotebookTeachBack(notebookID: goal.id, sourceID: article.id)
+                        }
+                    }
+                }
+            } label: {
+                NotebookStudioTileLabel(tile: tile, isEnabled: usable, style: style)
+            }
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .menuIndicator(.hidden)
+            .hoverHighlight(cornerRadius: cornerRadius, inset: 0)
+            .disabled(!usable)
+            .help(candidates.isEmpty ? "Tick a paper or article to explain it" : tile.help)
+            .accessibilityIdentifier(identifier)
         default:
             Button {
                 act()
@@ -738,7 +761,7 @@ struct NotebookStudioTileControl: View {
             NotebookStudioActions.importVideoOverviews(into: goal, vm: vm)
         case .mnemonicReading:
             vm.inWindow(windowState) { vm.presentNotebookMnemonicReading(notebookID: goal.id) }
-        case .report, .explainer, .cards, .canvas:
+        case .report, .explainer, .teachBack, .cards, .canvas:
             // Menus, drawn above.
             break
         }
@@ -893,6 +916,7 @@ extension NotebookStudioTile {
         case .deepResearch: return .teal
         case .course: return .green
         case .explainer: return .magenta
+        case .teachBack: return .cyan
         case .canvas: return .violet
         }
     }
@@ -1483,6 +1507,17 @@ struct NotebookMakeMenuItems: View {
             }
         }
         .disabled(!takes || candidates.isEmpty)
+        let papers = vm.notebookTeachBackCandidates(notebookID)
+        Menu(NotebookStudioTile.teachBack.title) {
+            ForEach(papers) { article in
+                Button(vm.displayTitle(for: article)) {
+                    vm.inWindow(windowState) {
+                        vm.requestNotebookTeachBack(notebookID: notebookID, sourceID: article.id)
+                    }
+                }
+            }
+        }
+        .disabled(!takes || papers.isEmpty)
         if vm.listsCanvases {
             let canvases = vm.canvases(inNotebook: notebookID)
             Menu("Canvas") {
