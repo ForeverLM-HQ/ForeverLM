@@ -18,7 +18,7 @@ The learner's spend lives in ForeverLM's AI usage ledger, and the model every ta
 - `cost_usd` is what the provider billed when it reported an amount, else the list-price estimate stamped when the call was recorded. `unpriced_calls` were excluded from every total: a total with unpriced calls beside it is a floor, and you say so.
 - `per_call.cost_usd` divides the priced total by the priced calls only. `per_call.input_tokens`, `per_call.output_tokens` and `per_call.cache_read_tokens` are averages over all of the task's calls.
 - `current_route` is what the task would run on now. It may differ from the models in the task's `models` list, which are what actually ran during the period; base the saving on the current route's price, and mention when a recent settings change already moved the task.
-- A task with `configurable: false` (for example `chat_title` or `read_aloud`) follows the feature that made it and has no setting of its own.
+- A task with `configurable: false` (for example `read_aloud` or `chat_quiz_grading`) follows the feature that made it and has no setting of its own.
 - `price_known: false` means the pricing table has no row for that model. Never fill the gap with a guess; write "unknown" and leave that row out of the arithmetic.
 
 ## Find what dominates

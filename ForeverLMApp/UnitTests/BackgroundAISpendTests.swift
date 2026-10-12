@@ -26,6 +26,8 @@ struct BackgroundAISpendTests {
         #expect(AIUsageTaskNeed.of(taskKey: "notebook_naming") == .optional)
         // Written ahead of time, and only then: its Activity row has a switch.
         #expect(AIUsageTaskNeed.of(taskKey: "realtime_review_preparation") == .optional)
+        #expect(AIUsageTaskNeed.of(taskKey: "chat_title") == .needed)
+        #expect(AIUsageTaskNeed.of(taskKey: "chat_history_compaction") == .needed)
         #expect(AIUsageTaskNeed.of(taskKey: "chat") == .requested)
         #expect(AIUsageTaskNeed.of(taskKey: "chat_image") == .requested)
         #expect(AIUsageTaskNeed.of(taskKey: "never_heard_of_it") == .requested)

@@ -297,7 +297,7 @@ extension MCPDataStore {
                 json["configurable"] = true
                 json["current_route"] = aiTaskRouteJSON(for: task)
             } else {
-                // Purpose labels such as chat_title or read_aloud are not
+                // Purpose labels such as read_aloud or chat_quiz_grading are not
                 // separately configurable; they follow the feature that made them.
                 json["configurable"] = false
                 json["current_route"] = NSNull()

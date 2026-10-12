@@ -198,7 +198,7 @@ struct ForeverLMCoreTests {
         let expectedIDs = [
             "chat", "review_grading",
             "realtime_review_preparation", "mobile_review", "mobile_voice_agent",
-            "deep_research", "source_discovery", "transcript_formatting",
+            "deep_research", "source_discovery", "chat_title", "chat_history_compaction", "transcript_formatting",
             "podcast_speaker_identification", "podcast_youtube_matching", "slide_frame_classification",
             "slide_citation_extraction", "paper_figure_understanding",
             "lecture_paper_discovery", "meeting_paper_discovery", "paper_reference_extraction", "article_link_discovery",
@@ -220,13 +220,13 @@ struct ForeverLMCoreTests {
         ]
         let tasks = AITaskSettingsCatalog.tasks
 
-        #expect(AITaskSettingsCatalog.version == 35)
+        #expect(AITaskSettingsCatalog.version == 36)
         #expect(AITaskSettingsCatalog.descriptor(forRawID: "video_quiz_grading") == nil)
         #expect(tasks.map(\.id) == expectedIDs)
         #expect(Set(tasks.map(\.id)).count == tasks.count)
         #expect(tasks.allSatisfy { !$0.displayName.isEmpty && !$0.description.isEmpty })
         #expect(Set(tasks.filter { $0.modelDefault == .chat }.map(\.id)) == [
-            "chat", "realtime_review_preparation", "deep_research", "source_discovery",
+            "chat", "deep_research", "source_discovery",
             "card_go_deeper", "canvas_ask", "atlas_writing",
         ])
         #expect(Set(tasks.filter(\.requiresVision).map(\.id)) == [
@@ -239,7 +239,7 @@ struct ForeverLMCoreTests {
             ($0.modelDefault == .backgroundMultimodal) == $0.requiresVision
         })
         #expect(Set(tasks.filter { !$0.showInAdvancedSettings }.map(\.id)) == [
-            "chat", "realtime_review_preparation", "deep_research", "source_discovery", "embedding",
+            "chat", "deep_research", "source_discovery", "embedding",
         ])
         #expect(AITaskSettingsCatalog.advancedTasks.map(\.id)
             == tasks.filter(\.showInAdvancedSettings).map(\.id))

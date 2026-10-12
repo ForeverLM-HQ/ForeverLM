@@ -36,7 +36,7 @@ public struct AITaskSettingsDescriptor: Codable, Equatable, Sendable {
 /// IDs are durable `AITask` raw values. The array order is presentation order,
 /// so clients should filter this list rather than sorting their own copies.
 public enum AITaskSettingsCatalog {
-    public static let version = 35
+    public static let version = 36
 
     public static let tasks: [AITaskSettingsDescriptor] = [
         task(
@@ -51,12 +51,14 @@ public enum AITaskSettingsCatalog {
             "Review Grading",
             "Assess a completed review from the learner's answers"
         ),
+        // Written ahead of time for the sources a review is likely to be
+        // about, with nobody waiting on it, so it is background work with a
+        // model of its own (product owner, 2026-10-11: "each background task
+        // should have a model set for it").
         task(
             "realtime_review_preparation",
-            "Source Review Guide",
-            "Generate a baseline guide and answer key with the selected Chat model",
-            modelDefault: .chat,
-            advanced: false
+            "Review Questions",
+            "Write a source's review questions and answer guide ahead of a review"
         ),
         task(
             "mobile_review",
@@ -87,6 +89,18 @@ public enum AITaskSettingsCatalog {
             "Search the web for sources a notebook is missing, with one line on why each fits",
             modelDefault: .chat,
             advanced: false
+        ),
+        // A chat's own purposes that nobody waits on run on Background's
+        // model, each with a model of its own, not on the chat's.
+        task(
+            "chat_title",
+            "Chat Title",
+            "Name a chat from its first exchange"
+        ),
+        task(
+            "chat_history_compaction",
+            "Chat History Compaction",
+            "Summarize a long chat's earlier turns so it stays within the chat model's window"
         ),
         task(
             "transcript_formatting",

@@ -17,6 +17,13 @@ enum AITask: String, CaseIterable, Codable, Identifiable, Sendable {
     /// the notebook is missing, each with one line on why it fits. The model
     /// judges fit; ForeverLM decides what each address is.
     case sourceDiscovery = "source_discovery"
+    /// Names a chat from its first exchange, in place of the opening message
+    /// it was titled with. The raw value is the ledger label it always had.
+    case chatTitle = "chat_title"
+    /// Folds a long chat's older turns into the summary its next turns carry,
+    /// so the chat stays inside its model's window. The raw value is the
+    /// ledger label it always had.
+    case chatHistoryCompaction = "chat_history_compaction"
     case transcriptFormatting = "transcript_formatting"
     case podcastSpeakerIdentification = "podcast_speaker_identification"
     case podcastYouTubeMatching = "podcast_youtube_matching"

@@ -1,7 +1,9 @@
 import Foundation
 
 struct SourceReviewGuide: Codable, Sendable, Equatable {
-    /// Version 3 follows the learner's selected Chat model. New guides are
+    /// Version 3 followed the learner's selected Chat model; the same guide is
+    /// now written on its own Background route (`AITask.realtimeReviewPreparation`,
+    /// Settings › Background › Tasks › Review Questions). New guides are
     /// always generated at the current version, but every earlier version stays
     /// readable: a guide that already covers the source's canonical text is
     /// never regenerated just because the generator moved on. Treating an older

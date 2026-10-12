@@ -99,7 +99,7 @@ actor MobileModelPreferenceStore {
     /// read stops the request. The phone follows no other host choice.
     private func confinedToRegion(_ route: ResolvedAITextRoute) async throws -> ResolvedAITextRoute {
         let ownSlot: String
-        if route.task == .chat || route.task == .realtimeReviewPreparation {
+        if route.task == .chat {
             ownSlot = "chat"
         } else {
             ownSlot = route.task.usesMultimodalBackgroundModelDefault ? "background.images" : "background.text"
@@ -132,7 +132,7 @@ actor MobileModelPreferenceStore {
         let deniesDataCollection = try await bool(forKey: AIDataPolicy.denyDataCollectionKey) ?? false
         let freeMode = try await refreshFreeMode()
 
-        if task == .chat || task == .realtimeReviewPreparation {
+        if task == .chat {
             let preference: AIModelRoutePreference
             if let override, override.isValid {
                 preference = override

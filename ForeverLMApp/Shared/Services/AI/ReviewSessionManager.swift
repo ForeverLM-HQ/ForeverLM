@@ -4431,7 +4431,7 @@ final class ReviewSessionManager {
         // This reply may have aged a block of turns out of the verbatim window.
         // Fold them now, while the learner reads, so the next turn finds the
         // summary ready rather than waiting on it.
-        scheduleHistoryFoldIfNeeded(config: config)
+        scheduleHistoryFoldIfNeeded()
     }
 
     /// Automatic starts create their durable parent before asking the tutor for
@@ -4824,7 +4824,7 @@ final class ReviewSessionManager {
             ? .native
             : .unavailable
 
-        scheduleHistoryFoldIfNeeded(config: config)
+        scheduleHistoryFoldIfNeeded()
         while true {
             // Stop must interrupt the loop between rounds too — a cancelled turn
             // never starts another stream or tool call.
@@ -5043,7 +5043,7 @@ final class ReviewSessionManager {
         // the footer belongs to the turn's final visible reply.
         var turnWebCitations: [AIWebCitation] = []
 
-        scheduleHistoryFoldIfNeeded(config: config)
+        scheduleHistoryFoldIfNeeded()
 
         // Deep Research takes the provider's web tool with its research budget;
         // Chat takes whatever its route can bill exactly (see WebSearchAccess).
@@ -13436,16 +13436,12 @@ final class ReviewSessionManager {
     /// waiting and no fold is already running. Never awaited: whatever is not
     /// folded when the next turn is assembled rides in the deterministic
     /// transcript compact instead, so a reply never waits on a summary.
-    private func scheduleHistoryFoldIfNeeded(config: AITaskConfig) {
+    private func scheduleHistoryFoldIfNeeded() {
         guard historyFoldTask == nil, sessionActive, let sessionID, historyFoldIsDue else { return }
-
-        var foldConfig = config
-        foldConfig.taskLabel = "chat_history_compaction"
-        // Summarising a transcript needs no deliberation. At the chat's default
-        // effort a reasoning model spent most of the fold thinking.
-        if AIRequestOptionSupport.supportedEfforts(provider: config.provider, model: config.model).contains(.low) {
-            foldConfig.effort = .low
-        }
+        // The fold runs on its own Background route (Settings › Background ›
+        // Tasks), not the chat's model. With none to run on, the transcript
+        // compact carries the older turns, as after a failed fold.
+        guard let foldConfig = KeychainService.resolveConfig(for: .chatHistoryCompaction) else { return }
 
         let foldID = UUID()
         historyFoldID = foldID
@@ -15156,8 +15152,9 @@ final class ReviewSessionManager {
     private func updateSuggestedSessionTitleIfNeeded(from assistantResponse: String) async {
         guard let sessionID else { return }
         guard titleIsProvisional else { return }
-        guard var config = await Self.resolveChatConfig().config else { return }
-        config.taskLabel = "chat_title"
+        // Its own Background route (Settings › Background › Tasks), not the
+        // chat's model: nobody waits on a title.
+        guard let config = KeychainService.resolveConfig(for: .chatTitle) else { return }
         let userMessage = (chatMessages.first(where: { $0.role == .user })?.content)
             .map { AttachedImageReference.textOnly($0) }
         let title: String

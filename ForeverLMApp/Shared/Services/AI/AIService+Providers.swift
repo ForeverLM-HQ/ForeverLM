@@ -606,7 +606,7 @@ extension AIService {
             return ["chat"]
         }
         // A task that runs on the chat's model (Deep Research outside a chat,
-        // Source Discovery, review guide preparation) runs where it does.
+        // Source Discovery) runs where it does.
         if let task = AITask(rawValue: label), task.followsChatRoute { return ["chat"] }
         guard let task = AITask(rawValue: label), AITask.advancedTasks.contains(task) else { return [] }
         return [AIBackupModels.backgroundSlot(multimodal: task.usesMultimodalBackgroundModelDefault)]

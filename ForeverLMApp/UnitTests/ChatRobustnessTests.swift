@@ -6383,7 +6383,10 @@ struct OpenRouterSpeedTierTests {
 
         #expect(AIService.openRouterHostSlots(forTaskLabel: "chat") == ["chat"])
         #expect(AIService.openRouterHostSlots(forTaskLabel: nil).isEmpty)
-        #expect(AIService.openRouterHostSlots(forTaskLabel: "chat_title").isEmpty)
+        // A chat's title runs on Background's model, so it follows that row.
+        #expect(AIService.openRouterHostSlots(forTaskLabel: "chat_title") == ["background.text"])
+        #expect(AIService.openRouterHostSlots(forTaskLabel: "chat_quiz_grading") == ["chat"])
+        #expect(AIService.openRouterHostSlots(forTaskLabel: "read_aloud").isEmpty)
         // A background task follows its Background model's row alone: no
         // task has a host choice of its own.
         #expect(AIService.openRouterHostSlots(forTaskLabel: AITask.paperMetadata.rawValue) == ["background.text"])

@@ -2,11 +2,11 @@ import Foundation
 import Testing
 @testable import ForeverLM
 
-/// The review guide's preparation task and the chat effort it follows, and
-/// the text review's closure rule. These lived with the Mac's realtime voice
-/// tests until realtime voice went on 2026-10-01; the task
-/// (`realtime_review_preparation`, a synced id) still writes the review
-/// guides today's memory review reads.
+/// The review guide's preparation task, the chat's own purposes that run on
+/// Background's model, the chat effort, and the text review's closure rule.
+/// These lived with the Mac's realtime voice tests until realtime voice went
+/// on 2026-10-01; the task (`realtime_review_preparation`, a synced id) still
+/// writes the review guides today's memory review reads.
 @Suite("Review guide preparation and chat effort")
 struct ReviewGuidePreparationTests {
     @Test("Text review prompts keep session closure learner-controlled")
@@ -17,49 +17,46 @@ struct ReviewGuidePreparationTests {
         #expect(Prompts.mcpServerInstructions.contains("Do not say goodbye, tell the learner they are done, or call end_review_session unless"))
     }
 
-    @Test("Review preparation follows Chat instead of exposing another model setting")
-    func registersChatModelTask() {
-        #expect(!AITask.advancedTasks.contains(.realtimeReviewPreparation))
-        #expect(!AITask.realtimeReviewPreparation.usesBackgroundModelDefault)
+    @Test("Review questions are background work with a model of their own, not the chat's")
+    func registersBackgroundTask() {
+        let task = AITask.realtimeReviewPreparation
+        #expect(task.displayName == "Review Questions")
+        #expect(AITask.advancedTasks.contains(task))
+        #expect(task.usesBackgroundModelDefault)
+        #expect(!task.usesMultimodalBackgroundModelDefault)
+        #expect(!task.followsChatRoute)
+        #expect(KeychainService.canHaveOwnRoute(task))
+        #expect(task.isBackgroundWork)
+        #expect(task.usageNeed == .optional)
         #expect(CanonicalContentCleanupService.maxCandidatesPerDrain == 12)
         #expect(SourceListenableContentPreparationService.maxCandidatesPerDrain == 12)
-        #expect(AITask.realtimeReviewPreparation.sourceType == .paper)
-        #expect(AITask.realtimeReviewPreparation.defaultPrompt == Prompts.realtimeReviewPreparation)
+        #expect(task.sourceType == nil, "written for every kind of source")
+        #expect(task.defaultPrompt == Prompts.realtimeReviewPreparation)
         #expect(Prompts.realtimeReviewPreparation.contains("Strong answer"))
         #expect(Prompts.realtimeReviewPreparation.contains("Work exclusively from the supplied source text"))
+        #expect(AIService.openRouterHostSlots(forTaskLabel: task.rawValue) == ["background.text"])
     }
 
-    @Test("Review preparation resolves the exact Chat provider and model")
-    func resolvesSelectedChatModel() {
-        let chatTask = AITask.chat
-        let originalProvider = KeychainService.taskProvider(chatTask)
-        let originalModel = KeychainService.taskModel(chatTask)
-        let originalEffort = KeychainService.taskEffort(chatTask)
-        let originalSpeed = KeychainService.taskSpeed(chatTask)
-        defer {
-            KeychainService.setTaskProvider(originalProvider, for: chatTask)
-            KeychainService.setTaskModel(originalModel, for: chatTask)
-            KeychainService.setTaskEffort(originalEffort, for: chatTask)
-            KeychainService.setTaskSpeed(originalSpeed, for: chatTask)
+    @Test("A chat's title and its history summary are Background tasks of their own")
+    func chatPurposesHaveOwnRoutes() {
+        // The raw values are the ledger labels both always had, so Activity
+        // keeps one row for each across the change.
+        #expect(AITask.chatTitle.rawValue == "chat_title")
+        #expect(AITask.chatHistoryCompaction.rawValue == "chat_history_compaction")
+        for task in [AITask.chatTitle, .chatHistoryCompaction] {
+            #expect(AITask.advancedTasks.contains(task), "\(task.rawValue)")
+            #expect(task.usesBackgroundModelDefault, "\(task.rawValue)")
+            #expect(!task.followsChatRoute, "\(task.rawValue)")
+            #expect(KeychainService.canHaveOwnRoute(task), "\(task.rawValue)")
+            #expect(task.isBackgroundWork, "\(task.rawValue)")
+            #expect(task.usageNeed == .needed, "\(task.rawValue)")
+            #expect(task.sourceType == nil, "\(task.rawValue)")
+            #expect(AIModelPreferenceKey.taskRoute(task) == "aiRoute.task.\(task.rawValue)")
         }
-
-        KeychainService.setTaskProvider(.openRouter, for: chatTask)
-        KeychainService.setTaskModel("meta-llama/llama-4-maverick", for: chatTask)
-        KeychainService.setTaskEffort(.high, for: chatTask)
-        KeychainService.setTaskSpeed(.fast, for: chatTask)
-
-        let reviewSelection = KeychainService.resolvedSelection(for: .realtimeReviewPreparation)
-        let chatSelection = KeychainService.resolvedSelection(for: .chat)
-        #expect(reviewSelection.provider == chatSelection.provider)
-        #expect(reviewSelection.model == chatSelection.model)
-        #expect(
-            KeychainService.taskEffort(.realtimeReviewPreparation)
-                == KeychainService.taskEffort(.chat)
-        )
-        #expect(
-            KeychainService.taskSpeed(.realtimeReviewPreparation)
-                == KeychainService.taskSpeed(.chat)
-        )
+        #expect(AIUsageTaskLabel.text(for: "chat_title") == "Create Chat Title")
+        // The work the learner waits on in a chat stays on the chat's model.
+        #expect(AITask.deepResearch.followsChatRoute)
+        #expect(AITask.sourceDiscovery.followsChatRoute)
     }
 
     @Test("An effort picked on a chat still on the Settings default is kept")

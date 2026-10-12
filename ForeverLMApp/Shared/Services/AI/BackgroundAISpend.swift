@@ -66,6 +66,11 @@ extension AITask {
              .cardGoDeeper:
             return false
         case .realtimeReviewPreparation,
+             // A chat's title and its history summary run on Background's
+             // model and count against the cap; nothing pauses them, since
+             // no drain runs them.
+             .chatTitle,
+             .chatHistoryCompaction,
              .transcriptFormatting,
              .podcastSpeakerIdentification,
              .podcastYouTubeMatching,
@@ -147,7 +152,7 @@ enum AIUsageTaskNeed: Sendable, Equatable {
         case "notebook_cover", "course_quiz_picture", "course_quiz_icon", "meeting_icon",
              "meeting_transcription":
             return .optional
-        case "author_normalization", "content_cleanup", "chat_history_compaction", "chat_title",
+        case "author_normalization", "content_cleanup",
              "podcast_transcription", "course_video_transcription":
             return .needed
         default:
@@ -176,7 +181,7 @@ extension AITask {
              .articleChromeFiltering, .bookAuthor, .bookChapterSplitting, .duplicateDetection,
              .paperAttachmentCheck, .paperBrowserAgent, .citationResolution, .meetingSessionDetails,
              .lectureNoteMatching, .courseOrdering, .courseMetadata, .courseLectureNaming,
-             .slideFrameClassification:
+             .slideFrameClassification, .chatTitle, .chatHistoryCompaction:
             return .needed
         // Review questions are written ahead of time for the sources a review
         // is likely to be about; nothing else writes them, and a review

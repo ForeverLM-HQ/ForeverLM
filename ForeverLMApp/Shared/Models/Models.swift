@@ -562,7 +562,7 @@ extension AITask {
             return .article
         case .paperMetadata, .paperAttachmentCheck, .paperBrowserAgent,
              .paperFigureUnderstanding, .paperReferenceExtraction,
-             .duplicateDetection, .realtimeReviewPreparation,
+             .duplicateDetection,
              // Journal feeds announce papers; the matching call decides which
              // of them a Notebook should be offered.
              .journalArticleMatching:
@@ -590,6 +590,9 @@ extension AITask {
         case .chat, .reviewGrading, .deepResearch,
              // Discover looks for any kind of source a notebook is missing.
              .sourceDiscovery,
+             // A chat's title and its history summary, and review questions,
+             // are written for every kind of source.
+             .chatTitle, .chatHistoryCompaction, .realtimeReviewPreparation,
              .embedding, .sourceClassification,
              .paperNarrationPreparation, .paperTextToSpeechPreparation,
              .automaticAudioFiltering, .notebookNotesMerge,
@@ -621,11 +624,10 @@ extension AITask {
     }
 
     /// Whether this task follows the "Background" model in Settings rather than the
-    /// default Chat model. Realtime review preparation, Deep Research and
-    /// Source Discovery deliberately follow the same provider, model, effort,
-    /// and speed as Chat;
+    /// default Chat model. Deep Research and Source Discovery deliberately follow
+    /// the same provider, model, effort, and speed as Chat;
     /// everything else here is background work (metadata, classification,
-    /// generation, formatting).
+    /// generation, formatting, a chat's title and history summary).
     var usesBackgroundModelDefault: Bool {
         settingsDescriptor.usesBackgroundModelDefault
     }
@@ -635,7 +637,7 @@ extension AITask {
     /// before it followed Chat is ignored rather than left as an override
     /// Settings no longer shows.
     var followsChatRoute: Bool {
-        self == .realtimeReviewPreparation || self == .deepResearch || self == .sourceDiscovery
+        self == .deepResearch || self == .sourceDiscovery
     }
 
     /// Whether this task shows the model an image rather than only text.
@@ -672,6 +674,8 @@ extension AITask {
         case .courseMetadata: return Prompts.courseMetadata
         case .courseLectureNaming: return Prompts.courseLectureNaming
         case .reviewGrading, .notebookNotesMerge, .mobileReview, .mobileVoiceAgent: return nil
+        // Their prompts live beside the chat that asks for them.
+        case .chatTitle, .chatHistoryCompaction: return nil
         case .transcriptFormatting: return Prompts.readableYouTubeTranscriptFormatting
         case .podcastSpeakerIdentification: return Prompts.podcastSpeakerIdentification
         case .podcastYouTubeMatching: return Prompts.podcastYouTubeMatching

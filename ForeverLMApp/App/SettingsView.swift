@@ -3589,8 +3589,9 @@ private struct AIActivitySettingsSection: View {
             return aiTask.usesBackgroundModelDefault ? nil : .slot(.chat)
         }
         switch task {
-        // Purposes of a chat, run on the chat's model.
-        case "chat_title", "chat_history_compaction", "deep_research_chat", "chat_quiz_grading":
+        // Purposes of a chat the learner waits on, run on the chat's model.
+        // Its title and history summary are tasks with Background routes.
+        case "deep_research_chat", "chat_quiz_grading":
             return .slot(.chat)
         case "meeting_transcription", "podcast_transcription", "course_video_transcription":
             return .transcription(.media)
