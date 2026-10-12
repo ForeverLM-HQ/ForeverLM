@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import ForeverLM
 
-/// The Studio's Feynman Technique (`TeachBack`): a chat on one paper that
+/// The Studio's Feynman Technique (`TeachBack`): a chat on one source that
 /// opens by asking the learner to explain it, whose tutor probes rather than
 /// explains, and which keeps that tutor when it is reopened because its id
 /// names it.
@@ -26,10 +26,10 @@ struct TeachBackTests {
         #expect(TeachBack.topic(sourceTitle: "Cristae remodelling") == "Feynman Technique: Cristae remodelling")
     }
 
-    @Test("The opening is written ahead: it names the paper and asks for an explanation from memory")
+    @Test("The opening is written ahead: it names the source and asks for an explanation from memory")
     func scriptedOpening() {
         let opening = TeachBack.openingMessage(sourceTitle: "Cristae remodelling")
-        #expect(opening == "Explain \u{201C}Cristae remodelling\u{201D} to me in your own words, as you would to a bright friend who hasn't read it. Don't look back at it first: what question does it ask, what did it find, and how does it know? Start wherever you like, and I'll ask about whatever I can't follow yet.")
+        #expect(opening == "Explain \u{201C}Cristae remodelling\u{201D} to me in your own words, as you would to a bright friend who hasn't come across it. Don't look back at it first: what is it about, what does it claim, and how does it know? Start wherever you like, and I'll ask about whatever I can't follow yet.")
         #expect(!opening.contains("\u{2014}"), "Web Studio serves the same words, and its files carry no em dash")
     }
 
@@ -66,7 +66,7 @@ struct TeachBackTests {
             "a technical term used without saying what it means",
             "a claim with no evidence behind it",
             "do not correct it. Ask a question that lets them notice the problem themselves",
-            "If their second try still misses it, point them to the place in the paper that settles it",
+            "If their second try still misses it, point them to the place in the source that settles it",
             "show it in the Reader beside the chat",
             "ask for the simplest version",
             "probe its assumptions and limits",

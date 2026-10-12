@@ -4,7 +4,7 @@ import Foundation
 
 /// The URL grammar and titles of the source an explainer is saved as.
 ///
-/// An explainer is new text written *about* one paper or article, for the ear,
+/// An explainer is new text written *about* one source, for the ear,
 /// and it is stored as an ordinary text-only source so listening, the audio
 /// cache, the iCloud manifest, iPhone playback, search and sync all work with
 /// no second code path (explainer-design.md). Its URL is
@@ -28,9 +28,11 @@ enum GeneratedExplainer {
     /// lessons use, so generated text reads as ForeverLM's in every list.
     static let domain = ExplainerScript.domain
 
-    /// What an explainer can be written about: the two source types whose
-    /// text is a written argument. Books and course chapters come later.
-    static let explainableSourceTypes: Set<StudioSourceType> = [.paper, .article]
+    /// What an explainer can be written about: papers and articles, and the
+    /// podcast episodes, videos and meetings read from their transcripts
+    /// (`ExplainerScript.explainableSourceTypeRawValues`). Books and course
+    /// chapters come later.
+    static let explainableSourceTypes: Set<StudioSourceType> = [.paper, .article, .podcast, .video, .meeting]
 
     static func url(explaining sourceID: String) -> String {
         ExplainerScript.url(explaining: sourceID)

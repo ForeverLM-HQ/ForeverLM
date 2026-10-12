@@ -126,9 +126,16 @@ struct ExplainerGenerationTests {
     func sharedCore() {
         #expect(ExplainerScript.isExplainable(sourceType: "paper", url: "https://j.example/p"))
         #expect(ExplainerScript.isExplainable(sourceType: "article", url: nil))
+        #expect(ExplainerScript.isExplainable(sourceType: "podcast", url: "https://p.example/ep"))
+        #expect(ExplainerScript.isExplainable(sourceType: "video", url: "https://v.example/w"))
+        #expect(ExplainerScript.isExplainable(sourceType: "meeting", url: nil))
         #expect(!ExplainerScript.isExplainable(sourceType: "book", url: "https://b.example"))
+        #expect(!ExplainerScript.isExplainable(sourceType: "xPost", url: "https://x.com/a/status/1"))
         #expect(!ExplainerScript.isExplainable(sourceType: "article", url: ExplainerScript.url(explaining: "x")))
         #expect(ExplainerScript.explainableSourceTypeRawValues == Set(GeneratedExplainer.explainableSourceTypes.map(\.rawValue)))
+        #expect(ExplainerScript.kindLine("paper") == "paper")
+        #expect(ExplainerScript.kindLine("manual") == "article")
+        #expect(ExplainerScript.kindLine("podcast") == "podcast episode, read from its transcript")
         #expect(ExplainerScript.wordCount(of: "One two\n\nthree   four.") == 4)
         #expect(ExplainerScript.title(for: " T ") == GeneratedExplainer.title(for: " T "))
     }
@@ -144,7 +151,7 @@ struct ExplainerGenerationTests {
         #expect(TextToSpeechPreparationPolicy.usesAIPreparation(sourceType: "book", url: "file:///b.pdf"))
     }
 
-    @Test("Explain shows for papers with text and articles, not for explainers or other kinds")
+    @Test("Explain shows for papers with text, articles and transcribed episodes, videos and meetings, not for explainers or books")
     func canExplain() {
         var article = StudioArticle(url: "https://a.example/b", title: "B", sourceType: .article, discoveryOrigin: .manual)
         article.content = "Some text."
@@ -154,7 +161,10 @@ struct ExplainerGenerationTests {
         #expect(!GeneratedExplainer.canExplain(explainer))
 
         let podcast = StudioArticle(url: "https://p.example/ep", title: "Ep", sourceType: .podcast)
-        #expect(!GeneratedExplainer.canExplain(podcast))
+        #expect(GeneratedExplainer.canExplain(podcast))
+
+        let book = StudioArticle(url: "file:///b.pdf", title: "Ch 1", sourceType: .book)
+        #expect(!GeneratedExplainer.canExplain(book))
 
         // A paper waiting on its PDF has no text to explain yet.
         let paper = StudioArticle(url: "https://doi.org/10.1/x", title: "P", sourceType: .paper)

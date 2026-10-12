@@ -651,12 +651,12 @@ struct NotebookStudioTileControl: View {
             .accessibilityIdentifier(identifier)
         case .explainer:
             // Live whenever the notebook takes what it makes, as Cards and
-            // Report are: with no ticked paper or article the menu says what
-            // it needs instead of the tile greying out.
+            // Report are: with nothing it can explain ticked the menu says
+            // what it needs instead of the tile greying out.
             let candidates = vm.notebookExplainerCandidates(goal.id)
             Menu {
                 if candidates.isEmpty {
-                    Text(Self.noPaperLine)
+                    Text(Self.nothingToExplainLine)
                 }
                 ForEach(candidates) { article in
                     explainerItem(article)
@@ -677,13 +677,13 @@ struct NotebookStudioTileControl: View {
             .help(tile.help)
             .accessibilityIdentifier(identifier)
         case .teachBack:
-            // One ticked paper, picked here: the chat opens asking the
+            // One ticked source, picked here: the chat opens asking the
             // learner to explain it from memory (`TeachBack`). Live like
             // the Explainer, saying what it needs when nothing is ticked.
             let candidates = vm.notebookTeachBackCandidates(goal.id)
             Menu {
                 if candidates.isEmpty {
-                    Text(Self.noPaperLine)
+                    Text(Self.nothingTickedLine)
                 }
                 ForEach(candidates) { article in
                     Button(vm.displayTitle(for: article)) {
@@ -729,9 +729,11 @@ struct NotebookStudioTileControl: View {
 
     private var identifier: String { "notebook.studio.\(tile.rawValue)" }
 
-    /// The Explainer and Feynman Technique menus' one line when no ticked
-    /// source has text to read: what to add or tick for them to work on.
-    private static let noPaperLine = "Add or tick a paper or article first"
+    /// The Explainer menu's one line when no ticked source is one it can
+    /// explain: what to add or tick for it to work on.
+    private static let nothingToExplainLine = "Add or tick a paper, article, episode or video first"
+    /// The Feynman Technique menu's one line when nothing it can read is ticked.
+    private static let nothingTickedLine = "Add or tick a source first"
 
     /// One ticked source in the Explainer tile's menu: its explainer opens
     /// when it has one, is written when it has none, and while it is being

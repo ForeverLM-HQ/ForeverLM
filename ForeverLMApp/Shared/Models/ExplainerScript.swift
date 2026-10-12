@@ -23,9 +23,11 @@ enum ExplainerScript {
     /// lessons use, so generated text reads as ForeverLM's in every list.
     static let domain = "ForeverLM"
 
-    /// The raw `source_type` values an explainer can be written about: the two
-    /// whose text is a written argument. Books and course chapters come later.
-    static let explainableSourceTypeRawValues: Set<String> = ["paper", "article"]
+    /// The raw `source_type` values an explainer can be written about: the
+    /// written arguments (papers and articles) and the spoken ones read from
+    /// their transcripts (podcast episodes, videos, meetings). Books and course
+    /// chapters come later.
+    static let explainableSourceTypeRawValues: Set<String> = ["paper", "article", "podcast", "video", "meeting"]
 
     /// Characters of source text one writing call may carry. A long paper is
     /// cut, not refused, and the writer is told where the text ends.
@@ -69,6 +71,19 @@ enum ExplainerScript {
             && !isSpokenScriptURL(url ?? "")
     }
 
+    /// The source's kind as the writer is told it: a spoken source is named
+    /// with its transcript, so the script follows a conversation rather than
+    /// a paper's arc.
+    static func kindLine(_ sourceType: String) -> String {
+        switch sourceType {
+        case "paper": return "paper"
+        case "podcast": return "podcast episode, read from its transcript"
+        case "video": return "video, read from its transcript"
+        case "meeting": return "meeting, read from its transcript"
+        default: return "article"
+        }
+    }
+
     /// The text the writer sees: whole when it fits, else the opening budget
     /// with a flag so the prompt can say the end is missing.
     static func budgeted(_ text: String) -> (text: String, truncated: Bool) {
@@ -107,7 +122,7 @@ enum ExplainerScript {
     ) -> String {
         var lines: [String] = []
         lines.append("Source: \(title)")
-        lines.append("Kind: \(sourceType == "paper" ? "paper" : "article")")
+        lines.append("Kind: \(kindLine(sourceType))")
         if let author, !author.isEmpty {
             lines.append("Authors: \(author)")
         }

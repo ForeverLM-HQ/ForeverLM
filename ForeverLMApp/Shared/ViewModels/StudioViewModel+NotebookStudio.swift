@@ -111,7 +111,7 @@ enum NotebookStudioTile: String, CaseIterable, Identifiable, Sendable {
         case .deepResearch: return "Start a Deep Research chat in this notebook"
         case .course: return "Plan a course from the ticked sources"
         case .explainer: return "Write a spoken explainer of a ticked source"
-        case .teachBack: return "Explain a ticked paper in your own words, and answer the questions it raises"
+        case .teachBack: return "Explain a ticked source in your own words, and answer the questions it raises"
         case .canvas: return "Lay the notebook's sources out on a canvas"
         case .note: return "A new note in this notebook"
         }
@@ -137,8 +137,9 @@ extension StudioViewModel {
     }
 
     /// The notebook's ticked sources an explainer can be written about —
-    /// papers and articles with text to read (`GeneratedExplainer.canExplain`)
-    /// — for the Explainer tile's menu, in the notebook's order.
+    /// papers, articles, podcast episodes, videos and meetings
+    /// (`GeneratedExplainer.canExplain`) — for the Explainer tile's menu, in
+    /// the notebook's order.
     func notebookExplainerCandidates(_ notebookID: String) -> [StudioArticle] {
         notebookStudioSourceIDs(notebookID)
             .compactMap { articlesById[$0] }
@@ -146,15 +147,19 @@ extension StudioViewModel {
     }
 
     /// The notebook's ticked sources the learner can explain in a teach-back:
-    /// the ones an explainer can be written about, papers and articles with
-    /// text to read (`GeneratedExplainer.canExplain`), since the tutor reads
-    /// the source it asks about. In the notebook's order.
+    /// any of them the tutor can read — a paper once its text has arrived,
+    /// and every other kind, podcast episodes and books included — never a
+    /// spoken script ForeverLM wrote. Offering papers and articles alone left
+    /// a notebook of podcast episodes saying "add a paper first" (product
+    /// owner, 2026-10-12: "clearly a bug"). In the notebook's order.
     func notebookTeachBackCandidates(_ notebookID: String) -> [StudioArticle] {
-        notebookExplainerCandidates(notebookID)
+        notebookStudioSourceIDs(notebookID)
+            .compactMap { articlesById[$0] }
+            .filter(TeachBack.canTeachBack)
     }
 
     /// Feynman Technique: a chat in the notebook on one of its ticked
-    /// papers, which opens by asking the learner to explain it from memory
+    /// sources, which opens by asking the learner to explain it from memory
     /// and whose tutor probes what the explanation leaves out
     /// (`ReviewSessionManager.startTeachBack`). Nothing for a notebook that
     /// takes nothing, or a source it does not offer.

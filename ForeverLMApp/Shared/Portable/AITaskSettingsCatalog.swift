@@ -362,7 +362,7 @@ public enum AITaskSettingsCatalog {
         task(
             "explainer_writing",
             "Explainer Writing",
-            "Write a spoken explainer of a paper or article from its full text, for the text-to-speech voice"
+            "Write a spoken explainer of a paper, article, episode, video or meeting from its full text, for the text-to-speech voice"
         ),
         task(
             "audio_overview_writing",

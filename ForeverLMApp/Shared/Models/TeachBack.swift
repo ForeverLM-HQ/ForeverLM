@@ -1,6 +1,6 @@
 import Foundation
 
-// MARK: - Teach back: the learner explains a paper, the tutor probes
+// MARK: - Teach back: the learner explains a source, the tutor probes
 //
 // A notebook Studio tile (docs-site/studio.md, "The Studio column"; product
 // owner, 2026-10-11: "add feynman technique as one of the things we can do in
@@ -8,7 +8,7 @@ import Foundation
 // kind of socratically. forcing active recall is really important").
 // Where a review is tutor-led (`Prompts.reviewTutor` opens with a plan and
 // asks), here the learner leads: the chat opens by asking them to explain one
-// paper from memory, and the tutor plays a curious student who never explains
+// source from memory, and the tutor plays a curious student who never explains
 // first (`Prompts.teachBackTutor`). The learner-facing name is the
 // tile's (`NotebookStudioTile.teachBack`); everything else here keeps a
 // neutral name.
@@ -32,25 +32,34 @@ enum TeachBack {
         sessionID.hasPrefix(sessionIDPrefix)
     }
 
-    /// The chat's title: the tile's name and the paper's.
+    /// Whether a source can be explained in a teach-back: the tutor reads it,
+    /// so a paper needs its text, and a spoken script ForeverLM wrote (an
+    /// explainer, an audio overview) is never one.
+    static func canTeachBack(_ source: StudioArticle) -> Bool {
+        guard !ExplainerScript.isSpokenScriptURL(source.url) else { return false }
+        if source.sourceType == .paper { return source.isPaperReadyForListenPreparation }
+        return true
+    }
+
+    /// The chat's title: the tile's name and the source's.
     static func topic(sourceTitle: String) -> String {
         "Feynman Technique: \(sourceTitle)"
     }
 
     /// The chat's first message, written ahead so no model is asked before
-    /// the learner speaks: the paper named, and the ask to explain it from
+    /// the learner speaks: the source named, and the ask to explain it from
     /// memory. Web Studio writes the same words (`teachBackOpening`).
     static func openingMessage(sourceTitle: String) -> String {
-        "Explain “\(sourceTitle)” to me in your own words, as you would to a bright friend who hasn't read it. Don't look back at it first: what question does it ask, what did it find, and how does it know? Start wherever you like, and I'll ask about whatever I can't follow yet."
+        "Explain “\(sourceTitle)” to me in your own words, as you would to a bright friend who hasn't come across it. Don't look back at it first: what is it about, what does it claim, and how does it know? Start wherever you like, and I'll ask about whatever I can't follow yet."
     }
 }
 
 /// The Studio's Feynman Technique asked for a chat on one of the notebook's
-/// ticked papers, consumed by the Chat panel's auto-start
+/// ticked sources, consumed by the Chat panel's auto-start
 /// (`StudioViewModel.requestNotebookTeachBack`).
 struct TeachBackChatRequest: Equatable, Sendable {
     let notebookID: String
     let sourceID: String
-    /// The paper's title as the library shows it.
+    /// The source's title as the library shows it.
     let sourceTitle: String
 }
