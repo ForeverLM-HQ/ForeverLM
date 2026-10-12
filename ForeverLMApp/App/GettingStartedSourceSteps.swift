@@ -69,9 +69,11 @@ extension StudioViewModel {
 }
 
 /// Every show in the learner's Apple Podcasts library, read before the first
-/// import, each with Keep, Hide or Don't import. Setup starts the import only
-/// when the learner moves on, so nothing is fetched or cleaned up for a show
-/// they turned away.
+/// import, as one list to tick. A ticked show comes in; an unticked one is
+/// never imported. Setup asks just that one thing (product owner, 2026-10-11:
+/// one thing at a time): hiding a show that still comes in is in the show's
+/// menu in the sidebar. Setup starts the import only when the learner moves
+/// on, so nothing is fetched or cleaned up for a show they turned away.
 struct PodcastShowChooser: View {
     @Environment(StudioViewModel.self) private var vm
     /// The number of shows found, or nil until Apple Podcasts has been read.
@@ -81,43 +83,54 @@ struct PodcastShowChooser: View {
     @State private var status: PodcastDiscoveryStatus?
     @State private var isLoading = false
 
+    private static let rowHeight: CGFloat = 48
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Your shows in Apple Podcasts")
-                    .font(.headline)
-                Spacer()
-                if isLoading {
-                    ProgressView().controlSize(.small)
-                }
-                if shows.count > 1 {
-                    Menu("Set All") {
-                        ForEach(PodcastShowSetupChoice.allCases) { choice in
-                            Button(choice.title) { setAll(choice) }
+        VStack(spacing: 10) {
+            if shows.isEmpty {
+                VStack(spacing: 14) {
+                    if isLoading || status == nil {
+                        ProgressView().controlSize(.small)
+                    }
+                    Text(emptyMessage)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if canOpenApplePodcasts {
+                        Button("Open Apple Podcasts") {
+                            NSWorkspace.shared.open(URL(string: "podcasts://")!)
                         }
                     }
-                    .fixedSize()
                 }
-                Button("Look Again") { Task { await load() } }
-                    .disabled(isLoading)
-            }
-
-            if shows.isEmpty {
-                Text(emptyMessage)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
             } else {
-                ForEach(shows) { show in
-                    row(show)
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ForEach(shows) { show in
+                            row(show)
+                        }
+                    }
                 }
-                Text("Hidden shows stay out of chat, search and reviews, and their transcripts are not cleaned up. Change any of this later from a show's menu.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                .frame(height: min(CGFloat(shows.count) * Self.rowHeight, Self.rowHeight * 6.5))
+                .background(Color.primary.opacity(0.055), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                HStack {
+                    Text("\(keptCount) of \(shows.count) shows ticked")
+                        .monospacedDigit()
+                    Spacer()
+                    if shows.count > 1 {
+                        Button(keptCount == shows.count ? "Untick All" : "Tick All") {
+                            setAll(keptCount == shows.count ? .skip : .keep)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.tint)
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
         }
-        .sourceSetupCard()
         .task { await load() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             // Back from Apple Podcasts: a show just followed or played shows up.
@@ -125,37 +138,46 @@ struct PodcastShowChooser: View {
         }
     }
 
-    private func row(_ show: SourceDiscovery.PodcastShowInventoryItem) -> some View {
-        HStack(spacing: 10) {
-            AsyncImage(url: show.artworkURL.flatMap(URL.init(string:))) { image in
-                image.resizable().scaledToFill()
-            } placeholder: {
-                Image(systemName: "mic")
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color.primary.opacity(0.06))
-            }
-            .frame(width: 32, height: 32)
-            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+    private var keptCount: Int {
+        shows.filter { vm.podcastSetupChoice(for: $0.name) != .skip }.count
+    }
 
-            VStack(alignment: .leading, spacing: 1) {
-                Text(show.name)
-                    .lineLimit(1)
-                Text(detail(for: show))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-            Spacer(minLength: 8)
-            Picker(show.name, selection: choiceBinding(show.name)) {
-                ForEach(PodcastShowSetupChoice.allCases) { choice in
-                    Text(choice.title).tag(choice)
+    private func row(_ show: SourceDiscovery.PodcastShowInventoryItem) -> some View {
+        let binding = isBroughtIn(show.name)
+        return Button {
+            binding.wrappedValue.toggle()
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: binding.wrappedValue ? "checkmark.square.fill" : "square")
+                    .font(.title3)
+                    .foregroundStyle(binding.wrappedValue ? Color.accentColor : .secondary)
+                AsyncImage(url: show.artworkURL.flatMap(URL.init(string:))) { image in
+                    image.resizable().scaledToFill()
+                } placeholder: {
+                    Image(systemName: "mic")
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color.primary.opacity(0.06))
                 }
+                .frame(width: 32, height: 32)
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(show.name)
+                        .lineLimit(1)
+                    Text(detail(for: show))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 8)
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(width: 250)
+            .padding(.horizontal, 14)
+            .frame(height: Self.rowHeight)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.hoverWash(cornerRadius: 0, inset: 0))
+        .accessibilityLabel(show.name)
+        .accessibilityAddTraits(binding.wrappedValue ? .isSelected : [])
     }
 
     private func detail(for show: SourceDiscovery.PodcastShowInventoryItem) -> String {
@@ -166,16 +188,23 @@ struct PodcastShowChooser: View {
         }
     }
 
+    private var canOpenApplePodcasts: Bool {
+        switch status {
+        case .appNotInstalled, .ok, .noEpisodesFound: return true
+        default: return false
+        }
+    }
+
     private var emptyMessage: String {
         switch status {
         case nil:
             return "Reading Apple Podcasts…"
         case .appNotInstalled:
-            return "Apple Podcasts has no library on this Mac yet. Follow or play a show there, then look again."
+            return "Apple Podcasts has no library on this Mac yet. Follow or play a show there, then come back."
         case .permissionDenied:
             return "Full Disk Access is needed to read Apple Podcasts."
         case .ok, .noEpisodesFound:
-            return "No shows yet. Follow or play one in Apple Podcasts, then look again."
+            return "No shows yet. Follow or play one in Apple Podcasts, then come back."
         case .unsupportedPlatform:
             return "Apple Podcasts can only be read on a Mac."
         case .openFailed(let details), .schemaChanged(let details):
@@ -183,10 +212,12 @@ struct PodcastShowChooser: View {
         }
     }
 
-    private func choiceBinding(_ show: String) -> Binding<PodcastShowSetupChoice> {
+    /// Ticked is anything but Don't import, so a show already hidden from the
+    /// sidebar stays hidden until it is unticked.
+    private func isBroughtIn(_ show: String) -> Binding<Bool> {
         Binding(
-            get: { vm.podcastSetupChoice(for: show) },
-            set: { choice in Task { await vm.applyPodcastSetupChoice(choice, to: show) } }
+            get: { vm.podcastSetupChoice(for: show) != .skip },
+            set: { isOn in Task { await vm.applyPodcastSetupChoice(isOn ? .keep : .skip, to: show) } }
         )
     }
 
@@ -285,65 +316,70 @@ struct ReadingListBrowserChoices: View {
 
 /// Zotero keeps its library in a SQLite file on this Mac, so Setup can find it
 /// and bring it over in one click instead of asking for an export. The move is
-/// one-time; Zotero is opened read-only and never changed.
+/// one-time; Zotero is opened read-only and never changed. Setup shows this on
+/// its Zotero page only when the library is there.
 struct ZoteroImportCard: View {
     @Environment(StudioViewModel.self) private var vm
     @State private var library: URL?
     @State private var paperCount: Int?
     @State private var pdfCount: Int?
     @State private var hasLooked = false
+    @State private var isLocating = false
     @State private var isImporting = false
     @State private var result: String?
     @State private var error: String?
 
     var body: some View {
-        Group {
+        VStack(spacing: 14) {
             if let library {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(alignment: .firstTextBaseline) {
-                        Label("Zotero", systemImage: "books.vertical")
-                            .font(.headline)
-                        if let paperCount {
-                            Text(countText(papers: paperCount, pdfs: pdfCount ?? 0))
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                Button {
+                    importLibrary(library)
+                } label: {
+                    Group {
+                        if isImporting {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Text(result == nil ? "Import from Zotero" : "Import Again")
                         }
-                        Spacer()
-                        Button {
-                            importLibrary(library)
-                        } label: {
-                            if isImporting {
-                                ProgressView().controlSize(.small)
-                            } else {
-                                Text(result == nil ? "Import from Zotero" : "Import Again")
-                            }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(isImporting || vm.isImportingReferenceLibrary || paperCount == 0)
                     }
-                    Text(library.path.replacingOccurrences(of: BookmarkAccessManager.realHomeDirectory, with: "~"))
-                        .font(.caption.monospaced())
+                    .frame(minWidth: 170)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .disabled(isImporting || vm.isImportingReferenceLibrary || paperCount == 0)
+                if let paperCount {
+                    Text("\(countText(papers: paperCount, pdfs: pdfCount ?? 0)) in \(library.path.replacingOccurrences(of: BookmarkAccessManager.realHomeDirectory, with: "~"))")
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .truncationMode(.middle)
-                    if isImporting, let status = vm.referenceLibraryImportStatus {
-                        Label(status, systemImage: "hourglass")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    if let result {
-                        Label(result, systemImage: "checkmark.circle.fill")
-                            .font(.caption)
-                            .foregroundStyle(.green)
-                    }
-                    if let error {
-                        Label(error, systemImage: "exclamationmark.triangle.fill")
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
                 }
-                .sourceSetupCard()
+                if isImporting, let status = vm.referenceLibraryImportStatus {
+                    Label(status, systemImage: "hourglass")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                if let result {
+                    Label(result, systemImage: "checkmark.circle.fill")
+                        .font(.headline)
+                        .foregroundStyle(.green)
+                        .multilineTextAlignment(.center)
+                }
+                if let error {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            } else if isLocating {
+                ProgressView().controlSize(.small)
+            } else if hasLooked {
+                Text("Zotero's library could not be read on this Mac. Go back and choose Another reference manager to pick its folder.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .task { await locate() }
@@ -357,6 +393,8 @@ struct ZoteroImportCard: View {
     private func locate() async {
         guard !hasLooked else { return }
         hasLooked = true
+        isLocating = true
+        defer { isLocating = false }
         let homeDir = BookmarkAccessManager.realHomeDirectory
         let found = await Task.detached(priority: .utility) { () -> (URL, Int, Int)? in
             guard let directory = ReferenceLibraryImportService.zoteroDataDirectory(homeDir: homeDir),

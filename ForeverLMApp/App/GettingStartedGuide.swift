@@ -343,6 +343,61 @@ private enum AIStepPage {
     case models
 }
 
+/// A page a Setup step opens after its question. Setup reads like a Typeform
+/// (product owner, 2026-10-11: "it really focuses on one thing at a time" and
+/// "should be crystal clear for the user what to do at each point"): each page
+/// asks one thing and has one button that does it, and a choice that needs
+/// more leads to a page of its own rather than opening in place.
+enum GettingStartedPage: Hashable {
+    /// Full Disk Access, once System Settings is open: add the app, relaunch.
+    case addToFullDiskAccess
+    /// Articles: a read-later app's export, brought over once.
+    case readLaterImport
+    /// Papers: the place the learner said their papers live.
+    case papers(GettingStartedPaperRoute)
+    /// More sources: one page for each source picked, in `moreSourceRows` order.
+    case moreSource(GettingStartedStep)
+    /// Your AI: one page for each app picked, to add ForeverLM to it.
+    case connect(AISubscription)
+}
+
+/// The answers to "Where do your papers live?", each with its own page.
+enum GettingStartedPaperRoute: Hashable {
+    case zotero
+    case referenceManager
+    case pdfs
+}
+
+/// How Setup moves forward, kept apart from the view so it can be tested.
+enum GettingStartedFlow {
+    /// The pick after `current`, or the first pick when there is no current one.
+    static func next<T: Equatable>(after current: T?, in picks: [T]) -> T? {
+        guard let current else { return picks.first }
+        guard let index = picks.firstIndex(of: current) else { return nil }
+        let after = picks.index(after: index)
+        return after < picks.endIndex ? picks[after] : nil
+    }
+
+    /// The footer's one forward button.
+    enum Forward: Equatable {
+        /// Continue, to the next page or step.
+        case next
+        /// Finish, on Setup's last page.
+        case finish
+        /// Skip, on a page that can be left unanswered.
+        case skip
+        /// A disabled Continue: the page waits for its answer.
+        case waiting
+    }
+
+    /// One way forward at a time: Continue once the page is answered, Skip
+    /// while it is not but may be left, and otherwise a Continue that waits.
+    static func forward(canContinue: Bool, canSkip: Bool, isLast: Bool) -> Forward {
+        if canContinue { return isLast ? .finish : .next }
+        return canSkip ? .skip : .waiting
+    }
+}
+
 /// Setup's AI step (product owner, 2026-09-25): ForeverLM's AI features run on the
 /// learner's own OpenRouter key, billed by OpenRouter at cost, so the step
 /// asks for the key, and the key has to be one the account may run
@@ -500,21 +555,18 @@ struct GettingStartedGuide: View {
     private var automaticallyFormatLikedVideoTranscripts = false
 
     @State private var step: GettingStartedStep = .enhancements
+    /// The pages opened past the step's question, newest last; empty on the
+    /// question itself. Back closes the newest.
+    @State private var pages: [GettingStartedPage] = []
     /// Nil until the learner moves off or back to the welcome; until then a
     /// fresh guide shows it and a reopened one does not.
     @State private var welcomeOverride: Bool?
     @State private var workingAction: String?
-    @State private var youtubeItems: [YouTubePlaylistItem] = []
     @State private var youtubeError: String?
     @State private var isYouTubeSignedIn = YouTubeService.shared.isSignedIn
-    @State private var isLoadingYouTubePreview = false
-    @State private var hasLoadedYouTubePreview = false
     @State private var showYouTubeSourceChoice = false
     @State private var isChoosingLikedVideos = false
-    @State private var readingListBrowser: ReadingListBrowser = .safari
     @State private var enabledReadingListBrowsers = ReadingListBrowser.enabled
-    @State private var showsReadLaterImport = false
-    @State private var showsReferenceManagerImport = false
     @State private var isFileDropTargeted = false
     @State private var fileImportError: String?
     @State private var oneTimeImportResults: [String: String] = [:]
@@ -522,14 +574,9 @@ struct GettingStartedGuide: View {
     @State private var appleBooks: AppleBooksLibrary.Scan?
     @State private var selectedAppleBooks: Set<String> = []
     @State private var playlistLink = ""
-    @State private var meetingLink = ""
-    @State private var videoLink = ""
     @State private var linkError: String?
     @State private var linkErrorAction: String?
     @State private var copiedConnectorURL = false
-    /// The connector plan's open row, once the learner picks one; until then
-    /// the first app not yet connected is open.
-    @State private var connectorAssistant: AISubscription?
     /// The AI apps this account has connected, from the gateway; nil until read.
     @State private var connectedAssistants: Set<AISubscription>?
     @State private var zoomFolder = StudioViewModel.zoomLocalTranscriptCustomFolder
@@ -538,14 +585,14 @@ struct GettingStartedGuide: View {
     /// Read at launch and whenever ForeverLM becomes active again, as it does
     /// on the way back from System Settings.
     @State private var hasFullDiskAccess = FullDiskAccess.isGranted
-    /// The row open on the More sources step, if any.
-    @State private var openMoreSource: GettingStartedStep?
+    /// The sources ticked on the More sources question; each gets a page.
+    @State private var moreSourcePicks: Set<GettingStartedStep> = []
+    /// "None of these" on the More sources question.
+    @State private var noMoreSources = false
+    /// Whether Zotero keeps a library on this Mac; nil until looked for.
+    @State private var hasZoteroLibrary: Bool?
     /// Shows found in Apple Podcasts by the Podcasts step, nil until read.
     @State private var podcastInventoryCount: Int?
-
-    private let exampleArticleURL = URL(string: "https://en.wikipedia.org/wiki/Feynman_Technique")!
-    private let examplePaperURL = URL(string: "https://arxiv.org/abs/1706.03762")!
-    private let exampleVideoURL = URL(string: "https://www.youtube.com/watch?v=5MgBikgcWnY")!
 
     var body: some View {
         ZStack {
@@ -581,12 +628,9 @@ struct GettingStartedGuide: View {
         }
         .transition(.opacity)
         .task {
-            if !enabledReadingListBrowsers.contains(readingListBrowser),
-               let chosen = ReadingListBrowser.allCases.first(where: enabledReadingListBrowsers.contains) {
-                readingListBrowser = chosen
-            }
             step = firstIncompleteStep
-            await prepareCurrentStep()
+            startSourceAutoSync(for: step)
+            await prepare(step)
         }
         .onChange(of: account.ownKey != nil) { wasConnected, isConnected in
             // The key arriving is the answer: show it a moment, then the next page.
@@ -600,14 +644,7 @@ struct GettingStartedGuide: View {
         .onChange(of: step) { _, newStep in
             if newStep == .enhancements { aiPage = .key }
             startSourceAutoSync(for: newStep)
-            Task {
-                if newStep == .youtube {
-                    await loadYouTubePreview()
-                } else if newStep == .enhancements {
-                    await account.reloadOwnKey()
-                    await account.refresh(silently: true)
-                }
-            }
+            Task { await prepare(newStep) }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             hasFullDiskAccess = FullDiskAccess.isGranted
@@ -691,261 +728,411 @@ struct GettingStartedGuide: View {
         welcomeOverride ?? (completedSteps == 0 && !welcomeSeen)
     }
 
-    @ViewBuilder
+    /// One page at a time, centred in the sheet like the welcome, and
+    /// scrolling only when a page runs long (a long list of shows).
     private var stepContent: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                switch step {
-                case .podcasts: podcastStep
-                case .books: booksStep
-                case .article: articleStep
-                case .paper: paperStep
-                case .courses: coursesStep
-                case .meetings: meetingsStep
-                case .youtube: youtubeStep
-                case .enhancements: enhancementsStep
-                case .subscriptions: subscriptionsStep
-                case .fullDiskAccess: fullDiskAccessStep
-                case .moreSources: moreSourcesStep
-                // No longer in `onboardingOrder`; kept for their synced bits.
-                case .storage, .planner, .memory, .ideas, .artifacts, .assistants: EmptyView()
+        GeometryReader { proxy in
+            ScrollView {
+                VStack(spacing: 24) {
+                    pageContent
+                }
+                .frame(maxWidth: 560)
+                .padding(.horizontal, 32)
+                .padding(.vertical, 28)
+                .frame(maxWidth: .infinity, minHeight: proxy.size.height)
+                .id("\(step.rawValue)|\(String(describing: page))")
+                .transition(.opacity)
+            }
+        }
+    }
+
+    /// The page on screen: a follow-up, or else the step's question.
+    private var page: GettingStartedPage? { pages.last }
+
+    @ViewBuilder
+    private var pageContent: some View {
+        switch page {
+        case nil:
+            switch step {
+            case .podcasts: podcastStep
+            case .article: articleStep
+            case .paper: paperStep
+            case .enhancements: enhancementsStep
+            case .subscriptions: subscriptionsStep
+            case .fullDiskAccess: fullDiskAccessStep
+            case .moreSources: moreSourcesStep
+            // Pages of More sources since 2026-09-24.
+            case .books: booksStep
+            case .courses: coursesStep
+            case .meetings: meetingsStep
+            case .youtube: youtubeStep
+            // No longer in `onboardingOrder`; kept for their synced bits.
+            case .storage, .planner, .memory, .ideas, .artifacts, .assistants: EmptyView()
+            }
+        case .addToFullDiskAccess: addToFullDiskAccessPage
+        case .readLaterImport: readLaterPage
+        case .papers(let route): paperRoutePage(route)
+        case .moreSource(let source): moreSourcePage(source)
+        case .connect(let assistant): connectPage(assistant)
+        }
+    }
+
+    /// Opens a follow-up page over the current one.
+    private func show(_ next: GettingStartedPage) {
+        withAnimation(.easeInOut(duration: 0.2)) { pages.append(next) }
+        if case .moreSource(let source) = next {
+            startSourceAutoSync(for: source)
+        }
+    }
+
+    /// Leaves for another step's question, as "Allow Full Disk Access" does
+    /// from a step that cannot read without it.
+    private func go(to destination: GettingStartedStep) {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            pages = []
+            step = destination
+        }
+    }
+
+    // MARK: Page parts
+
+    /// The one thing to do on a page.
+    private func primaryAction(
+        _ title: String,
+        inFlight: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Group {
+                if inFlight {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Text(title)
                 }
             }
-            .frame(maxWidth: 600, alignment: .leading)
-            .padding(.horizontal, 32)
-            .padding(.vertical, 28)
-            .frame(maxWidth: .infinity)
+            .frame(minWidth: 170)
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
+        .disabled(inFlight)
+    }
+
+    /// The quiet way round, under the one thing to do.
+    private func secondaryAction(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(title, action: action)
+            .buttonStyle(.plain)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+    }
+
+    private func doneLabel(_ text: String) -> some View {
+        Label(text, systemImage: "checkmark.circle.fill")
+            .font(.headline)
+            .foregroundStyle(.green)
+            .multilineTextAlignment(.center)
+    }
+
+    private func pageNote(_ text: String) -> some View {
+        Text(text)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func errorNote(_ text: String) -> some View {
+        Label(text, systemImage: "exclamationmark.triangle.fill")
+            .font(.caption)
+            .foregroundStyle(.red)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// One answer to a question: a full-width row the learner clicks. A
+    /// single-answer question moves on at the click; one taking several
+    /// answers ticks the row (`isSelected` non-nil) and waits for Continue.
+    private func choiceRow(
+        icon: String? = nil,
+        logo: AISubscription? = nil,
+        title: String,
+        detail: String? = nil,
+        recommended: Bool = false,
+        isSelected: Bool? = nil,
+        action: @escaping () -> Void
+    ) -> some View {
+        let selected = isSelected == true
+        return Button(action: action) {
+            HStack(spacing: 14) {
+                if let logo {
+                    subscriptionMark(logo)
+                        .frame(width: 24, height: 24)
+                } else if let icon {
+                    Image(systemName: icon)
+                        .font(.title3)
+                        .foregroundStyle(.tint)
+                        .frame(width: 24)
+                        .accessibilityHidden(true)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 8) {
+                        Text(title)
+                            .font(.headline)
+                        if recommended { RecommendedBadge() }
+                    }
+                    if let detail {
+                        Text(detail)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                Spacer(minLength: 8)
+                if let isSelected {
+                    Image(systemName: isSelected ? "checkmark.square.fill" : "square")
+                        .font(.title3)
+                        .foregroundStyle(isSelected ? Color.accentColor : .secondary)
+                } else {
+                    Image(systemName: "chevron.right")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 13)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                selected ? Color.accentColor.opacity(0.10) : Color.primary.opacity(0.055),
+                in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(selected ? Color.accentColor.opacity(0.6) : .clear)
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .buttonStyle(.hoverWash(cornerRadius: 12, inset: 0))
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    /// Where a step's export lives in each app, under its Choose button.
+    private func exportHints(_ hints: [(String, String)]) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Where to find the export")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            ForEach(hints.indices, id: \.self) { index in
+                Text("**\(hints[index].0)**: \(hints[index].1)")
+                    .font(.caption)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .setupCard()
+    }
+
+    /// What a one-time import is doing or did.
+    @ViewBuilder
+    private func importOutcome(_ action: String, isImporting: Bool, status: String?) -> some View {
+        if isImporting, let status {
+            Label(status, systemImage: "hourglass")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        if let summary = oneTimeImportResults[action] {
+            doneLabel(summary)
+        }
+        if let error = oneTimeImportErrors[action] {
+            errorNote(error)
         }
     }
 
-    /// The product owner, 2026-09-24: the learner chooses which shows to keep, hide or
-    /// leave out before anything is imported. The import itself starts when
-    /// they move on (`completeAndAdvance`), so a show turned away is never
-    /// fetched or cleaned up.
+    /// A step that reads something macOS guards, asked before access is on:
+    /// one sentence, and the way to the step that turns it on.
+    private func needsFullDiskAccess(_ text: String) -> some View {
+        VStack(spacing: 14) {
+            pageNote(text)
+            primaryAction("Allow Full Disk Access") { go(to: .fullDiskAccess) }
+        }
+    }
+
+    // MARK: Podcasts
+
+    /// The product owner, 2026-09-24: the learner chooses which shows to bring
+    /// in before anything is imported. The import itself starts when they move
+    /// on (`completeAndAdvance`), so a show turned away is never fetched or
+    /// cleaned up.
     private var podcastStep: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(spacing: 24) {
             stepHeading(
                 icon: GettingStartedStep.podcasts.icon,
-                title: "Choose your podcasts",
-                detail: "Pick the shows to bring in from Apple Podcasts."
+                title: "Which podcasts do you learn from?",
+                detail: "Tick the shows to bring in from Apple Podcasts. The episodes you play come in on their own."
             )
-
             if vm.needsPodcastAccess || !hasFullDiskAccess {
-                accessNotice("Full Disk Access is needed to read Apple Podcasts. macOS does not list ForeverLM until you add it with the \"+\" button — add it, turn it on, then relaunch ForeverLM.")
-                Button("Enable Access") { openFullDiskAccessSettings() }
+                needsFullDiskAccess("ForeverLM can read Apple Podcasts once it has Full Disk Access.")
+            } else {
+                PodcastShowChooser(showCount: $podcastInventoryCount)
             }
-
-            PodcastShowChooser(showCount: $podcastInventoryCount)
-
-            Button("Open Apple Podcasts") { open(URL(string: "podcasts://")!) }
         }
     }
 
-    /// The product owner, 2026-09-24: setting up the Reading List is the step, not
-    /// waiting for a first save. How much of the backlog to bring comes
-    /// first, then the browsers; a read-later app's library can come over too.
+    // MARK: Articles
+
+    /// The product owner, 2026-09-24: setting up the Reading List is the step,
+    /// not waiting for a first save. A read-later app's library can come over
+    /// instead, on a page of its own.
     private var articleStep: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(spacing: 24) {
             stepHeading(
                 icon: "globe",
-                title: "Which browser do you use?",
-                detail: "A page you add to its Reading List arrives in ForeverLM. Choose every browser you use."
+                title: "Which browsers do you save pages in?",
+                detail: "Pages you add to a browser's Reading List come into ForeverLM. Tick every browser you use."
             )
             ReadingListBrowserChoices(isEnabled: readingListBrowserBinding)
             if vm.needsBrowserAccess {
-                accessNotice("Add ForeverLM to Full Disk Access with the \"+\" button — macOS does not list it until you do — turn it on, then relaunch the app.")
+                needsFullDiskAccess("ForeverLM can read your Reading Lists once it has Full Disk Access.")
+            } else if let readingListCaption {
+                pageNote(readingListCaption)
             }
-            Text(readingListCaption)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            if showsReadLaterImport {
-                readLaterImport
-            } else {
-                Button("Coming from a read-later app?") {
-                    withAnimation(.easeInOut(duration: 0.2)) { showsReadLaterImport = true }
-                }
-                .buttonStyle(.link)
-                .font(.caption)
-            }
+            secondaryAction("Coming from Readwise, Instapaper or Pocket?") { show(.readLaterImport) }
         }
     }
 
-    /// What happens next, in the learner's browsers' own words. Only the
-    /// pages saved in the last 30 days come in at first, which Settings ›
+    /// How to save a page, in the learner's browser's own words, once one is
+    /// ticked. Only the last 30 days come in at first, which Settings ›
     /// Sources changes.
-    private var readingListCaption: String {
+    private var readingListCaption: String? {
         let browsers = ReadingListBrowser.allCases.filter(enabledReadingListBrowsers.contains)
-        guard let first = browsers.first else {
-            return "Skip this if you do not save pages to a Reading List. You can choose a browser later in Settings › Sources."
-        }
+        guard let first = browsers.first else { return nil }
         let how = browsers.count == 1 ? first.saveInstruction : "Save a page to its Reading List"
-        return "\(how), and it arrives here on its own. Pages you saved in the last 30 days come in now, each fetched and cleaned up by AI once. Change this in Settings › Sources."
+        return "\(how), and it comes in here. Pages from the last 30 days come in now."
     }
 
-    /// The product owner, 2026-09-24: papers come over from the reference manager they
-    /// live in. Zotero is found on this Mac and imported in one click; any
-    /// other manager's export, dropped PDFs and Reading List saves work too.
-    private var paperStep: some View {
-        VStack(alignment: .leading, spacing: 16) {
+    /// A read-later app's export, read once. Nothing keeps syncing with the
+    /// app afterwards.
+    private var readLaterPage: some View {
+        VStack(spacing: 24) {
             stepHeading(
-                icon: "doc.text.magnifyingglass",
-                title: "Bring your papers",
-                detail: "Add them any way you like. They are fetched and tidied up in the background, so you can carry on while they come in."
+                icon: "tray.and.arrow.down",
+                title: "Bring over your read-later app",
+                detail: "Export your saved articles from the app, then choose the export here. ForeverLM copies them once and never changes the app."
             )
-            ZoteroImportCard()
-            fileDropZone(
-                "Drop PDFs here",
-                icon: "arrow.down.doc",
-                types: [.pdf],
-                chooseTitle: "Choose PDFs…"
-            ) { url in
-                _ = try await vm.importPDF(from: url.path, selectInReader: false)
-            }
-            readingListPapersNote
-            if showsReferenceManagerImport {
-                referenceManagerImport
-            } else {
-                Button("Coming from Paperpile, Mendeley or another reference manager?") {
-                    withAnimation(.easeInOut(duration: 0.2)) { showsReferenceManagerImport = true }
+            primaryAction(
+                "Choose Export…",
+                inFlight: workingAction == "read-later" || vm.isImportingReadLaterExport
+            ) {
+                importOnce("read-later", types: Self.readLaterContentTypes,
+                           message: "Choose the CSV, HTML or JSON export, or its unzipped folder") { urls in
+                    let report = try await vm.importReadLaterExport(from: urls)
+                    return (report.summary, report.warnings)
                 }
-                .buttonStyle(.link)
-                .font(.caption)
             }
-            SourceCleanupProgress(types: [.paper], task: .paperNarrationPreparation)
-            if let paper = newestPaper {
-                VStack(alignment: .leading, spacing: 10) {
-                    detectedSourceCard(paper, label: "Last paper added")
-                    if paper.state == .error, let error = paper.errorMessage {
-                        Label(error, systemImage: "exclamationmark.triangle.fill")
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                    }
-                }
-                .setupCard()
-            }
-        }
-    }
-
-    /// The Reading List was set up in the Articles step; a paper saved there
-    /// arrives the same way, so this step only says so.
-    @ViewBuilder
-    private var readingListPapersNote: some View {
-        let browsers = ReadingListBrowser.allCases.filter(enabledReadingListBrowsers.contains)
-        if browsers.isEmpty {
-            Label("Turn on a Reading List in the Articles step to save papers from your browser too.", systemImage: "globe")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        } else {
-            HStack {
-                Label("Papers you save to your Reading List in \(browsers.map(\.title).joined(separator: " or ")) arrive here too.", systemImage: "globe")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button("Open Example") { openInReadingListBrowser(examplePaperURL) }
-                    .controlSize(.small)
-            }
-        }
-    }
-
-    /// A one-time move out of a reference manager, not a connector: the papers
-    /// are copied into the library once and nothing keeps watching Zotero,
-    /// Paperpile or Mendeley afterwards (docs-site/papers.md says why).
-    private var referenceManagerImport: some View {
-        oneTimeImportCard(
-            title: "Coming from a reference manager?",
-            icon: "books.vertical",
-            detail: "Bring your papers over once. ForeverLM copies them into your library and never changes the original.",
-            hints: [
-                ("Zotero", "choose the Zotero folder in your home folder, the one holding zotero.sqlite."),
-                ("Paperpile", "export BibTeX into the Paperpile folder Google Drive syncs, then choose that folder."),
-                ("Mendeley", "export your library as BibTeX and choose the file. Papers without a PDF are fetched by DOI."),
-                ("EndNote, JabRef, ReadCube", "export BibTeX or RIS, or choose a folder of PDFs.")
-            ],
-            action: "reference-library",
-            isImporting: vm.isImportingReferenceLibrary,
-            status: vm.referenceLibraryImportStatus
-        ) {
-            importOnce("reference-library", types: Self.referenceLibraryContentTypes,
-                       message: "Choose a Zotero folder, a BibTeX or RIS export, or a folder of PDFs") { urls in
-                try await vm.importReferenceLibrary(from: urls).summaryAndWarnings
-            }
-        }
-    }
-
-    /// The same one-time move for articles: a read-later app's export, read
-    /// once. Nothing keeps syncing with the app afterwards.
-    private var readLaterImport: some View {
-        oneTimeImportCard(
-            title: "Coming from a read-later app?",
-            icon: "tray.and.arrow.down",
-            detail: "Bring your saved articles over once from the app's export. The app itself is never changed.",
-            hints: [
+            importOutcome("read-later", isImporting: vm.isImportingReadLaterExport, status: vm.readLaterImportStatus)
+            exportHints([
                 ("Readwise Reader", "Settings › Export, then choose the CSV."),
                 ("Instapaper", "Settings › Export, then choose the CSV or HTML file."),
                 ("Raindrop", "Settings › Backups, then choose the CSV or HTML file."),
                 ("Pocket, Omnivore, others", "choose the export file, or the unzipped export folder.")
-            ],
-            action: "read-later",
-            isImporting: vm.isImportingReadLaterExport,
-            status: vm.readLaterImportStatus
-        ) {
-            importOnce("read-later", types: Self.readLaterContentTypes,
-                       message: "Choose the CSV, HTML or JSON export, or its unzipped folder") { urls in
-                let report = try await vm.importReadLaterExport(from: urls)
-                return (report.summary, report.warnings)
-            }
+            ])
         }
     }
 
-    private func oneTimeImportCard(
-        title: String,
-        icon: String,
-        detail: String,
-        hints: [(String, String)],
-        action: String,
-        isImporting: Bool,
-        status: String?,
-        choose: @escaping () -> Void
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Label(title, systemImage: icon)
-                    .font(.headline)
-                Spacer()
-                Button("Choose Export…", action: choose)
-                    .disabled(workingAction != nil || isImporting)
-                actionProgress(action)
-            }
-            Text(detail)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            VStack(alignment: .leading, spacing: 4) {
-                ForEach(hints.indices, id: \.self) { index in
-                    Text("**\(hints[index].0)**: \(hints[index].1)")
-                        .font(.caption)
-                        .fixedSize(horizontal: false, vertical: true)
+    // MARK: Papers
+
+    /// The product owner, 2026-09-24: papers come over from where they live.
+    /// The question names the places, and each answer has a page with its one
+    /// way in: Zotero, found on this Mac, in one click; another manager's
+    /// export; or PDFs dropped in.
+    private var paperStep: some View {
+        VStack(spacing: 24) {
+            stepHeading(
+                icon: "doc.text.magnifyingglass",
+                title: "Where do your papers live?",
+                detail: "Pick one. You can add papers from anywhere later."
+            )
+            VStack(spacing: 10) {
+                if hasZoteroLibrary == true {
+                    choiceRow(icon: "books.vertical", title: "Zotero", detail: "Found on this Mac") {
+                        show(.papers(.zotero))
+                    }
+                }
+                choiceRow(
+                    icon: "books.vertical",
+                    title: hasZoteroLibrary == true ? "Another reference manager" : "A reference manager",
+                    detail: "Paperpile, Mendeley, EndNote and others"
+                ) {
+                    show(.papers(.referenceManager))
+                }
+                choiceRow(icon: "doc", title: "PDFs on this Mac") {
+                    show(.papers(.pdfs))
+                }
+                choiceRow(icon: "xmark.circle", title: "I don't have any yet") {
+                    completeAndAdvance()
                 }
             }
-            if isImporting, let status {
-                Label(status, systemImage: "hourglass")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            if let summary = oneTimeImportResults[action] {
-                Label(summary, systemImage: "checkmark.circle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.green)
-            }
-            if let error = oneTimeImportErrors[action] {
-                Label(error, systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            .frame(maxWidth: 440)
         }
-        .setupCard()
+    }
+
+    /// The page for the place picked. Papers are fetched and tidied up in
+    /// the background, so the page shows them coming in and Continue does not
+    /// wait for the end.
+    @ViewBuilder
+    private func paperRoutePage(_ route: GettingStartedPaperRoute) -> some View {
+        VStack(spacing: 24) {
+            switch route {
+            case .zotero:
+                stepHeading(
+                    icon: "books.vertical",
+                    title: "Bring over your Zotero library",
+                    detail: "ForeverLM copies your papers once. Zotero itself is never changed."
+                )
+                ZoteroImportCard()
+            case .referenceManager:
+                stepHeading(
+                    icon: "books.vertical",
+                    title: "Bring over your reference manager",
+                    detail: "Export your library as BibTeX or RIS, then choose the export here. Papers without a PDF are fetched by their DOI."
+                )
+                primaryAction(
+                    "Choose Export…",
+                    inFlight: workingAction == "reference-library" || vm.isImportingReferenceLibrary
+                ) {
+                    importOnce("reference-library", types: Self.referenceLibraryContentTypes,
+                               message: "Choose a Zotero folder, a BibTeX or RIS export, or a folder of PDFs") { urls in
+                        try await vm.importReferenceLibrary(from: urls).summaryAndWarnings
+                    }
+                }
+                importOutcome(
+                    "reference-library",
+                    isImporting: vm.isImportingReferenceLibrary,
+                    status: vm.referenceLibraryImportStatus
+                )
+                // A one-time move, not a connector: nothing keeps watching the
+                // manager afterwards (docs-site/papers.md says why).
+                exportHints([
+                    ("Paperpile", "export BibTeX into the Paperpile folder Google Drive syncs, then choose that folder."),
+                    ("Mendeley", "export your library as BibTeX and choose the file."),
+                    ("Zotero", "choose the Zotero folder in your home folder, the one holding zotero.sqlite."),
+                    ("EndNote, JabRef, ReadCube", "export BibTeX or RIS, or choose a folder of PDFs.")
+                ])
+            case .pdfs:
+                stepHeading(
+                    icon: "doc",
+                    title: "Add your PDFs",
+                    detail: "Drop them below, or choose them. You can carry on while they come in."
+                )
+                fileDropZone(
+                    "Drop PDFs here",
+                    icon: "arrow.down.doc",
+                    types: [.pdf],
+                    chooseTitle: "Choose PDFs…"
+                ) { url in
+                    _ = try await vm.importPDF(from: url.path, selectInReader: false)
+                }
+            }
+            SourceCleanupProgress(types: [.paper], task: .paperNarrationPreparation)
+        }
     }
 
     private func importOnce(
@@ -993,157 +1180,109 @@ struct GettingStartedGuide: View {
         UTType(filenameExtension: "sqlite")
     ].compactMap { $0 }
 
+    // MARK: YouTube
+
+    /// One question at a time: connect the account, then which videos come
+    /// in, then (for likes) whether the old ones do too.
     private var youtubeStep: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            stepHeading(
-                icon: "play.rectangle.fill",
-                title: "Import from YouTube",
-                detail: "Connect YouTube to bring in the videos you like, or a playlist named ForeverLM. Any single video can be added by its link."
-            )
-
+        VStack(spacing: 24) {
             if !isYouTubeSignedIn {
-                Button {
+                stepHeading(
+                    icon: "play.rectangle.fill",
+                    title: "Connect YouTube",
+                    detail: "Sign in to YouTube, then choose which of your videos come into ForeverLM."
+                )
+                primaryAction("Connect YouTube", inFlight: workingAction == "youtube-connect") {
                     run("youtube-connect") { await connectYouTube() }
-                } label: {
-                    Label("Connect YouTube", systemImage: "person.crop.circle.badge.checkmark")
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(!YouTubeService.shared.canConnect || workingAction != nil)
-                actionProgress("youtube-connect")
-            } else {
-                Label("YouTube connected", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-
-                if (vm.youtubeImportSource == nil && !isChoosingLikedVideos)
-                    || showYouTubeSourceChoice {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Import from")
-                            .font(.headline)
-                        HStack {
-                            Button("Liked Videos") {
-                                showYouTubeSourceChoice = false
-                                isChoosingLikedVideos = true
-                            }
-                            Button("ForeverLM Playlist") {
-                                showYouTubeSourceChoice = false
-                                isChoosingLikedVideos = false
-                                configureForeverLMPlaylist()
-                            }
-                            .buttonStyle(.borderedProminent)
-                            RecommendedBadge()
-                            actionProgress("youtube-source")
-                        }
-                        .disabled(workingAction != nil)
-                        Text("Only the videos you save to learn from come in, not everything you have ever liked.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                .disabled(!YouTubeService.shared.canConnect)
+            } else if showYouTubeSourceChoice || (vm.youtubeImportSource == nil && !isChoosingLikedVideos) {
+                stepHeading(
+                    icon: "play.rectangle.fill",
+                    title: "Which videos should come in?",
+                    detail: "Only the videos you pick come in, never your whole history."
+                )
+                VStack(spacing: 10) {
+                    choiceRow(
+                        icon: "list.bullet.rectangle",
+                        title: "A playlist named ForeverLM",
+                        detail: "Add a video to it on YouTube and it comes in.",
+                        recommended: true
+                    ) {
+                        showYouTubeSourceChoice = false
+                        isChoosingLikedVideos = false
+                        configureForeverLMPlaylist()
                     }
-                    .setupCard()
-                } else if let source = vm.youtubeImportSource {
-                    HStack {
-                        Label(source.displayName, systemImage: source.iconName)
-                        Spacer()
-                        Button("Change") {
-                            showYouTubeSourceChoice = true
-                            isChoosingLikedVideos = false
-                        }
-                        .controlSize(.small)
-                    }
-                    .setupCard()
-                }
-
-                if isChoosingLikedVideos
-                    || (vm.youtubeImportSource == .likedVideos && vm.youtubeLikedImportPolicy == .undecided) {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Import your existing liked videos?")
-                            .font(.headline)
-                        Text("Nothing is imported until you choose.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                        Toggle(
-                            "Format transcripts with AI",
-                            isOn: $automaticallyFormatLikedVideoTranscripts
-                        )
-                        Text("This can spend a lot on AI for a large history.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        HStack {
-                            Button("Import Existing Likes") { configureYouTube(.importExisting) }
-                            Button("Only Future Likes") { configureYouTube(.futureOnly) }
-                                .buttonStyle(.borderedProminent)
-                            RecommendedBadge()
-                            actionProgress("youtube-policy")
-                        }
-                        .disabled(workingAction != nil)
-                        Text("Your library starts with what you like from now on, not years of old likes.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .setupCard()
-                }
-
-                if !youtubeChannels.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Choose channels to show")
-                            .font(.headline)
-                        ForEach(youtubeChannels, id: \.self) { channel in
-                            Toggle(isOn: youtubeChannelVisibilityBinding(channel)) {
-                                Text(channel).lineLimit(1)
-                            }
-                            .toggleStyle(.switch)
-                        }
-                    }
-                    .setupCard()
-                }
-
-                if vm.youtubeImportSource != nil {
-                    HStack {
-                        Button("Open Example Video") { open(exampleVideoURL) }
-                        Button("Check YouTube") {
-                            run("youtube-refresh") { await vm.refreshYouTubeVideosOnSidebarRefresh() }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        actionProgress("youtube-refresh")
+                    choiceRow(
+                        icon: "hand.thumbsup",
+                        title: "Videos I like",
+                        detail: "Like a video on YouTube and it comes in."
+                    ) {
+                        showYouTubeSourceChoice = false
+                        isChoosingLikedVideos = true
                     }
                 }
-
+                .frame(maxWidth: 440)
+                .disabled(workingAction != nil)
+                actionProgress("youtube-source")
+            } else if isChoosingLikedVideos
+                || (vm.youtubeImportSource == .likedVideos && vm.youtubeLikedImportPolicy == .undecided) {
+                stepHeading(
+                    icon: "hand.thumbsup",
+                    title: "Bring in the videos you've already liked?",
+                    detail: "Nothing comes in until you choose."
+                )
+                VStack(spacing: 10) {
+                    choiceRow(
+                        icon: "clock.arrow.circlepath",
+                        title: "No, only new likes",
+                        detail: "Your library starts with what you like from now on.",
+                        recommended: true
+                    ) {
+                        configureYouTube(.futureOnly)
+                    }
+                    choiceRow(
+                        icon: "tray.full",
+                        title: "Yes, bring in my liked videos",
+                        detail: "This can spend a lot on AI for a long history."
+                    ) {
+                        configureYouTube(.importExisting)
+                    }
+                }
+                .frame(maxWidth: 440)
+                .disabled(workingAction != nil)
+                Toggle("Format transcripts with AI", isOn: $automaticallyFormatLikedVideoTranscripts)
+                actionProgress("youtube-policy")
+            } else if let source = vm.youtubeImportSource {
+                stepHeading(
+                    icon: "play.rectangle.fill",
+                    title: "YouTube is connected",
+                    detail: source == .likedVideos
+                        ? "Like a video on YouTube and it comes in here."
+                        : "Add a video to your ForeverLM playlist on YouTube and it comes in here."
+                )
                 if let video = newestYouTubeVideo {
-                    detectedSourceCard(video, label: "YouTube video found")
-                } else if let source = vm.youtubeImportSource {
-                    waitingCard(
-                        source == .likedVideos
-                            ? "Like a video on YouTube, then check again"
-                            : "Add a video to ForeverLM, then check again",
-                        icon: source.iconName
-                    )
+                    detectedSourceCard(video, label: "Last video in")
+                }
+                secondaryAction("Change which videos come in") {
+                    showYouTubeSourceChoice = true
+                    isChoosingLikedVideos = false
                 }
             }
-
-            linkField(
-                "Or paste any YouTube link",
-                text: $videoLink,
-                buttonTitle: "Add Video",
-                action: "video-link"
-            ) { link in
-                try await vm.addArticle(url: link, revealInReader: false)
-            }
-
             if let youtubeError {
-                Label(youtubeError, systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.red)
+                errorNote(youtubeError)
             }
         }
     }
 
+    // MARK: Books
+
     private var booksStep: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(spacing: 24) {
             stepHeading(
                 icon: "book.closed",
                 title: "Add your books",
-                detail: "Drop any EPUB or PDF here, or bring in the books you already keep in Apple Books. ForeverLM splits each one into chapters."
+                detail: "Drop EPUBs or PDFs below. ForeverLM splits each one into chapters."
             )
             fileDropZone(
                 "Drop EPUBs or PDFs here",
@@ -1153,38 +1292,24 @@ struct GettingStartedGuide: View {
             ) { url in
                 try await vm.importBook(from: url.path)
             }
-            appleBooksImport
             if !vm.bookImportStatus.isEmpty {
                 Label(vm.bookImportStatus, systemImage: "hourglass")
-                    .font(.caption)
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
             if let book = newestSource(of: .book) {
-                detectedSourceCard(book, label: "Book added")
+                detectedSourceCard(book, label: "Last book added")
             }
+            appleBooksImport
         }
     }
 
+    /// The books already in Apple Books, behind one quiet button until asked
+    /// for, then a list to tick.
     @ViewBuilder
     private var appleBooksImport: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Label("Apple Books", systemImage: "books.vertical")
-                    .font(.headline)
-                Spacer()
-                Button("Open Apple Books") { openAppleBooks() }
-                Button(appleBooks == nil ? "Import from Apple Books" : "Look Again") {
-                    run("apple-books-scan") {
-                        let scan = await Task.detached(priority: .userInitiated) {
-                            AppleBooksLibrary.scan()
-                        }.value
-                        appleBooks = scan
-                        selectedAppleBooks = Set(scan.books.map(\.path))
-                    }
-                }
-                actionProgress("apple-books-scan")
-            }
-            if let appleBooks {
+        if let appleBooks {
+            VStack(alignment: .leading, spacing: 10) {
                 if appleBooks.books.isEmpty {
                     Text(appleBooks.cloudOnlyCount > 0
                         ? "Your Apple Books are still in iCloud. Open one in Apple Books to download it, then look again."
@@ -1192,7 +1317,10 @@ struct GettingStartedGuide: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
+                    Button("Look Again") { scanAppleBooks() }
                 } else {
+                    Text("Your Apple Books")
+                        .font(.headline)
                     ForEach(appleBooks.books) { book in
                         Toggle(isOn: appleBookSelectionBinding(book.path)) {
                             VStack(alignment: .leading, spacing: 1) {
@@ -1222,126 +1350,92 @@ struct GettingStartedGuide: View {
                     }
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .setupCard()
+        } else {
+            HStack(spacing: 8) {
+                secondaryAction("Import from Apple Books instead") { scanAppleBooks() }
+                actionProgress("apple-books-scan")
+            }
         }
-        .setupCard()
+    }
+
+    private func scanAppleBooks() {
+        run("apple-books-scan") {
+            let scan = await Task.detached(priority: .userInitiated) {
+                AppleBooksLibrary.scan()
+            }.value
+            appleBooks = scan
+            selectedAppleBooks = Set(scan.books.map(\.path))
+        }
     }
 
     // MARK: More sources
 
-    /// Books, courses, meetings and YouTube on one screen (product owner,
-    /// 2026-09-24: fewer screens). Each is a row that opens its own setup in
-    /// place, without its heading; nothing has to be opened, and each one can
-    /// be set up later from its place in the sidebar.
+    /// Books, courses, meetings and YouTube (product owner, 2026-09-24: fewer
+    /// screens). The question asks which the learner uses, and only those get
+    /// a page, one after another; the rest can be set up later from their
+    /// place in the sidebar.
     private var moreSourcesStep: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(spacing: 24) {
             stepHeading(
                 icon: GettingStartedStep.moreSources.icon,
-                title: "Anything else you learn from?",
-                detail: "Set up any you use. The rest can wait."
+                title: "What else do you learn from?",
+                detail: "Tick any you use. Each one gets set up next."
             )
             VStack(spacing: 10) {
                 ForEach(GettingStartedStep.moreSourceRows) { source in
-                    moreSourceRow(source)
+                    choiceRow(
+                        icon: source.icon,
+                        title: source.title,
+                        detail: moreSourceHint(source),
+                        isSelected: moreSourcePicks.contains(source)
+                    ) {
+                        noMoreSources = false
+                        if moreSourcePicks.contains(source) {
+                            moreSourcePicks.remove(source)
+                        } else {
+                            moreSourcePicks.insert(source)
+                        }
+                    }
+                }
+                choiceRow(icon: "xmark.circle", title: "None of these", isSelected: noMoreSources) {
+                    noMoreSources.toggle()
+                    if noMoreSources { moreSourcePicks = [] }
                 }
             }
+            .frame(maxWidth: 440)
         }
     }
 
-    private func moreSourceRow(_ source: GettingStartedStep) -> some View {
-        let isOpen = openMoreSource == source
-        return VStack(alignment: .leading, spacing: 16) {
-            Button {
-                toggleMoreSource(source)
-            } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: source.icon)
-                        .font(.title3)
-                        .foregroundStyle(.tint)
-                        .frame(width: 28)
-                        .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(source.title)
-                            .font(.headline)
-                        Text(moreSourceHint(source))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    if hasAddedMoreSource(source) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                            .accessibilityLabel("Set up")
-                    }
-                    Image(systemName: "chevron.down")
-                        .rotationEffect(.degrees(isOpen ? 180 : 0))
-                        .foregroundStyle(.secondary)
-                        .accessibilityHidden(true)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            if isOpen {
-                moreSourceContent(source)
-                    .transition(.opacity)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .setupCard()
+    /// The picks in the question's order, which is the order their pages come in.
+    private var orderedMoreSourcePicks: [GettingStartedStep] {
+        GettingStartedStep.moreSourceRows.filter(moreSourcePicks.contains)
     }
 
     @ViewBuilder
-    private func moreSourceContent(_ source: GettingStartedStep) -> some View {
-        Group {
-            switch source {
-            case .books: booksStep
-            case .courses: coursesStep
-            case .meetings: meetingsStep
-            case .youtube: youtubeStep
-            default: EmptyView()
-            }
+    private func moreSourcePage(_ source: GettingStartedStep) -> some View {
+        switch source {
+        case .books: booksStep
+        case .courses: coursesStep
+        case .meetings: meetingsStep
+        case .youtube: youtubeStep
+        default: EmptyView()
         }
-        // The row already says what it is.
-        .environment(\.setupStepHeadingHidden, true)
     }
 
     private func moreSourceHint(_ source: GettingStartedStep) -> String {
         switch source {
         case .books: return "EPUBs, PDFs and your Apple Books library"
         case .courses: return "A YouTube lecture series, one lecture per video"
-        case .meetings: return "Zoom and other meeting transcripts"
+        case .meetings: return "Zoom meeting transcripts"
         case .youtube: return "The videos you like, or a playlist named ForeverLM"
         default: return ""
         }
     }
 
-    /// What the four steps used to wait for before Continue.
-    private func hasAddedMoreSource(_ source: GettingStartedStep) -> Bool {
-        switch source {
-        case .books: return newestSource(of: .book) != nil
-        case .courses: return newestCourseLecture != nil
-        case .meetings: return newestSource(of: .meeting) != nil || zoomFolder != nil
-        case .youtube:
-            return (vm.youtubeImportSource != nil && newestYouTubeVideo != nil)
-                || newestSource(of: .video) != nil
-        default: return false
-        }
-    }
-
-    /// Opening a row does what arriving on its old step did: start the Zoom
-    /// watcher, or load the YouTube preview.
-    private func toggleMoreSource(_ source: GettingStartedStep) {
-        let opening = openMoreSource != source
-        withAnimation(.easeInOut(duration: 0.2)) { openMoreSource = opening ? source : nil }
-        guard opening else { return }
-        startSourceAutoSync(for: source)
-        if source == .youtube {
-            Task { await loadYouTubePreview() }
-        }
-    }
-
     private var coursesStep: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(spacing: 24) {
             stepHeading(
                 icon: "graduationcap",
                 title: "Turn a YouTube playlist into a course",
@@ -1357,64 +1451,43 @@ struct GettingStartedGuide: View {
             }
             if let status = vm.playlistImportStatus {
                 Label(status, systemImage: "hourglass")
-                    .font(.caption)
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
             if let course = newestCourseLecture {
                 detectedSourceCard(course, label: "Course added")
-            } else {
-                waitingCard("Waiting for a course", icon: "graduationcap")
             }
         }
     }
 
+    /// Zoom saves its recordings to a folder on this Mac; ForeverLM watches it.
+    /// Other meeting tools are plugins, one quiet link away.
     private var meetingsStep: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(spacing: 24) {
             stepHeading(
                 icon: "person.2.wave.2",
-                title: "Bring in your meetings",
-                detail: "Connect your meeting tools once, and every transcript arrives on its own."
+                title: "Bring in your Zoom meetings",
+                detail: "ForeverLM watches the folder Zoom saves recordings to, and adds each meeting's transcript on its own."
             )
-            VStack(alignment: .leading, spacing: 8) {
-                Label("Zoom", systemImage: "video")
-                    .font(.headline)
-                Text("Zoom saves its recordings to a folder on this Mac. ForeverLM watches that folder and adds each meeting's transcript.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                HStack {
-                    Text(zoomFolderDisplayPath)
-                        .font(.caption.monospaced())
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    Spacer()
-                    Button("Choose Folder…") { chooseZoomFolder() }
-                }
+            VStack(spacing: 10) {
+                Text(zoomFolderDisplayPath)
+                    .font(.callout.monospaced())
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Button("Choose a Different Folder…") { chooseZoomFolder() }
             }
+            .frame(maxWidth: .infinity)
             .setupCard()
-            VStack(alignment: .leading, spacing: 8) {
-                Label("More connectors", systemImage: "point.3.connected.trianglepath.dotted")
-                    .font(.headline)
-                Text("Google Drive, Google Calendar, Slack, Notion and others live in Settings › Plugins.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Button("Open Plugins") { openSettings(.plugins) }
-            }
-            .setupCard()
-            linkField(
-                "Or paste a Zoom recording link",
-                text: $meetingLink,
-                buttonTitle: "Add Meeting",
-                action: "meeting-link"
-            ) { link in
-                try await vm.addArticle(url: link, revealInReader: false)
-            }
             if let meeting = newestSource(of: .meeting) {
-                detectedSourceCard(meeting, label: "Meeting added")
+                detectedSourceCard(meeting, label: "Last meeting in")
+            }
+            secondaryAction("Using Google Meet, Slack or Notion? Connect them in Settings › Plugins") {
+                openSettings(.plugins)
             }
         }
     }
+
+    // MARK: Your AI
 
     /// What the learner said they pay for; nil until the question is answered,
     /// empty for "no".
@@ -1426,16 +1499,21 @@ struct GettingStartedGuide: View {
         aiSubscriptions.map { !$0.isEmpty } ?? false
     }
 
+    /// The picks in the question's order, which is the order their pages come in.
+    private var orderedAISubscriptions: [AISubscription] {
+        AISubscription.allCases.filter { aiSubscriptions?.contains($0) == true }
+    }
+
     /// The product owner, 2026-09-23: ask whether the learner already pays for an AI
-    /// app. The answer leads straight into connecting each app ticked
-    /// (2026-09-24), which is why it closes Setup: by then the library holds
+    /// app. Each app ticked then gets a page that adds ForeverLM to it
+    /// (2026-09-24), which is why this closes Setup: by then the library holds
     /// what the connector reaches. Any number may be ticked; "No" clears them.
     private var subscriptionsStep: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(spacing: 24) {
             stepHeading(
                 icon: GettingStartedStep.subscriptions.icon,
                 title: "Do you already pay for an AI app?",
-                detail: "Reach your library from the one you already use."
+                detail: "Tick every one you pay for. Next, you add ForeverLM to each, so it can reach your library."
             )
             LazyVGrid(
                 columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3),
@@ -1446,18 +1524,13 @@ struct GettingStartedGuide: View {
                 }
                 subscriptionChoice(nil)
             }
-            if let picks = aiSubscriptions, !picks.isEmpty {
-                connectorPlan(AISubscription.allCases.filter(picks.contains))
-                    .padding(.top, 8)
-            }
             // The product owner, 2026-09-24: show the connector at work in an AI app,
             // so "works inside the AI app you already use" is seen, not read.
-            // Once an app is ticked, its connect plan takes this space.
             if !paysForAISubscription, let url = WelcomeClipPlayer.url(named: Self.connectorClip) {
                 VStack(spacing: 8) {
                     WelcomeClipPlayer(url: url)
                         .aspectRatio(16.0 / 10.0, contentMode: .fit)
-                        .frame(maxWidth: 480)
+                        .frame(maxWidth: 440)
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .overlay {
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -1470,7 +1543,6 @@ struct GettingStartedGuide: View {
                         .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.top, 8)
             }
         }
     }
@@ -1535,33 +1607,86 @@ struct GettingStartedGuide: View {
             next = current?.isEmpty == true ? nil : []
         }
         aiSubscriptionAnswer = AISubscription.encode(next)
-        connectorAssistant = nil
     }
 
-    // MARK: Connector plan
+    // MARK: Connecting an AI app
 
-    /// The product owner, 2026-09-24: saying which AI apps you pay for leads straight
-    /// to connecting them. One row per app says whether it is connected yet
-    /// (the gateway knows once the app has signed in), and the open row
-    /// carries that app's steps, the address, the page to do it on and, when
-    /// WelcomeClipsResources has one, a clip of the steps being done.
-    private func connectorPlan(_ choices: [AISubscription]) -> some View {
-        let open = openConnectorRow(in: choices)
-        let connectedCount = choices.filter { connectedAssistants?.contains($0) == true }.count
-        return VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Connect ForeverLM")
-                    .font(.headline)
-                Spacer()
-                if connectedAssistants != nil {
-                    Text("\(connectedCount) of \(choices.count) connected")
-                        .font(.caption)
+    /// The product owner, 2026-09-24: saying which AI apps you pay for leads
+    /// straight to connecting them, one page per app: its steps, the address
+    /// to paste, the page to do it on and, when WelcomeClipsResources has one,
+    /// a clip of the steps being done. The page turns green on its own once
+    /// the gateway sees the app sign in.
+    private func connectPage(_ assistant: AISubscription) -> some View {
+        let isConnected = connectedAssistants?.contains(assistant) == true
+        return VStack(spacing: 24) {
+            VStack(spacing: 10) {
+                subscriptionMark(assistant)
+                    .frame(width: 40, height: 40)
+                Text(assistant == .other ? "Add ForeverLM to your AI app" : "Add ForeverLM to \(assistant.title)")
+                    .font(.system(size: 26, weight: .semibold))
+                    .multilineTextAlignment(.center)
+                if isConnected {
+                    doneLabel("Connected")
+                } else {
+                    Text("Follow these steps, then come back here.")
+                        .font(.title3)
                         .foregroundStyle(.secondary)
-                        .monospacedDigit()
+                        .multilineTextAlignment(.center)
                 }
             }
-            ForEach(choices) { assistant in
-                connectorPlanRow(assistant, isOpen: assistant == open)
+
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(Array(assistant.connectorSteps.enumerated()), id: \.offset) { index, text in
+                    instruction("\(index + 1)", text)
+                }
+                HStack {
+                    Text(Self.connectorURL)
+                        .font(.callout.monospaced())
+                        .textSelection(.enabled)
+                    Spacer()
+                    Button(copiedConnectorURL ? "Copied" : "Copy Address") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(Self.connectorURL, forType: .string)
+                        copiedConnectorURL = true
+                    }
+                }
+                .padding(10)
+                .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                if let note = assistant.connectorNote {
+                    Text(note)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .setupCard()
+
+            if !isConnected {
+                if let page = assistant.connectorPage {
+                    primaryAction(page.title) { open(page.url) }
+                }
+                if connectedAssistants != nil {
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small)
+                        Text(assistant == .other ? "Waiting for your AI app" : "Waiting for \(assistant.title)")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            if let url = WelcomeClipPlayer.url(named: assistant.walkthroughClip) {
+                WelcomeClipPlayer(url: url)
+                    .aspectRatio(16.0 / 10.0, contentMode: .fit)
+                    .frame(maxWidth: 440)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(.primary.opacity(0.1))
+                    }
+                    .accessibilityHidden(true)
+                    // A new clip per app, not the last one's player.
+                    .id(assistant)
             }
         }
         .task { await watchConnectedAssistants() }
@@ -1571,101 +1696,9 @@ struct GettingStartedGuide: View {
         }
     }
 
-    /// The row the learner opened, else the first app not yet connected; with
-    /// every app connected, none.
-    private func openConnectorRow(in choices: [AISubscription]) -> AISubscription? {
-        if let connectorAssistant, choices.contains(connectorAssistant) { return connectorAssistant }
-        return choices.first { connectedAssistants?.contains($0) != true }
-    }
-
-    private func connectorPlanRow(_ assistant: AISubscription, isOpen: Bool) -> some View {
-        let isConnected = connectedAssistants?.contains(assistant) == true
-        return VStack(alignment: .leading, spacing: 12) {
-            Button {
-                connectorAssistant = assistant
-            } label: {
-                HStack(spacing: 10) {
-                    subscriptionMark(assistant)
-                        .frame(width: 20, height: 20)
-                    Text(assistant == .other ? "Add ForeverLM to your AI app" : "Add ForeverLM to \(assistant.title)")
-                        .font(.subheadline.weight(.semibold))
-                    Spacer(minLength: 0)
-                    if isConnected {
-                        Label("Connected", systemImage: "checkmark.circle.fill")
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(.green)
-                    } else if connectedAssistants != nil {
-                        Text("Not connected")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.tertiary)
-                        .rotationEffect(.degrees(isOpen ? 90 : 0))
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.hoverWash(cornerRadius: 8, inset: -6))
-            .accessibilityAddTraits(isOpen ? .isSelected : [])
-            if isOpen {
-                VStack(alignment: .leading, spacing: 10) {
-                    ForEach(Array(assistant.connectorSteps.enumerated()), id: \.offset) { index, text in
-                        instruction("\(index + 1)", text)
-                    }
-                    HStack {
-                        Text(Self.connectorURL)
-                            .font(.callout.monospaced())
-                            .textSelection(.enabled)
-                        Spacer()
-                        Button(copiedConnectorURL ? "Copied" : "Copy") {
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(Self.connectorURL, forType: .string)
-                            copiedConnectorURL = true
-                        }
-                    }
-                    .padding(.top, 4)
-                    if let note = assistant.connectorNote {
-                        Text(note)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    if let url = WelcomeClipPlayer.url(named: assistant.walkthroughClip) {
-                        WelcomeClipPlayer(url: url)
-                            .aspectRatio(16.0 / 10.0, contentMode: .fit)
-                            .frame(maxWidth: 440)
-                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .strokeBorder(.primary.opacity(0.1))
-                            }
-                            .accessibilityHidden(true)
-                            // A new clip per app, not the last one's player.
-                            .id(assistant)
-                    }
-                    HStack(spacing: 12) {
-                        if let page = assistant.connectorPage {
-                            Button(page.title) { open(page.url) }
-                                .buttonStyle(.borderedProminent)
-                        }
-                        if !isConnected, connectedAssistants != nil {
-                            ProgressView().controlSize(.small)
-                            Text(assistant == .other ? "Waiting for your AI app" : "Waiting for \(assistant.title)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-                .padding(.leading, 30)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .setupCard()
-    }
-
-    /// Re-read while the plan is on screen: the learner connects in another
-    /// app, and the row should turn green without anyone pressing anything.
+    /// Re-read while a connect page is on screen: the learner connects in
+    /// another app, and the page should turn green without anyone pressing
+    /// anything.
     private func watchConnectedAssistants() async {
         while !Task.isCancelled {
             if let latest = await ConnectedAssistants.fetch() { connectedAssistants = latest }
@@ -1673,65 +1706,63 @@ struct GettingStartedGuide: View {
         }
     }
 
+    // MARK: Full Disk Access
+
     /// The product owner, 2026-09-24: ask for Full Disk Access during setup rather than
     /// only when a Podcasts or Reading List scan is found blocked. macOS never
     /// lists ForeverLM there on its own, and applies the grant only at launch,
-    /// so the step walks through the "+" button and the relaunch, and setup
-    /// comes back to it afterwards. It can be skipped: only Apple Podcasts and
-    /// the Reading Lists need it.
+    /// so the step is two pages with one thing to do on each: open System
+    /// Settings, then add the app and relaunch. Setup comes back to it after
+    /// the relaunch. It can be skipped: only Apple Podcasts and the Reading
+    /// Lists need it.
     private var fullDiskAccessStep: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(spacing: 24) {
             stepHeading(
                 icon: GettingStartedStep.fullDiskAccess.icon,
                 title: "Allow Full Disk Access",
-                detail: "So ForeverLM can read Apple Podcasts and your browsers' Reading Lists."
+                detail: "So ForeverLM can read Apple Podcasts and your browsers' Reading Lists. macOS asks you to allow it once."
             )
-
             if hasFullDiskAccess {
-                Label("Full Disk Access is on. Podcasts and Reading Lists arrive on their own from here.", systemImage: "checkmark.circle.fill")
-                    .font(.subheadline)
-                    .foregroundStyle(.green)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .setupCard()
+                doneLabel("Full Disk Access is on")
             } else {
-                VStack(alignment: .leading, spacing: 10) {
-                    instruction("1", "Click Open Settings. It opens Privacy & Security › Full Disk Access.")
-                    instruction("2", isDevelopmentBuild
-                        ? "Click \"+\" under the list, choose this exact \(ForeverLMRuntimeIdentity.displayName) app (Reveal App shows it) and turn it on."
-                        : "Click \"+\" under the list, choose ForeverLM in Applications and turn it on. macOS does not list it until you add it.")
-                    instruction("3", "Click Relaunch \(ForeverLMRuntimeIdentity.displayName). macOS applies the access only when the app starts, and setup comes back to this step.")
-                    if isDevelopmentBuild {
+                primaryAction("Open System Settings") {
+                    FullDiskAccess.openSettings()
+                    show(.addToFullDiskAccess)
+                }
+            }
+        }
+    }
+
+    private var addToFullDiskAccessPage: some View {
+        VStack(spacing: 24) {
+            stepHeading(
+                icon: "plus.circle",
+                title: "Add \(ForeverLMRuntimeIdentity.displayName) to the list",
+                detail: isDevelopmentBuild
+                    ? "In System Settings, click \"+\" under the list, choose this exact \(ForeverLMRuntimeIdentity.displayName) app, and turn it on."
+                    : "In System Settings, click \"+\" under the list, choose ForeverLM in Applications, and turn it on."
+            )
+            if hasFullDiskAccess {
+                doneLabel("Full Disk Access is on")
+            } else {
+                if isDevelopmentBuild {
+                    VStack(spacing: 8) {
                         Text(Bundle.main.bundleURL.path)
                             .font(.caption2.monospaced())
                             .foregroundStyle(.tertiary)
                             .textSelection(.enabled)
+                            .multilineTextAlignment(.center)
                             .fixedSize(horizontal: false, vertical: true)
-                            .padding(.leading, 27)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .setupCard()
-
-                HStack {
-                    Button {
-                        FullDiskAccess.openSettings()
-                    } label: {
-                        Label("Open Settings", systemImage: "gearshape")
-                    }
-                    .buttonStyle(.borderedProminent)
-                    Button {
-                        FullDiskAccess.relaunch()
-                    } label: {
-                        Label("Relaunch \(ForeverLMRuntimeIdentity.displayName)", systemImage: "arrow.triangle.2.circlepath")
-                    }
-                    if isDevelopmentBuild {
-                        Button {
+                        Button("Reveal App") {
                             NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL])
-                        } label: {
-                            Label("Reveal App", systemImage: "folder")
                         }
                     }
                 }
+                VStack(spacing: 10) {
+                    primaryAction("Relaunch \(ForeverLMRuntimeIdentity.displayName)") { FullDiskAccess.relaunch() }
+                    pageNote("Once it is turned on, relaunch. macOS applies the access only when the app starts, and Setup comes back here.")
+                }
+                secondaryAction("Open System Settings again") { FullDiskAccess.openSettings() }
             }
         }
     }
@@ -1741,6 +1772,8 @@ struct GettingStartedGuide: View {
     private var isDevelopmentBuild: Bool {
         ForeverLMRuntimeIdentity.isDevelopment && !ForeverLMRuntimeIdentity.isFirstRun
     }
+
+    // MARK: AI
 
     /// Setup's AI step is two pages, one question each (product owner,
     /// 2026-10-11: "more like a Typeform"): connect OpenRouter, then pick the
@@ -1757,7 +1790,6 @@ struct GettingStartedGuide: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .containerRelativeFrame(.vertical, alignment: .center) { length, _ in max(length - 56, 0) }
         .id(aiPage)
         .transition(.opacity)
     }
@@ -1844,44 +1876,98 @@ struct GettingStartedGuide: View {
         }
     }
 
+    /// Back on the left, and on the right one way forward: Continue once the
+    /// page is answered (Return presses it), Skip while it may be left
+    /// unanswered, never both.
     private var footer: some View {
         HStack {
-            if step != .enhancements, step != .storage, step != .subscriptions, step != .moreSources, !step.isTour {
-                Button("Skip this step") { completeAndAdvance() }
-                    .buttonStyle(.hoverWash)
-                    .foregroundStyle(.secondary)
-            }
+            Button("Back") { goBack() }
+                .buttonStyle(.hoverWash)
+                .foregroundStyle(.secondary)
             Spacer()
-            if step == .enhancements, aiPage == .models {
-                Button("Back") {
-                    withAnimation(.easeInOut(duration: 0.2)) { aiPage = .key }
-                }
-            } else if let previous = previousStep {
-                Button("Back") {
-                    withAnimation(.easeInOut(duration: 0.2)) { step = previous }
-                }
-            } else {
-                // The first step goes back to the welcome.
-                Button("Back") {
-                    withAnimation(.easeInOut(duration: 0.25)) { welcomeOverride = true }
-                }
+            switch forward {
+            case .skip:
+                Button("Skip this step") { completeAndAdvance() }
+            case .next, .finish, .waiting:
+                Button(forward == .finish ? "Finish" : "Continue") { goForward() }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(forward == .waiting)
+                    .keyboardShortcut(returnContinues ? .defaultAction : nil)
             }
-            Button(nextIncompleteStep == nil && !(step == .enhancements && aiPage == .key) ? "Finish" : "Continue") {
-                // The key page leads to the models page; the models page says
-                // background work draws on what they chose.
-                if step == .enhancements, aiPage == .key {
-                    withAnimation(.easeInOut(duration: 0.2)) { aiPage = .models }
-                    return
-                }
-                if step == .enhancements { hasConsentedToBackgroundAIUsage = true }
-                openDetectedSourceForCurrentStep()
-                completeAndAdvance()
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(!canContinue)
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 14)
+    }
+
+    private var forward: GettingStartedFlow.Forward {
+        GettingStartedFlow.forward(canContinue: canContinue, canSkip: canSkip, isLast: isLastPage)
+    }
+
+    /// Whether the page may be left unanswered. The AI step may not; the
+    /// Papers, More sources and Your AI questions carry their own "none"
+    /// answer, so they need no Skip beside it.
+    private var canSkip: Bool {
+        switch step {
+        case .enhancements: return false
+        case .paper, .moreSources, .subscriptions: return page != nil
+        default: return true
+        }
+    }
+
+    /// A page with a text field keeps Return for the field.
+    private var returnContinues: Bool {
+        if step == .enhancements, aiPage == .key, showsKeyField { return false }
+        return page != .moreSource(.courses)
+    }
+
+    private var isLastPage: Bool {
+        nextIncompleteStep == nil && nextPage == nil && !(step == .enhancements && aiPage == .key)
+    }
+
+    /// The page Continue opens before the step is done: the next source or
+    /// AI app picked on the question.
+    private var nextPage: GettingStartedPage? {
+        switch (step, page) {
+        case (.moreSources, nil):
+            return GettingStartedFlow.next(after: nil, in: orderedMoreSourcePicks).map { .moreSource($0) }
+        case (.moreSources, .some(.moreSource(let current))):
+            return GettingStartedFlow.next(after: current, in: orderedMoreSourcePicks).map { .moreSource($0) }
+        case (.subscriptions, nil):
+            return GettingStartedFlow.next(after: nil, in: orderedAISubscriptions).map { .connect($0) }
+        case (.subscriptions, .some(.connect(let current))):
+            return GettingStartedFlow.next(after: current, in: orderedAISubscriptions).map { .connect($0) }
+        default:
+            return nil
+        }
+    }
+
+    private func goForward() {
+        // The key page leads to the models page; the models page says
+        // background work draws on what they chose.
+        if step == .enhancements, aiPage == .key {
+            withAnimation(.easeInOut(duration: 0.2)) { aiPage = .models }
+            return
+        }
+        if let nextPage {
+            show(nextPage)
+            return
+        }
+        if step == .enhancements { hasConsentedToBackgroundAIUsage = true }
+        openDetectedSourceForCurrentStep()
+        completeAndAdvance()
+    }
+
+    /// Closes the newest page, else goes to the step before, else to the welcome.
+    private func goBack() {
+        if !pages.isEmpty {
+            withAnimation(.easeInOut(duration: 0.2)) { _ = pages.removeLast() }
+        } else if step == .enhancements, aiPage == .models {
+            withAnimation(.easeInOut(duration: 0.2)) { aiPage = .key }
+        } else if let previous = previousStep {
+            go(to: previous)
+        } else {
+            withAnimation(.easeInOut(duration: 0.25)) { welcomeOverride = true }
+        }
     }
 
     private func readingListBrowserBinding(_ browser: ReadingListBrowser) -> Binding<Bool> {
@@ -1891,13 +1977,8 @@ struct GettingStartedGuide: View {
                 browser.setEnabled(isOn)
                 if isOn {
                     enabledReadingListBrowsers.insert(browser)
-                    readingListBrowser = browser
                 } else {
                     enabledReadingListBrowsers.remove(browser)
-                    if readingListBrowser == browser,
-                       let other = ReadingListBrowser.allCases.first(where: enabledReadingListBrowsers.contains) {
-                        readingListBrowser = other
-                    }
                 }
                 vm.readingListBrowsersDidChange()
             }
@@ -1949,12 +2030,6 @@ struct GettingStartedGuide: View {
             .max(by: { $0.dateAdded < $1.dateAdded })
     }
 
-    private var youtubeChannels: [String] {
-        Set(youtubeItems.compactMap(\.channelTitle))
-            .union(vm.hiddenYouTubeChannelNames)
-            .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
-    }
-
     private var canContinue: Bool {
         switch step {
         // The step is done once the shows can be chosen: their defaults are
@@ -1974,7 +2049,11 @@ struct GettingStartedGuide: View {
         case .youtube:
             return (vm.youtubeImportSource != nil && newestYouTubeVideo != nil)
                 || newestSource(of: .video) != nil
-        case .planner, .memory, .ideas, .artifacts, .assistants, .moreSources:
+        // The question waits for a pick or "None of these"; the pages after
+        // it can each be left as they are.
+        case .moreSources:
+            return page != nil || !moreSourcePicks.isEmpty || noMoreSources
+        case .planner, .memory, .ideas, .artifacts, .assistants:
             return true
         case .enhancements:
             switch aiPage {
@@ -1989,8 +2068,9 @@ struct GettingStartedGuide: View {
             }
         case .storage:
             return true
+        // Connecting an app can wait, so its page never holds Setup up.
         case .subscriptions:
-            return aiSubscriptions != nil
+            return page != nil || aiSubscriptions != nil
         case .fullDiskAccess:
             return hasFullDiskAccess
         }
@@ -2035,7 +2115,7 @@ struct GettingStartedGuide: View {
             isPresented = false
             return
         }
-        withAnimation(.easeInOut(duration: 0.2)) { step = next }
+        go(to: next)
     }
 
     /// A comp, or balance left from before top-ups were retired. Asked
@@ -2061,13 +2141,20 @@ struct GettingStartedGuide: View {
         }
     }
 
-    private func prepareCurrentStep() async {
-        startSourceAutoSync(for: step)
-        if step == .youtube {
-            await loadYouTubePreview()
-        } else if step == .enhancements {
+    /// What a step reads before its question can be asked.
+    private func prepare(_ step: GettingStartedStep) async {
+        switch step {
+        case .enhancements:
             await account.reloadOwnKey()
             await account.refresh(silently: true)
+        case .paper where hasZoteroLibrary == nil:
+            // Zotero gets its own answer only when it keeps a library here.
+            let homeDir = BookmarkAccessManager.realHomeDirectory
+            hasZoteroLibrary = await Task.detached(priority: .userInitiated) {
+                ReferenceLibraryImportService.zoteroDataDirectory(homeDir: homeDir) != nil
+            }.value
+        default:
+            break
         }
     }
 
@@ -2116,30 +2203,6 @@ struct GettingStartedGuide: View {
             try await YouTubeService.shared.authenticate()
             isYouTubeSignedIn = YouTubeService.shared.isSignedIn
             youtubeError = nil
-            await loadYouTubePreview()
-        } catch {
-            youtubeError = error.localizedDescription
-        }
-    }
-
-    private func loadYouTubePreview() async {
-        isYouTubeSignedIn = YouTubeService.shared.isSignedIn
-        guard isYouTubeSignedIn, !hasLoadedYouTubePreview, !isLoadingYouTubePreview else { return }
-        isLoadingYouTubePreview = true
-        defer { isLoadingYouTubePreview = false }
-        do {
-            switch vm.youtubeImportSource {
-            case .likedVideos:
-                youtubeItems = try await YouTubeService.shared.listLikedVideos(maxCount: 500)
-            case .foreverLMPlaylist:
-                let feed = try await YouTubeService.shared.listForeverLMPlaylistFeed(maxCount: 500)
-                youtubeItems = feed.items
-            case nil:
-                youtubeItems = []
-                return
-            }
-            hasLoadedYouTubePreview = true
-            youtubeError = nil
         } catch {
             youtubeError = error.localizedDescription
         }
@@ -2152,8 +2215,6 @@ struct GettingStartedGuide: View {
                 automaticallyFormatTranscripts: automaticallyFormatLikedVideoTranscripts
             )
             isChoosingLikedVideos = false
-            hasLoadedYouTubePreview = false
-            await loadYouTubePreview()
         }
     }
 
@@ -2164,16 +2225,7 @@ struct GettingStartedGuide: View {
                 youtubeError = vm.errorMessage ?? "Could not find your ForeverLM playlist."
                 return
             }
-            hasLoadedYouTubePreview = false
-            await loadYouTubePreview()
         }
-    }
-
-    private func youtubeChannelVisibilityBinding(_ channel: String) -> Binding<Bool> {
-        Binding(
-            get: { !vm.isYouTubeChannelHidden(channel) },
-            set: { visible in Task { await vm.setYouTubeChannelHidden(channel, hidden: !visible) } }
-        )
     }
 
     private func stepHeading(icon: String, title: String, detail: String) -> some View {
@@ -2181,29 +2233,16 @@ struct GettingStartedGuide: View {
     }
 
     private func instruction(_ number: String, _ text: String) -> some View {
-        HStack(spacing: 7) {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
             Text(number)
                 .font(.caption.bold())
-                .frame(width: 20, height: 20)
+                .frame(width: 22, height: 22)
                 .background(Color.accentColor.opacity(0.15), in: Circle())
-            Text(text).font(.caption)
+                .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 6 }
+            Text(text)
+                .font(.callout)
+                .fixedSize(horizontal: false, vertical: true)
         }
-    }
-
-    private func waitingCard(_ text: String, icon: String) -> some View {
-        Label(text, systemImage: icon)
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .setupCard()
-    }
-
-    private func accessNotice(_ text: String) -> some View {
-        Label(text, systemImage: "lock.shield")
-            .font(.caption)
-            .foregroundStyle(.orange)
-            .fixedSize(horizontal: false, vertical: true)
-            .setupCard()
     }
 
     private func detectedSourceCard(_ article: StudioArticle, label: String) -> some View {
@@ -2227,10 +2266,6 @@ struct GettingStartedGuide: View {
 
     private func open(_ url: URL) {
         NSWorkspace.shared.open(url)
-    }
-
-    private func openInReadingListBrowser(_ url: URL) {
-        BrowserService.open(url, preference: readingListBrowser.preference)
     }
 
     // MARK: Adding sources from the guide
@@ -2417,11 +2452,6 @@ struct GettingStartedGuide: View {
         }
     }
 
-    private func openAppleBooks() {
-        guard let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.iBooksX") else { return }
-        NSWorkspace.shared.openApplication(at: app, configuration: NSWorkspace.OpenConfiguration())
-    }
-
     private var zoomFolderDisplayPath: String {
         let path = zoomFolder
             ?? StudioViewModel.zoomLocalTranscriptDefaultFolder(homeDir: BookmarkAccessManager.realHomeDirectory)
@@ -2447,22 +2477,16 @@ struct GettingStartedGuide: View {
         NotificationCenter.default.post(name: .requestOpenStudioSettings, object: pane)
     }
 
-    private func openFullDiskAccessSettings() {
-        FullDiskAccess.openSettings()
-    }
 }
 
-/// A step's icon, title and detail. A step opened inside a More sources row
-/// leaves it out, since the row already names it.
+/// A page's icon, its question and one line on what to do.
 private struct SetupStepHeading: View {
     let icon: String
     let title: String
     let detail: String
-    @Environment(\.setupStepHeadingHidden) private var isHidden
 
     var body: some View {
-        if !isHidden {
-            VStack(spacing: 10) {
+        VStack(spacing: 10) {
                 Image(systemName: icon)
                     .font(.system(size: 26))
                     .foregroundStyle(.tint)
@@ -2477,20 +2501,8 @@ private struct SetupStepHeading: View {
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(maxWidth: .infinity)
         }
-    }
-}
-
-private struct SetupStepHeadingHiddenKey: EnvironmentKey {
-    static let defaultValue = false
-}
-
-private extension EnvironmentValues {
-    var setupStepHeadingHidden: Bool {
-        get { self[SetupStepHeadingHiddenKey.self] }
-        set { self[SetupStepHeadingHiddenKey.self] = newValue }
+        .frame(maxWidth: .infinity)
     }
 }
 
@@ -2836,18 +2848,18 @@ struct WelcomeStory: View {
             promise(
                 icon: Self.rememberIcon,
                 title: "Remember what you read.",
-                text: "ForeverLM keeps track of what you read and, when you want it to stick, writes quizzes on it for you. Like Anki flashcards, updated for a new era."
+                text: "ForeverLM keeps track of what you read and writes quizzes on what you want to stick."
             )
             promise(
                 icon: Self.yourAIIcon,
                 title: "You’re in charge of your AI.",
-                text: "Choose the models you want, on your own OpenRouter key at OpenRouter’s cost, or free models for nothing at all. Already pay for an AI subscription? ForeverLM works with it too, without locking you in."
+                text: "Pick the models on your own OpenRouter key, at cost, or free ones. It works with the AI app you already pay for, too."
             )
             VStack(alignment: .leading, spacing: 12) {
                 promise(
                     icon: Self.yourDataIcon,
                     title: "You’re in charge of your data.",
-                    text: "Your library lives on this Mac and syncs through your own iCloud, to your iPhone, iPad and the web. ForeverLM keeps no copy of your chats."
+                    text: "Your library lives on this Mac and syncs through your own iCloud. ForeverLM keeps no copy of your chats."
                 )
                 VStack(alignment: .leading, spacing: 10) {
                     Text("The free 5 GB of iCloud fills fast once papers and audio sync, so iCloud+ \(ICloudStorage.recommendedPlan) works best.")

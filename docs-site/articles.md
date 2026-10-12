@@ -30,7 +30,7 @@ A one-time import, described [below](#coming-from-a-read-later-app).
 
 ## Coming from a Read-Later App
 
-If your saved articles live in Readwise Reader, Instapaper, Raindrop, Pocket, Omnivore or a similar app, bring them over once. Setup's Articles step has **Coming from a read-later app?** → **Choose Export…**. Choose the file the app exported, or the unzipped export folder:
+If your saved articles live in Readwise Reader, Instapaper, Raindrop, Pocket, Omnivore or a similar app, bring them over once. Setup's Articles step has **Coming from Readwise, Instapaper or Pocket?**, which opens a page with **Choose Export…**. Choose the file the app exported, or the unzipped export folder:
 
 - **Readwise Reader:** Settings → Export, then the CSV.
 - **Instapaper:** Settings → Export, then the CSV or HTML file.

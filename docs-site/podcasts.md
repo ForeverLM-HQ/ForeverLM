@@ -19,17 +19,16 @@ If you normally listen elsewhere, you can still get an episode into ForeverLM: f
 
 ForeverLM queries your local Podcasts database for episodes you have played since the start of 2026 and checks whether a transcript is available.
 
-This requires **Full Disk Access** in macOS System Settings → Privacy & Security → Full Disk Access. Setup asks for it before the Podcasts step: add ForeverLM with the **+** button (macOS does not list it until you do), turn it on, then relaunch ForeverLM.
+This requires **Full Disk Access** in macOS System Settings → Privacy & Security → Full Disk Access. Setup asks for it before the Podcasts step: **Open System Settings**, add ForeverLM with the **+** button (macOS does not list it until you do), turn it on, then **Relaunch ForeverLM**.
 
 ## Choosing Shows in Setup
 
-Setup's Podcasts step lists every show you follow in Apple Podcasts and every show with an episode you played, with how many episodes would come in, before anything is imported. Each show gets one of three choices:
+Setup's Podcasts step lists every show you follow in Apple Podcasts and every show with an episode you played, with how many episodes would come in, before anything is imported. Tick the shows to bring in; every show starts ticked.
 
-- **Keep:** the episodes you play arrive, with their transcripts.
-- **Hide:** the episodes arrive but stay out of the list, chat, search and reviews, and their transcripts are not cleaned up by AI, so they cost nothing. Unhide the show later from Hidden Items.
-- **Don't import:** the show's episodes never become sources. The same as **Never Import** in a show's menu.
+- **Ticked:** the episodes you play arrive, with their transcripts.
+- **Unticked:** the show's episodes never become sources. The same as **Never Import** in a show's menu.
 
-**Set All** gives every show the same choice. The import starts when you press Continue, so a show you turned away is never fetched.
+**Untick All** and **Tick All** set every show at once. The import starts when you press Continue, so a show you turned away is never fetched. To bring a show in but keep it out of the list, chat, search and reviews (its transcripts are then not cleaned up by AI, so it costs nothing), choose **Hide** from the show's menu in the sidebar later.
 
 ## Transcript Availability
 

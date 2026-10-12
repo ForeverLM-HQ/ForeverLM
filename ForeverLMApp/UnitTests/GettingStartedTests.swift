@@ -55,6 +55,29 @@ struct GettingStartedTests {
         #expect(NSImage(systemSymbolName: GettingStartedStep.moreSources.icon, accessibilityDescription: nil) != nil)
     }
 
+    @Test("A question's picks each get a page, in order, and then the step is done")
+    func followUpPagesWalkThePicksInOrder() {
+        let picks: [GettingStartedStep] = [.books, .youtube]
+        #expect(GettingStartedFlow.next(after: nil, in: picks) == .books)
+        #expect(GettingStartedFlow.next(after: .books, in: picks) == .youtube)
+        #expect(GettingStartedFlow.next(after: .youtube, in: picks) == nil)
+        // No picks ("None of these", or "No" to an AI app): no pages at all.
+        #expect(GettingStartedFlow.next(after: nil, in: [GettingStartedStep]()) == nil)
+        // A pick unticked after its page opened has no next page.
+        #expect(GettingStartedFlow.next(after: .courses, in: picks) == nil)
+    }
+
+    @Test("The footer shows one way forward: Continue, Finish, Skip or a waiting Continue")
+    func footerShowsOneWayForward() {
+        #expect(GettingStartedFlow.forward(canContinue: true, canSkip: true, isLast: false) == .next)
+        #expect(GettingStartedFlow.forward(canContinue: true, canSkip: false, isLast: true) == .finish)
+        // Skip only stands in for a Continue that cannot be pressed yet.
+        #expect(GettingStartedFlow.forward(canContinue: false, canSkip: true, isLast: false) == .skip)
+        #expect(GettingStartedFlow.forward(canContinue: false, canSkip: true, isLast: true) == .skip)
+        // The AI step and the questions with a "none" answer wait instead.
+        #expect(GettingStartedFlow.forward(canContinue: false, canSkip: false, isLast: false) == .waiting)
+    }
+
     @Test("The subscription answer tells unanswered, no and each pick apart")
     func aiSubscriptionAnswerRoundTrips() {
         #expect(AISubscription.decode("") == nil)
