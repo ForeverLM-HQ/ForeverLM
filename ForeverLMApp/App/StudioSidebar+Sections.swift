@@ -1156,47 +1156,43 @@ extension StudioSidebar {
             }
             if sidebar.sidebarTab == .books {
                 Section {
-                    if vm.bookImportStatus.isEmpty {
-                        Button {
-                            Task {
-                                let urls = await FilePanel.open { panel in
-                                    panel.allowedContentTypes = supportedBookImportContentTypes
-                                    panel.message = "Select a book (PDF, EPUB, or DRM-free Kindle) to import"
-                                }
-                                guard let url = urls.first else { return }
-                                do {
-                                    try await vm.importBook(from: url.path)
-                                } catch {
-                                    vm.errorMessage = error.localizedDescription
-                                    vm.showBookImportError = true
-                                }
+                    // The button stays while a book imports: another book
+                    // picked or dropped now waits its turn behind it.
+                    Button {
+                        Task {
+                            let urls = await FilePanel.open { panel in
+                                panel.allowedContentTypes = supportedBookImportContentTypes
+                                panel.allowsMultipleSelection = true
+                                panel.message = "Select books (PDF, EPUB, or DRM-free Kindle) to import"
                             }
-                        } label: {
-                            Label("Add Book…", systemImage: "book.closed.fill")
-                                .font(.subheadline.weight(.medium))
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 6)
+                            await importBooks(urls)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.green.opacity(0.8))
-                        .controlSize(.small)
-                        .overlay {
-                            StudioDropZoneOverlay(
-                                isActive: isAddBookButtonDropTargeted,
-                                title: "Import book",
-                                systemImage: "book.closed.fill",
-                                cornerRadius: 6,
-                                inset: 0
-                            )
-                        }
-                        .onDrop(of: supportedBookImportDropTypes, isTargeted: $isAddBookButtonDropTargeted) { providers in
-                            handleBookFileDrop(providers)
-                        }
-                    } else {
+                    } label: {
+                        Label("Add Book…", systemImage: "book.closed.fill")
+                            .font(.subheadline.weight(.medium))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 6)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.green.opacity(0.8))
+                    .controlSize(.small)
+                    .overlay {
+                        StudioDropZoneOverlay(
+                            isActive: isAddBookButtonDropTargeted,
+                            title: "Import book",
+                            systemImage: "book.closed.fill",
+                            cornerRadius: 6,
+                            inset: 0
+                        )
+                    }
+                    .onDrop(of: supportedBookImportDropTypes, isTargeted: $isAddBookButtonDropTargeted) { providers in
+                        handleBookFileDrop(providers)
+                    }
+                    if !vm.bookImportStatus.isEmpty || vm.bookImportsPending > 0 {
                         VStack(spacing: 8) {
                             ProgressView()
                                 .controlSize(.small)
-                            Text(vm.bookImportStatus)
+                            Text(bookImportProgressLine)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .multilineTextAlignment(.center)
@@ -1541,19 +1537,45 @@ extension StudioSidebar {
             presentBookDropError("Drop a PDF, EPUB, or DRM-free Kindle book.")
             return true
         }
-        guard candidates.count == 1, let candidate = candidates.first else {
-            presentBookDropError("Drop one book at a time.")
-            return true
+        if vm.bookImportsPending == 0 {
+            vm.bookImportStatus = candidates.count == 1 ? "Opening dropped book…" : "Opening dropped books…"
         }
-
-        vm.bookImportStatus = "Opening dropped book…"
-        switch candidate.1 {
-        case .fileURL:
-            loadDroppedBookURL(from: candidate.0)
-        case .content(let typeIdentifier):
-            loadDroppedBookFileRepresentation(from: candidate.0, typeIdentifier: typeIdentifier)
+        for (provider, representation) in candidates {
+            switch representation {
+            case .fileURL:
+                loadDroppedBookURL(from: provider)
+            case .content(let typeIdentifier):
+                loadDroppedBookFileRepresentation(from: provider, typeIdentifier: typeIdentifier)
+            }
         }
         return true
+    }
+
+    /// The line under Add Book: what the running import is doing, and how
+    /// many more books wait behind it.
+    private var bookImportProgressLine: String {
+        let status = vm.bookImportStatus.isEmpty ? "Waiting to import…" : vm.bookImportStatus
+        let waiting = vm.bookImportsPending - 1
+        guard waiting > 0 else { return status }
+        return "\(status)\n\(waiting) more \(waiting == 1 ? "book" : "books") waiting"
+    }
+
+    /// Imports each picked book in turn, saying at the end which ones failed.
+    private func importBooks(_ urls: [URL]) async {
+        let runs = urls.map { ($0, vm.enqueueBookImport(from: $0.path)) }
+        var failures: [String] = []
+        for (url, run) in runs {
+            do {
+                try await run.value
+            } catch {
+                failures.append(urls.count == 1
+                    ? error.localizedDescription
+                    : "\(url.lastPathComponent): \(error.localizedDescription)")
+            }
+        }
+        guard !failures.isEmpty else { return }
+        vm.errorMessage = failures.joined(separator: "\n")
+        vm.showBookImportError = true
     }
 
     private enum BookDropRepresentation {
@@ -1679,7 +1701,8 @@ extension StudioSidebar {
     }
 
     private func presentBookDropError(_ message: String) {
-        vm.bookImportStatus = ""
+        // A book still importing keeps its progress line.
+        if vm.bookImportsPending == 0 { vm.bookImportStatus = "" }
         vm.errorMessage = message
         vm.showBookImportError = true
     }

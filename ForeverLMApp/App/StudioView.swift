@@ -713,7 +713,7 @@ struct StudioView: View {
         for provider in providers {
             guard provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) else { continue }
             handled = true
-            if importsBooks {
+            if importsBooks && vm.bookImportsPending == 0 {
                 vm.bookImportStatus = "Opening dropped book…"
             }
             provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier) { item, error in
@@ -733,7 +733,7 @@ struct StudioView: View {
                 Task { @MainActor in
                     if importsBooks {
                         guard let url, url.isFileURL else {
-                            vm.bookImportStatus = ""
+                            if vm.bookImportsPending == 0 { vm.bookImportStatus = "" }
                             let detail = error.map { ": \($0.localizedDescription)" } ?? ""
                             vm.errorMessage = "ForeverLM couldn’t read the dropped book from Finder\(detail)."
                             vm.showBookImportError = true
@@ -742,7 +742,7 @@ struct StudioView: View {
                         do {
                             try await vm.importBook(from: url.path)
                         } catch {
-                            vm.bookImportStatus = ""
+                            if vm.bookImportsPending == 0 { vm.bookImportStatus = "" }
                             vm.errorMessage = "Couldn’t import \(url.lastPathComponent): \(error.localizedDescription)"
                             vm.showBookImportError = true
                         }

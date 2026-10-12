@@ -1356,6 +1356,11 @@ class StudioViewModel {
     var paperDownloadStep: String = ""
     /// Progress message shown during book import (e.g. "Splitting chapter 3/8…")
     var bookImportStatus: String = ""
+    /// Book imports asked for and not yet finished, the running one included.
+    /// The Add Book button stays while they run; each new book waits its turn.
+    var bookImportsPending = 0
+    /// The last book import in line; the next one starts when it ends.
+    @ObservationIgnored var bookImportTail: Task<Void, Never>?
     var showBookImportError = false
     /// Said after a book import that succeeded with parts missing, such as a
     /// damaged EPUB whose lost chapters the learner should replace.

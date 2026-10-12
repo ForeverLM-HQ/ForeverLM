@@ -638,7 +638,28 @@ extension StudioViewModel {
 
     /// Import a book (PDF, EPUB, or DRM-free Kindle): copy to ForeverLM/Books/, split into chapters, and add entries.
     #if canImport(PDFKit)
+    /// Imports one book. A book asked for while another is importing waits
+    /// for it, so the learner can keep adding books without the two runs
+    /// writing over each other's progress, identity checks or library reload.
     func importBook(from sourcePath: String, kind: String? = nil) async throws {
+        try await enqueueBookImport(from: sourcePath, kind: kind).value
+    }
+
+    /// Puts a book in line now and returns its run, so books picked together
+    /// import in the order they were picked.
+    func enqueueBookImport(from sourcePath: String, kind: String? = nil) -> Task<Void, Error> {
+        bookImportsPending += 1
+        let previous = bookImportTail
+        let run = Task { @MainActor in
+            defer { self.bookImportsPending -= 1 }
+            _ = await previous?.value
+            try await self.importBookNow(from: sourcePath, kind: kind)
+        }
+        bookImportTail = Task { _ = await run.result }
+        return run
+    }
+
+    private func importBookNow(from sourcePath: String, kind: String?) async throws {
         let fm = FileManager.default
         logger.info("[BookImport] Starting import from: \(sourcePath)")
         guard fm.fileExists(atPath: sourcePath) else {
