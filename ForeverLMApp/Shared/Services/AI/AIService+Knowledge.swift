@@ -310,16 +310,12 @@ extension AIService {
         config: AITaskConfig
     ) async throws -> [BookChapterBoundary] {
         let systemPrompt = AITask.bookChapterSplitting.effectivePrompt ?? Prompts.bookChapterSplitting
-        enum CandidatePageRule {
-            case fixed(Int)
-            case adjustable
-        }
-        var candidateLookup: [Int: (title: String, pageRule: CandidatePageRule)] = [:]
+        var candidateLookup: [Int: BookChapterCandidate] = [:]
         var nextID = 1
         let outlineCandidates = outlineEntries.map { entry in
             let id = nextID
             nextID += 1
-            candidateLookup[id] = (title: entry.title, pageRule: .fixed(entry.pageIndex))
+            candidateLookup[id] = BookChapterCandidate(title: entry.title, fixedPageIndex: entry.pageIndex)
             return [
                 "id": id,
                 "source": "outline",
@@ -331,7 +327,7 @@ extension AIService {
         let tocCandidates = tocEntries.map { entry in
             let id = nextID
             nextID += 1
-            candidateLookup[id] = (title: entry.title, pageRule: .adjustable)
+            candidateLookup[id] = BookChapterCandidate(title: entry.title, fixedPageIndex: nil)
             var candidate = [
                 "id": id,
                 "source": "tableOfContents",
@@ -346,7 +342,7 @@ extension AIService {
         let chapterHeadingCandidates = chapterHeadingEntries.map { entry in
             let id = nextID
             nextID += 1
-            candidateLookup[id] = (title: entry.title, pageRule: .fixed(entry.pageIndex))
+            candidateLookup[id] = BookChapterCandidate(title: entry.title, fixedPageIndex: entry.pageIndex)
             return [
                 "id": id,
                 "source": "chapterHeading",
@@ -358,7 +354,7 @@ extension AIService {
             let id = nextID
             nextID += 1
             let title = "PDF page \(entry.pageIndex + 1)"
-            candidateLookup[id] = (title: title, pageRule: .fixed(entry.pageIndex))
+            candidateLookup[id] = BookChapterCandidate(title: title, fixedPageIndex: entry.pageIndex)
             return [
                 "id": id,
                 "source": "pageStart",
@@ -402,6 +398,11 @@ extension AIService {
         - Do not return table-of-contents pages as chapter starts unless the chapter's real content starts there.
         """
 
+        // A reply this check refuses is not an answer: kept out of the
+        // response cache and handed to the next backup model. Checked only
+        // after the call, a refused reply was cached, so every retry of the
+        // import got the same broken chapter list back.
+        let candidates = candidateLookup
         let response = try await call(
             config: config,
             system: systemPrompt,
@@ -409,12 +410,33 @@ extension AIService {
             maxTokens: 4000,
             temperature: 0.0,
             jsonMode: true,
+            validateResponse: { reply in
+                _ = try Self.validatedBookChapterBoundaries(reply, candidates: candidates, pageCount: pageCount)
+            },
             sourceTitle: source.title,
             subjectID: source.id,
             subjectType: source.type,
             activityID: AIUsageAttribution.activityID ?? UUID().uuidString
         )
+        return try Self.validatedBookChapterBoundaries(response, candidates: candidates, pageCount: pageCount)
+    }
 
+    /// A candidate the chapter splitter may return: an outline, chapter-heading
+    /// or page-start entry fixes its page; a table-of-contents entry's page is
+    /// the model's to place.
+    struct BookChapterCandidate: Sendable {
+        let title: String
+        let fixedPageIndex: Int?
+    }
+
+    /// The chapter list in a splitter reply, or an error when it names an
+    /// unknown candidate, moves a fixed page, runs out of order, or leaves a
+    /// gap or overlap.
+    static func validatedBookChapterBoundaries(
+        _ response: String,
+        candidates candidateLookup: [Int: BookChapterCandidate],
+        pageCount: Int
+    ) throws -> [BookChapterBoundary] {
         var jsonString = response.trimmingCharacters(in: .whitespacesAndNewlines)
         if jsonString.hasPrefix("```") {
             let lines = jsonString.components(separatedBy: "\n")
@@ -439,13 +461,7 @@ extension AIService {
             guard let candidate = candidateLookup[chapter.id] else {
                 throw AIError.apiError("Book chapter splitter returned an unknown candidate id: \(chapter.id).")
             }
-            let pageMatchesCandidate: Bool
-            switch candidate.pageRule {
-            case .fixed(let fixedPageIndex):
-                pageMatchesCandidate = chapter.pageIndex == fixedPageIndex
-            case .adjustable:
-                pageMatchesCandidate = true
-            }
+            let pageMatchesCandidate = candidate.fixedPageIndex.map { chapter.pageIndex == $0 } ?? true
             guard pageMatchesCandidate,
                   chapter.pageIndex >= 0,
                   chapter.pageIndex < pageCount,

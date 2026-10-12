@@ -518,6 +518,39 @@ struct BookChapterBoundaryValidationTests {
         return document
     }
 
+    @Test("A chapter splitter reply is checked against its candidates before it is cached or used")
+    func splitterReplyIsValidatedAgainstCandidates() throws {
+        let candidates: [Int: AIService.BookChapterCandidate] = [
+            1: .init(title: "Preface", fixedPageIndex: 6),
+            2: .init(title: "Chapter 1", fixedPageIndex: 12),
+            3: .init(title: "Chapter 2", fixedPageIndex: nil),
+        ]
+        let good = #"{"chapters":[{"id":1,"title":"Preface","pageIndex":6,"endPageIndexExclusive":12},{"id":2,"title":"","pageIndex":12,"endPageIndexExclusive":40},{"id":3,"title":"Chapter 2: The Cell","pageIndex":40,"endPageIndexExclusive":90}]}"#
+        let chapters = try AIService.validatedBookChapterBoundaries(good, candidates: candidates, pageCount: 100)
+        #expect(chapters.map(\.title) == ["Preface", "Chapter 1", "Chapter 2: The Cell"])
+        #expect(chapters.map(\.pageIndex) == [6, 12, 40])
+        #expect(chapters.last?.endPageIndexExclusive == 90)
+
+        let refused = [
+            // Out of order.
+            #"{"chapters":[{"id":2,"title":"Chapter 1","pageIndex":12,"endPageIndexExclusive":40},{"id":1,"title":"Preface","pageIndex":6,"endPageIndexExclusive":12}]}"#,
+            // An outline entry's page moved.
+            #"{"chapters":[{"id":1,"title":"Preface","pageIndex":7,"endPageIndexExclusive":12}]}"#,
+            // A gap between chapters.
+            #"{"chapters":[{"id":1,"title":"Preface","pageIndex":6,"endPageIndexExclusive":10},{"id":2,"title":"Chapter 1","pageIndex":12,"endPageIndexExclusive":40}]}"#,
+            // A candidate that was never offered.
+            #"{"chapters":[{"id":9,"title":"Ghost","pageIndex":50,"endPageIndexExclusive":60}]}"#,
+            // Past the last page.
+            #"{"chapters":[{"id":3,"title":"Chapter 2","pageIndex":40,"endPageIndexExclusive":101}]}"#,
+            "The chapters are the preface and two chapters.",
+        ]
+        for reply in refused {
+            #expect(throws: (any Error).self, "accepted: \(reply)") {
+                try AIService.validatedBookChapterBoundaries(reply, candidates: candidates, pageCount: 100)
+            }
+        }
+    }
+
     private enum TestPDFError: Error {
         case renderFailed
     }
