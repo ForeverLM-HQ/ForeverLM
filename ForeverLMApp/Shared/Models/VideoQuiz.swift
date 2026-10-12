@@ -22,8 +22,8 @@ enum QuizGrading {
     static let maximumRetryWait: Double = 10
 
     /// The ledger's name for a grade given in a quiz's chat, on the chat's
-    /// own model; like "chat_title", a purpose of the chat with no route of
-    /// its own.
+    /// own model: the learner waits on it, so it is a purpose of the chat
+    /// with no route of its own, like "deep_research_chat".
     static let chatTaskLabel = "chat_quiz_grading"
 
     /// An answer the grader sent back that cannot be used as a grade: not a
