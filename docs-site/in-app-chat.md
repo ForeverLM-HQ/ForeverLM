@@ -34,6 +34,10 @@ Slides work the same way for videos and recordings. Ask "show me the slide that 
 
 When Chat quizzes you over slides or figures, it shows one picture at a time: the one the question is about, right above it. The next picture comes with the next question, after you answer.
 
+## Interactive visualizations
+
+On the Mac, a reply can draw a picture that runs: a curve with a slider for its rate, a process you step through, a mechanism whose parts you switch on and off. Chat draws one when it explains the point better than words, or when you ask ("show me this as an interactive chart"). It runs in the reply, in a frame that cannot reach your library or the internet. It is the same block a Page's **Visualize** row writes, so its Markdown runs in a Page too. The Web Library and the iPhone show a line in its place.
+
 ## Going through a source in the Reader
 
 On the Mac, Chat shows you what it means in the source itself. Ask it to explain a paper's key points or walk you through its figures, and it opens the paper in the Reader beside the chat, whether the paper is attached to the chat or one it just found in your library. It then outlines the figure, panel or passage its reply is about. An article or a book chapter shown as text is scrolled to the passage, which flashes. Chat takes one place a reply and offers the next, so the page beside the chat is the one being explained. Other places a reply names are citations, and clicking one takes the Reader there. A figure is outlined as soon as Chat finds it, before it has read the picture. If that reading fails, the outline stays and Chat tells you it could not read the figure. A chat in a window of its own has no Reader beside it, so it shows the figure in the reply instead. The Web Library's chat does the same in the Reader beside it, in a notebook or in your library: it opens the source and marks the passage it is explaining, or opens the PDF at the page a figure is on, though it cannot outline the figure on the page. A citation that quotes a passage opens the Reader there and marks it too. In a window too narrow to show the Reader beside the chat, the chat leaves the Reader closed.

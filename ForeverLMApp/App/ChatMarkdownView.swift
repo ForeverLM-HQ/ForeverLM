@@ -1446,6 +1446,15 @@ struct ChatMarkdownView: NSViewRepresentable {
                 decisionHandler(.cancel)
                 return
             }
+            // A reply's visualization frame loads its own document and nothing
+            // more: its policy blocks every request, but not the frame sending
+            // itself somewhere else, which would carry whatever the program put
+            // in the address off the Mac.
+            if let frame = navigationAction.targetFrame, !frame.isMainFrame,
+               navigationAction.request.url?.scheme?.lowercased() != "about" {
+                decisionHandler(.cancel)
+                return
+            }
             decisionHandler(.allow)
         }
     }

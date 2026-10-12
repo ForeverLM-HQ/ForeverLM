@@ -764,6 +764,43 @@
   cursor: default;
 }
 
+/* A reply that draws a visualization is painted a child per part
+ * (`paintParts`). A prose part lays out as if its blocks were the message's
+ * own; the frame sits between them at the column's full width, framed as a
+ * page's Visualize block is. */
+.chat-rendered > .chat-part { display: contents; }
+.chat-rendered > .chat-visualization {
+  margin: 1em 0;
+  user-select: none;
+}
+.chat-visualization-frame {
+  display: block;
+  width: 100%;
+  height: 320px;
+  border: 1px solid color-mix(in srgb, var(--chat-fg, CanvasText) 12%, transparent);
+  border-radius: 10px;
+  background: transparent;
+}
+/* Still streaming: the block's shape, quietly breathing, until it can run. */
+.chat-visualization-pending {
+  height: 160px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--chat-fg, CanvasText) 5%, transparent);
+  animation: chat-visualization-pending 1.6s ease-in-out infinite;
+}
+@keyframes chat-visualization-pending {
+  50% { background: color-mix(in srgb, var(--chat-fg, CanvasText) 9%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-visualization-pending { animation: none; }
+}
+.chat-visualization-unavailable {
+  padding: 0.75em 1em;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--chat-fg, CanvasText) 5%, transparent);
+  color: color-mix(in srgb, var(--chat-fg, CanvasText) 60%, transparent);
+}
+
 /* The message's own outer edges, last so they outrank every component margin
  * above at the same specificity. A block styled by class : a picture's figure,
  * a display equation, a source card : used to keep its top margin when it led

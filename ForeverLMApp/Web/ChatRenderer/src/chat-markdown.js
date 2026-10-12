@@ -582,6 +582,66 @@ export function splitFollowUps(markdown) {
   return { markdown: prose.trimEnd(), questions };
 }
 
+const VISUALIZATION_FENCE = /^[ \t]{0,3}(`{3,}|~{3,})[ \t]*visualization[ \t]*$/i;
+const ANY_FENCE = /^[ \t]{0,3}(`{3,}|~{3,})/;
+
+/// A reply cut into its prose and the visualizations it draws. A visualization
+/// is a fenced block whose language is `visualization` holding one
+/// self-contained HTML document, the same block a page keeps for its Visualize
+/// row, so the same Markdown runs in a page too. It is taken out before
+/// any Markdown repair, which would otherwise turn its `<br>` and `<p>` into
+/// line breaks and lift a template literal's `${…}` out as math.
+///
+/// Returns parts in reply order: `{ kind: "markdown", text }` and
+/// `{ kind: "visualization", html, complete }`. A block whose closing fence has
+/// not streamed in yet runs to the end of the text with `complete: false`. A
+/// visualization fence inside another code block is that block's text, not a
+/// visualization.
+export function splitVisualizations(markdown) {
+  const lines = String(markdown ?? "").replace(/\r\n?/g, "\n").split("\n");
+  const parts = [];
+  let prose = [];
+  let outerFence = null;
+  const closes = (line, fence) => {
+    const match = line.match(/^[ \t]{0,3}(`{3,}|~{3,})[ \t]*$/);
+    return Boolean(match) && match[1][0] === fence[0] && match[1].length >= fence.length;
+  };
+  const flushProse = () => {
+    if (prose.length > 0) parts.push({ kind: "markdown", text: prose.join("\n") });
+    prose = [];
+  };
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (outerFence) {
+      if (closes(line, outerFence)) outerFence = null;
+      prose.push(line);
+      continue;
+    }
+    const opener = line.match(VISUALIZATION_FENCE);
+    if (!opener) {
+      const fence = line.match(ANY_FENCE);
+      if (fence) outerFence = fence[1];
+      prose.push(line);
+      continue;
+    }
+    const body = [];
+    let closeIndex = -1;
+    for (let candidate = index + 1; candidate < lines.length; candidate += 1) {
+      if (closes(lines[candidate], opener[1])) {
+        closeIndex = candidate;
+        break;
+      }
+      body.push(lines[candidate]);
+    }
+    flushProse();
+    parts.push({ kind: "visualization", html: body.join("\n").trim(), complete: closeIndex >= 0 });
+    index = closeIndex >= 0 ? closeIndex : lines.length;
+  }
+  flushProse();
+  return parts;
+}
+
 /// The whole text pipeline, in the order the repairs depend on: the follow-up
 /// block out first, since it is not part of the reply, then source-link
 /// stutter and stray HTML breaks, then math framing, then math is lifted out

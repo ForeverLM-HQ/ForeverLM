@@ -14,7 +14,8 @@
 import DOMPurify from "dompurify";
 import MarkdownIt from "markdown-it";
 import { isChatImageURL, parseSourceImageReference } from "#source-images";
-import { normalizeChatMarkdown, restoreMath } from "./chat-markdown.js";
+import { normalizeChatMarkdown, restoreMath, splitVisualizations } from "./chat-markdown.js";
+import { visualizationElement, visualizationKey } from "./chat-visualization.js";
 import {
   escapedHTML,
   installJoinerFreeCopy,
@@ -98,6 +99,9 @@ export function createChatRenderer({
   openSource = null,
   openWebLink = null,
   onLayoutChange = null,
+  // Whether this host runs a reply's visualizations. One that cannot shows a
+  // line in the block's place instead of the program's source.
+  runsVisualizations = false,
 } = {}) {
   const cardsByToken = new Map();
   const pendingCardTokens = new Set();
@@ -678,19 +682,69 @@ export function createChatRenderer({
       if (citations) citationContexts.set(container, citations);
       else citationContexts.delete(container);
     }
-    const { html, segments } = renderChatMarkdownToHTML(text);
-    container.innerHTML = html;
+    const parts = splitVisualizations(text);
+    if (parts.some((part) => part.kind === "visualization")) paintParts(container, parts);
+    else paintMarkdown(container, text);
     containers.add(container);
-    removeLeakedCodeFenceLabels(container);
-    restoreEscapedLineBreakTags(container);
-    renderTaskListCheckboxes(container);
     decorate(container);
     installLinkBehavior(container);
-    typesetMath(container, segments, { katex: katex(), output: mathOutput });
     fitDisplayMath(container);
     scheduleMathRefit();
     onLayoutChange?.();
     return container;
+  }
+
+  function paintMarkdown(element, text) {
+    const { html, segments } = renderChatMarkdownToHTML(text);
+    element.innerHTML = html;
+    removeLeakedCodeFenceLabels(element);
+    restoreEscapedLineBreakTags(element);
+    renderTaskListCheckboxes(element);
+    typesetMath(element, segments, { katex: katex(), output: mathOutput });
+  }
+
+  /// A reply with a visualization in it, painted a child per part. Prose parts
+  /// are drawn into elements that lay out as if their contents were the
+  /// container's own, so the reply reads as one. Each paint keeps the leading
+  /// children whose part is unchanged and redraws from the first that is not:
+  /// a reply streaming on after its visualization redraws only the prose
+  /// below it, and the frame above, already running, is never moved or
+  /// reloaded (moving a frame reloads it).
+  function paintParts(container, parts) {
+    container.querySelector(":scope > .source-citations-footer")?.remove();
+    const document_ = container.ownerDocument;
+    const existing = [...container.children].filter(
+      (child) => child.classList.contains("chat-part") || child.classList.contains("chat-visualization"),
+    );
+    // Anything else is what a paint without parts left behind.
+    if (existing.length !== container.children.length) {
+      container.replaceChildren();
+      existing.length = 0;
+    }
+    let kept = 0;
+    for (; kept < parts.length && kept < existing.length; kept += 1) {
+      const part = parts[kept];
+      const child = existing[kept];
+      if (part.kind === "markdown") {
+        if (!child.classList.contains("chat-part")) break;
+        paintMarkdown(child, part.text);
+      } else if (child.dataset.visualizationKey !== visualizationKey(part.html, part.complete && runsVisualizations)) {
+        break;
+      }
+    }
+    for (const stale of existing.slice(kept)) stale.remove();
+    for (const part of parts.slice(kept)) {
+      if (part.kind === "markdown") {
+        const element = document_.createElement("div");
+        // Its own `chat-rendered` too: the rhythm is written as rules on the
+        // message's direct children, and these are a part's.
+        element.className = "chat-part chat-rendered";
+        container.append(element);
+        paintMarkdown(element, part.text);
+      } else {
+        container.append(visualizationElement(document_, part, { runs: runsVisualizations, onLayoutChange }));
+      }
+    }
   }
 
   // Cards arrive after the first paint, and the footer they produce is new

@@ -91,6 +91,19 @@ enum Prompts {
     End a reply that answers or explains with three questions the learner could ask next, after everything else: a line holding only <flm_follow_ups>, then one question per line, then a line holding only </flm_follow_ups>, with no heading before it and no code fence around it. Each question is under fifteen words: specific to this answer and the sources behind it, answerable in this chat, phrased the way the learner would type it, with no numbering, bullets, links or formatting. ForeverLM takes the block out of your reply and shows the questions under it. Leave the block out of a reply that asks the learner a question, reports an app action or says something failed.
     """
 
+    /// What lets a chat answer draw a picture that runs: a fenced block whose
+    /// language is `visualization`, holding one HTML document, the same block
+    /// a page's Visualize row writes (`docVisualization`), so the same
+    /// Markdown runs in a page too. The Mac's chat renderer runs it in a frame
+    /// that blocks every request (`chat-visualization.js`). Appended with
+    /// `answerShape` in the Mac's answering chats; Web Studio, whose page
+    /// policy keeps a frame's inline script from running, and the iPhone,
+    /// which draws chat as text, show a line in its place and do not ask for
+    /// one.
+    static let chatVisualization = """
+    Interactive visualizations: when a picture that runs would teach the point better than words alone (how one quantity changes with another, a process unfolding over time, a mechanism whose parts the learner can switch on and off), you may draw one inside your answer, or when the learner asks for one. Write it as a fenced code block whose language is visualization, holding one complete, self-contained HTML document, with your explanation around it in ordinary Markdown; ForeverLM runs the block in place of its code. At most one per reply, and only where it earns its place. Rules for the document: all HTML, CSS and JavaScript inline in the one file; no external scripts, stylesheets, fonts, images or network requests of any kind, they are blocked; draw with inline SVG or canvas; make it interactive where that helps (sliders, toggles, hover details) and readable without interaction; it is shown in a frame the width of the chat column, about 600px and sometimes narrower, so lay it out to fit its width; the frame follows the system light or dark appearance, so use color-scheme: light dark and prefers-color-scheme, a transparent background and the system font; keep text at 13px or larger with accessible contrast; do not use alert, prompt, localStorage, cookies or window.top; use only data from the sources, the conversation or well-established knowledge, and label any numbers you invented as illustrative.
+    """
+
     /// One line at the end of every request's volatile tail in a chat that
     /// offers suggested questions. The block's instruction sits in the cached
     /// head, and the model's history never shows a block (each is stripped

@@ -81,6 +81,9 @@ const renderer = createChatRenderer({
     post("openSource", { token, seconds, passage, page }),
   openWebLink: (url, title) => post("webLinks", { url, title }),
   onLayoutChange: () => requestAnimationFrame(reportHeight),
+  // A visualization runs in a sandboxed frame inside this row's web view; the
+  // app lets that frame load its own document and nothing else.
+  runsVisualizations: true,
 });
 
 /// What the rest of the conversation already established about this message's

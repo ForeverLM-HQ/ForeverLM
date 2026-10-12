@@ -277,6 +277,22 @@ final class MobileChatViewModel: ObservableObject {
         self.speakReplies = UserDefaults.standard.bool(forKey: Self.speakRepliesDefaultsKey)
         self.messages = messages
         registerWithAudioArbiter()
+        renderSavedReplies()
+    }
+
+    /// A saved chat's replies arrive as the text they were saved as; each is
+    /// parsed once, off-main, as a reply this phone streamed is, so a Mac
+    /// reply's Markdown and visualization read here as they do there.
+    private func renderSavedReplies() {
+        let saved = messages.filter { $0.role == .assistant && $0.rendered == nil }
+        guard !saved.isEmpty else { return }
+        Task { [weak self] in
+            for message in saved {
+                let rendered = await Self.renderMarkdown(message.content)
+                guard let self, let index = self.messages.firstIndex(where: { $0.id == message.id }) else { return }
+                self.messages[index].rendered = rendered
+            }
+        }
     }
 
     /// The arbiter drives this when another surface takes the session. Without
@@ -789,8 +805,62 @@ final class MobileChatViewModel: ObservableObject {
                 interpretedSyntax: .inlineOnlyPreservingWhitespace,
                 failurePolicy: .returnPartiallyParsedIfPossible
             )
-            return (try? AttributedString(markdown: markdown, options: options)) ?? AttributedString(markdown)
+            let shown = replacingVisualizations(in: markdown)
+            return (try? AttributedString(markdown: shown, options: options)) ?? AttributedString(shown)
         }.value
+    }
+
+    /// The line a reply's visualization shows as here. A Mac chat can draw one
+    /// (`Prompts.chatVisualization`): a fenced block whose language is
+    /// `visualization`, holding an HTML document the Mac runs in a frame. This
+    /// phone draws chat as text, so a saved Mac chat continued here would
+    /// otherwise show the program's source. A visualization fence inside
+    /// another code block is that block's text. Mirrors `splitVisualizations`
+    /// in the chat renderer.
+    nonisolated static let visualizationStandIn = "*Interactive visualization · runs in the Mac app*"
+
+    nonisolated static func replacingVisualizations(in markdown: String) -> String {
+        guard markdown.range(of: "visualization", options: .caseInsensitive) != nil else { return markdown }
+        func fence(_ line: Substring) -> (marker: Character, length: Int, rest: Substring)? {
+            let indent = line.prefix { $0 == " " || $0 == "\t" }
+            guard indent.count <= 3 else { return nil }
+            let body = line.dropFirst(indent.count)
+            guard let marker = body.first, marker == "`" || marker == "~" else { return nil }
+            let run = body.prefix { $0 == marker }
+            guard run.count >= 3 else { return nil }
+            return (marker, run.count, body.dropFirst(run.count))
+        }
+        func closes(_ line: Substring, _ open: (marker: Character, length: Int)) -> Bool {
+            guard let candidate = fence(line) else { return false }
+            return candidate.marker == open.marker && candidate.length >= open.length
+                && candidate.rest.allSatisfy { $0 == " " || $0 == "\t" }
+        }
+        var output: [Substring] = []
+        var outer: (marker: Character, length: Int)?
+        var inVisualization: (marker: Character, length: Int)?
+        for line in markdown.split(separator: "\n", omittingEmptySubsequences: false) {
+            if let open = inVisualization {
+                if closes(line, open) { inVisualization = nil }
+                continue
+            }
+            if let open = outer {
+                if closes(line, open) { outer = nil }
+                output.append(line)
+                continue
+            }
+            guard let opener = fence(line) else {
+                output.append(line)
+                continue
+            }
+            if opener.rest.trimmingCharacters(in: .whitespaces).lowercased() == "visualization" {
+                inVisualization = (opener.marker, opener.length)
+                output.append(Substring(visualizationStandIn))
+            } else {
+                outer = (opener.marker, opener.length)
+                output.append(line)
+            }
+        }
+        return output.joined(separator: "\n")
     }
 
     private func removeMessage(_ id: UUID) {

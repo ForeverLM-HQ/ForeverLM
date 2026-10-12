@@ -10132,6 +10132,8 @@ final class ReviewSessionManager {
 
             \(Prompts.answerShape)
 
+            \(Prompts.chatVisualization)
+
             \(Prompts.followUpQuestions)
             """
         }

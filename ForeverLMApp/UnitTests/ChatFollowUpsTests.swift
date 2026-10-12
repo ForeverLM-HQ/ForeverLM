@@ -268,6 +268,7 @@ struct ChatFollowUpsTests {
             let gate = ReviewSessionManager.followUpGateForTesting(mode: mode)
             #expect(gate.offers, "\(mode) should offer suggested questions")
             #expect(gate.stable.contains(Prompts.answerShape))
+            #expect(gate.stable.contains(Prompts.chatVisualization))
             #expect(gate.stable.contains(Prompts.followUpQuestions))
             // The reminder rides the tail, where a long chat still sees it.
             #expect(gate.volatile.contains(Prompts.followUpQuestionsReminder))
@@ -287,6 +288,7 @@ struct ChatFollowUpsTests {
         for gate in closed {
             #expect(!gate.offers)
             #expect(!gate.stable.contains(Prompts.answerShape))
+            #expect(!gate.stable.contains(Prompts.chatVisualization))
             #expect(!gate.stable.contains("<flm_follow_ups>"))
             #expect(!gate.volatile.contains("<flm_follow_ups>"))
         }

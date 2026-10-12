@@ -100,4 +100,22 @@ final class MobileNotebookChatContinuationTests: XCTestCase {
         XCTAssertEqual(chat.messages.count, 2, "nothing was sent")
         XCTAssertNotNil(chat.errorMessage)
     }
+
+    /// A Mac reply can draw a visualization, a fenced block of HTML the Mac
+    /// runs; continued here, it reads as one line, never as the program.
+    func testAMacVisualizationReadsAsOneLine() {
+        let reply = "Decay:\n\n```visualization\n<div>x</div>\n<script>let y = `${1}`</script>\n```\n\nAfter."
+        XCTAssertEqual(
+            MobileChatViewModel.replacingVisualizations(in: reply),
+            "Decay:\n\n\(MobileChatViewModel.visualizationStandIn)\n\nAfter."
+        )
+        // Still streaming: the rest of the reply is the block.
+        XCTAssertEqual(
+            MobileChatViewModel.replacingVisualizations(in: "Open:\n~~~ Visualization\n<div>half"),
+            "Open:\n\(MobileChatViewModel.visualizationStandIn)"
+        )
+        // Inside another code block it is that block's text.
+        let quoted = "````markdown\n```visualization\n<b>x</b>\n```\n````"
+        XCTAssertEqual(MobileChatViewModel.replacingVisualizations(in: quoted), quoted)
+    }
 }
