@@ -364,9 +364,13 @@ enum StudioTopBar {
     /// sidebar toggle's line and read as dead air around them. The 52pt band
     /// with AppKit's own light centering is the known-good configuration.
     static let extraBandHeight: CGFloat = 0
-    /// Left edge of the sidebar toggle: clear of the lights, with room to spare.
-    /// The 30pt sidebar toggle runs ~92→122pt.
-    static let railToggleLeading: CGFloat = 92
+    /// Left edge of the window's own controls beside the lights, Codex's:
+    /// ‹ › and the sidebar toggle, 30pt each (~92→186pt).
+    static let leadingControlsLeading: CGFloat = 92
+    /// The gap between those controls.
+    static let leadingControlsSpacing: CGFloat = 2
+    /// How wide they run: ‹, › and the toggle.
+    static let leadingControlsWidth = 3 * StudioDesign.Metrics.chromeButtonWidth + 2 * leadingControlsSpacing
     /// Gap between the controls drawn over a pane's top-right corner: its
     /// pin, its close target and a header's own trailing controls.
     static let paneControlSpacing: CGFloat = 12
@@ -406,17 +410,19 @@ enum StudioTopBar {
     }
 
     /// Left edge of the leftmost panel's in-band header, so its title clears the
-    /// lights and the sidebar toggle (which ends at 122pt) and stands a short
-    /// step after it, as Codex's thread title does after its arrows. It was 170,
-    /// room for a saved-workspace control that is gone: the Library's title hung
-    /// 62pt from the toggle (product owner, 2026-10-09, "this distance … looks a bit
-    /// bad"). The pane's own 14pt header padding adds to this.
-    static let headerLeadingClearance: CGFloat = 134
+    /// lights, ‹ › and the sidebar toggle and stands a short step after them, as
+    /// Codex's thread title does after its arrows (product owner, 2026-10-09, of
+    /// a wider gap: "this distance … looks a bit bad"). The pane's own 14pt
+    /// header padding adds to this.
+    static let headerLeadingClearance = leadingControlsLeading + leadingControlsWidth + 12
 
-    /// The toggle's left edge with no titlebar band (fullscreen): there are no
-    /// traffic lights to stand off from, so it hugs the left edge (~10→40pt),
-    /// inside the icon strip, which is always there.
-    static let fullscreenRailToggleLeading: CGFloat = 10
+    /// The controls' left edge with no titlebar band (fullscreen): there are no
+    /// traffic lights to stand off from, so they hug the left edge.
+    static let fullscreenLeadingControlsLeading: CGFloat = 10
+
+    /// The same clearance with no titlebar band (fullscreen), where the
+    /// controls sit in flow at the left edge.
+    static let fullscreenHeaderLeadingClearance = fullscreenLeadingControlsLeading + leadingControlsWidth + 12
 }
 
 /// Room that chrome drawn *over* a pane's top-right corner claims on the

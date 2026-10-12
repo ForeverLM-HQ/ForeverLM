@@ -141,6 +141,117 @@ struct StudioRailHiddenItems: Equatable {
     }
 }
 
+/// A place the learner keeps on the icon strip, under its line, as Codex
+/// keeps the rows pinned to its strip (product owner, 2026-10-12: "the left
+/// sidebar never gets collapsed basically so there can be some shortcuts
+/// there similar to codex app"). The strip's own rows — Spaces, Memory,
+/// Library — stay above the ⋯, which offers every other place and keeps one
+/// here; a shortcut is one of those places, one click away from anywhere.
+enum StudioRailShortcut: Hashable, Identifiable, Sendable {
+    /// One of the Space sidebar's places: Notebooks, Chats, Pages, Sites,
+    /// Canvases, Images or Google Drive.
+    case place(SpaceDestination)
+    /// The Courses list, the Space sidebar's hub.
+    case courses
+
+    var id: String { key }
+
+    /// The Space places a shortcut can be. All is the Space itself (its
+    /// row), Trash is a place to visit rarely, and a team's, a space's or a
+    /// list's place is an item the Space sidebar pins.
+    private static let places: Set<SpaceDestination> = [.notebooks, .chats, .pages, .sites, .canvases, .images, .drive]
+
+    /// Every shortcut this Mac offers, in the Space sidebar's order:
+    /// Notebooks and Chats, Courses, then the rest; Canvases only where
+    /// canvases are listed.
+    static func offered(listsCanvases: Bool) -> [StudioRailShortcut] {
+        let sidebar = SpaceDestination.sidebarPlaces(listsCanvases: listsCanvases).filter(places.contains)
+        let leading = sidebar.filter { $0 == .notebooks || $0 == .chats }
+        let rest = sidebar.filter { $0 != .notebooks && $0 != .chats }
+        return leading.map(Self.place) + [.courses] + rest.map(Self.place)
+    }
+
+    /// How the strip stores it: the place's `SpaceDestination.key`, or
+    /// `courses`.
+    var key: String {
+        switch self {
+        case .place(let place): return place.key
+        case .courses: return "courses"
+        }
+    }
+
+    /// Nil for a key that names no shortcut — one a later build added, or a
+    /// place that is no shortcut — so the strip drops it rather than drawing
+    /// a phantom.
+    init?(key: String) {
+        if key == "courses" {
+            self = .courses
+            return
+        }
+        let place = SpaceDestination(key: key)
+        guard place.key == key, Self.places.contains(place) else { return nil }
+        self = .place(place)
+    }
+
+    var title: String {
+        switch self {
+        case .place(let place): return place.title
+        case .courses: return SpaceHub.courses.title
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .place(let place): return place.symbolName
+        case .courses: return SpaceHub.courses.symbolName
+        }
+    }
+}
+
+/// The shortcuts on the icon strip, in the order the learner kept them.
+/// Follows the account, like the hidden rows (`StudioRailHiddenItems`): the
+/// strip is the learner's arrangement, not one Mac's. None until the learner
+/// keeps one from the ⋯.
+struct StudioRailShortcuts: Equatable {
+    static let storageKey = "studio.navigation.shortcuts.v1"
+
+    var items: [StudioRailShortcut]
+
+    init(_ items: [StudioRailShortcut] = []) {
+        var seen = Set<StudioRailShortcut>()
+        self.items = items.filter { seen.insert($0).inserted }
+    }
+
+    /// Decodes the comma-separated keys the preference holds, dropping a key
+    /// this build does not know and any repeat.
+    init(storage: String) {
+        self.init(
+            storage.split(separator: ",")
+                .compactMap { StudioRailShortcut(key: String($0).trimmingCharacters(in: .whitespaces)) }
+        )
+    }
+
+    var storage: String {
+        items.map(\.key).joined(separator: ",")
+    }
+
+    func contains(_ shortcut: StudioRailShortcut) -> Bool { items.contains(shortcut) }
+
+    /// Kept at the end of the strip, or taken off it.
+    func setting(_ shortcut: StudioRailShortcut, shown: Bool) -> StudioRailShortcuts {
+        var kept = items.filter { $0 != shortcut }
+        if shown { kept.append(shortcut) }
+        return StudioRailShortcuts(kept)
+    }
+
+    /// The shortcuts the strip draws: the kept ones this Mac offers, so a
+    /// kept Canvases waits, unshown, where canvases are not listed.
+    func shown(listsCanvases: Bool) -> [StudioRailShortcut] {
+        let offered = Set(StudioRailShortcut.offered(listsCanvases: listsCanvases))
+        return items.filter(offered.contains)
+    }
+}
+
 /// Codex-style chat navigation rail. It is the app's primary navigation surface,
 /// led by the notebooks since shell stage 4 (docs/notebooks-design.md, "The
 /// rail"): Spaces, Memory and Library as icons, with Home's sidebar beside
@@ -191,6 +302,8 @@ struct StudioNavigationRail: View {
     @State private var showsAccountMenu = false
     @SyncedStorage(wrappedValue: "", StudioRailHiddenItems.storageKey) private var hiddenRailItemsStorage: String
     private var hiddenRailItems: StudioRailHiddenItems { StudioRailHiddenItems(storage: hiddenRailItemsStorage) }
+    @SyncedStorage(wrappedValue: "", StudioRailShortcuts.storageKey) private var railShortcutsStorage: String
+    private var railShortcuts: StudioRailShortcuts { StudioRailShortcuts(storage: railShortcutsStorage) }
     /// Which page the account menu shows: the root, or the library switcher
     /// it drills into. Reset to the root each time the menu opens.
     @State private var accountMenuPage: AccountMenuPage = .root
@@ -441,29 +554,43 @@ struct StudioNavigationRail: View {
         .newNotebookFromChat($notebookFromChatRequest, vm: vm, window: windowState)
     }
 
-    /// The window's rail, Codex's: Spaces, Memory and Library as icons, then
-    /// the day's calendar glyph, whose popover is the schedule, and the
-    /// account. The notebooks and the chats are Home's sidebar (`fullRail`),
-    /// which shows beside a chat or the Reader; "Plan your day?" and "Cards to
-    /// check" are in its footer, or in the window's corner where Home's
-    /// sidebar is not showing.
+    /// The window's rail, Codex's: Spaces, Memory and Library as icons, the
+    /// ⋯ with every other place, and under a short line the places the
+    /// learner kept there (`StudioRailShortcuts`); then the day's calendar
+    /// glyph, whose popover is the schedule, and the account. The notebooks
+    /// and the chats are Home's sidebar (`fullRail`), which shows beside a
+    /// chat or the Reader; "Plan your day?" and "Cards to check" are in its
+    /// footer, or in the window's corner where Home's sidebar is not showing.
     @ViewBuilder
     private var compactRail: some View {
         let hiddenItems = hiddenRailItems
+        let shortcuts = railShortcuts.shown(listsCanvases: vm.listsCanvases)
+        let litShortcut = shortcuts.first(where: isShowing)
         VStack(spacing: 4) {
             ForEach(hiddenItems.railItems()) { item in
                 switch item {
-                case .space: spaceButton(compact: true)
+                case .space: spaceButton(compact: true, yieldsTo: litShortcut != nil)
                 case .memory: memoryButton(compact: true)
                 case .library: libraryButton(compact: true)
                 case .newChat, .browser: EmptyView()
                 }
             }
-            // The way back for hidden rows: with every row hidden, nothing
-            // else would offer Show in Sidebar.
-            if hiddenItems.railItems().isEmpty {
-                Color.clear.frame(width: 36, height: 30)
-                    .contextMenu { RailItemVisibilityMenu() }
+            // Always drawn: it is also the way back for a hidden row, its
+            // menu ending with Show in Sidebar.
+            RailMoreButton(
+                places: StudioRailShortcut.offered(listsCanvases: vm.listsCanvases)
+                    .filter { !shortcuts.contains($0) },
+                open: openShortcut
+            )
+            if !shortcuts.isEmpty {
+                Rectangle()
+                    .fill(Color(nsColor: .separatorColor))
+                    .frame(width: 24, height: 1)
+                    .padding(.vertical, 6)
+                    .accessibilityHidden(true)
+                ForEach(shortcuts) { shortcut in
+                    shortcutButton(shortcut, isSelected: shortcut == litShortcut)
+                }
             }
             Spacer(minLength: 0)
             if account.creditsAreEmpty, !vm.isScreenRecordModeActive {
@@ -1066,12 +1193,14 @@ struct StudioNavigationRail: View {
     /// on one of this window's panes — its lists, the Courses list, or the
     /// global Pages and Sites. Today's daily note is a page in it (⇧⌘D opens it
     /// from the View menu). A click shows the place the window last showed.
-    private func spaceButton(compact: Bool = false) -> some View {
+    /// `yieldsTo`: a shortcut kept on the strip is lit for the place on
+    /// screen, and the Space's row gives the light to it.
+    private func spaceButton(compact: Bool = false, yieldsTo shortcutIsLit: Bool = false) -> some View {
         RailButtonRow(
             title: StudioRailItem.space.title,
             systemImage: StudioRailItem.space.systemImage,
             railItem: .space,
-            isSelected: windowState.showsSpace && !windowState.isVoiceWorkspacePresented,
+            isSelected: windowState.showsSpace && !shortcutIsLit && !windowState.isVoiceWorkspacePresented,
             openBeside: {
                 vm.inWindow(windowState) {
                     vm.openCenterTabBeside(.artifacts)
@@ -1116,6 +1245,60 @@ struct StudioNavigationRail: View {
         .onDrag {
             StudioDragVisibility.shared.begin(centerTab: .library)
             return studioCenterTabDragProvider(for: .library)
+        }
+    }
+
+    // MARK: - Shortcuts
+
+    /// A place the learner kept on the strip: its glyph, lit while the
+    /// window shows it, its menu taking it off again.
+    private func shortcutButton(_ shortcut: StudioRailShortcut, isSelected: Bool) -> some View {
+        RailButtonRow(
+            title: shortcut.title,
+            systemImage: shortcut.systemImage,
+            isSelected: isSelected,
+            otherWindowDestination: otherWindowDestination(for: shortcut),
+            identifier: "studio.navigation.shortcut.\(shortcut.key)",
+            isCompact: true,
+            removeFromRail: {
+                railShortcutsStorage = StudioRailShortcuts(storage: railShortcutsStorage)
+                    .setting(shortcut, shown: false)
+                    .storage
+            }
+        ) {
+            openShortcut(shortcut)
+        }
+    }
+
+    /// Whether this window shows the place: the Space on that place (its
+    /// list, not a page opened from it), or the Courses pane.
+    private func isShowing(_ shortcut: StudioRailShortcut) -> Bool {
+        guard windowState.notebook == nil, !windowState.isVoiceWorkspacePresented else { return false }
+        let activeTabs = windowState.centerTabGroups.groups.map(\.activeTab)
+        switch shortcut {
+        case .place(let place):
+            return activeTabs.contains(.artifacts) && windowState.spaceDestinationKey == place.key
+        case .courses:
+            return activeTabs.contains(.courses)
+        }
+    }
+
+    /// Shows the place in this window as the Space sidebar's row does.
+    private func openShortcut(_ shortcut: StudioRailShortcut) {
+        vm.inWindow(windowState) {
+            switch shortcut {
+            case .place(let place): vm.showSpace(place, in: windowState)
+            case .courses: vm.openCoursesListInReader(in: windowState)
+            }
+        }
+    }
+
+    private func otherWindowDestination(for shortcut: StudioRailShortcut) -> StudioWindowDestination? {
+        switch shortcut {
+        case .place(.pages): return .docs
+        case .place(.sites): return .sites
+        case .place: return nil
+        case .courses: return .courses
         }
     }
 
@@ -2144,6 +2327,57 @@ struct NavigationRailToggle: View {
     }
 }
 
+/// ‹ › beside the traffic lights, Codex's (product owner, 2026-10-12: "can do
+/// front and back arrow"): back to the place this window showed before, and
+/// forward again (`StudioWindowState.placeHistory`). Greyed where there is
+/// nowhere to go. It also settles each place the window comes to rest on,
+/// here rather than in `StudioView`, so only this small view redraws as the
+/// window moves.
+struct WindowPlaceArrows: View {
+    @Environment(StudioWindowState.self) private var windowState
+    /// Reopens what `place` showed that the window state does not hold: its
+    /// chat and its source.
+    let reopen: (StudioWindowPlace) -> Void
+    @State private var settle: Task<Void, Never>?
+
+    var body: some View {
+        HStack(spacing: StudioTopBar.leadingControlsSpacing) {
+            arrow("arrow.left", label: "Back", identifier: "studio.window.back", enabled: windowState.canGoBackInPlaces) {
+                if let place = windowState.goBackInPlaces() { reopen(place) }
+            }
+            arrow("arrow.right", label: "Forward", identifier: "studio.window.forward", enabled: windowState.canGoForwardInPlaces) {
+                if let place = windowState.goForwardInPlaces() { reopen(place) }
+            }
+        }
+        // A move changes the window in several steps — the pane, then the
+        // chat or the source it shows — so a place is settled once the
+        // window has stopped changing, as one step back.
+        .onChange(of: windowState.currentPlace.identity, initial: true) { _, _ in
+            settle?.cancel()
+            settle = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(450))
+                guard !Task.isCancelled else { return }
+                windowState.notePlaceSettled()
+            }
+        }
+    }
+
+    private func arrow(
+        _ systemImage: String,
+        label: String,
+        identifier: String,
+        enabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        StudioChromeIconButton(systemImage: systemImage, label: label) {
+            withAnimation(.easeInOut(duration: 0.18)) { action() }
+        }
+        .disabled(!enabled)
+        .opacity(enabled ? 1 : 0.35)
+        .accessibilityIdentifier(identifier)
+    }
+}
+
 // MARK: - Rows
 
 /// One of the rail's top rows: an icon and a title, in one colour, as
@@ -2168,6 +2402,10 @@ private struct RailButtonRow: View {
     /// Drawn in a notebook window's icon strip (`StudioNavigationRail`'s
     /// compact rail): the glyph alone, its title as the help, the same menu.
     var isCompact = false
+    /// Non-nil for a shortcut the learner kept on the strip
+    /// (`StudioRailShortcuts`): its menu then offers Remove from Sidebar and
+    /// the Show in Sidebar submenu.
+    var removeFromRail: (() -> Void)? = nil
     let action: () -> Void
     @Environment(StudioWindowState.self) private var windowState
     @Environment(\.openWindow) private var openWindow
@@ -2261,17 +2499,71 @@ private struct RailButtonRow: View {
                 .accessibilityIdentifier("studio.navigation.hide.\(railItem.rawValue)")
                 RailItemVisibilityMenu()
             }
+            if let removeFromRail {
+                if otherWindowDestination != nil {
+                    Divider()
+                }
+                Button(action: removeFromRail) {
+                    Label("Remove from Sidebar", systemImage: "pin.slash")
+                }
+                RailItemVisibilityMenu()
+            }
     }
 }
 
-/// Show in Sidebar: one checkmark per hideable rail row. It sits on every
-/// hideable row's menu and on the Notebooks header's, so a row that has been
-/// hidden is always one right-click away from coming back.
+/// The strip's ⋯, Codex's: every place not kept on the strip, opened with a
+/// click, and Show in Sidebar, which keeps one there or hides a row. Drawn
+/// whatever the learner hid, so the way back to a hidden row is always here.
+private struct RailMoreButton: View {
+    /// The places to list: the shortcuts the strip does not draw.
+    let places: [StudioRailShortcut]
+    let open: (StudioRailShortcut) -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        // A single Image label in a `.button` Menu, sized from outside: a
+        // macOS Menu drops any chrome inside its label.
+        Menu {
+            ForEach(places) { place in
+                Button { open(place) } label: {
+                    Label(place.title, systemImage: place.systemImage)
+                }
+            }
+            if !places.isEmpty {
+                Divider()
+            }
+            RailItemVisibilityMenu()
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(Color.secondary)
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .frame(width: 36, height: 30)
+        .background(StudioSelectionBackground(isSelected: false, isHovered: hovering))
+        .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .railTooltip("More")
+        .accessibilityLabel("More")
+        .accessibilityIdentifier("studio.navigation.more")
+        .onHover { hovering = $0 }
+    }
+}
+
+/// Show in Sidebar: one checkmark per hideable rail row, then one per place
+/// the strip can keep as a shortcut (`StudioRailShortcuts`). It sits on every
+/// hideable row's menu, every shortcut's, the ⋯'s and the Notebooks header's,
+/// so a row that has been hidden is always one right-click away from coming
+/// back.
 private struct RailItemVisibilityMenu: View {
+    @Environment(StudioViewModel.self) private var vm
     @SyncedStorage(wrappedValue: "", StudioRailHiddenItems.storageKey) private var hiddenRailItemsStorage: String
+    @SyncedStorage(wrappedValue: "", StudioRailShortcuts.storageKey) private var railShortcutsStorage: String
 
     var body: some View {
         let hidden = StudioRailHiddenItems(storage: hiddenRailItemsStorage)
+        let shortcuts = StudioRailShortcuts(storage: railShortcutsStorage)
         Menu {
             ForEach(StudioRailItem.allCases) { item in
                 Toggle(isOn: Binding(
@@ -2283,6 +2575,19 @@ private struct RailItemVisibilityMenu: View {
                     }
                 )) {
                     Label(item.title, systemImage: item.systemImage)
+                }
+            }
+            Divider()
+            ForEach(StudioRailShortcut.offered(listsCanvases: vm.listsCanvases)) { shortcut in
+                Toggle(isOn: Binding(
+                    get: { shortcuts.contains(shortcut) },
+                    set: { shown in
+                        railShortcutsStorage = StudioRailShortcuts(storage: railShortcutsStorage)
+                            .setting(shortcut, shown: shown)
+                            .storage
+                    }
+                )) {
+                    Label(shortcut.title, systemImage: shortcut.systemImage)
                 }
             }
         } label: {

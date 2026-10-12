@@ -1022,6 +1022,7 @@ The Setting record keys (§3.5.3): one record per key, account scope in Library 
 | `reader.youtubeVideoPaneWidthFraction` | double | account | `set_app_setting` reader.youtube_video_pane_width_fraction | The video's share of the pane's width beside its transcript, 0 meaning automatic. 0 to 1. |
 | `reader.meetingVideoPaneFraction` | double | account | `set_app_setting` reader.meeting_video_pane_fraction | A meeting recording's share of the pane, 0 meaning automatic. 0 to 1. |
 | `studio.navigation.hiddenItems.v1` | string | account | `set_app_setting` window.rail_hidden_items | The navigation rail's hidden rows (StudioRailHiddenItems). |
+| `studio.navigation.shortcuts.v1` | string | account | `set_app_setting` window.rail_shortcuts | The places kept on the icon strip, in order (StudioRailShortcuts). |
 | `studio.navigation.chatsExpanded.v1` | bool | account | `set_app_setting` window.rail_chats_expanded | Whether the rail's Chats fold is open. |
 | `studio.navigation.hiddenChatsExpanded.v1` | bool | account | `set_app_setting` window.rail_hidden_chats_expanded | Whether the rail's Hidden chats fold is open. |
 | `youtube.autoImportEnabled` | bool | account | `set_connector_auto_import` enabled | Whether the YouTube plugin imports on its own. |

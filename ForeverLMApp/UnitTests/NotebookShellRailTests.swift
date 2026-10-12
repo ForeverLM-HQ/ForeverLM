@@ -104,6 +104,65 @@ struct HomeSidebarTests {
         StudioCenterTabGroups(groups: [.init(tabs: [.artifacts, .courses, .notepad, .sites, .chat, .reader, .goals, .library, .memory], activeTab: active)])
     }
 
+    @Test("‹ goes back to the place the window showed before and › forward again; a fold is no step")
+    func placeHistoryBackAndForward() {
+        let restore = capturingWindowDefaults()
+        defer { restore() }
+        let window = StudioWindowState()
+        window.centerTabGroups = layout(.artifacts)
+        window.spaceDestinationKey = SpaceDestination.pages.key
+        window.notePlaceSettled()
+        #expect(!window.canGoBackInPlaces, "the first place settled has nothing behind it")
+
+        window.spaceDestinationKey = SpaceDestination.sites.key
+        window.notePlaceSettled()
+        window.centerTabGroups = layout(.library)
+        window.notePlaceSettled()
+        // Settling again where nothing moved adds no step.
+        window.notePlaceSettled()
+        #expect(window.placeHistory.back.count == 2)
+
+        #expect(window.goBackInPlaces() != nil)
+        #expect(window.centerTabGroups.groups.map(\.activeTab) == [.artifacts])
+        #expect(window.spaceDestinationKey == SpaceDestination.sites.key)
+        #expect(window.goBackInPlaces() != nil)
+        #expect(window.spaceDestinationKey == SpaceDestination.pages.key)
+        #expect(!window.canGoBackInPlaces)
+        #expect(window.canGoForwardInPlaces)
+
+        #expect(window.goForwardInPlaces() != nil)
+        #expect(window.spaceDestinationKey == SpaceDestination.sites.key)
+        // Going somewhere new drops what was ahead.
+        window.spaceDestinationKey = SpaceDestination.images.key
+        window.notePlaceSettled()
+        #expect(!window.canGoForwardInPlaces)
+
+        // The Space's place behind another pane is no move: only what is in
+        // front counts.
+        window.centerTabGroups = layout(.chat)
+        window.notePlaceSettled()
+        let steps = window.placeHistory.back.count
+        window.spaceDestinationKey = SpaceDestination.drive.key
+        window.notePlaceSettled()
+        #expect(window.placeHistory.back.count == steps)
+    }
+
+    @Test("‹ › stand still while a memory review has the window")
+    func placeHistoryWaitsOutAReview() {
+        let restore = capturingWindowDefaults()
+        defer { restore() }
+        let window = StudioWindowState()
+        window.centerTabGroups = layout(.artifacts)
+        window.notePlaceSettled()
+        window.centerTabGroups = layout(.library)
+        window.notePlaceSettled()
+        #expect(window.canGoBackInPlaces)
+        window.memoryReviewFocus = .chat("memory-review")
+        #expect(!window.canGoBackInPlaces)
+        #expect(window.goBackInPlaces() == nil)
+        #expect(window.centerTabGroups.groups.map(\.activeTab) == [.library])
+    }
+
     @Test("The rail is Spaces, Memory and Library, and New chat and the Browser are Home's sidebar")
     func railRowsAndSidebarRows() {
         let nothingHidden = StudioRailHiddenItems()

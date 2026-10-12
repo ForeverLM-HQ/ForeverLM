@@ -127,6 +127,29 @@ extension MCPDataStore {
         return StudioRailHiddenItems(items).storage
     }
 
+    /// The strip's shortcuts as a JSON array of place ids, in their order.
+    static func railShortcutsJSON(_ storage: String) -> String {
+        let ids = StudioRailShortcuts(storage: storage).items.map(\.key)
+        guard let data = try? JSONSerialization.data(withJSONObject: ids), let text = String(data: data, encoding: .utf8) else { return "[]" }
+        return text
+    }
+
+    /// A JSON array of place ids in the comma-separated form the strip reads.
+    static func railShortcutsStorage(fromJSON text: String) throws -> String {
+        let known = StudioRailShortcut.offered(listsCanvases: true).map(\.key).joined(separator: ", ")
+        guard let ids = (try? JSONSerialization.jsonObject(with: Data(text.utf8))) as? [String] else {
+            throw MCPError.invalidInput("window.rail_shortcuts takes a JSON array of place ids as text: \(known).")
+        }
+        var shortcuts: [StudioRailShortcut] = []
+        for id in ids {
+            guard let shortcut = StudioRailShortcut(key: id.trimmingCharacters(in: .whitespaces)) else {
+                throw MCPError.invalidInput("window.rail_shortcuts has no place ‘\(id)’; the places are \(known).")
+            }
+            shortcuts.append(shortcut)
+        }
+        return StudioRailShortcuts(shortcuts).storage
+    }
+
     @MainActor
     static func viewSettingEntries() -> [AppSettingEntry] {
         sourceListSettingEntries()
@@ -275,6 +298,16 @@ extension MCPDataStore {
                 write: { value in
                     let text = try AppSettingEntry.string(value, "window.rail_hidden_items")
                     PreferenceStore.set(try Self.railHiddenItemsStorage(fromJSON: text), forKey: StudioRailHiddenItems.storageKey)
+                }
+            ),
+            AppSettingEntry(
+                id: "window.rail_shortcuts", pane: "Navigation rail (no pane)", title: "Icon strip shortcuts",
+                detail: "The places kept on the icon strip under its line, in order, as a JSON array of place ids (\(StudioRailShortcut.offered(listsCanvases: true).map(\.key).joined(separator: ", "))). [] keeps none.",
+                reach: .account, kind: .text, preferenceKeys: [StudioRailShortcuts.storageKey],
+                read: { Self.railShortcutsJSON(UserDefaults.standard.string(forKey: StudioRailShortcuts.storageKey) ?? "") },
+                write: { value in
+                    let text = try AppSettingEntry.string(value, "window.rail_shortcuts")
+                    PreferenceStore.set(try Self.railShortcutsStorage(fromJSON: text), forKey: StudioRailShortcuts.storageKey)
                 }
             ),
             preferenceEntry(

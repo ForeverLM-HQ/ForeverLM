@@ -60,7 +60,8 @@ struct ArtifactsHomePane: View {
                     onOpenRecent: openRecent,
                     onNewPage: newPage,
                     onLink: { linkSection = $0 },
-                    onNewSpace: { isCreatingSpace = true }
+                    onNewSpace: { isCreatingSpace = true },
+                    onSearch: search
                 )
                 .frame(width: SpaceSidebarMetrics.width)
                 .transition(.move(edge: .leading).combined(with: .opacity))
@@ -91,14 +92,14 @@ struct ArtifactsHomePane: View {
             }
         }
         .background(Color(nsColor: .windowBackgroundColor))
-        // The sidebar's own line over the sidebar, on the chrome line. Over
-        // the list it holds nothing: the Space | Goals tabs there went on
-        // 2026-10-10 (`SpaceTab`).
+        // Over the sidebar the chrome line holds nothing but the window's
+        // own controls: the sidebar's top line is its first row
+        // (`SpaceSidebar.onSearch`). Over the list it holds nothing either:
+        // the Space | Goals tabs there went on 2026-10-10 (`SpaceTab`).
         .studioChromeLineHeader {
             HStack(spacing: 0) {
                 if showsSidebar {
-                    SpaceSidebarHeader(onSearch: search)
-                        .frame(width: max(0, SpaceSidebarMetrics.width - headerLeadingInset))
+                    SpaceSidebarChromeSpace()
                     // The sidebar's divider, on the chrome line, as Codex
                     // draws the one between its sidebar and the thread.
                     StudioChromeLineDivider()

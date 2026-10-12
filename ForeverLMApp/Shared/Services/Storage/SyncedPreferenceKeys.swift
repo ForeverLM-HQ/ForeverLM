@@ -194,6 +194,9 @@ enum SyncedPreferenceKeys {
         // already sync, so these did the opposite of their neighbours until
         // 2026-09-14.
         StudioRailHiddenItems.storageKey,
+        // The places kept on the icon strip (2026-10-12): the same act as
+        // hiding a row there.
+        StudioRailShortcuts.storageKey,
         "studio.navigation.chatsExpanded.v1",
         "studio.navigation.hiddenChatsExpanded.v1",
         "studio.navigation.expandedProjectIDs.v1",

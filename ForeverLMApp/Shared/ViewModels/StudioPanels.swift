@@ -842,6 +842,79 @@ final class StudioWindowState: Identifiable {
     @ObservationIgnored var workspaceRestoreOverridesSceneSnapshot = false
     private static let readerHistoryLimit = 50
 
+    /// The places behind and ahead of the one this window shows, for the ‹ ›
+    /// beside the traffic lights. Not part of `Snapshot`: a relaunch starts
+    /// every window with none, as the Reader's history does.
+    private(set) var placeHistory = StudioWindowPlaceHistory()
+    /// The place the window last settled on: where the next move leaves
+    /// from. Nil until it first settles.
+    @ObservationIgnored private var settledPlace: StudioWindowPlace?
+
+    /// What the window shows now, across its panes.
+    var currentPlace: StudioWindowPlace {
+        StudioWindowPlace(
+            centerTabGroups: centerTabGroups,
+            notebook: notebook,
+            spaceDestinationKey: spaceDestinationKey,
+            coursePageID: coursePageID,
+            readerArticleID: readerArticleID,
+            chatSessionID: chatSessionID,
+            openArtifactID: openArtifactID
+        )
+    }
+
+    /// Whether ‹ › can move: never while a memory review has the window,
+    /// which hands the window back as it found it.
+    var canGoBackInPlaces: Bool { memoryReviewFocus == nil && placeHistory.canGoBack }
+    var canGoForwardInPlaces: Bool { memoryReviewFocus == nil && placeHistory.canGoForward }
+
+    /// The window has come to rest on what it shows (`StudioView` calls this
+    /// once a move has stopped changing it): a place that differs from the
+    /// one it settled on before is a step the learner can go back from.
+    func notePlaceSettled() {
+        guard memoryReviewFocus == nil else { return }
+        let now = currentPlace
+        defer { self.settledPlace = now }
+        guard let previous = settledPlace, previous.identity != now.identity else { return }
+        placeHistory.record(leaving: previous)
+    }
+
+    /// ‹: the place before this one, its panes, notebook and places put back
+    /// here. The chat and the source it showed are the caller's to reopen,
+    /// through the window's session store and `selectArticle`.
+    func goBackInPlaces() -> StudioWindowPlace? {
+        guard memoryReviewFocus == nil else { return nil }
+        notePlaceSettled()
+        guard let place = placeHistory.goBack(from: currentPlace) else { return nil }
+        restorePlace(place)
+        return place
+    }
+
+    /// ›: the place ‹ left.
+    func goForwardInPlaces() -> StudioWindowPlace? {
+        guard memoryReviewFocus == nil else { return nil }
+        notePlaceSettled()
+        guard let place = placeHistory.goForward(from: currentPlace) else { return nil }
+        restorePlace(place)
+        return place
+    }
+
+    /// Puts back what the window state itself holds of `place`, and settles
+    /// on it, so the chat and the source arriving after are no new step.
+    private func restorePlace(_ place: StudioWindowPlace) {
+        if notebook != place.notebook { notebook = place.notebook }
+        if spaceDestinationKey != place.spaceDestinationKey { spaceDestinationKey = place.spaceDestinationKey }
+        if coursePageID != place.coursePageID { coursePageID = place.coursePageID }
+        if centerTabGroups != place.centerTabGroups { centerTabGroups = place.centerTabGroups }
+        if let artifactID = place.openArtifactID, openArtifactID != artifactID {
+            // Both, as a resume does: the request switches a canvas already
+            // on screen, the remembered doc is what one built later opens on.
+            pendingArtifactID = artifactID
+            openArtifactID = artifactID
+        }
+        settledPlace = place
+    }
+
     init(id: UUID = UUID(), snapshot: Snapshot? = nil) {
         self.id = id
 
@@ -1058,6 +1131,94 @@ struct StudioWindowPlacement: Codable, Equatable {
 /// the Full Disk Access relaunch — so the learner returns to the exact view
 /// they were in. An ordinary quit still opens the layout with fresh panes,
 /// which is why none of this lives in `StudioWindowState.Snapshot`.
+/// One place a window showed, for the ‹ › beside the traffic lights (product
+/// owner, 2026-10-12, showing Codex's top left: "can do front and back
+/// arrow"): the panes and what each shows in front, the notebook and how it
+/// is laid out, and the Space's place, the course, the source, the chat and
+/// the page on screen. Going back puts all of it back as it was.
+struct StudioWindowPlace: Equatable {
+    var centerTabGroups: StudioCenterTabGroups
+    var notebook: NotebookWorkspace?
+    var spaceDestinationKey: String
+    var coursePageID: String?
+    var readerArticleID: String?
+    var chatSessionID: String?
+    var openArtifactID: String?
+
+    /// What makes two places two to the learner: which panes are in front
+    /// and what they show. A fold, a pin or what waits behind another pane
+    /// is not a move, so it never becomes a step back.
+    struct Identity: Equatable {
+        var activeTabs: [StudioCenterTab]
+        var notebookID: String?
+        var notebookDocument: NotebookDocument?
+        var notebookLeadingDocument: NotebookDocument?
+        var notebookShowsChat = false
+        var spaceDestinationKey: String?
+        var coursePageID: String?
+        var readerArticleID: String?
+        var chatSessionID: String?
+        var openArtifactID: String?
+    }
+
+    var identity: Identity {
+        let activeTabs = notebook == nil ? centerTabGroups.groups.map(\.activeTab) : []
+        let documents = [notebook?.document, notebook?.leadingDocument].compactMap { $0 }
+        let shows: (StudioCenterTab) -> Bool = { activeTabs.contains($0) }
+        return Identity(
+            activeTabs: activeTabs,
+            notebookID: notebook?.notebookID,
+            notebookDocument: notebook?.document,
+            notebookLeadingDocument: notebook?.leadingDocument,
+            notebookShowsChat: notebook?.showsChat ?? false,
+            spaceDestinationKey: shows(.artifacts) ? spaceDestinationKey : nil,
+            coursePageID: shows(.courses) ? coursePageID : nil,
+            readerArticleID: shows(.reader) || documents.contains(.reader) ? readerArticleID : nil,
+            chatSessionID: shows(.chat) || notebook?.showsChat == true ? chatSessionID : nil,
+            openArtifactID: shows(.notepad) || documents.contains(.docs) ? openArtifactID : nil
+        )
+    }
+}
+
+/// A window's places behind and ahead of the one it shows, as a browser keeps
+/// its pages: going somewhere new drops what was ahead.
+struct StudioWindowPlaceHistory: Equatable {
+    private(set) var back: [StudioWindowPlace] = []
+    private(set) var forward: [StudioWindowPlace] = []
+    static let limit = 50
+
+    var canGoBack: Bool { !back.isEmpty }
+    var canGoForward: Bool { !forward.isEmpty }
+
+    /// The window moved on from `previous` to a place of its own choosing.
+    mutating func record(leaving previous: StudioWindowPlace) {
+        back.append(previous)
+        if back.count > Self.limit { back.removeFirst(back.count - Self.limit) }
+        forward.removeAll()
+    }
+
+    /// The place before `current`, skipping any that look the same to the
+    /// learner; `current` waits ahead.
+    mutating func goBack(from current: StudioWindowPlace) -> StudioWindowPlace? {
+        while let place = back.popLast() {
+            guard place.identity != current.identity else { continue }
+            forward.append(current)
+            return place
+        }
+        return nil
+    }
+
+    /// The place `goBack` left, `current` going behind again.
+    mutating func goForward(from current: StudioWindowPlace) -> StudioWindowPlace? {
+        while let place = forward.popLast() {
+            guard place.identity != current.identity else { continue }
+            back.append(current)
+            return place
+        }
+        return nil
+    }
+}
+
 struct StudioWindowContent: Codable, Equatable {
     var readerSourceID: String?
     var chatSessionID: String?

@@ -412,8 +412,26 @@ struct StudioView: View {
         // lights altogether; without it (a notebook, the Space, the Library)
         // the lights reach into the pane beside the strip.
         if windowState.drawsNavigationRail, windowState.showsHomeSidebar { return 0 }
-        guard hasTitlebarBand else { return 0 }
-        return max(0, StudioTopBar.headerLeadingClearance - StudioNavigationRail.compactRailWidth)
+        // In full screen the controls sit in flow at the left edge, and ‹ ›
+        // with the toggle reach past the strip too.
+        let clearance = hasTitlebarBand ? StudioTopBar.headerLeadingClearance : StudioTopBar.fullscreenHeaderLeadingClearance
+        return max(0, clearance - StudioNavigationRail.compactRailWidth)
+    }
+
+    /// What ‹ › puts back that the window state does not hold
+    /// (`StudioWindowState.goBackInPlaces`): the chat, asked of this window's
+    /// session store as the rail asks, and the source, through
+    /// `selectArticle` without revealing the Reader — the panes put back
+    /// already say what is in front.
+    private func reopenPlaceContent(_ place: StudioWindowPlace) {
+        let shown = place.identity
+        if let sessionID = shown.chatSessionID, sessionID != windowState.chatSessionID {
+            studioAssistantSessions.requestOpen(sessionID: sessionID)
+        }
+        if let sourceID = shown.readerArticleID, sourceID != windowState.readerArticleID,
+           vm.articlesById[sourceID] != nil {
+            Task { await vm.selectArticle(sourceID, in: windowState) }
+        }
     }
 
     private var dockedChatPanel: some View {
@@ -524,8 +542,8 @@ struct StudioView: View {
         let band = titlebarBand ?? StudioPanelChrome.headerHeight
         let lift = titlebarBand == nil ? 0 : topSafeAreaInset
         let toggleLeading = titlebarBand == nil
-            ? StudioTopBar.fullscreenRailToggleLeading
-            : StudioTopBar.railToggleLeading
+            ? StudioTopBar.fullscreenLeadingControlsLeading
+            : StudioTopBar.leadingControlsLeading
         return VStack(spacing: 0) {
             content
                 // "Plan your day?", for a window without its rail, waits in
@@ -539,18 +557,23 @@ struct StudioView: View {
                 .animation(.spring(response: 0.32, dampingFraction: 0.86), value: vm.cardsToCheckIsPutOff)
             StudioAudiobookPlayerHost()
         }
-            // Chrome toggles pinned to the top-left, on the macOS traffic lights'
-            // row (the window hides its title bar, so the content is inset below
-            // the titlebar band — the negative offset lifts them up into it, right
-            // of the lights). The sidebar toggle folds and brings back the
-            // sidebar beside the icon strip, Home's and the Space's, never the
-            // strip; it stays visible in every state so the sidebar can always
-            // be recalled.
+            // The window's own controls, pinned to the top-left on the macOS
+            // traffic lights' row as Codex draws them (the window hides its
+            // title bar, so the content is inset below the titlebar band — the
+            // negative offset lifts them up into it, right of the lights):
+            // ‹ › through the places this window showed, and the sidebar
+            // toggle, which folds and brings back the sidebar beside the icon
+            // strip, Home's and the Space's, never the strip. Nothing else
+            // stands on that corner in any state (product owner, 2026-10-12:
+            // "make sure the top left looks clean at all times").
             .overlay(alignment: .topLeading) {
-                NavigationRailToggle(isVisible: navigationRailVisibilityBinding)
-                    .frame(height: band)
-                    .padding(.leading, toggleLeading)
-                    .offset(y: -lift)
+                HStack(spacing: StudioTopBar.leadingControlsSpacing) {
+                    WindowPlaceArrows(reopen: reopenPlaceContent)
+                    NavigationRailToggle(isVisible: navigationRailVisibilityBinding)
+                }
+                .frame(height: band)
+                .padding(.leading, toggleLeading)
+                .offset(y: -lift)
             }
             .overlay {
                 if showGettingStarted {

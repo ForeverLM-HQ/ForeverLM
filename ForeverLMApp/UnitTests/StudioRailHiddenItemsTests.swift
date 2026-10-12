@@ -213,3 +213,48 @@ struct BetaFeaturesCanvasGateTests {
         #expect(!canvasTools.contains("get_source_levels"), "Reader Levels is not the Canvas's")
     }
 }
+
+@Suite("Icon strip shortcuts")
+struct StudioRailShortcutsTests {
+    @Test("None until the learner keeps one; kept ones come back in the order kept")
+    func keptInOrder() {
+        #expect(StudioRailShortcuts(storage: "").items.isEmpty)
+        let kept = StudioRailShortcuts()
+            .setting(.place(.pages), shown: true)
+            .setting(.courses, shown: true)
+            .setting(.place(.canvases), shown: true)
+        #expect(kept.storage == "pages,courses,canvases")
+        #expect(StudioRailShortcuts(storage: kept.storage) == kept)
+        let removed = kept.setting(.courses, shown: false)
+        #expect(removed.items == [.place(.pages), .place(.canvases)])
+        // Kept again, it goes to the end, never twice.
+        #expect(removed.setting(.place(.pages), shown: true).items == [.place(.canvases), .place(.pages)])
+    }
+
+    @Test("A key that names no shortcut — All, Trash, a team's place, a retired one — is dropped, and repeats too")
+    func unknownKeysFallOut() {
+        let stored = StudioRailShortcuts(storage: "all,trash,team:t-1,space:psp-1,ideas,pages,pages, sites")
+        #expect(stored.items == [.place(.pages), .place(.sites)])
+        #expect(stored.storage == "pages,sites")
+    }
+
+    @Test("The places offered follow the Space sidebar: Notebooks, Chats, Courses, then the rest; Canvases only where listed")
+    func offeredPlaces() {
+        #expect(StudioRailShortcut.offered(listsCanvases: true).map(\.key)
+            == ["notebooks", "chats", "courses", "pages", "sites", "canvases", "images", "drive"])
+        #expect(!StudioRailShortcut.offered(listsCanvases: false).contains(.place(.canvases)))
+        let kept = StudioRailShortcuts([.place(.canvases), .place(.images)])
+        #expect(kept.shown(listsCanvases: false) == [.place(.images)], "a kept Canvases waits where canvases are not listed")
+        #expect(kept.shown(listsCanvases: true) == [.place(.canvases), .place(.images)])
+    }
+
+    @Test("Over MCP the shortcuts are a JSON array of place ids, refused when one is unknown")
+    @MainActor
+    func mcpRoundTrip() throws {
+        let storage = try MCPDataStore.railShortcutsStorage(fromJSON: #"["courses","pages"]"#)
+        #expect(storage == "courses,pages")
+        #expect(MCPDataStore.railShortcutsJSON(storage) == #"["courses","pages"]"#)
+        #expect(throws: (any Error).self) { try MCPDataStore.railShortcutsStorage(fromJSON: #"["trash"]"#) }
+        #expect(throws: (any Error).self) { try MCPDataStore.railShortcutsStorage(fromJSON: "pages") }
+    }
+}

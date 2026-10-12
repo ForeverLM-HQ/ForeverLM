@@ -232,6 +232,9 @@ enum SpaceDestination: Hashable, Sendable {
 /// pane so the two read as one surface when a page opens from a list.
 enum SpaceSidebarMetrics {
     static let width: CGFloat = 244
+    /// The sidebar's top line — the Space's name, the bell, the search — as
+    /// its first row.
+    static let headerHeight: CGFloat = 44
     static let rowHeight: CGFloat = 28
     static let rowCornerRadius: CGFloat = 8
     /// How many Recents the sidebar shows.
@@ -245,14 +248,15 @@ enum SpaceSidebarMetrics {
     static let hoverFill = Color.primary.opacity(0.045)
 }
 
-/// The sidebar's top line, on the window's chrome line above the sidebar
-/// column: the Space's name, the bell and the search, as ChatGPT draws them.
-/// It has no hide control: the window's one sidebar toggle, by the traffic
+/// The sidebar's top line, its first row: the Space's name, the bell and the
+/// search, as ChatGPT draws them. It sits under the window's chrome, not on
+/// it, as Codex's sidebar title does, so the band over the sidebar holds only
+/// the traffic lights, ‹ › and the sidebar toggle in every state (product
+/// owner, 2026-10-12: "make sure the top left looks clean at all times"). It
+/// has no hide control: the window's one sidebar toggle, by the traffic
 /// lights, folds this sidebar with the rail.
 struct SpaceSidebarHeader: View {
     @Environment(StudioViewModel.self) private var vm
-    @Environment(\.studioTitlebarBandHeight) private var titlebarBandHeight
-    @Environment(\.studioCenterPaneHeaderLeadingInset) private var headerLeadingInset
     let onSearch: () -> Void
 
     var body: some View {
@@ -267,25 +271,36 @@ struct SpaceSidebarHeader: View {
             SpaceHeaderIconButton(systemImage: "magnifyingglass", help: "Search the Space", action: onSearch)
                 .accessibilityIdentifier("space.sidebar.search")
         }
-        .padding(.leading, 14)
-        .padding(.trailing, 8)
+        // In line with the rows' glyphs: the list's 8 and a row's own 8.
+        .padding(.leading, 16)
+        .padding(.trailing, 12)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .contentShape(Rectangle())
-        // On the chrome line a press would otherwise start a window drag
-        // instead of reaching the buttons (see `WindowDragBlocker`).
-        .background(WindowDragBlocker())
-        // With no band (full screen) the line is in flow at the top of the
-        // card, and stands on the sidebar's tone, back under the leading
-        // inset too, so the sidebar is one column from the card's top edge,
-        // as Codex's is; it was white over a grey sidebar (product owner,
-        // 2026-10-12: "this top left still looks a bit bad with colors").
-        // In the band the line stands on the band's chrome (`StudioBandRow`).
-        .background {
-            if titlebarBandHeight == nil {
-                SpaceSidebarMetrics.background
-                    .padding(.leading, -headerLeadingInset)
+    }
+}
+
+/// What the chrome line holds over the Space sidebar: nothing but the
+/// window's own controls, which the window draws over it — the traffic
+/// lights, ‹ › and the sidebar toggle. With no band (full screen) the line is
+/// in flow above the sidebar and takes its tone, back under the leading inset
+/// too, so the sidebar is one column from the card's top edge, as Codex's is
+/// (product owner, 2026-10-12: "this top left still looks a bit bad with
+/// colors").
+struct SpaceSidebarChromeSpace: View {
+    @Environment(\.studioTitlebarBandHeight) private var titlebarBandHeight
+    @Environment(\.studioCenterPaneHeaderLeadingInset) private var headerLeadingInset
+
+    var body: some View {
+        Color.clear
+            .frame(width: max(0, SpaceSidebarMetrics.width - headerLeadingInset))
+            .frame(maxHeight: .infinity)
+            .background {
+                if titlebarBandHeight == nil {
+                    SpaceSidebarMetrics.background
+                        .padding(.leading, -headerLeadingInset)
+                }
             }
-        }
+            .accessibilityHidden(true)
     }
 }
 
@@ -392,6 +407,12 @@ struct SpaceSidebar: View {
     let onNewPage: () -> Void
     let onLink: (ArtifactSection) -> Void
     let onNewSpace: () -> Void
+    /// The search glyph on the sidebar's top line (`SpaceSidebarHeader`):
+    /// with it the sidebar draws that line as its own first row, under the
+    /// window's chrome, as Codex's sidebar does (product owner, 2026-10-12:
+    /// "make sure the top left looks clean at all times"). Nil for a sidebar
+    /// drawn without its line.
+    var onSearch: (() -> Void)? = nil
     /// The space whose Rename… or Delete Space… is asking.
     @State private var renamingSpace: PageSpace?
     @State private var spaceNameDraft = ""
@@ -413,6 +434,10 @@ struct SpaceSidebar: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if let onSearch {
+                SpaceSidebarHeader(onSearch: onSearch)
+                    .frame(height: SpaceSidebarMetrics.headerHeight)
+            }
             ScrollView {
                 VStack(alignment: .leading, spacing: 1) {
                     newChatRow
@@ -1436,7 +1461,8 @@ struct SpaceFrame<Content: View>: View {
                     onOpenRecent: openRecent,
                     onNewPage: newPage,
                     onLink: { linkSection = $0 },
-                    onNewSpace: { isCreatingSpace = true }
+                    onNewSpace: { isCreatingSpace = true },
+                    onSearch: { showPlace(.all) }
                 )
                 .frame(width: SpaceSidebarMetrics.width)
                 .transition(.move(edge: .leading).combined(with: .opacity))
@@ -1458,8 +1484,8 @@ struct SpaceFrame<Content: View>: View {
         .studioChromeLineHeader {
             HStack(spacing: 0) {
                 if showsSidebar {
-                    SpaceSidebarHeader(onSearch: { showPlace(.all) })
-                        .frame(width: max(0, SpaceSidebarMetrics.width - headerLeadingInset))
+                    // The sidebar's top line is its first row.
+                    SpaceSidebarChromeSpace()
                     StudioChromeLineDivider()
                 }
                 Spacer(minLength: 0)

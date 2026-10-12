@@ -342,10 +342,10 @@ struct ArtifactCanvas: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .studioChromeLineHeader {
                 HStack(spacing: 0) {
-                    // The Space sidebar's own line, over the sidebar.
+                    // Over the sidebar, only the window's own controls: the
+                    // sidebar's top line is its first row.
                     if showsSpaceSidebar {
-                        SpaceSidebarHeader(onSearch: searchSpace)
-                            .frame(width: max(0, SpaceSidebarMetrics.width - headerLeadingInset))
+                        SpaceSidebarChromeSpace()
                         // The sidebar's divider, on the chrome line.
                         StudioChromeLineDivider()
                     }
@@ -561,7 +561,8 @@ struct ArtifactCanvas: View {
                     onOpenRecent: openSpaceRecent,
                     onNewPage: newSpacePage,
                     onLink: linkFromSpace,
-                    onNewSpace: { isCreatingSpace = true }
+                    onNewSpace: { isCreatingSpace = true },
+                    onSearch: searchSpace
                 )
                 .frame(width: SpaceSidebarMetrics.width)
                 .transition(.move(edge: .leading).combined(with: .opacity))

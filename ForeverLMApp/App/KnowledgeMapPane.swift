@@ -92,7 +92,8 @@ struct KnowledgeMapPane: View {
                     onOpenRecent: openSpaceRecent,
                     onNewPage: newSpacePage,
                     onLink: { linkSection = $0 },
-                    onNewSpace: { isCreatingSpace = true }
+                    onNewSpace: { isCreatingSpace = true },
+                    onSearch: { showSpacePlace(.all) }
                 )
                 .frame(width: SpaceSidebarMetrics.width)
                 .background(SpaceSidebarMetrics.background)
@@ -307,13 +308,13 @@ struct KnowledgeMapPane: View {
             .accessibilityIdentifier("knowledgeMap.pane")
     }
 
-    /// The chrome line: the Space sidebar's own line over the sidebar, then
-    /// the canvas's name as its menu, as a page's top line draws its name.
+    /// The chrome line: nothing over the sidebar but the window's own
+    /// controls (the sidebar's top line is its first row), then the canvas's
+    /// name as its menu, as a page's top line draws its name.
     private var header: some View {
         HStack(spacing: 0) {
             if showsSpaceSidebar {
-                SpaceSidebarHeader(onSearch: { showSpacePlace(.all) })
-                    .frame(width: max(0, SpaceSidebarMetrics.width - headerLeadingInset))
+                SpaceSidebarChromeSpace()
                 StudioChromeLineDivider()
             }
             canvasHistoryButtons
