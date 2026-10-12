@@ -36,7 +36,7 @@ public struct AITaskSettingsDescriptor: Codable, Equatable, Sendable {
 /// IDs are durable `AITask` raw values. The array order is presentation order,
 /// so clients should filter this list rather than sorting their own copies.
 public enum AITaskSettingsCatalog {
-    public static let version = 37
+    public static let version = 38
 
     public static let tasks: [AITaskSettingsDescriptor] = [
         task(
@@ -238,6 +238,13 @@ public enum AITaskSettingsCatalog {
             "book_chapter_splitting",
             "Book Chapter Splitting",
             "Choose real book chapter boundaries"
+        ),
+        task(
+            "scanned_page_proofreading",
+            "Scanned Page Proofreading",
+            "Correct the text read off a scanned book's pages against each page's picture — needs a vision model",
+            modelDefault: .backgroundMultimodal,
+            requiresVision: true
         ),
         task(
             "meeting_session_details",

@@ -11,6 +11,8 @@ ForeverLM treats books differently from articles and papers. A book is split int
 
 On the Library's **Books** tab, choose **Add Book…**, or drop the file on the tab: a PDF, an EPUB, or a DRM-free Kindle book. ForeverLM copies it into your library, which syncs it through your iCloud, and splits it into chapters. An EPUB keeps its own chapters; a PDF is split by your **Book Chapter Splitting** model (on the **Tasks** tab of **Settings → Background**), which reads the PDF's outline. If the model finds no chapters in a PDF, the import stops and says so. An assistant connected over MCP can send an EPUB with `import_epub`.
 
+A scanned PDF, whose pages are only pictures, is read first. On the Mac, OCR reads every page that carries no text of its own. Your **Scanned Page Proofreading** model, also on the **Tasks** tab, then checks each page's lines against a picture of the page and corrects what OCR misread, such as K⁺, β or 10⁻⁷. The corrected text is written into the book's PDF beneath the print, so chapters, search and highlights all work as they do in a book that came with text. The Books tab counts the pages as it reads and proofreads them. A long scan takes a few minutes, and its proofreading is billed like other background work. If proofreading fails, the import stops rather than keep text nobody checked.
+
 **Why one source per chapter:**
 - Your AI assistant gets more focused context when the source covers one topic
 - You can work through chapters as you read, rather than the whole book upfront

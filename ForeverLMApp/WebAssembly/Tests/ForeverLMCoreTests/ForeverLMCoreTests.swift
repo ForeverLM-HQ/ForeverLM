@@ -209,7 +209,7 @@ struct ForeverLMCoreTests {
             "paper_attachment_check", "paper_browser_agent",
             "article_metadata", "article_chrome_filtering", "book_author",
             "duplicate_detection", "topic_summarization",
-            "book_chapter_splitting", "meeting_session_details", "meeting_action_items", "lecture_note_matching",
+            "book_chapter_splitting", "scanned_page_proofreading", "meeting_session_details", "meeting_action_items", "lecture_note_matching",
             "course_ordering", "course_metadata", "course_lecture_naming",
             "cohort_session_plan", "cohort_session_close", "source_idea_extraction",
             "card_drafting", "card_variation", "card_go_deeper", "card_answer_check", "card_wording_check", "mnemonic_reading_writing", "notebook_naming", "map_summaries", "canvas_ask", "atlas_writing", "source_levels",
@@ -220,7 +220,7 @@ struct ForeverLMCoreTests {
         ]
         let tasks = AITaskSettingsCatalog.tasks
 
-        #expect(AITaskSettingsCatalog.version == 37)
+        #expect(AITaskSettingsCatalog.version == 38)
         #expect(AITaskSettingsCatalog.descriptor(forRawID: "video_quiz_grading") == nil)
         #expect(tasks.map(\.id) == expectedIDs)
         #expect(Set(tasks.map(\.id)).count == tasks.count)
@@ -231,9 +231,11 @@ struct ForeverLMCoreTests {
         ])
         #expect(Set(tasks.filter(\.requiresVision).map(\.id)) == [
             "slide_frame_classification", "slide_citation_extraction", "paper_figure_understanding",
+            "scanned_page_proofreading",
         ])
         #expect(Set(tasks.filter { $0.modelDefault == .backgroundMultimodal }.map(\.id)) == [
             "slide_frame_classification", "slide_citation_extraction", "paper_figure_understanding",
+            "scanned_page_proofreading",
         ])
         #expect(tasks.allSatisfy {
             ($0.modelDefault == .backgroundMultimodal) == $0.requiresVision

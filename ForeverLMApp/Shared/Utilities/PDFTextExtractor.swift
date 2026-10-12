@@ -636,7 +636,8 @@ enum PDFTextExtractor {
     private static func captionLines(on page: PDFPage) -> [CaptionLine]? { nil }
     #endif
 
-    private static func renderedImage(for page: PDFPage) -> CGImage? {
+    /// A page drawn at up to 2,400 pixels on its long side, as OCR reads it.
+    static func renderedImage(for page: PDFPage) -> CGImage? {
         guard let image = renderedPageImage(for: page, maxDimension: 2_400) else { return nil }
         var rect = CGRect(origin: .zero, size: image.size)
         return image.cgImage(forProposedRect: &rect, context: nil, hints: nil)
@@ -651,6 +652,24 @@ enum PDFTextExtractor {
     }
 
     private static func recognizedText(in image: CGImage) -> String? {
+        let request = textRecognitionRequest()
+        let handler = VNImageRequestHandler(cgImage: image, options: [:])
+        do {
+            try handler.perform([request])
+        } catch {
+            pdfTextLogger.error("OCR failed: \(error.localizedDescription)")
+            return nil
+        }
+
+        let lines = request.results?.compactMap { observation in
+            observation.topCandidates(1).first?.string.trimmingCharacters(in: .whitespacesAndNewlines)
+        }.filter { !$0.isEmpty } ?? []
+        return lines.joined(separator: "\n")
+    }
+
+    /// The one way ForeverLM reads a page's pixels: a paper's or a notebook
+    /// file's text here, and a scanned book's lines in `ScannedPDFTextLayer`.
+    static func textRecognitionRequest() -> VNRecognizeTextRequest {
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .accurate
         request.usesLanguageCorrection = true
@@ -669,19 +688,7 @@ enum PDFTextExtractor {
         // locale, which is the wrong signal anyway: this app's whole premise is
         // a reader whose own language differs from their sources'.
         request.automaticallyDetectsLanguage = true
-
-        let handler = VNImageRequestHandler(cgImage: image, options: [:])
-        do {
-            try handler.perform([request])
-        } catch {
-            pdfTextLogger.error("OCR failed: \(error.localizedDescription)")
-            return nil
-        }
-
-        let lines = request.results?.compactMap { observation in
-            observation.topCandidates(1).first?.string.trimmingCharacters(in: .whitespacesAndNewlines)
-        }.filter { !$0.isEmpty } ?? []
-        return lines.joined(separator: "\n")
+        return request
     }
     #endif
     #endif

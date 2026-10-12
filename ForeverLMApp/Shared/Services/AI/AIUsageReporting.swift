@@ -873,6 +873,7 @@ enum AIUsageTaskLabel {
         case "author_normalization": return "Normalize Author Names"
         case "book_author": return "Extract Book Metadata"
         case "book_chapter_splitting": return "Split Book Chapters"
+        case "scanned_page_proofreading": return "Proofread Scanned Pages"
         case "card_drafting": return "Draft Cards"
         case "card_variation": return "Reword Cards"
         case "chat": return "Answer in Chat"

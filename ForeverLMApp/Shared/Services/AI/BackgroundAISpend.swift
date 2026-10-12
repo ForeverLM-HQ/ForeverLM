@@ -97,6 +97,8 @@ extension AITask {
              .bookAuthor,
              .duplicateDetection,
              .bookChapterSplitting,
+             // Runs inside Add Book on a scanned book, as the chapter split does.
+             .scannedPageProofreading,
              .meetingSessionDetails,
              .meetingActionItems,
              .lectureNoteMatching,
@@ -183,7 +185,8 @@ extension AITask {
              .paperReferenceExtraction, .articleLinkDiscovery, .slideCitationExtraction:
             return .requested
         case .embedding, .sourceClassification, .paperMetadata, .articleMetadata,
-             .articleChromeFiltering, .bookAuthor, .bookChapterSplitting, .duplicateDetection,
+             .articleChromeFiltering, .bookAuthor, .bookChapterSplitting, .scannedPageProofreading,
+             .duplicateDetection,
              .paperAttachmentCheck, .paperBrowserAgent, .citationResolution, .meetingSessionDetails,
              .lectureNoteMatching, .courseOrdering, .courseMetadata, .courseLectureNaming,
              .slideFrameClassification, .chatTitle, .chatHistoryCompaction,

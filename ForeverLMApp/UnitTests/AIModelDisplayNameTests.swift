@@ -627,6 +627,7 @@ struct VisionModelResolutionTests {
             .slideFrameClassification,
             .slideCitationExtraction,
             .paperFigureUnderstanding,
+            .scannedPageProofreading,
         ]
         for task in AITask.allCases {
             #expect(task.requiresVision == expected.contains(task),

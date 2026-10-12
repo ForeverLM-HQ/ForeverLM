@@ -1062,6 +1062,7 @@ extension StudioViewModel {
     func importPDFChapters(from pdfPath: String, baseName: String, bookID: String, bookTitle: String, bookDir: String, chaptersDir: String) async throws {
         bookImportStatus = "Reading PDF…"
         await Task.yield()
+        try await addTextToScannedPages(pdfPath: pdfPath, bookID: bookID, bookTitle: bookTitle)
         let snapshot = try await Task.detached(priority: .userInitiated) {
             try Self.readPDFBookSnapshot(pdfPath: pdfPath, bookDir: bookDir)
         }.value
@@ -1139,6 +1140,46 @@ extension StudioViewModel {
         }
 
         logger.info("Created and inserted \(drafts.count) chapter PDFs in \(chaptersDir)")
+    }
+
+    /// A scanned book is pictures of pages: PDFKit finds no text in them, so
+    /// the chapter splitter was handed nothing and a chapter's text came out
+    /// empty. Pages with no text of their own are read by OCR, Scanned Page
+    /// Proofreading corrects what OCR read against each page's picture, and
+    /// the result is written into the library's copy of the PDF as the pages'
+    /// text — before the chapter split, which reads it, and for the reader's
+    /// search and highlights afterwards. A book whose pages all carry text
+    /// passes through untouched.
+    private func addTextToScannedPages(pdfPath: String, bookID: String, bookTitle: String) async throws {
+        let progress = BookImportProgress(self)
+        let pages = try await Task.detached(priority: .userInitiated) {
+            try ScannedPDFTextLayer.recognizeUnreadablePages(pdfPath: pdfPath) { read, total in
+                progress.update("Reading scanned page \(read)/\(total)…")
+            }
+        }.value
+        defer { pages.discardPictures() }
+        guard !pages.lines.isEmpty else { return }
+
+        guard let config = KeychainService.resolveConfig(for: .scannedPageProofreading) else {
+            let message = KeychainService.backgroundAIUnavailableMessage(for: .scannedPageProofreading)
+                ?? "Scanned page proofreading AI is not configured."
+            errorMessage = message
+            throw AIError.apiError(message)
+        }
+        bookImportStatus = "Proofreading scanned pages…"
+        let corrected = try await ScannedPageProofreading.proofread(
+            pages,
+            bookTitle: bookTitle,
+            source: AIUsageSource(id: bookID, type: "book", title: bookTitle),
+            aiService: aiService,
+            config: config
+        ) { proofread, total in
+            progress.update("Proofreading scanned page \(proofread)/\(total)…")
+        }
+        bookImportStatus = "Writing the book's text…"
+        try await Task.detached(priority: .userInitiated) {
+            try ScannedPDFTextLayer.writeTextLayer(corrected, intoPDFAt: URL(fileURLWithPath: pdfPath))
+        }.value
     }
 
     nonisolated private static func readPDFBookSnapshot(pdfPath: String, bookDir: String) throws -> PDFBookSnapshot {

@@ -56,6 +56,10 @@ enum AITask: String, CaseIterable, Codable, Identifiable, Sendable {
     // behavior is merging new chat insights into Notebook notes.
     case notebookNotesMerge = "topic_summarization"
     case bookChapterSplitting = "book_chapter_splitting"
+    /// Reads the lines OCR took off a scanned book's pages against each
+    /// page's picture and corrects them to what the page prints, before the
+    /// book is split into chapters (`ScannedPageProofreading`).
+    case scannedPageProofreading = "scanned_page_proofreading"
     case meetingSessionDetails = "meeting_session_details"
     case meetingActionItems = "meeting_action_items"
     case lectureNoteMatching = "lecture_note_matching"

@@ -567,7 +567,7 @@ extension AITask {
              // of them a Notebook should be offered.
              .journalArticleMatching:
             return .paper
-        case .bookAuthor, .bookChapterSplitting:
+        case .bookAuthor, .bookChapterSplitting, .scannedPageProofreading:
             return .book
         case .lectureNoteMatching, .lecturePaperDiscovery, .courseOrdering, .courseMetadata,
              .courseLectureNaming, .courseCurriculumPlan, .courseLessonWriting,
@@ -670,6 +670,7 @@ extension AITask {
         case .bookAuthor: return Prompts.bookAuthor
         case .duplicateDetection: return Prompts.duplicateDetection
         case .bookChapterSplitting: return Prompts.bookChapterSplitting
+        case .scannedPageProofreading: return Prompts.scannedPageProofreading
         case .meetingSessionDetails: return Prompts.meetingSessionDetails
         case .meetingActionItems: return Prompts.meetingActionItems
         case .lectureNoteMatching: return Prompts.lectureNoteMatching
