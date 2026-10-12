@@ -464,6 +464,18 @@ final class MobileBackgroundSaveAssertion {
 /// its menu speaks today's review by voice and, when today's review chat from
 /// before cards holds an answer, continues it. A card's source opens in the
 /// Reader, pushed over the review, which waits where it was.
+///
+/// Since 2026-10-11 it is drawn as the Mac's deck (docs/memory-design.md, "How
+/// a card looks"; `Shared/Views/MemoryCardDeck.swift`): over the card, the
+/// source it is from and its place in the round, with a strip a segment a
+/// card; the card an index card with the question set in the middle until the
+/// answer opens under a fold; under it the edges of the cards still to come.
+/// An answered card is tossed off toward its answer's side (Forgot to the
+/// left, Remembered to the right), or fades with Reduce Motion, and the next
+/// comes up off the deck. Show Answer, Remembered, Done and Practice are the
+/// Space's dark pill (light in dark mode), Forgot and the round's other
+/// buttons a pale one. It lays out by size classes: a card inset and answer
+/// bar sized for regular width, a shorter card at compact height.
 struct MobileCardReviewScreen: View {
     @StateObject private var session: MobileCardReviewSession
     @EnvironmentObject private var vm: MobileAudioReviewViewModel
@@ -472,7 +484,20 @@ struct MobileCardReviewScreen: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showsDayChat = false
+    /// The side the card in front leaves to once it is answered: set before
+    /// the answer, so the card goes the way its answer points.
+    @State private var exitEdge: HorizontalEdge = .trailing
+    /// The height of the row over a question (its kind, the wording menu),
+    /// which the question clears whatever the text size.
+    @State private var topRowHeight = MobileDesign.Metrics.minimumTouchTarget
+    /// The question and the answer in the Mac's sizes, scaled with the
+    /// reader's text size.
+    @ScaledMetric(relativeTo: .title2) private var frontSize = MemoryCardMetrics.frontSize
+    @ScaledMetric(relativeTo: .body) private var backSize = MemoryCardMetrics.backSize
     /// Where VoiceOver goes next: the back once it is shown, the next card's
     /// wording once an answer moves on.
     @AccessibilityFocusState private var spoken: SpokenPart?
@@ -484,7 +509,15 @@ struct MobileCardReviewScreen: View {
 
     /// The review's column on an iPad or a phone held sideways.
     private static let columnWidth: CGFloat = 600
+    /// The answer bar's width at regular width, the Mac's two pills' width.
+    private static let regularBarWidth: CGFloat = 420
+    /// A card's least height at compact height, where the question and the
+    /// answer bar share a short screen.
+    private static let compactHeightCardMinimum: CGFloat = 170
+    /// How far the row over a question sits inside the card's top.
+    private static let topRowInset: CGFloat = 6
     private static let topID = "memory.cards.top"
+    private static let dealAnimation = Animation.spring(response: 0.38, dampingFraction: 0.86)
 
     init(mode: MobileCardReviewSession.Mode, opensAsPractice: Bool = false) {
         _session = StateObject(wrappedValue: MobileCardReviewSession(mode: mode, opensAsPractice: opensAsPractice))
@@ -493,7 +526,7 @@ struct MobileCardReviewScreen: View {
     var body: some View {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
+            .background(Self.surface.ignoresSafeArea())
             .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbar }
@@ -526,6 +559,10 @@ struct MobileCardReviewScreen: View {
             .accessibilityIdentifier("memory.cards")
     }
 
+    /// What the deck lies on: grey under white paper in light mode, black
+    /// under raised grey in dark.
+    private static let surface = Color(uiColor: .systemGroupedBackground)
+
     @ViewBuilder
     private var content: some View {
         switch session.phase {
@@ -539,6 +576,25 @@ struct MobileCardReviewScreen: View {
                 reviewing(sitting)
             }
         }
+    }
+
+    // MARK: Size classes
+
+    /// The card's inner margin: the Mac's at regular width, a phone's at
+    /// compact.
+    private var cardInset: CGFloat {
+        horizontalSizeClass == .regular ? 34 : 24
+    }
+
+    /// A card is never shorter than this, so a short question sits in the
+    /// middle of a card; at compact height it gives way to the answer bar.
+    private var cardMinimumHeight: CGFloat {
+        verticalSizeClass == .compact ? Self.compactHeightCardMinimum : MemoryCardMetrics.cardMinimumHeight
+    }
+
+    /// The column's top margin: more of an iPad's room above the round.
+    private var columnTopPadding: CGFloat {
+        horizontalSizeClass == .regular && verticalSizeClass == .regular ? MobileDesign.Spacing.xxLarge : MobileDesign.Spacing.medium
     }
 
     // MARK: Title and menu
@@ -630,13 +686,13 @@ struct MobileCardReviewScreen: View {
     private func reviewing(_ sitting: MemoryCardSitting) -> some View {
         ScrollViewReader { proxy in
             ScrollView {
-                VStack(alignment: .leading, spacing: MobileDesign.Spacing.large) {
+                VStack(alignment: .leading, spacing: 18) {
                     Color.clear.frame(height: 0).id(Self.topID)
                     if sitting.isRoundOver {
                         endCard(sitting)
                     } else if let card = sitting.current {
-                        progress(sitting)
-                        cardView(card, sitting: sitting)
+                        roundHeader(sitting)
+                        deck(card, sitting: sitting)
                     }
                     if let error = session.saveError {
                         Label(error, systemImage: "exclamationmark.triangle.fill")
@@ -648,7 +704,8 @@ struct MobileCardReviewScreen: View {
                 }
                 .frame(maxWidth: Self.columnWidth, alignment: .leading)
                 .padding(.horizontal, MobileDesign.Spacing.large)
-                .padding(.vertical, MobileDesign.Spacing.large)
+                .padding(.top, columnTopPadding)
+                .padding(.bottom, MobileDesign.Spacing.large)
                 .frame(maxWidth: .infinity)
             }
             .scrollBounceBehavior(.basedOnSize)
@@ -664,117 +721,174 @@ struct MobileCardReviewScreen: View {
         }
     }
 
-    /// "Card 3 of 18", how the round stands, and the bar.
-    private func progress(_ sitting: MemoryCardSitting) -> some View {
-        VStack(alignment: .leading, spacing: MobileDesign.Spacing.small) {
-            ViewThatFits(in: .horizontal) {
-                HStack {
-                    progressCount(sitting)
+    /// Over the card: the source it is from, its place in the round, and
+    /// the round a segment a card. VoiceOver hears the source, the place and
+    /// how the round stands.
+    private func roundHeader(_ sitting: MemoryCardSitting) -> some View {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: MobileDesign.Spacing.xSmall))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: MobileDesign.Spacing.medium))
+        return VStack(alignment: .leading, spacing: 10) {
+            layout {
+                Text(headerTitle)
+                    .fontWeight(.medium)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
+                    .truncationMode(.tail)
+                    .accessibilityLabel(session.currentSourceTitle.map { "From \($0)" } ?? headerTitle)
+                if !dynamicTypeSize.isAccessibilitySize {
                     Spacer(minLength: MobileDesign.Spacing.medium)
-                    progressTally(sitting)
                 }
-                VStack(alignment: .leading, spacing: MobileDesign.Spacing.xSmall) {
-                    progressCount(sitting)
-                    progressTally(sitting)
-                }
+                Text(Self.placeLine(sitting))
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .fixedSize()
+                    .layoutPriority(1)
             }
             .font(.subheadline)
             .foregroundStyle(.secondary)
-            .monospacedDigit()
-            ProgressView(value: sitting.progress)
-                .tint(Color.accentColor)
-                .accessibilityHidden(true)
+            MemoryRoundStrip(marks: MemoryRoundStrip.marks(of: sitting))
         }
         .accessibilityElement(children: .combine)
+        .accessibilityValue(sitting.results.isEmpty ? "" : "\(sitting.rememberedCount) remembered, \(sitting.forgottenCount) forgot")
         .accessibilityIdentifier("memory.cards.progress")
     }
 
-    private func progressCount(_ sitting: MemoryCardSitting) -> some View {
-        Text("Card \(sitting.cardNumber) of \(sitting.cardCount)")
+    /// The card's source, or what the review is over when the phone does not
+    /// name it.
+    private var headerTitle: String {
+        if let title = session.currentSourceTitle { return title }
+        return navigationTitle.isEmpty ? "Memory" : navigationTitle
     }
 
-    @ViewBuilder
-    private func progressTally(_ sitting: MemoryCardSitting) -> some View {
-        if !sitting.results.isEmpty {
-            Text("\(sitting.rememberedCount) remembered · \(sitting.forgottenCount) forgot")
+    /// "3 of 18", with "Practice" or "Again" before it when the round is one.
+    private static func placeLine(_ sitting: MemoryCardSitting) -> String {
+        let place = "\(sitting.cardNumber) of \(sitting.cardCount)"
+        if sitting.isRepeat { return "Again · " + place }
+        if sitting.kind == .practice { return "Practice · " + place }
+        return place
+    }
+
+    // MARK: The card
+
+    /// The card in front, the edges of those still to come under it, and
+    /// the toss and the deal between them.
+    private func deck(_ card: MemoryCardSitting.Card, sitting: MemoryCardSitting) -> some View {
+        let remaining = max(0, sitting.cardCount - sitting.position - 1)
+        return ZStack {
+            cardView(card, sitting: sitting)
+                .id("\(sitting.isRepeat)-\(sitting.position)-\(card.itemID)")
+                .transition(.memoryCard(leavingTo: exitEdge, reduceMotion: reduceMotion))
         }
+        .background(alignment: .bottom) {
+            MemoryDeckEdges(remaining: remaining)
+        }
+        .padding(.bottom, MemoryDeckEdges.depth)
     }
 
     private func cardView(_ card: MemoryCardSitting.Card, sitting: MemoryCardSitting) -> some View {
         let shown = sitting.isAnswerShown
-        return VStack(alignment: .leading, spacing: MobileDesign.Spacing.medium) {
-            HStack(alignment: .firstTextBaseline, spacing: MobileDesign.Spacing.small) {
-                Text(session.currentSourceTitle ?? "Memory")
-                    .font(.caption.weight(.semibold))
-                    .kerning(0.4)
-                    .textCase(.uppercase)
-                    .foregroundStyle(Color.accentColor)
-                    .lineLimit(2)
-                    .accessibilityLabel(session.currentSourceTitle.map { "From \($0)" } ?? "Memory")
-                Spacer(minLength: MobileDesign.Spacing.small)
-                tags(card, sitting: sitting)
-            }
+        let tags = Self.tags(of: card)
+        let showsWordingMenu = card.isVariant || card.alwaysAsk
+        let hasTopRow = !tags.isEmpty || showsWordingMenu
+        return VStack(alignment: .leading, spacing: 0) {
             Text(card.prompt)
-                .font(.system(.title2, design: .serif))
+                .font(.system(size: frontSize, weight: .regular, design: .serif))
                 .foregroundStyle(shown ? Color.secondary : Color.primary)
+                .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityFocused($spoken, equals: .prompt)
                 .accessibilityIdentifier("memory.cards.prompt")
             if !card.frontImages.isEmpty {
                 MobileMemoryCardImageGrid(images: card.frontImages, sourceID: card.sourceID)
+                    .padding(.top, MobileDesign.Spacing.large)
             }
             if card.isFirstVariedServe, !sitting.isRepeat {
                 Text("Worded differently on purpose — same answer.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 10)
                     .accessibilityIdentifier("memory.cards.varied")
             }
             if shown {
-                Divider()
-                Text(card.back)
-                    .font(.body)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityLabel("Answer: \(card.back)")
-                    .accessibilityFocused($spoken, equals: .back)
-                    .accessibilityIdentifier("memory.cards.back")
-                if !card.backImages.isEmpty {
-                    MobileMemoryCardImageGrid(images: card.backImages, sourceID: card.sourceID)
-                }
-                if !card.why.isEmpty {
-                    Text("Why: " + card.why.joined(separator: " "))
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityIdentifier("memory.cards.why")
-                }
-                if let sourceID = card.sourceID {
-                    sourceChip(sourceID: sourceID)
-                }
+                answerFace(card)
+                    .transition(.opacity)
             }
         }
-        .padding(MobileDesign.Spacing.xLarge)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            Color(uiColor: .secondarySystemGroupedBackground),
-            in: RoundedRectangle(cornerRadius: MobileDesign.Radius.card, style: .continuous)
-        )
-        .shadow(color: MobileDesign.elevatedShadow, radius: 12, y: 4)
+        .padding(.horizontal, cardInset)
+        .padding(.top, hasTopRow ? Self.topRowInset + topRowHeight + MobileDesign.Spacing.small : cardInset)
+        .padding(.bottom, cardInset)
+        // Until the answer opens, the question sits in the middle of the
+        // card; then it rises to make room under the fold.
+        .frame(maxWidth: .infinity, minHeight: cardMinimumHeight, alignment: shown ? .topLeading : .leading)
+        .overlay(alignment: .top) {
+            if hasTopRow {
+                HStack(spacing: MobileDesign.Spacing.small) {
+                    MemoryCardTagLine(tags: tags)
+                        .accessibilityLabel(Self.heardTags(of: card))
+                    Spacer(minLength: 0)
+                    if showsWordingMenu { wordingMenu(card) }
+                }
+                .frame(minHeight: MobileDesign.Metrics.minimumTouchTarget)
+                .padding(.leading, cardInset)
+                .padding(.trailing, Self.topRowInset)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { topRowHeight = $0 }
+                .padding(.top, Self.topRowInset)
+            }
+        }
+        .memoryCardSurface()
+        .animation(.easeOut(duration: 0.22), value: shown)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("memory.cards.card")
     }
 
-    @ViewBuilder
-    private func tags(_ card: MemoryCardSitting.Card, sitting: MemoryCardSitting) -> some View {
-        HStack(spacing: MobileDesign.Spacing.xSmall) {
-            if let difficulty = card.difficulty {
-                tag(difficulty.rawValue.uppercased(), tint: Self.tint(for: difficulty), heard: difficulty.rawValue.capitalized)
+    /// Under the fold: the answer, its pictures, why it holds, and the
+    /// source it quotes.
+    private func answerFace(_ card: MemoryCardSitting.Card) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            MemoryCardFold()
+                .padding(.vertical, 20)
+            Text(card.back)
+                .font(.system(size: backSize))
+                .lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityLabel("Answer: \(card.back)")
+                .accessibilityFocused($spoken, equals: .back)
+                .accessibilityIdentifier("memory.cards.back")
+            if !card.backImages.isEmpty {
+                MobileMemoryCardImageGrid(images: card.backImages, sourceID: card.sourceID)
+                    .padding(.top, MobileDesign.Spacing.large)
             }
-            if card.isNew { tag("NEW", tint: .accentColor, heard: "New card") }
-            if sitting.isRepeat { tag("AGAIN", tint: .secondary, heard: "Asked again") }
-            if card.isVariant || card.alwaysAsk { wordingMenu(card) }
+            if !card.why.isEmpty {
+                MemoryCardWhyLine(why: card.why)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("memory.cards.why")
+                    .padding(.top, 14)
+            }
+            if let sourceID = card.sourceID {
+                sourceLink(sourceID: sourceID)
+                    .padding(.top, 14)
+            }
         }
+    }
+
+    /// "NEW · MEDIUM": what kind of card this is, in its ink.
+    private static func tags(of card: MemoryCardSitting.Card) -> [String] {
+        var tags: [String] = []
+        if card.isDraft { tags.append("To check") }
+        if card.isNew { tags.append("New") }
+        if let difficulty = card.difficulty { tags.append(difficulty.rawValue) }
+        return tags
+    }
+
+    /// The tags as VoiceOver says them.
+    private static func heardTags(of card: MemoryCardSitting.Card) -> String {
+        var heard: [String] = []
+        if card.isDraft { heard.append("To check") }
+        if card.isNew { heard.append("New card") }
+        if let difficulty = card.difficulty { heard.append(difficulty.rawValue.capitalized) }
+        return heard.joined(separator: ", ")
     }
 
     /// How a card is worded, on a card asked in a rewording or one held to
@@ -796,42 +910,26 @@ struct MobileCardReviewScreen: View {
                 Button("Always Ask in Its Own Words", systemImage: "text.quote") { session.setAlwaysAsk(true) }
             }
         } label: {
-            Image(systemName: "ellipsis.circle")
-                .font(.body)
+            Image(systemName: "ellipsis")
+                .font(.body.weight(.semibold))
                 .foregroundStyle(.secondary)
                 .frame(minWidth: MobileDesign.Metrics.minimumTouchTarget, minHeight: MobileDesign.Metrics.minimumTouchTarget)
                 .contentShape(Rectangle())
         }
+        // Quiet ink, never the accent a menu's label takes by default.
+        .tint(.secondary)
         .accessibilityLabel("Wording")
         .accessibilityHint("How this card is worded")
         .accessibilityIdentifier("memory.cards.wording")
     }
 
-    private func tag(_ text: String, tint: Color, heard: String) -> some View {
-        Text(text)
-            .font(.caption2.weight(.semibold))
-            .kerning(0.6)
-            .foregroundStyle(tint)
-            .padding(.horizontal, MobileDesign.Spacing.small)
-            .padding(.vertical, 3)
-            .background(tint.opacity(0.12), in: Capsule())
-            .accessibilityLabel(heard)
-    }
-
-    private static func tint(for difficulty: MemoryCardDifficulty) -> Color {
-        switch difficulty {
-        case .easy: return .green
-        case .medium: return .orange
-        case .hard: return .red
-        }
-    }
-
-    /// The card's source, opened in the Reader over the review, in the
-    /// notebook the review is narrowed to.
-    private func sourceChip(sourceID: String) -> some View {
+    /// The card's source at the card's foot, a quiet line as the Mac draws
+    /// it: its picture, its title, a chevron. It opens the Reader over the
+    /// review, in the notebook the review is narrowed to.
+    private func sourceLink(sourceID: String) -> some View {
         let title = session.sourceTitles[sourceID] ?? "Source"
         return NavigationLink(value: MobileShellRoute.source(sourceID, notebookID: session.notebookInScope)) {
-            HStack(spacing: MobileDesign.Spacing.small) {
+            HStack(spacing: 10) {
                 // The picture the sources list draws for it, else a plain
                 // document for a source the phone has not synced.
                 if let source = vm.sourcesByID[sourceID] {
@@ -839,24 +937,23 @@ struct MobileCardReviewScreen: View {
                         .accessibilityHidden(true)
                 } else {
                     Image(systemName: "doc.text")
-                        .font(.subheadline.weight(.medium))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 28, height: 28)
+                        .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                         .accessibilityHidden(true)
                 }
                 Text(title)
                     .font(.subheadline)
+                    .foregroundStyle(.secondary)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
-                Spacer(minLength: 0)
                 Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.tertiary)
                     .accessibilityHidden(true)
             }
-            .foregroundStyle(.primary)
-            .padding(.horizontal, MobileDesign.Spacing.medium)
-            .padding(.vertical, MobileDesign.Spacing.xSmall)
             .frame(minHeight: MobileDesign.Metrics.minimumTouchTarget)
-            .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: MobileDesign.Radius.compact, style: .continuous))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -869,6 +966,8 @@ struct MobileCardReviewScreen: View {
 
     // MARK: Answers
 
+    /// At the foot of the screen: Show Answer, then Forgot and Remembered
+    /// side by side, stacked at the accessibility text sizes.
     private func answerBar(_ sitting: MemoryCardSitting) -> some View {
         Group {
             if sitting.isAnswerShown {
@@ -877,20 +976,20 @@ struct MobileCardReviewScreen: View {
                     : AnyLayout(HStackLayout(spacing: MobileDesign.Spacing.medium))
                 layout {
                     Button {
-                        session.answer(remembered: false)
+                        answer(remembered: false)
                     } label: {
                         Text("Forgot")
-                            .frame(maxWidth: .infinity, minHeight: MobileDesign.Metrics.minimumTouchTarget)
+                            .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(MobileMemoryPillStyle(kind: .secondary))
                     .accessibilityIdentifier("memory.cards.forgot")
                     Button {
-                        session.answer(remembered: true)
+                        answer(remembered: true)
                     } label: {
                         Text("Remembered")
-                            .frame(maxWidth: .infinity, minHeight: MobileDesign.Metrics.minimumTouchTarget)
+                            .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(MobileMemoryPillStyle(kind: .primary))
                     .accessibilityIdentifier("memory.cards.remembered")
                 }
             } else {
@@ -898,29 +997,51 @@ struct MobileCardReviewScreen: View {
                     session.showAnswer()
                 } label: {
                     Text("Show Answer")
-                        .frame(maxWidth: .infinity, minHeight: MobileDesign.Metrics.minimumTouchTarget)
+                        .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(MobileMemoryPillStyle(kind: .primary))
                 .accessibilityIdentifier("memory.cards.showAnswer")
             }
         }
-        .font(.headline)
-        .controlSize(.large)
-        .frame(maxWidth: Self.columnWidth)
+        .frame(maxWidth: horizontalSizeClass == .regular ? Self.regularBarWidth : Self.columnWidth)
         .padding(.horizontal, MobileDesign.Spacing.large)
-        .padding(.vertical, MobileDesign.Spacing.medium)
+        .padding(.top, MobileDesign.Spacing.small)
+        .padding(.bottom, MobileDesign.Spacing.medium)
         .frame(maxWidth: .infinity)
-        .background(.bar)
+        // The deck's own surface, so the pills lie on it rather than on a
+        // bar; the card scrolls away under a short fade.
+        .background {
+            Self.surface
+                .ignoresSafeArea(edges: .bottom)
+                .overlay(alignment: .top) {
+                    LinearGradient(colors: [Self.surface.opacity(0), Self.surface], startPoint: .top, endPoint: .bottom)
+                        .frame(height: MobileDesign.Spacing.large)
+                        .offset(y: -MobileDesign.Spacing.large)
+                        .allowsHitTesting(false)
+                }
+        }
+    }
+
+    /// Answers the card in front, tossing it toward its answer's side. The
+    /// side is set a turn before the answer, so the leaving card has it when
+    /// the deal removes it.
+    private func answer(remembered: Bool) {
+        guard session.sitting?.isAnswerShown == true else { return }
+        exitEdge = remembered ? .trailing : .leading
+        DispatchQueue.main.async {
+            withAnimation(Self.dealAnimation) { session.answer(remembered: remembered) }
+        }
     }
 
     // MARK: The end of a round
 
+    /// How the round went: a line, the round's strip with every answer in
+    /// it, and what comes next.
     private func endCard(_ sitting: MemoryCardSitting) -> some View {
-        let forgotten = sitting.forgottenCount
-        let waiting = session.waitingCards.count
-        return VStack(alignment: .leading, spacing: MobileDesign.Spacing.medium) {
+        VStack(alignment: .leading, spacing: 0) {
             Text(sitting.isRepeat ? "Forgotten cards, again" : "That's the round")
-                .font(.system(.title2, design: .serif))
+                .font(.system(.title, design: .serif))
+                .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
             Text(MobileCardReviewCopy.roundSummary(
                 cardCount: sitting.cardCount,
@@ -930,69 +1051,109 @@ struct MobileCardReviewScreen: View {
             .font(.callout)
             .foregroundStyle(.secondary)
             .monospacedDigit()
-            VStack(spacing: MobileDesign.Spacing.medium) {
-                if forgotten > 0 {
-                    Button {
-                        session.reviewForgotten()
-                    } label: {
-                        Text("Review Forgotten (\(forgotten))")
-                            .frame(maxWidth: .infinity, minHeight: MobileDesign.Metrics.minimumTouchTarget)
-                    }
-                    .buttonStyle(.bordered)
-                    .accessibilityHint("Asks them again; your first answers stand")
-                    .accessibilityIdentifier("memory.cards.reviewForgotten")
+            .padding(.top, 6)
+            MemoryRoundStrip(marks: MemoryRoundStrip.marks(of: sitting), height: 6)
+                .padding(.top, 22)
+            // The Mac's row when it fits; else a pill a line, Done last.
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 10) {
+                    endButtons(sitting, fill: false)
                 }
-                if session.isReadingFollowup {
-                    ProgressView()
-                        .frame(minHeight: MobileDesign.Metrics.minimumTouchTarget)
-                } else if waiting > 0 {
-                    Button {
-                        session.continueWithWaitingCards()
-                    } label: {
-                        Text("Continue (\(waiting) more)")
-                            .frame(maxWidth: .infinity, minHeight: MobileDesign.Metrics.minimumTouchTarget)
-                    }
-                    .buttonStyle(.bordered)
-                    .accessibilityIdentifier("memory.cards.continue")
+                VStack(spacing: MobileDesign.Spacing.medium) {
+                    endButtons(sitting, fill: true)
                 }
-                Button {
-                    dismiss()
-                } label: {
-                    Text("Done")
-                        .frame(maxWidth: .infinity, minHeight: MobileDesign.Metrics.minimumTouchTarget)
-                }
-                .buttonStyle(.borderedProminent)
-                .accessibilityIdentifier("memory.cards.done")
             }
-            .font(.headline)
-            .controlSize(.large)
+            .padding(.top, 28)
         }
-        .padding(MobileDesign.Spacing.xLarge)
+        .padding(cardInset)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            Color(uiColor: .secondarySystemGroupedBackground),
-            in: RoundedRectangle(cornerRadius: MobileDesign.Radius.card, style: .continuous)
-        )
+        .memoryCardSurface()
+        .transition(.opacity)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("memory.cards.end")
     }
 
+    /// Review Forgotten and Continue, pale, and Done, dark. `fill` stretches
+    /// each across the card, a line apiece.
+    @ViewBuilder
+    private func endButtons(_ sitting: MemoryCardSitting, fill: Bool) -> some View {
+        let forgotten = sitting.forgottenCount
+        let waiting = session.waitingCards.count
+        if forgotten > 0 {
+            Button {
+                withAnimation(Self.dealAnimation) { session.reviewForgotten() }
+            } label: {
+                Text("Review Forgotten (\(forgotten))")
+                    .frame(maxWidth: fill ? .infinity : nil)
+            }
+            .buttonStyle(MobileMemoryPillStyle(kind: .secondary))
+            .accessibilityHint("Asks them again; your first answers stand")
+            .accessibilityIdentifier("memory.cards.reviewForgotten")
+        }
+        if session.isReadingFollowup {
+            ProgressView()
+                .frame(minWidth: MobileDesign.Metrics.minimumTouchTarget, minHeight: MobileDesign.Metrics.minimumTouchTarget)
+        } else if waiting > 0 {
+            Button {
+                withAnimation(Self.dealAnimation) { session.continueWithWaitingCards() }
+            } label: {
+                Text("Continue (\(waiting) more)")
+                    .frame(maxWidth: fill ? .infinity : nil)
+            }
+            .buttonStyle(MobileMemoryPillStyle(kind: .secondary))
+            .accessibilityIdentifier("memory.cards.continue")
+        }
+        if !fill {
+            Spacer(minLength: 0)
+        }
+        Button {
+            dismiss()
+        } label: {
+            Text("Done")
+                .frame(minWidth: fill ? nil : 64)
+                .frame(maxWidth: fill ? .infinity : nil)
+        }
+        .buttonStyle(MobileMemoryPillStyle(kind: .primary))
+        .accessibilityIdentifier("memory.cards.done")
+    }
+
     // MARK: Nothing to deal
 
+    /// One card saying so, and Practice N New Cards under it when the
+    /// scope's new cards wait outside today's deal.
     private var emptyState: some View {
-        ContentUnavailableView {
-            Label(emptyTitle, systemImage: MemoryReviewSession.sidebarIcon)
-        } description: {
-            Text(emptyDescription)
-        } actions: {
-            if session.practiceCount > 0 {
-                Button(MobileCardReviewCopy.practiceNewCards(session.practiceCount)) {
-                    session.startPractice()
+        GeometryReader { geo in
+            ScrollView {
+                VStack(spacing: MobileDesign.Spacing.xLarge) {
+                    VStack(spacing: MobileDesign.Spacing.small) {
+                        Text(emptyTitle)
+                            .font(.system(.title2, design: .serif))
+                            .accessibilityAddTraits(.isHeader)
+                        Text(emptyDescription)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, cardInset)
+                    .padding(.vertical, MobileDesign.Spacing.xxLarge)
+                    .frame(maxWidth: .infinity, minHeight: Self.compactHeightCardMinimum)
+                    .memoryCardSurface()
+                    if session.practiceCount > 0 {
+                        Button(MobileCardReviewCopy.practiceNewCards(session.practiceCount)) {
+                            session.startPractice()
+                        }
+                        .buttonStyle(MobileMemoryPillStyle(kind: .primary))
+                        .accessibilityIdentifier("memory.cards.practiceNew")
+                    }
                 }
-                .buttonStyle(.borderedProminent)
-                .accessibilityIdentifier("memory.cards.practiceNew")
+                .frame(maxWidth: 440)
+                .padding(MobileDesign.Spacing.large)
+                .frame(maxWidth: .infinity, minHeight: geo.size.height)
             }
+            .scrollBounceBehavior(.basedOnSize)
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("memory.cards.empty")
     }
 
@@ -1012,6 +1173,90 @@ struct MobileCardReviewScreen: View {
         case .notebookPractice:
             return "Cards kept from this notebook's sources on your Mac are practiced here."
         }
+    }
+}
+
+// MARK: - The deck's buttons
+
+/// The deck's buttons on the phone: the Mac's `MemoryReviewButton` drawn
+/// for a finger. `primary` is the Space's dark pill (light in dark mode), for
+/// the one that moves on (Show Answer, Remembered, Done); `secondary` a pale
+/// pill beside it (Forgot, Review Forgotten, Continue); `tinted` the accent's
+/// pale pill for a list card's Keep, as the Mac's To Check draws it; `quiet`
+/// a bare word (Skip, Edit). A pill may be drawn shorter than 44 points; its
+/// tap target never is. A pointer on an iPad lights the pill.
+struct MobileMemoryPillStyle: ButtonStyle {
+    enum Kind {
+        case primary
+        case secondary
+        case tinted
+        case quiet
+    }
+
+    let kind: Kind
+    /// The pill's drawn height; the answer bar's by default.
+    var height: CGFloat = 50
+
+    func makeBody(configuration: Configuration) -> some View {
+        MobileMemoryPill(label: configuration.label, isPressed: configuration.isPressed, kind: kind, height: height)
+    }
+}
+
+private struct MobileMemoryPill<Label: View>: View {
+    let label: Label
+    let isPressed: Bool
+    let kind: MobileMemoryPillStyle.Kind
+    let height: CGFloat
+
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
+        let target = MobileDesign.Metrics.minimumTouchTarget
+        label
+            .font(kind == .primary || kind == .secondary ? .body.weight(.medium) : .callout.weight(.medium))
+            .multilineTextAlignment(.center)
+            .foregroundStyle(foreground)
+            .padding(.horizontal, kind == .quiet ? MobileDesign.Spacing.medium : 20)
+            .padding(.vertical, MobileDesign.Spacing.xSmall)
+            .frame(minHeight: height)
+            .background(Capsule().fill(fill).overlay(Capsule().fill(Color.primary.opacity(pressTint))))
+            .overlay {
+                if kind == .secondary {
+                    Capsule().strokeBorder(Color.primary.opacity(0.14), lineWidth: 1)
+                }
+            }
+            .opacity(isEnabled ? 1 : 0.45)
+            .contentShape(.hoverEffect, Capsule())
+            .hoverEffect(.highlight)
+            // The tap target, never under 44 points, around a shorter pill.
+            .padding(.vertical, max(0, (target - height) / 2))
+            .contentShape(Rectangle())
+            .animation(.easeOut(duration: 0.12), value: isPressed)
+    }
+
+    private var foreground: Color {
+        switch kind {
+        case .primary: return Color(uiColor: .systemBackground)
+        case .secondary: return .primary
+        case .tinted: return .accentColor
+        case .quiet: return .secondary
+        }
+    }
+
+    private var fill: Color {
+        switch kind {
+        case .primary: return Color.primary.opacity(isPressed ? 0.72 : 0.9)
+        case .secondary: return .memoryCardPaper
+        case .tinted: return Color.accentColor.opacity(isPressed ? 0.2 : 0.12)
+        case .quiet: return .clear
+        }
+    }
+
+    /// A touch of ink while a pale pill or a bare word is pressed; the dark
+    /// and tinted pills deepen their own fill.
+    private var pressTint: Double {
+        guard isPressed else { return 0 }
+        return kind == .secondary || kind == .quiet ? 0.07 : 0
     }
 }
 

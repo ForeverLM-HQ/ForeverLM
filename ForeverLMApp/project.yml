@@ -565,6 +565,9 @@ targets:
       - Shared/Models/MemoryCardTriage.swift
       - Shared/Models/MemoryCardVariation.swift
       - Shared/Models/MemoryCardSitting.swift
+      # How a card looks, the Mac's own (docs/memory-design.md, "How a card
+      # looks"): its paper, the deck's edges, the fold, the round's strip.
+      - Shared/Views/MemoryCardDeck.swift
       - iOS/MobileCardReview.swift
       - iOS/MobileCardReviewView.swift
       # Going through cards on the phone (docs/memory-design.md, "Cards to

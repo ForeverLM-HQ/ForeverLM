@@ -67,7 +67,7 @@ struct MemoryCardSessionView: View {
     private static let columnMaxWidth: CGFloat = 600
     /// A card is never shorter than this, so a short question sits in the
     /// middle of a card rather than on a strip of one.
-    private static let cardMinimumHeight: CGFloat = 260
+    private static let cardMinimumHeight = MemoryCardMetrics.cardMinimumHeight
 
     var body: some View {
         GeometryReader { geo in

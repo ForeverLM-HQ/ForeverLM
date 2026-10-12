@@ -4,7 +4,10 @@ import SwiftUI
 // To Check, the Mac's `MemoryCardsToCheckView` on a phone — the cards drafted from sources and not yet
 // kept or skipped, a source at a time, each with Keep, Edit and Skip, and a source's Keep All and Skip
 // All — and the editor a card to check and a kept card share. What a decision writes is
-// `MobileCardTriageWriter`'s; what a kept card's menu writes, `MobileCardEditWriter`'s.
+// `MobileCardTriageWriter`'s; what a kept card's menu writes, `MobileCardEditWriter`'s. Each card is
+// drawn as the card it would be, in the deck's look (docs/memory-design.md, "How a card looks";
+// `Shared/Views/MemoryCardDeck.swift`): paper, its kind in small tracked words, the front in the
+// review's serif, the fold, the back and why.
 
 /// To Check over every notebook or one: the Memory screen's section, and the screen a notebook's
 /// Studio Cards row pushes while cards wait. Opening it reads only. A decided card leaves the list at
@@ -46,13 +49,12 @@ struct MobileCardsToCheckList<Header: View>: View {
                         .listRowSeparator(.hidden)
                         .accessibilityIdentifier("memory.toCheck.summary")
                 }
+                // A source heads its cards as a row of its own, as the Mac's list does: a section
+                // header would be drawn in the list's grey and pinned over the cards.
                 ForEach(groups) { group in
-                    Section {
-                        ForEach(group.cards) { card in
-                            cardRow(card)
-                        }
-                    } header: {
-                        groupHeader(group)
+                    groupHeader(group)
+                    ForEach(group.cards) { card in
+                        cardRow(card)
                     }
                 }
             }
@@ -98,11 +100,21 @@ struct MobileCardsToCheckList<Header: View>: View {
 
     // MARK: A source
 
+    /// The source's title and how many of its cards wait, and its ⋯: Keep All, Skip All, Open Source.
     private func groupHeader(_ group: MemoryCardTriage.Group) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: MobileDesign.Spacing.small) {
-            Text("\(sourceTitle(group.sourceID)) · \(group.cards.count)")
-                .textCase(nil)
-                .lineLimit(2)
+        HStack(alignment: .center, spacing: MobileDesign.Spacing.small) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(sourceTitle(group.sourceID))
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+                Text(group.cards.count == 1 ? "1 card" : "\(group.cards.count) cards")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isHeader)
             Spacer(minLength: MobileDesign.Spacing.small)
             Menu {
                 Button("Keep All", systemImage: "checkmark") {
@@ -116,54 +128,48 @@ struct MobileCardsToCheckList<Header: View>: View {
                     Button("Open Source", systemImage: "doc.text") { openSource(group.sourceID) }
                 }
             } label: {
-                Image(systemName: "ellipsis.circle")
+                Image(systemName: "ellipsis")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.secondary)
                     .frame(minWidth: MobileDesign.Metrics.minimumTouchTarget, minHeight: MobileDesign.Metrics.minimumTouchTarget)
                     .contentShape(Rectangle())
             }
+            // Quiet ink, never the accent a menu's label takes by default.
+            .tint(.secondary)
             .accessibilityLabel("Cards from \(sourceTitle(group.sourceID))")
             .accessibilityIdentifier("memory.toCheck.source.\(group.sourceID)")
         }
+        .padding(.top, MobileDesign.Spacing.medium)
+        .listRowInsets(EdgeInsets(top: 0, leading: MobileDesign.Spacing.large, bottom: 0, trailing: MobileDesign.Spacing.small))
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
     }
 
     // MARK: A card
 
+    /// A card on its paper, lying flatter than the review's, with Skip and Edit as words and Keep as
+    /// the accent's pale pill under it, as the Mac's To Check draws one.
     private func cardRow(_ card: MemoryCardToCheck) -> some View {
-        VStack(alignment: .leading, spacing: MobileDesign.Spacing.small) {
-            Text(card.face.front)
-                .font(.body.weight(.medium))
-                .fixedSize(horizontal: false, vertical: true)
-            Text(card.face.back)
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .lineLimit(4)
-            if let why = card.face.why.first {
-                Text("Why: \(why)")
-                    .font(.footnote)
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(2)
-            }
-            let pictures = card.face.frontImages.count + card.face.backImages.count
-            if pictures > 0 {
-                Label(pictures == 1 ? "1 picture" : "\(pictures) pictures", systemImage: "photo.on.rectangle.angled")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
-            HStack(spacing: MobileDesign.Spacing.small) {
-                Button("Skip") { decide([MemoryCardTriageDecision(card: card, action: .skip)]) }
-                    .buttonStyle(.bordered)
-                    .accessibilityIdentifier("memory.toCheck.skip.\(card.cardID)")
-                Button("Edit") { editing = card }
-                    .buttonStyle(.bordered)
-                    .accessibilityIdentifier("memory.toCheck.edit.\(card.cardID)")
-                Spacer(minLength: 0)
-                Button("Keep") { decide([MemoryCardTriageDecision(card: card, action: .keep)]) }
-                    .buttonStyle(.borderedProminent)
-                    .accessibilityIdentifier("memory.toCheck.keep.\(card.cardID)")
-            }
-            .controlSize(.small)
-            .padding(.top, MobileDesign.Spacing.xSmall)
+        let shape = RoundedRectangle(cornerRadius: MobileToCheckCardMetrics.cornerRadius, style: .continuous)
+        return VStack(alignment: .leading, spacing: 0) {
+            cardFace(card)
+            cardActions(card)
+                .padding(.top, MobileDesign.Spacing.small)
         }
-        .padding(.vertical, MobileDesign.Spacing.xSmall)
+        .padding(.horizontal, 18)
+        .padding(.top, MobileDesign.Spacing.large)
+        .padding(.bottom, MobileDesign.Spacing.xSmall)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .memoryCardSurface(cornerRadius: MobileToCheckCardMetrics.cornerRadius, raised: false)
+        .contentShape(.contextMenuPreview, shape)
+        .listRowInsets(EdgeInsets(
+            top: MobileDesign.Spacing.small - 2,
+            leading: MobileDesign.Spacing.large,
+            bottom: MobileDesign.Spacing.small - 2,
+            trailing: MobileDesign.Spacing.large
+        ))
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
         .swipeActions(edge: .leading, allowsFullSwipe: true) {
             Button("Keep", systemImage: "checkmark") { decide([MemoryCardTriageDecision(card: card, action: .keep)]) }
                 .tint(.green)
@@ -188,6 +194,72 @@ struct MobileCardsToCheckList<Header: View>: View {
         .accessibilityIdentifier("memory.toCheck.card.\(card.cardID)")
     }
 
+    /// Its kind, the front in the review's serif, the fold, the back, why it holds, and how many
+    /// pictures it carries.
+    private func cardFace(_ card: MemoryCardToCheck) -> some View {
+        let tags = [card.face.difficulty?.rawValue, card.kind == .legacy ? "From before cards" : nil].compactMap { $0 }
+        return VStack(alignment: .leading, spacing: 0) {
+            if !tags.isEmpty {
+                MemoryCardTagLine(tags: tags)
+                    .accessibilityLabel(tags.map(\.capitalized).joined(separator: ", "))
+                    .padding(.bottom, 10)
+            }
+            Text(card.face.front)
+                .font(.system(.body, design: .serif))
+                .foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+            MemoryCardFold()
+                .padding(.vertical, MobileDesign.Spacing.medium)
+            Text(card.face.back)
+                .font(.callout)
+                .foregroundStyle(Color.primary.opacity(0.85))
+                .lineLimit(4)
+            if !card.face.why.isEmpty {
+                MemoryCardWhyLine(why: card.face.why)
+                    .lineLimit(3)
+                    .padding(.top, 10)
+            }
+            let pictures = card.face.frontImages.count + card.face.backImages.count
+            if pictures > 0 {
+                Label(pictures == 1 ? "1 picture" : "\(pictures) pictures", systemImage: "photo.on.rectangle.angled")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, MobileDesign.Spacing.small)
+            }
+        }
+    }
+
+    private func cardActions(_ card: MemoryCardToCheck) -> some View {
+        HStack(spacing: 0) {
+            Button {
+                decide([MemoryCardTriageDecision(card: card, action: .skip)])
+            } label: {
+                Label("Skip", systemImage: "xmark")
+            }
+            .buttonStyle(MobileMemoryPillStyle(kind: .quiet, height: MobileToCheckCardMetrics.actionHeight))
+            .accessibilityIdentifier("memory.toCheck.skip.\(card.cardID)")
+            Button {
+                editing = card
+            } label: {
+                Label("Edit", systemImage: "pencil")
+            }
+            .buttonStyle(MobileMemoryPillStyle(kind: .quiet, height: MobileToCheckCardMetrics.actionHeight))
+            .accessibilityIdentifier("memory.toCheck.edit.\(card.cardID)")
+            Spacer(minLength: 0)
+            Button {
+                decide([MemoryCardTriageDecision(card: card, action: .keep)])
+            } label: {
+                Label("Keep", systemImage: "checkmark")
+            }
+            .buttonStyle(MobileMemoryPillStyle(kind: .tinted, height: MobileToCheckCardMetrics.actionHeight))
+            .accessibilityIdentifier("memory.toCheck.keep.\(card.cardID)")
+        }
+        .labelStyle(.titleAndIcon)
+        .imageScale(.small)
+        // The first word lines up with the card's text, its pill's inset outside it.
+        .padding(.leading, -MobileDesign.Spacing.medium)
+    }
+
     // MARK: Deciding
 
     /// Hides the decided cards at once and writes the decisions; a card the phone could not write
@@ -208,6 +280,14 @@ struct MobileCardsToCheckList<Header: View>: View {
         let title = vm.sourcesByID[sourceID]?.title.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return title.isEmpty ? "Source not in the library" : title
     }
+}
+
+/// A card to check's paper and its actions' height (`MobileCardsToCheckList` is generic over its
+/// header, which holds no stored statics).
+private enum MobileToCheckCardMetrics {
+    static let cornerRadius: CGFloat = 12
+    /// A card's actions are drawn this tall; each still answers a 44-point tap.
+    static let actionHeight: CGFloat = 34
 }
 
 /// To Check narrowed to one notebook, pushed from its Studio's Cards row while cards wait there.

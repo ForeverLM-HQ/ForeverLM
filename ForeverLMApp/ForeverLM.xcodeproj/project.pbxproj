@@ -43,6 +43,7 @@
 		042CE888951620F9E26E9920 /* MobileSourceAppEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70DC4319FDEA46A7794C1DFA /* MobileSourceAppEntity.swift */; };
 		047AF032C5332BD546EF4709 /* MemoryTutorGradeMapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = 048B78629147B2B1348C2D21 /* MemoryTutorGradeMapping.swift */; };
 		04886BD5B0C2C87313598870 /* DrivingSourceAnswerPlannerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A474FC6105730446DEAFCF2F /* DrivingSourceAnswerPlannerTests.swift */; };
+		04E357A8D8C5ACDE807D2661 /* MemoryCardDeck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71EE5CDC2E5292E60E614D29 /* MemoryCardDeck.swift */; };
 		04E7CB0D0AA370FBE737A16D /* StorageService+TeamDocDrafts.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA492D2D1653845D1A5C0FF5 /* StorageService+TeamDocDrafts.swift */; };
 		04EB7CB91EDE9D877529FE6F /* ChromiumReadingListStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA216DB2915576F1E4BB4C28 /* ChromiumReadingListStoreTests.swift */; };
 		050DEFA08299C21CDC7FC9BB /* MobileSpeechLoudnessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E57F071208292D107FEF1A14 /* MobileSpeechLoudnessTests.swift */; };
@@ -198,6 +199,7 @@
 		1932F66484003D098D4CE841 /* AudioOverview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99BBC0CB00BC6BCCB75F0A55 /* AudioOverview.swift */; };
 		19406FB9B824A370289D3EE3 /* AIProviderErrorText.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3F0FA8DCF234EB0B1C1000A /* AIProviderErrorText.swift */; };
 		1942BF3C46F71629489CFE89 /* ChatReplySideChatTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 611814BFEB0B89D994943A87 /* ChatReplySideChatTests.swift */; };
+		195134A2BEACD0ED1DB653CF /* MemoryCardDeck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71EE5CDC2E5292E60E614D29 /* MemoryCardDeck.swift */; };
 		197D5DDD83B10F36EDF91D51 /* MemoryReviewRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6991469932C2EB7620E35147 /* MemoryReviewRequest.swift */; };
 		199DFCD960C7BDD587BA9506 /* ScheduledTaskTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFD60B144C7E3F5B32595BF9 /* ScheduledTaskTests.swift */; };
 		19B1A1FBBF85A35EC11873A2 /* MigrationRefreshTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 157C29B8FCD592BCFD73DFC5 /* MigrationRefreshTests.swift */; };
@@ -2725,6 +2727,7 @@
 		7187082FCB472E092A072931 /* NotebookAddSourcesSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotebookAddSourcesSheet.swift; sourceTree = "<group>"; };
 		719163578036E7B6467F87EF /* MCPTools+MnemonicReading.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MCPTools+MnemonicReading.swift"; sourceTree = "<group>"; };
 		71A1385774564AC45185CAE4 /* MCPTools+Ideas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MCPTools+Ideas.swift"; sourceTree = "<group>"; };
+		71EE5CDC2E5292E60E614D29 /* MemoryCardDeck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryCardDeck.swift; sourceTree = "<group>"; };
 		721DF48C1D5688FE6BAF959B /* MobileCourseModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileCourseModelTests.swift; sourceTree = "<group>"; };
 		7274AE25899E53D70E479419 /* ArtifactPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtifactPersistenceTests.swift; sourceTree = "<group>"; };
 		72926FABE09B11DA0B5BC650 /* ReportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportTests.swift; sourceTree = "<group>"; };
@@ -4897,6 +4900,7 @@
 				294BBF20F60FF2BE2C203F9D /* ForeverLMLoadingIndicator.swift */,
 				A584A206301E1062FD887CE8 /* ForeverLMMark.swift */,
 				70208EAC2F2579469CFC05F3 /* LoadingIndicatorSpeed.swift */,
+				71EE5CDC2E5292E60E614D29 /* MemoryCardDeck.swift */,
 				FF02FDE21E5FDB05862A3E7B /* MemoryGoalCelebrationView.swift */,
 				377FD676016266180F7B196D /* VoiceSessionSurface.swift */,
 			);
@@ -6721,6 +6725,7 @@
 				375C9B3B72920C37583065B6 /* ManagedAIAppAccess.swift in Sources */,
 				FE143F509EE215B9AA2E5BF2 /* ManagedTranscriptionClient.swift in Sources */,
 				41B037F3B282734B893AD009 /* MemoryCard.swift in Sources */,
+				195134A2BEACD0ED1DB653CF /* MemoryCardDeck.swift in Sources */,
 				FE0B539BCBDB42E8C34A134D /* MemoryCardQueue.swift in Sources */,
 				8B9628651E79D2E511727B7B /* MemoryCardSitting.swift in Sources */,
 				77366EE3C8BD4815F2B99372 /* MemoryCardTriage.swift in Sources */,
@@ -7526,6 +7531,7 @@
 				5B3C895D5CC41B3D44E5DF20 /* MeetingTranscriptionService.swift in Sources */,
 				4F4382600B6E2995D5009572 /* MemoryCard.swift in Sources */,
 				14822D3B7199C21558226315 /* MemoryCardChrome.swift in Sources */,
+				04E357A8D8C5ACDE807D2661 /* MemoryCardDeck.swift in Sources */,
 				D301AAF752274C6E6FAD11E3 /* MemoryCardImagesView.swift in Sources */,
 				4DD7CC80E74C931376B02AAA /* MemoryCardQueue.swift in Sources */,
 				6E01CB0F32255D47217179BE /* MemoryCardSessionModel.swift in Sources */,
