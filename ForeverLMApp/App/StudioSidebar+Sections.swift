@@ -658,7 +658,9 @@ extension StudioSidebar {
 
     @ViewBuilder
     var sidebarSearchAndBanners: some View {
-        sourceSearchRow
+        if !(sourcesListHidesIdleSearch && sidebar.searchFieldText.isEmpty && sidebar.searchText.isEmpty) {
+            sourceSearchRow
+        }
 
         sidebarBanners
     }

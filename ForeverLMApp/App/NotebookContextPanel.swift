@@ -478,8 +478,8 @@ struct NotebookSourcePoolColumnActions {
 /// under the pointer a row shows its ⋯ with Open, Open in
 /// Other Window and Remove from Notebook; a row click opens the Reader in the
 /// document slot, the notebook's ⋯ opens the Add sources sheet, and an empty
-/// notebook with a name or instructions leads with "Suggested from your
-/// library" (a blank one suggests nothing). Under the notebook's
+/// notebook, or one whose field is in use with no words, shows the Library
+/// itself in the column (`NotebookLibraryBrowser`). Under the notebook's
 /// own sources, each context notebook is a group of its own with a box that
 /// puts it into the chats
 /// (`NotebookContextNotebookGroup`). Its one field searches the notebook,
@@ -511,6 +511,10 @@ struct NotebookSourcePoolView: View {
     /// The pointer is over the notebook's column, which shows Select all
     /// while every source is ticked (`selectAllRow`).
     @State private var isPointerOverColumn = false
+    /// The learner went into the field of a notebook that holds sources: the
+    /// column shows the Library until Done or Escape, so a click in the
+    /// Library's list, which takes the focus, never puts it away mid-browse.
+    @State private var isBrowsingLibrary = false
 
     private var plan: NotebookWorkbenchPlan {
         NotebookWorkbenchPlan(goal: goal)
@@ -543,6 +547,15 @@ struct NotebookSourcePoolView: View {
         NotebookDiscoverySession.session(forNotebook: goal.id, vm: vm)
     }
 
+    /// Whether the column shows the Library (`NotebookLibraryBrowser`):
+    /// Library scope with no words, while the notebook is empty or the
+    /// learner went into the field.
+    private var showsLibraryBrowser: Bool {
+        guard let column, !column.isShowingResults, searchScope == .library,
+              typedSearchQuery.isEmpty else { return false }
+        return isBrowsingLibrary || (isEmptyNotebook && contextNotebooks.isEmpty)
+    }
+
     /// Whether the column's words are searching the notebook and the
     /// library: Library scope, with something typed.
     private var searchesLibrary: Bool {
@@ -555,7 +568,16 @@ struct NotebookSourcePoolView: View {
                 // No "Sources" heading over the field since 2026-10-06: the
                 // chrome line above names the notebook, and the field says
                 // what it searches.
-                NotebookSourcesSearchField(text: $sourceSearchText, scope: $searchScope, subject: goal.title, submit: submitSearch)
+                NotebookSourcesSearchField(
+                    text: $sourceSearchText,
+                    scope: $searchScope,
+                    subject: goal.title,
+                    submit: submitSearch,
+                    focusChanged: { focused in
+                        if focused, searchScope == .library { isBrowsingLibrary = true }
+                    },
+                    escape: escapeSearch
+                )
                 if column.isShowingResults {
                     NotebookDiscoveryResults(notebook: goal, close: { column.showResults(false) })
                 } else {
@@ -566,7 +588,7 @@ struct NotebookSourcePoolView: View {
                             showAll: { column.showResults(true) }
                         )
                     }
-                    if !isEmptyNotebook || !contextNotebooks.isEmpty {
+                    if !showsLibraryBrowser, !isEmptyNotebook || !contextNotebooks.isEmpty {
                         selectAllRow
                     }
                 }
@@ -576,11 +598,16 @@ struct NotebookSourcePoolView: View {
                     NotebookAddSourcesPicker(goal: goal, onDismiss: { isAddingSources = false })
                 }
             }
-            if column?.isShowingResults != true {
+            if showsLibraryBrowser {
+                NotebookLibraryBrowser(
+                    done: isEmptyNotebook && contextNotebooks.isEmpty ? nil : { isBrowsingLibrary = false }
+                )
+            } else if column?.isShowingResults != true {
                 poolContent
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .onChange(of: goal.id) { _, _ in isBrowsingLibrary = false }
         .onHover { hovering in
             guard column != nil, isPointerOverColumn != hovering else { return }
             isPointerOverColumn = hovering
@@ -670,6 +697,16 @@ struct NotebookSourcePoolView: View {
                 vm.showToast("Couldn\u{2019}t import \(displayName): \(message)")
             }
         )
+    }
+
+    /// Escape in the column's field: the words first, then the Library back
+    /// to the notebook's sources.
+    private func escapeSearch() {
+        if !sourceSearchText.isEmpty {
+            sourceSearchText = ""
+        } else {
+            isBrowsingLibrary = false
+        }
     }
 
     /// Return in the column's field: in Web or PubMed, that search; in Library
@@ -829,11 +866,6 @@ struct NotebookSourcePoolView: View {
                     // The library's matches for the words, under the
                     // notebook's own, and the way to the web and PubMed.
                     NotebookLibraryMatches(goal: goal, query: typedSearchQuery, searchElsewhere: runDiscovery)
-                } else if isEmptyNotebook, column != nil, vm.notebookCanSuggestSources(goal) {
-                    // A notebook with nothing in it leads with what the library
-                    // already holds for it, one click from joining, once it
-                    // has a name or instructions to suggest from.
-                    EmptyNotebookSuggestions(goal: goal, metadataVisibility: metadataVisibility)
                 } else if isEmptyNotebook {
                     VStack(spacing: 8) {
                         Image(systemName: "tray.and.arrow.down")
@@ -1375,115 +1407,47 @@ struct AddContextNotebookMenu: View {
     }
 }
 
-/// An empty notebook's Sources column: what the library already holds for it,
-/// by the notebook's title and instructions (`notebookSourceCandidates` with no
-/// words, the suggestions the Add sources sheet opens on), each row one click
-/// from joining, and **Add all**. Recommending is a read; nothing joins the
-/// notebook until a click.
-private struct EmptyNotebookSuggestions: View {
-    @Environment(StudioViewModel.self) private var vm
-    let goal: LearningGoalRecord
-    let metadataVisibility: MetadataVisibilitySettings
-
-    @State private var suggestions: [SourceSearchResult] = []
-    @State private var isLoading = true
-    @State private var addedIDs: Set<String> = []
-    @State private var isAdding = false
-    /// The suggestions Add all is asking about, above the threshold.
-    @State private var pendingAddAll: [String]?
-
-    private var offered: [StudioArticle] {
-        suggestions.map(\.article).filter { !addedIDs.contains($0.id) }
-    }
-
-    private var canAdd: Bool { vm.importableNotebook(goal.id) != nil }
+/// The Library inside a notebook's Sources column: its own list, the same
+/// kind tabs, rows, menus and attention rows as the Library pane
+/// (`StudioSidebar`), under the column's field, which does the searching
+/// (`sourcesListHidesIdleSearch`). The window works in the notebook, so each
+/// row carries the notebook's mark: a check on what it holds, a + under the
+/// pointer on the rest, and rows drag into the chat or a canvas. Done (or
+/// Escape in the field) gives the column back to the notebook's sources; an
+/// empty notebook has nothing to go back to and draws no Done.
+private struct NotebookLibraryBrowser: View {
+    /// Back to the notebook's sources; nil while the notebook has none.
+    let done: (() -> Void)?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                Text("Suggested from your library")
-                    .zoomedSystemFont(size: 11, weight: .semibold)
-                    .foregroundStyle(.secondary)
-                if isLoading {
-                    ProgressView().controlSize(.small)
-                }
-                Spacer(minLength: 0)
-                if offered.count > 1 {
-                    Button(NotebookSourcePicking.addAllTitle(count: offered.count)) { addAll(offered.map(\.id)) }
-                        .buttonStyle(.hoverWash(tint: .accentColor))
-                        .disabled(isAdding || !canAdd)
-                        .help("Add every suggestion to this notebook")
-                        .accessibilityIdentifier("notebook.sources.addAllSuggestions")
-                }
-            }
-            if offered.isEmpty, !isLoading {
-                Text("No sources yet")
-                    .zoomedSystemFont(size: 12)
-                    .foregroundStyle(.secondary)
-                    .textSelection(.disabled)
-                    .padding(.vertical, 8)
-            }
-            ForEach(offered) { article in
-                HStack(spacing: 6) {
-                    ArticleRow(article: article, metadataVisibility: metadataVisibility)
+        VStack(alignment: .leading, spacing: 2) {
+            if let done {
+                HStack(spacing: 8) {
+                    Text("Your library")
+                        .zoomedSystemFont(size: 11, weight: .semibold)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.disabled)
                     Spacer(minLength: 0)
-                    Button {
-                        add([article.id])
-                    } label: {
-                        Image(systemName: "plus.circle")
-                    }
-                    .buttonStyle(.hoverWash)
-                    .disabled(isAdding || !canAdd)
-                    .help("Add to this notebook")
-                    .accessibilityLabel("Add \(article.title) to this notebook")
+                    Button("Done", action: done)
+                        .buttonStyle(.hoverWash(tint: .accentColor))
+                        .help("Show this notebook's sources")
+                        .accessibilityIdentifier("notebook.sources.libraryDone")
                 }
                 .padding(.horizontal, 6)
-                .padding(.vertical, 4)
             }
-        }
-        .confirmationDialog(
-            NotebookSourcePicking.addAllConfirmationTitle(count: pendingAddAll?.count ?? 0, notebookTitle: goal.title),
-            isPresented: Binding(
-                get: { pendingAddAll != nil },
-                set: { if !$0 { pendingAddAll = nil } }
-            ),
-            titleVisibility: .visible
-        ) {
-            Button(NotebookSourcePicking.addAllTitle(count: pendingAddAll?.count ?? 0)) {
-                if let ids = pendingAddAll { add(ids) }
-                pendingAddAll = nil
+            NavigationStack {
+                StudioSidebar()
+                    .equatable()
             }
-            Button("Cancel", role: .cancel) { pendingAddAll = nil }
+            // The kind tabs draw in flow, as in the docked Library.
+            .environment(\.studioTitlebarBandHeight, nil)
+            .environment(\.sourcesListLayout, .sidebar)
+            .environment(\.sourcesListHidesIdleSearch, true)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        // Again whenever the notebook's title or instructions change: they
-        // are what the suggestions are seeded by.
-        .task(id: "\(goal.id)|\(goal.title)|\(goal.description ?? "")") {
-            isLoading = true
-            let found = await vm.notebookSourceCandidates(goalID: goal.id, query: "")
-            guard !Task.isCancelled else { return }
-            suggestions = Array(found.prefix(12))
-            isLoading = false
-        }
-    }
-
-    private func add(_ ids: [String]) {
-        guard !ids.isEmpty, !isAdding else { return }
-        isAdding = true
-        Task {
-            if await vm.addSourcesToNotebookContext(ids, notebookID: goal.id) != nil {
-                addedIDs.formUnion(ids)
-            }
-            isAdding = false
-        }
-    }
-
-    /// Add all: at once up to the threshold, after a question above it.
-    private func addAll(_ ids: [String]) {
-        if NotebookSourcePicking.addAllNeedsConfirmation(count: ids.count) {
-            pendingAddAll = ids
-        } else {
-            add(ids)
-        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Your library")
+        .accessibilityIdentifier("notebook.sources.library")
     }
 }
 

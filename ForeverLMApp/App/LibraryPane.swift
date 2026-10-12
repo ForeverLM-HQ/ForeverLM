@@ -57,10 +57,23 @@ private struct SourcesListLayoutKey: EnvironmentKey {
     static let defaultValue: SourcesListLayout = .sidebar
 }
 
+private struct SourcesListHidesIdleSearchKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
 extension EnvironmentValues {
     var sourcesListLayout: SourcesListLayout {
         get { self[SourcesListLayoutKey.self] }
         set { self[SourcesListLayoutKey.self] = newValue }
+    }
+
+    /// The list draws no search row of its own while nothing is typed in it:
+    /// inside a notebook's Sources column, whose own field searches
+    /// (`NotebookLibraryBrowser`). Words already in the window's Library
+    /// search keep the row, so a filter is never applied out of sight.
+    var sourcesListHidesIdleSearch: Bool {
+        get { self[SourcesListHidesIdleSearchKey.self] }
+        set { self[SourcesListHidesIdleSearchKey.self] = newValue }
     }
 }
 

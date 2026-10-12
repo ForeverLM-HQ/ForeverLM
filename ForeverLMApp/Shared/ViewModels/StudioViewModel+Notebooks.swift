@@ -863,17 +863,6 @@ extension StudioViewModel {
 
     // MARK: - "Add sources" candidates
 
-    /// Whether the notebook says anything to suggest sources from: a title of
-    /// its own, instructions, sources, goals or notes. A blank notebook under
-    /// the placeholder has none, so the library offers it nothing.
-    func notebookCanSuggestSources(_ goal: LearningGoalRecord) -> Bool {
-        !notebookSourceRecommendationSeed(
-            goal: goal,
-            childGoals: goals(inNotebook: goal.id),
-            articlesById: articlesById
-        ).embeddingText.isEmpty
-    }
-
     /// Library sources worth adding to a Notebook, ranked, with everything already in the
     /// pool filtered out.
     ///

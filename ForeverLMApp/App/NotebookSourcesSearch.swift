@@ -8,6 +8,11 @@ import SwiftUI
 // and lands its results as a card in the panel; ForeverLM's field reaches the
 // notebook, the whole library and the web or PubMed (docs/notebooks-design.md,
 // "The Sources column's search"):
+// - Library, with no words: the Library itself, its kind tabs and rows, each
+//   row's + filing it and each row dragging (`NotebookLibraryBrowser`), while
+//   the notebook is empty or the field is in use (product owner, 2026-10-12:
+//   "in a notebook i might also want to drag in different sources. but i
+//   might also want to do a text based search").
 // - Library, as you type: the notebook's matches, then the library's books and
 //   sources, each one click from joining. Only the library: Return does
 //   nothing here, and a row under the matches takes the words to the web.
@@ -88,6 +93,10 @@ struct NotebookSourcesSearchField: View {
     var subject: String = ""
     /// Return: runs the web or PubMed search in those scopes, nothing in Library.
     let submit: () -> Void
+    /// The field took or lost keyboard focus.
+    var focusChanged: (Bool) -> Void = { _ in }
+    /// Escape in the field; nil leaves Escape to the window.
+    var escape: (() -> Void)? = nil
 
     @FocusState private var isFocused: Bool
     @State private var isHovering = false
@@ -117,6 +126,11 @@ struct NotebookSourcesSearchField: View {
                     .textFieldStyle(.plain)
                     .focused($isFocused)
                     .onSubmit(submit)
+                    .onKeyPress(.escape) {
+                        guard let escape else { return .ignored }
+                        escape()
+                        return .handled
+                    }
                     .accessibilityIdentifier("notebook.sources.search")
                 if !text.isEmpty {
                     Button { text = "" } label: {
@@ -150,6 +164,7 @@ struct NotebookSourcesSearchField: View {
         .onHover { isHovering = $0 }
         .onAppear { settleScopes(inUse: isInUse) }
         .onChange(of: isInUse) { _, inUse in settleScopes(inUse: inUse) }
+        .onChange(of: isFocused) { _, focused in focusChanged(focused) }
         .onChange(of: isHovering) { _, _ in settleScopes(inUse: isInUse) }
         .animation(.easeOut(duration: 0.15), value: showsScopes)
     }

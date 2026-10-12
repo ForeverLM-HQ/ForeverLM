@@ -53,6 +53,9 @@ struct StudioSidebar: View, Equatable {
     /// The Library's layout (`LibraryPane`): a narrow pane draws the compact
     /// list, a wide one wider rows and a bar for a multi-selection.
     @Environment(\.sourcesListLayout) var sourcesListLayout
+    /// Inside a notebook's Sources column the column's field searches, so
+    /// the list's own row stays away while it is empty.
+    @Environment(\.sourcesListHidesIdleSearch) var sourcesListHidesIdleSearch
 
     /// The source this window's Reader shows — the row a rebuilt list lands on
     /// when nothing else is selected, and the row a multi-selection keeps.
