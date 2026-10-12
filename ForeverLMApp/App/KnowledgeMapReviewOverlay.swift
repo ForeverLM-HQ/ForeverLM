@@ -140,6 +140,9 @@ private struct KnowledgeMapReviewCardHost: View {
             if review.anchorRect == nil { docked = true }
         }
         .onChange(of: review.focusKey) { focusToken &+= 1 }
+        // Once the answer field goes, the review takes the keyboard back
+        // for Forgot and Remembered.
+        .onChange(of: review.session.sitting.isAnswerShown) { focusToken &+= 1 }
         .onAppear {
             goalTracker.present(owner: review.session, panel: presenterToken, sessionID: review.session.id, storage: vm.storage)
         }
@@ -160,12 +163,10 @@ private struct KnowledgeMapReviewCardHost: View {
             guard isVisible, sitting.isRoundOver else { return false }
             vm.endKnowledgeMapReview()
             return true
-        case .space:
-            guard isVisible, !sitting.isRoundOver, !sitting.isAnswerShown else { return false }
-            vm.showKnowledgeMapReviewAnswer()
-            return true
         case .forgot, .remembered:
             guard isVisible, sitting.isAnswerShown, !sitting.isRoundOver else { return false }
+            // A card not known is only ever Forgot.
+            if key == .remembered, sitting.saidNotKnown { return true }
             vm.answerKnowledgeMapReview(remembered: key == .remembered)
             return true
         }
@@ -173,8 +174,10 @@ private struct KnowledgeMapReviewCardHost: View {
 }
 
 /// The question card: "MEMORY · <source>", where the round stands, the card
-/// in the wording the review asks it, Show Answer, then the back, why it is
-/// right and the source it quotes, and Forgot or Remembered. At the round's
+/// in the wording the review asks it, the learner's answer typed or
+/// dictated and Check (never a bare flip: product owner, 2026-10-11), then
+/// their answer over the back, why it is right and the source it quotes, and
+/// Forgot or Remembered; I Don't Know leaves only Forgot. At the round's
 /// end, how it went, Again for the forgotten ones, and Done.
 private struct KnowledgeMapReviewCard: View {
     @Environment(StudioViewModel.self) private var vm
@@ -185,6 +188,8 @@ private struct KnowledgeMapReviewCard: View {
     private var session: MemoryCardSessionModel { review.session }
     private var sitting: MemoryCardSitting { session.sitting }
     private static let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
+    /// The height the answer field's text needs.
+    @State private var attemptFieldHeight: CGFloat = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -274,6 +279,22 @@ private struct KnowledgeMapReviewCard: View {
                     .foregroundStyle(.secondary)
                     .textSelection(.disabled)
             }
+            if !sitting.isAnswerShown {
+                attemptField
+            } else if let attempt = sitting.attempt {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("YOUR ANSWER")
+                        .font(.system(size: 9.5, weight: .semibold))
+                        .tracking(0.5)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.disabled)
+                    Text(attempt)
+                        .font(.system(size: 14))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("knowledgeMap.review.yourAnswer")
+            }
             if sitting.isAnswerShown {
                 Divider()
                 Text(card.back)
@@ -296,9 +317,48 @@ private struct KnowledgeMapReviewCard: View {
         }
     }
 
+    /// The learner's answer: Return checks it, Shift-Return a new line, and
+    /// macOS dictation speaks into it. While it has the keyboard the review's
+    /// keys rest (`KnowledgeMapReviewKeys.isTyping`); Escape still ends the
+    /// review.
+    private var attemptField: some View {
+        let shape = RoundedRectangle(cornerRadius: 9, style: .continuous)
+        let draft = Binding(get: { session.attemptDraft }, set: { session.attemptDraft = $0 })
+        return ReviewChatComposerTextView(
+            text: draft,
+            onSubmit: { vm.checkKnowledgeMapReviewAnswer() },
+            autoFocus: true,
+            onCancel: { vm.endKnowledgeMapReview() },
+            onHeightChange: { attemptFieldHeight = $0 }
+        )
+        .frame(height: min(max(attemptFieldHeight, 30), 120))
+        .overlay(alignment: .topLeading) {
+            if session.attemptDraft.isEmpty {
+                Text("Type or dictate your answer")
+                    .foregroundStyle(.tertiary)
+                    .padding(.leading, ReviewChatComposerTextView.overlayTextLeadingInset)
+                    .padding(.top, 6)
+                    .allowsHitTesting(false)
+                    .textSelection(.disabled)
+                    .accessibilityHidden(true)
+            }
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(shape.fill(Color.primary.opacity(0.04)))
+        .overlay(shape.strokeBorder(Color.primary.opacity(0.12)))
+        .accessibilityLabel("Your answer")
+        .accessibilityIdentifier("knowledgeMap.review.attempt")
+    }
+
     @ViewBuilder
     private var answerButtons: some View {
-        if sitting.isAnswerShown {
+        if sitting.isAnswerShown, sitting.saidNotKnown {
+            capsule("Forgot", key: "1", prominent: true) { vm.answerKnowledgeMapReview(remembered: false) }
+                .help("You didn't know it: Forgot (1 or \u{2190})")
+                .disabled(session.isKeepingDraft)
+                .accessibilityIdentifier("knowledgeMap.review.forgot")
+        } else if sitting.isAnswerShown {
             HStack(spacing: 8) {
                 capsule("Forgot", key: "1", prominent: false) { vm.answerKnowledgeMapReview(remembered: false) }
                     .help("Forgot (1 or \u{2190})")
@@ -309,9 +369,15 @@ private struct KnowledgeMapReviewCard: View {
             }
             .disabled(session.isKeepingDraft)
         } else {
-            capsule("Show Answer", key: "Space", prominent: true) { vm.showKnowledgeMapReviewAnswer() }
-                .help("Show the answer (Space)")
-                .accessibilityIdentifier("knowledgeMap.review.showAnswer")
+            HStack(spacing: 8) {
+                capsule("I Don\u{2019}t Know", prominent: false) { vm.showKnowledgeMapReviewAnswerNotKnown() }
+                    .help("Show the answer; the card counts as forgot")
+                    .accessibilityIdentifier("knowledgeMap.review.notKnown")
+                capsule("Check", key: "\u{21A9}", prominent: true) { vm.checkKnowledgeMapReviewAnswer() }
+                    .disabled(session.attemptDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .help("Check your answer against the card (Return)")
+                    .accessibilityIdentifier("knowledgeMap.review.check")
+            }
         }
     }
 
@@ -459,8 +525,6 @@ private struct KnowledgeMapReviewCard: View {
 
 /// The keys a review in place answers to.
 enum KnowledgeMapReviewKey: Equatable {
-    /// Space: Show Answer.
-    case space
     /// 1 or ←.
     case forgot
     /// 2 or →.
@@ -472,7 +536,6 @@ enum KnowledgeMapReviewKey: Equatable {
 
     init?(_ event: NSEvent) {
         switch event.keyCode {
-        case 49: self = .space
         case 123: self = .forgot
         case 124: self = .remembered
         case 53: self = .escape

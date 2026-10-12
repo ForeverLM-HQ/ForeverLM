@@ -212,9 +212,16 @@ extension StudioViewModel {
         return titles
     }
 
-    /// Show Answer (Space) on the card asked.
-    func showKnowledgeMapReviewAnswer() {
-        knowledgeMap.memory.review?.session.showAnswer()
+    /// Check (Return) on the card asked: the learner's answer, typed or
+    /// dictated, turns it. A blank answer turns nothing.
+    func checkKnowledgeMapReviewAnswer() {
+        knowledgeMap.memory.review?.session.checkAttempt()
+    }
+
+    /// "I don't know" on the card asked: its back shows, and it can only be
+    /// Forgot.
+    func showKnowledgeMapReviewAnswerNotKnown() {
+        knowledgeMap.memory.review?.session.showAnswerNotKnown()
     }
 
     /// Forgot or Remembered on the card asked, once its back shows: written

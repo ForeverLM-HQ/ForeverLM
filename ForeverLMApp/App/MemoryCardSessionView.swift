@@ -1,9 +1,11 @@
 import SwiftUI
 
 /// The card review, in the window-filling memory focus (docs/memory-design.md,
-/// "The card review"): one card at a time, the wording large, Show Answer,
-/// then the back, why it is right and the source it quotes, and Forgot or
-/// Remembered.
+/// "The card review"): one card at a time, the wording large, the learner's
+/// answer typed or dictated on the card and Check (never a bare flip:
+/// product owner, 2026-10-11), then their answer over the back, why it is
+/// right and the source it quotes, and Forgot or Remembered. I Don't Know
+/// opens the back too, and leaves only Forgot.
 ///
 /// Since 2026-10-11 it is drawn as a deck (docs/memory-design.md, "How a card
 /// looks"; `MemoryCardChrome.swift`): over the card, the source it is from
@@ -11,7 +13,7 @@ import SwiftUI
 /// index card with the question set in the middle until the answer opens
 /// under a fold; under it the edges of the cards still to come. An answered
 /// card is tossed off toward its key's side (← Forgot, → Remembered) and the
-/// next comes up off the deck. Show Answer, Remembered and Done are the
+/// next comes up off the deck. Check, Remembered and Done are the
 /// Space's dark pill, the rest pale or bare, and each draws its key.
 ///
 /// The window is the review's while it runs: the × is on the
@@ -20,10 +22,12 @@ import SwiftUI
 /// the review alone). When the goal's minutes are met the celebration shows
 /// here, as it showed in the chat.
 ///
-/// Keys: Space shows the answer; ← or 1 is Forgot, → or 2 Remembered, D Go
-/// Deeper. They are off while the Reader is beside the review, which takes
-/// keys of its own, while a draft is being edited, and while Go Deeper's
-/// panel is up, whose answer field takes the keys.
+/// Keys: Return in the answer field checks it (Shift-Return a new line);
+/// once the back shows, ← or 1 is Forgot, → or 2 Remembered, D Go Deeper.
+/// They are off while the answer field is up, which takes the keys, while
+/// the Reader is beside the review, which takes keys of its own, while a
+/// draft is being edited, and while Go Deeper's panel is up, whose answer
+/// field takes the keys.
 ///
 /// **Go Deeper** (docs/memory-design.md, "Go Deeper on a card") answers the
 /// card Remembered and puts a panel where the next card would be: the card it
@@ -54,13 +58,22 @@ struct MemoryCardSessionView: View {
     @State private var editingDraft: MemoryCardToCheck?
     /// The height Go Deeper's answer field's text needs.
     @State private var deeperFieldHeight: CGFloat = 0
+    /// The height the card's answer field's text needs.
+    @State private var attemptFieldHeight: CGFloat = 0
     /// The side the card in front leaves to once it is answered: set before
     /// the answer, so the card goes the way its key points.
     @State private var exitEdge: HorizontalEdge = .trailing
 
     private var goalTracker: MemoryReviewEngagementTracker { MemoryReviewEngagementTracker.shared }
     private var sitting: MemoryCardSitting { session.sitting }
-    private var keysEnabled: Bool { session.besideSourceID == nil && editingDraft == nil && session.deeper == nil }
+    private var keysEnabled: Bool {
+        session.besideSourceID == nil && editingDraft == nil && session.deeper == nil && !takesAttempt
+    }
+    /// Whether the card on screen waits for the learner's answer: its field
+    /// is up and takes the keys.
+    private var takesAttempt: Bool {
+        session.deeper == nil && sitting.current != nil && !sitting.isAnswerShown
+    }
 
     /// The review's column, never narrower than a card reads at.
     private static let reviewMinimumWidth: CGFloat = 440
@@ -256,6 +269,13 @@ struct MemoryCardSessionView: View {
                     .textSelection(.disabled)
                     .padding(.top, 10)
             }
+            if !shown {
+                attemptField
+                    .padding(.top, 26)
+            } else if let attempt = sitting.attempt {
+                yourAnswer(attempt)
+                    .padding(.top, 22)
+            }
             if shown {
                 answerFace(card)
                     .transition(.opacity)
@@ -283,6 +303,53 @@ struct MemoryCardSessionView: View {
         .animation(.easeOut(duration: 0.22), value: shown)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("memory.cards.card")
+    }
+
+    /// The learner's answer, written on the card under the question: Return
+    /// checks it, Shift-Return starts a new line (the chat composer's text
+    /// view), and macOS dictation speaks into it. It takes the keys the
+    /// review's shortcuts would otherwise answer.
+    private var attemptField: some View {
+        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+        let draft = Binding(get: { session.attemptDraft }, set: { session.attemptDraft = $0 })
+        return ReviewChatComposerTextView(
+            text: draft,
+            onSubmit: { session.checkAttempt() },
+            autoFocus: true,
+            onHeightChange: { attemptFieldHeight = $0 }
+        )
+        .frame(height: min(max(attemptFieldHeight, 34), 160))
+        .overlay(alignment: .topLeading) {
+            if session.attemptDraft.isEmpty {
+                Text("Type or dictate your answer")
+                    .foregroundStyle(.tertiary)
+                    .padding(.leading, ReviewChatComposerTextView.overlayTextLeadingInset)
+                    .padding(.top, 7)
+                    .allowsHitTesting(false)
+                    .textSelection(.disabled)
+                    .accessibilityHidden(true)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(shape.fill(Color.primary.opacity(0.035)))
+        .overlay(shape.strokeBorder(Color.primary.opacity(0.1)))
+        .accessibilityLabel("Your answer")
+        .accessibilityIdentifier("memory.cards.attempt")
+    }
+
+    /// Once checked, what the learner answered, over the fold, to grade
+    /// against the back under it.
+    private func yourAnswer(_ attempt: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            MemoryCardTagLine(tags: ["Your answer"])
+            Text(attempt)
+                .font(.system(size: 16))
+                .lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("memory.cards.yourAnswer")
     }
 
     /// Under the fold: the answer, its pictures, why it holds, and the
@@ -410,7 +477,24 @@ struct MemoryCardSessionView: View {
     private var answerBar: some View {
         let draft = sitting.current?.draft
         VStack(spacing: 12) {
-            if sitting.isAnswerShown {
+            if sitting.isAnswerShown, sitting.saidNotKnown {
+                // Not known is forgotten: one answer, never Remembered.
+                MemoryReviewButton(
+                    title: "Forgot",
+                    key: keysEnabled ? "←" : nil,
+                    kind: .primary,
+                    minWidth: 220,
+                    shortcut: keysEnabled ? KeyboardShortcut(.leftArrow, modifiers: []) : nil
+                ) {
+                    answer(remembered: false)
+                }
+                .help(keysEnabled ? "You didn't know it: Forgot (← or 1)" : "You didn't know it: Forgot")
+                .disabled(session.isKeepingDraft)
+                .accessibilityIdentifier("memory.cards.forgot")
+                if keysEnabled, !session.isKeepingDraft {
+                    hiddenShortcut("1") { answer(remembered: false) }
+                }
+            } else if sitting.isAnswerShown {
                 HStack(spacing: 12) {
                     MemoryReviewButton(
                         title: "Forgot",
@@ -457,17 +541,29 @@ struct MemoryCardSessionView: View {
                     hiddenShortcut("2") { answer(remembered: true) }
                 }
             } else {
-                MemoryReviewButton(
-                    title: "Show Answer",
-                    key: keysEnabled ? "Space" : nil,
-                    kind: .primary,
-                    minWidth: 220,
-                    shortcut: keysEnabled ? KeyboardShortcut(.space, modifiers: []) : nil
-                ) {
-                    session.showAnswer()
+                // The back opens on an answer, never on a bare flip.
+                HStack(spacing: 12) {
+                    MemoryReviewButton(
+                        title: "I Don't Know",
+                        kind: .secondary,
+                        minWidth: 170
+                    ) {
+                        session.showAnswerNotKnown()
+                    }
+                    .help("Show the answer; the card counts as forgot")
+                    .accessibilityIdentifier("memory.cards.notKnown")
+                    MemoryReviewButton(
+                        title: "Check",
+                        key: session.besideSourceID == nil ? "↩" : nil,
+                        kind: .primary,
+                        minWidth: 170
+                    ) {
+                        session.checkAttempt()
+                    }
+                    .disabled(session.attemptDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .help("Check your answer against the card (Return)")
+                    .accessibilityIdentifier("memory.cards.check")
                 }
-                .help(keysEnabled ? "Show Answer (Space)" : "Show Answer")
-                .accessibilityIdentifier("memory.cards.showAnswer")
             }
             // A card to check, in a notebook's Practice: answering keeps it,
             // Skip drops it for good, Edit keeps it in the learner's words.

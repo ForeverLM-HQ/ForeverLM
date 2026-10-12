@@ -252,7 +252,7 @@ struct CanvasMemoryTests {
             storage: storage,
             followup: { MemoryCardSessionModel.Followup(cards: [], dayHasCardsLeft: true) }
         )
-        session.showAnswer()
+        session.showAnswer(attempt: "An answer")
         session.answer(remembered: true)
         await session.waitForWrites()
         #expect(session.saveError == nil)

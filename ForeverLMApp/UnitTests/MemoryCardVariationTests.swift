@@ -386,7 +386,7 @@ struct MemoryCardVariationTests {
             .init(itemID: "item-b", prompt: secondVariant, front: "What is the coupling membrane?", back: "The inner one.", isVariant: true, variantIndex: 1),
         ])
         #expect(sitting.current?.variantIndex == 0)
-        sitting.showAnswer()
+        sitting.showAnswer(attempt: "An answer")
         sitting.askCurrentInOwnWords()
         #expect(sitting.current?.prompt == front)
         #expect(sitting.current?.isVariant == false)
@@ -400,7 +400,7 @@ struct MemoryCardVariationTests {
         #expect(sitting.current?.alwaysAsk == false)
         #expect(sitting.current?.prompt == front)
 
-        sitting.showAnswer()
+        sitting.showAnswer(attempt: "An answer")
         _ = sitting.answer(remembered: true)
         #expect(sitting.current?.itemID == "item-b")
         sitting.setCurrentAlwaysAsk(true)

@@ -310,7 +310,7 @@ struct MemoryCardReviewEntryTests {
         let session = try #require(window.memoryCardSession)
         #expect(session.sitting.kind == .practice)
         #expect(session.sitting.cards.map(\.itemID) == [keptNow.id])
-        session.showAnswer()
+        session.showAnswer(attempt: "An answer")
         session.answer(remembered: true)
         await session.waitForWrites()
         await session.waitForFollowup()
@@ -396,7 +396,7 @@ struct MemoryCardReviewEntryTests {
         // Nothing is graded before the back is shown.
         session.answer(remembered: true)
         #expect(session.sitting.cardNumber == 1)
-        session.showAnswer()
+        session.showAnswer(attempt: "An answer")
         session.answer(remembered: false)
         #expect(!session.leavingEndsSession, "its one card is answered")
         await session.waitForWrites()
@@ -415,7 +415,7 @@ struct MemoryCardReviewEntryTests {
         // Review forgotten: shown again, never written, the day not told twice.
         session.reviewForgotten()
         #expect(session.sitting.isRepeat)
-        session.showAnswer()
+        session.showAnswer(attempt: "An answer")
         session.answer(remembered: true)
         await session.waitForWrites()
         await session.waitForFollowup()
@@ -445,7 +445,7 @@ struct MemoryCardReviewEntryTests {
             storage: StorageService(storeRoot: root),
             followup: { .init(cards: [], dayHasCardsLeft: true) }
         )
-        session.showAnswer()
+        session.showAnswer(attempt: "An answer")
         session.answer(remembered: true)
         await session.waitForWrites()
         #expect(session.saveError?.hasPrefix("Your answer to the last card was not saved.") == true)
@@ -563,13 +563,13 @@ struct MemoryCardReviewEntryTests {
         #expect(session.sitting.cards.map(\.itemID).last == kept[0].id)
 
         // Kept today: practice the learner started counts it.
-        session.showAnswer()
+        session.showAnswer(attempt: "An answer")
         session.answer(remembered: true)
         await session.waitForWrites()
         #expect(try await storage.loadMemoryAttempts(memoryItemID: kept[1].id).count == 1)
 
         // A draft answered is kept, and its answer is its first.
-        session.showAnswer()
+        session.showAnswer(attempt: "An answer")
         session.answer(remembered: false)
         await session.waitForWrites()
         let keptDraftID = MemoryTutorIdentity.cardItemID(cardID: drafts[0].id)
@@ -596,13 +596,13 @@ struct MemoryCardReviewEntryTests {
         #expect(session.sitting.current?.prompt == "What is made without ATP?")
         let editedID = MemoryTutorIdentity.cardItemID(cardID: drafts[2].id)
         #expect(try await storage.loadMemoryItem(editedID)?.target == "Nothing: the protons leak back.")
-        session.showAnswer()
+        session.showAnswer(attempt: "An answer")
         session.answer(remembered: true)
         await session.waitForWrites()
         #expect(try await storage.loadMemoryAttempts(memoryItemID: editedID).first?.prompt == "What is made without ATP?")
 
         // Answered this morning and not due: shown, not written.
-        session.showAnswer()
+        session.showAnswer(attempt: "An answer")
         session.answer(remembered: false)
         await session.waitForWrites()
         #expect(try await storage.loadMemoryAttempts(memoryItemID: kept[0].id).count == 1, "an early answer never moves the schedule")
@@ -703,7 +703,7 @@ struct MemoryCardReviewEntryTests {
         #expect(session.deeper == nil)
         #expect(session.sitting.cardNumber == 1)
 
-        session.showAnswer()
+        session.showAnswer(attempt: "An answer")
         session.goDeeper()
         #expect(session.sitting.results[item.id] == true, "answered Remembered")
         #expect(session.sitting.current?.itemID == "next-card")
@@ -759,7 +759,7 @@ struct MemoryCardReviewEntryTests {
         stub.question = .success(Probe.CardQuestion(kind: .transfer, text: "Where else does this hold?"))
         let session = deeperSession(cards: 3, stub: stub, root: root)
 
-        session.showAnswer()
+        session.showAnswer(attempt: "An answer")
         session.goDeeper()
         await session.waitForDeeper()
         #expect(stub.questionRequests[0].kinds == [.principle, .transfer, .falsify, .analogy])
@@ -769,7 +769,7 @@ struct MemoryCardReviewEntryTests {
 
         // The writer chose transfer; the next card starts after it.
         stub.partner = nil
-        session.showAnswer()
+        session.showAnswer(attempt: "An answer")
         session.goDeeper()
         await session.waitForDeeper()
         #expect(stub.questionRequests[1].kinds == [.falsify, .principle, .transfer])
@@ -778,7 +778,7 @@ struct MemoryCardReviewEntryTests {
         session.leaveDeeper()
 
         // Next Card while the question is still being written drops it.
-        session.showAnswer()
+        session.showAnswer(attempt: "An answer")
         session.goDeeper()
         session.leaveDeeper()
         for _ in 0..<5 { await Task.yield() }
@@ -794,7 +794,7 @@ struct MemoryCardReviewEntryTests {
         stub.question = .failure(GoDeeperStubFailure(message: "The model is not answering."))
         let session = deeperSession(cards: 3, stub: stub, root: root)
 
-        session.showAnswer()
+        session.showAnswer(attempt: "An answer")
         session.goDeeper()
         await session.waitForDeeper()
         #expect(session.deeper?.stage == .noQuestion)
@@ -807,7 +807,7 @@ struct MemoryCardReviewEntryTests {
         let question = Probe.CardQuestion(kind: .falsify, text: "What result would break it?")
         stub.question = .success(question)
         stub.reply = .failure(GoDeeperStubFailure(message: "The model is not answering."))
-        session.showAnswer()
+        session.showAnswer(attempt: "An answer")
         session.goDeeper()
         await session.waitForDeeper()
         session.deeperDraft = "A gradient that does not form."
@@ -825,7 +825,7 @@ struct MemoryCardReviewEntryTests {
 
         // A bare fact fits no kind: said in one line, no failure.
         stub.question = .success(nil)
-        session.showAnswer()
+        session.showAnswer(attempt: "An answer")
         session.goDeeper()
         await session.waitForDeeper()
         #expect(session.deeper?.stage == .noQuestion)
@@ -848,7 +848,7 @@ struct MemoryCardReviewEntryTests {
             followup: { .init(cards: [], dayHasCardsLeft: true) }
         )
         #expect(!session.offersGoDeeper)
-        session.showAnswer()
+        session.showAnswer(attempt: "An answer")
         session.goDeeper()
         #expect(session.deeper == nil)
         #expect(session.sitting.cardNumber == 1, "nothing was answered")

@@ -97,6 +97,9 @@ final class MobileCardReviewSession: ObservableObject {
     @Published private(set) var dayChatIsUnderway = false
     /// Counts the answers shown and given, for the haptics.
     @Published private(set) var revealCount = 0
+    /// The learner's answer to the card on screen, as it is typed or
+    /// dictated, before Check turns the card.
+    @Published var attemptDraft = ""
     @Published private(set) var answerCount = 0
 
     private let backend: Backend
@@ -179,6 +182,7 @@ final class MobileCardReviewSession: ObservableObject {
         let generation = dealGeneration
         phase = .loading
         sitting = nil
+        attemptDraft = ""
         waitingCards = []
         isReadingFollowup = false
         let kind: MemoryCardSitting.Kind
@@ -205,10 +209,24 @@ final class MobileCardReviewSession: ObservableObject {
 
     // MARK: The cards
 
-    func showAnswer() {
-        guard var sitting, !sitting.isAnswerShown, sitting.current != nil else { return }
-        sitting.showAnswer()
+    /// Check: the learner's answer, typed or dictated, turns the card to its
+    /// back, the answer shown over it. A blank answer turns nothing: the back
+    /// is never a bare flip (product owner, 2026-10-11). True when it shows.
+    @discardableResult
+    func showAnswer(attempt: String) -> Bool {
+        guard var sitting, sitting.showAnswer(attempt: attempt) else { return false }
         self.sitting = sitting
+        attemptDraft = ""
+        revealCount += 1
+        return true
+    }
+
+    /// "I don't know": the back shows, and the card can only be Forgot.
+    func showAnswerNotKnown() {
+        guard var sitting, !sitting.isAnswerShown, sitting.current != nil else { return }
+        sitting.showAnswerNotKnown()
+        self.sitting = sitting
+        attemptDraft = ""
         revealCount += 1
     }
 
@@ -458,8 +476,11 @@ final class MobileBackgroundSaveAssertion {
 // MARK: - The screen
 
 /// Today's card review, or a notebook's Practice: one card at a time, the
-/// wording large, Show Answer, then the back, why it holds and its source,
-/// and Forgot or Remembered (the Mac's `MemoryCardSessionView`, on a phone).
+/// wording large, the learner's answer typed or dictated at the foot and
+/// Check (never a bare flip: product owner, 2026-10-11), then their answer
+/// over the back, why it holds and its source, and Forgot or Remembered; I
+/// Don't Know leaves only Forgot (the Mac's `MemoryCardSessionView`, on a
+/// phone).
 /// Today's review carries the scope in its title — All notebooks or one — and
 /// its menu speaks today's review by voice and, when today's review chat from
 /// before cards holds an answer, continues it. A card's source opens in the
@@ -472,7 +493,7 @@ final class MobileBackgroundSaveAssertion {
 /// answer opens under a fold; under it the edges of the cards still to come.
 /// An answered card is tossed off toward its answer's side (Forgot to the
 /// left, Remembered to the right), or fades with Reduce Motion, and the next
-/// comes up off the deck. Show Answer, Remembered, Done and Practice are the
+/// comes up off the deck. Remembered, Done and Practice are the
 /// Space's dark pill (light in dark mode), Forgot and the round's other
 /// buttons a pale one. It lays out by size classes: a card inset and answer
 /// bar sized for regular width, a shorter card at compact height.
@@ -488,6 +509,9 @@ struct MobileCardReviewScreen: View {
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showsDayChat = false
+    /// Tap-to-talk for the answer field, on device, as a course quiz's.
+    @StateObject private var dictation = MobileComposerDictation()
+    @FocusState private var isAttemptFocused: Bool
     /// The side the card in front leaves to once it is answered: set before
     /// the answer, so the card goes the way its answer points.
     @State private var exitEdge: HorizontalEdge = .trailing
@@ -537,7 +561,11 @@ struct MobileCardReviewScreen: View {
                 goal.setSceneActive(scenePhase == .active)
                 goal.present()
             }
-            .onDisappear { goal.dismiss() }
+            .onDisappear {
+                goal.dismiss()
+                Task { await dictation.cancel() }
+            }
+            .task { await dictation.refreshAvailability() }
             .onChange(of: scenePhase) { _, phase in goal.setSceneActive(phase == .active) }
             .simultaneousGesture(TapGesture().onEnded { goal.noteActivity() })
             .sensoryFeedback(.selection, trigger: session.revealCount)
@@ -811,6 +839,10 @@ struct MobileCardReviewScreen: View {
                     .padding(.top, 10)
                     .accessibilityIdentifier("memory.cards.varied")
             }
+            if shown, let attempt = sitting.attempt {
+                yourAnswer(attempt)
+                    .padding(.top, MobileDesign.Spacing.large)
+            }
             if shown {
                 answerFace(card)
                     .transition(.opacity)
@@ -841,6 +873,21 @@ struct MobileCardReviewScreen: View {
         .animation(.easeOut(duration: 0.22), value: shown)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("memory.cards.card")
+    }
+
+    /// Once checked, what the learner answered, over the fold, to grade
+    /// against the back under it.
+    private func yourAnswer(_ attempt: String) -> some View {
+        VStack(alignment: .leading, spacing: MobileDesign.Spacing.xSmall) {
+            MemoryCardTagLine(tags: ["Your answer"])
+            Text(attempt)
+                .font(.system(size: backSize))
+                .lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Your answer: \(attempt)")
+        .accessibilityIdentifier("memory.cards.yourAnswer")
     }
 
     /// Under the fold: the answer, its pictures, why it holds, and the
@@ -966,11 +1013,23 @@ struct MobileCardReviewScreen: View {
 
     // MARK: Answers
 
-    /// At the foot of the screen: Show Answer, then Forgot and Remembered
-    /// side by side, stacked at the accessibility text sizes.
+    /// At the foot of the screen: the answer field with its mic and Check,
+    /// and I Don't Know under it; then Forgot and Remembered side by side,
+    /// stacked at the accessibility text sizes, or Forgot alone for a card
+    /// not known.
     private func answerBar(_ sitting: MemoryCardSitting) -> some View {
         Group {
-            if sitting.isAnswerShown {
+            if sitting.isAnswerShown, sitting.saidNotKnown {
+                Button {
+                    answer(remembered: false)
+                } label: {
+                    Text("Forgot")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(MobileMemoryPillStyle(kind: .primary))
+                .accessibilityHint("You didn't know it")
+                .accessibilityIdentifier("memory.cards.forgot")
+            } else if sitting.isAnswerShown {
                 let layout = dynamicTypeSize.isAccessibilitySize
                     ? AnyLayout(VStackLayout(spacing: MobileDesign.Spacing.medium))
                     : AnyLayout(HStackLayout(spacing: MobileDesign.Spacing.medium))
@@ -993,14 +1052,21 @@ struct MobileCardReviewScreen: View {
                     .accessibilityIdentifier("memory.cards.remembered")
                 }
             } else {
-                Button {
-                    session.showAnswer()
-                } label: {
-                    Text("Show Answer")
-                        .frame(maxWidth: .infinity)
+                VStack(spacing: MobileDesign.Spacing.xSmall) {
+                    attemptComposer
+                    Button {
+                        isAttemptFocused = false
+                        Task { await dictation.cancel() }
+                        session.showAnswerNotKnown()
+                    } label: {
+                        Text("I Don't Know")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(MobileMemoryPillStyle(kind: .quiet, height: MobileDesign.Metrics.minimumTouchTarget))
+                    .disabled(dictation.state == .listening)
+                    .accessibilityHint("Shows the answer; the card counts as forgot")
+                    .accessibilityIdentifier("memory.cards.notKnown")
                 }
-                .buttonStyle(MobileMemoryPillStyle(kind: .primary))
-                .accessibilityIdentifier("memory.cards.showAnswer")
             }
         }
         .frame(maxWidth: horizontalSizeClass == .regular ? Self.regularBarWidth : Self.columnWidth)
@@ -1020,6 +1086,62 @@ struct MobileCardReviewScreen: View {
                         .allowsHitTesting(false)
                 }
         }
+    }
+
+    /// The learner's answer, typed or dictated (the mic, on device, as a
+    /// course quiz's), and Check, which turns the card once there is one.
+    private var attemptComposer: some View {
+        let isListening = dictation.state == .listening
+        let canCheck = !session.attemptDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        return MobileComposerSurface {
+            HStack(alignment: .bottom, spacing: MobileDesign.Spacing.xSmall) {
+                TextField("Type or say your answer", text: attemptText, axis: .vertical)
+                    .lineLimit(1...5)
+                    .focused($isAttemptFocused)
+                    .disabled(isListening)
+                    .padding(.vertical, 7)
+                    .accessibilityLabel("Your answer")
+                    .accessibilityIdentifier("memory.cards.attempt")
+                if dictation.isAvailable {
+                    Button {
+                        dictation.toggle { text in
+                            let typed = session.attemptDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+                            session.attemptDraft = typed.isEmpty ? text : "\(typed) \(text)"
+                        }
+                    } label: {
+                        Image(systemName: isListening ? "stop.fill" : "mic.fill")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(isListening ? Color.red : Color.secondary)
+                            .frame(width: MobileDesign.Metrics.minimumTouchTarget, height: MobileDesign.Metrics.minimumTouchTarget)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(isListening ? "Stop dictation" : "Say your answer")
+                    .accessibilityIdentifier("memory.cards.dictate")
+                }
+                Button {
+                    isAttemptFocused = false
+                    session.showAnswer(attempt: session.attemptDraft)
+                } label: {
+                    MobileCircularActionLabel(systemImage: "arrow.up", isProminent: canCheck)
+                }
+                .buttonStyle(.plain)
+                .disabled(!canCheck || isListening)
+                .accessibilityLabel("Check your answer")
+                .accessibilityIdentifier("memory.cards.check")
+            }
+        }
+    }
+
+    /// The field shows the words as they are said, and takes no typing
+    /// while the mic listens.
+    private var attemptText: Binding<String> {
+        Binding(
+            get: { dictation.state == .listening ? dictation.partialText : session.attemptDraft },
+            set: { newValue in
+                guard dictation.state != .listening else { return }
+                session.attemptDraft = newValue
+            }
+        )
     }
 
     /// Answers the card in front, tossing it toward its answer's side. The

@@ -127,6 +127,9 @@ final class MemoryCardSessionModel: Identifiable {
     private(set) var deeper: Deeper?
     /// The learner's answer to the panel's question, as it is typed.
     var deeperDraft = ""
+    /// The learner's answer to the card on screen, as it is typed or
+    /// dictated, before Check turns the card.
+    var attemptDraft = ""
 
     @ObservationIgnored private let storage: StorageService
     /// Where the drafts' `cards.state.<deckID>` rows are read and written: the
@@ -188,8 +191,25 @@ final class MemoryCardSessionModel: Identifiable {
     /// Whether the review offers Go Deeper: a review made with its steps.
     var offersGoDeeper: Bool { deeperSteps != nil }
 
-    func showAnswer() {
-        sitting.showAnswer()
+    /// Check: the learner's answer turns the card to its back, the answer
+    /// shown over it. A blank answer turns nothing. True when the back shows.
+    @discardableResult
+    func showAnswer(attempt: String) -> Bool {
+        guard sitting.showAnswer(attempt: attempt) else { return false }
+        attemptDraft = ""
+        return true
+    }
+
+    /// Check on what the learner has typed or dictated.
+    @discardableResult
+    func checkAttempt() -> Bool {
+        showAnswer(attempt: attemptDraft)
+    }
+
+    /// "I don't know": the back shows, and the card can only be Forgot.
+    func showAnswerNotKnown() {
+        sitting.showAnswerNotKnown()
+        if sitting.isAnswerShown { attemptDraft = "" }
     }
 
     /// Forgot or Remembered on the card on screen, once its back is shown.
@@ -207,6 +227,7 @@ final class MemoryCardSessionModel: Identifiable {
     /// answered.
     func skipCurrentDraft() {
         guard !isKeepingDraft, let draft = sitting.skipCurrentDraft() else { return }
+        attemptDraft = ""
         let previous = writes
         let storage = storage
         let defaults = stateDefaults

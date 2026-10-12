@@ -50,7 +50,7 @@ struct MemoryCardSittingTests {
         let early = sitting.answer(remembered: true)
         #expect(early == nil)
         #expect(sitting.cardNumber == 1)
-        sitting.showAnswer()
+        sitting.showAnswer(attempt: "An answer")
         let first = sitting.answer(remembered: true)
         #expect(first == MemoryCardSitting.Answer(
             itemID: "deadline-due", prompt: "Front of deadline-due", remembered: true, practice: false
@@ -58,12 +58,12 @@ struct MemoryCardSittingTests {
         #expect(sitting.cardNumber == 2)
         #expect(!sitting.isAnswerShown, "the next card starts on its front")
         for remembered in [false, true, true] {
-            sitting.showAnswer()
+            sitting.showAnswer(attempt: "An answer")
             let answer = sitting.answer(remembered: remembered)
             #expect(answer != nil)
             #expect(!sitting.firstDealAnswered)
         }
-        sitting.showAnswer()
+        sitting.showAnswer(attempt: "An answer")
         let last = sitting.answer(remembered: false)
         #expect(last?.itemID == "younger-new")
         #expect(sitting.isRoundOver)
@@ -102,7 +102,7 @@ struct MemoryCardSittingTests {
         #expect(!tooEarly, "not before the round is over")
         var written: [String] = []
         for remembered in [true, false, false] {
-            sitting.showAnswer()
+            sitting.showAnswer(attempt: "An answer")
             if let answer = sitting.answer(remembered: remembered) { written.append(answer.itemID) }
         }
         #expect(written == ["a", "b", "c"])
@@ -114,7 +114,7 @@ struct MemoryCardSittingTests {
         #expect(sitting.cards.map(\.itemID) == ["b", "c"])
         #expect(sitting.cardNumber == 1)
         for remembered in [true, false] {
-            sitting.showAnswer()
+            sitting.showAnswer(attempt: "An answer")
             let answer = sitting.answer(remembered: remembered)
             #expect(answer == nil, "a repeat is shown, never written")
         }
@@ -123,7 +123,7 @@ struct MemoryCardSittingTests {
         let again = sitting.reviewForgotten()
         #expect(again)
         #expect(sitting.cards.map(\.itemID) == ["c"])
-        sitting.showAnswer()
+        sitting.showAnswer(attempt: "An answer")
         let repeatAnswer = sitting.answer(remembered: true)
         #expect(repeatAnswer == nil)
         let nothingForgotten = sitting.reviewForgotten()
@@ -135,12 +135,60 @@ struct MemoryCardSittingTests {
         #expect(dealt)
         #expect(!sitting.isRepeat)
         #expect(sitting.cards.map(\.itemID) == ["d"])
-        sitting.showAnswer()
+        sitting.showAnswer(attempt: "An answer")
         let moreAnswer = sitting.answer(remembered: false)
         #expect(moreAnswer?.itemID == "d")
         #expect(sitting.recordedItemIDs == ["a", "b", "c", "d"])
         let dealtAgain = sitting.dealMore(more)
         #expect(!dealtAgain, "every card there has been written")
+    }
+
+    @Test("A card's back opens only on an answer, typed or said, or on I don't know, which can only be Forgot")
+    func backOpensOnAnAnswer() {
+        let cards = ["a", "b", "c"].map { MemoryCardSitting.Card(itemID: $0, prompt: "Q \($0)", back: "A \($0)") }
+        var sitting = MemoryCardSitting(key: "k", kind: .today, cards: cards)
+        // No bare flip: a blank answer opens nothing.
+        let empty = sitting.showAnswer(attempt: "")
+        let blank = sitting.showAnswer(attempt: "  \n ")
+        #expect(!empty)
+        #expect(!blank)
+        #expect(!sitting.isAnswerShown)
+        let unanswered = sitting.answer(remembered: true)
+        #expect(unanswered == nil)
+
+        let checked = sitting.showAnswer(attempt: "  The answer, said back \n")
+        #expect(checked)
+        #expect(sitting.isAnswerShown)
+        #expect(sitting.attempt == "The answer, said back")
+        #expect(!sitting.saidNotKnown)
+        let secondGo = sitting.showAnswer(attempt: "A second go")
+        #expect(!secondGo, "the back is already open")
+        #expect(sitting.attempt == "The answer, said back")
+        let first = sitting.answer(remembered: true)
+        #expect(first?.remembered == true)
+        #expect(sitting.attempt == nil, "the next card starts with nothing answered")
+
+        // I don't know opens the back with nothing to grade, and is Forgot
+        // whatever is asked.
+        sitting.showAnswerNotKnown()
+        #expect(sitting.isAnswerShown)
+        #expect(sitting.saidNotKnown)
+        #expect(sitting.attempt == nil)
+        let notKnown = sitting.answer(remembered: true)
+        #expect(notKnown?.remembered == false)
+        #expect(!sitting.saidNotKnown)
+        #expect(sitting.forgottenCards.map(\.itemID) == ["b"])
+
+        sitting.showAnswer(attempt: "C")
+        sitting.answer(remembered: true)
+        #expect(sitting.isRoundOver)
+        // Review Forgotten asks again on an answer too.
+        sitting.reviewForgotten()
+        #expect(!sitting.isAnswerShown)
+        #expect(!sitting.saidNotKnown)
+        #expect(sitting.attempt == nil)
+        let blankAgain = sitting.showAnswer(attempt: "")
+        #expect(!blankAgain)
     }
 
     @Test("Practice answers say they are practice")
@@ -149,7 +197,7 @@ struct MemoryCardSittingTests {
             key: "k", kind: .practice,
             cards: [MemoryCardSitting.Card(itemID: "kept-today", prompt: "Q", back: "A", isNew: true)]
         )
-        sitting.showAnswer()
+        sitting.showAnswer(attempt: "An answer")
         let answer = sitting.answer(remembered: true)
         #expect(answer?.practice == true)
     }
@@ -398,12 +446,12 @@ struct MemoryCardSittingTests {
         // A kept card: no Skip.
         let noSkip = sitting.skipCurrentDraft()
         #expect(noSkip == nil)
-        sitting.showAnswer()
+        sitting.showAnswer(attempt: "An answer")
         let first = sitting.answer(remembered: true)
         #expect(first == MemoryCardSitting.Answer(itemID: "kept", prompt: "Kept front", remembered: true, practice: true))
 
         // Answering a draft keeps it, then writes the answer on it.
-        sitting.showAnswer()
+        sitting.showAnswer(attempt: "An answer")
         let kept = sitting.answer(remembered: false)
         #expect(kept?.keeping == toKeep)
         #expect(kept?.itemID == MemoryTutorIdentity.cardItemID(cardID: "keep-me"))
@@ -424,7 +472,7 @@ struct MemoryCardSittingTests {
         #expect(sitting.current?.prompt == "My front")
         #expect(sitting.current?.back == "My back")
         #expect(sitting.current?.isNew == true)
-        sitting.showAnswer()
+        sitting.showAnswer(attempt: "An answer")
         let edited = sitting.answer(remembered: true)
         #expect(edited?.keeping == nil, "kept already by the edit")
         #expect(edited?.prompt == "My front")
@@ -440,7 +488,7 @@ struct MemoryCardSittingTests {
         #expect(sitting.current?.isDraft == false)
         let noSkipAgain = sitting.skipCurrentDraft()
         #expect(noSkipAgain == nil)
-        sitting.showAnswer()
+        sitting.showAnswer(attempt: "An answer")
         let repeated = sitting.answer(remembered: true)
         #expect(repeated == nil)
         #expect(sitting.skippedCount == 0, "the repeat round skipped nothing")

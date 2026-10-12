@@ -111,7 +111,7 @@ final class MobileCardReviewSessionTests: XCTestCase {
     }
 
     private func answer(_ session: MobileCardReviewSession, remembered: Bool) {
-        session.showAnswer()
+        session.showAnswer(attempt: "An answer")
         session.answer(remembered: remembered)
     }
 

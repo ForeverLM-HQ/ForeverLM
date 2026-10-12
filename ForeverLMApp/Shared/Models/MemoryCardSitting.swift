@@ -320,8 +320,10 @@ enum MemoryCardWording {
 /// - The first deal is today's cards in the sitting's scope, in
 ///   `MemoryCardQueue.today`'s order, or, in learner-started practice, the
 ///   scope's new cards (`MemoryCardDeal`).
-/// - Each card shows its wording; Show answer turns it; Forgot or Remembered
-///   moves on. An answer is for the record only the first time a card is
+/// - Each card shows its wording; the learner's answer, typed or said, turns
+///   it (never a bare flip: product owner, 2026-10-11, "I should always be
+///   forced to actually type or say the answer"), or "I don't know", which
+///   can only be answered Forgot; Forgot or Remembered moves on. An answer is for the record only the first time a card is
 ///   dealt in the sitting: **Review forgotten** deals the round's forgotten
 ///   cards again and writes nothing (storage would refuse the repeat anyway,
 ///   since the attempt's id is the sitting's key and the card's), and
@@ -542,6 +544,13 @@ struct MemoryCardSitting: Equatable, Sendable {
     private(set) var position = 0
     /// Whether the current card shows its back.
     private(set) var isAnswerShown = false
+    /// What the learner answered the card on screen with, typed or said,
+    /// shown over its back to grade themselves against. Nil until they
+    /// answer, and when they said they did not know.
+    private(set) var attempt: String?
+    /// Whether the back shows because the learner said they did not know:
+    /// the card can only be answered Forgot.
+    private(set) var saidNotKnown = false
     /// Whether this round repeats cards already answered in the sitting.
     private(set) var isRepeat = false
     /// This round's answers by card.
@@ -583,9 +592,31 @@ struct MemoryCardSitting: Equatable, Sendable {
     /// This round's forgotten cards, in the order they were dealt.
     var forgottenCards: [Card] { cards.filter { results[$0.itemID] == false } }
 
-    mutating func showAnswer() {
-        guard current != nil else { return }
+    /// The learner's answer, typed or said, turns the card on screen to its
+    /// back. A blank answer turns nothing: the back is never a free flip.
+    /// True when the back now shows.
+    @discardableResult
+    mutating func showAnswer(attempt: String) -> Bool {
+        let answered = attempt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard current != nil, !isAnswerShown, !answered.isEmpty else { return false }
+        self.attempt = answered
         isAnswerShown = true
+        return true
+    }
+
+    /// "I don't know": the back shows with nothing to grade, and the card
+    /// can only be answered Forgot.
+    mutating func showAnswerNotKnown() {
+        guard current != nil, !isAnswerShown else { return }
+        saidNotKnown = true
+        isAnswerShown = true
+    }
+
+    /// The card on screen back to its question, nothing answered on it.
+    private mutating func hideAnswer() {
+        isAnswerShown = false
+        attempt = nil
+        saidNotKnown = false
     }
 
     /// The card on screen asked in its own words, its answer hidden again:
@@ -594,7 +625,7 @@ struct MemoryCardSitting: Equatable, Sendable {
     mutating func askCurrentInOwnWords() {
         guard position < cards.count, cards[position].isVariant else { return }
         cards[position].askInOwnWords()
-        isAnswerShown = false
+        hideAnswer()
     }
 
     /// "Always ask it this way" on the card on screen, or off again. On,
@@ -606,18 +637,20 @@ struct MemoryCardSitting: Equatable, Sendable {
     }
 
     /// Records the learner's grade on the card on screen and moves on.
-    /// Nothing before its back is shown. Returns what to write, or nil when
+    /// Nothing before its back is shown, and a card the learner said they did
+    /// not know is Forgot whatever is asked. Returns what to write, or nil when
     /// nothing is: a repeat round, or a card this sitting already wrote. A
     /// draft answered is kept by the answer (`Answer.keeping`) and is a kept
     /// card from then on.
     @discardableResult
     mutating func answer(remembered: Bool) -> Answer? {
         guard isAnswerShown, let card = current else { return nil }
+        let remembered = remembered && !saidNotKnown
         results[card.itemID] = remembered
         let keeping = card.draft
         if keeping != nil { cards[position].markKept() }
         position += 1
-        isAnswerShown = false
+        hideAnswer()
         if !isRepeat, position >= cards.count { firstDealAnswered = true }
         guard !isRepeat, recordedItemIDs.insert(card.itemID).inserted else { return nil }
         return Answer(
@@ -637,7 +670,7 @@ struct MemoryCardSitting: Equatable, Sendable {
         guard !isRepeat, let card = current, let draft = card.draft else { return nil }
         skippedItemIDs.insert(card.itemID)
         position += 1
-        isAnswerShown = false
+        hideAnswer()
         if position >= cards.count { firstDealAnswered = true }
         return draft
     }
@@ -677,7 +710,7 @@ struct MemoryCardSitting: Equatable, Sendable {
     private mutating func startRound(_ round: [Card], isRepeat: Bool) {
         cards = round
         position = 0
-        isAnswerShown = false
+        hideAnswer()
         results = [:]
         self.isRepeat = isRepeat
     }
