@@ -334,6 +334,55 @@ struct WorkingNoteTests {
         #expect(!WorkingNotesPreference.isEnabled(defaults: defaults))
     }
 
+    // MARK: Kept in the background
+
+    @Test("The working memory is kept in the background: no list shows it, its writers find it by id, the Doc tools refuse it")
+    func workingMemoryIsNoDoc() async throws {
+        let directory = storeDirectory()
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = MCPDataStore(dbPath: directory.appendingPathComponent("knowledge.db").path)
+        let storage = store.notebookFileStorage
+        let page = try await storage.createArtifact(
+            title: "Berlin talk", homeNotebookID: nil, linkedNotebookIDs: [], markdown: "# Berlin talk"
+        ).artifact
+        let log = try await storage.ensureWorkingLog()
+        let notes = try await storage.ensureWorkingNotesDoc()
+        #expect(Set([log.id, notes.id]) == WorkingMemoryRecords.ids)
+
+        // No listing shows them; a lookup by id, as sync and their writers make, does.
+        #expect(try await storage.loadArtifacts().map(\.id) == [page.id])
+        #expect(try await storage.myLibraryArtifacts().map(\.id) == [page.id])
+        let knowledge = try store.knowledgeStore()
+        #expect(try knowledge.loadArtifact(WorkingLog.id)?.id == WorkingLog.id)
+        #expect(try knowledge.loadArtifacts(listing: .everyRecord).count == 3)
+
+        // An untouched log rides in no prompt; a written one does, and
+        // Forget All puts it back to the seed.
+        #expect(try await storage.workingLogPromptExcerpt() == nil)
+        let snapshot = try await storage.artifactMarkdown(WorkingLog.id)
+        _ = try await storage.writeArtifactMarkdownAndSync(
+            artifactID: WorkingLog.id,
+            markdown: WorkingLog.updated(
+                markdown: snapshot.markdown, rightNow: "- Berlin talk, touched today",
+                entries: ["Wrote the Berlin talk outline"], now: now
+            ),
+            expectedRevision: snapshot.revision,
+            versionReason: .assistantEdit
+        )
+        #expect(try await storage.workingLogPromptExcerpt()?.contains("Berlin talk outline") == true)
+        try await storage.resetWorkingLog()
+        #expect(try await storage.workingLogPromptExcerpt() == nil)
+
+        let registry = MCPToolRegistry(store: store)
+        for id in WorkingMemoryRecords.ids.sorted() {
+            let answer = await registry.callTool(name: "read_doc", arguments: ["doc_id": id], access: .internalFullAccess)
+            #expect(answer.contains("background memory"), "read_doc \(id): \(answer)")
+        }
+        let listed = await registry.callTool(name: "list_docs", arguments: [:], access: .internalFullAccess)
+        for id in WorkingMemoryRecords.ids { #expect(!listed.contains(id), "list_docs shows \(id)") }
+    }
+
     @Test("The four tools are registered, and only the read is read-only")
     func toolsAreRegistered() {
         let names = Set(MCPToolRegistry(store: MCPDataStore()).tools.map(\.name))

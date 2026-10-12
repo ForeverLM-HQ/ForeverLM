@@ -3,25 +3,29 @@ import Foundation
 import SQLite3
 
 /// Which records a listing of artifacts reads. A source's draft deck of cards
-/// to check (`ArtifactKind.flashcards`) is the learner's private memory state,
-/// not a Doc: every listing leaves it out unless it asks for decks.
+/// to check (`ArtifactKind.flashcards`) and the working memory
+/// (`WorkingMemoryRecords`) are the learner's private memory state, not
+/// Docs: every listing leaves them out unless it asks for every record.
 enum ArtifactListing: Sendable {
-    /// Docs, Sites, animations, audio overviews: everything but card decks.
-    case excludingCardDecks
-    /// Every record, card decks too: a lookup by id, sync.
-    case includingCardDecks
+    /// Docs, Sites, animations, audio overviews: everything but card decks
+    /// and the working memory.
+    case listed
+    /// Every record, card decks and the working memory too: a lookup by id, sync.
+    case everyRecord
     /// Only the sources' draft decks.
     case cardDecksOnly
 
     /// The SQL condition on `global_artifacts`, by its kind and by the fixed
     /// id a deck keeps when an older build drops its kind
-    /// (`ArtifactRecord.isCardDeck`). `IS`, not `=`: a Doc's kind is NULL,
-    /// and `NOT (NULL OR false)` would drop every Doc.
+    /// (`ArtifactRecord.isCardDeck`), and by the working memory's fixed ids.
+    /// `IS`, not `=`: a Doc's kind is NULL, and `NOT (NULL OR false)` would
+    /// drop every Doc.
     fileprivate var condition: String {
         let isDeck = "(global_artifacts.kind IS '\(ArtifactKind.flashcards.rawValue)' OR substr(global_artifacts.id, 1, \(MemoryCard.draftDeckIDPrefix.count)) = '\(MemoryCard.draftDeckIDPrefix)')"
+        let workingMemoryIDs = WorkingMemoryRecords.ids.sorted().map { "'\($0)'" }.joined(separator: ", ")
         switch self {
-        case .excludingCardDecks: return "NOT \(isDeck)"
-        case .includingCardDecks: return "1 = 1"
+        case .listed: return "NOT \(isDeck) AND global_artifacts.id NOT IN (\(workingMemoryIDs))"
+        case .everyRecord: return "1 = 1"
         case .cardDecksOnly: return isDeck
         }
     }
@@ -29,10 +33,11 @@ enum ArtifactListing: Sendable {
 
 extension KnowledgeStore {
     /// The library's artifacts, newest first, or those linked to `notebookID`.
-    /// Card decks are left out unless `listing` asks for them: a listing is
-    /// what Docs, the home's Docs tab, the pickers, `list_docs`, search, team
-    /// copies and a notebook's outputs read, and none of them shows one.
-    func loadArtifacts(notebookID: String? = nil, listing: ArtifactListing = .excludingCardDecks) throws -> [ArtifactRecord] {
+    /// Card decks and the working memory are left out unless `listing` asks
+    /// for them: a listing is what Docs, the home's Docs tab, the pickers,
+    /// `list_docs`, search, team copies and a notebook's outputs read, and
+    /// none of them shows one.
+    func loadArtifacts(notebookID: String? = nil, listing: ArtifactListing = .listed) throws -> [ArtifactRecord] {
         var rows: [(id: String, title: String, homeNotebookID: String?, isDraft: Bool, linkedURL: String?, createdAt: Date, updatedAt: Date, teamID: String?, archivedAt: Date?, hiddenAt: Date?, kind: String?)] = []
         let sql: String
         if notebookID == nil {
@@ -107,10 +112,11 @@ extension KnowledgeStore {
         }
     }
 
-    /// One record by id, a card deck included: sync reads and writes decks
-    /// like any record, and the deck's own writers find it by its id.
+    /// One record by id, a card deck or the working memory included: sync
+    /// reads and writes them like any record, and their own writers find
+    /// them by id.
     func loadArtifact(_ artifactID: String) throws -> ArtifactRecord? {
-        try loadArtifacts(listing: .includingCardDecks).first(where: { $0.id == artifactID })
+        try loadArtifacts(listing: .everyRecord).first(where: { $0.id == artifactID })
     }
 
     /// When the learner hid this doc or site, or nil while it is shown — and

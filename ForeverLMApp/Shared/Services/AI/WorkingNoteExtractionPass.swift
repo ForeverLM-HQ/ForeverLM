@@ -13,7 +13,8 @@ struct WorkingNoteExtractionReport: Equatable, Sendable {
 }
 
 /// Turns what the learner did since the last day close into working notes
-/// (`WorkingNote`) and a fresh `What I'm working on` Doc (`WorkingLog`).
+/// (`WorkingNote`) and a fresh running log (`WorkingLog`), both kept in the
+/// background (`WorkingMemoryRecords`).
 ///
 /// Run by the day close (`DayClosePass`), after the chats are folded in: one
 /// model call over the chats' tails, the titles of what was read, the Doc's
@@ -111,7 +112,8 @@ struct WorkingNoteExtractionPass: Sendable {
         if !chatBlocks.isEmpty { sections.append(chatBlocks.joined(separator: "\n\n")) }
 
         // Notebooks started or changed, and pages written or edited: their
-        // titles and a notebook's short description, never a page's body.
+        // titles and a notebook's short description, never a page's body. The
+        // working memory is no page (`loadArtifacts` leaves it out).
         var madeLines: [String] = []
         for notebook in try await storage.loadLearningGoals()
             where notebook.isNotebook && notebook.updatedAt > since && notebook.updatedAt <= now {
@@ -119,10 +121,9 @@ struct WorkingNoteExtractionPass: Sendable {
             let summary = notebook.summary.map { WorkingNote.cleaned($0) }.flatMap { $0.isEmpty ? nil : String($0.prefix(160)) }
             madeLines.append("- Notebook \"\(notebook.title)\" \(isNew ? "started" : "changed")\(summary.map { ": \($0)" } ?? "")")
         }
-        let skippedPages: Set<String> = [WorkingLog.id, WorkingNoteMirror.docID]
         for page in try await storage.loadArtifacts()
             where page.teamID == nil && page.kind == nil && page.archivedAt == nil
-                && !DailyNote.isDailyNoteID(page.id) && !skippedPages.contains(page.id)
+                && !DailyNote.isDailyNoteID(page.id)
                 && page.updatedAt > since && page.updatedAt <= now {
             madeLines.append("- Page \"\(page.title)\" \(page.createdAt > since ? "written" : "edited")")
         }

@@ -10391,7 +10391,7 @@ final class ReviewSessionManager {
         return """
 
 
-        What the learner is working on — their running log, kept as the Doc "\(WorkingLog.title)" (id \(WorkingLog.id)), and notes about how they have been working. Background only: use them to see what they have been reading and making, and answer what they asked. ForeverLM keeps them up from the learner's activity; do not edit them.\(log)\(notes)
+        What the learner is working on — the running log and notes ForeverLM keeps in the background from their activity, as a memory, never as a page. Background only: use them to see what they have been reading and making, and answer what they asked; do not quote them back or tell the learner where they are kept. Change a note only when the learner asks (update_working_note, forget_working_note).\(log)\(notes)
         """
     }
 
@@ -10458,7 +10458,7 @@ final class ReviewSessionManager {
             ? """
 
             The day (the Mac's Calendar):
-            - The learner's day is their Mac's Calendar, and there is no separate plan: what is on the calendar is the day. When they want to plan a day, block their time, or ask what to focus on, read it first with get_calendar_events (today unless they name a day, and tomorrow once today is underway — by the afternoon, planning means planning the next day). Start from the working log (the Doc with id working-log, "What I'm working on") and get_day_activity: what the learner has actually been reading and making is what the day should follow. get_schedule and list_goals are secondary: Goals are suggested from that pattern, not the spine of the day.
+            - The learner's day is their Mac's Calendar, and there is no separate plan: what is on the calendar is the day. When they want to plan a day, block their time, or ask what to focus on, read it first with get_calendar_events (today unless they name a day, and tomorrow once today is underway — by the afternoon, planning means planning the next day). Start from the working log (in this prompt, and in full from list_working_notes) and get_day_activity: what the learner has actually been reading and making is what the day should follow. get_schedule and list_goals are secondary: Goals are suggested from that pattern, not the spine of the day.
             - Plan from the clock. The local time in this prompt is the time of this step; get_calendar_events says the rest: each event's when (ended, now or ahead) and today's free_from_now. Add today's new events only into time still ahead of now. Name a day by the relative_day and weekday the tool gives it, never by counting from its date.
             - Then ask ONE short question — what is fixed, and what the day is for — and propose the whole day as a short list. Once the learner agrees (or asked you to just do it), write every block with create_calendar_event, one call per block, and say in one line what is now on the calendar. Do not write a half-agreed day.
             - An event with has_other_people is a meeting: it stays where it is, and you never move or delete it — the Calendar app is where the learner changes it, so the other people are told. Plan around it. editable says what you may change.

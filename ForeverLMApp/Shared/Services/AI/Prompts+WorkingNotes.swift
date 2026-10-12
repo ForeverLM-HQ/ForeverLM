@@ -19,8 +19,8 @@ extension Prompts {
     - Prefer few notes. Chit-chat, one-off lookups and tool talk are not worth a note. An empty list is a good answer when the activity is thin.
     - source_ids: only ids that appear in the activity. Omit when none apply.
 
-    right_now: 3 to 8 short lines of Markdown (bullets) describing the threads in play now: what, and how long since it was touched, from the dates you are given; and anything that has gone quiet. Start from the current summary and change only what the activity changes. If the activity is thin, return the current summary unchanged.
+    right_now: 3 to 8 short lines of Markdown (bullets) describing the threads in play now: what, and how long since it was touched, from the dates you are given; and anything that has gone quiet. A thread is work that runs across chats, reading or days ("preparing the Berlin conference talk"); a single question asked once is not a thread. Start from the current summary and change only what the activity changes. If the activity is thin, return the current summary unchanged.
 
-    log: one to five plain sentences of what happened in this activity ("Read the half-center oscillator paper and asked three questions about the sleep switch"), oldest first, no dates (the app adds the time). An empty list when nothing is worth logging.
+    log: one to five plain sentences of what the learner did in this activity ("Read the half-center oscillator paper and asked three questions about the sleep switch"), oldest first, no dates (the app adds the time). The learner is the unstated subject: start with the verb, and never write about the assistant or what it answered. An empty list when nothing is worth logging.
     """
 }

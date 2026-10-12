@@ -624,7 +624,7 @@ enum ReviewSlashCommandParser {
         return """
         \(opening)
 
-        My day is my Mac's Calendar. Read before you plan: get_calendar_events for that day, so you have what is already on it — meetings with other people stay where they are; the working log, the Doc "What I'm working on" (read_doc, id working-log), and get_day_activity for the last few days, so you see what I have actually been reading, making and writing and where my hours went; then get_schedule and list_goals, which come second — a Goal is something you suggest from that pattern, not the spine of the day.
+        My day is my Mac's Calendar. Read before you plan: get_calendar_events for that day, so you have what is already on it — meetings with other people stay where they are; the working log ForeverLM keeps of my work (list_working_notes: its running summary and the notes), and get_day_activity for the last few days, so you see what I have actually been reading, making and writing and where my hours went; then get_schedule and list_goals, which come second — a Goal is something you suggest from that pattern, not the spine of the day.
 
         Open with what you see in my log: the topics I keep returning to, a notebook I have been filling, a paper read without a review or any writing. Offer the next step for it — solidify it (a review or quiz), write about it, or turn it into a Goal. The log is kept up by the app from what I do; read it, do not edit it.
 

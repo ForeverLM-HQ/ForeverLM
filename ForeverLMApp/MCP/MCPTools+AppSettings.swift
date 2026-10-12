@@ -340,7 +340,7 @@ extension MCPDataStore {
                 id: "working_notes.enabled",
                 pane: "Data & Privacy › Notes about your work",
                 title: "Keep notes about my work",
-                detail: "Whether ForeverLM keeps notes about how the learner is working: written each evening, when the day closes, from their chats and reading; handed, the nearest few, to every chat they open, with the running summary of what they are working on; and mirrored in the Docs \"Working notes\" and \"What I'm working on\". On by default. Off, nothing new is written or sent, and the notes that exist stay until they are forgotten (list_working_notes, forget_working_note). It follows the account to the learner's other Macs. Ask the learner before switching it.",
+                detail: "Whether ForeverLM keeps notes about how the learner is working: written each evening, when the day closes, from their chats and reading; handed, the nearest few, to every chat they open, with the running summary of what they are working on. Kept in the background, as a memory and never as a Doc; the learner reviews them in Settings › Data & Privacy › Notes about your work, and list_working_notes reads them. On by default. Off, nothing new is written or sent, and the notes that exist stay until they are forgotten (list_working_notes, forget_working_note). It follows the account to the learner's other Macs. Ask the learner before switching it.",
                 reach: .account,
                 kind: .boolean,
                 preferenceKeys: [WorkingNotesPreference.enabledKey],

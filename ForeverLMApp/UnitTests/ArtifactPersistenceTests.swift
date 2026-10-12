@@ -1629,7 +1629,7 @@ struct ArtifactPersistenceTests {
         #expect(try await storage.myLibraryArtifacts().map(\.id) == [doc.id])
         #expect(try await storage.artifactsLinked(toSource: "src-deck").map(\.artifact.id) == [doc.id])
         #expect(try store.loadArtifacts(listing: .cardDecksOnly).map(\.id) == [deckID])
-        #expect(try store.loadArtifacts(listing: .includingCardDecks).count == 2)
+        #expect(try store.loadArtifacts(listing: .everyRecord).count == 2)
         #expect(!(try await storage.notebookArtifactContext(notebookID: notebook.id)).contains("Cards to check"))
 
         // Never in a team: the notebook shared with its Docs leaves the deck

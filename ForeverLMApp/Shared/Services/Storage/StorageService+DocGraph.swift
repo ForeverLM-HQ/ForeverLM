@@ -370,9 +370,9 @@ extension StorageService {
         }
     }
 
-    /// The working log (`WorkingLog`), made in My Library with its seed body
-    /// when it does not exist yet. Making it twice, here or on another Mac,
-    /// makes one record.
+    /// The working log (`WorkingLog`), a background record that no list shows
+    /// (`WorkingMemoryRecords`), made with its seed body when it does not
+    /// exist yet. Making it twice, here or on another Mac, makes one record.
     func ensureWorkingLog() async throws -> ArtifactRecord {
         let store = try notebookFilesKnowledgeStore()
         if let existing = try store.loadArtifact(WorkingLog.id) { return existing }
@@ -391,11 +391,35 @@ extension StorageService {
         }
     }
 
-    /// What a chat's prompt carries of the working log: the log made if it
-    /// is missing, and its excerpt, nil while nothing has been written in it.
+    /// What a chat's prompt carries of the working log: its excerpt, nil
+    /// while there is no log or nothing has been written in it. Reading never
+    /// makes the record; the day close does when it first writes.
     func workingLogPromptExcerpt() async throws -> String? {
-        let record = try await ensureWorkingLog()
+        guard let record = try notebookFilesKnowledgeStore().loadArtifact(WorkingLog.id) else { return nil }
         return WorkingLog.promptExcerpt(fromMarkdown: try artifactMarkdown(of: record).markdown)
+    }
+
+    /// Forgets the working log: its body goes back to the seed, so no chat is
+    /// handed the old summary and the next day close starts afresh. Settings'
+    /// Forget All runs it beside forgetting the notes. A newer body (written
+    /// on another Mac) is read again, three times.
+    func resetWorkingLog() async throws {
+        guard try notebookFilesKnowledgeStore().loadArtifact(WorkingLog.id) != nil else { return }
+        for attempt in 0..<3 {
+            let current = try artifactMarkdown(WorkingLog.id)
+            guard current.markdown != WorkingLog.seedMarkdown else { return }
+            do {
+                _ = try await writeArtifactMarkdownAndSync(
+                    artifactID: WorkingLog.id,
+                    markdown: WorkingLog.seedMarkdown,
+                    expectedRevision: current.revision,
+                    versionReason: .assistantEdit
+                )
+                return
+            } catch ArtifactError.conflict where attempt < 2 {
+                continue
+            }
+        }
     }
 
     /// The daily notes that exist, newest day first: those before `dayKey`

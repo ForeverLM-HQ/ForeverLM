@@ -4,9 +4,11 @@ import SwiftUI
 
 /// Settings → Data & Privacy → *Notes about your work*: the one switch over
 /// the working notes ForeverLM keeps from the learner's chats and reading, and
-/// the way to read, correct and forget them. The notes are the learner's, so
-/// this list is the place they are shown, not a diagnostic: every note the
-/// day close writes and every chat is handed is here, one sentence each.
+/// the way to read, correct and forget them. The notes are kept in the
+/// background, as ChatGPT keeps its memory, and are never a page
+/// (`WorkingMemoryRecords`), so this list is the one place they are shown:
+/// every note the day close writes and every chat is handed is here, one
+/// sentence each.
 struct WorkingNotesSettingsSection: View {
     @SyncedStorage(wrappedValue: true, WorkingNotesPreference.enabledKey)
     private var keepsNotes: Bool
@@ -59,8 +61,9 @@ struct WorkingNotesSettingsSection: View {
 
 /// Every note, grouped by kind, each one editable in place and forgettable,
 /// with a field to teach a new one. Changes are written to the notes and to
-/// their Doc (`syncWorkingNotesMirror`) at once; the Doc is also an editor for
-/// the same list.
+/// the record that carries them to the learner's other Macs
+/// (`syncWorkingNotesMirror`) at once. Forget All also forgets the running
+/// summary of what they are working on (`resetWorkingLog`).
 struct WorkingNotesReviewSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var notes: [WorkingNote] = []
@@ -190,6 +193,7 @@ struct WorkingNotesReviewSheet: View {
 
     private func forgetAll() async {
         await storage.workingNotes().forgetAll()
+        try? await storage.resetWorkingLog()
         await reload()
     }
 

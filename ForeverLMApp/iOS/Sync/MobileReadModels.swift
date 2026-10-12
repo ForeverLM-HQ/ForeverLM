@@ -403,8 +403,9 @@ enum MobileReadModels {
         """, []) { row in
             let id = row.text(0) ?? ""
             let phone = phoneKind(of: row.text(2))
+            // The working memory syncs as two records and is never a Doc (`WorkingMemoryRecords`).
             guard phone.listed, !id.isEmpty, !id.hasPrefix("draft:"), row.text(5) != "archived", !marks.isHidden("art", id),
-                  seen.insert(id).inserted else { return }
+                  !WorkingMemoryRecords.contains(id), seen.insert(id).inserted else { return }
             let createdAt = date(row.integer(6))
             let artifact = MobileCloudArtifact(
                 id: id, title: row.text(3) ?? "", kind: phone.kind, homeNotebookID: row.text(4), linkedNotebookIDs: members(row.text(8)),

@@ -13,6 +13,11 @@ extension MCPDataStore {
 
     static let workingNoteKindList = WorkingNoteKind.allCases.map(\.rawValue).joined(separator: ", ")
 
+    /// Why a Doc tool refuses a working-memory record (`WorkingMemoryRecords`).
+    static func workingMemoryIsNoDocMessage(docID: String, tool: String) -> String {
+        "\(docID) is ForeverLM's background memory of the learner's work, not a Doc, so \(tool) does not read or change it. list_working_notes reads it (the running summary and the notes); save_working_note, update_working_note and forget_working_note change the notes."
+    }
+
     private static func workingNotePayload(_ note: WorkingNote) -> [String: Any] {
         let formatter = ISO8601DateFormatter()
         var payload: [String: Any] = [
@@ -74,17 +79,17 @@ extension MCPDataStore {
         }
         if let kind { notes = notes.filter { $0.kind == kind } }
         let listed = Array(notes.prefix(limit))
+        let runningLog = try await storage.workingLogPromptExcerpt()
 
         return try jsonString([
             "notes": listed.map(Self.workingNotePayload),
             "count": listed.count,
             "total": all.count,
             "enabled": WorkingNotesPreference.isEnabled,
-            "doc_id": WorkingNoteMirror.docID,
-            "log_doc_id": WorkingLog.id,
-            "guidance": all.isEmpty
+            "running_log": runningLog ?? NSNull(),
+            "guidance": all.isEmpty && runningLog == nil
                 ? "No notes yet. ForeverLM writes them when the day closes from the learner's chats and reading; save_working_note writes one the learner asks for."
-                : "These are notes ForeverLM keeps about how the learner works, newest first (nearest the query first when one is given). They may be out of date: trust what the learner says now. The summary of what they are working on is the Doc with id \(WorkingLog.id), and the notes are also the Doc with id \(WorkingNoteMirror.docID). Write or change a note only when the learner asks.",
+                : "These are notes ForeverLM keeps in the background about how the learner works, newest first (nearest the query first when one is given), and running_log is its running summary of what they are working on: Right now, then the newest log lines. Both may be out of date: trust what the learner says now. They are not Docs; the learner reviews the notes in Settings › Data & Privacy › Notes about your work. Write or change a note only when the learner asks.",
         ] as [String: Any])
     }
 
@@ -178,7 +183,7 @@ extension MCPDataStore {
             "status": "forgotten",
             "note_id": note.id,
             "text": note.text,
-            "message": "Forgotten. ForeverLM no longer hands this note to its chats; the line is gone from the Doc \"\(WorkingNoteMirror.docTitle)\" too.",
+            "message": "Forgotten. ForeverLM no longer hands this note to its chats, on this Mac or the learner's others.",
         ] as [String: Any])
     }
 }

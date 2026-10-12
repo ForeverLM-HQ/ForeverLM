@@ -108,14 +108,34 @@ enum DocGraphSyntax {
     }
 }
 
+// MARK: - Working memory
+
+/// What ForeverLM remembers about the learner's work, kept in the background
+/// as ChatGPT keeps its memory (product owner, 2026-10-11: "That should not
+/// actually be a like explicit page. That should just be kind of saved in the
+/// background … not visible to the user, kind of like memory"). Two records
+/// hold it: the running log (`WorkingLog`) and the carrier of the working
+/// notes (`WorkingNoteMirror`). They are artifact records with fixed ids only
+/// so that sync carries them to the learner's other Macs; they are never a
+/// Doc. No list, picker, search, Space, notebook or `list_docs` shows them
+/// (`ArtifactListing.listed`, `MobileSpaceListing.isSpaceRecord`), the Doc
+/// tools refuse their ids, and the learner reads and corrects the notes in
+/// Settings › Data & Privacy › Notes about your work.
+enum WorkingMemoryRecords {
+    static let notesID = "working-notes"
+    static let ids: Set<String> = [WorkingLog.id, notesID]
+
+    static func contains(_ id: String) -> Bool { ids.contains(id) }
+}
+
 // MARK: - The working log
 
-/// "What I'm working on": the one running Doc of the learner's activity
+/// "What I'm working on": the one running summary of the learner's activity
 /// (product owner, 2026-10-10: the day should be planned from "a smart and running,
 /// updated doc of what I'm working on", not from stored Goal artifacts, and
 /// "running summary should often be fed into the context of the agents").
-/// An ordinary Markdown Doc in My Library with a fixed id, so the same log
-/// opened on two Macs is one record. Its top section, `## Right now`, is
+/// A background record (`WorkingMemoryRecords`) with a fixed id, so the same
+/// log on two Macs is one record. Its top section, `## Right now`, is
 /// rewritten whenever the picture changes: the threads in play, how long since
 /// each was touched, what has gone quiet. Below it, `## Log` holds timestamped
 /// lines, newest first (`- 2026-10-10 14:05 Read …`). Every chat reads it

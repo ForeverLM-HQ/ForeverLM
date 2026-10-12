@@ -306,9 +306,10 @@ enum MobileSpaceListing {
     static let unlistedKinds: Set<String> = ["notes", "file", "picture", "animation", "audioOverview", "audio_overview", "flashcards"]
 
     /// Whether a record of `kind` under `id` is a Space item at all: not a member's draft of a team page
-    /// (`draft:`, and generation 1's `draft_`), a Notes Doc, a notebook file, a picture or a card deck.
+    /// (`draft:`, and generation 1's `draft_`), a Notes Doc, a notebook file, a picture, a card deck or the
+    /// working memory (`WorkingMemoryRecords`).
     static func isSpaceRecord(id: String, kind: String?) -> Bool {
-        guard !id.isEmpty, !unlistedKinds.contains(kind ?? "") else { return false }
+        guard !id.isEmpty, !unlistedKinds.contains(kind ?? ""), !WorkingMemoryRecords.contains(id) else { return false }
         for prefix in ["draft:", MobileCloudArtifact.teamDraftIDPrefix, "notes:", "file:", "picture:"] where id.hasPrefix(prefix) {
             return false
         }

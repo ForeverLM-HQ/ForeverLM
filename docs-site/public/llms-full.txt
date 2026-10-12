@@ -3492,10 +3492,10 @@ ForeverLM keeps short notes about how the learner is working: a thread of work
 in progress, an interest, a preference, a fact about their situation, an
 outcome. They are written each evening, when the day closes, from the
 learner's chats and reading, and the nearest few ride into every ForeverLM
-chat. They are also the Doc "Working notes" (one bullet per note, editable
-like any page), beside the Doc "What I'm working on", the running summary the
-planner starts from. Settings › Data & Privacy › Notes about your work reads,
-corrects and forgets them. An assistant beside the app can read them to know
+chat, with "What I'm working on", the running summary the planner starts
+from. Both are kept in the background, as a memory, never as pages: Settings ›
+Data & Privacy › Notes about your work reads, corrects and forgets the notes,
+and Forget All forgets the summary too. An assistant beside the app can read them to know
 what the learner has been doing, and writes or forgets one only when the
 learner asks.
 
@@ -3504,10 +3504,10 @@ the app's own store.
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `list_working_notes` | `query?`, `kind?`, `limit?` | The notes with their ids, kinds, sentences and dates. With a query, the nearest first. |
+| `list_working_notes` | `query?`, `kind?`, `limit?` | The notes with their ids, kinds, sentences and dates, and the running summary. With a query, the nearest notes first. |
 | `save_working_note` | `text`, `kind?`, `source_ids?` | Write one note the learner asked for. A sentence that is already a note is not written twice. |
 | `update_working_note` | `note_id`, `text?`, `kind?` | Correct a note's sentence or kind. |
-| `forget_working_note` | `note_id` | Forget one note; its line leaves the Doc too. |
+| `forget_working_note` | `note_id` | Forget one note, on every Mac. |
 
 ## Reading views
 

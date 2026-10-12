@@ -296,23 +296,23 @@ enum WorkingNotesPreference {
     }
 }
 
-// MARK: - The Doc that carries the notes to another Mac
+// MARK: - The record that carries the notes to another Mac
 
-/// The notes as a Doc, "Working notes" (id `working-notes`, My Library): one
-/// bullet per note, `- thread: Reading the NAD+ papers`. The Doc syncs, the
-/// JSON file does not, so this is how a second Mac gets the notes and how the
-/// learner edits them in the editor like any page: change a line to correct a
-/// note, delete a line to forget it, add a line (with or without its kind) to
-/// teach one. The Doc owns what a note says and which notes exist; each Mac's
-/// file keeps what only it knows (vectors, recall counts, when).
+/// The notes as a background record, "Working notes" (id `working-notes`,
+/// never listed: `WorkingMemoryRecords`): one bullet per note,
+/// `- thread: Reading the NAD+ papers`. The record syncs, the JSON file does
+/// not, so this is how a second Mac gets the notes. A line changed there
+/// corrects a note, a line gone forgets it, and a new line (with or without
+/// its kind) teaches one. The record owns what a note says and which notes
+/// exist; each Mac's file keeps what only it knows (vectors, recall counts,
+/// when). The learner edits the notes in Settings, never here.
 ///
-/// Merging is by sentence, not id, since a line is what the learner sees. The
-/// file remembers which sentences it last wrote into the Doc
-/// (`exported`): one the Doc has lost since was deleted (here, on another
-/// Mac, or by hand) and is forgotten; one the Doc never held is new on this
-/// Mac and is written out.
+/// Merging is by sentence, not id. The file remembers which sentences it last
+/// wrote into the record (`exported`): one the record has lost since was
+/// forgotten (here or on another Mac); one the record never held is new on
+/// this Mac and is written out.
 enum WorkingNoteMirror {
-    static let docID = "working-notes"
+    static let docID = WorkingMemoryRecords.notesID
     static let docTitle = "Working notes"
     static let heading = "## Working notes"
 

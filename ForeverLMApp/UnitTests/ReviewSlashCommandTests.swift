@@ -652,9 +652,11 @@ struct ChatPluginSetupNeedTests {
         #expect(request.contains("get_schedule"))
         #expect(request.contains("list_goals"))
         #expect(request.contains("get_day_activity"))
-        // The running log leads; Goals follow from it.
-        #expect(request.contains("working-log"))
-        #expect(request.contains("What I'm working on"))
+        // The running log leads; Goals follow from it. It is background
+        // memory, read through the working-note tool, never a Doc.
+        #expect(request.contains("list_working_notes"))
+        #expect(!request.contains("read_doc"))
+        #expect(!request.contains(WorkingLog.id))
         // Meetings with other people stay put.
         #expect(request.contains("meetings with other people stay where they are"))
         // One question, a proposal, and only then the calendar.

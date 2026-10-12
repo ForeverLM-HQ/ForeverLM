@@ -2731,7 +2731,7 @@ final class MCPToolRegistry: @unchecked Sendable {
             ),
             MCPToolDef(
                 name: "list_working_notes",
-                description: "Read the working notes ForeverLM keeps about how the learner is working: short sentences, each a thread (work in progress), an interest, a preference, a fact or an outcome, written when the day closes from their chats and reading and handed to every ForeverLM chat. Use it to see what they have been working on, or to answer what ForeverLM knows about them. With a query, the notes nearest those words come first (by the same on-device embedding the chat recalls with); without one, newest first. Answers with each note's id, kind, text and dates, whether notes are switched on, and the ids of the two Docs that carry them: the summary of what they are working on and the notes themselves. Notes can be out of date; trust what the learner says now.",
+                description: "Read the working notes ForeverLM keeps about how the learner is working: short sentences, each a thread (work in progress), an interest, a preference, a fact or an outcome, written when the day closes from their chats and reading and handed to every ForeverLM chat. Use it to see what they have been working on, or to answer what ForeverLM knows about them. With a query, the notes nearest those words come first (by the same on-device embedding the chat recalls with); without one, newest first. Answers with each note's id, kind, text and dates, whether notes are switched on, and running_log: ForeverLM's running summary of what they are working on (Right now, then the newest log lines). Both are kept in the background, never as Docs. Notes can be out of date; trust what the learner says now.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -2770,7 +2770,7 @@ final class MCPToolRegistry: @unchecked Sendable {
             ),
             MCPToolDef(
                 name: "forget_working_note",
-                description: "Forget one working note: ForeverLM stops handing it to its chats and removes its line from the Doc \"Working notes\". Not undoable; do it when the learner asks to forget it. Pass the whole note_id from list_working_notes, or the first eight characters or more of it.",
+                description: "Forget one working note: ForeverLM stops handing it to its chats, on every Mac signed in to the account. Not undoable; do it when the learner asks to forget it. Pass the whole note_id from list_working_notes, or the first eight characters or more of it.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -5451,9 +5451,15 @@ final class MCPToolRegistry: @unchecked Sendable {
             // A source's draft deck of cards to check is the learner's own
             // memory state, never a Doc (list_docs leaves it out): every tool
             // that takes a doc_id refuses one and names the card tools.
-            if let docID = (arguments["doc_id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
-               MemoryCard.isDraftDeckID(docID) {
-                throw MCPError.invalidInput(MCPDataStore.cardDeckIsNoDocMessage(docID: docID, tool: name))
+            // The working memory is kept in the background, never as a Doc
+            // (`WorkingMemoryRecords`): the working-note tools read and change it.
+            if let docID = (arguments["doc_id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) {
+                if MemoryCard.isDraftDeckID(docID) {
+                    throw MCPError.invalidInput(MCPDataStore.cardDeckIsNoDocMessage(docID: docID, tool: name))
+                }
+                if WorkingMemoryRecords.contains(docID) {
+                    throw MCPError.invalidInput(MCPDataStore.workingMemoryIsNoDocMessage(docID: docID, tool: name))
+                }
             }
             // Notes as a graph: linked references, blocks and daily notes.
             if let result = try await store.executeNotesGraphTool(name: name, arguments: arguments) {
