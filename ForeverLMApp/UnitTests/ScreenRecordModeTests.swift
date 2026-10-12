@@ -1311,8 +1311,8 @@ struct ScreenRecordAccountNameTests {
     func recordingShowsTheStandIn() {
         let shown = MacAccountUser.displayedFullName(saved: "Ada Lovelace", recording: true)
         #expect(shown == MacAccountUser.recordingStandInName)
-        #expect(MacAccountUser.leadingName(of: shown) == "Learner")
-        #expect(MacAccountUser.monogram(of: shown) == "L")
+        #expect(MacAccountUser.leadingName(of: shown) == "Richard")
+        #expect(MacAccountUser.monogram(of: shown) == "R")
         // Off the take, the saved name is what shows.
         #expect(MacAccountUser.displayedFullName(saved: "Ada Lovelace", recording: false)
             == MacAccountUser.resolvedFullName(saved: "Ada Lovelace"))

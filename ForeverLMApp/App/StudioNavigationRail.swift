@@ -2106,13 +2106,14 @@ enum MacAccountUser {
         PreferenceStore.set(shows, forKey: showsCompCrownPreferenceKey)
     }
 
-    /// Shown in place of the learner's name while Screen record mode is on,
-    /// the name UI tests show. A take films the account row and the New chat
-    /// greeting, and the website must not carry the admin's own name
-    /// (2026-09-25: every clip of that night showed it). Display only: what is
-    /// saved, synced and signed with (`fullName`, CloudKit, Doc sharing) is
-    /// untouched.
-    static let recordingStandInName = "Learner"
+    /// Shown in place of the learner's name while Screen record mode is on. A
+    /// take films the account row and the New chat greeting, and the website
+    /// must not carry the admin's own name (2026-09-25: every clip of that
+    /// night showed it). A made-up person's name, so a greeting reads as a
+    /// person's and not a role's (product owner, 2026-10-12: "let's not do
+    /// learner; let's maybe do Richard"). Display only: what is saved, synced
+    /// and signed with (`fullName`, CloudKit, Doc sharing) is untouched.
+    static let recordingStandInName = "Richard"
 
     /// The name to *show* for a saved preference value: `resolvedFullName`,
     /// or the stand-in while Screen record mode is on. Settings' name field
