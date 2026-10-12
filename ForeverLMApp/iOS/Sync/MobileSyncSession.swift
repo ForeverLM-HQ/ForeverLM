@@ -70,7 +70,8 @@ actor MobileSyncSession {
     /// iCloud: making the container before then traps.
     @MainActor @discardableResult
     static func startIfEnabled() async -> MobileSyncSession? {
-        guard isEnabled, let container = ForeverLMRuntimeIdentity.libraryContainerIdentifier else { return nil }
+        guard isEnabled, !ForeverLMRuntimeIdentity.isHostingUnitTests,
+              let container = ForeverLMRuntimeIdentity.libraryContainerIdentifier else { return nil }
         if let current { return current }
         if let starting { return await starting.value }
         let task = Task.detached(priority: .utility) { () -> MobileSyncSession? in

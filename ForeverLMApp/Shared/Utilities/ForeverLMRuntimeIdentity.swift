@@ -283,6 +283,20 @@ extension ForeverLMRuntimeIdentity {
     /// `CKContainer(identifier:)` traps on one the app is not entitled to.
     static let libraryContainerIdentifier: String? = infoString(libraryContainerInfoKey)
 
+    /// Whether this process is an app hosting unit tests. Such a build is
+    /// unsigned (`CODE_SIGNING_ALLOWED=NO`), so it holds no iCloud entitlement,
+    /// and CloudKit traps the moment a container is made in it: a test that
+    /// kept a card on the iPhone took the whole test host down this way
+    /// (2026-10-11), and every crash put macOS's "quit unexpectedly" dialog on
+    /// the learner's screen. Sync never starts in it; a test that needs a sync
+    /// session builds its own with a fake client.
+    static let isHostingUnitTests: Bool = {
+        let environment = ProcessInfo.processInfo.environment
+        return environment["XCTestConfigurationFilePath"] != nil
+            || environment["XCTestBundlePath"] != nil
+            || NSClassFromString("XCTestCase") != nil
+    }()
+
     /// An Info.plist string, trimmed; nil when the key is absent or its value empty.
     private static func infoString(_ key: String) -> String? {
         guard let value = Bundle.main.object(forInfoDictionaryKey: key) as? String else { return nil }
