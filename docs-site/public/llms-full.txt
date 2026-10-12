@@ -5808,6 +5808,13 @@ All notable changes to ForeverLM are documented here. Dates are in YYYY-MM-DD fo
 
 ForeverLM follows [semantic versioning](https://semver.org) against its public surface: the MCP tool contracts, the knowledge-base/sync format, and licensing compatibility. While the version is 0.x, minor releases may include breaking changes to that surface; patch releases never do.
 
+## 0.140.0 (build 214) — 2026-10-11
+
+**Highlights:**
+- **Memory cards look like cards.** Reviewing, the Memory pane, To Check and a chat's saved cards now show each card as an index card, with a deck that shows how many are left and a strip of how each card went.
+- **Papers you marked paywalled stay marked.** Some papers marked paywalled long ago came back as "PDF needed" after the move to the new iCloud sync. A paywalled paper without its PDF now syncs as paywalled; one that already lost the mark needs Mark as Paywalled once.
+- **Selected papers stay readable.** Selecting papers in the Library no longer hides their byline and "PDF needed" in the selection colour, and "PDF needed" sits at the end of the byline.
+
 ## 0.139.2 (build 213) — 2026-10-11
 
 **Highlights:**
