@@ -2731,6 +2731,7 @@ struct ChatRobustnessTests {
         #expect(prompt.contains("<attached_sources>"))
         #expect(prompt.contains("add_to_synthesis"))
         #expect(prompt.contains("read-before-write"))
+        #expect(prompt.contains("- Never name a tool or tell the learner which tool you would call; say what you did or what they can do in the app."))
     }
 
     @Test("A chat on one source tells the model not to cite that source")
