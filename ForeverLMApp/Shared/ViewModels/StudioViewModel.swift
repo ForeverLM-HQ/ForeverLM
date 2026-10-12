@@ -1101,9 +1101,9 @@ class StudioViewModel {
         screenRecordScope?.allowsItem(createdAt: createdAt) ?? true
     }
 
-    /// A chat shows while recording when it was started during the take or is
-    /// filed under the recording Notebook (or one of its Goals). Being about a
-    /// filmed source is not enough: that chat is the learner's own.
+    /// A chat shows while recording only when it was started during the take
+    /// (`ScreenRecordScope.allowsItem`, 560f8a8): being filed under the
+    /// recording Notebook or about a filmed source is not enough.
     func isVisibleInRecordingMode(_ session: ReviewSessionRecord) -> Bool {
         screenRecordScope?.allowsItem(
             createdAt: session.createdAt,
@@ -1111,9 +1111,9 @@ class StudioViewModel {
         ) ?? true
     }
 
-    /// A Doc, Site or Animation shows while recording when it was made during
-    /// the take or is filed under or linked to the recording Notebook. Citing
-    /// a filmed source is not enough.
+    /// A Doc, Site or Animation shows while recording only when it was made
+    /// during the take: being filed under or linked to the recording Notebook,
+    /// or citing a filmed source, is not enough.
     func isVisibleInRecordingMode(_ artifact: ArtifactRecord) -> Bool {
         screenRecordScope?.allowsItem(
             createdAt: artifact.createdAt,
@@ -1121,8 +1121,7 @@ class StudioViewModel {
         ) ?? true
     }
 
-    /// An Idea shows while recording when it was jotted during the take or is
-    /// linked to the recording Notebook or one of its Goals.
+    /// An Idea shows while recording only when it was jotted during the take.
     func isVisibleInRecordingMode(_ idea: IdeaRecord) -> Bool {
         screenRecordScope?.allowsItem(
             createdAt: idea.createdAt,
@@ -1130,9 +1129,9 @@ class StudioViewModel {
         ) ?? true
     }
 
-    /// A canvas shows while recording when it was made during the take or
-    /// belongs to the recording Notebook (or one of its Goals). What is
-    /// placed on it earns it nothing: its name and layout are the learner's.
+    /// A canvas shows while recording only when it was made during the take,
+    /// whatever Notebook it belongs to or is placed on it: its name and
+    /// layout are the learner's.
     func isVisibleInRecordingMode(_ canvas: KnowledgeMapCanvas) -> Bool {
         screenRecordScope?.allowsItem(
             createdAt: canvas.createdAt,

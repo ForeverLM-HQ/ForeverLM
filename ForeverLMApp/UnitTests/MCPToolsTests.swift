@@ -1068,16 +1068,17 @@ struct MCPDataStoreTests {
                 _ = try store.getNotebookDetail(notebookID: privateNotebook.id)
             }
 
-            // A chat about a filmed source is still the learner's own: only
-            // one filed under the recording Notebook, or started on camera,
-            // shows.
+            // A chat about a filmed source is still the learner's own, and so
+            // is an older chat filed under the recording Notebook: only one
+            // started on camera shows.
             let links = try store.listReviewSessionLinks()
-            #expect(links.contains("chat-filed"))
+            #expect(!links.contains("chat-filed"))
             #expect(links.contains("chat-during-take"))
             #expect(!links.contains("chat-recording"))
             #expect(!links.contains("chat-private"))
             let sessions = try store.getReviewSessions(topic: nil)
-            #expect(sessions.contains("chat-filed"))
+            #expect(!sessions.contains("chat-filed"))
+            #expect(sessions.contains("chat-during-take"))
             #expect(!sessions.contains("chat-recording"))
             #expect(!sessions.contains("chat-private"))
 

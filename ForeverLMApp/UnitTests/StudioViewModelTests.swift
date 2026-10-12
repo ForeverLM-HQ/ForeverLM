@@ -4669,9 +4669,10 @@ struct ScheduleChatNavigationTests {
         #expect(!vm.isSourceIDVisibleInRecordingMode("unknown-source"))
         #expect(Set(vm.notebooks.map(\.id)) == ["recording-notebook", "new-notebook"])
         // Being about a filmed source is not enough (b0fac858c): that chat
-        // and that Doc are the learner's own.
-        #expect(Set(vm.filteredReviewSessionLinks().map(\.id)) == ["filed-chat", "new-chat"])
-        #expect(vm.isVisibleInRecordingMode(linkedDoc))
+        // and that Doc are the learner's own. Nor is being filed under the
+        // recording Notebook (560f8a8): only work made during the take shows.
+        #expect(Set(vm.filteredReviewSessionLinks().map(\.id)) == ["new-chat"])
+        #expect(!vm.isVisibleInRecordingMode(linkedDoc))
         #expect(!vm.isVisibleInRecordingMode(citingDoc))
         #expect(vm.isVisibleInRecordingMode(newDoc))
         #expect(!vm.isVisibleInRecordingMode(privateDoc))
