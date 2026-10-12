@@ -5353,7 +5353,8 @@ struct ChatRobustnessTests {
         let width: CGFloat = 640
         let size: CGFloat = 13
         let oneLine = ChatMarkdownHeightMemory.estimatedHeight(markdown: "Yes.", width: width, fontSize: size)
-        #expect(oneLine == 36)
+        // One line at Codex's 1.625 leading (21.125 pt) plus the bubble's padding (15.6 pt).
+        #expect(oneLine == 37)
 
         let paragraph = String(repeating: "Mitochondrial heteroplasmy shifts with selection. ", count: 12)
         let short = ChatMarkdownHeightMemory.estimatedHeight(markdown: paragraph, width: width, fontSize: size)
