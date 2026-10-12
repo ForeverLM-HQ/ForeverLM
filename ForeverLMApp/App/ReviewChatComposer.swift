@@ -829,12 +829,14 @@ struct ReviewChatDeepResearchToken: View {
     }
 }
 
-/// The composer's send arrow, on its trailing edge while there is something
-/// to send, as in ChatGPT's composer: it does what Return does. It reads the
-/// draft itself, so a keystroke re-renders this button and not the pane
-/// (`ReviewComposerDraft`).
+/// The composer's send arrow, on its trailing edge, as in Codex's composer: a
+/// dark circle that is always there, full ink while there is something to
+/// send and faint while there is not (product owner, 2026-10-11: "make the
+/// chat experience more look chatgpt codex"). It does what Return does. It
+/// reads the draft itself, so a keystroke re-renders this button and not the
+/// pane (`ReviewComposerDraft`).
 struct ReviewChatSendButton: View {
-    static let diameter: CGFloat = 22
+    static let diameter: CGFloat = StudioDesign.Chat.actionDiameter
 
     let composer: ReviewComposerDraft
     /// Pictures wait in the tray: a message on their own.
@@ -851,22 +853,16 @@ struct ReviewChatSendButton: View {
     }
 
     var body: some View {
-        if hasSomethingToSend {
-            Button(action: send) {
-                Image(systemName: "arrow.up")
-                    .zoomedSystemFont(size: 11, weight: .bold)
-                    .foregroundStyle(Color(nsColor: .windowBackgroundColor))
-                    .frame(width: Self.diameter, height: Self.diameter)
-                    .background(Color.primary.opacity(isEnabled ? 0.9 : 0.3), in: Circle())
-                    .contentShape(Circle())
-            }
-            .buttonStyle(.hoverWash(in: Circle(), inset: -2, opacity: 0.12))
-            .disabled(!isEnabled)
-            .help("Send (Return)")
-            .accessibilityLabel("Send message")
-            .accessibilityIdentifier("mac.chatSend")
-            .transition(.opacity.combined(with: .scale(scale: 0.8)))
+        let canSend = isEnabled && hasSomethingToSend
+        Button(action: send) {
+            ChatComposerActionCircle(systemImage: "arrow.up", glyphSize: 12, isEnabled: canSend)
         }
+        .buttonStyle(.hoverWash(in: Circle(), inset: -2, opacity: 0.12))
+        .disabled(!canSend)
+        .animation(.easeOut(duration: 0.12), value: canSend)
+        .help("Send (Return)")
+        .accessibilityLabel("Send message")
+        .accessibilityIdentifier("mac.chatSend")
     }
 }
 

@@ -26,6 +26,12 @@ On the Mac, any chat can take you somewhere: "open this notebook", "show me that
 
 You never have to wait for a reply to finish before saying the next thing. A message sent while the tutor is still writing waits, dimmed, under the reply and goes the moment it ends; the × on it hands it back to the composer. Stop ends the reply and returns anything waiting to the composer.
 
+## The composer and the transcript
+
+The composer is a card at the foot of the chat, where it stays from the first message on. The notebook the chat works in and what it has read in (**N in context**) sit on a grey tray behind the card's top edge: click the notebook to open it, or the count to see and remove what is in context. **+** on the left adds files, sources or Deep Research; the dark circle on the right sends, as Return does, and while a reply is being written it becomes Stop, a square. An empty chat shows its notebook or a greeting in the middle, with a few starting points just above the composer.
+
+Your messages sit on the right in a grey pill; point at one for **Copy**. When a reply used tools or thought first, a line above it says how long it worked ("Worked for 2m 17s"); click it to see the steps. Web Studio's chat looks the same.
+
 ## Pictures from a source
 
 Ask to see a figure — "show me Figure 3-4", "is there a picture of the fermentation pathway?" — and Chat shows the original picture from the book chapter, paper, or article in the transcript. Hover it for **Copy**, or drag it straight into another app. The same picture appears when the chat is opened on another Mac or in the Web Library, because the transcript names the picture by source and position rather than by a file on one machine.

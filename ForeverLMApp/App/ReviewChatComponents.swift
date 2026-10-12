@@ -240,6 +240,11 @@ struct ReviewChatBubble: View, Equatable {
         lhs.linkedNotebookTitle == rhs.linkedNotebookTitle
     }
 
+    /// The pointer is over a learner message: its Copy shows under it.
+    @State private var isHovering = false
+    @State private var didCopy = false
+    @State private var copyFeedbackTask: Task<Void, Never>?
+
     @ViewBuilder
     var body: some View {
         if let activity = message.toolActivity {
@@ -248,79 +253,121 @@ struct ReviewChatBubble: View, Equatable {
                 Spacer(minLength: 0)
             }
         } else if let displayContent, !displayContent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            HStack(alignment: .top) {
-                if message.role == .user {
-                    Spacer(minLength: 64)
+            if message.role == .user {
+                // Codex's learner turn: a pill at most 70% of the column wide
+                // against its trailing edge, with Copy under it on hover
+                // (product owner, 2026-10-11: "make the chat experience more
+                // look chatgpt codex").
+                ChatUserMessageColumn(maxWidth: maxContentWidth) {
+                    messageStack(displayContent)
                 }
-                if message.role == .assistant, updateLinkedNotebook != nil || createNotebook != nil {
-                    VStack(spacing: 6) {
-                        artifactMenu
-                    }
-                }
-                let split = bodyAndWebCitations(displayContent)
-                // A learner message may carry pictures: they are drawn from the
-                // raw content above the bubble, and the bubble shows only what
-                // was typed — or nothing, when the message was the pictures.
-                let attached = message.role == .user ? AttachedImageReference.split(message.content) : nil
-                VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 3) {
-                    if let attached, !attached.images.isEmpty {
-                        ReviewChatAttachedImagesRow(images: attached.images, maxContentWidth: maxContentWidth)
-                            .padding(.bottom, attached.text.isEmpty ? 0 : 3)
-                            .contextMenu {
-                                Button(role: .destructive) {
-                                    deleteMessage()
-                                } label: {
-                                    Label("Delete Message", systemImage: "trash")
-                                }
-                                .disabled(!canDelete)
-                            }
-                    }
-                    if attached == nil || attached?.text.isEmpty == false {
-                        ReviewChatMessageContent(
-                            messageID: message.id,
-                            content: attached?.text ?? split.body,
-                            rendersMarkdown: message.role == .assistant,
-                            citationContext: citationContext,
-                            passage: readerPassage,
-                            openPassage: openPassage
-                        )
-                        // Keep one identity across the stream→final transition so the same
-                        // markdown WebView is reused and fed deltas, rather than torn down
-                        // and rebuilt (which is what made streaming render as plain text).
-                        .id(message.id)
-                        .modifier(ReviewChatBubbleChrome(role: message.role))
-                        .contextMenu {
-                            if let discussInNewChat {
-                                Button(action: discussInNewChat) {
-                                    Label("Discuss in New Chat", systemImage: "bubble.left.and.text.bubble.right")
-                                }
-                            }
-                            Button(role: .destructive) {
-                                deleteMessage()
-                            } label: {
-                                Label("Delete Message", systemImage: "trash")
-                            }
-                            .disabled(!canDelete)
+                .contentShape(Rectangle())
+                .onHover { isHovering = $0 }
+                .onDisappear { copyFeedbackTask?.cancel() }
+            } else {
+                HStack(alignment: .top) {
+                    if message.role == .assistant, updateLinkedNotebook != nil || createNotebook != nil {
+                        VStack(spacing: 6) {
+                            artifactMenu
                         }
                     }
-                    if !split.citations.isEmpty {
-                        ReviewChatWebSourcesList(citations: split.citations, notebookID: webSourcesNotebookID)
-                            .padding(.top, 4)
+                    messageStack(displayContent)
+                        .frame(maxWidth: maxContentWidth, alignment: .leading)
+                    if message.role == .assistant {
+                        Spacer(minLength: 48)
                     }
-                    // Think first: the guess the learner wrote before asking,
-                    // under their question, in their words (`ChatGuess`).
-                    if let guess = learnerGuess {
-                        ReviewChatGuessLine(guess: guess)
-                    }
-                }
-                .frame(
-                    maxWidth: maxContentWidth,
-                    alignment: message.role == .user ? .trailing : .leading
-                )
-                if message.role == .assistant {
-                    Spacer(minLength: 48)
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func messageStack(_ displayContent: String) -> some View {
+        let split = bodyAndWebCitations(displayContent)
+        // A learner message may carry pictures: they are drawn from the
+        // raw content above the bubble, and the bubble shows only what
+        // was typed — or nothing, when the message was the pictures.
+        let attached = message.role == .user ? AttachedImageReference.split(message.content) : nil
+        // What a learner message's Copy puts on the pasteboard: the words as sent.
+        let copyText = attached?.text ?? split.body
+        VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 3) {
+            if let attached, !attached.images.isEmpty {
+                ReviewChatAttachedImagesRow(images: attached.images, maxContentWidth: maxContentWidth)
+                    .padding(.bottom, attached.text.isEmpty ? 0 : 3)
+                    .contextMenu {
+                        Button(role: .destructive) {
+                            deleteMessage()
+                        } label: {
+                            Label("Delete Message", systemImage: "trash")
+                        }
+                        .disabled(!canDelete)
+                    }
+            }
+            if attached == nil || attached?.text.isEmpty == false {
+                ReviewChatMessageContent(
+                    messageID: message.id,
+                    content: attached?.text ?? split.body,
+                    rendersMarkdown: message.role == .assistant,
+                    citationContext: citationContext,
+                    passage: readerPassage,
+                    openPassage: openPassage
+                )
+                // Keep one identity across the stream→final transition so the same
+                // markdown WebView is reused and fed deltas, rather than torn down
+                // and rebuilt (which is what made streaming render as plain text).
+                .id(message.id)
+                .modifier(ReviewChatBubbleChrome(role: message.role))
+                .contextMenu {
+                    if let discussInNewChat {
+                        Button(action: discussInNewChat) {
+                            Label("Discuss in New Chat", systemImage: "bubble.left.and.text.bubble.right")
+                        }
+                    }
+                    Button(role: .destructive) {
+                        deleteMessage()
+                    } label: {
+                        Label("Delete Message", systemImage: "trash")
+                    }
+                    .disabled(!canDelete)
+                }
+            }
+            if !split.citations.isEmpty {
+                ReviewChatWebSourcesList(citations: split.citations, notebookID: webSourcesNotebookID)
+                    .padding(.top, 4)
+            }
+            // Think first: the guess the learner wrote before asking,
+            // under their question, in their words (`ChatGuess`).
+            if let guess = learnerGuess {
+                ReviewChatGuessLine(guess: guess)
+            }
+            if message.role == .user, !copyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                // Opacity rather than removal, as under a reply: the row keeps
+                // its height so the transcript never shifts under the pointer,
+                // and the button stays in the accessibility tree.
+                ReviewChatFooterButton(
+                    systemImage: didCopy ? "checkmark" : "doc.on.doc",
+                    label: didCopy ? "Message copied" : "Copy message",
+                    tint: didCopy ? .green : .secondary,
+                    action: { copyMessage(copyText) }
+                )
+                .accessibilityIdentifier("mac.chatCopyMessage")
+                .opacity(isHovering || didCopy ? 1 : 0)
+                .animation(.easeOut(duration: 0.12), value: isHovering)
+                .padding(.top, 1)
+            }
+        }
+    }
+
+    @MainActor
+    private func copyMessage(_ text: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        didCopy = true
+        copyFeedbackTask?.cancel()
+        copyFeedbackTask = Task {
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            didCopy = false
         }
     }
 
@@ -1783,8 +1830,8 @@ struct ReviewChatQueuedFollowUpRow: View {
 
     var body: some View {
         let attached = AttachedImageReference.split(text)
-        HStack(alignment: .top, spacing: 0) {
-            Spacer(minLength: 64)
+        // The sent message's column, so the queued one stands where it will.
+        ChatUserMessageColumn(maxWidth: maxContentWidth) {
             VStack(alignment: .trailing, spacing: 3) {
                 Text("Queued")
                     .font(.caption2)
@@ -1832,7 +1879,6 @@ struct ReviewChatQueuedFollowUpRow: View {
                     .opacity(0.6)
                 }
             }
-            .frame(maxWidth: maxContentWidth, alignment: .trailing)
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Queued message: \(attached.text)")
@@ -2042,15 +2088,15 @@ private struct ReviewChatBubbleChrome: ViewModifier {
     func body(content: Content) -> some View {
         switch role {
         case .user:
-            // Claude/Codex-style user turn: a quiet neutral bubble that reads as
-            // "your message" without shouting in saturated accent color. The fill
-            // is appearance-adaptive so it stays a soft gray in both light and dark.
+            // Codex's user turn: a light grey pill that reads as "your
+            // message" without shouting in saturated accent color, its fill
+            // resolved per appearance (`StudioDesign.Chat.userBubbleFill`).
             content
-                .padding(.horizontal, 13)
+                .padding(.horizontal, 14)
                 .padding(.vertical, 9)
                 .background(
-                    Color.primary.opacity(0.06),
-                    in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    StudioDesign.Chat.userBubbleFill,
+                    in: RoundedRectangle(cornerRadius: StudioDesign.Chat.userBubbleCornerRadius, style: .continuous)
                 )
         case .assistant:
             // Assistant replies render as flush, borderless text on the panel
@@ -2533,7 +2579,9 @@ struct ReviewChatWork: Equatable {
 /// but then it gets collapsed when it's done and shows the final answer");
 /// it folds once the answer's first words land, and stays folded. What asks
 /// the learner to act — a plugin to connect — and the pages the steps wrote
-/// stay under the line, outside the fold.
+/// stay under the line, outside the fold. The line is set at the reply's own
+/// size with a thin rule under it once the work is done, as Codex draws it
+/// (2026-10-11).
 struct ReviewChatWorkFold: View {
     let work: ReviewChatWork
     /// True while the turn these steps belong to is still running.
@@ -2559,6 +2607,12 @@ struct ReviewChatWorkFold: View {
     /// the work is done, and the line says how long it took.
     private var title: String {
         isLive && !work.answerHasBegun ? "Working" : Self.title(steps: work.steps, duration: work.duration)
+    }
+
+    /// The work is done and the line says how long it took: the rule under it
+    /// is drawn. While it reads "Working" the steps are still coming.
+    private var isSettled: Bool {
+        !(isLive && !work.answerHasBegun)
     }
 
     private var failedDetail: String? {
@@ -2594,18 +2648,19 @@ struct ReviewChatWorkFold: View {
                             .frame(width: 12, height: 12)
                     }
 
+                    // The reply's own size, as Codex sets it, a step softer.
                     Text(title)
-                        .font(.caption.weight(.medium))
+                        .zoomedSystemFont(size: ChatMarkdownView.baseFontSize)
                         .foregroundStyle(.secondary)
 
                     if let failedDetail {
                         Text(failedDetail)
-                            .font(.caption)
+                            .zoomedSystemFont(size: ChatMarkdownView.baseFontSize)
                             .foregroundStyle(.orange)
                     }
 
                     Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                        .font(.system(size: 9, weight: .semibold))
+                        .zoomedSystemFont(size: 10, weight: .semibold)
                         .foregroundStyle(.tertiary)
                 }
                 .contentShape(Rectangle())
@@ -2635,6 +2690,14 @@ struct ReviewChatWorkFold: View {
                 // Folded while the turn still runs: the learner watches the
                 // chat work in the Browser without opening the steps.
                 ReviewChatBrowserPreview(image: preview, isRunning: isRunning)
+            }
+
+            if isSettled {
+                // Codex's thin rule between the work and the answer under it.
+                Rectangle()
+                    .fill(Color.primary.opacity(0.08))
+                    .frame(height: 1)
+                    .accessibilityHidden(true)
             }
 
             ForEach(setupNeeds, id: \.self) { need in
@@ -3944,8 +4007,8 @@ struct ReviewChatMessageContent: View {
                 // with the app zoom.
                 //
                 // No `maxWidth: .infinity` here: the user bubble hugs its text
-                // and is pushed to the trailing edge by the row's leading
-                // spacer. Filling the column instead stretched a three-word
+                // and is placed against the trailing edge by its row's
+                // `ChatUserMessageColumn`. Filling the column instead stretched a three-word
                 // question into a pill spanning the whole transcript.
                 if ChatLongUserMessage.isLong(content) {
                     // A long paste folds instead of being drawn as one selectable

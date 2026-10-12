@@ -1504,6 +1504,12 @@ On the Mac, any chat can take you somewhere: "open this notebook", "show me that
 
 You never have to wait for a reply to finish before saying the next thing. A message sent while the tutor is still writing waits, dimmed, under the reply and goes the moment it ends; the × on it hands it back to the composer. Stop ends the reply and returns anything waiting to the composer.
 
+## The composer and the transcript
+
+The composer is a card at the foot of the chat, where it stays from the first message on. The notebook the chat works in and what it has read in (**N in context**) sit on a grey tray behind the card's top edge: click the notebook to open it, or the count to see and remove what is in context. **+** on the left adds files, sources or Deep Research; the dark circle on the right sends, as Return does, and while a reply is being written it becomes Stop, a square. An empty chat shows its notebook or a greeting in the middle, with a few starting points just above the composer.
+
+Your messages sit on the right in a grey pill; point at one for **Copy**. When a reply used tools or thought first, a line above it says how long it worked ("Worked for 2m 17s"); click it to see the steps. Web Studio's chat looks the same.
+
 ## Pictures from a source
 
 Ask to see a figure — "show me Figure 3-4", "is there a picture of the fermentation pathway?" — and Chat shows the original picture from the book chapter, paper, or article in the transcript. Hover it for **Copy**, or drag it straight into another app. The same picture appears when the chat is opened on another Mac or in the Web Library, because the transcript names the picture by source and position rather than by a file on one machine.
@@ -1511,6 +1517,10 @@ Ask to see a figure — "show me Figure 3-4", "is there a picture of the ferment
 Slides work the same way for videos and recordings. Ask "show me the slide that shows X" and Chat matches the request against what was said while each slide was on screen — the words need not have been said together — then shows that frame. A video or recording whose slides have not been captured yet is captured by the request itself — the same pass as the reader's **⋯ › Video › Show Slides**, reading a meeting's recording from Google Drive when it lives there — and the deck then appears in the reader too. You can also ask for the capture on its own ("extract the slides from this talk"): Chat runs it as a *Captured slides* step and lists every slide with the stretch of the talk it was on screen, ready to show. Slide frames exist only on the Mac that captured them, so Web Studio marks such a picture unavailable rather than drawing it.
 
 When Chat quizzes you over slides or figures, it shows one picture at a time: the one the question is about, right above it. The next picture comes with the next question, after you answer.
+
+## Interactive visualizations
+
+On the Mac, a reply can draw a picture that runs: a curve with a slider for its rate, a process you step through, a mechanism whose parts you switch on and off. Chat draws one when it explains the point better than words, or when you ask ("show me this as an interactive chart"). It runs in the reply, in a frame that cannot reach your library or the internet. It is the same block a Page's **Visualize** row writes, so its Markdown runs in a Page too. The Web Library and the iPhone show a line in its place.
 
 ## Going through a source in the Reader
 
@@ -1991,7 +2001,7 @@ A one-time import, described [below](#coming-from-a-read-later-app).
 
 ## Coming from a Read-Later App
 
-If your saved articles live in Readwise Reader, Instapaper, Raindrop, Pocket, Omnivore or a similar app, bring them over once. Setup's Articles step has **Coming from a read-later app?** → **Choose Export…**. Choose the file the app exported, or the unzipped export folder:
+If your saved articles live in Readwise Reader, Instapaper, Raindrop, Pocket, Omnivore or a similar app, bring them over once. Setup's Articles step has **Coming from Readwise, Instapaper or Pocket?**, which opens a page with **Choose Export…**. Choose the file the app exported, or the unzipped export folder:
 
 - **Readwise Reader:** Settings → Export, then the CSV.
 - **Instapaper:** Settings → Export, then the CSV or HTML file.
@@ -2277,7 +2287,7 @@ ForeverLM does not connect to Zotero, Paperpile or Mendeley, and that is a decis
 
 So instead of a live plugin there is a one-time move. Bring the papers over once and they are ForeverLM papers from then on. Your reference manager keeps doing what it is good at, citations and bibliographies, and is never modified.
 
-**In setup.** If Zotero keeps its library on this Mac, the Papers step finds it (in `~/Zotero`, or wherever Zotero's settings moved it), says how many papers it holds and how many have a PDF, and **Import from Zotero** brings them over in one click. For any other reference manager, **Coming from a reference manager?** → **Choose Export…** takes any of these, or several at once:
+**In setup.** The Papers step asks where your papers live: **Zotero**, **Another reference manager**, **PDFs on this Mac**, or **I don't have any yet**, and each answer opens a page with one way in. Zotero is offered only when it keeps its library on this Mac (in `~/Zotero`, or wherever Zotero's settings moved it); its page says how many papers it holds and how many have a PDF, and **Import from Zotero** brings them over in one click. For any other reference manager, **Choose Export…** on its page takes any of these, or several at once:
 
 - **Zotero:** the Zotero folder in your home folder, the one holding `zotero.sqlite` and `storage/` (Zotero → Settings → Advanced → Files and Folders shows where it is). Zotero can stay open.
 - **Paperpile:** export BibTeX into the `Paperpile` folder that Paperpile syncs to Google Drive, then choose that folder, so the export's file paths resolve to the PDFs in `All Papers`.
@@ -2429,17 +2439,16 @@ If you normally listen elsewhere, you can still get an episode into ForeverLM: f
 
 ForeverLM queries your local Podcasts database for episodes you have played since the start of 2026 and checks whether a transcript is available.
 
-This requires **Full Disk Access** in macOS System Settings → Privacy & Security → Full Disk Access. Setup asks for it before the Podcasts step: add ForeverLM with the **+** button (macOS does not list it until you do), turn it on, then relaunch ForeverLM.
+This requires **Full Disk Access** in macOS System Settings → Privacy & Security → Full Disk Access. Setup asks for it before the Podcasts step: **Open System Settings**, add ForeverLM with the **+** button (macOS does not list it until you do), turn it on, then **Relaunch ForeverLM**.
 
 ## Choosing Shows in Setup
 
-Setup's Podcasts step lists every show you follow in Apple Podcasts and every show with an episode you played, with how many episodes would come in, before anything is imported. Each show gets one of three choices:
+Setup's Podcasts step lists every show you follow in Apple Podcasts and every show with an episode you played, with how many episodes would come in, before anything is imported. Tick the shows to bring in; every show starts ticked.
 
-- **Keep:** the episodes you play arrive, with their transcripts.
-- **Hide:** the episodes arrive but stay out of the list, chat, search and reviews, and their transcripts are not cleaned up by AI, so they cost nothing. Unhide the show later from Hidden Items.
-- **Don't import:** the show's episodes never become sources. The same as **Never Import** in a show's menu.
+- **Ticked:** the episodes you play arrive, with their transcripts.
+- **Unticked:** the show's episodes never become sources. The same as **Never Import** in a show's menu.
 
-**Set All** gives every show the same choice. The import starts when you press Continue, so a show you turned away is never fetched.
+**Untick All** and **Tick All** set every show at once. The import starts when you press Continue, so a show you turned away is never fetched. To bring a show in but keep it out of the list, chat, search and reviews (its transcripts are then not cleaned up by AI, so it costs nothing), choose **Hide** from the show's menu in the sidebar later.
 
 ## Transcript Availability
 

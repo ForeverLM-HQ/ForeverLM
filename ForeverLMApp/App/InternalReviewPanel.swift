@@ -366,11 +366,10 @@ private struct InternalReviewPanelContent: View {
     private let contextSourcesPopoverWidth: CGFloat = 380
     private let contextSourcesPopoverHeight: CGFloat = 420
 
-    /// The empty chat steps out from a focused greeting column to a slightly
-    /// wider composer, and the suggestions under it share the composer's
-    /// width. Keeping those widths related avoids the abrupt jump from a
-    /// narrow column to a nearly edge-to-edge input that made the idle state
-    /// feel loosely assembled.
+    /// The empty chat's greeting keeps a focused column, and the suggestions
+    /// over the composer a slightly wider one. The composer itself keeps the
+    /// transcript's width (`chatColumnMaxWidth`), so the first message does not
+    /// move it.
     private let idleWelcomeColumnWidth: CGFloat = 420
     private let idleComposerMaxWidth: CGFloat = 620
 
@@ -602,8 +601,8 @@ private struct InternalReviewPanelContent: View {
     }
 
     /// The composer card's radius, shared with the drop target drawn over it so
-    /// the dashed outline sits exactly on the glass edge.
-    private static let composerCornerRadius: CGFloat = 18
+    /// the dashed outline sits exactly on the card's edge.
+    private static let composerCornerRadius: CGFloat = StudioDesign.Chat.composerCornerRadius
 
     /// Whether the composer should read as a drop target: a source is in flight
     /// somewhere in the window, or something the app can't see the payload of
@@ -1281,10 +1280,20 @@ private struct InternalReviewPanelContent: View {
                 compactTranscriptPanel
             }
             if showsIdleWelcome {
+                // Codex's empty chat (product owner, 2026-10-11: "make the chat
+                // experience more look chatgpt codex"): the heading in the
+                // middle, the composer pinned to the foot where it stays once
+                // the chat begins, and the few starting points just above it,
+                // no card, no headers.
                 Spacer(minLength: 12)
                 idleWelcomeHeading
                     .transition(.opacity)
                     .task(id: vm.hasCompletedInitialQueueLoad) { await refreshReadNextSuggestions() }
+                Spacer(minLength: 12)
+                idleWelcomeOffers
+                    .frame(maxWidth: idleComposerMaxWidth)
+                    .padding(.bottom, StudioDesign.Spacing.xSmall)
+                    .transition(.opacity)
             }
             if !shouldShowTranscript,
                let error = manager.errorMessage ?? dictation.errorMessage ?? speech.errorMessage {
@@ -1297,20 +1306,10 @@ private struct InternalReviewPanelContent: View {
                 sharedTranscriptFooter(snapshot)
                     .frame(maxWidth: chatColumnMaxWidth)
             } else if !hidesComposerForMemoryCard {
+                // One width with or without a transcript, so the first send
+                // leaves the composer where it was.
                 inputBar
-                    .frame(maxWidth: showsIdleWelcome ? idleComposerMaxWidth : chatColumnMaxWidth)
-                    // Together with the parent's 8-point stack spacing, this makes
-                    // a deliberate 24-point break after the welcome content.
-                    .padding(.top, showsIdleWelcome ? StudioDesign.Spacing.large : 0)
-            }
-            if showsIdleWelcome {
-                // Under the composer, as ChatGPT offers its few starting
-                // points: no card, no headers.
-                idleWelcomeOffers
-                    .frame(maxWidth: idleComposerMaxWidth)
-                    .padding(.top, StudioDesign.Spacing.xSmall)
-                    .transition(.opacity)
-                Spacer(minLength: 12)
+                    .frame(maxWidth: chatColumnMaxWidth)
             }
         }
         .animation(.easeInOut(duration: 0.22), value: shouldShowTranscript)
@@ -3908,13 +3907,49 @@ private struct InternalReviewPanelContent: View {
     /// One rounded composer, as in ChatGPT's (product owner, 2026-10-06: "make the
     /// app more slick; kind of like the chatgpt app … fewer buttons and bells
     /// and whistles"): above the field only what the learner put there (a
-    /// passage, pictures, the notebook and what is in context where the
-    /// window does not already say it); in it the tokens that change how the
-    /// next message is read; under it "+" on the leading edge, and the model
-    /// and its effort, the mic and send or Stop on the trailing one.
+    /// passage, pictures); in it the tokens that change how the next message
+    /// is read; under it "+" on the leading edge, and the model and its
+    /// effort, the mic and send or Stop on the trailing one. Since 2026-10-11
+    /// it is Codex's (product owner: "make the chat experience more look
+    /// chatgpt codex"): a solid card, with the notebook and what is in
+    /// context, where the window does not already say it, on a grey tray
+    /// behind its top edge, as Codex shows the project there
+    /// (`ChatComposerStack`).
     private var inputBar: some View {
-        VStack(spacing: StudioDesign.Spacing.small) {
+        ChatComposerStack(showsTray: showsComposerContextRow) {
             composerContextRow
+        } card: {
+            composerCard
+        }
+        .animation(.easeOut(duration: 0.18), value: showsComposerContextRow)
+        .overlay(alignment: .topLeading) {
+            ReviewSlashSuggestionsOverlay(
+                composer: composer,
+                slashCommands: slashCommands,
+                mentions: composerMentions,
+                resolveLiveArguments: { command, query in
+                    await resolveSlashLiveArguments(for: command, query: query)
+                },
+                onSelect: { acceptSlashSuggestion($0) }
+            )
+        }
+        .contentShape(Rectangle())
+        .onDrop(
+            of: reviewChatDropTypes,
+            isTargeted: dropTargetBinding,
+            perform: handleDrop
+        )
+        .animation(.easeOut(duration: 0.18), value: reviewSources.map(\.id))
+        .animation(.easeOut(duration: 0.18), value: linkedResearchNotebookID)
+        .animation(.easeOut(duration: 0.18), value: dictation.isRecording)
+        .animation(.easeOut(duration: 0.18), value: dictation.isTranscribing)
+        .animation(.easeOut(duration: 0.18), value: voiceConversationEnabled)
+    }
+
+    /// The card itself: the passage, the pictures, the field, and the row of
+    /// controls under it.
+    private var composerCard: some View {
+        VStack(spacing: StudioDesign.Spacing.small) {
             readerSelectionChip
             pendingImagesRow
 
@@ -4031,13 +4066,11 @@ private struct InternalReviewPanelContent: View {
                             returnQueuedFollowUpsToComposer()
                             manager.stopGeneration()
                         } label: {
-                            Image(systemName: "stop.fill")
-                                .zoomedSystemFont(size: 9, weight: .semibold)
-                                .frame(width: ReviewChatSendButton.diameter, height: ReviewChatSendButton.diameter)
+                            // Codex's Stop: a square on the same dark circle
+                            // as send, in the place send was.
+                            ChatComposerActionCircle(systemImage: "stop.fill", glyphSize: 10)
                         }
-                        .buttonStyle(.hoverWash(in: Circle(), opacity: 0.12))
-                        .foregroundStyle(.white)
-                        .background(Color.red, in: Circle())
+                        .buttonStyle(.hoverWash(in: Circle(), inset: -2, opacity: 0.12))
                         .help("Stop tutor response")
                         .accessibilityLabel("Stop tutor response")
                         .accessibilityIdentifier("mac.chatStop")
@@ -4065,18 +4098,13 @@ private struct InternalReviewPanelContent: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             Task { await ChatPluginPresence.shared.refreshIfStale() }
         }
-        .padding(.horizontal, StudioDesign.Spacing.large)
-        .padding(.vertical, StudioDesign.Spacing.medium)
-        // Non-interactive glass so source drops still reach the composer's .onDrop.
-        .reviewGlassSurface(
-            in: RoundedRectangle(cornerRadius: Self.composerCornerRadius, style: .continuous),
-            tint: ReviewGlassStyle.composerTint,
-            fallbackMaterial: .regularMaterial,
-            fallbackBorder: Color.primary.opacity(0.08),
-            shadowColor: Color.black.opacity(0.08),
-            shadowRadius: 14,
-            shadowY: 5
-        )
+        .padding(.leading, StudioDesign.Spacing.medium)
+        .padding(.trailing, StudioDesign.Spacing.small + 2)
+        .padding(.top, StudioDesign.Spacing.medium)
+        .padding(.bottom, StudioDesign.Spacing.small + 2)
+        // A solid card, not glass, so source drops still reach the composer's
+        // .onDrop and the field reads as paper the way Codex's does.
+        .chatComposerCard(cornerRadius: Self.composerCornerRadius)
         .overlay {
             if showsComposerDropTarget {
                 ReviewChatComposerDropTarget(
@@ -4089,28 +4117,6 @@ private struct InternalReviewPanelContent: View {
         }
         .animation(.easeOut(duration: 0.12), value: showsComposerDropTarget)
         .animation(.easeOut(duration: 0.12), value: isDropTargeted)
-        .overlay(alignment: .topLeading) {
-            ReviewSlashSuggestionsOverlay(
-                composer: composer,
-                slashCommands: slashCommands,
-                mentions: composerMentions,
-                resolveLiveArguments: { command, query in
-                    await resolveSlashLiveArguments(for: command, query: query)
-                },
-                onSelect: { acceptSlashSuggestion($0) }
-            )
-        }
-        .contentShape(Rectangle())
-        .onDrop(
-            of: reviewChatDropTypes,
-            isTargeted: dropTargetBinding,
-            perform: handleDrop
-        )
-        .animation(.easeOut(duration: 0.18), value: reviewSources.map(\.id))
-        .animation(.easeOut(duration: 0.18), value: linkedResearchNotebookID)
-        .animation(.easeOut(duration: 0.18), value: dictation.isRecording)
-        .animation(.easeOut(duration: 0.18), value: dictation.isTranscribing)
-        .animation(.easeOut(duration: 0.18), value: voiceConversationEnabled)
     }
 
     /// The mic, or, while a dictated message is on its way to being sent,
@@ -4200,11 +4206,12 @@ private struct InternalReviewPanelContent: View {
         }
     }
 
+    /// Codex's "+": full ink, a size up from the controls beside it.
     private var composerAddMenuLabel: some View {
         Image(systemName: "plus")
-            .zoomedSystemFont(size: 13, weight: .medium)
-            .foregroundStyle(.secondary)
-            .frame(width: 14, height: 16)
+            .zoomedSystemFont(size: 15, weight: .regular)
+            .foregroundStyle(.primary)
+            .frame(width: 16, height: 18)
     }
 
     /// The "+" chip's help and accessibility, shared by both menu routes.
@@ -4296,27 +4303,40 @@ private struct InternalReviewPanelContent: View {
     /// there): the window is that notebook, and its Sources column says what
     /// the chat reads, ticked, with "N of M in chat". A Page attached to the
     /// chat is the exception, since the Sources column does not list it.
+    ///
+    /// Since 2026-10-11 the row is the composer's tray, behind the card's top
+    /// edge (`ChatComposerStack`), where Codex shows the project.
     @ViewBuilder
     private var composerContextRow: some View {
-        let inOwnNotebookWindow = notebookGuideNotebook != nil
-        let showsNotebookChip = linkedResearchNotebook != nil && !inOwnNotebookWindow
-        let showsContextChip = contextItemCount > 0 && (!inOwnNotebookWindow || !manager.contextDocs.isEmpty)
-        let canvasContext = manager.canvasContext
-        if showsNotebookChip || showsContextChip || canvasContext != nil {
+        let chips = composerContextChips
+        if chips.showsAny {
             FlowLayout(spacing: 8) {
-                if let canvasContext {
+                if let canvasContext = manager.canvasContext {
                     canvasChips(canvasContext)
                 }
-                if showsNotebookChip {
+                if chips.notebook {
                     notebookChip
                 }
-                if showsContextChip {
+                if chips.context {
                     attachedSourcesChip
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
+
+    /// Which of the context row's chips are drawn: the notebook's outside its
+    /// own window, the "in context" pill when something is (in the notebook's
+    /// window only for an attached Page), and the canvas's.
+    private var composerContextChips: (notebook: Bool, context: Bool, showsAny: Bool) {
+        let inOwnNotebookWindow = notebookGuideNotebook != nil
+        let notebook = linkedResearchNotebook != nil && !inOwnNotebookWindow
+        let context = contextItemCount > 0 && (!inOwnNotebookWindow || !manager.contextDocs.isEmpty)
+        return (notebook, context, notebook || context || manager.canvasContext != nil)
+    }
+
+    /// Whether the composer draws its tray.
+    private var showsComposerContextRow: Bool { composerContextChips.showsAny }
 
     /// The canvas this chat was opened from as a chip, and a chip for each of
     /// its cards the learner added (`KnowledgeMapChatChipRow`): a click shows
@@ -4371,8 +4391,9 @@ private struct InternalReviewPanelContent: View {
                     .fixedSize()
             }
         }
-        .font(.caption)
-        .foregroundStyle(.secondary)
+        // On the tray the notebook reads in full ink, as Codex's project does.
+        .font(.callout)
+        .foregroundStyle(.primary)
     }
 
     private func notebookChipAccessibilityLabel(_ notebook: LearningGoalRecord) -> String {
@@ -4420,7 +4441,7 @@ private struct InternalReviewPanelContent: View {
                         .font(.system(size: 8, weight: .semibold))
                         .foregroundStyle(.tertiary)
                 }
-                .font(.caption)
+                .font(.callout)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 4)
                 .padding(.vertical, 3)
