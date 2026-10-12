@@ -83,19 +83,25 @@ struct CardVariationVerdict: Decodable, Equatable, Sendable {
     let answersIt: Bool
     /// It states or strongly hints at the answer.
     let leaksAnswer: Bool
+    /// It names what it is about rather than pointing at its source unnamed
+    /// ("this lecture", "the paper"): a card stands on its own
+    /// (docs/memory-design.md, "A card stands on its own").
+    let standsAlone: Bool
 
     private enum CodingKeys: String, CodingKey {
         case card
         case variant
         case answersIt = "answers_it"
         case leaksAnswer = "leaks_answer"
+        case standsAlone = "stands_alone"
     }
 
-    init(card: Int, variant: Int, answersIt: Bool, leaksAnswer: Bool) {
+    init(card: Int, variant: Int, answersIt: Bool, leaksAnswer: Bool, standsAlone: Bool) {
         self.card = card
         self.variant = variant
         self.answersIt = answersIt
         self.leaksAnswer = leaksAnswer
+        self.standsAlone = standsAlone
     }
 }
 

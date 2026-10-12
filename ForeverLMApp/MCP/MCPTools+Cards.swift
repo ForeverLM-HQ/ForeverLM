@@ -106,12 +106,43 @@ extension MCPDataStore {
 
         // One deck per source: a source that cannot take cards (no text yet,
         // its deck still downloading) is named and the others are saved.
+        // Every card first passes the wording gate (`CardWordingGate`): one
+        // that points at its source unnamed is reworded once, or refused with
+        // the reason; a source whose cards could not be checked saves none.
         var saved: [(requestedID: String, title: String, result: MemoryCardDraftsSaved)] = []
         var failedSources: [[String: Any]] = []
+        var reworded: [String: [[String: Any]]] = [:]
+        var notStandalone: [String: [[String: Any]]] = [:]
+        let wording = CardWordingGate.backend()
         for sourceID in order {
             let title = sources[sourceID]?.title ?? sourceID
+            let given = bySource[sourceID] ?? []
+            let cards: [Flashcard]
             do {
-                let result = try await notebookFileStorage.saveCardDrafts(bySource[sourceID] ?? [], sourceID: sourceID, sourceTitle: title)
+                let screened = try await CardWordingGate.screen(
+                    drafts: given,
+                    sourceTitle: title,
+                    usage: AIUsageSource(id: sourceID, type: sources[sourceID]?.sourceType.rawValue ?? "source", title: title),
+                    backend: wording
+                )
+                cards = screened.passed
+                let before = Dictionary(given.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+                reworded[sourceID] = screened.passed.compactMap { card in
+                    guard let was = before[card.id], was.front != card.front || was.back != card.back else { return nil }
+                    return ["card_id": card.id, "was": was.front, "front": card.front, "back": card.back]
+                }
+                notStandalone[sourceID] = screened.refused.map { ["front": $0.front, "reason": $0.reason] }
+            } catch {
+                failedSources.append([
+                    "source_id": sourceID,
+                    "source_title": title,
+                    "reason": "The cards' wording could not be checked, so none was saved. \(error.localizedDescription)",
+                ])
+                continue
+            }
+            guard !cards.isEmpty else { continue }
+            do {
+                let result = try await notebookFileStorage.saveCardDrafts(cards, sourceID: sourceID, sourceTitle: title)
                 saved.append((sourceID, title, result))
             } catch {
                 failedSources.append(["source_id": sourceID, "source_title": title, "reason": error.localizedDescription])
@@ -142,7 +173,16 @@ extension MCPDataStore {
                     ["front": card.front, "reason": "A line of the back reads as a heading or as the card's own metadata (Source:, Seed:, …). Reword that line."]
                 }
             }
+            if let changed = reworded[requestedID], !changed.isEmpty { entry["reworded"] = changed }
+            if let refused = notStandalone[requestedID], !refused.isEmpty { entry["not_standalone"] = refused }
             return entry
+        }
+        // A source whose every card was refused for its wording has no saved
+        // entry; it is named all the same.
+        let savedIDs = Set(saved.map(\.requestedID))
+        let refusedOnly: [[String: Any]] = order.compactMap { sourceID in
+            guard !savedIDs.contains(sourceID), let refused = notStandalone[sourceID], !refused.isEmpty else { return nil }
+            return ["source_id": sourceID, "source_title": sources[sourceID]?.title ?? sourceID, "not_standalone": refused]
         }
         var payload: [String: Any] = [
             "saved_count": addedCount,
@@ -158,6 +198,12 @@ extension MCPDataStore {
         }
         if !failedSources.isEmpty {
             payload["sources_not_saved"] = failedSources
+        }
+        if !refusedOnly.isEmpty {
+            payload["not_standalone"] = refusedOnly
+        }
+        if reworded.values.contains(where: { !$0.isEmpty }) || notStandalone.values.contains(where: { !$0.isEmpty }) {
+            payload["wording_guidance"] = "A card is asked weeks later, away from its source: it never points at \u{201C}this lecture\u{201D}, \u{201C}the paper\u{201D} or \u{201C}the speaker\u{201D} without naming it. ForeverLM reworded the cards under reworded, and refused those under not_standalone; ask about the subject itself, or name the source."
         }
         return try jsonString(payload)
     }
@@ -689,8 +735,8 @@ extension MCPDataStore {
         let startOverAsked = try Self.strictBoolArgument(rawStartOver, "start_over") ?? false
         let alwaysAsk = try Self.strictBoolArgument(rawAlwaysAsk, "always_ask")
         let retire = try Self.strictBoolArgument(rawRetire, "retire") ?? false
-        let front = rawFront.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-        let back = rawBack.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        var front = rawFront.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        var back = rawBack.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
         let why: [String]?
         if rawWhy == nil || rawWhy is NSNull {
             why = nil
@@ -740,6 +786,40 @@ extension MCPDataStore {
         }
 
         let defaults = cardStateDefaults
+        // New words pass the wording gate (`CardWordingGate`) before they are
+        // written: words that point at the source unnamed are reworded once,
+        // or the change is refused with the reason. A new front alone may
+        // change only the front: the card's answer is its identity.
+        var rewordedByCheck = false
+        if front != nil || back != nil {
+            let sourceTitle = try listing.sourceIDs.first.flatMap { try store.loadSourceWithoutContent($0)?.title } ?? "its source"
+            let proposed = CardWordingCheck.Face(
+                front: front ?? MemoryCardEditWriter.wording(listing, defaults: defaults),
+                back: back ?? face.back,
+                sourceTitle: sourceTitle
+            )
+            let outcome: CardWordingCheck.Outcome
+            do {
+                outcome = try await CardWordingGate.screen(
+                    [proposed],
+                    answersMayChange: back != nil,
+                    usage: AIUsageSource(id: listing.sourceIDs.first ?? item.id, type: "memory_card", title: sourceTitle),
+                    backend: CardWordingGate.backend()
+                ).first ?? .passed
+            } catch {
+                throw MCPError.invalidInput("Nothing was changed. The card's wording could not be checked: \(error.localizedDescription)")
+            }
+            switch outcome {
+            case .passed:
+                break
+            case .reworded(let newFront, let newBack):
+                rewordedByCheck = true
+                if front != nil || newFront != proposed.front { front = newFront }
+                if back != nil { back = newBack }
+            case .failed(let reason):
+                throw MCPError.invalidInput("Nothing was changed. \(reason) Ask about the subject itself, or name the source.")
+            }
+        }
         let startsOver = startOverAsked
             || (back.map { $0 != face.back } ?? false)
             || (why.map { $0 != face.why } ?? false)
@@ -783,6 +863,9 @@ extension MCPDataStore {
         await PreferenceStore.flushPendingWrites()
         await MemoryCardStateStore.settled(defaults: defaults)
 
+        if rewordedByCheck {
+            changes.append("reworded by ForeverLM so it names what it is about rather than pointing at its source unnamed")
+        }
         var payload: [String: Any] = [
             "card_id": resultCardID,
             "item_id": resultItemID,

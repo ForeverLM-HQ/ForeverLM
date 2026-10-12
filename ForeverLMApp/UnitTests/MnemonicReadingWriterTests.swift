@@ -126,7 +126,7 @@ private let answerForChapter: @Sendable (String) throws -> [MnemonicReadingModel
 
 // MARK: - Tests
 
-@Suite("Mnemonic reading: writing the questions")
+@Suite("Mnemonic reading: writing the questions", .cardWordingPasses)
 struct MnemonicReadingWriterTests {
     @Test("Mnemonic Reading Writing is an AI task of its own, on the Background text model, the learner's to start")
     func aiTask() {

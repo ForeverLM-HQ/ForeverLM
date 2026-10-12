@@ -62,7 +62,7 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "save_mnemonic_reading",
-                description: "Save a mnemonic reading whose questions you wrote yourself, at no cost: the learner reads the sources' own text in ForeverLM with each question right after the passage it tests, as in a reading generate_mnemonic_reading makes. Give sources in reading order, each with its source_id (as list_sources or a search returns it; an id the library does not hold refuses the whole call) and its questions in the order of its text. Each question has quote, the last sentence of the passage it tests copied word for word from the source's text (get_source_content), so ForeverLM can set the question after it; question, on one line, standalone, with one right answer, never yes or no; answer, the short answer first and at most one sentence of why; why, optional; and difficulty, easy, medium or hard. A question whose quote the source does not print is not saved and is listed under not_grounded. Pass title (\u{201C}<book> with questions\u{201D} reads well) and notebook_id to file it in a Notebook, or reading_id to add questions to a reading that exists: a question already there is not saved twice. Returns reading_id and, per source, the saved question ids and what was not saved, with why.",
+                description: "Save a mnemonic reading whose questions you wrote yourself: the learner reads the sources' own text in ForeverLM with each question right after the passage it tests, as in a reading generate_mnemonic_reading makes. Give sources in reading order, each with its source_id (as list_sources or a search returns it; an id the library does not hold refuses the whole call) and its questions in the order of its text. Each question has quote, the last sentence of the passage it tests copied word for word from the source's text (get_source_content), so ForeverLM can set the question after it; question, on one line, standalone, with one right answer, never yes or no; answer, the short answer first and at most one sentence of why; why, optional; and difficulty, easy, medium or hard. A question whose quote the source does not print is not saved and is listed under not_grounded. An answered question becomes a card, asked weeks later away from the text, so it never points at its source unnamed (\u{201C}this chapter\u{201D}, \u{201C}the author\u{201D}, \u{201C}this lecture\u{201D}): every question is checked for that before it is saved (a small background model call on the learner's Card Wording Check model), and one that does is reworded once or listed under not_saved; when the check cannot run, the source's questions are not saved and failure says why. Pass title (\u{201C}<book> with questions\u{201D} reads well) and notebook_id to file it in a Notebook, or reading_id to add questions to a reading that exists: a question already there is not saved twice. Returns reading_id and, per source, the saved question ids and what was not saved, with why.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -435,17 +435,36 @@ extension MCPDataStore {
         var results: [[String: Any]] = []
         var savedCount = 0
         var exists = readingID != nil
+        let wording = CardWordingGate.backend()
         for sourceID in order {
             let written = questions[sourceID] ?? []
             let drafts = MnemonicReadingDrafts.questions(written, sourceID: sourceID, asked: written.count)
             var row: [String: Any] = ["source_id": sourceID, "title": titles[sourceID] ?? sourceID]
             var notSaved = drafts.refused.map { ["question": $0.question, "reason": $0.reason] }
+            // Every answered question becomes a card, so each passes the
+            // wording gate (`CardWordingGate`) before it is saved.
+            let checked: [MnemonicQuestion]
+            do {
+                let screened = try await CardWordingGate.screen(
+                    questions: drafts.questions,
+                    sourceTitle: titles[sourceID] ?? sourceID,
+                    usage: AIUsageSource(id: sourceID, type: "source", title: titles[sourceID] ?? sourceID),
+                    backend: wording
+                )
+                checked = screened.passed
+                notSaved += screened.refused.map { ["question": $0.question, "reason": $0.reason] }
+            } catch {
+                row["failure"] = "The questions' wording could not be checked, so none was saved. \(error.localizedDescription)"
+                if !notSaved.isEmpty { row["not_saved"] = notSaved }
+                results.append(row)
+                continue
+            }
             do {
                 let saved = try await storage.saveMnemonicReadingSection(
                     readingID: id,
                     sourceID: sourceID,
                     sourceTitle: titles[sourceID] ?? sourceID,
-                    questions: drafts.questions,
+                    questions: checked,
                     creatingWith: exists ? nil : skeleton
                 )
                 exists = true

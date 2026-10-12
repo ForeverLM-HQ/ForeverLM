@@ -678,7 +678,7 @@ struct CardDraftingTests {
 
 // MARK: - The service, over storage
 
-@Suite("Memory cards: drafting, over storage")
+@Suite("Memory cards: drafting, over storage", .cardWordingPasses)
 struct CardDraftingServiceTests {
     @Test("Seeds come first: a walkthrough question its source prints is a card with no model call, and the model drafts the rest from the seeds and the text")
     func seedsFirst() async throws {
@@ -817,11 +817,60 @@ struct CardDraftingServiceTests {
         #expect(result.skipped.count == 2)
         #expect(try await cardsToCheck(storage, defaults).isEmpty)
     }
+
+    @Test("A drafted card that points at its source unnamed is reworded once or dropped, never saved as it was; a check that cannot run saves nothing")
+    func wordingGate() async throws {
+        let (storage, defaults, cleanup) = try await makeStorage()
+        defer { cleanup() }
+        let drafter = CannedDrafter { _ in [
+            CardDraftingModelCard(front: "In this lecture, what does complex IV reduce?", back: "Oxygen, to water.",
+                                  quote: "complex IV reduces oxygen to water"),
+            CardDraftingModelCard(front: "According to the speaker, what leaks back through uncoupling proteins?", back: "Protons.",
+                                  quote: "Uncoupling proteins let protons leak back without making ATP"),
+            CardDraftingModelCard(front: "How many protons does complex I pump for each NADH?", back: "Four.",
+                                  quote: "Complex I pumps four protons for each NADH it oxidizes"),
+        ] }
+        let wording = CannedCardWording(pointing: ["this lecture", "the speaker"]) { question in
+            question.hasPrefix("In this lecture") ? "In mitochondria, what does complex IV reduce?" : nil
+        }
+        let plan = CardDraftingService.plan(
+            try await CardDraftingService.load(request(count: .cards(3)), storage: storage, stateDefaults: defaults),
+            route: cardRoute()
+        )
+        let result = try await CardDraftingService.shared.run(plan, storage: storage, backend: drafter, gate: .learnerStarted, wording: wording)
+        let outcome = try #require(result.sources.first)
+        let fronts = Set(try await cardsToCheck(storage, defaults).map(\.face.front))
+        #expect(fronts == ["In mitochondria, what does complex IV reduce?", "How many protons does complex I pump for each NADH?"])
+        #expect(!fronts.contains { $0.localizedCaseInsensitiveContains("this lecture") }, "never saved as it was")
+        #expect(outcome.notSaved.map(\.front) == ["According to the speaker, what leaks back through uncoupling proteins?"])
+        #expect(outcome.notSaved.first?.reason.contains("points at its source") == true)
+        // One check for the pass, one rewording of both failing cards with the
+        // source's title, one check of the rewordings.
+        #expect(wording.checks.count == 2)
+        #expect(wording.checks.first?.contains("Card 3, from \u{201C}Mitochondria\u{201D}") == true)
+        #expect(wording.rewordings.count == 1)
+        #expect(wording.rewordings.first?.contains("Card 2, from \u{201C}Mitochondria\u{201D}") == true)
+        #expect(wording.rewordings.first?.contains("The answers may change too") == true)
+
+        let (unchecked, uncheckedDefaults, uncheckedCleanup) = try await makeStorage()
+        defer { uncheckedCleanup() }
+        let down = CannedCardWording(failure: CardWordingGate.Unavailable(message: "No model is set up for Card Wording Check."))
+        let failed = try await CardDraftingService.shared.run(
+            CardDraftingService.plan(
+                try await CardDraftingService.load(request(count: .cards(3)), storage: unchecked, stateDefaults: uncheckedDefaults),
+                route: cardRoute()
+            ),
+            storage: unchecked, backend: drafter, gate: .learnerStarted, wording: down
+        )
+        #expect(failed.sources.first?.failure?.contains("could not be checked") == true)
+        #expect(failed.sources.first?.failure?.contains("No model is set up for Card Wording Check.") == true)
+        #expect(try await cardsToCheck(unchecked, uncheckedDefaults).isEmpty, "no card is saved unchecked")
+    }
 }
 
 // MARK: - The window
 
-@Suite("Memory cards: Make Cards in the window")
+@Suite("Memory cards: Make Cards in the window", .cardWordingPasses)
 @MainActor
 struct MakeCardsViewModelTests {
     private func makeViewModel() -> (StudioViewModel, URL) {
@@ -951,7 +1000,7 @@ struct MakeCardsViewModelTests {
 
 // MARK: - draft_cards
 
-@Suite("Memory cards: draft_cards over MCP")
+@Suite("Memory cards: draft_cards over MCP", .cardWordingPasses)
 struct CardDraftingMCPTests {
     /// A store of its own holding one source, under an id of its own: the
     /// runs a test starts are the app's one coordinator's, which
@@ -1106,7 +1155,7 @@ struct CardDraftingMCPTests {
 /// docs/memory-design.md, "The cards in the chat": a chat's `save_card_drafts`
 /// is drawn in the reply as the cards, stored with the reply as one link line,
 /// and read back as the cards when the chat is reopened.
-@Suite("Memory cards: the cards a chat saved")
+@Suite("Memory cards: the cards a chat saved", .cardWordingPasses)
 struct ChatSavedCardsTests {
     /// A `save_card_drafts` result as `MCPDataStore.saveCardDrafts` writes it:
     /// six saved on one source, three the deck already held, one quote the

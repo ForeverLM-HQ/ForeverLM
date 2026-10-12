@@ -700,9 +700,11 @@ enum MnemonicReadingWriter {
         readingID: String,
         storage: StorageService,
         backend: any MnemonicReadingBackend,
+        wording: (any CardWordingBackend)? = nil,
         onProgress: @escaping @Sendable (MnemonicReadingRunProgress) async -> Void = { _ in }
     ) async throws -> MnemonicReadingResult {
         var result = MnemonicReadingResult(readingID: readingID, title: plan.title, skipped: plan.skipped)
+        let wording = wording ?? CardWordingGate.backend()
         result.readingExists = plan.existing != nil
         guard !plan.sources.isEmpty else { return result }
         let skeleton = MnemonicReadingSkeleton(
@@ -730,7 +732,7 @@ enum MnemonicReadingWriter {
                         // Bound before the tuple is built: a tuple around a
                         // `try await` in a task closure miscompiles at -O
                         // (AGENTS.md).
-                        let written = try await Self.write(sourcePlan, system: system, route: route, backend: backend)
+                        let written = try await Self.write(sourcePlan, system: system, route: route, backend: backend, wording: wording)
                         return (index, written)
                     }
                     next += 1
@@ -768,7 +770,7 @@ enum MnemonicReadingWriter {
                         let index = next
                         let sourcePlan = sources[index]
                         group.addTask {
-                            let written = try await Self.write(sourcePlan, system: system, route: route, backend: backend)
+                            let written = try await Self.write(sourcePlan, system: system, route: route, backend: backend, wording: wording)
                             return (index, written)
                         }
                         next += 1
@@ -782,9 +784,11 @@ enum MnemonicReadingWriter {
         return result
     }
 
-    /// One source's questions, part by part. A request that fails fails the
-    /// source — nothing of it is saved, so it stays pending whole — and a
-    /// cancelled one throws.
+    /// One source's questions, part by part, then through the wording gate
+    /// (`CardWordingGate`): every answered question becomes a card, so one
+    /// that points at its source unnamed is reworded once or dropped. A
+    /// request that fails, the gate's included, fails the source — nothing of
+    /// it is saved, so it stays pending whole — and a cancelled one throws.
     private struct WrittenSource: Sendable {
         var questions: [MnemonicQuestion] = []
         var refused: [MnemonicReadingDrafts.Refused] = []
@@ -795,7 +799,8 @@ enum MnemonicReadingWriter {
         _ plan: MnemonicReadingSourcePlan,
         system: String,
         route: NotebookWritingRoute,
-        backend: any MnemonicReadingBackend
+        backend: any MnemonicReadingBackend,
+        wording: any CardWordingBackend
     ) async throws -> WrittenSource {
         var written = WrittenSource()
         for part in plan.parts {
@@ -818,6 +823,20 @@ enum MnemonicReadingWriter {
                 written.failure = error.localizedDescription
                 return written
             }
+        }
+        do {
+            let screened = try await CardWordingGate.screen(
+                questions: written.questions,
+                sourceTitle: plan.source.title,
+                usage: AIUsageSource(id: plan.source.sourceID, type: plan.source.sourceType, title: plan.source.title),
+                backend: wording
+            )
+            written.questions = screened.passed
+            written.refused += screened.refused
+        } catch {
+            if error is CancellationError || Task.isCancelled { throw CancellationError() }
+            written.questions = []
+            written.failure = "The questions' wording could not be checked, so none was saved. \(error.localizedDescription)"
         }
         return written
     }

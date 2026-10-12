@@ -68,6 +68,9 @@ final class DayCloseRunner {
         var draftedCards: Int? = nil
         var draftedSources: Int? = nil
         var draftsWaiting: Int? = nil
+        /// Kept cards whose question the wording repair reworded at this
+        /// close (`CardWordingRepairPass`). Nil in an older receipt.
+        var standaloneRewordedCards: Int? = nil
 
         var succeeded: Bool { failures.isEmpty && preparationMessage == nil }
 
@@ -212,6 +215,7 @@ final class DayCloseRunner {
                     await MainActor.run { CardDraftingCoordinator.shared.isDrafting(sourceID) }
                 }
             ),
+            wordingRepair: .live(storage: storage, spendAllowed: spendAllowed),
             variations: .live(storage: storage, spendAllowed: spendAllowed)
         )
         let report = await pass.consolidate(
@@ -233,7 +237,8 @@ final class DayCloseRunner {
             notes: report.notes,
             draftedCards: report.draftedCards,
             draftedSources: report.draftedSources,
-            draftsWaiting: report.draftsWaiting
+            draftsWaiting: report.draftsWaiting,
+            standaloneRewordedCards: report.standaloneRewordedCards
         )
         if prepareTomorrow {
             let attempt = await MemoryReviewPreparationRunner.shared.prepareNextReview(now: now)

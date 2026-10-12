@@ -20,6 +20,9 @@ struct DayCloseReport: Equatable, Sendable {
     /// with a rewording in their rotation now.
     var rewordedCards = 0
     var variedCards = 0
+    /// Kept cards whose question the wording repair reworded this run to
+    /// name what it is about (`CardWordingRepairPass`).
+    var standaloneRewordedCards = 0
     /// Working notes written or changed this run (`WorkingNoteExtractionPass`).
     var workingNotesWritten = 0
     /// What was left for the next run, not failed: idea extraction or
@@ -34,6 +37,7 @@ struct DayCloseReport: Equatable, Sendable {
     var isEmpty: Bool {
         consolidatedChats == 0 && updatedUnderstandingDocuments == 0 && warmedSources == 0
             && draftedCards == 0 && rewordedCards == 0 && workingNotesWritten == 0
+            && standaloneRewordedCards == 0
     }
 }
 
@@ -62,15 +66,21 @@ struct DayCloseReport: Equatable, Sendable {
 ///    docs/memory-design.md, "Drafting in the background") — read from the
 ///    cohort's window, never from this watermark, so a source the limit
 ///    leaves out is drafted another day.
-/// 4. **Cards that earned it are reworded.** A kept card remembered twice
+/// 4. **Cards kept before the wording gate stand on their own.** Until it
+///    has checked every one, the wording repair (`CardWordingRepairPass`;
+///    docs/memory-design.md, "A card stands on its own") rewords a batch of
+///    the questions that point at their source unnamed, before rewording
+///    below makes variations of them.
+/// 5. **Cards that earned it are reworded.** A kept card remembered twice
 ///    gets its rewordings (`CardVariationPass`; docs/memory-design.md,
 ///    "Variations").
-/// 5. **The watermark moves.** To now when everything succeeded; otherwise to
+/// 6. **The watermark moves.** To now when everything succeeded; otherwise to
 ///    just before the oldest chat that failed, so it is found again — and
 ///    not at all when the daily background AI limit stopped idea extraction,
 ///    so the sources it did not reach are read again next time.
 ///
-/// Its paid steps after the chats — idea extraction, drafting and rewording —
+/// Its paid steps after the chats — idea extraction, drafting, the wording
+/// repair and rewording —
 /// are background work: each asks `spendAllowed` before it spends and stops at
 /// the learner's daily cap, whatever started the close (decisions
 /// 2026-09-30). The pass never plans a review itself;
@@ -88,6 +98,8 @@ struct DayClosePass: Sendable {
     let drafting: AutomaticCardDraftingPass?
     /// The rewording step; nil runs none.
     let variations: CardVariationPass?
+    /// The wording repair of cards kept before the gate; nil runs none.
+    let wordingRepair: CardWordingRepairPass?
 
     /// The closer reads the whole conversation; a very long one is cut to its
     /// tail, where the turns this run has not yet folded in are.
@@ -104,6 +116,7 @@ struct DayClosePass: Sendable {
         ideaExtraction: SourceIdeaExtractionService? = nil,
         spendAllowed: @escaping @Sendable () async -> Bool,
         drafting: AutomaticCardDraftingPass? = nil,
+        wordingRepair: CardWordingRepairPass? = nil,
         variations: CardVariationPass?
     ) {
         self.storage = storage
@@ -111,6 +124,7 @@ struct DayClosePass: Sendable {
         self.ideaExtraction = ideaExtraction ?? SourceIdeaExtractionService(storage: storage, aiService: aiService)
         self.spendAllowed = spendAllowed
         self.drafting = drafting
+        self.wordingRepair = wordingRepair
         self.variations = variations
     }
 
@@ -211,7 +225,19 @@ struct DayClosePass: Sendable {
             report.failures += drafted.failures
         }
 
-        // 4. Cards that earned it are reworded.
+        // 4. Cards kept before the wording gate stand on their own.
+        if let wordingRepair {
+            let repaired = await wordingRepair.run(now: now)
+            report.standaloneRewordedCards = repaired.reworded
+            report.failures += repaired.failures
+            if repaired.waiting > 0 {
+                report.notes.append(repaired.waiting == 1
+                    ? "1 kept card waits to have its wording checked: today's background AI limit is reached."
+                    : "\(repaired.waiting) kept cards wait to have their wording checked: today's background AI limit is reached.")
+            }
+        }
+
+        // 5. Cards that earned it are reworded.
         if let variations {
             let varied = await variations.run(now: now)
             report.rewordedCards = varied.reworded
@@ -224,7 +250,7 @@ struct DayClosePass: Sendable {
             }
         }
 
-        // 5. The watermark moves — not past sources whose ideas wait.
+        // 6. The watermark moves — not past sources whose ideas wait.
         let watermark = ideasWaiting > 0
             ? since
             : oldestFailedTurn.map { min($0.addingTimeInterval(-1), now) } ?? now

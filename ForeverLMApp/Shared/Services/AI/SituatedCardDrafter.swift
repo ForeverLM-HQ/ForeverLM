@@ -113,16 +113,19 @@ enum SituatedCardDrafter {
     }
 
     /// The drafting itself, on `backend`: batches of `SituatedCardDrafting.anchorsPerCall`, each
-    /// draft saved on its source through `saveCardDrafts`. `labels` names
-    /// each source as the prompt shows it ("Title" — authors · year).
+    /// draft through the wording gate (`CardWordingGate`) and saved on its
+    /// source through `saveCardDrafts`. `labels` names each source as the
+    /// prompt shows it ("Title" — authors · year).
     static func draft(
         _ anchors: [SituatedAnchor],
         labels: [String: String],
         storage: StorageService,
         backend: any SituatedCardBackend,
+        wording: (any CardWordingBackend)? = nil,
         now: Date = Date()
     ) async throws -> Report {
         var report = Report()
+        let wording = wording ?? CardWordingGate.backend()
         let usable = anchors.filter { !$0.passages.isEmpty }
         report.anchorsWithoutPassages = anchors.count - usable.count
         var drafts: [Flashcard] = []
@@ -152,12 +155,30 @@ enum SituatedCardDrafter {
             bySource[sourceID, default: []].append(draft)
         }
         for sourceID in order {
-            let cards = bySource[sourceID] ?? []
+            let title = SituatedCardDrafting.title(of: labels[sourceID]) ?? bySource[sourceID]?.first?.sourceTitle ?? "Source"
+            var cards = bySource[sourceID] ?? []
+            // Every card stands on its own before it is saved; a source whose
+            // cards could not be checked saves none, and says why.
+            do {
+                let screened = try await CardWordingGate.screen(
+                    drafts: cards,
+                    sourceTitle: title,
+                    usage: AIUsageSource(id: sourceID, type: "source", title: title),
+                    backend: wording
+                )
+                cards = screened.passed
+                report.refused += screened.refused.map(\.front)
+            } catch {
+                if error is CancellationError || Task.isCancelled { throw CancellationError() }
+                report.failures.append("The cards' wording could not be checked, so none was saved. \(error.localizedDescription)")
+                continue
+            }
+            guard !cards.isEmpty else { continue }
             do {
                 let saved = try await storage.saveCardDrafts(
                     cards,
                     sourceID: sourceID,
-                    sourceTitle: SituatedCardDrafting.title(of: labels[sourceID]) ?? cards.first?.sourceTitle ?? "Source"
+                    sourceTitle: title
                 )
                 report.drafted += saved.added.count
                 report.notGrounded += saved.ungrounded.count

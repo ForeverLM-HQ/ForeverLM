@@ -920,7 +920,7 @@ struct MCPAuthScopeTests {
 
 // MARK: - MCP Tools Tests
 
-@Suite("MCP Data Store")
+@Suite("MCP Data Store", .cardWordingPasses)
 struct MCPDataStoreTests {
 
     /// Create a temporary DB with the required schema and return the store + path.
@@ -6298,6 +6298,57 @@ struct MCPDataStoreTests {
             }
         }
         #expect(try knowledge.loadMemoryItem(MemoryTutorIdentity.cardItemID(cardID: draftID)) == nil, "a card to check stays a draft")
+    }
+
+    @Test("save_card_drafts and update_card hold every card to standing on its own: reworded once, or refused with the reason")
+    func cardWordingGateOverMCP() async throws {
+        let (store, dbPath, _, cleanup) = try makeCardStore()
+        defer { cleanup() }
+        try insertSource(dbPath: dbPath, id: "source-cards", title: "Retrieval practice", content: Self.cardSourceText)
+        let wording = CannedCardWording(pointing: ["this lecture", "the speaker"]) { question in
+            question.contains("this lecture") ? "In retrieval research, what strengthens later access more than rereading?" : nil
+        }
+        try await CardWordingGate.$backendOverride.withValue(wording) {
+            let payload = try parseJSON(try await store.saveCardDrafts(cards: [
+                ["source_id": "source-cards", "front": "In this lecture, what strengthens later access more than rereading?",
+                 "back": "Retrieval practice.", "quote": "Retrieval practice strengthens later access"],
+                ["source_id": "source-cards", "front": "What does the speaker say spacing does?",
+                 "back": "It helps too.", "quote": "Spacing the practice helps too"],
+            ], keptByDefault: false))
+            #expect(payload["saved_count"] as? Int == 1)
+            let entry = try #require((payload["sources"] as? [[String: Any]])?.first)
+            let reworded = try #require((entry["reworded"] as? [[String: Any]])?.first)
+            #expect(reworded["was"] as? String == "In this lecture, what strengthens later access more than rereading?")
+            #expect(reworded["front"] as? String == "In retrieval research, what strengthens later access more than rereading?")
+            let refused = try #require((entry["not_standalone"] as? [[String: Any]])?.first)
+            #expect(refused["front"] as? String == "What does the speaker say spacing does?")
+            #expect((refused["reason"] as? String)?.contains("points at its source") == true)
+            #expect(payload["wording_guidance"] != nil)
+
+            // update_card: new words that point at the source and do not
+            // mend are refused, and nothing changes.
+            let (card, _) = try keepCard(store, front: "What strengthens later access?", back: "Retrieval practice.", quote: "Retrieval practice strengthens later access", keptDaysAgo: 3)
+            do {
+                _ = try await store.updateCard(
+                    cardID: card.cardID, itemID: nil, front: "What does the speaker call it?", back: nil, why: nil,
+                    startOver: nil, alwaysAsk: nil, retire: nil
+                )
+                Issue.record("update_card saved a card that points at its source")
+            } catch let error as MCPError {
+                #expect(error.localizedDescription.contains("points at its source"), "\(error.localizedDescription)")
+            }
+        }
+
+        // A check that cannot run saves nothing, and says why.
+        let down = CannedCardWording(failure: CardWordingGate.Unavailable(message: "No model is set up for Card Wording Check."))
+        try await CardWordingGate.$backendOverride.withValue(down) {
+            let payload = try parseJSON(try await store.saveCardDrafts(cards: [
+                ["source_id": "source-cards", "front": "What helps besides retrieval?", "back": "Spacing the practice.", "quote": "Spacing the practice helps too"],
+            ], keptByDefault: false))
+            #expect(payload["saved_count"] as? Int == 0)
+            let reason = (payload["sources_not_saved"] as? [[String: Any]])?.first?["reason"] as? String
+            #expect(reason?.contains("could not be checked") == true)
+        }
     }
 
     @Test("update_card rewords, holds, starts over and retires a kept card as All Cards does")

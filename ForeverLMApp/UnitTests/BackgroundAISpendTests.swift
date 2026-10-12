@@ -12,7 +12,7 @@ import Testing
 /// own-key calls included, within one local day; and a clean-up commit queues
 /// no Listen preparation the learner has not asked for (the last is in
 /// `SourcePersistenceTests.cleanupCommitDoesNotQueueListenPreparation`).
-@Suite("Background AI spend control")
+@Suite("Background AI spend control", .cardWordingPasses)
 struct BackgroundAISpendTests {
 
     // MARK: - Needed or optional
