@@ -6,7 +6,7 @@ import SwiftUI
 // Review draws today's cards as the Mac's deck ("10", "cards today", "6 due ·
 // 4 new"), starts the card review (Start Review, Keep Going, Practice N New
 // Cards) and draws the history grid; To Check goes through the cards drafted
-// from sources (Keep, Edit, Skip, `MobileCardsToCheckList`); All Cards lists
+// from sources a card at a time (Keep, Edit, Skip, `MobileCardsToCheckList`); All Cards lists
 // every kept card, searched, by
 // source, a tap editing it and its menu starting it over, holding it to its
 // own words or retiring it. The pure rules are in `MobileCardReview.swift`
@@ -344,14 +344,6 @@ struct MobileMemoryScreen: View {
         } header: {
             sectionPicker
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .listRowInsets(EdgeInsets(
-                    top: MobileDesign.Spacing.small,
-                    leading: MobileDesign.Spacing.large,
-                    bottom: MobileDesign.Spacing.medium,
-                    trailing: MobileDesign.Spacing.large
-                ))
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
         }
     }
 

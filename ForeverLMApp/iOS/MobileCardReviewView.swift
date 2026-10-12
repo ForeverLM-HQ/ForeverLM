@@ -1479,7 +1479,7 @@ private struct MobileMemoryPill<Label: View>: View {
 
 // MARK: - Card pictures
 
-private struct MobileMemoryCardImageGrid: View {
+struct MobileMemoryCardImageGrid: View {
     let images: [MemoryCardImage]
     /// The card's source, whose Source record carries the pictures drawn for
     /// its walk (`MobileSourceFileStore.walkthroughPicture`).
