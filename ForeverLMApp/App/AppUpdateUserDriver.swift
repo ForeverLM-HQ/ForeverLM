@@ -118,8 +118,10 @@ final class AppUpdateUserDriver: NSObject, SPUUserDriver {
     /// Reads the feed and reports the newest installable build, or nil when
     /// the feed cannot be read. Called on the main thread; must complete on it.
     var newestPublishedVersion: (@escaping (String?) -> Void) -> Void = { completion in completion(nil) }
-    /// Injected so tests and previews can drive the rule without UserDefaults.
-    var isRailVisible: () -> Bool = { StudioNavigationRailPreference.isVisible }
+    /// Whether the icon strip, whose footer holds the update pill, is on
+    /// screen: always, since the sidebar toggle stopped folding it
+    /// (2026-10-12). Injected so tests and previews can drive the rule.
+    var isRailVisible: () -> Bool = { true }
 
     /// Builds discarded as stale this session, with how often. See
     /// `AppUpdateOfferPolicy.maximumDiscardsPerBuild`.

@@ -95,49 +95,6 @@ struct DayNowMenuRowTests {
     }
 }
 
-@Suite("The rail steps aside for a narrow notebook")
-@MainActor
-struct NotebookRailYieldTests {
-    typealias Sizing = NotebookWorkspaceSizing
-
-    @Test("The rail yields only when the notebook cannot fit beside it, and comes back once it does")
-    func railYieldsWhenNarrow() {
-        let workspace = NotebookWorkspace(notebookID: "bio", document: .reader, sourcesCollapsed: true)
-        let needed = Sizing.minimumWidth(for: workspace)
-        let rail: CGFloat = 300
-
-        #expect(!Sizing.railYields(for: workspace, contentWidth: needed + 1, railWidth: rail, railIsYielding: false))
-        #expect(Sizing.railYields(for: workspace, contentWidth: needed - 1, railWidth: rail, railIsYielding: false))
-        // The Studio column, open, is part of what the notebook needs; an
-        // immersive video that has it step aside needs less.
-        var studioFolded = workspace
-        studioFolded.studioCollapsed = true
-        #expect(Sizing.minimumWidth(for: studioFolded) < needed)
-        #expect(!Sizing.railYields(for: workspace, contentWidth: needed - 100, railWidth: rail, railIsYielding: false, studioShows: false))
-
-        // While yielding, the content is as wide as the window: the rail's
-        // own width is counted back out, so it stays away until the notebook
-        // fits beside it, and never flickers at the edge.
-        #expect(Sizing.railYields(for: workspace, contentWidth: needed + rail - 1, railWidth: rail, railIsYielding: true))
-        #expect(!Sizing.railYields(for: workspace, contentWidth: needed + rail + 1, railWidth: rail, railIsYielding: true))
-    }
-
-    @Test("Yielding is the window's presentation: the synced visibility stays, and leaving the notebook brings the rail back")
-    func yieldIsPresentationOnly() {
-        let restore = capturingWindowDefaults()
-        defer { restore() }
-        let window = StudioWindowState()
-        window.navigationRailVisible = true
-        window.NotebookID = "bio"
-        window.navigationRailYieldsToNotebook = true
-        #expect(!window.showsNavigationRail)
-        #expect(window.navigationRailVisible, "the learner's choice is untouched")
-        window.NotebookID = nil
-        #expect(!window.navigationRailYieldsToNotebook)
-        #expect(window.showsNavigationRail)
-    }
-}
-
 // MARK: - The icon rail and Home's sidebar
 
 @Suite("The icon rail and Home's sidebar")

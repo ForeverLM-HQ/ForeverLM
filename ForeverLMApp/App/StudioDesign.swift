@@ -35,14 +35,16 @@ enum StudioDesign {
         static let pageMargin: CGFloat = 24
     }
 
+    /// A selected row or icon is a step of grey, as in Codex and the Space's
+    /// sidebar (`SpaceSidebarMetrics.selectedFill`), never a tint of the
+    /// accent: the blue wash and its outline on the icon strip read as a
+    /// stray colour beside Codex's chrome (product owner, 2026-10-12: "this
+    /// top left still looks a bit bad with colors; make it look more like
+    /// codex").
     static func selectionFill(isSelected: Bool, isHovered: Bool) -> Color {
-        if isSelected { return Color.accentColor.opacity(0.13) }
+        if isSelected { return Color.primary.opacity(0.075) }
         if isHovered { return Color.primary.opacity(0.055) }
         return .clear
-    }
-
-    static func selectionStroke(isSelected: Bool) -> Color {
-        isSelected ? Color.accentColor.opacity(0.22) : .clear
     }
 }
 
@@ -124,10 +126,6 @@ struct StudioSelectionBackground: View {
     var body: some View {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
             .fill(StudioDesign.selectionFill(isSelected: isSelected, isHovered: isHovered))
-            .overlay {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(StudioDesign.selectionStroke(isSelected: isSelected), lineWidth: 0.5)
-            }
     }
 }
 

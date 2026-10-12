@@ -2,21 +2,6 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 
-/// The rail's persisted visibility, shared with AppUpdateController.
-///
-/// The Sparkle update button lives in this rail's footer, so whether the rail is
-/// on screen decides whether a background update has anywhere to announce
-/// itself. StudioView owns the preference; this is the one place its key and
-/// its default live.
-enum StudioNavigationRailPreference {
-    static let visibilityKey = "studio.navigationRailVisible"
-
-    /// Absent means "never toggled", which is the shown-by-default state.
-    static var isVisible: Bool {
-        UserDefaults.standard.object(forKey: visibilityKey) as? Bool ?? true
-    }
-}
-
 /// A rail row above the notebooks the learner may take off the rail: New
 /// chat, Memory, Browser, Library and the Space. Memory is one row like
 /// the others since 2026-09-22 (the product owner: it "just needs to be part of that
@@ -163,9 +148,9 @@ struct StudioRailHiddenItems: Equatable {
 /// Notebooks header (the Space's All list), then the Pinned and Recent
 /// notebooks with their chats — a compact way in since 2026-10-03, the whole
 /// catalog living in the Space (`NotebookRail`); the library's own chats; the
-/// day and the account in the footer. In a window holding a notebook it
-/// stays, and steps aside while the window is too narrow for the notebook
-/// (`NotebookWorkspaceSizing.railYields`).
+/// day and the account in the footer. The icon strip is always drawn, in a
+/// window holding a notebook too; the sidebar toggle folds only Home's
+/// sidebar.
 struct StudioNavigationRail: View {
     @Environment(StudioViewModel.self) private var vm
     @Environment(StudioWindowState.self) private var windowState

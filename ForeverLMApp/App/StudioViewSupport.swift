@@ -413,11 +413,10 @@ enum StudioTopBar {
     /// bad"). The pane's own 14pt header padding adds to this.
     static let headerLeadingClearance: CGFloat = 134
 
-    /// The same two clearances with no titlebar band (fullscreen): there are no
-    /// traffic lights to stand off from, so the cluster hugs the left edge
-    /// (~10→40pt) and the leftmost header only needs to clear it.
+    /// The toggle's left edge with no titlebar band (fullscreen): there are no
+    /// traffic lights to stand off from, so it hugs the left edge (~10→40pt),
+    /// inside the icon strip, which is always there.
     static let fullscreenRailToggleLeading: CGFloat = 10
-    static let fullscreenHeaderLeadingClearance: CGFloat = 88
 }
 
 /// Room that chrome drawn *over* a pane's top-right corner claims on the
@@ -1634,11 +1633,18 @@ struct StudioColumnHairline: View {
 /// one pane (the Space's sidebar and its list), whose band the pane's own
 /// header backs: drawn in the header row, where the pane's backing cannot
 /// cover it.
+///
+/// With no band (full screen) the row is in flow at the card's top and the
+/// sidebar's tone runs up beside it (`SpaceSidebarHeader`), so the stroke runs
+/// the row's full height and joins the column's divider below it.
 struct StudioChromeLineDivider: View {
+    @Environment(\.studioTitlebarBandHeight) private var titlebarBandHeight
+
     var body: some View {
         Rectangle()
             .fill(Color(nsColor: .separatorColor))
-            .frame(width: 1, height: StudioColumnHairline.bandStrokeHeight)
+            .frame(width: 1)
+            .frame(maxHeight: titlebarBandHeight == nil ? .infinity : StudioColumnHairline.bandStrokeHeight)
             .accessibilityHidden(true)
     }
 }

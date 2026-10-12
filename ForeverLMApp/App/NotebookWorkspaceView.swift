@@ -270,29 +270,6 @@ enum NotebookWorkspaceSizing {
         let foldStudio = studioShows && !workspace.studioCollapsed && totalWidth < sources + center + studio
         return (foldSources, foldStudio)
     }
-
-    /// Whether the navigation rail steps aside for `workspace` (shell.md §8,
-    /// decision 1: the rail stays in a notebook and yields when the window is
-    /// narrow). Asked after the folds above whenever the notebook's center
-    /// changes, and as the window is resized (when nothing folds, so a column
-    /// the learner opened stays open): the notebook's columns, folded or not
-    /// as they are, and its center must fit in what the window leaves.
-    /// `contentWidth` is the width beside the rail as it is drawn now, so
-    /// while the rail is yielding the rail's own width (`railWidth`) is
-    /// counted back out: it comes back as soon as the notebook fits beside
-    /// it, and not before. Presentation only: the rail's own visibility, a
-    /// synced preference, is never written.
-    static func railYields(
-        for workspace: NotebookWorkspace,
-        contentWidth: CGFloat,
-        railWidth: CGFloat,
-        railIsYielding: Bool,
-        studioShows: Bool = true
-    ) -> Bool {
-        guard contentWidth > 0 else { return railIsYielding }
-        let besideRail = railIsYielding ? contentWidth - railWidth : contentWidth
-        return besideRail < minimumWidth(for: workspace, studioShows: studioShows)
-    }
 }
 
 /// The notebook workspace: while a window holds a notebook, the window body is

@@ -35,7 +35,7 @@ struct StudioView: View {
     /// or MCP takes the card down at once, in every window.
     @SyncedStorage(wrappedValue: true, MemoryCardSettings.draftNudgesKey) private var showsDraftNudges: Bool
     /// The Space sidebar the learner hid, which the one sidebar toggle folds
-    /// together with the rail.
+    /// together with Home's sidebar.
     @AppStorage("space.sidebarHidden") private var spaceSidebarHiddenByLearner = false
     @SyncedStorage("uiZoomStep") private var uiZoomStep = UIZoom.defaultStep
     /// The bout whose write-up sheet this window shows (`requestBoutWriteUp`).
@@ -47,11 +47,6 @@ struct StudioView: View {
     @SyncedStorage("aiBackground.usageConsented") private var backgroundAIUsageConsented = false
     @State private var showGettingStarted = false
     @State private var whatsNew = WhatsNewCenter.shared
-    /// Read only so finished side-panel drags re-render this root. The static
-    /// resolvers still read defaults directly because only there can they tell
-    /// "never dragged" from "dragged to the same value as the fallback".
-    @AppStorage(StudioNavigationRail.widthKey) private var storedNavigationRailWidth =
-        Double(StudioNavigationRail.defaultRailWidth)
     @State private var studioAssistantSessions = StudioAssistantSessionStore()
     @State private var comparisonAssistantSessions = StudioAssistantSessionStore()
     /// The chat drawn by the card floating over this window's open page
@@ -70,11 +65,11 @@ struct StudioView: View {
         windowState.memoryReviewFocusSessionID != nil
     }
 
-    /// The sidebar toggle, the window's only one (ChatGPT's): it folds the
-    /// whole sidebar, the rail and the Space sidebar beside it, and brings
-    /// both back. It reads as shown only while both are. Pressed while the
-    /// rail is stepping aside for a narrow notebook or a memory review, it
-    /// brings the rail back now (`setNavigationRailShown`).
+    /// The sidebar toggle, the window's only one (Codex's): it folds the
+    /// sidebar beside the icon strip, Home's and the Space's, and brings both
+    /// back; the strip itself always stays. It reads as shown only while both
+    /// are. Pressed while Home's sidebar is stepping aside for a memory
+    /// review, it brings it back now (`setNavigationRailShown`).
     private var navigationRailVisibilityBinding: Binding<Bool> {
         Binding(
             get: { windowState.drawsNavigationRail && !spaceSidebarHiddenByLearner },
@@ -85,10 +80,9 @@ struct StudioView: View {
         )
     }
 
-    @ViewBuilder
-    private func studioContent(railWidth: CGFloat) -> some View {
+    private var studioContent: some View {
         GeometryReader { geo in
-            studioPanelContent(totalWidth: geo.size.width, railWidth: railWidth)
+            studioPanelContent(totalWidth: geo.size.width)
         }
     }
 
@@ -97,13 +91,6 @@ struct StudioView: View {
     /// a second pane makes the row owe φ twice, so the sidebar narrows —
     /// which is why only the root, where the rail and the panes are measured
     /// together, can work it out.
-    /// The width the navigation rail actually opens at: the golden width,
-    /// unless the learner has dragged it to a width of their own.
-    private func resolvedSideWidth(golden: CGFloat) -> CGFloat {
-        _ = storedNavigationRailWidth
-        return StudioNavigationRail.resolvedRailWidth(goldenDefault: golden)
-    }
-
     private func goldenSideWidth(windowWidth: CGFloat) -> CGFloat {
         StudioPanelDefaultSizing.goldenSideWidth(
             windowWidth: windowWidth,
@@ -118,22 +105,24 @@ struct StudioView: View {
         GeometryReader { geo in
             let golden = goldenSideWidth(windowWidth: geo.size.width)
             HStack(spacing: 0) {
-                if windowState.drawsNavigationRail {
-                    StudioNavigationRail(
-                        sessionStore: studioAssistantSessions,
-                        comparisonSessionStore: comparisonAssistantSessions,
-                        edge: .leading,
-                        style: .strip,
-                        onOpenChatBeside: { openChatBeside($0, atLeadingEdge: false) },
-                        onOpenSettings: { pane in
-                            settingsInitialPane = pane
-                            presentSettings()
-                        },
-                        goldenWidth: golden,
-                        isGettingStarted: showGettingStarted
-                    )
-                    .transition(.move(edge: .leading).combined(with: .opacity))
-                }
+                // The icon strip is always there (product owner, 2026-10-12: "the
+                // sidebar all the way on the left should never be hidden; not
+                // even when doing that left collapse button"). The toggle folds
+                // only the sidebar beside it, Home's or the Space's, as Codex's
+                // folds its project list and leaves the strip.
+                StudioNavigationRail(
+                    sessionStore: studioAssistantSessions,
+                    comparisonSessionStore: comparisonAssistantSessions,
+                    edge: .leading,
+                    style: .strip,
+                    onOpenChatBeside: { openChatBeside($0, atLeadingEdge: false) },
+                    onOpenSettings: { pane in
+                        settingsInitialPane = pane
+                        presentSettings()
+                    },
+                    goldenWidth: golden,
+                    isGettingStarted: showGettingStarted
+                )
                 // The card: everything but the icon strip, Home's sidebar
                 // included, as Codex's card holds its project list.
                 HStack(spacing: 0) {
@@ -156,12 +145,7 @@ struct StudioView: View {
                         )
                         .transition(.move(edge: .leading).combined(with: .opacity))
                     }
-                    // The rail is the icon strip, and Home's sidebar adds its
-                    // own width while it shows, so the panes fit beside both.
-                    studioContent(
-                        railWidth: StudioNavigationRail.compactRailWidth
-                            + (windowState.showsHomeSidebar ? resolvedSideWidth(golden: golden) : 0)
-                    )
+                    studioContent
                 }
                 .studioInsetCard()
             }
@@ -184,7 +168,7 @@ struct StudioView: View {
     }
 
     @ViewBuilder
-    private func studioPanelContent(totalWidth: CGFloat, railWidth: CGFloat) -> some View {
+    private func studioPanelContent(totalWidth: CGFloat) -> some View {
         // The center area is the app: the tab groups arrange themselves, and
         // the library comes in as one of them (the rail's Library row, dragged
         // to an edge or clicked).
@@ -202,31 +186,22 @@ struct StudioView: View {
             .allowsHitTesting(totalWidth > 1)
         .onChange(of: vm.readerChatSpaceRequestID) { _, requestID in
             guard requestID != nil else { return }
-            makeRoomForCenterPanes(totalWidth: totalWidth, railWidth: railWidth, animated: true)
+            makeRoomForCenterPanes(totalWidth: totalWidth, animated: true)
         }
         .onChange(of: StudioCenterTabGroupSizing.minimumWidth(for: windowState.centerTabGroups.groups)) { _, _ in
-            makeRoomForCenterPanes(totalWidth: totalWidth, railWidth: railWidth, animated: true)
+            makeRoomForCenterPanes(totalWidth: totalWidth, animated: true)
         }
         // The notebook's center only: a column the learner unfolds is theirs,
         // and must not fold straight back in a narrow window.
         .onChange(of: windowState.notebook.map(NotebookWorkspaceSizing.centerMinimumWidth(for:))) { _, _ in
-            makeRoomForCenterPanes(totalWidth: totalWidth, railWidth: railWidth, animated: true)
+            makeRoomForCenterPanes(totalWidth: totalWidth, animated: true)
         }
         .onAppear {
             // A restored multi-pane layout can meet a restored narrow window
             // before either side panel has had a state transition of its own.
             // Resolve that launch shape immediately instead of waiting for a
             // later navigation action to make room.
-            makeRoomForCenterPanes(totalWidth: totalWidth, railWidth: railWidth, animated: false)
-        }
-        // A notebook's rail steps aside as the window narrows past what the
-        // notebook needs, and comes back as it widens; the folds above stay
-        // the learner's once made.
-        .onChange(of: totalWidth) { _, width in
-            updateNotebookRailYield(totalWidth: width, railWidth: railWidth, animated: true)
-        }
-        .onChange(of: windowState.notebook == nil) { _, _ in
-            updateNotebookRailYield(totalWidth: totalWidth, railWidth: railWidth, animated: true)
+            makeRoomForCenterPanes(totalWidth: totalWidth, animated: false)
         }
     }
 
@@ -235,11 +210,10 @@ struct StudioView: View {
     /// This applies to restored launch state as
     /// well as newly opened panes so titlebar controls never begin life in a
     /// clipped, mutually overlapping viewport.
-    private func makeRoomForCenterPanes(totalWidth: CGFloat, railWidth: CGFloat, animated: Bool) {
+    private func makeRoomForCenterPanes(totalWidth: CGFloat, animated: Bool) {
         guard totalWidth > 0 else { return }
         if let notebook = windowState.notebook {
             makeRoomForNotebook(notebook, totalWidth: totalWidth, animated: animated)
-            updateNotebookRailYield(totalWidth: totalWidth, railWidth: railWidth, animated: animated)
             return
         }
         let requiredCenterWidth = StudioCenterTabGroupSizing.minimumWidth(for: windowState.centerTabGroups.groups)
@@ -259,38 +233,12 @@ struct StudioView: View {
         }
     }
 
-    /// Whether the rail steps aside for the notebook this window holds, once
-    /// its folds are in (`NotebookWorkspaceSizing.railYields`): only the
-    /// window's presentation changes (`navigationRailYieldsToNotebook`), never
-    /// the rail's synced visibility. A window holding no notebook draws the
-    /// rail as the learner left it.
-    private func updateNotebookRailYield(totalWidth: CGFloat, railWidth: CGFloat, animated: Bool) {
-        let yields: Bool
-        if let notebook = windowState.notebook, windowState.navigationRailVisible {
-            yields = NotebookWorkspaceSizing.railYields(
-                for: notebook,
-                contentWidth: totalWidth,
-                railWidth: railWidth,
-                railIsYielding: windowState.navigationRailYieldsToNotebook,
-                studioShows: !windowState.isDockedReaderImmersive
-            )
-        } else {
-            yields = false
-        }
-        guard yields != windowState.navigationRailYieldsToNotebook else { return }
-        if animated {
-            withAnimation(.easeInOut(duration: 0.22)) { windowState.navigationRailYieldsToNotebook = yields }
-        } else {
-            windowState.navigationRailYieldsToNotebook = yields
-        }
-    }
-
     /// The notebook's version of the same rule (`NotebookWorkspaceSizing.folds`):
     /// the notebook's Sources column folds to its strip first, then its
     /// Studio. The folds go into the notebook's arrangement, which only this
     /// window's scene snapshot keeps. The navigation rail is not folded here:
     /// its visibility is a synced preference, and opening a notebook writes
-    /// none; it steps aside for the window alone (`updateNotebookRailYield`).
+    /// none, and the icon strip never steps aside.
     private func makeRoomForNotebook(
         _ notebook: NotebookWorkspace,
         totalWidth: CGFloat,
@@ -451,9 +399,9 @@ struct StudioView: View {
     }
 
     /// Extra leading room for the center area's header while it sits in the
-    /// titlebar band: when the navigation rail is hidden, the leftmost pane's
-    /// header would otherwise run underneath the traffic lights and the
-    /// sidebar toggle.
+    /// titlebar band: without Home's sidebar, the leftmost pane's header
+    /// would otherwise run underneath the traffic lights and the sidebar
+    /// toggle, which reach past the icon strip.
     private func headerLeadingClearance(hasTitlebarBand: Bool) -> CGFloat {
         // The rail is a 52-point icon strip: the traffic
         // lights and the sidebar toggle reach past it into the band over the
@@ -464,19 +412,8 @@ struct StudioView: View {
         // lights altogether; without it (a notebook, the Space, the Library)
         // the lights reach into the pane beside the strip.
         if windowState.drawsNavigationRail, windowState.showsHomeSidebar { return 0 }
-        if windowState.drawsNavigationRail {
-            guard hasTitlebarBand else { return 0 }
-            return max(0, StudioTopBar.headerLeadingClearance - StudioNavigationRail.compactRailWidth)
-        }
-        // The navigation rail is always leading and already keeps the panes
-        // clear of the traffic lights when it is visible.
-        guard !windowState.showsNavigationRail else { return 0 }
-        // No band (fullscreen): no traffic lights, so the leftmost header only
-        // needs to clear the toggle cluster itself.
-        guard hasTitlebarBand else {
-            return StudioTopBar.fullscreenHeaderLeadingClearance
-        }
-        return StudioTopBar.headerLeadingClearance
+        guard hasTitlebarBand else { return 0 }
+        return max(0, StudioTopBar.headerLeadingClearance - StudioNavigationRail.compactRailWidth)
     }
 
     private var dockedChatPanel: some View {
@@ -534,10 +471,7 @@ struct StudioView: View {
     /// The corner cards stand clear of a notebook window's icon rail, whose
     /// clock and account sit in the same corner.
     private var cornerCardLeadingInset: CGFloat {
-        let rail = windowState.showsNavigationRail
-            ? StudioNavigationRail.compactRailWidth
-            : 0
-        return StudioDesign.Spacing.large + rail
+        StudioDesign.Spacing.large + StudioNavigationRail.compactRailWidth
     }
 
     @ViewBuilder
@@ -608,9 +542,10 @@ struct StudioView: View {
             // Chrome toggles pinned to the top-left, on the macOS traffic lights'
             // row (the window hides its title bar, so the content is inset below
             // the titlebar band — the negative offset lifts them up into it, right
-            // of the lights). The sidebar toggle folds and brings back the rail
-            // and the Space sidebar together; it stays visible in every state so
-            // the sidebar can always be recalled.
+            // of the lights). The sidebar toggle folds and brings back the
+            // sidebar beside the icon strip, Home's and the Space's, never the
+            // strip; it stays visible in every state so the sidebar can always
+            // be recalled.
             .overlay(alignment: .topLeading) {
                 NavigationRailToggle(isVisible: navigationRailVisibilityBinding)
                     .frame(height: band)

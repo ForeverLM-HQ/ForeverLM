@@ -495,34 +495,23 @@ final class StudioWindowState: Identifiable {
         }
     }
 
-    /// Whether the navigation rail steps aside for the notebook this window
-    /// holds while the window is too narrow for it (shell stage 4;
-    /// `NotebookWorkspaceSizing.railYields`). Presentation only and absent
-    /// from `Snapshot`: `navigationRailVisible`, a synced preference, is left
-    /// as it is, so the rail comes back as the window widens, as the notebook
-    /// closes, or from the sidebar toggle.
-    var navigationRailYieldsToNotebook = false
+    /// Whether this window shows the sidebar beside the icon strip: the
+    /// learner's choice. The strip itself is always drawn (product owner,
+    /// 2026-10-12: "should never be hidden"); this folds Home's sidebar.
+    var showsNavigationRail: Bool { navigationRailVisible }
 
-    /// Whether this window draws its navigation rail: the learner's choice,
-    /// unless it is stepping aside for a narrow notebook.
-    var showsNavigationRail: Bool {
-        navigationRailVisible && !navigationRailYieldsToNotebook
-    }
-
-    /// Whether this window draws its rail now: as `showsNavigationRail` says,
-    /// unless a memory review has the window and the learner has not asked
-    /// for the sidebar beside it.
+    /// Whether this window draws that sidebar now: as `showsNavigationRail`
+    /// says, unless a memory review has the window and the learner has not
+    /// asked for the sidebar beside it.
     var drawsNavigationRail: Bool {
         showsNavigationRail && (memoryReviewFocus == nil || memoryReviewFocusShowsSidebar)
     }
 
-    /// The sidebar toggle, and View ▸ Show or Hide Navigation Sidebar. A rail
-    /// stepping aside for a narrow notebook comes back on asking, and so does
-    /// one stepping aside for a memory review: it shows beside the review,
-    /// which runs on until a row in it is picked.
+    /// The sidebar toggle, and View ▸ Show or Hide Navigation Sidebar. A
+    /// sidebar stepping aside for a memory review comes back on asking: it
+    /// shows beside the review, which runs on until a row in it is picked.
     func setNavigationRailShown(_ shown: Bool) {
         if memoryReviewFocus != nil, memoryReviewFocusShowsSidebar != shown { memoryReviewFocusShowsSidebar = shown }
-        if navigationRailYieldsToNotebook { navigationRailYieldsToNotebook = false }
         if navigationRailVisible != shown { navigationRailVisible = shown }
     }
 
@@ -753,9 +742,6 @@ final class StudioWindowState: Identifiable {
             if let oldValue, oldValue.notebookID != notebook?.notebookID {
                 notebookLeft = oldValue.persisted
             }
-            // The rail steps aside only for a notebook; leaving it brings
-            // the rail back.
-            if notebook == nil, navigationRailYieldsToNotebook { navigationRailYieldsToNotebook = false }
             if notebook?.notebookID != oldValue?.notebookID {
                 StudioWindowRegistry.shared.windowNotebookDidChange(self)
             }

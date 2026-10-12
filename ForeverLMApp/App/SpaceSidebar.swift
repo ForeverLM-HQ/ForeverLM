@@ -251,6 +251,8 @@ enum SpaceSidebarMetrics {
 /// lights, folds this sidebar with the rail.
 struct SpaceSidebarHeader: View {
     @Environment(StudioViewModel.self) private var vm
+    @Environment(\.studioTitlebarBandHeight) private var titlebarBandHeight
+    @Environment(\.studioCenterPaneHeaderLeadingInset) private var headerLeadingInset
     let onSearch: () -> Void
 
     var body: some View {
@@ -272,6 +274,18 @@ struct SpaceSidebarHeader: View {
         // On the chrome line a press would otherwise start a window drag
         // instead of reaching the buttons (see `WindowDragBlocker`).
         .background(WindowDragBlocker())
+        // With no band (full screen) the line is in flow at the top of the
+        // card, and stands on the sidebar's tone, back under the leading
+        // inset too, so the sidebar is one column from the card's top edge,
+        // as Codex's is; it was white over a grey sidebar (product owner,
+        // 2026-10-12: "this top left still looks a bit bad with colors").
+        // In the band the line stands on the band's chrome (`StudioBandRow`).
+        .background {
+            if titlebarBandHeight == nil {
+                SpaceSidebarMetrics.background
+                    .padding(.leading, -headerLeadingInset)
+            }
+        }
     }
 }
 

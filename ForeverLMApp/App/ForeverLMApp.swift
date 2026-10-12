@@ -780,10 +780,13 @@ struct ForeverLMApp: App {
                 Button(activeWindowState?.drawsNavigationRail == false ? "Show Navigation Sidebar" : "Hide Navigation Sidebar") {
                     guard let state = activeWindowState else { return }
                     withAnimation(.easeInOut(duration: 0.22)) {
-                        // A rail stepping aside for a narrow notebook or a
-                        // memory review comes back on asking, as from the
-                        // sidebar toggle.
-                        state.setNavigationRailShown(!state.drawsNavigationRail)
+                        // As the sidebar toggle does: Home's sidebar and the
+                        // Space's fold together, never the icon strip, and a
+                        // sidebar stepping aside for a memory review comes
+                        // back on asking.
+                        let shown = !state.drawsNavigationRail
+                        state.setNavigationRailShown(shown)
+                        UserDefaults.standard.set(!shown, forKey: "space.sidebarHidden")
                     }
                 }
                 .keyboardShortcut("s", modifiers: [.command, .control])
