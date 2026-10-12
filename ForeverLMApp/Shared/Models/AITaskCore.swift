@@ -81,6 +81,16 @@ enum AITask: String, CaseIterable, Codable, Identifiable, Sendable {
     /// applies, what would prove it wrong, or what it is like — and a short
     /// reply to their answer (docs/memory-design.md, "Go Deeper on a card").
     case cardGoDeeper = "card_go_deeper"
+    /// Check in the card review: the learner's typed or said answer judged
+    /// against the card's back — right, partly or wrong, with one line on what
+    /// was missing — which decides the grade the learner confirms or
+    /// overrides (docs/memory-design.md, "The answer is checked").
+    case cardAnswerCheck = "card_answer_check"
+    /// The gate every card face passes before it is saved: one call checks a
+    /// batch of cards for a question or answer that points at "this
+    /// lecture" or "the paper" without naming it, and rewords the ones that
+    /// do (docs/memory-design.md, "A card stands on its own").
+    case cardWordingCheck = "card_wording_check"
     /// Writes a mnemonic reading's recall questions, a source at a time: a
     /// book's chapters, or any chapter, paper or article, read as its own
     /// text with a question after the passage it tests

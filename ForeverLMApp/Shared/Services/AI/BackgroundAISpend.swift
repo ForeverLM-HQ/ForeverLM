@@ -62,8 +62,9 @@ extension AITask {
              // Asked of the Canvas, an Atlas opened, the Reader's Levels
              // opened: each one the learner's own press.
              .canvasAsk, .atlasWriting, .sourceLevels,
-             // Go Deeper on a card in the review.
-             .cardGoDeeper:
+             // Go Deeper on a card in the review, and Check on one.
+             .cardGoDeeper,
+             .cardAnswerCheck:
             return false
         case .realtimeReviewPreparation,
              // A chat's title and its history summary run on Background's
@@ -111,6 +112,9 @@ extension AITask {
              .cardDrafting,
              // Rewords a card at the day close once it is remembered twice.
              .cardVariation,
+             // Checks the wording of every card drafted or reworded, and of
+             // the cards kept before the check, at the day close.
+             .cardWordingCheck,
              // Runs on its own when a notebook made without a name first
              // holds something, like a chat's title but outside the chat.
              .notebookNaming,
@@ -173,6 +177,7 @@ extension AITask {
              .audioOverviewWriting, .reportWriting, .mnemonicReadingWriting, .walkthroughWriting,
              .walkthroughAnimation, .lectureQuizWriting, .courseQuizWriting,
              .courseTextbookReadings, .canvasAsk, .atlasWriting, .sourceLevels, .cardGoDeeper,
+             .cardAnswerCheck,
              // Asked for from a source's menu or an MCP tool.
              .paperFigureUnderstanding, .lecturePaperDiscovery, .meetingPaperDiscovery,
              .paperReferenceExtraction, .articleLinkDiscovery, .slideCitationExtraction:
@@ -181,7 +186,11 @@ extension AITask {
              .articleChromeFiltering, .bookAuthor, .bookChapterSplitting, .duplicateDetection,
              .paperAttachmentCheck, .paperBrowserAgent, .citationResolution, .meetingSessionDetails,
              .lectureNoteMatching, .courseOrdering, .courseMetadata, .courseLectureNaming,
-             .slideFrameClassification, .chatTitle, .chatHistoryCompaction:
+             .slideFrameClassification, .chatTitle, .chatHistoryCompaction,
+             // The gate a card passes before it is saved: without it no
+             // drafted card is kept, so it is part of drafting, not a switch
+             // of its own.
+             .cardWordingCheck:
             return .needed
         // Review questions are written ahead of time for the sources a review
         // is likely to be about; nothing else writes them, and a review

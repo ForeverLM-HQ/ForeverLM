@@ -905,6 +905,8 @@ enum AIUsageTaskLabel {
         case "map_summaries": return "Summarize Canvas"
         case "canvas_ask": return "Ask the Canvas"
         case "card_go_deeper": return "Go Deeper on a Card"
+        case "card_answer_check": return "Check a Card Answer"
+        case "card_wording_check": return "Check Card Wording"
         case "atlas_writing": return "Write Atlas"
         case "source_levels": return "Write Reading Levels"
         case "mobile_review": return "Grade Hands-Free Review"

@@ -212,7 +212,7 @@ struct ForeverLMCoreTests {
             "book_chapter_splitting", "meeting_session_details", "meeting_action_items", "lecture_note_matching",
             "course_ordering", "course_metadata", "course_lecture_naming",
             "cohort_session_plan", "cohort_session_close", "source_idea_extraction",
-            "card_drafting", "card_variation", "card_go_deeper", "mnemonic_reading_writing", "notebook_naming", "map_summaries", "canvas_ask", "atlas_writing", "source_levels",
+            "card_drafting", "card_variation", "card_go_deeper", "card_answer_check", "card_wording_check", "mnemonic_reading_writing", "notebook_naming", "map_summaries", "canvas_ask", "atlas_writing", "source_levels",
             "course_curriculum_plan", "course_lesson_writing",
             "explainer_writing", "audio_overview_writing", "report_writing",
             "walkthrough_writing", "walkthrough_animation",
@@ -220,14 +220,14 @@ struct ForeverLMCoreTests {
         ]
         let tasks = AITaskSettingsCatalog.tasks
 
-        #expect(AITaskSettingsCatalog.version == 36)
+        #expect(AITaskSettingsCatalog.version == 37)
         #expect(AITaskSettingsCatalog.descriptor(forRawID: "video_quiz_grading") == nil)
         #expect(tasks.map(\.id) == expectedIDs)
         #expect(Set(tasks.map(\.id)).count == tasks.count)
         #expect(tasks.allSatisfy { !$0.displayName.isEmpty && !$0.description.isEmpty })
         #expect(Set(tasks.filter { $0.modelDefault == .chat }.map(\.id)) == [
             "chat", "deep_research", "source_discovery",
-            "card_go_deeper", "canvas_ask", "atlas_writing",
+            "card_go_deeper", "card_answer_check", "canvas_ask", "atlas_writing",
         ])
         #expect(Set(tasks.filter(\.requiresVision).map(\.id)) == [
             "slide_frame_classification", "slide_citation_extraction", "paper_figure_understanding",
