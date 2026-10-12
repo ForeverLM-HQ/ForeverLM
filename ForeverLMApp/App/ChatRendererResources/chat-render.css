@@ -7,25 +7,34 @@
  * everything inside the message.
  */
 
-/* The reading rhythm is Gemini Notebook's (product owner, 2026-09-30: "this style
- * is pretty pleasant to read"): a little more leading, air between
- * paragraphs and more above a heading, medium-weight headings, and body text
- * a step softer than the headings and bold terms that carry full ink. */
+/* The reading rhythm is Codex's (product owner, 2026-10-11: "make the chat
+ * experience more look chatgpt codex. you can basically steal the entire
+ * design"), measured off the ChatGPT app's own stylesheet. Everything is spaced
+ * in quarters of the body size, Codex's markdown unit: full-ink body text at a
+ * 1.625 leading, a quarter between a paragraph and the list it introduces, a
+ * whole line between paragraphs, and semibold headings with a line above them.
+ * Tables are rules, not a grid; links are the text's own colour over a dotted
+ * underline. It replaced Gemini Notebook's rhythm (2026-09-30), whose softer
+ * body text and gridded tables read as a different app beside Codex's. */
 .chat-rendered {
   overflow-wrap: anywhere;
   /* Markdown owns the line breaks now, so the pre-wrap a plain-text renderer
      needs would double every blank line. */
   white-space: normal;
-  line-height: 1.55;
-  color: color-mix(in srgb, var(--chat-fg, CanvasText) 88%, transparent);
+  line-height: 1.625;
+  color: var(--chat-fg, CanvasText);
 }
 
-.chat-rendered p,
+.chat-rendered p { margin: 0 0 0.25em; }
+.chat-rendered > p:not(:first-child) { margin-top: 0.5em; }
+.chat-rendered > p + p { margin-block: 1em; }
 .chat-rendered ul,
-.chat-rendered ol,
+.chat-rendered ol { margin: 0; }
+.chat-rendered > p + ul,
+.chat-rendered > p + ol { margin-top: 0; }
 .chat-rendered blockquote,
-.chat-rendered pre,
-.chat-rendered table { margin: 0 0 0.62em; }
+.chat-rendered table { margin: 1em 0 0.5em; }
+.chat-rendered pre { margin: 1.25em 0; }
 
 /* The measure: prose stops near 85 to 90 characters however wide the column
    is. Tables, code and pictures keep the whole column; a picture written
@@ -41,94 +50,140 @@
 .chat-rendered > blockquote,
 .chat-rendered > hr,
 .chat-rendered > .source-citations-footer { max-width: 42em; }
-.chat-rendered > h1 { max-width: calc(42em / 1.35); }
+.chat-rendered > h1 { max-width: calc(42em / 1.5); }
 .chat-rendered > h2 { max-width: calc(42em / 1.25); }
-.chat-rendered > h3 { max-width: calc(42em / 1.15); }
+.chat-rendered > h3 { max-width: calc(42em / 1.125); }
 
-.chat-rendered ul { padding-left: 1.5em; list-style-type: disc; }
+/* The list indent is one line's height, as Codex's is, and each item a
+   little further in from its marker. */
+.chat-rendered ul { padding-left: 1.625em; list-style-type: disc; }
 .chat-rendered ul ul { list-style-type: circle; }
 .chat-rendered ul ul ul { list-style-type: square; }
 /* Markers draw outside the list box, and the row that hosts a reply clips at
    its edge, so an ordered list needs room for a two-digit number or every
    item from 10 on loses its first digit. */
 .chat-rendered ol { padding-left: 2.2em; }
-.chat-rendered li + li { margin-top: 0.3em; }
+.chat-rendered li { padding-left: 0.375em; }
+.chat-rendered li > p { margin: 0; }
+.chat-rendered li > p + p { margin-top: 1em; }
 .chat-rendered li > ul,
-.chat-rendered li > ol { margin: 0.3em 0 0; }
-.chat-rendered li::marker { color: color-mix(in srgb, var(--chat-fg, CanvasText) 55%, transparent); }
+.chat-rendered li > ol { margin: 0; }
+.chat-rendered li::marker { color: var(--chat-fg, CanvasText); font-weight: 600; }
+.chat-rendered > ul + p,
+.chat-rendered > ol + p { margin-top: 0.5em; }
 
+/* Heading margins and line heights are Codex's in body quarters, divided by
+   the heading's own size because a heading's em is its own. */
 .chat-rendered h1,
 .chat-rendered h2,
 .chat-rendered h3,
 .chat-rendered h4 {
-  margin: 1.3em 0 0.4em;
-  line-height: 1.3;
   font-weight: 600;
   color: var(--chat-fg, CanvasText);
 }
-.chat-rendered h1 { font-size: 1.35em; }
-.chat-rendered h2 { font-size: 1.25em; }
-.chat-rendered h3 { font-size: 1.15em; }
-.chat-rendered h4 { font-size: 1em; }
+.chat-rendered h1 { font-size: 1.5em; margin: calc(1em / 1.5) 0 calc(0.5em / 1.5); line-height: calc(2 / 1.5); }
+.chat-rendered h2 { font-size: 1.25em; margin: calc(1em / 1.25) 0 calc(0.25em / 1.25); line-height: calc(1.75 / 1.25); }
+.chat-rendered h3 { font-size: 1.125em; margin: calc(1em / 1.125) 0 calc(0.25em / 1.125); line-height: calc(1.75 / 1.125); }
+.chat-rendered h4 { font-size: 1em; margin: 1em 0 0; line-height: 1.5; }
+.chat-rendered > :is(h1, h2, h3, h4) + p { margin-top: 0; }
 
 .chat-rendered strong { font-weight: 600; color: var(--chat-fg, CanvasText); }
 .chat-rendered em { font-style: italic; }
 
 .chat-rendered a {
-  color: var(--chat-link, LinkText);
-  text-decoration: none;
+  color: inherit;
+  text-decoration: underline dotted color-mix(in srgb, var(--chat-fg, CanvasText) 45%, transparent) 1px;
+  text-underline-offset: 0.18em;
 }
-.chat-rendered a:hover { text-decoration: underline; }
+.chat-rendered a:hover {
+  color: var(--chat-link, LinkText);
+  text-decoration-color: currentColor;
+}
 
 .chat-rendered code {
-  font-family: "SF Mono", Menlo, Monaco, Consolas, monospace;
+  font-family: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
   font-size: 0.92em;
-  padding: 0.12em 0.32em;
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--chat-fg, CanvasText) 10%, transparent);
+  padding: 1px 0.4em;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--chat-fg, CanvasText) 6%, transparent);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
 }
 .chat-rendered pre {
   overflow-x: auto;
-  padding: 10px;
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--chat-fg, CanvasText) 9%, transparent);
+  padding: 0.9em 1em;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--chat-fg, CanvasText) 8%, transparent);
+  background: color-mix(in srgb, var(--chat-fg, CanvasText) 3%, transparent);
+  font-size: 0.875em;
+  line-height: 1.5;
 }
 .chat-rendered pre code {
   padding: 0;
   border-radius: 0;
   background: transparent;
+  font-size: 1em;
   white-space: pre;
 }
 
+/* A rounded bar a quarter-em wide, inset from the quote's top and bottom,
+   and the quote in full ink. */
 .chat-rendered blockquote {
-  padding: 0.15em 0 0.15em 0.85em;
-  border-left: 3px solid color-mix(in srgb, var(--chat-fg, CanvasText) 22%, transparent);
-  color: color-mix(in srgb, var(--chat-fg, CanvasText) 78%, transparent);
+  position: relative;
+  padding: 0.5em 0 0.5em 1.5em;
+  line-height: 1.5;
 }
+.chat-rendered blockquote::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.5em;
+  bottom: 0.5em;
+  width: 0.25em;
+  border-radius: 0.125em;
+  background: color-mix(in srgb, var(--chat-fg, CanvasText) 15%, transparent);
+}
+.chat-rendered blockquote > p { margin: 0; }
+.chat-rendered blockquote > p + p { margin-top: 0.5em; }
 
+/* Codex's tables: a rule under the header and a faint one under every row
+   but the last, no grid and no fill, a step smaller than the prose. */
 .chat-rendered table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   table-layout: fixed;
+  font-size: 0.875em;
+  font-variant-numeric: tabular-nums;
 }
 .chat-rendered th,
 .chat-rendered td {
-  border: 1px solid color-mix(in srgb, var(--chat-fg, CanvasText) 18%, transparent);
-  padding: 0.34em 0.5em;
+  padding: 0.625em 1.5em 0.625em 0;
   text-align: left;
   vertical-align: top;
   overflow-wrap: anywhere;
 }
+.chat-rendered th:last-child,
+.chat-rendered td:last-child { padding-right: 0; }
 .chat-rendered th {
-  font-weight: 650;
-  background: color-mix(in srgb, var(--chat-fg, CanvasText) 7%, transparent);
+  padding-top: 0.5em;
+  padding-bottom: 0.5em;
+  font-weight: 600;
+  color: var(--chat-fg, CanvasText);
+  border-bottom: 1px solid color-mix(in srgb, var(--chat-fg, CanvasText) 15%, transparent);
+}
+.chat-rendered tr:not(:last-child) > td {
+  border-bottom: 1px solid color-mix(in srgb, var(--chat-fg, CanvasText) 6%, transparent);
 }
 
 .chat-rendered hr {
+  clear: both;
+  height: 0;
   border: 0;
-  border-top: 1px solid color-mix(in srgb, var(--chat-fg, CanvasText) 13%, transparent);
-  margin: 1.2em 0;
+  border-top: 1px solid color-mix(in srgb, var(--chat-fg, CanvasText) 15%, transparent);
+  margin: 1.75em 0;
 }
+.chat-rendered hr + * { margin-top: 0; }
 
 /* Review checklists. The box replaces the literal `[ ]` a model writes. */
 .chat-rendered ul.flm-task-list,

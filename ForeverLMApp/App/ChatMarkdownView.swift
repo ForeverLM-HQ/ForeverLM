@@ -220,8 +220,8 @@ enum ChatMarkdownHeightMemory {
         // point size; the column keeps a little padding on each side, and
         // prose stops at the page's 42em measure however wide the column is.
         let charactersPerLine = max(16, floor(max(160, min(width - 24, size * 42)) / (size * 0.5)))
-        // chat-render.css: line-height 1.55.
-        let lineHeight = size * 1.55
+        // chat-render.css: line-height 1.625, Codex's.
+        let lineHeight = size * 1.625
         var height: CGFloat = 0
         var blocks = 0
         var inCodeFence = false
