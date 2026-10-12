@@ -325,10 +325,28 @@ extension MobileCardReviewDealing {
 
 /// The Memory screen's words, the Mac's Memory pane's.
 enum MobileMemoryScreenCopy {
-    /// The Review section's first line: today's cards, "6 due · 4 new", or
-    /// "Nothing due today".
-    static func countsLine(_ counts: MemoryCardDayCounts) -> String {
-        counts.todayLine ?? "Nothing due today"
+    /// What the card on Review's deck says under how many cards wait today:
+    /// the Mac's `MemoryPane.todayDeck`, "cards today" ("6 due · 4 new"
+    /// under it is `MemoryCardDayCounts.todayLine`).
+    static func deckCaption(today: Int) -> String {
+        today == 1 ? "card today" : "cards today"
+    }
+
+    /// What the card on the deck says when no card waits today: that today's
+    /// review is done, or that nothing is due.
+    static func emptyDeckTitle(state: MemoryReviewCommitment.State) -> String {
+        if case .done = state { return "Today's review is done" }
+        return "Nothing due today"
+    }
+
+    /// Whether the promise line shows under the deck, the Mac's
+    /// `MemoryPane.showsPromise`: on an open or done day only while cards
+    /// wait, so a done deck is never followed by a second "done".
+    static func showsPromise(state: MemoryReviewCommitment.State, counts: MemoryCardDayCounts) -> Bool {
+        switch state {
+        case .open, .done: return counts.today > 0
+        case .ended: return true
+        }
     }
 
     /// Where today's review stands on the phone: done once the day's goal is
@@ -352,7 +370,7 @@ enum MobileMemoryScreenCopy {
         }
     }
 
-    /// The sentence under the counts. A done day says what the Mac's Memory
+    /// The sentence under the deck. A done day says what the Mac's Memory
     /// pane says, one line since 2026-10-06. An open day says nothing: the
     /// Mac's promise there — the day's minutes, and that leaving early ends
     /// today's review — is its committed session, which the phone does not

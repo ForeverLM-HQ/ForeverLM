@@ -3,10 +3,11 @@ import SwiftUI
 // Memory on the iPhone and iPad (docs/memory-design.md, "The Memory screen
 // on the iPhone"): the Mac's Memory pane (`App/MemoryPane.swift`) over every
 // notebook, and Home's Memory strip, the Mac's `NotebooksHomeMemoryStripView`.
-// Review says today's cards ("6 due · 4 new"), starts the card review (Start
-// Review, Keep Going, Practice N New Cards) and draws the history grid; To
-// Check goes through the cards drafted from sources (Keep, Edit, Skip,
-// `MobileCardsToCheckList`); All Cards lists every kept card, searched, by
+// Review draws today's cards as the Mac's deck ("10", "cards today", "6 due ·
+// 4 new"), starts the card review (Start Review, Keep Going, Practice N New
+// Cards) and draws the history grid; To Check goes through the cards drafted
+// from sources (Keep, Edit, Skip, `MobileCardsToCheckList`); All Cards lists
+// every kept card, searched, by
 // source, a tap editing it and its menu starting it over, holding it to its
 // own words or retiring it. The pure rules are in `MobileCardReview.swift`
 // (`MobileMemoryScreenCopy`, `MobileMemoryHistoryDays`,
@@ -55,6 +56,10 @@ struct MobileMemoryScreen: View {
     @State private var confirmingRetire: MemoryCardListing?
     @State private var writeError: String?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+    /// How many cards wait, on the deck's card: the Mac's 56 points, scaled
+    /// with the reader's text size.
+    @ScaledMetric(relativeTo: .largeTitle) private var deckCountSize: CGFloat = 56
 
     var body: some View {
         content
@@ -185,25 +190,42 @@ struct MobileMemoryScreen: View {
 
     // MARK: Review
 
+    /// Today's card on the deck, the Mac pane's size (docs/memory-design.md,
+    /// "How a card looks"): 300 points wide and at least 184 tall, shorter at
+    /// compact height, and as wide as the column at the accessibility text
+    /// sizes, where it grows with its words.
+    private static let deckWidth: CGFloat = 300
+    private static let deckHeight: CGFloat = 184
+    private static let compactHeightDeckHeight: CGFloat = 140
+    /// Start Review's narrowest, the Mac pane's.
+    private static let primaryMinWidth: CGFloat = 200
+
+    /// Since 2026-10-11 the Mac's Memory pane's Review: today's cards drawn
+    /// as the deck the review deals — one card with how many there are, the
+    /// edges of the rest under it — the done day's sentence where the card
+    /// does not already say it, one dark Start Review with Practice a quiet
+    /// word under it, and the history grid.
     private var reviewSection: some View {
         let state = MobileMemoryScreenCopy.state(goal: goal.snapshot)
         return ScrollView {
             VStack(alignment: .leading, spacing: MobileDesign.Spacing.xLarge) {
                 sectionPicker
-                VStack(alignment: .leading, spacing: MobileDesign.Spacing.small) {
-                    Text(knowsCards ? MobileMemoryScreenCopy.countsLine(counts) : " ")
-                        .font(.title2.weight(.semibold))
-                        .monospacedDigit()
-                        .accessibilityIdentifier("memory.screen.counts")
-                    if let promise = MobileMemoryScreenCopy.promise(state: state) {
+                VStack(spacing: 0) {
+                    todayDeck(state: state)
+                        .padding(.bottom, MemoryDeckEdges.depth)
+                    if knowsCards, MobileMemoryScreenCopy.showsPromise(state: state, counts: counts),
+                       let promise = MobileMemoryScreenCopy.promise(state: state) {
                         Text(promise)
                             .font(.callout)
                             .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
                             .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, MobileDesign.Spacing.large)
                             .accessibilityIdentifier("memory.screen.promise")
                     }
+                    actions(state: state)
                 }
-                actions(state: state)
+                .frame(maxWidth: .infinity)
                 // Drawn once every device's minutes are read: a grid of the
                 // chats alone would be lighter than the learner's days were.
                 if goal.hasLoaded {
@@ -217,6 +239,7 @@ struct MobileMemoryScreen: View {
                             title: MemoryReviewSession.title(for: day.date)
                         ))
                     }
+                    .padding(.top, MobileDesign.Spacing.medium)
                 }
             }
             .padding(.horizontal, MobileDesign.Spacing.large)
@@ -228,42 +251,88 @@ struct MobileMemoryScreen: View {
         .accessibilityIdentifier("memory.screen.review")
     }
 
-    /// Start Review or Keep Going, and Practice N New Cards, side by side
-    /// when they fit, the Mac's pane's buttons. Each pushes the card review
-    /// over every notebook, whose title changes the scope.
+    /// Today's cards as a card on the deck, the Mac's `MemoryPane.todayDeck`:
+    /// how many, "cards today", and "6 due · 4 new" under it; with none,
+    /// what the day is instead. Blank paper until the counts are known.
+    private func todayDeck(state: MemoryReviewCommitment.State) -> some View {
+        let today = knowsCards ? counts.today : 0
+        return VStack(spacing: 6) {
+            if !knowsCards {
+                Color.clear.frame(height: 1)
+            } else if today > 0 {
+                Text("\(today)")
+                    .font(.system(size: deckCountSize, weight: .regular, design: .serif))
+                    .monospacedDigit()
+                Text(MobileMemoryScreenCopy.deckCaption(today: today))
+                    .font(.callout.weight(.medium))
+                    .foregroundStyle(.secondary)
+                if let line = counts.todayLine {
+                    Text(line)
+                        .font(.caption)
+                        .foregroundStyle(MemoryCardMetrics.smallWordsStyle)
+                        .monospacedDigit()
+                        .padding(.top, 2)
+                }
+            } else if case .done = state {
+                Image(systemName: "checkmark")
+                    .font(.title2.weight(.light))
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+                Text(MobileMemoryScreenCopy.emptyDeckTitle(state: state))
+                    .font(.system(.title3, design: .serif))
+                    .padding(.top, 4)
+            } else {
+                Text(MobileMemoryScreenCopy.emptyDeckTitle(state: state))
+                    .font(.system(.title3, design: .serif))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .multilineTextAlignment(.center)
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.horizontal, MobileDesign.Spacing.xLarge)
+        .padding(.vertical, MobileDesign.Spacing.large)
+        .frame(
+            maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : Self.deckWidth,
+            minHeight: verticalSizeClass == .compact ? Self.compactHeightDeckHeight : Self.deckHeight
+        )
+        .memoryCardSurface()
+        .background(alignment: .bottom) {
+            MemoryDeckEdges(remaining: today - 1)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityHidden(!knowsCards)
+        .accessibilityIdentifier("memory.screen.counts")
+    }
+
+    /// Start Review or Keep Going, the dark pill, and Practice N New Cards a
+    /// quiet word under it: the Mac's pane's buttons. Each pushes the card
+    /// review over every notebook, whose title changes the scope.
     @ViewBuilder
     private func actions(state: MemoryReviewCommitment.State) -> some View {
         let primary = knowsCards ? MobileMemoryScreenCopy.primaryTitle(state: state, counts: counts) : nil
         let practices = knowsCards && MemoryReviewCommitment.canStart(state) && counts.practice > 0
         if primary != nil || practices {
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: MobileDesign.Spacing.medium) {
-                    actionButtons(primary: primary, practices: practices)
+            VStack(spacing: MobileDesign.Spacing.xSmall) {
+                if let primary {
+                    Button {
+                        open(.cardReview(.allNotebooks))
+                    } label: {
+                        Text(primary)
+                            .frame(minWidth: Self.primaryMinWidth)
+                    }
+                    .buttonStyle(MobileMemoryPillStyle(kind: .primary))
+                    .accessibilityIdentifier("memory.screen.start")
                 }
-                VStack(alignment: .leading, spacing: MobileDesign.Spacing.medium) {
-                    actionButtons(primary: primary, practices: practices)
+                if practices {
+                    Button(MobileCardReviewCopy.practiceNewCards(counts.practice)) {
+                        open(.cardPractice(.allNotebooks))
+                    }
+                    .buttonStyle(MobileMemoryPillStyle(kind: .quiet, height: MobileDesign.Metrics.minimumTouchTarget))
+                    .accessibilityHint("Cards kept today, or past today's new cards, asked now")
+                    .accessibilityIdentifier("memory.screen.practice")
                 }
             }
-            .controlSize(.large)
-        }
-    }
-
-    @ViewBuilder
-    private func actionButtons(primary: String?, practices: Bool) -> some View {
-        if let primary {
-            Button(primary) {
-                open(.cardReview(.allNotebooks))
-            }
-            .buttonStyle(.borderedProminent)
-            .accessibilityIdentifier("memory.screen.start")
-        }
-        if practices {
-            Button(MobileCardReviewCopy.practiceNewCards(counts.practice)) {
-                open(.cardPractice(.allNotebooks))
-            }
-            .buttonStyle(.bordered)
-            .accessibilityHint("Cards kept today, or past today's new cards, asked now")
-            .accessibilityIdentifier("memory.screen.practice")
+            .padding(.top, MobileDesign.Spacing.large)
         }
     }
 

@@ -40,16 +40,32 @@ struct MobileMemoryScreenTests {
 
     // MARK: - Review's words
 
-    @Test("The counts line is today's cards as the Mac's pane says them; cards to check and practice are not today's")
-    func countsLine() {
-        #expect(MobileMemoryScreenCopy.countsLine(MemoryCardDayCounts(due: 6, new: 4, practice: 2)) == "6 due · 4 new")
-        #expect(MobileMemoryScreenCopy.countsLine(MemoryCardDayCounts(due: 6, new: 0, practice: 0)) == "6 due")
-        #expect(MobileMemoryScreenCopy.countsLine(MemoryCardDayCounts(due: 0, new: 4, practice: 0)) == "4 new")
-        #expect(MobileMemoryScreenCopy.countsLine(.zero) == "Nothing due today")
-        #expect(
-            MobileMemoryScreenCopy.countsLine(MemoryCardDayCounts(due: 0, new: 0, practice: 3, toCheck: 9)) == "Nothing due today",
-            "practice and cards to check wait outside today's review"
-        )
+    @Test("The deck's card says today's cards as the Mac's pane does; cards to check and practice are not today's")
+    func deckWords() {
+        let waiting = MemoryCardDayCounts(due: 6, new: 4, practice: 2)
+        #expect(waiting.today == 10)
+        #expect(MobileMemoryScreenCopy.deckCaption(today: waiting.today) == "cards today")
+        #expect(MobileMemoryScreenCopy.deckCaption(today: 1) == "card today")
+        #expect(waiting.todayLine == "6 due · 4 new")
+
+        let open = MobileMemoryScreenCopy.state(goal: snapshot(seconds: 600))
+        let done = MobileMemoryScreenCopy.state(goal: snapshot(seconds: 900))
+        #expect(MobileMemoryScreenCopy.emptyDeckTitle(state: open) == "Nothing due today")
+        #expect(MobileMemoryScreenCopy.emptyDeckTitle(state: done) == "Today's review is done")
+        let outside = MemoryCardDayCounts(due: 0, new: 0, practice: 3, toCheck: 9)
+        #expect(outside.today == 0, "practice and cards to check wait outside today's review")
+        #expect(outside.todayLine == nil)
+    }
+
+    @Test("The promise shows under a deck with cards, never as a second done under a done deck")
+    func showsPromise() {
+        let open = MobileMemoryScreenCopy.state(goal: snapshot(seconds: 600))
+        let done = MobileMemoryScreenCopy.state(goal: snapshot(seconds: 900))
+        let waiting = MemoryCardDayCounts(due: 2, new: 1, practice: 4)
+        #expect(MobileMemoryScreenCopy.showsPromise(state: done, counts: waiting), "Keep Going: the card counts, the line says the day is done")
+        #expect(!MobileMemoryScreenCopy.showsPromise(state: done, counts: .zero), "the card already says today's review is done")
+        #expect(MobileMemoryScreenCopy.showsPromise(state: open, counts: waiting))
+        #expect(!MobileMemoryScreenCopy.showsPromise(state: open, counts: MemoryCardDayCounts(due: 0, new: 0, practice: 4)))
     }
 
     @Test("The phone's day is open until the goal is met on any device, then done; it is never ended early")
