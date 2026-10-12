@@ -820,7 +820,7 @@ extension StudioViewModel {
         switch result.outcome {
         case .ready(let content, let persistedReadyState):
             articles[idx].content = content
-            articles[idx].wordCount = content.split(separator: " ").count
+            articles[idx].wordCount = KnowledgeStore.storedWordCount(of: content)
             articles[idx].state = .ready
             articles[idx].errorMessage = nil
             if !persistedReadyState {
@@ -1502,7 +1502,7 @@ extension StudioViewModel {
     func persistPodcastTranscriptUpdate(articleId: String, transcript: String) async -> Bool {
         guard let idx = articles.firstIndex(where: { $0.id == articleId }) else { return false }
         articles[idx].content = transcript
-        articles[idx].wordCount = transcript.split(separator: " ").count
+        articles[idx].wordCount = KnowledgeStore.storedWordCount(of: transcript)
         articles[idx].state = .ready
         articles[idx].errorMessage = nil
         do {

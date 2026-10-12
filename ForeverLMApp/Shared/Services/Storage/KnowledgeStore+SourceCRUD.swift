@@ -23,6 +23,14 @@ struct SourceRowSummary: Equatable {
     let type: StudioSourceType
 }
 
+/// One batch of the word count repair (`drainSourceWordCountRepairBatch`):
+/// the counts it wrote, by source id, and the last id it read, which the next
+/// batch starts after. A nil `lastSourceID` means nothing was left to read.
+struct SourceWordCountRepairBatch: Equatable, Sendable {
+    var counts: [String: Int]
+    var lastSourceID: String?
+}
+
 /// What the Studio's source list holds for one open library, and the team
 /// copies folded into the learner's own rows (`loadLibrarySources(teamID:)`).
 struct LibrarySourceList {
@@ -737,6 +745,83 @@ extension KnowledgeStore {
         "book_sources", "course_sources", "meeting_sources"
     ]
 
+    /// The words in a source's stored text, as the store counts them: runs of
+    /// anything but whitespace, newlines included. `word_count` is how the chat
+    /// catalog and `filter_sources` tell a source with text from one without.
+    static func storedWordCount(of text: String) -> Int {
+        text.split(whereSeparator: \.isWhitespace).count
+    }
+
+    /// Write the count of the text just stored into whichever per-type table
+    /// holds the source. A writer of `source_content` knows the text, so it
+    /// writes the count with it; a count left for the caller to remember is
+    /// what left 637 podcast transcripts reading "no text yet" (2026-10-12).
+    func writeStoredWordCount(sourceID: String, text: String) throws {
+        let count = Int64(Self.storedWordCount(of: text))
+        for table in Self.sourceWordCountTables {
+            try execBind("UPDATE \(table) SET word_count = ? WHERE source_id = ? AND word_count IS NOT ?") { stmt in
+                sqlite3_bind_int64(stmt, 1, count)
+                self.bind(stmt, 2, sourceID)
+                sqlite3_bind_int64(stmt, 3, count)
+            }
+        }
+    }
+
+    /// One bounded batch of the word count repair: up to `limit` sources of the
+    /// learner's own library, after `cursor` in id order, whose text is stored
+    /// but whose count is missing or zero, each counted from that text.
+    ///
+    /// Not a migration and not a queue: the candidates are their own predicate
+    /// (text stored, count missing), which a scan answers in milliseconds on
+    /// the largest library, and a counted source leaves it. So the pass is
+    /// idempotent, resumable after a quit, and a no-op once nothing is missing;
+    /// run again at activation it also counts text another device published
+    /// without a count. The cursor walks each run past a text with no words,
+    /// whose count stays zero. A team's copy is left to the library it was
+    /// shared from, as the soft hyphen repair leaves it: the count is a field
+    /// of the team zone's record, which a read-only member cannot write.
+    func drainSourceWordCountRepairBatch(after cursor: String?, limit: Int) throws -> SourceWordCountRepairBatch {
+        let candidateSQL = Self.sourceWordCountTables.map { table in
+            """
+            SELECT '\(table)' AS subtype_table, t.source_id AS source_id
+            FROM \(table) t
+            JOIN sources s ON s.id = t.source_id
+            JOIN source_content sc ON sc.source_id = t.source_id
+            WHERE COALESCE(t.word_count, 0) = 0
+              AND s.team_id IS NULL
+              AND t.source_id > ?1
+            """
+        }.joined(separator: "\nUNION ALL\n") + "\nORDER BY source_id\nLIMIT ?2"
+
+        try exec("BEGIN IMMEDIATE")
+        do {
+            var candidates: [(table: String, sourceID: String)] = []
+            try query(candidateSQL, [.text(cursor ?? ""), .integer(Int64(max(1, min(limit, 200))))]) { row in
+                guard let table = row.text(0), let sourceID = row.text(1) else { return }
+                candidates.append((table, sourceID))
+            }
+            var batch = SourceWordCountRepairBatch(counts: [:], lastSourceID: candidates.last?.sourceID)
+            for candidate in candidates {
+                guard let text = try scalarText(
+                    "SELECT content FROM source_content WHERE source_id = ?",
+                    [.text(candidate.sourceID)]
+                ) else { continue }
+                let count = Self.storedWordCount(of: text)
+                guard count > 0 else { continue }
+                try execute(
+                    "UPDATE \(candidate.table) SET word_count = ? WHERE source_id = ?",
+                    [.integer(Int64(count)), .text(candidate.sourceID)]
+                )
+                batch.counts[candidate.sourceID] = count
+            }
+            try exec("COMMIT")
+            return batch
+        } catch {
+            try? exec("ROLLBACK")
+            throw error
+        }
+    }
+
     /// Remove a source's text and everything derived from it, and put the
     /// source's own row back in step with that.
     ///
@@ -1208,6 +1293,7 @@ extension KnowledgeStore {
             if replacesText {
                 try invalidateReplacedTranscript(sourceID: sourceId)
             }
+            try writeStoredWordCount(sourceID: sourceId, text: text)
             if let rawTTML {
                 try execBind("""
                     UPDATE podcasts SET raw_ttml = ? WHERE source_id = ?
@@ -1302,7 +1388,7 @@ extension KnowledgeStore {
         youtubeURL: String?,
         cleanupInput: String? = nil
     ) throws {
-        let wordCount = text.split(whereSeparator: \.isWhitespace).count
+        let wordCount = Self.storedWordCount(of: text)
         try exec("BEGIN IMMEDIATE")
         do {
             let replacesText = try replacesStoredText(sourceID: sourceId, with: text)

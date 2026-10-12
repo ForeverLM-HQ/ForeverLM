@@ -390,6 +390,22 @@ extension KnowledgeStore {
                 bind(stmt, 17, article.paywallSuspicion)
             }
         case .podcast:
+            // The count is the stored transcript's. A save carrying the text
+            // counts what it just stored; one without it (the in-memory text is
+            // let go after every ingest) keeps the count stored with the text,
+            // which the in-memory copy may never have seen: hydration, a
+            // refetch and every transcript rewrite count it in the store.
+            let podcastWordCount: Int?
+            if let content = article.content {
+                podcastWordCount = Self.storedWordCount(of: content)
+            } else {
+                let stored = try scalarInteger("""
+                    SELECT p.word_count FROM podcasts p
+                    JOIN source_content sc ON sc.source_id = p.source_id
+                    WHERE p.source_id = ?
+                """, [.text(article.id)])
+                podcastWordCount = stored.flatMap { $0 > 0 ? Int($0) : nil } ?? article.wordCount
+            }
             try execBind("""
                 INSERT INTO podcasts
                 (source_id, url, local_file_path, normalized_url, title, domain, discovery_origin, word_count, artwork_url, show_name, web_page_url, raw_ttml)
@@ -414,7 +430,7 @@ extension KnowledgeStore {
                 bind(stmt, 5, title)
                 bind(stmt, 6, article.domain)
                 bind(stmt, 7, article.discoveryOrigin?.rawValue)
-                bind(stmt, 8, article.wordCount)
+                bind(stmt, 8, podcastWordCount)
                 bind(stmt, 9, article.artworkURL)
                 bind(stmt, 10, article.domain)
                 bind(stmt, 11, article.podcastWebPageURL)

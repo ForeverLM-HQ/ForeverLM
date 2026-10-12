@@ -721,3 +721,177 @@ struct YouTubePluginFailureTests {
         ))
     }
 }
+
+// MARK: - Word counts follow the stored text
+
+/// `word_count` is how the chat catalog and `filter_sources` tell a source with
+/// text from one without. On 2026-10-12, 637 podcast episodes held a whole
+/// transcript and read "no text yet": the transcript writers stored the text
+/// and left the count to callers that never saved it.
+@Suite("Word counts follow the stored text")
+struct SourceWordCountTests {
+    /// Speaker-labelled and on several lines, as a formatted transcript is:
+    /// a count on spaces alone joins the words either side of each newline.
+    static let transcript = """
+        **Zara Holt:** Cells compute with voltage.
+
+        **Ada Moss:** And the pattern
+        holds across tissues.
+        """
+    static let transcriptWords = 13
+
+    static func wordCount(_ store: KnowledgeStore, _ table: String, _ id: String) throws -> Int64? {
+        try store.scalarInteger("SELECT word_count FROM \(table) WHERE source_id = ?", [.text(id)])
+    }
+
+    @Test("the store counts on every kind of whitespace")
+    func countsEveryWhitespace() {
+        #expect(KnowledgeStore.storedWordCount(of: Self.transcript) == Self.transcriptWords)
+        #expect(KnowledgeStore.storedWordCount(of: " \n\t ") == 0)
+    }
+
+    @Test("a podcast transcript saved by hydration, a refetch or a rewrite carries its count")
+    func saveTranscriptWritesThePodcastCount() throws {
+        let store = try makeInMemoryStore()
+        var episode = makeArticle(url: "apple-podcast://episode/39", title: "Bioelectric Computation", sourceType: .podcast)
+        episode.domain = "Example Show"
+        try store.saveSource(episode)
+        #expect(try Self.wordCount(store, "podcasts", episode.id) == nil)
+
+        try store.saveTranscript(episode.id, Self.transcript, rawTTML: "<tt></tt>")
+        #expect(try Self.wordCount(store, "podcasts", episode.id) == Int64(Self.transcriptWords))
+        #expect(try store.loadSources().first?.wordCount == Self.transcriptWords)
+
+        // A speaker rename rewrites the text; the count follows it.
+        try store.saveTranscript(episode.id, Self.transcript + " Thanks for listening.")
+        #expect(try Self.wordCount(store, "podcasts", episode.id) == Int64(Self.transcriptWords + 3))
+    }
+
+    @Test("saveTranscript counts into whichever per-type table holds the source")
+    func saveTranscriptWritesOtherTypesCount() throws {
+        let store = try makeInMemoryStore()
+        let video = makeArticle(url: "https://example.org/lecture", title: "A Lecture", sourceType: .video)
+        try store.saveSource(video)
+        try store.saveTranscript(video.id, "Four words of captions.")
+        #expect(try Self.wordCount(store, "videos", video.id) == 4)
+    }
+
+    @Test("a podcast save without its text keeps the count stored with the text")
+    func metadataSaveKeepsTheStoredCount() throws {
+        let store = try makeInMemoryStore()
+        var episode = makeArticle(url: "apple-podcast://episode/40", title: "An Episode", sourceType: .podcast)
+        try store.saveSource(episode)
+        try store.saveTranscript(episode.id, Self.transcript)
+
+        // The loaded row never saw the count the store wrote, and its text was
+        // let go after the ingest: a rename must not erase the count.
+        episode.title = "An Episode, renamed"
+        episode.content = nil
+        episode.wordCount = nil
+        try store.saveSource(episode)
+        #expect(try Self.wordCount(store, "podcasts", episode.id) == Int64(Self.transcriptWords))
+
+        // A save carrying the text counts the text, whatever the copy believed.
+        episode.content = "Three new words."
+        episode.wordCount = 99
+        try store.saveSource(episode)
+        #expect(try Self.wordCount(store, "podcasts", episode.id) == 3)
+    }
+
+    @Test("a podcast with no stored text keeps the count its save names")
+    func podcastWithoutTextKeepsTheSavedCount() throws {
+        let store = try makeInMemoryStore()
+        var episode = makeArticle(url: "apple-podcast://episode/41", title: "Not fetched", sourceType: .podcast)
+        episode.wordCount = 7
+        try store.saveSource(episode)
+        #expect(try Self.wordCount(store, "podcasts", episode.id) == 7)
+    }
+
+    @Test("the repair counts stored text whose count is missing or zero, once, and leaves team copies alone")
+    func repairCountsMissingCounts() throws {
+        let store = try makeInMemoryStore()
+        func seed(_ id: String, _ type: StudioSourceType, text: String, count: Int64?) throws {
+            let source = StudioArticle(url: "https://example.org/\(id)", title: id, sourceType: type, id: id)
+            try store.saveSource(source)
+            try store.saveTranscript(id, text)
+            try store.execute(
+                "UPDATE \(Self.table(for: type)) SET word_count = ? WHERE source_id = ?",
+                [count.map(SQLiteValue.integer) ?? .null, .text(id)]
+            )
+        }
+        try seed("a-episode", .podcast, text: Self.transcript, count: nil)
+        try seed("b-episode", .podcast, text: "Five words of a transcript.", count: 0)
+        try seed("c-lecture", .course, text: "A course lecture.", count: nil)
+        try seed("d-meeting", .meeting, text: "Standup notes here.", count: nil)
+        try seed("e-counted", .podcast, text: "Already counted text.", count: 3)
+        try seed("f-blank", .podcast, text: " \n ", count: nil)
+        try seed("g-team", .podcast, text: "A team copy.", count: nil)
+        try store.execute("UPDATE sources SET team_id = 'team-acme' WHERE id = 'g-team'", [])
+
+        var counts: [String: Int] = [:]
+        var cursor: String?
+        var batches = 0
+        while true {
+            let batch = try store.drainSourceWordCountRepairBatch(after: cursor, limit: 2)
+            guard let last = batch.lastSourceID else { break }
+            counts.merge(batch.counts) { _, new in new }
+            cursor = last
+            batches += 1
+            #expect(batches < 10, "the cursor always moves on")
+            if batches >= 10 { break }
+        }
+
+        #expect(counts == [
+            "a-episode": Self.transcriptWords,
+            "b-episode": 5,
+            "c-lecture": 3,
+            "d-meeting": 3,
+        ])
+        #expect(try Self.wordCount(store, "podcasts", "a-episode") == Int64(Self.transcriptWords))
+        #expect(try Self.wordCount(store, "course_sources", "c-lecture") == 3)
+        #expect(try Self.wordCount(store, "meeting_sources", "d-meeting") == 3)
+        #expect(try Self.wordCount(store, "podcasts", "e-counted") == 3, "a count already there is not touched")
+        #expect(try Self.wordCount(store, "podcasts", "g-team") == nil, "a team copy is its owner's to repair")
+
+        // Nothing is left but the text with no words, which stays uncounted.
+        let again = try store.drainSourceWordCountRepairBatch(after: nil, limit: 50)
+        #expect(again.counts.isEmpty)
+        #expect(again.lastSourceID == "f-blank")
+        #expect(try store.drainSourceWordCountRepairBatch(after: "f-blank", limit: 50).lastSourceID == nil)
+    }
+
+    @Test("the app's repair gives loaded rows the counts it wrote")
+    @MainActor
+    func viewModelRepairUpdatesLoadedRows() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SourceWordCountRepair-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let storage = StorageService(storeRoot: root, syncGeneration: .two)
+        let vm = StudioViewModel(storageService: storage, observeCloudKitChanges: false)
+        var episode = makeArticle(url: "apple-podcast://episode/42", title: "Loaded", sourceType: .podcast)
+        episode.state = .ready
+        try await storage.saveSource(episode)
+        try await storage.saveTranscript(episode.id, Self.transcript)
+        let id = episode.id
+        try await storage.performStoreWork { store in
+            try store.execute("UPDATE podcasts SET word_count = NULL WHERE source_id = ?", [.text(id)])
+        }
+        vm.articles = [episode]
+
+        await vm.runDeferredSourceWordCountRepair()
+
+        #expect(vm.articles.first?.wordCount == Self.transcriptWords)
+        #expect(try await storage.loadPersistedSources(ids: [episode.id]).first?.wordCount == Self.transcriptWords)
+    }
+
+    static func table(for type: StudioSourceType) -> String {
+        switch type {
+        case .podcast: "podcasts"
+        case .course: "course_sources"
+        case .meeting: "meeting_sources"
+        case .video: "videos"
+        default: "articles"
+        }
+    }
+}

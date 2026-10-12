@@ -960,6 +960,17 @@ actor StorageService {
         return try knowledgeStore().storedSoftHyphenRepairQueueCount()
     }
 
+    /// One batch of the word count repair. The counts it wrote are returned so
+    /// the caller can give its in-memory copies the same numbers.
+    func drainSourceWordCountRepairBatch(after cursor: String?, limit: Int = 50) throws -> SourceWordCountRepairBatch {
+        try ensureStoreExists()
+        let batch = try knowledgeStore().drainSourceWordCountRepairBatch(after: cursor, limit: limit)
+        if !batch.counts.isEmpty {
+            scheduleCloudKitSync()
+        }
+        return batch
+    }
+
     /// Returns the sources whose text actually changed, so the caller can drop
     /// its in-memory copies and let them reload from canonical storage.
     func drainPaperFigureMarkdownRepairBatch(limit: Int = 50) throws -> [String] {

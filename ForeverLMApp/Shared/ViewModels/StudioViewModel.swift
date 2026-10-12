@@ -505,6 +505,7 @@ class StudioViewModel {
     /// waits for rather than skips: the launch starts sync only once it is done.
     @ObservationIgnored var storedSoftHyphenRepairTask: Task<Void, Never>?
     @ObservationIgnored var paperFigureMarkdownRepairInFlight = false
+    @ObservationIgnored var sourceWordCountRepairInFlight = false
     @ObservationIgnored var paperFigureImageSweepInFlight = false
     @ObservationIgnored var missingPaperPDFDownloadTask: Task<Void, Never>?
     /// Auto-fetch bookkeeping: every paper that needs a PDF gets one silent
@@ -4107,6 +4108,45 @@ class StudioViewModel {
         if didChange { articles = updatedArticles }
         // The repaired sources lost their full-text rows and embeddings.
         kickSourceEmbeddingIndexing()
+    }
+
+    /// Count the words of every source whose text is stored but whose count is
+    /// missing (`drainSourceWordCountRepairBatch`): 637 podcast transcripts
+    /// read as "no text yet" to the chat catalog and `filter_sources`
+    /// (2026-10-12). A no-op once nothing is missing, so launch and activation
+    /// both run it; activation also counts text another device sent uncounted.
+    func runDeferredSourceWordCountRepair() async {
+        guard !sourceWordCountRepairInFlight else { return }
+        sourceWordCountRepairInFlight = true
+        defer { sourceWordCountRepairInFlight = false }
+        var counts: [String: Int] = [:]
+        var cursor: String?
+        do {
+            while !Task.isCancelled {
+                let batch = try await storage.drainSourceWordCountRepairBatch(after: cursor, limit: 50)
+                guard let last = batch.lastSourceID else { break }
+                counts.merge(batch.counts) { _, new in new }
+                cursor = last
+                await Task.yield()
+            }
+        } catch {
+            logger.error("Deferred word count repair paused: \(error.localizedDescription)")
+        }
+        guard !counts.isEmpty else { return }
+        logger.notice("Counted the words of \(counts.count) source(s) whose stored text had no count")
+        // A loaded row still holds the missing count, and a later save of it
+        // would write that back. Assign once: mutating `articles[index]` runs
+        // the array's didSet and rebuilds the sidebar indexes for every
+        // element touched.
+        var updatedArticles = articles
+        var didChange = false
+        for index in updatedArticles.indices {
+            guard let count = counts[updatedArticles[index].id],
+                  updatedArticles[index].wordCount != count else { continue }
+            updatedArticles[index].wordCount = count
+            didChange = true
+        }
+        if didChange { articles = updatedArticles }
     }
 
     /// Strip the stale figure image links older PDF extraction left in stored

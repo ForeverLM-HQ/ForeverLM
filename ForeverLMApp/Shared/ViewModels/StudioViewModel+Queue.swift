@@ -443,6 +443,7 @@ extension StudioViewModel {
             await self.runDeferredSourceSyncRepair()
             await self.runDeferredSourceTextReferenceRepair()
             await self.runDeferredPaperFigureMarkdownRepair()
+            await self.runDeferredSourceWordCountRepair()
             await self.runDeferredPaperFigureImageSweep()
             await self.runDeferredMemoryScheduleRebuild()
             self.scheduleBookCoverPathPopulation()

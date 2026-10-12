@@ -264,7 +264,7 @@ extension KnowledgeStore {
                 try exec("COMMIT")
                 return false
             }
-            let wordCount = restoredTranscript.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
+            let wordCount = Self.storedWordCount(of: restoredTranscript)
             if let fetchedTTML {
                 try execBind("UPDATE podcasts SET raw_ttml = ?, word_count = ? WHERE source_id = ?") { stmt in
                     self.bind(stmt, 1, fetchedTTML)

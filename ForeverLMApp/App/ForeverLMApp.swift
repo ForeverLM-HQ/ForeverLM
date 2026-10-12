@@ -665,6 +665,7 @@ struct ForeverLMApp: App {
                             await studioViewModel.runDeferredSourceTextReferenceRepair()
                             await studioViewModel.runDeferredStoredSoftHyphenRepair()
                             await studioViewModel.runDeferredPaperFigureMarkdownRepair()
+                            await studioViewModel.runDeferredSourceWordCountRepair()
                             await studioViewModel.runDeferredPaperFigureImageSweep()
                             await studioViewModel.runCanonicalContentCleanup()
                             studioViewModel.kickSourceEmbeddingIndexing()
