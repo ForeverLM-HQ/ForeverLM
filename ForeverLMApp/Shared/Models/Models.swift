@@ -604,6 +604,9 @@ extension AITask {
              // Cards are drafted from, and reworded for, every kind of source,
              // and a mnemonic reading reads a book's chapters or any text.
              .cardDrafting, .cardVariation, .cardGoDeeper, .mnemonicReadingWriting,
+             // A card's answer is checked, and its wording, whatever kind of
+             // source it stands on.
+             .cardAnswerCheck, .cardWordingCheck,
              // A notebook is named from every kind of source it holds.
              .notebookNaming,
              // The Map summarizes clusters of every kind of source.
@@ -692,6 +695,8 @@ extension AITask {
         case .cardDrafting: return Prompts.cardDrafter
         case .cardVariation: return Prompts.cardVariation
         case .cardGoDeeper: return Prompts.goDeeperQuestion
+        case .cardAnswerCheck: return Prompts.cardAnswerCheck
+        case .cardWordingCheck: return Prompts.cardWordingCheck
         case .mnemonicReadingWriting: return Prompts.mnemonicReadingWriter
         case .notebookNaming: return Prompts.notebookNaming
         case .mapSummaries: return Prompts.mapSummaries

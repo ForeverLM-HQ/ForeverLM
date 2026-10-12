@@ -36,7 +36,7 @@ public struct AITaskSettingsDescriptor: Codable, Equatable, Sendable {
 /// IDs are durable `AITask` raw values. The array order is presentation order,
 /// so clients should filter this list rather than sorting their own copies.
 public enum AITaskSettingsCatalog {
-    public static let version = 36
+    public static let version = 37
 
     public static let tasks: [AITaskSettingsDescriptor] = [
         task(
@@ -301,6 +301,19 @@ public enum AITaskSettingsCatalog {
             "Go Deeper",
             "Ask a question that goes past a card you remembered (the principle behind it, where else it applies, what would prove it wrong, or what it is like) and reply to your answer",
             modelDefault: .chat
+        ),
+        // Asked by the learner's Check on a card, and waited for, as Go
+        // Deeper is: the chat's model, not background work.
+        task(
+            "card_answer_check",
+            "Card Answer Check",
+            "Check the answer you typed or said to a card against its back, say what was missing, and suggest Remembered or Forgot",
+            modelDefault: .chat
+        ),
+        task(
+            "card_wording_check",
+            "Card Wording Check",
+            "Check that every card's question and answer stand on their own, naming what they are about rather than \u{201C}this lecture\u{201D} or \u{201C}the paper\u{201D}, and reword one that does not before it is saved"
         ),
         task(
             "mnemonic_reading_writing",
