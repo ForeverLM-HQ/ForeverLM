@@ -222,8 +222,14 @@ struct ScreenRecordModeTests {
             }
             let old = try store.keepMemoryCard(card("old"), sourceID: "filmed", quote: "Readable text", at: before)
             let fresh = try store.keepMemoryCard(card("fresh"), sourceID: "filmed", quote: "Readable text", at: cutoff)
+            // Answered once due (an item is never due on the day it is kept,
+            // and an answer before then is not counted), and forgotten: both
+            // come due again well before the pick, the older one first.
             for item in [old, fresh] {
-                _ = try store.recordSelfGradedMemoryCardAttempt(memoryItemID: item.id, prompt: item.id, remembered: false, sessionKey: item.id, at: item.createdAt)
+                let answeredAt = item.createdAt.addingTimeInterval(86_400 * 2)
+                #expect(try store.recordSelfGradedMemoryCardAttempt(
+                    memoryItemID: item.id, prompt: item.id, remembered: false, sessionKey: item.id, at: answeredAt
+                ) == .recorded)
             }
             ScreenRecordMode.recordAdminStatus(true)
             ScreenRecordMode.setNotebookID(notebook.id)
@@ -232,6 +238,7 @@ struct ScreenRecordModeTests {
             #expect(try store.dueMemoryItems(now: cutoff.addingTimeInterval(86_400 * 10), limit: 1, goalID: nil).map { $0.item.id } == [fresh.id])
             ScreenRecordMode.setEnabled(false)
             #expect(Set(try store.reviewableMemoryItems().items.map(\.id)) == [old.id, fresh.id])
+            #expect(try store.dueMemoryItems(now: cutoff.addingTimeInterval(86_400 * 10), limit: 1, goalID: nil).map { $0.item.id } == [old.id])
         }
     }
 
