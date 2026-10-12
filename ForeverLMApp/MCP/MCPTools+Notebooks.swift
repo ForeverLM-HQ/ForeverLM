@@ -170,8 +170,14 @@ extension MCPDataStore {
                     incremental: false,
                     seedSourceIDs: seeds
                 )
+            } catch is CancellationError {
+                throw CancellationError()
             } catch let error as MCPError {
                 discoveryNote = "\nDiscovery skipped: \(error.errorDescription ?? "unavailable")."
+            } catch {
+                // The Notebook is already made: an embedding, search or SQLite
+                // failure in discovery is reported, never a failed call.
+                discoveryNote = "\nDiscovery skipped: \(error.localizedDescription)."
             }
         }
         // Made from a chat, the Notebook takes that chat in, and the chat's
@@ -398,8 +404,14 @@ extension MCPDataStore {
                     incremental: false
                 )
                 discoveryNote = "\nDiscovered suggestions: \(discovered)."
+            } catch is CancellationError {
+                throw CancellationError()
             } catch let error as MCPError {
                 discoveryNote = "\nDiscovery skipped: \(error.errorDescription ?? "unavailable")."
+            } catch {
+                // The Notebook is already made: an embedding, search or SQLite
+                // failure in discovery is reported, never a failed call.
+                discoveryNote = "\nDiscovery skipped: \(error.localizedDescription)."
             }
         }
 
