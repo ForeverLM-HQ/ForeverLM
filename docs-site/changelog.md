@@ -4,6 +4,12 @@ All notable changes to ForeverLM are documented here. Dates are in YYYY-MM-DD fo
 
 ForeverLM follows [semantic versioning](https://semver.org) against its public surface: the MCP tool contracts, the knowledge-base/sync format, and licensing compatibility. While the version is 0.x, minor releases may include breaking changes to that surface; patch releases never do.
 
+## 0.143.2 (build 220) — 2026-10-12
+
+**Highlights:**
+- **Every list in the Space is laid out the same way**: its name, the search, one pill named for what it holds, and the same row of filters.
+- **Start Pomodoro Timer… asks what the session is for**, and names the session after it.
+
 ## 0.143.1 (build 219) — 2026-10-12
 
 **Highlights:**
