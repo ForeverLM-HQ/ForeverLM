@@ -191,6 +191,13 @@ enum SpaceDestination: Hashable, Sendable {
         self == .canvases ? "Beta" : nil
     }
 
+    /// What the badge means, shown when the pointer rests on it (product
+    /// owner, 2026-10-12: "we are actively developing the canvases feature
+    /// to make it look and feel nice"); nil where there is no badge.
+    var badgeNote: String? {
+        self == .canvases ? "We're actively developing Canvases to make them look and feel right." : nil
+    }
+
     /// The Pages home's kind a place opens in a pane of its own, for the
     /// row's drag to an edge and its Open Beside; nil for a place with no
     /// pane of its own.
@@ -645,6 +652,7 @@ struct SpaceSidebar: View {
             isSelected: selection == place,
             accessibilityIdentifier: "space.sidebar.\(place.key)",
             badge: place.badge,
+            badgeNote: place.badgeNote,
             action: { onSelect(place) }
         ) {
             placeIcon(place)
@@ -1069,6 +1077,8 @@ struct SpaceSidebarRow<Icon: View, Trailing: View>: View {
     var accessibilityIdentifier: String? = nil
     /// A small green tag after the title, always shown (`SpaceDestination.badge`).
     var badge: String? = nil
+    /// What the badge means, its tooltip and the row's.
+    var badgeNote: String? = nil
     let action: () -> Void
     @ViewBuilder let icon: () -> Icon
     @ViewBuilder let trailing: () -> Trailing
@@ -1110,10 +1120,19 @@ struct SpaceSidebarRow<Icon: View, Trailing: View>: View {
                 .opacity(isHovering ? 1 : 0)
         }
         .onHover { isHovering = $0 }
-        .help(badge.map { "\(title) (\($0))" } ?? title)
+        .help(rowHelp)
         .accessibilityLabel(badge.map { "\(title), \($0)" } ?? title)
+        .accessibilityHint(badgeNote ?? "")
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
         .accessibilityIdentifier(accessibilityIdentifier ?? "")
+    }
+
+    /// The row's tooltip: its name, and with a badge the badge and what it
+    /// means, so the note shows wherever on the row the pointer rests.
+    private var rowHelp: String {
+        guard let badge else { return title }
+        guard let badgeNote else { return "\(title) (\(badge))" }
+        return "\(title) (\(badge)): \(badgeNote)"
     }
 }
 
