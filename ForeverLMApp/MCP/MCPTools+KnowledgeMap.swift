@@ -790,6 +790,8 @@ extension MCPDataStore {
     @MainActor
     static func knowledgeMapSnapshot(includeUnplaced: Bool, limit: Int) async throws -> [String: Any] {
         let (studio, map) = try await preparedMap(opening: false)
+        // A notebook frame's takeaways come from the summary cache.
+        await map.summaryCacheLoaded()
         let layout = map.layout
         let placedRefs = layout.placements.keys.filter { map.nodesByRef[$0] != nil }.sorted { map.title(of: $0) < map.title(of: $1) }
         var byRegion: [String: [String]] = [:]

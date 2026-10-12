@@ -41,8 +41,29 @@ enum PreferenceStore {
     /// - SwiftUI views reading through the storage wrapper refresh off this.
     static let didChangeRemotely = Notification.Name("foreverlmPreferencesDidChangeRemotely")
 
+    /// Posted on the main thread after this Mac's own write through the façade
+    /// changed a preference: `set`, `remove`, and `mirrorExternalWrite` (a
+    /// `SyncedStorage` binding). The payload is the changed key set under
+    /// `changedKeysKey`, as for `didChangeRemotely`.
+    ///
+    /// Between them the two notifications name every preference change, so a
+    /// reader of one key listens to both and reads its key only when it is named
+    /// (`PreferenceKeyWatcher`). `UserDefaults.didChangeNotification` is no
+    /// substitute: it fires for every defaults write in the process (window
+    /// frames, Sparkle's check dates), and a handler that reads defaults there
+    /// makes CFPreferences re-merge and re-diff the whole domain after each one.
+    static let didChangeLocally = Notification.Name("foreverlmPreferencesDidChangeLocally")
+
     /// `userInfo` key holding a `Set<String>` of the keys that changed.
     static let changedKeysKey = "changedKeys"
+
+    /// Whether a `didChangeLocally` or `didChangeRemotely` notification may have
+    /// changed `key`. A missing or empty key set means anything may have changed:
+    /// the generation-2 projections that cannot name their keys post that.
+    static func notification(_ notification: Notification, mayHaveChanged key: String) -> Bool {
+        guard let keys = notification.userInfo?[changedKeysKey] as? Set<String>, !keys.isEmpty else { return true }
+        return keys.contains(key)
+    }
 
     // MARK: - Local writes
 
@@ -64,6 +85,7 @@ enum PreferenceStore {
         defaults.set(value, forKey: key)
         recordWrite(key, value)
         enqueueSync(key: key, value: value)
+        postLocalChange(key)
     }
 
     /// Clear a preference and queue the deletion for sync.
@@ -73,6 +95,20 @@ enum PreferenceStore {
         defaults.removeObject(forKey: key)
         recordWrite(key, nil)
         enqueueSync(key: key, value: nil)
+        postLocalChange(key)
+    }
+
+    /// Announces a local write on the main thread, hopping only when the caller
+    /// is elsewhere, for the reason `postRemoteChange` gives.
+    private static func postLocalChange(_ key: String) {
+        let post = {
+            NotificationCenter.default.post(name: didChangeLocally, object: nil, userInfo: [changedKeysKey: Set([key])])
+        }
+        if Thread.isMainThread {
+            post()
+        } else {
+            DispatchQueue.main.async(execute: post)
+        }
     }
 
     // MARK: - Inbound (remote) writes
@@ -336,6 +372,7 @@ enum PreferenceStore {
     /// back rather than taking it as a parameter so the persisted value is exactly
     /// what `AppStorage` stored, including its type bridging.
     static func mirrorExternalWrite(forKey key: String) {
+        defer { postLocalChange(key) }
         guard SyncedPreferenceKeys.isSynced(key) else { return }
         let value = UserDefaults.standard.object(forKey: key)
         recordWrite(key, value)
@@ -494,6 +531,72 @@ enum PreferenceStore {
         }
     }
     #endif
+}
+
+/// Calls back when one preference's value changes, whoever changed it: this
+/// Mac's own writes through `PreferenceStore` (the Settings switch, an MCP
+/// `set_app_setting`, a `SyncedStorage` binding), announced as
+/// `didChangeLocally`, and another device's, applied by `applyInbound` and
+/// announced as `didChangeRemotely`.
+///
+/// It reads the value only when a notification names its key (or names none,
+/// meaning anything may have changed), never on
+/// `UserDefaults.didChangeNotification`. That one fires for every defaults write
+/// in the process, and the first read after a write makes CFPreferences re-merge
+/// the domain and diff it for KVO observers: about 45 ms on the main thread with
+/// build 210's 2.4 MB preferences file, paid after every window-frame save and
+/// Sparkle check date by the beta sign-up check that used to listen there (137
+/// samples across six production stall files, 2026-10-11).
+///
+/// Whoever reads first after a write pays that diff, and other readers remain
+/// (each `SyncedStorageObserver` reads its key on that notification), so what
+/// makes the read cheap is a smaller domain (`RetiredDefaultsCleanup`); this
+/// keeps the beta check from adding a read of its own to every write.
+///
+/// Not actor-isolated, like `SyncedStorageObserver`: its observers run on the
+/// main queue, and its owner reads `value` there.
+final class PreferenceKeyWatcher<Value: Equatable> {
+    let key: String
+    /// The value as last read.
+    private(set) var value: Value
+
+    private let read: () -> Value
+    private let onChange: (Value) -> Void
+    private let center: NotificationCenter
+    private var tokens: [NSObjectProtocol] = []
+
+    init(
+        key: String,
+        center: NotificationCenter = .default,
+        read: @escaping () -> Value,
+        onChange: @escaping (Value) -> Void
+    ) {
+        self.key = key
+        self.center = center
+        self.read = read
+        self.onChange = onChange
+        value = read()
+        for name in [PreferenceStore.didChangeLocally, PreferenceStore.didChangeRemotely] {
+            tokens.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] notification in
+                guard let self, PreferenceStore.notification(notification, mayHaveChanged: self.key) else { return }
+                self.check()
+            })
+        }
+    }
+
+    deinit {
+        for token in tokens {
+            center.removeObserver(token)
+        }
+    }
+
+    /// Reads the value and calls back when it differs from the one last read.
+    func check() {
+        let current = read()
+        guard current != value else { return }
+        value = current
+        onChange(current)
+    }
 }
 
 /// The synced keys whose `UserDefaults` value knowledge.db has not confirmed.

@@ -520,6 +520,7 @@ enum SyncedPreferenceKeys {
         "keychain.retiredProductFileVaultAdopted": "one-shot adoption marker",
         "retiredReminderNotificationsCleared.v1": "one-shot cleanup marker",
         RetiredQuestionCalibration.clearedKey: "one-shot cleanup marker",
+        RetiredDefaultsCleanup.completionKey: "one-shot cleanup marker: this Mac's preferences hold no retired keys",
         // Synced until 2026-09-27: the question calibration the chat's thumbs
         // fed. Nothing reads it, and `RetiredQuestionCalibration` clears the
         // stored copy once; excluded so an older Mac writing it again never

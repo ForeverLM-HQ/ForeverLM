@@ -449,9 +449,9 @@ final class AppUpdateController: NSObject, ObservableObject {
     /// build shown as before.
     private static let feedReadTimeout: TimeInterval = 8
     private static let logger = Logger(subsystem: "com.foreverlm", category: "AppUpdate")
-    /// The sign-up as last seen, so a defaults change that is not this key
-    /// costs one comparison.
-    private var betaReleasesSignedUp = BetaReleases.isSignedUp
+    /// The sign-up as last read, read again only when a preference change
+    /// names its key (`PreferenceKeyWatcher`).
+    private var betaSignupWatcher: PreferenceKeyWatcher<Bool>?
     #endif
 
     override init() {
@@ -645,24 +645,22 @@ final class AppUpdateController: NSObject, ObservableObject {
         ) { [weak self] _ in
             self?.checkForUpdatesOnActivity()
         }
+        activityObservers = [activated, woke]
         // Signing up for beta releases, here, from MCP or on another Mac,
         // changes which builds the feed offers, so it asks at once rather
         // than at the next activation or hour. Signing out asks too: a pill
         // offering a beta build should fall back to what production offers.
-        let defaultsChanged = NotificationCenter.default.addObserver(
-            forName: UserDefaults.didChangeNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.checkForUpdatesIfBetaSignupChanged()
+        // The watcher hears the preference store name the key; it never reads
+        // defaults on the other writes the process makes.
+        betaSignupWatcher = PreferenceKeyWatcher(
+            key: BetaReleases.preferenceKey,
+            read: { BetaReleases.isSignedUp }
+        ) { [weak self] signedUp in
+            self?.checkForUpdatesAfterBetaSignupChange(signedUp)
         }
-        activityObservers = [activated, woke, defaultsChanged]
     }
 
-    private func checkForUpdatesIfBetaSignupChanged() {
-        let signedUp = BetaReleases.isSignedUp
-        guard signedUp != betaReleasesSignedUp else { return }
-        betaReleasesSignedUp = signedUp
+    private func checkForUpdatesAfterBetaSignupChange(_ signedUp: Bool) {
         Self.logger.notice("Beta releases \(signedUp ? "on" : "off", privacy: .public); checking the feed again")
         guard let updater, updater.canCheckForUpdates else { return }
         switch phase {
