@@ -7324,8 +7324,7 @@ struct MCPDataStoreTests {
             "generate_source_audio", "import_teachable_course", "ingest_lecture_papers",
             "scan_meeting_for_mentioned_papers", "scan_article_for_linked_sources",
             "extract_paper_metadata", "extract_article_metadata",
-            "import_paper_from_url", "import_local_pdf_as_paper", "import_connector_paper", "import_video_cited_paper",
-            "import_local_file",
+            "import_paper_from_url", "import_connector_paper", "import_video_cited_paper",
             "make_article_reading_view",
         ])
         for name in [
@@ -7338,6 +7337,7 @@ struct MCPDataStoreTests {
             "generate_course", "add_course_quiz_pictures", "add_textbook_to_course", "generate_explainer",
             "transcribe_meeting_recording", "fetch_video_transcript", "scan_video_for_cited_papers",
             "find_lecture_papers", "download_papers_needing_attention", "recheck_paywalled_papers",
+            "import_local_pdf_as_paper", "import_local_file",
         ] {
             #expect(MCPToolRegistry.selfGatedToolNames.contains(name), "\(name) should gate only its own store stretches")
         }
@@ -14100,6 +14100,222 @@ struct MCPLocalFileImportRouteTests {
         #expect(MCPToolRegistry.shared.tools.contains { $0.name == "import_local_file" })
         #expect(MCPToolRegistry.paidWorkToolNames.contains("import_local_file"))
         #expect(!MCPToolRegistry.isToolAllowed("import_local_file", scope: .ingest))
+    }
+}
+
+/// On 2026-10-12 seven `import_local_pdf_as_paper` calls sent together held
+/// the store alone one after another, a minute or more each; three clients
+/// timed out, a `filter_sources` waited behind them, and a call cancelled
+/// during Source Content Cleanup deleted the PDF of the paper it had just
+/// saved, which then read "PDF needed" with no content.
+@Suite("A local PDF imported as a paper")
+struct MCPLocalPaperImportTests {
+    private static let paperText = "Phase separated droplets concentrate enzymes with their substrates, and the cell tunes them by temperature and salt."
+
+    private func makeStore() throws -> (MCPDataStore, URL) {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("mcp_local_paper_\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let store = MCPDataStore(dbPath: dir.appendingPathComponent("knowledge.db").path)
+        _ = try store.knowledgeStore()
+        return (store, dir)
+    }
+
+    /// One US-letter page per string, drawn with CoreText so PDFKit reads the
+    /// words back; an empty string is a blank page.
+    private func writePDF(_ pages: [String], to url: URL) throws {
+        var mediaBox = CGRect(x: 0, y: 0, width: 612, height: 792)
+        guard let context = CGContext(url as CFURL, mediaBox: &mediaBox, nil) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        for text in pages {
+            context.beginPDFPage(nil)
+            if !text.isEmpty {
+                let line = CTLineCreateWithAttributedString(NSAttributedString(
+                    string: text,
+                    attributes: [.font: CTFontCreateWithName("Helvetica" as CFString, 10, nil)]
+                ))
+                context.textPosition = CGPoint(x: 36, y: 700)
+                CTLineDraw(line, context)
+            }
+            context.endPDFPage()
+        }
+        context.closePDF()
+    }
+
+    private func stage(_ store: MCPDataStore, pages: [String], in dir: URL) async throws -> MCPDataStore.StagedLocalPaper {
+        let pdf = dir.appendingPathComponent("Droplets.pdf")
+        try writePDF(pages, to: pdf)
+        guard case .staged(let staged) = try await store.stageLocalPDFAsPaper(filePath: pdf.path, title: "Droplets in the cell") else {
+            throw MCPError.invalidInput("the PDF was taken for a paper the library already held")
+        }
+        return staged
+    }
+
+    private func pdfIsOnDisk(_ article: StudioArticle, in dir: URL) -> Bool {
+        guard let relative = article.localFilePath else { return false }
+        return FileManager.default.fileExists(atPath: dir.appendingPathComponent(relative).path)
+    }
+
+    @Test("The paper is saved with its PDF and its text before any model reads it")
+    func stagedPaperIsSavedWithItsPDF() async throws {
+        let (store, dir) = try makeStore()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let staged = try await stage(store, pages: [Self.paperText], in: dir)
+
+        let saved = try #require(try store.knowledgeStore().loadSourceForSync(staged.article.id))
+        #expect(saved.sourceType == .paper)
+        #expect(saved.title == "Droplets in the cell")
+        #expect(saved.state == .queued)
+        #expect(saved.requiresPaperMetadataAI, "the Paper Metadata model has not read it yet")
+        #expect(saved.localFilePath == "Papers/Droplets.pdf")
+        #expect(pdfIsOnDisk(saved, in: dir))
+        let raw = try store.knowledgeStore().loadPaperContentPreparation(saved.id)?.raw
+        #expect(raw?.contains("Phase separated droplets") == true)
+        #expect(staged.firstPageText.contains("Phase separated droplets"))
+
+        // Staging held the store only around its own match and save.
+        await store.acquireToolOperation(.exclusive)
+        await store.releaseToolOperation()
+    }
+
+    @Test("A read that fails is saved on the paper, which keeps its PDF")
+    func failedReadKeepsThePDF() async throws {
+        let (store, dir) = try makeStore()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        // A blank first page fails the metadata step before any model call.
+        let staged = try await stage(store, pages: ["", Self.paperText], in: dir)
+        #expect(staged.firstPageText.isEmpty)
+
+        do {
+            _ = try await store.finishStagedLocalPaper(staged)
+            Issue.record("a paper with no first-page text was read")
+        } catch {
+            #expect(error.localizedDescription.contains("no readable paper text"))
+            #expect(error.localizedDescription.contains("stays in the library with its PDF (id: \(staged.article.id))"))
+        }
+        let saved = try #require(try store.knowledgeStore().loadSourceForSync(staged.article.id))
+        #expect(saved.state == .error)
+        #expect(saved.errorMessage?.contains("no readable paper text") == true)
+        #expect(pdfIsOnDisk(saved, in: dir), "the failure took the PDF away from the paper")
+    }
+
+    @Test("A stopped read leaves the paper pending with its PDF, not failed")
+    func stoppedReadLeavesThePaperPending() async throws {
+        let (store, dir) = try makeStore()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let staged = try await stage(store, pages: [Self.paperText], in: dir)
+
+        await #expect(throws: CancellationError.self) {
+            _ = try await store.finishStagedLocalPaper(staged) { _, _ in throw CancellationError() }
+        }
+        let saved = try #require(try store.knowledgeStore().loadSourceForSync(staged.article.id))
+        #expect(saved.state == .queued)
+        #expect(saved.errorMessage == nil)
+        #expect(saved.requiresPaperMetadataAI, "the app's own metadata pass finishes it")
+        #expect(pdfIsOnDisk(saved, in: dir), "a stopped import took the PDF away from the paper it saved")
+    }
+
+    @Test("Another call takes the store, even alone, while a paper's models read it")
+    func readingHoldsNoGate() async throws {
+        let (store, dir) = try makeStore()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let staged = try await stage(store, pages: [Self.paperText], in: dir)
+
+        let entered = MCPTestSignal()
+        let release = MCPTestSignal()
+        let finishing = Task {
+            try await store.finishStagedLocalPaper(staged) { article, firstPage in
+                await entered.signal()
+                await release.wait()
+                #expect(firstPage.contains("Phase separated droplets"))
+                article.title = "Droplets, read"
+                article.author = "Zara Holt"
+                _ = article.attestPaperMetadataExtractionAfterLLM()
+                return "read by the test"
+            }
+        }
+        await entered.wait()
+
+        // A writer waits for every holder of the gate, so being let in while
+        // the models read shows the read holds nothing.
+        let admitted = MCPTestSignal()
+        let writer = Task {
+            await store.acquireToolOperation(.exclusive)
+            await admitted.signal()
+        }
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(await admitted.hasSignaled, "a call waited behind a paper's models")
+        await release.signal()
+        await writer.value
+        await store.releaseToolOperation()
+
+        let outcome = try await finishing.value
+        #expect(outcome.sourceID == staged.article.id)
+        #expect(outcome.message.contains("read by the test"))
+        let saved = try #require(try store.knowledgeStore().loadSourceForSync(staged.article.id))
+        #expect(saved.title == "Droplets, read")
+        #expect(saved.hasPaperIngestionAttestation)
+        #expect(pdfIsOnDisk(saved, in: dir))
+    }
+
+    @Test("Read in the background, a paper answers with a work_id listed until it is saved")
+    func backgroundReadingIsListedRunningWork() async throws {
+        let (store, dir) = try makeStore()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let staged = try await stage(store, pages: [Self.paperText], in: dir)
+
+        let release = MCPTestSignal()
+        let workID = store.startStagedLocalPaperReading(
+            staged,
+            tool: "import_local_pdf_as_paper",
+            spendLimitUSD: nil
+        ) { article, _ in
+            await release.wait()
+            article.author = "Zara Holt"
+            _ = article.attestPaperMetadataExtractionAfterLLM()
+            return "read in the background"
+        }
+        #expect(workID.hasPrefix("task-"))
+        let entry = try #require(MCPRunningWork.shared.snapshot.first { $0.id == workID })
+        #expect(entry.tool == "import_local_pdf_as_paper")
+        #expect(entry.kind == .background)
+        #expect(entry.spendLimitUSD == MCPRunningWork.defaultSpendLimitUSD)
+
+        await release.signal()
+        for _ in 0..<100 where MCPRunningWork.shared.snapshot.contains(where: { $0.id == workID }) {
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        #expect(!MCPRunningWork.shared.snapshot.contains { $0.id == workID })
+        let saved = try #require(try store.knowledgeStore().loadSourceForSync(staged.article.id))
+        #expect(saved.hasPaperIngestionAttestation)
+    }
+
+    @Test("The waiting line lets its width through and hands each place on in turn")
+    func waitingLineHandsPlacesOn() async throws {
+        let line = MCPWaitingLine(width: 2)
+        await line.enter()
+        await line.enter()
+        let third = MCPTestSignal()
+        let waiter = Task {
+            await line.enter()
+            await third.signal()
+        }
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(!(await third.hasSignaled))
+        #expect(await line.waitingCount == 1)
+        await line.leave()
+        await waiter.value
+        #expect(await third.hasSignaled)
+        #expect(await line.waitingCount == 0)
+    }
+
+    @Test("The paper imports gate only their own store stretches")
+    func paperImportsAreSelfGated() {
+        for name in ["import_local_pdf_as_paper", "import_local_file"] {
+            #expect(MCPToolRegistry.selfGatedToolNames.contains(name), "\(name)")
+            #expect(MCPToolRegistry.paidWorkToolNames.contains(name), "\(name)")
+        }
     }
 }
 

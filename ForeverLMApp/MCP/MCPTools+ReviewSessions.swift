@@ -2662,7 +2662,7 @@ extension MCPDataStore {
                 firstPageText: firstPageText
             )
         } catch {
-            try? FileManager.default.removeItem(at: destination)
+            await discardUnsavedPaperPDF(destination, sourceID: article.id)
             throw error
         }
 
@@ -4932,15 +4932,85 @@ extension MCPDataStore {
         }
     }
 
+    /// A local PDF on its way in as a new paper: copied into the Papers folder
+    /// and saved there as a pending paper, its Paper Metadata and Source
+    /// Content Cleanup still to run.
+    struct StagedLocalPaper {
+        var article: StudioArticle
+        let destination: URL
+        let firstPageText: String
+        /// The sentence `importDocumentMarks` returned for the PDF's own marks.
+        let marks: String
+    }
+
+    /// What staging a local PDF came to.
+    enum LocalPaperStaging {
+        /// Nothing left to read: the library already held the paper, or a
+        /// paper it held without a PDF took this one.
+        case settled(PaperImportOutcome)
+        case staged(StagedLocalPaper)
+    }
+
+    /// What reads a staged paper: the Paper Metadata model and Source Content
+    /// Cleanup (`extractRequiredPaperMetadataWithAI`) unless a test hands in
+    /// its own. It fills in the article and answers with its status line.
+    typealias StagedPaperReader = (inout StudioArticle, String) async throws -> String
+
     /// Import a local PDF file from disk as a NEW paper source (copies into the synced
     /// Papers folder, extracts text). For attaching to an existing paper use attach_pdf_to_paper.
+    ///
+    /// The paper is saved with its PDF before any model reads it, as the app's
+    /// own import saves its pending row, and a failure is saved on it rather
+    /// than the PDF being taken back. On 2026-10-12 a call whose client timed
+    /// out was cancelled during Source Content Cleanup: the metadata step had
+    /// saved the paper as pending, and this function then deleted the PDF it
+    /// had just copied, leaving a paper reading "PDF needed" with no content.
     func importLocalPDFAsPaperOutcome(
         filePath: String,
         title: String?,
         canonicalURL: String? = nil,
         connectorLabel: String? = nil
     ) async throws -> PaperImportOutcome {
-        let store = try knowledgeStore()
+        switch try await stageLocalPDFAsPaper(
+            filePath: filePath,
+            title: title,
+            canonicalURL: canonicalURL,
+            connectorLabel: connectorLabel
+        ) {
+        case .settled(let outcome):
+            return outcome
+        case .staged(let staged):
+            return try await finishStagedLocalPaper(staged)
+        }
+    }
+
+    /// `importLocalPDFAsPaperOutcome`'s answer alone.
+    func importLocalPDFAsPaper(
+        filePath: String,
+        title: String?,
+        canonicalURL: String? = nil,
+        connectorLabel: String? = nil
+    ) async throws -> String {
+        try await importLocalPDFAsPaperOutcome(
+            filePath: filePath,
+            title: title,
+            canonicalURL: canonicalURL,
+            connectorLabel: connectorLabel
+        ).message
+    }
+
+    /// The half of a local PDF's import that needs no model: the file checked,
+    /// matched against the papers the library holds (by its provenance URL or
+    /// its DOI), copied into the Papers folder and read, then saved as a
+    /// pending paper together with its PDF's own highlights. The store is
+    /// held only for the match and the save, so the copy and the text
+    /// extraction of a long PDF queue nobody.
+    func stageLocalPDFAsPaper(
+        filePath: String,
+        title: String?,
+        canonicalURL: String? = nil,
+        connectorLabel: String? = nil
+    ) async throws -> LocalPaperStaging {
         let path = filePath.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !path.isEmpty else { throw MCPError.invalidInput("file_path is required.") }
         let fileURL = try validateClientProvidedPath(path)
@@ -4951,30 +5021,21 @@ extension MCPDataStore {
             throw MCPError.invalidInput("Could not read PDF: \(path)")
         }
 
-        if let canonicalURL {
-            let normalized = URLNormalizer.normalize(canonicalURL)
-            if let existing = store.sourceExistsByNormalizedURL(normalized) ?? store.sourceExistsByURL(canonicalURL) {
-                if let adopted = try await adoptPDFForExistingPaper(id: existing.id, stagedPDF: fileURL, attachedFrom: fileURL.path) {
-                    return PaperImportOutcome(message: adopted, sourceID: existing.id)
-                }
-                return PaperImportOutcome(message: "Source already exists (id: \(existing.id), status: \(existing.status.rawValue))", sourceID: existing.id)
-            }
-        }
-
         let doi = Self.extractDOIFromPDF(at: fileURL.path).map(Self.normalizeDOI)
-        if let doi, let existing = try existingPaperByDOI(doi) {
-            // The same paper, listed but unread — paywalled, or its PDF gone —
-            // takes this file rather than turning it away.
-            if let adopted = try await adoptPDFForExistingPaper(id: existing.id, stagedPDF: fileURL, attachedFrom: fileURL.path) {
-                return PaperImportOutcome(message: adopted, sourceID: existing.id)
-            }
-            return PaperImportOutcome(message: "Paper already exists for DOI \(doi) (id: \(existing.id)).", sourceID: existing.id)
+        if let settled = try await settleLocalPDFForExistingPaper(fileURL: fileURL, canonicalURL: canonicalURL, doi: doi) {
+            return .settled(settled)
         }
         let baseName = doi.map { Self.safeFilenameBase($0.replacingOccurrences(of: "/", with: "-")) }
             ?? Self.safeFilenameBase(fileURL.deletingPathExtension().lastPathComponent)
         let destination = try copyFileIntoContentRoot(fileURL, folder: "Papers", baseName: baseName, fallbackExtension: "pdf")
 
-        let pdfText = try SourceService.shared.extractTextFromPDF(at: destination.path)
+        let pdfText: String
+        do {
+            pdfText = try SourceService.shared.extractTextFromPDF(at: destination.path)
+        } catch {
+            try? FileManager.default.removeItem(at: destination)
+            throw error
+        }
         let relativePath = relativeSourceContentPath(destination) ?? StorageService.relativeSourcePath(destination.path)
         let resolvedTitle = Self.nilIfBlank(title ?? "")
             ?? Self.extractPDFTitle(from: destination.path)
@@ -4998,35 +5059,207 @@ extension MCPDataStore {
         article.isPaywalled = false
         article.doi = doi
         let firstPageText = PDFDocument(url: destination)?.page(at: 0)?.string ?? ""
-        let metadataStatus: String
+
+        let pending = article
+        let saved: (settled: PaperImportOutcome?, marks: String)
         do {
-            metadataStatus = try await extractRequiredPaperMetadataWithAI(
-                article: &article,
-                firstPageText: firstPageText
-            )
+            saved = try await withStoreGate(.exclusive) { () async throws -> (settled: PaperImportOutcome?, marks: String) in
+                // Another call may have brought in the same paper while this
+                // one copied and read the file.
+                if let settled = try await settleLocalPDFForExistingPaper(fileURL: fileURL, canonicalURL: canonicalURL, doi: doi) {
+                    return (settled, "")
+                }
+                try knowledgeStore().saveSource(pending)
+                return (nil, importDocumentMarks(sourceID: pending.id, pdfPath: destination.path))
+            }
         } catch {
             try? FileManager.default.removeItem(at: destination)
             throw error
         }
-
-        try store.saveSource(article)
-        let marks = importDocumentMarks(sourceID: article.id, pdfPath: destination.path)
-        return PaperImportOutcome(message: "Imported local PDF as paper '\(article.title)' (id: \(article.id), \(article.wordCount ?? 0) words; \(metadataStatus)).\(marks)", sourceID: article.id)
+        if let settled = saved.settled {
+            try? FileManager.default.removeItem(at: destination)
+            return .settled(settled)
+        }
+        return .staged(StagedLocalPaper(
+            article: article,
+            destination: destination,
+            firstPageText: firstPageText,
+            marks: saved.marks
+        ))
     }
 
-    /// `importLocalPDFAsPaperOutcome`'s answer alone.
-    func importLocalPDFAsPaper(
+    /// The paper the library already holds for a local PDF, by the PDF's
+    /// provenance URL or its DOI, and what became of the PDF: a paper listed
+    /// without one (paywalled, or its PDF gone) takes it, any other answers
+    /// that it already exists. Nil when the paper is new.
+    private func settleLocalPDFForExistingPaper(
+        fileURL: URL,
+        canonicalURL: String?,
+        doi: String?
+    ) async throws -> PaperImportOutcome? {
+        try await withStoreGate(.exclusive) {
+            let store = try knowledgeStore()
+            if let canonicalURL {
+                let normalized = URLNormalizer.normalize(canonicalURL)
+                if let existing = store.sourceExistsByNormalizedURL(normalized) ?? store.sourceExistsByURL(canonicalURL) {
+                    if let adopted = try await adoptPDFForExistingPaper(id: existing.id, stagedPDF: fileURL, attachedFrom: fileURL.path) {
+                        return PaperImportOutcome(message: adopted, sourceID: existing.id)
+                    }
+                    return PaperImportOutcome(message: "Source already exists (id: \(existing.id), status: \(existing.status.rawValue))", sourceID: existing.id)
+                }
+            }
+            if let doi, let existing = try existingPaperByDOI(doi) {
+                // The same paper, listed but unread — paywalled, or its PDF gone —
+                // takes this file rather than turning it away.
+                if let adopted = try await adoptPDFForExistingPaper(id: existing.id, stagedPDF: fileURL, attachedFrom: fileURL.path) {
+                    return PaperImportOutcome(message: adopted, sourceID: existing.id)
+                }
+                return PaperImportOutcome(message: "Paper already exists for DOI \(doi) (id: \(existing.id)).", sourceID: existing.id)
+            }
+            return nil
+        }
+    }
+
+    /// The half of a local PDF's import that the models do: Paper Metadata
+    /// and Source Content Cleanup on the staged paper, then its save. It holds
+    /// the store only for its reads and writes, never across a model call.
+    /// Whatever stops it, the paper keeps its PDF: a failure is saved on the
+    /// paper (Papers that need attention shows it, extract_paper_metadata
+    /// retries it), and a stopped read leaves it pending for the app's own
+    /// metadata pass to finish.
+    func finishStagedLocalPaper(
+        _ staged: StagedLocalPaper,
+        reader: StagedPaperReader? = nil
+    ) async throws -> PaperImportOutcome {
+        var article = staged.article
+        let metadataStatus: String
+        do {
+            if let reader {
+                metadataStatus = try await reader(&article, staged.firstPageText)
+            } else {
+                metadataStatus = try await extractRequiredPaperMetadataWithAI(
+                    article: &article,
+                    firstPageText: staged.firstPageText
+                )
+            }
+        } catch {
+            try? await saveFinishedLocalPaper(article)
+            if Task.isCancelled || AITransientErrorClassifier.isCancellation(error) { throw error }
+            throw MCPError.invalidInput(
+                "\(error.localizedDescription) The paper '\(article.title)' stays in the library with its PDF (id: \(article.id)), marked with this failure; extract_paper_metadata retries it."
+            )
+        }
+        try await saveFinishedLocalPaper(article)
+        return PaperImportOutcome(
+            message: "Imported local PDF as paper '\(article.title)' (id: \(article.id), \(article.wordCount ?? 0) words; \(metadataStatus)).\(staged.marks)",
+            sourceID: article.id
+        )
+    }
+
+    /// Saves what the models made of a staged paper, holding the store alone
+    /// for the write only. A paper deleted while they read it is not written
+    /// back.
+    private func saveFinishedLocalPaper(_ article: StudioArticle) async throws {
+        try await withStoreGate(.exclusive) {
+            let store = try knowledgeStore()
+            guard try store.loadSourceForSync(article.id) != nil else {
+                throw MCPError.notFound("The paper '\(article.title)' was deleted while its metadata was read, so nothing was saved to it.")
+            }
+            try store.saveSource(article)
+        }
+    }
+
+    /// Removes a PDF an import copied into the Papers folder for a paper it
+    /// could not finish, unless the paper was saved with it meanwhile: the
+    /// metadata step saves a stopped paper as pending, and a PDF taken away
+    /// under it leaves a paper reading "PDF needed". When the store cannot
+    /// say, the file stays.
+    func discardUnsavedPaperPDF(_ destination: URL, sourceID: String) async {
+        let saved = (try? await withStoreGate(.shared) {
+            try knowledgeStore().loadSourceForSync(sourceID) != nil
+        }) ?? true
+        guard !saved else { return }
+        try? FileManager.default.removeItem(at: destination)
+    }
+
+    // MARK: - A local paper in the background
+
+    /// At most this many local papers are read by the models at once. An
+    /// assistant importing a folder sends its PDFs together; each answers as
+    /// soon as it is staged, and the rest wait their turn here rather than
+    /// asking the learner's models for a dozen cleanups at once.
+    nonisolated static let localPaperReadingLine = MCPWaitingLine(width: 3)
+
+    /// `import_local_pdf_as_paper` and `import_local_file`'s paper route:
+    /// the paper is staged at once (in the library with its PDF) and read by
+    /// the models in the background, so the call answers in seconds with the
+    /// paper's id and the work's id. Before 2026-10-12 the call held the
+    /// store alone for the whole read, a minute or more a paper: seven
+    /// imports sent together ran one after another, every other call waited
+    /// behind them, and the later imports' clients timed out.
+    func importLocalPDFAsPaperInBackground(
         filePath: String,
         title: String?,
-        canonicalURL: String? = nil,
-        connectorLabel: String? = nil
+        tool: String,
+        approvedSpendUSD: Double?
     ) async throws -> String {
-        try await importLocalPDFAsPaperOutcome(
-            filePath: filePath,
-            title: title,
-            canonicalURL: canonicalURL,
-            connectorLabel: connectorLabel
-        ).message
+        // Nothing could read the paper: say so now rather than after the answer.
+        guard KeychainService.resolveConfig(for: .paperMetadata) != nil else {
+            let reason = KeychainService.backgroundAIUnavailableMessage(for: .paperMetadata)
+                ?? "Paper Metadata AI is not configured. Sign in with Apple in ForeverLM and configure the Paper Metadata task."
+            throw MCPError.invalidInput("Paper ingestion failed: \(reason)")
+        }
+        switch try await stageLocalPDFAsPaper(filePath: filePath, title: title) {
+        case .settled(let outcome):
+            return outcome.message
+        case .staged(let staged):
+            let workID = startStagedLocalPaperReading(staged, tool: tool, spendLimitUSD: approvedSpendUSD)
+            let article = staged.article
+            return """
+            Imported local PDF as paper '\(article.title)' (id: \(article.id), \(article.wordCount ?? 0) words): it is in the library with its PDF. The Paper Metadata model and Source Content Cleanup read it in the background, usually within a minute or two.\(staged.marks)
+            work_id: \(workID) (list_running_ai_work shows it while it runs; cancel_ai_work stops it, and the paper keeps its PDF for extract_paper_metadata to finish)
+            When it is done, the paper carries its title, authors, venue and year, and get_source_content returns its cleaned text. A failure is saved on the paper and shows under Papers that need attention.
+            """
+        }
+    }
+
+    /// Reads a staged paper as background work and returns the work's id.
+    /// The open window shows the paper as being read while it waits and
+    /// while it is read, which also keeps the app's own metadata pass off it.
+    @discardableResult
+    func startStagedLocalPaperReading(
+        _ staged: StagedLocalPaper,
+        tool: String,
+        spendLimitUSD: Double?,
+        reader: StagedPaperReader? = nil
+    ) -> String {
+        let sourceID = staged.article.id
+        // A store over another database (a test's) has no window.
+        let showsInWindow = dbPathOverride == nil
+        return MCPRunningWork.shared.startBackground(
+            tool: tool,
+            about: "paper \(staged.article.title)",
+            spendLimitUSD: spendLimitUSD
+        ) { @MainActor [self] in
+            if showsInWindow { AppModelBridge.studio?.paperMetadataEnrichmentInFlight.insert(sourceID) }
+            let callID = MCPRunningWork.currentCallID
+            if let callID { MCPRunningWork.shared.setDetail(callID, "Waiting for the papers ahead of it") }
+            await Self.localPaperReadingLine.enter()
+            if let callID { MCPRunningWork.shared.setDetail(callID, "Reading its metadata and cleaning its text") }
+            if !Task.isCancelled {
+                do {
+                    _ = try await finishStagedLocalPaper(staged, reader: reader)
+                } catch {
+                    logger.warning("MCP local paper \(sourceID, privacy: .public) was not finished: \(error.localizedDescription, privacy: .public)")
+                }
+            }
+            await Self.localPaperReadingLine.leave()
+            if showsInWindow, let studio = AppModelBridge.studio {
+                studio.paperMetadataEnrichmentInFlight.remove(sourceID)
+                studio.dropPaperProcessingStepIfIdle(sourceID)
+            }
+            NotificationCenter.default.post(name: .foreverLMDataDidChange, object: nil)
+        }
     }
 
     // MARK: - Any local file
@@ -5118,7 +5351,12 @@ extension MCPDataStore {
         let leftToTheTool = requestedWord.isEmpty || requestedWord == "auto"
         switch try Self.localFileImportKind(fileExtension: ext, pdfPageCount: pageCount, requested: kind) {
         case .paper:
-            return try await importLocalPDFAsPaper(filePath: fileURL.path, title: title)
+            return try await importLocalPDFAsPaperInBackground(
+                filePath: fileURL.path,
+                title: title,
+                tool: "import_local_file",
+                approvedSpendUSD: approvedSpendUSD
+            )
         case .book:
             return try await Self.startLocalBookImport(
                 fileURL: fileURL,
@@ -5238,6 +5476,10 @@ extension MCPDataStore {
                 )
                 break
             } catch {
+                // A stopped call is not a failed extraction. Retrying would
+                // fail twice more at once, and recording it would mark a paper
+                // failed that nothing was wrong with; the paper stays pending.
+                if Task.isCancelled || AITransientErrorClassifier.isCancellation(error) { throw error }
                 lastError = error
                 logger.warning(
                     "MCP paper metadata extraction attempt \(attempt)/\(maximumAttempts) failed for \(articleID) using \(config.provider.shortName): \(error.localizedDescription)"
@@ -5293,7 +5535,12 @@ extension MCPDataStore {
         if article.hasCompletedPaperContentCleanup {
             cleanupStatus = "Source Content Cleanup already had the canonical text"
         } else {
-            let storedRaw = try knowledgeStore().loadPaperContentPreparation(article.id)?.raw
+            // The store is read and written in stretches of their own, so a
+            // caller that holds no gate (a paper import finishing in the
+            // background) lets every other call run during the model calls.
+            let storedRaw = try await withStoreGate(.shared) {
+                try knowledgeStore().loadPaperContentPreparation(articleID)?.raw
+            }
             let rawText = storedRaw ?? article.content ?? firstPageText
             do {
                 let prepared = try await PaperContentPreparationService().prepare(
@@ -5316,7 +5563,8 @@ extension MCPDataStore {
                 )
                 article.state = .queued
                 article.errorMessage = nil
-                try? knowledgeStore().saveSource(article)
+                let pending = article
+                try? await withStoreGate(.exclusive) { try knowledgeStore().saveSource(pending) }
                 NotificationCenter.default.post(name: .derivedSourceWorkNeeded, object: nil)
                 throw error
             } catch {

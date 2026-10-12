@@ -30,6 +30,38 @@ import Foundation
 // Both tools are off the store gate: a stop that queued behind the writer it
 // is meant to stop would be no stop at all.
 
+/// A first-come line that lets at most `width` holders through at once, for
+/// background work an assistant starts many of together. Each `enter` is
+/// paired with one `leave`.
+actor MCPWaitingLine {
+    let width: Int
+    private var inside = 0
+    private var waiting: [CheckedContinuation<Void, Never>] = []
+
+    init(width: Int) {
+        self.width = width
+    }
+
+    func enter() async {
+        if inside < width {
+            inside += 1
+            return
+        }
+        await withCheckedContinuation { waiting.append($0) }
+    }
+
+    /// Hands the place to the first one waiting, or frees it.
+    func leave() {
+        if waiting.isEmpty {
+            inside = max(0, inside - 1)
+        } else {
+            waiting.removeFirst().resume()
+        }
+    }
+
+    var waitingCount: Int { waiting.count }
+}
+
 /// Tool calls in flight and the background work tools leave running, each
 /// with the handle that cancels it.
 final class MCPRunningWork: @unchecked Sendable {

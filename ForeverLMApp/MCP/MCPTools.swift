@@ -4473,7 +4473,7 @@ final class MCPToolRegistry: @unchecked Sendable {
             ),
             MCPToolDef(
                 name: "import_local_pdf_as_paper",
-                description: "Import a local PDF file from disk as a NEW paper source: copy into the synced Papers folder, extract text, run AI metadata. To attach a PDF to an existing paper use attach_pdf_to_paper instead.",
+                description: "Import a local PDF file from disk as a NEW paper source: it is copied into the synced Papers folder, its text extracted, and saved at once with its PDF; the Paper Metadata model and Source Content Cleanup then read it in the background, so the answer comes in seconds with the paper's id and a work_id (list_running_ai_work shows it while it runs; cancel_ai_work stops it and the paper keeps its PDF). Several imports can be sent together: each answers at once and their reading waits its turn. When the work is done the paper carries its title, authors, venue and year and get_source_content returns its text; a failure is saved on the paper, and extract_paper_metadata retries it. A paper the library already holds under the DOI printed in the PDF answers with its id instead, and one it holds without a PDF takes this one. To attach a PDF to an existing paper use attach_pdf_to_paper instead.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -4485,7 +4485,7 @@ final class MCPToolRegistry: @unchecked Sendable {
             ),
             MCPToolDef(
                 name: "import_local_file",
-                description: "Import a file on this Mac into the library the way the app's own import of it does, whatever it is: a PDF as a paper (as import_local_pdf_as_paper does) or as a book, an EPUB or DRM-free Kindle file (azw, azw3, mobi, prc) as a book, a plain text or Markdown file (txt, md, markdown) as a text source. A book goes through Add Book's importer: its title and author are read, it is split into chapters by the book chapter splitting model, and each chapter is filed under the book, with its cover. That runs in the background, a few minutes for a long book, so the answer comes at once with a work_id (list_running_ai_work shows it, cancel_ai_work stops it); afterwards list_sources with source_type book, or search_sources_keyword for its title, lists the chapters. kind auto (the default) takes a PDF of 100 pages or more for a book and a shorter one for a paper; pass kind paper or book to choose. The file must be in the ForeverLM library or the Desktop, Documents or Downloads folder. A scanned PDF needs a text layer for its chapters to be found. title applies to a paper only: a book takes its title from the file, and a text source from its text.",
+                description: "Import a file on this Mac into the library the way the app's own import of it does, whatever it is: a PDF as a paper (as import_local_pdf_as_paper does) or as a book, an EPUB or DRM-free Kindle file (azw, azw3, mobi, prc) as a book, a plain text or Markdown file (txt, md, markdown) as a text source. A paper is saved at once with its PDF and read by the models in the background, as import_local_pdf_as_paper does. A book goes through Add Book's importer: its title and author are read, it is split into chapters by the book chapter splitting model, and each chapter is filed under the book, with its cover. A paper or a book runs in the background, a few minutes for a long book, so the answer comes at once with a work_id (list_running_ai_work shows it, cancel_ai_work stops it); afterwards a paper carries its metadata, and for a book list_sources with source_type book, or search_sources_keyword for its title, lists the chapters. kind auto (the default) takes a PDF of 100 pages or more for a book and a shorter one for a paper; pass kind paper or book to choose. The file must be in the ForeverLM library or the Desktop, Documents or Downloads folder. A scanned PDF needs a text layer for its chapters to be found. title applies to a paper only: a book takes its title from the file, and a text source from its text.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -5207,6 +5207,15 @@ final class MCPToolRegistry: @unchecked Sendable {
         // model returned, so each paper holds the gate alone, as
         // import_paper_from_url does, and calls queued meanwhile run between papers.
         "download_papers_needing_attention", "recheck_paywalled_papers",
+        // A local PDF is matched and saved as a pending paper in stretches
+        // held alone, around a copy and a text extraction that hold nothing;
+        // its models read it after the call answers, holding the store only
+        // to save. On 2026-10-12 seven imports sent together held it alone
+        // one after another, a minute or more each, and a filter_sources
+        // waited behind them until its client timed out. import_local_file
+        // routes a paper the same way, a book and a text file through the
+        // Studio's storage actor.
+        "import_local_pdf_as_paper", "import_local_file",
         // A YouTube video's uploader is asked of YouTube holding nothing; the
         // row is then saved in one stretch held alone.
         "add_source",
@@ -7074,9 +7083,11 @@ final class MCPToolRegistry: @unchecked Sendable {
             case "refetch_source_content":
                 return try await store.refetchSourceContent(sourceID: arguments["source_id"] as? String ?? "")
             case "import_local_pdf_as_paper":
-                return try await store.importLocalPDFAsPaper(
+                return try await store.importLocalPDFAsPaperInBackground(
                     filePath: arguments["file_path"] as? String ?? "",
-                    title: arguments["title"] as? String
+                    title: arguments["title"] as? String,
+                    tool: "import_local_pdf_as_paper",
+                    approvedSpendUSD: (arguments["approved_spend_usd"] as? NSNumber)?.doubleValue
                 )
             case "import_local_file":
                 return try await store.importLocalFile(

@@ -31,7 +31,7 @@ Save the paper's abstract or landing page to your browser's reading list (Safari
 In a notebook, paste the paper's URL or DOI into **Add sources** and choose **Add link**: the paper joins your library and the notebook in one step. In ForeverLM's Browser, **Add to Sources** saves the page you are reading.
 
 **Via MCP:**
-Your AI assistant adds a paper with `import_paper_from_url` (a URL or DOI) or `import_local_pdf_as_paper` (a PDF on your Mac). `add_source` is for non-paper sources. Given a notebook's `notebook_id`, `import_paper_from_url` files the paper in that notebook as well, and a paper already in your library joins it instead of being imported again.
+Your AI assistant adds a paper with `import_paper_from_url` (a URL or DOI) or `import_local_pdf_as_paper` (a PDF on your Mac; it shows in Papers at once, as processing until its metadata is read). `add_source` is for non-paper sources. Given a notebook's `notebook_id`, `import_paper_from_url` files the paper in that notebook as well, and a paper already in your library joins it instead of being imported again.
 
 **From Zotero, Paperpile, Mendeley or another reference manager:**
 A one-time import, described [below](#coming-from-a-reference-manager).
