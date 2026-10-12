@@ -2109,7 +2109,7 @@ struct ChatRobustnessTests {
 
         var request = URLRequest(url: URL(string: "https://openrouter.ai/api/v1/chat/completions")!)
         request.setValue("Bearer ", forHTTPHeaderField: "Authorization")
-        try ManagedAI.rewrite(&request)
+        ManagedAI.rewrite(&request)
 
         #expect(request.url?.host == "openrouter.ai")
         #expect(request.url?.path == "/api/v1/chat/completions")
@@ -2134,7 +2134,7 @@ struct ChatRobustnessTests {
         // Only that key's own router leaves the proxy. Any other host ends at
         // the proxy's deliberate 404, and the key does not travel with it.
         var elsewhere = URLRequest(url: URL(string: "https://api.openai.com/v1/audio/speech")!)
-        try ManagedAI.rewrite(&elsewhere)
+        ManagedAI.rewrite(&elsewhere)
         #expect(elsewhere.url?.host == ManagedAI.baseURL.host)
         #expect(elsewhere.url?.path == "/v1/proxy/unsupported")
         #expect(elsewhere.value(forHTTPHeaderField: ManagedAI.ownKeyHeader) == nil)
@@ -2150,7 +2150,7 @@ struct ChatRobustnessTests {
         var heldBack = URLRequest(url: URL(string: "https://openrouter.ai/api/v1/chat/completions")!)
         heldBack.httpMethod = "POST"
         heldBack.httpBody = try JSONSerialization.data(withJSONObject: ["model": "anthropic/claude-sonnet-5"])
-        try ManagedAI.rewrite(&heldBack)
+        ManagedAI.rewrite(&heldBack)
         #expect(heldBack.url?.host == ManagedAI.baseURL.host)
         #expect(heldBack.value(forHTTPHeaderField: ManagedAI.ownKeyHeader) == nil)
         #expect(heldBack.value(forHTTPHeaderField: ManagedAI.ownKeyHeldHeader) == "1")
@@ -2161,8 +2161,7 @@ struct ChatRobustnessTests {
 
     @Test("A locked account's key sends nothing direct, not even a free model")
     func ownKeyOnALockedAccountRunsNothing() throws {
-        // The paid app (2026-10-10): a locked account's key runs no model, and
-        // Free mode neither (2026-09-27: Free mode never stood in for paying).
+        // The paid app (2026-10-10): a locked account's key runs no model.
         // Free, paid, or a body ForeverLM cannot read: all go to the proxy,
         // which answers app_locked.
         ManagedAI.ownKeyOverrideForTesting = .some(
@@ -2182,7 +2181,7 @@ struct ChatRobustnessTests {
             var request = URLRequest(url: URL(string: "https://openrouter.ai/api/v1/chat/completions")!)
             request.httpMethod = "POST"
             request.httpBody = body
-            try ManagedAI.rewrite(&request)
+            ManagedAI.rewrite(&request)
             #expect(request.url?.host == ManagedAI.baseURL.host)
             #expect(request.value(forHTTPHeaderField: ManagedAI.ownKeyHeldHeader) == "1")
             for (_, value) in request.allHTTPHeaderFields ?? [:] {
@@ -2198,7 +2197,7 @@ struct ChatRobustnessTests {
 
         #expect(!ManagedAI.sendsOwnKeyDirect(toHost: "openrouter.ai"))
         var request = URLRequest(url: URL(string: "https://openrouter.ai/api/v1/chat/completions")!)
-        try ManagedAI.rewrite(&request)
+        ManagedAI.rewrite(&request)
         #expect(request.url?.host == ManagedAI.baseURL.host)
         #expect(request.url?.path == "/v1/proxy/openrouter/api/v1/chat/completions")
     }
@@ -2219,7 +2218,7 @@ struct ChatRobustnessTests {
             "https://api.example.com/v1/anything?api_key=stray-key",
         ] {
             var request = URLRequest(url: URL(string: url)!)
-            try ManagedAI.rewrite(&request)
+            ManagedAI.rewrite(&request)
             #expect(request.url?.host == ManagedAI.baseURL.host)
             #expect(request.url?.path == "/v1/proxy/unsupported")
             #expect(request.url?.query == nil)
@@ -2227,7 +2226,7 @@ struct ChatRobustnessTests {
 
         // OpenRouter's own query passes through whole.
         var lookup = URLRequest(url: URL(string: "https://openrouter.ai/api/v1/generation?id=gen-1")!)
-        try ManagedAI.rewrite(&lookup)
+        ManagedAI.rewrite(&lookup)
         #expect(lookup.url?.path == "/v1/proxy/openrouter/api/v1/generation")
         #expect(lookup.url?.query == "id=gen-1")
     }

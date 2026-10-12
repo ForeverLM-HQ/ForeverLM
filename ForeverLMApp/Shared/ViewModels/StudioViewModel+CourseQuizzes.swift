@@ -82,7 +82,7 @@ extension StudioViewModel {
         await fetchMissingLectureTranscripts(courseID: courseID, lectureIDs: lectureIDs)
         // With drawing on, the writers may brief a picture for a question no
         // slide or figure shows, and it is drawn below with the quiz's own.
-        let draws = MacImageGenerationSettings.drawsPicturesAfterWritingQuizzes
+        let draws = MacImageGenerationSettings.drawsForNewQuizzes
         do {
             let result = try await courseQuizGenerator.run(
                 courseID: courseID,
@@ -201,7 +201,6 @@ extension StudioViewModel {
     /// (or only those in `only`) on the learner's image model, pinning each to
     /// its question as it is drawn. Tiles spin while theirs are drawn.
     func drawCourseQuizQuestionPictures(courseID: String, only: Set<String>? = nil) async {
-        guard !AIFreeMode.isOn else { return }
         let quizzes = courseQuizzes(for: courseID).filter { quiz in
             (only?.contains(quiz.id) ?? true) && !courseQuizDrawingIDs.contains(quiz.id)
                 && quiz.questions.contains { $0.picture?.isAwaitingDrawing == true }
@@ -249,11 +248,10 @@ extension StudioViewModel {
             }
         }
         do {
-            // Images are never free, so Free mode picks slides and figures only.
             let result = try await courseQuizGenerator.addQuestionPictures(
                 courseID: courseID,
                 quizIDs: ids,
-                drawingModel: AIFreeMode.isOn ? nil : MacImageGenerationSettings.model
+                drawingModel: MacImageGenerationSettings.model
             ) { [weak self] quizID in
                 await MainActor.run { _ = self?.courseQuizDrawingIDs.remove(quizID) }
             }

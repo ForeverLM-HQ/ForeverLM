@@ -39,7 +39,6 @@ struct AIBackgroundRetryTests {
         #expect(AIBackgroundRetry.delayBeforeRetry(after: http(401), failedAttempts: 1, random: 0) == nil)
         #expect(AIBackgroundRetry.delayBeforeRetry(after: http(402), failedAttempts: 1, random: 0) == nil)
         #expect(AIBackgroundRetry.delayBeforeRetry(after: CancellationError(), failedAttempts: 1, random: 0) == nil)
-        #expect(AIBackgroundRetry.delayBeforeRetry(after: AIFreeMode.Refusal.paidModel("openai/gpt-5.6"), failedAttempts: 1, random: 0) == nil)
     }
 
     @Test("run retries a transient failure and returns the eventual answer")
@@ -179,8 +178,6 @@ struct AIBackgroundRetryTests {
         #expect(AIBackupModels.shouldTryBackup(after: AIError.invalidResponse))
         #expect(AIBackupModels.shouldTryBackup(after: AIError.apiError("Source Content Cleanup returned an invalid deletion plan.")))
         #expect(AIBackupModels.shouldTryBackup(after: AIError.httpError(status: 403, message: "only available on agentic harnesses (403)", retryAfterSeconds: nil)))
-        #expect(AIBackupModels.shouldTryBackup(after: AIFreeMode.Refusal.noLongerFree("m:free")))
-        #expect(!AIBackupModels.shouldTryBackup(after: AIFreeMode.Refusal.needsOpenRouterKey))
     }
 
     @Test("When no model answers, a failure worth waiting out is retried and reported over a permanent one")

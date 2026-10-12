@@ -181,14 +181,6 @@ final class MobileExplainerGenerator: ObservableObject {
             // OpenRouter's data-policy refusal answers a switch the learner set
             // in Settings; say so, as the Mac does. The account-level training
             // refusal is translated whatever the switch says. See `AIDataPolicy`.
-            // In Free mode the policy that refused is the learner's own
-            // OpenRouter account, which has not allowed free endpoints yet.
-            if let explanation = AIFreeMode.refusalExplanation(
-                forProviderBody: body,
-                providerMessage: AIProviderErrorText.fromResponseBody(data)
-            ) {
-                throw MobileExplainerError.badResponse(explanation)
-            }
             if AIDataPolicy.isTrainingPolicyRefusal(body) {
                 throw MobileExplainerError.badResponse(
                     AIDataPolicy.trainingRefusalExplanation(providerMessage: AIProviderErrorText.fromResponseBody(data))
@@ -199,9 +191,7 @@ final class MobileExplainerGenerator: ObservableObject {
                     AIDataPolicy.refusalExplanation(providerMessage: AIProviderErrorText.fromResponseBody(data))
                 )
             }
-            throw MobileExplainerError.badResponse(
-                AIFreeMode.annotatingBusy("Explainer writing failed (\(http.statusCode)): \(body)", status: http.statusCode)
-            )
+            throw MobileExplainerError.badResponse("Explainer writing failed (\(http.statusCode)): \(body)")
         }
         let parsed = try MobileOpenRouterChat.text(from: data)
         try MobileOpenRouterChat.requireSelectedModel(parsed.json, route: route)

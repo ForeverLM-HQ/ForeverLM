@@ -1883,19 +1883,16 @@ enum MobileOfferedChatModels {
     }
 
     /// The default first, then every offered model in the row's order, each
-    /// once; an entry for a host the phone cannot reach is left out, and so is
-    /// every model that is not free while Free mode is on.
+    /// once; an entry for a host the phone cannot reach is left out.
     static func choices(
         enabledIDs: [String]?,
         customNames: [String: String],
-        defaultPreference: AIModelRoutePreference?,
-        freeModeOn: Bool
+        defaultPreference: AIModelRoutePreference?
     ) -> [MobileChatModelChoice] {
         var result: [MobileChatModelChoice] = []
         var seen = Set<String>()
         func offer(_ preference: AIModelRoutePreference) {
             guard preference.isValid else { return }
-            if freeModeOn, !(preference.provider == "OpenRouter" && AIFreeMode.isFreeModelID(preference.model)) { return }
             let choice = MobileChatModelChoice(
                 preference: preference,
                 name: displayName(model: preference.model, customNames: customNames)

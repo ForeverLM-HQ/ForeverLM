@@ -486,8 +486,8 @@ extension StudioViewModel {
     /// the assistants' `generate_image` use; never named here), keep it in the
     /// doc's Attachments, and hand the editor what it draws it from. The route
     /// and its ledger row are `ManagedImageGeneration`'s, filed under
-    /// `doc_image`. A failure — signed out, Free mode, a refusing provider, a
-    /// model that returned nothing — is thrown for the panel to say, never
+    /// `doc_image`. A failure — signed out, a refusing provider, a model that
+    /// returned nothing — is thrown for the panel to say, never
     /// swallowed and never answered with another model's picture.
     ///
     /// Landscape at medium quality: a figure in a page is wider than tall, and

@@ -1590,24 +1590,6 @@ enum AIModelPriceRefresher {
         return now.timeIntervalSince(fetchedAt) >= freshnessInterval
     }
 
-    private static let refreshNowCooldown: TimeInterval = 60
-    nonisolated(unsafe) private static var lastRefreshNow: Date?
-
-    /// Reads the directory again past the five-minute cache, because a
-    /// request just showed a price changed (a free model refused under Free
-    /// mode's zero price cap). At most once a minute, off the main actor.
-    static func refreshNow() {
-        let due = inFlightLock.withLock {
-            if let lastRefreshNow, Date().timeIntervalSince(lastRefreshNow) < refreshNowCooldown { return false }
-            lastRefreshNow = Date()
-            return true
-        }
-        guard due else { return }
-        Task.detached(priority: .utility) {
-            _ = try? await OpenRouterCatalogAvailability.shared.models(forceRefresh: true)
-        }
-    }
-
     /// Safe to call from view `onAppear`: returns immediately; the cache
     /// load, cooldown check, and any fetch all run off the main actor.
     static func refreshIfStale() {
@@ -1640,11 +1622,11 @@ enum AIModelPriceRefresher {
     /// plus the pinned and user-added OpenRouter models. Republishes the
     /// picker-refresh notification only when a price actually changed.
     static func ingest(_ rows: [OpenRouterDirectoryModel]) {
-        // Free mode's refusal reads what each `:free` id costs in this read,
-        // and the price watch compares the models the learner uses with the
-        // read before it.
+        // A free pick is checked against what each `:free` id costs in this
+        // read, and the price watch compares the models the learner uses with
+        // the read before it.
         AIFreeModelPrices.record(Dictionary(
-            rows.filter { AIFreeMode.isFreeModelID($0.id) }.map { ($0.id, $0.isZeroPriced) },
+            rows.filter { AIFreeModels.isFreeModelID($0.id) }.map { ($0.id, $0.isZeroPriced) },
             uniquingKeysWith: { $1 }
         ))
         AIModelPriceWatch.observe(rows)

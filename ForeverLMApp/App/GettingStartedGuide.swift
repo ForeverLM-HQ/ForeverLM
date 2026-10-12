@@ -1746,8 +1746,8 @@ struct GettingStartedGuide: View {
     /// 2026-10-11: "more like a Typeform"): connect OpenRouter, then pick the
     /// models. AI features run on the learner's own OpenRouter key, billed by
     /// OpenRouter at cost; the free days run the key, so there is no plan row
-    /// (the paid app, 2026-10-10). The data policy, Free mode and the single
-    /// Chat model left setup for Settings. Pressing Continue on the models page
+    /// (the paid app, 2026-10-10). The data policy and the single Chat model
+    /// left setup for Settings. Pressing Continue on the models page
     /// is also the consent to background work, which that page says.
     private var enhancementsStep: some View {
         Group {
@@ -3335,7 +3335,6 @@ private struct GettingStartedModelsPage: View {
     @State private var choosingMyself = false
     /// The Background rows' word, for the learner who chooses their own.
     @State private var ownChoiceReady = true
-    @SyncedStorage(AIFreeMode.enabledKey) private var freeModeOn = false
 
     var body: some View {
         VStack(spacing: 24) {
@@ -3345,12 +3344,7 @@ private struct GettingStartedModelsPage: View {
                 detail: "We chose these for you. Change them any time in Settings."
             )
 
-            if freeModeOn {
-                Label("Free mode is on, so only OpenRouter's free models are used.", systemImage: "checkmark.circle.fill")
-                    .font(.headline)
-                    .foregroundStyle(.green)
-                    .multilineTextAlignment(.center)
-            } else if choosingMyself {
+            if choosingMyself {
                 ownChoice
             } else {
                 recommended
@@ -3377,7 +3371,6 @@ private struct GettingStartedModelsPage: View {
             updateReadiness()
             Task { await checkAccess() }
         }
-        .onChange(of: freeModeOn) { _, _ in updateReadiness() }
         .onChange(of: choosingMyself) { _, _ in updateReadiness() }
         .onChange(of: ownChoiceReady) { _, _ in updateReadiness() }
         .onReceive(NotificationCenter.default.publisher(for: .aiProviderDidChange).receive(on: RunLoop.main)) { _ in
@@ -3539,7 +3532,6 @@ private struct GettingStartedModelsPage: View {
     /// free, for OpenRouter to allow free models. A check that failed for
     /// another reason says so and lets the learner go on.
     private func updateReadiness() {
-        if freeModeOn { isReady = true; return }
         if choosingMyself { isReady = ownChoiceReady; return }
         guard isApplied, let choice else { isReady = false; return }
         guard choice.freeText != nil else { isReady = true; return }
@@ -3736,8 +3728,7 @@ private struct GettingStartedChatModelChoice: View {
 /// meetings keep a paid model unless the learner lets them use the free one
 /// (`MeetingModels`): the answer is stored, and a meeting task whose
 /// Background model is free runs on that model's first paid backup, or the
-/// paid model below. Free mode is asked nothing about meetings, since nothing
-/// paid runs in it.
+/// paid model below.
 private struct GettingStartedBackgroundModelChoice: View {
     @Binding var isReady: Bool
 
@@ -3767,14 +3758,11 @@ private struct GettingStartedBackgroundModelChoice: View {
     @State private var meetingsStayPaid = !MeetingModels.mayUseFree
     /// Counts the reads of the settings, so only the newest one is shown.
     @State private var readCount = 0
-    /// Free mode offers only free models, so the paid one is shown but not
-    /// taken while it is on.
-    @SyncedStorage(AIFreeMode.enabledKey) private var freeModeOn = false
 
     private let paid = KeychainService.defaultBackgroundTaskRoute
 
     private var choice: Choice {
-        if AIFreeMode.isFreeSelection(provider: route.provider, model: route.model) { return .free }
+        if AIFreeModels.isFreeSelection(provider: route.provider, model: route.model) { return .free }
         if route.provider == paid.provider, route.model == paid.model { return .paid }
         return .other
     }
@@ -3799,12 +3787,10 @@ private struct GettingStartedBackgroundModelChoice: View {
             option(
                 .paid,
                 title: AIModelCatalog.displayName(provider: paid.provider, modelID: paid.model),
-                detail: freeModeOn
-                    ? "Not in Free mode, which uses only free models."
-                    : AIModelListPrice.label(provider: paid.provider, modelID: paid.model)
-                        .map { "Faster and more dependable. Paid through your OpenRouter key, \($0)" }
-                        ?? "Faster and more dependable. Paid through your OpenRouter key",
-                isEnabled: !freeModeOn
+                detail: AIModelListPrice.label(provider: paid.provider, modelID: paid.model)
+                    .map { "Faster and more dependable. Paid through your OpenRouter key, \($0)" }
+                    ?? "Faster and more dependable. Paid through your OpenRouter key",
+                isEnabled: true
             )
 
             if choice == .other {
@@ -3818,9 +3804,7 @@ private struct GettingStartedBackgroundModelChoice: View {
 
             if choice == .free {
                 freeAccessStatus
-                if !freeModeOn {
-                    meetingsChoice
-                }
+                meetingsChoice
             }
         }
         .task {
@@ -3854,7 +3838,6 @@ private struct GettingStartedBackgroundModelChoice: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .aiProviderDidChange).receive(on: RunLoop.main)) { _ in
             blocker = FreeModelsSetup.pickBlocker()
-            // Free mode going on or off moves the Background model itself.
             Task {
                 await readSettings()
                 // "Your data" above turned on the switch that leaves a free

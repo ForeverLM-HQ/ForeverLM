@@ -121,11 +121,7 @@ private struct NotebookDiscoverContent: View {
     private var content: some View {
         switch listing.phase {
         case .idle:
-            // Free mode says so before the learner types anything, with the
-            // free search beside it, rather than after a Return that sends nothing.
-            if session.mode == .web, let refusal = session.webRefusal {
-                refusedLine(refusal)
-            }
+            EmptyView()
         case .searching:
             statusLine(session.mode == .web ? "Searching the web…" : "Searching PubMed…")
         case .refused(let message):

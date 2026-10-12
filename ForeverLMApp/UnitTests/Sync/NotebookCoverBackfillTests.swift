@@ -3,7 +3,7 @@ import Testing
 @testable import ForeverLM
 
 /// The notebook cover backfill (docs/cloudkit-schema-design.md §5.9, D53, WP31): once per zone, on the
-/// maintenance Mac only, after the seed is complete and while Free mode is off and the Setting is on, a
+/// maintenance Mac only, after the seed is complete and while the Setting is on, a
 /// bounded pass draws a cover for every active notebook that has none. Its marker is a Setting record
 /// saved by compare-and-set beside the engine, the first acknowledged create wins, and `done` ends it for
 /// every Mac.
@@ -13,7 +13,7 @@ struct NotebookCoverBackfillTests {
     private typealias F = MaintenanceFixture
     private static let hour: TimeInterval = 3_600
 
-    private static let on = NotebookCoverGates(freeMode: false, automatic: true)
+    private static let on = NotebookCoverGates(automatic: true)
 
     /// A Mac that holds the library, with `notebooks` made and sent and the seed complete.
     private static func library(_ server: FakeCloudKit, _ name: String, notebooks: [String], deviceID: String = "macaaaaa") async throws -> EngineTestDevice {
@@ -140,7 +140,7 @@ struct NotebookCoverBackfillTests {
         let a = try await Self.library(server, "backfill-renew", notebooks: ["nb-1", "nb-2"])
         let gates = C.Gates()
         let drawer = C.Drawer()
-        drawer.during = { gates.value = NotebookCoverGates(freeMode: true, automatic: true) }
+        drawer.during = { gates.value = NotebookCoverGates(automatic: false) }
         let covers = C.service(a, drawer: drawer, gates: gates, clock: { clock.now })
 
         #expect(await covers.runBackfill()[PrivateSyncZones.libraryKey] == .paused)
@@ -223,23 +223,21 @@ struct NotebookCoverBackfillTests {
         #expect(try C.queued(a, kind: NotebookCoverQueue.backfillKind) == 0)
     }
 
-    @Test("It pauses for Free mode or the Setting, claims nothing meanwhile, and resumes where it stopped from the queue after a quit")
+    @Test("It pauses for the Setting, claims nothing meanwhile, and resumes where it stopped from the queue after a quit")
     func pausesAndResumes() async throws {
         let server = EngineTestDriver.server()
         let a = try await Self.library(server, "backfill-pause", notebooks: ["nb-1", "nb-2", "nb-3"])
-        let gates = C.Gates(freeMode: true)
+        let gates = C.Gates(automatic: false)
         let drawer = C.Drawer()
         let covers = C.service(a, drawer: drawer, gates: gates)
 
         #expect(await covers.runBackfill()[PrivateSyncZones.libraryKey] == .paused)
-        #expect(try C.serverMarker(a) == nil, "nothing is claimed while Free mode is on")
-        gates.value = NotebookCoverGates(freeMode: false, automatic: false)
-        #expect(await covers.runBackfill()[PrivateSyncZones.libraryKey] == .paused)
+        #expect(try C.serverMarker(a) == nil, "nothing is claimed while the Setting is off")
         #expect(drawer.count == 0)
 
         // On again; the Setting goes off after the first notebook.
         gates.value = Self.on
-        drawer.during = { gates.value = NotebookCoverGates(freeMode: false, automatic: false) }
+        drawer.during = { gates.value = NotebookCoverGates(automatic: false) }
         #expect(await covers.runBackfill()[PrivateSyncZones.libraryKey] == .paused)
         #expect(drawer.count == 1)
         #expect(try C.queued(a, kind: NotebookCoverQueue.backfillKind) == 2)

@@ -28,10 +28,9 @@ enum MobileNotebookCover {
     /// handler instead of drawing.
     static var jobParams: SyncJSON { .object(["derived": .string("cover")]) }
 
-    /// Whether a cover is drawn without being asked: the Setting on (true when absent) and Free mode off,
-    /// since an image model is never free.
-    static func isWanted(freeMode: Bool, automatic: Bool?) -> Bool {
-        !freeMode && (automatic ?? true)
+    /// Whether a cover is drawn without being asked: the Setting on (true when absent).
+    static func isWanted(automatic: Bool?) -> Bool {
+        automatic ?? true
     }
 
     /// Whether `fields` (a Notebook's) name a cover.
@@ -70,19 +69,18 @@ extension MobileRecordWriter {
 /// The phone's New notebook asks for the cover of the notebook it just made, once, when covers are drawn
 /// without being asked.
 enum MobileNotebookCoverRequest {
-    /// Writes the cover's Job unless Free mode is on or the Setting is off. Free mode and the Setting are
-    /// read from the account's rows; when either cannot be read nothing is written, since a stale answer
-    /// would spend. A notebook the learner did not make one at a time (an import, a share) never comes here.
-    /// Returns the Job's id, nil when none was written.
+    /// Writes the cover's Job unless the Setting is off. The Setting is read from the account's row; when it
+    /// cannot be read nothing is written, since a stale answer would spend. A notebook the learner did not
+    /// make one at a time (an import, a share) never comes here. Returns the Job's id, nil when none was
+    /// written.
     @discardableResult
     static func requestIfWanted(
         notebookID: String,
         writer: MobileRecordWriter,
-        freeMode: () async throws -> Bool,
         automatic: () async throws -> Bool?
     ) async -> String? {
         do {
-            guard MobileNotebookCover.isWanted(freeMode: try await freeMode(), automatic: try await automatic()) else { return nil }
+            guard MobileNotebookCover.isWanted(automatic: try await automatic()) else { return nil }
             return try await writer.requestNotebookCover(notebookID)
         } catch {
             // The notebook is made; it keeps its emoji, and a Mac's backfill or Draw Cover With gives it one.

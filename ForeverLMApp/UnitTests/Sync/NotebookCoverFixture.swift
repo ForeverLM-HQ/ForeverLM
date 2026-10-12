@@ -65,13 +65,13 @@ enum NotebookCoverFixture {
         }
     }
 
-    /// Free mode and the Setting, as a switch a test turns.
+    /// The Setting, as a switch a test turns.
     final class Gates: @unchecked Sendable {
         private let lock = NSLock()
         private var held: NotebookCoverGates
 
-        init(freeMode: Bool = false, automatic: Bool = true) {
-            held = NotebookCoverGates(freeMode: freeMode, automatic: automatic)
+        init(automatic: Bool = true) {
+            held = NotebookCoverGates(automatic: automatic)
         }
 
         var value: NotebookCoverGates {

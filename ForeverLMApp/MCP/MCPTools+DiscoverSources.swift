@@ -72,13 +72,6 @@ extension MCPDataStore {
         }
 
         let dependencies = services.web
-        // Refused before any request: Free mode strips the web plugin, so a
-        // search sent anyway would be answered from memory.
-        if dependencies.freeModeIsOn() {
-            throw MCPError.invalidInput(
-                "Free mode leaves web search off, so discover_sources is refused and nothing was spent. search_literature searches PubMed for free."
-            )
-        }
         guard let config = await MainActor.run(body: { services.resolveConfig() }) else {
             throw MCPError.invalidInput(
                 KeychainService.backgroundAIUnavailableMessage(for: .sourceDiscovery)

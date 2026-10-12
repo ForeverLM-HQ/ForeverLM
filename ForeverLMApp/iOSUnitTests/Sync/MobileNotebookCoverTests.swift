@@ -6,15 +6,14 @@ import UIKit
 /// A notebook's AI-drawn cover on the iPhone (docs/cloudkit-schema-design.md D53, §3.5.6 `files`, §5.9,
 /// §14.2 WP31b): the phone shows `Notebook.files.cover` where it drew the title's emoji, bare as the Mac
 /// draws it (`NotebookCoverCutout`), the emoji while the cover is missing or still arriving, and asks a Mac for
-/// a cover (`Job(makeDerived, nb:<id>, {derived: "cover"})`) when the learner makes a notebook here, none in
-/// Free mode or with the Setting off. It draws nothing itself, and never runs the backfill or writes its marker.
+/// a cover (`Job(makeDerived, nb:<id>, {derived: "cover"})`) when the learner makes a notebook here, none with
+/// the Setting off. It draws nothing itself, and never runs the backfill or writes its marker.
 @Suite("iPhone notebook covers", .serialized)
 struct MobileNotebookCoverTests {
     typealias F = MobileReadModelFixture
     typealias Fixture = MobileWriterFixture
 
     static let automaticKey = "images.drawNotebookCovers.automatic"
-    static let freeModeKey = "aiFreeMode.enabled"
     static let markerKey = "images.notebookCoverBackfill.Library"
 
     /// A small solid-colour JPEG, as a Mac stores a cover (square, JPEG).
@@ -226,14 +225,12 @@ struct MobileNotebookCoverTests {
         #expect(try await Fixture.patchCount(replica) == 0)
     }
 
-    @Test("None is written in Free mode or with the Setting off; with the Setting on or absent and Free mode off, one is")
+    @Test("None is written with the Setting off; with the Setting on or absent, one is")
     func theGates() async throws {
         #expect(MobileNotebookCover.automaticSettingKey == Self.automaticKey)
-        #expect(MobileNotebookCover.isWanted(freeMode: false, automatic: nil))
-        #expect(MobileNotebookCover.isWanted(freeMode: false, automatic: true))
-        #expect(!MobileNotebookCover.isWanted(freeMode: false, automatic: false))
-        #expect(!MobileNotebookCover.isWanted(freeMode: true, automatic: nil))
-        #expect(!MobileNotebookCover.isWanted(freeMode: true, automatic: true), "an image model is never free")
+        #expect(MobileNotebookCover.isWanted(automatic: nil))
+        #expect(MobileNotebookCover.isWanted(automatic: true))
+        #expect(!MobileNotebookCover.isWanted(automatic: false))
 
         func made(_ settings: [(String, SyncEnvelope)]) async throws -> (replica: MobileReplica, writer: MobileRecordWriter, store: MobileModelPreferenceStore, id: String) {
             let replica = try await Fixture.replica()
@@ -249,28 +246,19 @@ struct MobileNotebookCoverTests {
             let store = phone.store
             return await MobileNotebookCoverRequest.requestIfWanted(
                 notebookID: phone.id, writer: phone.writer,
-                freeMode: { try await store.refreshFreeMode() },
                 automatic: { try await store.bool(forKey: MobileNotebookCover.automaticSettingKey) }
             )
         }
 
         let plain = try await made([])
-        #expect(await request(plain) != nil, "neither stored: covers are drawn")
+        #expect(await request(plain) != nil, "the Setting not stored: covers are drawn")
         #expect(try await jobs(plain.replica) == 1)
 
         let off = try await made([try Self.setting(Self.automaticKey, false)])
         #expect(await request(off) == nil, "the Setting is off")
         #expect(try await jobs(off.replica) == 0)
 
-        let free = try await made([try Self.setting(Self.freeModeKey, true)])
-        #expect(await request(free) == nil, "Free mode draws nothing")
-        #expect(try await jobs(free.replica) == 0)
-
-        let both = try await made([try Self.setting(Self.freeModeKey, true), try Self.setting(Self.automaticKey, true)])
-        #expect(await request(both) == nil)
-        #expect(try await jobs(both.replica) == 0)
-
-        let on = try await made([try Self.setting(Self.automaticKey, true), try Self.setting(Self.freeModeKey, false)])
+        let on = try await made([try Self.setting(Self.automaticKey, true)])
         #expect(await request(on) != nil)
         #expect(try await jobs(on.replica) == 1)
     }
@@ -281,9 +269,8 @@ struct MobileNotebookCoverTests {
         let writer = Fixture.writer(replica)
         let id = try await writer.createNotebook(title: "New notebook", instructions: nil, summary: nil)
         struct Unreadable: Error {}
-        let free = await MobileNotebookCoverRequest.requestIfWanted(notebookID: id, writer: writer, freeMode: { throw Unreadable() }, automatic: { nil })
-        let setting = await MobileNotebookCoverRequest.requestIfWanted(notebookID: id, writer: writer, freeMode: { false }, automatic: { throw Unreadable() })
-        #expect(free == nil && setting == nil)
+        let setting = await MobileNotebookCoverRequest.requestIfWanted(notebookID: id, writer: writer, automatic: { throw Unreadable() })
+        #expect(setting == nil)
         #expect(try await Fixture.patched(replica).filter { $0.contains(" Job ") }.isEmpty)
     }
 

@@ -205,7 +205,7 @@ struct AIUsageReport: Sendable {
         guard Self.isOpenRouterRouter(requested) else { return served }
         let router = requested.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         if router == AIModelDefaults.openRouterFreeRouter {
-            return AIFreeMode.isFreeModelID(served) ? nil : served
+            return AIFreeModels.isFreeModelID(served) ? nil : served
         }
         return nil
     }
@@ -1298,7 +1298,7 @@ enum AIProviderPricing {
         // as nemotron-3-super), and the directory's 0/0 row for it reads as
         // "no price information" in `applyingRemote`. Only a positive price
         // the live directory now lists — the free period ended — outranks it.
-        if provider == "openrouter", AIFreeMode.isFreeModelID(model) {
+        if provider == "openrouter", AIFreeModels.isFreeModelID(model) {
             if let remote, (remote.input ?? 0) > 0 || (remote.output ?? 0) > 0,
                let listed = applyingRemote(remote, to: nil) {
                 return listed

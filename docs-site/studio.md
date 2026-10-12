@@ -165,8 +165,8 @@ The Sources column's field, **Search your library and the web**, has
   web for “…”** and **Search PubMed for “…”** take your words there.
 - **Return** searches the web for your words (from **Library** too) or runs
   the **Web** or **PubMed** search you chose. A web search uses your model and
-  is priced like a chat turn; in Free mode it says it can't, and PubMed is
-  free. The results arrive as a card at the top of the column: how many it
+  is priced like a chat turn, and PubMed is free. The results arrive as a card
+  at the top of the column: how many it
   found and how many your library already holds, the first three with why
   each fits, **N more**, **Add N** for the ticked ones, and **×** to put the
   card away.

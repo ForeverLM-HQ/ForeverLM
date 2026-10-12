@@ -198,7 +198,7 @@ enum ManagedImageGeneration {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: payload)
         request.timeoutInterval = 180
-        try ManagedAI.rewrite(&request)
+        ManagedAI.rewrite(&request)
 
         let (data, response) = try await URLSession.shared.foreverLMData(for: request)
         guard let http = response as? HTTPURLResponse else {

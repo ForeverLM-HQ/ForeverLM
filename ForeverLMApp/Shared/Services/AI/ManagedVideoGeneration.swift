@@ -272,7 +272,7 @@ enum ManagedVideoGeneration {
         submit.timeoutInterval = 120
         submit.setValue("application/json", forHTTPHeaderField: "Content-Type")
         submit.httpBody = try JSONSerialization.data(withJSONObject: body)
-        try ManagedAI.rewrite(&submit)
+        ManagedAI.rewrite(&submit)
         let (submitted, submitResponse) = try await URLSession.shared.data(for: submit)
         try checkOpenRouter(submitResponse, data: submitted, what: "start the video")
         let job = try JSONDecoder().decode(OpenRouterJob.self, from: submitted)
@@ -288,7 +288,7 @@ enum ManagedVideoGeneration {
             try await Task.sleep(for: .seconds(interval))
             var poll = URLRequest(url: jobURL)
             poll.timeoutInterval = 60
-            try ManagedAI.rewrite(&poll)
+            ManagedAI.rewrite(&poll)
             let (data, response) = try await URLSession.shared.data(for: poll)
             try checkOpenRouter(response, data: data, what: "report the video's progress")
             let status = try JSONDecoder().decode(OpenRouterJob.self, from: data)
@@ -304,7 +304,7 @@ enum ManagedVideoGeneration {
 
         var download = URLRequest(url: jobURL.appendingPathComponent("content"))
         download.timeoutInterval = 300
-        try ManagedAI.rewrite(&download)
+        ManagedAI.rewrite(&download)
         let (video, downloadResponse) = try await URLSession.shared.data(for: download)
         try checkOpenRouter(downloadResponse, data: video, what: "hand over the video")
         guard !video.isEmpty else { throw Failure.noVideoReturned }

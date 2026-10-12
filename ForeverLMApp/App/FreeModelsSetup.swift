@@ -1,31 +1,16 @@
 import Foundation
-import SwiftUI
 import UserNotifications
 
-/// Free mode's model picks: points chat, the Background models and text-to-speech
-/// at OpenRouter's free models, on the learner's own OpenRouter key. It began
-/// (2026-09-23) as the way to use ForeverLM without a plan, stopped being one
-/// on 2026-09-25, stood in for a plan again on 2026-09-26 only, and since
-/// 2026-09-27 runs only where the key may: in the paid app (2026-10-10) that
-/// is the free days or a paid account, and a locked one runs nothing, `:free`
-/// models included. Where it runs it guarantees nothing sent is charged to
-/// the learner's OpenRouter account.
-/// Nothing is rerouted behind the learner's back: the choices are ordinary
-/// Settings, shown as the models they are, and any of them can be changed
-/// afterwards.
+/// OpenRouter's free models as ordinary picks, on the learner's own
+/// OpenRouter key: which free models can chat or run background work, best
+/// first, and the free backups a free pick brings. Nothing is rerouted
+/// behind the learner's back: a free model is a Setting like any other,
+/// shown as the model it is.
 ///
-/// Free models come and go, so the choice is made against OpenRouter's live
-/// directory: the first preferred model still listed free, else the listed
-/// free model with the longest context that can do the job.
+/// Free models come and go, so the ranking is made against OpenRouter's live
+/// directory: the preferred models still listed free, then the listed free
+/// models with the longest context that can do the job.
 enum FreeModelsSetup {
-    struct Choice: Equatable {
-        let chat: OpenRouterDirectoryModel
-        let background: OpenRouterDirectoryModel
-        /// Nil when no free model reads images today; the vision tasks then
-        /// keep their paid model.
-        let vision: OpenRouterDirectoryModel?
-    }
-
     /// OpenRouter's Free Models Router leads every list: it sends each
     /// request to a free model that is up, so it fails and times out less
     /// than any single free model (product owner, 2026-09-27). The single models
@@ -56,32 +41,20 @@ enum FreeModelsSetup {
         "google/gemma-4-31b-it:free",
         "qwen/qwen3.8-27b:free",
     ]
-    /// The free text-to-speech model Free mode prefers, while OpenRouter's speech
-    /// directory lists it at no charge (`freeTextToSpeechModel(from:)`).
-    static let textToSpeechModel = "fish-audio/s2.1-pro-free:free"
 
-    /// The text-to-speech model Free mode switches to: `textToSpeechModel` while the
-    /// speech catalog — OpenRouter's speech directory — lists it free, or else
-    /// the first other `:free` model it lists at no charge. Nil when it lists
-    /// none, and text-to-speech keeps its model.
-    static func freeTextToSpeechModel(from models: [ArticleSpeechModelOption]) -> ArticleSpeechModelOption? {
-        let free = models.filter { AIFreeMode.isFreeModelID($0.id) && $0.ratePerMillionCharacters == 0 }
-        return free.first { $0.id == textToSpeechModel } ?? free.first
-    }
-
-    static let openRouterPrivacyURL = AIFreeMode.openRouterPrivacyURL
+    static let openRouterPrivacyURL = AIFreeModels.openRouterPrivacyURL
 
     /// A free model ForeverLM can use: priced at zero, and not one OpenRouter
     /// refused to run outside the apps it lists (`AIFreeModelRestrictions`).
     static func isFree(_ model: OpenRouterDirectoryModel) -> Bool {
-        AIFreeMode.isFreeModelID(model.id)
+        AIFreeModels.isFreeModelID(model.id)
             && model.inputUSDPerMTokens == 0
             && model.outputUSDPerMTokens == 0
             && !AIFreeModelRestrictions.isRestricted(model.id)
     }
 
     static func isFreeModelID(_ id: String) -> Bool {
-        AIFreeMode.isFreeModelID(id)
+        AIFreeModels.isFreeModelID(id)
     }
 
     /// Whether a model may be picked for a role: not known to fail its test
@@ -90,123 +63,9 @@ enum FreeModelsSetup {
     typealias Qualifies = @Sendable (String, AIModelQualification.Role) -> Bool
     static let storedQualification: Qualifies = { !AIModelQualification.isKnownToFail(slug: $0, role: $1) }
 
-    /// Nil when OpenRouter lists no free model that can take the chat's tools
-    /// and has not failed its test for chat or for background work.
-    static func choose(
-        from directory: [OpenRouterDirectoryModel],
-        qualifies: Qualifies = FreeModelsSetup.storedQualification
-    ) -> Choice? {
-        // The chat sends its tool catalog on every turn, and the Background
-        // tasks share the same request path, so every pick must take tools.
-        let candidates = directory.filter { isFree($0) && $0.supportsTools }
-        func pick(_ preferred: [String], _ fits: (OpenRouterDirectoryModel) -> Bool) -> OpenRouterDirectoryModel? {
-            for id in preferred {
-                if let model = candidates.first(where: { $0.id == id }), fits(model) { return model }
-            }
-            return candidates
-                .filter(fits)
-                .max { ($0.contextLength ?? 0, $1.id) < ($1.contextLength ?? 0, $0.id) }
-        }
-        guard let chat = pick(preferredChat, { qualifies($0.id, .chat) }),
-              let background = pick(preferredBackground, { qualifies($0.id, .background) })
-        else { return nil }
-        return Choice(
-            chat: chat,
-            background: background,
-            vision: pick(preferredVision, { $0.supportsVision == true && qualifies($0.id, .backgroundImages) })
-        )
-    }
-
-    /// Reads the live directory, then points chat, the Background models and
-    /// text-to-speech at free models. Returns what was chosen. Only
-    /// `enableFreeMode()` calls it, so the switch always says what happened.
-    @MainActor
-    private static func apply() async throws -> Choice {
-        let directory = try await OpenRouterCatalogAvailability.shared.models()
-        // Each pick must have done its work once: test the model each role
-        // would land on, moving down the ranking past any that fail.
-        await AIModelQualification.qualifyFreeCandidates(from: directory)
-        guard let choice = choose(from: directory) else { throw Failure.noFreeModel }
-        var added: Set<String> = []
-        for model in [choice.chat, choice.background, choice.vision].compactMap({ $0 }) where added.insert(model.id).inserted {
-            AIModelCatalog.addCustomOpenRouterModel(customModel(model))
-        }
-        // The chat picker offers only free models while Free mode is on, so
-        // the single free models join it beside the router: it is the
-        // recommended pick, not the only one.
-        let alternatives = rankedFreeForChat(from: directory).filter { storedQualification($0.id, .chat) }
-        for model in alternatives.prefix(chatAlternatives + 1) where added.insert(model.id).inserted {
-            AIModelCatalog.addCustomOpenRouterModel(customModel(model))
-        }
-        AIModelCatalog.setDefault(AIModelCatalogEntry(maker: .other, provider: .openRouter, modelID: choice.chat.id))
-        // Docs follow the free Default Model; their own pick was saved with
-        // the rest and comes back when Free mode goes off.
-        KeychainService.setDocsRoute(nil)
-        KeychainService.setBackgroundTaskRoute(provider: .openRouter, model: choice.background.id)
-        // Backups too: the learner's own were saved with the rest and come
-        // back when Free mode goes off, and a paid one would not run meanwhile.
-        // The chat's serve a scheduled task's runs, which on a free model are
-        // the runs that most need somewhere to go.
-        giveFreeBackups(
-            alternatives,
-            to: AIBackupModels.chatSlot,
-            primaryID: choice.chat.id,
-            replacing: true
-        )
-        giveFreeBackups(
-            candidates(needsVision: false, from: directory),
-            to: "background.text",
-            primaryID: choice.background.id,
-            replacing: true
-        )
-        if let vision = choice.vision {
-            KeychainService.setBackgroundMultimodalTaskRoute(provider: .openRouter, model: vision.id)
-            giveFreeBackups(
-                candidates(needsVision: true, from: directory),
-                to: "background.images",
-                primaryID: vision.id,
-                replacing: true
-            )
-        }
-        // The speech list is OpenRouter's directory, which this Mac may not
-        // have read yet.
-        await OpenRouterAudioDirectory.prepare(.speech)
-        if let speech = freeTextToSpeechModel(from: ArticleSpeechCatalog.models) {
-            MacArticleSpeechSettings.openRouterModel = speech.id
-            ArticleSpeechSelection.selectModel(speech.id)
-        }
-        NotificationCenter.default.post(name: .aiProviderDidChange, object: nil)
-        return choice
-    }
-
-    /// How many single free models Free mode adds to the chat picker
-    /// beside its pick.
+    /// How many single free models Settings › Chat's Free list offers beside
+    /// the router.
     static let chatAlternatives = 3
-
-    /// Why the key may not run, for a Free mode that cannot go on: the free
-    /// days are over and nothing is paid (the paid app, 2026-10-10).
-    static let keyHeldBackReason = "Your free days are over. Pay for ForeverLM under Settings → Billing, and your OpenRouter key runs its AI features again, free models included."
-
-    /// The switch's one-line version of `keyHeldBackReason`.
-    static let keyHeldBackShort = "Your free days are over."
-
-    enum Failure: LocalizedError {
-        case noFreeModel
-        case needsOpenRouterKey
-        /// The account is locked, so the key may not run
-        /// (`ManagedAI.ownKeyAllowed`).
-        case appLocked
-        var errorDescription: String? {
-            switch self {
-            case .noFreeModel:
-                "OpenRouter lists no free model that ForeverLM can chat with right now. Try again later."
-            case .needsOpenRouterKey:
-                "Free mode runs on your own OpenRouter key. Add one under Settings → AI Usage first."
-            case .appLocked:
-                FreeModelsSetup.keyHeldBackReason
-            }
-        }
-    }
 
     static func customModel(_ model: OpenRouterDirectoryModel) -> AIModelCatalog.CustomOpenRouterModel {
         AIModelCatalog.CustomOpenRouterModel(
@@ -224,10 +83,10 @@ enum FreeModelsSetup {
 
 // MARK: - One free model at a time
 
-/// A free model for background work without turning Free mode on (product owner,
-/// 2026-09-25): setup and Settings › Background offer one for background
-/// work that reads text and one for work that reads images. Chat, text-to-speech
-/// and the other settings keep their models.
+/// A free model for background work (product owner, 2026-09-25): setup and
+/// Settings › Background offer one for background work that reads text and
+/// one for work that reads images. Chat, text-to-speech and the other
+/// settings keep their models.
 extension FreeModelsSetup {
     /// The free models that can run a background task, best first, without
     /// those that failed a test run of it (`AIModelQualification`). Empty
@@ -241,8 +100,10 @@ extension FreeModelsSetup {
         return rankedFree(needsVision: needsVision, from: directory).filter { qualifies($0.id, role) }
     }
 
-    /// The free models Free mode's chat pick chooses from, in the order it
-    /// prefers them: the preferred chat models, then by context length.
+    /// Every free model that could chat, best first, tested or not: the
+    /// preferred chat models OpenRouter still lists, then the rest by context
+    /// length. The chat sends its tool catalog on every turn, so each must
+    /// take tools.
     static func rankedFreeForChat(from directory: [OpenRouterDirectoryModel]) -> [OpenRouterDirectoryModel] {
         let usable = directory.filter { isFree($0) && $0.supportsTools }
         let ranked = preferredChat.compactMap { id in usable.first { $0.id == id } }
@@ -254,8 +115,9 @@ extension FreeModelsSetup {
 
     /// Every free model that could run a background task, best first,
     /// tested or not: the preferred ones OpenRouter still lists, then the
-    /// rest by context length. Like Free mode's picks, each must take tools,
-    /// and one for a task that reads images must read images.
+    /// rest by context length. Background tasks share the chat's request
+    /// path, so each must take tools, and one for a task that reads images
+    /// must read images.
     static func rankedFree(needsVision: Bool, from directory: [OpenRouterDirectoryModel]) -> [OpenRouterDirectoryModel] {
         let usable = directory.filter {
             isFree($0) && $0.supportsTools && (!needsVision || $0.supportsVision == true)
@@ -332,17 +194,15 @@ extension FreeModelsSetup {
     /// work, from the same directory read (`freeBackups`). Free models are
     /// the ones most often busy, rate-limited or answering with nothing, so a
     /// free setting needs somewhere to go. Backups the learner already chose
-    /// are theirs and stay; `replacing` is for Free mode, which saved them
-    /// first.
+    /// are theirs and stay.
     static func giveFreeBackups(
         _ candidates: [OpenRouterDirectoryModel],
         to slot: String,
-        primaryID: String,
-        replacing: Bool = false
+        primaryID: String
     ) {
-        guard replacing || AIBackupModels.stored(slot: slot).isEmpty else { return }
+        guard AIBackupModels.stored(slot: slot).isEmpty else { return }
         let picks = freeBackups(from: candidates, primaryID: primaryID)
-        guard !picks.isEmpty || replacing else { return }
+        guard !picks.isEmpty else { return }
         picks.forEach(catalog)
         AIBackupModels.set(picks.map { AITaskModelRoute(provider: .openRouter, model: $0.id) }, slot: slot)
     }
@@ -413,7 +273,7 @@ enum FreeModelAccess {
 /// to China." Background work runs on "a free model as a default and an ultra
 /// cheap model as a fallback".
 ///
-/// Chosen from live data, like Free mode's picks: OpenRouter's directory says
+/// Chosen from live data, like the free picks: OpenRouter's directory says
 /// whether a model's weights are open (`huggingFaceID`), and its in-region
 /// directory which of the model's hosts run in the US
 /// (`OpenRouterRegionalEndpoints`). The chat model and the backup keep a host
@@ -466,7 +326,6 @@ enum RecommendedModels {
     enum Failure: LocalizedError, Equatable {
         case noChatModel
         case noBackgroundModel
-        case freeMode
 
         var errorDescription: String? {
             switch self {
@@ -474,8 +333,6 @@ enum RecommendedModels {
                 "No open-weight chat model has enough hosts in \(RecommendedModels.region.name) on OpenRouter right now. Try again later, or choose models below."
             case .noBackgroundModel:
                 "No low-cost open-weight model has enough hosts in \(RecommendedModels.region.name) on OpenRouter right now. Try again later, or choose models below."
-            case .freeMode:
-                "Free mode is on, and the recommended chat model is paid. Turn Free mode off to use it."
             }
         }
     }
@@ -591,8 +448,6 @@ enum RecommendedModels {
     /// Setup's Meetings answer can let them go free afterwards.
     @MainActor
     static func apply(_ choice: Choice) async throws {
-        guard !AIFreeMode.isOn else { throw Failure.freeMode }
-
         // Chat, on the region's hosts. The host row goes first, so no chat
         // starts on the new default before it is confined.
         let chatID = choice.chat.model.id
@@ -676,14 +531,15 @@ enum FreeModelReplacement {
             .first { $0.id.lowercased() != ended }
     }
 
-    /// Free mode's chat pick from the directory without the ended model.
+    /// The best free model for chat other than the one that ended.
     static func chatReplacement(
         for endedID: String,
         from directory: [OpenRouterDirectoryModel],
         qualifies: FreeModelsSetup.Qualifies = FreeModelsSetup.storedQualification
     ) -> OpenRouterDirectoryModel? {
         let ended = endedID.lowercased()
-        return FreeModelsSetup.choose(from: directory.filter { $0.id.lowercased() != ended }, qualifies: qualifies)?.chat
+        return FreeModelsSetup.rankedFreeForChat(from: directory)
+            .first { $0.id.lowercased() != ended && qualifies($0.id, .chat) }
     }
 
     /// What the switched banner calls a backup slot's setting.
@@ -784,263 +640,18 @@ enum FreeModelReplacement {
     }
 }
 
-// MARK: - Free mode
-
-/// The Mac half of `AIFreeMode`: what turning the switch on and off does to
-/// the model settings. On, every setting points at a free model (`apply()`),
-/// and the Data & Privacy switch goes off, since its request field would
-/// leave a free model no host. What was replaced is kept in
-/// `AIFreeMode.savedSelectionsKey` and put back when the switch goes off.
-extension FreeModelsSetup {
-    /// The selections Free mode replaced. Codable so it can ride the synced
-    /// preference rail, and restored through the same setters Settings uses.
-    struct SavedSelections: Codable, Equatable {
-        struct Route: Codable, Equatable {
-            let provider: String
-            let model: String
-        }
-
-        var defaultChat: Route
-        var background: Route
-        var backgroundMultimodal: Route
-        var textToSpeechOpenRouterModel: String
-        var textToSpeechModel: String
-        var deniedDataCollection: Bool
-        /// Every setting's backup models (`AIBackupModels`), by slot. Nil in
-        /// what builds before backups saved; their backups are left alone.
-        var backups: [String: [Route]]? = nil
-        /// Docs' own model (`KeychainService.docsRoute`); nil when Docs
-        /// followed the Default Model, or in what builds before it saved.
-        var docs: Route? = nil
-
-        @MainActor
-        static func capture() -> SavedSelections {
-            let chatProvider = KeychainService.aiProvider
-            let background = KeychainService.displayedBackgroundTaskRoute
-            let multimodal = KeychainService.displayedBackgroundMultimodalTaskRoute
-            return SavedSelections(
-                defaultChat: Route(provider: chatProvider.rawValue, model: KeychainService.model(for: chatProvider)),
-                background: Route(provider: background.provider.rawValue, model: background.model),
-                backgroundMultimodal: Route(provider: multimodal.provider.rawValue, model: multimodal.model),
-                textToSpeechOpenRouterModel: MacArticleSpeechSettings.openRouterModel,
-                textToSpeechModel: ArticleSpeechSelection.modelID(),
-                deniedDataCollection: AIDataPolicy.deniesDataCollection,
-                backups: AIBackupModels.allStored().mapValues { routes in
-                    routes.map { Route(provider: $0.provider.rawValue, model: $0.model) }
-                },
-                docs: KeychainService.docsRoute.map { Route(provider: $0.provider.rawValue, model: $0.model) }
-            )
-        }
-
-        /// Puts each selection back when its model is still offered; one that
-        /// was retired while Free mode was on keeps the free model it has.
-        /// Runs after the switch is off, so the catalog offers paid models again.
-        @MainActor
-        func restore() {
-            if let provider = AIProvider(rawValue: defaultChat.provider),
-               let entry = AIModelCatalog.entry(provider: provider, modelID: defaultChat.model) {
-                AIModelCatalog.setDefault(entry)
-            }
-            if let provider = AIProvider(rawValue: background.provider) {
-                KeychainService.setBackgroundTaskRoute(provider: provider, model: background.model)
-            }
-            if let provider = AIProvider(rawValue: backgroundMultimodal.provider) {
-                KeychainService.setBackgroundMultimodalTaskRoute(provider: provider, model: backgroundMultimodal.model)
-            }
-            if let docs, let provider = AIProvider(rawValue: docs.provider),
-               AIModelCatalog.entry(provider: provider, modelID: docs.model) != nil {
-                KeychainService.setDocsRoute(AITaskModelRoute(provider: provider, model: docs.model))
-            }
-            if ArticleSpeechCatalog.model(id: textToSpeechOpenRouterModel) != nil {
-                MacArticleSpeechSettings.openRouterModel = textToSpeechOpenRouterModel
-            }
-            if ArticleSpeechCatalog.model(id: textToSpeechModel) != nil {
-                ArticleSpeechSelection.selectModel(textToSpeechModel)
-            }
-            if let backups {
-                let slots = Set(backups.keys).union(AIBackupModels.allStored().keys)
-                for slot in slots {
-                    let routes = (backups[slot] ?? []).compactMap { route in
-                        AIProvider(rawValue: route.provider).map { AITaskModelRoute(provider: $0, model: route.model) }
-                    }
-                    AIBackupModels.set(routes, slot: slot)
-                }
-            }
-            if deniedDataCollection, !AIDataPolicy.deniesDataCollection {
-                PreferenceStore.set(true, forKey: AIDataPolicy.denyDataCollectionKey)
-                AIModelCatalog.dataPolicyDidChange()
-            }
-        }
-    }
-
-    /// Turns Free mode on and returns the free models chosen. Needs the
-    /// learner's own OpenRouter key, since free models never run on
-    /// ForeverLM's, and an account the proxy lets that key run on
-    /// (`ManagedAI.ownKeyAllowed`: the free days or paid).
-    @MainActor
-    @discardableResult
-    static func enableFreeMode() async throws -> Choice {
-        guard ManagedAI.ownKeyRouter == .openRouter else { throw Failure.needsOpenRouterKey }
-        guard ManagedAI.ownKeyAllowed else { throw Failure.appLocked }
-        // Captured before anything moves; a second call while on keeps the
-        // first capture, which holds the learner's own picks.
-        let saved = AIFreeMode.isOn ? nil : SavedSelections.capture()
-        let choice = try await apply()
-        if AIDataPolicy.deniesDataCollection {
-            PreferenceStore.set(false, forKey: AIDataPolicy.denyDataCollectionKey)
-            AIModelCatalog.dataPolicyDidChange()
-        }
-        if let saved, let data = try? JSONEncoder().encode(saved) {
-            PreferenceStore.set(data, forKey: AIFreeMode.savedSelectionsKey)
-        }
-        PreferenceStore.set(true, forKey: AIFreeMode.enabledKey)
-        AIModelCatalog.freeModeDidChange()
-        return choice
-    }
-
-    /// Turns Free mode off and puts back the selections it replaced.
-    @MainActor
-    static func disableFreeMode() {
-        let saved = UserDefaults.standard.data(forKey: AIFreeMode.savedSelectionsKey)
-            .flatMap { try? JSONDecoder().decode(SavedSelections.self, from: $0) }
-        PreferenceStore.set(false, forKey: AIFreeMode.enabledKey)
-        PreferenceStore.remove(forKey: AIFreeMode.savedSelectionsKey)
-        saved?.restore()
-        AIModelCatalog.freeModeDidChange()
-    }
-}
-
-/// The Free mode switch, with what it gives up said plainly: before it goes
-/// on, in a confirmation that lists every trade-off, and for as long as it is
-/// on, under the switch. Lives in Settings › AI Usage, under the OpenRouter
-/// key it can go on only with; paying, once the free days are over, is
-/// Settings › Billing.
-struct FreeModeSettingsView: View {
-    @State private var isOn = AIFreeMode.isOn
-    @State private var hasOpenRouterKey = ManagedAI.ownKeyRouter == .openRouter
-    @State private var keyAllowed = ManagedAI.ownKeyAllowed
-    @State private var confirming = false
-    @State private var working = false
-    @State private var chosen: FreeModelsSetup.Choice?
-    @State private var errorText: String?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Toggle(AIFreeMode.switchTitle, isOn: Binding(
-                get: { isOn },
-                set: { wantsOn in
-                    if wantsOn {
-                        confirming = true
-                    } else {
-                        FreeModelsSetup.disableFreeMode()
-                        chosen = nil
-                        errorText = nil
-                        refresh()
-                    }
-                }
-            ))
-            .disabled(working || (!isOn && !(hasOpenRouterKey && keyAllowed)))
-            .accessibilityIdentifier("settings.ai.freeMode")
-
-            Text(AIFreeMode.summary)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if !isOn, !(hasOpenRouterKey && keyAllowed) {
-                Text(hasOpenRouterKey ? FreeModelsSetup.keyHeldBackShort : "Needs your own OpenRouter key.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            if working {
-                ProgressView().controlSize(.small)
-            }
-
-            if isOn {
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(AIFreeMode.tradeoffs, id: \.self) { line in
-                        Label(line, systemImage: "exclamationmark.triangle.fill")
-                            .font(.caption)
-                            .foregroundStyle(.orange)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    if let chosen {
-                        Text(chosen.chat.id == chosen.background.id
-                            ? "Chat and background work use \(chosen.chat.name)."
-                            : "Chat uses \(chosen.chat.name), background work \(chosen.background.name).")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    Label(FreeModelsSetup.recommendation, systemImage: "hand.thumbsup")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Link("Allow free models in your OpenRouter privacy settings", destination: FreeModelsSetup.openRouterPrivacyURL)
-                        .font(.caption)
-                    Link("Each free model's terms on OpenRouter", destination: AIFreeMode.openRouterFreeModelsURL)
-                        .font(.caption)
-                }
-                .padding(.top, 2)
-            }
-
-            if let errorText {
-                Text(errorText)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .confirmationDialog("Turn on Free mode?", isPresented: $confirming, titleVisibility: .visible) {
-            Button("Turn On Free Mode") { enable() }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text(AIFreeMode.confirmationMessage(turnsOffDataPolicySwitch: AIDataPolicy.deniesDataCollection))
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .aiProviderDidChange).receive(on: RunLoop.main)) { _ in
-            refresh()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .managedAIOwnKeyDidChange).receive(on: RunLoop.main)) { _ in
-            refresh()
-        }
-    }
-
-    private func refresh() {
-        isOn = AIFreeMode.isOn
-        hasOpenRouterKey = ManagedAI.ownKeyRouter == .openRouter
-        keyAllowed = ManagedAI.ownKeyAllowed
-    }
-
-    private func enable() {
-        working = true
-        errorText = nil
-        Task { @MainActor in
-            defer {
-                working = false
-                refresh()
-            }
-            do {
-                chosen = try await FreeModelsSetup.enableFreeMode()
-            } catch {
-                errorText = error.localizedDescription
-            }
-        }
-    }
-}
-
 // MARK: - Price watch
 
 /// Tells the learner when a model they use starts costing money or costs more
 /// (product owner, 2026-09-25: free models may be free only for a limited time, and
 /// a model going from free to paid, or up in price, is shown as a
 /// notification). Every read of OpenRouter's directory
-/// (`AIModelPriceRefresher.ingest`: at launch, on app activation, when a
-/// picker opens, and after a refusal under Free mode's zero price cap) is
-/// compared with the prices the previous read recorded for the models the
-/// learner's settings name: the chat default, both Background defaults and
-/// every task's resolved model. Each change raises one banner for that model,
-/// which opens Settings › Chat. The first read of a model only records it.
+/// (`AIModelPriceRefresher.ingest`: at launch, on app activation, and when
+/// a picker opens) is compared with the prices the previous read recorded
+/// for the models the learner's settings name: the chat default, both
+/// Background defaults and every task's resolved model. Each change raises
+/// one banner for that model, which opens Settings › Chat. The first read of
+/// a model only records it.
 /// A free model that ended is swapped for another free one first, and the
 /// banner says what moved; when nothing could move, the banner asks, and its
 /// Switch to a Free Model action tries again against a fresh directory read.
@@ -1184,7 +795,6 @@ enum AIModelPriceWatch {
             return result.changes
         }
         guard !changes.isEmpty else { return }
-        let freeModeOn = AIFreeMode.isOn
         Task.detached(priority: .utility) {
             for change in changes {
                 if change.endsFree {
@@ -1195,7 +805,7 @@ enum AIModelPriceWatch {
                         continue
                     }
                 }
-                await deliver(change, freeModeOn: freeModeOn)
+                await deliver(change)
             }
         }
     }
@@ -1206,7 +816,6 @@ enum AIModelPriceWatch {
     /// that ended, and the banner asks only when nothing could move.
     static func observeRestriction(_ modelID: String) {
         guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
-        let freeModeOn = AIFreeMode.isOn
         Task.detached(priority: .utility) {
             let directory = (try? await OpenRouterCatalogAvailability.shared.models()) ?? []
             let name = directory.first { $0.id.lowercased() == modelID.lowercased() }?.name ?? modelID
@@ -1219,7 +828,7 @@ enum AIModelPriceWatch {
                     return
                 }
             }
-            await deliver(change, freeModeOn: freeModeOn)
+            await deliver(change)
         }
     }
 
@@ -1249,7 +858,7 @@ enum AIModelPriceWatch {
         if outcome.moves.isEmpty, outcome.stranded.isEmpty, outcome.removedBackups.isEmpty {
             sentences.append("Nothing uses it any more.")
         }
-        sentences.append("Change it in \(AIFreeMode.modelsLocation).")
+        sentences.append("Change it in Settings › Chat.")
         return sentences.joined(separator: " ")
     }
 
@@ -1261,10 +870,8 @@ enum AIModelPriceWatch {
         }
     }
 
-    static func body(for change: Change, freeModeOn: Bool) -> String {
-        let next = freeModeOn
-            ? "Free mode will not use it. Switch to another free model?"
-            : "Work that uses it now costs money. Switch to another free model?"
+    static func body(for change: Change) -> String {
+        let next = "Work that uses it now costs money. Switch to another free model?"
         switch change {
         case .noLongerFree(_, _, let now):
             return "OpenRouter now charges \(AIModelListPrice.pairLabel(input: now.input, output: now.output)) per million tokens in/out. \(next)"
@@ -1273,17 +880,17 @@ enum AIModelPriceWatch {
         case .limitedToListedApps:
             return "OpenRouter now offers it only inside the apps it lists, so every request from ForeverLM fails. Switch to another free model?"
         case .moreExpensive(_, _, let from, let to):
-            return "Now \(AIModelListPrice.pairLabel(input: to.input, output: to.output)) per million tokens in/out, up from \(AIModelListPrice.pairLabel(input: from.input, output: from.output)). Change it in \(AIFreeMode.modelsLocation) if that is too much."
+            return "Now \(AIModelListPrice.pairLabel(input: to.input, output: to.output)) per million tokens in/out, up from \(AIModelListPrice.pairLabel(input: from.input, output: from.output)). Change it in Settings › Chat if that is too much."
         }
     }
 
     /// Delivered at once, one banner per model: a later change to the same
     /// model replaces it. Asks for permission the first time, since the
     /// learner has something worth knowing right now.
-    static func deliver(_ change: Change, freeModeOn: Bool) async {
+    static func deliver(_ change: Change) async {
         let content = UNMutableNotificationContent()
         content.title = title(for: change)
-        content.body = body(for: change, freeModeOn: freeModeOn)
+        content.body = body(for: change)
         if change.endsFree {
             await registerCategory()
             content.categoryIdentifier = categoryIdentifier

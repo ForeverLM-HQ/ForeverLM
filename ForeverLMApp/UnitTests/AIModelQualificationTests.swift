@@ -103,7 +103,7 @@ struct AIModelQualificationTests {
     }
 
     @Test("Free picks skip a model that failed the role it would fill")
-    func freePicksNeedAPass() throws {
+    func freePicksNeedAPass() {
         let directory = [
             model("google/gemma-4-31b-it:free", vision: true),
             model("google/gemma-4-26b-a4b-it:free"),
@@ -112,18 +112,17 @@ struct AIModelQualificationTests {
         let refused: Set<String> = ["google/gemma-4-26b-a4b-it:free|background", "google/gemma-4-31b-it:free|background_images"]
         let qualifies: FreeModelsSetup.Qualifies = { id, role in !refused.contains("\(id)|\(role.rawValue)") }
 
-        let choice = try #require(FreeModelsSetup.choose(from: directory, qualifies: qualifies))
-        #expect(choice.chat.id == "google/gemma-4-31b-it:free")
-        #expect(choice.background.id != "google/gemma-4-26b-a4b-it:free", "the preferred background model failed")
-        #expect(choice.vision == nil, "the only model that reads images failed that test")
-
+        #expect(FreeModelReplacement.chatReplacement(for: "x/ended:free", from: directory, qualifies: qualifies)?.id
+            == "google/gemma-4-31b-it:free")
         #expect(!FreeModelsSetup.candidates(needsVision: false, from: directory, qualifies: qualifies)
-            .map(\.id).contains("google/gemma-4-26b-a4b-it:free"))
+            .map(\.id).contains("google/gemma-4-26b-a4b-it:free"), "the preferred background model failed")
+        #expect(FreeModelsSetup.candidates(needsVision: true, from: directory, qualifies: qualifies).isEmpty,
+                "the only model that reads images failed that test")
         #expect(FreeModelsSetup.rankedFree(needsVision: false, from: directory).count == 3,
                 "the ranking itself still lists every free model, for the tests to run on")
         #expect(FreeModelsSetup.rankedFreeForChat(from: directory).first?.id == "google/gemma-4-31b-it:free",
-                "the chat ranking leads with the chat pick's own preference")
-        #expect(FreeModelsSetup.choose(from: directory, qualifies: { _, _ in false }) == nil)
+                "the chat ranking leads with its own preference")
+        #expect(FreeModelReplacement.chatReplacement(for: "x/ended:free", from: directory, qualifies: { _, _ in false }) == nil)
     }
 
     @Test("Streaming tasks need the chat's test; the rest need background work's, or its image variant")

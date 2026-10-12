@@ -20,8 +20,8 @@ struct CourseQuizGenerationOptions: Equatable, Sendable {
     /// `CourseQuizPictures.maximumDrawingsPerQuiz` a quiz). On by default:
     /// The product owner, 2026-09-27, by default try a picture for each question, drawn
     /// where no slide or figure shows it. The callers set it from Settings ›
-    /// Images › Draw pictures for new quizzes (on unless turned off, never in
-    /// Free mode) and draw the briefs after the run with
+    /// Images › Draw pictures for new quizzes (on unless turned off) and draw
+    /// the briefs after the run with
     /// `drawQuestionPictures`; a run that will not draw turns it off rather
     /// than leave briefs waiting.
     var briefsDrawings: Bool = true

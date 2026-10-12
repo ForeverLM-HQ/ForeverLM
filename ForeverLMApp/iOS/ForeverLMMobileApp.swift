@@ -118,10 +118,6 @@ struct ForeverLMMobileApp: App {
                 if MobileSyncSession.isEnabled {
                     Task { await MobileSyncSession.startIfEnabled() }
                 }
-                // Free mode's switch, where the phone's synchronous guards read
-                // it. Each billable start reads it again; this keeps it current
-                // for everything else in between. See `AIFreeMode`.
-                Task { try? await MobileModelPreferenceStore.shared.refreshFreeMode() }
                 await viewModel.load(forceRefresh: false)
                 await viewModel.importPendingSharedSources()
                 await viewModel.handlePendingSiriCommandIfNeeded()
@@ -160,12 +156,7 @@ struct ForeverLMMobileApp: App {
                 // A text-to-speech generation the phone suspended part-way finishes
                 // from its journaled chunks rather than starting over: coming
                 // back to the app is enough to pick it up where it stopped.
-                // Free mode is read first, since a resumed job spends without
-                // re-reading the selection.
-                Task {
-                    _ = try? await MobileModelPreferenceStore.shared.refreshFreeMode()
-                    await viewModel.resumeInterruptedTextToSpeechGeneration()
-                }
+                Task { await viewModel.resumeInterruptedTextToSpeechGeneration() }
                 // The first foreground after the hour is the path that always
                 // works for preparing today's review; the background refresh
                 // is a courtesy iOS may or may not extend.

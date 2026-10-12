@@ -395,18 +395,14 @@ struct NotebookCoverMaker {
 
 // MARK: - When covers are drawn without being asked
 
-/// Free mode and the Setting `images.drawNotebookCovers.automatic` (§3.5.3), read when a cover would be
-/// drawn: a cover is drawn without being asked only while the Setting is on and Free mode is off, and
-/// never in Free mode at all (an image model is never free).
+/// The Setting `images.drawNotebookCovers.automatic` (§3.5.3), read when a cover would be drawn: a cover
+/// is drawn without being asked only while it is on.
 struct NotebookCoverGates: Equatable, Sendable {
-    var freeMode: Bool
     var automatic: Bool
-
-    var allowsAutomatic: Bool { automatic && !freeMode }
 
     #if os(macOS)
     static func current() async -> NotebookCoverGates {
-        await MainActor.run { NotebookCoverGates(freeMode: AIFreeMode.isOn, automatic: MacImageGenerationSettings.drawsNotebookCovers) }
+        await MainActor.run { NotebookCoverGates(automatic: MacImageGenerationSettings.drawsNotebookCovers) }
     }
     #endif
 }
@@ -435,7 +431,7 @@ extension KnowledgeStore {
     /// waits for the notebook's record to be sent and for its name. Returns whether it queued one.
     @discardableResult
     func queueNotebookCover(_ notebookID: String, gates: NotebookCoverGates, now: Date = Date()) throws -> Bool {
-        guard syncGeneration == .two, gates.allowsAutomatic,
+        guard syncGeneration == .two, gates.automatic,
               let wireID = try scalarText(
                   "SELECT wire_key FROM learning_goals WHERE id = ? AND COALESCE(entity_kind, ?) = ? AND team_id IS NULL",
                   [.text(notebookID), .text(LearningGoalEntityKind.notebook), .text(LearningGoalEntityKind.notebook)]
@@ -500,12 +496,10 @@ actor NotebookCoverService {
     nonisolated(unsafe) static weak var current: NotebookCoverService?
 
     enum Refusal: LocalizedError, Equatable {
-        case freeMode
         case settingOff
 
         var errorDescription: String? {
             switch self {
-            case .freeMode: return "Free mode draws no pictures: an image model is never free."
             case .settingOff: return "Draw notebook covers is off in Settings › Images, so no cover is drawn without being asked."
             }
         }
@@ -600,7 +594,7 @@ actor NotebookCoverService {
                 if case .drawn = outcome { await MainActor.run { NotificationCenter.default.post(name: .notebookCoversDidChange, object: nil) } }
                 return try await finish(row)
             default:
-                guard await gates().allowsAutomatic else { return false }
+                guard await gates().automatic else { return false }
                 guard let parsed = NotebookCoverQueue.parse(row.target),
                       let target = try await target(of: row.target, following: true) else { return try await finish(row) }
                 if try await store.perform({ try NotebookCoverNaming.isUnnamed(parsed.notebookID, connection: $0.connection) }) { return false }
@@ -651,20 +645,16 @@ actor NotebookCoverService {
         return outcome
     }
 
-    /// A cover Redraw With asked for (`model`, which draws over the cover the notebook has). Never in Free
-    /// mode.
+    /// A cover Redraw With asked for (`model`, which draws over the cover the notebook has).
     func drawNow(_ notebookID: String, model: ImageGenerationModel? = nil) async throws -> NotebookCoverMaker.Outcome {
-        guard !(await gates().freeMode) else { throw Refusal.freeMode }
-        return try await drawResolved(notebookID, model: model)
+        try await drawResolved(notebookID, model: model)
     }
 
     /// The cover a claimed `makeDerived` Job asks for (§3.5.28, D53): the creation of a notebook made on the
-    /// iPhone or through the hosted MCP, so it follows the Setting as the creation does, and never draws in
-    /// Free mode. A notebook that has a cover is left alone.
+    /// iPhone or through the hosted MCP, so it follows the Setting as the creation does. A notebook that
+    /// has a cover is left alone.
     func drawForJob(_ notebookID: String) async throws -> NotebookCoverMaker.Outcome {
-        let gates = await gates()
-        guard !gates.freeMode else { throw Refusal.freeMode }
-        guard gates.automatic else { throw Refusal.settingOff }
+        guard await gates().automatic else { throw Refusal.settingOff }
         return try await drawResolved(notebookID, model: nil)
     }
 
@@ -733,8 +723,8 @@ actor NotebookCoverService {
 
 #if os(macOS)
 extension NotebookCoverService {
-    /// The service the Mac runs: the managed image route on the account's Images model and style, Free mode
-    /// and the Setting read when a cover would be drawn, and the covers cached in Caches. WP16 builds it
+    /// The service the Mac runs: the managed image route on the account's Images model and style, the
+    /// Setting read when a cover would be drawn, and the covers cached in Caches. WP16 builds it
     /// with the coordinator, beside `MaintenanceService` (`attachCovers`), and keeps it, since `current` is
     /// weak.
     static func live(store: PrivateSyncLocalStore, blobs: BlobStore, writer: MaintenanceWriter, deviceID: String) -> NotebookCoverService {
@@ -756,7 +746,7 @@ extension NotebookCoverService {
     static func notebookMadeOneAtATime(_ notebookID: String, storage: StorageService) async {
         guard ForeverLMRuntimeIdentity.syncGeneration == .two else { return }
         let gates = await NotebookCoverGates.current()
-        guard gates.allowsAutomatic else { return }
+        guard gates.automatic else { return }
         await PreferenceStore.flushPendingWrites()
         var queued = false
         try? await storage.performSync { queued = try $0.queueNotebookCover(notebookID, gates: gates) }
@@ -767,7 +757,7 @@ extension NotebookCoverService {
     static func notebookMadeOneAtATime(_ notebookID: String, store: KnowledgeStore) async {
         guard ForeverLMRuntimeIdentity.syncGeneration == .two else { return }
         let gates = await NotebookCoverGates.current()
-        guard gates.allowsAutomatic else { return }
+        guard gates.automatic else { return }
         await PreferenceStore.flushPendingWrites()
         if (try? store.queueNotebookCover(notebookID, gates: gates)) == true { current?.wake() }
     }

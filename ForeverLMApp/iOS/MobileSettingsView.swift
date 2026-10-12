@@ -3,7 +3,7 @@ import AuthenticationServices
 import SwiftUI
 
 /// The quiet corner behind the home screen's gear: the text-to-speech voice, the
-/// memory review's day, Free mode and data policy, and the account's spending,
+/// memory review's day, the data policy, and the account's spending,
 /// day by day. A voice conversation runs on the learner's chat model, chosen
 /// on the Mac; it has no settings of its own here.
 struct MobileSettingsView: View {
@@ -24,11 +24,6 @@ struct MobileSettingsView: View {
     // row, read once here and written through on change. See `AIDataPolicy`.
     @State private var denyDataCollection = false
     @State private var dataPolicyError: String?
-    // Free mode, as the account row says; shown, not flipped, here: turning
-    // it on or off moves every model setting, which the Mac does. See
-    // `AIFreeMode`.
-    @State private var freeMode = AIFreeMode.isOn
-    @State private var freeModeError: String?
     @AppStorage(DailyReviewPreparationKeys.hour)
     private var prepareDailyReviewHour: Int = DailyReviewPreparationKeys.defaultHour
     @ObservedObject private var reviewScheduler = MobileMemoryReviewScheduler.shared
@@ -134,40 +129,9 @@ struct MobileSettingsView: View {
                 Text("Having it ready uses AI daily, billed to your OpenRouter key.")
             }
 
-            // No header over its one row, which names it (2026-10-06).
-            Section {
-                LabeledContent(AIFreeMode.switchTitle, value: freeMode ? "On" : "Off")
-                    .accessibilityIdentifier("settings.ai.freeMode")
-                if freeMode {
-                    ForEach(AIFreeMode.tradeoffs, id: \.self) { line in
-                        Label(line, systemImage: "exclamationmark.triangle.fill")
-                            .font(.footnote)
-                            .foregroundStyle(.orange)
-                    }
-                    Link("Allow free models in your OpenRouter privacy settings", destination: AIFreeMode.openRouterPrivacyURL)
-                        .font(.footnote)
-                        .accessibilityIdentifier("settings.ai.freeMode.openRouterPrivacy")
-                }
-                if let freeModeError {
-                    Text(freeModeError)
-                        .foregroundStyle(.red)
-                }
-            } footer: {
-                Text(MobileFreeModeCopy.footer(isOn: freeMode))
-            }
-
             Section {
                 Toggle(AIDataPolicy.switchTitle, isOn: denyDataCollectionBinding)
-                    // Free models' providers are the ones that keep prompts, so
-                    // "deny" would leave them no host; on the Mac, turning this
-                    // on turns Free mode off, which only the Mac can do.
-                    .disabled(freeMode)
                     .accessibilityIdentifier("settings.ai.denyDataCollection")
-                if freeMode {
-                    Text(MobileFreeModeCopy.dataPolicyWhileOn)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
                 if let dataPolicyError {
                     Text(dataPolicyError)
                         .foregroundStyle(.red)
@@ -282,15 +246,6 @@ struct MobileSettingsView: View {
                     .bool(forKey: AIDataPolicy.denyDataCollectionKey) ?? false
             } catch {
                 dataPolicyError = error.localizedDescription
-            }
-        }
-        .task {
-            do {
-                freeMode = try await MobileModelPreferenceStore.shared.refreshFreeMode()
-                freeModeError = nil
-            } catch {
-                freeMode = AIFreeMode.isOn
-                freeModeError = error.localizedDescription
             }
         }
         .task {
@@ -423,9 +378,6 @@ private struct MobileTextToSpeechSettingsControls: View {
     private var hasChosenBookContinuation = false
     @State private var preferenceSyncError: String?
     @State private var suppressedCostModelIDs: Set<String> = []
-    /// Free mode offers only the free text-to-speech models; the refresh below
-    /// reads the switch with the selection.
-    @State private var freeMode = AIFreeMode.isOn
     /// The account did not take or give the model pick; shown under the
     /// picker so a pick that never reached the Mac is not mistaken for one.
     @State private var selectionSyncError: String?
@@ -518,7 +470,6 @@ private struct MobileTextToSpeechSettingsControls: View {
             } catch {
                 selectionSyncError = error.localizedDescription
             }
-            freeMode = AIFreeMode.isOn
         }
         .task {
             await ArticleSpeechVoicePreviewRepository.shared.startPrewarming(
@@ -547,16 +498,11 @@ private struct MobileTextToSpeechSettingsControls: View {
         }
     }
 
-    private var offeredModels: [ArticleSpeechModelOption] {
-        guard freeMode else { return ArticleSpeechCatalog.models }
-        return ArticleSpeechCatalog.models.filter { AIFreeMode.isFreeModelID($0.id) }
-    }
-
-    /// `offeredModels` by maker, in the order the catalog lists them.
+    /// The catalog's models by maker, in the order it lists them.
     private var offeredModelGroups: [(maker: String, models: [ArticleSpeechModelOption])] {
         var order: [String] = []
         var grouped: [String: [ArticleSpeechModelOption]] = [:]
-        for model in offeredModels {
+        for model in ArticleSpeechCatalog.models {
             if grouped[model.maker] == nil { order.append(model.maker) }
             grouped[model.maker, default: []].append(model)
         }
@@ -850,7 +796,7 @@ private struct MobileCreditsView: View {
             Text(AIDataPolicy.openRouterAccountNote)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
-            Link("Open OpenRouter privacy settings", destination: AIFreeMode.openRouterPrivacyURL)
+            Link("Open OpenRouter privacy settings", destination: AIFreeModels.openRouterPrivacyURL)
                 .accessibilityIdentifier("credits.ownKey.openRouterPrivacy")
 
             Label(ownKeyRouter.keyPrivacyNote, systemImage: "lock.fill")
@@ -1019,17 +965,6 @@ struct MobileCreditsRequiredSheet: View {
         .presentationDetents([.medium])
         .presentationDragIndicator(.visible)
     }
-}
-
-/// The phone's words for Free mode, around `AIFreeMode`'s own copy.
-enum MobileFreeModeCopy {
-    /// One clause since 2026-10-06: what it does and where it is changed.
-    static func footer(isOn: Bool) -> String {
-        "Only OpenRouter's free models, on your own key; turned \(isOn ? "off" : "on") under \(AIFreeMode.settingsLocation)."
-    }
-
-    static let dataPolicyWhileOn =
-        "Off while Free mode is on: the providers behind free models may keep what you send, so this switch would leave them no host."
 }
 
 /// The phone's one-screen Settings has no room for the Mac's Data & Privacy

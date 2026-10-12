@@ -258,10 +258,9 @@ enum ManagedAI {
         /// means to use only free models. OpenRouter caps `:free` models at 50
         /// requests a day until an account has bought 10 credits in total, and
         /// at 1,000 after (openrouter.ai/docs/api-reference/limits, read
-        /// 2026-09-27). Free mode never spends the credits: it sends nothing
-        /// OpenRouter charges for.
+        /// 2026-09-27). Free models never spend the credits.
         var creditsNote: String {
-            "Add $10 of credits at \(label), even if you mean to use only free models. Until you have bought $10 in total, \(label) lets free models answer only 50 requests a day; after that, 1,000. Paid models draw on the credits, and Free mode never spends them."
+            "Add $10 of credits at \(label), even if you mean to use only free models. Until you have bought $10 in total, \(label) lets free models answer only 50 requests a day; after that, 1,000. Paid models draw on the credits; free models never spend them."
         }
 
         var creditsLinkTitle: String { "Add credits at \(label)" }
@@ -381,7 +380,7 @@ enum ManagedAI {
     /// OpenRouter body builder asks it whether to request the billed cost that
     /// the proxy would otherwise have resolved on the app's behalf.
     /// The key leaves direct only while the account is unlocked
-    /// (`ManagedAI.ownKeyAllowed`), Free mode or not. Otherwise the request
+    /// (`ManagedAI.ownKeyAllowed`). Otherwise the request
     /// goes through the proxy, which answers `app_locked` instead of quietly
     /// spending balance.
     /// OpenRouter's app attribution (openrouter.ai/docs/app-attribution):
@@ -729,13 +728,7 @@ enum ManagedAI {
     /// which makes routing failures explicit and prevents stale keys from older
     /// builds escaping. The learner's own router key is the one exception, and
     /// it is taken below on the same host test the key is attached by.
-    ///
-    /// Throws `AIFreeMode.Refusal` while Free mode is on and the request is
-    /// not for a free OpenRouter model. Every billable request passes through
-    /// here, so this is where "only free models" is kept, and the compiler
-    /// makes each call site handle it.
-    static func rewrite(_ request: inout URLRequest) throws {
-        if let refusal = AIFreeMode.refusal(for: request) { throw refusal }
+    static func rewrite(_ request: inout URLRequest) {
         let token = requestSessionToken
         let originalURL = request.url
         let host = originalURL?.host?.lowercased()
@@ -755,12 +748,7 @@ enum ManagedAI {
         // Narrow on purpose: an own key *and* a request already bound for that
         // key's own router. Every other host still ends at the proxy, so the
         // invariant holds for everything ForeverLM pays for.
-        //
-        // In Free mode a chat body gets OpenRouter's zero price cap and loses
-        // its plugins (web search bills apart from the model) here, whichever
-        // builder made it, so nothing it carries can be charged.
         if sendsOwnKeyDirect(toHost: host), let own = ownKey {
-            if AIFreeMode.isOn { AIFreeMode.applyZeroPriceCap(toChatRequest: &request) }
             for header in providerCredentialHeaders {
                 request.setValue(nil, forHTTPHeaderField: header)
             }
@@ -1540,9 +1528,6 @@ enum ManagedAI {
     /// task-locals hold (task, subject, activity), and the device build, so the
     /// charge lands in the ledger the way every other billable request's does.
     static func billableProxyRequest(path: String, method: String) throws -> URLRequest {
-        // The proxy's own routes (video jobs) serve no free model. A poll or a
-        // download of a job started before Free mode went on still reads.
-        if AIFreeMode.isOn, method.uppercased() != "GET" { throw AIFreeMode.Refusal.paidModel(nil) }
         var request = URLRequest(url: baseURL.appendingPathComponent(path))
         request.httpMethod = method
         try authenticate(&request)

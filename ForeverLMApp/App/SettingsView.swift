@@ -32,8 +32,8 @@ enum SettingsPane: Hashable {
     /// Paying for ForeverLM: the Early user deal, and switching or cancelling
     /// a subscription bought before the lock.
     case aiBilling
-    /// What runs AI and what it cost: the own key, Free mode, spending and
-    /// limits, and the activity by task.
+    /// What runs AI and what it cost: the own key, spending and limits, and
+    /// the activity by task.
     case aiUsage
     case mcp
     case mcpPairing
@@ -347,15 +347,6 @@ private enum SettingsSearchCatalog {
                 tint: .blue
             ),
             SettingsSearchItem(
-                id: "free-mode",
-                title: AIFreeMode.switchTitle,
-                subtitle: "AI Usage",
-                keywords: ["free", "free models", "openrouter", "free requests", "requests left", "daily quota", "rate limit"],
-                destination: .aiUsage,
-                icon: "gift.fill",
-                tint: .green
-            ),
-            SettingsSearchItem(
                 id: "background-work",
                 title: "Background",
                 subtitle: "AI Models",
@@ -404,7 +395,7 @@ private enum SettingsSearchCatalog {
                 id: "ai-usage",
                 title: "AI Usage",
                 subtitle: "Account",
-                keywords: ["own key", "api key", "key", "byok", "openrouter", "credits", "balance", "spending cap", "spending limit", "monthly limit", "daily limit", "usage", "spend", "cost", "activity", "dashboard"],
+                keywords: ["own key", "api key", "key", "byok", "openrouter", "credits", "balance", "spending cap", "spending limit", "monthly limit", "daily limit", "usage", "spend", "cost", "activity", "dashboard", "free requests", "requests left", "daily quota", "rate limit"],
                 destination: .aiUsage,
                 icon: "chart.bar.fill",
                 tint: .green
@@ -2711,8 +2702,8 @@ private struct NotionPluginSettingsView: View {
     }
 }
 
-/// Settings › AI Usage above the activity: the learner's own key, Free mode,
-/// and spending with its limits, one card each. Paying for ForeverLM is
+/// Settings › AI Usage above the activity: the learner's own key and
+/// spending with its limits, one card each. Paying for ForeverLM is
 /// Settings › Billing; the key card only points there when the account may
 /// not run the key.
 private struct AIUsageAccountSections: View {
@@ -2740,7 +2731,6 @@ private struct AIUsageAccountSections: View {
             } else {
                 signedOutSection
             }
-            freeModeSection
             spendingSection
 
             accountError
@@ -2772,8 +2762,8 @@ private struct AIUsageAccountSections: View {
                 VStack(alignment: .leading, spacing: 0) {
                     // The key runs while the account is unlocked: the free
                     // days, or paid. Otherwise the proxy refuses it for every
-                    // model, free ones and Free mode included (`app_locked`);
-                    // paying is Billing's, so this row only goes there.
+                    // model, free ones included (`app_locked`); paying is
+                    // Billing's, so this row only goes there.
                     if !account.ownKeyAllowed {
                         billingRow(title: AppLockWall.title, detail: "Your key runs AI features again once you pay") {
                             Button("Open Billing") { onOpenBilling() }
@@ -2826,7 +2816,7 @@ private struct AIUsageAccountSections: View {
                             Text(ownKeyRouter.trainingNote)
                             Text(AIDataPolicy.openRouterAccountNote)
                         }
-                        Button("Privacy Settings") { NSWorkspace.shared.open(AIFreeMode.openRouterPrivacyURL) }
+                        Button("Privacy Settings") { NSWorkspace.shared.open(AIFreeModels.openRouterPrivacyURL) }
                             .buttonStyle(.bordered)
                             .accessibilityIdentifier("billing.ownKey.openRouterPrivacy")
                     }
@@ -2960,21 +2950,6 @@ private struct AIUsageAccountSections: View {
         guard await account.setOwnKey(key, router: ownKeyRouter) else { return }
         ownKeyDraft = ""
         isReplacingOwnKey = false
-    }
-
-    /// Free mode runs on the key above it, while the account may run it
-    /// (product owner, 2026-09-26: "it should live under billing", said of the
-    /// pane that held both until the 2026-09-28 split), so it sits under the
-    /// key.
-    private var freeModeSection: some View {
-        SettingsSection(title: AIFreeMode.switchTitle) {
-            billingCard {
-                FreeModeSettingsView()
-                    // Whether the account may run the key decides whether the
-                    // switch can go on.
-                    .id(account.ownKeyAllowed)
-            }
-        }
     }
 
     /// What the account has spent and the two limits on it, in one card. The
@@ -3237,9 +3212,9 @@ private struct ReadOnlyPlainTextView: NSViewRepresentable {
 }
 
 /// Settings → Billing: paying for ForeverLM, and nothing else
-/// (`AppPlanSettingsSection`). Until 2026-09-28 this pane also held the key,
-/// Free mode, limits, usage and activity; the product owner asked for the subscription
-/// to stand apart from all the AI usage, which is Settings › AI Usage now.
+/// (`AppPlanSettingsSection`): the product owner asked for the subscription
+/// to stand apart from all the AI usage (2026-09-28), which is Settings › AI
+/// Usage.
 private struct BillingSettingsDetailView: View {
     @Environment(ManagedAIAccountModel.self) private var account
 
@@ -3272,8 +3247,7 @@ private struct BillingSettingsDetailView: View {
 }
 
 /// Settings → AI Usage: what runs ForeverLM's AI and what it has cost — the
-/// learner's own key, Free mode, spending and its limits, then the activity
-/// by task. Split from Billing on 2026-09-28.
+/// learner's own key, spending and its limits, then the activity by task.
 private struct AIUsageSettingsDetailView: View {
     let onOpenBilling: () -> Void
     let onOpenSettings: (SettingsPane) -> Void

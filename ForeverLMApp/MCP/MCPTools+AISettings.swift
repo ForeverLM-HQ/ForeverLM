@@ -427,7 +427,7 @@ extension MCPDataStore {
     /// models that can do the job, and a free model must be able to run.
     static func catalogFreeModelIfNeeded(provider rawProvider: String?, model rawModel: String?, needsVision: Bool) async throws {
         let model = (rawModel ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        guard AIFreeMode.isFreeModelID(model), aiProvider(named: rawProvider ?? "") == .openRouter else { return }
+        guard AIFreeModels.isFreeModelID(model), aiProvider(named: rawProvider ?? "") == .openRouter else { return }
         if let blocker = FreeModelsSetup.pickBlocker() {
             throw MCPError.invalidInput(blocker)
         }
@@ -442,7 +442,7 @@ extension MCPDataStore {
         FreeModelsSetup.catalog(free)
     }
 
-    static let aiTaskSettingsTargets = ["default_model", "docs", "background_text", "background_multimodal", "task_model", "meetings", "data_privacy", "free_mode", "host", "backups"]
+    static let aiTaskSettingsTargets = ["default_model", "docs", "background_text", "background_multimodal", "task_model", "meetings", "data_privacy", "host", "backups"]
 
     /// What `set_ai_task_settings` took until background tasks stopped having
     /// models of their own (2026-09-28) and still does not: `task_id` names the
@@ -475,7 +475,7 @@ extension MCPDataStore {
 
         let routingMode = KeychainService.textRoutingMode
         var payload: [String: Any] = [
-            "settings_pane": "Settings › Chat for the chat's models, and Settings › Background for background work: Text-only and Multimodal, and a Tasks tab where each task can have a model of its own. Whether meetings may use a free model is asked in Setup. Free mode is under Settings › AI Usage",
+            "settings_pane": "Settings › Chat for the chat's models, and Settings › Background for background work: Text-only and Multimodal, and a Tasks tab where each task can have a model of its own. Whether meetings may use a free model is asked in Setup",
             "default_model": defaultModel,
             "docs": docs,
             "background_text": backgroundText,
@@ -484,13 +484,12 @@ extension MCPDataStore {
             "meetings_may_use_free": MeetingModels.mayUseFree,
             "routing_mode": routingMode.rawValue,
             "hide_training_models": AIModelCatalog.hidesTrainingModels,
-            "free_mode": AIFreeMode.isOn,
             "hosts": aiHostPreferencesJSON(),
             "backups": aiBackupsJSON(),
             "accepts": [
                 "targets": aiTaskSettingsTargets,
                 "providers": AIProvider.activeChatProviders.map(\.slashToken),
-                "rule": "A selection is a provider id and a model id from the catalogue below, on a provider in providers. Target docs sets the model Edit with AI in a Doc runs on, as the menu under the ForeverLM mark on the Edit with AI panel does; docs with neither provider nor model sends Docs back to the Default Model (docs.follows_default_model). A chat's own model pick never reaches Docs. background_multimodal takes only a model that can read images. A background task runs on background_text or background_multimodal, as follows in its row of tasks says, unless the learner gave it a model of its own (follows task_model, has_own_model true): target task_model with task_id (a task id from tasks) and provider and model sets it, as a task's page under Settings › Background › Tasks does, takes only a model that can do that work (a task with requires_vision takes only a vision model), and with neither provider nor model sends the task back to following Background. Its backups and host are those of the Background model it would otherwise follow. Target data_privacy takes hide_training_models alone: true is Settings › Data & Privacy's “\(AIDataPolicy.switchTitle)”, which leaves every model marked trains_on_inputs out of the pickers and this catalogue; false offers them again, labelled. Target free_mode takes free_mode alone: true is \(AIFreeMode.settingsLocation)'s “\(AIFreeMode.switchTitle)”, which needs the learner's own OpenRouter key and an unlocked account (its free days, or ForeverLM paid for), points every model setting at OpenRouter's free models, turns hide_training_models off and offers only free models until it goes off; false puts back the models it replaced. Free models' providers may keep and train on everything sent to them, they are often overloaded or rate-limited, and a model may be free only for a limited time (the app notifies the learner when one they use starts costing money), so say all three before turning it on. A free model that OpenRouter starts charging for, or stops listing, is moved off every setting on its own, onto another free model that can do the same work (the Free Models Router first, which never charges), and the learner is notified; there is no switch for it. In catalogue, output_tokens_per_second is OpenRouter's median output speed over the last 30 minutes on the host ForeverLM routes to — null until a picker has measured it, or on a route that never reaches OpenRouter — and openrouter_url is the model's page on OpenRouter. free_models lists OpenRouter's free models that can do background work, best first, as Background work's “Free models” submenus do: text for background_text, reads_images for background_multimodal (the Multimodal list). recommended marks OpenRouter's Free Models Router (\(AIModelDefaults.openRouterFreeRouter)), which sends each request to a free model that is up and can do the job, so it fails and times out less than any one free model: suggest it first, and the single free models after it. It suits background work, since nothing waits on that work, except the meeting tasks (\(MeetingModels.tasks.map(\.rawValue).joined(separator: ", "))): a meeting's transcript holds private conversations, and free models' providers may keep and train on what is sent. Setup asks about them when background work goes free. Unless meetings_may_use_free is true, a meeting task whose Background model is free runs on that model's first paid backup instead and skips its free backups; its row in tasks then says kept_off_free_model. With no paid backup it waits (waiting_for_paid_model) until the learner adds one or gives the task a model of its own; ForeverLM does not pick a paid model for them. A model set for the task itself is used as it is, free or not. So before moving background_text to a free model, ask whether meetings may use it too, and record the answer with target meetings, which takes meetings_may_use_free alone. Free mode runs meetings free whatever the answer. A model from free_models is accepted as a selection for those targets even before the catalogue lists it, unless free_model_blocker says why no free model can run. It moves only that setting, unlike free_mode, and it costs nothing for now, but say first that its providers may keep and train on what is sent, that it is often busy or rate-limited, and that it may be free only for a limited time. Target host chooses which of a model's OpenRouter hosts runs one thing, as a chosen model card's ⋯ in Settings › Chat does: host_for is chat, background_text or background_multimodal; model (with provider) names the model, defaulting to what host_for runs on now (the Default Model for chat); host is automatic (the fastest host that caches prompts, the default), cheapest, or an endpoint tag from OpenRouter's GET /api/v1/models/{slug}/endpoints (\"deepinfra/fp4\"; an unknown tag is refused with the model's tags); host_fallback (pinned host only, default true) lets another host take over when it refuses; host_region us keeps whichever host choice is made to the hosts OpenRouter lists as running in the US (its us.openrouter.ai directory), so none of the model's other hosts, such as those in China, may take the work, and a request whose US list cannot be read is not sent; any lifts that; omitted, the stored region stays, and host_region alone changes only the region. A choice is kept per model, so it applies only while that model runs there; a background task follows the choice its Background setting made for the model it runs on, a backup included. hosts lists every stored choice. A pinned host replaces the Speed choice, and the price is that host's. Target backups sets a setting's backup models, as Use as Backup on a model card in Settings › Chat or Settings › Background does: backups_for is chat, background_text or background_multimodal; a background task uses the backups of the one it runs on. The chat's backups stand in for the Default Model only in a scheduled task's runs, which nobody is watching; a chat the learner types in stays on the model they picked; backups is the whole ordered list, at most \(AIBackupModels.limit), each a provider and model the same target would accept as its selection, and an empty list removes them. When the setting's model is busy, fails or sends back nothing usable, the work moves to its backups in order, each billed at its own price; a failure every model would share (no key, no balance, no connection) does not move. backups lists every setting that has them.",
+                "rule": "A selection is a provider id and a model id from the catalogue below, on a provider in providers. Target docs sets the model Edit with AI in a Doc runs on, as the menu under the ForeverLM mark on the Edit with AI panel does; docs with neither provider nor model sends Docs back to the Default Model (docs.follows_default_model). A chat's own model pick never reaches Docs. background_multimodal takes only a model that can read images. A background task runs on background_text or background_multimodal, as follows in its row of tasks says, unless the learner gave it a model of its own (follows task_model, has_own_model true): target task_model with task_id (a task id from tasks) and provider and model sets it, as a task's page under Settings › Background › Tasks does, takes only a model that can do that work (a task with requires_vision takes only a vision model), and with neither provider nor model sends the task back to following Background. Its backups and host are those of the Background model it would otherwise follow. Target data_privacy takes hide_training_models alone: true is Settings › Data & Privacy's “\(AIDataPolicy.switchTitle)”, which leaves every model marked trains_on_inputs out of the pickers and this catalogue; false offers them again, labelled. A free model that OpenRouter starts charging for, or stops listing, is moved off every setting on its own, onto another free model that can do the same work (the Free Models Router first, which never charges), and the learner is notified; there is no switch for it. In catalogue, output_tokens_per_second is OpenRouter's median output speed over the last 30 minutes on the host ForeverLM routes to — null until a picker has measured it, or on a route that never reaches OpenRouter — and openrouter_url is the model's page on OpenRouter. free_models lists OpenRouter's free models that can do background work, best first, as Background work's “Free models” submenus do: text for background_text, reads_images for background_multimodal (the Multimodal list). recommended marks OpenRouter's Free Models Router (\(AIModelDefaults.openRouterFreeRouter)), which sends each request to a free model that is up and can do the job, so it fails and times out less than any one free model: suggest it first, and the single free models after it. It suits background work, since nothing waits on that work, except the meeting tasks (\(MeetingModels.tasks.map(\.rawValue).joined(separator: ", "))): a meeting's transcript holds private conversations, and free models' providers may keep and train on what is sent. Setup asks about them when background work goes free. Unless meetings_may_use_free is true, a meeting task whose Background model is free runs on that model's first paid backup instead and skips its free backups; its row in tasks then says kept_off_free_model. With no paid backup it waits (waiting_for_paid_model) until the learner adds one or gives the task a model of its own; ForeverLM does not pick a paid model for them. A model set for the task itself is used as it is, free or not. So before moving background_text to a free model, ask whether meetings may use it too, and record the answer with target meetings, which takes meetings_may_use_free alone. A model from free_models is accepted as a selection for those targets even before the catalogue lists it, unless free_model_blocker says why no free model can run. It moves only that setting, and it costs nothing for now, but say first that its providers may keep and train on what is sent, that it is often busy or rate-limited, and that it may be free only for a limited time. Target host chooses which of a model's OpenRouter hosts runs one thing, as a chosen model card's ⋯ in Settings › Chat does: host_for is chat, background_text or background_multimodal; model (with provider) names the model, defaulting to what host_for runs on now (the Default Model for chat); host is automatic (the fastest host that caches prompts, the default), cheapest, or an endpoint tag from OpenRouter's GET /api/v1/models/{slug}/endpoints (\"deepinfra/fp4\"; an unknown tag is refused with the model's tags); host_fallback (pinned host only, default true) lets another host take over when it refuses; host_region us keeps whichever host choice is made to the hosts OpenRouter lists as running in the US (its us.openrouter.ai directory), so none of the model's other hosts, such as those in China, may take the work, and a request whose US list cannot be read is not sent; any lifts that; omitted, the stored region stays, and host_region alone changes only the region. A choice is kept per model, so it applies only while that model runs there; a background task follows the choice its Background setting made for the model it runs on, a backup included. hosts lists every stored choice. A pinned host replaces the Speed choice, and the price is that host's. Target backups sets a setting's backup models, as Use as Backup on a model card in Settings › Chat or Settings › Background does: backups_for is chat, background_text or background_multimodal; a background task uses the backups of the one it runs on. The chat's backups stand in for the Default Model only in a scheduled task's runs, which nobody is watching; a chat the learner types in stays on the model they picked; backups is the whole ordered list, at most \(AIBackupModels.limit), each a provider and model the same target would accept as its selection, and an empty list removes them. When the setting's model is busy, fails or sends back nothing usable, the work moves to its backups in order, each billed at its own price; a failure every model would share (no key, no balance, no connection) does not move. backups lists every setting that has them.",
             ],
             "reach": "account",
         ]
@@ -798,9 +797,6 @@ extension MCPDataStore {
         if AIModelCatalog.hidesTrainingModels, AIModelDefaults.trainsOnInputs(provider: provider, model: model) {
             throw MCPError.invalidInput("\(AIModelCatalog.displayName(provider: provider, modelID: model)) trains on what is sent to it, and “\(AIDataPolicy.switchTitle)” is on under \(AIDataPolicy.settingsLocation). Turn it off (target data_privacy, hide_training_models false) to select it.")
         }
-        if AIFreeMode.isOn, !AIFreeMode.isFreeSelection(provider: provider, model: model) {
-            throw MCPError.invalidInput("\(AIModelCatalog.displayName(provider: provider, modelID: model)) is not a free model, and “\(AIFreeMode.switchTitle)” is on under \(AIFreeMode.settingsLocation). Pick a free model, or turn Free mode off (target free_mode, free_mode false).")
-        }
         guard let entry = AIModelCatalog.entry(provider: provider, modelID: model) else {
             throw MCPError.invalidInput("\(model) is not in the \(provider.shortName) catalogue. Pick a model from get_ai_task_settings' catalogue; a model the catalogue does not list cannot be selected.")
         }
@@ -862,7 +858,6 @@ extension MCPDataStore {
         provider rawProvider: String?,
         model rawModel: String?,
         hideTrainingModels: Bool? = nil,
-        freeMode: Bool? = nil,
         meetingsMayUseFree: Bool? = nil,
         hostFor rawHostFor: String? = nil,
         host rawHost: String? = nil,
@@ -882,9 +877,6 @@ extension MCPDataStore {
         }
         if target != "data_privacy", hideTrainingModels != nil {
             throw MCPError.invalidInput("hide_training_models applies to target data_privacy only.")
-        }
-        if target != "free_mode", freeMode != nil {
-            throw MCPError.invalidInput("free_mode applies to target free_mode only.")
         }
         if target != "task_model", rawTaskID != nil {
             throw MCPError.invalidInput("task_id applies to target task_model only.")
@@ -983,33 +975,9 @@ extension MCPDataStore {
                 throw MCPError.invalidInput("target data_privacy takes hide_training_models alone, not a selection.")
             }
             if AIModelCatalog.hidesTrainingModels != hide {
-                // The two switches exclude each other, as in the panes.
-                if hide, AIFreeMode.isOn {
-                    await FreeModelsSetup.disableFreeMode()
-                    changed.append("free_mode")
-                }
                 PreferenceStore.set(hide, forKey: AIDataPolicy.denyDataCollectionKey)
                 AIModelCatalog.dataPolicyDidChange()
                 changed.append("hide_training_models")
-            }
-        case "free_mode":
-            // The Free mode switch, through the same enable and disable the
-            // pane's toggle runs, so the saved selections come back the same way.
-            guard let on = freeMode else {
-                throw MCPError.invalidInput("target free_mode takes free_mode: true or false.")
-            }
-            guard (rawProvider ?? "").isEmpty, (rawModel ?? "").isEmpty else {
-                throw MCPError.invalidInput("target free_mode takes free_mode alone, not a selection.")
-            }
-            if AIFreeMode.isOn != on {
-                let hidTrainingModels = AIModelCatalog.hidesTrainingModels
-                if on {
-                    try await FreeModelsSetup.enableFreeMode()
-                } else {
-                    await FreeModelsSetup.disableFreeMode()
-                }
-                changed.append("free_mode")
-                if AIModelCatalog.hidesTrainingModels != hidTrainingModels { changed.append("hide_training_models") }
             }
         case "meetings":
             // Setup's Meetings answer. It moves no model: a meeting task reads

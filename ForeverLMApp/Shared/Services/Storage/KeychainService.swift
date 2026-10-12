@@ -2266,17 +2266,14 @@ enum KeychainService {
     /// The model the learner set for `task` itself, which wins over Background's
     /// (product owner, 2026-10-07: "people should be allowed to set it for each task
     /// still somehow"). Synced as `aiRoute.task.<task>`. Nil while the task
-    /// follows Background, and while the pick cannot be used: Free mode is on
-    /// and it is paid (Free mode moved Background to a free model; the pick
-    /// comes back when it goes off), or it is a free model that OpenRouter now
-    /// charges for.
+    /// follows Background, and while the pick is a free model that OpenRouter
+    /// now charges for.
     static func ownRoute(for task: AITask) -> AITaskModelRoute? {
         guard canHaveOwnRoute(task),
               let stored = storedRoute(forKey: AIModelPreferenceKey.taskRoute(task)),
               let provider = AIProvider(rawValue: stored.provider) else { return nil }
         let route = AITaskModelRoute(provider: provider, model: stored.model)
-        if AIFreeMode.isOn, !AIFreeMode.isFreeSelection(provider: provider, model: stored.model) { return nil }
-        if AIFreeMode.isFreeModelID(stored.model), AIFreeModelPrices.isListedAsPaid(stored.model) { return nil }
+        if AIFreeModels.isFreeModelID(stored.model), AIFreeModelPrices.isListedAsPaid(stored.model) { return nil }
         return route
     }
 
@@ -2841,7 +2838,7 @@ enum KeychainService {
         let completionKey = "retiredTaskModelsPurged.v1"
         guard !UserDefaults.standard.bool(forKey: completionKey) else { return }
         let defaults = UserDefaults.standard
-        if !AIFreeMode.isOn, MeetingModels.tasks.contains(where: { task in
+        if MeetingModels.tasks.contains(where: { task in
             let pinned = storedRoute(forKey: AIModelPreferenceKey.taskRoute(task)).flatMap { route in
                 AIProvider(rawValue: route.provider).map { AITaskModelRoute(provider: $0, model: route.model) }
             }
@@ -2940,12 +2937,6 @@ enum KeychainService {
                 ? speed : nil
         }
         let routed = routedTextSelection(provider: provider, model: resolvedModel, speed: speed)
-        // Free mode points every setting at a free model, so a task that still
-        // resolves to a paid one (a vision task no free model can serve) waits,
-        // like the out-of-credits guard above, instead of failing on every pass.
-        if AIFreeMode.isOn, !AIFreeMode.isFreeSelection(provider: routed.provider, model: routed.model) {
-            return nil
-        }
         guard let apiKey = apiKey(for: routed.provider) else { return nil }
         var config = AITaskConfig(provider: routed.provider, apiKey: apiKey, model: routed.model)
         // Tag the ledger with the task this config was resolved for, so the AI

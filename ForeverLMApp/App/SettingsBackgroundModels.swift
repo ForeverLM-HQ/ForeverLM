@@ -110,8 +110,8 @@ struct BackgroundModelsPane: View {
             NotificationCenter.default.publisher(for: .aiProviderDidChange)
                 .receive(on: RunLoop.main)
         ) { _ in
-            // A key added or removed, a model catalogued elsewhere, Free mode
-            // or the Data & Privacy switch flipped: all land here.
+            // A key added or removed, a model catalogued elsewhere, or the
+            // Data & Privacy switch flipped: all land here.
             Task { await reload() }
         }
         .onReceive(
@@ -838,7 +838,7 @@ private enum ModelSlotStore {
         if kept.count != current.count {
             AIBackupModels.set(kept, slot: slot.id)
         }
-        if kept.isEmpty, AIFreeMode.isFreeSelection(provider: route.provider, model: route.model) {
+        if kept.isEmpty, AIFreeModels.isFreeSelection(provider: route.provider, model: route.model) {
             FreeModelsSetup.giveFreeBackups(freeCandidates, to: slot.id, primaryID: route.model)
         }
     }

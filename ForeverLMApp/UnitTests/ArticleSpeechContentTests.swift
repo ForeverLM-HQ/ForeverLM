@@ -3386,17 +3386,6 @@ struct SpeechDirectoryTests {
         #expect(!unverified.changesSelection)
     }
 
-    @Test("Free mode picks its preferred free voice, or another the list serves free")
-    func freeModePicksAFreeSpeechModel() {
-        // A `:free` id is free by OpenRouter's definition of the variant, so
-        // this needs no price read.
-        let curated = ArticleSpeechCatalog.curatedModels
-        #expect(FreeModelsSetup.freeTextToSpeechModel(from: curated)?.id == FreeModelsSetup.textToSpeechModel)
-        let withoutPreferred = curated.filter { $0.id != FreeModelsSetup.textToSpeechModel }
-        #expect(FreeModelsSetup.freeTextToSpeechModel(from: withoutPreferred)?.id == "deepgram/flux-tts:free")
-        #expect(FreeModelsSetup.freeTextToSpeechModel(from: curated.filter { !AIFreeMode.isFreeModelID($0.id) }) == nil)
-    }
-
     @Test("unit tests see the catalog this build records, never this Mac's last read")
     func unitTestsNeverReadTheDirectory() {
         #expect(OpenRouterAudioDirectory.rows(.speech) == nil)

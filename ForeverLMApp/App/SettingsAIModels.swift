@@ -18,8 +18,7 @@ import AppKit
 /// somehow"): the Tasks tab lists every task with the model it runs on, and
 /// a task opens onto the same model list. Whether meetings may go free is
 /// asked in Setup, not here; their rows say when one waits for a paid model
-/// (`MeetingModels`). A chosen card's host is opt-in, behind its ⋯. Free mode
-/// lives under Billing, beside the key and plan it needs.
+/// (`MeetingModels`). A chosen card's host is opt-in, behind its ⋯.
 struct ChatModelsSettingsDetailView: View {
     enum Pane: Sendable { case chat, background }
 

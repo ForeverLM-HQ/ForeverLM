@@ -49,8 +49,7 @@ enum MacImageGenerationSettings {
     }
 
     /// Defaults to true (product owner, 2026-09-26: quizzes between lectures get
-    /// their picture without a second ask). Free mode draws nothing: an image
-    /// model is never free, so the proxy would only refuse each one.
+    /// their picture without a second ask).
     static var drawsForNewQuizzes: Bool {
         guard UserDefaults.standard.object(forKey: automaticForNewQuizzesKey) != nil else { return true }
         return UserDefaults.standard.bool(forKey: automaticForNewQuizzesKey)
@@ -60,14 +59,8 @@ enum MacImageGenerationSettings {
         PreferenceStore.set(enabled, forKey: automaticForNewQuizzesKey)
     }
 
-    /// What a quiz run should do once it has written its quizzes.
-    static var drawsPicturesAfterWritingQuizzes: Bool {
-        drawsForNewQuizzes && !AIFreeMode.isOn
-    }
-
     /// Defaults to true (product owner, 2026-10-03: "rather than emojis; can we use
-    /// the ai generated icons? from a cheap image model"). Free mode draws
-    /// nothing, as for quiz pictures.
+    /// the ai generated icons? from a cheap image model").
     static var drawsNotebookCovers: Bool {
         guard UserDefaults.standard.object(forKey: automaticForNewNotebooksKey) != nil else { return true }
         return UserDefaults.standard.bool(forKey: automaticForNewNotebooksKey)
@@ -75,12 +68,6 @@ enum MacImageGenerationSettings {
 
     static func setDrawsNotebookCovers(_ enabled: Bool) {
         PreferenceStore.set(enabled, forKey: automaticForNewNotebooksKey)
-    }
-
-    /// Whether covers are drawn without being asked now: generation 2, the
-    /// Setting on and Free mode off.
-    static var drawsNotebookCoversAutomatically: Bool {
-        ForeverLMRuntimeIdentity.syncGeneration == .two && drawsNotebookCovers && !AIFreeMode.isOn
     }
 
     /// The stored choice. Before OpenRouter's directory has been read this
@@ -191,7 +178,7 @@ struct ImageGenerationSettingsDetailView: View {
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text("Draw notebook covers")
                                         .font(.headline)
-                                    Text("A notebook you make gets a small picture of its subject in place of its emoji, drawn once on the model above when it has a name, and every notebook without one gets one once. Never in Free mode. Off, a notebook keeps its emoji unless you choose Draw Cover With in its menu.")
+                                    Text("A notebook you make gets a small picture of its subject in place of its emoji, drawn once on the model above when it has a name, and every notebook without one gets one once. Off, a notebook keeps its emoji unless you choose Draw Cover With in its menu.")
                                         .font(.subheadline)
                                         .foregroundStyle(.secondary)
                                         .fixedSize(horizontal: false, vertical: true)

@@ -83,17 +83,15 @@ struct WebSourceDiscoveryResult: Equatable, Sendable {
 }
 
 enum WebSourceDiscoveryError: LocalizedError, Equatable {
-    /// Web search cannot ride this route: Free mode, or a model whose search
-    /// ForeverLM cannot bill per request.
-    case webSearchOff(freeMode: Bool)
+    /// Web search cannot ride this route: a model whose search ForeverLM
+    /// cannot bill per request.
+    case webSearchOff
     /// The model's answer was not the JSON object the prompt asks for.
     case unreadableReply
 
     var errorDescription: String? {
         switch self {
-        case .webSearchOff(freeMode: true):
-            return "Free mode leaves web search off. Papers searches PubMed for free."
-        case .webSearchOff(freeMode: false):
+        case .webSearchOff:
             return "Web search is off for the chat's model. Choose another Chat model, or search Papers, which is free."
         case .unreadableReply:
             return "The search came back in a form ForeverLM could not read. Try again."
@@ -155,7 +153,6 @@ enum WebSourceDiscovery {
     /// Everything a run needs from outside, so tests can stand in for the
     /// network and the model.
     struct Dependencies: Sendable {
-        var freeModeIsOn: @Sendable () -> Bool
         /// Whether the route this config travels can carry web search
         /// (`ReviewSessionManager.webSearchAccess(for:)` is not `.unavailable`).
         var webSearchIsAvailable: @Sendable (AITaskConfig) async -> Bool
@@ -166,15 +163,9 @@ enum WebSourceDiscovery {
         /// not open (`WebPageReader.opens`).
         var pageOpens: @Sendable (String) async -> WebPageReader.Opening?
 
-        /// The real network and model. `freeModeIsOn` is the one seam a
-        /// test of these may replace: it proves a refused run sends nothing
-        /// through `aiService`'s transport.
-        static func live(
-            aiService: AIService,
-            freeModeIsOn: @escaping @Sendable () -> Bool = { AIFreeMode.isOn }
-        ) -> Dependencies {
+        /// The real network and model.
+        static func live(aiService: AIService) -> Dependencies {
             Dependencies(
-                freeModeIsOn: freeModeIsOn,
                 webSearchIsAvailable: { config in
                     await MainActor.run { ReviewSessionManager.webSearchAccess(for: config) != .unavailable }
                 },
@@ -213,11 +204,7 @@ enum WebSourceDiscovery {
         config: AITaskConfig,
         dependencies: Dependencies
     ) async -> WebSourceDiscoveryError? {
-        // Free mode strips the web plugin from every body (`ManagedAI.rewrite`),
-        // so a search sent anyway would be answered from memory with made-up
-        // addresses. It is refused before anything is sent instead.
-        if dependencies.freeModeIsOn() { return .webSearchOff(freeMode: true) }
-        if await !dependencies.webSearchIsAvailable(config) { return .webSearchOff(freeMode: false) }
+        if await !dependencies.webSearchIsAvailable(config) { return .webSearchOff }
         return nil
     }
 

@@ -5203,7 +5203,7 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
     }
 
     /// A notebook made one at a time is drawn a cover by a Mac (D53): a `Job(makeDerived)` a Mac claims
-    /// and draws once the notebook has its name, unless Free mode is on or Draw notebook covers is off.
+    /// and draws once the notebook has its name, unless Draw notebook covers is off.
     /// Imports and shares never come here.
     private func requestNotebookCover(_ id: String) async {
         guard let writer = await MobileRecordWriter.current() else { return }
@@ -5211,7 +5211,6 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
         await MobileNotebookCoverRequest.requestIfWanted(
             notebookID: id,
             writer: writer,
-            freeMode: { try await preferences.refreshFreeMode() },
             automatic: { try await preferences.bool(forKey: MobileNotebookCover.automaticSettingKey) }
         )
     }

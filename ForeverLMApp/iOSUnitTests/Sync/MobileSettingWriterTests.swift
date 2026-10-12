@@ -119,14 +119,14 @@ struct MobileSettingWriterTests {
             (Fixture.library, try MobileSyncFixture.envelope(.setting, "aiRoute.defaultChat", [
                 "key": .string("aiRoute.defaultChat"), "value": .object(["t": "data", "v": .string(route.base64EncodedString())]),
             ])),
-            (Fixture.library, try MobileSyncFixture.envelope(.setting, "aiFreeMode.enabled", [
-                "key": .string("aiFreeMode.enabled"), "value": .object(["t": "bool", "v": .bool(true)]),
+            (Fixture.library, try MobileSyncFixture.envelope(.setting, "images.drawNotebookCovers.automatic", [
+                "key": .string("images.drawNotebookCovers.automatic"), "value": .object(["t": "bool", "v": .bool(false)]),
             ])),
         ])
         let store = Self.store(Fixture.writer(replica))
         #expect(try await store.data(forKey: "aiRoute.defaultChat") == route)
-        #expect(try await store.bool(forKey: "aiFreeMode.enabled") == true)
-        #expect(try await store.strings(forKeys: ["aiFreeMode.enabled", "nothing.here"]).isEmpty, "a Bool is not a String row")
+        #expect(try await store.bool(forKey: "images.drawNotebookCovers.automatic") == false)
+        #expect(try await store.strings(forKeys: ["images.drawNotebookCovers.automatic", "nothing.here"]).isEmpty, "a Bool is not a String row")
     }
 
     @Test("A naming mark is held under the notebook its id resolves to: set for a merged notebook, it is the survivor's and reads back through either id")

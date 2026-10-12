@@ -21,12 +21,9 @@ extension AIService {
         let labelled = baseMessage.contains(statusSuffix)
             ? baseMessage
             : "\(baseMessage) [\(label) \(statusSuffix)]"
-        // Free endpoints are the first OpenRouter sheds under load; say so
-        // rather than leave a bare 429 looking like something ForeverLM broke.
-        let message = AIFreeMode.annotatingBusy(labelled, status: status)
         return AIError.httpError(
             status: status,
-            message: message,
+            message: labelled,
             retryAfterSeconds: Self.retryAfterSeconds(from: http)
                 ?? (status == 429 ? Self.rateLimitResetSeconds(from: http, body: data) : nil)
         )
@@ -212,17 +209,6 @@ extension AIService {
             return "OpenRouter now offers \(restricted) only inside the apps it lists, not in ForeverLM. "
                 + "ForeverLM is moving the work that used it to another free model; try again in a moment."
                 + " OpenRouter said: \(message)"
-        }
-        // In Free mode a refusal is either the zero price cap (the model's free
-        // period ended) or the learner's own OpenRouter account, which has not
-        // allowed free endpoints yet, not ForeverLM's router and not the Data &
-        // Privacy switch (Free mode turned it off).
-        if let explanation = AIFreeMode.refusalExplanation(forProviderBody: message, providerMessage: message) {
-            // A refusal under the price cap means a model's free period ended
-            // since the last directory read; read it again so the price
-            // watch notices and the next request is refused before it goes.
-            if AIFreeMode.isPriceCapRefusal(message) { AIModelPriceRefresher.refreshNow() }
-            return explanation
         }
         if AIDataPolicy.isTrainingPolicyRefusal(message) {
             return AIDataPolicy.trainingRefusalExplanation(providerMessage: message)
@@ -569,7 +555,7 @@ extension AIService {
         _ request: inout URLRequest,
         provider: AIProvider
     ) throws {
-        try ManagedAI.rewrite(&request)
+        ManagedAI.rewrite(&request)
     }
 
     /// Fast or Flex on the OpenRouter rail names the lab's tier endpoint in
@@ -667,12 +653,6 @@ extension AIService {
         // a switch flipped mid-conversation applies to the next message.
         if AIDataPolicy.deniesDataCollection {
             AIDataPolicy.applyDenyDataCollection(to: &payload)
-        }
-        // Free mode checks the price on every request, not only against the
-        // last directory read: OpenRouter runs the body only on a host that
-        // charges nothing, and refuses it when the free period has ended.
-        if AIFreeMode.isOn {
-            AIFreeMode.applyZeroPriceCap(to: &payload)
         }
         // A task pinned to one host names it instead of a speed tier; a task
         // set to the cheapest host keeps its tier, which outranks the sort.

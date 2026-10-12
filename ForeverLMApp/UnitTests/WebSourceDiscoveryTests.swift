@@ -28,7 +28,6 @@ struct WebSourceDiscoveryTests {
 
     static func dependencies(
         log: CallLog,
-        freeMode: Bool = false,
         webAvailable: Bool = true,
         reply: String = #"{"summary": "", "sources": []}"#,
         citations: [AIWebCitation] = [],
@@ -37,7 +36,6 @@ struct WebSourceDiscoveryTests {
         pageTitles: [String: String] = [:]
     ) -> WebSourceDiscovery.Dependencies {
         WebSourceDiscovery.Dependencies(
-            freeModeIsOn: { freeMode },
             webSearchIsAvailable: { _ in webAvailable },
             search: { _, request in
                 await log.noteSearch(request)
@@ -79,7 +77,6 @@ struct WebSourceDiscoveryTests {
 
     static func scripted(_ script: SearchScript) -> WebSourceDiscovery.Dependencies {
         WebSourceDiscovery.Dependencies(
-            freeModeIsOn: { false },
             webSearchIsAvailable: { _ in true },
             search: { _, request in
                 let text = try await script.next(request)
@@ -289,25 +286,10 @@ struct WebSourceDiscoveryTests {
 
     // MARK: - Refusals
 
-    @Test("Free mode refuses a web search before anything is sent")
-    func freeModeRefusesBeforeSending() async {
-        let log = CallLog()
-        await #expect(throws: WebSourceDiscoveryError.webSearchOff(freeMode: true)) {
-            _ = try await WebSourceDiscovery.run(
-                query: "NAD+ decline",
-                context: NotebookDiscoveryContext(title: "Ageing"),
-                config: Self.config,
-                dependencies: Self.dependencies(log: log, freeMode: true)
-            )
-        }
-        #expect(await log.searches == 0)
-        #expect(await log.openedPages.isEmpty)
-    }
-
     @Test("A route with no web search it can bill (a Gemini pick) is refused before anything is sent")
     func unavailableWebSearchRefusesBeforeSending() async {
         let log = CallLog()
-        await #expect(throws: WebSourceDiscoveryError.webSearchOff(freeMode: false)) {
+        await #expect(throws: WebSourceDiscoveryError.webSearchOff) {
             _ = try await WebSourceDiscovery.run(
                 query: "",
                 context: NotebookDiscoveryContext(title: "Ageing"),
@@ -323,25 +305,17 @@ struct WebSourceDiscoveryTests {
         }
     }
 
-    @Test("The live search sends nothing through its transport in Free mode, or on a route with no web search")
+    @Test("The live search sends nothing through its transport on a route with no web search")
     func liveDependenciesSendNothingWhenRefused() async {
         DiscoverTransportStub.reset()
         let service = AIService(session: DiscoverTransportStub.session())
-        await #expect(throws: WebSourceDiscoveryError.webSearchOff(freeMode: true)) {
-            _ = try await WebSourceDiscovery.run(
-                query: "NAD+ decline",
-                context: NotebookDiscoveryContext(title: "Ageing"),
-                config: Self.config,
-                dependencies: .live(aiService: service, freeModeIsOn: { true })
-            )
-        }
         let gemini = AITaskConfig(provider: .gemini, apiKey: "k", model: "gemini-3-pro")
         await #expect(throws: WebSourceDiscoveryError.self) {
             _ = try await WebSourceDiscovery.run(
                 query: "NAD+ decline",
                 context: NotebookDiscoveryContext(title: "Ageing"),
                 config: gemini,
-                dependencies: .live(aiService: service, freeModeIsOn: { false })
+                dependencies: .live(aiService: service)
             )
         }
         #expect(DiscoverTransportStub.requestCount() == 0)
@@ -573,14 +547,14 @@ struct NotebookDiscoverTests {
 
     private func services(
         log: WebSourceDiscoveryTests.CallLog,
-        freeMode: Bool = false,
+        webAvailable: Bool = true,
         reply: String = #"{"summary": "", "sources": []}"#,
         citations: [AIWebCitation] = [],
         works: [LiteratureSearch.Work] = []
     ) -> SourceDiscoveryServices {
         SourceDiscoveryServices(
             resolveConfig: { WebSourceDiscoveryTests.config },
-            web: WebSourceDiscoveryTests.dependencies(log: log, freeMode: freeMode, reply: reply, citations: citations),
+            web: WebSourceDiscoveryTests.dependencies(log: log, webAvailable: webAvailable, reply: reply, citations: citations),
             papers: { query, _ in LiteratureSearch.Result(query: query, hitCount: works.count, works: works) },
             runCost: { _ in 0.0123 }
         )
@@ -634,18 +608,15 @@ struct NotebookDiscoverTests {
         #expect(!vm.discoveryCanImport(into: teamNotebook))
     }
 
-    @Test("Free mode opens on Papers, says so on the Web tab before any search, and refuses a web search without sending anything")
-    func freeModeRefusesWebAndOffersPapers() async {
+    @Test("The sheet opens on Web, and a route with no web search is refused there without sending anything")
+    func refusesWebOnARouteWithoutSearch() async {
         let (vm, _, root) = makeViewModel()
         defer { try? FileManager.default.removeItem(at: root) }
         vm.learningGoals = [notebook(id: "nb", title: "Ageing", sourceIDs: [])]
         let log = WebSourceDiscoveryTests.CallLog()
-        let session = NotebookDiscoverySession(notebookID: "nb", services: services(log: log, freeMode: true))
-        #expect(session.mode == .papers)
-
-        session.mode = .web
+        let session = NotebookDiscoverySession(notebookID: "nb", services: services(log: log, webAvailable: false))
+        #expect(session.mode == .web)
         #expect(session.listing.phase == .idle)
-        #expect(session.webRefusal?.contains("Papers") == true)
 
         await session.runWebSearch("NAD+", context: NotebookDiscoveryContext(title: "Ageing"), vm: vm)
         guard case .refused(let message) = session.listing.phase else {
@@ -654,10 +625,6 @@ struct NotebookDiscoverTests {
         }
         #expect(message.contains("Papers"))
         #expect(await log.searches == 0)
-
-        let paid = NotebookDiscoverySession(notebookID: "nb", services: services(log: log))
-        #expect(paid.mode == .web)
-        #expect(paid.webRefusal == nil)
     }
 
     @Test("Web rows the notebook lacks start ticked; a row it holds has no box; the cost is read from the ledger")
@@ -846,7 +813,6 @@ struct DiscoverSourcesToolTests {
 
     private func services(
         log: WebSourceDiscoveryTests.CallLog,
-        freeMode: Bool = false,
         webAvailable: Bool = true,
         reply: String = #"{"summary": "", "sources": []}"#,
         citations: [AIWebCitation] = []
@@ -854,7 +820,7 @@ struct DiscoverSourcesToolTests {
         SourceDiscoveryServices(
             resolveConfig: { WebSourceDiscoveryTests.config },
             web: WebSourceDiscoveryTests.dependencies(
-                log: log, freeMode: freeMode, webAvailable: webAvailable, reply: reply, citations: citations
+                log: log, webAvailable: webAvailable, reply: reply, citations: citations
             ),
             papers: { query, _ in LiteratureSearch.Result(query: query, hitCount: 0, works: []) },
             runCost: { _ in nil }
@@ -916,7 +882,7 @@ struct DiscoverSourcesToolTests {
         #expect(await log.searches == 0)
     }
 
-    @Test("Free mode, and a model with no web search, are refused before anything is spent, pointing at search_literature")
+    @Test("A model with no web search is refused before anything is spent, pointing at search_literature")
     func refusesWebSearchItCannotPayFor() async throws {
         let (store, path) = try makeStore()
         defer { try? FileManager.default.removeItem(atPath: path) }
@@ -925,16 +891,6 @@ struct DiscoverSourcesToolTests {
             dailyTarget: 3, discoveryEnabled: false, seedSourceIDs: []
         )
         let log = WebSourceDiscoveryTests.CallLog()
-        do {
-            _ = try await store.discoverSources(
-                notebookID: notebook.id, query: nil, count: nil, sourceIDs: nil,
-                services: services(log: log, freeMode: true)
-            )
-            Issue.record("Free mode should refuse a web search")
-        } catch {
-            #expect(error.localizedDescription.contains("Free mode"))
-            #expect(error.localizedDescription.contains("search_literature"))
-        }
         do {
             _ = try await store.discoverSources(
                 notebookID: notebook.id, query: nil, count: nil, sourceIDs: nil,

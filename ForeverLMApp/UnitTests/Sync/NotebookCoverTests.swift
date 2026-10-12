@@ -6,8 +6,8 @@ import Testing
 /// Notebook covers on the Mac (docs/cloudkit-schema-design.md D53, §5.9, WP31): a notebook made one at a
 /// time gets its cover drawn once, on the account's Images model, billed as `notebook_cover` with the
 /// notebook as its source; the bytes go up as its `cover` satellite before `files.cover` moves, by a
-/// compare-and-set save that never overwrites a cover another writer set. Nothing is drawn in Free mode,
-/// with the Setting off, under generation 1, or for a notebook made in bulk.
+/// compare-and-set save that never overwrites a cover another writer set. Nothing is drawn with the
+/// Setting off, under generation 1, or for a notebook made in bulk.
 @Suite("Notebook covers", .serialized)
 struct NotebookCoverTests {
     private typealias C = NotebookCoverFixture
@@ -23,7 +23,7 @@ struct NotebookCoverTests {
         let cache = C.cache()
         let covers = C.service(mac, drawer: drawer, cache: cache)
 
-        #expect(try mac.store.queueNotebookCover("nb-1", gates: NotebookCoverGates(freeMode: false, automatic: true)))
+        #expect(try mac.store.queueNotebookCover("nb-1", gates: NotebookCoverGates(automatic: true)))
         #expect(await covers.drainQueued() == 1)
         #expect(drawer.count == 1)
         let cover = try #require(try C.serverCover(mac, "nb-1"), "the pointer moved on the server")
@@ -37,7 +37,7 @@ struct NotebookCoverTests {
         #expect(try mac.outboxRows() == 0, "the pointer went beside the engine, not through the outbox")
 
         // Asked again (a second create, a retry): nothing is drawn over the cover.
-        #expect(try mac.store.queueNotebookCover("nb-1", gates: NotebookCoverGates(freeMode: false, automatic: true)))
+        #expect(try mac.store.queueNotebookCover("nb-1", gates: NotebookCoverGates(automatic: true)))
         await covers.drainQueued()
         #expect(drawer.count == 1)
         #expect(try C.serverCover(mac, "nb-1") == cover)
@@ -50,7 +50,7 @@ struct NotebookCoverTests {
         let mac = try await C.mac(server, "cover-billing")
         try await C.addNotebook(mac, "nb-1", title: "🧬 Mitochondria")
         let drawer = C.Drawer()
-        try mac.store.queueNotebookCover("nb-1", gates: NotebookCoverGates(freeMode: false, automatic: true))
+        try mac.store.queueNotebookCover("nb-1", gates: NotebookCoverGates(automatic: true))
         await C.service(mac, drawer: drawer).drainQueued()
 
         let request = try #require(drawer.requests.first)
@@ -64,39 +64,36 @@ struct NotebookCoverTests {
         #expect(request.prompt.contains("no text, letters"))
     }
 
-    @Test("Nothing is queued in Free mode, with the Setting off, under generation 1, or for a Goal")
+    @Test("Nothing is queued with the Setting off, under generation 1, or for a Goal")
     func nothingQueuedWhenClosed() async throws {
         let server = EngineTestDriver.server()
         let mac = try await C.mac(server, "cover-closed")
         try await C.addNotebook(mac, "nb-1")
-        #expect(try !mac.store.queueNotebookCover("nb-1", gates: NotebookCoverGates(freeMode: true, automatic: true)))
-        #expect(try !mac.store.queueNotebookCover("nb-1", gates: NotebookCoverGates(freeMode: false, automatic: false)))
+        #expect(try !mac.store.queueNotebookCover("nb-1", gates: NotebookCoverGates(automatic: false)))
         try NotebookSyncFixture.addGoal(mac.store, "goal-1", parent: "nb-1")
-        #expect(try !mac.store.queueNotebookCover("goal-1", gates: NotebookCoverGates(freeMode: false, automatic: true)))
+        #expect(try !mac.store.queueNotebookCover("goal-1", gates: NotebookCoverGates(automatic: true)))
         #expect(try C.queued(mac) == 0)
 
         let (root, generation1) = try NotebookSyncFixture.makeStore("cover-generation-1", generation: .one)
         defer { try? FileManager.default.removeItem(at: root) }
         try NotebookSyncFixture.addNotebook(generation1, "nb-1", classify: false)
-        #expect(try !generation1.queueNotebookCover("nb-1", gates: NotebookCoverGates(freeMode: false, automatic: true)))
+        #expect(try !generation1.queueNotebookCover("nb-1", gates: NotebookCoverGates(automatic: true)))
         #expect(try generation1.scalarInteger("SELECT COUNT(*) FROM ck_backfill_queue") == 0)
     }
 
-    @Test("A queued cover pauses for Free mode or the Setting and is drawn once both allow it")
+    @Test("A queued cover pauses for the Setting and is drawn once it allows it")
     func pausesForTheGates() async throws {
         let server = EngineTestDriver.server()
         let mac = try await C.mac(server, "cover-pause")
         try await C.addNotebook(mac, "nb-1")
-        try mac.store.queueNotebookCover("nb-1", gates: NotebookCoverGates(freeMode: false, automatic: true))
+        try mac.store.queueNotebookCover("nb-1", gates: NotebookCoverGates(automatic: true))
         let drawer = C.Drawer()
-        let gates = C.Gates(freeMode: true)
+        let gates = C.Gates(automatic: false)
         let covers = C.service(mac, drawer: drawer, gates: gates)
 
         #expect(await covers.drainQueued() == 0)
-        gates.value = NotebookCoverGates(freeMode: false, automatic: false)
-        #expect(await covers.drainQueued() == 0)
         #expect(try drawer.count == 0 && C.queued(mac) == 1)
-        gates.value = NotebookCoverGates(freeMode: false, automatic: true)
+        gates.value = NotebookCoverGates(automatic: true)
         #expect(await covers.drainQueued() == 1)
         #expect(drawer.count == 1)
         #expect(try C.serverCover(mac, "nb-1") != nil)
@@ -111,7 +108,7 @@ struct NotebookCoverTests {
         try mac.store.execute("INSERT INTO user_preferences (key, value, updated_at) VALUES (?, ?, 1000)", [
             .text(NotebookNaming.preferenceKey(notebookID: "nb-1")), .text(PreferenceStore.encodePlist(mark.encoded) ?? ""),
         ])
-        try mac.store.queueNotebookCover("nb-1", gates: NotebookCoverGates(freeMode: false, automatic: true))
+        try mac.store.queueNotebookCover("nb-1", gates: NotebookCoverGates(automatic: true))
         let drawer = C.Drawer()
         let covers = C.service(mac, drawer: drawer)
 
@@ -142,7 +139,7 @@ struct NotebookCoverTests {
         let other = C.otherCover("nb-1")
         let drawer = C.Drawer()
         drawer.during = { try C.patchServer(mac, .notebook, "nb-1", ["files": .elements(["cover": other.value])]) }
-        try mac.store.queueNotebookCover("nb-1", gates: NotebookCoverGates(freeMode: false, automatic: true))
+        try mac.store.queueNotebookCover("nb-1", gates: NotebookCoverGates(automatic: true))
 
         #expect(await C.service(mac, drawer: drawer).drainQueued() == 1)
         #expect(drawer.count == 1)
@@ -158,7 +155,7 @@ struct NotebookCoverTests {
         try await C.addNotebook(mac, "nb-1")
         let drawer = C.Drawer()
         drawer.fails = true
-        try mac.store.queueNotebookCover("nb-1", gates: NotebookCoverGates(freeMode: false, automatic: true))
+        try mac.store.queueNotebookCover("nb-1", gates: NotebookCoverGates(automatic: true))
         let covers = C.service(mac, drawer: drawer)
         await covers.drainQueued()
         await covers.drainQueued()
@@ -178,7 +175,7 @@ struct NotebookCoverTests {
         let drawer = C.Drawer()
         let cache = C.cache()
         let covers = C.service(mac, drawer: drawer, cache: cache)
-        try mac.store.queueNotebookCover("nb-1", gates: NotebookCoverGates(freeMode: false, automatic: true))
+        try mac.store.queueNotebookCover("nb-1", gates: NotebookCoverGates(automatic: true))
         // The upload's zone is gone for one pass: the drawing is kept in the queue row.
         let rootName = SyncSchema.rootRecordName
         let root = try #require(try mac.store.replica.record(zoneKey: PrivateSyncZones.libraryKey, recordName: rootName))
@@ -260,34 +257,30 @@ struct NotebookCoverTests {
         #expect(work.recorded == ["drawNotebookCover nb-1"])
     }
 
-    @Test("A cover Job draws once, follows the Setting as the creation does, and never draws in Free mode")
+    @Test("A cover Job draws once and follows the Setting as the creation does")
     func coverJobFollowsTheGates() async throws {
         let server = EngineTestDriver.server()
         let mac = try await C.mac(server, "cover-job-gates")
         try await C.addNotebook(mac, "nb-1")
         let drawer = C.Drawer()
-        let gates = C.Gates(freeMode: true)
+        let gates = C.Gates(automatic: false)
         let covers = C.service(mac, drawer: drawer, gates: gates)
         let picked = ImageGenerationModel.unresolved(id: "test/picked-in-the-menu")
 
-        await #expect(throws: NotebookCoverService.Refusal.freeMode) { try await covers.drawForJob("nb-1") }
-        gates.value = NotebookCoverGates(freeMode: false, automatic: false)
         await #expect(throws: NotebookCoverService.Refusal.settingOff) { try await covers.drawForJob("nb-1") }
         #expect(drawer.count == 0)
-        gates.value = NotebookCoverGates(freeMode: false, automatic: true)
+        gates.value = NotebookCoverGates(automatic: true)
         let first = try await covers.drawForJob("nb-1")
         guard case .drawn(let cover) = first else { Issue.record("expected a cover, got \(first)"); return }
         #expect(try C.serverCover(mac, "nb-1") == cover)
         #expect(try await covers.drawForJob("nb-1") == .hasCover)
         #expect(drawer.count == 1)
-        // Redraw With draws over a cover the notebook has, with the Setting off, and never in Free mode.
-        gates.value = NotebookCoverGates(freeMode: false, automatic: false)
+        // Redraw With draws over a cover the notebook has, with the Setting off.
+        gates.value = NotebookCoverGates(automatic: false)
         let redrawn = try await covers.drawNow("nb-1", model: picked)
         guard case .drawn(let second) = redrawn else { Issue.record("expected a redraw, got \(redrawn)"); return }
         #expect(second.hash != cover.hash && drawer.count == 2)
         #expect(try C.serverCover(mac, "nb-1") == second)
-        gates.value = NotebookCoverGates(freeMode: true, automatic: true)
-        await #expect(throws: NotebookCoverService.Refusal.freeMode) { try await covers.drawNow("nb-1", model: picked) }
     }
 
     @Test("A cover drawn on one Mac shows on another: its replica names it, the bytes are fetched once and kept, and the notice goes out")
@@ -298,7 +291,7 @@ struct NotebookCoverTests {
         try await b.bootstrap(.macWithoutLibrary)
         try await C.addNotebook(a, "nb-1")
         try await C.addNotebook(a, "nb-2")
-        try a.store.queueNotebookCover("nb-1", gates: NotebookCoverGates(freeMode: false, automatic: true))
+        try a.store.queueNotebookCover("nb-1", gates: NotebookCoverGates(automatic: true))
         await C.service(a, drawer: C.Drawer()).drainQueued()
         let drawn = try #require(try C.serverCover(a, "nb-1"))
 
@@ -322,7 +315,7 @@ struct NotebookCoverTests {
         for id in ["nb-a", "nb-b", "nb-c"] { try await C.addNotebook(mac, id) }
         let drawer = C.Drawer()
         let covers = C.service(mac, drawer: drawer)
-        for id in ["nb-a", "nb-c"] { try mac.store.queueNotebookCover(id, gates: NotebookCoverGates(freeMode: false, automatic: true)) }
+        for id in ["nb-a", "nb-c"] { try mac.store.queueNotebookCover(id, gates: NotebookCoverGates(automatic: true)) }
         await covers.drainQueued()
         let coverA = try #require(try C.serverCover(mac, "nb-a"))
         let coverC = try #require(try C.serverCover(mac, "nb-c"))
@@ -354,7 +347,7 @@ struct NotebookCoverTests {
         try await mac.send()
         let drawer = C.Drawer()
         let covers = C.service(mac, drawer: drawer)
-        try mac.store.queueNotebookCover("nb-p", gates: NotebookCoverGates(freeMode: false, automatic: true))
+        try mac.store.queueNotebookCover("nb-p", gates: NotebookCoverGates(automatic: true))
         await covers.drainQueued()
         let cover = try #require(try C.serverCover(mac, "nb-p"))
 

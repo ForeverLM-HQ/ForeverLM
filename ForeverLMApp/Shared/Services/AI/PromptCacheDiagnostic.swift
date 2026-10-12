@@ -169,7 +169,7 @@ actor PromptCacheDiagnostic {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("ForeverLM Cache Diagnostic", forHTTPHeaderField: "X-Title")
         request.httpBody = body
-        try ManagedAI.rewrite(&request)
+        ManagedAI.rewrite(&request)
 
         guard request.url?.host == ManagedAI.baseURL.host,
               request.url?.path == "/v1/proxy/openrouter/api/v1/chat/completions",

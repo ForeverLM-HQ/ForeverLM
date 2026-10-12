@@ -31,7 +31,7 @@ extension MCPDataStore {
         }
         // Drawing on, the writers may brief pictures for questions no slide or
         // figure shows; they are drawn below with the quizzes' own pictures.
-        let drawsPictures = (arguments["draw_pictures"] as? Bool ?? false) && !AIFreeMode.isOn
+        let drawsPictures = arguments["draw_pictures"] as? Bool ?? false
         options.briefsDrawings = drawsPictures
         let service = CourseQuizGeneratorService(storage: storage, aiService: AIService())
         let ladder = CourseQuizGeneratorService.ladder(
@@ -201,7 +201,7 @@ extension MCPDataStore {
             }
             total += min(CourseQuizPictures.maximumDrawingsPerQuiz, eligible)
         }
-        if wantsDrawings, !AIFreeMode.isOn, maximumDrawings > 0,
+        if wantsDrawings, maximumDrawings > 0,
            arguments["confirm_drawings"] as? Bool != true {
             let model = try await ImageGenerationDirectory.priced(MacImageGenerationSettings.model)
             var quote = "No generated pictures were started. Drawing can make up to \(maximumDrawings) separately billed image requests on \(model.name) (\(model.maker), through OpenRouter) for these quizzes."
@@ -230,9 +230,7 @@ extension MCPDataStore {
         }
 
         let service = CourseQuizGeneratorService(storage: storage, aiService: AIService())
-        // Images are never free: Free mode chooses slides and figures only.
-        let draws = wantsDrawings && !AIFreeMode.isOn
-        let model = draws ? MacImageGenerationSettings.model : nil
+        let model = wantsDrawings ? MacImageGenerationSettings.model : nil
         let title = try await storage.loadCourseMetadata()[courseID]?.title ?? courseID
         let activity = MCPToolActivityReporter.current
         let progress: @Sendable (CourseQuizPicturePhase, Int, Int) async -> Void = { phase, done, total in
@@ -266,10 +264,8 @@ extension MCPDataStore {
             result = drawnOnly
         }
         var lines = ["Pictures for the quizzes of '\(title)' (course_id: \(courseID)): \(result.picturedCount) question\(result.picturedCount == 1 ? "" : "s") got a slide, a figure or a drawing briefed; \(result.drawing.drawnCount) picture\(result.drawing.drawnCount == 1 ? " was" : "s were") drawn."]
-        if !draws {
-            lines.append(AIFreeMode.isOn
-                ? "Nothing was drawn: Free mode draws no pictures, since no image model is free."
-                : "Nothing was drawn (draw false).")
+        if !wantsDrawings {
+            lines.append("Nothing was drawn (draw false).")
         }
         let reported: [(quiz: CourseQuiz, outcome: CourseQuizPictureResult.Outcome)] = result.outcomes.isEmpty
             ? chosen.map { (quiz: $0, outcome: .nothingToPicture) }

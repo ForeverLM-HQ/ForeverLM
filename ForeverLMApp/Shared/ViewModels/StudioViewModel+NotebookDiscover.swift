@@ -6,9 +6,8 @@ import Observation
 // Two searches list works a notebook is missing, to tick and import:
 // - Web: one web search with the notebook as context (`WebSourceDiscovery`,
 //   the `source_discovery` task on the chat's model). Paid, so Return runs
-//   it, never a keystroke, and Free mode refuses it before anything is sent.
-// - Papers: PubMed through `LiteratureSearch`, with no model and no cost —
-//   the one search Free mode keeps.
+//   it, never a keystroke.
+// - Papers: PubMed through `LiteratureSearch`, with no model and no cost.
 // Whether the library or the notebook already holds a work is read off the
 // library's own lookups (`librarySourceID(forURL:)`: address, then DOI), never
 // off the model. Importing goes through one seam, `importDiscovered`, onto the
@@ -165,8 +164,8 @@ final class NotebookDiscoverySession {
         case idle
         case searching
         case results
-        /// The route cannot search the web (Free mode, or a model whose search
-        /// ForeverLM cannot bill): nothing was sent.
+        /// The route cannot search the web (a model whose search ForeverLM
+        /// cannot bill): nothing was sent.
         case refused(String)
         case failed(String)
     }
@@ -204,11 +203,10 @@ final class NotebookDiscoverySession {
     @ObservationIgnored private var searchTaskMode: Mode?
     @ObservationIgnored private var importTask: Task<Void, Never>?
 
-    init(notebookID: String, services: SourceDiscoveryServices, mode: Mode? = nil) {
+    init(notebookID: String, services: SourceDiscoveryServices, mode: Mode = .web) {
         self.notebookID = notebookID
         self.services = services
-        // Free mode leaves web search off, so the sheet opens on Papers.
-        self.mode = mode ?? (services.web.freeModeIsOn() ? .papers : .web)
+        self.mode = mode
     }
 
     // MARK: One session per notebook
@@ -233,14 +231,6 @@ final class NotebookDiscoverySession {
     var isSearching: Bool { listing.phase == .searching }
 
     var tickableRows: [NotebookDiscoveryRow] { listing.rows.filter(\.isTickable) }
-
-    /// What the Web tab says before any search when it cannot search the web
-    /// at all: Free mode, which strips web search from every request. Nil
-    /// when a search may be tried.
-    var webRefusal: String? {
-        guard services.web.freeModeIsOn() else { return nil }
-        return WebSourceDiscoveryError.webSearchOff(freeMode: true).localizedDescription
-    }
 
     /// The ticked rows, in the list's order.
     var selectedRows: [NotebookDiscoveryRow] {
@@ -318,13 +308,9 @@ final class NotebookDiscoverySession {
         }
     }
 
-    /// The web search, refused before any request in Free mode or on a route
-    /// that cannot search the web.
+    /// The web search, refused before any request on a route that cannot
+    /// search the web.
     func runWebSearch(_ rawQuery: String, context: NotebookDiscoveryContext, vm: StudioViewModel) async {
-        if services.web.freeModeIsOn() {
-            update(.web) { $0.phase = .refused(WebSourceDiscoveryError.webSearchOff(freeMode: true).localizedDescription) }
-            return
-        }
         guard let config = services.resolveConfig() else {
             let reason = KeychainService.backgroundAIUnavailableMessage(for: .sourceDiscovery)
                 ?? "Discover has no available AI model, or nothing to pay for it. Check your OpenRouter key in Settings › AI Usage."
@@ -368,7 +354,7 @@ final class NotebookDiscoverySession {
         }
     }
 
-    /// PubMed: free, in Free mode too. Its failures read as they are, so
+    /// PubMed: free. Its failures read as they are, so
     /// "found nothing" and "could not search" stay apart.
     func runPapersSearch(_ rawQuery: String, context: NotebookDiscoveryContext, vm: StudioViewModel) async {
         let query = WebSourceDiscovery.searchQuery(rawQuery, context: context)

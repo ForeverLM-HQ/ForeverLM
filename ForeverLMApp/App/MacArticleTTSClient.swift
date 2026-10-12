@@ -391,7 +391,7 @@ enum MacArticleTTSClient {
             request.setValue(value, forHTTPHeaderField: key)
         }
         request.httpBody = try JSONSerialization.data(withJSONObject: payload)
-        try ManagedAI.rewrite(&request)
+        ManagedAI.rewrite(&request)
         return request
     }
 

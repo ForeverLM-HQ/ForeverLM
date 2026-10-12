@@ -1508,9 +1508,7 @@ actor SlideCitationService {
     /// The one catalog record a slide attribution names, or nil.
     ///
     /// This is the free path for the corner credit most figures carry, and it has to work
-    /// without the web fallback: Free mode strips the web-search plugin, so there the
-    /// fallback is a model recalling a DOI from memory. Crossref is asked for the first
-    /// author's works in a year window around the printed year, ranked against the venue as
+    /// without the web fallback. Crossref is asked for the first author's works in a year window around the printed year, ranked against the venue as
     /// printed. Crossref's ranking does not read abbreviations — "Br J Pharmacol" sinks
     /// the British Journal of Pharmacology below every "Clinical Pharmacology" hit — so when
     /// that shortlist holds nothing that agrees, the author's complete output for the window

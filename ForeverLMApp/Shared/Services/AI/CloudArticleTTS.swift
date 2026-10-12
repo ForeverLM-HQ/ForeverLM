@@ -890,7 +890,7 @@ enum CloudArticleTTS {
         request.timeoutInterval = requestTimeout
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: payload)
-        try ManagedAI.rewrite(&request)
+        ManagedAI.rewrite(&request)
         return request
     }
 
@@ -1742,9 +1742,8 @@ extension CloudArticleTTS {
         var request = URLRequest(url: url)
         request.timeoutInterval = 20
         // Bound for openrouter.ai, so `rewrite` sends it there on the own key.
-        // A GET, which Free mode never refuses; a refusal still ends the lookup.
-        guard (try? ManagedAI.rewrite(&request)) != nil,
-              request.url?.host?.lowercased() == openRouterEndpoint.host,
+        ManagedAI.rewrite(&request)
+        guard request.url?.host?.lowercased() == openRouterEndpoint.host,
               let (data, response) = try? await URLSession.shared.data(for: request),
               (response as? HTTPURLResponse)?.statusCode == 200,
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }

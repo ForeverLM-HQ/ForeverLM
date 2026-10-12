@@ -452,7 +452,7 @@ struct SourceCleanupProgress: View {
         }
         let selection = KeychainService.resolvedSelection(for: task)
         let name = AIModelCatalog.displayName(provider: selection.provider, modelID: selection.model)
-        if AIFreeMode.isFreeSelection(provider: selection.provider, model: selection.model) {
+        if AIFreeModels.isFreeSelection(provider: selection.provider, model: selection.model) {
             return "Cleaned up by \(name), a free model. Busy moments are retried on their own."
         }
         let payer = account.ownKey != nil && account.ownKeyAllowed ? "your OpenRouter key" : "your leftover AI balance"

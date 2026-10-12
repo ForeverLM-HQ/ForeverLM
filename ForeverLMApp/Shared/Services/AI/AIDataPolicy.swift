@@ -200,7 +200,7 @@ enum AIDataPolicy {
     /// choice is OpenRouter's account setting, linked beside this, and what
     /// it costs. A request cannot loosen it.
     static let openRouterAccountNote =
-        "To use only models that do not train on your data, turn off the free and paid endpoints that may train on your inputs in OpenRouter's privacy settings. Most free models then stop working, and Free mode with them."
+        "To use only models that do not train on your data, turn off the free and paid endpoints that may train on your inputs in OpenRouter's privacy settings. Most free models then stop working."
 
     static let switchExplanation =
         "Models whose hosts train on what you send them, such as Muse Spark 1.2 Contributor, leave the model pickers, "
@@ -651,48 +651,15 @@ actor OpenRouterRegionalEndpoints {
     }
 }
 
-// MARK: - Free mode
+// MARK: - Free models
 
-/// Free mode (product owner, 2026-09-24): "only use free models. But make sure it's
-/// clear that people might train on your data", and "models may error due to
-/// overload". While it is on, ForeverLM sends nothing but OpenRouter's `:free`
-/// models, on the learner's own OpenRouter key, so OpenRouter bills nothing.
-/// It runs only where the key may (2026-09-27; in the paid app of 2026-10-10,
-/// the free days or a paid account): what it guarantees is that nothing it
-/// sends can be
-/// charged on OpenRouter ("it has to be impossible that they get ANY
-/// openrouter charges"), with the zero price cap on every chat body.
+/// OpenRouter's free models: a learner may pick one for any setting, like any
+/// other model, and background work starts on one (`FreeModelsSetup`). There
+/// is no mode that holds every setting to them (product owner, 2026-10-11:
+/// "don't do this free mode thing").
 ///
-/// Two halves. The Mac's `FreeModelsSetup` points every model setting at a
-/// free model when the switch goes on and puts the learner's own picks back
-/// when it goes off, and the catalog offers only free models in between. This
-/// half is the guarantee: `refusal(for:)` runs inside `ManagedAI.rewrite`, the
-/// one door every billable request passes through, and refuses anything that
-/// is not a free OpenRouter model — a paid chat pick, transcription, image or
-/// video generation, a paid voice — with a message that names
-/// the switch. Nothing is quietly rerouted to a free model instead.
-///
-/// It is the opposite of `AIDataPolicy`'s switch: free endpoints are the ones
-/// whose providers keep and train on prompts, so "deny" would leave a free
-/// model no host at all. Turning either on turns the other off.
-///
-/// Foundation-only so both targets compile it. The Mac reads the synced row
-/// from `UserDefaults`, where sync hydrates it. The phone hydrates nothing, so
-/// `MobileModelPreferenceStore.refreshFreeMode()` reads the account row and
-/// writes the answer to the same key; every route the phone resolves, and each
-/// text-to-speech, dictation and voice turn, reads it fresh first. The phone
-/// shows the switch but does not flip it: turning it on or off moves every
-/// model setting, and only the Mac's `FreeModelsSetup` does that.
-enum AIFreeMode {
-    /// Synced preference keys, listed in `SyncedPreferenceKeys.synced`: free
-    /// mode is a statement about the account's spending, not the device.
-    static let enabledKey = "aiFreeMode.enabled"
-    /// The selections free mode replaced (`FreeModelsSetup.SavedSelections`),
-    /// so turning it off on either Mac gives the learner's picks back.
-    static let savedSelectionsKey = "aiFreeMode.savedSelections"
-
-    static var isOn: Bool { UserDefaults.standard.bool(forKey: enabledKey) }
-
+/// Foundation-only so both targets compile it.
+enum AIFreeModels {
     /// OpenRouter names every zero-priced variant with a `:free` suffix. Its
     /// Free Models Router has no suffix but only ever routes to those models,
     /// so it is free too.
@@ -704,256 +671,22 @@ enum AIFreeMode {
     #if os(macOS)
     /// The phone compiles this file without `AIProvider` (its routes carry
     /// their own model ids), so the provider-shaped check is the Mac's. A
-    /// `:free` id the live directory now lists with a price is not free:
-    /// Free mode's pickers stop offering it and its tasks wait.
+    /// `:free` id the live directory now lists with a price is not free.
     static func isFreeSelection(provider: AIProvider, model: String) -> Bool {
         provider == .openRouter && isFreeModelID(model) && !AIFreeModelPrices.isListedAsPaid(model)
     }
     #endif
 
-    // MARK: Refusing what is not free
-
-    enum Refusal: LocalizedError, Equatable {
-        /// A request for a model that is not free; nil when the request does
-        /// not name one ForeverLM can read (an upload, say).
-        case paidModel(String?)
-        /// Free models run on the learner's own OpenRouter account, never on
-        /// ForeverLM's, and the key is gone.
-        case needsOpenRouterKey
-        /// The id still ends in `:free`, but OpenRouter's live directory now
-        /// lists a price for it: the free period ended.
-        case noLongerFree(String)
-
-        var errorDescription: String? {
-            switch self {
-            case .paidModel(let model?) where !model.isEmpty:
-                return "Free mode is on, and \(model) is not a free model. Pick a free model, or \(AIFreeMode.leaveAdvice) to use it."
-            case .paidModel:
-                return "Free mode is on, and this needs a paid model. To use it, \(AIFreeMode.leaveAdvice)."
-            case .needsOpenRouterKey:
-                return "Free mode runs on your own OpenRouter key, and there is none. Add it, or turn Free mode off, under \(AIFreeMode.settingsLocation)."
-            case .noLongerFree(let model):
-                return "\(model) is no longer free on OpenRouter, so Free mode did not send this. Pick another free model, or \(AIFreeMode.leaveAdvice)."
-            }
-        }
-    }
-
-    /// How to get what Free mode holds back: turn it off, and on the Mac pay
-    /// for ForeverLM first if the account has since been locked, since off
-    /// without that runs nothing. The phone names no payment (App Review
-    /// 3.1.3(f)).
-    static var leaveAdvice: String {
-        if ManagedAI.ownKeyAllowed { return "turn Free mode off under \(settingsLocation)" }
-        #if os(iOS)
-        return "turn Free mode off under \(settingsLocation)"
-        #else
-        return "pay for ForeverLM under Settings → Billing and turn Free mode off under \(settingsLocation)"
-        #endif
-    }
-
-    /// Nil when free mode is off or the request is one it allows: a read that
-    /// spends nothing (a generation-cost lookup, a job poll, a download), or a
-    /// request bound for OpenRouter, directly or through the proxy, whose JSON
-    /// body names a `:free` model. Everything else is refused, including a
-    /// body ForeverLM cannot read, so an unknown request fails closed.
-    ///
-    /// The `:free` suffix is only OpenRouter's name for the variant; the price
-    /// is what counts. A `:free` id the last directory read listed with a
-    /// price is refused too, and every chat body carries `applyZeroPriceCap`,
-    /// so OpenRouter itself refuses to run it on a host that charges.
-    static func refusal(
-        for request: URLRequest,
-        isOn: Bool = AIFreeMode.isOn,
-        hasOpenRouterKey: Bool = ManagedAI.ownKeyRouter == .openRouter,
-        proxyHost: String? = ManagedAI.baseURL.host,
-        listedAsPaid: (String) -> Bool = AIFreeModelPrices.isListedAsPaid
-    ) -> Refusal? {
-        guard isOn else { return nil }
-        let method = (request.httpMethod ?? "GET").uppercased()
-        if method == "GET" || method == "HEAD" { return nil }
-        let model = request.httpBody.flatMap(modelNamed(inJSONBody:))
-        guard let model, isFreeModelID(model), isBoundForOpenRouter(request, proxyHost: proxyHost) else {
-            return .paidModel(model)
-        }
-        if listedAsPaid(model) { return .noLongerFree(model) }
-        return hasOpenRouterKey ? nil : .needsOpenRouterKey
-    }
-
-    // MARK: Checking the price on every request
-
-    /// OpenRouter's per-request price ceiling, in USD per million tokens (and
-    /// per request and per image). With every field at zero OpenRouter runs
-    /// the request only on a host that charges nothing, and refuses it
-    /// otherwise, so a model whose free period ended between two directory
-    /// reads still cannot bill the learner.
-    static var zeroPriceCap: [String: Any] { ["prompt": 0, "completion": 0, "request": 0, "image": 0] }
-
-    /// Adds `provider.max_price` at zero to an OpenRouter chat body, keeping
-    /// any provider preferences already present, and drops its plugins:
-    /// OpenRouter bills a plugin apart from the model (web search per
-    /// result, even on a `:free` model), and the price cap does not reach
-    /// it. Only while Free mode is on.
-    static func applyZeroPriceCap(to payload: inout [String: Any]) {
-        var provider = payload["provider"] as? [String: Any] ?? [:]
-        provider["max_price"] = zeroPriceCap
-        payload["provider"] = provider
-        payload.removeValue(forKey: "plugins")
-    }
-
-    /// The same on a request already built, for `ManagedAI.rewrite`, which
-    /// every call passes: a chat body bound for OpenRouter is capped and
-    /// loses its plugins there, whichever builder made it, so a body built
-    /// before Free mode went on (a Setup test run), or by a task that asked
-    /// for web search, still cannot charge. Other bodies (speech) have no
-    /// such fields; the `:free` id and the directory price are their check.
-    static func applyZeroPriceCap(toChatRequest request: inout URLRequest) {
-        guard let path = request.url?.path, path.hasSuffix("/chat/completions"),
-              let body = request.httpBody,
-              var payload = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any]
-        else { return }
-        applyZeroPriceCap(to: &payload)
-        if let capped = try? JSONSerialization.data(withJSONObject: payload) {
-            request.httpBody = capped
-        }
-    }
-
-    /// Whether a provider error is OpenRouter saying no host met the price
-    /// ceiling. Matched on the words, like the data-policy refusals.
-    static func isPriceCapRefusal(_ message: String) -> Bool {
-        let lowered = message.lowercased()
-        if lowered.contains("max_price") || lowered.contains("max price") { return true }
-        return lowered.contains("no endpoints") && lowered.contains("price")
-    }
-
-    /// Free mode's translation of an OpenRouter refusal that reads as nothing
-    /// on its own: no host under the zero price cap, or the learner's own
-    /// OpenRouter account not allowing free endpoints. Nil when Free mode is
-    /// off or the refusal is neither.
-    static func refusalExplanation(
-        forProviderBody body: String,
-        providerMessage: String?,
-        isOn: Bool = AIFreeMode.isOn
-    ) -> String? {
-        guard isOn else { return nil }
-        if isPriceCapRefusal(body) { return priceCapRefusalExplanation(providerMessage: providerMessage) }
-        if AIDataPolicy.isTrainingPolicyRefusal(body) || AIDataPolicy.isDataPolicyRefusal(body) {
-            return privacyRefusalExplanation(providerMessage: providerMessage)
-        }
-        return nil
-    }
-
-    static func priceCapRefusalExplanation(providerMessage: String?) -> String {
-        var text = "OpenRouter no longer offers this model for free, so Free mode did not let it run. "
-            + "Pick another free model, or turn Free mode off under \(settingsLocation)."
-        if let providerMessage, !providerMessage.isEmpty {
-            text += " OpenRouter said: \(providerMessage)"
-        }
-        return text
-    }
-
-    static func isBoundForOpenRouter(_ request: URLRequest, proxyHost: String?) -> Bool {
-        guard let url = request.url, let host = url.host?.lowercased() else { return false }
-        if host == "openrouter.ai" { return true }
-        return host == proxyHost?.lowercased() && url.path.hasPrefix("/v1/proxy/openrouter/")
-    }
-
-    static func modelNamed(inJSONBody body: Data) -> String? {
-        guard let object = try? JSONSerialization.jsonObject(with: body) as? [String: Any] else { return nil }
-        return (object["model"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    // MARK: Explaining what free models do
-
-    /// Statuses a busy or rate-limited free endpoint answers with.
-    static let busyStatuses: Set<Int> = [408, 429, 500, 502, 503, 504, 529]
-
-    static let busyNote = "Free models are often busy or rate-limited. Try again in a minute, pick another free model, or turn Free mode off."
-
-    /// Appends `busyNote` to a failure a busy free endpoint produced.
-    static func annotatingBusy(_ message: String, status: Int, isOn: Bool = AIFreeMode.isOn) -> String {
-        guard isOn, busyStatuses.contains(status), !message.contains(busyNote) else { return message }
-        return "\(message) \(busyNote)"
-    }
-
     /// Where the learner allows OpenRouter's free endpoints, whose providers
     /// may train on prompts. OpenRouter refuses free models until they do.
     static let openRouterPrivacyURL = URL(string: "https://openrouter.ai/settings/privacy")!
-
-    /// OpenRouter's free models, each linking the page that names its
-    /// providers and their terms (`termsNote`). The directory's price slider
-    /// at Free: it filters on prompt price, so every free text model is there
-    /// (and a few audio models billed by the minute slip in); the Free Models
-    /// collection page lists only the sixteen most used (checked 2026-09-27).
-    static let openRouterFreeModelsURL = URL(string: "https://openrouter.ai/models?max_price=0")!
-
-    /// OpenRouter refuses free models until the learner's own account allows
-    /// endpoints that keep or train on prompts; the refusal reads like the
-    /// data-policy ones, so it is translated to say where the switch is.
-    static func privacyRefusalExplanation(providerMessage: String?) -> String {
-        var text = "OpenRouter refused the free model because your OpenRouter account does not allow "
-            + "free models' providers to keep or train on what you send. Allow them in your OpenRouter "
-            + "privacy settings (openrouter.ai/settings/privacy), or turn Free mode off under \(settingsLocation)."
-        if let providerMessage, !providerMessage.isEmpty {
-            text += " OpenRouter said: \(providerMessage)"
-        }
-        return text
-    }
-
-    // MARK: Copy
-
-    static let switchTitle = "Free mode"
-    #if os(iOS)
-    /// The switch lives on the Mac; the phone only shows it.
-    static let settingsLocation = "Settings › AI Usage on your Mac"
-    /// Where the models themselves are picked, free ones included.
-    static let modelsLocation = "Settings › Chat on your Mac"
-    #else
-    static let settingsLocation = "Settings › AI Usage"
-    static let modelsLocation = "Settings › Chat"
-    #endif
-    static let summary = "Use only OpenRouter's free models, on your own OpenRouter key. ForeverLM sends nothing OpenRouter charges for."
-
-    /// What has no free model, so Free mode turns it off (2026-09-26: Free
-    /// mode is fine "as long as it's clear that certain features are not
-    /// available"). Said in Setup, under the switch, and in its confirmation.
-    static let unavailableNote = "Free mode turns off everything that has no free model: image and video generation, web search, transcription, and reading images when no free model can."
-
-    /// What the learner gives up. Shown before the switch goes on and for as
-    /// long as it stays on.
-    static let tradeoffs: [String] = [
-        "The providers behind free models may keep, read and train on everything you send them: your chats, your sources and your notes. Some publish prompts. Keep anything sensitive out of ForeverLM while Free mode is on.",
-        termsNote,
-        "Free models are often overloaded or rate-limited, so requests fail more often and answers can be slow. OpenRouter also limits how many free requests you can make each day.",
-        "Free models are smaller than the paid ones, so answers and reviews are weaker.",
-        limitedTimeNote,
-        unavailableNote,
-    ]
-
-    /// The product owner, 2026-09-26: "it's just the user's responsibility to understand
-    /// the terms and conditions of each model. Which they can find in
-    /// OpenRouter."
-    static let termsNote = "Each free model comes with its providers' own terms and data policy, on the model's page on OpenRouter. Reading them is up to you."
-
-    /// Free is a promotion, not a promise. Said wherever a free model is
-    /// offered, beside the other trade-offs.
-    static let limitedTimeNote = "A model may be free only for a limited time: OpenRouter and its providers can start charging for it, or stop offering it, whenever they choose. ForeverLM checks that a model is still free before every request; when one you use starts costing money it moves your work to another free model and tells you, and it tells you when a paid model gets more expensive."
-
-    static func confirmationMessage(turnsOffDataPolicySwitch: Bool) -> String {
-        var text = tradeoffs.joined(separator: "\n\n")
-        if turnsOffDataPolicySwitch {
-            text += "\n\n“\(AIDataPolicy.switchTitle)” under \(AIDataPolicy.settingsLocation) will be turned off, since every free model's providers may keep what you send."
-        }
-        text += "\n\nTurning Free mode off puts back the models you use now."
-        return text
-    }
 }
 
 /// What OpenRouter's live directory last said about its `:free` ids: whether
 /// each is still priced at zero. Fed by every directory read on the Mac
-/// (`AIModelPriceRefresher.ingest`) and read synchronously by
-/// `AIFreeMode.refusal`, which runs inside `ManagedAI.rewrite`. Empty until
-/// the first read, and on the phone, where the zero price cap on every body
-/// is the check.
+/// (`AIModelPriceRefresher.ingest`) and read synchronously wherever a free
+/// pick is resolved, so a model whose free period ended is not sent. Empty
+/// until the first read, and on the phone.
 enum AIFreeModelPrices {
     private static let lock = NSLock()
     nonisolated(unsafe) private static var zeroPriced: [String: Bool] = [:]
@@ -967,7 +700,7 @@ enum AIFreeModelPrices {
     }
 
     /// True only when the last read listed this id with a price. An id it
-    /// did not list is left to OpenRouter and the price cap.
+    /// did not list is left to OpenRouter.
     static func isListedAsPaid(_ id: String) -> Bool {
         let key = id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         return lock.withLock { zeroPriced[key] == false }

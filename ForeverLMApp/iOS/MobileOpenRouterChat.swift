@@ -81,11 +81,6 @@ enum MobileOpenRouterChat {
         if route.deniesDataCollection {
             AIDataPolicy.applyDenyDataCollection(to: &payload)
         }
-        // Free mode asks OpenRouter to run the model only where it costs
-        // nothing, so a free period that just ended cannot bill the learner.
-        if AIFreeMode.isOn {
-            AIFreeMode.applyZeroPriceCap(to: &payload)
-        }
         // A model kept to one region's hosts: the store read their endpoints
         // with the route, and refuses the route when it could not.
         OpenRouterRoutePreference.applyFastestCachingRoute(to: &payload, regionEndpointTags: route.regionEndpointTags)
@@ -105,7 +100,7 @@ enum MobileOpenRouterChat {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])
-        try ManagedAI.rewrite(&request)
+        ManagedAI.rewrite(&request)
         // Operational attribution is the proxy's to read, and `rewrite` has
         // just cleared it from a request it sent straight to the router. What
         // the learner is working on is not the provider's business, so the

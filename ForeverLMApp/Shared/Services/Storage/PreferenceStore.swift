@@ -186,11 +186,6 @@ enum PreferenceStore {
             // as it would have on the device that flipped it.
             AIModelCatalog.dataPolicyDidChange()
         }
-        if changed.contains(AIFreeMode.enabledKey) {
-            // Free mode went on or off on the other device. The model settings
-            // it moved arrive as their own rows; this refreshes the pickers.
-            AIModelCatalog.freeModeDidChange()
-        }
     }
 
     // MARK: - Sync hand-off

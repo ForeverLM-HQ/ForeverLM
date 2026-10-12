@@ -1705,8 +1705,7 @@ struct MobileNotebookTests {
                 "gemini|",
             ],
             customNames: names,
-            defaultPreference: defaultRoute,
-            freeModeOn: false
+            defaultPreference: defaultRoute
         )
         #expect(choices.map(\.id) == [
             "Anthropic (Claude)|claude-sonnet-5",
@@ -1716,16 +1715,8 @@ struct MobileNotebookTests {
         #expect(choices.first?.preference.effort == "high", "the default keeps its own effort")
         #expect(choices.last?.name == "Kimi K3")
 
-        let onlyDefault = MobileOfferedChatModels.choices(enabledIDs: nil, customNames: [:], defaultPreference: defaultRoute, freeModeOn: false)
+        let onlyDefault = MobileOfferedChatModels.choices(enabledIDs: nil, customNames: [:], defaultPreference: defaultRoute)
         #expect(onlyDefault.map(\.id) == ["Anthropic (Claude)|claude-sonnet-5"], "nothing the learner did not offer")
-
-        let free = MobileOfferedChatModels.choices(
-            enabledIDs: ["openrouter|openrouter/free", "openai|gpt-5.6"],
-            customNames: [:],
-            defaultPreference: AIModelRoutePreference(provider: "OpenRouter", model: "openrouter/free"),
-            freeModeOn: true
-        )
-        #expect(free.map(\.id) == ["OpenRouter|openrouter/free"], "Free mode offers only free models")
     }
 
     @Test("A model with no directory name reads as words")

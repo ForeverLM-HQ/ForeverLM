@@ -191,7 +191,7 @@ extension MCPDataStore {
         ["pane": "Sources › Search & AI", "read": "get_source_settings", "write": "set_source_settings"],
         ["pane": "General › Day", "read": "get_day_settings", "write": "set_day_settings"],
         ["pane": "General › Memory review", "read": "get_memory_review_settings", "write": "set_memory_review_settings"],
-        ["pane": "Background › Models (Text-only, Multimodal, Tasks), a card's ⋯ for its host; AI Usage › Free mode; Data & Privacy", "read": "get_ai_task_settings", "write": "set_ai_task_settings"],
+        ["pane": "Background › Models (Text-only, Multimodal, Tasks), a card's ⋯ for its host; Data & Privacy", "read": "get_ai_task_settings", "write": "set_ai_task_settings"],
         ["pane": "Chat › Models (which models the chat picker offers)", "read": "get_ai_task_settings", "write": "set_chat_model_offered"],
         ["pane": "AI Usage › Your own key", "read": "get_own_router_key", "write": "set_own_router_key"],
         ["pane": "Billing › Plan; AI Usage › Spending (monthly spending limit)", "read": "get_billing_settings", "write": "set_billing_settings"],
@@ -727,7 +727,7 @@ extension MCPDataStore {
                 id: "images.draw_for_new_quizzes",
                 pane: "Images",
                 title: "Draw pictures for new quizzes",
-                detail: "A course quiz gets a picture of its topic as soon as it is written, from Write Quizzes or generate_course_quizzes: one small image request per quiz on images.model; and its writer may ask for up to \(CourseQuizPictures.maximumDrawingsPerQuiz) drawings for questions no lecture slide or reading figure shows, drawn at once, one image request each. On by default; never in Free mode. Off, a quiz is drawn only from its Draw Picture or the course's Draw Quiz Pictures, and its questions' drawings only from Add Pictures to Questions or add_course_quiz_pictures.",
+                detail: "A course quiz gets a picture of its topic as soon as it is written, from Write Quizzes or generate_course_quizzes: one small image request per quiz on images.model; and its writer may ask for up to \(CourseQuizPictures.maximumDrawingsPerQuiz) drawings for questions no lecture slide or reading figure shows, drawn at once, one image request each. On by default. Off, a quiz is drawn only from its Draw Picture or the course's Draw Quiz Pictures, and its questions' drawings only from Add Pictures to Questions or add_course_quiz_pictures.",
                 reach: .account,
                 kind: .boolean,
                 preferenceKeys: [MacImageGenerationSettings.automaticForNewQuizzesKey],
@@ -785,7 +785,7 @@ extension MCPDataStore {
                 id: "images.draw_notebook_covers",
                 pane: "Images",
                 title: "Draw notebook covers",
-                detail: "A notebook the learner makes one at a time (New notebook, create_notebook) gets a cover, a small picture of its subject shown in place of its emoji, drawn once on images.model when it has a name; and every active notebook without one gets one once, on the Mac that keeps the library's maintenance. One small image request each. On by default; never in Free mode. Imported notebooks and a split's new notebooks get none. Off, a notebook is drawn only from Draw Cover With in its menu.",
+                detail: "A notebook the learner makes one at a time (New notebook, create_notebook) gets a cover, a small picture of its subject shown in place of its emoji, drawn once on images.model when it has a name; and every active notebook without one gets one once, on the Mac that keeps the library's maintenance. One small image request each. On by default. Imported notebooks and a split's new notebooks get none. Off, a notebook is drawn only from Draw Cover With in its menu.",
                 reach: .account,
                 kind: .boolean,
                 preferenceKeys: [MacImageGenerationSettings.automaticForNewNotebooksKey],
@@ -1265,7 +1265,7 @@ extension MCPToolRegistry {
                 inputSchema: [
                     "type": "object",
                     "properties": [
-                        "pane": ["type": "string", "enum": MCPDataStore.settingsPaneIDs.map { $0.id }, "description": "The pane to show. Omit for Billing, paying for ForeverLM; ai_usage is the key, Free mode, spending and activity."],
+                        "pane": ["type": "string", "enum": MCPDataStore.settingsPaneIDs.map { $0.id }, "description": "The pane to show. Omit for Billing, paying for ForeverLM; ai_usage is the key, spending and activity."],
                     ],
                     "required": [] as [String],
                 ]

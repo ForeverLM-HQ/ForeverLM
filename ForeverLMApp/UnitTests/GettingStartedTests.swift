@@ -329,8 +329,7 @@ struct GettingStartedTests {
     func aiStepNeedsKeyTheAccountMayRun() {
         // The proxy refuses the key on an account it may not run on: a locked
         // one in the paid app (2026-10-10; the free days run it). So a key
-        // alone, or an unlocked account alone, pays for nothing, and Free mode
-        // does not stand in (2026-09-27).
+        // alone, or an unlocked account alone, pays for nothing.
         #expect(GettingStartedAIPayment.isReady(hasOwnKey: true, ownKeyAllowed: true, canPayWithoutKey: false))
         #expect(!GettingStartedAIPayment.isReady(hasOwnKey: true, ownKeyAllowed: false, canPayWithoutKey: false))
         #expect(!GettingStartedAIPayment.isReady(hasOwnKey: false, ownKeyAllowed: true, canPayWithoutKey: false))

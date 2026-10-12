@@ -16,7 +16,7 @@ private let backgroundRetryLogger = Logger(
 /// enough to wait out. A longer wait is handed back to the durable queue, which
 /// keeps the work and retries it on its own schedule
 /// (`StudioViewModel.derivedSourceWorkRetryDelay`). A permanent failure (a
-/// refused key, a free-mode refusal, an invalid request) is never retried.
+/// refused key, an invalid request) is never retried.
 ///
 /// Interactive calls do not come through here: a learner waiting on an answer
 /// is better served by the error than by a minute of silent retries.
@@ -127,8 +127,8 @@ enum AIBackgroundRetry {
 /// model could get past: busy or rate-limited, an empty answer, a refusal, or
 /// an answer the work could not use. A failure every model would share never
 /// moves on: cancellation, no connection, no key, no balance. Each backup is
-/// resolved as the chosen model is (its key, Free mode, reading images, a
-/// failed test run). It is never sent a request cut down to fit a smaller
+/// resolved as the chosen model is (its key, reading images, a failed test
+/// run). It is never sent a request cut down to fit a smaller
 /// context window; a backup that cannot take the whole request is passed
 /// over (`AIService.call`). The ledger names the model that answered.
 ///
@@ -161,8 +161,8 @@ enum AIBackupModels {
     static let chatSlot = "chat"
 
     /// A scheduled run's backups, in order, each resolved as a background
-    /// backup is (its key, Free mode, a model OpenRouter refuses, a failed
-    /// test run of chat) and labelled `chat` in the ledger. Keychain reads:
+    /// backup is (its key, a model OpenRouter refuses, a failed test run of
+    /// chat) and labelled `chat` in the ledger. Keychain reads:
     /// call off the main actor.
     static func chatConfigs() -> [AITaskConfig] {
         stored(slot: chatSlot).compactMap { config(for: $0, task: .chat) }
@@ -243,11 +243,6 @@ enum AIBackupModels {
         case AIError.httpError(let status, _, _):
             // 401 is the key and 402 the balance, whichever model is asked.
             return status != 401 && status != 402
-        case let refusal as AIFreeMode.Refusal:
-            switch refusal {
-            case .needsOpenRouterKey: return false
-            case .paidModel, .noLongerFree: return true
-            }
         default:
             return true
         }
@@ -285,18 +280,15 @@ enum AIBackupModels {
             return nil
         }
         let routed = KeychainService.routedTextSelection(provider: route.provider, model: route.model)
-        if AIFreeMode.isOn, !AIFreeMode.isFreeSelection(provider: routed.provider, model: routed.model) {
-            return nil
-        }
         // A meeting that stays off free models stays off free backups too.
         if MeetingModels.staysOffFree(task),
-           AIFreeMode.isFreeSelection(provider: routed.provider, model: routed.model) {
+           AIFreeModels.isFreeSelection(provider: routed.provider, model: routed.model) {
             return nil
         }
         // A free backup whose free period ended would bill for work the
         // learner set up to cost nothing. The price watch says so, and the
         // replacement moves the backup on; until then it sits out.
-        if AIFreeMode.isFreeModelID(routed.model), AIFreeModelPrices.isListedAsPaid(routed.model) { return nil }
+        if AIFreeModels.isFreeModelID(routed.model), AIFreeModelPrices.isListedAsPaid(routed.model) { return nil }
         // OpenRouter refuses it to ForeverLM, or it failed a test run of this
         // work: asking it again only delays the answer.
         if AIFreeModelRestrictions.isRestricted(routed.model) { return nil }
@@ -376,7 +368,7 @@ actor AIRequestPacer {
 
         init(config: AITaskConfig) {
             model = config.model
-            isFree = AIFreeMode.isFreeSelection(provider: config.provider, model: config.model)
+            isFree = AIFreeModels.isFreeSelection(provider: config.provider, model: config.model)
         }
 
         init(model: String, isFree: Bool) {
@@ -499,8 +491,7 @@ actor AIRequestPacer {
 /// task waits, like one with no key: ForeverLM no longer picks a paid model
 /// the learner never chose (product owner, 2026-10-07: "don't do this by default").
 /// A model the learner sets for the task itself is theirs
-/// (`KeychainService.taskRoute(for:)`) and is not second-guessed. Free mode,
-/// which the learner turned on to run everything free, overrides the answer.
+/// (`KeychainService.taskRoute(for:)`) and is not second-guessed.
 ///
 /// A rule rather than a setting: until 2026-09-28 Setup kept meetings paid
 /// by giving each meeting task a model of its own, and those went with the
@@ -528,16 +519,12 @@ enum MeetingModels {
     }
 
     static func isFree(_ route: AITaskModelRoute) -> Bool {
-        AIFreeMode.isFreeSelection(provider: route.provider, model: route.model)
+        AIFreeModels.isFreeSelection(provider: route.provider, model: route.model)
     }
 
     /// Whether `task` is kept off free models now.
-    static func staysOffFree(
-        _ task: AITask,
-        mayUseFree: Bool = MeetingModels.mayUseFree,
-        freeModeOn: Bool = AIFreeMode.isOn
-    ) -> Bool {
-        task.sourceType == .meeting && !mayUseFree && !freeModeOn
+    static func staysOffFree(_ task: AITask, mayUseFree: Bool = MeetingModels.mayUseFree) -> Bool {
+        task.sourceType == .meeting && !mayUseFree
     }
 
     /// The model `task` runs on when its Background model is `background`:

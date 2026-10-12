@@ -9,7 +9,7 @@ import Foundation
 /// free days and the price come from the proxy (`freeDaysTotal`, `prices`);
 /// no message here names a count of its own. AI is never
 /// part of the price. It always runs on the learner's own OpenRouter key,
-/// billed by OpenRouter at cost, and Free mode costs $0.
+/// billed by OpenRouter at cost, and a free model costs $0.
 ///
 /// The proxy has run this model since 2026-10-11 and decides all of it: it
 /// returns the account's access with every session and balance fetch

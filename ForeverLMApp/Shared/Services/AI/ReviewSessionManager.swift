@@ -1124,10 +1124,6 @@ final class ReviewSessionManager {
         routedModel: String,
         speed: AISpeed? = nil
     ) -> WebSearchAccess {
-        // Free mode charges nothing, and OpenRouter bills web search apart
-        // from the model, free ones included; `ManagedAI.rewrite` strips the
-        // plugin from every Free mode body, so the model is not told it has it.
-        guard !AIFreeMode.isOn else { return .unavailable }
         // The rule Deep Research applies too: Gemini's search allowance is
         // account-wide, so a Gemini selection stays off the web whatever
         // transport carries it.

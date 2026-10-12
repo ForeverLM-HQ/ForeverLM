@@ -189,7 +189,7 @@ enum ManagedTranscriptionClient {
         var request = URLRequest(url: route.endpoint)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        try ManagedAI.rewrite(&request)
+        ManagedAI.rewrite(&request)
 
         let uploadStartedAt = Date()
         let (data, response) = try await session.upload(for: request, from: body)

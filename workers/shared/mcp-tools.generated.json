@@ -67,7 +67,7 @@
           "type" : "string"
         },
         "draw" : {
-          "description" : "Brief and draw separately billed generated pictures for questions no slide or figure shows, and draw those already briefed (default false; never in Free mode). False chooses slides and figures only.",
+          "description" : "Brief and draw separately billed generated pictures for questions no slide or figure shows, and draw those already briefed (default false). False chooses slides and figures only.",
           "type" : "boolean"
         },
         "quiz_ids" : {
@@ -2591,7 +2591,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Find sources a Notebook is missing with one web search on the chat's model, using the Notebook's title, instructions, research questions and sources as context. Returns a one-sentence summary and up to count candidates, each with one line on why it fits. ForeverLM keeps an address only when the search engine cited it, Crossref knows its DOI, or the page opens (left_out counts the rest), sets aside addresses that are never sources, such as a home or search page, a Google Doc or a playlist (not_sources counts them), and reads each candidate's kind off its address. For papers, search_literature searches PubMed for free and works in Free mode. Each candidate says whether the library already holds it (in_library, library_source_id) and whether the Notebook does (in_notebook). Nothing is imported: show the learner the list and import only the ones they pick, with import_paper_from_url for a paper (it needs its PDF; one behind a paywall lands as PDF needed) and add_sources for the rest, then add_notebook_sources with the returned ids; a candidate in_library needs only add_notebook_sources. Refused before anything is spent in Free mode, or when the chat's model cannot search the web. An assistant that can search the web itself may do that instead and import the same way. Paid assistant work has a $3 per-operation ceiling by default. To continue beyond it, show the learner the estimate, obtain explicit approval, and pass that total as approved_spend_usd.",
+    "description" : "Find sources a Notebook is missing with one web search on the chat's model, using the Notebook's title, instructions, research questions and sources as context. Returns a one-sentence summary and up to count candidates, each with one line on why it fits. ForeverLM keeps an address only when the search engine cited it, Crossref knows its DOI, or the page opens (left_out counts the rest), sets aside addresses that are never sources, such as a home or search page, a Google Doc or a playlist (not_sources counts them), and reads each candidate's kind off its address. For papers, search_literature searches PubMed for free. Each candidate says whether the library already holds it (in_library, library_source_id) and whether the Notebook does (in_notebook). Nothing is imported: show the learner the list and import only the ones they pick, with import_paper_from_url for a paper (it needs its PDF; one behind a paywall lands as PDF needed) and add_sources for the rest, then add_notebook_sources with the returned ids; a candidate in_library needs only add_notebook_sources. Refused before anything is spent when the chat's model cannot search the web. An assistant that can search the web itself may do that instead and import the same way. Paid assistant work has a $3 per-operation ceiling by default. To continue beyond it, show the learner the estimate, obtain explicit approval, and pass that total as approved_spend_usd.",
     "inputSchema" : {
       "properties" : {
         "approved_spend_usd" : {
@@ -3529,7 +3529,7 @@
           "type" : "string"
         },
         "draw_pictures" : {
-          "description" : "Draw a picture for each newly written quiz that has none, and the separately billed pictures its writer asks for questions no slide or figure shows (default false for assistant bulk runs; never in Free mode).",
+          "description" : "Draw a picture for each newly written quiz that has none, and the separately billed pictures its writer asks for questions no slide or figure shows (default false for assistant bulk runs).",
           "type" : "boolean"
         },
         "final_test" : {
@@ -4031,7 +4031,7 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "Read the ForeverLM account behind Settings › Billing (paying for ForeverLM) and Settings › AI Usage (the key and the monthly spending limit), freshly fetched from the account server as those panes do when they open. ForeverLM is a paid app after 7 free days: they begin at the first sign-in, and then the app is paid once (the Early user deal), with no subscription; an account that has not paid by then is locked until it does, and nothing in it is deleted. No monthly plan is sold; one bought before still counts as paid while it is active. AI is never part of the price: the learner's own OpenRouter API key pays for every model, billed by OpenRouter at cost, ForeverLM adds nothing, and Free mode costs $0. OpenRouter is the only supported provider. Returns whether the learner is signed in; the plan (state free_days, paid_once, monthly, comped, family or locked; whether the account is unlocked, when the free days end, how many are left and how many an account gets; a monthly plan's renewal and price; whether the own key may run AI) and the plans on sale with the account server's prices (once, the Early user deal, recommended); a summary of the learner's own router key (details in get_own_router_key); any balance left over from before prepaid balance was retired, which still pays for requests sent without the key until it runs out and cannot be added to; and the monthly spending limit (current value, what has been spent this month, whether it is reached, when it resets, and the options the pane's picker offers, including no_limit). This is account state, the same on every device.",
+    "description" : "Read the ForeverLM account behind Settings › Billing (paying for ForeverLM) and Settings › AI Usage (the key and the monthly spending limit), freshly fetched from the account server as those panes do when they open. ForeverLM is a paid app after 7 free days: they begin at the first sign-in, and then the app is paid once (the Early user deal), with no subscription; an account that has not paid by then is locked until it does, and nothing in it is deleted. No monthly plan is sold; one bought before still counts as paid while it is active. AI is never part of the price: the learner's own OpenRouter API key pays for every model, billed by OpenRouter at cost, and ForeverLM adds nothing. OpenRouter is the only supported provider. Returns whether the learner is signed in; the plan (state free_days, paid_once, monthly, comped, family or locked; whether the account is unlocked, when the free days end, how many are left and how many an account gets; a monthly plan's renewal and price; whether the own key may run AI) and the plans on sale with the account server's prices (once, the Early user deal, recommended); a summary of the learner's own router key (details in get_own_router_key); any balance left over from before prepaid balance was retired, which still pays for requests sent without the key until it runs out and cannot be added to; and the monthly spending limit (current value, what has been spent this month, whether it is reached, when it resets, and the options the pane's picker offers, including no_limit). This is account state, the same on every device.",
     "inputSchema" : {
       "properties" : {
 
@@ -4652,7 +4652,7 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "Read Settings › AI Usage › Your own key: whether the learner has stored their own OpenRouter key, which router it is for, and the key's last four characters. Never the key itself. ForeverLM's AI features are bring your own key: with a key stored, OpenRouter bills the learner directly, at cost, for everything ForeverLM sends through it, and ForeverLM adds nothing. OpenRouter is the only supported provider. The key runs while the account is unlocked (its free days, or ForeverLM paid for; own_key_allowed); a locked account's key runs no model, free ones included. Free mode in Settings › AI Usage points every setting at OpenRouter's free models, so it costs $0. The response names the scope: an OpenRouter key covers chat, reviews and background tasks plus every voice, speech-to-text, image and video model OpenRouter serves, first-party ones such as Gemini and Grok speech, GPT-4o mini transcription and Veo included, so the key pays for every model ForeverLM uses.",
+    "description" : "Read Settings › AI Usage › Your own key: whether the learner has stored their own OpenRouter key, which router it is for, and the key's last four characters. Never the key itself. ForeverLM's AI features are bring your own key: with a key stored, OpenRouter bills the learner directly, at cost, for everything ForeverLM sends through it, and ForeverLM adds nothing. OpenRouter is the only supported provider. The key runs while the account is unlocked (its free days, or ForeverLM paid for; own_key_allowed); a locked account's key runs no model, free ones included. The response names the scope: an OpenRouter key covers chat, reviews and background tasks plus every voice, speech-to-text, image and video model OpenRouter serves, first-party ones such as Gemini and Grok speech, GPT-4o mini transcription and Veo included, so the key pays for every model ForeverLM uses.",
     "inputSchema" : {
       "properties" : {
 
@@ -6929,7 +6929,7 @@
     "inputSchema" : {
       "properties" : {
         "pane" : {
-          "description" : "The pane to show. Omit for Billing, paying for ForeverLM; ai_usage is the key, Free mode, spending and activity.",
+          "description" : "The pane to show. Omit for Billing, paying for ForeverLM; ai_usage is the key, spending and activity.",
           "enum" : [
             "general",
             "chat",
@@ -9530,7 +9530,7 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "Change Settings › AI Models exactly as the pane's own controls do. target default_model sets the Default Model card (provider + model); docs sets the model Edit with AI in a Doc runs on, as the ForeverLM mark on the Edit with AI panel does (provider + model), and docs with neither goes back to following the Default Model; background_text and background_multimodal set Settings › Background's Text-only and Multimodal models, which every background task runs on unless it has a model of its own; task_model (task_id plus provider and model, or neither to go back to following) gives one task a model of its own, as its page under Background › Tasks does, and takes only a vision model for a task with requires_vision. Every selection must be a catalogue model on an offered provider, not retired — or a model from free_models for background_text or background_multimodal (reads_images for the latter), which moves only that setting and costs nothing, though its providers may keep and train on what is sent and it is often busy; background_multimodal takes only a vision model. target meetings records Setup's Meetings answer (meetings_may_use_free): false, the default, keeps meeting tasks on a paid model while their Background model is free (its first paid backup; with none the task waits, and ForeverLM picks no paid model for them); true lets them use the free one. Ask it before moving background_text to a free model. target data_privacy flips Settings › Data & Privacy's “Don't show models that train on my data” (hide_training_models): true leaves every model marked trains_on_inputs out of the pickers and the catalogue, false offers them again, labelled. target free_mode flips Settings › AI Usage's “Free mode” (free_mode): true needs the learner's own OpenRouter key and an unlocked account (its free days, or ForeverLM paid for), points every model setting at OpenRouter's free models, turns hide_training_models off and offers only free models until it goes off; anything without a free model (transcription, images, video, web search) is refused meanwhile, and nothing sent can be charged. false puts back the models it replaced. Before turning Free mode on, tell the learner that free models' providers may keep and train on everything sent to them and that free models are often overloaded or rate-limited. target host chooses which of a model's OpenRouter hosts runs chat or a Background model's work (host_for, host, host_fallback), and whether only its hosts in the US may (host_region), as a chosen model card's ⋯ in Settings › Chat does. target backups sets the backup models chat's scheduled runs or a Background model moves its work to, in order, when its model is busy, fails or sends back nothing usable (backups_for, backups), as Use as Backup on a model card does; each backup is billed at its own price. Ask before calling this: it changes which model, and so which price, the learner's work runs on. Returns the resulting settings with changed.",
+    "description" : "Change Settings › AI Models exactly as the pane's own controls do. target default_model sets the Default Model card (provider + model); docs sets the model Edit with AI in a Doc runs on, as the ForeverLM mark on the Edit with AI panel does (provider + model), and docs with neither goes back to following the Default Model; background_text and background_multimodal set Settings › Background's Text-only and Multimodal models, which every background task runs on unless it has a model of its own; task_model (task_id plus provider and model, or neither to go back to following) gives one task a model of its own, as its page under Background › Tasks does, and takes only a vision model for a task with requires_vision. Every selection must be a catalogue model on an offered provider, not retired — or a model from free_models for background_text or background_multimodal (reads_images for the latter), which moves only that setting and costs nothing, though its providers may keep and train on what is sent and it is often busy; background_multimodal takes only a vision model. target meetings records Setup's Meetings answer (meetings_may_use_free): false, the default, keeps meeting tasks on a paid model while their Background model is free (its first paid backup; with none the task waits, and ForeverLM picks no paid model for them); true lets them use the free one. Ask it before moving background_text to a free model. target data_privacy flips Settings › Data & Privacy's “Don't show models that train on my data” (hide_training_models): true leaves every model marked trains_on_inputs out of the pickers and the catalogue, false offers them again, labelled. target host chooses which of a model's OpenRouter hosts runs chat or a Background model's work (host_for, host, host_fallback), and whether only its hosts in the US may (host_region), as a chosen model card's ⋯ in Settings › Chat does. target backups sets the backup models chat's scheduled runs or a Background model moves its work to, in order, when its model is busy, fails or sends back nothing usable (backups_for, backups), as Use as Backup on a model card does; each backup is billed at its own price. Ask before calling this: it changes which model, and so which price, the learner's work runs on. Returns the resulting settings with changed.",
     "inputSchema" : {
       "properties" : {
         "backups" : {
@@ -9562,10 +9562,6 @@
             "background_multimodal"
           ],
           "type" : "string"
-        },
-        "free_mode" : {
-          "description" : "For target free_mode: true turns Free mode on (only OpenRouter's free models, on the learner's own OpenRouter key, which runs while the account is unlocked; their providers may train on what is sent); false turns it off and puts back the models it replaced.",
-          "type" : "boolean"
         },
         "hide_training_models" : {
           "description" : "For target data_privacy: true hides the models that train on what is sent to them (trains_on_inputs) from every picker, as the Data & Privacy switch does; false shows them, labelled.",
@@ -9609,7 +9605,7 @@
           "type" : "string"
         },
         "target" : {
-          "description" : "default_model, docs, background_text, background_multimodal, task_model, meetings, data_privacy, free_mode, host, or backups.",
+          "description" : "default_model, docs, background_text, background_multimodal, task_model, meetings, data_privacy, host, or backups.",
           "enum" : [
             "default_model",
             "docs",
@@ -9618,7 +9614,6 @@
             "task_model",
             "meetings",
             "data_privacy",
-            "free_mode",
             "host",
             "backups"
           ],

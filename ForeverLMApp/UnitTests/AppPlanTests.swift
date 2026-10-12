@@ -241,7 +241,7 @@ struct AppPlanTests {
         #expect(EarlyUserDealOffer.headline(onceCents: nil, freeDays: 7) == "7 days free, then pay once. No subscription.")
         #expect(EarlyUserDealOffer.headline(onceCents: 1900, freeDays: nil) == "Free to start, then $19 once. No subscription.",
                 "a proxy that has not said the count gets no count of the build's own")
-        #expect(EarlyUserDealOffer.ownKeyLine == "AI runs on your own OpenRouter key, at OpenRouter's cost. ForeverLM adds nothing. Free mode costs $0.")
+        #expect(EarlyUserDealOffer.ownKeyLine == "AI runs on your own OpenRouter key, at OpenRouter's cost. ForeverLM adds nothing.")
         #expect(AppLockWall.title == "Your free days are over")
         #expect(AppLockWall.message == "Keep everything you've built: pay once and ForeverLM is yours to use.")
         #expect(AppLockWall.libraryLine == "Your library stays in your iCloud Drive (ForeverLM folder), as plain files you own.")
@@ -266,9 +266,6 @@ struct AppPlanTests {
     func keyNeedsNoPlan() {
         let messages = [
             AICreditEntitlement.purchaseRequiredMessage,
-            FreeModelsSetup.keyHeldBackReason,
-            FreeModelsSetup.keyHeldBackShort,
-            FreeModelsSetup.Failure.appLocked.errorDescription ?? "",
             KeychainService.emptyBalanceMessage,
             EarlyUserDealOffer.ownKeyLine,
             ReviewSessionManager.chatConfigFailureMessageForTesting(isSignedIn: true, provider: .openRouter),
@@ -277,7 +274,6 @@ struct AppPlanTests {
             #expect(!text.isEmpty)
             #expect(!text.localizedCaseInsensitiveContains("plan"), "\(text)")
         }
-        #expect(FreeModelsSetup.Failure.appLocked.errorDescription == FreeModelsSetup.keyHeldBackReason)
         // A refusal is still recognised as one the account, not the model,
         // made: today's wording, and those stored chats hold from while the
         // key needed a plan.

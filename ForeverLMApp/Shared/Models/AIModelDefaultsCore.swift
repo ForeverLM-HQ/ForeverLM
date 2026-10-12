@@ -24,8 +24,8 @@ enum AIModelDefaults {
     /// OpenRouter's Free Models Router: each request goes to one of the free
     /// models that is up and can take what the request needs (tools, images),
     /// so it fails and times out less than any one free model. Listed at $0,
-    /// without the `:free` suffix every other free model carries. Free mode's
-    /// recommended pick (product owner, 2026-09-27).
+    /// without the `:free` suffix every other free model carries. Setup's
+    /// recommended free pick (product owner, 2026-09-27).
     static let openRouterFreeRouter = "openrouter/free"
 
     /// Stable fixture used only by the opt-in live API test. Production read-

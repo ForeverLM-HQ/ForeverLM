@@ -32,10 +32,9 @@ enum SlowFreeModelWait {
 /// and asks the waiting message again on it at once
 /// (`ReviewSessionManager.restartTurnOnSelectedModel`); the free model's
 /// silence is dropped, not kept. A turn that already ran a tool is not asked
-/// twice, so the pick then takes the next message, and the line says so. With
-/// Free mode on no paid model can run, so the line leads to where Free mode
-/// is turned off instead. The line goes when the answer starts, and never
-/// comes back once Don't Ask Again is pressed.
+/// twice, so the pick then takes the next message, and the line says so. The
+/// line goes when the answer starts, and never comes back once Don't Ask
+/// Again is pressed.
 struct SlowFreeModelOffer: View {
     let turnModel: ReviewSessionManager.TurnModel?
     /// The turn has not written a word of its reply yet.
@@ -105,23 +104,10 @@ struct SlowFreeModelOffer: View {
                     .foregroundStyle(.secondary)
             }
 
-            if AIFreeMode.isOn {
-                Button {
-                    NotificationCenter.default.post(name: .requestOpenStudioSettings, object: SettingsPane.aiUsage)
-                } label: {
-                    Text("Turn off Free mode…")
-                        .font(.caption.weight(.medium))
-                }
-                .buttonStyle(.hoverWash(cornerRadius: 5, inset: -3))
-                .foregroundStyle(Color.accentColor)
-                .help("Free mode keeps every AI request on free models. To ask a paid one, \(AIFreeMode.leaveAdvice).")
-                .accessibilityIdentifier("mac.chatSlowFreeModel.freeMode")
-            } else {
-                paidModelMenu
-                    .disabled(switching != nil)
-                    .help("Ask this message again on a paid model, and keep the chat on it")
-                    .accessibilityIdentifier("mac.chatSlowFreeModel.switch")
-            }
+            paidModelMenu
+                .disabled(switching != nil)
+                .help("Ask this message again on a paid model, and keep the chat on it")
+                .accessibilityIdentifier("mac.chatSlowFreeModel.switch")
 
             Button {
                 isDismissed = true

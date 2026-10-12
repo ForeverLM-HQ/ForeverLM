@@ -37,7 +37,7 @@ protocol MacJobWork: Sendable {
     /// One extra run of a scheduled task this Mac runs.
     func runAutomation(_ id: String) async throws
     /// Draws the cover a `makeDerived` Job asks for (D53, §5.9), the creation of a notebook made on a light
-    /// client; the Job's note. Throws in Free mode and with the Setting off.
+    /// client; the Job's note. Throws with the Setting off.
     func drawNotebookCover(notebookID: String) async throws -> String
     /// Tells the open windows the library changed.
     func libraryDidChange() async

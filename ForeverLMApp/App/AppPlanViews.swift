@@ -14,7 +14,7 @@ struct EarlyUserDealOffer: View {
     static let title = "Early user deal"
     static let terms = "paid once, no subscription"
     /// The line every surface says what AI costs with.
-    static let ownKeyLine = "AI runs on your own OpenRouter key, at OpenRouter's cost. ForeverLM adds nothing. Free mode costs $0."
+    static let ownKeyLine = "AI runs on your own OpenRouter key, at OpenRouter's cost. ForeverLM adds nothing."
 
     /// "Get the Early User Deal: $19", or without the price while the proxy
     /// has not said it.
@@ -82,7 +82,7 @@ struct EarlyUserDealOffer: View {
 /// Settings → Billing: paying for ForeverLM, in one card. The product owner
 /// (2026-09-28): "there should be a place where people can cancel their
 /// subscription or manage their subscription … separate from all the AI
-/// usage". The key, Free mode, limits and activity are Settings › AI Usage.
+/// usage". The key, limits and activity are Settings › AI Usage.
 ///
 /// In the free days, or locked, the card is the offer. A buyer sees "Paid
 /// once". A subscriber from before the lock (nothing sells a subscription

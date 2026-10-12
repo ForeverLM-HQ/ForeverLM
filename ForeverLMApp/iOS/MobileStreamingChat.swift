@@ -76,19 +76,7 @@ enum MobileStreamingChat {
         }
         guard (200...299).contains(http.statusCode) else {
             let body = try await errorBody(from: bytes)
-            // Free mode's two failures read as nothing on their own: the
-            // learner's OpenRouter account refusing free endpoints, and a busy
-            // free host. See `AIFreeMode`.
-            if let explanation = AIFreeMode.refusalExplanation(
-                forProviderBody: body,
-                providerMessage: AIProviderErrorText.fromResponseBody(Data(body.utf8))
-            ) {
-                throw MobileStreamingChatError.http(status: http.statusCode, body: explanation)
-            }
-            throw MobileStreamingChatError.http(
-                status: http.statusCode,
-                body: AIFreeMode.annotatingBusy(body, status: http.statusCode)
-            )
+            throw MobileStreamingChatError.http(status: http.statusCode, body: body)
         }
 
         var text = ""

@@ -121,14 +121,6 @@ actor MobileSourceChatService {
             // OpenRouter's data-policy refusal answers a switch the learner set
             // in Settings; say so, as the Mac does. The account-level training
             // refusal is translated whatever the switch says. See `AIDataPolicy`.
-            // In Free mode the policy that refused is the learner's own
-            // OpenRouter account, which has not allowed free endpoints yet.
-            if let explanation = AIFreeMode.refusalExplanation(
-                forProviderBody: body,
-                providerMessage: AIProviderErrorText.fromResponseBody(data)
-            ) {
-                throw MobileSourceChatError.badResponse(explanation)
-            }
             if AIDataPolicy.isTrainingPolicyRefusal(body) {
                 throw MobileSourceChatError.badResponse(
                     AIDataPolicy.trainingRefusalExplanation(providerMessage: AIProviderErrorText.fromResponseBody(data))
@@ -140,9 +132,7 @@ actor MobileSourceChatService {
                     AIDataPolicy.refusalExplanation(providerMessage: providerMessage)
                 )
             }
-            throw MobileSourceChatError.badResponse(
-                AIFreeMode.annotatingBusy("\(providerName) source chat failed (\(http.statusCode)): \(body)", status: http.statusCode)
-            )
+            throw MobileSourceChatError.badResponse("\(providerName) source chat failed (\(http.statusCode)): \(body)")
         }
         return data
     }

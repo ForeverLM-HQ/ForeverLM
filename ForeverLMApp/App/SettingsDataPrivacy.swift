@@ -172,9 +172,6 @@ struct AIDataPolicySettingsView: View {
             Toggle(AIDataPolicy.switchTitle, isOn: Binding(
                 get: { deniesDataCollection },
                 set: { enabled in
-                    // "Deny" leaves a free model no host, so the two switches
-                    // exclude each other; Free mode puts its saved picks back.
-                    if enabled, AIFreeMode.isOn { FreeModelsSetup.disableFreeMode() }
                     deniesDataCollection = enabled
                     PreferenceStore.set(enabled, forKey: AIDataPolicy.denyDataCollectionKey)
                     AIModelCatalog.dataPolicyDidChange()
@@ -192,7 +189,7 @@ struct AIDataPolicySettingsView: View {
                   keys.contains(AIDataPolicy.denyDataCollectionKey) else { return }
             deniesDataCollection = AIDataPolicy.deniesDataCollection
         }
-        // Turning Free mode on turns the switch off; Get Started shows both.
+        // Get Started and MCP write the switch on this Mac too.
         .onReceive(NotificationCenter.default.publisher(for: .aiProviderDidChange).receive(on: RunLoop.main)) { _ in
             deniesDataCollection = AIDataPolicy.deniesDataCollection
         }

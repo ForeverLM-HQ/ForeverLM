@@ -31,8 +31,8 @@ actor MobileModelPreferenceStore {
 
     /// The route for `task`, on `preference` instead of the account's default
     /// chat model when one is given: a chat's own pick from its model chip
-    /// (`offeredChatModels`). Free mode, the data policy and the model's host
-    /// region still apply; only the chat tasks take a pick.
+    /// (`offeredChatModels`). The data policy and the model's host region still
+    /// apply; only the chat tasks take a pick.
     func resolve(_ task: AITask, overriding preference: AIModelRoutePreference?) async throws -> ResolvedAITextRoute {
         do {
             return try await confinedToRegion(resolveModelRoute(task, overriding: preference))
@@ -47,11 +47,9 @@ actor MobileModelPreferenceStore {
     /// The models a chat's model chip offers: the account's default chat model
     /// first, then the models the learner offers in the Mac's chat picker
     /// (`MobileOfferedChatModels`), as the Mac's catalog offers them
-    /// (`AIModelCatalog.isOffered`): only free ones while Free mode is on, and
-    /// none whose host trains on prompts while the Data & Privacy switch is
-    /// on. The default is returned on its own too.
+    /// (`AIModelCatalog.isOffered`): none whose host trains on prompts while
+    /// the Data & Privacy switch is on. The default is returned on its own too.
     func offeredChatModels() async throws -> (choices: [MobileChatModelChoice], defaultChoice: MobileChatModelChoice?) {
-        let freeMode = try await refreshFreeMode()
         let hidesTrainingModels = try await bool(forKey: AIDataPolicy.denyDataCollectionKey) ?? false
         let defaultPreference = try await chatRoutePreference()
         let enabled = try await stringArray(forKey: MobileOfferedChatModels.enabledIDsKey)
@@ -61,8 +59,7 @@ actor MobileModelPreferenceStore {
         let choices = MobileOfferedChatModels.choices(
             enabledIDs: enabled,
             customNames: names,
-            defaultPreference: defaultPreference,
-            freeModeOn: freeMode
+            defaultPreference: defaultPreference
         ).filter { choice in
             // The default is what a chat runs on anyway, so it stays listed.
             guard hidesTrainingModels, choice.id != defaultID else { return true }
@@ -130,7 +127,6 @@ actor MobileModelPreferenceStore {
         // The account's data-policy switch travels with the route so the
         // synchronous request builders need no store of their own.
         let deniesDataCollection = try await bool(forKey: AIDataPolicy.denyDataCollectionKey) ?? false
-        let freeMode = try await refreshFreeMode()
 
         if task == .chat {
             let preference: AIModelRoutePreference
@@ -139,19 +135,16 @@ actor MobileModelPreferenceStore {
             } else {
                 preference = try await chatRoutePreference()
             }
-            return try resolved(preference, task: task, routingMode: routingMode, deniesDataCollection: deniesDataCollection, freeMode: freeMode)
+            return try resolved(preference, task: task, routingMode: routingMode, deniesDataCollection: deniesDataCollection)
         }
 
         // A task the learner gave a model of its own runs on it (2026-10-07,
-        // as the Mac's `KeychainService.ownRoute(for:)` reads it): unusable
-        // while Free mode is on and it is paid, when Background, which Free
-        // mode moved, answers instead. Every other task runs on the account's
-        // Background model.
+        // as the Mac's `KeychainService.ownRoute(for:)` reads it). Every other
+        // task runs on the account's Background model.
         if let descriptor = AITaskSettingsCatalog.descriptor(forRawID: task.rawValue),
            descriptor.showInAdvancedSettings, descriptor.usesBackgroundModelDefault,
-           let own = try await routePreference(forKey: AIModelPreferenceKey.taskRoute(task)),
-           !freeMode || (own.provider == "OpenRouter" && AIFreeMode.isFreeModelID(own.model)) {
-            return try resolved(own, task: task, routingMode: routingMode, deniesDataCollection: deniesDataCollection, freeMode: freeMode)
+           let own = try await routePreference(forKey: AIModelPreferenceKey.taskRoute(task)) {
+            return try resolved(own, task: task, routingMode: routingMode, deniesDataCollection: deniesDataCollection)
         }
         let backgroundKey = task.usesMultimodalBackgroundModelDefault
             ? AIModelPreferenceKey.backgroundMultimodalRoute
@@ -173,7 +166,7 @@ actor MobileModelPreferenceStore {
                 model: AIModelDefaults.mobileDefaultBackgroundModel
             )
         }
-        return try resolved(background, task: task, routingMode: routingMode, deniesDataCollection: deniesDataCollection, freeMode: freeMode)
+        return try resolved(background, task: task, routingMode: routingMode, deniesDataCollection: deniesDataCollection)
     }
 
     private func textRoutingMode() async throws -> AITextRoutingMode {
@@ -192,21 +185,6 @@ actor MobileModelPreferenceStore {
 
     func bool(forKey key: String) async throws -> Bool? {
         try await fetchPreference(key) as? Bool
-    }
-
-    /// The account's Free mode switch, read from its row and written to
-    /// `AIFreeMode.enabledKey` in `UserDefaults`, which is where `AIFreeMode.isOn`
-    /// and so every guard in `ManagedAI` reads it. The phone hydrates no synced
-    /// preference, so this is the only way the row reaches it. Anything that
-    /// is about to spend reads it first. A failed read throws and leaves the
-    /// last answer in place. A stale "on" refuses paid requests and a stale
-    /// "off" lets them through, so a caller that must not spend on a stale
-    /// answer lets the error stop it.
-    @discardableResult
-    func refreshFreeMode() async throws -> Bool {
-        let isOn = try await bool(forKey: AIFreeMode.enabledKey) ?? false
-        UserDefaults.standard.set(isOn, forKey: AIFreeMode.enabledKey)
-        return isOn
     }
 
     /// A whole number, as the Mac's `SyncedStorage<Int>` writes it. Plist
@@ -313,19 +291,11 @@ actor MobileModelPreferenceStore {
         _ preference: AIModelRoutePreference,
         task: AITask,
         routingMode: AITextRoutingMode,
-        deniesDataCollection: Bool,
-        freeMode: Bool
+        deniesDataCollection: Bool
     ) throws -> ResolvedAITextRoute {
         let provider = preference.provider
         let rawModel = preference.model.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !rawModel.isEmpty else { throw MobileModelRouteError.invalidPreference(task.rawValue) }
-        // The Mac points every setting at a free model when Free mode goes on,
-        // so a paid route here is one it could not move (a phone default no
-        // device has written). Say so before building a request; `rewrite`
-        // would refuse it anyway.
-        if freeMode, !(provider == "OpenRouter" && AIFreeMode.isFreeModelID(rawModel)) {
-            throw AIFreeMode.Refusal.paidModel(rawModel)
-        }
         guard requestOptionsAreSupported(
             provider: provider,
             model: rawModel,
@@ -605,9 +575,6 @@ extension ArticleSpeechPreferences {
         // leaves the recorded list, and a pick outside it is not adopted.
         await OpenRouterAudioDirectory.prepare(.speech)
         reloadFromStorage()
-        // Only the free voices run while Free mode is on; `rewrite` reads the
-        // switch this refresh writes.
-        try await MobileModelPreferenceStore.shared.refreshFreeMode()
         guard let synced = try await MobileModelPreferenceStore.shared.textToSpeechSelection() else {
             return
         }

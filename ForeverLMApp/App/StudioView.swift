@@ -1514,7 +1514,7 @@ private struct CreditsEmptySheet: View {
             Text("Add your OpenRouter key")
                 .font(.title2.weight(.semibold))
 
-            Text("AI features run on your own OpenRouter API key, billed by OpenRouter at cost, and ForeverLM adds nothing. Add your key in Settings → AI Usage, where Free mode can keep it to OpenRouter's free models.")
+            Text("AI features run on your own OpenRouter API key, billed by OpenRouter at cost, and ForeverLM adds nothing. Add your key in Settings → AI Usage.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

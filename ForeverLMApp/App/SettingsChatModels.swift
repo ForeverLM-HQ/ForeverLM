@@ -5,9 +5,9 @@ import AppKit
 
 /// Settings › Chat, as the product owner redrew it on 2026-09-28 ("let's just do a
 /// basically list with banners"): a Suggested list with one model per maker
-/// (`AIModelDefaults.suggestedChatModels`), a Free list (the free models Free
-/// mode itself would offer), the backups, and under them OpenRouter's whole
-/// directory as a table (`OpenRouterModelTable`), narrowed to free or
+/// (`AIModelDefaults.suggestedChatModels`), a Free list (OpenRouter's Free
+/// Models Router and the best single free models), the backups, and under
+/// them OpenRouter's whole directory as a table (`OpenRouterModelTable`), narrowed to free or
 /// discounted models or to what a search finds. The list of the other
 /// models the learner offered went the same day ("why is that even there?"):
 /// the table shows each of them. Every row turns
@@ -81,8 +81,8 @@ struct ChatModelsPane: View {
             NotificationCenter.default.publisher(for: .aiProviderDidChange)
                 .receive(on: RunLoop.main)
         ) { _ in
-            // A model turned on or off here or elsewhere, a key added, Free
-            // mode or the Data & Privacy switch flipped: all land here.
+            // A model turned on or off here or elsewhere, a key added, or the
+            // Data & Privacy switch flipped: all land here.
             Task { await reload() }
         }
         .onReceive(
@@ -146,9 +146,9 @@ struct ChatModelsPane: View {
 
     // MARK: Lists
 
-    /// Free mode's own chat picks: its router and the single free models it
-    /// adds beside it, less any that failed a test run of chat. Its preferred
-    /// models stand in, waiting, until the directory answers.
+    /// The Free list: OpenRouter's Free Models Router and the best single free
+    /// models beside it, less any that failed a test run of chat. The
+    /// preferred models stand in, waiting, until the directory answers.
     private static func freeSlugs(in directory: [OpenRouterDirectoryModel]?) -> [String] {
         let count = FreeModelsSetup.chatAlternatives + 1
         guard let directory else { return Array(FreeModelsSetup.preferredChat.prefix(count)) }
@@ -662,7 +662,7 @@ enum ChatModelLists {
     /// Everything the pane draws, built at once.
     struct Built {
         let suggestions: [Suggestion]
-        /// Free mode's chat picks, as Suggested rows are drawn.
+        /// The Free list's chat picks, as Suggested rows are drawn.
         let free: [Suggestion]
         /// With the browser's filters on, only the models they let through.
         let makers: [Maker]
@@ -723,7 +723,7 @@ enum ChatModelLists {
     ///   - directory: nil while it is still loading.
     ///   - filters: what the browser is narrowed to; empty for everything.
     ///   - isOffered: whether the learner's settings allow a model the
-    ///     catalog does not carry (Free mode, the Data & Privacy switch).
+    ///     catalog does not carry (the Data & Privacy switch).
     ///   - allowsNewerRelease: whether a newer release may take a
     ///     suggestion's place; Background's tier cap (`isTierBelow`).
     static func build(

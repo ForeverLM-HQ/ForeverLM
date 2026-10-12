@@ -449,7 +449,7 @@ enum AIModelCatalog {
     /// custom list is a few UserDefaults-backed rows, so rebuilding is cheap.
     static var makerGroups: [MakerGroup] {
         let groups = catalogSnapshot().makerGroups
-        guard hidesTrainingModels || AIFreeMode.isOn else { return groups }
+        guard hidesTrainingModels else { return groups }
         return groups.compactMap { group in
             let entries = group.entries.filter(isOffered)
             return entries.isEmpty ? nil : MakerGroup(maker: group.maker, entries: entries)
@@ -463,33 +463,15 @@ enum AIModelCatalog {
     static var hidesTrainingModels: Bool { AIDataPolicy.hidesTrainingModels }
 
     /// Whether the catalog offers an entry right now: everything in the
-    /// snapshot except, while the switch is on, the models that train, and,
-    /// while Free mode is on, every model that is not free.
+    /// snapshot except, while the switch is on, the models that train.
     private static func isOffered(_ entry: AIModelCatalogEntry) -> Bool {
-        if AIFreeMode.isOn, !AIFreeMode.isFreeSelection(provider: entry.provider, model: entry.modelID) {
-            return false
-        }
-        return !(hidesTrainingModels && entry.trainsOnInputs)
+        !(hidesTrainingModels && entry.trainsOnInputs)
     }
 
     /// Whether the catalog would offer a model today, catalogued or not: the
     /// test Settings › Chat puts a directory model it lists to.
     static func wouldOffer(provider: AIProvider, modelID: String) -> Bool {
         isOffered(AIModelCatalogEntry(maker: .other, provider: provider, modelID: modelID))
-    }
-
-    /// Free mode went on or off, here or on another device. On, a chat whose
-    /// session model is not free goes back to the default (a free one), as
-    /// `dataPolicyDidChange` does for a hidden training model; either way
-    /// every open picker and Settings pane rebuilds.
-    static func freeModeDidChange() {
-        if AIFreeMode.isOn {
-            for entry in catalogSnapshot().allEntries
-            where !AIFreeMode.isFreeSelection(provider: entry.provider, model: entry.modelID) {
-                KeychainService.resetChatSessionSelectionIfMatching(provider: entry.provider, model: entry.modelID)
-            }
-        }
-        NotificationCenter.default.post(name: .aiProviderDidChange, object: nil)
     }
 
     /// The Data & Privacy switch changed, here or on another device. A chat
@@ -945,7 +927,7 @@ enum AIModelCatalog {
     /// Every offered entry, in catalog order; see `isOffered`.
     static var allEntries: [AIModelCatalogEntry] {
         let entries = catalogSnapshot().allEntries
-        guard hidesTrainingModels || AIFreeMode.isOn else { return entries }
+        guard hidesTrainingModels else { return entries }
         return entries.filter(isOffered)
     }
 
@@ -993,7 +975,7 @@ enum AIModelCatalog {
 
     /// Free to run: a free OpenRouter variant, or a list price of nothing.
     static func isFree(provider: AIProvider, modelID: String) -> Bool {
-        if AIFreeMode.isFreeSelection(provider: provider, model: modelID) { return true }
+        if AIFreeModels.isFreeSelection(provider: provider, model: modelID) { return true }
         let rates = entry(provider: provider, modelID: modelID).flatMap { AIModelListPrice.rates(for: $0) }
             ?? AIModelListPrice.rates(provider: provider, modelID: modelID)
         guard let rates else { return false }

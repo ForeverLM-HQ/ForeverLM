@@ -933,8 +933,6 @@ The Setting record keys (§3.5.3): one record per key, account scope in Library 
 | `aiRoute.docs` | data | account | `set_ai_task_settings` target docs model (derived) | The model a Doc's Edit with AI runs on, a JSON route; absent, Docs follow the Default Model. |
 | `aiRoute.textRoutingMode` | string | account | `set_app_setting` ai.text_routing_mode | How text requests are routed (AITextRoutingMode), set from the account's managed state. |
 | `aiPrivacy.denyDataCollection` | bool | account | `set_ai_task_settings` target data_privacy hide_training_models | Hide models that keep or train on prompts (AIDataPolicy). |
-| `aiFreeMode.enabled` | bool | account | `set_ai_task_settings` target free_mode free_mode | Free mode: every setting on a free model (AIFreeMode). |
-| `aiFreeMode.savedSelections` | data | account | `set_ai_task_settings` target free_mode free_mode (derived) | The selections Free mode replaced, so any Mac can put them back (JSON). |
 | `stt_provider` | string | account |  | Retired: the transcription provider is fixed (KeychainService.speechToTextProvider) and nothing writes this. Retired. |
 | `stt_model_openai` | string | account | `set_app_setting` speech_to_text.dictation_model | The dictation model (the openai slot, which KeychainService.speechToTextProvider selects). |
 | `stt_model_groq` | string | account |  | Retired: the dictation model's slot for a provider the app does not select (KeychainService.speechToTextProvider is openai), so nothing writes it. Retired. |
@@ -989,7 +987,7 @@ The Setting record keys (§3.5.3): one record per key, account scope in Library 
 | `images.generateIcons` | bool | account | `set_app_setting` images.draw_meeting_icons | Whether ForeverLM may pay to draw a meeting's icon. |
 | `images.generateIcons.automatic` | bool | account | `set_app_setting` images.draw_for_new_meetings | Draw an icon for each new meeting; true when absent. |
 | `images.drawQuizPictures.automatic` | bool | account | `set_app_setting` images.draw_for_new_quizzes | Draw pictures for new course quizzes. |
-| `images.drawNotebookCovers.automatic` | bool | account | `set_app_setting` images.draw_notebook_covers | Draw a cover for a notebook made one at a time, and run the one-time cover backfill (D53, §5.9); true when absent. Generation 2 only; nothing is drawn in Free mode. |
+| `images.drawNotebookCovers.automatic` | bool | account | `set_app_setting` images.draw_notebook_covers | Draw a cover for a notebook made one at a time, and run the one-time cover backfill (D53, §5.9); true when absent. Generation 2 only. |
 | `videos.model` | string | account | `set_app_setting` videos.model | The video model (an OpenRouter id) explainer films are made with. |
 | `videos.resolution` | string | account | `set_app_setting` videos.resolution | The resolution every scene is filmed at, one the model offers. |
 | `studio.hiddenTabs` | array | account | `set_source_settings` pinned (derived) | Source families taken off the tab bar (StudioSidebarTab raw values). |

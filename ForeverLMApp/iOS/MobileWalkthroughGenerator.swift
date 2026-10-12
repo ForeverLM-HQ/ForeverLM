@@ -302,14 +302,6 @@ final class MobileWalkthroughGenerator: ObservableObject {
         }
         guard (200...299).contains(http.statusCode) else {
             let body = String(data: data, encoding: .utf8) ?? "No response body."
-            // In Free mode the policy that refused is the learner's own
-            // OpenRouter account, which has not allowed free endpoints yet.
-            if let explanation = AIFreeMode.refusalExplanation(
-                forProviderBody: body,
-                providerMessage: AIProviderErrorText.fromResponseBody(data)
-            ) {
-                throw MobileWalkthroughError.badResponse(explanation)
-            }
             if AIDataPolicy.isTrainingPolicyRefusal(body) {
                 throw MobileWalkthroughError.badResponse(
                     AIDataPolicy.trainingRefusalExplanation(providerMessage: AIProviderErrorText.fromResponseBody(data))
@@ -321,9 +313,7 @@ final class MobileWalkthroughGenerator: ObservableObject {
                 )
             }
             let what = task == .walkthroughAnimation ? "Drawing the animation" : "Writing the walkthrough"
-            throw MobileWalkthroughError.badResponse(
-                AIFreeMode.annotatingBusy("\(what) failed (\(http.statusCode)): \(body)", status: http.statusCode)
-            )
+            throw MobileWalkthroughError.badResponse("\(what) failed (\(http.statusCode)): \(body)")
         }
         let parsed = try MobileOpenRouterChat.text(from: data)
         try MobileOpenRouterChat.requireSelectedModel(parsed.json, route: route)

@@ -28,38 +28,40 @@ struct FreeModelsSetupTests {
         )
     }
 
-    @Test("Preferred free models win while OpenRouter still lists them")
-    func preferred() throws {
-        let choice = try #require(FreeModelsSetup.choose(from: [
+    @Test("Preferred free models lead while OpenRouter still lists them")
+    func preferred() {
+        let directory = [
             model("anthropic/claude-sonnet-5", input: 3, output: 15, vision: true),
             model("google/gemma-4-31b-it:free", context: 262_144, vision: true),
             model("google/gemma-4-26b-a4b-it:free", context: 262_144, vision: true),
             model("liquid/lfm-2.5-2.6b:free", context: 65_536),
-        ], qualifies: allPass))
-        #expect(choice.chat.id == "google/gemma-4-31b-it:free")
-        #expect(choice.background.id == "google/gemma-4-26b-a4b-it:free")
-        #expect(choice.vision?.id == "google/gemma-4-31b-it:free")
+        ]
+        #expect(FreeModelsSetup.rankedFreeForChat(from: directory).first?.id == "google/gemma-4-31b-it:free")
+        #expect(FreeModelsSetup.candidates(needsVision: false, from: directory, qualifies: allPass).first?.id == "google/gemma-4-26b-a4b-it:free")
+        #expect(FreeModelsSetup.candidates(needsVision: true, from: directory, qualifies: allPass).first?.id == "google/gemma-4-31b-it:free")
     }
 
-    @Test("With no preferred model left, the longest-context free model with tools is used")
-    func fallsBackToDirectory() throws {
-        let choice = try #require(FreeModelsSetup.choose(from: [
+    @Test("With no preferred model left, the longest-context free model with tools leads")
+    func fallsBackToDirectory() {
+        let directory = [
             model("a/small:free", context: 32_768),
             model("b/large:free", context: 1_000_000),
             model("c/no-tools:free", context: 2_000_000, tools: false),
-        ], qualifies: allPass))
-        #expect(choice.chat.id == "b/large:free")
-        #expect(choice.background.id == "b/large:free")
-        #expect(choice.vision == nil, "no free model reads images here")
+        ]
+        #expect(FreeModelsSetup.rankedFreeForChat(from: directory).first?.id == "b/large:free")
+        #expect(FreeModelsSetup.candidates(needsVision: false, from: directory, qualifies: allPass).first?.id == "b/large:free")
+        #expect(FreeModelsSetup.candidates(needsVision: true, from: directory, qualifies: allPass).isEmpty, "no free model reads images here")
     }
 
-    @Test("Only :free models priced at zero that take tools are chosen")
+    @Test("Only :free models priced at zero that take tools are ranked")
     func onlyFreeModels() {
-        #expect(FreeModelsSetup.choose(from: [
+        let directory = [
             model("x/paid", input: 0.1, output: 0.2),
             model("y/unpriced:free", input: nil, output: nil),
             model("z/no-tools:free", tools: false),
-        ], qualifies: allPass) == nil)
+        ]
+        #expect(FreeModelsSetup.rankedFreeForChat(from: directory).isEmpty)
+        #expect(FreeModelsSetup.rankedFree(needsVision: false, from: directory).isEmpty)
     }
 
     @Test("A background task is offered only the free models that can do it, best first")
@@ -134,17 +136,14 @@ struct FreeModelsSetupTests {
         #expect(!FreeModelsSetup.isRecommended("google/gemma-4-31b-it:free"))
     }
 
-    @Test("Free mode picks the Free Models Router for every role while OpenRouter lists it")
-    func routerLeads() throws {
+    @Test("The Free Models Router leads every role's free models while OpenRouter lists it")
+    func routerLeads() {
         let directory = [
             model("google/gemma-4-31b-it:free", context: 262_144, vision: true),
             model("google/gemma-4-26b-a4b-it:free", context: 262_144, vision: true),
             model("openrouter/free", context: 200_000, vision: true),
         ]
-        let choice = try #require(FreeModelsSetup.choose(from: directory, qualifies: allPass))
-        #expect(choice.chat.id == "openrouter/free")
-        #expect(choice.background.id == "openrouter/free")
-        #expect(choice.vision?.id == "openrouter/free")
+        #expect(FreeModelsSetup.candidates(needsVision: true, from: directory, qualifies: allPass).first?.id == "openrouter/free")
         // The single free models are still offered after it.
         #expect(FreeModelsSetup.rankedFreeForChat(from: directory).map(\.id) == [
             "openrouter/free", "google/gemma-4-31b-it:free", "google/gemma-4-26b-a4b-it:free",
@@ -155,12 +154,14 @@ struct FreeModelsSetupTests {
     }
 
     @Test("A router that failed its test run gives way to the single free models")
-    func failedRouterGivesWay() throws {
-        let choice = try #require(FreeModelsSetup.choose(from: [
+    func failedRouterGivesWay() {
+        let directory = [
             model("google/gemma-4-31b-it:free", context: 262_144, vision: true),
             model("openrouter/free", context: 200_000, vision: true),
-        ], qualifies: { id, _ in id != "openrouter/free" }))
-        #expect(choice.chat.id == "google/gemma-4-31b-it:free")
+        ]
+        let routerFailed: FreeModelsSetup.Qualifies = { id, _ in id != "openrouter/free" }
+        #expect(FreeModelsSetup.candidates(needsVision: false, from: directory, qualifies: routerFailed).first?.id == "google/gemma-4-31b-it:free")
+        #expect(FreeModelReplacement.chatReplacement(for: "x/ended:free", from: directory, qualifies: routerFailed)?.id == "google/gemma-4-31b-it:free")
     }
 
     @Test("A router the directory lists with a price is not free")
@@ -190,84 +191,8 @@ struct FreeModelsSetupTests {
         ])
         #expect(FreeModelsSetup.freeBackups(from: Array(candidates.prefix(1)), primaryID: "openrouter/free").isEmpty)
     }
-}
 
-@Suite("Free mode")
-struct FreeModeTests {
-    private let proxyHost = "ai.foreverlm.com"
-
-    private func post(_ url: String, body: [String: Any]?) -> URLRequest {
-        var request = URLRequest(url: URL(string: url)!)
-        request.httpMethod = "POST"
-        request.httpBody = body.flatMap { try? JSONSerialization.data(withJSONObject: $0) }
-        return request
-    }
-
-    private func refusal(
-        _ request: URLRequest,
-        on: Bool = true,
-        key: Bool = true,
-        paid: Set<String> = []
-    ) -> AIFreeMode.Refusal? {
-        // The live table is filled by the host app's own directory read, so
-        // the tests name what is listed as paid instead of reading it.
-        AIFreeMode.refusal(for: request, isOn: on, hasOpenRouterKey: key, proxyHost: proxyHost, listedAsPaid: { paid.contains($0) })
-    }
-
-    @Test("Off, nothing is refused")
-    func offRefusesNothing() {
-        let request = post("https://openrouter.ai/api/v1/audio/speech", body: ["model": "openai/gpt-5-tts"])
-        #expect(refusal(request, on: false) == nil)
-        #expect(refusal(request) == .paidModel("openai/gpt-5-tts"))
-    }
-
-    @Test("A free model bound for OpenRouter passes, directly or through the proxy")
-    func freeOpenRouterPasses() {
-        #expect(refusal(post("https://openrouter.ai/api/v1/chat/completions",
-                             body: ["model": "google/gemma-4-31b-it:free"])) == nil)
-        #expect(refusal(post("https://ai.foreverlm.com/v1/proxy/openrouter/api/v1/chat/completions",
-                             body: ["model": "google/gemma-4-31b-it:free"])) == nil)
-        #expect(refusal(post("https://openrouter.ai/api/v1/chat/completions",
-                             body: ["model": "openrouter/free"])) == nil)
-        #expect(refusal(post("https://openrouter.ai/api/v1/chat/completions",
-                             body: ["model": "openrouter/auto"])) == .paidModel("openrouter/auto"))
-    }
-
-    @Test("A paid model is refused by name")
-    func paidModelRefused() {
-        let request = post("https://openrouter.ai/api/v1/chat/completions", body: ["model": "anthropic/claude-sonnet-5"])
-        #expect(refusal(request) == .paidModel("anthropic/claude-sonnet-5"))
-        #expect(refusal(request)?.errorDescription?.contains(AIFreeMode.settingsLocation) == true)
-    }
-
-    @Test("A free id on another host, or a body with no model, fails closed")
-    func unknownRequestsFailClosed() {
-        #expect(refusal(post("https://api.example.com/v1/audio/transcriptions", body: ["model": "x/y:free"])) == .paidModel("x/y:free"))
-        #expect(refusal(post("https://ai.foreverlm.com/v1/proxy/unsupported", body: ["model": "x/y:free"])) == .paidModel("x/y:free"))
-        #expect(refusal(post("https://openrouter.ai/api/v1/audio/transcriptions", body: nil)) == .paidModel(nil))
-    }
-
-    @Test("Reads pass, since they spend nothing")
-    func readsPass() {
-        let request = URLRequest(url: URL(string: "https://openrouter.ai/api/v1/generation?id=gen-1")!)
-        #expect(refusal(request) == nil)
-    }
-
-    @Test("Without an OpenRouter key a free model is refused too")
-    func needsKey() {
-        let request = post("https://openrouter.ai/api/v1/chat/completions", body: ["model": "google/gemma-4-31b-it:free"])
-        #expect(refusal(request, key: false) == .needsOpenRouterKey)
-    }
-
-    @Test("A :free id the directory now lists with a price is refused as no longer free")
-    func noLongerFreeRefused() {
-        let request = post("https://openrouter.ai/api/v1/chat/completions", body: ["model": "google/gemma-4-31b-it:free"])
-        #expect(refusal(request, paid: ["google/gemma-4-31b-it:free"]) == .noLongerFree("google/gemma-4-31b-it:free"))
-        #expect(refusal(request, paid: ["qwen/qwen3.8-27b:free"]) == nil)
-        #expect(refusal(request, on: false, paid: ["google/gemma-4-31b-it:free"]) == nil)
-    }
-
-    @Test("The live price table refuses only what a read listed with a price")
+    @Test("The live price table lists as paid only what a read listed with a price")
     func livePriceTable() {
         AIFreeModelPrices.record(["test/still-free:free": true, "Test/Now-Paid:free": false])
         #expect(AIFreeModelPrices.isListedAsPaid("test/now-paid:free"))
@@ -277,114 +202,13 @@ struct FreeModeTests {
         #expect(AIFreeModelPrices.isListedAsPaid("test/now-paid:free"))
     }
 
-    @Test("The zero price cap rides beside the provider preferences already there")
-    func zeroPriceCap() throws {
-        var payload: [String: Any] = ["model": "google/gemma-4-31b-it:free", "provider": ["order": ["google-ai-studio"]]]
-        AIFreeMode.applyZeroPriceCap(to: &payload)
-        let provider = try #require(payload["provider"] as? [String: Any])
-        #expect(provider["order"] as? [String] == ["google-ai-studio"])
-        let cap = try #require(provider["max_price"] as? [String: Any])
-        for field in ["prompt", "completion", "request", "image"] {
-            #expect(cap[field] as? Int == 0)
-        }
-    }
-
-    @Test("The zero price cap drops plugins, which OpenRouter bills apart from the model")
-    func zeroPriceCapDropsPlugins() {
-        // Web search bills per result even on a :free model, and max_price
-        // does not reach it (2026-09-26: no OpenRouter charge at all).
-        var payload: [String: Any] = ["model": "google/gemma-4-31b-it:free", "plugins": [["id": "web"]]]
-        AIFreeMode.applyZeroPriceCap(to: &payload)
-        #expect(payload["plugins"] == nil)
-    }
-
-    @Test("A chat request is capped in place; a speech request is left as it is")
-    func zeroPriceCapOnARequest() throws {
-        var chat = post("https://openrouter.ai/api/v1/chat/completions",
-                        body: ["model": "google/gemma-4-31b-it:free", "plugins": [["id": "web"]]])
-        AIFreeMode.applyZeroPriceCap(toChatRequest: &chat)
-        let body = try #require(chat.httpBody.flatMap { try JSONSerialization.jsonObject(with: $0) as? [String: Any] })
-        #expect(body["plugins"] == nil)
-        #expect(body["model"] as? String == "google/gemma-4-31b-it:free")
-        let provider = try #require(body["provider"] as? [String: Any])
-        #expect((provider["max_price"] as? [String: Any])?["completion"] as? Int == 0)
-
-        let speech = post("https://openrouter.ai/api/v1/audio/speech", body: ["model": "fish-audio/s2.1-pro-free:free"])
-        var untouched = speech
-        AIFreeMode.applyZeroPriceCap(toChatRequest: &untouched)
-        #expect(untouched.httpBody == speech.httpBody)
-    }
-
-    @Test("What Free mode turns off is said wherever it is offered")
-    func unavailableFeaturesAreNamed() {
-        // "as long as it's clear that certain features are not available.
-        // Like generating images and videos" (2026-09-26).
-        for feature in ["image", "video", "web search", "transcription"] {
-            #expect(AIFreeMode.unavailableNote.contains(feature), "\(feature)")
-        }
-        // Realtime voice went on 2026-10-01; nothing may still offer it.
-        #expect(!AIFreeMode.unavailableNote.contains("realtime"))
-        #expect(AIFreeMode.tradeoffs.contains(AIFreeMode.unavailableNote))
-        #expect(AIFreeMode.confirmationMessage(turnsOffDataPolicySwitch: false).contains(AIFreeMode.unavailableNote))
-        // Free mode runs on the key only where the account may run it (a plan
-        // from 2026-09-27; the free days or paid since 2026-10-10), so
-        // nothing may say otherwise.
-        #expect(!AIFreeMode.summary.contains("no ForeverLM plan"))
-        // Each model's terms are the learner's to read, on OpenRouter (2026-09-26).
-        #expect(AIFreeMode.confirmationMessage(turnsOffDataPolicySwitch: false).contains(AIFreeMode.termsNote))
+    @Test("Free models' trade-offs name the limited time and each model's terms")
+    func pickTradeoffs() {
         #expect(FreeModelsSetup.pickTradeoffs.contains("terms"))
-    }
-
-    @Test("A refusal under the price cap says the model is no longer free, only in Free mode")
-    func priceCapRefusalExplained() {
-        let message = "No endpoints found matching your price constraints (max_price)."
-        #expect(AIFreeMode.isPriceCapRefusal(message))
-        #expect(!AIFreeMode.isPriceCapRefusal("No endpoints found matching your data policy"))
-        let explained = AIFreeMode.refusalExplanation(forProviderBody: message, providerMessage: message, isOn: true)
-        #expect(explained?.contains("no longer offers this model for free") == true)
-        #expect(AIFreeMode.refusalExplanation(forProviderBody: message, providerMessage: message, isOn: false) == nil)
-        let privacy = AIFreeMode.refusalExplanation(
-            forProviderBody: "No endpoints found matching your data policy",
-            providerMessage: nil,
-            isOn: true
-        )
-        #expect(privacy?.contains("privacy settings") == true)
-    }
-
-    @Test("Busy and rate-limited failures say free models are often busy, once")
-    func busyNote() {
-        let annotated = AIFreeMode.annotatingBusy("Rate limited", status: 429, isOn: true)
-        #expect(annotated.hasSuffix(AIFreeMode.busyNote))
-        #expect(AIFreeMode.annotatingBusy(annotated, status: 429, isOn: true) == annotated)
-        #expect(AIFreeMode.annotatingBusy("Bad request", status: 400, isOn: true) == "Bad request")
-        #expect(AIFreeMode.annotatingBusy("Rate limited", status: 429, isOn: false) == "Rate limited")
-    }
-
-    @Test("The confirmation names training, overload, and the switch it turns off")
-    func confirmationCopy() {
-        let message = AIFreeMode.confirmationMessage(turnsOffDataPolicySwitch: true)
-        #expect(message.contains("train"))
-        #expect(message.contains("overloaded"))
-        #expect(message.contains(AIDataPolicy.switchTitle))
-        #expect(message.contains("limited time"))
-        #expect(!AIFreeMode.confirmationMessage(turnsOffDataPolicySwitch: false).contains(AIDataPolicy.switchTitle))
         #expect(FreeModelsSetup.pickTradeoffs.contains("limited time"))
     }
-
-    @Test("Saved selections survive the synced preference round trip")
-    func savedSelectionsRoundTrip() throws {
-        let saved = FreeModelsSetup.SavedSelections(
-            defaultChat: .init(provider: "openrouter", model: "anthropic/claude-sonnet-5"),
-            background: .init(provider: "openrouter", model: "google/gemini-3.8-flash"),
-            backgroundMultimodal: .init(provider: "openrouter", model: "google/gemini-3.8-flash"),
-            textToSpeechOpenRouterModel: "x/tts",
-            textToSpeechModel: "x/tts",
-            deniedDataCollection: true
-        )
-        let data = try JSONEncoder().encode(saved)
-        #expect(try JSONDecoder().decode(FreeModelsSetup.SavedSelections.self, from: data) == saved)
-    }
 }
+
 
 @Suite("Model price watch")
 struct AIModelPriceWatchTests {
@@ -490,7 +314,7 @@ struct AIModelPriceWatchTests {
         #expect(AIModelPriceWatch.Change.freeVariantEnded(id: "x/y:free", name: "Y").endsFree)
         #expect(!AIModelPriceWatch.Change.moreExpensive(id: "x/y", name: "Y", from: seen, to: seen).endsFree)
         let change = AIModelPriceWatch.Change.noLongerFree(id: "x/y:free", name: "Y", now: seen)
-        #expect(AIModelPriceWatch.body(for: change, freeModeOn: false).hasSuffix("Switch to another free model?"))
+        #expect(AIModelPriceWatch.body(for: change).hasSuffix("Switch to another free model?"))
     }
 
     @Test("OpenRouter's listed-apps refusal names the model it refused")
@@ -525,12 +349,11 @@ struct AIModelPriceWatchTests {
         #expect(body.contains("No free model can do Multimodal background work today"))
     }
 
-    @Test("The banner names the model and, in Free mode, says Free mode will not use it")
+    @Test("The banner names the model and says work on it now costs money")
     func bannerCopy() {
         let change = AIModelPriceWatch.Change.noLongerFree(id: "x/y:free", name: "Y", now: Seen(name: "Y", input: 0.1, output: 0.4))
         #expect(AIModelPriceWatch.title(for: change) == "Y is no longer free")
-        #expect(AIModelPriceWatch.body(for: change, freeModeOn: true).contains("Free mode will not use it"))
-        #expect(AIModelPriceWatch.body(for: change, freeModeOn: false).contains("now costs money"))
+        #expect(AIModelPriceWatch.body(for: change).contains("now costs money"))
     }
 }
 
@@ -545,19 +368,18 @@ struct MeetingModelsTests {
     private let router = AITaskModelRoute(provider: .openRouter, model: "openrouter/free")
     private let sonnet = AITaskModelRoute(provider: .openRouter, model: "anthropic/claude-sonnet-5")
     /// By the id alone, so no price read elsewhere in the run can change it.
-    private let isFree: @Sendable (AITaskModelRoute) -> Bool = { AIFreeMode.isFreeModelID($0.model) }
+    private let isFree: @Sendable (AITaskModelRoute) -> Bool = { AIFreeModels.isFreeModelID($0.model) }
 
     private func route(
         _ task: AITask,
         on background: AITaskModelRoute,
         mayUseFree: Bool = false,
-        freeModeOn: Bool = false,
         paidBackup: AITaskModelRoute? = nil
     ) -> AITaskModelRoute? {
         MeetingModels.route(
             for: task,
             background: background,
-            staysOffFree: MeetingModels.staysOffFree(task, mayUseFree: mayUseFree, freeModeOn: freeModeOn),
+            staysOffFree: MeetingModels.staysOffFree(task, mayUseFree: mayUseFree),
             paid: { paidBackup ?? paid },
             isFree: isFree
         )
@@ -600,16 +422,15 @@ struct MeetingModelsTests {
         #expect(route(.meetingActionItems, on: sonnet) == sonnet)
     }
 
-    @Test("Letting meetings use free models, or Free mode, sends them to the free model")
+    @Test("Letting meetings use free models sends them to the free model")
     func meetingsAllowedFree() {
         #expect(route(.meetingActionItems, on: router, mayUseFree: true) == router)
-        #expect(route(.meetingActionItems, on: router, freeModeOn: true) == router)
     }
 
     @Test("Every other background task follows a free Background model")
     func otherTasksFollowFree() {
         #expect(route(.transcriptFormatting, on: router) == router)
-        #expect(!MeetingModels.staysOffFree(.paperMetadata, mayUseFree: false, freeModeOn: false))
+        #expect(!MeetingModels.staysOffFree(.paperMetadata, mayUseFree: false))
     }
 }
 
@@ -869,7 +690,7 @@ struct RecommendedModelsTests {
     @Test("A meeting task's paid model is the Background default's first paid backup, else none")
     func meetingsFollowThePaidBackup() throws {
         let defaults = try #require(UserDefaults(suiteName: "RecommendedModelsTests.\(UUID().uuidString)"))
-        let isFree: (AITaskModelRoute) -> Bool = { AIFreeMode.isFreeModelID($0.model) }
+        let isFree: (AITaskModelRoute) -> Bool = { AIFreeModels.isFreeModelID($0.model) }
         // No paid backup, no paid model: ForeverLM does not pick one.
         #expect(MeetingModels.paidRoute(multimodal: false, defaults: defaults, isFree: isFree) == nil)
         let provider = AIProvider.openRouter.rawValue

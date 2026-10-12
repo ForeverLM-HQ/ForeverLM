@@ -59,7 +59,7 @@ enum NotebookCoverBackfillResult: Equatable, Sendable {
     case done
     /// Another Mac holds a `running` marker that is not 24 hours old, or won the claim.
     case otherMacRuns
-    /// Free mode is on or the Setting is off: nothing is drawn, and the pass resumes where it stopped.
+    /// The Setting is off: nothing is drawn, and the pass resumes where it stopped.
     case paused
     /// The zone's root, or this device's server offset, is not here yet; a later round resumes.
     case waiting
@@ -119,7 +119,7 @@ extension NotebookCoverService {
                 if Task.isCancelled { break }
                 let result = try await backfillZone(zoneKey, library: zones.library)
                 results[zoneKey] = result
-                // Free mode or the Setting turned off, or no root yet: every zone waits for the same.
+                // The Setting turned off, or no root yet: every zone waits for the same.
                 if result == .paused || result == .waiting { break }
             }
         } catch is CancellationError {
@@ -137,7 +137,7 @@ extension NotebookCoverService {
         let deviceID = maker.deviceID
         let clock = maker.clock
 
-        // 1. The claim. Nothing is claimed while Free mode or the Setting says no.
+        // 1. The claim. Nothing is claimed while the Setting says no.
         var marker = try await readMarker(markerKey, in: library)
         switch marker?.state {
         case .done?:
@@ -147,13 +147,13 @@ extension NotebookCoverService {
             if held.by != deviceID {
                 let age = SyncTime.milliseconds(clock()) - held.at
                 guard age > Int64(NotebookCoverBackfillMarker.staleAfter * 1_000) else { return .otherMacRuns }
-                guard await gates().allowsAutomatic else { return .paused }
+                guard await gates().automatic else { return .paused }
                 // A claim that went quiet for a day: taken over by a save against the version read.
                 guard try await saveMarker(.running, key: markerKey, in: library) else { return .otherMacRuns }
                 Self.backfillLogger.info("Took over a cover backfill claim that went quiet")
             }
         case nil:
-            guard await gates().allowsAutomatic else { return .paused }
+            guard await gates().automatic else { return .paused }
             // Create-if-absent: the first acknowledged create wins, and a Mac that loses does nothing.
             guard try await saveMarker(.running, key: markerKey, in: library) else { return .otherMacRuns }
         }
@@ -168,7 +168,7 @@ extension NotebookCoverService {
         var renewedAt = claim.at
         while true {
             if Task.isCancelled { return .stopped(left: try await backfillRows(zoneName).count) }
-            guard await gates().allowsAutomatic else {
+            guard await gates().automatic else {
                 try await renewIfDue(markerKey, in: library, lastRenewed: &renewedAt)
                 return .paused
             }

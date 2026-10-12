@@ -376,8 +376,8 @@ extension AIModelQualification {
         }
     }
 
-    /// Before a free model is picked automatically (Free mode, setup, the
-    /// replacement of one that ended), tests the free models in the order the
+    /// Before a free model is picked automatically (setup, the replacement
+    /// of one that ended), tests the free models in the order the
     /// pick ranks them until one per role passes, so the pick lands on a
     /// model that ran. Usually one request per role: the first candidate.
     static func qualifyFreeCandidates(from directory: [OpenRouterDirectoryModel], wanted: Int = 1) async {

@@ -93,9 +93,6 @@ enum SyncedPreferenceKeys {
         // A statement about the learner's data, not the device, so it follows
         // the account; the phone writes the same row from its own Settings.
         AIDataPolicy.denyDataCollectionKey,
-        // Free mode, and the selections it replaced so either Mac can put
-        // them back. Spending follows the account, like the switch above.
-        AIFreeMode.enabledKey, AIFreeMode.savedSelectionsKey,
 
         // Speech-to-text and text-to-speech selection. The realtime voice
         // and live dictation keys (`realtimeVoiceModel`, `realtimeVoice.*`,
