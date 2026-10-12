@@ -751,3 +751,5 @@ For papers specifically, open-access sources (arxiv, bioRxiv, PLOS, PMC) are fet
 ## Screen record mode (admin only)
 
 On the Mac, **Settings → Data & Privacy → Screen recording** limits what appears while filming. The selected notebook and permitted sources can remain visible. Chats, notes, Pages, walkthroughs, generated outputs, and cards appear only if created after screen record mode was turned on. Filing older work into the notebook or citing a permitted source does not reveal it. Turn the mode off and on to start a new take. Nothing is deleted, and these settings do not sync to other devices.
+
+The public-source option includes Apple Podcasts catalog episodes. Private RSS feeds and episodes identified only on this Mac remain hidden.

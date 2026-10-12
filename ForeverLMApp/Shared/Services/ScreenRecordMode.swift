@@ -394,6 +394,20 @@ struct ScreenRecordScope: Sendable, Equatable {
     /// the feed's name carries the subscriber's own name.
     static func isPublicLibrarySource(kind: String?, url: String?, show: String? = nil) -> Bool {
         guard let kind = kind.flatMap(StudioSourceType.init(rawValue:)) else { return false }
+        // SourceDiscovery stores public Apple catalog episodes under a numeric
+        // identity URI; private RSS and local episodes use different path shapes.
+        if kind == .podcast {
+            if let show, isPrivateFeedShow(show) { return false }
+            if let url, let address = URLComponents(string: url),
+               address.scheme?.lowercased() == "apple-podcast" {
+                guard address.host == "episode", address.user == nil,
+                      address.password == nil, address.port == nil,
+                      address.query == nil, address.fragment == nil,
+                      let trackID = Int64(address.path.dropFirst()), trackID > 0,
+                      address.path == "/\(trackID)" else { return false }
+                return true
+            }
+        }
         switch kind {
         case .meeting, .xPost:
             return false

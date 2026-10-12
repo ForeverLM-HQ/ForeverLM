@@ -235,6 +235,26 @@ struct ScreenRecordModeTests {
         }
     }
 
+    @Test("Public Apple catalog episodes show with library sources, while private and local episode identities stay hidden")
+    func applePodcastIdentitiesRespectPublicScope() {
+        let cutoff = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        let before = cutoff.addingTimeInterval(-60)
+        var scope = ScreenRecordScope(notebookID: nil, allowedSourceIDs: [], cutoff: cutoff)
+        let publicEpisode = "apple-podcast://episode/123456789"
+        #expect(!scope.allowsSource(id: "episode", addedAt: before, kind: "podcast", url: publicEpisode))
+        scope.showsLibrarySources = true
+        #expect(scope.allowsSource(id: "episode", addedAt: before, kind: "podcast", url: publicEpisode))
+        for address in [
+            "apple-podcast://episode/private/abcdef", "apple-podcast://episode/local/abcdef",
+            "apple-podcast://episode/0", "apple-podcast://episode/-1", "apple-podcast://episode/not-a-number",
+            "apple-podcast://episode/123456789?secret=value", "apple-podcast://other/123456789",
+        ] {
+            #expect(!scope.allowsSource(id: "private", addedAt: before, kind: "podcast", url: address))
+        }
+        #expect(!scope.allowsSource(id: "private-feed", addedAt: before, kind: "podcast", url: publicEpisode, show: "Private Subscriber Feed"))
+        #expect(!scope.allowsSource(id: "upload", addedAt: before, kind: "video", url: publicEpisode))
+    }
+
     @Test("Sources added during a take admit public browser captures, never incidental private sync")
     func newSourcesAreSafeCapturesOnly() {
         let cutoff = Date(timeIntervalSinceReferenceDate: 800_000_000)
