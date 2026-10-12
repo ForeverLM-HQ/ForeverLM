@@ -5828,6 +5828,16 @@ All notable changes to ForeverLM are documented here. Dates are in YYYY-MM-DD fo
 
 ForeverLM follows [semantic versioning](https://semver.org) against its public surface: the MCP tool contracts, the knowledge-base/sync format, and licensing compatibility. While the version is 0.x, minor releases may include breaking changes to that surface; patch releases never do.
 
+## 0.141.0 (build 215) — 2026-10-11
+
+**Highlights:**
+- **The chat looks like Codex.** A solid composer card with your notebook on a tray behind it, a dark send button, your messages as a light pill with Copy, and replies in Codex's reading rhythm.
+- **Cards ask for your answer.** Type or say what you remember, then Check, or press I Don't Know.
+- **Setup asks one thing at a time.** Each page has one question and one button.
+- **A chat can open a paper and point at what it explains**, and "open my notebook" really opens it.
+- **A notebook made from a chat starts with that chat's sources**, and its suggestions follow them.
+- **Free mode is gone**, and "What I'm working on" is kept in the background instead of as a page.
+
 ## 0.140.0 (build 214) — 2026-10-11
 
 **Highlights:**
