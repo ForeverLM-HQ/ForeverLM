@@ -92,7 +92,7 @@ enum PlanTheDay {
 
     /// The line under the title, on the card and in the notification. The
     /// point is the planning, not the keeping to it (product owner, 2026-09-27).
-    static let detail = "You don't have to stick to the plan. Making it is what helps."
+    static let detail = "Making a time-block plan is very helpful. Don't worry if you can't stick to it perfectly. The plan is flexible."
 
     /// What this Mac has done with the question, by day. Two dates, since a
     /// question put is not a question answered: the card stays up after the

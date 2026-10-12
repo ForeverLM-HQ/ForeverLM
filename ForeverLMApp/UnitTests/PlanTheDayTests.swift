@@ -120,7 +120,7 @@ struct PlanTheDayTests {
     @Test("The words say the planning is what helps, not keeping to it")
     func words() {
         #expect(PlanTheDay.title == "Plan your day?")
-        #expect(PlanTheDay.detail == "You don't have to stick to the plan. Making it is what helps.")
+        #expect(PlanTheDay.detail == "Making a time-block plan is very helpful. Don't worry if you can't stick to it perfectly. The plan is flexible.")
     }
 }
 
