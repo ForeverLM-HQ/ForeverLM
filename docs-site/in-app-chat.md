@@ -5,7 +5,7 @@ title: In-App Chat
 
 # In-App Chat
 
-The Chat panel lets you review sources inside ForeverLM instead of opening Claude, ChatGPT, Gemini, Grok, or Edison Scientific. It uses the API provider and model you configure in Settings, so you can keep the whole learning loop in one app while still controlling which AI service processes your data.
+The Chat panel lets you review sources inside ForeverLM instead of opening Claude, ChatGPT, Gemini, Grok, or Edison Scientific. It uses the chat model you choose in **Settings → Chat**, run through OpenRouter, so you can keep the whole learning loop in one app while still choosing which model processes your data.
 
 ## What Chat does
 
@@ -15,6 +15,7 @@ Use in-app Chat when you want to:
 - Run a source-grounded review
 - Start today's Schedule work without switching apps
 - Run today's [Memory review](#memory-review) from the **Memory** row in the rail
+- See your Goals and Ideas: ask "what are my goals?" or "what are my ideas?" and the chat lists them; `/goal` sets a new goal
 - Save the review session back into ForeverLM automatically
 - Keep a transcript that future sessions and Studio can inspect
 
@@ -86,16 +87,16 @@ When Chat cites a video, podcast, or recording, the citation can carry the momen
 
 ## Asking about a moment of a video
 
-Open a YouTube video in the Reader and click **Chat about this video**, or open a new chat beside it. When you start typing a question, the video pauses, and your question goes with the moment it stopped at: the time, what was said in the minute and a half before, and a picture of what is on screen. So "what does he mean by this?" or "what is this equation?" is answered about the slide in front of you, without typing the time. Above your question the chat shows that moment — the frame and the time — and clicking it plays the video from there, also when you reopen the chat later. In a chat about something else, a video playing beside it is noted as open but its frame is not sent.
+Open a YouTube video in the Reader and choose **⋯ › Video › Chat About This Video**, or open a new chat beside it. When you start typing a question, the video pauses, and your question goes with the moment it stopped at: the time, what was said in the minute and a half before, and a picture of what is on screen. So "what does he mean by this?" or "what is this equation?" is answered about the slide in front of you, without typing the time. Above your question the chat shows that moment — the frame and the time — and clicking it plays the video from there, also when you reopen the chat later. In a chat about something else, a video playing beside it is noted as open but its frame is not sent.
 
 ## Reading modes
 
-Choose a reading mode from the Chat mode menu (in Web Studio, from the **+** at the left of the composer, where the mode then shows as a token beside the **+**):
+In Web Studio, choose a reading mode from the **+** at the left of the composer, where the mode then shows as a token beside the **+**:
 
 - **Shallow Read** builds a quick, selective grasp of the source and clearly distinguishes that pass from a complete reading.
 - **Deep Read** works through the source carefully, checks understanding, and follows important ideas into more detail.
 
-Both modes are available in the Mac app and Web Studio.
+The Mac app's composer offers only Chat and Deep Research.
 
 ## Text size
 
@@ -103,13 +104,13 @@ On the Mac, a trackpad pinch over a chat makes that chat's text larger or smalle
 
 ⌘= and ⌘- zoom the whole app, and the chat follows along on top of whatever a pinch gave it. ⌘0 (View → Reset Zoom) returns both the app and the chat to the default.
 
-## reviews
+## Reviews
 
 ForeverLM's review flow asks you to explain ideas in your own words. The tutor probes gaps, asks follow-up questions, and records the exchange as a review session.
 
 A notebook's **Feynman Technique** tile turns this around: you explain one paper first, from memory, and the tutor only asks, one question at a time at the biggest gap in your explanation, with no plan and no explaining of its own (see [The Studio column](/studio#the-studio-column)). It is kept as a review too, and a reopened one goes on asking. On the iPhone it reads like any review, and continues on your Mac.
 
-Completed in-app reviews are linked to the source IDs they covered. That link is what updates Reviewed status in Studio and allows Schedule items to be marked done.
+Completed in-app reviews are linked to the source IDs they covered. That link is what updates a source's Reviewed status, and a review that grades a source planned in Schedule marks it done.
 
 ## Memory review
 
@@ -145,15 +146,14 @@ hold are dropped from the copy rather than pointing into your library. Your own
 chat stays private and live, and a chat shared twice updates the same
 transcript.
 
-A chat filed in a notebook you have shared with a team needs no menu: it is
-part of the notebook, so it appears in the team as a transcript on its own, and
-that transcript is brought up to date after every message. A transcript you
-shared by hand, of a chat outside any shared notebook, stays as it was when you
-shared it. See [What follows a shared notebook](/teams#what-follows-a-shared-notebook).
+A transcript you shared by hand stays as it was when you shared it. A notebook
+you share into a team you own moves there with its chats, except your reviews,
+quizzes and memory reviews, which stay in your own library. See [What follows a
+shared notebook](/teams#what-follows-a-shared-notebook).
 
 ## Review history
 
-The Chat panel includes a review-history sidebar. It shows in-app reviews as well as external Claude, ChatGPT, Gemini, Grok, or Edison Scientific review links saved into ForeverLM.
+The rail lists each notebook's chats under it and the rest under **Chats**, and the Space's **Chats** row lists every chat, in a notebook or in none. In-app reviews are there, and so are external Claude, ChatGPT, Gemini, Grok, or Edison Scientific reviews saved into ForeverLM.
 
 Stored sessions can include:
 
@@ -165,13 +165,13 @@ Stored sessions can include:
 
 ## Web search
 
-Ordinary Chat can search the web when the question calls for it. On the
-Anthropic, OpenAI, and xAI routes, and on OpenRouter models with a native search
-engine, the model searches as part of its reply and nothing is charged until it
-actually does; on OpenRouter models without one, a search bills one Exa request,
-so the model only asks for one with a focused query. Gemini stays off the web,
-because Google bills search against an account-wide allowance that cannot be
-priced per request.
+Ordinary Chat can search the web when the question calls for it. Every model
+runs through OpenRouter. On models with a native search engine (Anthropic's,
+OpenAI's, xAI's and Perplexity's), the model searches as part of its reply and
+nothing is charged until it actually does; on models without one, a search bills
+one Exa request, so the model only asks for one with a focused query. Gemini
+stays off the web, because Google bills search against an account-wide allowance
+that cannot be priced per request.
 
 When a chat cites or discusses a paper your library does not hold, it says so
 and offers to add it. Ask ("add that study") and it finds the DOI or publisher
@@ -200,11 +200,11 @@ the start of the draft turn it off. It works the way a dedicated research produc
    section per entity or sub-question, documented fact separated from inference
    and speculation, open questions, and sources, every claim linked to its page).
 4. The chat reply gives the key findings and names the report Page, which you
-   open from the Pages pane.
+   open from the Space's **Pages**.
 
 Every web page the reply searched or read is listed under it as **Web sources**.
 On the Mac each row shows the page's title and site: click the title to read the
-page beside Chat without importing it, or click **Add** to keep it in Sources.
+page beside Chat without importing it, or click **Add** to keep it in your library.
 Add runs the same import as the Reader's "Add to Sources" button, so a page
 already in your library reads **Added** and a new one is deduplicated the same
 way. Nothing is added to your library unless you click Add.
@@ -219,6 +219,6 @@ The Chat panel supports voice dictation for review answers. On the Mac, audio is
 
 ## API keys and errors
 
-In-app Chat uses the provider and model configured in Settings — see [AI Providers & Models](/ai-providers) for the full list of supported providers and models. Provider usage charges can apply. If the selected provider or model cannot complete the request, ForeverLM should surface the error instead of silently switching to heuristic grading or fallback feedback.
+In-app Chat uses the chat model you choose in **Settings → Chat**, run through OpenRouter on your own key — see [AI Providers & Models](/ai-providers). OpenRouter bills each request at its cost. If the selected model cannot complete the request, ForeverLM should surface the error instead of silently switching to heuristic grading or fallback feedback.
 
 External AI assistants are still supported. Drag and drop remains the quickest no-setup workflow, and MCP remains the best option when you want Claude, ChatGPT, Gemini, Grok, or Edison Scientific to search and manage the full library.

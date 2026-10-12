@@ -19,7 +19,7 @@ Everything you have finished carries the same green check: a lecture you watched
 
 A notebook can follow a course: its sources, and every lecture the course gains later, join the notebook, and the course's page can open beside the notebook's chat. **⋯ › Link to Notebook** makes a notebook you already have follow the course, **⋯ › Make Study Notebook** makes a new one named after it that holds its sources, and **Unlink from** stops one following (it keeps the sources it holds). The page says "Linked to" the notebooks that follow it, under its title. Deleting or merging a notebook never changes a course.
 
-Click a lecture or reading to open it in the Reader beside the course, so the path stays in view while you watch. Right-click a row for more: **Show in Sources**, **Write Quiz** on a lecture, the papers a lecture only cites under **Papers**, and **Remove from Course**. The course's own actions are in the **⋯** menu at the top of its page, or in its card's right-click menu. A hidden course waits under **Hidden** at the bottom of the Courses list, with **Show** to bring it back.
+Click a lecture or reading to open it in the Reader beside the course, so the path stays in view while you watch. Right-click a row for more: **Show in Sources**, **Write Quiz** on a lecture, the papers a lecture only cites under **Papers**, and **Remove from Course**. The course's own actions are in the **⋯** menu at the top of its page, or in its card's right-click menu. **Hide Course** takes a course off the list; **Undo** in the notice that follows brings it back, and so can an assistant connected over MCP (`set_group_hidden`).
 
 ### Finish a quiz to go on
 
@@ -31,43 +31,15 @@ To let someone else take a course, share it with a [team](/teams) you are both i
 
 ### On iPhone
 
-In **Sources › Courses**, tap a course to open the same page: your progress and **Continue** at the top, then each lecture with its video, readings and quiz, and the checkpoints and course test between them. The same checks and locks show, and tapping a locked row tells you which quiz opens it. Tap a quiz to take it: answer each question in your own words, typed or dictated, and each answer is checked on your chat model before the next. **Skip** at the top moves on without answering. A pass on your iPhone opens what follows on your Mac too, and the other way round. A quiz you leave halfway starts again from the first question.
+Under **Courses** on the home screen, or in **Sources › Courses**, tap a course to open the same page: your progress and **Continue** at the top, then each lecture with its video, readings and quiz, and the checkpoints and course test between them. The same checks and locks show, and tapping a locked row tells you which quiz opens it. Tap a quiz to take it: answer each question in your own words, typed or dictated, and each answer is checked on your chat model before the next. **Skip** at the top moves on without answering. A pass on your iPhone opens what follows on your Mac too, and the other way round. A quiz you leave halfway starts again from the first question.
 
-## Course Structure
+## Building a course
 
-Courses are assembled from three types of content:
+A course begins in one of three ways: **New Course ▸ From YouTube Playlist…** at the top of the Courses list makes a lecture of each video in a playlist, **New Course ▸ Plan with Chat…** plans one with you ([Generating a course](#generating-a-course)), and a Teachable course comes in whole ([Importing a Teachable course](#importing-a-teachable-course)).
 
-| Content type | How to add |
-|---|---|
-| **Book chapters** | PDF per chapter in `ForeverLM/Courses/<Course Name>/` |
-| **Lecture PDFs / slides** | PDF per lecture in `ForeverLM/Courses/<Course Name>/` |
-| **Video transcripts** | Text file per video in a Podcasts or course folder |
+The rest comes from your library. Add lecture slides, problem sets and reading PDFs to ForeverLM like any other file, then drag each onto the course's card or page, or use **Course ▸** in its right-click menu. **Lectures ▸ Add Lecture** in the course's **⋯** menu adds a lecture, **Lectures ▸ Add YouTube Playlist…** adds a playlist's videos to a course you already have, and **Refresh Playlist** brings in what the playlist gained since. A book is read along with the course ([Reading a textbook along with a course](#reading-a-textbook-along-with-a-course)).
 
-## Setting Up a Course
-
-### 1. Create a course folder in iCloud
-
-```
-~/Library/Mobile Documents/com~apple~CloudDocs/Documents/ForeverLM/Courses/<Course Name>/
-```
-
-For example:
-```
-Courses/
-└── CS229 Machine Learning/
-    ├── lecture-01-intro-supervised.pdf
-    ├── lecture-02-linear-regression.pdf
-    ├── lecture-03-locally-weighted-regression.pdf
-    └── problem-set-1.pdf
-```
-
-### 2. Add lecture PDFs
-
-Copy lecture slides, problem sets, and reading PDFs into the course folder. The app scans this folder and shows each PDF as a source in the Studio sidebar.
-
-### 3. Use with your AI assistant
-
-Select course sources in Studio, then ask your AI assistant to:
+Then select course sources and ask Chat, or your AI assistant, to:
 - Explain key concepts from the lecture
 - Quiz you on the material by explaining it back
 - Compare ideas across multiple lectures
@@ -75,18 +47,18 @@ Select course sources in Studio, then ask your AI assistant to:
 
 ## Importing from Canvas LMS
 
-If your university uses [Canvas LMS](https://www.instructure.com/canvas), you can bulk-download all course materials using Claude Computer Use and drop them into your course folder.
+If your university uses [Canvas LMS](https://www.instructure.com/canvas), you can bulk-download all course materials using Claude Computer Use and add them to your course.
 
 1. Start a Computer Use session and navigate to your Canvas course
 2. Ask Claude to download all lecture slides and readings
-3. Move the files into your ForeverLM course folder
+3. Add the files to ForeverLM and drag them onto the course
 
 ## Adding Video Content
 
 For lecture videos, the workflow depends on the source:
 
-**YouTube lectures with captions:**
-Copy the video transcript into a `.txt` file and save to `ForeverLM/Podcasts/<Course Name>/`.
+**YouTube lectures:**
+Make the course from the playlist, or add the playlist to the course, as above. ForeverLM fetches each lecture's transcript, and the video is listed under **YouTube** too.
 
 **Apple Podcasts lecture series:**
 If the course is published as a podcast, add it in Apple Podcasts, listen to each episode, and click **Show Transcript** once per episode. ForeverLM picks up the cached transcript automatically.
@@ -100,7 +72,7 @@ A playlist's videos are often named for where they sit in a series ("Mitochondri
 Courses sold on [Teachable](https://teachable.com), such as conference recordings, come in with their transcripts.
 
 1. Open ForeverLM's browser, choose the **Library** profile, and sign in to the school. Signing in to your own web browser doesn't count, because ForeverLM reads the school with the sign-in made inside the app.
-2. Paste any lecture's link (`…/courses/<course>/lectures/<number>`) into the source bar to add that lecture as a video. To import the whole course, ask your AI assistant to run `import_teachable_course` with the link.
+2. Paste any lecture's link (`…/courses/<course>/lectures/<number>`) into a notebook's **Add sources** to add that lecture as a video. To import the whole course, ask your AI assistant to run `import_teachable_course` with the link.
 
 ForeverLM reads the course outline from the lecture page. Each lecture with a video becomes a video on its own lecture, in the school's order. Lectures with only text, such as a CME form, are skipped.
 
@@ -127,7 +99,3 @@ A lecture's quiz asks about its readings too, after the video's questions, each 
 - **Lecture notes > slides:** Notes usually contain more prose and context than slides alone.
 - **Process lecture by lecture** as you watch, so the material is fresh.
 - **Problem sets:** Add problem set PDFs too — your AI assistant can help you reason through approaches.
-
-::: tip Naming convention
-Prefix files with `lecture-01-`, `pset-01-`, etc. so they sort chronologically. The app shows sources in filename order.
-:::

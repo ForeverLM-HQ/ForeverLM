@@ -11,7 +11,7 @@ Text to Speech lets you listen to articles and other text sources in ForeverLM. 
 
 Open a source in the Reader and choose **Listen** from the Reader's **⋯** menu, or right-click inside the Reader and choose **Text to Speech**. While the audio is prepared or plays, its control sits on the Reader's toolbar. ForeverLM extracts the readable text, prepares audio, and shows playback controls at the bottom of the reader. Playback is not tied to the reader: switch to another source, close the reader or move to Chat and the audio keeps going, and a Now Playing bar appears at the bottom of the window with the same controls, so there is always a visible way to pause or stop. Click its title to return to the source, and the bar folds back into the reader. To prepare the complete audio without starting playback, right-click the source in Studio and choose **Generate Audio**.
 
-While a source's audio is being generated, its row in the Studio sidebar shows a spinner where the speaker badge appears once the audio is ready. While cloud audio is being generated, the progress status names the exact model handling that generation alongside its completion percentage. It remains tied to the in-flight generation even if the model selected in Settings changes before the remaining chunks finish. Web Studio shows the same model and percentage while it generates each chunk.
+While a source's audio is being generated, its row in the Library shows a spinner where the speaker badge appears once the audio is ready. While cloud audio is being generated, the progress status names the exact model handling that generation alongside its completion percentage. It remains tied to the in-flight generation even if the model selected in Settings changes before the remaining chunks finish. Web Studio shows the same model and percentage while it generates each chunk.
 
 Sources that already carry their own audio — podcast episodes, YouTube videos, and meeting sessions whose recording plays in the reader — do not offer Text to Speech. Play the original recording instead; generating speech from their transcripts would only duplicate it. Meeting sessions without a playable recording (for example Read AI imports, which are transcript-only) keep Text to Speech.
 
@@ -30,8 +30,9 @@ on the Mac, or **Settings** -> **Text to Speech** on the iPhone. The list is
 every speech model OpenRouter serves
 ([openrouter.ai/models?output_modalities=speech](https://openrouter.ai/models?output_modalities=speech)),
 read live, so a model OpenRouter adds appears without an app update. The Mac
-groups the models by maker, with each model's voices and OpenRouter's price
-under it. While the list is being read the pane says so, and if OpenRouter
+lists a Suggested model from each maker first, then every model by maker with a
+search, each with OpenRouter's price; the selected model's voices and the
+default speed follow. While the list is being read the pane says so, and if OpenRouter
 cannot be reached it says why and offers **Try Again**, showing the last list
 it read.
 
@@ -53,13 +54,15 @@ The native apps prepare the short “Mitochondria are much more than just the
 powerhouse of the cell” sample in the background for the voices ForeverLM
 curates (the first voice of a model it does not curate). Every voice of the
 selected model gets a separate high-priority, bounded warm-up, so its preview
-buttons play from a durable device cache once preparation completes. Any other
-voice's sample is made when you tap it, since each sample is a billed request.
+buttons play from a durable device cache once preparation completes. A sample
+ForeverLM has already made comes from its own servers at no cost; only a voice
+nobody has sampled yet is a billed request, so any other voice's sample is made
+when you tap it.
 Thumbs-up and thumbs-down reactions are saved per model and voice and follow the
 account across the Mac, iPhone, and Web Studio.
 
-On-device macOS speech and a local Qwen3-TTS server remain free alternatives
-that do not send narration text to a cloud speech provider. See
+Every narration voice is a cloud voice: the text goes to OpenRouter and the
+model's provider. A `:free` model costs nothing. See
 [AI Providers & Models](/ai-providers) for the complete model list.
 
 ## Sources that are not in English
@@ -94,23 +97,21 @@ selected.
 
 ## Pricing before generation
 
-Each model's card shows OpenRouter's price in the unit OpenRouter bills that model by: per million characters for most, per million UTF-8 bytes for Fish Audio, per million text and audio tokens for Gemini, per minute of audio for Seed Audio. `:free` models show as free. The prices come from OpenRouter, for the host it routes each model to, and none is written into the app. A model OpenRouter has not priced shows **Price unknown**, never free. Before an uncached source is generated manually, ForeverLM shows its narration length, how long the finished audio runs, and its cost. That is a total for a model billed by the character. For a model billed another way it is the model's own price ("priced at $1 / $20 per 1M tokens"), because a total would have to be guessed. A selected model is never silently replaced by a second paid one. This confirmation is on by default. Selecting **Don't ask again for this model** suppresses it only for that model, across all of the model's voices; choosing another model asks again. It has no Settings pane: ask the chat to turn confirmation back on for the selected model (`read_aloud.confirm_cost`).
+Each model's card shows OpenRouter's price in the unit OpenRouter bills that model by: per million characters for most, per million UTF-8 bytes for Fish Audio, per million text and audio tokens for Gemini, per minute of audio for Seed Audio. `:free` models show as free. The prices come from OpenRouter, for the host it routes each model to, and none is written into the app. A model OpenRouter has not priced shows **Price unknown**, never free. Before an uncached source is generated manually, ForeverLM shows its narration length, how long the finished audio runs, and its cost. That is a total for a model billed by the character. For a model billed another way it is the model's own price ("priced at $1 / $20 per 1M tokens"), because a total would have to be guessed. A selected model is never silently replaced by a second paid one. This confirmation is on by default. Selecting **Don't ask again for this model** suppresses it only for that model, across all of the model's voices; choosing another model asks again. On the Mac it has no Settings pane: ask the chat to turn confirmation back on for the selected model (`read_aloud.confirm_cost`). On the iPhone it is **Confirm cost for this model** in **Settings** -> **Text to Speech**.
 
-The estimate uses OpenRouter's price as last read. The exact managed charge appears in **Settings** -> **Billing** -> **AI activity** after generation; retries can add cost. Replaying cached audio does not generate or charge for new speech.
+The estimate uses OpenRouter's price as last read. The exact charge appears in **Settings** -> **AI Usage** -> **Activity** after generation; retries can add cost. Replaying cached audio does not generate or charge for new speech.
 
 ## Automatic audio
 
 Text to Speech can prepare audio on its own, chosen per kind of source: **Articles**, **Papers**, **Books**, **Courses**, and **Explainers**, in any combination. Every kind starts off. Podcasts, videos, and meetings with a recording have none: they arrive as audio already, so ForeverLM never narrates their transcripts. A book's switch covers its chapters, and a course's covers its documents.
 
-**Explainers** is its own kind: "always generate audio for explainers". An explainer is saved as an article-typed source, but it never falls under Articles, so narrating every explainer does not mean narrating every article. With it on, an explainer's audio starts the moment the script is written — from the Reader's **Explain** button, from the source's menu, or from an assistant's `generate_explainer` — with the selected voice and no cost question: asking for it once is the consent. An explainer that arrives from another device is narrated the same way, and rewriting an explainer narrates the new script. Over MCP it is `kind: "explainer"` in `set_automatic_audio_settings`.
+**Explainers** is its own kind: "always generate audio for explainers". An explainer is saved as an article-typed source, but it never falls under Articles, so narrating every explainer does not mean narrating every article. With it on, an explainer's audio starts the moment the script is written — from **Generate Explainer** in the Reader's **⋯** menu or the source's menu, or from an assistant's `generate_explainer` — with the selected voice and no cost question: asking for it once is the consent. An explainer that arrives from another device is narrated the same way, and rewriting an explainer narrates the new script. Over MCP it is `kind: "explainer"` in `set_automatic_audio_settings`.
 
 There is no Settings pane for it. You set it by asking — in the app's chat, or from Claude or ChatGPT connected over MCP — for example "always generate audio for articles from Martin Picard", "narrate every new paper about mitochondria", or "stop generating audio for books". The assistant calls `set_automatic_audio_settings`, and `get_automatic_audio_settings` tells it what is on, what each kind has waiting, and what that would cost.
 
 Each kind takes an optional natural-language rule. A rule is judged from each source's title, author, journal, year, collection, URL, and short description by the **Automatic Audio Filtering** background task. It is tried against the sources already waiting before it is saved, and the reply lists what matched with the combined characters and price; an invalid or failed AI answer never saves the rule, so it never broadens the queue. An empty rule means every source of that kind.
 
 Switching a kind on starts every matching source already in the library as well as later arrivals. A free voice needs no further permission. A paid voice is refused until the account consents to paid voices, and an assistant is told to put the priced total for the waiting library to you before it passes that consent. A voice with no exact catalog price never runs. The Mac and iPhone workers re-read the voice and the consent between every source, so a withdrawn consent or a changed voice stops the next item rather than the pass as a whole.
-
-**Explainers** is the switch for "always generate audio for explainers". An explainer is saved as an article-typed source, but it has a switch of its own and never falls under Articles. With it on, an explainer's audio starts the moment the script is written — from the Reader's **Explain** button, from the source's menu, or from `generate_explainer` — with the selected voice and no cost question.
 
 The iPhone's **Automatically continue books** setting is separate: it generates the next chapter when the current one finishes, whether or not the Books switch is on.
 
@@ -129,7 +130,7 @@ Web Studio shows the same two lines when you generate audio for a book chapter t
 
 ### Generating a whole book
 
-Right-click a book in the Studio sidebar and choose **Generate Audiobook** to narrate every chapter that does not have audio yet, in reading order, after one price confirmation for the whole book. A book whose every chapter has audio shows a filled speaker badge on its row; a dimmed speaker with a count means some chapters have it. A panel at the bottom of the sidebar follows the batch: one bar per book with the chapter being narrated, a **Stop** button while anything is still running, and the tally once it finishes, which stays until you dismiss it. Stopping keeps every finished chapter; chunks already generated are cached, so generating those chapters again costs nothing for them.
+Right-click a book in the Library's **Books** tab and choose **Generate Audiobook** to narrate every chapter that does not have audio yet, in reading order, after one price confirmation for the whole book. A book whose every chapter has audio shows a filled speaker badge on its row; a dimmed speaker with a count means some chapters have it. A panel at the bottom of the sidebar follows the batch: one bar per book with the chapter being narrated, a **Stop** button while anything is still running, and the tally once it finishes, which stays until you dismiss it. Stopping keeps every finished chapter; chunks already generated are cached, so generating those chapters again costs nothing for them.
 
 ### Generating from an AI assistant
 
@@ -145,7 +146,7 @@ For cloud TTS providers, generated audio can be cached so replaying the same sou
 
 If the source changes or the chosen provider, model, or voice changes, ForeverLM may need to generate fresh audio.
 
-When cloud TTS finishes generating every chunk for a source, ForeverLM writes a synced audio manifest, source text, and chunk files to iCloud Drive. The iPhone can play that audio immediately. If a paper or article has no audio yet, asking Siri on the iPhone to play it can generate it on demand through managed AI, cache it in the same synced format, and start playback without needing the Mac.
+When cloud TTS finishes generating every chunk for a source, ForeverLM uploads the audio with the source to your iCloud, and your other Macs and the iPhone fetch each part when it plays. The iPhone can play that audio immediately. If a paper or article has no audio yet, asking Siri on the iPhone to play it can generate it on demand through managed AI, cache it in the same synced format, and start playback without needing the Mac.
 
 Web Studio offers the models ForeverLM curates and requests each from OpenRouter as well, Grok and Gemini included, through ForeverLM's proxy. It keeps audio generated there in its bounded, signed-in browser cache. It resumes from completed chunks after a failed request and plays the cached audio from the Reader's **Listen** button.
 

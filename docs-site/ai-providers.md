@@ -5,7 +5,7 @@ title: AI Providers & Models
 
 # AI Providers & Models
 
-**AI runs on your own OpenRouter API key.** Create one at [openrouter.ai/keys](https://openrouter.ai/keys) and add it in **Settings → AI Usage → Your own key**. OpenRouter bills every model at its own cost, and ForeverLM adds nothing on top. OpenRouter is the only supported provider today. **AI is never part of ForeverLM's price**: no credits, no tier, and every model OpenRouter serves. Pay models at cost, or use free models and pay nothing. You pick a provider and model for each AI capability in **Settings**, and **Settings → Billing → AI activity** shows what each request cost, precise below a cent.
+**AI runs on your own OpenRouter API key.** Create one at [openrouter.ai/keys](https://openrouter.ai/keys) and add it in **Settings → AI Usage → Your own key**. OpenRouter bills every model at its own cost, and ForeverLM adds nothing on top. OpenRouter is the only supported provider today. **AI is never part of ForeverLM's price**: no credits, no tier, and every model OpenRouter serves. Pay models at cost, or use free models and pay nothing. You pick a provider and model for each AI capability in **Settings**, and **Settings → AI Usage → Activity** shows what each request cost, precise below a cent.
 
 Every text model, whether Anthropic, OpenAI, Google, Meta, xAI or the long tail, is served through [OpenRouter](https://openrouter.ai), on your key, by way of ForeverLM's proxy. A request never falls back silently to another route.
 
@@ -13,27 +13,19 @@ You can also skip the built-in AI entirely and drive ForeverLM from Claude, Code
 
 ## Chat and reviews (text models)
 
-In-app Chat and reviews use the Default Model chosen in **Settings → Chat → Models**. The default is Anthropic with Claude Sonnet 5. Background tasks (like paper metadata extraction) run on the two Background models in **Settings → Background**: **Text-only**, and **Multimodal** for the work that looks at a figure or a slide. Any one task can have a model of its own on the **Tasks** tab; until you give it one it follows the Background model of its kind. The chat can change them too (`set_ai_task_settings`).
+In-app Chat and reviews use the Default Model chosen in **Settings → Chat** (or in the **Set up ForeverLM** guide). Until you choose one it is Anthropic's Claude Sonnet 5. Background tasks (like paper metadata extraction) run on the two Background models in **Settings → Background**: **Text-only**, and **Multimodal** for the work that looks at a figure or a slide. Any one task can have a model of its own on the **Tasks** tab; until you give it one it follows the Background model of its kind. The chat can change them too (`set_ai_task_settings`).
 
-| Provider | Models | Default |
-|---|---|---|
-| **Anthropic** | Claude Sonnet 5, Claude Fable 5, Claude Opus 5, Claude Haiku 4.5 | Claude Sonnet 5 |
-| **OpenAI** | GPT-5.6 Sol, GPT-6 Astra, GPT-5.6 Terra, GPT-5.6 Luna | GPT-5.6 Sol |
-| **Google (Gemini)** | Gemini 3.5 Flash, Gemini 2.5 Flash Lite | Gemini 3.5 Flash |
-| **xAI (Grok)** | Grok 4.3, Grok 4.7 | Grok 4.3 |
-| **Meta** | Muse Spark 1.2, Muse Spark 1.2 Contributor | Muse Spark 1.2 |
-| **OpenRouter** | DeepSeek V4 Flash, DeepSeek V4 Pro, Kimi K3, GPT OSS 120B, GPT OSS 20B, Qwen3 32B, Qwen3 235B, GLM 5.2, Mistral Large 3, Mistral Small 4, Nemotron 3 Ultra, Nemotron 3 Super, Nemotron 3 Nano | DeepSeek V4 Flash |
+**Settings → Chat** starts with a **Suggested** list: one model from each maker (Anthropic, OpenAI, Google, xAI, DeepSeek, Qwen, Mistral, Meta, NVIDIA and others), the top model that is still affordable, shown as the newest release of its family that OpenRouter lists, so a new release takes its place without an app update. Under it are OpenRouter's **Free** models, then **All models on OpenRouter**: every model OpenRouter serves, as a table you can search, sort, and narrow by maker, by feature, or to free or discounted models. A row's switch offers the model in the chat's model picker, and its menu makes it the Default Model or a backup. **Settings → Background** lists its models the same way, a price tier down.
 
 Notes:
 
 - The long-tail models (DeepSeek, Kimi, Qwen, GLM, GPT OSS, Mistral, Llama, and Nemotron) are served through OpenRouter like every other text model. The picker groups them by the lab that trained them, and you can add any other compatible model from OpenRouter's directory.
-- In Settings, each lab's models are listed newest release first, and the **more…** card at the end of a lab shows every other model OpenRouter lists for it in that same order.
 - DeepSeek and Kimi are offered only through OpenRouter's US-routed inference; the labs' own APIs are deliberately not integrated.
 - **Don't show models that train on my data** (Settings → Data & Privacy; Settings on iPhone) takes the models that train on what you send them out of every model picker, and routes every OpenRouter request only to hosts that neither retain prompts nor train on them, using OpenRouter's `data_collection: deny` provider preference. One model is priced for training: Meta's Muse Spark 1.2 Contributor, whose discount is paid in training consent. The app does not label it; the switch hides it. A model with no compliant host is refused with a message that names the switch. Anthropic, OpenAI, Google's paid API and xAI do not train on API traffic under their own terms, which the switch does not change.
 - A model is admitted only while OpenRouter publishes its price, and every charge is the cost OpenRouter reports for that request. A model it cannot price is refused instead of being estimated.
 - **Speed, priced per tier.** On the OpenRouter route the chat composer's model menu offers **Speed: Standard / Fast** for a model whose lab publishes a fast-processing endpoint on OpenRouter (`openai/fast`, `anthropic/fast`). Each speed is listed with its own input / output price from that endpoint — Fast is typically double — and a Fast request names the endpoint explicitly with fallbacks off, so it is never quietly served at another tier; OpenRouter's receipt for the endpoint that ran is the cost recorded. A Standard request names no endpoint, so when the lab's endpoint refuses it (a 429 from Google AI Studio, say) OpenRouter moves it to the same model's other standard endpoint rather than failing the chat; tier endpoints are never part of that fallback. A bolt on the model chip shows Fast is on. Models with no fast endpoint show no speed control.
-- **Promotions are named, not applied twice.** When OpenRouter is running a promotion on a model's endpoint, the price in the composer menu already reflects it and the subtitle says so ("$2 in / $10 out · 50% off"). Settings → Chat → Models shows the same label on the model's card.
-- The model picker shows a curated list; you can hide models you never use in **Settings → Chat → Models**.
+- **Promotions are named, not applied twice.** When OpenRouter is running a promotion on a model's endpoint, the price in the composer menu already reflects it and the subtitle says so ("$2 in / $10 out · 50% off"). Settings → Chat shows the same label on the model's row.
+- The chat's model picker shows only the models you offer; turn off the ones you never use in **Settings → Chat**.
 - Each provider remembers its own model choice, so switching providers doesn't reset your selection.
 
 ## Text to Speech (text-to-speech)

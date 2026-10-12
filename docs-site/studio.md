@@ -23,9 +23,9 @@ from inside any notebook. The cards you keep and review span every notebook
 The Space is ForeverLM's home. A window opens in the notebook you last worked
 in on this Mac (opened, chatted in, or added a source to); with no notebook
 yet, or when that notebook was archived, deleted or belongs to another
-library, the window shows the Space's **All** list. **Notebooks** in the rail,
-⌘P (View → Space), **Close Notebook** and **‹** at the top of an open notebook
-take you there too.
+library, the window shows the Space's **All** list. **Spaces** in the rail, the
+rail's **Notebooks** heading, ⌘P (View → Space), **Close Notebook** and **‹** at
+the top of an open notebook take you there too.
 
 **All** lists every notebook and course beside your pages, sites and
 canvases. A notebook shows its cover, or its emoji on its own soft colour (an
@@ -50,7 +50,7 @@ iPhone, where the notebook list can show one collection at a time.
 you put there. Point at one for **Restore**, or use its menu to open, merge or
 delete it. **Empty Trash** leaves them alone.
 
-**New notebook** makes the notebook and opens it, with nothing to fill in.
+A new notebook opens at once, with nothing to fill in.
 It reads **New notebook** until you add a source or start a chat; then
 ForeverLM names it and writes the line on its card. Once you rename it,
 ForeverLM never renames it again.
@@ -61,17 +61,16 @@ A notebook fills the window in three columns, as in Gemini Notebook:
 
 | Column | What it holds |
 |--------|---------------|
-| **Sources** (left) | ‹ back to the home, the notebook's name (click it to rename) and its **⋯** menu. **Sources** with **Add sources**, one field that searches the notebook, your whole library and the web (see [Searching for sources](#searching-for-sources)), "8 of 12 in chat" with **Select all**, then its sources by type, then a group for each notebook it uses context from. Each source has a box: ticked sources are what the notebook's chats read and what its Studio makes things from. Click a source to read it beside the chat; its **⋯** has **Open**, **Open in Other Window** and **Remove from Notebook**. An empty notebook offers **Suggested from your library**, each row one click from joining, and **Add all**. Drop PDFs from Finder or a browser on the column to import them as papers into the notebook |
+| **Sources** (left) | ‹ back to the Space, the notebook's name (click it to rename) and its **⋯** menu. **Sources** with **Add sources**, one field that searches the notebook, your whole library and the web (see [Searching for sources](#searching-for-sources)), "8 of 12 in chat" with **Select all**, then its sources by type, then a group for each notebook it uses context from. Each source has a box: ticked sources are what the notebook's chats read and what its Studio makes things from. Click a source to read it beside the chat; its **⋯** has **Open**, **Open in Other Window** and **Remove from Notebook**. An empty notebook offers **Suggested from your library**, each row one click from joining, and **Add all**. Drop PDFs from Finder or a browser on the column to import them as papers into the notebook |
 | **Chat** (center) | The notebook's chat, and beside it one document: the Reader, a Page, a Site, an animation, a course's page, the Browser, Memory or a second chat. The Reader is the full one: a paper with its figures, a video with its transcript, a book, a web page. A new document replaces the one beside the chat; the divider between them drags, and each has its **×** |
 | **Studio** (right) | **Share** at its top right ([Sharing a notebook](/teams#sharing-a-notebook)), then what you can make from the ticked sources, and everything the notebook made |
 
 An empty notebook chat shows the notebook's name and description, and, once it
 has sources, **Suggest questions** and **Quiz me on it**, then the notebook's
-latest chats; with no sources it offers **Add sources**. **New chat** in the
-rail starts a chat in the notebook the window holds, reading its ticked
-sources. The notebook's chats are also under the chat's **⋯** (**Chats in
-This Notebook**) and in the rail's **Chats** menu. A chat filed in a notebook opens in
-that notebook, and a library chat (one in no notebook) leaves it. Coming back
+latest chats; with no sources it offers **Add sources**. The chat's **⋯** has
+**Chats in This Notebook ▸**: **New Chat** starts a chat in the notebook the
+window holds, reading its ticked sources, and the notebook's chats follow. A
+chat filed in a notebook opens in that notebook, and a library chat (one in no notebook) leaves it. Coming back
 to a notebook reopens the chat you last had open in it.
 
 Following a link never closes what you read it in: a citation or a Page's
@@ -90,8 +89,8 @@ brings its column back. The **Notebook** menu holds **Add Sources…** (⇧⌘A)
 tiles), **New Note**, **Rename Notebook…** and **Close
 Notebook**. Two windows can hold two notebooks; each keeps its own.
 
-The notebook's **⋯** (beside its name) has **Add Sources…**, **Notebook
-Settings…**, **Rename Notebook…**, **Unpin from Sidebar** or **Pin to Sidebar**, **Archive
+The notebook's **⋯** (beside its name) has **Add Sources…**, **Add a Notebook
+to Context**, **Think First ▸**, **Rename Notebook…**, **Unpin from Sidebar** or **Pin to Sidebar**, **Archive
 Notebook** (**Restore Notebook** on an archived one), **Share…**, **Share with Team ▸**,
 **Merge into Notebook…**, **Open in Other Window**, **Close Notebook** and
 **Delete Notebook…**.
@@ -209,33 +208,29 @@ The web and PubMed are searched from the Sources column's own field (see
 
 ### The rail
 
-The navigation rail leads with your notebooks. At the top, **New chat**,
-**Memory**, **Browser** and **Library**; each can be hidden from its own menu
-and brought back with **Show in Sidebar**, then **Notebooks**, which opens the
-Space's All list, where every notebook is; the rail keeps a short way in. Under
-**Notebooks**, which opens the home (its right-click menu also opens the
-home's other tabs): **Uncategorized**, the notebooks in no collection (once
-you have a collection); **Pinned**, the notebooks you pinned;
-**Recent**, the last six you worked in, plus the notebook this window last
-had open; and **Collections**, one row per collection.
-Uncategorized and a collection open the home showing just those notebooks. A
-notebook's row opens it in this window and shows its chats, the chevron shows
-or hides them, and **+** on hover starts a chat in it. Its menu has **Open in
-Other Window**, **Pin to Sidebar** or **Unpin from Sidebar**, **Archive
+The navigation rail is a narrow strip of icons: **Spaces**, **Memory** and
+**Library**, and at its foot the calendar glyph that opens today's schedule
+(see [Layout](#layout)) and your account. Each icon can be hidden from its own
+menu and brought back with **Show in Sidebar**.
+
+Beside a chat or the Reader, outside a notebook, a sidebar joins the strip:
+**New chat** and **Browser** at the top, then **Notebooks**, which opens the
+Space's All list, where every notebook is (its right-click menu also opens
+**Courses** and the Space, here or beside what you are viewing). Under it,
+**Pinned**, the notebooks you pinned, and **Recent**, the last six you worked
+in, plus the notebook this window last had open. A notebook's row opens it in
+this window and shows its chats, the chevron shows or hides them, and **+** on
+hover starts a chat in it. Its menu has **Open in Other Window**, **Pin to
+Sidebar** or **Unpin from Sidebar**, **Draw Cover With ▸**, **Archive
 Notebook**, **Share…**, **Share with Team ▸** and **Delete Notebook…**. Then
 **Chats**, the library's own chats, whose **+** (on hover, or **New Library
 Chat** on its right-click menu) starts a library chat; a chat's
-**Move to Notebook ▸** files it in a notebook. While something is happening,
-the **Now** chip at the foot shows it; **Today → Activity** in the menu bar
-opens **Activity** at any hour.
+**Move to Notebook ▸** files it in a notebook. "Plan your day?" and **Cards to
+check** wait at the foot of this sidebar, or in the window's corner where it is
+not showing.
 
-Inside a notebook the rail is a narrow strip of icons, so the notebook's three
-columns have the window: **New chat**, **Memory**, **Browser** and **Library**,
-a **Notebooks** menu (All Notebooks, Uncategorized, Pinned, Recent and
-Collections, as the full rail lists them), a **Chats** menu
-with this notebook's chats, the Now chip's dot while something is happening,
-and your account. "Plan your day?"
-then waits in the window's corner. A rail you hid stays hidden.
+Inside a notebook only the strip stays, so the notebook's three columns have
+the window. A rail you hid stays hidden.
 
 ### The Library
 
@@ -258,9 +253,11 @@ source from it into a chat, or onto a canvas. Close it with its ×.
 ### Pages, Goals and Not in a Notebook
 
 The Space holds what you keep working on beyond one notebook, one place per
-kind in its sidebar: **Pages**, **Sites**, **Canvases**, **Images** and **Ideas**. The notebook filter
-beside the team filter shows **All Notebooks**, one notebook, or what is
-**Not in a Notebook**. A Page's or Site's card has **Add to Notebook ▸**, with
+kind in its sidebar under **New chat**: **Notebooks**, **Chats**, **Courses**,
+**Pages**, **Sites**, **Canvases** (a beta feature, tagged **Beta**), **Images**
+and **Google Drive**, then **Pinned**, **Recents**, your **Spaces** and, at the
+foot, **Trash**. The notebook filter beside the team filter shows **All
+Notebooks**, one notebook, or what is **Not in a Notebook**. A Page's or Site's card has **Add to Notebook ▸**, with
 the notebooks that hold most of its sources first under **Suggested**, and
 **Remove from** the notebook it is in. A Page or Site also has a **Notebooks**
 checklist in the menu of its own pane.
@@ -269,14 +266,16 @@ Everything else you make belongs to one notebook and is listed only in that
 notebook's [Studio](#the-studio-column): pictures, animations, audio
 overviews, mnemonic readings, videos, walkthroughs and narrations. A mnemonic
 reading also shows in its notebook's own Pages list, where it opens; one you
-made from the Reader outside any notebook stays on the Pages tab.
+made from the Reader outside any notebook stays in the Space's **Pages**.
 Walkthroughs, explainers and narrations ride their source: they are in every
 notebook that holds it, and **Walk Through** and **Listen** in the Reader's
 ⋯ menu reach them too. A picture drawn for a walkthrough or a quiz is in no notebook
 and shows where it is used.
 
-The Space's **Goals** tab lists what you want to be true by a date, with
-**Set a goal** on it.
+Goals and Ideas have no place of their own in the Space since 2026-10-10: ask
+the chat ("what are my goals?", "what are my ideas?") and it lists them, and
+`/goal` sets a goal. A list of goals or of ideas you want to keep in view is a
+Space item of its own (**New ▸ Goals List** or **Ideas List**).
 
 ### Courses and notebooks
 
@@ -290,7 +289,7 @@ says "Linked to" them under its title. See
 
 ### Uses context from, pinning, merging, archiving
 
-These live on the notebook's **About** face, its **⋯** and its card:
+These live on the notebook's **⋯** and its card:
 
 - **Uses context from** links other notebooks, its context notebooks, without
   copying sources or nesting one notebook in another. The link is directional
@@ -305,10 +304,10 @@ These live on the notebook's **About** face, its **⋯** and its card:
   **×**, **Take Out of Context**, unlinks it. What the notebook's Studio
   makes reads only its own sources.
 - **Instructions** guide every chat in the notebook; the **Description** is
-  the short line on its card. About also holds **Research questions**,
-  **Repository** (a GitHub repository the notebook is about), **Goals**,
-  **Tasks** (open the board), **Other files** (open the folder) and **Delete
-  notebook**.
+  the short line on its card. The Mac has no settings sheet for a notebook
+  since 2026-10-04: its instructions, description, research questions and
+  linked GitHub repository are changed in **Notebook settings** in the [Web
+  Library](/web-library), or by an assistant over MCP (`update_notebook`).
 - **Pin to Sidebar** keeps a notebook under **Pinned** in the rail;
   **Unpin from Sidebar** takes it off and nothing else. A
   notebook without a row in the rail has its chats under **Chats**. Pinning
@@ -335,12 +334,12 @@ a ForeverLM notebook.
    Google. Signing in to your own web browser doesn't count, because ForeverLM
    reads the notebook with the sign-in made inside the app.
 2. Paste the notebook's link (`notebook.google.com/notebook/…`; a
-   `notebooklm.google.com` link works too) into the source bar, or ask your AI
-   assistant to run `import_gemini_notebook` with it.
+   `notebooklm.google.com` link works too) into a notebook's **Add sources**, or
+   ask your AI assistant to run `import_gemini_notebook` with it.
 
 The notebook it makes takes the Gemini notebook's title, and a notebook of
-yours that already has that title is reused; a link pasted in the source bar
-opens it in that window once it lands. Into it go:
+yours that already has that title is reused; a pasted link opens it in that
+window once it lands. Into it go:
 
 - **Sources.** A web page or YouTube video comes in by its address, the way a
   pasted link does, so a paper's page brings its PDF. A Google Doc is linked in
@@ -368,10 +367,12 @@ for that library and leaves the rest of the Studio unchanged.
 
 Source rows, notebook rows and a notebook's **⋯**, Page menus and chat rows in
 My Library carry **Share with Team ▸**, and a notebook's **Share** invites
-people to it in one step ([Sharing a notebook](/teams#sharing-a-notebook)). Sharing copies the item into the team
-under a team identity and leaves the original where it is; a paper two members
-both share is one team record. A notebook's **About** has **Tasks**, and in a
-team notebook the tasks can be assigned to members. Reading progress, review
+people to it in one step ([Sharing a notebook](/teams#sharing-a-notebook)). A
+notebook shared into a team you own moves there; anything else is copied into
+the team and the original stays where it is ([Sharing into a
+team](/teams#sharing-into-a-team)). A paper two members both share is one team
+record. A notebook's task board is in the [Web Library](/web-library), and in a
+team notebook its tasks can be assigned to members. Reading progress, review
 results, highlights and the Schedule stay private to each member. See
 [Teams](/teams).
 
@@ -383,21 +384,18 @@ rail's **Library** row to an edge to dock it beside another.
 
 | Panel | What it does |
 |-------|-------------|
-| **Navigation** (left) | **New chat**, **Memory** (where today's cards wait), **Browser** and **Library**; then **Notebooks**, which opens the Space's All list, with each of your notebooks and its chats; then your library's own **Chats**. The **Now** chip at its foot shows today's events from the Mac's Calendar and opens **Activity** |
-| **Notebooks** | The home: a card per notebook, and the **Collections**, **Courses**, **Pages** and **Goals** tabs. A notebook opens across the window ([Inside a notebook](#inside-a-notebook)) |
+| **Navigation** (left) | **Spaces**, **Memory** (where today's cards wait) and **Library**, and at the foot the calendar glyph for today's schedule from the Mac's Calendar; beside a chat or the Reader, **New chat**, **Browser**, **Notebooks** with your pinned and recent notebooks and their chats, and your library's own **Chats** ([The rail](#the-rail)) |
 | **Library** | The whole library, organized by type, across the window for managing it or docked beside another pane ([The Library](#the-library)) |
 | **Reader** | Displays the selected source: web article, PDF, video, or transcript |
 | **Chat** | In-app source-grounded chat and review sessions |
 | **Memory** | Your cards across every notebook ([Memory](#memory)) |
-| **Activity** | What you actually did on a day: the papers read, episodes heard, chats had and Pages written, on a clock. Open it from the **Today** menu or the Now chip |
-| **Space** | Your notebooks and courses, and your Pages, Sites, Canvases, Images and Ideas across every notebook, one place per kind in its sidebar, with **Trash** for what you put away and your archived notebooks; with a filter for one notebook or for what is **Not in a Notebook**. Each kind also opens in a pane of its own with **Open Pages**, **Open Sites** and **Open Ideas** |
-| **Goals** | The Space's Goals tab: what you want to be true by a date |
+| **Day** | Your calendar and what you actually did on a day — the papers read, episodes heard, chats had and Pages written — on one clock. Open it from the **Today** menu or the calendar glyph |
+| **Space** | Your notebooks, chats and courses, and your Pages, Sites, Canvases, Images and Google Docs across every notebook, one place per kind in its sidebar, with **Trash** for what you put away and your archived notebooks; with a filter for one notebook or for what is **Not in a Notebook**. A notebook opens across the window ([Inside a notebook](#inside-a-notebook)). Pages and Sites also open in a pane of their own: **Open Pages Beside** or **Open Sites Beside** on the row's right-click menu, or drag the row to an edge of the window |
 
 Click a navigation item to open it in the current pane. Hover it and choose the
 split icon to open it beside what you are viewing. Inside a notebook, Memory,
-the Browser, a source or an artifact opens beside the notebook's chat instead;
-Notebooks and Library leave the notebook, and its row in the rail opens it
-again.
+a source or an artifact opens beside the notebook's chat instead; Spaces and
+Library leave the notebook, and its row in the rail opens it again.
 
 Drag any saved chat from the navigation rail to the left or right edge of the
 workspace to open it as a second, independently interactive Chat pane. Each pane
@@ -417,25 +415,25 @@ window and a banner in the window you clicked in reads **Opened in the other
 ForeverLM window** (or "another" when more than one other is open). A
 selection's confirmation says the same in one line.
 
-Your day is the Mac's Calendar. While something is happening, the **Now** chip at the foot of the navigation rail, over your account, and in the toolbar of a pop-out Reader shows it: the event the clock is in and how long it has left, with a hairline along its foot showing how far through the event the clock is; an event starting within 15 minutes; or the bout you are in. In a quiet hour it is not there, and the **Today** menu in the menu bar has the day's commands. Click the chip for today's events: the one you are in highlighted, a line at the time between events, what is behind in grey, and the day's all-day events on one line. A row opens its event in the Calendar app. The event you are in offers its call link when it has one (**Join Zoom**, **Join Teams**, **Join Google Meet**, …), **Start a Bout** and **Open in Calendar**; a block an assistant planned for a notebook adds **Open Notebook**, and a block that names only sources adds **Make Notebook from This Block**, a notebook titled as the block with those sources. The chip reads the calendars you choose in **Settings → Plugins → Calendar**, which turns the Mac's Calendar on and picks which calendar new events go to. A Google, Exchange or subscribed calendar is part of your day once the Mac's Calendar holds it; see [Plugins](/external-plugins#calendar).
+Your day is the Mac's Calendar. At the foot of the navigation rail, over your account, a calendar glyph is always there, with a dot on its corner while something is happening: the event the clock is in, an event starting within 15 minutes, or the bout you are in. In the toolbar of a pop-out Reader the **Now** chip says the same in words, with how long the event has left and a hairline along its foot showing how far through it the clock is; in a quiet hour the chip is not there. The **Today** menu in the menu bar has the day's commands at any hour. Click the glyph (or the chip) for today's events: the one you are in highlighted, a line at the time between events, what is behind in grey, and the day's all-day events on one line. A row opens its event in the Calendar app. The event you are in offers its call link when it has one (**Join Zoom**, **Join Teams**, **Join Google Meet**, …), **Start a Bout** and **Open in Calendar**; a block an assistant planned for a notebook adds **Open Notebook**, and a block that names only sources adds **Make Notebook from This Block**, a notebook titled as the block with those sources. It reads the calendars you choose in **Settings → Plugins → Calendar**, which turns the Mac's Calendar on and picks which calendar new events go to. A Google, Exchange or subscribed calendar is part of your day once the Mac's Calendar holds it; see [Plugins](/external-plugins#calendar).
 
-An assistant plans the day by adding events to your calendar. Type `/plan` in a chat (`/plan tomorrow` for the next day; from 2 PM on, `/plan` plans tomorrow), choose **Plan the Day in Chat** from the **Today** menu (⌘D) or the Now chip, or ask Claude or ChatGPT with the ForeverLM plugin. The assistant reads the day and how your last few days went, asks one question — what is fixed, and what the day is for — and proposes the blocks. When you agree, it adds each one as an event in the free time the calendar leaves, with what the hour is for in its notes. Meetings with other people stay where they are: ForeverLM never changes an event with other people on it. `/today` says what is on the calendar right now. Each morning whose calendar holds nothing you planned (meetings with other people and recurring events do not count), a **Plan your day?** card waits at the bottom left of the Studio window, with a notification once if ForeverLM is not in front. Switch it off in **Settings → General → Day**, where **Day starts at** and **and ends at** set the hours of your day.
+An assistant plans the day by adding events to your calendar. Type `/plan` in a chat (`/plan tomorrow` for the next day; from 2 PM on, `/plan` plans tomorrow), choose **Plan the Day in Chat** from the **Today** menu (⌘D) or the calendar glyph, or ask Claude or ChatGPT with the ForeverLM plugin. The assistant reads the day and how your last few days went, asks one question — what is fixed, and what the day is for — and proposes the blocks. When you agree, it adds each one as an event in the free time the calendar leaves, with what the hour is for in its notes. Meetings with other people stay where they are: ForeverLM never changes an event with other people on it. `/today` says what is on the calendar right now. Each morning whose calendar holds nothing you planned (meetings with other people and recurring events do not count), a **Plan your day?** card waits at the bottom left of the window, with a notification once if ForeverLM is not in front. Switch it off in **Settings → General → Day**, where **Day starts at** and **and ends at** set the hours of your day.
 
-**Activity**, in the **Today** menu and the last item of the Now chip's menu, is the record the calendar cannot hold: what ForeverLM saw you do on a day, drawn on a clock: a paper read in the Reader, an episode heard, a chat had, a Page written. Delete a sitting there if it did not happen. An assistant reads the same log with `get_day_activity` beside the calendar, to see where a planned day went.
+**Day**, in the **Today** menu and the last item of the calendar glyph's popover, shows your calendar beside the record the calendar cannot hold: what ForeverLM saw you do on a day, on one clock: a paper read in the Reader, an episode heard, a chat had, a Page written. Delete a sitting there if it did not happen. An assistant reads the same log with `get_day_activity` beside the calendar, to see where a planned day went.
 
-A **learning bout** puts a clock on a stretch of learning. Start one from the Now chip, on the event you are in or on its own, or from the **Today** menu (⇧⌘B), and the chip counts it; the bout ends when you write up what you learned and what you still do not understand, and that write-up, never the clock, is what earns the break. A bout past its time keeps running and says how far over it is, because nothing ends it but you. The break is a minute of rest for every nine minutes learned, from five up to twenty, so a ninety-minute bout earns about ten, and it is earned from the minutes actually learned rather than the time you set. Letting a bout go is always allowed and earns nothing. The break counts down on your iPhone too, on the Home screen and in the Today widget, and the phone notifies you when it is over. Claude and ChatGPT can start, end and write up a bout over MCP, because the reflection is usually a conversation rather than a form.
+A **learning bout** puts a clock on a stretch of learning. Start one from the calendar glyph, on the event you are in or on its own, or from the **Today** menu (⇧⌘B), and the chip counts it; the bout ends when you write up what you learned and what you still do not understand, and that write-up, never the clock, is what earns the break. A bout past its time keeps running and says how far over it is, because nothing ends it but you. The break is a minute of rest for every nine minutes learned, from five up to twenty, so a ninety-minute bout earns about ten, and it is earned from the minutes actually learned rather than the time you set. Letting a bout go is always allowed and earns nothing. The break counts down on your iPhone too, on the Home screen and in the Today widget, and the phone notifies you when it is over. Claude and ChatGPT can start, end and write up a bout over MCP, because the reflection is usually a conversation rather than a form.
 
 A recurring meeting in your library can be given a schedule: **Schedule…** on the series' sidebar menu sets the weekdays, the start time, the length and the time zone. When a session's transcript arrives, ForeverLM reads the action items out of it — who agreed to do what, by when, as the transcript said — and an assistant lists and ticks them off with `list_meeting_action_items` and `set_meeting_action_item_done`. A Zoom meeting recorded on this Mac is found whether or not Save Captions was on: the watcher reads the recording folders under ~/Documents/Zoom as well as the caption files, files a converted recording as a session of its series, transcribes it, and hands a recording Zoom left unconverted back to Zoom to convert. A call that dropped and was started again is still one meeting: a second session of the same series that began on the same day within four hours of the first is folded into the first as its transcript lands, its text following under a "Reconnected at" line and its files moving with it. Sessions that were split before that get **Merge Same-Day Sessions** on the series' menu (or `merge_meeting_sessions` over MCP).
 
-**Goals**, a tab of the Space, lists what you want to be true by a date: one list, nearest deadline first, in three bands (*In flight*, *Later*, *Done*), each row showing its date, and how long is left only when it is overdue or due within three days, with its notebook as an optional tag. Drag a row onto another row to put it there (from above it lands under the target, from below above it), or use **Move Up** and **Move Down** in the row's menu; a Goal you placed stays where you put it whatever its deadline does, a Goal set afterwards reads by deadline below the ones you placed, and **Sort Goals by Deadline** in a row's menu forgets the order you made. **Set a goal** is one sentence and a deadline picked from named days; a notebook (**Tag a notebook**) is offered below a divider and never required. A Goal can be for a Page, a Site or an animation: click a row to open what it is for, or, when it has nothing yet, to choose from your Pages, Sites and animations. The row's menu offers **Link a Page or Site…**, then **Open**, **Change the Page or Site…** and **Unlink**, and **Set a goal** offers the same link. The menu also marks a Goal done or archives it, and **Delete…** removes it after asking once: the Goal's record, its source pool and its Schedule tags go, the sources stay in your library, and a chat started from the Goal stays in Chats.
+**Goals** are what you want to be true by a date. They have no tab since 2026-10-10: ask the chat ("what are my goals?") and it lists them with their deadlines, and `/goal` sets one. A Goals list in the Space (**New ▸ Goals List**) keeps the ones you choose in view: its **Add Goals ▾** sets a new goal or brings in one already made. Each goal shows its date, and how long is left only when it is overdue or due within three days, with its notebook as an optional tag. **Move Up** and **Move Down** in a goal's menu put it where you want it; a Goal you placed stays where you put it whatever its deadline does, and **Sort Goals by Deadline** forgets the order you made. Setting a goal is one sentence and a deadline picked from named days; a notebook (**Tag a notebook**) is offered below a divider and never required. A Goal can be for a Page, a Site or an animation: click a goal to open what it is for. Its menu has **Edit Goal…**, **Find Directions**, **Open** what it is for (or **Link a Page or Site…** when it has nothing yet), **Change Deadline…**, **Mark done** or **Archive**, and **Delete…**, which removes it after asking once: the Goal's record, its source pool and its Schedule tags go, the sources stay in your library, and a chat started from the Goal stays in Chats.
 
 **Find directions** turns a Goal into research. It sits in the Goal's editor beside **Chat about it**, in a Goal's or an Idea's menu, and in any chat ("find methods to target rare mitochondrial diseases"). It opens a Deep Research chat that reads the goal's sources, the related papers in your library and your Ideas. The chat searches the literature (PubMed, free) and the web, and saves a handful of **Directions**. Each is one sentence naming an approach and whom it is for, why it is worth a look now, the papers it rests on, the strongest case against it, and the cheapest test. The row then reads *3 directions · 2 new*; click it to read them, open or **Add** each paper, and answer: **Pursue**, or **Set aside** with a reason. The next search reads your answers first and never proposes a direction twice. Claude and ChatGPT can run the same search over the plugin (`find_directions`, `propose_directions`).
 
-The Space lists the Pages and Sites you have made or linked, with a place for each kind in its sidebar: **Pages**, **Sites** and **Ideas** (which shows its own list). Pictures, animations, audio overviews, videos, walkthroughs and narrations are listed in their notebook's Studio instead ([The Studio column](#the-studio-column)). **Open Pages** (or Sites, Ideas) opens a kind in its own pane; the split button beside it, the chip's right-click menu (**Open Pages Beside**, …), or dragging the chip to an edge of the window opens it beside what you are viewing, so two kinds, Pages and Ideas for example, sit side by side. On **Pages**, **Link a Google Doc…** beside **Open Pages** takes a Google Docs link (its **Open Google Docs** finds one, and a link you copy there is filled in when you come back); on **Sites**, **Link a Site…** does the same for a Codex site or a Claude artifact. Each Page's and Site's card has a **⋯** with **Rename…** and **Move to Trash** (**Remove from Pages** for a Google Doc, which is left untouched in Google Docs). In My Library this tab and the Pages and Sites panes also list what your teams hold (a Page a teammate wrote, a site saved into a team notebook), each with a small two-person mark naming the team on hover; opening one takes you into that team's library. An **animation** is a moving explanation of how something in a source works, drawn as code that plays, scrubs and toggles conditions, or a rendered video. Ask the chat to animate a mechanism from a paper, use `/animate`, or pick **Animate…** from a source's menu; Claude and Codex can save one into your library through the plugin with `save_animation`. An animation is kept exactly as a Site is, in your library and your own iCloud, and stays linked to the sources it explains, so the paper lists its animations and the animation opens its paper.
+The Space lists the Pages and Sites you have made or linked, with a place for each kind in its sidebar: **Pages**, **Sites**, and **Google Drive** for the Google Docs you linked. Pictures, animations, audio overviews, videos, walkthroughs and narrations are listed in their notebook's Studio instead ([The Studio column](#the-studio-column)). **Open Pages Beside** (or **Open Sites Beside**) on a row's right-click menu, or dragging the row to an edge of the window, opens that kind in a pane of its own beside what you are viewing. **New ▸ Link a Google Doc…** takes a Google Docs link (its **Open Google Docs** finds one, and a link you copy there is filled in when you come back), and **Link a Site…** does the same for a Codex site or a Claude artifact. Each Page's and Site's card has a **⋯** with **Rename…** and **Move to Trash**. In My Library the Space and the Pages and Sites panes also list what your teams hold (a Page a teammate wrote, a site saved into a team notebook), each with a small two-person mark naming the team on hover; opening one takes you into that team's library. An **animation** is a moving explanation of how something in a source works, drawn as code that plays, scrubs and toggles conditions, or a rendered video. Ask the chat to animate a mechanism from a paper, use `/animate`, or pick **Animate…** from a source's menu; Claude and Codex can save one into your library through the plugin with `save_animation`. An animation is kept exactly as a Site is, in your library and your own iCloud, and stays linked to the sources it explains, so the paper lists its animations and the animation opens its paper.
 
-**Open Pages**, on the Pages tab's **Pages** chip, opens the Pages home: your pages as cards, newest first, with **All**, **Published**, **Drafts** and **Archived** filters, a search field and **New Page**. Click a card to open the page; the list beside an open page is unchanged. A Google Doc you link with **Link a Google Doc…** sits here beside your pages, opening in Google's editor.
+Pages in a pane of its own shows your pages as cards, newest first, with **All**, **Published**, **Drafts**, **Archived** and **Hidden** filters, a search field and **New Page**. Click a card to open the page; the list beside an open page is unchanged. A Google Doc you link with **Link a Google Doc…** is listed under **Google Drive** and opens in Google's editor.
 
-**Open Sites**, on the **Sites** chip, opens the Sites home: the sites made in ForeverLM and the Codex sites and Claude artifacts you have linked, as cards with **All**, **ForeverLM**, **Claude** and **Codex** filters, a search field and **Link a Site…**. A Page you publish on foreverlm.com stays in Pages, with its Published badge and address; Sites holds only sites. Paste a `….chatgpt.site` address or a `claude.ai/code/artifact/…` link and that page opens in ForeverLM as itself; ForeverLM keeps a read-only text copy that chat and review can read, and **Unlink** turns that copy into an ordinary page in Pages. Select text in an open Site and **Add to Chat** opens a chat beside it carrying the passage and the Site itself, so the tutor can fix the Site's files in your library; **Copy** puts a prompt for Claude or Codex on the clipboard. Every Page's and Site's ⋯ menu offers **Rename…** and **Open in Other Window**. A site made in ForeverLM lives only in your library: its files sync through your own iCloud, it opens in the Mac app, and a team gets it through the team library. It is never put on the web; for a public link, make the page as a Claude artifact or a Codex site and link it here. Over MCP, `write_doc` and `edit_doc` with `publish: true` update a published page in one call, and `link_page` with `text` refreshes a linked site's copy after you changed it in Codex or Claude.
+Sites in a pane of its own shows the sites made in ForeverLM and the Codex sites and Claude artifacts you have linked, as cards with **All**, **ForeverLM**, **Claude**, **Codex**, **Archived** and **Hidden** filters, a search field and **Link a Site…**. A Page you publish on foreverlm.com stays in Pages, with its Published badge and address; Sites holds only sites. Paste a `….chatgpt.site` address or a `claude.ai/code/artifact/…` link and that page opens in ForeverLM as itself; ForeverLM keeps a read-only text copy that chat and review can read, and **Unlink** turns that copy into an ordinary page in Pages. Select text in an open Site and **Add to Chat** opens a chat beside it carrying the passage and the Site itself, so the tutor can fix the Site's files in your library; **Copy** puts a prompt for Claude or Codex on the clipboard. Every Page's and Site's ⋯ menu offers **Rename…** and **Open in Other Window**. A site made in ForeverLM lives only in your library: its files sync through your own iCloud, it opens in the Mac app, and a team gets it through the team library. It is never put on the web; for a public link, make the page as a Claude artifact or a Codex site and link it here. Over MCP, `write_doc` and `edit_doc` with `publish: true` update a published page in one call, and `link_page` with `text` refreshes a linked site's copy after you changed it in Codex or Claude.
 
 Select words on an open Site and a small bar appears at the selection: **Add to Chat** and **Copy**, and on a site of your own made in ForeverLM, **Change** — a sheet with the selected words; Replace writes the new ones into the page in your library, and the page reloads. The words must appear exactly once on the page, or ForeverLM says so instead of guessing.
 
@@ -510,7 +508,7 @@ site's icon.
 
 A link cited inside a sentence gets the same treatment in the margin. Every
 paragraph that links to the web carries a stack of small cards beside it, one
-per source, drawn like a row in the Sources sidebar: the picture, the title, a
+per source, drawn like a row in the Library: the picture, the title, a
 quieter line — author · venue · year for a paper, the site for a page — and a
 check that opens the source or a plus that adds it. Hover a card to see which
 words cite it. The prose is untouched; in a pane too narrow to hold the page
@@ -570,8 +568,8 @@ Sources flow into Studio from multiple directions:
 
 - **Browser reading lists** — Safari, Chrome, and Brave reading lists are scanned automatically
 - **Apple Podcasts** — episodes you've listened to appear after you view the transcript once in Podcasts.app. Apple Podcasts is the only supported player; others like Spotify don't make transcripts accessible to other apps.
-- **Local files** — PDFs placed in the Books, Courses, or Papers folders in iCloud are discovered automatically
-- **Manual paste** — paste any URL into the source bar
+- **Files** — drop a paper's PDF on the Library's **Papers** tab (or use its **Upload PDFs…**), a book (PDF, EPUB or DRM-free Kindle) on its **Books** tab (**Add Book…**), or PDFs on a notebook's Sources column
+- **Links** — paste a link or DOI into a notebook's **Add sources**, or save the page you are reading in the Browser with **Add to Sources**
 - **Gemini Notebook** — paste a notebook's link to bring in its sources, chats and notes as a notebook ([Importing a Gemini Notebook](#importing-a-gemini-notebook))
 - **AI assistants** — Your AI assistant can add sources via the [MCP connection](/setup-mcp)
 - **X (Twitter)** — sign in to sync your bookmarked posts
@@ -601,9 +599,9 @@ normal deletion finishes and re-ingestion may be required.
 
 ## Schedule
 
-Use [Schedule](/schedule) to assign sources to specific days and track the week's learning progress. You can drag sources or groups onto a day, move scheduled items between days, remove sources, or clear a day when plans change.
+Use [Schedule](/schedule) to put sources on specific days and track the week's learning progress. You plan in the conversation: ask Chat, or an assistant over MCP, to spread sources across the week, move one, take one off or clear a day; **Schedule for Today** on a source's right-click menu puts it on today yourself.
 
-Schedule completion is tied to reviewed status. A source should be marked done only after a completed or linked review covers it.
+A planned source is done when you check it off in today's list or a review grades it; opening it is never enough.
 
 ## Reviewed sources
 
@@ -631,9 +629,9 @@ A notebook's **Cards** row, at the head of its Studio's outputs, says what the n
 
 ForeverLM also drafts cards on its own as you finish sources: when you mark one as read, read an article to its end, mark a video watched or finish listening, and, at the evening's day close, from sources you finished or highlighted in the last ten days. It drafts a few sources a day, as many as your **New cards each day** fill at about four cards a source (three sources at the default ten), the ones in a notebook with a block on today's calendar or an open Goal first; the rest wait their turn for up to ten days. A source you only read part of is drafted from what you read and highlighted, and one you only talked about in a chat from what the chat covered; a source that already has cards is never drafted again on its own, only by Make Cards. These drafts arrive unticked in To Check, and a **Cards to check** card in the corner of the window, where "Plan your day?" sits, says how many wait: **Go Through Them** opens To Check, ✕ asks again tomorrow, and **Don't Ask Again** in its right-click menu turns it off. The morning after you finish something, the Mac also sends one notification at the hour your review is ready by, "14 cards from 3 sources you finished wait to be checked", which opens To Check; with drafting off, it says how many finished sources have no cards yet and opens Make Cards for them. Each source is mentioned once, and **Say when drafted cards wait** turns the card and the notification off together. Drafting uses your Card Drafting model and stops at your daily background AI limit. **Settings → General → Memory review** has **New cards each day**, **Draft cards from what you finish** and **Say when drafted cards wait**, **Prepare review questions ahead of time**, and **Close the day at**, with its own switch and a line saying what the last close did; an assistant changes them with `set_memory_review_settings`. **Prepare review questions ahead of time** writes the questions for up to six sources a day you are likely to review, today's scheduled ones first, so a review on the Mac, the phone or in the car starts at once; it uses AI and stops at your daily background limit, and with it off a review still runs.
 
-Cards can carry up to four pictures on either face. Question pictures appear before reveal; answer pictures stay hidden until **Show Answer**. Two or more pictures share a comparison grid, which is useful for putting two paper figures side by side. The pictures are durable ForeverLM source or generated-image references, so a device that has the underlying source or image shows the same pixels and one that does not shows the saved description instead.
+Cards can carry up to four pictures on either face. Question pictures appear with the question; answer pictures stay hidden until you have answered. Two or more pictures share a comparison grid, which is useful for putting two paper figures side by side. The pictures are durable ForeverLM source or generated-image references, so a device that has the underlying source or image shows the same pixels and one that does not shows the saved description instead.
 
-**Start Review** gives the window to today's cards, one at a time: the question, **Show Answer** (Space), then the answer, why it holds and its source, and **Forgot** or **Remembered** (← and →, or 1 and 2). Over the card, a strip shows the round a card at a time, a forgotten card in orange, and the edges under the card are the cards still to come; an answered card goes off toward its key's side. Under them, **Go Deeper** (D) answers the card Remembered and then, in place of the next card, asks one question that goes past it: the principle behind it with no names in it, where else it applies, what would prove it wrong, or what it is like, beside an idea from a source in another of your notebooks. The kind changes each time. Type your answer (Return sends, Shift-Return starts a new line) and a few sentences come back on what it got and what it could add; **Next Card** (→) is there all along, so you can skip the question. A card that is a bare fact gets no question, and nothing of your answer is kept. A card you have remembered twice may come back worded differently, on purpose: the answer is the same. At the evening's day close ForeverLM writes three rewordings of such a card and keeps only those a separate check finds ask for exactly its answer without giving it away. If a rewording asks something else, its **⋯** says **This Asks Something Else**: that rewording is dropped and the card is asked in its own words. **Always Ask in Its Own Words** keeps a card from being reworded, and a rewording you miss more often than the card's own words drops itself. Rewording, like the day close's idea extraction, stops at your daily background AI limit and picks up the next evening. Its source opens in the Reader beside the card, at the passage it quotes, without ending the review. A round ends with how it went: **Review Forgotten** asks the missed cards again without counting them twice, **Continue** deals what today still holds, and **Done** closes it. Starting today's review commits you to the day's minutes (fifteen by default): the clock counts while the cards are on screen, and leaving before you have answered the first round ends today's session, as the ✕ by the clock asks first. Once no notebook has a card left today, the day is done, whatever the clock says. The daily reminder and the Today menu's **Today's Review…** open Memory too. On the iPhone, the **Memory** line on Home while cards wait ("6 due · 4 new"), Home's **Memory** row, the daily reminder, the widget and Siri open the same review, drawn as the same deck, one card at a time across all your notebooks: tap **All notebooks** at the top to narrow it to one, **Show Answer**, then **Forgot** or **Remembered**, and the card goes off to the left or the right; the card's source opens in the Reader, and Back returns you to the card. A round ends the same way, with **Review Forgotten**, **Continue** and **Done**, and with nothing due, **Practice New Cards** offers the new cards today leaves out, such as the ones you kept today. A notebook's **Studio** tab on the iPhone has its **Cards** row ("42 kept · 6 due · 9 to check"): tap it to go through its cards to check while any wait, or else to practise the notebook's kept cards. Memory's **Review** on the iPhone draws today's cards as the same deck, with **Start Review** under it. Memory's **To Check** on the iPhone draws each card as a card, with **Skip**, **Edit** and **Keep** under it; swipe right to keep one or left to skip it. Claude or another assistant can run the card review in its own chat with the plugin: `get_due_cards` gives today's cards with the wording to ask, `record_card_result` records each answer as Forgot or Remembered would, and `update_card` rewords, starts over or retires a card on your word.
+**Start Review** gives the window to today's cards, one at a time: the question, and a field on the card where you answer it, typed or dictated (Return checks, Shift-Return starts a new line). **Check** turns the card over, or **I Don't Know** when nothing comes: the card never turns without an answer. Your answer stays over the card's answer, why it holds and its source, so you can grade yourself, and then **Forgot** or **Remembered** (← and →, or 1 and 2); after **I Don't Know** only **Forgot** is there. Your answer is not kept. Over the card, a strip shows the round a card at a time, a forgotten card in orange, and the edges under the card are the cards still to come; an answered card goes off toward its key's side. Under them, **Go Deeper** (D) answers the card Remembered and then, in place of the next card, asks one question that goes past it: the principle behind it with no names in it, where else it applies, what would prove it wrong, or what it is like, beside an idea from a source in another of your notebooks. The kind changes each time. Type your answer (Return sends, Shift-Return starts a new line) and a few sentences come back on what it got and what it could add; **Next Card** (→) is there all along, so you can skip the question. A card that is a bare fact gets no question, and nothing of your answer is kept. A card you have remembered twice may come back worded differently, on purpose: the answer is the same. At the evening's day close ForeverLM writes three rewordings of such a card and keeps only those a separate check finds ask for exactly its answer without giving it away. If a rewording asks something else, its **⋯** says **This Asks Something Else**: that rewording is dropped and the card is asked in its own words. **Always Ask in Its Own Words** keeps a card from being reworded, and a rewording you miss more often than the card's own words drops itself. Rewording, like the day close's idea extraction, stops at your daily background AI limit and picks up the next evening. Its source opens in the Reader beside the card, at the passage it quotes, without ending the review. A round ends with how it went: **Review Forgotten** asks the missed cards again without counting them twice, **Continue** deals what today still holds, and **Done** closes it. Starting today's review commits you to the day's minutes (fifteen by default): they count while the cards are on screen, though no clock is drawn, and leaving before you have answered the first round ends today's session, as the ✕ asks first. Once no notebook has a card left today, the day is done, however many minutes have passed. The daily reminder and the Today menu's **Today's Review…** open Memory too. On the iPhone, the **Memory** line on Home while cards wait ("6 due · 4 new"), Home's **Memory** row, the daily reminder, the widget and Siri open the same review, drawn as the same deck, one card at a time across all your notebooks: tap **All notebooks** at the top to narrow it to one, type or say your answer in the field at the foot and tap its arrow (or **I Don't Know**), then **Forgot** or **Remembered**, and the card goes off to the left or the right; the card's source opens in the Reader, and Back returns you to the card. A round ends the same way, with **Review Forgotten**, **Continue** and **Done**, and with nothing due, **Practice New Cards** offers the new cards today leaves out, such as the ones you kept today. A notebook's **Studio** tab on the iPhone has its **Cards** row ("42 kept · 6 due · 9 to check"): tap it to go through its cards to check while any wait, or else to practise the notebook's kept cards. Memory's **Review** on the iPhone draws today's cards as the same deck, with **Start Review** under it. Memory's **To Check** on the iPhone draws each card as a card, with **Skip**, **Edit** and **Keep** under it; swipe right to keep one or left to skip it. Claude or another assistant can run the card review in its own chat with the plugin: `get_due_cards` gives today's cards with the wording to ask, `record_card_result` records each answer as Forgot or Remembered would, and `update_card` rewords, starts over or retires a card on your word.
 
 ### Mnemonic readings
 
@@ -647,9 +645,9 @@ On the iPhone and iPad, a notebook's **Studio** tab lists its readings with its 
 
 ## In-app Chat
 
-The [Chat panel](/in-app-chat) lets you ask questions and run reviews without leaving ForeverLM. It uses the API provider and model configured in Settings, records review exchanges, and links completed sessions back to the sources they covered.
+The [Chat panel](/in-app-chat) lets you ask questions and run reviews without leaving ForeverLM. It uses the chat model you choose in **Settings → Chat**, on your own OpenRouter key, records review exchanges, and links completed sessions back to the sources they covered.
 
-The review-history sidebar includes both in-app sessions and external chat links saved from Claude, ChatGPT, Gemini, Grok, or Edison Scientific.
+The rail and the Space's **Chats** list both in-app sessions and external chats saved from Claude, ChatGPT, Gemini, Grok, or Edison Scientific.
 
 ## Selecting text in a reader
 
@@ -674,18 +672,18 @@ Transcript** and **Theater View**. A podcast's are under **⋯ › Speakers**:
 
 Use [Text to Speech](/text-to-speech) from the Reader's ⋯ menu or source menu to listen to articles and text sources. The playback bar supports pause/resume, 15-second seeking, speed controls, and stop.
 
-Text-to-speech settings live in **Settings** -> **Voice** -> **Text to speech**. On-device macOS speech is available for local playback, and cloud TTS providers can generate cached audio when configured with API keys.
+Text-to-speech settings live in **Settings** -> **Voice** -> **Text to speech**. Every voice is a speech model OpenRouter serves, run on your own OpenRouter key, and the audio it makes is kept, so playing it again costs nothing.
 
 ### Explainers
 
-A paper or article can also be *explained* rather than read. **Explain** (the lightbulb beside Listen in the Reader toolbar) or **Generate Explainer** in a source's menu writes a spoken explainer of the source — why it matters, what the authors set out to find, how they did it, what they found and what it changes — about seven minutes long, saves it as its own source titled *Explainer: …* beside the original, opens it, and generates its audio with your text-to-speech voice, asking about cost the way Generate Audio does — unless automatic audio is on for **Explainers**, in which case the audio starts without asking. Automatic audio has no Settings pane; ask the chat to switch it on (see [Text to Speech](/text-to-speech#automatic-audio)). An explainer is an ordinary source: it syncs to your iPhone with its audio, can be reviewed in Chat, and is deleted with the source it explains. While the explainer is being written a banner at the bottom of the window offers **Cancel**, as do the × beside the Reader's spinner and **Cancel Writing Explainer** in the source's menu; stopping saves nothing, and a source that already had an explainer keeps it. Explaining a source again rewrites its explainer. The writing model is the **Explainer Writing** task, which has no Settings pane; ask the chat to change it (`set_ai_task_settings`).
+A paper or article can also be *explained* rather than read. **Generate Explainer**, in the Reader's **⋯** menu or a source's menu, writes a spoken explainer of the source — why it matters, what the authors set out to find, how they did it, what they found and what it changes — about seven minutes long, saves it as its own source titled *Explainer: …* beside the original, opens it, and generates its audio with your text-to-speech voice, asking about cost the way Generate Audio does — unless automatic audio is on for **Explainers**, in which case the audio starts without asking. Automatic audio has no Settings pane; ask the chat to switch it on (see [Text to Speech](/text-to-speech#automatic-audio)). An explainer is an ordinary source: it syncs to your iPhone with its audio, can be reviewed in Chat, and is deleted with the source it explains. While the explainer is being written a banner at the bottom of the window offers **Cancel**, as do the × beside the Reader's spinner and **Cancel Writing Explainer** in the source's menu; stopping saves nothing, and a source that already had an explainer keeps it. Explaining a source again rewrites its explainer. The writing model is the **Explainer Writing** task: give it a model of its own on the **Tasks** tab of **Settings → Background**, or ask the chat (`set_ai_task_settings`).
 
 ### Walkthroughs
 
-A paper, a book chapter or an article can be *walked through* in the chat beside its own text. **Walk through** (the walking figure beside Explain in the Reader toolbar, or **Write Walkthrough** in the source's ⋯ menu and its sidebar row) writes a guided walk: six to eighteen steps, each pointing at something printed in the source — a figure, one of its panels, or a quoted passage. The chat beside the Reader then plays it, one step at a time, as a message you can read and reply to: the step's title and explanation, the panel it is about shown enlarged when the page is not beside the chat (press it for a larger view; when the Reader is beside the chat, the outline on the page is the control — the pointer over it is the zoom-in cursor and a click opens the panel or figure large), and — above the message — the figure's label and printed title as a chip that takes the page straight back to it, with the figure's panel letters when it has several so you can follow the explanation panel by panel. On a paper or a chapter of a PDF book the figure or passage is outlined on the page; an article or an EPUB chapter is text, so its steps quote passages the Reader scrolls to and flashes the way a citation is shown. Some steps play a small code-drawn animation of the mechanism a still figure cannot show, under the message, with **Enlarge** to see it larger. A thin strip under the chat's title says where you are — **step n of m**, with **Back**, **Next** and a menu to jump to any step. Playing a step calls no model; whatever you type between steps is answered by the tutor with the source attached, and Next resumes. Two to four steps are open questions: type your answer in your own words and the tutor's reply is the grade — what you got right, what you missed, then the reference answer. The walk is an ordinary chat, saved among Chats and linked to the source, so reopening it later shows the same steps and the strip where you left off. Walk Through joins the chat beside the Reader when that chat is empty or already about the source, and otherwise opens a new chat on it. The steps appear as soon as they are written; the animations arrive one by one behind them. Every figure label and quoted passage is checked against the source before it is saved, so a step never points at something the source does not print. A source keeps one walkthrough, kept only while its text is unchanged; **Write Walkthrough Again** replaces it and **Remove Walkthrough** deletes it. A book is walked one chapter at a time: each chapter has its own walkthrough, and **Write Walkthroughs for All Chapters** on the book's sidebar row writes the chapters that have none, one after another, steps only (no animations, so the cost is one writing call a chapter). Selecting words in the source and pressing **Chat** asks about them in the same chat. The models are the **Walkthrough Writing** and **Walkthrough Animation** tasks, which have no Settings pane; ask the chat to change them (`set_ai_task_settings`). An assistant can write one too: `save_walkthrough`, `generate_walkthrough`, `get_walkthrough` and `delete_walkthrough` in the [MCP tool reference](/mcp-tools); and the chat's own tutor can point the Reader at a figure, a panel or a passage while it explains, the way a step does.
+A paper, a book chapter or an article can be *walked through* in the chat beside its own text. **Write Walkthrough**, in the Reader's **⋯** menu or the source's menu, writes a guided walk: ten to thirty steps, one point each, each pointing at something printed in the source — a figure, one of its panels, or a quoted passage. The chat beside the Reader then plays it, one step at a time, as a message you can read and reply to: the step's title and explanation, the panel it is about shown enlarged when the page is not beside the chat (press it for a larger view; when the Reader is beside the chat, the outline on the page is the control — the pointer over it is the zoom-in cursor and a click opens the panel or figure large), and — above the message — the figure's label and printed title as a chip that takes the page straight back to it, with the figure's panel letters when it has several so you can follow the explanation panel by panel. On a paper or a chapter of a PDF book the figure or passage is outlined on the page; an article or an EPUB chapter is text, so its steps quote passages the Reader scrolls to and flashes the way a citation is shown. Some steps play a small code-drawn animation of the mechanism a still figure cannot show, under the message, with **Enlarge** to see it larger. A thin strip under the chat's title says where you are — **step n of m**, with **Back**, **Next** and a menu to jump to any step. Playing a step calls no model; whatever you type between steps is answered by the tutor with the source attached, and Next resumes. About one step in three is a question, answered in your own words (or, for some, on the figure), and the tutor's reply is the grade — what you got right, what you missed, then the reference answer. The walk is an ordinary chat, saved among Chats and linked to the source, so reopening it later shows the same steps and the strip where you left off. Walk Through joins the chat beside the Reader when that chat is empty or already about the source, and otherwise opens a new chat on it. The steps appear as soon as they are written; the animations arrive one by one behind them. Every figure label and quoted passage is checked against the source before it is saved, so a step never points at something the source does not print. A source keeps one walkthrough, kept only while its text is unchanged; **Write Walkthrough Again** replaces it and **Remove Walkthrough** deletes it. A book is walked one chapter at a time: each chapter has its own walkthrough, and **Write Walkthroughs for All Chapters** on the book's sidebar row writes the chapters that have none, one after another, steps only (no animations, so the cost is one writing call a chapter). Selecting words in the source and pressing **Chat** asks about them in the same chat. The models are the **Walkthrough Writing** and **Walkthrough Animation** tasks, each on the **Tasks** tab of **Settings → Background**, or ask the chat to change them (`set_ai_task_settings`). An assistant can write one too: `save_walkthrough`, `generate_walkthrough`, `get_walkthrough` and `delete_walkthrough` in the [MCP tool reference](/mcp-tools); and the chat's own tutor can point the Reader at a figure, a panel or a passage while it explains, the way a step does.
 
 
-An animation can be walked through too. **Walk Through** in an animation's menu in the Animations pane opens the chat beside it and plays the animation's own walkthrough, one step a message; each step pins the animation to one of its steps, under the conditions the step is about, so the drawing follows the explanation the way a paper's figures do, and a question step asks about what you just watched. Any walkthrough's step can also show a saved animation at a chosen step instead of a small inline drawing — the card under the message plays the animation's page there, and **Enlarge** opens it large. Animations get their walkthroughs from an assistant: Claude or Codex saves one with `save_walkthrough` (an animation built with the kit writes its steps for it).
+An animation can be walked through too. **Walk Through** in an animation's menu opens the chat beside it and plays the animation's own walkthrough, one step a message; each step pins the animation to one of its steps, under the conditions the step is about, so the drawing follows the explanation the way a paper's figures do, and a question step asks about what you just watched. Any walkthrough's step can also show a saved animation at a chosen step instead of a small inline drawing — the card under the message plays the animation's page there, and **Enlarge** opens it large. Animations get their walkthroughs from an assistant: Claude or Codex saves one with `save_walkthrough` (an animation built with the kit writes its steps for it).
 
 A YouTube video can be walked through too, by its talk. Each step is a moment of the video: when the chat beside it plays a step, the Reader moves the video to that moment and holds it paused, so you read the step's cards over the slide the speaker was showing, and press play to hear it. The time on a card takes the video back there. A video's walkthrough comes from an assistant: ask Claude or Codex to walk you through the talk, and it saves the steps with `save_walkthrough`, each at its moment; ForeverLM's own writer walks text only. **Walk Through** appears in the video's toolbar once it has one.
 
@@ -714,7 +712,7 @@ A concept can be *filmed* as well as spoken. A film ForeverLM made is a video in
 
 ## Using sources with AI assistants
 
-Add sources to the context tray at the bottom of the sidebar, then [drag them into Claude, ChatGPT, Gemini, Grok, or Edison Scientific](/drag-and-drop). Your AI assistant can then:
+Drag a source from the Library [into Claude, ChatGPT, Gemini, Grok, or Edison Scientific](/drag-and-drop). Your AI assistant can then:
 - Answer questions about the content
 - Compare ideas across multiple sources
 - Quiz you on the material using the [explain-it-back review](/learning-with-mcp)
@@ -732,33 +730,28 @@ Your AI assistant can also search your sources programmatically: `search_sources
 
 ## Deep Research
 
-Use the globe button beside source search to research a question across the live web. ForeverLM searches from several angles, then shows every cited page for review. Choose **Add** to send a source through the normal article or paper import pipeline, or **Skip** to leave it out. Research results never enter the library automatically.
+Choose **Deep Research** from the **+** at the left of a chat's composer to research a question across the live web. ForeverLM searches from several angles, writes the report into a Page, and lists every page it read under the reply as **Web sources**; **Add** sends one through the normal article or paper import pipeline. Research results never enter the library automatically. See [Deep Research](/in-app-chat#deep-research).
 
 ## LLM calls during import
 
-ForeverLM uses lightweight LLM calls at two points during source import. Both are background tasks: they run on your own OpenRouter key and follow the Background default model, which has no Settings pane; ask the chat to change it (`set_ai_task_settings`).
+ForeverLM uses lightweight LLM calls at two points during source import. Both are background tasks: they run on your own OpenRouter key on the **Text-only** model in **Settings → Background**, and each can have a model of its own on its **Tasks** tab (**Source Classification**, **Transcript Formatting**); the chat can change them too (`set_ai_task_settings`).
 
 | What | Model | When | Why |
 |------|-------|------|-----|
-| **Source classification** | Claude Haiku (Anthropic API key) | When a URL matches a journal domain (Nature, Science, etc.) | Journals publish both research papers and editorial content on the same domain. The LLM distinguishes papers from news/commentary so they land in the right tab. Also runs after fetching article content to catch papers hosted on non-academic domains. |
-| **Transcript cleanup** | GPT-4o-mini (OpenAI API key) | After extracting a YouTube or podcast transcript | Raw auto-generated transcripts lack formatting. The LLM adds paragraph breaks, speaker labels, and removes filler words while preserving all substantive content. |
+| **Source classification** | Your Background text model | When a URL matches a journal domain (Nature, Science, etc.) | Journals publish both research papers and editorial content on the same domain. The LLM distinguishes papers from news/commentary so they land in the right tab. Also runs after fetching article content to catch papers hosted on non-academic domains. |
+| **Transcript cleanup** | Your Background text model | After extracting a YouTube or podcast transcript | Raw auto-generated transcripts lack formatting. The LLM adds paragraph breaks, speaker labels, and removes filler words while preserving all substantive content. |
 
-Both calls are optional — if the relevant API key is missing, the feature is skipped gracefully (sources still import, transcripts are just unformatted).
+Both calls are optional: if one cannot run, the source still imports, and a transcript just stays unformatted.
 
 ## Dealing with paywalled content
 
-When Studio can't fetch content (HTTP 403), it checks for a local PDF:
-
-- **Papers**: save the PDF to `iCloud Drive → Documents → ForeverLM → Papers`
-- **Articles**: save the PDF to `iCloud Drive → Documents → articles`
-
-The app uses fuzzy filename matching, so exact names aren't required. You can also drag and drop a PDF directly onto the source in Studio.
+When ForeverLM can't fetch a source's content (HTTP 403), download the PDF yourself and drop it onto the source's row, or choose **Attach PDF File…** from the row's right-click menu.
 
 For papers specifically, open-access sources (arxiv, bioRxiv, PLOS, PMC) are fetched automatically. See the [Papers](/papers) guide for details.
 
 ## Tips
 
-- **Add sources to the context tray before dragging.** Only sources in the tray are included when you drag into a chat.
+- **Drag the source itself.** A paper with its PDF arrives in the other app as the PDF, any other text source as a text file.
 - **Use semantic search** to find connections between sources you might not have noticed.
 - **Batch processing:** sources stay in your queue until you're ready. No rush to process everything immediately.
 

@@ -5,57 +5,15 @@ title: Books
 
 # Books
 
-ForeverLM treats books differently from articles and papers. Instead of processing an entire book at once, it works chapter by chapter, letting you build your source library gradually as you read.
+ForeverLM treats books differently from articles and papers. A book is split into its chapters, and each chapter is a source of its own, so you read, listen to and review a book a chapter at a time.
 
-## Where to Store Books
+## Adding a Book
 
-Save book PDFs to this iCloud Drive folder:
+On the Library's **Books** tab, choose **Add Book…**, or drop the file on the tab: a PDF, an EPUB, or a DRM-free Kindle book. ForeverLM copies it into your library, which syncs it through your iCloud, and splits it into chapters. An EPUB keeps its own chapters; a PDF is split by your **Book Chapter Splitting** model (on the **Tasks** tab of **Settings → Background**), which reads the PDF's outline. If the model finds no chapters in a PDF, the import stops and says so. An assistant connected over MCP can send an EPUB with `import_epub`.
 
-```
-~/Library/Mobile Documents/com~apple~CloudDocs/Documents/ForeverLM/Books/
-```
-
-In Finder, this appears under **iCloud Drive → Documents → ForeverLM → Books**. Create the folder if it doesn't exist.
-
-Organize books into subfolders by title or author if you have many:
-
-```
-Books/
-├── Deep Learning (Goodfellow)/
-│   ├── deep-learning-ch01-intro.pdf
-│   ├── deep-learning-ch02-linear-algebra.pdf
-│   └── deep-learning-ch03-probability.pdf
-├── The Pragmatic Programmer.pdf
-└── Thinking Fast and Slow.pdf
-```
-
-## Chapter Splitting
-
-Long books need to be split into chapter-sized chunks. The app works best with PDFs in the 20–80 page range per source.
-
-**Why split by chapter:**
+**Why one source per chapter:**
 - Your AI assistant gets more focused context when the source covers one topic
-- You can process chapters as you read, rather than the whole book upfront
-
-**Splitting a PDF on Mac:**
-
-Open the book PDF in Preview, then:
-1. Go to **View → Thumbnails** to see the page sidebar
-2. Select the pages for a chapter (click + Shift-click to select a range)
-3. Drag the selected pages to the Finder folder, or use **File → Export as PDF**
-
-Alternatively, use `pdftk` in Terminal:
-
-```bash
-# Extract pages 45–78 (Chapter 3) from a book
-pdftk book.pdf cat 45-78 output deep-learning-ch03-probability.pdf
-```
-
-## Adding a Book Chapter
-
-1. **Save the chapter PDF** to the Books folder in iCloud Drive.
-2. **Open ForeverLM.** The chapter PDF appears in your Studio queue automatically.
-3. **Select the chapter** to load its content. It's now available to your AI assistant via MCP.
+- You can work through chapters as you read, rather than the whole book upfront
 
 ## Reading a Book
 
@@ -70,10 +28,8 @@ A book opens at the chapter you pick, where you left it, and reads as one book: 
 
 Select a book in the Books list and press Delete, or right-click its cover, then choose **Hide Book**. Every chapter leaves the list together; nothing is deleted, and hiding is visual only, so chat, search and reviews still draw on the book. The foot of the Books list then shows a quiet **N hidden books** row, which opens Hidden Items, where a book comes back with one click of **Unhide**. Selecting several covers and pressing Delete offers **Hide N Books**.
 
-The same confirmation offers **Remove Book from Library**, which forgets the book but leaves its files in iCloud Drive, with a short undo. To delete the files as well, use **Remove Book** in the cover's right-click menu and choose **Remove & Delete Files**.
+The same confirmation offers **Remove Book from Library**, which forgets the book but leaves its files in iCloud, with a short undo. To delete the files as well, use **Remove Book** in the cover's right-click menu and choose **Remove & Delete Files**.
 
 ## Tips
 
-- **Rename chapters descriptively:** `deep-learning-ch03-probability-and-information-theory.pdf` gives the AI better context than `chapter-03.pdf`.
-- **Skip appendices and references:** Process only the chapters you're actively reading.
-- **Process gradually:** Add chapters as you read them — no need to do the whole book upfront.
+- **Skip appendices and references:** Work through only the chapters you're actively reading.
