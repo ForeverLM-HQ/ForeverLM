@@ -452,6 +452,12 @@ struct DayCloseMCPTests {
 
 /// Answers the closer over the managed proxy with one fixed result, whatever
 /// route the config is sent down, and remembers every request body.
+///
+/// The day close makes more than the closer's call: since the working notes
+/// came (old repo c025b06e8, 2026-10-10) `WorkingNoteExtractionPass` makes its
+/// own call after the chats are folded in, whenever there was activity. The
+/// counts below are the closer's alone, picked out by its user message
+/// (`AIService.cohortCloserUserMessage` opens with "SOURCES DISCUSSED").
 final class DayCloseCloserStubURLProtocol: URLProtocol {
     private static let lock = NSLock()
     nonisolated(unsafe) private static var bodies: [String] = []
@@ -471,14 +477,15 @@ final class DayCloseCloserStubURLProtocol: URLProtocol {
         lock.lock(); bodies = []; lock.unlock()
     }
 
+    /// The closer's requests; any other call the day close makes is not counted.
     static func requestCount() -> Int {
-        lock.lock(); defer { lock.unlock() }
-        return bodies.count
+        requestBodies().count
     }
 
+    /// The closer's request bodies, in order.
     static func requestBodies() -> [String] {
         lock.lock(); defer { lock.unlock() }
-        return bodies
+        return bodies.filter { $0.contains("SOURCES DISCUSSED") }
     }
 
     override class func canInit(with request: URLRequest) -> Bool {
