@@ -2,36 +2,38 @@ import SwiftUI
 
 /// The Memory pane's **To Check** (docs/memory-design.md, "Cards to check"):
 /// the cards drafted from sources and not yet gone through, and the items from
-/// before cards, offered once — a source at a time, the scope the pane's
-/// (every notebook, or one: a notebook's Studio Cards row opens it narrowed to
-/// the notebook, in the notebook's document slot).
+/// before cards, offered once, in the scope the pane's (every notebook, or
+/// one: a notebook's Studio Cards row opens it narrowed to the notebook, in
+/// the notebook's document slot).
 ///
-/// The layout (design-mockups/memory-cards-to-check.svg): a centred column;
-/// each source headed by its cover and title, which open it; each card drawn
-/// as the card it would be — its front in the card review's serif, a rule,
-/// its back, why — with its own actions under it.
+/// A card at a time, as Review deals them (since 2026-10-12; product owner,
+/// at the list of every card with its buttons: "more intuitive if the review
+/// process just shows cards that i go through … and then i can say keep /
+/// edit etc"): over the card, the source it is from, which opens it, its
+/// place ("3 of 15") and the strip of the cards gone through; the card drawn
+/// as Review draws one — the deck's paper, its difficulty, the front in the
+/// review's serif, the fold, the back and why, Show Passage — with the edges
+/// of the cards still to come under it; under it **Skip**, **Edit** and
+/// **Keep**.
 ///
-/// - Every card, asked for or not: **Keep** makes it a card of Memory
-///   (`keepMemoryCard`), **Edit** keeps it in the learner's words, **Skip**
-///   drops it for good; with the list focused, K, E and S do the same to the
-///   selected card, and ↑ ↓ move the selection. One way for every card since
-///   2026-10-12: the ticks the cards asked for carried, and a bar counting
-///   only them ("24 of 24 ticked" under "165 cards"), read as a second
-///   system (product owner: "someone should be naive to the app and just
-///   'get it'").
-/// - A source: **Keep All** and **Skip All** (Skip All asks first when it
-///   would retire cards from before).
+/// - **Keep** makes it a card of Memory (`keepMemoryCard`) and goes off to
+///   the right, **Skip** drops it for good and goes off to the left, **Edit**
+///   keeps it in the learner's words. With the pane focused K, E and S do the
+///   same, and Return keeps.
+/// - The ⋯ over the card: **Keep All** and **Skip All** for the rest of the
+///   card's source (Skip All asks first when it would retire cards from
+///   before), and the source's own menu.
 ///
-/// Nothing is written until the learner decides; a decided card leaves the
-/// list at once and comes back only if storage refused it. A draft is offered
-/// for 14 days after it was drafted, which is computed on reading, never
-/// written. The list claims keys only while it has focus: inside a notebook it
-/// sits beside the chat, whose typing is the composer's. The rows are lazy, so
-/// a card builds its buttons only while it is on screen (an assistive app pays
-/// every control an update builds against every control the window holds).
+/// Nothing is written until the learner decides; a decided card leaves at
+/// once and comes back only if storage refused it. A draft is offered for 14
+/// days after it was drafted, which is computed on reading, never written.
+/// The pane claims keys only while it has focus: inside a notebook it sits
+/// beside the chat, whose typing is the composer's, so it takes focus when it
+/// opens only when a chat did not open it at one of its cards.
 struct MemoryCardsToCheckView: View {
     @Environment(StudioViewModel.self) private var vm
     @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// The pane's read of the scope's cards to check, in their order.
     let cards: [MemoryCardToCheck]
@@ -39,26 +41,57 @@ struct MemoryCardsToCheckView: View {
 
     /// Cards decided and on their way to storage, hidden meanwhile.
     @State private var decided: Set<String> = []
+    /// What this sitting decided, in order: kept or not. The strip and the
+    /// count read it; a card storage refused leaves it.
+    @State private var gone: [Gone] = []
+    /// The card in front, when the learner (or a chat's card) chose one;
+    /// otherwise the first that waits.
     @State private var selection: String?
     @State private var editing: MemoryCardToCheck?
-    @State private var confirmingSkipAll: MemoryCardTriage.Group?
-    @FocusState private var listFocused: Bool
+    @State private var confirmingSkipAll: [MemoryCardToCheck]?
+    /// Where the card in front goes once decided: Keep to the right, Skip to
+    /// the left, as Review's Remembered and Forgot.
+    @State private var exitEdge: HorizontalEdge = .trailing
+    @FocusState private var focused: Bool
 
-    /// The column the list reads in, centred in a wide pane.
-    private static let columnMaxWidth: CGFloat = 680
+    private struct Gone: Equatable {
+        let cardID: String
+        let kept: Bool
+    }
+
+    /// The column the card reads in, Review's.
+    private static let columnMaxWidth: CGFloat = 600
+    private static let dealAnimation = Animation.spring(response: 0.38, dampingFraction: 0.86)
 
     private var visible: [MemoryCardToCheck] { cards.filter { !decided.contains($0.cardID) } }
 
+    private var current: MemoryCardToCheck? {
+        let visible = visible
+        if let selection, let card = visible.first(where: { $0.cardID == selection }) { return card }
+        return visible.first
+    }
+
     var body: some View {
         let visible = visible
-        let groups = MemoryCardTriage.grouped(visible)
-        Group {
-            if groups.isEmpty {
-                emptyState
-            } else {
-                list(visible, groups: groups)
+        GeometryReader { geo in
+            Group {
+                if let card = current {
+                    column(height: geo.size.height) { sitting(card, waiting: visible.count) }
+                } else if hasLoaded, !gone.isEmpty {
+                    column(height: geo.size.height) { doneState }
+                } else {
+                    emptyState
+                }
             }
+            .frame(width: geo.size.width, height: geo.size.height)
         }
+        .focusable()
+        .focusEffectDisabled()
+        .focused($focused)
+        .onKeyPress(characters: CharacterSet(charactersIn: "kesKES"), phases: .down) { press in
+            handleKey(press.characters.lowercased()) ? .handled : .ignored
+        }
+        .onKeyPress(.return) { handleKey("k") ? .handled : .ignored }
         .onChange(of: cards.map(\.cardID)) { _, ids in
             // A fresh read: what storage refused is back, what it wrote is gone.
             let present = Set(ids)
@@ -66,26 +99,30 @@ struct MemoryCardsToCheckView: View {
             if let selection, !present.contains(selection) { self.selection = nil }
             takeFocusCard()
         }
-        .onAppear { takeFocusCard() }
+        .onAppear {
+            // Opened at a chat's card, the chat beside it keeps its composer.
+            if windowState?.memoryPaneFocusCardID == nil { focused = true }
+            takeFocusCard()
+        }
         .onChange(of: windowState?.memoryPaneFocusCardID) { _, _ in takeFocusCard() }
         .sheet(item: $editing) { card in
             MemoryCardToCheckEditorSheet(card: card) { edit in
                 editing = nil
-                decide([MemoryCardTriageDecision(card: card, action: .keepEdited(edit))])
+                decide(card, .keepEdited(edit))
             } cancel: {
                 editing = nil
             }
         }
         .alert(
-            "Skip every card from this source?",
+            "Skip the rest of this source's cards?",
             isPresented: Binding(
                 get: { confirmingSkipAll != nil },
                 set: { if !$0 { confirmingSkipAll = nil } }
             ),
             presenting: confirmingSkipAll
-        ) { group in
+        ) { cards in
             Button("Skip All", role: .destructive) {
-                decide(group.cards.map { MemoryCardTriageDecision(card: $0, action: .skip) })
+                decideAll(cards, keep: false)
             }
             Button("Cancel", role: .cancel) {}
         } message: { _ in
@@ -93,6 +130,24 @@ struct MemoryCardsToCheckView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("memory.pane.toCheck")
+    }
+
+    /// Review's column: centred, a little under the top of a tall pane, so a
+    /// longer card never moves the source line over it.
+    private func column<Content: View>(height: CGFloat, @ViewBuilder content: () -> Content) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 22) {
+                content()
+            }
+            .frame(maxWidth: Self.columnMaxWidth, alignment: .leading)
+            .padding(.horizontal, 32)
+            .padding(.top, min(max(height * 0.08, 28), 96))
+            .padding(.bottom, 40)
+            .frame(maxWidth: .infinity)
+        }
+        .contentShape(Rectangle())
+        // A click anywhere in the pane gives it the keys.
+        .simultaneousGesture(TapGesture().onEnded { focused = true })
     }
 
     @ViewBuilder
@@ -114,128 +169,127 @@ struct MemoryCardsToCheckView: View {
         }
     }
 
-    // MARK: The list
-
-    /// The list a row at a time — a source's header, then its cards — flat,
-    /// so the lazy stack builds each card on its own.
-    private enum Row: Identifiable {
-        case source(MemoryCardTriage.Group, isFirst: Bool)
-        case card(MemoryCardToCheck)
-
-        /// A card's row is its card id, which the selection scrolls to.
-        var id: String {
-            switch self {
-            case .source(let group, _): return "source:" + group.sourceID
-            case .card(let card): return card.cardID
-            }
-        }
-    }
-
-    private static func rows(_ groups: [MemoryCardTriage.Group]) -> [Row] {
-        groups.enumerated().flatMap { index, group in
-            [Row.source(group, isFirst: index == 0)] + group.cards.map { Row.card($0) }
-        }
-    }
-
-    private func list(_ visible: [MemoryCardToCheck], groups: [MemoryCardTriage.Group]) -> some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    Text(MemoryCardTriage.summary(visible) ?? "Nothing to check")
-                        .font(.title2.weight(.semibold))
-                        .monospacedDigit()
-                        .textSelection(.disabled)
-                        .accessibilityIdentifier("memory.pane.toCheck.summary")
-                    // What the list is for, to someone who has never seen it.
-                    Text("Keep a card and Review will ask it. Skip it and it is gone.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .textSelection(.disabled)
-                        .padding(.top, 4)
-                        .padding(.bottom, 18)
-                    ForEach(Self.rows(groups)) { row in
-                        switch row {
-                        case .source(let group, let isFirst):
-                            sourceHeader(group)
-                                .padding(.top, isFirst ? 0 : 20)
-                                .padding(.bottom, 10)
-                        case .card(let card):
-                            cardRow(card)
-                                .padding(.bottom, 10)
-                                .transition(.opacity)
-                        }
-                    }
-                }
-                .frame(maxWidth: Self.columnMaxWidth, alignment: .leading)
-                .padding(.horizontal, 24)
-                .padding(.top, 22)
-                .padding(.bottom, 28)
-                .frame(maxWidth: .infinity)
-            }
-            .focusable()
-            .focusEffectDisabled()
-            .focused($listFocused)
-            .onKeyPress(characters: CharacterSet(charactersIn: "kesKES"), phases: .down) { press in
-                handleKey(press.characters.lowercased()) ? .handled : .ignored
-            }
-            .onKeyPress(.upArrow) { moveSelection(by: -1) ? .handled : .ignored }
-            .onKeyPress(.downArrow) { moveSelection(by: 1) ? .handled : .ignored }
-            .onChange(of: selection) { _, id in
-                guard let id else { return }
-                withAnimation(.easeOut(duration: 0.15)) { proxy.scrollTo(id) }
-            }
-        }
-    }
-
-    // MARK: A source
-
-    private func sourceHeader(_ group: MemoryCardTriage.Group) -> some View {
-        let title = sourceTitle(group.sourceID)
-        let article = vm.articlesById[vm.canonicalSourceID(group.sourceID)]
-        return HStack(alignment: .center, spacing: 12) {
-            Button {
-                openSource(group.sourceID)
-            } label: {
-                HStack(spacing: 10) {
-                    sourceThumbnail(article)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(title)
-                            .font(.headline)
-                            .lineLimit(2)
-                            .multilineTextAlignment(.leading)
-                        Text(Self.groupDetail(group))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .monospacedDigit()
-                    }
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.hoverWash(cornerRadius: 8, inset: -5))
-            .help("Open \(title)")
-            .contextMenu { sourceMenu(group.sourceID) }
-            .accessibilityIdentifier("memory.pane.toCheck.source.\(group.sourceID)")
-            Spacer(minLength: 12)
-            Button("Keep All") {
-                decide(MemoryCardTriage.keepAll(group.cards))
-            }
-            .font(.callout)
-            .buttonStyle(.hoverWash(cornerRadius: 6, inset: -5, tint: .accentColor))
-            .help("Keep every card from this source")
-            .accessibilityIdentifier("memory.pane.toCheck.keepAll.\(group.sourceID)")
-            Button("Skip All") {
-                if group.cards.contains(where: { $0.kind == .legacy }) {
-                    confirmingSkipAll = group
-                } else {
-                    decide(group.cards.map { MemoryCardTriageDecision(card: $0, action: .skip) })
-                }
-            }
-            .font(.callout)
-            .buttonStyle(.hoverWash(cornerRadius: 6, inset: -5, tint: .secondary))
-            .help("Skip every card from this source")
-            .accessibilityIdentifier("memory.pane.toCheck.skipAll.\(group.sourceID)")
+    /// Every card gone through: what became of them.
+    private var doneState: some View {
+        let kept = gone.filter(\.kept).count
+        return VStack(alignment: .leading, spacing: 8) {
+            Text("All checked")
+                .font(.title2.weight(.semibold))
+            Text(Self.doneLine(kept: kept, skipped: gone.count - kept))
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
         }
         .textSelection(.disabled)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("memory.pane.toCheck.done")
+    }
+
+    /// "You kept 9 cards and skipped 3. Review will ask the ones you kept."
+    static func doneLine(kept: Int, skipped: Int) -> String {
+        let keptCards = kept == 1 ? "1 card" : "\(kept) cards"
+        switch (kept, skipped) {
+        case (0, _): return "You skipped them all."
+        case (_, 0): return "You kept \(keptCards). Review will ask them."
+        default: return "You kept \(keptCards) and skipped \(skipped). Review will ask the ones you kept."
+        }
+    }
+
+    // MARK: The card in front
+
+    private func sitting(_ card: MemoryCardToCheck, waiting: Int) -> some View {
+        Group {
+            header(card, waiting: waiting)
+            deck(card, waiting: waiting)
+            actions(card)
+            if gone.isEmpty {
+                // What the buttons do, to someone who has never seen them.
+                Text("Keep a card and Review will ask it. Skip it and it is gone.")
+                    .font(.callout)
+                    .foregroundStyle(.tertiary)
+                    .textSelection(.disabled)
+                    .frame(maxWidth: .infinity)
+                    .accessibilityIdentifier("memory.pane.toCheck.hint")
+            }
+        }
+    }
+
+    /// Over the card: its source, which opens it, its place in what waits,
+    /// the ⋯ for its source, and the strip of the cards gone through.
+    private func header(_ card: MemoryCardToCheck, waiting: Int) -> some View {
+        let title = sourceTitle(card.sourceID)
+        let article = vm.articlesById[vm.canonicalSourceID(card.sourceID)]
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: 10) {
+                Button {
+                    openSource(card.sourceID)
+                } label: {
+                    HStack(spacing: 9) {
+                        sourceThumbnail(article)
+                        Text(title)
+                            .font(.system(size: 12.5, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.hoverWash(cornerRadius: 8, inset: -5))
+                .help("Open \(title)")
+                .contextMenu { sourceMenu(card.sourceID) }
+                .accessibilityLabel("Source: \(title)")
+                .accessibilityIdentifier("memory.pane.toCheck.source")
+                Spacer(minLength: 12)
+                Text("\(gone.count + 1) of \(gone.count + waiting)")
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .textSelection(.disabled)
+                    .accessibilityIdentifier("memory.pane.toCheck.place")
+                sourceActionsMenu(card)
+            }
+            MemoryRoundStrip(
+                marks: gone.map { $0.kept ? .remembered : .skipped }
+                    + [.current]
+                    + Array(repeating: .upcoming, count: max(0, waiting - 1))
+            )
+        }
+    }
+
+    /// The rest of the card's source at once, and the source's own menu.
+    private func sourceActionsMenu(_ card: MemoryCardToCheck) -> some View {
+        let rest = visible.filter { $0.sourceID == card.sourceID }
+        let count = rest.count == 1 ? "1 card" : "\(rest.count) cards"
+        return Menu {
+            Section("\(count) from this source") {
+                Button("Keep All") { decideAll(rest, keep: true) }
+                Button("Skip All") {
+                    if rest.contains(where: { $0.kind == .legacy }) {
+                        confirmingSkipAll = rest
+                    } else {
+                        decideAll(rest, keep: false)
+                    }
+                }
+            }
+            Divider()
+            sourceMenu(card.sourceID)
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 26, height: 22)
+                .contentShape(Rectangle())
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .hoverHighlight(cornerRadius: 6, inset: 0)
+        .help("Keep or skip the rest of this source's cards")
+        .accessibilityLabel("More")
+        .accessibilityIdentifier("memory.pane.toCheck.more")
     }
 
     /// The source's picture as every source list draws it: its cover, first
@@ -246,71 +300,68 @@ struct MemoryCardsToCheckView: View {
             let bookCoverPath = article.sourceType == .book
                 ? article.parentGroup.flatMap { vm.bookCoverPaths[$0] }
                 : nil
-            SourceThumbnail(source: article, size: 34, bookCoverPath: bookCoverPath)
+            SourceThumbnail(source: article, size: 24, bookCoverPath: bookCoverPath)
                 .accessibilityHidden(true)
         } else {
             Image(systemName: "doc.text")
-                .font(.system(size: 13))
+                .font(.system(size: 11))
                 .foregroundStyle(.secondary)
-                .frame(width: 34, height: 34)
-                .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(.quaternary))
+                .frame(width: 24, height: 24)
+                .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(.quaternary))
                 .accessibilityHidden(true)
         }
     }
 
-    /// "4 cards · drafted today", by the group's newest draft; a source only
-    /// items from before cards wait on says so instead.
-    static func groupDetail(_ group: MemoryCardTriage.Group, now: Date = Date(), calendar: Calendar = .current) -> String {
-        let count = group.cards.count == 1 ? "1 card" : "\(group.cards.count) cards"
-        guard let drafted = group.cards.compactMap(\.draftedAt).max() else {
-            return "\(count) from before cards"
+    /// The card in front, the edges of those still to come under it, and
+    /// the toss and the deal between them.
+    private func deck(_ card: MemoryCardToCheck, waiting: Int) -> some View {
+        ZStack {
+            MemoryCardToCheckFace(
+                card: card,
+                showPassage: passage(of: card).map { quote in { openSource(card.sourceID, passage: quote) } }
+            )
+            .id(card.cardID)
+            .transition(.memoryCard(leavingTo: exitEdge, reduceMotion: reduceMotion))
+            .onTapGesture(count: 2) { editing = card }
+            .contextMenu {
+                Button("Keep") { decide(card, .keep) }
+                Button("Edit…") { editing = card }
+                Button("Skip") { decide(card, .skip) }
+                Divider()
+                sourceMenu(card.sourceID)
+            }
+            .accessibilityAction(named: "Keep") { decide(card, .keep) }
+            .accessibilityAction(named: "Edit") { editing = card }
+            .accessibilityAction(named: "Skip") { decide(card, .skip) }
         }
-        let day: String
-        if calendar.isDate(drafted, inSameDayAs: now) {
-            day = "today"
-        } else if let yesterday = calendar.date(byAdding: .day, value: -1, to: now),
-                  calendar.isDate(drafted, inSameDayAs: yesterday) {
-            day = "yesterday"
-        } else {
-            day = drafted.formatted(.dateTime.month(.abbreviated).day())
+        .background(alignment: .bottom) {
+            MemoryDeckEdges(remaining: waiting - 1)
         }
-        return "\(count) · drafted \(day)"
+        .padding(.bottom, MemoryDeckEdges.depth)
     }
 
-    // MARK: A card
-
-    private func cardRow(_ card: MemoryCardToCheck) -> some View {
-        let isSelected = selection == card.cardID
-        return MemoryCardToCheckRow(
-            card: card,
-            isSelected: isSelected,
-            showsKeys: isSelected && listFocused,
-            keep: { decide([MemoryCardTriageDecision(card: card, action: .keep)]) },
-            edit: { editing = card },
-            skip: { decide([MemoryCardTriageDecision(card: card, action: .skip)]) },
-            showPassage: passage(of: card).map { quote in { openSource(card.sourceID, passage: quote) } }
-        )
-        .onTapGesture(count: 2) { editing = card }
-        .onTapGesture {
-            selection = card.cardID
-            listFocused = true
-        }
-        .contextMenu {
-            Button("Keep") { decide([MemoryCardTriageDecision(card: card, action: .keep)]) }
-            Button("Edit…") { editing = card }
-            Button("Skip") { decide([MemoryCardTriageDecision(card: card, action: .skip)]) }
-            Divider()
-            if let quote = passage(of: card) {
-                Button("Show Passage") { openSource(card.sourceID, passage: quote) }
+    /// Skip and Edit, pale; Keep, the dark pill that moves on.
+    private func actions(_ card: MemoryCardToCheck) -> some View {
+        let keys = focused && editing == nil
+        return HStack(spacing: 10) {
+            MemoryReviewButton(title: "Skip", key: keys ? "S" : nil, kind: .secondary, minWidth: 110) {
+                decide(card, .skip)
             }
-            sourceMenu(card.sourceID)
+            .help("Drop this card for good (S)")
+            .accessibilityIdentifier("memory.pane.toCheck.skip")
+            MemoryReviewButton(title: "Edit", key: keys ? "E" : nil, kind: .secondary, minWidth: 110) {
+                focused = true
+                editing = card
+            }
+            .help("Keep this card in your own words (E)")
+            .accessibilityIdentifier("memory.pane.toCheck.edit")
+            MemoryReviewButton(title: "Keep", key: keys ? "K" : nil, kind: .primary, minWidth: 180) {
+                decide(card, .keep)
+            }
+            .help("Keep this card: Review will ask it (K or Return)")
+            .accessibilityIdentifier("memory.pane.toCheck.keep")
         }
-        .accessibilityElement(children: .contain)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-        .accessibilityAction(named: "Keep") { decide([MemoryCardTriageDecision(card: card, action: .keep)]) }
-        .accessibilityAction(named: "Edit") { editing = card }
-        .accessibilityAction(named: "Skip") { decide([MemoryCardTriageDecision(card: card, action: .skip)]) }
-        .accessibilityIdentifier("memory.pane.toCheck.card.\(card.cardID)")
+        .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder
@@ -333,28 +384,52 @@ struct MemoryCardsToCheckView: View {
 
     // MARK: Deciding
 
-    /// Hides the decided cards at once, moves the selection past them, and
+    private func decide(_ card: MemoryCardToCheck, _ action: MemoryCardTriageAction) {
+        let kept: Bool
+        if case .skip = action { kept = false } else { kept = true }
+        exitEdge = kept ? .trailing : .leading
+        decide([MemoryCardTriageDecision(card: card, action: action)])
+    }
+
+    /// Keep All or Skip All on the rest of a source's cards.
+    private func decideAll(_ cards: [MemoryCardToCheck], keep: Bool) {
+        exitEdge = keep ? .trailing : .leading
+        decide(keep
+            ? MemoryCardTriage.keepAll(cards)
+            : cards.map { MemoryCardTriageDecision(card: $0, action: .skip) })
+    }
+
+    /// Hides the decided cards at once, deals the next card in front, and
     /// writes the decisions; a card storage refused comes back.
     private func decide(_ decisions: [MemoryCardTriageDecision]) {
         guard !decisions.isEmpty else { return }
+        focused = true
         let ids = Set(decisions.map(\.card.cardID))
-        if let selection, ids.contains(selection) {
-            let remaining = visible.map(\.cardID)
-            let after = remaining.drop { $0 != selection }.dropFirst().first { !ids.contains($0) }
-            let before = remaining.prefix { $0 != selection }.last { !ids.contains($0) }
-            self.selection = after ?? before
+        let front = current?.cardID
+        let order = visible.map(\.cardID)
+        withAnimation(Self.dealAnimation) {
+            if let front, ids.contains(front) {
+                // The next card after the one in front, else the first still waiting.
+                selection = order.drop { $0 != front }.dropFirst().first { !ids.contains($0) }
+            }
+            decided.formUnion(ids)
+            gone += decisions.map { decision in
+                if case .skip = decision.action { return Gone(cardID: decision.card.cardID, kept: false) }
+                return Gone(cardID: decision.card.cardID, kept: true)
+            }
         }
-        withAnimation(.easeOut(duration: 0.18)) { decided.formUnion(ids) }
         Task {
             let result = await vm.triageCardsToCheck(decisions)
-            decided.subtract(result.failed.map(\.cardID))
+            let failed = Set(result.failed.map(\.cardID))
+            guard !failed.isEmpty else { return }
+            decided.subtract(failed)
+            gone.removeAll { failed.contains($0.cardID) }
         }
     }
 
     /// The card a chat's saved cards were opened at
-    /// (`StudioWindowState.memoryPaneFocusCardID`): selected, which scrolls
-    /// to it. The list keeps the keys it had: the chat beside it keeps its
-    /// composer.
+    /// (`StudioWindowState.memoryPaneFocusCardID`): dealt in front. The pane
+    /// keeps the keys it had: the chat beside it keeps its composer.
     private func takeFocusCard() {
         guard let windowState, let id = windowState.memoryPaneFocusCardID else { return }
         if visible.contains(where: { $0.cardID == id }) {
@@ -366,38 +441,19 @@ struct MemoryCardsToCheckView: View {
         }
     }
 
-    private var selectedCard: MemoryCardToCheck? {
-        guard let selection else { return nil }
-        return visible.first { $0.cardID == selection }
-    }
-
-    /// K, E and S on the selected card: kept, edited or skipped there and
-    /// then.
+    /// K, E and S (and Return, which keeps) on the card in front.
     private func handleKey(_ key: String) -> Bool {
-        guard let card = selectedCard else { return false }
+        guard editing == nil, confirmingSkipAll == nil, let card = current else { return false }
         switch key {
         case "k":
-            decide([MemoryCardTriageDecision(card: card, action: .keep)])
+            decide(card, .keep)
         case "e":
             editing = card
         case "s":
-            decide([MemoryCardTriageDecision(card: card, action: .skip)])
+            decide(card, .skip)
         default:
             return false
         }
-        return true
-    }
-
-    private func moveSelection(by step: Int) -> Bool {
-        let ids = visible.map(\.cardID)
-        guard !ids.isEmpty else { return false }
-        guard let selection, let index = ids.firstIndex(of: selection) else {
-            self.selection = step > 0 ? ids.first : ids.last
-            return true
-        }
-        let next = index + step
-        guard ids.indices.contains(next) else { return false }
-        self.selection = ids[next]
         return true
     }
 
@@ -409,146 +465,69 @@ struct MemoryCardsToCheckView: View {
 
 // MARK: - A card to check
 
-/// One card to check, drawn as the card it would be: its difficulty, the
-/// front in the card review's serif, its pictures, the fold, the back, and why
-/// it is right; under it, Show Passage and its actions. While the list has
-/// focus the selected card's buttons show their keys.
-private struct MemoryCardToCheckRow: View {
+/// One card to check, drawn as Review draws a card with its answer open: the
+/// deck's paper, its difficulty (or that it is from before cards), the front
+/// in the review's serif, its pictures, the fold, the back, why it holds, and
+/// Show Passage.
+private struct MemoryCardToCheckFace: View {
     let card: MemoryCardToCheck
-    let isSelected: Bool
-    let showsKeys: Bool
-    let keep: () -> Void
-    let edit: () -> Void
-    let skip: () -> Void
     /// Opens the source at the passage the card quotes; nil when it quotes none.
     let showPassage: (() -> Void)?
 
-    @Environment(\.colorScheme) private var colorScheme
-    @State private var isHovered = false
-
-    private static let cornerRadius: CGFloat = 12
+    private var tags: [String] {
+        [card.face.difficulty?.rawValue, card.kind == .legacy ? "From before cards" : nil].compactMap { $0 }
+    }
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
         VStack(alignment: .leading, spacing: 0) {
-            face
-            actions
-                .padding(.top, 12)
-        }
-        .padding(.horizontal, 18)
-        .padding(.top, 16)
-        .padding(.bottom, 12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            shape
-                .fill(Color(nsColor: .controlBackgroundColor))
-                // In dark mode the control colour is the pane's own; a touch
-                // of white lifts the card off it.
-                .overlay(shape.fill(Color.white.opacity(colorScheme == .dark ? 0.045 : 0)))
-                .shadow(color: .black.opacity(isHovered || isSelected ? 0.08 : 0.04), radius: isHovered ? 8 : 4, y: 2)
-        )
-        .overlay(shape.strokeBorder(borderColor, lineWidth: isSelected ? 1.5 : 0.5))
-        .contentShape(shape)
-        .onHover { isHovered = $0 }
-        .animation(.easeOut(duration: 0.12), value: isHovered)
-    }
-
-    private var borderColor: Color {
-        if isSelected { return Color.accentColor.opacity(showsKeys ? 0.75 : 0.4) }
-        return Color.primary.opacity(isHovered ? 0.18 : 0.1)
-    }
-
-    // MARK: The face
-
-    private var face: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if card.face.difficulty != nil || card.kind == .legacy {
-                MemoryCardTagLine(tags: [card.face.difficulty?.rawValue, card.kind == .legacy ? "From before cards" : nil].compactMap { $0 })
-                    .padding(.bottom, 10)
+            if !tags.isEmpty {
+                MemoryCardTagLine(tags: tags)
+                    .padding(.bottom, 16)
             }
             Text(card.face.front)
-                .font(.system(size: 16, design: .serif))
-                .foregroundStyle(.primary)
+                .font(MemoryCardMetrics.frontFont)
+                .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("memory.pane.toCheck.front")
             if !card.face.frontImages.isEmpty {
                 MemoryCardImageGrid(images: card.face.frontImages)
-                    .padding(.top, 10)
+                    .padding(.top, 16)
             }
             MemoryCardFold()
-                .padding(.vertical, 12)
+                .padding(.vertical, 22)
             Text(card.face.back)
-                .font(.system(size: 13.5))
-                .foregroundStyle(Color.primary.opacity(0.85))
+                .font(MemoryCardMetrics.backFont)
+                .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("memory.pane.toCheck.back")
             if !card.face.backImages.isEmpty {
                 MemoryCardImageGrid(images: card.face.backImages)
-                    .padding(.top, 10)
+                    .padding(.top, 16)
             }
             if !card.face.why.isEmpty {
                 MemoryCardWhyLine(why: card.face.why)
-                    .padding(.top, 10)
+                    .padding(.top, 14)
             }
-        }
-        .textSelection(.disabled)
-    }
-
-    // MARK: The actions
-
-    private var actions: some View {
-        HStack(spacing: 6) {
             if let showPassage {
                 Button(action: showPassage) {
                     Label("Show Passage", systemImage: "text.quote")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.hoverWash(cornerRadius: 6, inset: -4, tint: .secondary))
                 .help("Open the source at the passage this card stands on")
-                .accessibilityIdentifier("memory.pane.toCheck.passage.\(card.cardID)")
-            }
-            Spacer(minLength: 8)
-            actionButton("Skip", systemImage: "xmark", key: "S", tint: .secondary, run: skip)
-                .accessibilityIdentifier("memory.pane.toCheck.skip.\(card.cardID)")
-            actionButton("Edit", systemImage: "pencil", key: "E", tint: .secondary, run: edit)
-                .accessibilityIdentifier("memory.pane.toCheck.edit.\(card.cardID)")
-            Button(action: keep) {
-                actionLabel("Keep", systemImage: "checkmark", key: "K")
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 3)
-                    .background(Color.accentColor.opacity(0.12), in: Capsule())
-            }
-            .buttonStyle(.hoverWash(in: Capsule(), inset: 0, opacity: 0.1, tint: .accentColor))
-            .help("Keep (K)")
-            .accessibilityIdentifier("memory.pane.toCheck.keep.\(card.cardID)")
-        }
-        .font(.callout)
-        .labelStyle(.titleAndIcon)
-    }
-
-    private func actionButton(_ title: String, systemImage: String, key: String, tint: Color, run: @escaping () -> Void) -> some View {
-        Button(action: run) {
-            actionLabel(title, systemImage: systemImage, key: key)
-                .padding(.horizontal, 4)
-        }
-        .buttonStyle(.hoverWash(cornerRadius: 6, inset: -3, tint: tint))
-        .help("\(title) (\(key))")
-    }
-
-    private func actionLabel(_ title: String, systemImage: String, key: String) -> some View {
-        HStack(spacing: 5) {
-            Image(systemName: systemImage)
-                .font(.system(size: 10.5, weight: .semibold))
-            Text(title)
-            if showsKeys {
-                Text(key)
-                    .font(.system(size: 9.5, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.secondary)
-                    .frame(minWidth: 15, minHeight: 15)
-                    .background(
-                        RoundedRectangle(cornerRadius: 3.5, style: .continuous)
-                            .strokeBorder(Color.primary.opacity(0.2))
-                    )
-                    .accessibilityHidden(true)
+                .accessibilityIdentifier("memory.pane.toCheck.passage")
+                .padding(.top, 20)
             }
         }
+        .textSelection(.disabled)
+        .padding(.horizontal, 34)
+        .padding(.top, 30)
+        .padding(.bottom, 28)
+        .frame(maxWidth: .infinity, minHeight: MemoryCardMetrics.cardMinimumHeight, alignment: .topLeading)
+        .memoryCardSurface()
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("memory.pane.toCheck.card")
     }
 }
 

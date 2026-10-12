@@ -11,7 +11,7 @@ import SwiftUI
 ///   them (`startCardPractice`).
 /// - **To Check**: the cards drafted from sources and not yet kept or
 ///   skipped, and the items from before cards, offered once — Keep, Edit,
-///   Skip, a source at a time (`MemoryCardsToCheckView`).
+///   Skip, a card at a time (`MemoryCardsToCheckView`).
 /// - **All Cards**: every kept card in the scope, searched, by source or by
 ///   notebook; a click edits the card, and its menu starts it over or
 ///   retires it.
@@ -481,11 +481,13 @@ struct MemoryPane: View {
 
     private var toCheckSection: some View {
         MemoryCardsToCheckView(cards: snapshot.toCheck, hasLoaded: hasLoaded)
+            // Another scope is another sitting: its count starts over.
+            .id(scopeTag)
     }
 
     // MARK: All cards
 
-    /// The column All Cards reads in, centred in a wide pane: To Check's.
+    /// The column All Cards reads in, centred in a wide pane.
     private static let columnMaxWidth: CGFloat = 680
 
     /// The list a row at a time — a group's header, then its cards — flat,
