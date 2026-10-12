@@ -355,7 +355,15 @@ struct SpaceBrowseView: View {
             ? SpaceCatalog.chatItems(vm: vm)
             : SpaceCatalog.items(vm: vm, images: listsImages ? images : [])
         let inPlace = all.filter { lists($0) }
-        let filtered = sorted(inPlace.filter { passesFilters($0) })
+        // Read once for the whole list: the notebook filter asks for every
+        // notebook's id, and asking per item rebuilt the notebook list for
+        // each row on every redraw.
+        let filters = SpaceItemFilters(
+            scope: effectiveScope,
+            notebookFilter: effectiveNotebookFilter,
+            query: query
+        )
+        let filtered = sorted(inPlace.filter { passesFilters($0, filters) })
         // Trash lists what was trashed first, then the archived notebooks.
         let shown = destination == .trash ? SpaceCatalog.trashOrder(filtered) : filtered
         let sections = collectionSections(shown)
@@ -522,9 +530,19 @@ struct SpaceBrowseView: View {
         return false
     }
 
+    /// What `passesFilters` asks of every item, read once per pass.
+    private struct SpaceItemFilters {
+        let scope: SpaceScope
+        let notebookFilter: ArtifactsNotebookFilter
+        let query: String
+    }
+
     /// The scope, the notebook filter, the hidden rule, the daily-note rule
     /// and the search.
-    private func passesFilters(_ item: SpaceItem) -> Bool {
+    private func passesFilters(_ item: SpaceItem, _ filters: SpaceItemFilters) -> Bool {
+        let effectiveScope = filters.scope
+        let effectiveNotebookFilter = filters.notebookFilter
+        let query = filters.query
         // A hidden record is off every list but Hidden's; in Trash it is
         // listed so it can be restored or deleted.
         if destination != .trash, item.isHidden != (effectiveScope == .hidden) { return false }

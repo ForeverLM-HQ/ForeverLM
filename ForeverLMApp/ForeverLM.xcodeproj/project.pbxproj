@@ -1720,6 +1720,7 @@
 		E686D77F42EFCA4DC3EF312B /* CourseCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D1EFC140173119896D3F01C /* CourseCore.swift */; };
 		E6A4AF99C281CF30E08C7FF2 /* SkillRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = C48004E7AC4F58CD336EAE67 /* SkillRecord.swift */; };
 		E6D5849DA2D39DA1A8A8212C /* MigrationCatchUpTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DA299D65DD9A3B316B67565 /* MigrationCatchUpTests.swift */; };
+		E6F229A0C523DAA5A6DCA03F /* SidebarDerivedStateCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C53F1D41F0CA04E078B00254 /* SidebarDerivedStateCacheTests.swift */; };
 		E70F0783FC1C48B19A0C1691 /* MacArticleSpeechVoicePreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5DAE941E4DD24EEDAA2E055 /* MacArticleSpeechVoicePreview.swift */; };
 		E77641C3F0777683CB950AF1 /* MemoryPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE4E76CD1FE51A7A218E5B15 /* MemoryPane.swift */; };
 		E7C88D6FC20152EBDD77845D /* MemoryUnderstandingProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = E04B11009F4F07ACA60BE71C /* MemoryUnderstandingProbe.swift */; };
@@ -3323,6 +3324,7 @@
 		C4DD7DD05ED42DC9791DC731 /* StudioViewSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudioViewSupport.swift; sourceTree = "<group>"; };
 		C4E1EF0E68452AD83F24B86C /* StudioSidebar+Sections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StudioSidebar+Sections.swift"; sourceTree = "<group>"; };
 		C5292C3CCE02A3C703FF752B /* KnowledgeMapModel+Proposals.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "KnowledgeMapModel+Proposals.swift"; sourceTree = "<group>"; };
+		C53F1D41F0CA04E078B00254 /* SidebarDerivedStateCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarDerivedStateCacheTests.swift; sourceTree = "<group>"; };
 		C58134CCC6134326C178AFDA /* journal-feed-substack-rss.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = "journal-feed-substack-rss.xml"; sourceTree = "<group>"; };
 		C5A6A8C971C4858129F117A0 /* CitedTextbookMatch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CitedTextbookMatch.swift; sourceTree = "<group>"; };
 		C5B3644595E57307BFCA9406 /* ReaderReferencesPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderReferencesPanel.swift; sourceTree = "<group>"; };
@@ -4460,6 +4462,7 @@
 				0AA5EB96CB3DD086F5E1BC0F /* SettingsCatalogTests.swift */,
 				C69530B0AA9C319F39EDE408 /* SharedDerivedCacheAdoptionTests.swift */,
 				61DE94C1DE4FE85E6D8C4F00 /* SharingRightsAffirmationTests.swift */,
+				C53F1D41F0CA04E078B00254 /* SidebarDerivedStateCacheTests.swift */,
 				54986EC970E85D5EA532AE32 /* SidebarSourceSelectionTests.swift */,
 				1EF1CDB498101BE0BA3C6332 /* SiriAppIntentsTests.swift */,
 				845F3E87CF57F73AB60F5238 /* SkillTests.swift */,
@@ -6574,6 +6577,7 @@
 				9B004D84D6FB4EF118800453 /* ShareServiceTests.swift in Sources */,
 				C462012633F11D6E1BC1B749 /* SharedDerivedCacheAdoptionTests.swift in Sources */,
 				5A09DEE8B1964750D4C922EA /* SharingRightsAffirmationTests.swift in Sources */,
+				E6F229A0C523DAA5A6DCA03F /* SidebarDerivedStateCacheTests.swift in Sources */,
 				CD348C5D4A24B5D4C784B533 /* SidebarSourceSelectionTests.swift in Sources */,
 				B210F8CC8D0F03AF418048B2 /* SiriAppIntentsTests.swift in Sources */,
 				4A7D41CF316FDCEC59042202 /* SittingProjectionTests.swift in Sources */,

@@ -3060,8 +3060,9 @@ struct StudioArticle: Identifiable, Codable, Equatable {
         let absolute = StorageService.absoluteSourcePath(rawPath)
         guard absolute.hasPrefix("/") else { return }
         resolvedPathCacheLock.lock()
-        negativeResolvedPathCache.remove(absolute)
-        resolvedPathCache[absolute] = absolute
+        let wasMissing = negativeResolvedPathCache.remove(absolute) != nil
+        let previous = resolvedPathCache.updateValue(absolute, forKey: absolute)
+        if wasMissing || previous != absolute { resolvedPathCacheGenerationValue &+= 1 }
         resolvedPathCacheLock.unlock()
     }
 
@@ -3324,6 +3325,20 @@ struct StudioArticle: Identifiable, Codable, Equatable {
     nonisolated(unsafe) private static var resolvedPathCache: [String: String] = [:]
     /// Negative half of the resolved-path cache: paths that statted as missing.
     nonisolated(unsafe) private static var negativeResolvedPathCache: Set<String> = []
+    nonisolated(unsafe) private static var resolvedPathCacheGenerationValue = 0
+
+    /// Moves whenever the tables above change what they hold: a path statted
+    /// for the first time, a miss promoted, entries dropped. The cache-only
+    /// accessors (`cachedHasUsablePDF` above all) can answer differently
+    /// afterwards with no source having changed, so a memo built from them
+    /// across the library — the Papers lists' share of it
+    /// (`StudioViewModel.paperLibraryIndex`) — keys on this beside the articles
+    /// revision. Read under the lock; written only by the mutators below.
+    static var resolvedPathCacheGeneration: Int {
+        resolvedPathCacheLock.lock()
+        defer { resolvedPathCacheLock.unlock() }
+        return resolvedPathCacheGenerationValue
+    }
 
     private enum CachedLocalPathAvailability {
         case present(String)
@@ -3353,6 +3368,7 @@ struct StudioArticle: Identifiable, Codable, Equatable {
             negativeResolvedPathCache.remove(path)
             resolvedPathCache[path] = resolved
         }
+        resolvedPathCacheGenerationValue &+= 1
         resolvedPathCacheLock.unlock()
         return true
     }
@@ -3366,10 +3382,12 @@ struct StudioArticle: Identifiable, Codable, Equatable {
             .filter { $0.hasPrefix("/") }
         guard !absolutes.isEmpty else { return }
         resolvedPathCacheLock.lock()
+        var dropped = false
         for path in absolutes {
-            resolvedPathCache.removeValue(forKey: path)
-            negativeResolvedPathCache.remove(path)
+            if resolvedPathCache.removeValue(forKey: path) != nil { dropped = true }
+            if negativeResolvedPathCache.remove(path) != nil { dropped = true }
         }
+        if dropped { resolvedPathCacheGenerationValue &+= 1 }
         resolvedPathCacheLock.unlock()
     }
 
@@ -3382,6 +3400,7 @@ struct StudioArticle: Identifiable, Codable, Equatable {
         resolvedPathCacheLock.lock()
         resolvedPathCache.removeAll(keepingCapacity: true)
         negativeResolvedPathCache.removeAll(keepingCapacity: true)
+        resolvedPathCacheGenerationValue &+= 1
         resolvedPathCacheLock.unlock()
     }
 
@@ -3402,12 +3421,12 @@ struct StudioArticle: Identifiable, Codable, Equatable {
         let (resolved, found) = locateLocalPath(path)
         guard found else {
             resolvedPathCacheLock.lock()
-            negativeResolvedPathCache.insert(path)
+            if negativeResolvedPathCache.insert(path).inserted { resolvedPathCacheGenerationValue &+= 1 }
             resolvedPathCacheLock.unlock()
             return nil
         }
         resolvedPathCacheLock.lock()
-        resolvedPathCache[path] = resolved
+        if resolvedPathCache.updateValue(resolved, forKey: path) != resolved { resolvedPathCacheGenerationValue &+= 1 }
         resolvedPathCacheLock.unlock()
         return resolved
     }
@@ -3431,9 +3450,9 @@ struct StudioArticle: Identifiable, Codable, Equatable {
         let (resolved, found) = locateLocalPath(path)
         resolvedPathCacheLock.lock()
         if found {
-            resolvedPathCache[path] = resolved
-        } else {
-            negativeResolvedPathCache.insert(path)
+            if resolvedPathCache.updateValue(resolved, forKey: path) != resolved { resolvedPathCacheGenerationValue &+= 1 }
+        } else if negativeResolvedPathCache.insert(path).inserted {
+            resolvedPathCacheGenerationValue &+= 1
         }
         resolvedPathCacheLock.unlock()
         return resolved

@@ -576,6 +576,22 @@ class StudioViewModel {
     /// takes a fresh snapshot — only so a source whose fields are unchanged is not
     /// analysed again (`artifactSourcePickerIndex()`).
     @ObservationIgnored var artifactSourcePickerIndexMemo: ArtifactSourcePickerIndex?
+    /// The library's share of the Papers lists (`paperLibraryIndex`) and its
+    /// storage-degraded set (`unavailableRecordedPaperPDFIDs`), each keyed on
+    /// all it reads (`PaperLibraryKey`). One copy serves every window, and the
+    /// sidebar's invalidation — a schedule or preference reload, a sync pass —
+    /// leaves them be: none of those changes what they hold.
+    @ObservationIgnored var paperLibraryIndexCache: PaperLibraryIndex?
+    @ObservationIgnored var paperLibraryUnavailableCache: (key: PaperLibraryKey, ids: Set<String>)?
+    /// Each paper's listing facts by source id (`paperListingFacts(for:)`),
+    /// parsed again only when a field they are read from changes.
+    @ObservationIgnored var paperListingFactsByID: [String: PaperListingFacts] = [:]
+    /// Each source's fields as a sidebar search reads them, by source id
+    /// (`sidebarSearchAnalysis(of:)`), and the query being asked of them
+    /// (`sidebarSearchMatcher(for:)`): a search pass compares, it does not
+    /// re-fold the library.
+    @ObservationIgnored var sidebarSearchAnalyses: [String: SidebarSearchAnalysis] = [:]
+    @ObservationIgnored var sidebarSearchMatcherMemo: SidebarSearchMatcher?
     @ObservationIgnored var bookCoverPopulationTask: Task<Void, Never>?
     @ObservationIgnored var cloudKitRemoteRefreshDebounceTask: Task<Void, Never>?
     @ObservationIgnored var cloudKitRemoteRefreshTask: Task<Void, Never>?
@@ -742,21 +758,77 @@ class StudioViewModel {
     /// including archived Notebooks. Most UI should use `notebooks`; the gallery uses
     /// this complete set to provide the explicit Archived view.
     var allNotebooks: [LearningGoalRecord] {
-        learningGoals.filter { goal in
-            goal.isNotebook && goal.teamID == activeTeamID
-                && (screenRecordScope?.allowsNotebook(id: goal.id, createdAt: goal.createdAt) ?? true)
-        }
+        notebookLists.all
     }
 
     /// Active Notebooks are the normal app navigation/context surface. Archived
     /// Notebooks remain fully persisted and synced, but disappear from selectors,
     /// Today, drag destinations, and the navigation rail until restored.
     var notebooks: [LearningGoalRecord] {
-        orderedNotebooks(allNotebooks.filter { !$0.isArchived })
+        var lists = notebookLists
+        if let active = lists.active { return active }
+        let active = orderedNotebooks(lists.all.filter { !$0.isArchived })
+        lists.active = active
+        notebookListsCache = lists
+        return active
     }
 
     var archivedNotebooks: [LearningGoalRecord] {
-        orderedNotebooks(allNotebooks.filter(\.isArchived))
+        var lists = notebookLists
+        if let archived = lists.archived { return archived }
+        let archived = orderedNotebooks(lists.all.filter(\.isArchived))
+        lists.archived = archived
+        notebookListsCache = lists
+        return archived
+    }
+
+    /// Everything the notebook lists are cut from. `learningGoalsRevision`
+    /// stands for the goals themselves; the library, the Screen record scope
+    /// and the order compare by value, a single check while they are the same
+    /// value.
+    struct NotebookListsKey: Equatable {
+        let learningGoalsRevision: Int
+        let activeTeamID: String?
+        let screenRecordScope: ScreenRecordScope?
+        let notebookOrder: [String]
+    }
+
+    /// `allNotebooks`, and `notebooks` and `archivedNotebooks` once asked for.
+    struct NotebookLists {
+        let key: NotebookListsKey
+        let all: [LearningGoalRecord]
+        var active: [LearningGoalRecord]?
+        var archived: [LearningGoalRecord]?
+    }
+
+    var currentNotebookListsKey: NotebookListsKey {
+        // Read for the dependency: a view that hits the memo still re-renders
+        // when the goals change, though the key holds only their revision.
+        _ = learningGoals
+        return NotebookListsKey(
+            learningGoalsRevision: learningGoalsRevision,
+            activeTeamID: activeTeamID,
+            screenRecordScope: screenRecordScope,
+            notebookOrder: notebookOrder
+        )
+    }
+
+    /// The notebook lists, built once per change to what they read. Rows read
+    /// them by the hundred — every chat row in the rail, every item the Space
+    /// lists — and each read used to filter every goal and rebuild the order
+    /// (build 210's stalls, 2026-10-11: `notebooks` in 9 of them).
+    private var notebookLists: NotebookLists {
+        let key = currentNotebookListsKey
+        if let cached = notebookListsCache, cached.key == key {
+            return cached
+        }
+        let all = learningGoals.filter { goal in
+            goal.isNotebook && goal.teamID == activeTeamID
+                && (screenRecordScope?.allowsNotebook(id: goal.id, createdAt: goal.createdAt) ?? true)
+        }
+        let lists = NotebookLists(key: key, all: all)
+        notebookListsCache = lists
+        return lists
     }
 
     // MARK: - The notebook last worked in
@@ -1424,6 +1496,7 @@ class StudioViewModel {
     @ObservationIgnored var memoryCompanionPlanDay: String?
     var learningGoals: [LearningGoalRecord] = [] {
         didSet {
+            learningGoalsRevision &+= 1
             preloadedDailyReviewPlans = [:]
             preloadedDailyReviewPlanDay = nil
             scheduleInputsRevision &+= 1
@@ -1437,6 +1510,13 @@ class StudioViewModel {
     /// an empty list means "still reading", and a window that came back from
     /// a relaunch holding a notebook keeps it (`closeNotebooksMissingFromLibrary`).
     var hasLoadedLearningGoalsOnce = false
+    /// Bumped on every change to `learningGoals`, so the notebook lists
+    /// derived from it (`notebookLists`) tell in one comparison whether they
+    /// still hold. Not observed: a view depends on `learningGoals` itself,
+    /// which `currentNotebookListsKey` still reads.
+    @ObservationIgnored private(set) var learningGoalsRevision = 0
+    @ObservationIgnored var notebookListsCache: NotebookLists?
+    @ObservationIgnored var notebookHoldingContextCache: NotebookHoldingContext?
     /// The Ideas tab's list, newest first, archived included: the learner's
     /// own thoughts and what each is linked to (docs/ideas-design.md).
     var ideas: [IdeaRecord] = []

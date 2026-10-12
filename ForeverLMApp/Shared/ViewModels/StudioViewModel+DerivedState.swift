@@ -28,6 +28,77 @@ extension StudioViewModel {
     /// Active articles for the current tab, filtered by search text and paginated.
     /// Grouped collections show all items (no pagination) so their sections stay coherent.
     var activeTabArticles: [StudioArticle] {
+        // The Videos tab pages by state the listing key does not carry
+        // (transcript fetches in flight), so it is built on each read, as it
+        // always was.
+        if sidebarTab == .videos { return pagedVideoTabArticles }
+        return activeTabListing.articles
+    }
+
+    /// The ids of `activeTabArticles`. The Library list reads it at least once
+    /// per render, and AppKit asks the List's selection binding built from it
+    /// many times more; on a grouped tab it is every row of the tab.
+    var visibleSidebarSourceIDs: Set<String> {
+        if sidebarTab == .videos { return Set(pagedVideoTabArticles.map(\.id)) }
+        return activeTabListing.ids
+    }
+
+    /// The current tab's rows and their ids, memoized per window on everything
+    /// they are built from (`ActiveTabListingCacheKey`), so the many reads one
+    /// render makes cost one build. The key is computed on every read, which is
+    /// what keeps a view that hits the memo subscribed to those inputs. Not for
+    /// the Videos tab (`activeTabArticles`).
+    struct ActiveTabListing {
+        let articles: [StudioArticle]
+        let ids: Set<String>
+
+        init(_ articles: [StudioArticle]) {
+            self.articles = articles
+            ids = Set(articles.map(\.id))
+        }
+    }
+
+    struct ActiveTabListingCacheKey: Equatable {
+        let filter: SidebarFilterCacheKey
+        /// The Papers tab's partition and the limit of each of its sections;
+        /// nil on every other tab, whose rows the filter key settles alone
+        /// (it carries the tab, the Meetings order and `displayLimit`).
+        let papers: PapersSectionsKey?
+    }
+
+    struct PapersSectionsKey: Equatable {
+        let partition: PapersPartitionCacheKey
+        let withoutPDFLimit: Int
+        let withPDFLimit: Int
+        let paywalledLimit: Int
+    }
+
+    private var activeTabListing: ActiveTabListing {
+        let filter = currentSidebarFilterCacheKey
+        let key = ActiveTabListingCacheKey(
+            filter: filter,
+            papers: sidebarTab == .papers
+                ? PapersSectionsKey(
+                    partition: currentPapersPartitionCacheKey(filter: filter),
+                    withoutPDFLimit: papersWithoutPDFDisplayLimit,
+                    withPDFLimit: papersWithPDFDisplayLimit,
+                    paywalledLimit: paywalledPapersDisplayLimit
+                )
+                : nil
+        )
+        let store = sidebarStore
+        if let cached = store.activeTabListingCache, store.activeTabListingCacheKey == key {
+            return cached
+        }
+        let listing = ActiveTabListing(computeActiveTabArticles())
+        store.activeTabListingCache = listing
+        store.activeTabListingCacheKey = key
+        return listing
+    }
+
+    /// What `activeTabArticles` lists, built afresh: its body before the memo,
+    /// and what the memo must always agree with.
+    func computeActiveTabArticles() -> [StudioArticle] {
         if sidebarTab == .videos {
             return pagedVideoTabArticles
         }
@@ -55,10 +126,6 @@ extension StudioViewModel {
     /// rather than one row per series.
     var listsMeetingsByDate: Bool {
         sidebarTab == .meetings && meetingListOrder == .byDate
-    }
-
-    var visibleSidebarSourceIDs: Set<String> {
-        Set(activeTabArticles.map(\.id))
     }
 
     /// Drops list-selected sources the current tab or search no longer shows, so a bulk
@@ -236,11 +303,7 @@ extension StudioViewModel {
     }
 
     var filteredProcessingPapers: [StudioArticle] {
-        let processingIDs = processingPaperIDs
-        guard !processingIDs.isEmpty else { return [] }
-        return filteredActiveItems.filter {
-            $0.sourceType == .paper && processingIDs.contains($0.id)
-        }
+        papersPartition.processing
     }
 
     /// Whether any in-memory ingestion task still owns this paper. This is the
@@ -308,11 +371,63 @@ extension StudioViewModel {
     }
 
     var papersNeedingPDFAttention: [StudioArticle] {
-        let processingIDs = processingPaperIDs
-        let missingPDFIDs = Set(filteredPaperItems(hasPDF: false).map(\.id))
-        let withPDFIDs = Set(filteredPaperItems(hasPDF: true).map(\.id))
-        let partitionedIDs = missingPDFIDs.union(withPDFIDs)
-        return filteredActiveItems.filter {
+        papersPartition.needingPDFAttention
+    }
+
+    /// The Papers tab's four lists over the current window's filtered papers:
+    /// Processing, needing attention, with a PDF, paywalled. A render reads
+    /// them a dozen times over — each section's rows, its count, "Show More",
+    /// the visible ids — so they are built together, once per state.
+    struct PapersPartition {
+        let processing: [StudioArticle]
+        let needingPDFAttention: [StudioArticle]
+        let withPDF: [StudioArticle]
+        let paywalledWithoutPDF: [StudioArticle]
+    }
+
+    /// Everything the partition is built from: the filtered list, the
+    /// library's share (`PaperLibraryKey`) and the papers some task owns.
+    struct PapersPartitionCacheKey: Equatable {
+        let filter: SidebarFilterCacheKey
+        let library: PaperLibraryKey
+        let processingPaperIDs: Set<String>
+    }
+
+    func currentPapersPartitionCacheKey(filter: SidebarFilterCacheKey) -> PapersPartitionCacheKey {
+        PapersPartitionCacheKey(
+            filter: filter,
+            library: currentPaperLibraryKey,
+            processingPaperIDs: processingPaperIDs
+        )
+    }
+
+    /// Memoized per window in `sidebarStore`, which the sidebar invalidation
+    /// empties along with the filtered list the partition is cut from.
+    var papersPartition: PapersPartition {
+        let key = currentPapersPartitionCacheKey(filter: currentSidebarFilterCacheKey)
+        let store = sidebarStore
+        if let cached = store.papersPartitionCache, store.papersPartitionCacheKey == key {
+            return cached
+        }
+        let partition = computePapersPartition(processingIDs: key.processingPaperIDs)
+        store.papersPartitionCache = partition
+        store.papersPartitionCacheKey = key
+        return partition
+    }
+
+    /// The four lists built afresh, each by the filter it always had.
+    func computePapersPartition(processingIDs: Set<String>) -> PapersPartition {
+        let base = filteredActiveItems
+        let missingPDFItems = filteredPaperItems(hasPDF: false)
+        let withPDFItems = filteredPaperItems(hasPDF: true)
+
+        let processing = processingIDs.isEmpty ? [] : base.filter {
+            $0.sourceType == .paper && processingIDs.contains($0.id)
+        }
+
+        let missingPDFIDs = Set(missingPDFItems.map(\.id))
+        let partitionedIDs = missingPDFIDs.union(withPDFItems.map(\.id))
+        let needingPDFAttention = base.filter {
             $0.sourceType == .paper
                 && !$0.hasPaywallMarker
                 && !processingIDs.contains($0.id)
@@ -322,6 +437,23 @@ extension StudioViewModel {
                     || $0.state == .error
                     || !$0.hasPaperIngestionAttestation)
         }
+
+        let withPDF = withPDFItems.filter {
+            !processingIDs.contains($0.id)
+                && $0.state != .error
+                && $0.hasPaperIngestionAttestation
+        }
+
+        let paywalledWithoutPDF = missingPDFItems.filter {
+            $0.hasPaywallMarker && !processingIDs.contains($0.id)
+        }
+
+        return PapersPartition(
+            processing: processing,
+            needingPDFAttention: needingPDFAttention,
+            withPDF: withPDF,
+            paywalledWithoutPDF: paywalledWithoutPDF
+        )
     }
 
     /// Papers stuck in `.fetching` with no PDF — typically left over from a
@@ -969,7 +1101,35 @@ extension StudioViewModel {
         return normalized.contains { foldedSidebarSearchString($0).contains(foldedQuery) }
     }
 
+    /// Whether a source answers a sidebar search: the whole query in one of its
+    /// fields, then its fold, then every term, then every folded term, then a
+    /// paper's last author (`sourceMatchesSearchAnalysingFields` spells the
+    /// steps out).
+    ///
+    /// A search pass asks this of every source in the tab, and analysing a
+    /// source's fields — ICU folding, a regex and the catenated fold of each —
+    /// is what made a pass over a large library take a third of a second on
+    /// the main thread (215 samples in build 210's stalls, 2026-10-11). So an
+    /// unscoped query compares against each source's analysis, made once per
+    /// change to its fields (`sidebarSearchAnalysis(of:)`), and the query is
+    /// analysed once per pass (`sidebarSearchMatcher(for:)`). The steps and the
+    /// strings compared are the same; only plain ASCII on both sides is
+    /// compared as bytes, where a byte search finds exactly what
+    /// `String.contains` finds. A field-scoped query (`title:`) reads one or two
+    /// fields and is rare; it is analysed per source as before.
     func sourceMatchesSearch(_ article: StudioArticle, query: String) -> Bool {
+        let matcher = sidebarSearchMatcher(for: query)
+        guard matcher.parsed.field == nil else {
+            return Self.sourceMatchesSearchAnalysingFields(article, query: query)
+        }
+        if matcher.normalizedQuery.value.isEmpty { return true }
+        return matcher.matches(sidebarSearchAnalysis(of: article))
+    }
+
+    /// `sourceMatchesSearch` computed from scratch: every field normalized and
+    /// folded on the spot. The scoped path, and what the analysed path must
+    /// always agree with.
+    nonisolated static func sourceMatchesSearchAnalysingFields(_ article: StudioArticle, query: String) -> Bool {
         let parsed = SidebarSearchQuery(parsing: query)
         let normalizedQuery = Self.normalizedSidebarSearchString(parsed.text)
         guard !normalizedQuery.isEmpty else { return true }
@@ -1024,6 +1184,161 @@ extension StudioViewModel {
         }
 
         return false
+    }
+
+    /// A string a sidebar search compares, with whether it is plain ASCII.
+    ///
+    /// Between two plain-ASCII strings — no byte above 0x7F, no carriage
+    /// return, so every character is one byte and one grapheme — a byte search
+    /// (`memmem`) finds exactly what `String.contains` finds, at the speed of a
+    /// scan rather than Foundation's grapheme-aware search. Anything else is
+    /// compared by `String.contains` itself, so the answer never depends on
+    /// which path ran.
+    struct SidebarSearchText {
+        let value: String
+        let isPlainASCII: Bool
+
+        init(_ value: String) {
+            var contiguous = value
+            contiguous.makeContiguousUTF8()
+            self.value = contiguous
+            isPlainASCII = contiguous.utf8.allSatisfy { $0 < 0x80 && $0 != 0x0D }
+        }
+
+        func contains(_ needle: SidebarSearchText) -> Bool {
+            if isPlainASCII, needle.isPlainASCII,
+               let found = Self.bytes(of: value, contain: needle.value) {
+                return found
+            }
+            return value.contains(needle.value)
+        }
+
+        /// Nil when either side has no contiguous UTF-8 to scan.
+        private static func bytes(of haystack: String, contain needle: String) -> Bool? {
+            haystack.utf8.withContiguousStorageIfAvailable { hay -> Bool? in
+                needle.utf8.withContiguousStorageIfAvailable { pin -> Bool in
+                    // `String.contains` finds no empty string.
+                    guard !pin.isEmpty, hay.count >= pin.count,
+                          let hayStart = hay.baseAddress, let pinStart = pin.baseAddress else { return false }
+                    return memmem(hayStart, hay.count, pinStart, pin.count) != nil
+                }
+            } ?? nil
+        }
+    }
+
+    /// One source's fields as an unscoped sidebar search reads them, analysed
+    /// once: the very strings `sourceMatchesSearchAnalysingFields` builds on
+    /// every call, kept until one of the fields changes.
+    struct SidebarSearchAnalysis {
+        /// The fields the analysis was made from.
+        let fields: ArtifactSourcePickerIndex.SourceFields
+        /// Every field an unscoped search reads, normalized, empties dropped.
+        let normalizedFields: [SidebarSearchText]
+        /// Each of `normalizedFields` folded (`foldedSidebarSearchString`).
+        let foldedFields: [SidebarSearchText]
+        /// `normalizedFields` joined by spaces, and that folded.
+        let text: SidebarSearchText
+        let foldedText: SidebarSearchText
+        /// A paper's author terms; nil for any other source and for a paper
+        /// without an author.
+        let authorTerms: Set<String>?
+
+        init(_ fields: ArtifactSourcePickerIndex.SourceFields) {
+            self.fields = fields
+            let normalized = fields.values(in: SidebarSearchQuery(parsing: ""))
+                .map(StudioViewModel.normalizedSidebarSearchString)
+                .filter { !$0.isEmpty }
+            normalizedFields = normalized.map(SidebarSearchText.init)
+            foldedFields = normalized.map { SidebarSearchText(StudioViewModel.foldedSidebarSearchString($0)) }
+            let joined = normalized.joined(separator: " ")
+            text = SidebarSearchText(joined)
+            foldedText = SidebarSearchText(StudioViewModel.foldedSidebarSearchString(joined))
+            if fields.sourceType == .paper, let author = fields.author {
+                authorTerms = Set(StudioViewModel.sidebarSearchTerms(
+                    in: StudioViewModel.normalizedSidebarSearchString(author)
+                ))
+            } else {
+                authorTerms = nil
+            }
+        }
+    }
+
+    /// A sidebar query analysed once for a whole pass.
+    struct SidebarSearchMatcher {
+        /// The query as the caller passed it, which is what the memo matches on.
+        let query: String
+        /// The locale the normalization folded under (`normalizedSidebarSearchString`).
+        let localeIdentifier: String
+        let parsed: SidebarSearchQuery
+        let normalizedQuery: SidebarSearchText
+        let foldedQuery: SidebarSearchText
+        let terms: [SidebarSearchText]
+
+        init(_ query: String, localeIdentifier: String) {
+            self.query = query
+            self.localeIdentifier = localeIdentifier
+            parsed = SidebarSearchQuery(parsing: query)
+            let normalized = StudioViewModel.normalizedSidebarSearchString(parsed.text)
+            normalizedQuery = SidebarSearchText(normalized)
+            foldedQuery = SidebarSearchText(StudioViewModel.foldedSidebarSearchString(normalized))
+            terms = StudioViewModel.sidebarSearchTerms(in: normalized).map(SidebarSearchText.init)
+        }
+
+        /// `sourceMatchesSearchAnalysingFields` for an unscoped query, step for
+        /// step, over a source's analysis. The caller has answered an empty
+        /// query already.
+        func matches(_ source: SidebarSearchAnalysis) -> Bool {
+            if source.normalizedFields.contains(where: { $0.contains(normalizedQuery) }) {
+                return true
+            }
+            if !foldedQuery.value.isEmpty,
+               source.foldedFields.contains(where: { $0.contains(foldedQuery) }) {
+                return true
+            }
+            guard !terms.isEmpty else { return false }
+            if terms.allSatisfy({ source.text.contains($0) }) {
+                return true
+            }
+            if terms.allSatisfy({ source.foldedText.contains($0) }) {
+                return true
+            }
+            if let authorTerms = source.authorTerms, terms.count > 1,
+               let lastName = terms.last, authorTerms.contains(lastName.value) {
+                return true
+            }
+            return false
+        }
+    }
+
+    /// The analysed query for `query`, kept while the same query is asked of
+    /// source after source. A new query under a new locale drops every source
+    /// analysis, since normalization folds under the current locale.
+    func sidebarSearchMatcher(for query: String) -> SidebarSearchMatcher {
+        if let memo = sidebarSearchMatcherMemo, memo.query == query {
+            return memo
+        }
+        let localeIdentifier = Locale.current.identifier
+        if sidebarSearchMatcherMemo?.localeIdentifier != localeIdentifier {
+            sidebarSearchAnalyses.removeAll()
+        } else if sidebarSearchAnalyses.count > articlesStore.articleIDs.count {
+            // Sources removed since they were analysed.
+            let held = articlesStore.articleIDs
+            sidebarSearchAnalyses = sidebarSearchAnalyses.filter { held.contains($0.key) }
+        }
+        let matcher = SidebarSearchMatcher(query, localeIdentifier: localeIdentifier)
+        sidebarSearchMatcherMemo = matcher
+        return matcher
+    }
+
+    /// A source's analysis, made again only when a field it reads changed.
+    func sidebarSearchAnalysis(of article: StudioArticle) -> SidebarSearchAnalysis {
+        let fields = ArtifactSourcePickerIndex.SourceFields(article)
+        if let known = sidebarSearchAnalyses[article.id], known.fields == fields {
+            return known
+        }
+        let analysis = SidebarSearchAnalysis(fields)
+        sidebarSearchAnalyses[article.id] = analysis
+        return analysis
     }
 
     /// Every source address in a note, in document order.
@@ -1174,11 +1489,18 @@ extension StudioViewModel {
             .filter { $0.count >= 2 }
     }
 
+    struct FilteredPaperItemsCacheKey: Equatable {
+        let filter: SidebarFilterCacheKey
+        let library: PaperLibraryKey
+    }
+
     func filteredPaperItems(hasPDF: Bool) -> [StudioArticle] {
         // Memoized per filter revision so the whole cluster of papers-tab
-        // properties (active*/hasMore*/remaining*) shares one `resolvedPDFPath`
-        // scan per render instead of re-statting the filesystem 6-7×.
-        let key = currentSidebarFilterCacheKey
+        // properties (active*/hasMore*/remaining*) shares one partition per
+        // render. The library's share comes from `paperLibraryIndex`, so a
+        // keystroke, a tab switch or Show More filters the window's rows and
+        // never re-derives the whole library.
+        let key = FilteredPaperItemsCacheKey(filter: currentSidebarFilterCacheKey, library: currentPaperLibraryKey)
         if sidebarStore.filteredPaperItemsCacheKey != key
             || sidebarStore.filteredPaperItemsWithPDFCache == nil
             || sidebarStore.filteredPaperItemsWithoutPDFCache == nil {
@@ -1193,10 +1515,7 @@ extension StudioViewModel {
     }
 
     var filteredPaywalledPapersWithoutPDF: [StudioArticle] {
-        let processingIDs = processingPaperIDs
-        return filteredPaperItems(hasPDF: false).filter {
-            $0.hasPaywallMarker && !processingIDs.contains($0.id)
-        }
+        papersPartition.paywalledWithoutPDF
     }
 
     /// Whole-catalog candidate set for the explicit paywall recheck command.
@@ -1218,12 +1537,7 @@ extension StudioViewModel {
     }
 
     var filteredPapersWithPDF: [StudioArticle] {
-        let processingIDs = processingPaperIDs
-        return filteredPaperItems(hasPDF: true).filter {
-            !processingIDs.contains($0.id)
-                && $0.state != .error
-                && $0.hasPaperIngestionAttestation
-        }
+        papersPartition.withPDF
     }
 
     func paperItems(hasPDF: Bool, in papers: [StudioArticle]) -> [StudioArticle] {
@@ -1231,9 +1545,12 @@ extension StudioViewModel {
         func hasUsablePDF(_ paper: StudioArticle) -> Bool {
             paper.cachedHasUsablePDF || unavailable.contains(paper.id)
         }
+        // Both whole-library sets come from `paperLibraryIndex`, built once per
+        // library change rather than on every call.
+        let library = paperLibraryIndex
         // A preprint whose journal version is held with its PDF is listed as
         // that version (`supersededPreprintIDs`); it stays in its notebooks.
-        let superseded = Self.supersededPreprintIDs(in: activeArticles, hasUsablePDF: hasUsablePDF)
+        let superseded = library.superseded
         if hasPDF {
             return papers.filter { hasUsablePDF($0) && !superseded.contains($0.id) }
         }
@@ -1245,15 +1562,142 @@ extension StudioViewModel {
         // reappear as "PDF needed" even though the library already held the same
         // titled/identified paper and its PDF. Use the whole published library;
         // availability remains cache-only so this stays safe in SwiftUI renders.
-        let paperKeysWithPDF = Set(
-            activeArticles
-                .filter { $0.sourceType == .paper && hasUsablePDF($0) }
-                .flatMap { Self.paperDedupDisplayKeys(for: $0) }
-        )
+        let paperKeysWithPDF = library.keysWithPDF
         return papers.filter { paper in
             guard !hasUsablePDF(paper), !superseded.contains(paper.id) else { return false }
-            return paperKeysWithPDF.isDisjoint(with: Self.paperDedupDisplayKeys(for: paper))
+            return paperKeysWithPDF.isDisjoint(with: paperDedupKeys(for: paper))
         }
+    }
+
+    // MARK: - The library's share of the Papers lists
+
+    /// What the whole library's share of the Papers lists is built from: the
+    /// articles (their presentation revision, which moves on any change to a
+    /// field a row or these sets read) and the cached PDF availability that
+    /// `cachedHasUsablePDF` reads, which moves on its own when the background
+    /// path warm finds a file arrived or gone.
+    struct PaperLibraryKey: Equatable {
+        let articlesRevision: Int
+        let resolvedPathGeneration: Int
+    }
+
+    var currentPaperLibraryKey: PaperLibraryKey {
+        PaperLibraryKey(
+            articlesRevision: articlesRevision,
+            resolvedPathGeneration: StudioArticle.resolvedPathCacheGeneration
+        )
+    }
+
+    /// The two whole-library sets every Papers list consults: which preprints
+    /// a journal version with its PDF stands in for, and the identity keys of
+    /// every paper with a usable PDF. Neither depends on the window, its tab,
+    /// its search or its page, so a keystroke, a tab switch or Show More reuses
+    /// them; only a library change (`PaperLibraryKey`) rebuilds them.
+    struct PaperLibraryIndex {
+        let key: PaperLibraryKey
+        let superseded: Set<String>
+        let keysWithPDF: Set<String>
+    }
+
+    /// Built on the main actor, as before, but from `paperListingFacts(for:)`,
+    /// so a rebuild after one paper changed re-parses that paper alone. One
+    /// copy serves every window.
+    var paperLibraryIndex: PaperLibraryIndex {
+        let key = currentPaperLibraryKey
+        if let cached = paperLibraryIndexCache, cached.key == key {
+            return cached
+        }
+        let unavailable = unavailableRecordedPaperPDFIDs
+        func hasUsablePDF(_ paper: StudioArticle) -> Bool {
+            paper.cachedHasUsablePDF || unavailable.contains(paper.id)
+        }
+        prunePaperListingFacts()
+        let library = activeArticles
+        let superseded = Self.supersededPreprintIDs(
+            in: library,
+            hasUsablePDF: hasUsablePDF,
+            versionFacts: { self.paperListingFacts(for: $0).version }
+        )
+        var keysWithPDF = Set<String>()
+        for paper in library where paper.sourceType == .paper && hasUsablePDF(paper) {
+            keysWithPDF.formUnion(paperListingFacts(for: paper).dedupKeys)
+        }
+        let index = PaperLibraryIndex(key: key, superseded: superseded, keysWithPDF: keysWithPDF)
+        paperLibraryIndexCache = index
+        return index
+    }
+
+    /// The fields a paper's listing facts are read from: everything
+    /// `paperVersionKind`, `paperDedupDisplayKeys` and the title checks they
+    /// make read. Equal inputs mean the facts kept for the paper still hold.
+    struct PaperListingInputs: Equatable {
+        let sourceType: StudioSourceType
+        let url: String
+        let title: String
+        let domain: String
+        let doi: String?
+        let publishedDOI: String?
+        let journal: String?
+        // What `isPaperReadyForListenPreparation` reads, for the content key.
+        let state: StudioArticleState
+        let author: String?
+        let publishedYear: String?
+        let paperIngestionMethod: PaperIngestionMethod?
+        let paperContentSHA256: String?
+
+        init(_ paper: StudioArticle) {
+            sourceType = paper.sourceType
+            url = paper.url
+            title = paper.title
+            domain = paper.domain
+            doi = paper.doi
+            publishedDOI = paper.publishedDOI
+            journal = paper.journal
+            state = paper.state
+            author = paper.author
+            publishedYear = paper.publishedYear
+            paperIngestionMethod = paper.paperIngestionMethod
+            paperContentSHA256 = paper.paperContentSHA256
+        }
+    }
+
+    /// What the Papers lists read off one paper — its versions' facts and its
+    /// identity keys (`paperDedupDisplayKeys`) — each a parse of its address,
+    /// DOI and title.
+    struct PaperListingFacts {
+        let inputs: PaperListingInputs
+        let version: PaperVersionFacts
+        let dedupKeys: [String]
+    }
+
+    /// One paper's listing facts, kept per source id and parsed again only
+    /// when a field they come from changed.
+    func paperListingFacts(for paper: StudioArticle) -> PaperListingFacts {
+        let inputs = PaperListingInputs(paper)
+        if let known = paperListingFactsByID[paper.id], known.inputs == inputs {
+            return known
+        }
+        let facts = PaperListingFacts(
+            inputs: inputs,
+            version: PaperVersionFacts(paper),
+            dedupKeys: Self.paperDedupDisplayKeys(for: paper)
+        )
+        paperListingFactsByID[paper.id] = facts
+        return facts
+    }
+
+    /// `paperDedupDisplayKeys(for:)`, read from the kept facts. Only a paper
+    /// has keys, so nothing else is kept.
+    func paperDedupKeys(for article: StudioArticle) -> [String] {
+        guard article.sourceType == .paper else { return [] }
+        return paperListingFacts(for: article).dedupKeys
+    }
+
+    /// Drops the facts of sources the library no longer holds.
+    private func prunePaperListingFacts() {
+        let held = articlesStore.articleIDs
+        guard paperListingFactsByID.keys.contains(where: { !held.contains($0) }) else { return }
+        paperListingFactsByID = paperListingFactsByID.filter { held.contains($0.key) }
     }
 
     /// Papers that `paperItems(hasPDF:)` suppresses as duplicates: no usable PDF
@@ -1356,18 +1800,17 @@ extension StudioViewModel {
     }
 
     /// `unavailableRecordedPaperPDFIDs` over the whole active library, memoized
-    /// per articles revision. The threshold is a property of the library, not of
-    /// whatever subset a view is rendering, so every consumer must share this
-    /// whole-library answer.
+    /// on what it reads: the articles and the cached path availability
+    /// (`PaperLibraryKey`). The threshold is a property of the library, not of
+    /// whatever subset a view is rendering, so every consumer — in every window —
+    /// shares this whole-library answer.
     var unavailableRecordedPaperPDFIDs: Set<String> {
-        let key = articlesRevision
-        if sidebarStore.unavailableRecordedPDFIDsCacheKey == key,
-           let cached = sidebarStore.unavailableRecordedPDFIDsCache {
-            return cached
+        let key = currentPaperLibraryKey
+        if let cached = paperLibraryUnavailableCache, cached.key == key {
+            return cached.ids
         }
         let ids = Self.cachedUnavailableRecordedPaperPDFIDs(in: activeArticles)
-        sidebarStore.unavailableRecordedPDFIDsCache = ids
-        sidebarStore.unavailableRecordedPDFIDsCacheKey = key
+        paperLibraryUnavailableCache = (key, ids)
         return ids
     }
 
