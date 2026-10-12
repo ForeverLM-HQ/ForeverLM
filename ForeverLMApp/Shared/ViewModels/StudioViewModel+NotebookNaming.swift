@@ -94,8 +94,9 @@ extension StudioViewModel {
 
     /// Names the notebook when it is ready, and returns what it did. Without
     /// an AI model the placeholder stays and the notebook's header says why
-    /// (`notebookNamingErrors`); at the learner's daily background cap it
-    /// waits for the next change. A name or description the learner typed
+    /// (`notebookNamingErrors`); at the learner's daily background cap, or
+    /// after a failure that passes by itself (a lost connection), it waits
+    /// for the next change. A name or description the learner typed
     /// while the model answered wins: nothing is written over it.
     @discardableResult
     func nameNotebookIfReady(_ notebookID: String) async -> NotebookNaming.Decision {
@@ -141,8 +142,14 @@ extension StudioViewModel {
                 chats: chats
             )
         } catch {
-            notebookNamingErrors[notebookID] = "ForeverLM couldn't name this notebook: \(error.localizedDescription)"
-            logger.error("Notebook naming failed for \(notebookID, privacy: .public): \(error.localizedDescription)")
+            logger.error("Notebook naming failed for \(notebookID, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            // A dropped connection or a busy model that outlasted the retries
+            // is nothing the learner can act on: the placeholder stays, and the
+            // notebook's next change names it. Only a failure that will not
+            // pass by itself shows in the header.
+            if !AITransientErrorClassifier.shouldRetryAutomatically(error) {
+                notebookNamingErrors[notebookID] = "ForeverLM couldn't name this notebook: \(error.localizedDescription)"
+            }
             return .keep
         }
 

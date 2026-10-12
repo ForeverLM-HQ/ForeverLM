@@ -150,16 +150,22 @@ extension AIService {
         config: AITaskConfig
     ) async throws -> NotebookNaming.Answer {
         let system = AITask.notebookNaming.effectivePrompt ?? Prompts.notebookNaming
-        let response = try await call(
-            config: config,
-            system: system,
-            user: NotebookNaming.userMessage(request, totalSources: totalSources),
-            maxTokens: 400,
-            temperature: 0.3,
-            jsonMode: true,
-            sourceTitle: request.currentTitle,
-            subjectID: request.notebookID
-        )
+        let user = NotebookNaming.userMessage(request, totalSources: totalSources)
+        // A background call: a dropped connection or a busy model is waited
+        // out, and a reply that is not a name moves on to the backup models.
+        let response = try await AIBackgroundRetry.run(config: config) { config in
+            try await self.call(
+                config: config,
+                system: system,
+                user: user,
+                maxTokens: 400,
+                temperature: 0.3,
+                jsonMode: true,
+                validateResponse: { _ = try NotebookNaming.answer(from: $0) },
+                sourceTitle: request.currentTitle,
+                subjectID: request.notebookID
+            )
+        }
         do {
             return try NotebookNaming.answer(from: response)
         } catch {

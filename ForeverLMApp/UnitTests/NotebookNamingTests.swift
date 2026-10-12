@@ -318,6 +318,44 @@ struct NotebookNamingFlowTests {
         }
     }
 
+    @Test("A lost connection leaves the placeholder with nothing in the header; the next change names it")
+    func transientFailureShowsNothing() async throws {
+        try await withRows {
+            let vm = makeViewModel()
+            let sources = try await papers(vm, ["A paper", "Another paper"])
+            let notebook = try #require(await vm.createNotebook())
+            let log = NamerLog()
+            vm.notebookNamerOverride = { request, _ in
+                await log.record(request)
+                throw URLError(.networkConnectionLost)
+            }
+            await vm.addSourcesToNotebookContext([sources[0].id], notebookID: notebook.id, announce: false)
+            await settle(vm) { false }
+            #expect(await !log.requests.isEmpty)
+            #expect(vm.notebookNamingErrors[notebook.id] == nil)
+            #expect(vm.notebook(id: notebook.id)?.title == "New notebook")
+            #expect(vm.notebookNamingMarks[notebook.id] == .unnamed(title: "New notebook"))
+
+            vm.notebookNamerOverride = cannedNamer(log, titles: ["Two papers"])
+            await vm.addSourcesToNotebookContext([sources[1].id], notebookID: notebook.id, announce: false)
+            await settle(vm) { vm.notebook(id: notebook.id)?.title == "Two papers" }
+            #expect(vm.notebook(id: notebook.id)?.title == "Two papers")
+        }
+    }
+
+    @Test("A failure that will not pass by itself shows in the header")
+    func permanentFailureShows() async throws {
+        try await withRows {
+            let vm = makeViewModel()
+            let sources = try await papers(vm, ["A paper"])
+            let notebook = try #require(await vm.createNotebook())
+            vm.notebookNamerOverride = { _, _ in throw AIError.invalidResponse }
+            await vm.addSourcesToNotebookContext(sources.map(\.id), notebookID: notebook.id, announce: false)
+            await settle(vm) { vm.notebookNamingErrors[notebook.id] != nil }
+            #expect(vm.notebookNamingErrors[notebook.id]?.isEmpty == false)
+        }
+    }
+
     @Test("Every New notebook on the Mac goes through the one creation path, with no form")
     func oneCreationPath() throws {
         let app = URL(fileURLWithPath: #filePath)
