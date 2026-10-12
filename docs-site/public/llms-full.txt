@@ -6017,6 +6017,11 @@ All notable changes to ForeverLM are documented here. Dates are in YYYY-MM-DD fo
 
 ForeverLM follows [semantic versioning](https://semver.org) against its public surface: the MCP tool contracts, the knowledge-base/sync format, and licensing compatibility. While the version is 0.x, minor releases may include breaking changes to that surface; patch releases never do.
 
+## 0.143.1 (build 219) — 2026-10-12
+
+**Highlights:**
+- **New menus are a card with a glyph on every row**, grouped and spaced like Codex's.
+
 ## 0.143.0 (build 218) — 2026-10-12
 
 **Highlights:**
