@@ -5100,8 +5100,8 @@ final class ReviewSessionManager {
                 ? AIChatTurn.assistant(text: message.content, toolCalls: [])
                 : Self.userTurn(content: message.content, imagesReadable: imagesReadable)
         }
-        let tools = nativeToolSpecs(webSearch: webSearch)
-        let toolCharacters = Self.projectedToolCharacterCount(of: tools)
+        var tools = nativeToolSpecs(webSearch: webSearch)
+        var toolCharacters = Self.projectedToolCharacterCount(of: tools)
         // Rounds of this turn that carried the provider's web tool; Deep
         // Research stops attaching it once the budget is spent.
         var webSearchRounds = 0
@@ -5592,6 +5592,16 @@ final class ReviewSessionManager {
                         isError: outcome.isError,
                         images: outcome.screenshot.map { [$0] } ?? []
                     ))
+                case Self.loadAppToolsName:
+                    // Quiet: loading tools is plumbing, not something the
+                    // learner asked for, so it gets no activity row.
+                    let loaded = loadAppTools(arguments: call.arguments)
+                    results.append(AIToolResultPayload(
+                        callID: call.id,
+                        toolName: call.name,
+                        text: loaded.text,
+                        isError: loaded.isError
+                    ))
                 default:
                     // App tool: surfaced live in the transcript, run under the
                     // watchdog, failure signaled by the tool layer's own flag.
@@ -5619,6 +5629,10 @@ final class ReviewSessionManager {
                 throw RepeatedToolRefusals.Stopped(refusal: refusal)
             }
             turns.append(.toolResults(results))
+            if result.toolCalls.contains(where: { $0.name == Self.loadAppToolsName }) {
+                tools = nativeToolSpecs(webSearch: webSearch)
+                toolCharacters = Self.projectedToolCharacterCount(of: tools)
+            }
         }
     }
 
@@ -6168,6 +6182,150 @@ final class ReviewSessionManager {
 
     private var nativeToolNamesForAttachedSources: Set<String> {
         activeSourceIDs.isEmpty || sourceManifest.isEmpty ? [] : Self.chatNativeToolNames
+    }
+
+    /// App tools a chat always carries in full. A plain chat on one podcast
+    /// took a minute to answer a short question: the request was 177k tokens,
+    /// about 125k of them the schemas of every app tool, re-read on every
+    /// round of every turn by a model with no prompt cache (product owner,
+    /// 2026-10-12: "i cannot be waiting 1 minute for response"). The everyday reading, Notebook, Page
+    /// and calendar tools travel whole; the rest are named in
+    /// `load_app_tools` and join the request when the chat loads them.
+    static let coreAppToolNames: Set<String> = [
+        "search_sources_semantic", "search_sources_keyword", "filter_sources",
+        "list_shows", "get_source_content", "list_sources",
+        "get_notebook_context", "add_notebook_sources", "list_notebook_sources",
+        "list_notebooks", "get_notebook", "create_notebook", "open_in_app",
+        "list_docs", "read_doc", "create_doc", "edit_doc", "write_doc",
+        "import_paper_from_url",
+        "list_goals", "get_schedule", "get_today_sources",
+        "get_calendar_events", "create_calendar_event", "update_calendar_event",
+        "get_day_activity", "list_working_notes", "save_working_note",
+        "list_skills", "get_skill", "list_ideas", "list_open_questions",
+    ]
+
+    /// Characters of app-tool definitions a request carries before the tools
+    /// outside `coreAppToolNames` wait for `load_app_tools`. A surface this
+    /// small sends everything; the full catalog is about 520k characters.
+    static let appToolDeferralBudgetCharacters = 40_000
+
+    static let loadAppToolsName = "load_app_tools"
+
+    /// Tools this chat has loaded with `load_app_tools`, in load order, for
+    /// the session they were loaded in. Appended after the core tools, so a
+    /// load never reorders what the request already carried.
+    @ObservationIgnored private var loadedAppTools: (sessionID: String?, names: [String]) = (nil, [])
+
+    private var loadedAppToolNames: [String] {
+        loadedAppTools.sessionID == sessionID ? loadedAppTools.names : []
+    }
+
+    /// The session's app tools split into those sent whole and those named
+    /// only in `load_app_tools`. Deferral is all or nothing per surface: a
+    /// surface under the budget sends every tool, as before.
+    private func appToolSurface() -> (sent: [AppToolDefinition], deferred: [AppToolDefinition]) {
+        let tools = sessionAppToolDefinitions()
+        let total = tools.reduce(0) { $0 + $1.name.count + $1.description.count + $1.inputSchemaJSON.count + 32 }
+        guard total > Self.appToolDeferralBudgetCharacters, sessionPromptKind != .deepResearch else {
+            return (tools, [])
+        }
+        let loaded = loadedAppToolNames
+        let core = tools.filter { Self.coreAppToolNames.contains($0.name) }
+        let byName = Dictionary(tools.map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first })
+        let loadedTools = loaded.compactMap { name in
+            Self.coreAppToolNames.contains(name) ? nil : byName[name]
+        }
+        let sentNames = Set(core.map(\.name)).union(loadedTools.map(\.name))
+        return (core + loadedTools, tools.filter { !sentNames.contains($0.name) })
+    }
+
+    private static func loadAppToolsSpec(deferred: [AppToolDefinition]) -> AIToolSpec {
+        let names = deferred.map(\.name).sorted().joined(separator: ", ")
+        return AIToolSpec(
+            name: loadAppToolsName,
+            description: "Load more ForeverLM app tools. Your tool list carries the everyday ones; these others exist too, and a loaded tool joins your tool list for the rest of this chat. Load a tool before calling it — including one these instructions name that is not in your list — and load several at once when a task needs them. Pass names from this list, or a query to find tools by what they do: \(names)",
+            inputSchema: [
+                "type": "object",
+                "properties": [
+                    "names": [
+                        "type": "array",
+                        "items": ["type": "string"],
+                        "description": "Exact tool names from the list."
+                    ] as [String: Any],
+                    "query": [
+                        "type": "string",
+                        "description": "Words describing the action, when no name fits. Loads the best few matches."
+                    ],
+                ] as [String: Any],
+            ]
+        )
+    }
+
+    /// Loads the asked-for tools into this session's request and says what
+    /// each one does, so the next round can call it.
+    private func loadAppTools(arguments: [String: Any]) -> AppToolResult {
+        let surface = appToolSurface()
+        let deferred = surface.deferred
+        let byName = Dictionary(deferred.map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first })
+        let alreadySent = Set(surface.sent.map(\.name))
+        let asked = (arguments["names"] as? [String] ?? [])
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        var picked = asked.compactMap { byName[$0] }
+        let unknown = asked.filter { byName[$0] == nil && !alreadySent.contains($0) }
+        if let query = Self.nonEmptyTrimmed(arguments["query"] as? String) {
+            picked += Self.appTools(matching: query, in: deferred, limit: 6)
+                .filter { tool in !picked.contains { $0.name == tool.name } }
+        }
+        guard !picked.isEmpty else {
+            let already = asked.filter { alreadySent.contains($0) }
+            if !already.isEmpty, unknown.isEmpty {
+                return AppToolResult(text: "Already in your tool list: \(already.joined(separator: ", ")). Call it now.", isError: false)
+            }
+            return AppToolResult(
+                text: "Error: No tool matched. Pass exact names from the load_app_tools list.",
+                isError: true
+            )
+        }
+        var names = loadedAppToolNames
+        names += picked.map(\.name).filter { !names.contains($0) }
+        loadedAppTools = (sessionID, names)
+        var lines = ["Loaded into your tool list; call them now:"]
+        lines += picked.map { tool in
+            let summary = tool.description.split(separator: "\n").first.map(String.init) ?? tool.description
+            return "- \(tool.name): \(summary.prefix(240))"
+        }
+        if !unknown.isEmpty {
+            lines.append("Not tools here: \(unknown.joined(separator: ", ")).")
+        }
+        return AppToolResult(text: lines.joined(separator: "\n"), isError: false)
+    }
+
+    /// Deferred tools ranked by how many of the query's words their name and
+    /// description carry; the name counts double.
+    nonisolated static func appTools(
+        matching query: String,
+        in tools: [AppToolDefinition],
+        limit: Int
+    ) -> [AppToolDefinition] {
+        let words = query.lowercased()
+            .split { !$0.isLetter && !$0.isNumber }
+            .map(String.init)
+            .filter { $0.count > 2 }
+        guard !words.isEmpty else { return [] }
+        let scored: [(tool: AppToolDefinition, score: Int)] = tools.map { tool in
+            let name = tool.name.lowercased()
+            let description = tool.description.lowercased()
+            let score = words.reduce(0) { partial, word in
+                partial + (name.contains(word) ? 2 : 0) + (description.contains(word) ? 1 : 0)
+            }
+            return (tool, score)
+        }
+        return scored
+            .filter { $0.score > 0 }
+            .sorted { $0.score > $1.score }
+            .prefix(limit)
+            .map(\.tool)
     }
 
     private static func nonEmptyTrimmed(_ value: String?) -> String? {
@@ -6756,12 +6914,17 @@ final class ReviewSessionManager {
             // agent chat sent both, and Google refused the whole request as a
             // duplicate function declaration.
             let nativeNames = Set(specs.map(\.name))
-            for tool in sessionAppToolDefinitions() where !nativeNames.contains(tool.name) {
+            let surface = appToolSurface()
+            for tool in surface.sent where !nativeNames.contains(tool.name) {
                 specs.append(AIToolSpec(
                     name: tool.name,
                     description: tool.description,
                     inputSchema: Self.schemaObject(fromJSON: tool.inputSchemaJSON)
                 ))
+            }
+            let deferred = surface.deferred.filter { !nativeNames.contains($0.name) }
+            if !deferred.isEmpty {
+                specs.append(Self.loadAppToolsSpec(deferred: deferred))
             }
         }
 
@@ -16228,6 +16391,23 @@ extension ReviewSessionManager {
             manager.walkthroughFocusHandler = { _ in }
         }
         return manager.nativeToolSpecs(webSearch: webSearch)
+    }
+
+    /// A command-the-app chat over `appTools` that runs `load_app_tools` with
+    /// each of `loads` in turn, returning every result and the tool list the
+    /// next round would send.
+    static func toolSpecsAfterLoadingForTesting(
+        appTools: [AppToolDefinition],
+        loads: [[String: Any]]
+    ) -> (results: [AppToolResult], specs: [AIToolSpec]) {
+        let manager = ReviewSessionManager(
+            storage: StorageService(storeRoot: temporaryTestingRoot()),
+            appToolDefinitions: { appTools },
+            appToolExecutor: { _, _, _ in AppToolResult(text: "", isError: false) }
+        )
+        manager.sessionPromptKind = InitialPromptMode.assistant.sessionPromptKindForAutomaticStart
+        let results = loads.map { manager.loadAppTools(arguments: $0) }
+        return (results, manager.nativeToolSpecs())
     }
 
     /// `focus_source_anchor` as the chat runs it.

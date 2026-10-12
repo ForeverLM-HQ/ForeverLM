@@ -5489,6 +5489,118 @@ struct ChatToolSurfaceTests {
             .intersection(ReviewSessionManager.chatExcludedToolNames)
         #expect(overlap.isEmpty, "\(overlap.sorted())")
     }
+
+    /// A catalog the size of the real one: the core tools plus filler whose
+    /// schemas push the surface past the deferral budget.
+    static let bigCatalog: [ReviewSessionManager.AppToolDefinition] = {
+        let padding = String(repeating: "x", count: 900)
+        let core = ["search_sources_semantic", "open_in_app", "list_notebooks"].map {
+            ReviewSessionManager.AppToolDefinition(name: $0, description: "Core \($0)", inputSchemaJSON: "{\"type\":\"object\"}")
+        }
+        let filler = (0..<60).map { index in
+            ReviewSessionManager.AppToolDefinition(
+                name: "rare_tool_\(index)",
+                description: "Rarely used action \(index). \(padding)",
+                inputSchemaJSON: "{\"type\":\"object\"}"
+            )
+        }
+        let audio = ReviewSessionManager.AppToolDefinition(
+            name: "generate_audio_overview",
+            description: "Make a podcast-style audio overview of sources. \(padding)",
+            inputSchemaJSON: "{\"type\":\"object\",\"properties\":{\"source_ids\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}}}}"
+        )
+        return core + filler + [audio]
+    }()
+
+    @Test("A chat over the full catalog sends the core tools whole and names the rest in load_app_tools")
+    @MainActor
+    func bigCatalogDefersTheLongTail() throws {
+        let names = ReviewSessionManager.nativeToolSpecsForTesting(
+            hasAttachedSource: false,
+            appTools: Self.bigCatalog,
+            hasSynthesisContext: false,
+            mode: .assistant
+        ).map(\.name)
+        #expect(names.contains("search_sources_semantic"))
+        #expect(names.contains("open_in_app"))
+        #expect(!names.contains("rare_tool_0"))
+        #expect(!names.contains("generate_audio_overview"))
+        #expect(names.filter { $0 == "load_app_tools" }.count == 1)
+
+        let loader = try #require(ReviewSessionManager.nativeToolSpecsForTesting(
+            hasAttachedSource: false,
+            appTools: Self.bigCatalog,
+            hasSynthesisContext: false,
+            mode: .assistant
+        ).first { $0.name == "load_app_tools" })
+        #expect(loader.description.contains("generate_audio_overview"))
+        #expect(loader.description.contains("rare_tool_59"))
+        #expect(!loader.description.contains("open_in_app"))
+    }
+
+    @Test("A small tool surface is sent whole, with no loader")
+    @MainActor
+    func smallSurfaceSendsEverything() {
+        let small = Self.bigCatalog.prefix(5).map {
+            ReviewSessionManager.AppToolDefinition(name: $0.name, description: "Short", inputSchemaJSON: $0.inputSchemaJSON)
+        }
+        let names = ReviewSessionManager.nativeToolSpecsForTesting(
+            hasAttachedSource: false,
+            appTools: Array(small),
+            hasSynthesisContext: false,
+            mode: .assistant
+        ).map(\.name)
+        #expect(names.contains("rare_tool_1"))
+        #expect(!names.contains("load_app_tools"))
+    }
+
+    @Test("A loaded tool joins the request after the core tools and stays for the chat")
+    @MainActor
+    func loadingAddsTheToolForLaterRounds() {
+        let (results, specs) = ReviewSessionManager.toolSpecsAfterLoadingForTesting(
+            appTools: Self.bigCatalog,
+            loads: [
+                ["names": ["rare_tool_7", "not_a_tool"]],
+                ["query": "audio overview podcast"],
+                ["names": ["open_in_app"]],
+                ["names": ["still_not_a_tool"]],
+            ]
+        )
+        let names = specs.map(\.name)
+        #expect(results[0].isError == false)
+        #expect(results[0].text.contains("rare_tool_7"))
+        #expect(results[0].text.contains("Not tools here: not_a_tool"))
+        #expect(results[1].text.contains("generate_audio_overview"))
+        #expect(results[2].isError == false)
+        #expect(results[2].text.contains("Already in your tool list"))
+        #expect(results[3].isError)
+        #expect(names.contains("rare_tool_7"))
+        #expect(names.contains("generate_audio_overview"))
+        #expect(!names.contains("rare_tool_8"))
+        // Loaded tools come after the core ones, so the head of the list
+        // the request already carried does not move.
+        let core = names.firstIndex(of: "open_in_app") ?? .max
+        let loaded = names.firstIndex(of: "rare_tool_7") ?? -1
+        #expect(core < loaded)
+    }
+
+    @Test("A query finds deferred tools by name first, then by description")
+    func loaderQueryRanksNamesFirst() {
+        let found = ReviewSessionManager.appTools(
+            matching: "audio overview",
+            in: Self.bigCatalog,
+            limit: 3
+        ).map(\.name)
+        #expect(found.first == "generate_audio_overview")
+        #expect(ReviewSessionManager.appTools(matching: "of", in: Self.bigCatalog, limit: 3).isEmpty)
+    }
+
+    @Test("Every core tool is one the agent chat can carry")
+    func coreToolsAreNeverExcluded() {
+        let overlap = ReviewSessionManager.coreAppToolNames
+            .intersection(ReviewSessionManager.chatExcludedToolNames)
+        #expect(overlap.isEmpty, "\(overlap.sorted())")
+    }
 }
 
 // MARK: - Working indicator label
