@@ -3764,7 +3764,9 @@ struct MCPDataStoreTests {
             topic: "Grammar of cellular identity", excluding: ["seed-paper"],
             sinceReferenceTimestamp: nil, limit: 24
         )
-        #expect(topicOnly.map(\.sourceID) == ["far-terahertz", "far-deglycase", "far-tunnelling", "on-topic"])
+        // (The three off-topic sources tie closely, so their order among themselves is not the point.)
+        #expect(Set(topicOnly.map(\.sourceID).dropLast()) == ["far-terahertz", "far-deglycase", "far-tunnelling"])
+        #expect(topicOnly.last?.sourceID == "on-topic")
 
         // Seeded by the paper the Notebook was made from, the source sharing its rare
         // words leads, and the seed itself is never suggested back.
@@ -4884,7 +4886,7 @@ struct MCPDataStoreTests {
         let started = try await store.startReviewSession(topic: "Please use ForeverLM to quiz me on this source: AI for Bio fuzzy API problem drug discovery")
         let sessions = try store.getReviewSessions(topic: nil, sourceId: "source-a")
 
-        #expect(started.contains("id: source-a"))
+        #expect(started.contains("(foreverlm://source/source-a)"), "the related source is its link, never a bare id")
         #expect(started.contains("Review session started: AI for Bio fuzzy API problem drug discovery"))
         #expect(started.contains("Review structure:"))
         #expect(started.contains("infer 3-7 core concepts"))
