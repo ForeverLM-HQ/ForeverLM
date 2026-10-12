@@ -1404,53 +1404,73 @@ extension StudioSidebar {
     /// MCP — but an empty state that mentioned Drive alone would read as "this
     /// tab is Google Drive", which is exactly the impression the split tabs
     /// left and this tab exists to correct.
+    ///
+    /// It wears the Space's empty state (`SpaceEmptyLine`'s sizes, the dark
+    /// pill under the line), not `ContentUnavailableView`, whose large grey
+    /// description and blue button read as a different app in this pane.
     private var meetingsEmptyHelp: some View {
-        ContentUnavailableView {
+        VStack(spacing: 16) {
             VStack(spacing: 10) {
                 Image("MeetingsIcon")
                     .resizable()
                     .renderingMode(.original)
                     .scaledToFit()
-                    .frame(width: 34, height: 34)
-                Text("No meetings yet")
-                    .font(.headline)
+                    .frame(width: 36, height: 36)
+                    .accessibilityHidden(true)
+                VStack(spacing: 4) {
+                    Text("No meetings yet")
+                        .zoomedSystemFont(size: 13, weight: .semibold)
+                        .foregroundStyle(.primary)
+                    Text(
+                        isGoogleDriveSignedIn && !hasGoogleDriveFolderReadAccess
+                            ? "Reconnect to read the files inside this meeting folder."
+                            : isGoogleDriveSignedIn
+                            ? "Choose the folder that holds your meeting recordings and transcripts."
+                            : "Connect Google Drive, or import a folder of recordings from this Mac."
+                    )
+                    .zoomedSystemFont(size: 12)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 260)
             }
-        } description: {
-            VStack(spacing: 8) {
-                Text(
-                    isGoogleDriveSignedIn && !hasGoogleDriveFolderReadAccess
-                        ? "Reconnect to read the files inside this meeting folder."
-                        : isGoogleDriveSignedIn
-                        ? "Choose the folder that contains your meeting recordings and transcripts."
-                        : "Connect Google Drive, or import a folder of recordings from this Mac."
+
+            HStack(spacing: 8) {
+                SpaceDarkPillButton(
+                    title: isGoogleDriveWorking
+                        ? "Waiting for Google… Cancel"
+                        : (isGoogleDriveSignedIn && !hasGoogleDriveFolderReadAccess
+                            ? "Reconnect Google Drive"
+                            : (isGoogleDriveSignedIn ? "Choose Meeting Folder" : "Connect Google Drive")),
+                    systemImage: nil,
+                    image: nil,
+                    action: startGoogleDriveMeetingImport
                 )
-                HStack(spacing: 6) {
-                    ForEach(MeetingProvider.allCases) { provider in
-                        MeetingProviderMark(provider: provider, size: 13)
-                    }
-                    Text("Google Drive, Read AI, Zoom, and local folders all land here.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                if isGoogleDriveWorking {
+                    ProgressView()
+                        .controlSize(.small)
                 }
             }
-        } actions: {
-            Button(
-                isGoogleDriveWorking
-                    ? "Waiting for Google… Cancel"
-                    : (isGoogleDriveSignedIn && !hasGoogleDriveFolderReadAccess
-                        ? "Reconnect Google Drive"
-                        : (isGoogleDriveSignedIn ? "Choose Meeting Folder" : "Connect Google Drive")),
-                action: startGoogleDriveMeetingImport
-            )
-            .buttonStyle(.borderedProminent)
 
-            if isGoogleDriveWorking {
-                ProgressView()
-                    .controlSize(.small)
+            // Every provider that fills this tab, quiet under the one action.
+            VStack(spacing: 6) {
+                HStack(spacing: 10) {
+                    ForEach(MeetingProvider.allCases) { provider in
+                        MeetingProviderMark(provider: provider, size: 14)
+                    }
+                }
+                Text("Google Drive, Read AI, Zoom and local folders all land here.")
+                    .zoomedSystemFont(size: 11)
+                    .foregroundStyle(.tertiary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: 240)
             }
+            .padding(.top, 6)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 28)
+        .padding(.vertical, 36)
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
     }
