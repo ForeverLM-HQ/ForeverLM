@@ -10137,7 +10137,9 @@ struct ArticleQueueManagementTests {
         var hidden = makeArticle(url: "https://example.com/hidden", title: "OpenAI hidden article", sourceType: .article)
         hidden.isHidden = true
         let shown = makeArticle(url: "https://example.com/shown", title: "OpenAI shown article", sourceType: .article)
-        let byText = makeArticle(url: "https://openaifoundation.org/data", title: "Public Data for Health", sourceType: .article)
+        // An unscoped search reads the address and domain too, as the sidebar's
+        // does, so this page's address names neither query.
+        let byText = makeArticle(url: "https://health.example.org/public", title: "Public Data for Health", sourceType: .article)
         vm.articles = [episode, hidden, shown, byText]
         vm.hiddenPodcastShows = ["TBPN"]
 
@@ -10160,8 +10162,9 @@ struct ArticleQueueManagementTests {
     @Test("The Docs source picker index answers in title order and reuses unchanged analysis")
     func sourcePickerIndexIsTitleOrderedAndReused() async {
         let vm = makeViewModel()
-        let zebra = makeArticle(url: "https://example.com/zebra", title: "Zebra", sourceType: .article)
-        var apple = makeArticle(url: "https://example.com/apple", title: "Apple", sourceType: .article)
+        // Addresses that hold neither title: an unscoped search reads the address too.
+        let zebra = makeArticle(url: "https://example.com/z-1", title: "Zebra", sourceType: .article)
+        var apple = makeArticle(url: "https://example.com/a-2", title: "Apple", sourceType: .article)
         vm.articles = [zebra, apple]
 
         let first = await vm.artifactSourcePickerIndex()
