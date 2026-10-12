@@ -602,6 +602,36 @@ struct ScreenRecordModeTests {
         }
     }
 
+    @Test("The built-in recording library: its books show whole by book id, its sources show while public, and no other book does")
+    func builtInLibraryKeepsItsBooksAndSources() async throws {
+        try await withCleanDefaults {
+            let cutoff = Date(timeIntervalSinceReferenceDate: 800_000_000)
+            let before = cutoff.addingTimeInterval(-86_400 * 90)
+            ScreenRecordMode.recordAdminStatus(true)
+            ScreenRecordMode.setEnabled(true, now: cutoff)
+            let scope = try #require(ScreenRecordScope.resolve { _ in [] })
+            #expect(scope.curatedBookIDs == ScreenRecordLibrary.bookIDs)
+            #expect(scope.curatedSourceIDs == ScreenRecordLibrary.sourceIDs)
+            #expect(!scope.showsLibrarySources)
+
+            let book = try #require(ScreenRecordLibrary.bookIDs.first)
+            #expect(scope.allowsSource(id: "a-chapter", addedAt: before, kind: "book", group: book))
+            #expect(!scope.allowsSource(id: "other-chapter", addedAt: before, kind: "book", group: "another-book"))
+            // A book id keeps chapters, not a source that merely shares the group.
+            #expect(!scope.allowsSource(
+                id: "grouped-article", addedAt: before, kind: "article", url: "https://example.org/a", group: book
+            ))
+
+            let source = try #require(ScreenRecordLibrary.sourceIDs.first)
+            #expect(scope.allowsSource(id: source, addedAt: before, kind: "paper", url: "https://doi.org/10.1000/example"))
+            // Still only while public: a curated id that lost its address stays off screen.
+            #expect(!scope.allowsSource(id: source, addedAt: before, kind: "paper", url: "file:///Users/example/a.pdf"))
+            #expect(!scope.allowsSource(
+                id: "not-curated", addedAt: before, kind: "paper", url: "https://doi.org/10.1000/other"
+            ))
+        }
+    }
+
     @Test("The store answers the sources of the Notebooks and Goals made at or after the cutoff")
     func storeAnswersTakeSources() throws {
         let store = try KnowledgeStore(inMemory: true)

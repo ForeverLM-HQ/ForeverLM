@@ -490,7 +490,7 @@ extension MCPDataStore {
                 id: "recording.source_ids",
                 pane: "Data & Privacy › Screen recording",
                 title: "Older public sources kept on screen",
-                detail: "Source ids (from list_sources while the mode is off) of public library sources that screen record mode shows although the library held them before it went on: a book or talk a from-scratch take files into its own Notebook from the library instead of importing it. Only a source with a public address (or a book) shows; a meeting, upload or private host never does. Every other older source stays off screen, filed into a take Notebook or not. Pass the whole list; [] clears it. This Mac only; it never syncs.",
+                detail: "Source ids (from list_sources while the mode is off) of public library sources that screen record mode shows although the library held them before it went on: a book or talk a from-scratch take files into its own Notebook from the library instead of importing it. Only a source with a public address (or a book) shows; a meeting, upload or private host never does. Every other older source stays off screen, filed into a take Notebook or not, except the recording library built into the app (ScreenRecordLibrary: a few whole books and a themed set of papers, articles, podcast episodes, videos and X posts), which always shows; this list adds to it. Pass the whole list; [] clears it. This Mac only; it never syncs.",
                 reach: .thisMac,
                 kind: .stringList,
                 preferenceKeys: [ScreenRecordMode.sourceIDsKey],

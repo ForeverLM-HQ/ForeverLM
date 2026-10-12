@@ -270,6 +270,12 @@ struct ScreenRecordScope: Sendable, Equatable {
     /// Discover files into a take's Notebook rather than imports. Kept shows
     /// without being filed, so the learner can find it to file it.
     var keptSourceIDs: Set<String> = []
+    /// The built-in recording library (`ScreenRecordLibrary.sourceIDs`), kept
+    /// like `keptSourceIDs` whatever the settings say.
+    var curatedSourceIDs: Set<String> = []
+    /// Books kept whole (`ScreenRecordLibrary.bookIDs`): a book's chapters are
+    /// its sources, grouped under the book's id.
+    var curatedBookIDs: Set<String> = []
     /// Safe public sources captured, and the learner's own work created, at or
     /// after this moment show.
     let cutoff: Date
@@ -310,10 +316,18 @@ struct ScreenRecordScope: Sendable, Equatable {
            Self.isTakeNotebookSource(kind: kind, url: url, show: show) {
             return true
         }
-        if keptSourceIDs.contains(id), Self.isTakeNotebookSource(kind: kind, url: url, show: show) {
+        if isKept(id: id, kind: kind, group: group), Self.isTakeNotebookSource(kind: kind, url: url, show: show) {
             return true
         }
         return showsLibrarySources && Self.isPublicLibrarySource(kind: kind, url: url, show: show)
+    }
+
+    /// Kept on screen whatever its date: on the admin's kept list, in the
+    /// built-in recording library, or a chapter of a book that library keeps.
+    private func isKept(id: String, kind: String?, group: String?) -> Bool {
+        if keptSourceIDs.contains(id) || curatedSourceIDs.contains(id) { return true }
+        guard kind == StudioSourceType.book.rawValue, let group else { return false }
+        return curatedBookIDs.contains(group)
     }
 
     /// What may arrive automatically while a take is running. Only a source
@@ -541,12 +555,135 @@ struct ScreenRecordScope: Sendable, Equatable {
             allowedSourceIDs: Set(notebookID.map(notebookSourceIDs) ?? []),
             takeSourceIDs: Set(takeSourceIDs(cutoff)),
             keptSourceIDs: Set(ScreenRecordMode.sourceIDs),
+            curatedSourceIDs: ScreenRecordLibrary.sourceIDs,
+            curatedBookIDs: ScreenRecordLibrary.bookIDs,
             cutoff: cutoff,
             showsLibrarySources: ScreenRecordMode.showsLibrarySources,
             allowedImageIDs: Set(ScreenRecordMode.imageIDs),
             allowedMeetingGroupIDs: Set(ScreenRecordMode.meetingGroupIDs)
         )
     }
+}
+
+/// The library a take films, built in. The product owner, 2026-10-12: "for the
+/// screen recording mode, we shouldn't show all books. We should only show a
+/// few books … Similarly for YouTube, papers and articles … same with podcasts
+/// too … make sure that you hardcode that somewhere in the app". One theme
+/// (bioelectricity, bioenergetics, systems biology) across every library tab,
+/// so a film shows a plausible library and nothing else of the admin's.
+///
+/// The ids are the admin's own library rows, so another library matches none
+/// of them, and they apply only through `ScreenRecordScope.resolve`, which
+/// answers nil unless the mode is effective: the proxy-confirmed admin's Mac.
+/// Each still passes `isTakeNotebookSource`, so a row that loses its public
+/// address drops out rather than showing. Add to the take with the
+/// `recording.source_ids` setting; change this set for every take.
+enum ScreenRecordLibrary {
+    /// Books shown whole, by the book's id (its chapters' `parent_group`).
+    static let bookIDs: Set<String> = [
+        "2113A94E-BCC1-4670-9AAC-8E38EE9D7234",
+        "2AF71614-8017-4509-A990-D0EA1EC58BC7",
+        "5581CEE9-D41D-4D55-BCB8-E89D838A1594",
+        "733505FA-4D91-45A6-A8DE-F496CBAAC2A1",
+        "A7766C03-EC19-47BF-8B54-5F99047FFA06",
+    ]
+
+    /// Papers, articles, podcast episodes, YouTube videos and X posts.
+    static let sourceIDs: Set<String> = [
+        // papers
+        "src_00bbb3f26f409809ce6704ec2d2bd9c7ac56695d7867e50690d18383a10d89c4",
+        "src_047cad93011ec73d62d4701bdaa5a4d46ca9356e4f66258718c2baaa6a00688f",
+        "src_0f5378ae5124f0a15f3fb7f32c89b3a13f478c5011224278a9888199e6e91d27",
+        "src_1f6403f32c3fc55aff61f2e8334556de054322e186b63394ca4793767e5c245d",
+        "src_24cc87801cd619d76bee73d43c3636c69be9dc9edbc231f232a1d0cf31177bd7",
+        "src_428d864856741cfb50757bb48b4bed95cc3015dc4530e1699bfbe551edc187e6",
+        "src_5272d4e975a8a4d3f663257080f11c5b8097656dd25cc2f26f9d6c9684496c0e",
+        "src_67449368fc7d654830c07b72c181684b3e425592e4782fa2616a7b68391df97e",
+        "src_a228c9cca3e41dde558e76865777fe3fe99c3b6dea8cbb7b274dd77ed77f39e9",
+        "src_a60964959c34d98aadc5af76c2b1a91e68800e40452e917e42fb28f1aa2a683f",
+        "src_abbf77be11ecbcac3e74973526fbde8c9eedb59a73cec0a270820d0481a75ba2",
+        "src_afc126fb1937cdb19c1b651ec099ee413d0ec737f98d3cf081c94fee357fd3ab",
+        "src_c5110ca7b624b6ffd64f9748d30f5e4f9a0910025e093bc5c493b639dc11b701",
+        "src_d8f8662cce414c4e0fff35626a2431d04d349cbaf30d8bc7f5dfe94590c76e0c",
+        "src_ddce1a177e8488dc3bf01ecdf42c6bf993cecb4e5e3486f4487b04a4daa4e3d9",
+        // articles
+        "6B4CE18C-2719-45B0-90F9-D6C34216999C",
+        "AA85ABEA-9590-4087-90A6-02310BC4D322",
+        "EAA74749-4D5E-4C41-B737-C99454AEBF2E",
+        "src_04e23bcbbb3f651974acee79c2549907f8ad8058fd426e212fcb234e42f6043c",
+        "src_1ec0acca4dc0f3bdc972077f3f3ab8015d806a10b8fb610a33c28f62c63cde8d",
+        "src_3ae49ad91a362a7b68dba3895d003eb0147a5315778c0372733be177fb61c0ac",
+        "src_3b9fd00c35d0c2274dec14c804e3b5511a55a954ef54cc4495fb9354950bbbad",
+        "src_40b582bd84fa5eb0f08a9a9c3c980cbfc3306b295750770280d0ab7d7021f70d",
+        "src_53c3f094a14d8c58c6be0e7d81b3b24dcd6fac50c30af57a2a84db136b418380",
+        "src_5fb6906fa1ff0b451ca5612430f51507449eaccde2b8c4640fcefcdbf159d9ad",
+        "src_878e4a2935628d5d29b920398ea4b388d829550b99b053f67fe4a80de8240195",
+        "src_aecbb967547415878c36cbefb339db94f5b7e51078cf8114608c0449fcdd26a1",
+        "src_db6dc525c99651132951664fe3d9304cd141d2c1161938980719c443acf34f57",
+        // podcasts
+        "src_071bfd17f8edfaee1150403491a80470ac84ee081c2112fa8a69c7354d9e53c8",
+        "src_21e12a8888177ad466a1c3687d96d115894b6bec901bd0f87588f966e427d90d",
+        "src_26443097db2139a3a2fcb7d8d9028c8128f3ebc0a20ec1eea7584575aa495aec",
+        "src_28e31f19adc6938cef99647334106a8ca05aeae70bea408616e6343942bf2c8e",
+        "src_479c62d39e04497ad570cdffb357067561a4a76f63ec0d748347896e6cd32f85",
+        "src_49ed5bf371282821fd32de1ed5c02f797e8d4a2555ff0f9f6effcad5dda13de8",
+        "src_5531e2abf77d62334ebe5ddf83ab67ca970ee9aab9dcfd7fd6ab6048253598de",
+        "src_62230a2d237c58715c810a697e1a9eec3423be5c1f77984813b18fc62fef0c08",
+        "src_85a23586cdcefa35f5e0ab9e0d54a9a955ce69bec397e00c5243198c860ac0e4",
+        "src_8e570af07e8b0bd537a8c44c443aaa58bdaf87d4d79b3e4670422f231e80d78f",
+        "src_8ee655298ff02997a14493c723ceb87e6a38e45fe9fb73d1f5e2fc6bf0d41989",
+        "src_a809a7efe4664b50578b56b29b8dbc88ea88ac164b4588172f4ab6bd8235371b",
+        "src_b2479553e0f004aea3d82356e589c819b69b60ec802b9b2417e28499e9ea124e",
+        "src_bfe7d81f207b909ca8f5359079cf95b15792a534e97ad8ede6e98f5cad8de7d7",
+        "src_c084cb61bbe8418dabe9df5f0c7ca25734472424d389fb3226548e9934c7902f",
+        "src_ccd6266a8986702d3ec6c22eeb78b05e76faae0fdb087f7bd00729bdafebebd0",
+        "src_d370f388f9b57e26272b7921409dfd4212c5ed03a9da12340f304da9ecde8627",
+        "src_decb1b64e3728a022b2d033cae072ec0898fde33abe29eb4781cad3c04a2013f",
+        "src_f682e8fe927a8c1ba42e65d149a1e46332d20b65556e942af5a4254155cf1383",
+        // videos
+        "src_03354e55eca8860dbac8cac4070763cdd6f525085644f463de61c410d29bcf11",
+        "src_0b897732cf36f49307210cbc01741b0733655e31b370939aa9e5acc7dc7e408a",
+        "src_12417feb807e723547614b8e6fff5829724c31bc3f3c7ea6a30f7d25b5390b71",
+        "src_142f9e48914e0b9357e9739d43acfcc50341a89a9783ec4a1869ca7986960940",
+        "src_15da44757a065ba0c09f5e5b4526459bc5d2cae16648f551c62616456be0d56c",
+        "src_197b996e6609988d8fb41ef85c6c2b357bcba7e84c1be23e00d2841e36405416",
+        "src_199ba55d777acba4826518994076873ebceec4a0f53e1513b3d9c44b86dbf282",
+        "src_213cadbe6dcdec9708b23889f53c3c89389a956b9f212682769dcf959c07f78a",
+        "src_21664cde85229be33021c0baa18caa7adef4406b199308c7ad587b9ec475c5b8",
+        "src_22b59ef6317c920bcd3b4dee68cbb1fa3faf47413f632bf2dc46438dd5bdbed6",
+        "src_2487e17d540379a86259c409d7209424070647327619ffb29148c8434410fbd9",
+        "src_250851dc6e7b8d98aa748129591a8e0b6450137b7e1ea4fabec41c8220bcc7d0",
+        "src_2cd99bacc5f729534d794b85b951dab5c522bd73a3efb87a60bbe4015f209ebc",
+        "src_325dd45e1f9d3016a0a753ac2331932c80a245cddf484cc9440d90fd08b7079f",
+        "src_39e251e6ed335bc627b4c5de77b5d4e59e5f131388b3ce9aeedf008f12eaef0e",
+        "src_3ca9fdbc457769288e62014f21dbba93485b97471276f32e8cde0371194c59ad",
+        "src_3f1dcc277e81cae86c94b33a72baece69e376674fdf5b6f676cdb15f866ad7bc",
+        "src_4228c4aa050f03f286a67b5b515b0d04c187c6bcfec5d9ad855d868ed35426f9",
+        "src_72a5252561aedfd3f03fd4cc4be1579d6786bbc46cbc0773f37c53d99a419c18",
+        "src_7756ee435c55301fa2d2014e4ccff14ccfa9a192c701e813cadf3b5e32912313",
+        "src_7beb17cbbff8c4f28b85cadc352eb067559b8b2ead09a6a070bf374eece3de9f",
+        "src_8546276613a41f9783d5e7ea4fdb408eda9aff971827eddaf437809a3d0a986f",
+        "src_8f8e9042a220a70232309ec021e01e1f12ade2d6f59f0cd4095aeb8ffadb4539",
+        "src_93e3d10982ad9fc7d87ec7eef8e32ffd1ba502b98b4eff9c11733d23cbdb0bdd",
+        "src_9a03814eead93bb36296fc129705121d6b4248e0d296ba556f41bdb9ebcbda7a",
+        "src_ad27f87a2cad2d1ae05e02979da40dd097b19865fb13ea51a88dcc3ea74a0799",
+        "src_b0306862f59f8a9e495928806e5573064b32fb4908adcc3cd4647aafd1e25b98",
+        "src_d7b3e0d5169fd2d38a4422e07aeeff47eb6856de19bcdbd2d04515fcf92a4c0e",
+        "src_dc6d2c6cc6221fe66a4d6c6d359baf42e3bf5eb7bbd02ed17add0cc657dba69c",
+        "src_ddd4ea506ec99e292cd9eef9cb8738e2fba66ea146b7539f565e721adefc3c72",
+        "src_dff9f5c51e262dcd726bfb034deb6c57ea504a98b11bcf4e39be86a341034094",
+        "src_e2faeb17a954406c57e24dce0324b8b3402ed77670dba74835090f89b1d2b860",
+        "src_e7bd3567d018870b010200fa77ef2011345d663b61d039f72023574c9df7bf2c",
+        "src_f51476ccb79e395622c0b2f66459c5f5314f4ecc24bc669df2c749358071d44b",
+        "src_fcc78382680aa9456c3cdc7a48db7c0d308668b5e2581f79ea15ab41180bec54",
+        // xPosts
+        "src_45c49d5f9bf1fff75af5ac700dc3a6ba14d6eb35fc2a70087bf7673f2ad99657",
+        "src_7c54f59e0040cee5920cf65fe2b79289bf4f3b7b788c5a913dc537a5d4e44b49",
+        "src_c8459fbf736fd2ad4730bca844fbb82e8fd6ff4510d33140b594b093b76f5380",
+        "src_cd145eb526bb835d20f5386f3322c93fe72c8049a7a1b218c8226ad97b84f194",
+        "src_cf473e330722d15cd03599d1ce7b0c97a0a3afe05a812c15125e5b74c6c3535f",
+        "src_dff0122434b229b8b35579f8c3f3190b36a4abcaae65620e4d189927f279dc60",
+    ]
 }
 
 extension ScreenRecordScope {
