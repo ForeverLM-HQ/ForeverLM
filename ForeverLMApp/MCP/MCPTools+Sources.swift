@@ -105,6 +105,20 @@ extension MCPDataStore {
         return lhs.title.localizedStandardCompare(rhs.title) == .orderedAscending
     }
 
+    /// A library source as a reply shows it: its title linked to
+    /// `foreverlm://source/<id>`, the shape search_sources_semantic's rows
+    /// carry. A tool result hands the model this ready-made link, so it has
+    /// something to show the learner other than the id (Prompts.hiddenIDs).
+    /// The title is escaped as `StudioEntityLink.markdown` escapes one, so a
+    /// bracket in it cannot close the link early.
+    static func sourceLink(title: String, id: String) -> String {
+        let text = title.trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "[", with: "\\[")
+            .replacingOccurrences(of: "]", with: "\\]")
+        return "[\(text.isEmpty ? "Untitled" : text)](foreverlm://source/\(StudioEntityLink.encode(id)))"
+    }
+
     func sourceListLine(for item: MCPSourceListItem) -> String {
         let groupSuffix = item.displayGroupName.isEmpty ? "" : ", \(item.displayGroupName)"
         let authorSuffix = item.author.isEmpty ? "" : ", by \(item.author)"
@@ -514,7 +528,7 @@ extension MCPDataStore {
         }
 
         try knowledgeStore().applySourceReviewGuide(candidate: candidate, guide: trimmedGuide)
-        return "Saved Source Review Guide for '\(candidate.title)' (source_id: \(candidate.sourceID), content_sha256: \(candidate.sourceSHA256))."
+        return "Saved Source Review Guide for '\(candidate.title)'."
     }
 
     func listMeetingGroups() throws -> String {
@@ -1898,7 +1912,7 @@ extension MCPDataStore {
             MeetingActionItemExtractor.shared.noteTranscriptReady(sourceID: sourceID)
         }
 
-        return "Attached \(kind.label) to '\(article.title)' (id: \(sourceID), \(raw.split(separator: " ").count) words)"
+        return "Attached \(kind.label) to '\(article.title)' (\(raw.split(separator: " ").count) words)"
     }
 
     /// Insert or replace one "## <Kind>" section in a meeting session's merged

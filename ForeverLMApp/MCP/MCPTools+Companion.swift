@@ -47,6 +47,7 @@ extension MCPDataStore {
         let rawParentID = (notebookID?.trimmingCharacters(in: .whitespacesAndNewlines))
             .flatMap { $0.isEmpty ? nil : $0 }
         var resolvedParentID: String?
+        var resolvedParentTitle: String?
         if let rawParentID {
             guard let parent = try knowledgeStore().loadLearningGoal(rawParentID), parent.isCompanion else {
                 throw MCPError.invalidInput("notebook_id \(rawParentID) is not a Notebook. Use list_notebooks, or create_notebook first.")
@@ -55,6 +56,7 @@ extension MCPDataStore {
                 throw MCPError.invalidInput("notebook_id \(rawParentID) is itself a Goal, not a Notebook. Goals cannot nest under other goals.")
             }
             resolvedParentID = parent.id
+            resolvedParentTitle = parent.title
         }
 
         let goal = try knowledgeStore().createCompanionGoal(
@@ -82,10 +84,13 @@ extension MCPDataStore {
 
         let refreshed = try knowledgeStore().loadLearningGoal(goal.id) ?? goal
         let brief = try companionGoalDetail(refreshed)
-        let parentLine = resolvedParentID.map { "Tagged to Notebook \($0).\n" } ?? ""
-        let artifactLine = resolvedArtifactID.map { "For artifact \($0); the Goal's row opens it.\n" } ?? ""
+        // Named by title: the brief below carries every id (Prompts.hiddenIDs).
+        let parentLine = resolvedParentTitle.map { "Tagged to Notebook ‘\($0)’.\n" } ?? ""
+        let artifactLine = resolvedArtifactID.map { id in
+            "For “\((try? knowledgeStore().loadArtifact(id))?.title ?? id)”; the Goal's row opens it.\n"
+        } ?? ""
         return """
-        Created timebound Goal \(goal.id) ("\(trimmedTitle)"), ending \(isoDateOnly(endAt, calendar: calendar)).
+        Created timebound Goal ‘\(trimmedTitle)’, ending \(isoDateOnly(endAt, calendar: calendar)).
         \(parentLine)\(artifactLine)Seeds: \(seeds.count). Discovered suggestions: \(discoveredCount) (pending your approval).\(discoveryNote)
         Approve suggestions with review_suggested_sources, then pace the approved sources across the days up to the deadline with assign_sources_to_day (this fills the visible Schedule). Use daily_quiz with goal_id \(goal.id) to study.
 
@@ -217,9 +222,10 @@ extension MCPDataStore {
             } catch {
                 throw MCPError.invalidInput(error.localizedDescription)
             }
+            let parentTitle = trimmedParent.isEmpty ? nil : (try? store.loadLearningGoal(trimmedParent))?.title
             parentNote = trimmedParent.isEmpty
                 ? "\nNo longer tagged to a Notebook."
-                : "\nNow tagged to Notebook \(trimmedParent)."
+                : parentTitle.map { "\nNow tagged to Notebook ‘\($0)’." } ?? "\nNow tagged to a Notebook."
         }
 
         var statusNote = ""
@@ -246,7 +252,7 @@ extension MCPDataStore {
                 artifactNote = "\nNo longer for any Doc, Site or animation."
             } else {
                 let title = (try? store.loadArtifact(trimmedArtifact))?.title ?? trimmedArtifact
-                artifactNote = "\nNow for “\(title)” (\(trimmedArtifact)); the Goal's row opens it."
+                artifactNote = "\nNow for “\(title)”; the Goal's row opens it."
             }
         }
 
@@ -256,7 +262,7 @@ extension MCPDataStore {
             : ""
 
         return """
-        Updated Goal \(goal.id) ("\(resolvedTitle)").\(discoveryNote)\(parentNote)\(statusNote)\(artifactNote)\(replanNote)
+        Updated Goal ‘\(resolvedTitle)’.\(discoveryNote)\(parentNote)\(statusNote)\(artifactNote)\(replanNote)
 
         \(try companionGoalDetail(refreshed))
         """
@@ -417,10 +423,12 @@ extension MCPDataStore {
     func listNotebookGoals(notebookID: String?, includeCompleted: Bool = false) throws -> String {
         let store = try knowledgeStore()
         let resolvedNotebookID = (notebookID?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap { $0.isEmpty ? nil : $0 }
+        var scopedNotebook: LearningGoalRecord?
         if let resolvedNotebookID {
             guard let notebook = try store.loadLearningGoal(resolvedNotebookID), notebook.isNotebook else {
                 throw MCPError.invalidInput("notebook_id \(resolvedNotebookID) is not a Notebook. Use list_notebooks.")
             }
+            scopedNotebook = notebook
         }
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
@@ -440,9 +448,10 @@ extension MCPDataStore {
             return headline
         }
         guard !headlines.isEmpty else {
-            return resolvedNotebookID == nil
-                ? "No Goals set yet. Create one with create_learning_goal (notebook_id is optional; pass it to tag the Goal to a Notebook)."
-                : "Notebook \(resolvedNotebookID!) has no Goals yet. Create one with create_learning_goal and notebook_id \(resolvedNotebookID!)."
+            guard let scopedNotebook else {
+                return "No Goals set yet. Create one with create_learning_goal (notebook_id is optional; pass it to tag the Goal to a Notebook)."
+            }
+            return "Notebook ‘\(scopedNotebook.title)’ has no Goals yet. Create one with create_learning_goal and notebook_id \(scopedNotebook.id)."
         }
         return try jsonString(["goals": headlines, "generated_at": ISO8601DateFormatter().string(from: Date())])
     }
@@ -454,7 +463,7 @@ extension MCPDataStore {
         let rejectIDs = sanitizedSourceIDs(reject)
         let unknown = (approveIDs + rejectIDs).filter { poolByID[$0] == nil }
         guard unknown.isEmpty else {
-            throw MCPError.invalidInput("These source_ids are not in goal \(goal.id): \(unknown.joined(separator: ", "))")
+            throw MCPError.invalidInput("These source_ids are not in \(Self.companionName(goal)): \(unknown.joined(separator: ", "))")
         }
         let store = try knowledgeStore()
         if !approveIDs.isEmpty {
@@ -469,7 +478,7 @@ extension MCPDataStore {
         }
         let refreshed = try store.loadLearningGoal(goal.id) ?? goal
         return """
-        Approved \(approveIDs.count), rejected \(rejectIDs.count) for goal \(goal.id).
+        Approved \(approveIDs.count), rejected \(rejectIDs.count) for \(Self.companionName(goal)).
 
         \(try companionGoalDetail(refreshed))
         """
@@ -493,7 +502,7 @@ extension MCPDataStore {
             // (`fileSourcesInTeamPool`), and ticks what arrived itself.
             let filing = try await fileSourcesInTeamPool(ids, in: goal)
             let count = filing.filed.count
-            var head = "Added \(count) source\(count == 1 ? "" : "s") to goal \(goal.id) as approved\(count > 0 ? ", as the team's copies" : "")."
+            var head = "Added \(count) source\(count == 1 ? "" : "s") to \(Self.companionName(goal)) as approved\(count > 0 ? ", as the team's copies" : "")."
             if !filing.alreadyIn.isEmpty { head += " Skipped \(filing.alreadyIn.count) already in the goal." }
             if let notAdded = filing.notAddedSentence { head += " " + notAdded }
             return head + "\n\n" + (try companionGoalDetail(try store.loadLearningGoal(goal.id) ?? goal))
@@ -517,7 +526,7 @@ extension MCPDataStore {
         }
         await tickArrivingNotebookSources(arrivals)
         return """
-        Added \(added) source\(added == 1 ? "" : "s") to goal \(goal.id) as approved.\(skipped > 0 ? " Skipped \(skipped) already in the goal." : "")
+        Added \(added) source\(added == 1 ? "" : "s") to \(Self.companionName(goal)) as approved.\(skipped > 0 ? " Skipped \(skipped) already in the goal." : "")
 
         \(try companionGoalDetail(refreshed))
         """
@@ -594,7 +603,7 @@ extension MCPDataStore {
         let openGaps = (goal.gaps ?? []).filter { $0.isOpen }
 
         guard !chosen.isEmpty else {
-            var lines = ["No approved sources are available to quiz for goal \(goal.id) yet."]
+            var lines = ["No approved sources are available to quiz for \(Self.companionName(goal)) yet."]
             if !pendingSuggestions.isEmpty {
                 lines.append("There are \(pendingSuggestions.count) pending discovered suggestion(s) — approve some with review_suggested_sources.")
             } else {
@@ -1336,7 +1345,7 @@ extension MCPDataStore {
         }
         let approved = Set(goal.items.filter(\.isApproved).map(\.sourceID))
         guard !approved.isEmpty else {
-            return "No approved sources in goal \(goal.id) yet. Add seeds with add_companion_sources or approve discovered suggestions."
+            return "No approved sources in \(Self.companionName(goal)) yet. Add seeds with add_companion_sources or approve discovered suggestions."
         }
 
         let store = try knowledgeStore()
@@ -1358,7 +1367,7 @@ extension MCPDataStore {
             readingInProgressSourceIDs: readingInProgress,
             now: now
         ) else {
-            return "No daily review plan could be assembled for goal \(goal.id) — all approved sources may be completed."
+            return "No daily review plan could be assembled for \(Self.companionName(goal)) — all approved sources may be completed."
         }
 
         let metadata = try sourceMetadataByID(plan.sourceIDs)
@@ -1768,20 +1777,34 @@ extension MCPDataStore {
         return payload
     }
 
+    /// A Notebook or Goal as an answer's sentence names it: its kind and its
+    /// title, never its id, which the JSON beside the sentence carries
+    /// (Prompts.hiddenIDs).
+    static func companionName(_ goal: LearningGoalRecord) -> String {
+        "\(goal.isGoal ? "Goal" : "Notebook") ‘\(goal.title)’"
+    }
+
     func companionGoalDetail(_ goal: LearningGoalRecord) throws -> String {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
         var payload = companionGoalHeadline(goal, calendar: calendar, today: today)
-        let metadata = try sourceMetadataByID(goal.items.map(\.sourceID))
+        let metadata = try sourceMetadataByID(goal.items.map(\.sourceID) + (goal.gaps ?? []).compactMap(\.sourceID))
+        // Each source comes with the link a reply shows (`sourceLink`), so a
+        // list of them is drawn from titles, never from these ids
+        // (Prompts.hiddenIDs). A source the library no longer holds has no
+        // title to link.
+        func sourceEntry(_ sourceID: String) -> [String: Any] {
+            guard let title = metadata[sourceID]?["title"] as? String else {
+                return ["source_id": sourceID, "title": sourceID]
+            }
+            return ["source_id": sourceID, "title": title, "link": Self.sourceLink(title: title, id: sourceID)]
+        }
         payload["seeds"] = goal.items.filter { $0.origin == LearningGoalItemOrigin.seed.rawValue }.map { item -> [String: Any] in
-            ["source_id": item.sourceID, "title": metadata[item.sourceID]?["title"] as? String ?? item.sourceID]
+            sourceEntry(item.sourceID)
         }
         payload["pending_suggestions"] = goal.items.filter { $0.isPendingApproval }.map { item -> [String: Any] in
-            var dict: [String: Any] = [
-                "source_id": item.sourceID,
-                "title": metadata[item.sourceID]?["title"] as? String ?? item.sourceID,
-                "source_type": metadata[item.sourceID]?["source_type"] as? String ?? "unknown",
-            ]
+            var dict = sourceEntry(item.sourceID)
+            dict["source_type"] = metadata[item.sourceID]?["source_type"] as? String ?? "unknown"
             if let relevance = item.relevance { dict["relevance"] = relevance }
             return dict
         }
@@ -1793,7 +1816,12 @@ extension MCPDataStore {
         }
         payload["open_questions"] = (goal.gaps ?? []).filter { $0.isOpen }.map { gap -> [String: Any] in
             var dict: [String: Any] = ["summary": gap.summary, "status": gap.status]
-            if let sourceID = gap.sourceID { dict["source_id"] = sourceID }
+            if let sourceID = gap.sourceID {
+                dict["source_id"] = sourceID
+                if let title = metadata[sourceID]?["title"] as? String {
+                    dict["source_link"] = Self.sourceLink(title: title, id: sourceID)
+                }
+            }
             return dict
         }
         if let questions = goal.researchQuestions, !questions.isEmpty {

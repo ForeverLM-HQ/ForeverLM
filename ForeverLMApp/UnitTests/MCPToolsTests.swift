@@ -11638,7 +11638,8 @@ struct MCPDataStoreTests {
             endDateString: endDate, startDateString: nil, sourceIDs: [],
             dailyTarget: nil, discover: false, notebookID: nil, artifactID: docID
         )
-        #expect(brief.contains("For artifact \(docID)"))
+        #expect(brief.contains("For “Rare mitochondrial diseases”; the Goal's row opens it."))
+        #expect(!brief.contains("Created timebound Goal \(docID)"))
 
         let listed = try parseJSON(try store.listNotebookGoals(notebookID: nil))
         let rows = try #require(listed["goals"] as? [[String: Any]])

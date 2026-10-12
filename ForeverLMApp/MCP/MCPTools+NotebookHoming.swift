@@ -55,7 +55,7 @@ extension MCPDataStore {
             throw MCPError.invalidInput("Notebook not found: \(notebook.id). Use list_notebooks to see available Notebooks.")
         case .archived:
             throw MCPError.invalidInput(
-                "‘\(notebook.title)’ (\(notebook.id)) is archived, so nothing was made. Restore it first, or leave notebook_id out to file it in no Notebook."
+                "‘\(notebook.title)’ is archived, so nothing was made. Restore it first, or leave notebook_id out to file it in no Notebook."
             )
         case .readOnlyTeam:
             if let team {

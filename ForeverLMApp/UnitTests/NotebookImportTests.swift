@@ -695,7 +695,7 @@ struct NotebookTeamImportTests {
             "notebook_id": notebookID, "source_ids": ["own-3"],
         ])
         #expect(!filed.isError, "\(filed.text)")
-        #expect(filed.text.hasPrefix("Added 1 source to Notebook ‘Mitochondria’ (\(notebookID)) as approved, as the team's copies."))
+        #expect(filed.text.hasPrefix("Added 1 source to Notebook ‘Mitochondria’ as approved, as the team's copies."))
         let third = try copyID(of: "https://example.org/team/three")
 
         // add_companion_sources: the older name for the same pool.
@@ -704,7 +704,7 @@ struct NotebookTeamImportTests {
             "goal_id": notebookID, "source_ids": ["own-4"],
         ])
         #expect(!companion.isError, "\(companion.text)")
-        #expect(companion.text.hasPrefix("Added 1 source to goal \(notebookID) as approved, as the team's copies."))
+        #expect(companion.text.hasPrefix("Added 1 source to Notebook ‘Mitochondria’ as approved, as the team's copies."))
         let fourth = try copyID(of: "https://example.org/team/four")
 
         let held = Set(try approved(notebookID, in: knowledge))

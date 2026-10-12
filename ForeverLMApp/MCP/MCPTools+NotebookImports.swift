@@ -34,7 +34,7 @@ extension MCPDataStore {
         let notebook = try resolveMCPChatHome(notebookID: raw, store: store)
         guard !notebook.isArchived else {
             throw MCPError.invalidInput(
-                "‘\(notebook.title)’ (\(notebook.id)) is archived, so nothing was added. Restore it first, or leave notebook_id out to add to the library only."
+                "‘\(notebook.title)’ is archived, so nothing was added. Restore it first, or leave notebook_id out to add to the library only."
             )
         }
         try requireNotebookTeamTakesSources(notebook, store: store)
@@ -260,7 +260,7 @@ extension MCPDataStore {
             try companionGoalDetail(try knowledgeStore().loadLearningGoal(goal.id) ?? goal)
         }
         let count = filing.filed.count
-        var lines = ["Added \(count) source\(count == 1 ? "" : "s") to Notebook ‘\(goal.title)’ (\(goal.id)) as approved\(goal.teamID != nil && count > 0 ? ", as the team's copies" : "")."]
+        var lines = ["Added \(count) source\(count == 1 ? "" : "s") to Notebook ‘\(goal.title)’ as approved\(goal.teamID != nil && count > 0 ? ", as the team's copies" : "")."]
         if !filing.alreadyIn.isEmpty {
             lines.append("Skipped \(filing.alreadyIn.count) already in the Notebook.")
         }

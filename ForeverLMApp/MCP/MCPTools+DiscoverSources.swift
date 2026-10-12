@@ -33,7 +33,7 @@ extension MCPDataStore {
             let store = try knowledgeStore()
             let notebook = try resolveMCPNotebookGoal(notebookID: notebookID, store: store)
             guard !notebook.isArchived else {
-                throw MCPError.invalidInput("Notebook \"\(notebook.title)\" (id \(notebook.id)) is archived. Restore it with update_notebook before searching for its sources.")
+                throw MCPError.invalidInput("Notebook \"\(notebook.title)\" is archived. Restore it with update_notebook before searching for its sources.")
             }
             let excluded = try store.knowledgeSearchExcludedSourceIDs(includeArchived: true)
             let ids: [String]
