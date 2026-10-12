@@ -48,8 +48,8 @@ struct MemoryCardToCheck: Equatable, Identifiable, Sendable {
     let ideaID: String?
     /// When it was drafted; nil for an item from before cards.
     let draftedAt: Date?
-    /// The learner asked for this draft: it waits ticked, and Keep N Cards
-    /// keeps it unless it is unticked.
+    /// The learner asked for this draft. To Check decides it like any other
+    /// (since 2026-10-12); the corner card counts only the drafts not asked for.
     let isRequested: Bool
     /// The item of a card from before cards.
     let memoryItemID: String?
@@ -308,22 +308,9 @@ enum MemoryCardTriage {
         return "\(cards.count) \(cardWord) from \(sources) \(sourceWord)"
     }
 
-    /// Keep N Cards: every requested draft of `cards` kept, but those the
-    /// learner unticked, which are skipped — "untick to drop". The other cards
-    /// are left as they are.
-    static func keepRequested(_ cards: [MemoryCardToCheck], unticked: Set<String>) -> [MemoryCardTriageDecision] {
-        cards
-            .filter { $0.kind == .draft && $0.isRequested }
-            .map { MemoryCardTriageDecision(card: $0, action: unticked.contains($0.cardID) ? .skip : .keep) }
-    }
-
-    /// Keep All on a source: every card of the group kept, but a requested
-    /// draft the learner unticked, which is skipped.
-    static func keepAll(_ cards: [MemoryCardToCheck], unticked: Set<String>) -> [MemoryCardTriageDecision] {
-        cards.map { card in
-            let dropped = card.kind == .draft && card.isRequested && unticked.contains(card.cardID)
-            return MemoryCardTriageDecision(card: card, action: dropped ? .skip : .keep)
-        }
+    /// Keep All on a source: every card of the group kept.
+    static func keepAll(_ cards: [MemoryCardToCheck]) -> [MemoryCardTriageDecision] {
+        cards.map { MemoryCardTriageDecision(card: $0, action: .keep) }
     }
 
     /// The face a draft is kept with after the learner's edit: their words

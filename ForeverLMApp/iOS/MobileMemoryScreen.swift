@@ -310,7 +310,7 @@ struct MobileMemoryScreen: View {
     @ViewBuilder
     private func actions(state: MemoryReviewCommitment.State) -> some View {
         let primary = knowsCards ? MobileMemoryScreenCopy.primaryTitle(state: state, counts: counts) : nil
-        let practices = knowsCards && MemoryReviewCommitment.canStart(state) && counts.practice > 0
+        let practices = knowsCards && counts.practice > 0
         if primary != nil || practices {
             VStack(spacing: MobileDesign.Spacing.xSmall) {
                 if let primary {

@@ -11,14 +11,14 @@ import SwiftUI
 /// as the card it would be — its front in the card review's serif, a rule,
 /// its back, why — with its own actions under it.
 ///
-/// - A card drafted unasked, or one from before cards: **Keep** makes it a
-///   card of Memory (`keepMemoryCard`), **Edit** keeps it in the learner's
-///   words, **Skip** drops it for good; with the list focused, K, E and S do
-///   the same to the selected card, and ↑ ↓ move the selection.
-/// - A card the learner asked for arrives ticked, and its tick is its
-///   decision: K ticks it, S unticks it (Space toggles), E edits it. The bar
-///   pinned to the bottom counts the ticks and its **Keep N Cards** keeps the
-///   ticked ones and drops the unticked.
+/// - Every card, asked for or not: **Keep** makes it a card of Memory
+///   (`keepMemoryCard`), **Edit** keeps it in the learner's words, **Skip**
+///   drops it for good; with the list focused, K, E and S do the same to the
+///   selected card, and ↑ ↓ move the selection. One way for every card since
+///   2026-10-12: the ticks the cards asked for carried, and a bar counting
+///   only them ("24 of 24 ticked" under "165 cards"), read as a second
+///   system (product owner: "someone should be naive to the app and just
+///   'get it'").
 /// - A source: **Keep All** and **Skip All** (Skip All asks first when it
 ///   would retire cards from before).
 ///
@@ -37,8 +37,6 @@ struct MemoryCardsToCheckView: View {
     let cards: [MemoryCardToCheck]
     let hasLoaded: Bool
 
-    /// Requested drafts the learner unticked: dropped by Keep N Cards.
-    @State private var unticked: Set<String> = []
     /// Cards decided and on their way to storage, hidden meanwhile.
     @State private var decided: Set<String> = []
     @State private var selection: String?
@@ -50,11 +48,6 @@ struct MemoryCardsToCheckView: View {
     private static let columnMaxWidth: CGFloat = 680
 
     private var visible: [MemoryCardToCheck] { cards.filter { !decided.contains($0.cardID) } }
-
-    /// The requested drafts on screen, ticked or not: what Keep N Cards decides.
-    private var requested: [MemoryCardToCheck] {
-        visible.filter { $0.kind == .draft && $0.isRequested }
-    }
 
     var body: some View {
         let visible = visible
@@ -70,7 +63,6 @@ struct MemoryCardsToCheckView: View {
             // A fresh read: what storage refused is back, what it wrote is gone.
             let present = Set(ids)
             decided.formIntersection(present)
-            unticked.formIntersection(present)
             if let selection, !present.contains(selection) { self.selection = nil }
             takeFocusCard()
         }
@@ -153,8 +145,14 @@ struct MemoryCardsToCheckView: View {
                         .font(.title2.weight(.semibold))
                         .monospacedDigit()
                         .textSelection(.disabled)
-                        .padding(.bottom, 18)
                         .accessibilityIdentifier("memory.pane.toCheck.summary")
+                    // What the list is for, to someone who has never seen it.
+                    Text("Keep a card and Review will ask it. Skip it and it is gone.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.disabled)
+                        .padding(.top, 4)
+                        .padding(.bottom, 18)
                     ForEach(Self.rows(groups)) { row in
                         switch row {
                         case .source(let group, let isFirst):
@@ -174,9 +172,6 @@ struct MemoryCardsToCheckView: View {
                 .padding(.bottom, 28)
                 .frame(maxWidth: .infinity)
             }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                if !requested.isEmpty { keepBar }
-            }
             .focusable()
             .focusEffectDisabled()
             .focused($listFocused)
@@ -185,56 +180,11 @@ struct MemoryCardsToCheckView: View {
             }
             .onKeyPress(.upArrow) { moveSelection(by: -1) ? .handled : .ignored }
             .onKeyPress(.downArrow) { moveSelection(by: 1) ? .handled : .ignored }
-            .onKeyPress(.space) { toggleSelectedTick() ? .handled : .ignored }
             .onChange(of: selection) { _, id in
                 guard let id else { return }
                 withAnimation(.easeOut(duration: 0.15)) { proxy.scrollTo(id) }
             }
         }
-    }
-
-    // MARK: The bar
-
-    /// Pinned to the bottom while cards the learner asked for wait: how many
-    /// are ticked, and the one button that keeps them and drops the rest.
-    private var keepBar: some View {
-        let requested = requested
-        let ticked = requested.filter { !unticked.contains($0.cardID) }.count
-        let left = requested.count - ticked
-        return VStack(spacing: 0) {
-            Divider()
-            HStack(spacing: 14) {
-                // "3 of 4 ticked" over Keep 3 Cards, the unticked card faded,
-                // says what the button keeps; the caption that said the
-                // unticked are skipped went on 2026-10-06 (the button's help
-                // still says it).
-                Text("\(ticked) of \(requested.count) ticked")
-                    .font(.callout.weight(.semibold))
-                    .monospacedDigit()
-                    .textSelection(.disabled)
-                Spacer(minLength: 12)
-                // No Return: inside a notebook the pane sits beside the chat.
-                // The review's dark pill, never a blue one (docs/ui-design.md).
-                if ticked > 0 {
-                    MemoryReviewButton(title: ticked == 1 ? "Keep 1 Card" : "Keep \(ticked) Cards", kind: .primary, minWidth: 140) {
-                        decide(MemoryCardTriage.keepRequested(visible, unticked: unticked))
-                    }
-                    .help("Keep the ticked cards, and skip the rest you asked for")
-                    .accessibilityIdentifier("memory.pane.toCheck.keepRequested")
-                } else {
-                    MemoryReviewButton(title: left == 1 ? "Skip 1 Card" : "Skip \(left) Cards", kind: .secondary, minWidth: 140) {
-                        decide(MemoryCardTriage.keepRequested(visible, unticked: unticked))
-                    }
-                    .help("Skip every card you asked for: none is ticked")
-                    .accessibilityIdentifier("memory.pane.toCheck.keepRequested")
-                }
-            }
-            .frame(maxWidth: Self.columnMaxWidth)
-            .padding(.horizontal, 24)
-            .padding(.vertical, 12)
-            .frame(maxWidth: .infinity)
-        }
-        .background(.bar)
     }
 
     // MARK: A source
@@ -267,7 +217,7 @@ struct MemoryCardsToCheckView: View {
             .accessibilityIdentifier("memory.pane.toCheck.source.\(group.sourceID)")
             Spacer(minLength: 12)
             Button("Keep All") {
-                decide(MemoryCardTriage.keepAll(group.cards, unticked: unticked))
+                decide(MemoryCardTriage.keepAll(group.cards))
             }
             .font(.callout)
             .buttonStyle(.hoverWash(cornerRadius: 6, inset: -5, tint: .accentColor))
@@ -331,10 +281,8 @@ struct MemoryCardsToCheckView: View {
 
     private func cardRow(_ card: MemoryCardToCheck) -> some View {
         let isSelected = selection == card.cardID
-        let isRequested = card.kind == .draft && card.isRequested
         return MemoryCardToCheckRow(
             card: card,
-            tick: isRequested ? tickBinding(card) : nil,
             isSelected: isSelected,
             showsKeys: isSelected && listFocused,
             keep: { decide([MemoryCardTriageDecision(card: card, action: .keep)]) },
@@ -383,19 +331,6 @@ struct MemoryCardsToCheckView: View {
         Task { await vm.openLinkedSourceInReader(sourceID, passage: passage, beside: .memory) }
     }
 
-    private func tickBinding(_ card: MemoryCardToCheck) -> Binding<Bool> {
-        Binding(
-            get: { !unticked.contains(card.cardID) },
-            set: { ticked in setTick(card, ticked) }
-        )
-    }
-
-    private func setTick(_ card: MemoryCardToCheck, _ ticked: Bool) {
-        withAnimation(.easeOut(duration: 0.15)) {
-            if ticked { unticked.remove(card.cardID) } else { unticked.insert(card.cardID) }
-        }
-    }
-
     // MARK: Deciding
 
     /// Hides the decided cards at once, moves the selection past them, and
@@ -436,29 +371,17 @@ struct MemoryCardsToCheckView: View {
         return visible.first { $0.cardID == selection }
     }
 
-    /// K, E and S on the selected card. A card the learner asked for is
-    /// decided by its tick, so K ticks it and S unticks it, and the
-    /// selection moves on; any other card is kept or skipped there and then.
+    /// K, E and S on the selected card: kept, edited or skipped there and
+    /// then.
     private func handleKey(_ key: String) -> Bool {
         guard let card = selectedCard else { return false }
-        let isRequested = card.kind == .draft && card.isRequested
         switch key {
         case "k":
-            if isRequested {
-                setTick(card, true)
-                _ = moveSelection(by: 1)
-            } else {
-                decide([MemoryCardTriageDecision(card: card, action: .keep)])
-            }
+            decide([MemoryCardTriageDecision(card: card, action: .keep)])
         case "e":
             editing = card
         case "s":
-            if isRequested {
-                setTick(card, false)
-                _ = moveSelection(by: 1)
-            } else {
-                decide([MemoryCardTriageDecision(card: card, action: .skip)])
-            }
+            decide([MemoryCardTriageDecision(card: card, action: .skip)])
         default:
             return false
         }
@@ -478,12 +401,6 @@ struct MemoryCardsToCheckView: View {
         return true
     }
 
-    private func toggleSelectedTick() -> Bool {
-        guard let card = selectedCard, card.kind == .draft, card.isRequested else { return false }
-        setTick(card, unticked.contains(card.cardID))
-        return true
-    }
-
     private func sourceTitle(_ sourceID: String) -> String {
         let title = vm.articlesById[vm.canonicalSourceID(sourceID)]?.title.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return title.isEmpty ? "Source not in the library" : title
@@ -494,14 +411,10 @@ struct MemoryCardsToCheckView: View {
 
 /// One card to check, drawn as the card it would be: its difficulty, the
 /// front in the card review's serif, its pictures, the fold, the back, and why
-/// it is right; under it, Show Passage and its actions. A card the learner
-/// asked for carries its tick at the leading edge and only Edit, since the
-/// tick is its keep or skip; unticked, the card fades. While the list has
+/// it is right; under it, Show Passage and its actions. While the list has
 /// focus the selected card's buttons show their keys.
 private struct MemoryCardToCheckRow: View {
     let card: MemoryCardToCheck
-    /// The card's tick, for a card the learner asked for; nil otherwise.
-    let tick: Binding<Bool>?
     let isSelected: Bool
     let showsKeys: Bool
     let keep: () -> Void
@@ -517,17 +430,10 @@ private struct MemoryCardToCheckRow: View {
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
-        let isLeftOut = tick?.wrappedValue == false
-        HStack(alignment: .top, spacing: 12) {
-            if let tick {
-                tickButton(tick)
-            }
-            VStack(alignment: .leading, spacing: 0) {
-                face
-                    .opacity(isLeftOut ? 0.45 : 1)
-                actions
-                    .padding(.top, 12)
-            }
+        VStack(alignment: .leading, spacing: 0) {
+            face
+            actions
+                .padding(.top, 12)
         }
         .padding(.horizontal, 18)
         .padding(.top, 16)
@@ -588,25 +494,6 @@ private struct MemoryCardToCheckRow: View {
 
     // MARK: The actions
 
-    private func tickButton(_ tick: Binding<Bool>) -> some View {
-        Button {
-            tick.wrappedValue.toggle()
-        } label: {
-            Image(systemName: tick.wrappedValue ? "checkmark.circle.fill" : "circle")
-                .font(.system(size: 18))
-                .foregroundStyle(tick.wrappedValue ? Color.accentColor : Color.secondary)
-                .frame(width: 22, height: 22)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .help(tick.wrappedValue
-              ? "Ticked: Keep Cards keeps it. Untick it to skip it (S, or Space)"
-              : "Unticked: Keep Cards skips it. Tick it to keep it (K, or Space)")
-        .accessibilityLabel("Keep this card")
-        .accessibilityValue(tick.wrappedValue ? "Ticked" : "Unticked")
-        .accessibilityAddTraits(.isToggle)
-    }
-
     private var actions: some View {
         HStack(spacing: 6) {
             if let showPassage {
@@ -618,23 +505,19 @@ private struct MemoryCardToCheckRow: View {
                 .accessibilityIdentifier("memory.pane.toCheck.passage.\(card.cardID)")
             }
             Spacer(minLength: 8)
-            if tick == nil {
-                actionButton("Skip", systemImage: "xmark", key: "S", tint: .secondary, run: skip)
-                    .accessibilityIdentifier("memory.pane.toCheck.skip.\(card.cardID)")
-            }
+            actionButton("Skip", systemImage: "xmark", key: "S", tint: .secondary, run: skip)
+                .accessibilityIdentifier("memory.pane.toCheck.skip.\(card.cardID)")
             actionButton("Edit", systemImage: "pencil", key: "E", tint: .secondary, run: edit)
                 .accessibilityIdentifier("memory.pane.toCheck.edit.\(card.cardID)")
-            if tick == nil {
-                Button(action: keep) {
-                    actionLabel("Keep", systemImage: "checkmark", key: "K")
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 3)
-                        .background(Color.accentColor.opacity(0.12), in: Capsule())
-                }
-                .buttonStyle(.hoverWash(in: Capsule(), inset: 0, opacity: 0.1, tint: .accentColor))
-                .help("Keep (K)")
-                .accessibilityIdentifier("memory.pane.toCheck.keep.\(card.cardID)")
+            Button(action: keep) {
+                actionLabel("Keep", systemImage: "checkmark", key: "K")
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 3)
+                    .background(Color.accentColor.opacity(0.12), in: Capsule())
             }
+            .buttonStyle(.hoverWash(in: Capsule(), inset: 0, opacity: 0.1, tint: .accentColor))
+            .help("Keep (K)")
+            .accessibilityIdentifier("memory.pane.toCheck.keep.\(card.cardID)")
         }
         .font(.callout)
         .labelStyle(.titleAndIcon)

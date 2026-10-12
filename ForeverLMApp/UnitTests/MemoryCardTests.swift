@@ -832,8 +832,8 @@ struct MemoryCardTests {
         #expect(pile(row, itemIDs: [MemoryTutorIdentity.cardItemID(cardID: "theirs-2")]) == ["theirs-3"])
     }
 
-    @Test("Keep Cards keeps the ticked cards asked for and drops the unticked; Keep All keeps a source's cards but an unticked one")
-    func keepRequestedAndKeepAll() {
+    @Test("Keep All keeps every card of a source, asked for or not")
+    func keepAll() {
         let deckID = MemoryCard.draftDeckID(sourceID: "src-1")
         let deck = MemoryCardDraftDeck(deckID: deckID, sourceID: "src-1", deck: FlashcardDeck(title: "T", cards: [
             draft(requested: true, id: "asked-1"),
@@ -841,11 +841,9 @@ struct MemoryCardTests {
             draft("Drafted unasked?", seed: "s-3", id: "unasked"),
         ]))
         let cards = MemoryCardTriage.toCheck(decks: [deck], deckStates: [:], itemIDs: [], legacyItems: [], attemptsByItemID: [:], now: Self.keptAt)
-        let requested = MemoryCardTriage.keepRequested(cards, unticked: ["asked-2"])
-        #expect(requested.map(\.card.cardID) == ["asked-1", "asked-2"])
-        #expect(requested.map(\.action) == [.keep, .skip])
-        let all = MemoryCardTriage.keepAll(cards, unticked: ["asked-2"])
-        #expect(all.map(\.action) == [.keep, .skip, .keep])
+        let all = MemoryCardTriage.keepAll(cards)
+        #expect(all.map(\.card.cardID) == ["asked-1", "asked-2", "unasked"])
+        #expect(all.map(\.action) == [.keep, .keep, .keep])
         #expect(MemoryCardTriage.grouped(cards).map(\.sourceID) == ["src-1"])
     }
 

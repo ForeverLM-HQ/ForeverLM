@@ -307,8 +307,8 @@ struct Flashcard: Identifiable, Equatable, Sendable {
     var draftedAt: Date?
     /// Who drafted it; nil reads as ForeverLM (`MemoryCardOrigin.drafted`).
     var origin: MemoryCardOrigin?
-    /// The learner asked for it: it waits kept by default, ticked, and one
-    /// Keep N Cards keeps it.
+    /// The learner asked for it (Make Cards, or an assistant asked to draft).
+    /// To Check decides it like any other card.
     var isRequested: Bool
     var frontImages: [MemoryCardImage]
     var backImages: [MemoryCardImage]

@@ -15,8 +15,8 @@ import Foundation
 /// into sources and saves the drafts through `saveCardDrafts`, as every
 /// drafted card is saved: a quote the source's text does not print is reported
 /// and never offered, a seed or a question its deck holds is not offered
-/// twice, and nothing is kept without the learner. The drafts arrive ticked
-/// (the learner asked for them), as Make Cards' do.
+/// twice, and nothing is kept without the learner. The drafts are marked as
+/// asked for, as Make Cards' are.
 ///
 /// An anchor that comes with no passages has them searched in its sources
 /// first (`StudioViewModel.situatedPassages`); one whose sources give none is

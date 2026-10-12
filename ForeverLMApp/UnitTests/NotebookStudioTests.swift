@@ -387,7 +387,7 @@ struct NotebookStudioTests {
 
         // Practice reads the notebook's cards first: with none it says so and
         // the window stays the notebook's.
-        let practice = vm.inWindow(window) { vm.startNotebookPractice(notebookID: "bio", commitment: .open) }
+        let practice = vm.inWindow(window) { vm.startNotebookPractice(notebookID: "bio") }
         await practice?.value
         #expect(window.memoryCardSession == nil)
         #expect(window.notebook?.notebookID == "bio")
@@ -526,6 +526,20 @@ struct NotebookStudioTests {
         #expect(vm.notebookExplainerCandidates("bio").map(\.id) == [paperID])
         #expect(vm.notebookTeachBackCandidates("bio").map(\.id) == [paperID])
         #expect(vm.notebookStudioSourceIDs("bio") == [paperID])
+    }
+
+    @Test("A notebook of podcast episodes offers them to the Explainer and to Feynman Technique; a book only to Feynman Technique; ForeverLM's own scripts to neither")
+    func spokenSourcesAreExplainedAndTaughtBack() {
+        let (vm, _, _, _) = studio()
+        let episode = Self.article(url: "https://pod.example/ep-4", title: "Ep 4: Bioelectricity", type: .podcast)
+        let video = Self.article(url: "https://www.youtube.com/watch?v=abc", title: "Read + Write MRIs", type: .video)
+        let book = Self.article(url: "file:///books/bioenergetics.pdf", title: "Bioenergetics, chapter 2", type: .book)
+        let script = Self.article(url: GeneratedExplainer.url(explaining: episode.id), title: "Explainer: Ep 4: Bioelectricity")
+        vm.articles += [episode, video, book, script]
+        vm.learningGoals.append(Self.notebook("pods", sources: [episode.id, video.id, book.id, script.id], teamID: vm.activeTeamID))
+
+        #expect(vm.notebookExplainerCandidates("pods").map(\.id) == [episode.id, video.id])
+        #expect(vm.notebookTeachBackCandidates("pods").map(\.id) == [episode.id, video.id, book.id])
     }
 
     @Test("Feynman Technique asks the notebook's chat for a teach-back on the paper picked, and an archived notebook or an unticked paper asks for nothing")

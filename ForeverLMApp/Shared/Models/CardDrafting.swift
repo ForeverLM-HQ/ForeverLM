@@ -6,7 +6,7 @@ import Foundation
 // docs/memory-design.md, "Drafting". Make Cards — the Reader's, a notebook's
 // Studio, a chat's or an assistant's (`draft_cards`) — drafts cards from each
 // source's whole text for the learner to go through in Memory's To Check,
-// where the cards they asked for arrive ticked (`Flashcard.isRequested`).
+// marked as asked for (`Flashcard.isRequested`).
 // Everything in this file is pure: what a request asks of each source, the
 // seeds its cards come from first (a walkthrough's questions free, then the
 // review guide's questions, the learner's highlights and notes, the source's

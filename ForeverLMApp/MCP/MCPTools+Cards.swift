@@ -190,7 +190,7 @@ extension MCPDataStore {
             "kept_by_default": keptByDefault,
             "message": addedCount == 0
                 ? "No card was saved."
-                : "Saved \(addedCount) card\(addedCount == 1 ? "" : "s") to check. They wait in Memory's To Check until the learner keeps, edits or skips them\(keptByDefault ? "; they arrive ticked, kept with one press" : ""). Nothing is reviewed before it is kept.",
+                : "Saved \(addedCount) card\(addedCount == 1 ? "" : "s") to check. They wait in Memory's To Check until the learner keeps, edits or skips them. Nothing is reviewed before it is kept.",
         ]
         if !incomplete.isEmpty {
             payload["incomplete"] = incomplete

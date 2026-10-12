@@ -4417,7 +4417,7 @@ struct ReviewChatSavedCardsView: View {
         guard !entries.isEmpty, !isKeeping else { return }
         isKeeping = true
         Task {
-            await vm.triageCardsToCheck(MemoryCardTriage.keepAll(entries, unticked: []))
+            await vm.triageCardsToCheck(MemoryCardTriage.keepAll(entries))
             isKeeping = false
         }
     }

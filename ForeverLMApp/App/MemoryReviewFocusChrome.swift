@@ -65,6 +65,6 @@ struct MemoryReviewFocusChrome: View {
     /// What the × asks before it ends the session: the promise, what is left
     /// of it, and what ending means. One sentence each.
     static func endReviewMessage(budgetMinutes: Int, remainingSeconds: TimeInterval) -> String {
-        "You committed to \(MemoryReviewBudget.label(budgetMinutes)), and \(MemoryReviewGoal.remainingLabel(seconds: remainingSeconds)) is still to go. Ending now ends today's session: the next review is tomorrow's."
+        "You committed to \(MemoryReviewBudget.label(budgetMinutes)), and \(MemoryReviewGoal.remainingLabel(seconds: remainingSeconds)) is still to go. Ending now means today does not count."
     }
 }

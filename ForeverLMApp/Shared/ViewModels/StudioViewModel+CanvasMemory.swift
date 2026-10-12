@@ -119,16 +119,12 @@ extension StudioViewModel {
     /// a practice of the weakest), asked as a tour of the Canvas. A sitting of
     /// the card review's own, as learner-started practice: storage writes an
     /// answer only for a card due or never answered, so nothing stretches an
-    /// interval. Nothing starts on a day whose review was ended early; with
-    /// no kept card behind the selection a toast offers Make Cards.
+    /// interval. With no kept card behind the selection a toast offers Make
+    /// Cards.
     func startKnowledgeMapReview(refs: [String]) {
         let map = knowledgeMap
         let memory = map.memory
         guard memory.review == nil, !memory.isStartingReview else { return }
-        guard MemoryReviewCommitment.canStart(MemoryReviewEngagementTracker.shared.state) else {
-            showToast("Today's review ended early. Tomorrow is a fresh start.")
-            return
-        }
         var seen = Set<String>()
         let asked = refs.filter { seen.insert($0).inserted }
         // A card's anchor is its source's own card when that was asked, else

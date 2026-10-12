@@ -1309,8 +1309,8 @@ struct StudioNavigationRail: View {
         if case .ended(let seconds) = goalTracker.state {
             let minutes = Int((seconds / 60).rounded())
             return minutes >= 1
-                ? "Today's review ended after \(minutes) min · tomorrow is a fresh start"
-                : "Today's review ended · tomorrow is a fresh start"
+                ? "Today's review ended after \(minutes) min"
+                : "Today's review ended"
         }
         return vm.memoryCardCounts.line ?? "Nothing due today"
     }

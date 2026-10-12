@@ -118,7 +118,7 @@ struct MobileCardsToCheckList<Header: View>: View {
             Spacer(minLength: MobileDesign.Spacing.small)
             Menu {
                 Button("Keep All", systemImage: "checkmark") {
-                    decide(MemoryCardTriage.keepAll(group.cards, unticked: []))
+                    decide(MemoryCardTriage.keepAll(group.cards))
                 }
                 Button("Skip All", systemImage: "xmark", role: .destructive) {
                     decide(group.cards.map { MemoryCardTriageDecision(card: $0, action: .skip) })

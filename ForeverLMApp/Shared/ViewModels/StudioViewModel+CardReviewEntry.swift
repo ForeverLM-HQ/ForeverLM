@@ -248,26 +248,13 @@ extension StudioViewModel {
     /// from "not on the day of consumption"; storage writes an answer only
     /// for a card due or new (`MemoryCardQueue.answerCounts` with
     /// `practice`), so practice never stretches an interval, and answering a
-    /// draft keeps it first. Nothing starts on a day whose review was ended
-    /// early, or when the notebook has no card.
-    func startNotebookPractice(notebookID: String) {
-        startNotebookPractice(notebookID: notebookID, commitment: MemoryReviewEngagementTracker.shared.state)
-    }
-
-    /// The practice behind `startNotebookPractice(notebookID:)`, with where
-    /// today's review stands (a test names its own). Returns the work, for a
-    /// caller that must see it finish; nil when nothing starts.
+    /// draft keeps it first. Nothing starts when the notebook has no card.
+    /// Returns the work, for a caller that must see it finish; nil when
+    /// nothing starts.
     @discardableResult
-    func startNotebookPractice(
-        notebookID: String,
-        commitment state: MemoryReviewCommitment.State
-    ) -> Task<Void, Never>? {
+    func startNotebookPractice(notebookID: String) -> Task<Void, Never>? {
         let window = activeWindowState
         let scope = MemoryReviewScope.notebook(notebookID)
-        guard MemoryReviewCommitment.canStart(state) else {
-            showToast("Today's review ended early. Tomorrow is a fresh start.")
-            return nil
-        }
         guard let cardScope = memoryCardScope(for: scope),
               window.memoryCardSession == nil, !startingCardSittingWindowIDs.contains(window.id) else { return nil }
         startingCardSittingWindowIDs.insert(window.id)
@@ -326,10 +313,6 @@ extension StudioViewModel {
         commitment state: MemoryReviewCommitment.State
     ) -> Task<Void, Never>? {
         let window = activeWindowState
-        guard MemoryReviewCommitment.canStart(state) else {
-            showToast("Today's review ended early. Tomorrow is a fresh start.")
-            return nil
-        }
         guard window.memoryCardSession == nil, !startingCardSittingWindowIDs.contains(window.id) else { return nil }
         startingCardSittingWindowIDs.insert(window.id)
         let title = memoryReviewScopeTitle(scope)

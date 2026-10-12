@@ -222,17 +222,15 @@ struct MemoryReviewGoalTests {
         #expect(MemoryReviewCommitment.state(snapshot: open, end: nil) == .open)
         #expect(MemoryReviewCommitment.leavingEndsSession(.open))
         #expect(MemoryReviewCommitment.clockRuns(.open))
-        #expect(MemoryReviewCommitment.canStart(.open))
 
         // Leaving with minutes to go writes down the day and what it had.
         let end = MemoryReviewCommitment.end(snapshot: open, now: now)
         #expect(end == MemoryReviewSessionEnd(day: "2026-09-19", activeSeconds: 240, endedAt: now))
         let ended = MemoryReviewCommitment.state(snapshot: open, end: end)
         #expect(ended == .ended(afterSeconds: 240))
-        // Over for the day: no clock, no second start, and the × is a plain
-        // way out rather than a question.
+        // The day does not count: no clock, and the × is a plain way out
+        // rather than a question. Its cards can still be gone through.
         #expect(!MemoryReviewCommitment.clockRuns(ended))
-        #expect(!MemoryReviewCommitment.canStart(ended))
         #expect(!MemoryReviewCommitment.leavingEndsSession(ended))
 
         // Yesterday's end says nothing about today.
@@ -247,7 +245,6 @@ struct MemoryReviewGoalTests {
         #expect(MemoryReviewCommitment.state(snapshot: done, end: end) == .done(streak: 3))
         #expect(!MemoryReviewCommitment.leavingEndsSession(.done(streak: 3)))
         #expect(MemoryReviewCommitment.clockRuns(.done(streak: 3)))
-        #expect(MemoryReviewCommitment.canStart(.done(streak: 3)))
     }
 
     // MARK: - The history grid

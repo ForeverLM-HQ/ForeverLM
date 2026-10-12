@@ -24,7 +24,7 @@ extension MCPToolRegistry {
         return [
             MCPToolDef(
                 name: "make_cards_from_canvas",
-                description: "Draft Memory cards from what the learner made sense of on their Canvas, as the Canvas's Make Cards does: one or two cards from each of their Ideas (item_ids idea:<id>) and each arrow they drew (edge_ids, as get_canvas_memory lists them), in the learner's own wording where possible, an arrow's cards asking how or why one end leads to the other. Each card stands on a passage of the sources behind it (an Idea's evidence, the sources of an arrow's two ends), quoted word for word: a card whose quote its source does not print is reported under not_grounded and never offered. The cards arrive ticked in Memory's To Check, where the learner keeps, edits or skips them; nothing is kept without the learner. An Idea with no evidence gives no card (ideas_without_evidence). Sources named with no Idea or arrow are not drafted here: they come back under source_ids_for_draft_cards, for draft_cards. One model call for every eight Ideas and arrows, on the learner's Card Drafting model. Returns drafted, not_grounded, already_drafted (the same Idea drafted before), the sources whose decks gained cards, and why anything was left out.",
+                description: "Draft Memory cards from what the learner made sense of on their Canvas, as the Canvas's Make Cards does: one or two cards from each of their Ideas (item_ids idea:<id>) and each arrow they drew (edge_ids, as get_canvas_memory lists them), in the learner's own wording where possible, an arrow's cards asking how or why one end leads to the other. Each card stands on a passage of the sources behind it (an Idea's evidence, the sources of an arrow's two ends), quoted word for word: a card whose quote its source does not print is reported under not_grounded and never offered. The cards wait in Memory's To Check, where the learner keeps, edits or skips them; nothing is kept without the learner. An Idea with no evidence gives no card (ideas_without_evidence). Sources named with no Idea or arrow are not drafted here: they come back under source_ids_for_draft_cards, for draft_cards. One model call for every eight Ideas and arrows, on the learner's Card Drafting model. Returns drafted, not_grounded, already_drafted (the same Idea drafted before), the sources whose decks gained cards, and why anything was left out.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -152,7 +152,7 @@ extension MCPDataStore {
         if !report.refused.isEmpty { payload["refused"] = Array(report.refused.prefix(20)) }
         if !report.failures.isEmpty { payload["failures"] = report.failures }
         payload["message"] = report.drafted > 0
-            ? "\(report.summary). They wait ticked in Memory's To Check for the learner to keep, edit or skip; list_cards lists them."
+            ? "\(report.summary). They wait in Memory's To Check for the learner to keep, edit or skip; list_cards lists them."
             : report.nothingDraftedMessage
         return payload
     }

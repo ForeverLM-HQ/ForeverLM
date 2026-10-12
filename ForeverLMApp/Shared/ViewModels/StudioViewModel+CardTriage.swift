@@ -45,7 +45,7 @@ extension StudioViewModel {
     }
 
     /// Writes what the learner decided in To Check — Keep, Edit then Keep,
-    /// Skip, Keep All, Skip All, Keep N Cards (`MemoryCardTriageWriter`) —
+    /// Skip, Keep All, Skip All (`MemoryCardTriageWriter`) —
     /// then reads the pane's numbers again. A decision storage refused is
     /// said in a toast, and its card stays to check.
     @discardableResult

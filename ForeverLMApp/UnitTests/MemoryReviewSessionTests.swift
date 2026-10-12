@@ -324,7 +324,7 @@ struct MemoryReviewConfirmationSheetTests {
     /// needs to be a focused commitment to do that session"), so its words
     /// have to say what is agreed to before Start Review is pressed: since
     /// 2026-10-06 in one short line, the minutes and what leaving early does.
-    @Test("The pane names the minutes and what ends the session in one line; an ended day has no Start; a done day goes on without a promise")
+    @Test("The pane names the minutes and what ends the session in one line; an ended or done day goes on with Keep Going; a done day goes on without a promise")
     func commitmentLines() {
         let open = MemoryPane.promise(state: .open, budgetMinutes: 15)
         #expect(open == "Up to 15 minutes. Leaving early ends today's review.")
@@ -334,7 +334,7 @@ struct MemoryReviewConfirmationSheetTests {
 
         #expect(MemoryPane.promise(state: .ended(afterSeconds: 250), budgetMinutes: 15)
             == "Today's review ended after 4 minutes.")
-        #expect(MemoryPane.primaryTitle(state: .ended(afterSeconds: 250), counts: waiting) == nil)
+        #expect(MemoryPane.primaryTitle(state: .ended(afterSeconds: 250), counts: waiting) == "Keep Going", "cards waiting always have a button")
         // Under half a minute is not "after 0 minutes".
         #expect(MemoryPane.promise(state: .ended(afterSeconds: 20), budgetMinutes: 15)
             == "Today's review ended.")

@@ -365,8 +365,7 @@ enum MobileMemoryScreenCopy {
         guard counts.today > 0 else { return nil }
         switch state {
         case .open: return "Start Review"
-        case .done: return "Keep Going"
-        case .ended: return nil
+        case .done, .ended: return "Keep Going"
         }
     }
 

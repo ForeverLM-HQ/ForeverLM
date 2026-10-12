@@ -323,12 +323,22 @@ struct MemoryCardReviewEntryTests {
         #expect(window.memoryCardSession == nil)
     }
 
-    @Test("A day whose review was ended early starts nothing")
-    func endedDayStartsNothing() {
+    @Test("A day whose review was ended early still deals today's cards, with no commitment")
+    func endedDayKeepsGoing() async throws {
+        let restore = capturingSharedDefaults()
+        defer { restore() }
         let (vm, root) = makeViewModel()
         defer { try? FileManager.default.removeItem(at: root) }
-        #expect(vm.startCardSitting(scope: .allNotebooks, kind: nil, commitment: .ended(afterSeconds: 120)) == nil)
-        #expect(vm.activeWindowState.memoryCardSession == nil)
+        let (_, item) = try await seedCard(in: vm.storage)
+        let window = vm.activeWindowState
+
+        await vm.startCardSitting(scope: .allNotebooks, kind: nil, commitment: .ended(afterSeconds: 120))?.value
+        let session = try #require(window.memoryCardSession)
+        #expect(session.sitting.kind == .today)
+        #expect(session.sitting.cards.map(\.itemID) == [item.id])
+        #expect(!session.isCommitted, "the day stays ended; Keep Going promises nothing")
+        vm.leaveMemoryReviewFocus(in: window)
+        #expect(window.memoryCardSession == nil)
     }
 
     @Test("A chat review keeps its focus for its own chat; a card review yields to every surface")
@@ -497,11 +507,11 @@ struct MemoryCardReviewEntryTests {
         vm.learningGoals = [notebook("finbow", sources: [sourceID], in: vm), notebook("empty", sources: ["src-none"], in: vm)]
         let window = vm.activeWindowState
 
-        await vm.startNotebookPractice(notebookID: "empty", commitment: .done(streak: 1))?.value
+        await vm.startNotebookPractice(notebookID: "empty")?.value
         #expect(window.memoryCardSession == nil)
         #expect(vm.toastMessage == "No cards in empty to practice yet.")
 
-        await vm.startNotebookPractice(notebookID: "finbow", commitment: .open)?.value
+        await vm.startNotebookPractice(notebookID: "finbow")?.value
         let session = try #require(window.memoryCardSession)
         #expect(session.sitting.kind == .practice)
         #expect(!session.isCommitted, "practice the learner started makes no commitment")
@@ -516,9 +526,6 @@ struct MemoryCardReviewEntryTests {
         #expect(session.sourceTitles[sourceID] == nil || session.sourceTitles[sourceID] == "Mitochondria")
         vm.leaveMemoryReviewFocus(in: window)
         #expect(window.memoryCardSession == nil)
-
-        // A day whose review was ended early starts nothing, practice too.
-        #expect(vm.startNotebookPractice(notebookID: "finbow", commitment: .ended(afterSeconds: 120)) == nil)
     }
 
     @Test("In a notebook's Practice, answering a draft keeps it and writes its first answer; Skip drops it; Edit keeps it in the learner's words; a card not due is shown and not written")

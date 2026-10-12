@@ -314,7 +314,7 @@ struct MemoryPane: View {
                         .padding(.top, 14)
                 }
 
-                let offersPractice = MemoryReviewCommitment.canStart(state) && counts.practice > 0
+                let offersPractice = counts.practice > 0
                 let primaryTitle = Self.primaryTitle(state: state, counts: counts)
                 if primaryTitle != nil || offersPractice {
                     VStack(spacing: 8) {
@@ -447,14 +447,14 @@ struct MemoryPane: View {
     }
 
     /// The primary button, by state: Start Review while the day is open and
-    /// a card waits, Keep Going on a done day with cards left, nothing on a
-    /// day ended early or with no card waiting.
+    /// a card waits, Keep Going on a done or ended day with cards left —
+    /// cards waiting always have a button (2026-10-12) — nothing with no
+    /// card waiting.
     static func primaryTitle(state: MemoryReviewCommitment.State, counts: MemoryCardDayCounts) -> String? {
         guard counts.today > 0 else { return nil }
         switch state {
         case .open: return "Start Review"
-        case .done: return "Keep Going"
-        case .ended: return nil
+        case .done, .ended: return "Keep Going"
         }
     }
 

@@ -79,7 +79,7 @@ struct MobileMemoryScreenTests {
         #expect(MobileMemoryScreenCopy.primaryTitle(state: open, counts: waiting) == "Start Review")
         #expect(MobileMemoryScreenCopy.primaryTitle(state: done, counts: waiting) == "Keep Going")
         #expect(MobileMemoryScreenCopy.primaryTitle(state: open, counts: MemoryCardDayCounts(due: 0, new: 0, practice: 4)) == nil, "no card waits today")
-        #expect(MobileMemoryScreenCopy.primaryTitle(state: .ended(afterSeconds: 120), counts: waiting) == nil)
+        #expect(MobileMemoryScreenCopy.primaryTitle(state: .ended(afterSeconds: 120), counts: waiting) == "Keep Going")
 
         #expect(MobileMemoryScreenCopy.promise(state: open) == nil, "the Mac's promise is its committed session, which the phone does not hold")
         #expect(MobileMemoryScreenCopy.promise(state: done) == "Today's review is done.")

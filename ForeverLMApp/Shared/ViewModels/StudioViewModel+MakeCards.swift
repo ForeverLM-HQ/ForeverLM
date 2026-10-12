@@ -92,7 +92,7 @@ extension StudioViewModel {
 
     /// Make Cards: drafts cards from `sourceIDs` — each source's whole text,
     /// its free walkthrough questions first — into Memory's To Check, where
-    /// they arrive kept by default for one Keep N Cards, and opens To Check
+    /// the learner keeps, edits or skips them, and opens To Check
     /// in the active window when the cards are ready, where it covers neither
     /// a chat nor the source (or a toast offers it). The caller has shown the
     /// learner the price: the Make Cards sheet does (`makeCardsPlan`).

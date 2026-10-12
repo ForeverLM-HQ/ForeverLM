@@ -299,8 +299,9 @@ struct MemoryReviewEngagementClock: Equatable, Sendable {
     }
 }
 
-/// The day's review ended before its goal: the learner left, and the session
-/// is over until tomorrow.
+/// The day's review ended before its goal: the learner left, and the day
+/// does not count. Its cards can still be gone through (2026-10-12), with no
+/// clock and no second commitment.
 ///
 /// Written by the device the learner left on and read back by it, so a
 /// relaunch the same day knows the session is over. A record from another
@@ -325,6 +326,11 @@ struct MemoryReviewSessionEnd: Codable, Equatable, Sendable {
 /// there needs to be a focused commitment to do that session". So a review
 /// is not a chat with a clock beside it that pauses when the learner steps
 /// out; it is a session, and leaving it before the goal ends it for the day.
+/// Since 2026-10-12 an ended day still deals its cards (product owner, at "30
+/// cards today" over "Today's review ended." with no button: "nothing here to
+/// click and start reviewing … someone should be naive to the app and just
+/// 'get it'"): Keep Going opens them as a done day's does, uncommitted and
+/// with no clock, and the day stays ended.
 /// These are the rules — pure, so both clients can hold them; the Mac's
 /// `MemoryReviewEngagementTracker` runs them today.
 enum MemoryReviewCommitment {
@@ -333,8 +339,9 @@ enum MemoryReviewCommitment {
         /// Today's review can be started, or is being sat: the goal is not
         /// met and nothing has ended it.
         case open
-        /// The learner ended the session with minutes still to go. Over for
-        /// the day; `afterSeconds` is what the day had counted when they did.
+        /// The learner ended the session with minutes still to go. The day
+        /// does not count, but its cards can still be gone through;
+        /// `afterSeconds` is what the day had counted when they did.
         case ended(afterSeconds: TimeInterval)
         /// The goal is met. Nothing more is asked of the day, and leaving the
         /// review ends nothing.
@@ -384,13 +391,6 @@ enum MemoryReviewCommitment {
     /// chat reopened to read back is a record, and minutes spent in it are not
     /// a second session.
     static func clockRuns(_ state: State) -> Bool {
-        if case .ended = state { return false }
-        return true
-    }
-
-    /// Whether today's review can be started. A done day may be reopened
-    /// without a commitment; an ended one is over.
-    static func canStart(_ state: State) -> Bool {
         if case .ended = state { return false }
         return true
     }
