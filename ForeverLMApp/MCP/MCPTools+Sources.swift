@@ -2062,7 +2062,7 @@ extension MCPToolRegistry {
         "list_walkthroughs", "get_review_sessions", "search_review_sessions", "list_review_session_links",
         "list_cards", "get_due_cards", "list_directions",
         // The day
-        "get_calendar_events", "get_day_activity",
+        "get_calendar_events", "get_day_activity", "get_schedule",
     ]
 
     /// `outcome` with the narrowed note when `toolName` is a listing screen

@@ -13,6 +13,17 @@ extension MCPDataStore {
     /// placement serves. `goalID` narrows the calendar to one Goal's or
     /// Notebook's placements.
     func getSchedule(goalID: String? = nil, includeCompleted: Bool = true) throws -> String {
+        // Screen record mode (admin only): a placement on a source the take
+        // keeps off screen is not listed or counted, a Goal or Notebook it keeps
+        // off screen is never named in a tag, and one asked for by id reads as
+        // absent, the answer an unknown id gets. All empty while the mode is off.
+        let screenScope = screenRecordScope()
+        let screenRecordHidden = try screenRecordHiddenSourceIDs(scope: screenScope)
+        let screenRecordHiddenGoalIDs: Set<String> = try screenScope.map { scope in
+            Set(try knowledgeStore().loadLearningGoals()
+                .filter { !screenRecordAllowsGoal($0, scope: scope) }
+                .map(\.id))
+        } ?? []
         return try withDB { db in
             let calendar = Calendar.current
             let now = Date()
@@ -24,6 +35,9 @@ extension MCPDataStore {
             let filterGoalID: String? = (goalID?.isEmpty == false) ? goalID : nil
             var scopedGoal: [String: Any]?
             if let filterGoalID {
+                if screenRecordHiddenGoalIDs.contains(filterGoalID) {
+                    return "Goal or Notebook not found: \(filterGoalID)"
+                }
                 scopedGoal = try query(db, """
                     SELECT id, title, status FROM learning_goals WHERE id = ? AND kind = 'companion' LIMIT 1
                 """, params: [filterGoalID]).first
@@ -66,11 +80,14 @@ extension MCPDataStore {
             """) {
                 guard let placementID = row["placement_id"] as? String,
                       let tagGoalID = row["goal_id"] as? String,
+                      !screenRecordHiddenGoalIDs.contains(tagGoalID),
                       let goalTitle = row["goal_title"] as? String else { continue }
                 tagsByPlacement[placementID, default: []].append(["id": tagGoalID, "title": goalTitle])
             }
 
-            let sortedRows = placementRows.sorted { scheduleSortKey($0) < scheduleSortKey($1) }
+            let sortedRows = placementRows
+                .filter { !screenRecordHidden.contains($0["source_id"] as? String ?? "") }
+                .sorted { scheduleSortKey($0) < scheduleSortKey($1) }
             var itemsByDay: [Date: [[String: Any]]] = [:]
             var completedCount = 0
             let totalCount = sortedRows.count

@@ -1141,6 +1141,61 @@ struct ScreenRecordNarrowedAnswerTests {
         }
     }
 
+    @Test("get_schedule while recording: only the take's placements, no hidden Notebook in a tag, a hidden one reads as absent")
+    func scheduleShowsOnlyTheTake() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ScreenRecordModeTests_\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = MCPDataStore(dbPath: root.appendingPathComponent("knowledge.db").path)
+        let ks = try store.knowledgeStore()
+        let now = Date()
+        let before = now.addingTimeInterval(-86_400 * 30)
+        try ScreenRecordCourseFixtures.saveSource(ks, "kept-reading", .article, url: "https://example.org/kept-reading", addedAt: before)
+        try ScreenRecordCourseFixtures.saveSource(ks, "filmed-reading", .article, url: "https://example.org/filmed-reading", addedAt: before)
+        let privateNotebook = try ks.createCompanionGoal(
+            title: "Private Reading Notebook", topic: "private", startAt: before, endAt: LearningGoalRecord.openEndedEndAt,
+            dailyTarget: 3, discoveryEnabled: false, seedSourceIDs: ["kept-reading"]
+        )
+        let filmed = try ks.createCompanionGoal(
+            title: "Filmed Notebook", topic: "demo", startAt: before, endAt: LearningGoalRecord.openEndedEndAt,
+            dailyTarget: 3, discoveryEnabled: false, seedSourceIDs: ["filmed-reading"]
+        )
+        _ = try await store.assignSourcesToDay(goalID: privateNotebook.id, sourceIDs: ["kept-reading"], dateString: "today")
+        _ = try await store.assignSourcesToDay(goalID: filmed.id, sourceIDs: ["filmed-reading"], dateString: "today")
+        // The filmed source also serves the private Notebook: its placement carries both tags.
+        _ = try await store.assignSourcesToDay(goalID: privateNotebook.id, sourceIDs: ["filmed-reading"], dateString: "today")
+
+        func items(_ text: String) throws -> [[String: Any]] {
+            (try payload(text)["days"] as? [[String: Any]] ?? []).flatMap { $0["items"] as? [[String: Any]] ?? [] }
+        }
+
+        try await withCleanDefaults {
+            if !ScreenRecordMode.isForcedByBuild {
+                let all = try items(try store.getSchedule())
+                #expect(Set(all.compactMap { $0["source_id"] as? String }) == ["kept-reading", "filmed-reading"])
+            }
+
+            ScreenRecordMode.recordAdminStatus(true)
+            // The take starts after both Notebooks were made, so only the recording one shows.
+            ScreenRecordMode.setEnabled(true, now: now.addingTimeInterval(3_600))
+            ScreenRecordMode.setNotebookID(filmed.id)
+
+            let text = try store.getSchedule()
+            let listed = try items(text)
+            #expect(listed.compactMap { $0["source_id"] as? String } == ["filmed-reading"])
+            let tags = listed.first?["goal_tags"] as? [[String: Any]] ?? []
+            #expect(tags.compactMap { $0["id"] as? String } == [filmed.id])
+            #expect(!text.contains("Private Reading Notebook"), "a hidden Notebook is never named in a tag")
+            #expect(!text.contains("kept-reading"), "a hidden placement is not listed")
+            let progress = try payload(text)["progress"] as? [String: Any]
+            #expect(progress?["total_count"] as? Int == 1, "hidden placements are not counted either")
+            #expect(try store.getSchedule(goalID: privateNotebook.id) == "Goal or Notebook not found: \(privateNotebook.id)")
+            #expect(try items(try store.getSchedule(goalID: filmed.id)).count == 1)
+            #expect(MCPToolRegistry.screenRecordNarrowedToolNames.contains("get_schedule"))
+        }
+    }
+
     @Test("The narrowed listings are registered tools, and include the ones a client finds a Notebook or source with")
     func narrowedToolNamesAreRegistered() {
         let registered = Set(MCPToolRegistry.shared.tools.map(\.name))
