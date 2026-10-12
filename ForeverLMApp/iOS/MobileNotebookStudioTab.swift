@@ -521,7 +521,7 @@ struct MobileStudioOutput: Identifiable {
 
 /// A Studio tile's face, the Mac's chip (`NotebookStudioTileLabel`): its
 /// glyph beside its word in a quiet rounded field — neutral fill, hairline
-/// stroke — a chevron on a tile that picks first, a spinner in the glyph's
+/// stroke — no chevron, even on a tile that picks first, a spinner in the glyph's
 /// place while what it makes is being written, dimmed while it cannot be used.
 private struct MobileStudioChip: View {
     @Environment(\.isEnabled) private var isEnabled
@@ -548,12 +548,6 @@ private struct MobileStudioChip: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.85)
             Spacer(minLength: 0)
-            if tile.isMenu {
-                Image(systemName: "chevron.down")
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(.secondary)
-                    .accessibilityHidden(true)
-            }
         }
         .foregroundStyle(.primary)
         .opacity(isEnabled ? 1 : 0.4)
