@@ -9,6 +9,21 @@ extension Notification.Name {
     /// front. Posted by the Now chip and the Today menu; the key window's
     /// `StudioView` presents the sheet.
     static let requestBoutWriteUp = Notification.Name("ForeverLMRequestBoutWriteUp")
+    /// Ask what a new bout is for before its clock starts, in the Studio
+    /// window in front. The `BoutStartRequest` rides in `userInfo["request"]`.
+    static let requestBoutStart = Notification.Name("ForeverLMRequestBoutStart")
+}
+
+/// A bout about to start: everything but its goal, which the learner names in
+/// the start sheet (product owner, 2026-10-12: "maybe set a goal for that
+/// session explicitly"). The goal becomes the bout's title.
+struct BoutStartRequest: Identifiable, Equatable {
+    let id = UUID()
+    /// The calendar event the bout runs, shown as context above the goal.
+    var eventTitle: String?
+    var minutes: Int = LearningBout.defaultMinutes
+    var notebookID: String?
+    var sourceIDs: [String] = []
 }
 
 /// The learner's day on this Mac: today's calendar, the bout on the clock, and
@@ -454,17 +469,16 @@ extension DayModel {
         return todayDetail?.bouts.first { $0.id == id }
     }
 
-    /// Starts the clock on the event the day is in: the bout takes its title,
-    /// and its length from what is left of the event, never less than the
-    /// shortest bout. `notebookID` and `sourceIDs` are the notebook and the
-    /// library sources the block is for — the ones its notes or URL link
+    /// A bout on the event the day is in, waiting for its goal: its length is
+    /// what is left of the event (`startBout` clamps it to the shortest bout).
+    /// `notebookID` and `sourceIDs` are the notebook and the library sources
+    /// the block is for — the ones its notes or URL link
     /// (`foreverlm://notebook/…`, `foreverlm://source/…`), as the library
     /// resolves them (`DayNowPopover`) — so the bout's write-up names them.
-    @discardableResult
-    func startBout(forEvent event: AppleCalendarEvent, notebookID: String?, sourceIDs: [String]) async throws -> LearningBout {
+    func startRequest(forEvent event: AppleCalendarEvent, notebookID: String?, sourceIDs: [String]) -> BoutStartRequest {
         let minutesLeft = Int((event.end.timeIntervalSince(Date()) / 60).rounded(.down))
-        return try await startBout(
-            title: DayNow.displayTitle(event),
+        return BoutStartRequest(
+            eventTitle: DayNow.displayTitle(event),
             minutes: minutesLeft,
             notebookID: notebookID,
             sourceIDs: SourceIDList.normalized(sourceIDs)
@@ -538,5 +552,10 @@ extension DayModel {
     /// Asks the Studio window in front to open the write-up sheet.
     func requestWriteUp() {
         NotificationCenter.default.post(name: .requestBoutWriteUp, object: nil)
+    }
+
+    /// Asks the Studio window in front to ask for the bout's goal, then start it.
+    func requestStart(_ request: BoutStartRequest = BoutStartRequest()) {
+        NotificationCenter.default.post(name: .requestBoutStart, object: nil, userInfo: ["request": request])
     }
 }

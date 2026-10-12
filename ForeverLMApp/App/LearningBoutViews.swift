@@ -310,3 +310,76 @@ struct LearningBoutWriteUpSheet: View {
         }
     }
 }
+
+// MARK: - The goal
+
+/// What the session is for, asked before the clock starts.
+///
+/// The bout's title is the learner's goal in their own words, so a session
+/// is never a bare "Learning": Start stays disabled until the goal says
+/// something. A bout run on a calendar event names the event above the field
+/// for context, but the goal is still the learner's to write.
+struct LearningBoutStartSheet: View {
+    let request: BoutStartRequest
+    /// Starts the bout with the goal and reports whether it started.
+    let onStart: (String) async -> Bool
+    let onCancel: () -> Void
+
+    @State private var goal = ""
+    @State private var isStarting = false
+    @FocusState private var focused: Bool
+
+    private var trimmedGoal: String {
+        goal.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var canStart: Bool { !trimmedGoal.isEmpty && !isStarting }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: StudioDesign.Spacing.large) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("What is this session for?")
+                    .zoomedSystemFont(size: 15, weight: .semibold)
+                Text(subtitle)
+                    .zoomedSystemFont(size: 11)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                    .lineLimit(2)
+            }
+            .textSelection(.disabled)
+            TextField("Goal", text: $goal, prompt: Text("e.g. Explain how ATP synthase turns"))
+                .textFieldStyle(.roundedBorder)
+                .focused($focused)
+                .onSubmit(start)
+            HStack {
+                Button("Cancel", role: .cancel, action: onCancel)
+                    .keyboardShortcut(.cancelAction)
+                Spacer()
+                Button("Start Timer", action: start)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(!canStart)
+            }
+        }
+        .padding(StudioDesign.Spacing.large)
+        .frame(width: 440)
+        .onAppear { focused = true }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("studio.bout.start")
+    }
+
+    private var subtitle: String {
+        let length = DayNow.durationText(LearningBout.clampedMinutes(request.minutes))
+        if let eventTitle = request.eventTitle { return "\(length) on “\(eventTitle)”" }
+        return "\(length) on the clock"
+    }
+
+    private func start() {
+        guard canStart else { return }
+        isStarting = true
+        Task {
+            let started = await onStart(trimmedGoal)
+            isStarting = false
+            if started { onCancel() }
+        }
+    }
+}

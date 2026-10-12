@@ -1020,8 +1020,8 @@ struct ForeverLMApp: App {
                 // The timer, from the menu bar so a bout can be started and
                 // written up from wherever the learner is reading.
                 if day.liveBout == nil {
-                    Button("Start a Bout") {
-                        Task { _ = try? await DayModel.shared.startBout(title: "Learning") }
+                    Button("Start Pomodoro Timer…") {
+                        DayModel.shared.requestStart()
                     }
                     .keyboardShortcut("b", modifiers: [.command, .shift])
                 } else {

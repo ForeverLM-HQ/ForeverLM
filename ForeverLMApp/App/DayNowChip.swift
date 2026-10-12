@@ -11,7 +11,7 @@ import SwiftUI
 /// and fewer buttons and bells and whistles"); until then the chip said
 /// *Free until 14:00* or *Nothing more today* all day. The menu bar's Today
 /// menu is the way on whatever the hour: Plan the Day in Chat, Open
-/// Calendar, Start a Bout and Activity.
+/// Calendar, Start Pomodoro Timer… and Activity.
 ///
 /// Since 2026-09-30 the day is the Mac's Calendar (the product owner: "the mac calendar
 /// is what gets shown in the bottom left"). There is no Planner behind the
@@ -325,13 +325,14 @@ private struct DayNowPopover: View {
                 }
             }
             if model.liveBout == nil {
-                action("Start a Bout", identifier: "studio.now.startBout", prominent: event.joinLink == nil) {
+                action("Start Pomodoro Timer…", identifier: "studio.now.startBout", prominent: event.joinLink == nil) {
                     // The block's notebook — the one it names, or the one made
                     // from it this session, never a title match — and its
                     // sources as the library holds them.
                     let notebookID = vm.boutNotebookID(forBlockNotebook: event.notebookID, blockKey: event.occurrenceKey)
                     let sourceIDs = vm.librarySourceIDs(forBlockLinks: event.sourceIDs)
-                    run { _ = try await model.startBout(forEvent: event, notebookID: notebookID, sourceIDs: sourceIDs) }
+                    dismiss()
+                    model.requestStart(model.startRequest(forEvent: event, notebookID: notebookID, sourceIDs: sourceIDs))
                 }
             }
             action("Open in Calendar", identifier: "studio.now.openEvent") {
@@ -530,8 +531,9 @@ private struct DayNowPopover: View {
                 dismiss()
             }
         case .startBout:
-            menuRow("Start a Bout", systemImage: "timer", detail: DayNow.durationText(LearningBout.defaultMinutes), identifier: "studio.now.startBout") {
-                run { _ = try await model.startBout(title: "Learning") }
+            menuRow("Start Pomodoro Timer…", systemImage: "timer", detail: DayNow.durationText(LearningBout.defaultMinutes), identifier: "studio.now.startBout") {
+                dismiss()
+                model.requestStart()
             }
         case .openCalendar:
             menuRow("Open Calendar", systemImage: "calendar", identifier: "studio.now.openCalendar") {

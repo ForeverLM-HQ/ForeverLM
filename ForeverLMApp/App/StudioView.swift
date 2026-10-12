@@ -40,6 +40,9 @@ struct StudioView: View {
     @SyncedStorage("uiZoomStep") private var uiZoomStep = UIZoom.defaultStep
     /// The bout whose write-up sheet this window shows (`requestBoutWriteUp`).
     @State private var writeUpBoutID: String?
+    /// The bout waiting for its goal in this window's start sheet
+    /// (`requestBoutStart`).
+    @State private var boutStartRequest: BoutStartRequest?
     /// Whether the left navigation rail is shown. Toggled from the sidebar
     /// button pinned next to the macOS traffic lights; persisted across launches.
     @SyncedStorage("gettingStarted.completed") private var gettingStartedCompleted = false
@@ -1228,6 +1231,34 @@ struct StudioView: View {
                         onCancel: { writeUpBoutID = nil }
                     )
                 }
+            }
+            // The chip's and the Today menu's Start Pomodoro Timer…: the goal
+            // is asked in the window in front, then the clock starts.
+            .onReceive(NotificationCenter.default.publisher(for: .requestBoutStart)) { note in
+                guard shouldHandleWindowCommand(note),
+                      DayModel.shared.liveBout == nil,
+                      let request = note.userInfo?["request"] as? BoutStartRequest else { return }
+                boutStartRequest = request
+            }
+            .sheet(item: $boutStartRequest) { request in
+                LearningBoutStartSheet(
+                    request: request,
+                    onStart: { goal in
+                        do {
+                            _ = try await DayModel.shared.startBout(
+                                title: goal,
+                                minutes: request.minutes,
+                                notebookID: request.notebookID,
+                                sourceIDs: request.sourceIDs
+                            )
+                            return true
+                        } catch {
+                            vm.showToast(error.localizedDescription)
+                            return false
+                        }
+                    },
+                    onCancel: { boutStartRequest = nil }
+                )
             }
             // The chip and the Today menu read the day before any window has
             // shown the Activity pane. Idempotent.
