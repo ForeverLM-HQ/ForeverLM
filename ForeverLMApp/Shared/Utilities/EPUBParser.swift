@@ -411,9 +411,13 @@ enum EPUBParser {
         case containerNotFound
         case opfNotFound
         case noContentFiles
+        case damagedArchive(unreadable: Int, total: Int)
 
         var errorDescription: String? {
             switch self {
+            case .damagedArchive(let unreadable, let total):
+                return "the file is damaged, so \(unreadable) of its \(total) parts can’t be read. "
+                    + "Download it again and import the new copy."
             case .unzipFailed(let msg): return "Failed to unzip EPUB: \(msg)"
             case .containerNotFound: return "META-INF/container.xml not found in EPUB"
             case .opfNotFound: return "OPF file not found in EPUB"
@@ -463,12 +467,55 @@ enum EPUBParser {
             }
             return
         }
+        if let damage = damagedZIPEntries(at: sourceURL), damage.unreadable > 0 {
+            logger.error("[EPUBParser] EPUB is damaged: \(damage.unreadable) of \(damage.total) entries have no local header")
+            throw EPUBError.damagedArchive(unreadable: damage.unreadable, total: damage.total)
+        }
         do {
             try FileManager.default.unzipItem(at: sourceURL, to: destURL)
         } catch {
             logger.error("[EPUBParser] ZIPFoundation unzip failed: \(error.localizedDescription)")
             throw EPUBError.unzipFailed(error.localizedDescription)
         }
+    }
+
+    /// Count the entries whose data is gone. A download that broke part-way can
+    /// leave a ZIP whose central directory (at the end of the file) is intact
+    /// while a stretch of the file before it is zeroed. ZIPFoundation's entry
+    /// iterator ends silently at the first entry whose local header is missing,
+    /// so `unzipItem` succeeds having written nothing, and the import then
+    /// reports a missing `container.xml`. Walk the central directory and check
+    /// each local header's signature, so the learner is told the file is damaged.
+    /// Returns nil when the file is not a ZIP this check can read (ZIP64 included);
+    /// ZIPFoundation then reports what it finds.
+    static func damagedZIPEntries(at url: URL) -> (unreadable: Int, total: Int)? {
+        guard let data = try? Data(contentsOf: url, options: .alwaysMapped) else { return nil }
+        func u16(_ offset: Int) -> Int { Int(data[offset]) | Int(data[offset + 1]) << 8 }
+        func u32(_ offset: Int) -> Int { u16(offset) | u16(offset + 2) << 16 }
+        func hasSignature(_ signature: [UInt8], at offset: Int) -> Bool {
+            offset >= 0 && offset + 4 <= data.count && data[offset..<offset + 4].elementsEqual(signature)
+        }
+
+        // The end-of-central-directory record is 22 bytes plus a comment of at most 64 KB.
+        let endRecordSize = 22
+        guard data.count >= endRecordSize else { return nil }
+        let earliest = max(0, data.count - endRecordSize - 0xFFFF)
+        guard let endRecord = stride(from: data.count - endRecordSize, through: earliest, by: -1)
+            .first(where: { hasSignature([0x50, 0x4B, 0x05, 0x06], at: $0) }) else { return nil }
+
+        let total = u16(endRecord + 10)
+        var cursor = u32(endRecord + 16)
+        guard total != 0xFFFF, cursor != 0xFFFF_FFFF else { return nil }
+
+        var unreadable = 0
+        for _ in 0..<total {
+            guard hasSignature([0x50, 0x4B, 0x01, 0x02], at: cursor), cursor + 46 <= data.count else { return nil }
+            let localHeader = u32(cursor + 42)
+            guard localHeader != 0xFFFF_FFFF else { return nil }
+            if !hasSignature([0x50, 0x4B, 0x03, 0x04], at: localHeader) { unreadable += 1 }
+            cursor += 46 + u16(cursor + 28) + u16(cursor + 30) + u16(cursor + 32)
+        }
+        return (unreadable, total)
     }
 
     // MARK: - OPF Discovery

@@ -708,6 +708,44 @@ struct EPUBStructureExtractionTests {
         #expect(FileManager.default.fileExists(atPath: epubDir.appendingPathComponent("mimetype").path))
     }
 
+    @Test("Says a broken download is damaged instead of blaming container.xml")
+    func reportsDamagedArchive() throws {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("damaged-epub-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let packageRoot = root.appendingPathComponent("package", isDirectory: true)
+        let metaInf = packageRoot.appendingPathComponent("META-INF", isDirectory: true)
+        try FileManager.default.createDirectory(at: metaInf, withIntermediateDirectories: true)
+        try "application/epub+zip".write(to: packageRoot.appendingPathComponent("mimetype"), atomically: true, encoding: .utf8)
+        try """
+        <container xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+          <rootfiles><rootfile full-path="content.opf" media-type="application/oebps-package+xml"/></rootfiles>
+        </container>
+        """.write(to: metaInf.appendingPathComponent("container.xml"), atomically: true, encoding: .utf8)
+        try "<package><manifest/><spine/></package>"
+            .write(to: packageRoot.appendingPathComponent("content.opf"), atomically: true, encoding: .utf8)
+
+        let epubURL = root.appendingPathComponent("book.epub")
+        try zipDirectory(packageRoot, to: epubURL)
+        #expect(EPUBParser.damagedZIPEntries(at: epubURL)?.unreadable == 0)
+
+        // Zero the first entry's local header, as a download that broke part-way leaves it.
+        var bytes = try Data(contentsOf: epubURL)
+        bytes.replaceSubrange(0..<30, with: Data(count: 30))
+        try bytes.write(to: epubURL)
+
+        let damage = try #require(EPUBParser.damagedZIPEntries(at: epubURL))
+        #expect(damage.unreadable == 1)
+        #expect(damage.total == 4)
+        let outputDir = root.appendingPathComponent("out", isDirectory: true)
+        #expect {
+            try EPUBParser.extractStructure(from: epubURL.path, to: outputDir.path)
+        } throws: { error in
+            guard case EPUBParser.EPUBError.damagedArchive(1, 4) = error else { return false }
+            return true
+        }
+    }
+
     private func zipDirectory(_ source: URL, to destination: URL) throws {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/zip")
