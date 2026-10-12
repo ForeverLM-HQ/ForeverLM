@@ -14,9 +14,10 @@ and the [team](/teams) libraries you created or joined. In ordinary Web Studio
 use, source records and files go directly between your browser and Apple. The
 optional always-on MCP connection is the exception described below.
 
-The library switcher at the top of the rail works as on the Mac. Web Studio can
-switch to a team, read its sources, notebooks, Pages and shared transcripts, and
-work the task board of a team notebook. A notebook's **Share** (below) gives its
+The library switcher works as on the Mac: click your name at the bottom of the
+rail and choose **Library**. Web Studio can switch to a team, read its sources,
+notebooks, Pages and shared transcripts, and work the task board of a team
+notebook. A notebook's **Share** (below) gives its
 team's link or has your Mac share it; inviting people by name and removing
 members, and sharing anything else into a team, happen on the Mac in this
 release.
@@ -61,8 +62,8 @@ research questions and the rest of its card.
 **Share**, at the top right, shows who has the notebook in each team it is in
 and gives **Copy Invitation Link**, the link that lets people join that team
 and so get the notebook with its sources. A notebook in no team is shared by
-your Mac while it is open: it makes a team named after the notebook and
-answers with the link. The first time you share, on any device, you confirm
+your Mac while it is open: it makes a team named after the notebook, moves the
+notebook into it and answers with the link. The first time you share, on any device, you confirm
 that you have the rights to share these sources.
 Studio's **Cards** reviews the notebook's kept cards one at a time: Show
 answer, then Forgot or Remembered, counted the way the Mac counts them. It
@@ -104,9 +105,10 @@ playlists appear among your sources as collections you expand, with their chapte
 lectures in reading order. Planning your day and scheduling sources happen in
 the Mac app.
 
-Chats use the same synced Chat model setting. On the web they run on ForeverLM
-AI, so they need a complimentary account or ForeverLM balance; otherwise the
-composer says chat is in the Mac app.
+Chats use the same synced Chat model setting. The browser never holds your
+OpenRouter key, so on the web they run on ForeverLM AI: they need a complimentary
+account or a ForeverLM balance bought before prepaid balance was retired on
+September 25, 2026; otherwise the composer says to chat in ForeverLM on your Mac.
 The **+** at the left of the composer also offers Deep Research, on the chat's own model, with
 live web search and cited results. Citations into a video, podcast, or
 recording show the cited moment (`[2 · 12:34]`) and list it as a chip under the
@@ -129,16 +131,14 @@ and completed reviews also appear in the native chat history.
 Notebook open questions can be added, resolved, and reopened on either Mac or
 web.
 
-The web library includes synced source metadata and readable text. Original
-paper PDFs are available when the Mac has published their CloudKit asset.
-Original books, course files, and other files that exist only in iCloud Drive
-still require the Mac or iPhone app.
+The web library includes synced source metadata and readable text, and the
+original PDF or EPUB of a paper, book or course file once your Mac has uploaded
+it to iCloud.
 
 Global artifact titles, notebook links, and bounded Markdown bodies sync to Web
 Studio. Notepad can edit those bodies and open the existing Chat beside a
 selection, carrying the passage and linked sources with it just like the Mac.
-A notebook's own workspace files and larger artifact bodies still live in iCloud
-Drive and remain Mac-only. Search by meaning uses the Mac's on-device
+A notebook's own workspace files remain Mac-only. Search by meaning uses the Mac's on-device
 embedding index, asked while the Mac is open; search by title, author and
 link works here without it.
 
@@ -176,10 +176,11 @@ arrived so far.
 
 ## Teams
 
-The library switcher at the top of the left navigation lists My Library and
-every team you own or have joined. Web Studio reads a team the same way the Mac
-does: a team is one CloudKit zone, read from your private database when you
-created it and from the shared database when you were invited, so sources,
+The library switcher, **Library** in the account menu at the bottom of the left
+navigation, lists My Library and every team you own or have joined. Web Studio
+reads a team the same way the Mac does: a team is one CloudKit zone, read from
+your private database when you created it and from the shared database when you
+were invited, so sources,
 notebooks, Pages, and shared chats appear in that team's library. Chats shared
 into a team are read-only transcripts. Every notebook's settings carry a task
 board; in a team notebook a task can be assigned to a member, and members with

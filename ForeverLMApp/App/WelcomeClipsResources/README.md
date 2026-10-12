@@ -7,6 +7,10 @@ below if it is in this folder and shows its words alone if not, so a clip can
 be added, replaced or removed without touching code. The welcome itself plays
 no clips since 2026-09-24: its three pages became one page of three rows.
 
+Recorded so far: `setup-codex-library.mp4` only. The two OpenRouter clips and
+every connector walkthrough are still to be filmed (`connector-clips.json` is
+empty), so those steps show their words alone.
+
 ## Every clip
 
 - Record the Dev build with a **demo library**, never a real one: no real

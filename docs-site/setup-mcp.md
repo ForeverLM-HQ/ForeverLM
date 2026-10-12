@@ -5,7 +5,7 @@ title: Connect an AI Assistant
 
 # Connect an AI Assistant
 
-Connecting an assistant is part of ForeverLM, with nothing extra to buy: it works in your 7 free days and after you pay ($19 once, no subscription, in **Settings → Billing**), for Claude, ChatGPT, Grok, Gemini, Claude Code and every other MCP client on your account. Once the 7 free days are over and nothing is paid, assistants are told "Your 7 free days of ForeverLM are over. Open ForeverLM on your Mac to continue."
+Connecting an assistant is part of ForeverLM, with nothing extra to buy: it works in your 7 free days and after you pay ($19 once, no subscription, in **Settings → Billing**), for Claude, ChatGPT, Grok, Gemini, Claude Code and every other MCP client on your account. Once the 7 free days are over and nothing is paid, assistants are told "Your free days of ForeverLM are over. Open ForeverLM on your Mac to continue."
 
 ::: tip Most people don't need this
 The easiest way to use your sources with AI is to [drag & drop](/drag-and-drop) them directly from Studio. A persistent connection lets an assistant search your full library and run review sessions without dragging files each time.
@@ -54,7 +54,7 @@ claude plugin marketplace add ForeverLM-HQ/foreverlm-plugins
 claude plugin install foreverlm@foreverlm
 ```
 
-Then run `/mcp` in Claude Code, choose **foreverlm**, and complete Sign in with Apple. The plugin bundles the remote MCP server and three skills: a paper-library migration that moves a [Zotero, Paperpile or Mendeley library](/papers#coming-from-a-reference-manager) into ForeverLM once; a chat export that brings a conversation held with another assistant into ForeverLM as a chat, with the Markdown it produced saved as Pages and its citations linked to your Sources; and an AI cost review that reads your AI usage ledger, names the tasks and models behind the spend, and proposes cheaper model settings from the [MCP tools](/mcp-tools#settings) that it applies only once you approve them. Once ForeverLM is published in the Claude plugin directory, `/plugin` will offer it without adding the marketplace.
+Then run `/mcp` in Claude Code, choose **foreverlm**, and complete Sign in with Apple. The plugin bundles the remote MCP server and four skills: a paper-library migration that moves a [Zotero, Paperpile or Mendeley library](/papers#coming-from-a-reference-manager) into ForeverLM once; a chat export that brings a conversation held with another assistant into ForeverLM as a chat, with the Markdown it produced saved as Pages and its citations linked to your Sources; an AI cost review that reads your AI usage ledger, names the tasks and models behind the spend, and proposes cheaper model settings from the [MCP tools](/mcp-tools#settings) that it applies only once you approve them; and a walkthrough writer that explains a paper, book chapter or article the way a good textbook does, one point at a time with short questions after the points they test, and saves it as the source's walkthrough. Once ForeverLM is published in the Claude plugin directory, `/plugin` will offer it without adding the marketplace.
 
 ## ChatGPT custom setup
 
@@ -96,7 +96,7 @@ Complete Sign in with Apple on first use, then ask Grok to call `get_mcp_status`
 Muse has no settings screen for custom connectors; it builds one when you ask it to in a chat.
 
 1. In Web Studio, choose **MCP** in Chat and authorize always-on iCloud access. **MCP ✓** confirms it is ready.
-2. In the Mac app, open **Settings → External AI Assistants** and choose **Copy prompt** on the **Meta Muse** row.
+2. In the Mac app, open **Settings → MCP** and choose **Copy prompt** on the **Meta Muse** row.
 3. Open [muse.ai](https://muse.ai), start a chat, and paste the prompt. It asks Muse to build a Custom Connector named **ForeverLM** for `https://plugin.foreverlm.com/mcp`.
 4. Complete Sign in with Apple on the ForeverLM page Muse hands you. The page names Muse as the app you return to.
 5. Approve the connector's access when Muse asks, and let Muse save it as a skill so later tasks can use it.
@@ -109,11 +109,11 @@ Grok users should follow [Grok custom connector](#grok-custom-connector) instead
 
 Any assistant or agent that speaks MCP over HTTP with OAuth can connect on its own: give it `https://plugin.foreverlm.com/mcp`. It registers itself, and you sign in with Apple on a ForeverLM page that names the app you will be sent back to. If ForeverLM does not recognise that app, the page says so; continue only when you started the connection from that app yourself.
 
-For an assistant without its own row, the Mac app's **Settings → External AI Assistants** has an **Other assistant** row. Its prompt names no product: it tells the assistant to add the server with its own MCP command, config file, or custom-connector screen, to use OAuth without a client ID, and to say plainly if it cannot reach remote MCP servers.
+For an assistant without its own row, the Mac app's **Settings → MCP** has an **Other assistant** row. Its prompt names no product: it tells the assistant to add the server with its own MCP command, config file, or custom-connector screen, to use OAuth without a client ID, and to say plainly if it cannot reach remote MCP servers.
 
 1. Open Web Studio and choose **MCP** in Chat.
 2. Authorize always-on iCloud access and wait for **MCP ✓**.
-3. Choose Codex, Gemini, or Claude Code and select **Copy prompt**. For any other assistant, copy the **Other assistant** prompt from the Mac app.
+3. In the Mac app's **Settings → MCP**, select **Copy prompt** on the assistant's row (**ChatGPT** for Codex, or **Gemini**), or on **Other assistant** for any other. Claude Code has [its own plugin](#claude-code-plugin).
 4. Paste the prompt into that assistant.
 5. Let the assistant complete the setup, then approve the connection when ForeverLM asks.
 

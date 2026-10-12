@@ -5,43 +5,45 @@ title: Schedule
 
 # Schedule
 
-Schedule turns your source library into a weekly learning plan. Instead of keeping an endless queue of articles, papers, podcasts, books, and videos, you can assign specific sources to specific days and see what is pending, reviewed, and complete.
+Schedule is your plan of which sources to study on which day. Instead of keeping an endless queue of articles, papers, podcasts, books, and videos, you put specific sources on specific days and see what is still pending and what is done.
 
 ## What Schedule is for
 
 Use Schedule when you want to:
 
-- Plan a week of study from sources already in Studio
+- Plan a week of study from sources already in your library
 - Spread a large backlog across manageable daily sessions
 - Move sources between days as your week changes
 - Track progress without treating "imported" as "learned"
 - Ask an AI assistant to inspect or adjust your plan through MCP
 
-Schedule is not a passive read/unread tracker. A source is complete only after it has a linked review session.
+Schedule is not a passive read/unread tracker. Opening a source records what you did, never that you finished it: a source is done only when you check it off or a review grades it.
 
 ## Planning a week
 
-Add sources to Schedule from Studio, then assign them to days in the week. The
-complete week remains visible so you can compare daily workloads without opening
-each day separately. You can drag sources onto a day, move scheduled items
-between days, remove sources from the plan, or clear a day when you need to
-re-plan.
+Schedule has no pane of its own: you plan in the conversation. Ask Chat, or an
+assistant connected through MCP, to spread sources across the week, move one to
+another day, take one off the plan, or clear a day, and it changes the plan for
+you. To put a source on today yourself, right-click it in the Library and choose
+**Schedule for Today**; in a notebook, a source's right-click **Schedule for…**
+picks a day of this week. On the iPhone, a source's **Schedule** button does the
+same.
 
 Each scheduled item keeps its source ID, title, source type, planned date, and completion state. This makes it safe for ForeverLM and connected AI assistants to talk about the same item.
 
+Schedule plans sources, not hours. Your day's meetings and time blocks are your Mac's Calendar, which `/plan` in Chat fills in.
+
 ## Starting today's work
 
-Open Schedule and look at the current day. Pending sources are the sources you still need to study or review. Open a source from Schedule to read it, listen to it with Text to Speech when available, or start a review in the Chat panel.
-
-If the source has not been reviewed yet, Schedule treats it as pending until a completed or linked review session is attached to that source.
+When sources are planned for today, an empty chat's first suggestion says so ("3 sources planned today"). Click it for today's list: click a source to start it (it opens in the Reader with Chat beside it), click the circle in front of it to check it off, or choose **Quiz me on these** to review the whole day. On the iPhone, today's plan is a card on the home screen.
 
 ## Progress and completion
 
-Schedule progress is based on review completion, not whether you opened the source. A source can be marked done when it has a linked review from one of these places:
+Schedule progress is based on what you did with a source, not whether you opened it. A planned source is done when:
 
-- The in-app Chat panel
-- A completed MCP review session
-- A saved Claude, ChatGPT, Gemini, Grok, or Edison Scientific review link
+- You check it off in today's list
+- A review of it in the in-app Chat panel, or a completed MCP review session, grades it
+- An assistant saves a Claude, ChatGPT, Gemini, Grok, or Edison Scientific review of it into ForeverLM, or marks it done for you
 
 This keeps progress honest: the schedule shows what you have actually tested yourself on, not just what you skimmed.
 
@@ -55,7 +57,7 @@ When MCP is connected, your assistant can inspect and manage Schedule for you. T
 - "Clear Wednesday and redistribute those sources."
 - "Mark this reviewed source complete."
 
-The assistant should read the current Schedule before proposing changes. MCP write operations validate source IDs and days before mutating the plan, and completion still requires a linked review.
+The assistant should read the current Schedule before proposing changes. MCP write operations validate source IDs and days before changing the plan.
 
 ## Sync
 

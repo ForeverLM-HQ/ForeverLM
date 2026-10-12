@@ -56,6 +56,6 @@ Your knowledge base lives in your private iCloud container. ForeverLM servers do
 - [Drag & Drop](/drag-and-drop): drag your sources into Claude, ChatGPT, Gemini, Grok, or Edison Scientific — no setup needed
 - [Connect an AI Assistant](/setup-mcp): optional persistent connection for full-library access
 - [Connect an AI assistant](/setup-mcp): add ForeverLM as a custom connector in Claude, ChatGPT, Grok, Meta Muse, or any assistant that adds remote MCP servers
-- [Official ChatGPT plugin status](/setup-mcp#official-extensions): version 1.0.0 is submitted to OpenAI and is in review; use custom MCP setup until publication
+- [Official ChatGPT plugin status](/setup-mcp#official-extensions): version 1.0.2 is submitted to OpenAI and is in review; use custom MCP setup until publication
 - [Grok custom connector](/setup-mcp#grok-custom-connector): add ForeverLM at grok.com/connectors; it is not in the Grok catalog yet
 - [Learning with MCP](/learning-with-mcp): how to use AI for review and Socratic dialogue

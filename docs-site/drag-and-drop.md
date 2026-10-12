@@ -5,21 +5,20 @@ title: Drag & Drop
 
 # Drag & Drop
 
-The primary way to use your sources with Claude, ChatGPT, Gemini, Grok, or Edison Scientific. Studio is your content folder — add sources, then drag them straight into any AI chat.
+The primary way to use your sources with Claude, ChatGPT, Gemini, Grok, or Edison Scientific. Your library is your content folder: add sources, then drag them straight into any AI chat.
 
 ## How It Works
 
-1. **Add sources to the context tray** at the bottom of the Studio sidebar. Either drag them in, or right-click and choose **Add to Context**.
+1. **Find the source** in the Library, or open it in the Reader.
 
-2. **Drag the Export button** from the tray directly into your Claude, ChatGPT, Gemini, Grok, or Edison Scientific chat window. All sources in the tray are sent at once as files.
+2. **Drag it** into your Claude, ChatGPT, Gemini, Grok, or Edison Scientific chat window: its row in the Library, or the title of the source open in the Reader. It arrives in the chat as a file.
 
 That's it. No accounts, no configuration, no extra tools.
 
 ## Tips
 
-- You can add multiple sources to the tray — drag them in one at a time, or select several (shift-click / cmd-click) and right-click to add them all.
-- Click the **x** on a chip to remove a single source from the tray, or **Clear** to remove all.
-- Papers with local PDFs are exported as PDF files. Articles and podcasts are exported as text files.
+- Each drag carries one source: drag each source you want the chat to read.
+- A paper with its PDF arrives as the PDF. Articles, podcasts and other sources with text arrive as text files, and a source with neither arrives as a link to its web page.
 
 ## Optional: Persistent Access
 

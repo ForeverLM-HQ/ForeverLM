@@ -17,7 +17,7 @@ Every library syncs with iCloud; there is no setting to turn it off. The first s
 
 ### How much iCloud ForeverLM uses
 
-**Settings → Data & Privacy → iCloud** shows how much of your iCloud ForeverLM's files take up, split into the PDFs of your papers, books and course material, the text of your sources, and the files in ForeverLM's iCloud Drive folder, which are mostly Listen audio. It counts what ForeverLM can measure itself. Apple keeps the exact figure for each app, which **Manage…** beside it opens.
+**Settings → Data & Privacy → iCloud** shows how much of your iCloud ForeverLM's files take up, split into the PDFs of your papers, books and course material, the text of your sources, and the files in ForeverLM's iCloud Drive folder, which are mostly Text to Speech audio. It counts what ForeverLM can measure itself. Apple keeps the exact figure for each app, which **Manage…** beside it opens.
 
 ### When iCloud is full
 
@@ -25,22 +25,19 @@ When your iCloud storage runs out, iCloud refuses new uploads. ForeverLM shows a
 
 ## ForeverLM's new iCloud store
 
-ForeverLM keeps your library in a new, redesigned area of your iCloud account, and
-moves yours into it when you update. What you will notice:
+ForeverLM keeps your library in its own, redesigned area of your iCloud account.
+What you will notice:
 
-- **Before the move, your Mac keeps a copy of your library** beside it, taking no
-  extra disk space at first, so the update can be undone. If your disk is too full
-  to keep it safely, ForeverLM tells you how much to free up and finishes updating
-  once you have.
-- **One Mac uploads your library; the others join it.** The first Mac you open after
-  updating sends your library's records first and then your files. Your other Macs
-  catch up with it. The iPhone and the iPad keep using your old data until your
-  library has arrived, and then switch by themselves. The web library reads only the
-  new store, and shows your library as it arrives.
-- **Nothing is removed until you say so.** Your old iCloud data stays where it is
-  while anything might still need it. **Settings → Data & Privacy → iCloud** has
-  **Remove old iCloud data**, which becomes available once the old area has been
-  quiet for a week and a check shows every file has arrived in the new store.
+- **One Mac uploads your library; the others join it.** The first Mac that syncs
+  sends your library's records first and then your files. Your other Macs catch up
+  with it, and the iPhone, the iPad and the web library show your library as it
+  arrives.
+- **Coming from an earlier ForeverLM.** ForeverLM moved to this store in October
+  2026, when it began to be published under its own developer account. Your
+  library stayed on your Mac: on that Mac, **Settings → Data & Privacy → iCloud**
+  offers **Upload my library to iCloud again**, which sends it to the new store
+  once. ForeverLM no longer reads or changes the iCloud data earlier versions
+  wrote.
 - **Files sync as part of the library.** Papers, books and other originals sync with
   no size limit, so a paper is on your iPhone and in the web library even when it is
   large. Your iCloud storage still pays for it, so the advice about the 200 GB plan
@@ -52,9 +49,6 @@ moves yours into it when you update. What you will notice:
 - **Your place stays yours.** Where you got to in a source, your highlights, cards,
   review results and Schedule are your own records, stored under your own account
   and never part of a team.
-- **If something goes wrong, the update can be undone.** The copy from before the
-  move and your old iCloud data are both kept until you remove them, so ForeverLM can
-  return to the previous version with your library as it was.
 - **If your iCloud data is removed.** When you delete ForeverLM's data in iCloud
   settings, ForeverLM stops syncing, keeps your library on your Mac and offers to
   upload it again. It never uploads on its own after that.
@@ -88,8 +82,8 @@ give a team someone else owns) is stored there, including the PDFs and book file
 that travel with a shared source, so a team counts against the creator's iCloud
 quota and against nobody else's. Members receive the team through their own
 iCloud account; ForeverLM servers hold no copy of a team, its roster or its
-content. Leaving or deleting a team removes only the team's copies. Each
-member's reading progress, highlights, review results and Schedule stay in that
+content. Leaving a team removes it from your Macs; deleting one removes it, and
+everything in it, for every member. Each member's reading progress, highlights, review results and Schedule stay in that
 member's own private container and never enter the team's storage.
 
 ## What ForeverLM servers do not store

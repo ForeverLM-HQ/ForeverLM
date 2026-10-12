@@ -77,7 +77,7 @@ The AI has full access to your source text, so it can cite specific passages, ca
 
 ## Tips
 
-- **Select sources first.** Before starting a session, select the relevant sources in Studio so the AI has the full text as context.
+- **Name the sources or the notebook.** A connected assistant searches your whole library unless you name a notebook or particular sources; ask about "the notebook I have open" and it reads that one.
 - **Be specific about topics.** "Quiz me on attention" is less effective than "Quiz me on multi-head attention scaling and why we divide by sqrt(d_k)."
 - **Don't just answer — explain.** Explaining works because it forces you to articulate mechanisms, not just recall facts.
 - **Review past sessions.** Ask *"Show me my past review sessions on [topic]"* to see how your understanding has progressed.

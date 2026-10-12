@@ -18,17 +18,17 @@ ForeverLM classifies a source as a paper in two steps:
 - pubmed.ncbi.nlm.nih.gov
 - and other major journal publishers
 
-**Step 2 — LLM classification.** Journals like Science and Nature publish both research papers and shorter editorial content (news articles, commentary, perspectives). These live on the same domain, so URL detection alone can't tell them apart. Before downloading a PDF, ForeverLM sends the URL and title to a lightweight LLM call (Claude Haiku) that classifies the source as a paper or article. Editorial content is automatically moved to the Articles tab.
+**Step 2 — LLM classification.** Journals like Science and Nature publish both research papers and shorter editorial content (news articles, commentary, perspectives). These live on the same domain, so URL detection alone can't tell them apart. Before downloading a PDF, ForeverLM sends the URL and title to a lightweight LLM call on your Background text model (the **Source Classification** task in **Settings → Background → Tasks**) that classifies the source as a paper or article. Editorial content is automatically moved to the Articles tab.
 
 This also works in the other direction: if a web article turns out to be an academic paper (e.g., a preprint hosted on a personal blog), the LLM reclassifies it after fetching the content.
 
 ## Adding a Paper
 
 **From your reading list:**
-Save the paper's abstract or landing page to your browser's reading list (Safari, Chrome, or Brave). The app picks it up automatically — URLs added in the last 7 days are surfaced.
+Save the paper's abstract or landing page to your browser's reading list (Safari, Chrome, or Brave). The app picks it up automatically, as far back as you chose in setup or in **Settings → Sources → Reading Lists** (see [Articles](/articles#how-articles-are-discovered)).
 
 **Manual paste:**
-Open the Studio tab, paste the paper URL into the source bar, and press Return.
+In a notebook, paste the paper's URL or DOI into **Add sources** and choose **Add link**: the paper joins your library and the notebook in one step. In ForeverLM's Browser, **Add to Sources** saves the page you are reading.
 
 **Via MCP:**
 Your AI assistant adds a paper with `import_paper_from_url` (a URL or DOI) or `import_local_pdf_as_paper` (a PDF on your Mac). `add_source` is for non-paper sources. Given a notebook's `notebook_id`, `import_paper_from_url` files the paper in that notebook as well, and a paper already in your library joins it instead of being imported again.
@@ -64,23 +64,18 @@ Each one becomes an ordinary ForeverLM highlight. It shows in the reader and the
 
 A paper's reference list is the reading list its authors wrote for you. When a paper is open in the reader, choose **Find Cited Papers** from the reader's **⋯** menu (a paper's context menu in the sidebar offers it too). ForeverLM reads the reference list off the paper's PDF, looks each entry up in Crossref and OpenAlex, and lists the papers it found in the same panel: **Add to Library** imports one through the normal paper pipeline, so it gets a PDF, metadata, and cleanup like any other paper, and **Dismiss** waves it off. Papers you already have are marked as such rather than offered again, and an entry that could not be matched to a record is shown as unmatched so you can search for it by hand. Decisions persist and sync, so a paper dismissed on one Mac stays dismissed on the other, and a dismissed paper can be restored from the panel's Dismissed section.
 
-Nothing is read until you ask. Reading the list is a background AI call per stretch of references plus a free catalog lookup per entry, with at most eight paid web searches for entries the catalogs could not place, so a long reference list can take a minute; once it finishes, the menu item becomes **Cited Papers** and says how many are waiting to be added, and opens the panel, whose **Read references again** reads the list once more. The model behind it is the **Paper Reference Extraction** task, which has no Settings pane; ask the chat to change it (`set_ai_task_settings`).
+Nothing is read until you ask. Reading the list is a background AI call per stretch of references plus a free catalog lookup per entry, with at most eight paid web searches for entries the catalogs could not place, so a long reference list can take a minute; once it finishes, the menu item becomes **Cited Papers** and says how many are waiting to be added, and opens the panel, whose **Read references again** reads the list once more. The model behind it is the **Paper Reference Extraction** task, on the **Tasks** tab of **Settings → Background**; the chat can change it too (`set_ai_task_settings`).
 
 ## How PDF Loading Works
 
 When you add a paper, ForeverLM tries to get the full PDF automatically:
 
-1. **Local iCloud PDF**: checks `ForeverLM/Papers/` in iCloud Drive
-2. **Direct fetch**: downloads the PDF (works for open-access papers on arxiv, bioRxiv, PLOS, etc.)
-3. **PubMed Central (PMC)**: fetches the full text if available in PMC
+1. **Direct fetch**: downloads the PDF (works for open-access papers on arxiv, bioRxiv, PLOS, etc.)
+2. **PubMed Central (PMC)**: fetches the full text if available in PMC
 
 A paper in ForeverLM is a PDF. When every route fails, the paper waits in **Papers that need attention** until a PDF turns up: attach one, or, for a paper you can read on the publisher's site, save it from the page yourself as described below. ForeverLM never reads a publisher's page as the paper on its own.
 
-When a PDF is fetched, it's saved to iCloud Drive:
-
-```
-iCloud Drive → Documents → ForeverLM → Papers
-```
+When a PDF is fetched, it is saved with the paper in your library and syncs through your iCloud to your other devices.
 
 ## Dealing with Paywalled Papers
 
@@ -97,8 +92,7 @@ If a paper is in PMC (even if the publisher's version is paywalled), ForeverLM d
 For papers behind paywalls:
 
 1. **Download the PDF** from your institutional access.
-2. **Save it** to the `ForeverLM/Papers/` folder in iCloud Drive.
-3. The app matches it to the URL using fuzzy filename matching.
+2. **Drop it on the paper's row** in Papers, or choose **Attach PDF File…** from the row's right-click menu.
 
 ### Read online, but no PDF (Nature and others)
 

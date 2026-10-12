@@ -52,7 +52,7 @@ A subscribed calendar is read-only, so it cannot be where new events go.
 
 Use the X plugin to sync saved X bookmarks into Studio as sources.
 
-1. In ForeverLM, open **Settings -> Plugins -> X**, or select the **X** tab in Studio.
+1. In ForeverLM, open **Settings -> Plugins -> X**, or select the **X** tab in the Library.
 2. Click **Connect**.
 3. Sign in to X and approve ForeverLM's access.
 
