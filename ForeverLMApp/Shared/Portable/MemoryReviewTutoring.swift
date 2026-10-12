@@ -757,15 +757,16 @@ enum MemoryReviewTutoring {
 
     /// The system prompt a memory review turn runs under, for a client that
     /// has no other sources or tools attached: the review tutor, the answer
-    /// language rule, the day's briefing, and the response budget — the same
-    /// stable head the Mac's session manager composes, so a turn on the phone
-    /// reads exactly like a turn on the Mac. The clock is the volatile tail.
+    /// language and id rules, the day's briefing, and the response budget — the
+    /// same stable head the Mac's session manager composes, so a turn on the
+    /// phone reads exactly like a turn on the Mac. The clock is the volatile tail.
     static func systemPrompt(
         briefing: String,
         localClockDescription: String
     ) -> String {
         var stable = Prompts.reviewTutor
         stable += Prompts.responseLanguage
+        stable += Prompts.hiddenIDs
         stable += """
 
         Daily review focus for this session:

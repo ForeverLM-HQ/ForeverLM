@@ -134,6 +134,38 @@ struct ReviewChatResumeTests {
         #expect(properties?["evidence_excerpt"] != nil)
     }
 
+    /// A chat that added sources to a Notebook answered with a table of their
+    /// ids (2026-10-11): the rule against it sat last among the app-tool rules
+    /// and was missing from chats without tools. It now leads every chat's
+    /// cached head, after the language rule and before the first id.
+    @Test("Every chat is told never to show an id, before it is given one")
+    func idRuleLeadsEveryHead() throws {
+        for mode in ReviewSessionManager.InitialPromptMode.allCases {
+            let stable = ReviewSessionManager.followUpGateForTesting(mode: mode).stable
+            #expect(stable.contains(Prompts.responseLanguage + Prompts.hiddenIDs), "\(mode)")
+            #expect(stable.components(separatedBy: Prompts.hiddenIDs).count == 2, "\(mode)")
+            #expect(!stable.contains("Never print a raw source id"), "\(mode)")
+        }
+
+        let plan = MemoryCompanionPlan(
+            targets: [
+                MemoryCompanionTarget(memoryItem: nil, sourceID: "source-1", reason: .firstReview, daysOverdue: 1),
+            ],
+            topic: "Daily memory check",
+            goalID: nil,
+            generatedAt: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        let withCatalog = ReviewSessionManager.memoryCompanionPromptForTesting(plan: plan).stable
+        let rule = try #require(withCatalog.range(of: Prompts.hiddenIDs))
+        let catalog = try #require(withCatalog.range(of: "Attached source catalog:"))
+        #expect(rule.upperBound <= catalog.lowerBound)
+
+        let phone = MemoryReviewTutoring.systemPrompt(briefing: "B", localClockDescription: "Sunday, 2026-10-11, 09:00")
+        #expect(phone.contains(Prompts.responseLanguage + Prompts.hiddenIDs))
+        #expect(Prompts.replySideChat.contains(Prompts.hiddenIDs))
+        #expect(Prompts.readerSideChat.contains(Prompts.hiddenIDs))
+    }
+
     @Test("a later memory session receives structured prior struggle evidence")
     func memoryCompanionPromptIncludesPriorStruggle() {
         let now = Date(timeIntervalSince1970: 1_700_000_000)

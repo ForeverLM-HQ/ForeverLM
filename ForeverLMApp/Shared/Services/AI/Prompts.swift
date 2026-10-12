@@ -36,6 +36,24 @@ enum Prompts {
     Language: reply in the language the learner writes or speaks in, not the language of the source material — the two are often different, and the language they think in is the one that matters for explaining an idea back. Keep technical terms, proper nouns, and quoted lines from a source in their original language rather than translating them, and never translate a source wholesale unless the learner asks. If the learner switches language mid-session, switch with them.
     """
 
+    /// Ids are the app's handles, never the learner's reading. Appended to
+    /// every chat-session template right after the language rule.
+    ///
+    /// A chat that added three sources to a Notebook answered with a table
+    /// whose first column was each source's id and named the Notebook
+    /// "(ID: `…`)" (product owner, 2026-10-11: "it never should use source
+    /// ids; that should be clear in the prompt"). The rule was in the prompt,
+    /// but only as the last of the app-tool rules, after the long citation
+    /// rule, and a chat without app tools never got it although its source
+    /// catalog lists every id. Here it sits in the cached head, ahead of every
+    /// block that hands the model an id, in every kind of chat. Tool results
+    /// keep their ids: the model needs them for its next call. Web Studio
+    /// carries the same text as `HIDDEN_IDS_INSTRUCTIONS` in library.js.
+    static let hiddenIDs = """
+
+    Ids: the learner never sees one. Every id you are given — a source's, a Notebook's, a Goal's, an Idea's, a Page's, a chat's, a card's, a session's — is for tool calls and link targets only. Never write one in your reply: not in a table column, not in backticks or parentheses, not after a title, not as "ID:". Tool results and source lists put ids beside names (source_id, notebook_id, ‘Title’ (id)); leave them out when you tell the learner. Where a source is linked, its id sits inside the link target — [Title](foreverlm://source/SOURCE_ID) — and nowhere else; reuse a link a tool result already gives you exactly. Otherwise call a thing by its name.
+    """
+
     /// The shape of a chat answer: the answer first, told concretely,
     /// numbered parts as headings only for a long answer, short paragraphs,
     /// sparing bold, and no closing offer (docs/chat-design.md, "Reading
@@ -2562,6 +2580,7 @@ enum Prompts {
         - Write math in LaTeX delimiters: \\(...\\) for inline math and \\[...\\] or $$...$$ for display math
         - Math mode italicizes every letter as a variable, so keep non-math out of it: write chemical species, units, and gene or protein names as plain text (Ca²⁺, NAD⁺, pH, GDF15). Inside math, wrap non-variable letters in \\mathrm{} — including descriptive subscripts: \\(\\Delta\\psi_\\mathrm{m}\\), not \\(\\Delta\\psi_m\\). Use \\ce{...} for reaction equations
         \(responseLanguage)
+        \(hiddenIDs)
         """
     }
 
@@ -2584,6 +2603,7 @@ enum Prompts {
         - Write math in LaTeX delimiters: \\(...\\) for inline math and \\[...\\] or $$...$$ for display math
         - Math mode italicizes every letter as a variable, so keep non-math out of it: write chemical species, units, and gene or protein names as plain text (Ca²⁺, NAD⁺, pH, GDF15). Inside math, wrap non-variable letters in \\mathrm{} — including descriptive subscripts: \\(\\Delta\\psi_\\mathrm{m}\\), not \\(\\Delta\\psi_m\\). Use \\ce{...} for reaction equations
         \(responseLanguage)
+        \(hiddenIDs)
         """
     }
 }
