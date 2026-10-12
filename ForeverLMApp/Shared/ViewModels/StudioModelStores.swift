@@ -260,23 +260,27 @@ final class StudioSidebarStore {
     @ObservationIgnored var filteredBookGroupNamesCacheKey: StudioViewModel.FilteredBookGroupNamesCacheKey?
     @ObservationIgnored var filteredBookGroupNamesCache: [String]?
 
-    /// Papers-tab partitioned lists memoized per sidebar filter revision. Every
+    /// Papers-tab partitioned lists memoized per sidebar filter revision and
+    /// the library's share (`StudioViewModel.PaperLibraryKey`). Every
     /// `active*`/`hasMore*`/`remaining*` papers property funnels through
-    /// `filteredPaperItems(hasPDF:)`, whose cache-only path scan is still shared
-    /// so repeated render-time partitions do not repeat whole-library work.
-    @ObservationIgnored var filteredPaperItemsCacheKey: StudioViewModel.SidebarFilterCacheKey?
+    /// `filteredPaperItems(hasPDF:)`; the whole-library sets it consults live on
+    /// the view model (`paperLibraryIndex`), which this invalidation leaves be.
+    @ObservationIgnored var filteredPaperItemsCacheKey: StudioViewModel.FilteredPaperItemsCacheKey?
     @ObservationIgnored var filteredPaperItemsWithPDFCache: [StudioArticle]?
     @ObservationIgnored var filteredPaperItemsWithoutPDFCache: [StudioArticle]?
+
+    /// The Papers tab's four lists (`StudioViewModel.papersPartition`).
+    @ObservationIgnored var papersPartitionCacheKey: StudioViewModel.PapersPartitionCacheKey?
+    @ObservationIgnored var papersPartitionCache: StudioViewModel.PapersPartition?
+
+    /// The current tab's rows and their ids (`StudioViewModel.activeTabArticles`,
+    /// `visibleSidebarSourceIDs`).
+    @ObservationIgnored var activeTabListingCacheKey: StudioViewModel.ActiveTabListingCacheKey?
+    @ObservationIgnored var activeTabListingCache: StudioViewModel.ActiveTabListing?
 
     /// Articles-tab origin chips memoized per tab/articles revision.
     @ObservationIgnored var readingListOriginCountsCacheKey: StudioViewModel.ReadingListOriginCountsCacheKey?
     @ObservationIgnored var readingListOriginCountsCache: [(origin: DiscoveryOrigin, count: Int)]?
-
-    /// Storage-degraded paper set memoized per articles revision — see
-    /// `StudioViewModel.cachedUnavailableRecordedPaperPDFIDs`. Every papers-tab
-    /// partition consults this cache-only set during rendering.
-    @ObservationIgnored var unavailableRecordedPDFIDsCacheKey: Int?
-    @ObservationIgnored var unavailableRecordedPDFIDsCache: Set<String>?
 
     /// Every library source's normalized URL and paper DOI, each mapped to its
     /// source id, memoized per articles revision; see
@@ -300,7 +304,9 @@ final class StudioSidebarStore {
         filteredPaperItemsCacheKey = nil
         filteredPaperItemsWithPDFCache = nil
         filteredPaperItemsWithoutPDFCache = nil
-        unavailableRecordedPDFIDsCache = nil
-        unavailableRecordedPDFIDsCacheKey = nil
+        papersPartitionCacheKey = nil
+        papersPartitionCache = nil
+        activeTabListingCacheKey = nil
+        activeTabListingCache = nil
     }
 }

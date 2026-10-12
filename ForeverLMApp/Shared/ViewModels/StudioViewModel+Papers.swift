@@ -1050,40 +1050,74 @@ extension StudioViewModel {
             .sorted { $0.dateAdded > $1.dateAdded }
     }
 
+    /// What `supersededPreprintIDs` reads off one paper: its place among its versions, its own
+    /// DOI, the DOI it resolved to, and its exact-title key. Each is a parse of the address, the
+    /// DOI or the title, so a caller that keeps them per paper (`paperListingFacts(for:)`) hands
+    /// them in rather than having every pass over the library parse every paper again.
+    struct PaperVersionFacts: Sendable, Equatable {
+        let kind: PaperVersionKind
+        /// `doi`, else the DOI in the paper's address, normalized (`normalizeDOI`).
+        let ownDOI: String?
+        /// The published DOI a preprint resolved to, trimmed and normalized; nil when it has none.
+        let publishedDOI: String?
+        /// `normalizedPaperTitle(title)`; nil while the title still needs resolving
+        /// (`titleNeedsResolution`) or when it folds to nothing.
+        let titleKey: String?
+
+        init(_ paper: StudioArticle) {
+            kind = StudioViewModel.paperVersionKind(of: paper)
+            ownDOI = (paper.doi ?? PaperService.extractDOI(from: paper.url)).map(StudioViewModel.normalizeDOI)
+            if let published = paper.publishedDOI?.trimmingCharacters(in: .whitespacesAndNewlines), !published.isEmpty {
+                publishedDOI = StudioViewModel.normalizeDOI(published)
+            } else {
+                publishedDOI = nil
+            }
+            if StudioViewModel.titleNeedsResolution(paper.title, domain: paper.domain, url: paper.url) {
+                titleKey = nil
+            } else {
+                let key = StudioViewModel.normalizedPaperTitle(paper.title)
+                titleKey = key.isEmpty ? nil : key
+            }
+        }
+    }
+
     /// The preprints a journal version with its PDF stands in for in the Papers lists. The preprint
     /// stays in its notebooks and keeps its highlights; the library lists the version of record.
     /// Without that PDF the preprint stays listed, since it is the copy that can be read.
+    ///
+    /// `versionFacts` reads a paper's facts; the default parses them afresh, and the Papers lists
+    /// pass the ones the view model keeps per paper, so a library change does not re-parse every
+    /// paper.
     nonisolated static func supersededPreprintIDs(
         in articles: [StudioArticle],
-        hasUsablePDF: (StudioArticle) -> Bool
+        hasUsablePDF: (StudioArticle) -> Bool,
+        versionFacts: (StudioArticle) -> PaperVersionFacts = { PaperVersionFacts($0) }
     ) -> Set<String> {
         var doisByLibrary: [String?: Set<String>] = [:]
         var titlesByLibrary: [String?: Set<String>] = [:]
-        var preprints: [StudioArticle] = []
+        var preprints: [(paper: StudioArticle, facts: PaperVersionFacts)] = []
         for paper in articles where paper.sourceType == .paper {
-            let kind = paperVersionKind(of: paper)
-            if kind == .preprint {
-                preprints.append(paper)
+            let facts = versionFacts(paper)
+            if facts.kind == .preprint {
+                preprints.append((paper, facts))
                 continue
             }
             guard hasUsablePDF(paper) else { continue }
-            if let doi = paper.doi ?? PaperService.extractDOI(from: paper.url) {
-                doisByLibrary[paper.teamID, default: []].insert(normalizeDOI(doi))
+            if let doi = facts.ownDOI {
+                doisByLibrary[paper.teamID, default: []].insert(doi)
             }
-            if kind == .journal, !titleNeedsResolution(paper.title, domain: paper.domain, url: paper.url) {
-                let titleKey = normalizedPaperTitle(paper.title)
-                if !titleKey.isEmpty { titlesByLibrary[paper.teamID, default: []].insert(titleKey) }
+            if facts.kind == .journal, let titleKey = facts.titleKey {
+                titlesByLibrary[paper.teamID, default: []].insert(titleKey)
             }
         }
         guard !preprints.isEmpty, !doisByLibrary.isEmpty || !titlesByLibrary.isEmpty else { return [] }
-        return Set(preprints.compactMap { preprint -> String? in
-            if let published = preprint.publishedDOI?.trimmingCharacters(in: .whitespacesAndNewlines), !published.isEmpty,
-               doisByLibrary[preprint.teamID]?.contains(normalizeDOI(published)) == true {
+        return Set(preprints.compactMap { preprint, facts -> String? in
+            if let published = facts.publishedDOI,
+               doisByLibrary[preprint.teamID]?.contains(published) == true {
                 return preprint.id
             }
-            guard !titleNeedsResolution(preprint.title, domain: preprint.domain, url: preprint.url) else { return nil }
-            let titleKey = normalizedPaperTitle(preprint.title)
-            return !titleKey.isEmpty && titlesByLibrary[preprint.teamID]?.contains(titleKey) == true ? preprint.id : nil
+            guard let titleKey = facts.titleKey else { return nil }
+            return titlesByLibrary[preprint.teamID]?.contains(titleKey) == true ? preprint.id : nil
         })
     }
 

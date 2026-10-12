@@ -104,15 +104,40 @@ extension StudioViewModel {
     /// (`NotebookIndexFiling.notebooks`), read against the sidebar's
     /// membership index and each Goal's Notebook.
     func notebooksHolding(_ filing: NotebookIndexFiling) -> Set<String> {
+        let context = notebookHoldingContext
+        return filing.notebooks(
+            among: context.notebookIDs,
+            members: notebookMemberSourceIDsByNotebook,
+            goalParents: context.goalParents
+        )
+    }
+
+    /// What `notebooksHolding` reads off the notebooks and Goals: the open
+    /// library's notebook ids and each Goal's Notebook. The Space asks once
+    /// per item it lists while a notebook filter is on, so these are built
+    /// once per change to the notebook lists (`NotebookListsKey`), not per item.
+    struct NotebookHoldingContext {
+        let key: NotebookListsKey
+        let notebookIDs: Set<String>
+        let goalParents: [String: String]
+    }
+
+    var notebookHoldingContext: NotebookHoldingContext {
+        let key = currentNotebookListsKey
+        if let cached = notebookHoldingContextCache, cached.key == key {
+            return cached
+        }
         var goalParents: [String: String] = [:]
         for goal in learningGoals where goal.isGoal {
             if let parent = goal.parentNotebookID, !parent.isEmpty { goalParents[goal.id] = parent }
         }
-        return filing.notebooks(
-            among: Set(notebooks.map(\.id)),
-            members: notebookMemberSourceIDsByNotebook,
+        let context = NotebookHoldingContext(
+            key: key,
+            notebookIDs: Set(notebooks.map(\.id)),
             goalParents: goalParents
         )
+        notebookHoldingContextCache = context
+        return context
     }
 
     /// Whether a record is listed only in its notebook, and not on the home's
