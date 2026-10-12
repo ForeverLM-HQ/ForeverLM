@@ -50,7 +50,7 @@ extension StudioViewModel {
         guard let notebook = destination.notebook else { return false }
         let route = NotebookWorkspace.route(tab, coursePageID: destination.coursePageID)
         guard let next = notebook.following(route) else {
-            destination.notebook = nil
+            destination.leaveNotebook(for: tab)
             return false
         }
         if destination.isVoiceWorkspacePresented { destination.isVoiceWorkspacePresented = false }

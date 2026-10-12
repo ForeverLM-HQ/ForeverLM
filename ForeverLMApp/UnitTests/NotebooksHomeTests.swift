@@ -737,6 +737,81 @@ struct NotebooksHomeRoutingTests {
         #expect(target.centerTabGroups.groups.map(\.activeTab) == [.library, .reader])
     }
 
+    @Test("The Library's ‹ names only the notebook it took the place of, while it stays on screen")
+    func libraryReturnsOnlyToTheNotebookItReplaced() {
+        let restore = capturingSharedDefaults()
+        defer { restore() }
+        let vm = makeViewModel()
+        vm.learningGoals = inLibrary(vm, [notebook("bio")])
+        let target = window(.defaultLayout)
+
+        // A notebook left for the Space long ago is not the way back from a
+        // Library opened from the Space.
+        vm.openNotebook("bio", in: target, startsNotebookChat: false)
+        vm.showSpaceAll(in: target)
+        #expect(target.notebook == nil)
+        vm.openLibraryView(in: target)
+        #expect(vm.notebookToReturnTo(in: target) == nil, "opened from the Space, the Library is a place of its own")
+
+        vm.openNotebook("bio", in: target, startsNotebookChat: false)
+        vm.openLibraryView(in: target)
+        #expect(vm.notebookToReturnTo(in: target)?.id == "bio")
+
+        // The Library leaving the screen ends the trip.
+        vm.showSpaceAll(in: target)
+        vm.openLibraryView(in: target)
+        #expect(vm.notebookToReturnTo(in: target) == nil)
+    }
+
+    @Test("A source opened over the Library goes back to the Library, after any source read since")
+    func readerBackUncoversTheLibrary() {
+        let restore = capturingSharedDefaults()
+        defer { restore() }
+        let vm = makeViewModel()
+        // The Space pinned on the left, the Library on the right: the Reader,
+        // parked behind the pinned Space, takes the Library's pane.
+        let target = window(StudioCenterTabGroups(groups: [
+            .init(tabs: StudioCenterTab.permanentTabs.filter { $0 != .library }, activeTab: .artifacts, isPinned: true),
+            .init(tabs: [.library], activeTab: .library),
+        ]))
+        target.readerArticleID = "earlier"
+        target.readerArticleID = "episode"
+        vm.activateCenterTab(.reader, in: target)
+        #expect(target.centerTabGroups.groups.map(\.activeTab) == [.artifacts, .reader])
+        #expect(target.readerCover?.tab == .library)
+        #expect(target.readerBackReturnsToCover, "what was read before the Library is not the way back")
+
+        // The Reader pins itself; it was not pinned before.
+        var pinned = target.centerTabGroups
+        pinned.groups[1].isPinned = true
+        target.centerTabGroups = pinned
+        #expect(target.readerCover?.tab == .library)
+
+        target.readerArticleID = "paper"
+        #expect(!target.readerBackReturnsToCover, "a source read since is the page before")
+        #expect(target.navigateReaderBack { _ in true } == "episode")
+        #expect(target.readerBackReturnsToCover)
+
+        #expect(target.returnFromReaderCover())
+        #expect(target.centerTabGroups.groups.map(\.activeTab) == [.artifacts, .library])
+        #expect(target.centerTabGroups.groups[1].isPinned == false)
+        #expect(target.readerCover == nil)
+    }
+
+    @Test("A Reader that opened in a pane of its own covered nothing")
+    func readerInItsOwnPaneCoversNothing() {
+        let restore = capturingSharedDefaults()
+        defer { restore() }
+        let vm = makeViewModel()
+        let target = window(StudioCenterTabGroups(groups: [
+            .init(tabs: StudioCenterTab.permanentTabs, activeTab: .library),
+        ]))
+        vm.clearReaderSurfaces(in: target)
+        #expect(target.centerTabGroups.groups.map(\.activeTab) == [.library, .reader])
+        #expect(target.readerCover == nil)
+        #expect(!target.readerBackReturnsToCover)
+    }
+
     @Test("A Library row's chips are the open library's notebooks holding it, by title")
     func libraryChips() {
         let vm = makeViewModel()

@@ -3067,7 +3067,7 @@ class StudioViewModel {
                 if next != notebook { destination.notebook = next }
                 return
             }
-            destination.notebook = nil
+            destination.leaveNotebook(for: tab)
         }
         guard companion != tab else {
             var layout = destination.centerTabGroups

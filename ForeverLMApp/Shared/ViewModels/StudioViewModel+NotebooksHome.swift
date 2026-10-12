@@ -154,10 +154,13 @@ extension StudioViewModel {
         activateCenterTab(.library, in: destinationWindowState ?? activeWindowState)
     }
 
-    /// The notebook the Library's ‹ goes back to: the one `window` last
-    /// left, while it is still an active notebook of the open library.
+    /// The notebook the Library's ‹ goes back to: the one `window` left for
+    /// the Library, while the Library stays on screen and it is still an
+    /// active notebook of the open library
+    /// (`StudioWindowState.libraryReturnsToNotebook`).
     func notebookToReturnTo(in window: StudioWindowState) -> LearningGoalRecord? {
-        guard window.notebook == nil, let left = window.notebookLeft else { return nil }
+        guard window.notebook == nil, window.libraryReturnsToNotebook,
+              let left = window.notebookLeft else { return nil }
         return notebooks.first { $0.id == left.notebookID }
     }
 

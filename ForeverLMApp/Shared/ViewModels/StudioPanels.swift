@@ -410,10 +410,97 @@ final class StudioWindowState: Identifiable {
                 centerTabGroups = reconciled
                 return
             }
+            noteReaderCover(from: oldValue)
+            if libraryReturnsToNotebook, !reconciled.groups.contains(where: { $0.activeTab == .library }) {
+                libraryReturnsToNotebook = false
+            }
             recordPersistentChange {
                 PreferenceStore.set(reconciled.persistedRepresentation, forKey: "studio.centerTabGroups.v1")
             }
         }
+    }
+
+    /// What the Reader covered when it took a pane that showed something else:
+    /// the Library a row was clicked in, the Space, Pages. Once the Reader has
+    /// no source of its own to go back to, its ‹ shows that surface again
+    /// (`returnFromReaderCover`), as a notebook's Reader gives its document
+    /// slot back. Until 2026-10-12 a source opened over the Library left ‹
+    /// greyed out, and the list it came from was one rail click away.
+    struct ReaderCover: Equatable {
+        /// The pane the Reader took, by `Group.id`.
+        let groupID: UUID
+        let tab: StudioCenterTab
+        /// Whether that pane was pinned before the Reader pinned it.
+        let wasPinned: Bool
+        /// The Reader's history depth when it took the pane: a source opened
+        /// since is the page before, and below this depth the way back is the
+        /// surface rather than whatever was read before.
+        fileprivate(set) var backDepth: Int
+    }
+    private(set) var readerCover: ReaderCover?
+
+    /// Keeps `readerCover` in step with the panes: a Reader becoming a pane's
+    /// active tab over another surface records it; the Reader leaving that
+    /// pane forgets it. A pane the Reader opened in fresh covered nothing.
+    private func noteReaderCover(from old: StudioCenterTabGroups) {
+        guard let group = centerTabGroups.groups.first(where: { $0.activeTab == .reader }) else {
+            if readerCover != nil { readerCover = nil }
+            return
+        }
+        if readerCover?.groupID == group.id { return }
+        guard let before = old.groups.first(where: { $0.id == group.id }),
+              before.activeTab != .reader else {
+            if readerCover != nil { readerCover = nil }
+            return
+        }
+        readerCover = ReaderCover(
+            groupID: group.id,
+            tab: before.activeTab,
+            wasPinned: before.isPinned,
+            backDepth: readerBackStack.count
+        )
+    }
+
+    /// Whether the Reader's ‹ goes back to the surface it covered: it still
+    /// shows in that pane and has read nothing since it took it.
+    var readerBackReturnsToCover: Bool {
+        guard notebook == nil, let readerCover else { return false }
+        return readerBackStack.count <= readerCover.backDepth
+    }
+
+    /// The Reader's ‹ over a covered surface: the pane shows that surface
+    /// again, pinned only if it was. False when the surface has left the
+    /// pane meanwhile, for the caller to bring it on screen the ordinary way.
+    @discardableResult
+    func returnFromReaderCover() -> Bool {
+        guard let readerCover else { return false }
+        var layout = centerTabGroups
+        guard let index = layout.groups.firstIndex(where: { $0.id == readerCover.groupID }),
+              layout.groups[index].activeTab == .reader,
+              layout.groups[index].tabs.contains(readerCover.tab) else {
+            self.readerCover = nil
+            return false
+        }
+        layout.groups[index].activeTab = readerCover.tab
+        layout.groups[index].isPinned = readerCover.wasPinned
+        centerTabGroups = layout
+        return true
+    }
+
+    /// Whether the Library's ‹ <Notebook> is offered: the Library took the
+    /// place of the notebook this window held (`leaveNotebook(for:)`) and has
+    /// stayed on screen since. Opened from the Space, or again after it left
+    /// the screen, the Library is a place of its own and offers nothing.
+    /// Until 2026-10-12 ‹ named whichever notebook the window had last left,
+    /// however long ago.
+    private(set) var libraryReturnsToNotebook = false
+
+    /// The notebook leaves for `tab`, a surface it has no place for: the
+    /// panes underneath come back, and the Library, if that is what was
+    /// asked for, offers the way back.
+    func leaveNotebook(for tab: StudioCenterTab) {
+        notebook = nil
+        libraryReturnsToNotebook = tab == .library
     }
 
     var navigationRailVisible: Bool {
@@ -685,6 +772,9 @@ final class StudioWindowState: Identifiable {
             if let oldValue, oldValue.notebookID != notebook?.notebookID {
                 notebookLeft = oldValue.persisted
             }
+            if notebook?.notebookID != oldValue?.notebookID, libraryReturnsToNotebook {
+                libraryReturnsToNotebook = false
+            }
             // The rail steps aside only for a notebook; leaving it brings
             // the rail back.
             if notebook == nil, navigationRailYieldsToNotebook { navigationRailYieldsToNotebook = false }
@@ -769,7 +859,9 @@ final class StudioWindowState: Identifiable {
                   let oldValue else { return }
             readerBackStack.append(oldValue)
             if readerBackStack.count > Self.readerHistoryLimit {
-                readerBackStack.removeFirst(readerBackStack.count - Self.readerHistoryLimit)
+                let dropped = readerBackStack.count - Self.readerHistoryLimit
+                readerBackStack.removeFirst(dropped)
+                if let cover = readerCover { readerCover?.backDepth = max(0, cover.backDepth - dropped) }
             }
         }
     }

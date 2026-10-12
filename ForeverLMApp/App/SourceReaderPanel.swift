@@ -499,7 +499,7 @@ struct SourceReaderPanel: View {
                 ReaderNavigationButton(
                     systemImage: "chevron.left",
                     help: backHelp,
-                    isEnabled: canNavigateToPreviousSource || backReturnsInNotebook,
+                    isEnabled: canNavigateToPreviousSource || backReturnsInNotebook || backReturnsToCoveredPane,
                     action: goBackInReader
                 )
                 .fixedSize(horizontal: true, vertical: false)
@@ -530,7 +530,8 @@ struct SourceReaderPanel: View {
         return AdaptiveReaderToolbar {
             SourceReaderStableNavigation(
                 showsBrowserNavigation: showsBrowserNavigation(article),
-                canGoBack: articleReaderChrome.canGoBack || canNavigateToPreviousSource || backReturnsInNotebook,
+                canGoBack: articleReaderChrome.canGoBack || canNavigateToPreviousSource
+                    || backReturnsInNotebook || backReturnsToCoveredPane,
                 canGoForward: articleReaderChrome.canGoForward,
                 backHelp: backHelp,
                 pageNavigation: pageNavigation,
@@ -674,10 +675,28 @@ struct SourceReaderPanel: View {
         return trackedId == notebookSlotEntrySourceID || !canNavigateToPreviousSource
     }
 
-    /// ‹'s tooltip: "Back to <Doc>" when it returns the notebook's slot.
+    /// Whether ‹ shows again what this Reader covered when it took its pane —
+    /// the Library a row was clicked in, the Space, Pages
+    /// (`StudioWindowState.readerCover`) — rather than an earlier source: the
+    /// Reader has read nothing since it took the pane, or nothing at all.
+    private var backReturnsToCoveredPane: Bool {
+        guard !isSecondaryReader, overrideArticleId == nil, !vm.readerPoppedOut,
+              windowState.notebook == nil, windowState.memoryCardSession == nil,
+              !articleReaderChrome.canGoBack, !isDisplayingExternalPage,
+              windowState.readerCover != nil else { return false }
+        return windowState.readerBackReturnsToCover || !canNavigateToPreviousSource
+    }
+
+    /// ‹'s tooltip: "Back to <Doc>" when it returns the notebook's slot,
+    /// "Back to Library" when it uncovers the Library.
     private var backHelp: String {
-        guard backReturnsInNotebook, let title = vm.notebookReturnTitle(in: windowState) else { return "Go back" }
-        return "Back to \(title)"
+        if backReturnsInNotebook, let title = vm.notebookReturnTitle(in: windowState) {
+            return "Back to \(title)"
+        }
+        if backReturnsToCoveredPane, let cover = windowState.readerCover {
+            return "Back to \(cover.tab.title)"
+        }
+        return "Go back"
     }
 
     /// Reader Back is one continuous history. In-page web navigation is the
@@ -698,6 +717,14 @@ struct SourceReaderPanel: View {
         if backReturnsInNotebook {
             withAnimation(.easeInOut(duration: 0.22)) {
                 vm.returnInNotebook(in: windowState)
+            }
+            return
+        }
+        if backReturnsToCoveredPane, let cover = windowState.readerCover {
+            withAnimation(.easeInOut(duration: 0.22)) {
+                if !windowState.returnFromReaderCover() {
+                    vm.activateCenterTab(cover.tab, in: windowState)
+                }
             }
             return
         }
