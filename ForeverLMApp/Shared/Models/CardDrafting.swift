@@ -181,6 +181,9 @@ struct CardDraftingSeed: Equatable, Sendable {
         let back: String
         let why: String?
         let quote: String
+        /// The figure the walkthrough asked it beside ("Figure 2b"), shown
+        /// with the card's question when the source lists it.
+        var figureLabel: String?
     }
 
     let kind: Kind
@@ -230,14 +233,20 @@ struct CardDraftingSeed: Equatable, Sendable {
                 testing: walkthrough.stepsBefore(question: step.id)
             )
             let why = answer.isEmpty || points.isEmpty ? nil : points.joined(separator: "; ")
+            let figure = (step.anchor?.figureLabel ?? step.picture?.figureLabel)
+                .map(FlashcardDeck.singleLine)
+                .flatMap { $0.isEmpty ? nil : $0 }
             var text = "Question: \(question)\nAnswer: \(FlashcardDeck.singleLine(back))"
             if let why { text += "\nKey points: \(why)" }
+            if let figure { text += "\nAsked beside: \(figure)" }
             return CardDraftingSeed(
                 kind: .walkStep,
                 key: CardDraftingSeedKey.walkStep(step.id),
                 text: text,
                 question: question,
-                card: printed(memoryQuestion.excerpts).map { Card(front: question, back: back, why: why, quote: $0) }
+                card: printed(memoryQuestion.excerpts).map {
+                    Card(front: question, back: back, why: why, quote: $0, figureLabel: figure)
+                }
             )
         }
     }
@@ -619,6 +628,10 @@ struct CardDraftingSource: Equatable, Sendable {
     /// source the learner has not finished — the seeds within reach, which
     /// `seeds` then holds alone.
     var reach: CardDraftingReach = .whole
+    /// Its captioned figures, each cropped from its page, read off the file
+    /// on this Mac (`CourseQuizGeneratorService.readingFigures`): what a card
+    /// may show. Empty for a source with no figure or no file here.
+    var figures: [CourseQuizFigure] = []
 }
 
 /// A source a request leaves out, and why.
@@ -771,6 +784,12 @@ enum CardDraftingTurn {
             for front in coveredFronts {
                 lines.append("- \(FlashcardDeck.singleLine(front))")
             }
+        }
+        if let figures = CourseQuizPictures.figureBlock(source.figures, heading: "Figures:") {
+            lines.append("")
+            lines.append(CardDraftingPictures.instruction)
+            lines.append("")
+            lines.append(figures)
         }
         lines.append("")
         lines.append(isSampled
@@ -1000,14 +1019,115 @@ struct CardDraftingModelCard: Decodable, Equatable, Sendable {
     let quote: String?
     let difficulty: String?
     let seed: String?
+    /// The handle of a listed figure the card shows ("F2"), which side it
+    /// shows on ("front" or "back"), and what it shows, for its alt text.
+    let figure: String?
+    let figureWith: String?
+    let figureShows: String?
 
-    init(front: String?, back: String?, why: String? = nil, quote: String?, difficulty: String? = nil, seed: String? = nil) {
+    init(
+        front: String?,
+        back: String?,
+        why: String? = nil,
+        quote: String?,
+        difficulty: String? = nil,
+        seed: String? = nil,
+        figure: String? = nil,
+        figureWith: String? = nil,
+        figureShows: String? = nil
+    ) {
         self.front = front
         self.back = back
         self.why = why
         self.quote = quote
         self.difficulty = difficulty
         self.seed = seed
+        self.figure = figure
+        self.figureWith = figureWith
+        self.figureShows = figureShows
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case front, back, why, quote, difficulty, seed, figure
+        case figureWith = "figure_with"
+        case figureShows = "figure_shows"
+    }
+
+    /// A model may write a handle as a number (2 for F2): either is read.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        func text(_ key: CodingKeys) -> String? {
+            if let value = try? container.decodeIfPresent(String.self, forKey: key) { return value }
+            if let value = try? container.decodeIfPresent(Int.self, forKey: key) { return String(value) }
+            return nil
+        }
+        front = text(.front)
+        back = text(.back)
+        why = text(.why)
+        quote = text(.quote)
+        difficulty = text(.difficulty)
+        seed = text(.seed)
+        figure = text(.figure)
+        figureWith = text(.figureWith)
+        figureShows = text(.figureShows)
+    }
+}
+
+/// The figures a drafted card shows (product owner, 2026-10-11: "flashcards
+/// should also have images a lot of the time; esp for a paper where basically
+/// the key point is in a figure"). The source's captioned figures are listed
+/// in the turn under handles F1, F2 …, as a course quiz lists a reading's;
+/// the drafter pins one to a card's front or back, and a walkthrough question
+/// drafted as it stands keeps the figure it was asked beside. Like the quiz
+/// writer's, the instruction rides in the turn, not the task's editable
+/// prompt, so an edited prompt still pins figures.
+enum CardDraftingPictures {
+    static let instruction = """
+        The source's figures are listed below: [F2 · p.5] and the figure's printed caption. In a paper the key result is often a figure, so aim for a figure on every card whose point a listed figure shows: a result, a graph, a comparison, a mechanism, a structure, a pathway, a table. A seed asked beside a figure is about it. For such a card add to its JSON object:
+        "figure": the figure's handle, "F2";
+        "figure_with": "front" when the learner needs to see it to answer and it does not show the answer, and the front may then point at it ("the trace in this figure") while still naming the study; "back" when the figure shows or states the answer, so it is shown only once they have answered; when in doubt, "back";
+        "figure_shows": what the figure shows, in a few words that never give the answer away.
+        Leave the three out when no listed figure shows the card's point.
+        """
+
+    /// The listed figure a handle names ("F2", "[F2]", "2"); nil for one
+    /// the source does not list.
+    static func figure(handle: String?, in figures: [CourseQuizFigure]) -> CourseQuizFigure? {
+        guard let handle else { return nil }
+        let trimmed = handle
+            .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "[]")))
+            .uppercased()
+        let digits = trimmed.hasPrefix("F") ? String(trimmed.dropFirst()) : trimmed
+        guard let number = Int(digits) else { return nil }
+        return figures.first { $0.number == number }
+    }
+
+    /// The listed figure a walkthrough step names, by its printed label:
+    /// blind to "Fig." versus "Figure", and a panel ("Figure 2b") finds its
+    /// figure when no figure is labelled that way.
+    static func figure(labelled label: String, in figures: [CourseQuizFigure]) -> CourseQuizFigure? {
+        func key(_ figure: CourseQuizFigure) -> String? {
+            figure.label.map(PaperWalkthroughValidation.canonicalLabel)
+        }
+        let needle = PaperWalkthroughValidation.canonicalLabel(label)
+        if let exact = figures.first(where: { key($0) == needle }) { return exact }
+        let stripped = needle.replacingOccurrences(of: #"(\d)[a-z]+$"#, with: "$1", options: .regularExpression)
+        guard stripped != needle else { return nil }
+        return figures.first { key($0) == stripped }
+    }
+
+    /// A model card's figure on the side it named: the front's and the
+    /// back's pictures, both empty when it named none the source lists.
+    static func images(for card: CardDraftingModelCard, in figures: [CourseQuizFigure]) -> (front: [MemoryCardImage], back: [MemoryCardImage]) {
+        guard let figure = figure(handle: card.figure, in: figures) else { return ([], []) }
+        let shows = card.figureShows.map(FlashcardDeck.singleLine).flatMap { $0.isEmpty ? nil : $0 }
+        guard let image = MemoryCardImage(
+            target: figure.reference.urlString,
+            alt: shows ?? figure.label ?? "Figure \(figure.number)"
+        ) else { return ([], []) }
+        let side = card.figureWith?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        // "question" is the course quizzes' word for the front.
+        return side == "front" || side == "question" ? ([image], []) : ([], [image])
     }
 }
 
@@ -1032,6 +1152,9 @@ enum CardDraftingAnswer {
     static func freeDrafts(_ plan: CardDraftingSourcePlan, isRequested: Bool, at now: Date) -> [Flashcard] {
         plan.free.compactMap { seed in
             guard let card = seed.card else { return nil }
+            let figure = card.figureLabel.flatMap { CardDraftingPictures.figure(labelled: $0, in: plan.source.figures) }
+            let frontImages = figure.flatMap { MemoryCardImage(target: $0.reference.urlString, alt: $0.label ?? "Figure \($0.number)") }
+                .map { [$0] } ?? []
             return Flashcard.mint(
                 front: card.front,
                 back: card.back,
@@ -1043,6 +1166,7 @@ enum CardDraftingAnswer {
                 ideaID: seed.ideaID,
                 origin: .drafted,
                 isRequested: isRequested,
+                frontImages: frontImages,
                 at: now
             )
         }
@@ -1087,6 +1211,7 @@ enum CardDraftingAnswer {
                 result.refused.append(Refused(front: front, reason: "It names no seed, and the learner has met only the seeds' parts of the source."))
                 continue
             }
+            let images = CardDraftingPictures.images(for: card, in: plan.source.figures)
             result.drafts.append(Flashcard.mint(
                 front: front,
                 back: back,
@@ -1099,6 +1224,8 @@ enum CardDraftingAnswer {
                 ideaID: seed?.ideaID,
                 origin: .drafted,
                 isRequested: isRequested,
+                frontImages: images.front,
+                backImages: images.back,
                 at: now
             ))
         }

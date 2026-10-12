@@ -470,6 +470,77 @@ struct CardDraftingTests {
         ])
     }
 
+    @Test("A source's figures are listed with their instruction; a card pins one to its front or back, and a walkthrough card keeps the figure it was asked beside")
+    func figuresOnCards() throws {
+        let leak = SourceImageReference(sourceID: "src-1", location: .page(3), crop: PaperFigureRect(x: 0.1, y: 0.2, width: 0.8, height: 0.5))
+        let pumping = SourceImageReference(sourceID: "src-1", location: .page(5))
+        let figures = [
+            CourseQuizFigure(number: 1, reference: leak, page: 3, caption: "Figure 1. Proton leak through UCP1.", label: "Figure 1"),
+            CourseQuizFigure(number: 2, reference: pumping, page: 5, caption: "Fig. 2 | Complex I pumping.", label: "Fig. 2"),
+        ]
+
+        // A walkthrough question asked beside a figure says so as a seed, and
+        // drafted as it stands shows that figure with its question.
+        let walk = PaperWalkthrough(
+            sourceID: "src-1",
+            sourceSHA256: "h",
+            title: "Walk",
+            steps: [
+                PaperWalkthroughStep(
+                    id: "s1", kind: .figure, title: "", body: "",
+                    anchor: PaperWalkthroughAnchor(figureLabel: "Figure 2b", passage: "Complex I pumps four protons"),
+                    quiz: PaperWalkthroughQuiz(question: "How many protons does complex I pump per NADH?", answer: "Four.")
+                ),
+            ],
+            author: .assistant
+        )
+        let walkSeeds = CardDraftingSeed.walkSteps(of: walk) { _ in "Complex I pumps four protons" }
+        #expect(walkSeeds.first?.text.hasSuffix("\nAsked beside: Figure 2b") == true)
+        #expect(walkSeeds.first?.card?.figureLabel == "Figure 2b")
+
+        var withFigures = source(seeds: walkSeeds)
+        withFigures.figures = figures
+        let plan = try #require(CardDraftingPlanner.plan(
+            request: request(count: .cards(5)), sources: [withFigures], skipped: [], notebookExemplars: [],
+            route: cardRoute(), system: system
+        ).sources.first)
+        #expect(plan.user.contains(CardDraftingPictures.instruction + "\n\nFigures:\n[F1 · p.3] Figure 1. Proton leak through UCP1.\n[F2 · p.5] Fig. 2 | Complex I pumping."))
+        #expect(plan.user.range(of: "Figures:")!.lowerBound < plan.user.range(of: "\nText:")!.lowerBound, "the figures come before the text")
+
+        let now = Date(timeIntervalSinceReferenceDate: 812_000_000)
+        let free = CardDraftingAnswer.freeDrafts(plan, isRequested: true, at: now)
+        #expect(free.first?.frontImages.map(\.target) == [pumping.urlString], "Figure 2b finds Fig. 2")
+        #expect(free.first?.frontImages.first?.alt == "Fig. 2")
+        #expect(free.first?.backImages.isEmpty == true)
+
+        // The model's answer, as JSON: a handle as text or as a number.
+        let answer: CardDraftingModelAnswer = try MemoryReviewPlanning.decodeJSON("""
+            {"cards": [
+              {"front": "In the UCP1 study, what does the trace in this figure show leaking?", "back": "Protons.", "quote": "Uncoupling proteins let protons leak back", "figure": "F1", "figure_with": "front", "figure_shows": "a leak trace"},
+              {"front": "What does complex IV reduce?", "back": "Oxygen, to water.", "quote": "complex IV reduces oxygen to water", "figure": 2},
+              {"front": "Where is the gradient?", "back": "Across the inner membrane.", "quote": "proton gradient across the inner membrane", "figure": "F9", "figure_with": "front"},
+              {"front": "What is released as heat?", "back": "The energy of the leak.", "quote": "the energy is released as heat"}
+            ]}
+            """)
+        let drafts = CardDraftingAnswer.drafts(answer.cards, plan: plan, isRequested: true, at: now).drafts
+        #expect(drafts.count == 4)
+        #expect(drafts[0].frontImages.map(\.target) == [leak.urlString], "the crop rides on the address")
+        #expect(drafts[0].frontImages.first?.alt == "a leak trace")
+        #expect(drafts[0].backImages.isEmpty)
+        #expect(drafts[1].backImages.map(\.target) == [pumping.urlString], "a figure with no side is shown with the answer")
+        #expect(drafts[1].frontImages.isEmpty)
+        #expect(drafts[2].frontImages.isEmpty && drafts[2].backImages.isEmpty, "a figure the source does not list is no picture")
+        #expect(drafts[3].frontImages.isEmpty && drafts[3].backImages.isEmpty)
+
+        // A source with no figures asks for none.
+        let bare = try #require(CardDraftingPlanner.plan(
+            request: request(count: .cards(2)), sources: [source()], skipped: [], notebookExemplars: [],
+            route: cardRoute(), system: system
+        ).sources.first)
+        #expect(!bare.user.contains("Figures:"))
+        #expect(!bare.user.contains(CardDraftingPictures.instruction))
+    }
+
     @Test("The run's summary names what was added, sampled, not found and failed")
     func resultSummary() {
         var result = CardDraftingResult()

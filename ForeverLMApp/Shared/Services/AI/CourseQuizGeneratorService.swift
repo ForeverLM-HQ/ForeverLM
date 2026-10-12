@@ -305,6 +305,7 @@ struct CourseQuizGeneratorService: Sendable {
                 let figures = PDFTextExtractor.indexedFigures(from: document, pages: (first - 1)..<last)
                 let labelsPerPage = Dictionary(grouping: figures, by: \.pageIndex).mapValues(\.count)
                 var found: [(reference: SourceImageReference, page: Int?, caption: String)] = []
+                var labels: [String] = []
                 for figure in figures.prefix(CourseQuizPictures.maximumFiguresPerPart) {
                     guard let page = document.page(at: figure.pageIndex) else { continue }
                     let crop = PaperFigureRectRefiner.figureCrop(
@@ -317,8 +318,13 @@ struct CourseQuizGeneratorService: Sendable {
                         figure.pageIndex + 1,
                         figure.caption
                     ))
+                    labels.append(figure.figureLabel)
                 }
-                return CourseQuizPictures.figures(from: found)
+                var listed = CourseQuizPictures.figures(from: found)
+                for index in listed.indices where index < labels.count {
+                    listed[index].label = labels[index]
+                }
+                return listed
             }
         }
         guard EPUBParser.isMarkupChapter(filePath),

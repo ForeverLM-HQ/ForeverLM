@@ -158,6 +158,9 @@ struct CourseQuizFigure: Equatable, Sendable {
     let reference: SourceImageReference
     let page: Int?
     let caption: String
+    /// The label a PDF prints for it ("Figure 2"), which a walkthrough's
+    /// figure step names; nil for an EPUB chapter's picture.
+    var label: String?
 }
 
 /// Pictures a quiz writer pins to questions (`CourseQuizPicture`): the slides

@@ -5,8 +5,9 @@ import Foundation
 // docs/memory-design.md, "Drafting". One source at a time, one hop each:
 // its whole text, the seeds its deck and kept cards leave uncovered (its
 // walkthrough's questions, its review guide's, the learner's highlights and
-// notes, its ideas), the questions its cards already ask, and the learner's
-// decisions on its cards, which the drafter takes as exemplars. Nothing here
+// notes, its ideas), the questions its cards already ask, the learner's
+// decisions on its cards, which the drafter takes as exemplars, and its
+// captioned figures, which a card may show. Nothing here
 // writes; `CardDraftingService` plans and drafts from it.
 
 /// One requested source as drafting reads it, or why it is left out.
@@ -133,6 +134,12 @@ extension StorageService {
             try Self.cardDraftingExemplars(deck: deck, state: state, store: store)
         } ?? []
 
+        // Its captioned figures, which a card may show: read off the file on
+        // this Mac, off the storage actor, as a course quiz reads a reading's.
+        let figures = await Task.detached(priority: .utility) { [sourceID, source] in
+            CourseQuizGeneratorService.readingFigures(sourceID: sourceID, filePath: source.resolvedLocalPath, pages: nil)
+        }.value
+
         return .source(CardDraftingSource(
             sourceID: sourceID,
             requestedID: requestedID,
@@ -145,7 +152,8 @@ extension StorageService {
             exemplars: exemplars,
             isOpened: requested.isRead || requested.hasSavedReadingPosition
                 || source.isRead || source.hasSavedReadingPosition,
-            reach: reach
+            reach: reach,
+            figures: figures
         ))
     }
 
