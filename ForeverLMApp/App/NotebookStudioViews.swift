@@ -650,16 +650,21 @@ struct NotebookStudioTileControl: View {
             .help(tile.help)
             .accessibilityIdentifier(identifier)
         case .explainer:
+            // Live whenever the notebook takes what it makes, as Cards and
+            // Report are: with no ticked paper or article the menu says what
+            // it needs instead of the tile greying out.
             let candidates = vm.notebookExplainerCandidates(goal.id)
-            let usable = enabled && !candidates.isEmpty
             Menu {
+                if candidates.isEmpty {
+                    Text(Self.noPaperLine)
+                }
                 ForEach(candidates) { article in
                     explainerItem(article)
                 }
             } label: {
                 NotebookStudioTileLabel(
                     tile: tile,
-                    isEnabled: usable,
+                    isEnabled: enabled,
                     isBusy: candidates.contains { explainerWriter.isWriting($0.id) },
                     style: style
                 )
@@ -668,15 +673,18 @@ struct NotebookStudioTileControl: View {
             .buttonStyle(.plain)
             .menuIndicator(.hidden)
             .hoverHighlight(cornerRadius: cornerRadius, inset: 0)
-            .disabled(!usable)
-            .help(candidates.isEmpty ? "Tick a paper or article to explain it" : tile.help)
+            .disabled(!enabled)
+            .help(tile.help)
             .accessibilityIdentifier(identifier)
         case .teachBack:
             // One ticked paper, picked here: the chat opens asking the
-            // learner to explain it from memory (`TeachBack`).
+            // learner to explain it from memory (`TeachBack`). Live like
+            // the Explainer, saying what it needs when nothing is ticked.
             let candidates = vm.notebookTeachBackCandidates(goal.id)
-            let usable = enabled && !candidates.isEmpty
             Menu {
+                if candidates.isEmpty {
+                    Text(Self.noPaperLine)
+                }
                 ForEach(candidates) { article in
                     Button(vm.displayTitle(for: article)) {
                         vm.inWindow(windowState) {
@@ -685,14 +693,14 @@ struct NotebookStudioTileControl: View {
                     }
                 }
             } label: {
-                NotebookStudioTileLabel(tile: tile, isEnabled: usable, style: style)
+                NotebookStudioTileLabel(tile: tile, isEnabled: enabled, style: style)
             }
             .menuStyle(.button)
             .buttonStyle(.plain)
             .menuIndicator(.hidden)
             .hoverHighlight(cornerRadius: cornerRadius, inset: 0)
-            .disabled(!usable)
-            .help(candidates.isEmpty ? "Tick a paper or article to explain it" : tile.help)
+            .disabled(!enabled)
+            .help(tile.help)
             .accessibilityIdentifier(identifier)
         default:
             Button {
@@ -720,6 +728,10 @@ struct NotebookStudioTileControl: View {
     }
 
     private var identifier: String { "notebook.studio.\(tile.rawValue)" }
+
+    /// The Explainer and Feynman Technique menus' one line when no ticked
+    /// source has text to read: what to add or tick for them to work on.
+    private static let noPaperLine = "Add or tick a paper or article first"
 
     /// One ticked source in the Explainer tile's menu: its explainer opens
     /// when it has one, is written when it has none, and while it is being
