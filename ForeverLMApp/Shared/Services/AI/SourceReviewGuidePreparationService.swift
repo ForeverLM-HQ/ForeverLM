@@ -127,7 +127,9 @@ actor SourceReviewGuidePreparationService {
         }
         var attempts = 0
         for sourceID in sourceIDs where attempts < maximum {
-            guard !Task.isCancelled else { break }
+            // Turned off mid-pass: stop before the next call, not at the
+            // next pass two hours on.
+            guard !Task.isCancelled, MemoryCardSettings.preparesReviewQuestions() else { break }
             do {
                 _ = try await prepare(sourceID: sourceID)
                 attempts += 1

@@ -4526,15 +4526,21 @@ extension StudioViewModel {
     /// Starts the ahead-of-time guide pass once the library has loaded: a
     /// first pass a few minutes after launch, then one every two hours, each
     /// within what is left of the day's budget. The guides sync to the phone
-    /// in the source's payload, so a CarPlay quiz finds one waiting.
+    /// in the source's payload, so a CarPlay quiz finds one waiting. A pass
+    /// runs only while Settings › General › Memory review › Prepare review
+    /// questions ahead of time is on, and stops at the daily background cap,
+    /// like every other background drain.
     func startReviewGuidePrebuild() {
         guard reviewGuidePrebuildTask == nil else { return }
         let service = sourceReviewGuidePreparationService
+        let budget = backgroundAIBudget
         reviewGuidePrebuildTask = Task(priority: .utility) {
             do { try await Task.sleep(for: .seconds(3 * 60)) } catch { return }
             while !Task.isCancelled {
                 let remaining = Self.reviewGuidePrebuildRemainingToday()
-                if remaining > 0 {
+                if remaining > 0,
+                   MemoryCardSettings.preparesReviewQuestions(),
+                   await budget.check().allowsBackgroundSpend {
                     let attempts = await service.prebuildLikelyReviews(maximum: remaining)
                     Self.recordReviewGuidePrebuildAttempts(attempts)
                 }

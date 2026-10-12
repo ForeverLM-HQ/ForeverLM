@@ -12,8 +12,9 @@ import Foundation
 
 // MARK: Settings
 
-/// The three memory settings of Settings › General › Memory review, each
-/// synced (`SyncedPreferenceKeys.synced`) and read and written over MCP
+/// The card settings of Settings › General › Memory review, and whether review
+/// questions are written ahead of time, each synced
+/// (`SyncedPreferenceKeys.synced`) and read and written over MCP
 /// (`get_memory_review_settings` / `set_memory_review_settings`).
 enum MemoryCardSettings {
     /// How many new cards a day's review introduces (`MemoryCardQueue`); it
@@ -25,6 +26,11 @@ enum MemoryCardSettings {
     /// Whether the "Cards to check" corner card is shown. Its Don't Ask Again
     /// turns it off.
     static let draftNudgesKey = "memory.draft_nudges"
+    /// Whether ForeverLM writes review questions ahead of time for the few
+    /// sources a review is likely to be about today
+    /// (`StudioViewModel.startReviewGuidePrebuild`). On until the learner
+    /// turns it off; a review without them still runs.
+    static let prepareReviewQuestionsKey = "memory.prepare_review_questions"
 
     static func newCardsPerDay(defaults: UserDefaults = .standard) -> Int {
         MemoryCardQueue.newPerDay(stored: (defaults.object(forKey: newCardsPerDayKey) as? NSNumber)?.intValue)
@@ -48,6 +54,14 @@ enum MemoryCardSettings {
 
     static func setShowsDraftNudges(_ on: Bool) {
         PreferenceStore.set(on, forKey: draftNudgesKey)
+    }
+
+    static func preparesReviewQuestions(defaults: UserDefaults = .standard) -> Bool {
+        (defaults.object(forKey: prepareReviewQuestionsKey) as? NSNumber)?.boolValue ?? true
+    }
+
+    static func setPreparesReviewQuestions(_ on: Bool) {
+        PreferenceStore.set(on, forKey: prepareReviewQuestionsKey)
     }
 }
 

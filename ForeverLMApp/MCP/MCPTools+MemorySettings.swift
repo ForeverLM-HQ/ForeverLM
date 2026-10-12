@@ -9,9 +9,10 @@ import Foundation
 //
 // - `get_memory_review_settings` is Settings › General › Memory review as JSON: the daily
 //   budget, the day's new cards, background card drafting and its corner
-//   card, the "Have today's review ready" switch, the day close's own switch,
-//   this Mac's two hours, and what this Mac last did about each.
-// - `set_memory_review_settings` writes any of the eight.
+//   card, review questions written ahead of time, the "Have today's review
+//   ready" switch, the day close's own switch, this Mac's two hours, and what
+//   this Mac last did about each.
+// - `set_memory_review_settings` writes any of the nine.
 // - `close_day` runs the day close now — the evening's own work, from a chat
 //   ("close my day") — and answers with what it folded in and the next
 //   morning's cards. Since the card review (2026-10-01) no review chat is
@@ -31,6 +32,7 @@ extension MCPDataStore {
             "new_cards_per_day": newCards,
             "auto_draft_cards": MemoryCardSettings.autoDraftsCards(),
             "draft_nudges": MemoryCardSettings.showsDraftNudges(),
+            "prepare_review_questions": MemoryCardSettings.preparesReviewQuestions(),
             "prepare_daily": DailyReviewPreparation.isEnabled,
             "ready_by_hour": DailyReviewPreparation.hour,
             "close_day_daily": DayClosePreferences.isEnabled,
@@ -40,6 +42,7 @@ extension MCPDataStore {
                 "new_cards_per_day": "your account",
                 "auto_draft_cards": "your account",
                 "draft_nudges": "your account",
+                "prepare_review_questions": "your account",
                 "prepare_daily": "your account",
                 "ready_by_hour": "this Mac",
                 "close_day_daily": "your account",
@@ -132,11 +135,15 @@ extension MCPDataStore {
         newCardsPerDay: Int? = nil,
         autoDraftCards: Bool? = nil,
         draftNudges: Bool? = nil,
-        closeDayDaily: Bool? = nil
+        closeDayDaily: Bool? = nil,
+        prepareReviewQuestions: Bool? = nil
     ) async throws -> String {
-        let given: [Any?] = [budgetMinutes, prepareDaily, readyByHour, closeDayHour, newCardsPerDay, autoDraftCards, draftNudges, closeDayDaily]
+        let given: [Any?] = [
+            budgetMinutes, prepareDaily, readyByHour, closeDayHour, newCardsPerDay, autoDraftCards, draftNudges,
+            closeDayDaily, prepareReviewQuestions,
+        ]
         guard given.contains(where: { $0 != nil }) else {
-            throw MCPError.invalidInput("Pass budget_minutes, new_cards_per_day, auto_draft_cards, draft_nudges, prepare_daily, ready_by_hour, close_day_daily, close_day_hour, or several; nothing to change.")
+            throw MCPError.invalidInput("Pass budget_minutes, new_cards_per_day, auto_draft_cards, draft_nudges, prepare_review_questions, prepare_daily, ready_by_hour, close_day_daily, close_day_hour, or several; nothing to change.")
         }
         if let budgetMinutes, MemoryReviewBudget.clamp(budgetMinutes) != budgetMinutes {
             throw MCPError.invalidInput("budget_minutes must be between \(MemoryReviewBudget.minimumMinutes) and \(MemoryReviewBudget.maximumMinutes).")
@@ -171,6 +178,10 @@ extension MCPDataStore {
                 MemoryCardSettings.setShowsDraftNudges(draftNudges)
                 Task(priority: .utility) { await AppModelBridge.studio?.refreshCardsToCheckBanner() }
                 changed.append("draft_nudges")
+            }
+            if let prepareReviewQuestions, prepareReviewQuestions != MemoryCardSettings.preparesReviewQuestions() {
+                MemoryCardSettings.setPreparesReviewQuestions(prepareReviewQuestions)
+                changed.append("prepare_review_questions")
             }
             if let prepareDaily, prepareDaily != DailyReviewPreparation.isEnabled {
                 // The switch's side effects, exactly as the pane's toggle has

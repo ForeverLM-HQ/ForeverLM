@@ -162,7 +162,7 @@ extension AITask {
     /// `.optional`; the rest are `.requested`.
     var usageNeed: AIUsageTaskNeed {
         switch self {
-        case .chat, .reviewGrading, .realtimeReviewPreparation, .mobileReview, .mobileVoiceAgent,
+        case .chat, .reviewGrading, .mobileReview, .mobileVoiceAgent,
              .deepResearch, .sourceDiscovery, .notebookNotesMerge, .cohortSessionPlan,
              .cohortSessionClose, .courseCurriculumPlan, .courseLessonWriting, .explainerWriting,
              .audioOverviewWriting, .reportWriting, .mnemonicReadingWriting, .walkthroughWriting,
@@ -178,7 +178,11 @@ extension AITask {
              .lectureNoteMatching, .courseOrdering, .courseMetadata, .courseLectureNaming,
              .slideFrameClassification:
             return .needed
-        case .transcriptFormatting, .podcastSpeakerIdentification, .podcastYouTubeMatching,
+        // Review questions are written ahead of time for the sources a review
+        // is likely to be about; nothing else writes them, and a review
+        // without them still runs.
+        case .realtimeReviewPreparation,
+             .transcriptFormatting, .podcastSpeakerIdentification, .podcastYouTubeMatching,
              .journalArticleMatching, .paperNarrationPreparation, .paperTextToSpeechPreparation,
              .automaticAudioFiltering, .meetingActionItems, .sourceIdeaExtraction, .cardDrafting,
              .cardVariation, .notebookNaming, .mapSummaries:

@@ -48,6 +48,8 @@ struct GeneralSettingsDetailView: View {
     private var autoDraftsCards: Bool
     @SyncedStorage(wrappedValue: true, MemoryCardSettings.draftNudgesKey)
     private var showsDraftNudges: Bool
+    @SyncedStorage(wrappedValue: true, MemoryCardSettings.prepareReviewQuestionsKey)
+    private var preparesReviewQuestions: Bool
     /// Synced: Think first's level for the library (`ThinkFirst`), so the
     /// picker follows another Mac, the web or MCP.
     @SyncedStorage(wrappedValue: ThinkFirstLevel.off, ThinkFirst.levelKey)
@@ -249,6 +251,19 @@ struct GeneralSettingsDetailView: View {
 
                         Divider().padding(.vertical, 12)
 
+                        Toggle("Prepare review questions ahead of time", isOn: preparesReviewQuestionsBinding)
+                            .toggleStyle(.switch)
+                            .accessibilityIdentifier("settings.memory.prepareReviewQuestions")
+                        Text(
+                            "Uses AI on up to \(StudioViewModel.reviewGuidePrebuildDailyLimit) sources a day, "
+                                + "within your daily background limit."
+                        )
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .padding(.top, 4)
+
+                        Divider().padding(.vertical, 12)
+
                         Toggle("Have today's review ready", isOn: $prepareDaily)
                             .toggleStyle(.switch)
                             .accessibilityIdentifier("settings.memory.prepareDaily")
@@ -404,6 +419,13 @@ struct GeneralSettingsDetailView: View {
                 MemoryCardSettings.setAutoDraftsCards($0)
                 Task(priority: .utility) { await AppModelBridge.studio?.refreshCardsToCheckBanner() }
             }
+        )
+    }
+
+    private var preparesReviewQuestionsBinding: Binding<Bool> {
+        Binding(
+            get: { preparesReviewQuestions },
+            set: { MemoryCardSettings.setPreparesReviewQuestions($0) }
         )
     }
 
