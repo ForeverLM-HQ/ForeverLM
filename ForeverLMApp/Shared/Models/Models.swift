@@ -5168,6 +5168,17 @@ struct PodcastEpisodeMetadata {
     var publishedAt: Date? = nil
 }
 
+/// A play Apple Podcasts saw, as podcast discovery hands it to the store to
+/// record as listening (`KnowledgeStore.recordExternalListening`).
+struct ExternalListen: Equatable, Sendable {
+    /// The episode's library URL, as discovery mints it (`SourceDiscovery.podcastEpisodeURL`).
+    let url: String
+    let title: String
+    let showName: String
+    /// Apple's `ZLASTDATEPLAYED`: the moment of the episode's last play.
+    let playedAt: Date
+}
+
 /// Describes why Apple Podcasts discovery returned no results,
 /// so the UI can guide the user instead of showing a silent empty state.
 enum PodcastDiscoveryStatus: Equatable {

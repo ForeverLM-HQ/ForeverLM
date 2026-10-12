@@ -626,6 +626,7 @@ extension StudioViewModel {
             storage: base.storage
         )
         await self.alignUnplayedPodcastDates(with: discoverySnapshot.episodeMetadata)
+        await Self.recordApplePodcastsListening(from: discoverySnapshot.episodeMetadata, storage: base.storage)
         guard !persistence.insertedIDs.isEmpty else { return }
 
         let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "Studio")
@@ -648,6 +649,51 @@ extension StudioViewModel {
             Task(priority: .utility) { [weak self] in
                 await self?.processPendingPodcastTranscripts()
             }
+        }
+    }
+
+    /// How far back a sync pass looks for Apple Podcasts plays to record as
+    /// listening. Every pass looks, so the first one after an update backfills
+    /// the last month and later ones pick up each new play; a play already
+    /// recorded costs a read.
+    nonisolated static let applePodcastsListeningWindow: TimeInterval = 30 * 86_400
+
+    /// The plays among discovered episodes that a sync pass records: each
+    /// episode Apple Podcasts says was played inside the window, at the moment
+    /// of its last play. A play stamped after `now` (another device's clock)
+    /// waits for a pass that has caught up with it.
+    nonisolated static func applePodcastsListens(
+        from episodes: [PodcastEpisodeMetadata],
+        now: Date
+    ) -> [ExternalListen] {
+        let earliest = now.addingTimeInterval(-applePodcastsListeningWindow)
+        return episodes.compactMap { meta in
+            guard let playedAt = meta.lastDatePlayed,
+                  playedAt >= earliest, playedAt <= now,
+                  let url = SourceDiscovery.podcastEpisodeURL(for: meta) else { return nil }
+            return ExternalListen(url: url, title: meta.episodeTitle, showName: meta.podcastName, playedAt: playedAt)
+        }
+    }
+
+    /// Records what the learner played in Apple Podcasts as listening on the
+    /// day they played it, so "what did I listen to" includes it. Runs after
+    /// the pass has imported its new episodes, so a first play is recorded in
+    /// the pass that brings the episode in.
+    nonisolated static func recordApplePodcastsListening(
+        from episodes: [PodcastEpisodeMetadata],
+        storage: StorageService,
+        now: Date = Date()
+    ) async {
+        let listens = applePodcastsListens(from: episodes, now: now)
+        guard !listens.isEmpty else { return }
+        let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "Studio")
+        do {
+            let recorded = try await storage.recordExternalListening(listens)
+            if !recorded.isEmpty {
+                log.info("Recorded \(recorded.count) Apple Podcasts play(s) as listening")
+            }
+        } catch {
+            log.error("Failed to record Apple Podcasts listening: \(error.localizedDescription)")
         }
     }
 

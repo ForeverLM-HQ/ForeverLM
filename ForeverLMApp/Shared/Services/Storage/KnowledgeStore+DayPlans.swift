@@ -470,6 +470,31 @@ extension KnowledgeStore {
         to end: Date,
         now: Date = Date()
     ) throws -> DayActivity? {
+        try exec("BEGIN IMMEDIATE")
+        do {
+            let span = try recordDayActivitySpanRows(
+                kind: kind, targetID: targetID, title: title, from: start, to: end, now: now
+            )
+            try exec("COMMIT")
+            return span
+        } catch {
+            try? exec("ROLLBACK")
+            throw error
+        }
+    }
+
+    /// Transaction-free form of `recordDayActivitySpan`, for a caller whose
+    /// span must commit or roll back with its other rows: a play heard in
+    /// Apple Podcasts lands on the day's log together with its activity day.
+    @discardableResult
+    func recordDayActivitySpanRows(
+        kind: DayActivityKind,
+        targetID: String,
+        title: String,
+        from start: Date,
+        to end: Date,
+        now: Date
+    ) throws -> DayActivity? {
         let target = targetID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !target.isEmpty else {
             throw KnowledgeStoreError.invalidData("A day activity needs the id of what was being done.")
@@ -485,47 +510,40 @@ extension KnowledgeStore {
         let endMinute = min(DayPlan.minutesPerDay, max(startMinute + 1, rawEnd))
         let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        try exec("BEGIN IMMEDIATE")
-        do {
-            let plan = try ensureDayPlanRow(date, now: now)
-            let gap = DayPlan.activityMergeGapMinutes
-            let touching = try loadDayActivities(dayPlanID: plan.id).filter {
-                $0.kind == kind && $0.targetID == target
-                    && startMinute - $0.endMinute <= gap && $0.startMinute - endMinute <= gap
-            }
-            var span: DayActivity
-            if var found = touching.first {
-                found.startMinute = touching.map(\.startMinute).reduce(startMinute, min)
-                found.endMinute = touching.map(\.endMinute).reduce(endMinute, max)
-                if !name.isEmpty { found.title = name }
-                found.updatedAt = now
-                span = found
-                // A range that bridges two of the thing's spans makes them one.
-                for joined in touching.dropFirst() {
-                    try execBind("DELETE FROM day_activities WHERE id = ?") { stmt in
-                        self.bind(stmt, 1, joined.id)
-                    }
-                }
-            } else {
-                span = DayActivity(
-                    dayPlanID: plan.id,
-                    startMinute: startMinute,
-                    endMinute: endMinute,
-                    kind: kind,
-                    targetID: target,
-                    title: name,
-                    createdAt: now,
-                    updatedAt: now
-                )
-            }
-            try writeDayActivityRow(span)
-            try touchDayPlan(plan.id, at: now)
-            try exec("COMMIT")
-            return span
-        } catch {
-            try? exec("ROLLBACK")
-            throw error
+        let plan = try ensureDayPlanRow(date, now: now)
+        let gap = DayPlan.activityMergeGapMinutes
+        let touching = try loadDayActivities(dayPlanID: plan.id).filter {
+            $0.kind == kind && $0.targetID == target
+                && startMinute - $0.endMinute <= gap && $0.startMinute - endMinute <= gap
         }
+        var span: DayActivity
+        if var found = touching.first {
+            found.startMinute = touching.map(\.startMinute).reduce(startMinute, min)
+            found.endMinute = touching.map(\.endMinute).reduce(endMinute, max)
+            if !name.isEmpty { found.title = name }
+            found.updatedAt = now
+            span = found
+            // A range that bridges two of the thing's spans makes them one.
+            for joined in touching.dropFirst() {
+                try execBind("DELETE FROM day_activities WHERE id = ?") { stmt in
+                    self.bind(stmt, 1, joined.id)
+                }
+            }
+        } else {
+            span = DayActivity(
+                dayPlanID: plan.id,
+                startMinute: startMinute,
+                endMinute: endMinute,
+                kind: kind,
+                targetID: target,
+                title: name,
+                createdAt: now,
+                updatedAt: now
+            )
+        }
+        try writeDayActivityRow(span)
+        try touchDayPlan(plan.id, at: now)
+        return span
     }
 
     /// Puts work ForeverLM did not watch on the clock from the moments its own

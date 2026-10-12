@@ -4584,6 +4584,21 @@ actor StorageService {
         return inserted
     }
 
+    /// Plays Apple Podcasts saw, recorded as listening on the day of each play.
+    /// See `KnowledgeStore.recordExternalListening`. A sync pass can record a
+    /// month of plays at once, so the push is coalesced; the day's log is told
+    /// only when something landed on it.
+    @discardableResult
+    func recordExternalListening(_ listens: [ExternalListen]) throws -> [String] {
+        guard !listens.isEmpty else { return [] }
+        let recorded = try knowledgeStore().recordExternalListening(listens)
+        if !recorded.isEmpty {
+            scheduleCloudKitSync(.coalesced)
+            NotificationCenter.default.post(name: .dayPlansDidChange, object: nil)
+        }
+        return recorded
+    }
+
     /// Time spent with one source across its activity days.
     func sourceEngagedSeconds(sourceID: String) throws -> Double {
         try knowledgeStore().sourceEngagedSeconds(sourceID: sourceID)

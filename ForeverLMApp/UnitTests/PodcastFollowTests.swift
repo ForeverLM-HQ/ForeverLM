@@ -166,3 +166,199 @@ struct BlockedPodcastShowTests {
         #expect(SyncedPreferenceKeys.generation2MovedKeys.contains(key))
     }
 }
+
+/// What the learner plays in Apple Podcasts is listening, on the day they
+/// played it: "quiz me on the podcasts I listened to last week" must find it.
+@Suite("Apple Podcasts plays as listening")
+struct ApplePodcastsListeningTests {
+
+    /// A local moment in October 2026, so day arithmetic is the store's and
+    /// not the test machine's clock.
+    private func moment(day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
+        var components = DateComponents()
+        components.year = 2026; components.month = 10; components.day = day
+        components.hour = hour; components.minute = minute
+        return Calendar.current.date(from: components) ?? Date()
+    }
+
+    private func savedEpisode(
+        _ store: KnowledgeStore,
+        trackID: Int64,
+        title: String = "Bioelectric Fields",
+        show: String = "Field Notes"
+    ) throws -> (id: String, url: String) {
+        let url = "apple-podcast://episode/\(trackID)"
+        var article = StudioArticle(url: url, title: title, sourceType: .podcast, id: "source-episode-\(trackID)")
+        article.normalizedURL = URLNormalizer.normalize(url)
+        article.domain = show
+        article.discoveryOrigin = .applePodcasts
+        try store.saveSource(article)
+        return (article.id, url)
+    }
+
+    private func listen(_ url: String, at playedAt: Date, title: String = "Bioelectric Fields", show: String = "Field Notes") -> ExternalListen {
+        ExternalListen(url: url, title: title, showName: show, playedAt: playedAt)
+    }
+
+    @Test("A play lands as listening on its own day, on the Schedule and the day's log, with nothing invented")
+    func playIsListeningOnItsDay() throws {
+        let store = try KnowledgeStore(inMemory: true)
+        let episode = try savedEpisode(store, trackID: 1_001)
+        let playedAt = moment(day: 8, 14, 30)
+
+        let recorded = try store.recordExternalListening([listen(episode.url, at: playedAt)], now: moment(day: 12, 9))
+        #expect(recorded == [episode.id])
+
+        let entry = try #require(try store.loadScheduledSources().first { $0.placement.sourceID == episode.id })
+        #expect(entry.isAutomatic)
+        #expect(!entry.placement.isCompleted, "a play is never a completion")
+        #expect(Calendar.current.isDate(entry.placement.plannedAt, inSameDayAs: playedAt))
+        let day = try #require(entry.activityDays.first)
+        #expect(entry.activityDays.count == 1)
+        #expect(day.kinds == [.listening])
+        #expect(day.completedKinds.isEmpty)
+        #expect(day.dayStart == Calendar.current.startOfDay(for: playedAt))
+        #expect(day.lastActivityAt == playedAt)
+        #expect(!day.hasMeasuredDepth, "Apple says when, not how much")
+        #expect(try store.sourceEngagedSeconds(sourceID: episode.id) == 0)
+
+        let log = try #require(try store.loadDayPlan("2026-10-08")).activities
+        #expect(log.count == 1)
+        #expect(log.first?.kind == .listening)
+        #expect(log.first?.targetID == episode.id)
+        #expect(log.first?.startMinute == 14 * 60 + 30)
+        #expect(log.first?.endMinute == 14 * 60 + 31)
+        #expect(log.first?.title == "Bioelectric Fields")
+    }
+
+    @Test("A re-sync of the same play writes nothing again")
+    func resyncIsIdempotent() throws {
+        let store = try KnowledgeStore(inMemory: true)
+        let episode = try savedEpisode(store, trackID: 1_002)
+        let play = listen(episode.url, at: moment(day: 8, 14, 30))
+
+        #expect(try store.recordExternalListening([play], now: moment(day: 12, 9)) == [episode.id])
+        #expect(try store.recordExternalListening([play], now: moment(day: 12, 10)).isEmpty)
+        // The same episode twice in one batch is one play.
+        #expect(try store.recordExternalListening([play, play], now: moment(day: 12, 11)).isEmpty)
+
+        let entry = try #require(try store.loadScheduledSources().first { $0.placement.sourceID == episode.id })
+        #expect(entry.activityDays.count == 1)
+        #expect(try #require(try store.loadDayPlan("2026-10-08")).activities.count == 1)
+    }
+
+    @Test("A later play of the same episode is another day; an older one never moves the Schedule entry back")
+    func playsOnOtherDays() throws {
+        let store = try KnowledgeStore(inMemory: true)
+        let episode = try savedEpisode(store, trackID: 1_003)
+
+        // Heard in ForeverLM on the 11th, then Apple's history says the 8th.
+        try store.recordScheduledSourceActivity(sourceID: episode.id, on: moment(day: 11, 20), kind: .listening)
+        #expect(try store.recordExternalListening([listen(episode.url, at: moment(day: 8, 7))], now: moment(day: 12, 9)) == [episode.id])
+        var entry = try #require(try store.loadScheduledSources().first { $0.placement.sourceID == episode.id })
+        #expect(entry.activityDays.count == 2)
+        #expect(Calendar.current.isDate(entry.placement.plannedAt, inSameDayAs: moment(day: 11, 0)))
+
+        // A newer play moves the automatic entry forward, as live listening does.
+        #expect(try store.recordExternalListening([listen(episode.url, at: moment(day: 12, 8))], now: moment(day: 12, 9)) == [episode.id])
+        entry = try #require(try store.loadScheduledSources().first { $0.placement.sourceID == episode.id })
+        #expect(entry.activityDays.count == 3)
+        #expect(Calendar.current.isDate(entry.placement.plannedAt, inSameDayAs: moment(day: 12, 0)))
+    }
+
+    @Test("Listening already logged in ForeverLM later that day covers the play")
+    func inAppListeningLaterThatDayCovers() throws {
+        let store = try KnowledgeStore(inMemory: true)
+        let episode = try savedEpisode(store, trackID: 1_004)
+        try store.recordScheduledSourceActivity(sourceID: episode.id, on: moment(day: 8, 16), kind: .listening)
+
+        #expect(try store.recordExternalListening([listen(episode.url, at: moment(day: 8, 14))], now: moment(day: 12, 9)).isEmpty)
+
+        // Reading the same source that day is not listening, so the play still counts.
+        let read = try savedEpisode(store, trackID: 1_005, title: "Gap Junctions")
+        try store.recordScheduledSourceActivity(sourceID: read.id, on: moment(day: 8, 16), kind: .reading)
+        #expect(try store.recordExternalListening([listen(read.url, at: moment(day: 8, 14), title: "Gap Junctions")], now: moment(day: 12, 9)) == [read.id])
+        let day = try #require(try store.loadScheduledSources().first { $0.placement.sourceID == read.id }?.activityDays.first)
+        #expect(day.kinds == [.reading, .listening])
+    }
+
+    @Test("Hidden sources, hidden episodes and hidden shows are not recorded; a let-back-in episode is")
+    func hiddenIsNeverRecorded() throws {
+        let store = try KnowledgeStore(inMemory: true)
+        let now = moment(day: 12, 9)
+        let playedAt = moment(day: 8, 14)
+
+        let hiddenSource = try savedEpisode(store, trackID: 2_001)
+        try store.setSourceHidden(hiddenSource.id, hidden: true)
+        let hiddenEpisode = try savedEpisode(store, trackID: 2_002)
+        try store.setPodcastEpisodeHidden(hiddenEpisode.id, hidden: true)
+        let inHiddenShow = try savedEpisode(store, trackID: 2_003, show: "Market Talk")
+        let letBackIn = try savedEpisode(store, trackID: 2_004, show: "Market Talk")
+        _ = try store.setPodcastShowHidden("Market Talk", hidden: true)
+        try store.setPodcastEpisodeVisibleOverride(letBackIn.id, visible: true)
+
+        let recorded = try store.recordExternalListening([
+            listen(hiddenSource.url, at: playedAt),
+            listen(hiddenEpisode.url, at: playedAt),
+            listen(inHiddenShow.url, at: playedAt, show: "Market Talk"),
+            listen(letBackIn.url, at: playedAt, show: "Market Talk"),
+            // Played, but never imported: there is no source to record it on.
+            listen("apple-podcast://episode/2999", at: playedAt),
+        ], now: now)
+
+        #expect(recorded == [letBackIn.id])
+        #expect(try store.loadDayPlan("2026-10-08")?.activities.map(\.targetID) == [letBackIn.id])
+    }
+
+    @Test("A play finds its episode by the keys the import dedups on, older spellings included")
+    func playFindsItsEpisodeLikeTheImport() throws {
+        let store = try KnowledgeStore(inMemory: true)
+        let playedAt = moment(day: 8, 14)
+
+        // Imported before the canonical form: the row normalized to "episode/<id>".
+        var legacy = StudioArticle(url: "apple-podcast:/episode/3001", title: "Legacy Row", sourceType: .podcast, id: "source-legacy-row")
+        legacy.normalizedURL = "episode/3001"
+        legacy.domain = "Field Notes"
+        try store.saveSource(legacy)
+
+        // A private-feed episode first imported under another identifier: show and title find it.
+        var privateEpisode = StudioArticle(
+            url: "apple-podcast://episode/local/0d6c1f6e", title: "Members Q&A", sourceType: .podcast, id: "source-members-qa"
+        )
+        privateEpisode.normalizedURL = URLNormalizer.normalize(privateEpisode.url)
+        privateEpisode.domain = "Field Notes"
+        try store.saveSource(privateEpisode)
+
+        let recorded = try store.recordExternalListening([
+            listen("apple-podcast://episode/3001", at: playedAt, title: "Legacy Row"),
+            listen("apple-podcast://episode/private/9f2a", at: playedAt, title: "Members Q&A"),
+        ], now: moment(day: 12, 9))
+
+        #expect(Set(recorded) == [legacy.id, privateEpisode.id])
+    }
+
+    @Test("A sync pass records plays inside the window, at the moment of each play")
+    func listensComeFromRecentPlays() {
+        let now = moment(day: 12, 9)
+        func episode(_ trackID: Int64, played: Date?) -> PodcastEpisodeMetadata {
+            PodcastEpisodeMetadata(
+                storeTrackId: trackID, episodeUUID: nil, episodeGUID: nil,
+                episodeTitle: "Episode \(trackID)", podcastName: "Field Notes",
+                artworkURL: nil, webPageURL: nil, episodeDescription: nil, enclosureURL: nil,
+                ttmlIdentifier: nil, lastDatePlayed: played, podcastCollectionId: nil
+            )
+        }
+        let listens = StudioViewModel.applePodcastsListens(from: [
+            episode(1, played: moment(day: 8, 14)),
+            episode(2, played: nil),
+            episode(3, played: now.addingTimeInterval(-31 * 86_400)),
+            episode(4, played: now.addingTimeInterval(3_600)),
+            episode(5, played: now.addingTimeInterval(-29 * 86_400)),
+        ], now: now)
+
+        #expect(listens.map(\.url) == ["apple-podcast://episode/1", "apple-podcast://episode/5"])
+        #expect(listens.first?.playedAt == moment(day: 8, 14))
+        #expect(listens.first?.title == "Episode 1")
+        #expect(listens.first?.showName == "Field Notes")
+    }
+}

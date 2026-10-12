@@ -3713,8 +3713,12 @@ extension KnowledgeStore {
             fraction: fraction,
             engagedSeconds: engagedSeconds
         )
-        if try scheduledSourceIsAutomatic(placementID: placementID) {
-            let plannedDay = Calendar.current.startOfDay(for: day)
+        // An automatic entry follows the most recent activity day. A play
+        // recorded after the fact (Apple Podcasts' history) can be older than
+        // a day already logged, and then leaves the entry where it is.
+        let plannedDay = Calendar.current.startOfDay(for: day)
+        let latestDay = try latestSourceActivityDayStart(sourceID: sourceID) ?? plannedDay
+        if try scheduledSourceIsAutomatic(placementID: placementID), latestDay <= plannedDay {
             let order = try nextScheduledSourceOrder(day: plannedDay, excludingSourceID: sourceID)
             let encoded = learningGoalItemPlannedDate(plannedDay, order: order)
             try execBind("UPDATE scheduled_sources SET planned_at = ?, updated_at = ? WHERE id = ?") { stmt in
@@ -3729,6 +3733,156 @@ extension KnowledgeStore {
             at: recordedAt
         )
         return inserted
+    }
+
+    /// The start of the latest day `sourceID` has activity on, if any.
+    private func latestSourceActivityDayStart(sourceID: String) throws -> Date? {
+        var latest: Date?
+        try queryBind("SELECT MAX(day_start) FROM source_activity_days WHERE source_id = ?", bind: { stmt in
+            bind(stmt, 1, sourceID)
+        }) { stmt in
+            guard sqlite3_column_type(stmt, 0) != SQLITE_NULL else { return }
+            latest = Date(timeIntervalSinceReferenceDate: sqlite3_column_double(stmt, 0))
+        }
+        return latest
+    }
+
+    // MARK: - Listening heard in Apple Podcasts
+
+    /// Records plays Apple Podcasts saw as the learner's listening, the way the
+    /// in-app player records its own: the source's activity day on the local
+    /// day of the play, with the automatic Schedule entry every activity day
+    /// hangs from, and a minute on that day's log at the moment of the play.
+    /// "What did I listen to last week" is then one question with one answer,
+    /// whichever app played the episode.
+    ///
+    /// Only an episode the library holds, active and not hidden (the source,
+    /// the episode or its show), is recorded; a listen names no source until
+    /// discovery has imported it. Any play counts, however short: Apple keeps
+    /// the moment of the last play and not how much of the episode it covered,
+    /// and an episode sampled on Tuesday was still heard on Tuesday. Nothing
+    /// is claimed beyond that moment: no engaged seconds, no depth, no
+    /// completion.
+    ///
+    /// Idempotent: a play already on the source's day (from an earlier sync
+    /// pass, or listening in ForeverLM later that day) is skipped, so a pass
+    /// that finds nothing new reads and never takes the write lock. Returns the
+    /// ids of the sources whose play was recorded now.
+    @discardableResult
+    func recordExternalListening(_ listens: [ExternalListen], now: Date = Date()) throws -> [String] {
+        var pending: [(sourceID: String, listen: ExternalListen)] = []
+        for listen in listens {
+            guard let sourceID = try visiblePodcastSourceID(for: listen),
+                  try !externalListenIsRecorded(sourceID: sourceID, playedAt: listen.playedAt) else { continue }
+            pending.append((sourceID, listen))
+        }
+        guard !pending.isEmpty else { return [] }
+
+        var recorded: [String] = []
+        try exec("BEGIN IMMEDIATE")
+        do {
+            for (sourceID, listen) in pending {
+                // Read again under the lock: the same episode twice in a batch,
+                // or a heartbeat that landed in between, is already there.
+                guard try !externalListenIsRecorded(sourceID: sourceID, playedAt: listen.playedAt) else { continue }
+                try recordScheduledSourceActivityRows(
+                    sourceID: sourceID,
+                    on: listen.playedAt,
+                    kind: .listening,
+                    recordedAt: now
+                )
+                try recordDayActivitySpanRows(
+                    kind: .listening,
+                    targetID: sourceID,
+                    title: listen.title,
+                    from: listen.playedAt,
+                    to: listen.playedAt.addingTimeInterval(60),
+                    now: now
+                )
+                recorded.append(sourceID)
+            }
+            try exec("COMMIT")
+        } catch {
+            try? exec("ROLLBACK")
+            throw error
+        }
+        return recorded
+    }
+
+    /// Whether the source's day already holds listening at or after `playedAt`.
+    private func externalListenIsRecorded(sourceID: String, playedAt: Date) throws -> Bool {
+        let dayStart = Calendar.current.startOfDay(for: playedAt)
+        var found = false
+        try queryBind("""
+            SELECT 1 FROM source_activity_days
+            WHERE source_id = ? AND day_start = ?
+              AND (kinds & ?) != 0
+              AND last_activity_at >= ?
+            LIMIT 1
+        """, bind: { stmt in
+            bind(stmt, 1, sourceID)
+            sqlite3_bind_double(stmt, 2, dayStart.timeIntervalSinceReferenceDate)
+            sqlite3_bind_int64(stmt, 3, sourceActivityMask([.listening]))
+            // A second of slack: the stored stamp is the play's own, read back.
+            sqlite3_bind_double(stmt, 4, playedAt.timeIntervalSinceReferenceDate - 1)
+        }) { _ in found = true }
+        return found
+    }
+
+    /// The learner's own library source a listen names, found by the keys the
+    /// import that made it dedups on (`insertSourceIfNew`): work keys, the
+    /// normalized URL (with the older spelling of a track-id URL), then show
+    /// and title for an episode with no public track id. Every lookup is on an
+    /// index, never the source projection, since a sync pass asks once per
+    /// play in the window. Nil unless that source is active and shown: not
+    /// hidden itself, not a hidden episode, and not in a hidden show unless
+    /// the episode was let back in.
+    private func visiblePodcastSourceID(for listen: ExternalListen) throws -> String? {
+        var probe = StudioArticle(url: listen.url, title: listen.title, sourceType: .podcast)
+        probe.domain = listen.showName
+        var match = try sourceID(forWorkKeys: workKeys(for: probe, hashingFile: false), teamID: nil)
+        if match == nil {
+            var normalizedURLs = [URLNormalizer.normalize(listen.url)]
+            if let trackID = Self.extractTrackIdFromURL(listen.url) {
+                // How rows imported before the canonical form normalized.
+                normalizedURLs.append("episode/\(trackID)")
+            }
+            let marks = Array(repeating: "?", count: normalizedURLs.count).joined(separator: ", ")
+            try queryBind("""
+                SELECT s.id FROM podcasts p JOIN sources s ON s.id = p.source_id
+                WHERE p.normalized_url IN (\(marks)) AND s.team_id IS NULL
+                ORDER BY s.status = 'active' DESC, s.id
+                LIMIT 1
+            """, bind: { stmt in
+                for (index, url) in normalizedURLs.enumerated() { bind(stmt, index + 1, url) }
+            }) { stmt in match = string(stmt, 0) }
+        }
+        if match == nil, Self.extractTrackIdFromURL(listen.url) == nil {
+            match = sourceExistsByPodcastShowAndTitle(probe)?.id
+        }
+        guard let sourceID = match else { return nil }
+        var visible = false
+        try queryBind("""
+            SELECT 1
+            FROM sources s
+            LEFT JOIN podcasts p ON p.source_id = s.id
+            WHERE s.id = ?
+              AND s.status = 'active'
+              AND NOT EXISTS (SELECT 1 FROM hidden_sources h WHERE h.source_id IN (s.id, s.wire_key))
+              AND NOT EXISTS (SELECT 1 FROM pending_hidden_sources h WHERE h.source_id IN (s.id, s.wire_key))
+              AND NOT EXISTS (SELECT 1 FROM hidden_podcast_episodes h WHERE h.source_id IN (s.id, s.wire_key))
+              AND (
+                    EXISTS (SELECT 1 FROM visible_podcast_episode_overrides v WHERE v.source_id IN (s.id, s.wire_key))
+                 OR NOT EXISTS (
+                        SELECT 1 FROM hidden_podcast_shows h
+                        WHERE h.show_name = p.domain OR h.show_name = p.show_name
+                    )
+              )
+            LIMIT 1
+        """, bind: { stmt in
+            bind(stmt, 1, sourceID)
+        }) { _ in visible = true }
+        return visible ? sourceID : nil
     }
 
     /// Tag a source's shared placement with a goal, creating the placement if needed.

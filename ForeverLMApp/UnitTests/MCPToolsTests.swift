@@ -8847,6 +8847,55 @@ struct MCPDataStoreTests {
         ).contains("No reading activity"))
     }
 
+    /// The chat's "quiz me on the podcasts I listened to last week" reads
+    /// listening activity by day; an episode played in Apple Podcasts must be
+    /// in it on the day it was played, not only ForeverLM's own player's log.
+    @Test("getTodaySources lists an episode played in Apple Podcasts as that day's listening")
+    func getTodaySourcesListsApplePodcastsListening() throws {
+        let (_, tmpPath) = try makeStore()
+        defer { cleanup(tmpPath) }
+        let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let fourDaysAgo = calendar.date(byAdding: .day, value: -4, to: today)!
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.dateFormat = "yyyy-MM-dd"
+
+        try insertSource(
+            dbPath: dbPath,
+            id: "source-played-elsewhere",
+            title: "Bioelectric Fields",
+            content: "An episode about bioelectric fields in development.",
+            sourceType: "podcast",
+            discoveryOrigin: "applePodcasts",
+            url: "apple-podcast://episode/1000700001"
+        )
+        let store = MCPDataStore(dbPath: dbPath)
+        let recorded = try store.knowledgeStore().recordExternalListening([
+            ExternalListen(
+                url: "apple-podcast://episode/1000700001",
+                title: "Bioelectric Fields",
+                showName: "example.com",
+                playedAt: fourDaysAgo.addingTimeInterval(14 * 3_600)
+            ),
+        ])
+        #expect(recorded == ["source-played-elsewhere"])
+
+        let result = try store.getTodaySources(
+            dateString: formatter.string(from: fourDaysAgo),
+            dateBasis: "activity",
+            activityKind: "listening"
+        )
+        #expect(result.contains("Sources used for listening in ForeverLM"))
+        #expect(result.contains("source_id: source-played-elsewhere"))
+        // Heard, not finished: a play is never a completion.
+        #expect(try store.getTodaySources(
+            dateString: formatter.string(from: fourDaysAgo),
+            dateBasis: "completed"
+        ).contains("No sources were completed"))
+    }
+
     @Test("Loading source content for an external chat records today's chat activity")
     func getSourceContentRecordsChatActivityWhenRequested() async throws {
         let (store, tmpPath) = try makeStore()
