@@ -2426,8 +2426,12 @@ private struct RailButtonRow: View {
 
     private var compactBody: some View {
         Button(action: action) {
+            // Lit, the glyph is filled, as Codex's strip draws its lit icon
+            // (measured off its window, 2026-10-12); a symbol with no fill
+            // keeps its outline.
             Image(systemName: systemImage ?? "circle")
                 .font(.system(size: 13, weight: .medium))
+                .symbolVariant(isSelected ? .fill : .none)
                 .foregroundStyle(iconStyle)
                 .frame(width: 36, height: 30)
                 .contentShape(Rectangle())

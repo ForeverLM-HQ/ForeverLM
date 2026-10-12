@@ -40,10 +40,12 @@ enum StudioDesign {
     /// accent: the blue wash and its outline on the icon strip read as a
     /// stray colour beside Codex's chrome (product owner, 2026-10-12: "this
     /// top left still looks a bit bad with colors; make it look more like
-    /// codex").
+    /// codex"). 5% is Codex's own step, measured off its window the same day
+    /// (#E5E4E5 on its #F1F1F0 strip, #EDEDED on its #FAFAFA sidebar); a
+    /// hover stays a lighter step under it.
     static func selectionFill(isSelected: Bool, isHovered: Bool) -> Color {
-        if isSelected { return Color.primary.opacity(0.075) }
-        if isHovered { return Color.primary.opacity(0.055) }
+        if isSelected { return Color.primary.opacity(0.05) }
+        if isHovered { return Color.primary.opacity(0.035) }
         return .clear
     }
 }
