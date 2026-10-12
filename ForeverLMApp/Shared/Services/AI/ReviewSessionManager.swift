@@ -552,6 +552,11 @@ final class ReviewSessionManager {
         /// Ephemeral "command the app" agent surface used by the in-app ForeverLM Assistant
         /// window. Agent sessions are not persisted as review records.
         case agent
+        /// The Studio's Feynman Technique (`TeachBack`): the learner explains
+        /// one paper and the tutor probes (`Prompts.teachBackTutor`). Kept like
+        /// a review, tutor turn by learner turn, and named by the chat's id,
+        /// so a learner's message never turns it into study.
+        case teachBack
     }
 
     static func displayableMessageContent(role: Message.Role, content: String) -> String? {
@@ -1076,10 +1081,18 @@ final class ReviewSessionManager {
         case .deepRead: return .deepRead
         case .deepResearch: return .deepResearch
         case .agent: return .assistant
-        case .review, .study: return .review
+        case .review, .study, .teachBack: return .review
         }
     }
     var isDeepResearchMode: Bool { sessionPromptKind == .deepResearch }
+    /// Whether the chat is the Studio's Feynman Technique: the learner
+    /// explains, the tutor asks (`TeachBack`).
+    var isTeachBackSession: Bool { sessionPromptKind == .teachBack }
+    /// A chat whose tutor asks and the learner answers: a review, or a
+    /// teach-back. Each turn is kept as the tutor's question and the answer
+    /// to it, and neither offers suggested questions or files its sources'
+    /// citations as reading.
+    private var isTutorLed: Bool { sessionPromptKind == .review || sessionPromptKind == .teachBack }
 
     /// How a turn reaches live web search on its model route.
     ///
@@ -1741,7 +1754,7 @@ final class ReviewSessionManager {
         currentMemoryTargetIndex = 0
         stagedMemoryAttempt = nil
         lastMemoryAttemptNeedsRetry = false
-        sessionPromptKind = mode.sessionPromptKindForAutomaticStart
+        sessionPromptKind = Self.startingPromptKind(fixedSessionID: fixedSessionID, mode: mode)
         errorMessage = nil
         lastGenerationFailed = false
         completedSummary = nil
@@ -1817,6 +1830,33 @@ final class ReviewSessionManager {
         } else {
             await generateQuestion(isFirst: true)
         }
+    }
+
+    /// The tutor a new chat starts with: its mode's, unless its id names a
+    /// teach-back (`TeachBack.sessionIDPrefix`), whose tutor the id carries
+    /// so the chat keeps it when reopened (`promptKind(sessionID:from:)`).
+    private static func startingPromptKind(fixedSessionID: String?, mode: InitialPromptMode) -> SessionPromptKind {
+        if let fixedSessionID, TeachBack.isSessionID(fixedSessionID) { return .teachBack }
+        return mode.sessionPromptKindForAutomaticStart
+    }
+
+    /// The Studio's Feynman Technique: a chat in the notebook on one paper,
+    /// loaded in full, that opens by asking the learner to explain it from
+    /// memory, with no model turn before it (`TeachBack.openingMessage`). The
+    /// tutor (`Prompts.teachBackTutor`) takes over from the learner's first
+    /// reply. Kept as a review: private to the learner and a review on the
+    /// Schedule, like a course quiz's chat.
+    func startTeachBack(_ request: TeachBackChatRequest, articles: [StudioArticle]) async {
+        await startSession(
+            topic: TeachBack.topic(sourceTitle: request.sourceTitle),
+            articles: articles,
+            mode: .review,
+            goalID: request.notebookID,
+            notebookScopeID: request.notebookID,
+            preloadSourceIDs: Set(articles.map(\.id)),
+            fixedSessionID: TeachBack.sessionID(),
+            scriptedOpening: TeachBack.openingMessage(sourceTitle: request.sourceTitle)
+        )
     }
 
     /// A chat whose opening is already written (a course quiz's question 1)
@@ -2400,7 +2440,7 @@ final class ReviewSessionManager {
     /// card, not one of the learner's. A walk starting or stopping flips it,
     /// which costs the cached head one miss.
     var offersFollowUpQuestions: Bool {
-        courseQuiz == nil && !isMemoryReviewSession && sessionPromptKind != .review
+        courseQuiz == nil && !isMemoryReviewSession && !isTutorLed
             && walkthroughPlayback == nil
     }
 
@@ -2759,7 +2799,7 @@ final class ReviewSessionManager {
                 await persistLoadedSourceIDs()
             }
             sessionPromptKind = persistedMemoryTargetIDs.isEmpty
-                ? Self.promptKind(from: exchanges)
+                ? Self.promptKind(sessionID: session.id, from: exchanges)
                 : .review
             dailyPlanRationale = nil
             stagedContourGrade = nil
@@ -6104,7 +6144,7 @@ final class ReviewSessionManager {
         switch sessionPromptKind {
         case .agent:
             promptTools = tools.filter { !Self.chatExcludedToolNames.contains($0.name) }
-        case .review, .study, .summarize, .shallowRead, .deepRead:
+        case .review, .study, .summarize, .shallowRead, .deepRead, .teachBack:
             promptTools = tools.filter { Self.studySurfaceToolNames.contains($0.name) }
         case .deepResearch:
             // A Deep Research chat never alternates with the review kinds, so
@@ -8400,7 +8440,7 @@ final class ReviewSessionManager {
     /// would otherwise give it the next one.
     private func closePendingExchangeAfterEmptyStop(isFirst: Bool) async {
         guard !isFirst, let sessionID, let sequence = turnReplySequence,
-              stagedMemoryAttempt == nil, sessionPromptKind != .review,
+              stagedMemoryAttempt == nil, !isTutorLed,
               let userMessage = chatMessages.last(where: { $0.role == .user })?.content else { return }
         do {
             try await storage.answerPendingReviewExchange(
@@ -8919,7 +8959,7 @@ final class ReviewSessionManager {
                 sequence: sequence,
                 field: .evaluation
             )
-        } else if sessionPromptKind == .review {
+        } else if isTutorLed {
             let sequence = try await storage.addReviewPrompt(
                 sessionID: sessionID,
                 question: stored,
@@ -8931,7 +8971,7 @@ final class ReviewSessionManager {
                 sequence: sequence,
                 field: .question
             )
-        } else if sessionPromptKind != .review,
+        } else if !isTutorLed,
                   let userMessage = chatMessages.last(where: { $0.role == .user })?.content {
             // The learner's message was persisted eagerly when sent; attach the
             // reply to that same pending row, falling back to a fresh exchange
@@ -9014,7 +9054,7 @@ final class ReviewSessionManager {
     /// reply cites. Reviews and the memory review are not discussions of their
     /// sources; they record their own activity.
     private func recordCitedSourceChatActivity(in response: String) async {
-        guard sessionPromptKind != .review, !isMemoryReviewSession else { return }
+        guard !isTutorLed, !isMemoryReviewSession else { return }
         let tokens = ChatSourceEvidence.sourceLinkTokens(in: response)
         guard !tokens.isEmpty else { return }
         var stamped = Set<String>()
@@ -10059,6 +10099,8 @@ final class ReviewSessionManager {
             stable = Prompts.courseQuizTutor
         case .review:
             stable = Prompts.reviewTutor
+        case .teachBack:
+            stable = Prompts.teachBackTutor
         case .study:
             stable = Prompts.studyChat
         case .summarize:
@@ -10921,6 +10963,7 @@ final class ReviewSessionManager {
     private var sessionTopicLabel: String {
         switch sessionPromptKind {
         case .review: return "The review target is"
+        case .teachBack: return "The paper the learner is explaining is"
         case .study: return "The current chat topic is"
         case .summarize: return "The current summary target is"
         case .shallowRead: return "The current shallow-reading target is"
@@ -15107,7 +15150,12 @@ final class ReviewSessionManager {
         return result
     }
 
-    private static func promptKind(from exchanges: [ReviewExchangeRecord]) -> SessionPromptKind {
+    /// The tutor a reopened chat goes on with. A teach-back's id names it
+    /// (`TeachBack`); any other chat's is read off its first exchange: an
+    /// opening the learner wrote is study or a summary, one the tutor wrote a
+    /// review.
+    private static func promptKind(sessionID: String, from exchanges: [ReviewExchangeRecord]) -> SessionPromptKind {
+        if TeachBack.isSessionID(sessionID) { return .teachBack }
         guard let firstExchange = exchanges.sorted(by: { $0.sequenceNumber < $1.sequenceNumber }).first else {
             return .review
         }
@@ -15165,6 +15213,10 @@ final class ReviewSessionManager {
                 return "Start a review of the attached source material. Show a compact checklist of the core concepts you plan to review and ask one deep question about the first concept."
             }
             return "Start quizzing me on \(topic). Ask your first question."
+        case .teachBack:
+            // A teach-back opens with its written first message; this asks
+            // for one only if that message is missing.
+            return "Ask me to explain the attached paper in my own words, from memory."
         }
     }
 
@@ -15637,12 +15689,35 @@ extension ReviewSessionManager {
     }
 
     /// A review whose first prompt is written before any turn, as a course
-    /// quiz's chat opens. The session row must already exist.
+    /// quiz's chat and a teach-back open. The session row must already
+    /// exist. The tutor is the one `startSession` gives a chat of that id.
     func openScriptedReviewForTesting(sessionID: String, opening: String) async {
         self.sessionID = sessionID
         sessionActive = true
-        sessionPromptKind = .review
+        sessionPromptKind = Self.startingPromptKind(fixedSessionID: sessionID, mode: .review)
         await openWithScriptedMessage(opening)
+    }
+
+    /// The tutor a chat of this id and these exchanges goes on with when it
+    /// is reopened (`resumeSession`), by its case name.
+    static func resumedPromptKindForTesting(sessionID: String, exchanges: [ReviewExchangeRecord]) -> String {
+        String(describing: promptKind(sessionID: sessionID, from: exchanges))
+    }
+
+    /// A chat as `startSession` starts it for `fixedSessionID` in `mode`:
+    /// whether it is a teach-back, the mode it reports, whether it offers
+    /// suggested questions, and its system prompt.
+    static func startedChatForTesting(
+        fixedSessionID: String?,
+        mode: InitialPromptMode = .review
+    ) -> (isTeachBack: Bool, mode: InitialPromptMode, offers: Bool, stable: String) {
+        let manager = ReviewSessionManager(storage: StorageService(storeRoot: temporaryTestingRoot()))
+        manager.sessionPromptKind = startingPromptKind(fixedSessionID: fixedSessionID, mode: mode)
+        manager.sessionID = fixedSessionID
+        manager.activeSourceIDs = ["source-1"]
+        manager.sourceManifest = "- Test Paper (id: source-1, paper, readable text loaded)"
+        let prompt = manager.systemPromptForGeneration(allowSourceRetrieval: true, nativeToolsActive: true)
+        return (manager.isTeachBackSession, manager.currentPromptMode, manager.offersFollowUpQuestions, prompt.stable)
     }
 
     /// The learner's message, on screen and saved as a send saves it before

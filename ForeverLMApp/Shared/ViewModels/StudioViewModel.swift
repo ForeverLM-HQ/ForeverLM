@@ -1746,6 +1746,9 @@ class StudioViewModel {
     /// A course quiz row asked to take its quiz: the quiz and its grader,
     /// consumed by the Chat panel's auto-start (`takeCourseQuiz`).
     @ObservationIgnored var pendingCourseQuiz: CourseQuizChatRequest?
+    /// The Studio's Feynman Technique asked for a chat on one paper,
+    /// consumed by the Chat panel's auto-start (`requestNotebookTeachBack`).
+    @ObservationIgnored var pendingTeachBack: TeachBackChatRequest?
     /// Generate in the Courses tab asked for a course-planning chat
     /// (`CoursePlanningChat`), consumed by the Chat panel's auto-start.
     @ObservationIgnored var pendingCoursePlanningChat = false

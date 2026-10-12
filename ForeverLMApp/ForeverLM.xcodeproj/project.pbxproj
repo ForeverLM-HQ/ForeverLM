@@ -710,6 +710,7 @@
 		5EFB97AAFBAF29D268B8E3CE /* ArticleSpeechControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = A312809BEF07F5FDC0CBA593 /* ArticleSpeechControls.swift */; };
 		5F746BB82C83316EA6E782BF /* SoftHyphenTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1516D7309F7BB3A2DEF9240 /* SoftHyphenTests.swift */; };
 		5F971C2A966156EF2CEC1F67 /* DocSharePopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43CB1F1942B65E83341DEC55 /* DocSharePopover.swift */; };
+		5FDA81546D3FF7D86F691EB8 /* TeachBackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55F1AABBA85D4B1A83E0EFC6 /* TeachBackTests.swift */; };
 		5FDEF3C30D33425D83A8447F /* ICloudMigrationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EA743D29EEA4E70EB3202C7 /* ICloudMigrationModel.swift */; };
 		5FFCEE24BE78775C8CC15E0C /* BlobStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CC26A0A6BA05A33F9F2EF37 /* BlobStore.swift */; };
 		603146D99429CF679507EA22 /* StudioSidebarAlerts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4985E45CF2C901EF8B284A1A /* StudioSidebarAlerts.swift */; };
@@ -1444,6 +1445,7 @@
 		C286560360462E629130E96D /* MobileNotebookCollectionsStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D12ADB1415989012D7D7DD9 /* MobileNotebookCollectionsStoreTests.swift */; };
 		C28B4FDB54F092D67B5747AB /* CanvasMemory.swift in Sources */ = {isa = PBXBuildFile; fileRef = D71006DD83501BF5E52474B9 /* CanvasMemory.swift */; };
 		C294ED4EE8C82B531E491262 /* StudioSidebarManageChapters.swift in Sources */ = {isa = PBXBuildFile; fileRef = E85102CE0106D2472A51E2E3 /* StudioSidebarManageChapters.swift */; };
+		C2BAF699DDAE4987E1705CF8 /* TeachBack.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6284064F2F5AD41555736757 /* TeachBack.swift */; };
 		C2DA661F0022F309C14C0F6E /* MCPTools+NotesGraph.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AFDEDCF8BDB9DA49ADA836D /* MCPTools+NotesGraph.swift */; };
 		C2E52647B9B4924E2C670E8D /* MCPTools+SlackPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9B8D87BB70E704254B47D76 /* MCPTools+SlackPlugin.swift */; };
 		C2EFB21A94D557709C395162 /* ReadLaterExportImportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCB87406E5EA6A9916F38796 /* ReadLaterExportImportService.swift */; };
@@ -2543,6 +2545,7 @@
 		5564BB796BA141512542D817 /* LegacyV2Mapping+Reading.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LegacyV2Mapping+Reading.swift"; sourceTree = "<group>"; };
 		55657A749DDC7EE428953FE2 /* GoogleMeetNotesSplitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleMeetNotesSplitTests.swift; sourceTree = "<group>"; };
 		556B2E511B4EEA25638CC7C5 /* ReaderFindSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderFindSupport.swift; sourceTree = "<group>"; };
+		55F1AABBA85D4B1A83E0EFC6 /* TeachBackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeachBackTests.swift; sourceTree = "<group>"; };
 		55F3EB2619F59B2DB5DCD0D6 /* MemoryCardVariation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryCardVariation.swift; sourceTree = "<group>"; };
 		55F881EC91647165C29CF0EA /* DocBodyCadenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocBodyCadenceTests.swift; sourceTree = "<group>"; };
 		55F886D528B93DBAC53B09DF /* CollectionProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectionProjection.swift; sourceTree = "<group>"; };
@@ -2621,6 +2624,7 @@
 		6202CE90A43E2AEFBA89B7FE /* StudioViewModel+CanvasInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StudioViewModel+CanvasInspector.swift"; sourceTree = "<group>"; };
 		62425C4BA9C209F63BD4EE9B /* MCPTools+NotebookImports.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MCPTools+NotebookImports.swift"; sourceTree = "<group>"; };
 		6260B5A5710708B7D7E62492 /* ReviewGradingTaskTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewGradingTaskTests.swift; sourceTree = "<group>"; };
+		6284064F2F5AD41555736757 /* TeachBack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeachBack.swift; sourceTree = "<group>"; };
 		628E0BC3EA81D20506457167 /* MemoryCardSessionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryCardSessionView.swift; sourceTree = "<group>"; };
 		62ABEA133C0E412AC30C4751 /* NotebookMembership.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotebookMembership.swift; sourceTree = "<group>"; };
 		62B5AD22C124CEE6E00131EB /* String+ReadableMath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "String+ReadableMath.swift"; sourceTree = "<group>"; };
@@ -4084,6 +4088,7 @@
 				190BA946EB6835A9A1610416 /* SpaceLists.swift */,
 				44E5A3116371042070136329 /* SyncedArticleAudio.swift */,
 				423CA66794BF8F826B18AFF1 /* SyncedArticleAudioSatellites.swift */,
+				6284064F2F5AD41555736757 /* TeachBack.swift */,
 				D41054AAFF79376184373A9E /* Teams.swift */,
 				AD1DA93086792DCD02B5AD05 /* TextbookReading.swift */,
 				0D01564E03E1408981B997AA /* ThinkFirst.swift */,
@@ -4506,6 +4511,7 @@
 				58189E59BF7ED6B172B3D377 /* StudioViewModelTests.swift */,
 				E68682739E4F62F9D3FEEB66 /* SyncedStorageObserverTests.swift */,
 				EC131A9E3DA02A9644570D24 /* TeachableCourseServiceTests.swift */,
+				55F1AABBA85D4B1A83E0EFC6 /* TeachBackTests.swift */,
 				DE9EFDB89EBCEEFAF4FA811F /* TeamCopyFetchRefreshTests.swift */,
 				4DA910DDD61151951B00B1FB /* TeamsSchemaMigrationTests.swift */,
 				212D1EADAA6BD57CB617AA49 /* TeamsStoreTests.swift */,
@@ -6656,6 +6662,7 @@
 				74E3791CEE5CFB9850712604 /* SyncedStorageObserverTests.swift in Sources */,
 				89B04D8DC948724DBD10B72B /* TaskProjectionTests.swift in Sources */,
 				D04FE04DF0D8E6442D2D8475 /* TasksSchema162MigrationTests.swift in Sources */,
+				5FDA81546D3FF7D86F691EB8 /* TeachBackTests.swift in Sources */,
 				E87768B31F193B35DCF40604 /* TeachableCourseServiceTests.swift in Sources */,
 				B922F864CF9A12C051D8DAF9 /* TeamCopyFetchRefreshTests.swift in Sources */,
 				DEC71866B0C8518CC64CCDFC /* TeamToSpaceMigrationTests.swift in Sources */,
@@ -8015,6 +8022,7 @@
 				AC90EF10B2953DFB7BE6A239 /* SyncedPreferenceKeys.swift in Sources */,
 				20B0D33BCBCDFE0DDB8C2CE1 /* SyncedStorage.swift in Sources */,
 				035FAD90AE62F8D8B951617B /* TaskProjection.swift in Sources */,
+				C2BAF699DDAE4987E1705CF8 /* TeachBack.swift in Sources */,
 				5D514FD2C3C16EFBD00C8742 /* TeachableCourseService.swift in Sources */,
 				BE5D60C21215C3C09A9EBF26 /* TeamSettingsView.swift in Sources */,
 				067C09DFA48B703FB755D1B7 /* TeamSharingService.swift in Sources */,
