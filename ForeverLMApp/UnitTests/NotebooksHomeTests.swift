@@ -699,17 +699,24 @@ struct NotebooksHomeRoutingTests {
         vm.openNotebook("bio", in: target, startsNotebookChat: false)
         target.notebook?.sourcesCollapsed = true
         target.notebook?.studioCollapsed = true
+        // What the window draws (`StudioView.centerTabArea`): a notebook the
+        // window holds takes its body, and the center groups, which keep the
+        // Library tab they had, are not mounted meanwhile. This is what
+        // `libraryViewIsOnScreen` answered before e332279 removed it.
+        func libraryIsOnScreen() -> Bool {
+            target.notebook == nil && target.centerTabGroups.groups.contains { $0.activeTab == .library }
+        }
 
         vm.openLibraryView(in: target)
         #expect(target.notebook == nil)
-        #expect(target.centerTabGroups.groups.contains { $0.activeTab == .library })
+        #expect(libraryIsOnScreen())
         #expect(vm.notebookToReturnTo(in: target)?.id == "bio")
 
         vm.returnToNotebook(in: target)
         #expect(target.NotebookID == "bio")
         #expect(target.notebook?.sourcesCollapsed == true)
         #expect(target.notebook?.studioCollapsed == true)
-        #expect(!target.centerTabGroups.groups.contains { $0.activeTab == .library }, "a notebook's window shows the notebook")
+        #expect(!libraryIsOnScreen(), "a notebook's window shows the notebook")
         #expect(vm.notebookToReturnTo(in: target) == nil, "nothing to go back to while it is open")
 
         // A notebook deleted meanwhile offers no way back.
