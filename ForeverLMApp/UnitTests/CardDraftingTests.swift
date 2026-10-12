@@ -918,7 +918,6 @@ struct MakeCardsViewModelTests {
         await vm.refreshMemoryCardCounts()
         #expect(vm.memoryCardsToCheck(sourceID: article.id) == 2)
         #expect(vm.memoryCardsToCheck(sourceID: "another") == 0)
-        #expect(CardsToolbarButton.toCheckTitle(2) == "Cards · 2 to check")
         #expect(CardsToolbarButton.canMakeCards(from: article))
     }
 

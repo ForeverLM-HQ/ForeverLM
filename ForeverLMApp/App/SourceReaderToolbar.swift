@@ -31,8 +31,8 @@ enum ReaderToolbarDensity: String, CaseIterable {
 
     var showsSourceIcon: Bool { self != .compact }
     var showsLoadingIndicator: Bool { self != .compact }
-    /// Whether state on the bar is spelled out — Listen's "Preparing audio…",
-    /// "Cards · 6 to check" — or kept to its glyph and count.
+    /// Whether state on the bar is spelled out — Listen's "Preparing audio…" —
+    /// or kept to its glyph.
     var showsStatusText: Bool { self == .expanded }
 
     var pageActionStyle: ReaderToolbarPageActionStyle {
@@ -763,7 +763,7 @@ struct SourceReaderToolbarActions: View {
                 }
                 WalkthroughToolbarButton(article: article)
                 if CardsToolbarButton.canMakeCards(from: article) {
-                    CardsToolbarButton(article: article, showsTitle: density.showsStatusText)
+                    CardsToolbarButton(article: article)
                 }
             }
         }
@@ -785,7 +785,7 @@ struct SourceReaderToolbarActions: View {
 /// `TitlebarBandHitSurfaceView`). The pop-out reader's `NSToolbar` and in-flow
 /// toolbars have no such problem. The host says which it is through
 /// `studioTitlebarBandControls`, and this renders the matching control with the
-/// same hover-wash look, so a shared control such as Listen or Cards to check
+/// same hover-wash look, so a shared control such as Listen or Stop Making Cards
 /// is written once and works in both.
 struct ReaderToolbarButton<Label: View>: View {
     let help: String

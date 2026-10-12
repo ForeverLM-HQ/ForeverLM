@@ -1,25 +1,20 @@
 #if os(macOS)
 import SwiftUI
 
-/// The Reader toolbar's Cards control, shown only while it has something to
-/// say (Quiet chrome, docs/ui-design.md, 2026-10-06). While cards drafted
-/// from the source wait to be gone through it reads "Cards · N to check" and
-/// opens them in To Check beside the Reader; while the source's cards are
-/// being drafted it shows the spinner and a Stop. Otherwise it draws nothing:
-/// Make Cards is the ⋯ menu's (`CardsMenuItems`), which also carries the
-/// same To Check and Stop. On a narrow bar the count stands alone ("6").
+/// The Reader toolbar's Cards control, shown only while the source's cards
+/// are being drafted: the spinner and a Stop (Quiet chrome, docs/ui-design.md).
+/// Cards waiting to be gone through stay off the bar (product owner,
+/// 2026-10-12, of the glyph and its count over a paper: "not sure i like this
+/// brain icon in the top bar of a source i'm reading … app should be super
+/// clean like the chatgpt app"); the ⋯ menu's **Cards to Check (N)**
+/// (`CardsMenuItems`) opens them, and Make Cards is there too.
 struct CardsToolbarButton: View {
     let article: StudioArticle
-    /// "Cards · 6 to check", or just the count beside the glyph.
-    var showsTitle = true
 
-    @Environment(StudioViewModel.self) private var vm
-    @Environment(StudioWindowState.self) private var windowState
     @Environment(\.uiZoomScale) private var uiZoomScale
     @ObservedObject private var coordinator = CardDraftingCoordinator.shared
 
     var body: some View {
-        let toCheck = vm.memoryCardsToCheck(sourceID: article.id)
         if let run = coordinator.run(drafting: article.id) {
             HStack(spacing: 2) {
                 ProgressView()
@@ -40,41 +35,7 @@ struct CardsToolbarButton: View {
                         .foregroundStyle(.secondary)
                 }
             }
-        } else if toCheck > 0 {
-            let title = showsTitle ? Self.toCheckTitle(toCheck) : "\(toCheck)"
-            ReaderToolbarButton(
-                help: "Go through the cards drafted from this source",
-                accessibilityLabel: "Cards, \(toCheck) to check",
-                accessibilityIdentifier: "reader.cards.toCheck",
-                controlSize: 26 * uiZoomScale,
-                controlWidth: Self.labelWidth(title) * uiZoomScale,
-                action: openToCheck
-            ) {
-                HStack(spacing: 5) {
-                    Image(systemName: MemoryReviewSession.sidebarIcon)
-                    Text(title)
-                        .font(.caption.weight(.medium))
-                        .monospacedDigit()
-                        .lineLimit(1)
-                }
-                .foregroundStyle(.secondary)
-                .textSelection(.disabled)
-            }
         }
-    }
-
-    /// "Cards · 3 to check"
-    static func toCheckTitle(_ count: Int) -> String {
-        "Cards · \(count) to check"
-    }
-
-    /// Room for the glyph and the words, at the caption size.
-    static func labelWidth(_ title: String) -> CGFloat {
-        CGFloat(22 + title.count * 6)
-    }
-
-    private func openToCheck() {
-        vm.openCardsToCheckBesideReader(sourceID: article.id, in: windowState)
     }
 }
 
