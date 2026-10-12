@@ -4252,13 +4252,7 @@ struct ReviewChatSavedCardsView: View {
         return VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 6) {
                 if let difficulty = card.face.difficulty {
-                    Text(difficulty.rawValue.uppercased())
-                        .font(.system(size: 9.5, weight: .semibold))
-                        .tracking(0.6)
-                        .foregroundStyle(Self.tint(for: difficulty))
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 2.5)
-                        .background(Self.tint(for: difficulty).opacity(0.12), in: Capsule())
+                    MemoryCardTagLine(tags: [difficulty.rawValue])
                 }
                 Spacer(minLength: 0)
                 standing(card.standing)
@@ -4273,11 +4267,8 @@ struct ReviewChatSavedCardsView: View {
                 MemoryCardImageGrid(images: card.face.frontImages)
                     .padding(.top, 10)
             }
-            Rectangle()
-                .fill(Color.primary.opacity(0.08))
-                .frame(height: 1)
+            MemoryCardFold()
                 .padding(.vertical, 10)
-                .accessibilityHidden(true)
             Text(card.face.back)
                 .font(.system(size: 13))
                 .foregroundStyle(Color.primary.opacity(0.85))
@@ -4311,14 +4302,6 @@ struct ReviewChatSavedCardsView: View {
         }
     }
 
-    private static func tint(for difficulty: MemoryCardDifficulty) -> Color {
-        switch difficulty {
-        case .easy: return .green
-        case .medium: return .orange
-        case .hard: return .red
-        }
-    }
-
     @ViewBuilder
     private func cardMenu(_ card: ChatSavedCard) -> some View {
         if let entry = card.toCheck {
@@ -4347,10 +4330,11 @@ struct ReviewChatSavedCardsView: View {
                 .disabled(isKeeping)
                 .help(waiting.count == 1 ? "Keep the card still to check" : "Keep the \(waiting.count) cards still to check")
                 .accessibilityIdentifier("chat.savedCards.keepAll")
-            Button("Check Cards") {
+            // The Space's dark pill, as every primary action outside a
+            // sheet (docs/ui-design.md).
+            SpaceDarkPillButton(title: "Check Cards", systemImage: nil, image: nil) {
                 if let target { open(target) }
             }
-            .buttonStyle(.borderedProminent)
             .help("Open To Check beside the chat, at this card")
             .accessibilityIdentifier("chat.savedCards.check")
         }

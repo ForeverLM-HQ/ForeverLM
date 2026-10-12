@@ -2133,29 +2133,40 @@ struct SpaceEmptyLine: View {
 }
 
 /// One of a list's filters (All, Yours, Shared; Drafts, Published…): a word
-/// in a capsule that fills while it is chosen.
+/// in a capsule that fills while it is chosen. `count`, when given, is what
+/// waits there and asks for something ("To Check 12"), drawn quieter beside
+/// the word; a zero is never drawn.
 struct SpaceScopePill: View {
     let title: String
     let isSelected: Bool
+    var count: Int? = nil
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Text(title)
-                .zoomedSystemFont(size: 12.5, weight: .medium)
-                .foregroundStyle(isSelected ? Color.primary : Color.secondary)
-                .lineLimit(1)
-                .fixedSize()
-                .padding(.horizontal, 11)
-                .padding(.vertical, 5)
-                .background(
-                    Capsule().fill(Color.primary.opacity(isSelected ? 0.07 : 0))
-                )
-                .contentShape(Capsule())
+            HStack(spacing: 5) {
+                Text(title)
+                if let count, count > 0 {
+                    Text("\(count)")
+                        .foregroundStyle(.tertiary)
+                        .monospacedDigit()
+                }
+            }
+            .zoomedSystemFont(size: 12.5, weight: .medium)
+            .foregroundStyle(isSelected ? Color.primary : Color.secondary)
+            .lineLimit(1)
+            .fixedSize()
+            .padding(.horizontal, 11)
+            .padding(.vertical, 5)
+            .background(
+                Capsule().fill(Color.primary.opacity(isSelected ? 0.07 : 0))
+            )
+            .contentShape(Capsule())
         }
         .buttonStyle(.hoverWash(in: Capsule(), inset: 0, opacity: 0.05))
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
         .accessibilityLabel(title)
+        .accessibilityValue(count.map { $0 > 0 ? "\($0)" : "" } ?? "")
     }
 }
 

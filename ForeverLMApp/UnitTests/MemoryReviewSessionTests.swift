@@ -346,6 +346,16 @@ struct MemoryReviewConfirmationSheetTests {
         #expect(MemoryPane.primaryTitle(state: .done(streak: 3), counts: .zero) == nil)
     }
 
+    @Test("The promise shows while there is a review to start or a day ended early, never a second done")
+    func promiseShows() {
+        let waiting = MemoryCardDayCounts(due: 2, new: 1, practice: 0)
+        #expect(MemoryPane.showsPromise(state: .open, counts: waiting), "Start Review says what it commits to")
+        #expect(!MemoryPane.showsPromise(state: .open, counts: .zero), "nothing to start")
+        #expect(MemoryPane.showsPromise(state: .ended(afterSeconds: 250), counts: .zero), "the day ended early says so")
+        #expect(MemoryPane.showsPromise(state: .done(streak: 3), counts: waiting), "beside Keep Going")
+        #expect(!MemoryPane.showsPromise(state: .done(streak: 3), counts: .zero), "the deck already says done")
+    }
+
     @Test("The notebook menu shows while the pane is narrowed or two notebooks hold cards, kept or to check")
     func scopeMenu() {
         #expect(MemoryPane.offersScopeMenu(scope: .notebook("a"), notebooksWithCards: 0), "the way back to every notebook")

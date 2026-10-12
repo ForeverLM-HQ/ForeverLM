@@ -214,20 +214,17 @@ struct MemoryCardsToCheckView: View {
                     .textSelection(.disabled)
                 Spacer(minLength: 12)
                 // No Return: inside a notebook the pane sits beside the chat.
+                // The review's dark pill, never a blue one (docs/ui-design.md).
                 if ticked > 0 {
-                    Button(ticked == 1 ? "Keep 1 Card" : "Keep \(ticked) Cards") {
+                    MemoryReviewButton(title: ticked == 1 ? "Keep 1 Card" : "Keep \(ticked) Cards", kind: .primary, minWidth: 140) {
                         decide(MemoryCardTriage.keepRequested(visible, unticked: unticked))
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
                     .help("Keep the ticked cards, and skip the rest you asked for")
                     .accessibilityIdentifier("memory.pane.toCheck.keepRequested")
                 } else {
-                    Button(left == 1 ? "Skip 1 Card" : "Skip \(left) Cards") {
+                    MemoryReviewButton(title: left == 1 ? "Skip 1 Card" : "Skip \(left) Cards", kind: .secondary, minWidth: 140) {
                         decide(MemoryCardTriage.keepRequested(visible, unticked: unticked))
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.large)
                     .help("Skip every card you asked for: none is ticked")
                     .accessibilityIdentifier("memory.pane.toCheck.keepRequested")
                 }
@@ -496,7 +493,7 @@ struct MemoryCardsToCheckView: View {
 // MARK: - A card to check
 
 /// One card to check, drawn as the card it would be: its difficulty, the
-/// front in the card review's serif, its pictures, a rule, the back, and why
+/// front in the card review's serif, its pictures, the fold, the back, and why
 /// it is right; under it, Show Passage and its actions. A card the learner
 /// asked for carries its tick at the leading edge and only Edit, since the
 /// tick is its keep or skip; unticked, the card fades. While the list has
@@ -560,15 +557,8 @@ private struct MemoryCardToCheckRow: View {
     private var face: some View {
         VStack(alignment: .leading, spacing: 0) {
             if card.face.difficulty != nil || card.kind == .legacy {
-                HStack(spacing: 6) {
-                    if let difficulty = card.face.difficulty {
-                        tag(difficulty.rawValue.uppercased(), tint: Self.tint(for: difficulty))
-                    }
-                    if card.kind == .legacy {
-                        tag("FROM BEFORE CARDS", tint: .secondary)
-                    }
-                }
-                .padding(.bottom, 10)
+                MemoryCardTagLine(tags: [card.face.difficulty?.rawValue, card.kind == .legacy ? "From before cards" : nil].compactMap { $0 })
+                    .padding(.bottom, 10)
             }
             Text(card.face.front)
                 .font(.system(size: 16, design: .serif))
@@ -578,11 +568,8 @@ private struct MemoryCardToCheckRow: View {
                 MemoryCardImageGrid(images: card.face.frontImages)
                     .padding(.top, 10)
             }
-            Rectangle()
-                .fill(Color.primary.opacity(0.08))
-                .frame(height: 1)
+            MemoryCardFold()
                 .padding(.vertical, 12)
-                .accessibilityHidden(true)
             Text(card.face.back)
                 .font(.system(size: 13.5))
                 .foregroundStyle(Color.primary.opacity(0.85))
@@ -592,40 +579,11 @@ private struct MemoryCardToCheckRow: View {
                     .padding(.top, 10)
             }
             if !card.face.why.isEmpty {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("WHY")
-                        .font(.system(size: 9.5, weight: .semibold))
-                        .tracking(0.8)
-                        .foregroundStyle(.tertiary)
-                        .accessibilityHidden(true)
-                    Text(card.face.why.joined(separator: " "))
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityLabel("Why: " + card.face.why.joined(separator: " "))
-                }
-                .padding(.top, 10)
+                MemoryCardWhyLine(why: card.face.why)
+                    .padding(.top, 10)
             }
         }
         .textSelection(.disabled)
-    }
-
-    private func tag(_ text: String, tint: Color) -> some View {
-        Text(text)
-            .font(.system(size: 9.5, weight: .semibold))
-            .tracking(0.6)
-            .foregroundStyle(tint)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 2.5)
-            .background(tint.opacity(0.12), in: Capsule())
-    }
-
-    private static func tint(for difficulty: MemoryCardDifficulty) -> Color {
-        switch difficulty {
-        case .easy: return .green
-        case .medium: return .orange
-        case .hard: return .red
-        }
     }
 
     // MARK: The actions

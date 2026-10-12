@@ -3,13 +3,19 @@ import SwiftUI
 /// The card review, in the window-filling memory focus (docs/memory-design.md,
 /// "The card review"): one card at a time, the wording large, Show Answer,
 /// then the back, why it is right and the source it quotes, and Forgot or
-/// Remembered. The layout is the flashcard player's mockup
-/// (design-mockups/memory-card-review.svg): an eyebrow naming the source, the
-/// card's place in the round with a bar, the card, and two answers with
-/// their keys.
+/// Remembered.
+///
+/// Since 2026-10-11 it is drawn as a deck (docs/memory-design.md, "How a card
+/// looks"; `MemoryCardChrome.swift`): over the card, the source it is from
+/// and its place in the round, with a strip a segment a card; the card an
+/// index card with the question set in the middle until the answer opens
+/// under a fold; under it the edges of the cards still to come. An answered
+/// card is tossed off toward its key's side (← Forgot, → Remembered) and the
+/// next comes up off the deck. Show Answer, Remembered and Done are the
+/// Space's dark pill, the rest pale or bare, and each draws its key.
 ///
 /// The window is the review's while it runs: the × is on the
-/// chrome line (`MemoryReviewFocusChrome`). A card's source chip opens the
+/// chrome line (`MemoryReviewFocusChrome`). A card's source opens the
 /// Reader beside the review without ending it (its own × closes it back to
 /// the review alone). When the goal's minutes are met the celebration shows
 /// here, as it showed in the chat.
@@ -36,6 +42,7 @@ struct MemoryCardSessionView: View {
     @Environment(StudioWindowState.self) private var windowState
     @Environment(\.studioTitlebarBandHeight) private var titlebarBandHeight
     @Environment(\.studioChromeLineReservation) private var chromeReservation
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let session: MemoryCardSessionModel
     /// The window's Reader, shown beside the review once a source chip asks.
@@ -47,6 +54,9 @@ struct MemoryCardSessionView: View {
     @State private var editingDraft: MemoryCardToCheck?
     /// The height Go Deeper's answer field's text needs.
     @State private var deeperFieldHeight: CGFloat = 0
+    /// The side the card in front leaves to once it is answered: set before
+    /// the answer, so the card goes the way its key points.
+    @State private var exitEdge: HorizontalEdge = .trailing
 
     private var goalTracker: MemoryReviewEngagementTracker { MemoryReviewEngagementTracker.shared }
     private var sitting: MemoryCardSitting { session.sitting }
@@ -54,8 +64,10 @@ struct MemoryCardSessionView: View {
 
     /// The review's column, never narrower than a card reads at.
     private static let reviewMinimumWidth: CGFloat = 440
-    private static let columnMaxWidth: CGFloat = 580
-    private static let cardCornerRadius: CGFloat = 18
+    private static let columnMaxWidth: CGFloat = 600
+    /// A card is never shorter than this, so a short question sits in the
+    /// middle of a card rather than on a strip of one.
+    private static let cardMinimumHeight: CGFloat = 260
 
     var body: some View {
         GeometryReader { geo in
@@ -63,7 +75,7 @@ struct MemoryCardSessionView: View {
                 ? 0
                 : max(0, min(geo.size.width * 0.55, geo.size.width - Self.reviewMinimumWidth - 1))
             HStack(spacing: 0) {
-                reviewColumn
+                reviewColumn(height: geo.size.height)
                     .frame(width: geo.size.width - readerWidth - (readerWidth > 0 ? 1 : 0))
                 if readerWidth > 0 {
                     StudioColumnHairline()
@@ -108,18 +120,20 @@ struct MemoryCardSessionView: View {
 
     // MARK: The review
 
-    private var reviewColumn: some View {
+    /// The column, a little under the top of a tall window: anchored there,
+    /// not centred, so opening the answer never moves the question.
+    private func reviewColumn(height: CGFloat) -> some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                heading
+            VStack(alignment: .leading, spacing: 22) {
                 if let deeper = session.deeper {
+                    roundHeader
                     deeperPanel(deeper)
                     deeperFoot(deeper)
                 } else if sitting.isRoundOver {
                     endCard
                 } else if let card = sitting.current {
-                    progressRow
-                    cardView(card)
+                    roundHeader
+                    deck(card)
                     answerBar
                 }
                 if let error = session.saveError {
@@ -133,8 +147,8 @@ struct MemoryCardSessionView: View {
             }
             .frame(maxWidth: Self.columnMaxWidth, alignment: .leading)
             .padding(.horizontal, 32)
-            .padding(.top, 48)
-            .padding(.bottom, 32)
+            .padding(.top, min(max(height * 0.1, 44), 120))
+            .padding(.bottom, 40)
             .frame(maxWidth: .infinity)
         }
         // The ×, at the trailing edge of the review's own
@@ -160,137 +174,150 @@ struct MemoryCardSessionView: View {
         )
     }
 
-    /// "MEMORY · <source>", and what the review is over.
-    private var heading: some View {
-        HStack(alignment: .center, spacing: 12) {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.accentColor.opacity(0.16))
-                .frame(width: 34, height: 34)
-                .overlay {
-                    Image(systemName: MemoryReviewSession.sidebarIcon)
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(Color.accentColor)
-                }
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(eyebrow)
-                    .font(.system(size: 10.5, weight: .semibold))
-                    .tracking(1.2)
+    /// Over the card: the source it is from, its place in the round, and
+    /// the round a segment a card.
+    private var roundHeader: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text(headerTitle)
+                    .font(.system(size: 12.5, weight: .medium))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.tail)
-                Text(subtitle)
-                    .font(.callout.weight(.semibold))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-            }
-            .textSelection(.disabled)
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("memory.cards.heading")
-    }
-
-    private var eyebrow: String {
-        guard let source = session.currentSourceTitle, !sitting.isRoundOver || session.deeper != nil else { return "MEMORY" }
-        return "MEMORY · " + source.uppercased()
-    }
-
-    private var subtitle: String {
-        sitting.kind == .practice ? "\(session.scopeTitle) · Practice" : session.scopeTitle
-    }
-
-    /// "Card 3 of 18", how the round stands, and the bar.
-    private var progressRow: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Card \(sitting.cardNumber) of \(sitting.cardCount)")
                 Spacer(minLength: 12)
-                if !sitting.results.isEmpty {
-                    Text("\(sitting.rememberedCount) remembered · \(sitting.forgottenCount) forgot")
-                }
+                Text(placeLine)
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                    .lineLimit(1)
             }
-            .font(.callout)
-            .foregroundStyle(.secondary)
-            .monospacedDigit()
             .textSelection(.disabled)
-            GeometryReader { bar in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color.primary.opacity(0.09))
-                    Capsule()
-                        .fill(Color.accentColor)
-                        .frame(width: max(0, bar.size.width * sitting.progress))
-                }
+            if session.deeper == nil {
+                MemoryRoundStrip(marks: MemoryRoundStrip.marks(of: sitting))
             }
-            .frame(height: 4)
-            .animation(.easeOut(duration: 0.2), value: sitting.progress)
-            .accessibilityHidden(true)
         }
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("memory.cards.progress")
     }
 
+    /// The card's source, or what the review is over when the library no
+    /// longer names it.
+    private var headerTitle: String {
+        session.currentSourceTitle ?? session.scopeTitle
+    }
+
+    /// "3 of 18", with "Practice" or "Again" before it when the round is one;
+    /// nothing while Go Deeper's panel stands where the next card would be.
+    private var placeLine: String {
+        let place = "\(sitting.cardNumber) of \(sitting.cardCount)"
+        if session.deeper != nil { return "" }
+        if sitting.isRepeat { return "Again · " + place }
+        if sitting.kind == .practice { return "Practice · " + place }
+        return place
+    }
+
     // MARK: The card
 
+    /// The card in front, the edges of those still to come under it, and
+    /// the toss and the deal between them.
+    private func deck(_ card: MemoryCardSitting.Card) -> some View {
+        let remaining = max(0, sitting.cardCount - sitting.position - 1)
+        return ZStack {
+            cardView(card)
+                .id("\(sitting.isRepeat)-\(sitting.position)-\(card.itemID)")
+                .transition(.memoryCard(leavingTo: exitEdge, reduceMotion: reduceMotion))
+        }
+        .background(alignment: .bottom) {
+            MemoryDeckEdges(remaining: remaining)
+        }
+        .padding(.bottom, MemoryDeckEdges.depth)
+    }
+
     private func cardView(_ card: MemoryCardSitting.Card) -> some View {
-        let shape = RoundedRectangle(cornerRadius: Self.cardCornerRadius, style: .continuous)
+        let shown = sitting.isAnswerShown
+        let tags = Self.tags(of: card)
         let showsWordingMenu = card.isVariant || card.alwaysAsk
-        return VStack(alignment: .leading, spacing: 16) {
-            if card.difficulty != nil || card.isNew || card.isDraft || sitting.isRepeat || showsWordingMenu {
-                HStack(spacing: 6) {
-                    if let difficulty = card.difficulty {
-                        tag(difficulty.rawValue.uppercased(), tint: Self.tint(for: difficulty))
-                    }
-                    if card.isNew { tag("NEW", tint: .accentColor) }
-                    if card.isDraft { tag("TO CHECK", tint: .teal) }
-                    if sitting.isRepeat { tag("AGAIN", tint: .secondary) }
-                    Spacer(minLength: 0)
-                    if showsWordingMenu { wordingMenu(card) }
-                }
-            }
+        let hasTopRow = !tags.isEmpty || showsWordingMenu
+        return VStack(alignment: .leading, spacing: 0) {
             Text(card.prompt)
-                .font(.system(size: 22, weight: .regular, design: .serif))
-                .foregroundStyle(sitting.isAnswerShown ? Color.secondary : Color.primary)
+                .font(MemoryCardMetrics.frontFont)
+                .foregroundStyle(shown ? Color.secondary : Color.primary)
+                .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("memory.cards.prompt")
             if !card.frontImages.isEmpty {
                 MemoryCardImageGrid(images: card.frontImages)
+                    .padding(.top, 16)
             }
             if card.isFirstVariedServe, !sitting.isRepeat {
                 Text("Worded differently on purpose — same answer.")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.tertiary)
+                    .textSelection(.disabled)
+                    .padding(.top, 10)
             }
-            if sitting.isAnswerShown {
-                Divider()
-                Text(card.back)
-                    .font(.system(size: 17))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("memory.cards.back")
-                if !card.backImages.isEmpty {
-                    MemoryCardImageGrid(images: card.backImages)
-                }
-                if !card.why.isEmpty {
-                    Text("Why: " + card.why.joined(separator: " "))
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                if let sourceID = card.sourceID {
-                    sourceChip(sourceID: sourceID, quote: card.quote)
-                }
+            if shown {
+                answerFace(card)
+                    .transition(.opacity)
             }
         }
-        .padding(24)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            shape
-                .fill(Color(nsColor: .controlBackgroundColor))
-                .shadow(color: .black.opacity(0.05), radius: 1, y: 1)
-                .shadow(color: .black.opacity(0.07), radius: 18, y: 8)
-        )
-        .overlay(shape.strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5))
+        .padding(.horizontal, 34)
+        .padding(.top, hasTopRow ? 52 : 34)
+        .padding(.bottom, 32)
+        // Until the answer opens, the question sits in the middle of the
+        // card; then it rises to make room under the fold.
+        .frame(maxWidth: .infinity, minHeight: Self.cardMinimumHeight, alignment: shown ? .topLeading : .leading)
+        .overlay(alignment: .top) {
+            if hasTopRow {
+                HStack(spacing: 8) {
+                    MemoryCardTagLine(tags: tags)
+                    Spacer(minLength: 0)
+                    if showsWordingMenu { wordingMenu(card) }
+                }
+                .padding(.leading, 34)
+                .padding(.trailing, 20)
+                .padding(.top, 18)
+            }
+        }
+        .memoryCardSurface()
+        .animation(.easeOut(duration: 0.22), value: shown)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("memory.cards.card")
+    }
+
+    /// Under the fold: the answer, its pictures, why it holds, and the
+    /// source it quotes.
+    private func answerFace(_ card: MemoryCardSitting.Card) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            MemoryCardFold()
+                .padding(.vertical, 22)
+            Text(card.back)
+                .font(MemoryCardMetrics.backFont)
+                .lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("memory.cards.back")
+            if !card.backImages.isEmpty {
+                MemoryCardImageGrid(images: card.backImages)
+                    .padding(.top, 16)
+            }
+            if !card.why.isEmpty {
+                MemoryCardWhyLine(why: card.why)
+                    .padding(.top, 14)
+            }
+            if let sourceID = card.sourceID {
+                sourceLink(sourceID: sourceID, quote: card.quote)
+                    .padding(.top, 22)
+            }
+        }
+    }
+
+    /// "NEW · MEDIUM", "TO CHECK": what kind of card this is, in its ink.
+    private static func tags(of card: MemoryCardSitting.Card) -> [String] {
+        var tags: [String] = []
+        if card.isDraft { tags.append("To check") }
+        if card.isNew { tags.append("New") }
+        if let difficulty = card.difficulty { tags.append(difficulty.rawValue) }
+        return tags
     }
 
     /// How a card is worded, on a card asked in a rewording or one the
@@ -327,73 +354,54 @@ struct MemoryCardSessionView: View {
         .accessibilityIdentifier("memory.cards.wording")
     }
 
-    private func tag(_ text: String, tint: Color) -> some View {
-        Text(text)
-            .font(.system(size: 10.5, weight: .semibold))
-            .tracking(0.6)
-            .foregroundStyle(tint)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(tint.opacity(0.12), in: Capsule())
-            .textSelection(.disabled)
-    }
-
-    private static func tint(for difficulty: MemoryCardDifficulty) -> Color {
-        switch difficulty {
-        case .easy: return .green
-        case .medium: return .orange
-        case .hard: return .red
-        }
-    }
-
-    /// The card's source, drawn as the sources list draws one: its picture
-    /// (cover, first page, artwork, else its kind's symbol), its title, a
-    /// chevron. It opens the Reader beside the review, at the passage the card
-    /// quotes. Its menu sends the source to another window instead.
-    private func sourceChip(sourceID: String, quote: String?) -> some View {
+    /// The card's source at the card's foot, drawn as the sources list draws
+    /// one: its picture (cover, first page, artwork, else its kind's symbol),
+    /// its title, a chevron. It opens the Reader beside the review, at the
+    /// passage the card quotes. Its menu sends the source to another window
+    /// instead.
+    private func sourceLink(sourceID: String, quote: String?) -> some View {
         let title = session.sourceTitles[sourceID] ?? "Source"
         let article = vm.articlesById[vm.canonicalSourceID(sourceID)]
-        return Button {
-            Task { await vm.openCardSourceBesideReview(sourceID: sourceID, quote: quote, in: windowState) }
-        } label: {
-            HStack(spacing: 10) {
-                if let article {
-                    // A book chapter shows the book's cover, as every other
-                    // source list does through `bookCoverPaths`.
-                    let bookCoverPath = article.sourceType == .book
-                        ? article.parentGroup.flatMap { vm.bookCoverPaths[$0] }
-                        : nil
-                    SourceThumbnail(source: article, size: 30, bookCoverPath: bookCoverPath)
-                        .accessibilityHidden(true)
-                } else {
-                    Image(systemName: "doc.text")
-                        .zoomedSystemFont(size: 12)
+        return HStack(spacing: 0) {
+            Button {
+                Task { await vm.openCardSourceBesideReview(sourceID: sourceID, quote: quote, in: windowState) }
+            } label: {
+                HStack(spacing: 9) {
+                    if let article {
+                        // A book chapter shows the book's cover, as every other
+                        // source list does through `bookCoverPaths`.
+                        let bookCoverPath = article.sourceType == .book
+                            ? article.parentGroup.flatMap { vm.bookCoverPaths[$0] }
+                            : nil
+                        SourceThumbnail(source: article, size: 24, bookCoverPath: bookCoverPath)
+                            .accessibilityHidden(true)
+                    } else {
+                        Image(systemName: "doc.text")
+                            .zoomedSystemFont(size: 11)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 24, height: 24)
+                            .background(RoundedRectangle(cornerRadius: 6).fill(.quaternary))
+                    }
+                    Text(title)
+                        .font(.callout)
                         .foregroundStyle(.secondary)
-                        .frame(width: 30, height: 30)
-                        .background(RoundedRectangle(cornerRadius: 7).fill(.quaternary))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.tertiary)
                 }
-                Text(title)
-                    .font(.callout)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                .contentShape(Rectangle())
             }
-            .padding(.leading, 6)
-            .padding(.trailing, 10)
-            .padding(.vertical, 5)
-            .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .buttonStyle(.hoverWash(cornerRadius: 8, inset: -6))
+            .help("Open \(title) beside the review, at the passage this card quotes")
+            .accessibilityLabel("Source: \(title)")
+            .contextMenu {
+                OtherWindowSourceMenuItem(sourceID: sourceID)
+            }
+            .accessibilityIdentifier("memory.cards.source")
+            Spacer(minLength: 0)
         }
-        .buttonStyle(.hoverWash(cornerRadius: 10, inset: 0, opacity: 0.08))
-        .help("Open \(title) beside the review, at the passage this card quotes")
-        .accessibilityLabel("Source: \(title)")
-        .contextMenu {
-            OtherWindowSourceMenuItem(sourceID: sourceID)
-        }
-        .accessibilityIdentifier("memory.cards.source")
     }
 
     // MARK: Answers
@@ -401,134 +409,113 @@ struct MemoryCardSessionView: View {
     @ViewBuilder
     private var answerBar: some View {
         let draft = sitting.current?.draft
-        VStack(spacing: 10) {
+        VStack(spacing: 12) {
             if sitting.isAnswerShown {
-                HStack(spacing: 16) {
-                    answerButton("Forgot", key: "←", prominent: false, shortcut: .leftArrow) {
-                        session.answer(remembered: false)
+                HStack(spacing: 12) {
+                    MemoryReviewButton(
+                        title: "Forgot",
+                        key: keysEnabled ? "←" : nil,
+                        kind: .secondary,
+                        minWidth: 170,
+                        shortcut: keysEnabled ? KeyboardShortcut(.leftArrow, modifiers: []) : nil
+                    ) {
+                        answer(remembered: false)
                     }
+                    .help(keysEnabled ? "Forgot (← or 1)" : "Forgot")
                     .accessibilityIdentifier("memory.cards.forgot")
-                    answerButton("Remembered", key: "→", prominent: true, shortcut: .rightArrow) {
-                        session.answer(remembered: true)
+                    MemoryReviewButton(
+                        title: "Remembered",
+                        key: keysEnabled ? "→" : nil,
+                        kind: .primary,
+                        minWidth: 170,
+                        shortcut: keysEnabled ? KeyboardShortcut(.rightArrow, modifiers: []) : nil
+                    ) {
+                        answer(remembered: true)
                     }
+                    .help(keysEnabled ? "Remembered (→ or 2)" : "Remembered")
                     .accessibilityIdentifier("memory.cards.remembered")
                 }
                 .disabled(session.isKeepingDraft)
                 // Remembered, then a question past it, in place of the next
                 // card: quieter than the two answers, never in their way.
                 if session.offersGoDeeper {
-                    quietCapsuleButton("Go Deeper", key: keysEnabled ? "D" : nil) { session.goDeeper() }
-                        .keyboardShortcut(keysEnabled ? KeyboardShortcut("d", modifiers: []) : nil)
-                        .help(keysEnabled ? "Remembered — then a question that goes past it (D)" : "Remembered — then a question that goes past it")
-                        .accessibilityLabel("Go Deeper")
-                        .disabled(session.isKeepingDraft)
-                        .accessibilityIdentifier("memory.cards.goDeeper")
+                    MemoryReviewButton(
+                        title: "Go Deeper",
+                        key: keysEnabled ? "D" : nil,
+                        kind: .quiet,
+                        shortcut: keysEnabled ? KeyboardShortcut("d", modifiers: []) : nil
+                    ) {
+                        session.goDeeper()
+                    }
+                    .help(keysEnabled ? "Remembered — then a question that goes past it (D)" : "Remembered — then a question that goes past it")
+                    .disabled(session.isKeepingDraft)
+                    .accessibilityIdentifier("memory.cards.goDeeper")
                 }
                 // The number keys answer too, from the same row.
                 if keysEnabled, !session.isKeepingDraft {
-                    hiddenShortcut("1") { session.answer(remembered: false) }
-                    hiddenShortcut("2") { session.answer(remembered: true) }
+                    hiddenShortcut("1") { answer(remembered: false) }
+                    hiddenShortcut("2") { answer(remembered: true) }
                 }
             } else {
-                answerButton("Show Answer", key: "Space", prominent: true, shortcut: .space) {
+                MemoryReviewButton(
+                    title: "Show Answer",
+                    key: keysEnabled ? "Space" : nil,
+                    kind: .primary,
+                    minWidth: 220,
+                    shortcut: keysEnabled ? KeyboardShortcut(.space, modifiers: []) : nil
+                ) {
                     session.showAnswer()
                 }
+                .help(keysEnabled ? "Show Answer (Space)" : "Show Answer")
                 .accessibilityIdentifier("memory.cards.showAnswer")
             }
             // A card to check, in a notebook's Practice: answering keeps it,
             // Skip drops it for good, Edit keeps it in the learner's words.
             if let draft {
-                HStack(spacing: 10) {
-                    draftButton("Skip", key: "s") { session.skipCurrentDraft() }
-                        .help(keysEnabled ? "Skip this card for good (S)" : "Skip this card for good")
-                        .accessibilityIdentifier("memory.cards.skip")
-                    draftButton("Edit", key: "e") { editingDraft = draft }
-                        .help(keysEnabled ? "Keep this card in your own words (E)" : "Keep this card in your own words")
-                        .accessibilityIdentifier("memory.cards.edit")
+                HStack(spacing: 6) {
+                    MemoryReviewButton(
+                        title: "Skip",
+                        key: keysEnabled ? "S" : nil,
+                        kind: .quiet,
+                        shortcut: keysEnabled ? KeyboardShortcut("s", modifiers: []) : nil
+                    ) {
+                        exitEdge = .leading
+                        withAnimation(Self.dealAnimation) { session.skipCurrentDraft() }
+                    }
+                    .help(keysEnabled ? "Skip this card for good (S)" : "Skip this card for good")
+                    .accessibilityIdentifier("memory.cards.skip")
+                    MemoryReviewButton(
+                        title: "Edit",
+                        key: keysEnabled ? "E" : nil,
+                        kind: .quiet,
+                        shortcut: keysEnabled ? KeyboardShortcut("e", modifiers: []) : nil
+                    ) {
+                        editingDraft = draft
+                    }
+                    .help(keysEnabled ? "Keep this card in your own words (E)" : "Keep this card in your own words")
+                    .accessibilityIdentifier("memory.cards.edit")
                 }
                 .disabled(session.isKeepingDraft)
                 Text("Answering keeps this card.")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.tertiary)
                     .textSelection(.disabled)
             }
         }
         .frame(maxWidth: .infinity)
     }
 
-    /// Skip or Edit on a draft: a quieter capsule, its key beside its title.
-    private func draftButton(_ title: String, key: Character, action: @escaping () -> Void) -> some View {
-        capsuleButton(title, key: keysEnabled ? String(key).uppercased() : nil, prominent: false, minWidth: 90, action: action)
-            .keyboardShortcut(keysEnabled ? KeyboardShortcut(KeyEquivalent(key), modifiers: []) : nil)
-            .accessibilityLabel(title)
-    }
+    private static let dealAnimation = Animation.spring(response: 0.38, dampingFraction: 0.86)
 
-    private func answerButton(
-        _ title: String,
-        key: String,
-        prominent: Bool,
-        shortcut: KeyEquivalent,
-        action: @escaping () -> Void
-    ) -> some View {
-        capsuleButton(title, key: keysEnabled ? key : nil, prominent: prominent, minWidth: 150, action: action)
-            .keyboardShortcut(keysEnabled ? KeyboardShortcut(shortcut, modifiers: []) : nil)
-            .help(keysEnabled ? "\(title) (\(key))" : title)
-            // The key beside the title is for the eye; VoiceOver says the
-            // answer alone.
-            .accessibilityLabel(title)
-    }
-
-    /// The review's own buttons: a capsule, filled for the one that moves
-    /// on, with the key that presses it beside its title.
-    private func capsuleButton(
-        _ title: String,
-        key: String? = nil,
-        prominent: Bool,
-        minWidth: CGFloat = 0,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            HStack(spacing: 8) {
-                Text(title)
-                if let key {
-                    Text(key)
-                        .font(.caption.weight(.medium))
-                        .opacity(0.7)
-                }
-            }
-            .font(.body.weight(.medium))
-            .foregroundStyle(prominent ? Color.white : Color.primary)
-            .frame(minWidth: minWidth, minHeight: 36)
-            .padding(.horizontal, 16)
-            .background(
-                Capsule().fill(prominent ? Color.accentColor : Color(nsColor: .controlBackgroundColor))
-            )
-            .overlay(Capsule().strokeBorder(Color.primary.opacity(prominent ? 0 : 0.14), lineWidth: 1))
-            .contentShape(Capsule())
+    /// Answers the card in front, tossing it toward its key's side. The side
+    /// is set a turn before the answer, so the leaving card has it when the
+    /// deal removes it.
+    private func answer(remembered: Bool) {
+        guard sitting.isAnswerShown, !session.isKeepingDraft else { return }
+        exitEdge = remembered ? .trailing : .leading
+        DispatchQueue.main.async {
+            withAnimation(Self.dealAnimation) { session.answer(remembered: remembered) }
         }
-        .buttonStyle(.hoverWash(in: Capsule(), inset: 0, opacity: prominent ? 0.18 : 0.08))
-    }
-
-    /// A third way to answer, quieter than Forgot and Remembered: smaller, no
-    /// fill, a faint edge, still washed under the pointer.
-    private func quietCapsuleButton(_ title: String, key: String?, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                Text(title)
-                if let key {
-                    Text(key)
-                        .font(.caption2.weight(.medium))
-                        .opacity(0.7)
-                }
-            }
-            .font(.callout.weight(.medium))
-            .foregroundStyle(.secondary)
-            .frame(minWidth: 120, minHeight: 28)
-            .padding(.horizontal, 12)
-            .overlay(Capsule().strokeBorder(Color.primary.opacity(0.1), lineWidth: 1))
-            .contentShape(Capsule())
-        }
-        .buttonStyle(.hoverWash(in: Capsule(), inset: 0, opacity: 0.08))
     }
 
     /// A key that answers with no button of its own on screen.
@@ -546,8 +533,7 @@ struct MemoryCardSessionView: View {
     /// Where the next card would be: the card Go Deeper answered, its
     /// question, the learner's answer and the reply.
     private func deeperPanel(_ deeper: MemoryCardSessionModel.Deeper) -> some View {
-        let shape = RoundedRectangle(cornerRadius: Self.cardCornerRadius, style: .continuous)
-        return VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 0) {
             // The card it is about: its front muted, its back.
             VStack(alignment: .leading, spacing: 6) {
                 Text(deeper.card.prompt)
@@ -556,63 +542,60 @@ struct MemoryCardSessionView: View {
                     .fixedSize(horizontal: false, vertical: true)
                 Text(deeper.card.back)
                     .font(.callout)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("memory.cards.deeper.card")
-            Divider()
-            switch deeper.stage {
-            case .writingQuestion:
-                deeperWorkingLine("Writing a question")
-            case .noQuestion:
-                if deeper.failure == nil {
-                    Text("Nothing to go deeper on here: this card is a fact to keep.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
+            MemoryCardFold()
+                .padding(.vertical, 20)
+            VStack(alignment: .leading, spacing: 16) {
+                switch deeper.stage {
+                case .writingQuestion:
+                    deeperWorkingLine("Writing a question")
+                case .noQuestion:
+                    if deeper.failure == nil {
+                        Text("Nothing to go deeper on here: this card is a fact to keep.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .textSelection(.disabled)
+                            .accessibilityIdentifier("memory.cards.deeper.noQuestion")
+                    }
+                case .asking(let question):
+                    deeperQuestion(question)
+                    deeperAnswerField
+                case .replying(let question, let answer):
+                    deeperQuestion(question)
+                    deeperQuotedAnswer(answer)
+                    deeperWorkingLine("Reading your answer")
+                case .replied(let question, let answer, let reply):
+                    deeperQuestion(question)
+                    deeperQuotedAnswer(answer)
+                    Text(reply)
+                        .font(.system(size: 15))
+                        .lineSpacing(2)
                         .fixedSize(horizontal: false, vertical: true)
-                        .textSelection(.disabled)
-                        .accessibilityIdentifier("memory.cards.deeper.noQuestion")
+                        .accessibilityIdentifier("memory.cards.deeper.reply")
                 }
-            case .asking(let question):
-                deeperQuestion(question)
-                deeperAnswerField
-            case .replying(let question, let answer):
-                deeperQuestion(question)
-                deeperQuotedAnswer(answer)
-                deeperWorkingLine("Reading your answer")
-            case .replied(let question, let answer, let reply):
-                deeperQuestion(question)
-                deeperQuotedAnswer(answer)
-                Text(reply)
-                    .font(.system(size: 15))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("memory.cards.deeper.reply")
             }
         }
-        .padding(24)
+        .padding(.horizontal, 34)
+        .padding(.vertical, 30)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            shape
-                .fill(Color(nsColor: .controlBackgroundColor))
-                .shadow(color: .black.opacity(0.05), radius: 1, y: 1)
-                .shadow(color: .black.opacity(0.07), radius: 18, y: 8)
-        )
-        .overlay(shape.strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5))
+        .memoryCardSurface()
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("memory.cards.deeper")
     }
 
     /// "GO DEEPER · THE PRINCIPLE", and the question large in the card's serif.
     private func deeperQuestion(_ question: MemoryUnderstandingProbe.CardQuestion) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("GO DEEPER · " + question.kind.eyebrow)
-                .font(.system(size: 10.5, weight: .semibold))
-                .tracking(1.2)
-                .foregroundStyle(Color.accentColor)
-                .textSelection(.disabled)
+        VStack(alignment: .leading, spacing: 10) {
+            MemoryCardTagLine(tags: ["Go Deeper", question.kind.eyebrow])
                 .accessibilityIdentifier("memory.cards.deeper.kind")
             Text(question.text)
-                .font(.system(size: 22, weight: .regular, design: .serif))
+                .font(MemoryCardMetrics.frontFont)
+                .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("memory.cards.deeper.question")
         }
@@ -622,10 +605,10 @@ struct MemoryCardSessionView: View {
     /// chat composer's text view, which keeps both), and it takes the keys
     /// the review's own shortcuts would otherwise answer.
     private var deeperAnswerField: some View {
-        let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
         let draft = Binding(get: { session.deeperDraft }, set: { session.deeperDraft = $0 })
         let isEmpty = session.deeperDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        return VStack(alignment: .trailing, spacing: 8) {
+        return VStack(alignment: .trailing, spacing: 10) {
             ReviewChatComposerTextView(
                 text: draft,
                 onSubmit: { session.sendDeeperAnswer() },
@@ -644,16 +627,18 @@ struct MemoryCardSessionView: View {
                         .accessibilityHidden(true)
                 }
             }
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(shape.fill(Color.primary.opacity(0.04)))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(shape.fill(Color.primary.opacity(0.035)))
             .overlay(shape.strokeBorder(Color.primary.opacity(0.1)))
             .accessibilityLabel("Your answer")
             .accessibilityIdentifier("memory.cards.deeper.answer")
-            capsuleButton("Send", prominent: true, minWidth: 70) { session.sendDeeperAnswer() }
-                .disabled(isEmpty)
-                .help("Send your answer (Return)")
-                .accessibilityIdentifier("memory.cards.deeper.send")
+            MemoryReviewButton(title: "Send", key: "↩", kind: .primary, minWidth: 90) {
+                session.sendDeeperAnswer()
+            }
+            .disabled(isEmpty)
+            .help("Send your answer (Return)")
+            .accessibilityIdentifier("memory.cards.deeper.send")
         }
     }
 
@@ -706,20 +691,28 @@ struct MemoryCardSessionView: View {
         }
         HStack(spacing: 10) {
             Spacer(minLength: 0)
-            capsuleButton("Next Card", key: keyed ? "→" : nil, prominent: settled, minWidth: 150) {
+            MemoryReviewButton(
+                title: "Next Card",
+                key: keyed ? "→" : nil,
+                kind: settled ? .primary : .secondary,
+                minWidth: 170,
+                shortcut: keyed ? KeyboardShortcut(.rightArrow, modifiers: []) : nil
+            ) {
                 session.leaveDeeper()
             }
-            .keyboardShortcut(keyed ? KeyboardShortcut(.rightArrow, modifiers: []) : nil)
             .help(keyed ? "Next Card (→ or Return)" : "Next Card")
-            .accessibilityLabel("Next Card")
             .accessibilityIdentifier("memory.cards.deeper.next")
-            if keyed {
-                Button("", action: session.leaveDeeper)
-                    .keyboardShortcut(.defaultAction)
-                    .buttonStyle(.hoverWash)
-                    .frame(width: 0, height: 0)
-                    .opacity(0)
-                    .accessibilityHidden(true)
+            // Return too, from behind the button so it takes no room
+            // and Next Card stays centred.
+            .background {
+                if keyed {
+                    Button("", action: session.leaveDeeper)
+                        .keyboardShortcut(.defaultAction)
+                        .buttonStyle(.hoverWash)
+                        .frame(width: 0, height: 0)
+                        .opacity(0)
+                        .accessibilityHidden(true)
+                }
             }
             Spacer(minLength: 0)
         }
@@ -727,39 +720,56 @@ struct MemoryCardSessionView: View {
 
     // MARK: The end of a round
 
+    /// How the round went: a line, the round's strip with every answer in
+    /// it, and what comes next.
     private var endCard: some View {
-        let shape = RoundedRectangle(cornerRadius: Self.cardCornerRadius, style: .continuous)
         let forgotten = sitting.forgottenCount
         let waiting = session.waitingCards.count
-        return VStack(alignment: .leading, spacing: 14) {
+        return VStack(alignment: .leading, spacing: 0) {
             Text(endTitle)
-                .font(.system(size: 22, weight: .regular, design: .serif))
+                .font(.system(size: 28, weight: .regular, design: .serif))
             Text(endSummary)
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .monospacedDigit()
+                .padding(.top, 6)
+            MemoryRoundStrip(marks: MemoryRoundStrip.marks(of: sitting), height: 6)
+                .padding(.top, 22)
             HStack(spacing: 10) {
                 if forgotten > 0 {
-                    capsuleButton("Review Forgotten (\(forgotten))", prominent: false) { session.reviewForgotten() }
-                        .accessibilityIdentifier("memory.cards.reviewForgotten")
+                    MemoryReviewButton(title: "Review Forgotten (\(forgotten))", kind: .secondary) {
+                        withAnimation(Self.dealAnimation) { session.reviewForgotten() }
+                    }
+                    .accessibilityIdentifier("memory.cards.reviewForgotten")
                 }
                 if session.isReadingFollowup {
                     ProgressView().controlSize(.small)
                 } else if waiting > 0 {
-                    capsuleButton("Continue (\(waiting) more)", prominent: false) { session.continueWithWaitingCards() }
-                        .accessibilityIdentifier("memory.cards.continue")
+                    MemoryReviewButton(title: "Continue (\(waiting) more)", kind: .secondary) {
+                        withAnimation(Self.dealAnimation) { session.continueWithWaitingCards() }
+                    }
+                    .accessibilityIdentifier("memory.cards.continue")
                 }
                 Spacer(minLength: 0)
-                capsuleButton("Done", prominent: true, minWidth: 90) { vm.leaveMemoryReviewFocus(in: windowState) }
-                    .keyboardShortcut(keysEnabled ? .defaultAction : nil)
-                    .accessibilityIdentifier("memory.cards.done")
+                MemoryReviewButton(
+                    title: "Done",
+                    key: keysEnabled ? "↩" : nil,
+                    kind: .primary,
+                    minWidth: 110,
+                    shortcut: keysEnabled ? .defaultAction : nil
+                ) {
+                    vm.leaveMemoryReviewFocus(in: windowState)
+                }
+                .accessibilityIdentifier("memory.cards.done")
             }
+            .padding(.top, 30)
         }
         .textSelection(.disabled)
-        .padding(24)
+        .padding(.horizontal, 34)
+        .padding(.vertical, 32)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(shape.fill(Color(nsColor: .controlBackgroundColor)))
-        .overlay(shape.strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5))
+        .memoryCardSurface()
+        .transition(.opacity)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("memory.cards.end")
     }

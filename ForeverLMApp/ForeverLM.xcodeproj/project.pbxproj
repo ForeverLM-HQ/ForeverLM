@@ -161,6 +161,7 @@
 		13F15441D3E66A1F07405E41 /* StudioViewModel+KnowledgeMapOutside.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65460E24C50BB337645E96DF /* StudioViewModel+KnowledgeMapOutside.swift */; };
 		14032079E43E1B7DD1F19664 /* MobileShareAcceptanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 810EE7E2C540FA6B40B642EC /* MobileShareAcceptanceTests.swift */; };
 		14446ADF3B8CC73B0FE4B0B7 /* NotebookSyncFixture.swift in Sources */ = {isa = PBXBuildFile; fileRef = B512BD249A5D69F886241FC2 /* NotebookSyncFixture.swift */; };
+		14822D3B7199C21558226315 /* MemoryCardChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1E025331F160B801CE71073 /* MemoryCardChrome.swift */; };
 		148779AD49459373CE95BBB6 /* StorageService+JournalWatch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 878365AE2A39EC002E432C5C /* StorageService+JournalWatch.swift */; };
 		1496C77EC37B416F3D053A03 /* brave-sync-000004.log in Resources */ = {isa = PBXBuildFile; fileRef = AC121F8C76C5362EDF303F30 /* brave-sync-000004.log */; };
 		14BA95A8C2DD87013D9CBEF0 /* ResearchDirection.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECC952516F2EF2488515541C /* ResearchDirection.swift */; };
@@ -3508,6 +3509,7 @@
 		E18565BF0083B043CFD1A280 /* SyncPacer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncPacer.swift; sourceTree = "<group>"; };
 		E18F3DC1308E88205AA6EC68 /* MCPTools+AISettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MCPTools+AISettings.swift"; sourceTree = "<group>"; };
 		E1B1BC7D0444B2A40506E3EB /* CutoverSatellites.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CutoverSatellites.swift; sourceTree = "<group>"; };
+		E1E025331F160B801CE71073 /* MemoryCardChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryCardChrome.swift; sourceTree = "<group>"; };
 		E230C7C1474770C0DD2EEFC3 /* CardScheduleFold.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardScheduleFold.swift; sourceTree = "<group>"; };
 		E255215404EF4BCB9CCCB6CE /* NotebookCoverBackfillTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotebookCoverBackfillTests.swift; sourceTree = "<group>"; };
 		E2A0A9C5375C929ABBC82441 /* CloudKitMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitMigrationTests.swift; sourceTree = "<group>"; };
@@ -5021,6 +5023,7 @@
 				1E3FCE2B1E028332DEAFAC26 /* ManagedAIAccountModel.swift */,
 				8512A83692079684B06F7477 /* MeetingRecordingReaderViews.swift */,
 				40C5E32D477ECA743032D220 /* MeetingScheduleSheet.swift */,
+				E1E025331F160B801CE71073 /* MemoryCardChrome.swift */,
 				36223701B9AB02EFD6800DB8 /* MemoryCardImagesView.swift */,
 				628E0BC3EA81D20506457167 /* MemoryCardSessionView.swift */,
 				6B8DB7F03337806F1CF49DE0 /* MemoryCardsToCheckView.swift */,
@@ -7522,6 +7525,7 @@
 				EBD0E26C7EBD2C6E6C0DB439 /* MeetingScheduleSheet.swift in Sources */,
 				5B3C895D5CC41B3D44E5DF20 /* MeetingTranscriptionService.swift in Sources */,
 				4F4382600B6E2995D5009572 /* MemoryCard.swift in Sources */,
+				14822D3B7199C21558226315 /* MemoryCardChrome.swift in Sources */,
 				D301AAF752274C6E6FAD11E3 /* MemoryCardImagesView.swift in Sources */,
 				4DD7CC80E74C931376B02AAA /* MemoryCardQueue.swift in Sources */,
 				6E01CB0F32255D47217179BE /* MemoryCardSessionModel.swift in Sources */,

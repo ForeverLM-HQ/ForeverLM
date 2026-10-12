@@ -130,22 +130,23 @@ struct MemoryPane: View {
 
     // MARK: Toolbar
 
+    /// The sections as the Space's pills — To Check with how many cards wait
+    /// there, the state that asks for something — and the scope menu.
     private var toolbar: some View {
-        HStack(spacing: 10) {
-            Picker("Section", selection: Binding(
-                get: { windowState.memoryPaneSection },
-                set: { section in
-                    if windowState.memoryPaneSection != section { windowState.memoryPaneSection = section }
-                }
-            )) {
-                ForEach(MemoryPaneSection.allCases) { section in
-                    Text(section.title).tag(section)
+        HStack(spacing: 4) {
+            HStack(spacing: 2) {
+                ForEach(MemoryPaneSection.allCases) { item in
+                    SpaceScopePill(
+                        title: item.title,
+                        isSelected: section == item,
+                        count: item == .toCheck && hasLoaded ? snapshot.toCheck.count : nil
+                    ) {
+                        if windowState.memoryPaneSection != item { windowState.memoryPaneSection = item }
+                    }
+                    .accessibilityIdentifier("memory.pane.section.\(item.rawValue)")
                 }
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .controlSize(.small)
-            .fixedSize()
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("memory.pane.section")
 
             Spacer(minLength: 8)
@@ -185,29 +186,59 @@ struct MemoryPane: View {
         return count
     }
 
+    /// The notebooks the pane is over, as a quiet word and a chevron — the
+    /// way All Cards' grouping reads — not a bordered pop-up.
     private var scopeMenu: some View {
-        Picker("Notebooks", selection: Binding(
-            get: { scopeTag },
-            set: { tag in
-                let chosen = Self.scope(fromTag: tag)
-                if windowState.memoryPaneScope != chosen { windowState.memoryPaneScope = chosen }
-            }
-        )) {
-            Text("All notebooks").tag(Self.allNotebooksTag)
-            let notebooks = scopeNotebooks
-            if !notebooks.isEmpty {
-                Divider()
-                ForEach(notebooks) { notebook in
-                    Text(notebook.title).tag(notebook.id)
+        Menu {
+            Picker("Notebooks", selection: Binding(
+                get: { scopeTag },
+                set: { tag in
+                    let chosen = Self.scope(fromTag: tag)
+                    if windowState.memoryPaneScope != chosen { windowState.memoryPaneScope = chosen }
+                }
+            )) {
+                Text("All notebooks").tag(Self.allNotebooksTag)
+                let notebooks = scopeNotebooks
+                if !notebooks.isEmpty {
+                    Divider()
+                    ForEach(notebooks) { notebook in
+                        Text(notebook.title).tag(notebook.id)
+                    }
                 }
             }
+            .pickerStyle(.inline)
+            .labelsHidden()
+        } label: {
+            HStack(spacing: 4) {
+                Text(scopeTitle)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .semibold))
+            }
+            .zoomedSystemFont(size: 12.5, weight: .medium)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .contentShape(Capsule())
         }
-        .pickerStyle(.menu)
-        .labelsHidden()
-        .controlSize(.small)
-        .fixedSize()
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .hoverHighlight(in: Capsule(), inset: 0, opacity: 0.06)
+        .frame(maxWidth: 240, alignment: .trailing)
         .help("Review the cards of every notebook, or of one")
+        .accessibilityLabel("Notebooks")
+        .accessibilityValue(scopeTitle)
         .accessibilityIdentifier("memory.pane.scope")
+    }
+
+    /// "All notebooks", or the notebook the pane is narrowed to.
+    private var scopeTitle: String {
+        switch scope {
+        case .allNotebooks: return "All notebooks"
+        case .notebook(let id): return scopeNotebooks.first { $0.id == id }?.title ?? "Notebook"
+        }
     }
 
     private static let allNotebooksTag = "memory.scope.all"
@@ -249,73 +280,148 @@ struct MemoryPane: View {
 
     // MARK: Review
 
+    /// Since 2026-10-11 (docs/memory-design.md, "How a card looks") today's
+    /// cards are drawn as the deck the review deals: one card with how many
+    /// there are, the edges of the rest under it, the promise in a line, and
+    /// one dark pill — the review's own Start Review — with Practice a quiet
+    /// word beside it. The history grid sits under them.
     private var reviewSection: some View {
         let counts = snapshot.counts
         let state = goalTracker.state
         return ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(hasLoaded ? (counts.todayLine ?? "Nothing due today") : " ")
-                        .font(.title2.weight(.semibold))
-                        .monospacedDigit()
-                        .accessibilityIdentifier("memory.pane.counts")
+            VStack(spacing: 0) {
+                todayDeck(counts: counts, state: state)
+                    .padding(.bottom, MemoryDeckEdges.depth)
+
+                if hasLoaded, Self.showsPromise(state: state, counts: counts) {
                     Text(Self.promise(state: state, budgetMinutes: MemoryReviewBudget.minutes))
                         .font(.callout)
                         .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.disabled)
+                        .padding(.top, 22)
                         .accessibilityIdentifier("memory.pane.promise")
                 }
-                .textSelection(.disabled)
 
                 if let loadError {
                     Label(loadError, systemImage: "exclamationmark.triangle.fill")
                         .font(.caption)
                         .foregroundStyle(.orange)
                         .textSelection(.disabled)
+                        .padding(.top, 14)
                 }
 
-                HStack(spacing: 10) {
-                    // No Return: inside a notebook the pane sits beside the
-                    // chat, whose composer Return belongs to.
-                    if let title = Self.primaryTitle(state: state, counts: counts) {
-                        Button(title) {
-                            vm.inWindow(windowState) { vm.startCardReview(scope: scope) }
+                let offersPractice = MemoryReviewCommitment.canStart(state) && counts.practice > 0
+                let primaryTitle = Self.primaryTitle(state: state, counts: counts)
+                if primaryTitle != nil || offersPractice {
+                    VStack(spacing: 8) {
+                        // No Return: inside a notebook the pane sits beside the
+                        // chat, whose composer Return belongs to.
+                        if let primaryTitle {
+                            MemoryReviewButton(title: primaryTitle, kind: .primary, minWidth: 200) {
+                                vm.inWindow(windowState) { vm.startCardReview(scope: scope) }
+                            }
+                            .accessibilityIdentifier("memory.pane.start")
                         }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
-                        .accessibilityIdentifier("memory.pane.start")
-                    }
-                    if MemoryReviewCommitment.canStart(state), counts.practice > 0 {
-                        Button(counts.practice == 1 ? "Practice 1 New Card" : "Practice \(counts.practice) New Cards") {
-                            vm.inWindow(windowState) { vm.startCardPractice(scope: scope) }
+                        if offersPractice {
+                            MemoryReviewButton(
+                                title: counts.practice == 1 ? "Practice 1 New Card" : "Practice \(counts.practice) New Cards",
+                                kind: .quiet
+                            ) {
+                                vm.inWindow(windowState) { vm.startCardPractice(scope: scope) }
+                            }
+                            .help("Cards kept today, or past today's new cards, asked now")
+                            .accessibilityIdentifier("memory.pane.practice")
                         }
-                        .buttonStyle(.bordered)
-                        .controlSize(.large)
-                        .help("Cards kept today, or past today's new cards, asked now")
-                        .accessibilityIdentifier("memory.pane.practice")
                     }
+                    .padding(.top, 20)
                 }
 
                 // Screen record mode (admin only) keeps the learner's own
                 // review history off screen: the grid is months of their days.
                 if !ScreenRecordMode.isEffective {
-                    MemoryReviewHistoryGrid(
-                        earlierReviews: MemoryPane.earlierReviews(
-                            in: vm.reviewSessionGroups(for: vm.pinnedNotebooks).memory
-                        ),
-                        dayProgress: goalTracker.historyDays,
-                        answeredDays: goalTracker.answeredDays
-                    ) { sessionID in
-                        vm.inWindow(windowState) { vm.requestResumeReviewSession(sessionID) }
+                    HStack(spacing: 0) {
+                        Spacer(minLength: 0)
+                        MemoryReviewHistoryGrid(
+                            earlierReviews: MemoryPane.earlierReviews(
+                                in: vm.reviewSessionGroups(for: vm.pinnedNotebooks).memory
+                            ),
+                            dayProgress: goalTracker.historyDays,
+                            answeredDays: goalTracker.answeredDays
+                        ) { sessionID in
+                            vm.inWindow(windowState) { vm.requestResumeReviewSession(sessionID) }
+                        }
+                        .fixedSize()
+                        Spacer(minLength: 0)
                     }
+                    .padding(.top, 44)
                 }
             }
-            .frame(maxWidth: 560, alignment: .leading)
+            .frame(maxWidth: 560)
             .padding(.horizontal, 28)
-            .padding(.vertical, 24)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 40)
+            .padding(.bottom, 32)
+            .frame(maxWidth: .infinity)
         }
         .accessibilityIdentifier("memory.pane.review")
+    }
+
+    /// Today's cards as a card on the deck: how many, "cards today", and
+    /// "6 due · 4 new" under it; with none, what the day is instead.
+    private func todayDeck(counts: MemoryCardDayCounts, state: MemoryReviewCommitment.State) -> some View {
+        let today = hasLoaded ? counts.today : 0
+        return VStack(spacing: 6) {
+            if !hasLoaded {
+                Color.clear.frame(height: 1)
+            } else if today > 0 {
+                Text("\(today)")
+                    .font(.system(size: 56, weight: .regular, design: .serif))
+                    .monospacedDigit()
+                Text(today == 1 ? "card today" : "cards today")
+                    .font(.callout.weight(.medium))
+                    .foregroundStyle(.secondary)
+                if let line = counts.todayLine {
+                    Text(line)
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .monospacedDigit()
+                        .padding(.top, 2)
+                }
+            } else if case .done = state {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 26, weight: .light))
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+                Text("Today's review is done")
+                    .font(.system(size: 19, weight: .regular, design: .serif))
+                    .padding(.top, 4)
+            } else {
+                Text("Nothing due today")
+                    .font(.system(size: 19, weight: .regular, design: .serif))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .multilineTextAlignment(.center)
+        .textSelection(.disabled)
+        .padding(.horizontal, 24)
+        .frame(width: 300, height: 184)
+        .memoryCardSurface()
+        .background(alignment: .bottom) {
+            MemoryDeckEdges(remaining: today - 1)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("memory.pane.counts")
+    }
+
+    /// Whether the promise line shows under the deck: while Start Review or
+    /// Keep Going is there to say what it commits to, and on a day ended
+    /// early, which it says; never a second "done" under a done deck.
+    static func showsPromise(state: MemoryReviewCommitment.State, counts: MemoryCardDayCounts) -> Bool {
+        switch state {
+        case .open, .done: return counts.today > 0
+        case .ended: return true
+        }
     }
 
     /// The promise above Start Review, by state, in one short line. Pure, so
