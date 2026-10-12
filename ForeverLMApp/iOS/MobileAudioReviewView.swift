@@ -145,8 +145,11 @@ struct MobileAudioReviewView: View {
                 MobileNotebookHomeView { route in open(route) }
             }
         }
-        .navigationTitle("ForeverLM")
-        .navigationBarTitleDisplayMode(.large)
+        // No title: the brand is the app's icon, and a large "ForeverLM" over the list only moved
+        // the notebooks down (the product owner, 2026-10-11: it "looks ugly"). The bar holds Settings
+        // and, in Home's own toolbar, +; voice sits beside Search at the bottom.
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 NavigationLink(value: MobileShellRoute.settings) {
@@ -154,17 +157,6 @@ struct MobileAudioReviewView: View {
                 }
                 .accessibilityLabel("Settings")
                 .accessibilityIdentifier("home.settings")
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    Task { await live.start() }
-                } label: {
-                    Image(systemName: "waveform")
-                }
-                .disabled(live.isActive)
-                .accessibilityLabel("Start voice chat")
-                .accessibilityHint("Starts a hands-free conversation")
-                .accessibilityIdentifier("home.startVoiceChat")
             }
         }
     }

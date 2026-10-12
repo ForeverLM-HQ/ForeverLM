@@ -103,8 +103,15 @@ struct MobileNotebookHomeView: View {
                 librarySection
             }
         }
-        .listStyle(.insetGrouped)
+        // Flat rows on the page itself, not boxes on grey (2026-10-11).
+        .listStyle(.plain)
+        .listRowSeparator(.hidden)
+        .modifier(MobileHomeHidesDisclosure())
+        .listRowSpacing(2)
+        .scrollContentBackground(.hidden)
+        .background(Color(uiColor: .systemBackground))
         .searchable(text: $query, prompt: "Search notebooks and library")
+        .modifier(MobileHomeBottomBar(live: live))
         .searchScopes($scope) {
             ForEach(MobileHomeSearchScope.allCases, id: \.self) { scope in
                 Text(scope.title).tag(scope)
@@ -221,7 +228,7 @@ struct MobileNotebookHomeView: View {
                     }
                 }
             } header: {
-                Text("Notebooks")
+                MobileHomeSectionHeader("Notebooks")
             }
         } else {
             let recency = self.recency
@@ -236,8 +243,10 @@ struct MobileNotebookHomeView: View {
             let byID = Dictionary(vm.notebooks.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
 
             if !rail.pinnedIDs.isEmpty {
-                Section("Pinned") {
+                Section {
                     notebooks(rail.pinnedIDs.compactMap { byID[$0] }, recency: recency)
+                } header: {
+                    MobileHomeSectionHeader("Pinned")
                 }
                 .accessibilityIdentifier("home.pinned")
             }
@@ -245,8 +254,10 @@ struct MobileNotebookHomeView: View {
             // The open notebook's row ends Recent.
             let recent = (rail.recentIDs + [rail.openNotebookID].compactMap { $0 }).compactMap { byID[$0] }
             if !recent.isEmpty {
-                Section("Recent") {
+                Section {
                     notebooks(recent, recency: recency)
+                } header: {
+                    MobileHomeSectionHeader("Recent")
                 }
                 .accessibilityIdentifier("home.recent")
             }
@@ -274,8 +285,10 @@ struct MobileNotebookHomeView: View {
             }
 
             if !rail.collections.isEmpty {
-                Section("Collections") {
+                Section {
                     collectionsContent(recency: recency)
+                } header: {
+                    MobileHomeSectionHeader("Collections")
                 }
                 .accessibilityIdentifier("home.collections")
             }
@@ -385,13 +398,15 @@ struct MobileNotebookHomeView: View {
             notebooks: orderedNotebooks
         )
         if !rows.isEmpty {
-            Section("Courses") {
+            Section {
                 ForEach(rows) { row in
                     NavigationLink(value: MobileShellRoute.course(row.course.id)) {
                         MobileCourseHomeRow(row: row)
                     }
                     .accessibilityIdentifier("home.course.\(row.course.id)")
                 }
+            } header: {
+                MobileHomeSectionHeader("Courses")
             }
             .accessibilityIdentifier("home.courses")
         }
@@ -678,21 +693,18 @@ private struct MobileHomeLinkLabel: View {
     let title: String
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 14) {
             Image(systemName: systemImage)
-                .font(.body)
+                .font(.title3)
                 .foregroundStyle(.secondary)
-                .frame(
-                    width: MobileDesign.Metrics.compactArtworkSize,
-                    height: MobileDesign.Metrics.compactArtworkSize
-                )
+                .frame(width: 48, height: 40)
                 .accessibilityHidden(true)
             Text(title)
                 .font(.body)
                 .foregroundStyle(.primary)
             Spacer(minLength: 0)
         }
-        .padding(.vertical, MobileDesign.Spacing.xSmall)
+        .padding(.vertical, 2)
     }
 }
 
@@ -742,27 +754,27 @@ struct MobileNotebookCard: View {
 
     var body: some View {
         let title = NotebookTitle(notebook.title)
-        HStack(alignment: .center, spacing: 12) {
+        HStack(alignment: .center, spacing: 14) {
             // The notebook's cover once the phone holds it, with nothing behind it; its emoji on its
             // colour until then (D53).
             MobileNotebookIconView(
                 notebookID: notebook.id,
-                size: MobileDesign.Metrics.compactArtworkSize,
-                cornerRadius: 10,
+                size: 48,
+                cornerRadius: 12,
                 plate: NotebookTint.color(for: notebook.id)
             ) {
                 Text(title.displayIcon)
-                    .font(.title3)
+                    .font(.title2)
             }
             .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(title.text.isEmpty ? "Untitled notebook" : title.text)
-                    .font(.body)
+                    .font(.body.weight(.medium))
                     .foregroundStyle(.primary)
                     .lineLimit(2)
                 Text(subtitle)
-                    .font(.caption)
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
@@ -1073,5 +1085,85 @@ struct MobileNotebookGalleryCard: View {
                 .padding(MobileDesign.Spacing.small)
             }
         }
+    }
+}
+
+
+// MARK: - Home's chrome
+
+/// A section's title on Home: small, grey and as typed, over flat rows (the plain list draws its own
+/// headers large and bold).
+struct MobileHomeSectionHeader: View {
+    let title: String
+
+    init(_ title: String) {
+        self.title = title
+    }
+
+    var body: some View {
+        Text(title)
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .textCase(nil)
+            .padding(.top, MobileDesign.Spacing.small)
+    }
+}
+
+/// Rows that push a screen draw no chevron on Home: the row is the control.
+private struct MobileHomeHidesDisclosure: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 17.4, *) {
+            content.navigationLinkIndicatorVisibility(.hidden)
+        } else {
+            content
+        }
+    }
+}
+
+/// Search and voice share the bottom: iOS 26 draws Search as a bar at the bottom with a round Talk
+/// button beside it; earlier systems keep Search in the navigation bar and Talk in the bottom bar.
+private struct MobileHomeBottomBar: ViewModifier {
+    @ObservedObject var live: MobileVoiceConversationController
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.toolbar { MobileHomeBottomBarContent(live: live) }
+        } else {
+            content.toolbar {
+                ToolbarItem(placement: .bottomBar) {
+                    MobileHomeTalkButton(live: live)
+                }
+            }
+        }
+    }
+}
+
+@available(iOS 26.0, *)
+private struct MobileHomeBottomBarContent: ToolbarContent {
+    @ObservedObject var live: MobileVoiceConversationController
+
+    var body: some ToolbarContent {
+        DefaultToolbarItem(kind: .search, placement: .bottomBar)
+        ToolbarSpacer(.fixed, placement: .bottomBar)
+        ToolbarItem(placement: .bottomBar) {
+            MobileHomeTalkButton(live: live)
+        }
+    }
+}
+
+/// Starts a hands-free conversation (the shell's top-bar waveform until 2026-10-11).
+private struct MobileHomeTalkButton: View {
+    @ObservedObject var live: MobileVoiceConversationController
+
+    var body: some View {
+        Button {
+            Task { await live.start() }
+        } label: {
+            Image(systemName: "waveform")
+        }
+        .disabled(live.isActive)
+        .accessibilityLabel("Start voice chat")
+        .accessibilityHint("Starts a hands-free conversation")
+        .accessibilityIdentifier("home.startVoiceChat")
     }
 }
