@@ -2008,3 +2008,75 @@ extension MCPDataStore {
         }.map(\.id))
     }
 }
+
+// MARK: - Saying a listing is narrowed
+
+/// A take's listings are narrowed, and a client that cannot tell would read
+/// "the library holds only this" and confidently pick the closest match: on
+/// 2026-10-11 a client asking for the Notebook about a paper got the one empty
+/// Notebook a recording Mac listed, from the learner's other Mac, and chose it.
+/// So while the mode is on, each listing it narrows says so in one field.
+///
+/// The note names nothing that is left out, and no count of it either. A count
+/// would put the size of the learner's private library on screen during a take,
+/// it would not change what the client should do (say it cannot see the thing),
+/// and it would cost every listing a second, unscoped pass.
+extension MCPDataStore {
+    /// The one sentence every narrowed answer carries, or nil while screen
+    /// record mode is off, which it is for every learner but the admin.
+    static var screenRecordNarrowedNote: String? {
+        guard ScreenRecordMode.isEffective else { return nil }
+        return "Screen record mode is on on this Mac, so Notebooks, sources and other work from before the take are not listed. If what the learner asked for is not here, say you can't see it from this Mac; don't pick the closest match."
+    }
+
+    /// `text` carrying `note`: a JSON object gains a `narrowed` field, and any
+    /// other answer (a text listing, an empty-listing sentence) opens with a
+    /// `Narrowed:` line, ahead of what a long listing might get cut at.
+    static func addingNarrowedNote(_ note: String, to text: String) -> String {
+        if text.first == "{",
+           var object = (try? JSONSerialization.jsonObject(with: Data(text.utf8))) as? [String: Any] {
+            object["narrowed"] = note
+            // The same writing options as `jsonString`, which made the object.
+            if let data = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys]),
+               let noted = String(data: data, encoding: .utf8) {
+                return noted
+            }
+        }
+        return text.isEmpty ? "Narrowed: \(note)" : "Narrowed: \(note)\n\n\(text)"
+    }
+}
+
+extension MCPToolRegistry {
+    /// The listings and searches that ask `ScreenRecordScope` (directly, or
+    /// through `knowledgeSearchExcludedSourceIDs`), and so answer for the take
+    /// rather than the library while the mode is on. A new listing that asks
+    /// the scope belongs here too.
+    static let screenRecordNarrowedToolNames: Set<String> = [
+        // Notebooks and Goals
+        "list_notebooks", "list_learning_goals", "list_goals", "list_notebook_collections", "list_notebook_sources",
+        // Sources
+        "list_sources", "filter_sources", "list_shows", "search_sources_semantic", "search_sources_keyword",
+        "get_app_context", "get_today_sources", "list_courses", "search_source_highlights", "list_meeting_groups",
+        // The learner's own work
+        "list_docs", "list_animations", "list_spaces", "list_ideas", "list_images", "list_scheduled_tasks",
+        "list_walkthroughs", "get_review_sessions", "search_review_sessions", "list_review_session_links",
+        "list_cards", "get_due_cards", "list_directions",
+        // The day
+        "get_calendar_events", "get_day_activity",
+    ]
+
+    /// `outcome` with the narrowed note when `toolName` is a listing screen
+    /// record mode narrows and the mode is on; otherwise `outcome` unchanged.
+    /// A refusal is left as it is: a Notebook the take keeps off screen reads
+    /// as absent, the same answer an unknown id gets (`getNotebookDetail`).
+    static func notingScreenRecordNarrowing(_ outcome: ToolCallOutcome, toolName: String) -> ToolCallOutcome {
+        guard !outcome.isError,
+              screenRecordNarrowedToolNames.contains(toolName),
+              let note = MCPDataStore.screenRecordNarrowedNote else { return outcome }
+        return ToolCallOutcome(
+            text: MCPDataStore.addingNarrowedNote(note, to: outcome.text),
+            isError: false,
+            images: outcome.images
+        )
+    }
+}

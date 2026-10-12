@@ -14,6 +14,10 @@ extension MCPDataStore {
             "container_environment": CloudRuntimeAvailability.containerEnvironment.rawValue,
             "icloud_signed_in": CloudRuntimeAvailability.isSignedIn,
         ]
+        // Missing items are often only another Mac answering, or this one
+        // narrowed to a take (MCPTools+ICloudAccount.swift).
+        payload["answered_by"] = await Self.answeringMac()
+        if let note = Self.screenRecordNarrowedNote { payload["narrowed"] = note }
         guard let session = MacSyncSession.current else {
             payload["phase"] = "not_started"
             payload["message"] = "The new iCloud sync has not started on this Mac yet."

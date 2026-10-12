@@ -3111,11 +3111,17 @@ Bioelectricity notebook" is the notebook of that title. The tools said project
 until 2026-10-04 (`create_project`, `project_id`); the old names are gone, not
 aliased.
 
+A listing or search from a Mac that is showing only part of the library for
+now carries `narrowed`, a sentence that says so without naming what is left
+out: a field in a JSON answer, or the first line of a text answer. An assistant
+then tells the learner it cannot see what they named from that Mac, instead of
+choosing the closest match. `get_mcp_status` says which Mac that is.
+
 ## Status and sources
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `get_mcp_status` | none | Report connection mode and capabilities. Call this first. From the Mac, `icloud_account` says which iCloud account its library syncs with (`syncs_with_icloud`, `environment`, and `user_record_name`, the account's container-scoped CloudKit user record name, the same kind of id `list_teams` gives for members, once CloudKit has answered); ForeverLM on the web uses it to ask only a Mac on the learner's own account. |
+| `get_mcp_status` | none | Report connection mode and capabilities. Call this first. From the Mac, `icloud_account` says which iCloud account its library syncs with (`syncs_with_icloud`, `environment`, and `user_record_name`, the account's container-scoped CloudKit user record name, the same kind of id `list_teams` gives for members, once CloudKit has answered); ForeverLM on the web uses it to ask only a Mac on the learner's own account. `answered_by` says which Mac answered, since another Mac signed in to the same account can hold the connection: `app` and `build`, `device_id` (that Mac's ForeverLM sync id), `model`, and `computer_name`, which is left out while its answers are `narrowed`. |
 | `list_sources` | none | List source metadata from the library. |
 | `get_source_content` | `source_id` | Return canonical readable text for one exact source ID. |
 | `inspect_paper_figure` | `source_id`, `figure_label`, `panel_label?` | See a figure of a paper as an image, rendered from the paper's own PDF on the Mac and cropped to the figure, with its caption and ForeverLM's explanation of it. `panel_label` crops to one subfigure. The first look at a figure runs the vision model. Needs the Mac open and connected. |

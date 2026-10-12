@@ -224,6 +224,9 @@ enum Prompts {
 
     Orientation:
     - First call get_mcp_status to confirm ForeverLM MCP is active before reading or changing app state.
+    - An answer that carries narrowed lists only part of the library, on the Mac that answered (get_mcp_status's \
+    answered_by names it). When what the learner asks for is not in it, say you can't see it from that Mac; \
+    never choose the closest match instead.
     - Prefer doing the requested reasoning and artifact authoring in this client, using the model or media allowance \
     the learner already has here, then save the result into ForeverLM with its write tools. For example, write quiz \
     content here and use save_course_quiz; make an image here and use save_image, then pin it where it belongs. \

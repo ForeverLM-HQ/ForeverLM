@@ -1,6 +1,8 @@
 #if os(macOS)
 import CloudKit
 import Foundation
+import IOKit
+import SystemConfiguration
 
 // MARK: - The iCloud account behind get_mcp_status
 //
@@ -136,5 +138,85 @@ extension MCPDataStore {
         }
         return account
     }
+}
+
+// MARK: - The Mac behind get_mcp_status
+//
+// The relay keeps one tunnel per Apple Account, so when the learner has two
+// Macs the one that answers is whichever connected last (MCPRelayClient's
+// "took over"). Both name the same iCloud account, so `icloud_account` cannot
+// tell them apart, and on 2026-10-11 a client read a recording Mac's take as
+// the whole library. `answered_by` names the Mac that answered.
+//
+// The computer name is the one thing a learner recognizes, but it often holds
+// a person's name ("Zara's MacBook Pro"), and a filmed take can put a status
+// answer on screen. So it is left out while screen record mode is on, and the
+// Mac is told apart by what holds no one's name: its sync device id (eight
+// random characters this installation keeps in its Keychain, the id its Device
+// record and every sync stamp carry, so a Dev build beside the installed app
+// has an id of its own) and its model.
+extension MCPDataStore {
+    /// `answered_by`, read live: this app and build, its sync device id once
+    /// it has one, the Mac's model and, unless the mode is on, its name.
+    static func answeringMac() async -> [String: Any] {
+        var deviceID = await MacSyncSession.current?.deviceID ?? ""
+        if deviceID.isEmpty { deviceID = MacSyncDeviceID.stored() ?? "" }
+        return answeringMac(
+            app: ForeverLMRuntimeIdentity.displayName,
+            build: Bundle.main.infoDictionary?["CFBundleVersion"] as? String,
+            deviceID: deviceID,
+            model: macModel,
+            computerName: SCDynamicStoreCopyComputerName(nil, nil) as String?,
+            screenRecordAvailable: ScreenRecordMode.isAvailable,
+            screenRecordOn: ScreenRecordMode.isEffective
+        )
+    }
+
+    /// `answered_by` from its parts. Nothing missing is made up: an unknown
+    /// value is left out. `screen_record_mode` is there only where the mode
+    /// can be on, so no one else's answer mentions it.
+    static func answeringMac(
+        app: String,
+        build: String?,
+        deviceID: String?,
+        model: String?,
+        computerName: String?,
+        screenRecordAvailable: Bool,
+        screenRecordOn: Bool
+    ) -> [String: Any] {
+        var mac: [String: Any] = ["app": app]
+        func keep(_ key: String, _ value: String?) {
+            guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return }
+            mac[key] = value
+        }
+        keep("build", build)
+        keep("device_id", deviceID)
+        keep("model", model)
+        if !screenRecordOn { keep("computer_name", computerName) }
+        if screenRecordAvailable || screenRecordOn { mac["screen_record_mode"] = screenRecordOn }
+        return mac
+    }
+
+    /// The Mac's model: the name Apple silicon keeps in its device tree
+    /// ("MacBook Pro (14-inch, Nov 2023)"), else the model identifier
+    /// ("MacBookPro16,1"), which is all an Intel Mac has. Read once.
+    static let macModel: String? = {
+        let product = IORegistryEntryFromPath(kIOMainPortDefault, "IODeviceTree:/product")
+        if product != 0 {
+            defer { IOObjectRelease(product) }
+            if let data = IORegistryEntryCreateCFProperty(product, "product-name" as CFString, kCFAllocatorDefault, 0)?
+                .takeRetainedValue() as? Data {
+                let name = String(decoding: data.prefix { $0 != 0 }, as: UTF8.self)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if !name.isEmpty { return name }
+            }
+        }
+        var size = 0
+        guard sysctlbyname("hw.model", nil, &size, nil, 0) == 0, size > 0 else { return nil }
+        var bytes = [UInt8](repeating: 0, count: size)
+        guard sysctlbyname("hw.model", &bytes, &size, nil, 0) == 0 else { return nil }
+        let identifier = String(decoding: bytes.prefix { $0 != 0 }, as: UTF8.self)
+        return identifier.isEmpty ? nil : identifier
+    }()
 }
 #endif

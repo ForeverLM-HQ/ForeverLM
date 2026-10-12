@@ -1059,6 +1059,183 @@ struct ScreenRecordSpaceSidebarTests {
     }
 }
 
+/// Screen record mode's answers over MCP say they are narrowed, and which Mac
+/// gave them. Each test binds a throwaway defaults suite, as the suite above does.
+@Suite("Screen record mode says an answer is narrowed", .serialized)
+@MainActor
+struct ScreenRecordNarrowedAnswerTests {
+    private func withCleanDefaults(_ body: () async throws -> Void) async throws {
+        let suiteName = "ScreenRecordNarrowedAnswerTests.\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            throw MCPError.invalidInput("Could not open a defaults suite for the test.")
+        }
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        try await ScreenRecordMode.$overrideDefaults.withValue(ScreenRecordMode.DefaultsOverride(defaults: defaults)) {
+            try await body()
+        }
+    }
+
+    private func payload(_ text: String) throws -> [String: Any] {
+        guard let object = try JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any] else {
+            throw MCPError.invalidInput("Expected a JSON object, got: \(text.prefix(200))")
+        }
+        return object
+    }
+
+    @Test("While recording, a narrowed listing says so, in JSON and in text, and names nothing it leaves out")
+    func narrowedListingsSaySo() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ScreenRecordModeTests_\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = MCPDataStore(dbPath: root.appendingPathComponent("knowledge.db").path)
+        let ks = try store.knowledgeStore()
+        let now = Date()
+        _ = try ks.createCompanionGoal(
+            title: "Private Reading Notebook", topic: "private", startAt: now, endAt: LearningGoalRecord.openEndedEndAt,
+            dailyTarget: 3, discoveryEnabled: false, seedSourceIDs: []
+        )
+        let filmed = try ks.createCompanionGoal(
+            title: "Filmed Notebook", topic: "demo", startAt: now, endAt: LearningGoalRecord.openEndedEndAt,
+            dailyTarget: 3, discoveryEnabled: false, seedSourceIDs: []
+        )
+
+        try await withCleanDefaults {
+            // Off: no note, and a listing goes out as it was.
+            let unscoped = try store.listNotebooks(includeCompleted: false)
+            if !ScreenRecordMode.isForcedByBuild {
+                #expect(MCPDataStore.screenRecordNarrowedNote == nil)
+                let untouched = MCPToolRegistry.notingScreenRecordNarrowing(.init(text: unscoped, isError: false), toolName: "list_notebooks")
+                #expect(untouched.text == unscoped)
+            }
+
+            ScreenRecordMode.recordAdminStatus(true)
+            ScreenRecordMode.setEnabled(true, now: now.addingTimeInterval(3_600))
+            ScreenRecordMode.setNotebookID(filmed.id)
+            let note = try #require(MCPDataStore.screenRecordNarrowedNote)
+
+            // A JSON listing gains the field, and keeps what it said.
+            let listed = try store.listNotebooks(includeCompleted: false)
+            let noted = MCPToolRegistry.notingScreenRecordNarrowing(.init(text: listed, isError: false), toolName: "list_notebooks")
+            let object = try payload(noted.text)
+            #expect(object["narrowed"] as? String == note)
+            let titles = (object["goals"] as? [[String: Any]] ?? []).compactMap { $0["title"] as? String }
+            #expect(titles == ["Filmed Notebook"])
+            #expect(!noted.text.contains("Private Reading Notebook"), "the note names nothing the take leaves out")
+            #expect(!note.contains("Private"))
+            #expect(note.range(of: #"\d"#, options: .regularExpression) == nil, "no count of what is left out")
+
+            // A text listing, and an empty listing's sentence, open with it.
+            let sources = MCPToolRegistry.notingScreenRecordNarrowing(.init(text: try store.listSources(), isError: false), toolName: "list_sources")
+            #expect(sources.text.hasPrefix("Narrowed: \(note)\n\n"))
+            let goals = MCPToolRegistry.notingScreenRecordNarrowing(
+                .init(text: try store.listNotebookGoals(notebookID: nil), isError: false), toolName: "list_goals"
+            )
+            #expect(goals.text.hasPrefix("Narrowed: \(note)\n\nNo Goals set yet."))
+
+            // A refusal, and a tool that lists nothing, stay as they are.
+            let refusal = MCPToolRegistry.notingScreenRecordNarrowing(.init(text: "Error: no", isError: true), toolName: "list_sources")
+            #expect(refusal.text == "Error: no")
+            let write = MCPToolRegistry.notingScreenRecordNarrowing(.init(text: "{\"id\": \"x\"}", isError: false), toolName: "create_notebook")
+            #expect(write.text == "{\"id\": \"x\"}")
+        }
+    }
+
+    @Test("The narrowed listings are registered tools, and include the ones a client finds a Notebook or source with")
+    func narrowedToolNamesAreRegistered() {
+        let registered = Set(MCPToolRegistry.shared.tools.map(\.name))
+        let narrowed = MCPToolRegistry.screenRecordNarrowedToolNames
+        #expect(narrowed.subtracting(registered).isEmpty, "unknown: \(narrowed.subtracting(registered).sorted())")
+        for name in [
+            "list_notebooks", "list_goals", "list_sources", "filter_sources", "search_sources_semantic",
+            "search_sources_keyword", "get_app_context", "list_notebook_sources",
+        ] {
+            #expect(narrowed.contains(name), "\(name)")
+        }
+        let writes = narrowed.filter { !MCPToolRegistry.isReadOnlyTool($0) }
+        #expect(writes.isEmpty, "only reads carry the note: \(writes.sorted())")
+    }
+
+    @Test("answered_by names the Mac by sync id and model, and its computer name only while the mode is off")
+    func answeringMacKeepsTheNameOffATake() {
+        let off = MCPDataStore.answeringMac(
+            app: "ForeverLM", build: "214", deviceID: "abcd2345", model: "Mac15,8",
+            computerName: "Zara's MacBook Pro", screenRecordAvailable: false, screenRecordOn: false
+        )
+        #expect(off["app"] as? String == "ForeverLM")
+        #expect(off["build"] as? String == "214")
+        #expect(off["device_id"] as? String == "abcd2345")
+        #expect(off["model"] as? String == "Mac15,8")
+        #expect(off["computer_name"] as? String == "Zara's MacBook Pro")
+        #expect(off["screen_record_mode"] == nil, "a learner who cannot film is never told the mode exists")
+
+        let adminOff = MCPDataStore.answeringMac(
+            app: "ForeverLM", build: "214", deviceID: "abcd2345", model: "Mac15,8",
+            computerName: "Zara's MacBook Pro", screenRecordAvailable: true, screenRecordOn: false
+        )
+        #expect(adminOff["screen_record_mode"] as? Bool == false)
+        #expect(adminOff["computer_name"] as? String == "Zara's MacBook Pro")
+
+        let filming = MCPDataStore.answeringMac(
+            app: "ForeverLM", build: "214", deviceID: "abcd2345", model: "Mac15,8",
+            computerName: "Zara's MacBook Pro", screenRecordAvailable: true, screenRecordOn: true
+        )
+        #expect(filming["screen_record_mode"] as? Bool == true)
+        #expect(filming["computer_name"] == nil, "a computer name can hold a person's name, and a take films the answer")
+        #expect(filming["device_id"] as? String == "abcd2345")
+        #expect(filming["model"] as? String == "Mac15,8")
+
+        // Nothing unknown is made up.
+        let bare = MCPDataStore.answeringMac(
+            app: "ForeverLM (Dev)", build: nil, deviceID: "", model: nil, computerName: "  ",
+            screenRecordAvailable: false, screenRecordOn: false
+        )
+        #expect(Set(bare.keys) == ["app"])
+    }
+
+    @Test("get_mcp_status and get_sync_status say which Mac answered and, while recording, that it is narrowed")
+    func statusSaysWhichMacAndWhetherNarrowed() async throws {
+        try await withCleanDefaults {
+            let store = MCPDataStore()
+            if !ScreenRecordMode.isForcedByBuild {
+                let status = try payload(try await store.getMCPStatus(toolCount: 1))
+                let mac = try #require(status["answered_by"] as? [String: Any])
+                #expect(mac["app"] as? String == ForeverLMRuntimeIdentity.displayName)
+                #expect(mac["screen_record_mode"] == nil)
+                #expect(status["narrowed"] == nil)
+            }
+
+            ScreenRecordMode.recordAdminStatus(true)
+            ScreenRecordMode.setEnabled(true)
+            let note = try #require(MCPDataStore.screenRecordNarrowedNote)
+            let mcpStatus = try await store.getMCPStatus(toolCount: 1)
+            let syncStatus = try await store.getSyncStatus()
+            for text in [mcpStatus, syncStatus] {
+                let status = try payload(text)
+                let mac = try #require(status["answered_by"] as? [String: Any])
+                #expect(mac["screen_record_mode"] as? Bool == true)
+                #expect(mac["computer_name"] == nil)
+                #expect(status["narrowed"] as? String == note)
+            }
+        }
+    }
+
+    @Test("What every client reads names no mode: the server instructions and the status tools speak only of narrowed")
+    func publicWordsNameNoMode() throws {
+        let instructions = Prompts.mcpServerInstructions
+        #expect(instructions.contains("never choose the closest match"))
+        #expect(instructions.contains("answered_by"))
+        for name in ["get_mcp_status", "get_sync_status"] {
+            let tool = try #require(MCPToolRegistry.shared.tools.first { $0.name == name })
+            #expect(tool.description.contains("answered_by"))
+            #expect(tool.description.contains("narrowed"))
+            #expect(!tool.description.localizedCaseInsensitiveContains("screen record"))
+            #expect(!tool.description.localizedCaseInsensitiveContains("recording"))
+        }
+        #expect(!instructions.localizedCaseInsensitiveContains("screen record"))
+    }
+}
+
 #endif
 
 @Suite("Screen record mode hides the account name")

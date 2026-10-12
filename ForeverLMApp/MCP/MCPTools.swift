@@ -188,7 +188,7 @@ final class MCPToolRegistry: @unchecked Sendable {
         let definitions = [
             MCPToolDef(
                 name: "get_mcp_status",
-                description: "Check whether the ForeverLM MCP server is active and ready to receive tool calls. Call this before other ForeverLM tools. From the Mac, icloud_account says which iCloud account its library syncs with (syncs_with_icloud, environment, and user_record_name, the account's container-scoped CloudKit user record name, the same kind of id list_teams gives for members, once CloudKit has answered); ForeverLM on the web uses it to ask only a Mac on the learner's own account.",
+                description: "Check whether the ForeverLM MCP server is active and ready to receive tool calls. Call this before other ForeverLM tools. From the Mac, icloud_account says which iCloud account its library syncs with (syncs_with_icloud, environment, and user_record_name, the account's container-scoped CloudKit user record name, the same kind of id list_teams gives for members, once CloudKit has answered); ForeverLM on the web uses it to ask only a Mac on the learner's own account. answered_by says which Mac answered, since another Mac signed in to the same account can hold the connection: app and build, device_id (that Mac's ForeverLM sync id), model, and computer_name, which is left out while its answers are narrowed. narrowed, when present, says that Mac lists only part of the library for now: when what the learner names is not listed, say you cannot see it from that Mac rather than choosing the closest match.",
                 inputSchema: ["type": "object", "properties": [:] as [String: Any], "required": [] as [String]]
             ),
             MCPToolDef(
@@ -212,7 +212,7 @@ final class MCPToolRegistry: @unchecked Sendable {
             ),
             MCPToolDef(
                 name: "get_sync_status",
-                description: "Check iCloud sync health for this Mac: how many local changes are still waiting to upload, how many records CloudKit has never acknowledged, quarantined conflicts, the container environment, whether iCloud is full, and how much of the learner's iCloud ForeverLM's PDFs, text and iCloud Drive files take up. Under the new iCloud store it also reports the library's move in `migration`: whether the library has moved and how this Mac joined, the seed's progress and the Mac moving it, why uploads pause, whether this Mac is offered This Mac holds my library, the rollback copy and the rollback build, the old iCloud library (when an older ForeverLM last wrote to it, what was kept from it or not applied, a question waiting for Apply or Keep), the byte parity report, the bytes each owned space holds, and whether Remove old iCloud data is available. Use this when the learner reports missing or stale items across devices, before concluding anything is lost.",
+                description: "Check iCloud sync health for this Mac: how many local changes are still waiting to upload, how many records CloudKit has never acknowledged, quarantined conflicts, the container environment, whether iCloud is full, and how much of the learner's iCloud ForeverLM's PDFs, text and iCloud Drive files take up. Under the new iCloud store it also reports the library's move in `migration`: whether the library has moved and how this Mac joined, the seed's progress and the Mac moving it, why uploads pause, whether this Mac is offered This Mac holds my library, the rollback copy and the rollback build, the old iCloud library (when an older ForeverLM last wrote to it, what was kept from it or not applied, a question waiting for Apply or Keep), the byte parity report, the bytes each owned space holds, and whether Remove old iCloud data is available. Use this when the learner reports missing or stale items across devices, before concluding anything is lost. answered_by names the Mac that answered, as in get_mcp_status, and narrowed, when present, says its listings show only part of the library for now.",
                 inputSchema: ["type": "object", "properties": [:] as [String: Any], "required": [] as [String]]
             ),
             MCPToolDef(
@@ -4926,7 +4926,8 @@ final class MCPToolRegistry: @unchecked Sendable {
         if Self.isMutatingTool(name), !isError {
             NotificationCenter.default.post(name: .foreverLMDataDidChange, object: nil)
         }
-        return outcome
+        // A listing narrowed to a take says so (MCPTools+Sources.swift).
+        return Self.notingScreenRecordNarrowing(outcome, toolName: name)
     }
 
     /// The tools whose answer is pictures as well as words. Nil for every
@@ -7595,6 +7596,11 @@ final class MCPDataStore {
             userRecordName: userRecordName,
             environment: CloudRuntimeAvailability.containerEnvironment.rawValue
         )
+        // Which Mac answered: two Macs on one Apple Account share the iCloud
+        // account above, and the relay serves whichever holds the tunnel
+        // (MCPTools+ICloudAccount.swift).
+        payload["answered_by"] = await Self.answeringMac()
+        if let note = Self.screenRecordNarrowedNote { payload["narrowed"] = note }
 
         // Search-index coverage, so the "every source is searchable" invariant can be
         // checked rather than assumed. `pending` counts active sources whose text has

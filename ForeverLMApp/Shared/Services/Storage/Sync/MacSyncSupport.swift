@@ -107,6 +107,12 @@ enum MacSyncDeviceID {
         return id
     }
 
+    /// The id this installation already holds, without drawing one: for saying which Mac this is
+    /// (`get_mcp_status`) before or without sync, which alone mints it.
+    static func stored() -> String? {
+        read().flatMap { isUsable($0) ? $0 : nil }
+    }
+
     static func isUsable(_ id: String) -> Bool {
         SyncStamp.isValidDeviceID(id) && id != reserved
     }
