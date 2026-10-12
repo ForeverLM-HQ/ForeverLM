@@ -113,18 +113,89 @@ enum KnowledgeMapSummaries {
     // MARK: The device's cache
 
     /// Summaries already written, by cluster key, kept on this Mac so the Map
-    /// opens with them. Derived and rewritable: nothing syncs it.
+    /// opens with them. Derived and rewritable: nothing syncs it. A JSON file
+    /// in this profile's own Application Support folder (`cacheFileURL`), read
+    /// and written off the main actor on one serial queue, in call order, so a
+    /// model made after another one saved reads what it saved.
+    ///
+    /// Until 2026-10-11 it lived in `UserDefaults` under `cacheKey`, about
+    /// 300 KB that CFPreferences re-merged and re-diffed for its KVO observers
+    /// on the first read after every defaults write in the process, and that
+    /// each Map model decoded on the main actor when it was made. The first
+    /// read moves an older build's copy here and removes the key
+    /// (`loadCache(fileURL:movingFrom:)`).
     static let cacheKey = "knowledgeMap.summaryCache.v1"
 
-    static func loadCache(_ defaults: UserDefaults = .standard) -> [String: Summary] {
-        guard let data = defaults.data(forKey: cacheKey),
+    /// Production, Dev and First Run each keep theirs beside their own library.
+    static var cacheFileURL: URL {
+        ForeverLMRuntimeIdentity.applicationSupportRootURL
+            .appendingPathComponent("Caches", isDirectory: true)
+            .appendingPathComponent("KnowledgeMapSummaries.json")
+    }
+
+    private static let cacheQueue = DispatchQueue(label: "com.foreverlm.knowledge-map-summaries", qos: .utility)
+
+    /// The cache as stored, read on the cache's queue after every save asked
+    /// for before it; empty when there is none or it cannot be read. A
+    /// unit-test host leaves the defaults it shares with the Dev app alone.
+    static func loadCache() async -> [String: Summary] {
+        await withCheckedContinuation { continuation in
+            cacheQueue.async {
+                let defaults: UserDefaults? = ForeverLMRuntimeIdentity.isTestHost ? nil : .standard
+                continuation.resume(returning: loadCache(fileURL: cacheFileURL, movingFrom: defaults))
+            }
+        }
+    }
+
+    /// Writes the cache on the cache's queue, after every read or save asked
+    /// for before it.
+    static func saveCache(_ cache: [String: Summary]) {
+        cacheQueue.async { writeCache(cache, to: cacheFileURL) }
+    }
+
+    /// The cache at `fileURL`, once the copy an older build kept in `defaults`
+    /// is moved there, byte for byte, and its key removed. A file already there
+    /// was written by this build, so a copy still in defaults is an older
+    /// build's, run since: the two are merged, its entries winning. A copy that
+    /// cannot be read, which no build could use either, is only removed. When
+    /// the file cannot be written, the key stays to be moved at the next read,
+    /// and this read answers with what both hold.
+    static func loadCache(fileURL: URL, movingFrom defaults: UserDefaults?) -> [String: Summary] {
+        let onFile = readCache(at: fileURL)
+        guard let defaults, let stored = defaults.data(forKey: cacheKey) else { return onFile }
+        guard let moved = try? JSONDecoder().decode([String: Summary].self, from: stored) else {
+            defaults.removeObject(forKey: cacheKey)
+            return onFile
+        }
+        let fileExists = FileManager.default.fileExists(atPath: fileURL.path)
+        let cache = fileExists ? onFile.merging(moved) { _, fromDefaults in fromDefaults } : moved
+        let contents: Data?
+        if fileExists {
+            contents = try? JSONEncoder().encode(cache)
+        } else {
+            contents = stored
+        }
+        guard let contents else { return cache }
+        do {
+            try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try contents.write(to: fileURL, options: .atomic)
+        } catch {
+            return cache
+        }
+        defaults.removeObject(forKey: cacheKey)
+        return cache
+    }
+
+    static func readCache(at fileURL: URL) -> [String: Summary] {
+        guard let data = try? Data(contentsOf: fileURL),
               let cache = try? JSONDecoder().decode([String: Summary].self, from: data) else { return [:] }
         return cache
     }
 
-    static func saveCache(_ cache: [String: Summary], _ defaults: UserDefaults = .standard) {
+    static func writeCache(_ cache: [String: Summary], to fileURL: URL) {
         guard let data = try? JSONEncoder().encode(cache) else { return }
-        defaults.set(data, forKey: cacheKey)
+        try? FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? data.write(to: fileURL, options: .atomic)
     }
 }
 

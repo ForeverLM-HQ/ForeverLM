@@ -606,6 +606,10 @@ struct ForeverLMApp: App {
                         // And the Planner's choice of Mac calendars, made
                         // beside that plugin, which hid the day without it.
                         AppleCalendarService.retirePlannerCalendarChoice()
+                        // And the preference keys nothing reads, the stale
+                        // type-named window frames most of all: every defaults
+                        // write made the next read diff them again.
+                        RetiredDefaultsCleanup.runAtLaunch()
                     }.value
                 }
                 .task {

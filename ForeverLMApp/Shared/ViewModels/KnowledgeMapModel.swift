@@ -183,9 +183,12 @@ final class KnowledgeMapModel {
     let memory = KnowledgeMapMemory()
 
     /// The model's summaries of clusters and regions, by cluster key
-    /// (`KnowledgeMapSummaries`), loaded from this Mac's cache.
-    private(set) var summaries: [String: KnowledgeMapSummaries.Summary] = KnowledgeMapSummaries.loadCache()
+    /// (`KnowledgeMapSummaries`), read from this Mac's cache off the main actor
+    /// when the model is made (`summaryCacheLoaded()`).
+    private(set) var summaries: [String: KnowledgeMapSummaries.Summary] = [:]
     private(set) var summariesRevision = 0
+    /// The cache read `init` starts.
+    @ObservationIgnored private var summaryCacheLoad: Task<Void, Never>?
     /// Whether ForeverLM writes a caption for what is in view as the learner
     /// explores. Off until they turn it on: every caption is a model call.
     var describesView = false {
@@ -384,6 +387,20 @@ final class KnowledgeMapModel {
             }
             imageObservers.append(RemoteRowObserver(token: observer))
         }
+        summaryCacheLoad = Task { [weak self] in
+            let cached = await KnowledgeMapSummaries.loadCache()
+            guard let self, !cached.isEmpty else { return }
+            // A summary written since the model was made is newer than the cache's.
+            self.summaries = cached.merging(self.summaries) { _, written in written }
+            self.summariesRevision &+= 1
+        }
+    }
+
+    /// Waits until the summaries this Mac cached are in `summaries`, so a
+    /// caller deciding which clusters need a model call never pays for one the
+    /// cache holds.
+    func summaryCacheLoaded() async {
+        await summaryCacheLoad?.value
     }
 
     /// Holds the observer of remote rows and lets it go with the model, so a

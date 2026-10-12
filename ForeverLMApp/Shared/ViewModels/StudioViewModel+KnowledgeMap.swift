@@ -259,6 +259,8 @@ extension StudioViewModel {
         let map = knowledgeMap
         let request = map.beginSummaryRequest()
         do { try await Task.sleep(for: .seconds(2)) } catch { return }
+        // A cluster the cache holds a summary for needs no model call.
+        await map.summaryCacheLoaded()
         guard map.isLatestSummaryRequest(request) else { return }
         let stale = map.staleClusters()
         guard !stale.isEmpty else { return }
