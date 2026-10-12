@@ -5438,6 +5438,50 @@ struct ChatToolSurfaceTests {
         #expect(study.isDisjoint(with: ["get_day_plan", "add_time_block", "revise_day_plan"]))
     }
 
+    @Test("Every chat can put what it names on the learner's screen")
+    func everyChatCanOpenThings() {
+        // 2026-10-11: asked to open a notebook, a chat said it had and nothing
+        // moved. A study chat had no tool that opens anything.
+        #expect(ReviewSessionManager.studySurfaceToolNames.isSuperset(of: ["open_in_app", "list_notebooks"]))
+        #expect(ReviewSessionManager.chatExcludedToolNames.isDisjoint(with: ["open_in_app", "list_notebooks"]))
+    }
+
+    @Test("A chat may say it did something only when a tool did it, and opening is a tool")
+    @MainActor
+    func chatClaimsOnlyWhatAToolDid() {
+        let openInApp = ReviewSessionManager.AppToolDefinition(
+            name: "open_in_app", description: "Show one of the learner's things", inputSchemaJSON: "{\"type\":\"object\"}"
+        )
+        let listSources = ReviewSessionManager.AppToolDefinition(
+            name: "list_sources", description: "List sources", inputSchemaJSON: "{\"type\":\"object\"}"
+        )
+        // The chat on a paper, a study kind: open_in_app reaches it now.
+        let study = ReviewSessionManager.nativeSystemPromptForTesting(
+            topic: "Ageing",
+            hasAttachedSource: true,
+            appTools: [openInApp, listSources],
+            mode: .deepRead
+        )
+        #expect(study.contains("only when a tool call in this turn did it"))
+        #expect(study.contains("call open_in_app with its id"))
+
+        let agent = ReviewSessionManager.nativeSystemPromptForTesting(
+            topic: "Ageing",
+            hasAttachedSource: false,
+            appTools: [openInApp, listSources]
+        )
+        #expect(agent.contains("call open_in_app with its id"))
+
+        // Without the tool the rule stands, and names no tool the chat lacks.
+        let withoutOpening = ReviewSessionManager.nativeSystemPromptForTesting(
+            topic: "Ageing",
+            hasAttachedSource: false,
+            appTools: [listSources]
+        )
+        #expect(withoutOpening.contains("only when a tool call in this turn did it"))
+        #expect(!withoutOpening.contains("open_in_app"))
+    }
+
     @Test("Nothing the study surface lists is excluded from the agent chat")
     func studySurfaceIsNeverExcluded() {
         let overlap = ReviewSessionManager.studySurfaceToolNames

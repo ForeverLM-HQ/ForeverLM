@@ -22,6 +22,8 @@ Chat is source-grounded. Add sources to the current context or open a scheduled 
 
 In a [notebook](/studio#inside-a-notebook), the chat reads the sources ticked in the notebook's Sources column, its own and those of any notebook you put into its context, and it can still reach the rest of your library when you ask it to. A new chat there starts in the notebook, an empty one offers **Suggest questions** and **Quiz me on it**, and what the chat makes (a Page, a course, a picture) is filed in the notebook.
 
+On the Mac, any chat can take you somewhere: "open this notebook", "show me that paper" or "go to my Bioelectricity notebook" opens it in the window, as clicking it would. Chat says it opened, made or changed something only when it actually did.
+
 You never have to wait for a reply to finish before saying the next thing. A message sent while the tutor is still writing waits, dimmed, under the reply and goes the moment it ends; the × on it hands it back to the composer. Stop ends the reply and returns anything waiting to the composer.
 
 ## Pictures from a source
