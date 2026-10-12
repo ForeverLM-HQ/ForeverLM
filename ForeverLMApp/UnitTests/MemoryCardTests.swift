@@ -958,10 +958,12 @@ struct MemoryCardTests {
         #expect(try await cardsToCheck(storage, defaults, at: now).isEmpty)
         #expect(try await storage.loadMemoryItems().isEmpty)
         // Drafted again from the same seed — or with the same front — it is
-        // not offered twice.
+        // not offered twice. Read against this test's card rows and clock: on
+        // the real clock and the shared defaults, card-a has no row and lapsed
+        // unseen 14 days after `keptAt` (2026-10-09), which frees its seed.
         let redrafted = try await storage.saveCardDrafts(
             [draft("A new wording of the same seed?", id: "card-b"), draft(seed: "highlight:h-9", id: "card-c")],
-            sourceID: "src-1", sourceTitle: "Mitochondria"
+            sourceID: "src-1", sourceTitle: "Mitochondria", stateDefaults: defaults, now: now
         )
         #expect(redrafted.added.isEmpty)
         #expect(Set(redrafted.alreadyDrafted.map(\.id)) == ["card-b", "card-c"])
