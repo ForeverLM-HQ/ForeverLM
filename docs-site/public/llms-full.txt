@@ -6013,6 +6013,13 @@ All notable changes to ForeverLM are documented here. Dates are in YYYY-MM-DD fo
 
 ForeverLM follows [semantic versioning](https://semver.org) against its public surface: the MCP tool contracts, the knowledge-base/sync format, and licensing compatibility. While the version is 0.x, minor releases may include breaking changes to that surface; patch releases never do.
 
+## 0.142.1 (build 217) — 2026-10-12
+
+**Highlights:**
+- **Screen record mode keeps the model chip.** The mode chooses what a recording shows and hides your name (a stand-in, Richard, takes its place); what the app can do stays the same.
+- **Fetching many transcripts at once no longer crashes ForeverLM.**
+- **Podcasts with a transcript are no longer listed as having no text yet.**
+
 ## 0.142.0 (build 216) — 2026-10-11
 
 **Highlights:**
