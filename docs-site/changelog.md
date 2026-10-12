@@ -4,6 +4,13 @@ All notable changes to ForeverLM are documented here. Dates are in YYYY-MM-DD fo
 
 ForeverLM follows [semantic versioning](https://semver.org) against its public surface: the MCP tool contracts, the knowledge-base/sync format, and licensing compatibility. While the version is 0.x, minor releases may include breaking changes to that surface; patch releases never do.
 
+## 0.143.3 (build 221) — 2026-10-12
+
+**Highlights:**
+- **A hover is a lighter grey than a selection.**
+- **A notebook's Sources column shows the Library itself**, to drag from or search.
+- **Studio's tiles put the word beside the icon.**
+
 ## 0.143.2 (build 220) — 2026-10-12
 
 **Highlights:**
