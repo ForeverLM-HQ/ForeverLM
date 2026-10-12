@@ -2468,8 +2468,15 @@ struct StudioArticle: Identifiable, Codable, Equatable {
         return shortAuthorDisplay
     }
 
-    /// `domain` as a row may print it: nil when empty or a file path.
-    var displayDomain: String? { Self.displayDomain(domain) }
+    /// `domain` as a row may print it: nil when empty or a file path. A source
+    /// made with an address that has no host gets that address as its domain
+    /// (`init(url:…)`: `URL(string: url)?.host ?? url`); for a book chapter it
+    /// is the file's place in the library ("Books/<book id>/Chapters/…"), a
+    /// relative path the absolute-path check below does not catch.
+    var displayDomain: String? {
+        if domain == url, URL(string: url)?.host == nil { return nil }
+        return Self.displayDomain(domain)
+    }
 
     /// Book chapters imported before the private container was retired keep
     /// their chapter folder's absolute path in `domain`, and
