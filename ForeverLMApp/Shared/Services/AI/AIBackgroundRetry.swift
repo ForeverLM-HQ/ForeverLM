@@ -398,35 +398,80 @@ actor AIRequestPacer {
         self.now = now
     }
 
-    func acquire(_ lane: Lane) async throws {
+    /// Wait for a slot on `lane`.
+    ///
+    /// Nonisolated on purpose: every read and write of `states` and `waiters`
+    /// happens inside an isolated method this awaits (`admit`, `park`,
+    /// `resumeWaiter`), so none of it rests on a hop back to the actor after
+    /// a waiter is resumed. Swift 6.4's optimizer dropped that hop when this
+    /// loop ran on the actor: the closure handed to the nonisolated(nonsending)
+    /// `withTaskCancellationHandler` lost its return to the actor after its
+    /// continuation resumed, the caller skips its own hop after such a call,
+    /// and the woken waiter ran the rest of the loop on the cooperative pool,
+    /// appending to `waiters` beside the actor. Release builds only; build 216
+    /// crashed in `Array.append` when twelve transcript formats queued on a
+    /// free lane at once.
+    nonisolated func acquire(_ lane: Lane) async throws {
         while true {
             try Task.checkCancellation()
-            var state = states[lane] ?? State(limit: lane.initialLimit)
-            if let until = state.cooldownUntil {
-                let remaining = until.timeIntervalSince(now())
-                if remaining > AIBackgroundRetry.maximumInlineWait {
-                    throw Self.coolingDown(lane, until: until, remaining: remaining)
+            switch try await admit(lane) {
+            case .admitted:
+                return
+            case .coolingDown(let remaining):
+                try await Task.sleep(for: .seconds(remaining))
+            case .full:
+                let id = UUID()
+                await withTaskCancellationHandler {
+                    await self.park(id, in: lane)
+                } onCancel: {
+                    Task { await self.resumeWaiter(id, in: lane) }
                 }
-                if remaining > 0 {
-                    try await Task.sleep(for: .seconds(remaining))
-                    continue
-                }
-                state.cooldownUntil = nil
             }
-            if state.inFlight < state.limit {
-                state.inFlight += 1
-                states[lane] = state
+        }
+    }
+
+    private enum Admission: Sendable {
+        case admitted
+        case coolingDown(Double)
+        case full
+    }
+
+    /// Take a slot if one is free. A cooldown longer than a retry's patience
+    /// is refused here, without a request.
+    private func admit(_ lane: Lane) throws -> Admission {
+        var state = states[lane] ?? State(limit: lane.initialLimit)
+        if let until = state.cooldownUntil {
+            let remaining = until.timeIntervalSince(now())
+            if remaining > AIBackgroundRetry.maximumInlineWait {
+                throw Self.coolingDown(lane, until: until, remaining: remaining)
+            }
+            if remaining > 0 { return .coolingDown(remaining) }
+            state.cooldownUntil = nil
+        }
+        if state.inFlight < state.limit {
+            state.inFlight += 1
+            states[lane] = state
+            return .admitted
+        }
+        states[lane] = state
+        return .full
+    }
+
+    /// Wait until `release` or a cancel resumes this waiter.
+    ///
+    /// The check and the append are one step on the actor, so nothing slips
+    /// between them: a slot freed since `admit` sends the caller straight back
+    /// to try again, and so does a cancel that landed first, whose
+    /// `resumeWaiter` would otherwise find nothing to resume and leave this
+    /// waiting forever.
+    private func park(_ id: UUID, in lane: Lane) async {
+        await withCheckedContinuation { continuation in
+            let state = states[lane] ?? State(limit: lane.initialLimit)
+            if Task.isCancelled || state.inFlight < state.limit {
+                continuation.resume()
                 return
             }
-            states[lane] = state
-            let id = UUID()
-            await withTaskCancellationHandler {
-                await withCheckedContinuation { continuation in
-                    waiters[lane, default: []].append((id, continuation))
-                }
-            } onCancel: {
-                Task { await self.resumeWaiter(id, in: lane) }
-            }
+            waiters[lane, default: []].append((id, continuation))
         }
     }
 
@@ -459,6 +504,7 @@ actor AIRequestPacer {
 
     func limit(for lane: Lane) -> Int { states[lane]?.limit ?? lane.initialLimit }
     func cooldownUntil(for lane: Lane) -> Date? { states[lane]?.cooldownUntil }
+    func waiterCount(for lane: Lane) -> Int { waiters[lane]?.count ?? 0 }
 
     private func resumeWaiter(_ id: UUID, in lane: Lane) {
         guard var list = waiters[lane], let index = list.firstIndex(where: { $0.id == id }) else { return }

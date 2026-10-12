@@ -95,6 +95,79 @@ struct AIBackgroundRetryTests {
         #expect(await pacer.limit(for: lane) == 2)
     }
 
+    /// Build 216 crashed in `Array.append` inside `acquire` when twelve
+    /// transcript formats queued on a free lane: a woken waiter ran on past
+    /// the actor and appended to the waiter list beside it.
+    @Test("Many calls on one free lane hold at most two at once, all get through, and cancelled ones stop", .timeLimit(.minutes(1)))
+    func pacerUnderConcurrentLoad() async throws {
+        let pacer = AIRequestPacer()
+        let lane = AIRequestPacer.Lane(model: "acme/model-free:free", isFree: true)
+        // A failure that is not a rate limit leaves the limit at two throughout.
+        let failure = AIError.httpError(status: 502, message: "bad gateway (502)", retryAfterSeconds: nil)
+        let gauge = Gauge()
+        let calls = (0..<300).map { _ in
+            Task { () -> Bool in
+                do {
+                    try await pacer.acquire(lane)
+                } catch {
+                    #expect(error is CancellationError)
+                    return false
+                }
+                await gauge.enter()
+                await Task.yield()
+                await gauge.leave()
+                await pacer.release(lane, after: failure)
+                return true
+            }
+        }
+        var cancelled = Set<Int>()
+        for index in stride(from: 0, to: calls.count, by: 3) {
+            calls[index].cancel()
+            cancelled.insert(index)
+            await Task.yield()
+        }
+        for (index, call) in calls.enumerated() {
+            let admitted = await call.value
+            if !cancelled.contains(index) { #expect(admitted, "call \(index) was never let through") }
+        }
+        let peak = await gauge.peak
+        #expect(peak >= 1 && peak <= 2)
+        #expect(await pacer.waiterCount(for: lane) == 0)
+
+        // No slot leaked: two calls get in, and a third waits.
+        try await pacer.acquire(lane)
+        try await pacer.acquire(lane)
+        let third = Task { try await pacer.acquire(lane) }
+        while await pacer.waiterCount(for: lane) == 0 { await Task.yield() }
+        third.cancel()
+        await #expect(throws: CancellationError.self) { try await third.value }
+    }
+
+    @Test("A cancelled waiter stops waiting and takes no slot", .timeLimit(.minutes(1)))
+    func cancelledWaiterStops() async throws {
+        let pacer = AIRequestPacer()
+        let lane = AIRequestPacer.Lane(model: "acme/model-free:free", isFree: true)
+        try await pacer.acquire(lane)
+        try await pacer.acquire(lane)
+        let waiter = Task { try await pacer.acquire(lane) }
+        while await pacer.waiterCount(for: lane) == 0 { await Task.yield() }
+        waiter.cancel()
+        await #expect(throws: CancellationError.self) { try await waiter.value }
+        #expect(await pacer.waiterCount(for: lane) == 0)
+
+        // A call cancelled before it asks stops too.
+        let early = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            try await pacer.acquire(lane)
+        }
+        await #expect(throws: CancellationError.self) { try await early.value }
+
+        // Both slots are still the first two calls': one release lets one more in.
+        await pacer.release(lane, after: nil)
+        try await pacer.acquire(lane)
+        #expect(await pacer.waiterCount(for: lane) == 0)
+    }
+
     @Test("OpenRouter's X-RateLimit-Reset becomes the wait, from the header or the error body")
     func rateLimitReset() throws {
         let now = Date(timeIntervalSince1970: 1_790_000_000)
@@ -363,6 +436,17 @@ private actor Counter {
         value += 1
         return value
     }
+}
+
+/// How many calls hold a slot at once, and the most there ever were.
+private actor Gauge {
+    private(set) var current = 0
+    private(set) var peak = 0
+    func enter() {
+        current += 1
+        peak = max(peak, current)
+    }
+    func leave() { current -= 1 }
 }
 
 private final class Clock: @unchecked Sendable {
