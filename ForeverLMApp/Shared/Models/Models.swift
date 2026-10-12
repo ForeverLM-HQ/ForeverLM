@@ -4399,7 +4399,7 @@ struct LearningGoalItem: Identifiable, Codable, Equatable {
     // Learning Companion fields (nil on legacy Schedule items).
     var origin: String?       // LearningGoalItemOrigin raw value
     var reviewState: String?  // LearningGoalItemReviewState raw value
-    var relevance: Double?    // discovery similarity score, for ranking/justification
+    var relevance: Double?    // discovery's rank score, for ordering suggestions; no meaning on its own
     var lastQuizzedAt: Date?  // last time this item appeared in a daily quiz
     var quizCount: Int?       // number of daily quizzes this item has appeared in
     var lastScore: Double?    // most recent quiz score (0..1), drives spaced resurfacing

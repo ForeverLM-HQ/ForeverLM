@@ -558,6 +558,18 @@ extension KnowledgeStore {
         try markRecordChanged(entity: .reviewSession, logicalKey: sessionID)
     }
 
+    /// The Notebook or Goal a session is filed under, nil when it is loose.
+    func loadReviewSessionGoalID(sessionID: String) throws -> String? {
+        var result: String?
+        try queryBind(
+            "SELECT goal_id FROM review_sessions WHERE id = ? LIMIT 1",
+            bind: { stmt in bind(stmt, 1, sessionID) }
+        ) { stmt in
+            result = self.string(stmt, 0).flatMap { $0.isEmpty ? nil : $0 }
+        }
+        return result
+    }
+
     /// Remember which of a chat's sources had their text in the model's
     /// context, so the chat reopens holding them (schema 104). Local state
     /// about this Mac's prompt, like the history digest below: no sync

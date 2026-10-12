@@ -102,8 +102,7 @@ extension MCPDataStore {
                 topic: discoveryText,
                 excluding: Set(homeSourceIDs),
                 sinceReferenceTimestamp: nil,
-                limit: companionDiscoveryLimit,
-                relativeMargin: companionRelativeMargin
+                limit: companionDiscoveryLimit
             )
             brief["related_library_sources"] = try directionSourceRows(related.map(\.sourceID))
         } catch {

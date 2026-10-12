@@ -800,6 +800,27 @@ private struct InternalReviewPanelContent: View {
             } else {
                 manager.readerBesideChatOpener = nil
             }
+            // A Notebook this chat made has taken it in: the window opens the
+            // Notebook with the chat in it, its turn still running. A chat in
+            // the window's second slot is filed and stays where it is, so the
+            // chat in the first slot is never swapped out from under it.
+            if let windowState {
+                manager.notebookWithThisChatOpener = { @MainActor notebookID, sessionID in
+                    // Made a moment ago over the tool rail, so neither the
+                    // Notebook nor this chat's filing has reached the model yet.
+                    await vm.loadLearningGoals()
+                    if !vm.reviewSessionLinks.contains(where: { $0.id == sessionID }) {
+                        await vm.loadReviewSessionLinks()
+                    }
+                    if windowState.chatSessionID == sessionID {
+                        await vm.refileChat(sessionID, inNotebook: notebookID, in: windowState)
+                    } else {
+                        await vm.moveReviewSession(sessionID, toNotebook: notebookID)
+                    }
+                }
+            } else {
+                manager.notebookWithThisChatOpener = nil
+            }
             manager.walkthroughReaderShowsSource = { sourceID in
                 (windowState?.readerSourceIDsOnScreen.contains(sourceID) ?? false)
                     || (windowState?.linkedArtifactIDsOnScreen.contains(sourceID) ?? false)

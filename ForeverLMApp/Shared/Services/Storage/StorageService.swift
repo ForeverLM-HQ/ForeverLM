@@ -4204,6 +4204,10 @@ actor StorageService {
         try knowledgeStore().loadReviewSessionLoadedSourceIDs(sessionID: sessionID)
     }
 
+    func loadReviewSessionGoalID(sessionID: String) throws -> String? {
+        try knowledgeStore().loadReviewSessionGoalID(sessionID: sessionID)
+    }
+
     // The history digest is a local cache of the synced exchanges, so neither
     // accessor schedules a CloudKit pass.
     func loadReviewSessionHistoryDigest(sessionID: String) throws -> ReviewSessionHistoryDigest? {

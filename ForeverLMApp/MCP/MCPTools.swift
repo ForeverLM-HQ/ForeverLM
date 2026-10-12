@@ -5826,7 +5826,8 @@ final class MCPToolRegistry: @unchecked Sendable {
                     discover: arguments["discover"] as? Bool ?? false,
                     researchQuestions: arguments["research_questions"] as? [String],
                     repository: arguments["repository"] as? String,
-                    allowDuplicate: arguments["allow_duplicate"] as? Bool ?? false
+                    allowDuplicate: arguments["allow_duplicate"] as? Bool ?? false,
+                    hostSessionID: hostSessionID
                 )
             case "update_notebook":
                 return try await store.updateNotebook(
@@ -7180,20 +7181,25 @@ final class MCPDataStore {
     // Tuning for Learning Companion source discovery (used by MCPTools+Companion.swift;
     // stored properties must live in the primary class declaration).
     //
-    // Relevance is gated *relative to the best match*, not by an absolute cosine. The
-    // contextual embedding is anisotropic — unrelated texts still score ~0.8 — so a
-    // fixed floor either admits everything or is brittle. Instead we keep only sources
-    // within `companionRelativeMargin` of the top-scoring source, so a topic with no
-    // genuinely related material yields few or no suggestions rather than a full dozen
-    // near-random ones. The margin is a similarity gap, calibrated to the model's
-    // roughly 0.78–0.95 dynamic range.
-    let companionRelativeMargin: Float = 0.05
+    // The library's own hybrid search (`SourceSearchEngine`) lists the candidates and a
+    // model keeps the ones that fit. No similarity gate can do the keeping: the
+    // contextual embedding is anisotropic, so a topic's twelve nearest chunks scored
+    // 0.922–0.929 whether they came from a paper on the topic or one on psychedelics and
+    // terahertz waves (product owner, 2026-10-11: "it finds weird sources that are barely
+    // related").
+    let companionDiscoveryPool = 24
     let companionDiscoveryLimit = 12
+    /// Which of a discovery pass's candidates fit the Notebook or Goal, by
+    /// candidate id. Nil is the live model (`liveLibraryFitJudge`); a test
+    /// hands in its own verdict.
+    typealias LibraryFitJudge = @Sendable (JournalMatchingNotebook, [JournalMatchingCandidate]) async throws -> Set<String>
+    let libraryFitJudge: LibraryFitJudge?
 
     init(
         dbPath: String? = nil,
         sourceEmbeddingProvider: SourceEmbeddingProvider? = nil,
         explainerBackend: ExplainerModelBackend? = nil,
+        libraryFitJudge: LibraryFitJudge? = nil,
         cardStateDefaults: UserDefaults = .standard,
         syncGeneration: SyncGeneration = ForeverLMRuntimeIdentity.syncGeneration
     ) {
@@ -7201,6 +7207,7 @@ final class MCPDataStore {
         self.dbPathOverride = dbPath
         self.sourceEmbeddingProvider = sourceEmbeddingProvider
         self.explainerBackend = explainerBackend
+        self.libraryFitJudge = libraryFitJudge
         self.cardStateDefaults = cardStateDefaults
         if let dbPath {
             self.notebookFileStorage = StorageService(

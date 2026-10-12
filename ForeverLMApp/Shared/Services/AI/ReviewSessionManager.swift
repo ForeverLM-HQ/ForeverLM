@@ -11120,7 +11120,25 @@ final class ReviewSessionManager {
         if call.name == "save_card_drafts", !result.isError {
             return AppToolResult(text: ChatSavedCards.notingShownInChat(result.text), isError: false)
         }
+        if call.name == "create_notebook", !result.isError {
+            await followNotebookThisChatMade()
+        }
         return result
+    }
+
+    /// A Notebook this chat made took the chat in (`create_notebook` files the
+    /// chat that called it), so the chat follows: its scope becomes the
+    /// Notebook's for the rest of the turn, and its window opens the Notebook
+    /// with this chat in it (product owner, 2026-10-11: "it should JUST open
+    /// that notebook and move the chat to there"). Read back from the chat's
+    /// record rather than the tool's words, so a Notebook made without
+    /// taking the chat in moves nothing.
+    private func followNotebookThisChatMade() async {
+        guard let sessionID,
+              let notebookID = try? await storage.loadReviewSessionGoalID(sessionID: sessionID),
+              notebookID != notebookSourceScopeID else { return }
+        setNotebookScope(notebookID)
+        await notebookWithThisChatOpener?(notebookID, sessionID)
     }
 
     /// The tool, the watchdog or Stop, whichever comes first, and nothing
@@ -11911,6 +11929,11 @@ final class ReviewSessionManager {
     /// pane, nil for a chat with no Studio window around it. True when the
     /// source was opened.
     @ObservationIgnored var readerBesideChatOpener: (@MainActor (String) async -> Bool)?
+
+    /// How this chat's window opens a Notebook with this chat in it, by
+    /// Notebook and chat id; set by the pane, nil for a chat with no Studio
+    /// window around it, which is filed in the Notebook and stays where it is.
+    @ObservationIgnored var notebookWithThisChatOpener: (@MainActor (_ notebookID: String, _ sessionID: String) async -> Void)?
 
     /// Whether a Reader beside this chat shows `sourceID` as pages an outline
     /// can be drawn on — opening it there first when none does. A figure the

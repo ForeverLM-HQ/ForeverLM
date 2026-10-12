@@ -1457,102 +1457,142 @@ extension MCPDataStore {
         return goal
     }
 
-    /// Runs topic-similarity discovery and inserts matches as pending suggestions.
+    /// Finds library sources that fit the goal and inserts them as pending suggestions.
     /// When incremental, only sources added since the goal's last discovery pass are considered.
     @discardableResult
     func runCompanionDiscovery(goal: LearningGoalRecord, excluding: Set<String>, incremental: Bool) async throws -> Int {
         let topic = (goal.topic ?? goal.title).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !topic.isEmpty else { return 0 }
         let since = incremental ? goal.lastDiscoveryAt?.timeIntervalSinceReferenceDate : nil
-        let matches = try await companionDiscover(
+        let candidates = try await companionDiscover(
             topic: topic,
             excluding: excluding,
             sinceReferenceTimestamp: since,
-            limit: companionDiscoveryLimit,
-            relativeMargin: companionRelativeMargin
+            limit: companionDiscoveryPool
         )
+        let fitting = try await sourcesFitting(goal: goal, candidates: candidates.map(\.sourceID))
+        let matches = Array(candidates.filter { fitting.contains($0.sourceID) }.prefix(companionDiscoveryLimit))
         let added = try knowledgeStore().addDiscoveredCompanionSources(goalID: goal.id, discovered: matches)
         try knowledgeStore().setCompanionDiscoveryStamp(goalID: goal.id, at: Date())
         return added
     }
 
+    /// The library's nearest sources to `topic`, best first: the hybrid search the
+    /// app's own search runs (`SourceSearchEngine`), so a paper titled with the
+    /// topic's own words is never outranked by one whose single chunk happens to sit
+    /// near it. Relevance is the search's fused score, which orders hits within this
+    /// one search and means nothing on its own; whether a candidate belongs is
+    /// `sourcesFitting`'s call.
     func companionDiscover(
         topic: String,
         excluding: Set<String>,
         sinceReferenceTimestamp: Double?,
-        limit: Int,
-        relativeMargin: Float
+        limit: Int
     ) async throws -> [(sourceID: String, relevance: Double)] {
         let embeddingProvider = sourceEmbeddingProvider ?? liveSourceEmbeddingProvider
         let queryVector = try await embeddingProvider(topic)
         let store = try knowledgeStore()
-        let ambientExcludedSourceIDs = try store.knowledgeSearchExcludedSourceIDs()
 
-        // Rank-based retrieval (no absolute floor): the relative cutoff below decides
-        // relevance, since the contextual model's absolute cosines are not comparable
-        // across queries.
-        var bestBySource: [String: Float] = [:]
-        // Served from the process-shared in-memory index — one BLAS pass, rather than
-        // re-reading every chunk vector out of SQLite for this one call.
-        let chunkResults = StorageService.searchChunkVectors(
+        // An incremental pass ranks within the sources added since the last one,
+        // so the subset gets its own ranking rather than whatever fragment of it
+        // survives a library-wide top-N.
+        var restrictedTo: Set<String>?
+        if let since = sinceReferenceTimestamp {
+            let recent = try withDB { db -> Set<String> in
+                Set(try query(db, "SELECT id FROM source_projection WHERE date_added > ?", params: [since])
+                    .compactMap { $0["id"] as? String })
+            }
+            guard !recent.isEmpty else { return [] }
+            restrictedTo = recent
+        }
+
+        // Over-fetch by the exclusion count so a goal already holding many of the
+        // nearest sources still yields a full pool of new ones.
+        let hits = StorageService.searchSources(
+            queryText: topic,
             queryVector: queryVector,
-            topK: 120,
+            limit: min(limit + excluding.count, SourceSearchEngine.maximumCandidatePool),
             threshold: EmbeddingSettings.similarityThreshold,
+            restrictedTo: restrictedTo,
             using: store
         )
-        for result in chunkResults {
-            bestBySource[result.sourceId] = max(bestBySource[result.sourceId] ?? -.greatestFiniteMagnitude, result.score)
-        }
-        if bestBySource.isEmpty {
-            let sourceResults = try store.findSimilar(
-                queryVector: queryVector,
-                entityType: .source,
-                model: StorageService.sourceEmbeddingModel,
-                topK: max(limit * 3, 24),
-                threshold: EmbeddingSettings.similarityThreshold
+        return Array(
+            hits.lazy
+                .filter { !excluding.contains($0.sourceId) }
+                .prefix(limit)
+                .map { (sourceID: $0.sourceId, relevance: Double($0.score)) }
+        )
+    }
+
+    /// The candidates a model judges to fit the goal. Library discovery asks the
+    /// question Journal Watch asks of a week's feed articles — does this item's
+    /// own subject serve what this Notebook is about, not merely share its field —
+    /// so it asks it the same way, on the same task's model.
+    func sourcesFitting(goal: LearningGoalRecord, candidates: [String]) async throws -> Set<String> {
+        guard !candidates.isEmpty else { return [] }
+        let metadata = try withDB { db -> [String: [String: Any]] in
+            let placeholders = candidates.map { _ in "?" }.joined(separator: ",")
+            let rows = try query(db, """
+                SELECT id, title, author, journal, COALESCE(parent_group_title, parent_group) AS group_name, domain
+                FROM source_projection WHERE id IN (\(placeholders))
+            """, params: candidates)
+            return Dictionary(
+                rows.compactMap { row in (row["id"] as? String).map { ($0, row) } },
+                uniquingKeysWith: { first, _ in first }
             )
-            for result in sourceResults {
-                bestBySource[result.id] = max(bestBySource[result.id] ?? -.greatestFiniteMagnitude, result.score)
-            }
         }
+        let openings = try sourceContentByID(candidates, perSourceLimit: 1_200)
+        let items = candidates.compactMap { id -> JournalMatchingCandidate? in
+            guard let meta = metadata[id], let title = meta["title"] as? String else { return nil }
+            // Where it appeared, as a feed article names its journal or blog.
+            let source = [meta["journal"], meta["group_name"], meta["domain"]]
+                .compactMap { ($0 as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .first { !$0.isEmpty }
+            return JournalMatchingCandidate(
+                id: id,
+                title: title,
+                summary: openings[id],
+                source: source,
+                authors: meta["author"] as? String
+            )
+        }
+        guard !items.isEmpty else { return [] }
+        let held = Set(candidates)
+        let sampleIDs = goal.items.filter { $0.isApproved && !held.contains($0.sourceID) }.prefix(12).map(\.sourceID)
+        let sampleTitles = try sourceMetadataByID(Array(sampleIDs)).values.compactMap { $0["title"] as? String }
+        let notebook = JournalMatchingNotebook(
+            id: goal.id,
+            title: goal.title,
+            instructions: goal.description,
+            researchQuestions: goal.researchQuestions ?? [],
+            topic: goal.topic,
+            sampleSourceTitles: sampleTitles
+        )
+        let judge = libraryFitJudge ?? Self.liveLibraryFitJudge
+        do {
+            return try await judge(notebook, items)
+        } catch let error as MCPError {
+            throw error
+        } catch {
+            // Said as discovery's failure, which every caller reports and moves
+            // past: the Notebook or Goal it ran for is already saved.
+            throw MCPError.invalidInput("the model judging which sources fit failed (\(error.localizedDescription))")
+        }
+    }
 
-        let candidates: [(id: String, score: Float)] = bestBySource.map { (id: $0.key, score: $0.value) }
-        let filtered: [(id: String, score: Float)] = candidates.filter {
-            !excluding.contains($0.id) && !ambientExcludedSourceIDs.contains($0.id)
+    static let liveLibraryFitJudge: LibraryFitJudge = { notebook, candidates in
+        guard let config = KeychainService.resolveConfig(for: .journalArticleMatching) else {
+            throw MCPError.invalidInput(
+                KeychainService.backgroundAIUnavailableMessage(for: .journalArticleMatching)
+                    ?? "No model is available to judge which sources fit. Check Settings › AI Usage."
+            )
         }
-        var ranked: [(id: String, score: Float)] = filtered.sorted { lhs, rhs in
-            if lhs.score == rhs.score { return lhs.id < rhs.id }
-            return lhs.score > rhs.score
-        }
-        guard let topScore = ranked.first?.score else { return [] }
-        // Relative cutoff: keep only sources close to the best match. When nothing is
-        // genuinely related, the best match is itself weak and few (or no) others fall
-        // within the margin, so discovery stays quiet instead of suggesting a dozen
-        // near-random sources.
-        let floor = topScore - relativeMargin
-        ranked = ranked.filter { $0.score >= floor }
-        guard !ranked.isEmpty else { return [] }
-
-        // Keep only active sources, optionally filtered to those added since the last pass.
-        let candidateIDs: [String] = ranked.map(\.id)
-        let allowed = try withDB { db -> Set<String> in
-            let placeholders = candidateIDs.map { _ in "?" }.joined(separator: ",")
-            var sql = "SELECT id FROM source_projection WHERE id IN (\(placeholders))"
-            var params: [Any] = candidateIDs
-            if let since = sinceReferenceTimestamp {
-                sql += " AND date_added > ?"
-                params.append(since)
-            }
-            let rows = try query(db, sql, params: params)
-            return Set(rows.compactMap { $0["id"] as? String })
-        }
-
-        var results: [(sourceID: String, relevance: Double)] = []
-        for entry in ranked where allowed.contains(entry.id) {
-            results.append((sourceID: entry.id, relevance: Double(entry.score)))
-            if results.count >= limit { break }
-        }
-        return results
+        let verdicts = try await AIService().matchJournalArticles(
+            notebooks: [notebook],
+            candidates: candidates,
+            config: config
+        )
+        return Set(verdicts.filter { $0.notebookID == notebook.id }.map(\.itemID))
     }
 
     func existingCompanionSessionID(goalID: String, on day: Date, calendar: Calendar) throws -> String? {

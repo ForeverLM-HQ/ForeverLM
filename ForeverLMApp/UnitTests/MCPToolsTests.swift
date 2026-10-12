@@ -3621,6 +3621,64 @@ struct MCPDataStoreTests {
         }
     }
 
+    @Test("Discovery suggests only what the model judges to fit, and a Notebook made from a chat takes the chat in")
+    func discoveryKeepsJudgedFitAndFilesTheCallingChat() async throws {
+        let (_, tmpPath) = try makeStore()
+        defer { cleanup(tmpPath) }
+        let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
+
+        try insertSource(dbPath: dbPath, id: "source-a", title: "Partial Reprogramming Overview",
+                         content: "Yamanaka factors and cellular rejuvenation.")
+        try insertSource(dbPath: dbPath, id: "source-b", title: "Epigenetic Clocks in Aging",
+                         content: "Age reversal biomarkers and methylation clocks.")
+        try insertSource(dbPath: dbPath, id: "source-c", title: "Completely Different Topic",
+                         content: "Compiler optimization and static analysis.")
+        // Every source sits near the topic, as the anisotropic embedding has
+        // it, so similarity alone would suggest all three.
+        try insertEmbedding(dbPath: dbPath, entityId: "source-a", vector: [1, 0, 0])
+        try insertEmbedding(dbPath: dbPath, entityId: "source-b", vector: [0.95, 0.05, 0])
+        try insertEmbedding(dbPath: dbPath, entityId: "source-c", vector: [0.93, 0.07, 0])
+
+        let judged = JudgedCandidates()
+        let store = MCPDataStore(
+            dbPath: dbPath,
+            sourceEmbeddingProvider: { _ in [1, 0, 0] },
+            libraryFitJudge: { notebook, candidates in
+                await judged.record(notebook: notebook.title, candidates: candidates.map(\.title))
+                return Set(candidates.map(\.id).filter { $0 != "source-c" })
+            }
+        )
+        let ks = try store.knowledgeStore()
+        try ks.createReviewSession(id: "chat-host", topic: "Make me a notebook on reprogramming", sourceIDs: [])
+
+        let result = try await store.createNotebook(
+            title: "Partial reprogramming", description: nil, topic: nil, endDateString: "",
+            sourceIDs: [], dailyTarget: nil, discover: true, hostSessionID: "chat-host"
+        )
+
+        let notebookID = try #require(result.split(separator: " ").dropFirst(2).first.map(String.init))
+        let notebook = try #require(try ks.loadLearningGoal(notebookID))
+        #expect(Set(notebook.items.filter(\.isPendingApproval).map(\.sourceID)) == ["source-a", "source-b"])
+        #expect(await judged.notebook == "Partial reprogramming")
+        #expect(await judged.candidates.contains("Completely Different Topic"))
+
+        // The chat that asked is filed in the Notebook, and its reply is told
+        // not to list or show what it made.
+        #expect(try ks.loadReviewSessionGoalID(sessionID: "chat-host") == notebookID)
+        #expect(result.contains("filed this chat in it"))
+        #expect(result.contains("Do not list its sources or the suggestions"))
+        #expect(!result.contains("Pass notebook_id"))
+    }
+
+    private actor JudgedCandidates {
+        var notebook: String?
+        var candidates: [String] = []
+        func record(notebook: String, candidates: [String]) {
+            self.notebook = notebook
+            self.candidates = candidates
+        }
+    }
+
     @Test("searchSourcesSemantic filters a relative-date meeting lookup deterministically")
     func searchSourcesSemanticFiltersMeetingDateWithoutEmbeddingGuesswork() async throws {
         let (_, tmpPath) = try makeStore()

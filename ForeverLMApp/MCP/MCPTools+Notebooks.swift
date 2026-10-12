@@ -84,7 +84,8 @@ extension MCPDataStore {
         discover: Bool,
         researchQuestions: [String]? = nil,
         repository: String? = nil,
-        allowDuplicate: Bool = false
+        allowDuplicate: Bool = false,
+        hostSessionID: String? = nil
     ) async throws -> String {
         let givenTitle = (title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedEnd = endDateString.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -160,6 +161,21 @@ extension MCPDataStore {
             } catch let error as MCPError {
                 discoveryNote = "\nDiscovery skipped: \(error.errorDescription ?? "unavailable")."
             }
+        }
+        // Made from a chat, the Notebook takes that chat in, and the chat's
+        // window opens the Notebook with the chat still in it
+        // (`ReviewSessionManager.followNotebookThisChatMade`) — rather than a
+        // reply that lists what was made (product owner, 2026-10-11: "it should
+        // JUST open that notebook and move the chat to there").
+        if let hostChatID = try resolvedHostSessionID(hostSessionID) {
+            try store.updateReviewSessionGoal(sessionID: hostChatID, goalID: goal.id)
+            let suggestionLine = discoveredCount > 0
+                ? " \(discoveredCount) more source\(discoveredCount == 1 ? "" : "s") from the library that fit wait in its Sources as suggestions for the learner to keep or drop there."
+                : ""
+            return """
+            Created Notebook \(goal.id) ("\(trimmedTitle)"), filed this chat in it, and the window now shows the Notebook with this chat in it. Seeds: \(seeds.count).\(suggestionLine)\(discoveryNote)
+            Tell the learner in one short sentence that the Notebook is open, by its title, and carry on with what they asked. Do not list its sources or the suggestions, print the Notebook's id, or name a tool. The id is for notebook_id in later calls only.
+            """
         }
         let refreshed = try store.loadLearningGoal(goal.id) ?? goal
         return """
