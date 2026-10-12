@@ -781,7 +781,9 @@ struct NotebookStudioTileControl: View {
 }
 
 /// A Studio tile's face. As a chip, Gemini's tile: its glyph in its hue over
-/// a pale wash of it, its word beneath, a chevron for a tile that picks
+/// a pale wash of it, its word beside it on the same line (product owner,
+/// 2026-10-12: the word always under the icon "looks weird"), a chevron at
+/// the trailing edge for a tile that picks
 /// first, a spinner while what it makes is being written; greyed while it
 /// cannot make. As the floating Add note, Gemini's dark pill with a shadow.
 private struct NotebookStudioTileLabel: View {
@@ -818,26 +820,23 @@ private struct NotebookStudioTileLabel: View {
     }
 
     private var chip: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .top, spacing: 0) {
-                glyph(size: 14)
-                    .foregroundStyle(tile.hue.glyph)
-                Spacer(minLength: 4)
-                if tile.isMenu {
-                    Image(systemName: "chevron.down")
-                        .zoomedSystemFont(size: 7.5, weight: .bold)
-                        .foregroundStyle(.secondary)
-                        .padding(.top, 2)
-                        .accessibilityHidden(true)
-                }
-            }
+        HStack(spacing: 5) {
+            glyph(size: 14)
+                .foregroundStyle(tile.hue.glyph)
             Text(tile.title)
                 .zoomedSystemFont(size: 12, weight: .medium)
                 .foregroundStyle(.primary)
                 .lineLimit(1)
-                .minimumScaleFactor(0.85)
+                .minimumScaleFactor(0.75)
+            Spacer(minLength: 0)
+            if tile.isMenu {
+                Image(systemName: "chevron.down")
+                    .zoomedSystemFont(size: 7.5, weight: .bold)
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+            }
         }
-        .padding(.horizontal, 11)
+        .padding(.horizontal, 9)
         .padding(.vertical, 9)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
