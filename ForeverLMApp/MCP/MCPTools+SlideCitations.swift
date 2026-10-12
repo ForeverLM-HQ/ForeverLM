@@ -39,7 +39,7 @@ extension MCPDataStore {
             || StudioViewModel.supportsLinkDiscovery(article)
         guard readsCitations else {
             throw MCPError.invalidInput(
-                "Source candidates are read from a video's slides, a meeting's transcript and notes, a paper's reference list, or a web article's links; '\(article.title)' (id: \(sourceID)) is a \(article.sourceType.rawValue) source."
+                "Source candidates are read from a video's slides, a meeting's transcript and notes, a paper's reference list, or a web article's links; '\(article.title)' is a \(article.sourceType.rawValue) source."
             )
         }
         return (store, article)
@@ -50,7 +50,7 @@ extension MCPDataStore {
         let result = try requireCitedPaperSource(rawSourceID)
         guard StudioViewModel.supportsLinkDiscovery(result.article) else {
             throw MCPError.invalidInput(
-                "scan_article_for_linked_sources reads a web article's links; '\(result.article.title)' (id: \(result.article.id)) is a \(result.article.sourceType.rawValue) source. Use scan_video_for_cited_papers for a video or scan_meeting_for_mentioned_papers for a meeting."
+                "scan_article_for_linked_sources reads a web article's links; '\(result.article.title)' is a \(result.article.sourceType.rawValue) source. Use scan_video_for_cited_papers for a video or scan_meeting_for_mentioned_papers for a meeting."
             )
         }
         return result
@@ -60,7 +60,7 @@ extension MCPDataStore {
         let result = try requireCitedPaperSource(rawSourceID)
         guard result.article.sourceType == .video else {
             throw MCPError.invalidInput(
-                "Slide tools require a video source; '\(result.article.title)' (id: \(result.article.id)) is a meeting source."
+                "Slide tools require a video source; '\(result.article.title)' is a meeting source."
             )
         }
         return result
@@ -72,7 +72,7 @@ extension MCPDataStore {
     static func requireUnchangedTranscript(_ stored: StudioArticle, since started: String?, during work: String) throws {
         guard stored.content == started else {
             throw MCPError.invalidInput(
-                "'\(stored.title)' (id: \(stored.id)) changed while \(work), so nothing was saved. Call again to work from its new text."
+                "'\(stored.title)' changed while \(work), so nothing was saved. Call again to work from its new text."
             )
         }
     }
@@ -208,7 +208,7 @@ extension MCPDataStore {
         }
         guard let html = try await StudioViewModel.archivedPageHTML(for: article) else {
             throw MCPError.invalidInput(
-                "'\(article.title)' (id: \(article.id)) has no saved page to read links from, and fetching one produced nothing."
+                "'\(article.title)' has no saved page to read links from, and fetching one produced nothing."
             )
         }
         let pageURL = URL(string: article.url)
@@ -294,7 +294,7 @@ extension MCPDataStore {
         let (store, article) = try requireCitedPaperSource(rawSourceID)
         guard article.sourceType == .meeting else {
             throw MCPError.invalidInput(
-                "Meeting paper discovery requires a meeting source; '\(article.title)' (id: \(article.id)) is a video source."
+                "Meeting paper discovery requires a meeting source; '\(article.title)' is a video source."
             )
         }
 
@@ -322,7 +322,7 @@ extension MCPDataStore {
             _ = try await transcribeMeetingRecording(sourceID: article.id)
             guard let transcribed = cleanedOptional(try store.loadSourceContent(article.id)) else {
                 throw MCPError.invalidInput(
-                    "'\(article.title)' (id: \(article.id)) still has no readable transcript after transcription."
+                    "'\(article.title)' still has no readable transcript after transcription."
                 )
             }
             content = transcribed
@@ -654,7 +654,7 @@ extension MCPDataStore {
         }
         guard let content = cleanedOptional(storedContent) else {
             throw MCPError.invalidInput(
-                "'\(article.title)' (id: \(article.id)) has no stored transcript yet, so there are no slides to capture. Call fetch_video_transcript first."
+                "'\(article.title)' has no stored transcript yet, so there are no slides to capture. Call fetch_video_transcript first."
             )
         }
 
@@ -673,7 +673,7 @@ extension MCPDataStore {
 
         guard YouTubeTranscriptService.isYouTubeURL(article.url) else {
             throw MCPError.invalidInput(
-                "Slide frames come from YouTube storyboards, and '\(article.title)' (id: \(article.id)) is not a YouTube video, so there are no slides to capture."
+                "Slide frames come from YouTube storyboards, and '\(article.title)' is not a YouTube video, so there are no slides to capture."
             )
         }
 
@@ -685,12 +685,12 @@ extension MCPDataStore {
         )
         if let message = extraction.errorMessage {
             throw MCPError.invalidInput(
-                "Couldn't capture slide frames from '\(article.title)' (id: \(article.id)): \(message)"
+                "Couldn't capture slide frames from '\(article.title)': \(message)"
             )
         }
         guard extraction.slideCount > 0 else {
             throw MCPError.invalidInput(
-                "No distinct slide frames could be captured from '\(article.title)' (id: \(article.id))."
+                "No distinct slide frames could be captured from '\(article.title)'."
             )
         }
 
@@ -753,7 +753,7 @@ extension MCPDataStore {
 
         guard var content = cleanedOptional(storedContent) else {
             throw MCPError.invalidInput(
-                "'\(article.title)' (id: \(article.id)) has no stored transcript yet, so there are no slides to read. Call fetch_video_transcript first."
+                "'\(article.title)' has no stored transcript yet, so there are no slides to read. Call fetch_video_transcript first."
             )
         }
 
@@ -766,7 +766,7 @@ extension MCPDataStore {
         if !hadSlides || force {
             guard YouTubeTranscriptService.isYouTubeURL(article.url) else {
                 throw MCPError.invalidInput(
-                    "Slide frames come from YouTube storyboards, and '\(article.title)' (id: \(article.id)) is not a YouTube video, so there are no slides to read."
+                    "Slide frames come from YouTube storyboards, and '\(article.title)' is not a YouTube video, so there are no slides to read."
                 )
             }
             // A forced pass re-extracts from scratch. Frames stored by an earlier run were
@@ -781,12 +781,12 @@ extension MCPDataStore {
             )
             if let message = extraction.errorMessage {
                 throw MCPError.invalidInput(
-                    "Couldn't extract slide frames from '\(article.title)' (id: \(article.id)): \(message)"
+                    "Couldn't extract slide frames from '\(article.title)': \(message)"
                 )
             }
             guard extraction.slideCount > 0 else {
                 throw MCPError.invalidInput(
-                    "No distinct slide frames could be extracted from '\(article.title)' (id: \(article.id)), so there is nothing to read citations from."
+                    "No distinct slide frames could be extracted from '\(article.title)', so there is nothing to read citations from."
                 )
             }
 

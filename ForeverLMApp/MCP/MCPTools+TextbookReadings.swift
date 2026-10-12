@@ -248,7 +248,7 @@ extension MCPDataStore {
         for (placement, item) in zip(result.placements, result.items) {
             itemIDByPlacement[Self.placementKey(placement)] = item.id
         }
-        var lines = ["Readings from \(result.bookTitle) in '\(courseTitle)' (course_id: \(result.courseID)), chosen for the learner:"]
+        var lines = ["Readings from \(result.bookTitle) in '\(courseTitle)', chosen for the learner:"]
         if let summary = result.summary { lines.append(summary) }
         lines.append("")
         let byLecture = Dictionary(grouping: result.placements, by: \.lectureID)

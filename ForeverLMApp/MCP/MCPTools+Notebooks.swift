@@ -115,7 +115,7 @@ extension MCPDataStore {
                    .caseInsensitiveCompare(trimmedTitle) == .orderedSame
            }) {
             throw MCPError.invalidInput(
-                "A Notebook titled \"\(existing.title)\" already exists (id \(existing.id)). Reuse it (add_notebook_sources, update_notebook) instead of creating a duplicate, or pass allow_duplicate=true if a second Notebook with this title is really intended."
+                "A Notebook titled \"\(existing.title)\" already exists. Reuse it (add_notebook_sources or update_notebook with notebook_id \(existing.id)) instead of creating a duplicate, or pass allow_duplicate=true if a second Notebook with this title is really intended."
             )
         }
         let calendar = Calendar.current
@@ -173,13 +173,14 @@ extension MCPDataStore {
                 ? " \(discoveredCount) more source\(discoveredCount == 1 ? "" : "s") from the library that fit wait in its Sources as suggestions for the learner to keep or drop there."
                 : ""
             return """
-            Created Notebook \(goal.id) ("\(trimmedTitle)"), filed this chat in it, and the window now shows the Notebook with this chat in it. Seeds: \(seeds.count).\(suggestionLine)\(discoveryNote)
-            Tell the learner in one short sentence that the Notebook is open, by its title, and carry on with what they asked. Do not list its sources or the suggestions, print the Notebook's id, or name a tool. The id is for notebook_id in later calls only.
+            Created Notebook ‘\(trimmedTitle)’, filed this chat in it, and the window now shows the Notebook with this chat in it. Seeds: \(seeds.count).\(suggestionLine)\(discoveryNote)
+            notebook_id: \(goal.id)
+            Tell the learner in one short sentence that the Notebook is open, by its title, and carry on with what they asked. Do not list its sources or the suggestions, print the Notebook's id, or name a tool. The notebook_id is for later calls only.
             """
         }
         let refreshed = try store.loadLearningGoal(goal.id) ?? goal
         return """
-        Created Notebook \(goal.id) ("\(trimmedTitle)"), no deadline. Seeds: \(seeds.count). Discovered suggestions: \(discoveredCount).\(discoveryNote)\(isUnnamed ? "\nUnnamed: ForeverLM names it from its sources and its first chat; update_notebook with title sets a name of your own." : "")
+        Created Notebook ‘\(trimmedTitle)’, no deadline. Seeds: \(seeds.count). Discovered suggestions: \(discoveredCount).\(discoveryNote)\(isUnnamed ? "\nUnnamed: ForeverLM names it from its sources and its first chat; update_notebook with title sets a name of your own." : "")
         Pass notebook_id \(goal.id) explicitly to Notebook tools; call daily_quiz with goal_id \(goal.id) to study it.
 
         \(try companionGoalDetail(refreshed))
@@ -376,7 +377,7 @@ extension MCPDataStore {
         let statusNote = resolvedStatus.map { "\nStatus is now '\($0.rawValue)'." } ?? ""
         let refreshed = try store.loadLearningGoal(goal.id) ?? goal
         return """
-        Updated Notebook \(goal.id) ("\(resolvedTitle)").\(discoveryNote)\(statusNote)
+        Updated Notebook ‘\(resolvedTitle)’.\(discoveryNote)\(statusNote)
 
         \(try companionGoalDetail(refreshed))
         """
@@ -433,7 +434,7 @@ extension MCPDataStore {
         } else {
             chatNote = " Kept \(linkedChatCount) linked chat\(linkedChatCount == 1 ? "" : "s") in the ungrouped Chats list."
         }
-        return "Deleted Notebook '\(goal.title)' (id: \(goal.id)).\(goalNote)\(chatNote) Its workspace files were moved to the Trash; sources stay in the library."
+        return "Deleted Notebook '\(goal.title)'.\(goalNote)\(chatNote) Its workspace files were moved to the Trash; sources stay in the library."
     }
 
     /// The app deletes a Notebook's workspace folder through StorageService, which
@@ -818,6 +819,8 @@ extension MCPDataStore {
                 payload = [
                     "id": s.id,
                     "title": s.title,
+                    // What a reply shows for the source (Prompts.hiddenIDs).
+                    "link": Self.sourceLink(title: s.title, id: s.id),
                     "source_type": s.sourceType.rawValue,
                     "url": s.url,
                     "is_missing_source": false,
@@ -902,7 +905,10 @@ extension MCPDataStore {
         for notebook in NotebookChatContext.notebooksInChat(context.linked, selection: context.selection) {
             guard let related = try store.loadLearningGoal(notebook.id), related.isNotebook else { continue }
             if includeEmergent {
-                parts.append("# Context notebook\n\n" + (try notebookEmergentContextMarkdown(goal: related)))
+                // The caller named only the main Notebook, so a context
+                // notebook's id rides on its own line for later calls,
+                // never beside its title (Prompts.hiddenIDs).
+                parts.append("# Context notebook\n\nnotebook_id: \(related.id)\n\n" + (try notebookEmergentContextMarkdown(goal: related)))
             }
             let relatedMaterials = try await notebookFileStorage.notebookMaterialContext(notebookID: related.id)
             if !relatedMaterials.isEmpty {
@@ -915,13 +921,13 @@ extension MCPDataStore {
 
         guard includeContent else {
             if parts.isEmpty {
-                return "Notebook '\(goal.title)' (id: \(goal.id)): emergent state omitted (include_emergent_state=false)."
+                return "Notebook '\(goal.title)': emergent state omitted (include_emergent_state=false)."
             }
             return parts.joined(separator: "\n\n")
         }
 
         guard !ids.isEmpty else {
-            let emptyLine = "Notebook '\(goal.title)' (id: \(goal.id)) has no approved sources yet. Add some with add_notebook_sources."
+            let emptyLine = "Notebook '\(goal.title)' has no approved sources yet. Add some with add_notebook_sources."
             if parts.isEmpty { return emptyLine }
             return parts.joined(separator: "\n\n") + "\n\n" + emptyLine
         }
@@ -929,7 +935,7 @@ extension MCPDataStore {
         parts.append(
             try formatAppContext(
                 sourceIDs: ids,
-                heading: "Notebook '\(goal.title)' (id: \(goal.id), \(ids.count) sources its chats read)",
+                heading: "Notebook '\(goal.title)' (\(ids.count) sources its chats read)",
                 maxCharsPerSource: maxChars
             )
         )
@@ -1256,7 +1262,7 @@ extension MCPDataStore {
     func notebookEmergentContextMarkdown(goal: LearningGoalRecord) throws -> String {
         let now = Date()
         var lines: [String] = [
-            "# Notebook '\(goal.title)' (id: \(goal.id))",
+            "# Notebook '\(goal.title)'",
         ]
 
         // Instructions lead, exactly as they do in the in-app chat's cached
@@ -1295,9 +1301,15 @@ extension MCPDataStore {
         if openGaps.isEmpty {
             lines.append("(none yet - use create_open_question or end_review_session after a review)")
         } else {
+            // A question's source is shown as the link a reply can carry
+            // (`sourceLink`), never as its id (Prompts.hiddenIDs).
+            let gapSourceTitles = try sourceMetadataByID(openGaps.compactMap(\.sourceID))
             for gap in openGaps {
                 var line = "- [\(gap.status)] \(gap.summary) (question_id: \(gap.id))"
-                if let sourceID = gap.sourceID { line += " - source: \(sourceID)" }
+                if let sourceID = gap.sourceID {
+                    let title = gapSourceTitles[sourceID]?["title"] as? String
+                    line += " - source: " + (title.map { Self.sourceLink(title: $0, id: sourceID) } ?? sourceID)
+                }
                 if let severity = gap.severity { line += String(format: " - severity: %.2f", severity) }
                 lines.append(line)
             }
@@ -1315,7 +1327,8 @@ extension MCPDataStore {
                 let title = meta["title"] as? String ?? item.sourceID
                 let sourceType = meta["source_type"] as? String ?? "unknown"
                 let state = derivedSourceUnderstandingState(for: item)
-                var line = "- \(title) (\(item.sourceID)): \(state)"
+                let shown = (meta["title"] as? String).map { Self.sourceLink(title: $0, id: item.sourceID) } ?? item.sourceID
+                var line = "- \(shown): \(state)"
                 if let lastScore = item.lastScore {
                     line += String(format: " - last score %.0f%%", lastScore * 100)
                 }
@@ -1393,7 +1406,7 @@ extension MCPDataStore {
             updated = clean
         }
         try store.setLearningGoalNotes(goalID: goal.id, notes: updated)
-        return "Updated notes for Notebook '\(goal.title)' (id: \(goal.id)) - now \(updated.count) characters."
+        return "Updated notes for Notebook '\(goal.title)' - now \(updated.count) characters."
     }
 
     // MARK: Payload helper

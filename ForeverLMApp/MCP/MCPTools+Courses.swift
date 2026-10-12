@@ -494,8 +494,11 @@ extension MCPDataStore {
         let lectureTitle = Self.nilIfBlank(lecture.title ?? "") ?? "Lecture \(lecture.number)"
         var lines = [
             "Lecture papers (\(paperAssociations.count)):",
-            "Course: \(courseTitle) (course_id: \(lecture.courseName))",
-            "Lecture \(lecture.number): \(lectureTitle) (lecture_id: \(lecture.id))",
+            // Named by title; the caller passed the lecture's id, and the
+            // course's rides on its own line (Prompts.hiddenIDs).
+            "Course: \(courseTitle)",
+            "course_id: \(lecture.courseName)",
+            "Lecture \(lecture.number): \(lectureTitle)",
         ]
 
         guard !paperAssociations.isEmpty else {
@@ -669,17 +672,20 @@ extension MCPDataStore {
             replacingRole: assignedReading != nil,
             store: store
         )
-        let ids = "lecture_id: \(association.lecture.id), source_id: \(association.source.id), item_id: \(association.item.id), \(Self.lecturePaperStanding(association.item))"
+        // The sentence names the paper and the lecture; the caller passed
+        // their ids, and the new item's rides on its own line
+        // (Prompts.hiddenIDs).
+        let ids = "item_id: \(association.item.id), \(Self.lecturePaperStanding(association.item))"
         if association.roleChanged {
-            return "'\(association.source.title)' on lecture \(association.lecture.number) is now \(association.item.role == .reading ? "assigned reading" : "only cited") (\(ids))."
+            return "'\(association.source.title)' on lecture \(association.lecture.number) is now \(association.item.role == .reading ? "assigned reading" : "only cited").\n\(ids)"
         }
         if !association.created {
-            return "'\(association.source.title)' is already associated with lecture \(association.lecture.number) (\(ids))."
+            return "'\(association.source.title)' is already associated with lecture \(association.lecture.number).\n\(ids)"
         }
 
         let courseTitle = try store.loadCourseGroups()[association.lecture.courseName]?.title
             ?? association.lecture.courseName
-        return "Associated paper '\(association.source.title)' with lecture \(association.lecture.number) in '\(courseTitle)' (course_id: \(association.lecture.courseName), \(ids))."
+        return "Associated paper '\(association.source.title)' with lecture \(association.lecture.number) in '\(courseTitle)'.\ncourse_id: \(association.lecture.courseName), \(ids)"
     }
 
     /// How a lecture paper stands, for tool output: assigned reading has a row
@@ -892,11 +898,11 @@ extension MCPDataStore {
                 if let data = report.data(using: .utf8),
                    let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                    let warning = object["warning"] as? String {
-                    videoScanProblems.append("'\(video.title)' (source_id: \(video.id)): \(warning)")
+                    videoScanProblems.append("\(Self.sourceLink(title: video.title, id: video.id)): \(warning)")
                 }
             } catch {
                 videoScanProblems.append(
-                    "'\(video.title)' (source_id: \(video.id)): its slides were not read: \(error.localizedDescription)"
+                    "\(Self.sourceLink(title: video.title, id: video.id)): its slides were not read: \(error.localizedDescription)"
                 )
             }
             if let transcript = try await storedLectureText(video.id) {
@@ -1289,10 +1295,10 @@ extension MCPDataStore {
         )
         try store.saveCourseGroup(name: courseID, metadata: metadata)
         guard let notebook else {
-            return "Created course '\(displayTitle)' (course_id: \(courseID)).\nnotebook_id_applied: none — no Notebook follows it. A course lives in no Notebook."
+            return "Created course '\(displayTitle)'.\ncourse_id: \(courseID)\nnotebook_id_applied: none — no Notebook follows it. A course lives in no Notebook."
         }
         try store.followCourse(courseID: courseID, notebookID: notebook.id)
-        return "Created course '\(displayTitle)' (course_id: \(courseID)).\nnotebook_id_applied: \(notebook.id) — Notebook ‘\(notebook.title)’ follows it, so the sources its lectures gain join that Notebook. The course itself lives in no Notebook."
+        return "Created course '\(displayTitle)'.\ncourse_id: \(courseID)\nnotebook_id_applied: \(notebook.id) — Notebook ‘\(notebook.title)’ follows it, so the sources its lectures gain join that Notebook. The course itself lives in no Notebook."
     }
 
     // MARK: - Playlist import
@@ -1554,8 +1560,8 @@ extension MCPDataStore {
         }
         let displayTitle = metadata.title ?? courseID
         var answer = changedFields.isEmpty
-            ? "Course '\(displayTitle)' (course_id: \(courseID))."
-            : "Updated course '\(displayTitle)' (course_id: \(courseID)): \(changedFields.joined(separator: ", "))."
+            ? "Course '\(displayTitle)'."
+            : "Updated course '\(displayTitle)': \(changedFields.joined(separator: ", "))."
         if let notebook = follow, let added {
             // A personal notebook shared with teams passes what joined it on,
             // as any addition does (teams-design.md, decision 10).
@@ -1567,7 +1573,7 @@ extension MCPDataStore {
                 }
             }
             let joined = added > 0 ? " \(added) of its source\(added == 1 ? "" : "s") joined it." : ""
-            answer += " Notebook ‘\(notebook.title)’ (notebook_id: \(notebook.id)) follows the course now.\(joined) The course itself lives in no Notebook."
+            answer += " Notebook ‘\(notebook.title)’ follows the course now.\(joined) The course itself lives in no Notebook."
         }
         if let notebook = unlink, let unlinked {
             answer += unlinked
@@ -1617,7 +1623,7 @@ extension MCPDataStore {
         if clauses.isEmpty {
             clauses.append("It held no sources.")
         }
-        return (["Deleted course '\(title)' (course_id: \(courseID))."] + clauses).joined(separator: " ")
+        return (["Deleted course '\(title)'."] + clauses).joined(separator: " ")
     }
 
     func createCourseLectureResolved(
@@ -1639,7 +1645,7 @@ extension MCPDataStore {
         }
         guard !existing.contains(where: { $0.number == resolvedNumber }) else {
             throw MCPError.invalidInput(
-                "Course \(courseID) already has lecture \(resolvedNumber). Call get_course and reuse or choose another lecture number."
+                "Course '\(try store.loadCourseGroups()[courseID]?.title ?? courseID)' already has lecture \(resolvedNumber). Call get_course and reuse or choose another lecture number."
             )
         }
 
@@ -1650,7 +1656,9 @@ extension MCPDataStore {
         )
         try store.saveCourseLecture(lecture)
         let displayTitle = try store.loadCourseGroups()[courseID]?.title ?? courseID
-        return "Created lecture \(resolvedNumber)\(lecture.title.map { " '\($0)'" } ?? "") in course '\(displayTitle)' (course_id: \(courseID), lecture_id: \(lecture.id))."
+        // The new lecture's id, and the course's, ride on their own lines
+        // (Prompts.hiddenIDs).
+        return "Created lecture \(resolvedNumber)\(lecture.title.map { " '\($0)'" } ?? "") in course '\(displayTitle)'.\ncourse_id: \(courseID)\nlecture_id: \(lecture.id)"
     }
 
     /// A textbook reading as get_course lists it: the sections, the chapter

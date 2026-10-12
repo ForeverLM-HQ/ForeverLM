@@ -63,6 +63,9 @@ struct MCPCourseQuizToolTests {
         #expect(quiz.id == CourseQuizPlanning.checkpointID(courseID: seeded.courseID, lectureIDs: seeded.lectures.map(\.id)))
         #expect(quiz.author == .assistant)
         #expect(quiz.afterLectureID == seeded.lectures[1].id)
+        // The new quiz's id rides on its own line, never beside its title.
+        #expect(mcpAnswerValue("quiz_id", in: saved) == quiz.id)
+        #expect(saved.contains("following lecture 2 in course '"))
 
         let course = try store.getCourse(courseIdentifier: seeded.courseID)
         #expect(course.contains("quizzes: 1 (practice 0, checkpoint 1, test 0)"))
@@ -383,7 +386,8 @@ struct MCPCourseQuizToolTests {
             "quiz_id": quiz.id,
             "results": [["question_id": quiz.questions[1].id, "outcome": "correct", "answer": "Yes"]],
         ])
-        #expect(second.contains("Recorded in the sitting of Course test (sitting_id: \(sessionID))"))
+        #expect(second.contains("Recorded in the sitting of Course test: question 2 correct."))
+        #expect(mcpAnswerValue("sitting_id", in: second) == sessionID, "the sitting's id on its own line")
         #expect(try knowledge.loadCourseQuizSittingRows().count == 1)
 
         let last = try await store.recordCourseQuizResult(arguments: [

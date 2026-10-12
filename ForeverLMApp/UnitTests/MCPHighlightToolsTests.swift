@@ -794,12 +794,12 @@ struct MCPHighlightToolsTests {
             modelID: nil,
             marksReviewed: false
         )
-        guard let range = response.range(of: "(id: "),
-              let close = response[range.upperBound...].firstIndex(of: ")") else {
+        // The new chat's id is on its own `session_id:` line.
+        guard let id = mcpAnswerValue("session_id", in: response) else {
             Issue.record("No session id in: \(response)")
             return ""
         }
-        return String(response[range.upperBound..<close])
+        return id
     }
 
     @Test("A mark links the chat its note came from, and every listing says so")
@@ -959,9 +959,8 @@ struct MCPHighlightToolsTests {
     }
 
     private func importedSessionID(in result: String) throws -> String {
-        let range = try #require(result.range(of: "(id: "))
-        let close = try #require(result[range.upperBound...].firstIndex(of: ")"))
-        return String(result[range.upperBound..<close])
+        // The new chat's id is on its own `session_id:` line.
+        try #require(mcpAnswerValue("session_id", in: result))
     }
 
     @Test("A chat saved with mark_reviewed false keeps the sources a later call links unreviewed, unless that call asks")

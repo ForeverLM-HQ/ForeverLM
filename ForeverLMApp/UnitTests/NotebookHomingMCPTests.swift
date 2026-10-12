@@ -132,6 +132,8 @@ struct NotebookHomingMCPTests {
         #expect(created.contains("notebook_id_applied: \(first.id)"))
         #expect(created.contains("lives in no Notebook"))
         let courseID = try #require(try store.loadCourseGroups().first { $0.value.title == "Bioenergetics" }?.key)
+        // The new course's id rides on its own line, never beside its title.
+        #expect(created.hasPrefix("Created course 'Bioenergetics'.\ncourse_id: \(courseID)\n"))
         #expect(try store.notebookIDsFollowingCourse(courseID) == [first.id])
 
         let linked = try mcp.updateCourse(courseID: courseID, title: nil, courseCode: nil, institution: nil, instructors: nil, playlistURL: nil, notebookID: second.id)

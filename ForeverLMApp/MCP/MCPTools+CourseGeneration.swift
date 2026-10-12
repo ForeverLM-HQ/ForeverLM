@@ -82,7 +82,11 @@ extension MCPDataStore {
         }
 
         var lines: [String] = []
-        lines.append("Generated course '\(result.blueprint.title)' (course_id: \(result.courseID)) with \(result.lectures.count) modules.")
+        // The new course's id rides on its own line, and each module's
+        // sources are the links a reply shows (Prompts.hiddenIDs).
+        lines.append("Generated course '\(result.blueprint.title)' with \(result.lectures.count) modules.")
+        lines.append("course_id: \(result.courseID)")
+        let readTitles = try sourceMetadataByID(result.blueprint.modules.flatMap(\.sourceIDs))
         if !result.blueprint.summary.isEmpty {
             lines.append(result.blueprint.summary)
         }
@@ -97,7 +101,9 @@ extension MCPDataStore {
             }
             line += ")"
             if !module.sourceIDs.isEmpty {
-                line += " reads: \(module.sourceIDs.joined(separator: ", "))"
+                line += " reads: " + module.sourceIDs.map { id in
+                    (readTitles[id]?["title"] as? String).map { Self.sourceLink(title: $0, id: id) } ?? id
+                }.joined(separator: ", ")
             }
             lines.append(line)
         }
@@ -121,7 +127,7 @@ extension MCPDataStore {
             let goal = try? await notebookFileStorage.loadLearningGoal(goalID)
             let due = goal.map { " due \(isoDateOnly($0.endAt))" } ?? ""
             let goalTitle = goal?.title ?? CourseGeneratorService.scheduleGoalTitle(courseTitle: result.blueprint.title)
-            lines.append("Scheduled: Goal '\(goalTitle)' (goal_id: \(goalID)), in that Notebook\(due), places one module every \(request.daysPerModule) day(s). Call get_goal with that goal_id for the Goal, or get_schedule with it to see the days.")
+            lines.append("Scheduled: Goal '\(goalTitle)', in that Notebook\(due), places one module every \(request.daysPerModule) day(s). Call get_goal with goal_id \(goalID) for the Goal, or get_schedule with it to see the days.")
         }
         if writeQuizzes {
             // The same ladder generate_course_quizzes writes, over the lessons

@@ -150,7 +150,7 @@ struct MCPCourseToolsTests {
             lectureID: lecture.id,
             sourceID: paper.id
         )
-        #expect(associated.contains("Associated paper 'Attention Is All You Need'"))
+        #expect(associated.hasPrefix("Associated paper 'Attention Is All You Need' with lecture 4 in 'Machine Learning'.\ncourse_id: \(courseID), item_id: "))
 
         let item = try #require(
             knowledgeStore.loadCourseLectureItems().first {
@@ -161,8 +161,11 @@ struct MCPCourseToolsTests {
 
         let result = try store.getLecturePapers(lectureID: lecture.id)
         #expect(result.contains("Lecture papers (1)"))
-        #expect(result.contains("course_id: \(courseID)"))
-        #expect(result.contains("lecture_id: \(lecture.id)"))
+        #expect(result.contains("Course: Machine Learning\ncourse_id: \(courseID)\n"))
+        // The caller passed the lecture's id: the heading names it by number
+        // and title only (Prompts.hiddenIDs).
+        #expect(result.contains("\nLecture 4: Attention\n"))
+        #expect(!result.contains("lecture_id: \(lecture.id)"))
         #expect(result.contains("source_id: \(paper.id)"))
         #expect(result.contains("item_id: \(item.id)"))
         #expect(result.contains("authors: Ashish Vaswani et al."))

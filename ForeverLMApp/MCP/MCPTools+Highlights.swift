@@ -216,7 +216,7 @@ extension MCPDataStore {
             ReaderTextAnchor.normalize($0.quote).text == ReaderTextAnchor.normalize(anchor.exact).text
         }) {
             throw MCPError.invalidInput(
-                "That passage is already marked in '\(resolved.title)' (highlight_id: \(existing.id)). Use update_source_highlight to change its note or color."
+                "That passage is already marked in '\(resolved.title)'. Use update_source_highlight with highlight_id \(existing.id) to change its note or color."
             )
         }
 
@@ -265,7 +265,7 @@ extension MCPDataStore {
         let existing = try knowledgeStore().sourceHighlights(sourceID: source.id)
         if let duplicate = existing.first(where: { $0.isPictureOnly && $0.imageAnchors.contains(where: { $0.src == imageAnchor.src }) }) {
             throw MCPError.invalidInput(
-                "That picture is already marked in '\(source.title)' (highlight_id: \(duplicate.id)). Use update_source_highlight to change its note or color."
+                "That picture is already marked in '\(source.title)'. Use update_source_highlight with highlight_id \(duplicate.id) to change its note or color."
             )
         }
         let now = Date()

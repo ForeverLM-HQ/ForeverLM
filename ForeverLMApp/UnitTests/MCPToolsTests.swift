@@ -43,6 +43,24 @@ private struct HeldMCPExplainerBackend: ExplainerModelBackend {
     }
 }
 
+/// The value of an answer's own `key: value` line, where a tool result hands
+/// back a new id instead of writing it beside a name (Prompts.hiddenIDs).
+func mcpAnswerValue(_ key: String, in text: String) -> String? {
+    text.split(separator: "\n").lazy
+        .map { $0.trimmingCharacters(in: .whitespaces) }
+        .first { $0.hasPrefix(key + ": ") }
+        .map { String($0.dropFirst(key.count + 2)).trimmingCharacters(in: .whitespaces) }
+}
+
+/// The Notebook create_notebook made: its `notebook_id:` line when it filed
+/// the calling chat, else the id its next-call line names
+/// ("Pass notebook_id X explicitly …").
+func createdNotebookID(in text: String) -> String? {
+    if let line = mcpAnswerValue("notebook_id", in: text) { return line }
+    guard let range = text.range(of: "Pass notebook_id ") else { return nil }
+    return text[range.upperBound...].split(separator: " ").first.map(String.init)
+}
+
 private actor MCPTestSignal {
     private var isSet = false
     private var waiters: [CheckedContinuation<Void, Never>] = []
@@ -3656,7 +3674,7 @@ struct MCPDataStoreTests {
             sourceIDs: [], dailyTarget: nil, discover: true, hostSessionID: "chat-host"
         )
 
-        let notebookID = try #require(result.split(separator: " ").dropFirst(2).first.map(String.init))
+        let notebookID = try #require(createdNotebookID(in: result))
         let notebook = try #require(try ks.loadLearningGoal(notebookID))
         #expect(Set(notebook.items.filter(\.isPendingApproval).map(\.sourceID)) == ["source-a", "source-b"])
         #expect(await judged.notebook == "Partial reprogramming")
@@ -3666,6 +3684,7 @@ struct MCPDataStoreTests {
         // not to list or show what it made.
         #expect(try ks.loadReviewSessionGoalID(sessionID: "chat-host") == notebookID)
         #expect(result.contains("filed this chat in it"))
+        #expect(result.hasPrefix("Created Notebook ‘Partial reprogramming’, filed this chat in it"))
         #expect(result.contains("Do not list its sources or the suggestions"))
         #expect(!result.contains("Pass notebook_id"))
     }
@@ -4780,11 +4799,7 @@ struct MCPDataStoreTests {
             modelProvider: "Claude",
             modelID: nil
         )
-        let sessionID: String = {
-            guard let range = first.range(of: "(id: "),
-                  let close = first[range.upperBound...].firstIndex(of: ")") else { return "" }
-            return String(first[range.upperBound..<close])
-        }()
+        let sessionID = mcpAnswerValue("session_id", in: first) ?? ""  // the new chat's own `session_id:` line
         #expect(!sessionID.isEmpty)
         #expect(first.contains("pass session_id \(sessionID)"))
 
@@ -4955,11 +4970,7 @@ struct MCPDataStoreTests {
         #expect(first.contains("with 3 exchanges"))
         #expect(first.contains("on the day's log for 2026-09-20"))
         #expect(first.contains("the same transcript_file"))
-        let reviewID: String = {
-            guard let range = first.range(of: "(id: "),
-                  let close = first[range.upperBound...].firstIndex(of: ")") else { return "" }
-            return String(first[range.upperBound..<close])
-        }()
+        let reviewID = mcpAnswerValue("session_id", in: first) ?? ""  // the new chat's own `session_id:` line
         #expect(!reviewID.isEmpty)
 
         let storedAnswer = try scalarString(dbPath: dbPath, "SELECT question FROM review_exchanges WHERE session_id = '\(reviewID)' AND sequence_number = 3") ?? ""
@@ -5010,11 +5021,7 @@ struct MCPDataStoreTests {
             transcript: "**User**\n\nwhat does the paper predict from morphology?\n\n**Claude**\n\nShort answer: membrane potential from morphology at R2 0.91.",
             sourceIDs: ["src_paper"], summary: nil, overallScore: nil, modelProvider: "Claude", modelID: nil
         )
-        let retoldID: String = {
-            guard let range = retold.range(of: "(id: "),
-                  let close = retold[range.upperBound...].firstIndex(of: ")") else { return "" }
-            return String(retold[range.upperBound..<close])
-        }()
+        let retoldID = mcpAnswerValue("session_id", in: retold) ?? ""  // the new chat's own `session_id:` line
         let repaired = try store.importReviewChat(
             title: "", transcript: "", transcriptFile: sessionID, sourceIDs: nil, summary: nil,
             overallScore: nil, modelProvider: nil, modelID: nil, sessionID: retoldID
@@ -5103,11 +5110,7 @@ struct MCPDataStoreTests {
         )
         #expect(first.contains("as a saved chat"))
         #expect(first.contains("on the day's log for 2026-09-28 (14:26–14:30) at the hours it ran"))
-        let reviewID: String = {
-            guard let range = first.range(of: "(id: "),
-                  let close = first[range.upperBound...].firstIndex(of: ")") else { return "" }
-            return String(first[range.upperBound..<close])
-        }()
+        let reviewID = mcpAnswerValue("session_id", in: first) ?? ""  // the new chat's own `session_id:` line
         #expect(!reviewID.isEmpty)
 
         // The learner comes back at seven; the file grows, and the call that
@@ -5267,13 +5270,10 @@ struct MCPDataStoreTests {
             modelID: nil,
             notebookID: notebook.id
         )
-        let sessionID: String = {
-            guard let range = imported.range(of: "(id: "),
-                  let close = imported[range.upperBound...].firstIndex(of: ")") else { return "" }
-            return String(imported[range.upperBound..<close])
-        }()
+        let sessionID = mcpAnswerValue("session_id", in: imported) ?? ""  // the new chat's own `session_id:` line
         #expect(!sessionID.isEmpty)
-        #expect(imported.contains("Filed under Notebook 'Mito Phenotyping' (id: \(notebook.id))"))
+        #expect(imported.contains("Filed under Notebook ‘Mito Phenotyping’."))
+        #expect(!imported.contains("(id: "), "no id beside a name (Prompts.hiddenIDs)")
         #expect(try scalarString(
             dbPath: dbPath,
             "SELECT goal_id FROM review_sessions WHERE id = '\(sessionID)'"
@@ -9307,7 +9307,7 @@ struct MCPDataStoreTests {
             dailyTarget: nil,
             discover: false
         )
-        let notebookID = try #require(created.split(separator: " ").dropFirst(2).first.map(String.init))
+        let notebookID = try #require(createdNotebookID(in: created))
         let knowledge = try store.knowledgeStore()
         let notebook = try #require(try knowledge.loadLearningGoal(notebookID))
         #expect(notebook.isNotebook)
@@ -11996,6 +11996,8 @@ struct MCPDataStoreTests {
         #expect(fresh["understanding_state"] as? String == "to-read")
         #expect(started["understanding_state"] as? String == "reading")
         #expect(started["last_score"] as? Double == 0.4)
+        // Each source carries the link a reply shows instead of its id.
+        #expect(fresh["link"] as? String == "[Fresh](foreverlm://source/src-new)")
     }
 
     // MARK: Notebook chat checkboxes
@@ -12473,6 +12475,13 @@ struct MCPDataStoreTests {
         #expect(context.contains("## Source understanding"))
         #expect(context.contains("Core paper"))
         #expect(context.contains("Important mechanism."))
+        // Sources are shown as links and the Notebook by its title, never an
+        // id written beside a name (Prompts.hiddenIDs).
+        #expect(context.contains("- source: [Core paper](foreverlm://source/src-1)"))
+        #expect(context.contains("- [Core paper](foreverlm://source/src-1): "))
+        #expect(context.contains("# Notebook 'Mechanisms'\n"))
+        #expect(!context.contains("(id: \(goal.id)"))
+        #expect(!context.contains("(src-1)"))
         #expect(context.contains("## Notebook files"))
         #expect(context.contains("### Requirements/challenge description.pdf"))
         #expect(context.contains("### Papers I care about/supporting paper.pdf"))
@@ -13768,7 +13777,7 @@ struct MCPCreateNotebookNamingTests {
                     title: title, description: nil, summary: summary, topic: nil, endDateString: "",
                     sourceIDs: [], dailyTarget: nil, discover: false
                 )
-                let id = try #require(text.split(separator: " ").dropFirst(2).first.map(String.init))
+                let id = try #require(createdNotebookID(in: text))
                 return try #require(try store.knowledgeStore().loadLearningGoal(id))
             }
             let unnamed = try await create(title: nil)

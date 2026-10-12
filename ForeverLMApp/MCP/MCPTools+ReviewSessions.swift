@@ -228,7 +228,9 @@ extension MCPDataStore {
             Related sources (\(sources.count)):
             """
             for s in sources {
-                context += "\n- \(s["title"] as? String ?? "") (id: \(s["id"] as? String ?? ""), \(s["source_type"] as? String ?? ""), \(s["word_count"] as? Int ?? 0) words)"
+                // Each source as the link a reply can show (Prompts.hiddenIDs).
+                let link = Self.sourceLink(title: s["title"] as? String ?? "", id: s["id"] as? String ?? "")
+                context += "\n- \(link) (\(s["source_type"] as? String ?? ""), \(s["word_count"] as? Int ?? 0) words)"
             }
 
             // Load content for context
@@ -1570,14 +1572,16 @@ extension MCPDataStore {
         }
         let clockText = recordChatOnDayLog(sessionID: session.id, title: session.title, record: record, from: ranFrom, to: ranTo, store: store)
         let notebookText = explicitNotebook.map {
-            " Filed under Notebook '\($0.title)' (id: \($0.id))."
+            " Filed under \(Self.companionName($0))."
         } ?? ""
         let originText = record.map { " from \(Self.describe($0))" } ?? ""
         let continueText = record == nil
             ? "A chat too long for one call continues here: pass session_id \(session.id) with each further chunk and its turns are appended."
             : "After each later answer, call again with session_id \(session.id) and the same transcript_file: the stored chat is brought level with the record."
         let savedAs = marksReviewed ? "a completed review session" : "a saved chat"
-        return "Imported chat '\(session.title)'\(originText) as \(savedAs) (id: \(session.id)) with \(turns.count) exchange\(turns.count == 1 ? "" : "s").\(scoreText)\(sourceText)\(notebookText)\(clockText) It now appears in the app's review sessions and its transcript is searchable. \(continueText)"
+        // The new chat's id rides on its own line, never beside its title
+        // (Prompts.hiddenIDs); the caller keeps it for session_id.
+        return "Imported chat '\(session.title)'\(originText) as \(savedAs) with \(turns.count) exchange\(turns.count == 1 ? "" : "s").\(scoreText)\(sourceText)\(notebookText)\(clockText) It now appears in the app's review sessions and its transcript is searchable. \(continueText)\nsession_id: \(session.id)"
     }
 
     private static func describe(_ record: AssistantTranscriptFile) -> String {
@@ -1747,12 +1751,12 @@ extension MCPDataStore {
         let holds = "it holds \(count) exchange\(count == 1 ? "" : "s")"
         let changeText: String
         if outcome.appended == 0, outcome.replaced == 0 {
-            changeText = "'\(outcome.record.title)' (id: \(sessionID)) already matches \(Self.describe(record)); nothing was added and \(holds)."
+            changeText = "'\(outcome.record.title)' already matches \(Self.describe(record)); nothing was added and \(holds)."
         } else {
             var parts: [String] = []
             if outcome.appended > 0 { parts.append("\(outcome.appended) exchange\(outcome.appended == 1 ? "" : "s") appended") }
             if outcome.replaced > 0 { parts.append("\(outcome.replaced) stored exchange\(outcome.replaced == 1 ? "" : "s") rewritten from the record") }
-            changeText = "'\(outcome.record.title)' (id: \(sessionID)) now matches \(Self.describe(record)): \(parts.joined(separator: ", ")); \(holds)."
+            changeText = "'\(outcome.record.title)' now matches \(Self.describe(record)): \(parts.joined(separator: ", ")); \(holds)."
         }
         let scoreText = overallScore.map { " Score: \(String(format: "%.0f%%", $0 * 100))." } ?? ""
         let sourceText = Self.addedSourcesSentence(count: newSourceIDs.count, markedReviewed: marksReviewed)
@@ -1798,7 +1802,7 @@ extension MCPDataStore {
                 && exchange.evaluation == cleanedOptional(turn.evaluation)
         }
         if alreadyStored {
-            return "Those \(chunk.count) exchange\(chunk.count == 1 ? "" : "s") are already the end of '\(existing.topic)' (id: \(sessionID)); nothing was added. The session holds \(existing.exchangeCount) exchange\(existing.exchangeCount == 1 ? "" : "s")."
+            return "Those \(chunk.count) exchange\(chunk.count == 1 ? "" : "s") are already the end of '\(existing.topic)'; nothing was added. The session holds \(existing.exchangeCount) exchange\(existing.exchangeCount == 1 ? "" : "s")."
         }
 
         let newSourceIDs = additionalSourceIDs.filter { !existing.sourceIDs.contains($0) }
@@ -1825,7 +1829,7 @@ extension MCPDataStore {
 
         let scoreText = overallScore.map { " Score: \(String(format: "%.0f%%", $0 * 100))." } ?? ""
         let sourceText = Self.addedSourcesSentence(count: newSourceIDs.count, markedReviewed: marksReviewed)
-        return "Appended \(chunk.count) exchange\(chunk.count == 1 ? "" : "s") to '\(record.title)' (id: \(record.id)); it now holds \(record.exchangeCount).\(scoreText)\(sourceText)\(clockText) Pass the same session_id with the next chunk, or stop here: the session is complete as stored."
+        return "Appended \(chunk.count) exchange\(chunk.count == 1 ? "" : "s") to '\(record.title)'; it now holds \(record.exchangeCount).\(scoreText)\(sourceText)\(clockText) Pass the same session_id with the next chunk, or stop here: the session is complete as stored."
     }
 
     /// Parse a role-labeled chat transcript into question/answer exchanges.
@@ -3266,7 +3270,7 @@ extension MCPDataStore {
         if let restrictToPluginLabel {
             guard article.connectorLabel == restrictToPluginLabel else {
                 let owner = article.connectorLabel.map { "plugin '\($0)'" } ?? "the app or another origin"
-                return "Error: this ingest connection ('\(restrictToPluginLabel)') can only update sources it added itself. '\(article.title)' (id: \(id)) was added by \(owner)."
+                return "Error: this ingest connection ('\(restrictToPluginLabel)') can only update sources it added itself. '\(article.title)' was added by \(owner)."
             }
         }
 
@@ -3318,8 +3322,8 @@ extension MCPDataStore {
         }
 
         try store.saveSource(article)
-        let wordText = changedFields.contains("content") ? ", \(article.wordCount ?? 0) words" : ""
-        return "Updated \(changedFields.joined(separator: ", ")) of '\(article.title)' (id: \(id)\(wordText))"
+        let wordText = changedFields.contains("content") ? " (\(article.wordCount ?? 0) words)" : ""
+        return "Updated \(changedFields.joined(separator: ", ")) of '\(article.title)'\(wordText)"
     }
 
     /// Remove every active source a user-built plugin added, by its stamped
@@ -3360,7 +3364,7 @@ extension MCPDataStore {
             return "Source not found: \(sourceID)"
         }
         try store.deleteSource(sourceID)
-        return "Deleted source '\(article.title)' (id: \(sourceID))"
+        return "Deleted source '\(article.title)'"
     }
 
     func removeSource(_ sourceID: String) throws -> String {
@@ -3376,11 +3380,11 @@ extension MCPDataStore {
 
         if article.sourceType == .paper && article.resolvedPDFPath == nil {
             try store.deleteSource(sourceID)
-            return "Removed and deleted undownloaded paper '\(article.title)' (id: \(sourceID))"
+            return "Removed and deleted undownloaded paper '\(article.title)'"
         }
 
         try store.archiveSource(sourceID)
-        return "Removed and archived source '\(article.title)' (id: \(sourceID))"
+        return "Removed and archived source '\(article.title)'"
     }
 
     func archiveSource(_ sourceID: String) throws -> String {
@@ -3389,7 +3393,7 @@ extension MCPDataStore {
             return "Source not found: \(sourceID)"
         }
         try store.archiveSource(sourceID)
-        return "Archived source '\(article.title)' (id: \(sourceID))"
+        return "Archived source '\(article.title)'"
     }
 
     /// Restore an archived source to active. This is also the inverse of
@@ -3408,7 +3412,7 @@ extension MCPDataStore {
         let note = outcome.rebuiltContent
             ? " and rebuilt its content from the local file"
             : " (no local file content to rebuild; re-fetch if the source needs text)"
-        return "Unarchived source '\(outcome.title)' (id: \(sourceID))\(note)"
+        return "Unarchived source '\(outcome.title)'\(note)"
     }
 
     // MARK: - Article reading view
@@ -3498,7 +3502,7 @@ extension MCPDataStore {
             return "Source not found: \(sourceID)"
         }
         try store.setSourceHidden(sourceID, hidden: hidden)
-        return "\(hidden ? "Hid" : "Unhid") source '\(article.title)' (id: \(sourceID))"
+        return "\(hidden ? "Hid" : "Unhid") source '\(article.title)'"
     }
 
     func setSourcePaywallStatus(sourceID: String, isPaywalled: Bool) throws -> String {
@@ -3527,7 +3531,7 @@ extension MCPDataStore {
                 : .ready
         }
         try store.saveSource(article)
-        return "\(isPaywalled ? "Marked" : "Cleared paywall status for") source '\(article.title)' (id: \(sourceID))\(isPaywalled ? " as paywalled" : "")"
+        return "\(isPaywalled ? "Marked" : "Cleared paywall status for") source '\(article.title)'\(isPaywalled ? " as paywalled" : "")"
     }
 
     func setPodcastEpisodeHidden(sourceID: String, hidden: Bool) throws -> String {
@@ -3539,7 +3543,7 @@ extension MCPDataStore {
             throw MCPError.invalidInput("set_podcast_episode_hidden requires a podcast source.")
         }
         try store.setPodcastEpisodeHidden(sourceID, hidden: hidden)
-        return "\(hidden ? "Hid" : "Unhid") podcast episode '\(article.title)' (id: \(sourceID))"
+        return "\(hidden ? "Hid" : "Unhid") podcast episode '\(article.title)'"
     }
 
     func setPodcastShowHidden(showName: String, hidden: Bool) throws -> String {
@@ -3578,7 +3582,7 @@ extension MCPDataStore {
             throw MCPError.invalidInput("set_podcast_episode_visible_override requires a podcast source.")
         }
         try store.setPodcastEpisodeVisibleOverride(sourceID, visible: visible)
-        return "\(visible ? "Force-showing" : "Removed force-show override for") podcast episode '\(article.title)' (id: \(sourceID))"
+        return "\(visible ? "Force-showing" : "Removed force-show override for") podcast episode '\(article.title)'"
     }
 
     func setYouTubeChannelHidden(channelName: String, hidden: Bool) throws -> String {
@@ -3599,7 +3603,7 @@ extension MCPDataStore {
             throw MCPError.invalidInput("set_youtube_video_visible_override requires a YouTube video source.")
         }
         try store.setYouTubeVideoVisibleOverride(sourceID, visible: visible)
-        return "\(visible ? "Force-showing" : "Removed force-show override for") YouTube video '\(article.title)' (id: \(sourceID))"
+        return "\(visible ? "Force-showing" : "Removed force-show override for") YouTube video '\(article.title)'"
     }
 
     func attachTextFileToSource(sourceID: String, filePath: String) throws -> String {
@@ -3642,7 +3646,7 @@ extension MCPDataStore {
         article.errorMessage = nil
         article.isPaywalled = false
         try store.saveSource(article)
-        return "Attached text file to '\(article.title)' (id: \(sourceID), path: \(article.localFilePath ?? destination.path))"
+        return "Attached text file to '\(article.title)' (path: \(article.localFilePath ?? destination.path))"
     }
 
     func attachPDFToPaper(sourceID: String, filePath: String?, pdfURL: String?) async throws -> String {
@@ -3693,7 +3697,7 @@ extension MCPDataStore {
             attachedFrom = sourceURL.path
         }
 
-        return try await finishAttachingPDF(article: &article, sourceID: sourceID, destination: destination, attachedFrom: attachedFrom)
+        return try await finishAttachingPDF(article: &article, sourceID: sourceID, destination: destination, attachedFrom: attachedFrom, namesID: false)
     }
 
     /// Whether a PDF that arrives for `article` should be attached to it rather
@@ -3731,13 +3735,15 @@ extension MCPDataStore {
         let baseName = doi.map { Self.safeFilenameBase($0.replacingOccurrences(of: "/", with: "-")) }
             ?? Self.safeFilenameBase(article.title)
         let destination = try copyFileIntoContentRoot(stagedPDF, folder: "Papers", baseName: baseName, fallbackExtension: "pdf")
-        return try await finishAttachingPDF(article: &article, sourceID: id, destination: destination, attachedFrom: attachedFrom)
+        return try await finishAttachingPDF(article: &article, sourceID: id, destination: destination, attachedFrom: attachedFrom, namesID: true)
     }
 
     /// The half of attach_pdf_to_paper after the file is in the Papers folder:
     /// read it, extract text and the required metadata, clear the paywall
-    /// state, and save.
-    private func finishAttachingPDF(article: inout StudioArticle, sourceID: String, destination: URL, attachedFrom: String) async throws -> String {
+    /// state, and save. `namesID` is false for attach_pdf_to_paper, whose
+    /// caller passed the id (Prompts.hiddenIDs), and true where a paper import
+    /// adopted the PDF: that answer keeps the paper imports' "(id: …" shape.
+    private func finishAttachingPDF(article: inout StudioArticle, sourceID: String, destination: URL, attachedFrom: String, namesID: Bool) async throws -> String {
         let store = try knowledgeStore()
         guard SourceService.canOpenPDF(at: destination.path),
               let document = PDFDocument(url: destination) else {
@@ -3788,7 +3794,8 @@ extension MCPDataStore {
         }
         try store.saveSource(article)
         let marks = importDocumentMarks(sourceID: sourceID, pdfPath: destination.path)
-        return "Attached PDF to '\(article.title)' (id: \(sourceID), path: \(article.localFilePath ?? destination.path), \(article.wordCount ?? 0) words; \(metadataStatus))\(marks)"
+        let idText = namesID ? "id: \(sourceID), " : ""
+        return "Attached PDF to '\(article.title)' (\(idText)path: \(article.localFilePath ?? destination.path), \(article.wordCount ?? 0) words; \(metadataStatus))\(marks)"
     }
 
     /// Human-readable paywall evidence when a paper-PDF download failure indicates
@@ -3891,19 +3898,19 @@ extension MCPDataStore {
                         preferOpenAccessAlternative: true
                     )
                 }
-                downloaded.append("✓ \(article.title) — \(detail)")
+                downloaded.append("✓ \(Self.sourceLink(title: article.title, id: article.id)) — \(detail)")
             } catch {
                 if let evidence = Self.paperPaywallEvidence(for: error) {
                     do {
                         _ = try await withStoreGate(.exclusive) {
                             try setSourcePaywallStatus(sourceID: article.id, isPaywalled: true)
                         }
-                        markedPaywalled.append("⊘ \(article.title) (id: \(article.id)) — \(evidence)")
+                        markedPaywalled.append("⊘ \(Self.sourceLink(title: article.title, id: article.id)) — \(evidence)")
                     } catch {
-                        failed.append("✗ \(article.title) (id: \(article.id)): detected paywall (\(evidence)) but could not mark it: \(error.localizedDescription)")
+                        failed.append("✗ \(Self.sourceLink(title: article.title, id: article.id)): detected paywall (\(evidence)) but could not mark it: \(error.localizedDescription)")
                     }
                 } else {
-                    failed.append("✗ \(article.title) (id: \(article.id)): \(error.localizedDescription)")
+                    failed.append("✗ \(Self.sourceLink(title: article.title, id: article.id)): \(error.localizedDescription)")
                 }
             }
         }
@@ -3966,7 +3973,7 @@ extension MCPDataStore {
                 let detail = try await withStoreGate(.exclusive) {
                     try await downloadPaperPDFForExistingSource(article.id)
                 }
-                recovered.append("✓ \(article.title) (id: \(article.id)) — \(detail)")
+                recovered.append("✓ \(Self.sourceLink(title: article.title, id: article.id)) — \(detail)")
             } catch {
                 // Metadata extraction can fail loudly after the readable PDF has
                 // already been attached and persisted. That is still a successful
@@ -3975,9 +3982,9 @@ extension MCPDataStore {
                 if let updated = reloaded,
                    updated.resolvedPDFPath != nil,
                    !updated.hasPaywallMarker {
-                    recovered.append("✓ \(article.title) (id: \(article.id)) — PDF recovered; metadata processing failed: \(error.localizedDescription)")
+                    recovered.append("✓ \(Self.sourceLink(title: article.title, id: article.id)) — PDF recovered; metadata processing failed: \(error.localizedDescription)")
                 } else {
-                    failed.append("✗ \(article.title) (id: \(article.id)): \(error.localizedDescription)")
+                    failed.append("✗ \(Self.sourceLink(title: article.title, id: article.id)): \(error.localizedDescription)")
                 }
             }
         }
@@ -4333,7 +4340,8 @@ extension MCPDataStore {
         let resolvedNumber = number ?? ((existing.map(\.number).max() ?? 0) + 1)
         let lecture = CourseSession(courseName: course, number: resolvedNumber, title: Self.nilIfBlank(title ?? ""))
         try store.saveCourseLecture(lecture)
-        return "Created lecture \(resolvedNumber)\(lecture.title.map { " '\($0)'" } ?? "") in course '\(course)' (id: \(lecture.id))."
+        // The new lecture's id rides on its own line (Prompts.hiddenIDs).
+        return "Created lecture \(resolvedNumber)\(lecture.title.map { " '\($0)'" } ?? "") in course '\(course)'.\nlecture_id: \(lecture.id)"
     }
 
     /// Rename a course lecture by ID.
@@ -4348,7 +4356,7 @@ extension MCPDataStore {
         }
         lecture.title = newTitle
         try store.saveCourseLecture(lecture)
-        return "Renamed lecture \(id) to '\(newTitle)'."
+        return "Renamed lecture \(lecture.number) of course '\(lecture.courseName)' to '\(newTitle)'."
     }
 
     /// Attach a source to a course lecture as a material.
@@ -4358,7 +4366,7 @@ extension MCPDataStore {
         let source = sourceID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !lecture.isEmpty else { throw MCPError.invalidInput("lecture_id is required.") }
         guard !source.isEmpty else { throw MCPError.invalidInput("source_id is required.") }
-        guard try store.loadCourseLectures().contains(where: { $0.id == lecture }) else {
+        guard let lectureRecord = try store.loadCourseLectures().first(where: { $0.id == lecture }) else {
             return "Lecture not found: \(lecture)"
         }
 
@@ -4367,7 +4375,8 @@ extension MCPDataStore {
         let resolvedRole = role.flatMap { CourseLectureItemRole(rawValue: $0) } ?? .other
         let item = CourseLectureItem(lectureId: lecture, sourceId: source, role: resolvedRole, sortIndex: nextSort)
         try store.saveCourseLectureItem(item)
-        return "Added source \(source) to lecture \(lecture) (role: \(resolvedRole.rawValue))."
+        let sourceName = (try store.loadSourceForSync(source)).map { "'\($0.title)'" } ?? "the source"
+        return "Added \(sourceName) to lecture \(lectureRecord.number) of course '\(lectureRecord.courseName)' (role: \(resolvedRole.rawValue))."
     }
 
     /// Remove a material from a course lecture by lecture-item ID.
@@ -4392,7 +4401,8 @@ extension MCPDataStore {
             throw MCPError.invalidInput("new_type must be one of: \(valid.joined(separator: ", ")).")
         }
         try store.updateSourceType(id, to: type)
-        return "Changed source \(id) type to \(type)."
+        let title = (try store.loadSourceForSync(id))?.title
+        return "Changed the type of \(title.map { "'\($0)'" } ?? "the source") to \(type)."
     }
 
     /// Remove every episode of a podcast show (matched by show name), the same way the
@@ -4462,7 +4472,7 @@ extension MCPDataStore {
             source: AIUsageSource(source: article),
             currentTitle: article.title, url: article.url, content: content, config: config
         ) else {
-            return "AI could not extract metadata for \(id)."
+            return "AI could not extract metadata for '\(article.title)'."
         }
         var changed: [String] = []
         if let t = Self.nilIfBlank(result.title ?? ""), t != article.title { article.title = t; changed.append("title") }
@@ -4493,7 +4503,8 @@ extension MCPDataStore {
                   let keep = arts.max(by: { StudioViewModel.paperStorageScore($0) < StudioViewModel.paperStorageScore($1) })
             else { continue }
             let losers = arts.filter { $0.id != keep.id }
-            lines.append("• keep '\(keep.title)'; duplicate\(losers.count == 1 ? "" : "s"): " + losers.map { "'\($0.title)' (\($0.id))" }.joined(separator: ", "))
+            // Each paper as the link a reply can show (Prompts.hiddenIDs).
+            lines.append("• keep \(Self.sourceLink(title: keep.title, id: keep.id)); duplicate\(losers.count == 1 ? "" : "s"): " + losers.map { Self.sourceLink(title: $0.title, id: $0.id) }.joined(separator: ", "))
             if archiveDuplicates {
                 for loser in losers { _ = try archiveSource(loser.id); archived += 1 }
             }
@@ -4784,7 +4795,7 @@ extension MCPDataStore {
                 let studio = try AppModelBridge.requireStudio()
                 Task { await studio.fetchTeachableTranscript(for: id, forceRefresh: true) }
             }
-            return "Transcribing '\(article.title)' (id: \(id)) again from its audio. This takes a few minutes; get_source_content returns the new transcript when it is done."
+            return "Transcribing '\(article.title)' again from its audio. This takes a few minutes; get_source_content returns the new transcript when it is done."
         case .geminiNotebookText:
             throw MCPError.invalidInput(
                 "'\(article.title)' holds the text a Gemini Notebook kept for it, and its address is the notebook's, so there is no page to fetch it from again."
@@ -4871,7 +4882,7 @@ extension MCPDataStore {
                 await studio.refetchPodcastTranscript(for: id, config: config)
             }
         }
-        return "Fetching the transcript of '\(article.title)' (id: \(id)) again from Apple Podcasts, as work \(workID). The stored transcript stays until the new one is saved; get_source_content returns the new one when the work finishes, and cancel_ai_work stops it."
+        return "Fetching the transcript of '\(article.title)' again from Apple Podcasts, as work \(workID). The stored transcript stays until the new one is saved; get_source_content returns the new one when the work finishes, and cancel_ai_work stops it."
     }
 
     /// The menu item's run for `refetch_source_content`, answered in words an
@@ -5264,7 +5275,7 @@ extension MCPDataStore {
         case .notFound:
             return "Source not found: \(sourceID)"
         case .cached(let cached):
-            return "Transcript already cached for '\(cached.title)' (id: \(sourceID), \(cached.wordCount ?? 0) words)"
+            return "Transcript already cached for '\(cached.title)' (\(cached.wordCount ?? 0) words)"
         case .download(let found):
             article = found
         }
@@ -5273,7 +5284,7 @@ extension MCPDataStore {
 
         if isTeachable {
             let workID = try await MainActor.run { try Self.startTeachableTranscript(sourceID: sourceID) }
-            return "Transcribing '\(article.title)' (id: \(sourceID)) from its audio in ForeverLM (work_id: \(workID); cancel_ai_work stops it). This takes a few minutes; call fetch_video_transcript or get_source_content again for the transcript. If the source shows an error instead, it names the cause — most often that the learner must sign in to the school in ForeverLM's browser."
+            return "Transcribing '\(article.title)' from its audio in ForeverLM (work_id: \(workID); cancel_ai_work stops it). This takes a few minutes; call fetch_video_transcript or get_source_content again for the transcript. If the source shows an error instead, it names the cause — most often that the learner must sign in to the school in ForeverLM's browser."
         }
 
         if isZoom {
@@ -5328,7 +5339,7 @@ extension MCPDataStore {
             let keychainStatus = passcodeSaved == false
                 ? ". Warning: the passcode could not be saved to Keychain"
                 : ""
-            return "Fetched Zoom transcript for '\(saved.title)' (id: \(sourceID), \(saved.wordCount ?? 0) words)\(keychainStatus)"
+            return "Fetched Zoom transcript for '\(saved.title)' (\(saved.wordCount ?? 0) words)\(keychainStatus)"
         }
 
         let (transcript, videoTitle) = try await YouTubeTranscriptService.shared.fetchTranscript(from: article.url)
@@ -5349,7 +5360,7 @@ extension MCPDataStore {
             stored.errorMessage = nil
             return true
         }
-        var message = "Fetched transcript for '\(saved.title)' (id: \(sourceID), \(saved.wordCount ?? 0) words"
+        var message = "Fetched transcript for '\(saved.title)' (\(saved.wordCount ?? 0) words"
         if slideResult.slideCount > 0 {
             message += ", \(slideResult.slideCount) slide frame screenshots"
         }
@@ -5379,7 +5390,7 @@ extension MCPDataStore {
         article.errorMessage = nil
         article.isPaywalled = false
         try store.saveSource(article)
-        return "Fetched archive.ph content for '\(article.title)' (id: \(sourceID), \(article.wordCount ?? 0) words)"
+        return "Fetched archive.ph content for '\(article.title)' (\(article.wordCount ?? 0) words)"
     }
 
     func clearSourceDerivedData(_ sourceID: String) throws -> String {
@@ -5388,7 +5399,7 @@ extension MCPDataStore {
             return "Source not found: \(sourceID)"
         }
         try store.clearSourceDerivedData(sourceID)
-        return "Cleared cached text and embeddings for '\(article.title)' (id: \(sourceID))"
+        return "Cleared cached text and embeddings for '\(article.title)'"
     }
 
     func listSourceActions(_ sourceID: String) throws -> String {
@@ -5398,7 +5409,7 @@ extension MCPDataStore {
         }
 
         var lines = [
-            "Available durable actions for '\(article.title)' (id: \(article.id), type: \(article.sourceType.rawValue)):",
+            "Available durable actions for '\(article.title)' (type: \(article.sourceType.rawValue)):",
             "- get_source_content: read source text",
             "- update_source: rename, edit author, edit parent_group, update content, or change source_type",
             "- assign_sources_to_day: put on the Schedule",

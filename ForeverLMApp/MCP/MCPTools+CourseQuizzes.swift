@@ -101,7 +101,7 @@ extension MCPDataStore {
                 model: MacImageGenerationSettings.model
             )
         }
-        var lines = ["Course quizzes for '\(title)' (course_id: \(courseID)):"]
+        var lines = ["Course quizzes for '\(title)':"]
         // Each quiz by the name its writer gave it, not the ladder's placeholder.
         let storedTitles = Dictionary(
             try await storage.loadCourseQuizzes(courseID: courseID).map { ($0.id, $0.title) },
@@ -263,7 +263,7 @@ extension MCPDataStore {
             }
             result = drawnOnly
         }
-        var lines = ["Pictures for the quizzes of '\(title)' (course_id: \(courseID)): \(result.picturedCount) question\(result.picturedCount == 1 ? "" : "s") got a slide, a figure or a drawing briefed; \(result.drawing.drawnCount) picture\(result.drawing.drawnCount == 1 ? " was" : "s were") drawn."]
+        var lines = ["Pictures for the quizzes of '\(title)': \(result.picturedCount) question\(result.picturedCount == 1 ? "" : "s") got a slide, a figure or a drawing briefed; \(result.drawing.drawnCount) picture\(result.drawing.drawnCount == 1 ? " was" : "s were") drawn."]
         if !wantsDrawings {
             lines.append("Nothing was drawn (draw false).")
         }
@@ -447,7 +447,7 @@ extension MCPDataStore {
         let removing = arguments["remove"] as? Bool ?? false
         if removing {
             guard question.picture != nil else {
-                return "Question \(index + 1) of \(quiz.title) (question_id: \(questionID)) has no picture; nothing changed."
+                return "Question \(index + 1) of \(quiz.title) has no picture; nothing changed."
             }
             quiz.questions[index].picture = nil
         } else {
@@ -465,10 +465,10 @@ extension MCPDataStore {
         quiz.updatedAt = Date()
         try store.saveCourseQuiz(quiz)
         guard let picture = quiz.questions[index].picture else {
-            return "Removed the picture of question \(index + 1) of \(quiz.title) (quiz_id: \(quiz.id), question_id: \(questionID)); the tutor may still show a slide or figure it finds."
+            return "Removed the picture of question \(index + 1) of \(quiz.title); the tutor may still show a slide or figure it finds."
         }
         return [
-            "Set the picture of question \(index + 1) of \(quiz.title) (quiz_id: \(quiz.id), question_id: \(questionID)):",
+            "Set the picture of question \(index + 1) of \(quiz.title):",
             Self.courseQuizPictureLine(picture, includeAnswers: true),
         ].joined(separator: "\n")
     }
@@ -663,7 +663,13 @@ extension MCPDataStore {
         let pictured = questions.filter { $0.picture?.isShowable == true }.count
         let briefed = questions.filter { $0.picture?.isAwaitingDrawing == true }.count
         let drawing = briefed == 0 ? "" : ", \(briefed) with a picture briefed for ForeverLM to draw (add_course_quiz_pictures with choose false draws them)"
-        return "\(previous == nil ? "Saved" : "Replaced") \(quiz.title) (quiz_id: \(quiz.id), kind: \(kind.rawValue), \(questions.count) questions on \(learningPoints.count) learning points, \(pictured) with a picture\(drawing)), following lecture_id \(quiz.afterLectureID ?? "at the end") in course \(courseID)."
+        // Named by title and lecture number; the quiz's id, new on a first
+        // save, rides on its own line (Prompts.hiddenIDs).
+        let placement = quiz.afterLectureID
+            .flatMap { after in lectures.first { $0.id == after } }
+            .map { "following lecture \($0.number)" } ?? "at the end"
+        let courseTitle = try store.loadCourseGroups()[courseID]?.title ?? courseID
+        return "\(previous == nil ? "Saved" : "Replaced") \(quiz.title) (kind: \(kind.rawValue), \(questions.count) questions on \(learningPoints.count) learning points, \(pictured) with a picture\(drawing)), \(placement) in course '\(courseTitle)'.\nquiz_id: \(quiz.id)"
     }
 
     // MARK: delete_course_quiz
@@ -672,7 +678,8 @@ extension MCPDataStore {
         let store = try knowledgeStore()
         let quiz = try Self.requireCourseQuiz(arguments["quiz_id"] as? String, store: store)
         try store.deleteCourseQuiz(quiz.id)
-        return "Removed \(quiz.title) (quiz_id: \(quiz.id)) from course \(quiz.courseID). generate_course_quizzes writes a ForeverLM quiz again when asked."
+        let courseTitle = try store.loadCourseGroups()[quiz.courseID]?.title ?? quiz.courseID
+        return "Removed \(quiz.title) from course '\(courseTitle)'. generate_course_quizzes writes a ForeverLM quiz again when asked."
     }
 
     // MARK: rename_course_quiz
@@ -690,7 +697,8 @@ extension MCPDataStore {
         }
         quiz.updatedAt = Date()
         try store.saveCourseQuiz(quiz)
-        return "Renamed \(previous) to \(quiz.title) (quiz_id: \(quiz.id), symbol: \(quiz.symbol ?? "none")) in course \(quiz.courseID)."
+        let courseTitle = try store.loadCourseGroups()[quiz.courseID]?.title ?? quiz.courseID
+        return "Renamed \(previous) to \(quiz.title) (symbol: \(quiz.symbol ?? "none")) in course '\(courseTitle)'."
     }
 
     // MARK: record_course_quiz_result
@@ -830,7 +838,10 @@ extension MCPDataStore {
             "question \(result.number) \(result.outcomeName)" + (regraded.contains(result.question.id) ? " (regraded)" : "")
         }
         var lines = [
-            "\(target.isNew ? "Started a sitting of" : "Recorded in the sitting of") \(quiz.title) (sitting_id: \(target.sessionID)): \(recorded.joined(separator: ", ")).",
+            "\(target.isNew ? "Started a sitting of" : "Recorded in the sitting of") \(quiz.title): \(recorded.joined(separator: ", ")).",
+            // The sitting's id on its own line, for a later call's sitting_id
+            // (Prompts.hiddenIDs).
+            "sitting_id: \(target.sessionID)",
         ]
         let progress = sitting.progress(for: quiz, sessionID: target.sessionID, takenAt: now)
         guard let sittingScore = progress.score else {
