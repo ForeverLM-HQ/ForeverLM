@@ -32,10 +32,10 @@ export default defineConfig({
       ['meta', { property: 'og:title', content: title }],
       ['meta', { property: 'og:description', content: description }],
       ['meta', { property: 'og:url', content: canonicalURL }],
-      ['meta', { property: 'og:image', content: 'https://foreverlm.com/assets/demos/everything-in-one-place-poster.jpg' }],
+      ['meta', { property: 'og:image', content: 'https://foreverlm.com/assets/home/notebook.jpg?v=20261010' }],
       ['meta', { name: 'twitter:title', content: title }],
       ['meta', { name: 'twitter:description', content: description }],
-      ['meta', { name: 'twitter:image', content: 'https://foreverlm.com/assets/demos/everything-in-one-place-poster.jpg' }],
+      ['meta', { name: 'twitter:image', content: 'https://foreverlm.com/assets/home/notebook.jpg?v=20261010' }],
     ]
   },
 
