@@ -219,6 +219,7 @@ struct MCPAuthScopeTests {
         #expect(!MCPToolRegistry.isToolAllowed("delete_source", scope: .ingest))
         #expect(!MCPToolRegistry.isToolAllowed("create_x_post", scope: .ingest))
         #expect(!MCPToolRegistry.isToolAllowed("import_local_pdf_as_paper", scope: .ingest))
+        #expect(!MCPToolRegistry.isToolAllowed("import_local_file", scope: .ingest))
         #expect(!MCPToolRegistry.isToolAllowed("import_paper_from_url", scope: .ingest))
         // Bulk removal is a full-scope cleanup tool, never a plugin's own.
         #expect(!MCPToolRegistry.isToolAllowed("remove_connector_sources", scope: .ingest))
@@ -7324,6 +7325,7 @@ struct MCPDataStoreTests {
             "scan_meeting_for_mentioned_papers", "scan_article_for_linked_sources",
             "extract_paper_metadata", "extract_article_metadata",
             "import_paper_from_url", "import_local_pdf_as_paper", "import_connector_paper", "import_video_cited_paper",
+            "import_local_file",
             "make_article_reading_view",
         ])
         for name in [
@@ -14050,6 +14052,54 @@ struct MCPToolContractTests {
             #expect(!entry.preferenceKeys.contains { $0.hasPrefix(NotebookCollections.namePreferenceKeyPrefix) },
                     "set_app_setting's \(entry.id) writes a Notebook Collection's name")
         }
+    }
+}
+
+@Suite("import_local_file routes")
+struct MCPLocalFileImportRouteTests {
+    private func kind(_ ext: String, pages: Int? = nil, _ requested: String? = nil) throws -> MCPDataStore.LocalFileImportKind {
+        try MCPDataStore.localFileImportKind(fileExtension: ext, pdfPageCount: pages, requested: requested)
+    }
+
+    @Test("Left to the tool, a long PDF is a book and a short one a paper")
+    func pdfByPageCount() throws {
+        #expect(try kind("pdf", pages: 12) == .paper)
+        #expect(try kind("pdf", pages: 99, "auto") == .paper)
+        #expect(try kind("PDF", pages: 100) == .book)
+        #expect(try kind("pdf", pages: 400, " Auto ") == .book)
+    }
+
+    @Test("An asked-for kind wins for a PDF, but a PDF is never text")
+    func pdfAsAsked() throws {
+        #expect(try kind("pdf", pages: 400, "paper") == .paper)
+        #expect(try kind("pdf", pages: 8, "book") == .book)
+        #expect(throws: MCPError.self) { try kind("pdf", pages: 8, "text") }
+    }
+
+    @Test("EPUB and Kindle files are books, text and Markdown files text")
+    func otherFormats() throws {
+        for ext in ["epub", "azw", "azw3", "mobi", "prc"] {
+            #expect(try kind(ext) == .book, "\(ext)")
+            #expect(throws: MCPError.self) { try kind(ext, "paper") }
+        }
+        for ext in ["txt", "md", "markdown"] {
+            #expect(try kind(ext) == .text, "\(ext)")
+            #expect(throws: MCPError.self) { try kind(ext, "book") }
+        }
+    }
+
+    @Test("An unknown format or kind is refused")
+    func refusals() {
+        #expect(throws: MCPError.self) { try kind("mp4") }
+        #expect(throws: MCPError.self) { try kind("") }
+        #expect(throws: MCPError.self) { try kind("pdf", pages: 3, "novel") }
+    }
+
+    @Test("import_local_file is registered as paid, open-world work no ingest plugin may call")
+    func registration() {
+        #expect(MCPToolRegistry.shared.tools.contains { $0.name == "import_local_file" })
+        #expect(MCPToolRegistry.paidWorkToolNames.contains("import_local_file"))
+        #expect(!MCPToolRegistry.isToolAllowed("import_local_file", scope: .ingest))
     }
 }
 

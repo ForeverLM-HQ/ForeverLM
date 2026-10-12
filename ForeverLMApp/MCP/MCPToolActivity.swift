@@ -394,6 +394,9 @@ struct MCPToolActivityTitle: Equatable {
         "extract_paper_metadata", "extract_article_metadata",
         "import_paper_from_url", "import_local_pdf_as_paper",
         "import_connector_paper", "import_video_cited_paper",
+        // A paper's metadata read, or a book that shows its progress in the
+        // Books list the way Add Book's does.
+        "import_local_file",
     ]
 }
 

@@ -301,6 +301,7 @@ extension MCPToolRegistry {
         "extract_paper_metadata", "extract_article_metadata", "inspect_paper_figure",
         "download_papers_needing_attention", "recheck_paywalled_papers",
         "import_paper_from_url", "import_local_pdf_as_paper", "import_connector_paper", "import_video_cited_paper",
+        "import_local_file",
         "close_day", "run_settings_action",
         // An Atlas's skeleton call, and one concept's deepening.
         "make_atlas", "get_atlas",

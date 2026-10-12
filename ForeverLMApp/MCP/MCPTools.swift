@@ -4484,6 +4484,23 @@ final class MCPToolRegistry: @unchecked Sendable {
                 ]
             ),
             MCPToolDef(
+                name: "import_local_file",
+                description: "Import a file on this Mac into the library the way the app's own import of it does, whatever it is: a PDF as a paper (as import_local_pdf_as_paper does) or as a book, an EPUB or DRM-free Kindle file (azw, azw3, mobi, prc) as a book, a plain text or Markdown file (txt, md, markdown) as a text source. A book goes through Add Book's importer: its title and author are read, it is split into chapters by the book chapter splitting model, and each chapter is filed under the book, with its cover. That runs in the background, a few minutes for a long book, so the answer comes at once with a work_id (list_running_ai_work shows it, cancel_ai_work stops it); afterwards list_sources with source_type book, or search_sources_keyword for its title, lists the chapters. kind auto (the default) takes a PDF of 100 pages or more for a book and a shorter one for a paper; pass kind paper or book to choose. The file must be in the ForeverLM library or the Desktop, Documents or Downloads folder. A scanned PDF needs a text layer for its chapters to be found. title applies to a paper only: a book takes its title from the file, and a text source from its text.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "file_path": ["type": "string", "description": "Absolute local path to the file (a PDF, EPUB, Kindle, text or Markdown file)"],
+                        "kind": [
+                            "type": "string",
+                            "enum": ["auto", "paper", "book", "text"],
+                            "description": "What to make of the file. auto (the default) chooses from the file: a PDF of 100 pages or more is a book, a shorter one a paper; an EPUB or Kindle file is a book; a text or Markdown file is text.",
+                        ],
+                        "title": ["type": "string", "description": "Optional title override for a paper"],
+                    ],
+                    "required": ["file_path"],
+                ]
+            ),
+            MCPToolDef(
                 name: "fetch_video_transcript",
                 description: "Fetch and store the transcript for a YouTube video source, a one-off Zoom cloud-recording link (zoom.us/rec/play or /rec/share), or a Teachable lecture. YouTube: also extracts representative slide screenshots from storyboards when available. Zoom: prefers the recording's own transcript/captions and falls back to managed OpenAI transcription; passcode-protected recordings fail with a passcode request — ask the user for the passcode and retry with the passcode argument. An accepted Zoom passcode is saved securely in Keychain and reused for that source. Teachable: the lecture's audio is downloaded and transcribed in the background, a few minutes per lecture; the call returns at once and a later call (or get_source_content) returns the transcript — the learner must be signed in to the school inside ForeverLM. Errors are surfaced directly when a transcript is unavailable.",
                 inputSchema: [
@@ -5380,6 +5397,7 @@ final class MCPToolRegistry: @unchecked Sendable {
         "import_podcast_youtube_transcript",
         "refetch_source_content",
         "import_local_pdf_as_paper",
+        "import_local_file",
         "fetch_video_transcript",
         "fetch_source_from_archive",
         // Downloads the paper's PDF; scanning calls a vision model and scholarly APIs.
@@ -7059,6 +7077,13 @@ final class MCPToolRegistry: @unchecked Sendable {
                 return try await store.importLocalPDFAsPaper(
                     filePath: arguments["file_path"] as? String ?? "",
                     title: arguments["title"] as? String
+                )
+            case "import_local_file":
+                return try await store.importLocalFile(
+                    filePath: arguments["file_path"] as? String ?? "",
+                    kind: arguments["kind"] as? String,
+                    title: arguments["title"] as? String,
+                    approvedSpendUSD: (arguments["approved_spend_usd"] as? NSNumber)?.doubleValue
                 )
             case "fetch_video_transcript":
                 return try await store.fetchVideoTranscript(

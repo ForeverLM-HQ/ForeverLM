@@ -5029,6 +5029,160 @@ extension MCPDataStore {
         ).message
     }
 
+    // MARK: - Any local file
+
+    /// What `import_local_file` makes of a file.
+    enum LocalFileImportKind: String {
+        case paper, book, text
+    }
+
+    /// A PDF this long is taken for a book when the caller leaves `kind` to the
+    /// tool: papers and reviews run to tens of pages, books to hundreds.
+    nonisolated static let localPDFBookPageThreshold = 100
+
+    nonisolated static let localTextFileExtensions: Set<String> = ["txt", "md", "markdown"]
+
+    /// The route a file takes, from its extension, its page count (a PDF's)
+    /// and the kind the caller asked for ("auto" or none lets the tool choose).
+    nonisolated static func localFileImportKind(
+        fileExtension rawExtension: String,
+        pdfPageCount: Int?,
+        requested rawRequested: String?
+    ) throws -> LocalFileImportKind {
+        let ext = rawExtension.lowercased()
+        let requestedWord = (rawRequested ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let requested: LocalFileImportKind?
+        if requestedWord.isEmpty || requestedWord == "auto" {
+            requested = nil
+        } else if let kind = LocalFileImportKind(rawValue: requestedWord) {
+            requested = kind
+        } else {
+            throw MCPError.invalidInput("kind must be auto, paper, book or text, not \(rawRequested ?? "").")
+        }
+
+        if ext == "pdf" {
+            if requested == .text {
+                throw MCPError.invalidInput("A PDF imports as a paper or a book, not as text.")
+            }
+            return requested ?? ((pdfPageCount ?? 0) >= localPDFBookPageThreshold ? .book : .paper)
+        }
+        if StudioViewModel.supportedBookFileExtensions.contains(ext) {
+            guard requested == nil || requested == .book else {
+                throw MCPError.invalidInput("A .\(ext) file imports only as a book.")
+            }
+            return .book
+        }
+        if localTextFileExtensions.contains(ext) {
+            guard requested == nil || requested == .text else {
+                throw MCPError.invalidInput("A .\(ext) file imports only as text.")
+            }
+            return .text
+        }
+        throw MCPError.invalidInput(
+            "import_local_file takes PDF, EPUB, Kindle (azw, azw3, mobi, prc), plain text and Markdown (txt, md, markdown) files, not .\(ext.isEmpty ? "(none)" : ext). An audio or video file has its own tools: transcribe_meeting_recording, import_video_overview."
+        )
+    }
+
+    /// Import any file on this Mac the way the app's own import of it does: a
+    /// PDF as a paper (`import_local_pdf_as_paper`) or a book, an EPUB or
+    /// Kindle file as a book through Add Book's importer, a text or Markdown
+    /// file as a text source. A book is chapterized in the background, since a
+    /// long one outlasts a tool call; the answer names its work.
+    func importLocalFile(
+        filePath: String,
+        kind: String?,
+        title: String?,
+        approvedSpendUSD: Double?
+    ) async throws -> String {
+        let path = filePath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !path.isEmpty else { throw MCPError.invalidInput("file_path is required.") }
+        let fileURL = try validateClientProvidedPath(path)
+        var isDirectory: ObjCBool = false
+        // An unpacked .epub (Apple Books keeps them as folders) is a book too.
+        guard FileManager.default.fileExists(atPath: fileURL.path, isDirectory: &isDirectory) else {
+            throw MCPError.invalidInput("File not found: \(path)")
+        }
+        let ext = fileURL.pathExtension.lowercased()
+        if isDirectory.boolValue && ext != "epub" {
+            throw MCPError.invalidInput("file_path names a folder, not a file: \(path)")
+        }
+        var pageCount: Int?
+        if ext == "pdf" {
+            guard let document = PDFDocument(url: fileURL) else {
+                throw MCPError.invalidInput("Could not read PDF: \(path)")
+            }
+            pageCount = document.pageCount
+        }
+
+        let requestedWord = (kind ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let leftToTheTool = requestedWord.isEmpty || requestedWord == "auto"
+        switch try Self.localFileImportKind(fileExtension: ext, pdfPageCount: pageCount, requested: kind) {
+        case .paper:
+            return try await importLocalPDFAsPaper(filePath: fileURL.path, title: title)
+        case .book:
+            return try await Self.startLocalBookImport(
+                fileURL: fileURL,
+                pageCount: pageCount,
+                chosenByPageCount: leftToTheTool && ext == "pdf",
+                spendLimitUSD: approvedSpendUSD
+            )
+        case .text:
+            return try await Self.importLocalTextFile(fileURL: fileURL)
+        }
+    }
+
+    /// Puts a book in Add Book's line and answers at once. The import runs as
+    /// this call's background work, so its model calls count against the
+    /// call's spend ceiling; a failure shows in the app as Add Book's does.
+    @MainActor
+    private static func startLocalBookImport(
+        fileURL: URL,
+        pageCount: Int?,
+        chosenByPageCount: Bool,
+        spendLimitUSD: Double?
+    ) throws -> String {
+        let studio = try AppModelBridge.requireStudio()
+        let name = fileURL.lastPathComponent
+        let workID = MCPRunningWork.shared.startBackground(
+            tool: "import_local_file",
+            about: "book \(name)",
+            spendLimitUSD: spendLimitUSD
+        ) { @MainActor in
+            do {
+                try await studio.importBook(from: fileURL.path)
+            } catch {
+                if studio.bookImportsPending == 0 { studio.bookImportStatus = "" }
+                studio.errorMessage = "Couldn’t import \(name): \(error.localizedDescription)"
+                studio.showBookImportError = true
+            }
+        }
+        let pages = pageCount.map { " (\($0) pages)" } ?? ""
+        let why = chosenByPageCount
+            ? " It was taken for a book because it runs to \(localPDFBookPageThreshold) pages or more; pass kind paper to import it as a paper instead."
+            : ""
+        return """
+        Importing \(name)\(pages) as a book in the background, the way Add Book does: ForeverLM reads its title and author, splits it into chapters and files each chapter under the book. A long book takes a few minutes.\(why)
+        work_id: \(workID) (list_running_ai_work shows it while it runs; cancel_ai_work stops it)
+        When it is done, list_sources with source_type book, or search_sources_keyword for its title, lists the chapters. A failure shows in the app and ends the work.
+        """
+    }
+
+    /// A text or Markdown file as a text source, as dropping it on the app does.
+    @MainActor
+    private static func importLocalTextFile(fileURL: URL) async throws -> String {
+        let studio = try AppModelBridge.requireStudio()
+        let path = fileURL.path
+        if let held = studio.articles.first(where: { $0.url == path || $0.localFilePath == path }) {
+            return "Already in the library: '\(held.title)' (id: \(held.id))."
+        }
+        let known = Set(studio.articles.map(\.id))
+        try await studio.importTextFile(from: path)
+        guard let made = studio.articles.first(where: { !known.contains($0.id) }) else {
+            throw MCPError.invalidInput("Nothing was imported from \(fileURL.lastPathComponent): the file holds no text.")
+        }
+        return "Imported '\(made.title)' as a text source (id: \(made.id), \(made.wordCount ?? 0) words)."
+    }
+
     static func httpURLString(_ value: String) -> String? {
         guard let components = URLComponents(string: value),
               let scheme = components.scheme?.lowercased(),

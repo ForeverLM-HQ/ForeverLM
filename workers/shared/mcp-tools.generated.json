@@ -5017,6 +5017,42 @@
     "readOnlyHint" : false
   },
   {
+    "description" : "Import a file on this Mac into the library the way the app's own import of it does, whatever it is: a PDF as a paper (as import_local_pdf_as_paper does) or as a book, an EPUB or DRM-free Kindle file (azw, azw3, mobi, prc) as a book, a plain text or Markdown file (txt, md, markdown) as a text source. A book goes through Add Book's importer: its title and author are read, it is split into chapters by the book chapter splitting model, and each chapter is filed under the book, with its cover. That runs in the background, a few minutes for a long book, so the answer comes at once with a work_id (list_running_ai_work shows it, cancel_ai_work stops it); afterwards list_sources with source_type book, or search_sources_keyword for its title, lists the chapters. kind auto (the default) takes a PDF of 100 pages or more for a book and a shorter one for a paper; pass kind paper or book to choose. The file must be in the ForeverLM library or the Desktop, Documents or Downloads folder. A scanned PDF needs a text layer for its chapters to be found. title applies to a paper only: a book takes its title from the file, and a text source from its text. Paid assistant work has a $3 per-operation ceiling by default. To continue beyond it, show the learner the estimate, obtain explicit approval, and pass that total as approved_spend_usd.",
+    "inputSchema" : {
+      "properties" : {
+        "approved_spend_usd" : {
+          "description" : "Maximum USD the learner has approved for this one operation. Omit for the $3 default ceiling. Pass more than 3 only after showing the learner the estimate or published maximum and receiving explicit approval. The operation stops after the request that reaches the ceiling and starts no further paid request; completed work is kept.",
+          "minimum" : 0.01,
+          "type" : "number"
+        },
+        "file_path" : {
+          "description" : "Absolute local path to the file (a PDF, EPUB, Kindle, text or Markdown file)",
+          "type" : "string"
+        },
+        "kind" : {
+          "description" : "description",
+          "enum" : [
+            "auto",
+            "paper",
+            "book",
+            "text"
+          ],
+          "type" : "string"
+        },
+        "title" : {
+          "description" : "Optional title override for a paper",
+          "type" : "string"
+        }
+      },
+      "required" : [
+        "file_path"
+      ],
+      "type" : "object"
+    },
+    "name" : "import_local_file",
+    "readOnlyHint" : false
+  },
+  {
     "description" : "Import a local PDF file from disk as a NEW paper source: copy into the synced Papers folder, extract text, run AI metadata. To attach a PDF to an existing paper use attach_pdf_to_paper instead. Paid assistant work has a $3 per-operation ceiling by default. To continue beyond it, show the learner the estimate, obtain explicit approval, and pass that total as approved_spend_usd.",
     "inputSchema" : {
       "properties" : {
