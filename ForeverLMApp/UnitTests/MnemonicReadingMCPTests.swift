@@ -133,7 +133,7 @@ private let ownQuestions: [[String: Any]] = [
     ],
 ]
 
-@Suite("Mnemonic reading over MCP")
+@Suite("Mnemonic reading over MCP", .cardWordingPasses)
 struct MnemonicReadingMCPTests {
     @Test("The four tools are registered: generate paid, self-gated and open-world with a popup, get read-only, and the makers in the study chats")
     @MainActor

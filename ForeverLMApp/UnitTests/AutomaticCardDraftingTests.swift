@@ -201,7 +201,7 @@ private func draftToCheck(_ id: String, source: String, requested: Bool = false,
 
 // MARK: - The pure rules
 
-@Suite("Memory cards: drafting in the background")
+@Suite("Memory cards: drafting in the background", .cardWordingPasses)
 struct AutomaticCardDraftingTests {
     private let now = Date(timeIntervalSinceReferenceDate: 800_000_000)
 
@@ -517,7 +517,7 @@ struct AutomaticCardDraftingTests {
 
 // MARK: - The pass, over storage
 
-@Suite("Memory cards: drafting in the background, over storage", .serialized)
+@Suite("Memory cards: drafting in the background, over storage", .serialized, .cardWordingPasses)
 struct AutomaticCardDraftingPassTests {
     @Test("A finished source with ideas and no deck is drafted, unticked, into To Check; it is never drafted again in the background")
     func finishDraftsOnceThenNever() async throws {

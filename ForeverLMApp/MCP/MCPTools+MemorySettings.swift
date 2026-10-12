@@ -119,6 +119,7 @@ extension MCPDataStore {
             "drafted_cards": receipt.draftedCards ?? 0,
             "drafted_sources": receipt.draftedSources ?? 0,
             "drafts_waiting": receipt.draftsWaiting ?? 0,
+            "standalone_reworded_cards": receipt.standaloneRewordedCards ?? 0,
             "notes": receipt.notes ?? [],
         ]
     }

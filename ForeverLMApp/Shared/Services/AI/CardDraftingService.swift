@@ -35,9 +35,11 @@ struct CardDraftingProgress: Equatable, Sendable {
 /// only when that one source alone does not fit the route's window (from the
 /// model directory). Its walkthrough's questions are drafted free, with no
 /// model call; the model drafts the rest from the remaining seeds and the
-/// text. Every quote is checked when the drafts are saved
-/// (`StorageService.saveCardDrafts`): a card its source does not print is
-/// reported and never offered.
+/// text. Every draft then passes the wording gate (`CardWordingGate`): a card
+/// that points at its source unnamed is reworded once or dropped, and a
+/// source whose cards could not be checked saves none. Every quote is
+/// checked when the drafts are saved (`StorageService.saveCardDrafts`): a
+/// card its source does not print is reported and never offered.
 ///
 /// The service holds no storage of its own: callers pass theirs (the view
 /// model's, an MCP store's), so a run writes through the same connection the
@@ -133,13 +135,14 @@ actor CardDraftingService {
         backend: any CardDraftingBackend = LiveCardDraftingBackend(aiService: AIService()),
         route: CardDraftingRoute? = nil,
         gate: CardDraftingSpendGate,
+        wording: (any CardWordingBackend)? = nil,
         stateDefaults: UserDefaults = .standard,
         onProgress: @escaping @Sendable (CardDraftingProgress) async -> Void = { _ in }
     ) async throws -> CardDraftingResult {
         guard let route = route ?? CardDraftingRoute.current() else { throw CardDraftingError.noModel }
         let materials = try await Self.load(request, storage: storage, stateDefaults: stateDefaults)
         let plan = Self.plan(materials, route: route)
-        return try await run(plan, storage: storage, backend: backend, gate: gate, onProgress: onProgress)
+        return try await run(plan, storage: storage, backend: backend, gate: gate, wording: wording, onProgress: onProgress)
     }
 
     /// Drafts every source of `plan`, a few at a time, each in its own lane,
@@ -154,9 +157,11 @@ actor CardDraftingService {
         storage: StorageService,
         backend: any CardDraftingBackend,
         gate: CardDraftingSpendGate,
+        wording: (any CardWordingBackend)? = nil,
         onProgress: @escaping @Sendable (CardDraftingProgress) async -> Void = { _ in }
     ) async throws -> CardDraftingResult {
         var result = CardDraftingResult(skipped: plan.skipped)
+        let wording = wording ?? CardWordingGate.backend()
         guard !plan.sources.isEmpty else { return result }
         let now = Date()
         let workflowID = UUID().uuidString
@@ -180,7 +185,7 @@ actor CardDraftingService {
                         let outcome = try await self.inLane(sourcePlan.source.sourceID) {
                             try await Self.draftOne(
                                 sourcePlan, system: system, route: route, isRequested: isRequested,
-                                storage: storage, backend: backend, gate: gate, at: now
+                                storage: storage, backend: backend, gate: gate, wording: wording, at: now
                             )
                         }
                         return (index, outcome)
@@ -198,7 +203,7 @@ actor CardDraftingService {
                             let outcome = try await self.inLane(sourcePlan.source.sourceID) {
                                 try await Self.draftOne(
                                     sourcePlan, system: system, route: route, isRequested: isRequested,
-                                    storage: storage, backend: backend, gate: gate, at: now
+                                    storage: storage, backend: backend, gate: gate, wording: wording, at: now
                                 )
                             }
                             return (index, outcome)
@@ -217,9 +222,12 @@ actor CardDraftingService {
         return result
     }
 
-    /// One source: its free cards, then the model's, saved to its deck in
-    /// one append. A model call that fails leaves the free cards to land; a
-    /// cancelled one saves nothing for the source.
+    /// One source: its free cards, then the model's, through the wording
+    /// gate, saved to its deck in one append. A model call that fails leaves
+    /// the free cards to land; a cancelled one saves nothing for the source.
+    /// A check of the wording that cannot be made — no model, a failed call,
+    /// today's background limit — saves nothing either: the seeds are offered
+    /// again on the next run, and no card is saved unchecked.
     private static func draftOne(
         _ plan: CardDraftingSourcePlan,
         system: String,
@@ -228,6 +236,7 @@ actor CardDraftingService {
         storage: StorageService,
         backend: any CardDraftingBackend,
         gate: CardDraftingSpendGate,
+        wording: any CardWordingBackend,
         at now: Date
     ) async throws -> CardDraftingSourceOutcome {
         var outcome = CardDraftingSourceOutcome(sourceID: plan.source.sourceID, title: plan.source.title)
@@ -265,6 +274,28 @@ actor CardDraftingService {
         }
         guard !drafts.isEmpty else { return outcome }
         try Task.checkCancellation()
+        // Every card stands on its own before it is saved.
+        guard await gate.allowsSpend() else {
+            outcome.failure = "Not saved: today's background AI limit is reached, so the cards' wording could not be checked."
+            outcome.waitsForSpend = true
+            return outcome
+        }
+        do {
+            let screened = try await CardWordingGate.screen(
+                drafts: drafts,
+                sourceTitle: plan.source.title,
+                usage: AIUsageSource(id: plan.source.sourceID, type: plan.source.sourceType, title: plan.source.title),
+                backend: wording
+            )
+            try Task.checkCancellation()
+            drafts = screened.passed
+            outcome.notSaved += screened.refused
+        } catch {
+            if error is CancellationError || Task.isCancelled { throw CancellationError() }
+            outcome.failure = "Not saved: the cards' wording could not be checked. \(error.localizedDescription)"
+            return outcome
+        }
+        guard !drafts.isEmpty else { return outcome }
         do {
             let saved = try await storage.saveCardDrafts(drafts, sourceID: plan.source.sourceID, sourceTitle: plan.source.title)
             outcome.added = saved.added

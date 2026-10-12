@@ -320,13 +320,19 @@ struct MemoryCardVariationTests {
         #expect(!judging.contains("No such card"))
 
         let passed = CardVariationTurn.judged([
-            CardVariationVerdict(card: 1, variant: 1, answersIt: true, leaksAnswer: false),
-            CardVariationVerdict(card: 1, variant: 2, answersIt: true, leaksAnswer: true),
+            CardVariationVerdict(card: 1, variant: 1, answersIt: true, leaksAnswer: false, standsAlone: true),
+            CardVariationVerdict(card: 1, variant: 2, answersIt: true, leaksAnswer: true, standsAlone: true),
         ], rewordings: [1: [firstVariant, secondVariant, "A third the judge said nothing of?"]])
         #expect(passed == [1: [firstVariant]])
         #expect(CardVariationTurn.judged([
-            CardVariationVerdict(card: 1, variant: 1, answersIt: false, leaksAnswer: false),
+            CardVariationVerdict(card: 1, variant: 1, answersIt: false, leaksAnswer: false, standsAlone: true),
         ], rewordings: [1: [firstVariant]]) == [1: []])
+        // A rewording that points at its source unnamed ("In this lecture,
+        // …") never joins the rotation, however well it asks for the back.
+        #expect(CardVariationTurn.judged([
+            CardVariationVerdict(card: 1, variant: 1, answersIt: true, leaksAnswer: false, standsAlone: false),
+        ], rewordings: [1: [firstVariant]]) == [1: []])
+        #expect(Prompts.cardVariationJudge.contains("\"stands_alone\""))
     }
 
     @Test("The cards due their rewordings are read in the order they were kept, in the wording asked now")
@@ -529,8 +535,8 @@ struct CardVariationPassTests {
                 secondVariant,
             ]),
         ], verdicts: [
-            CardVariationVerdict(card: 1, variant: 1, answersIt: true, leaksAnswer: false),
-            CardVariationVerdict(card: 1, variant: 2, answersIt: true, leaksAnswer: true),
+            CardVariationVerdict(card: 1, variant: 1, answersIt: true, leaksAnswer: false, standsAlone: true),
+            CardVariationVerdict(card: 1, variant: 2, answersIt: true, leaksAnswer: true, standsAlone: true),
         ])
         let now = keptAt.addingTimeInterval(5 * day)
         let report = await pass(storage, backend, rows).run(now: now)
@@ -604,7 +610,7 @@ struct CardVariationPassTests {
         let rows = Rows()
         let backend = CannedVariation(
             rewordings: [CardVariationModelCard(card: 1, variants: [firstVariant])],
-            verdicts: [CardVariationVerdict(card: 1, variant: 1, answersIt: true, leaksAnswer: false)]
+            verdicts: [CardVariationVerdict(card: 1, variant: 1, answersIt: true, leaksAnswer: false, standsAlone: true)]
         )
         let capped = DayClosePass(storage: storage, aiService: AIService(), spendAllowed: { false }, variations: pass(storage, backend, rows, spendAllowed: false))
         let waiting = await capped.consolidate(now: now, closeConfig: nil)

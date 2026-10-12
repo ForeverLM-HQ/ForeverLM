@@ -54,14 +54,15 @@ enum CardVariationTurn {
     }
 
     /// The rewordings the judge passed, by card number: those it said the
-    /// back answers, and no more, without leaking it. One it gave no verdict
-    /// on does not pass.
+    /// back answers, and no more, without leaking it, and that stand on their
+    /// own (never "this lecture" unnamed). One it gave no verdict on does not
+    /// pass.
     static func judged(_ verdicts: [CardVariationVerdict], rewordings: [Int: [String]]) -> [Int: [String]] {
         var passed: [Int: [String]] = [:]
         for (card, candidates) in rewordings {
             passed[card] = candidates.enumerated().compactMap { index, candidate in
                 let verdict = verdicts.first { $0.card == card && $0.variant == index + 1 }
-                guard let verdict, verdict.answersIt, !verdict.leaksAnswer else { return nil }
+                guard let verdict, verdict.answersIt, !verdict.leaksAnswer, verdict.standsAlone else { return nil }
                 return candidate
             }
         }

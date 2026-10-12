@@ -7,7 +7,7 @@ import Testing
 /// Canvas"): the marks of the kept cards behind each card, Review Here's deal
 /// and its tour of the Canvas, the question card's place, and the situated
 /// drafter's answer and grounding.
-@Suite("Memory on the Canvas")
+@Suite("Memory on the Canvas", .cardWordingPasses)
 struct CanvasMemoryTests {
     private static let day = MemoryTutorScheduler.secondsPerDay
 
