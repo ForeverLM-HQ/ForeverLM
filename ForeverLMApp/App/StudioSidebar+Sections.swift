@@ -194,7 +194,9 @@ extension StudioSidebar {
         // drops below the lights' line and the bar reads as misaligned with the
         // other panels' headers. The roomy grid is taller still and keeps its
         // regular chrome (it rises anyway so the band space isn't wasted).
-        if sourcesListLayout == .wide {
+        if sourcesListLayout == .compact {
+            compactSourceTabWords
+        } else if sourcesListLayout == .wide {
             wideSourceTabBar
         } else if let band = titlebarBandHeight, sourceTabBarLayout != .roomy {
             GeometryReader { proxy in
@@ -292,6 +294,32 @@ extension StudioSidebar {
         .padding(.horizontal, 8)
         .padding(.top, 8)
         .padding(.bottom, 2)
+    }
+
+    /// The kinds as words, inside a notebook's Sources column: one quiet row
+    /// of the Space's scope pills, the chosen kind on a grey step, where the
+    /// narrow list draws a bar of glyphs (2026-10-12, NotebookLM's column).
+    /// Papers missing a PDF keep their count.
+    private var compactSourceTabWords: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 2) {
+                ForEach(vm.visibleTabs, id: \.self) { tab in
+                    let badge = tab == .papers ? windowVM.papersWithoutPDFBadgeCount : 0
+                    SpaceScopePill(
+                        title: tab.rawValue,
+                        isSelected: sidebar.sidebarTab == tab,
+                        count: badge > 0 ? badge : nil
+                    ) {
+                        activateSidebarTab(tab)
+                    }
+                    .accessibilityIdentifier("notebook.sources.kind.\(tab.rawValue)")
+                }
+            }
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .padding(.horizontal, 2)
+        .padding(.top, 2)
+        .padding(.bottom, 4)
     }
 
     /// When the tab bar hangs from the panel's top overlay (there is a

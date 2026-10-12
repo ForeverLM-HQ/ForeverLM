@@ -107,7 +107,9 @@ struct NotebookSourcesSearchField: View {
     @State private var showsScopes = false
 
     private var placeholder: String {
-        let subject = subject.trimmingCharacters(in: .whitespacesAndNewlines)
+        // "New notebook 2" is no subject to search for (`NotebookNaming`).
+        let trimmed = subject.trimmingCharacters(in: .whitespacesAndNewlines)
+        let subject = NotebookNaming.isPlaceholder(trimmed) ? "" : trimmed
         switch scope {
         case .library: return "Search your library"
         case .web: return subject.isEmpty ? "Search the web" : "Search the web for \u{201C}\(subject)\u{201D}"
@@ -192,18 +194,20 @@ struct NotebookSourcesSearchField: View {
     private func scopeChip(_ candidate: NotebookSourcesSearchScope) -> some View {
         let isSelected = candidate == scope
         return Button { scope = candidate } label: {
+            // Grey, never the accent: the chosen scope is a step of grey with
+            // no outline, as every selection is (2026-10-12).
             Text(candidate.title)
-                .zoomedSystemFont(size: 11, weight: isSelected ? .semibold : .regular)
-                .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+                .zoomedSystemFont(size: 11, weight: .medium)
+                .foregroundStyle(isSelected ? Color.primary : Color.secondary)
                 .padding(.horizontal, 9)
                 .padding(.vertical, 3)
                 .background(
                     Capsule(style: .continuous)
-                        .fill(isSelected ? Color.accentColor.opacity(0.12) : Color.clear)
+                        .fill(Color.primary.opacity(isSelected ? 0.07 : 0))
                 )
                 .overlay(
                     Capsule(style: .continuous)
-                        .strokeBorder(isSelected ? Color.accentColor.opacity(0.35) : Color.primary.opacity(0.12), lineWidth: 1)
+                        .strokeBorder(Color.primary.opacity(isSelected ? 0 : 0.12), lineWidth: 1)
                 )
                 .contentShape(Capsule(style: .continuous))
         }

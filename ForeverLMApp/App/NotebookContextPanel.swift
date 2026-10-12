@@ -714,6 +714,13 @@ struct NotebookSourcePoolView: View {
     /// (`NotebookSourcesSearchScope.submission`).
     private func submitSearch() {
         guard let mode = NotebookSourcesSearchScope.submission(scope: searchScope, query: sourceSearchText) else { return }
+        // No words and a notebook that says nothing of itself — a placeholder
+        // name, no instructions, no sources — leaves a paid search nothing to
+        // look for but "New notebook 2".
+        if typedSearchQuery.isEmpty, isEmptyNotebook, NotebookNaming.isPlaceholder(goal.title),
+           (goal.description ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return
+        }
         runDiscovery(mode)
     }
 
@@ -867,20 +874,31 @@ struct NotebookSourcePoolView: View {
                     // notebook's own, and the way to the web and PubMed.
                     NotebookLibraryMatches(goal: goal, query: typedSearchQuery, searchElsewhere: runDiscovery)
                 } else if isEmptyNotebook {
-                    VStack(spacing: 8) {
-                        Image(systemName: "tray.and.arrow.down")
-                            .zoomedSystemFont(size: 28)
-                            .foregroundStyle(.secondary)
-                        Text("Drop sources from the sidebar to add them.")
-                            .zoomedSystemFont(size: 12)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 32)
+                    emptyNotebookLine
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 32)
                 }
             }
             .padding(.bottom, 12)
+        }
+    }
+
+    /// What an empty notebook's column says under its field, by what the
+    /// field searches. It was "Drop sources from the sidebar to add them."
+    /// in every scope, inside the column that is that sidebar, and in Web,
+    /// where nothing was listed to drop (product owner, 2026-10-12: "this
+    /// drop sources from the sidebar doesn't make sense; this IS the
+    /// sidebar"). Library with no words shows the Library itself
+    /// (`NotebookLibraryBrowser`), so its line is only for the Notebook page.
+    @ViewBuilder
+    private var emptyNotebookLine: some View {
+        switch (column != nil, searchScope) {
+        case (true, .web):
+            SpaceEmptyLine(systemImage: "globe", text: "Search the web, then add what you want")
+        case (true, .papers):
+            SpaceEmptyLine(systemImage: "text.book.closed", text: "Search PubMed, then add the papers you want")
+        default:
+            SpaceEmptyLine(systemImage: "tray.and.arrow.down", text: "Drop sources or PDFs here")
         }
     }
 
@@ -1441,7 +1459,9 @@ private struct NotebookLibraryBrowser: View {
             }
             // The kind tabs draw in flow, as in the docked Library.
             .environment(\.studioTitlebarBandHeight, nil)
-            .environment(\.sourcesListLayout, .sidebar)
+            // One line a source and the kinds as words, as NotebookLM's
+            // column reads (2026-10-12).
+            .environment(\.sourcesListLayout, .compact)
             .environment(\.sourcesListHidesIdleSearch, true)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }

@@ -275,6 +275,157 @@ struct ArticleRow: View {
     }
 
     var body: some View {
+        rowContent
+        // Same neutral wash the app's buttons use, so a source reads as something
+        // you can act on. The wash reaches into the list's row insets and the whole
+        // of it is hit-testable, matching the button treatment: what lights up is
+        // what you can click.
+        .padding(.horizontal, 6)
+        .background {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Color.primary.opacity(isHovering && !containerOwnsRowHoverWash ? 0.06 : 0))
+        }
+        .padding(.horizontal, -6)
+        .contentShape(Rectangle())
+        .onHover { isHovering = $0 }
+        // SwiftUI can omit the hover-exit callback while AppKit owns a drag
+        // session. Clear both edges of the session so its wash cannot stick.
+        .onChange(of: dragVisibility.isDragging) { _, _ in isHovering = false }
+        .animation(.easeOut(duration: 0.12), value: isHovering)
+        .modifier(SourceRowDragModifier(
+            itemProvider: dragProvider,
+            preview: {
+                SourceDragPreview(
+                    title: displayTitle,
+                    subtitle: dragPreviewSubtitle,
+                    sourceType: article.sourceType,
+                    isMissing: article.state == .error
+                )
+            }
+        ))
+        .task(id: article.artworkURL) {
+            await vm.backfillArtworkIfNeeded(article.id)
+        }
+        .siriSourceAnnotation(article.id)
+    }
+
+    @ViewBuilder
+    private var rowContent: some View {
+        if sourcesListLayout == .compact {
+            compactContent
+        } else {
+            fullContent
+        }
+    }
+
+    /// One line, as NotebookLM's Sources column draws a source (product
+    /// owner, 2026-10-12, of a notebook's column showing the Library's
+    /// full rows: "how can this look better. how does gemini notebook do
+    /// this?"): a small cover or the kind's glyph, the title, the show,
+    /// author or channel faint after it, then the notebook's mark. No line
+    /// between rows; what needs the learner (a paper's attention, an error)
+    /// is a glyph whose help says it.
+    private var compactContent: some View {
+        HStack(alignment: .center, spacing: 9) {
+            if showsThumbnail {
+                compactThumbnail
+            }
+            Text(displayTitle)
+                .zoomedSystemFont(size: 13)
+                .foregroundStyle(trackingStatus == .unread ? .primary : .secondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .layoutPriority(1)
+            if let byline = compactByline {
+                Text(byline)
+                    .zoomedSystemFont(size: 12)
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+            Spacer(minLength: 4)
+            if let paperProcessingStepLabel {
+                ProgressView()
+                    .controlSize(.mini)
+                    .help(paperProcessingStepLabel)
+            } else if let visibleStatusLabel {
+                ProgressView()
+                    .controlSize(.mini)
+                    .help(visibleStatusLabel)
+            }
+            if let attention = compactAttention {
+                Image(systemName: "exclamationmark.circle")
+                    .zoomedSystemFont(size: 12)
+                    .foregroundStyle(.orange)
+                    .help(attention)
+                    .accessibilityLabel(attention)
+            }
+            if let notebook {
+                NotebookMembershipMark(
+                    sourceIDs: [article.id],
+                    notebook: notebook,
+                    isRowHovered: isHovering
+                )
+                .fixedSize()
+            }
+        }
+        .padding(.vertical, 1)
+        .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
+        .listRowSeparator(.hidden)
+    }
+
+    /// The faint words after a compact row's title: a paper's authors, an
+    /// episode's show, a video's channel, an article's site.
+    private var compactByline: String? {
+        let first = article.sourceType == .paper
+            ? article.paperMetadataDisplayParts.first
+            : nonPaperMetadataParts.first
+        guard let first, !first.isEmpty else { return nil }
+        return first
+    }
+
+    /// What a compact row's orange glyph says, when the source needs the
+    /// learner.
+    private var compactAttention: String? {
+        if paperAttentionReason != nil || paperIngestionFailureDetail != nil || article.isPaperContentCleanupFailure {
+            return paperIngestionFailureDetail ?? "This paper needs attention: open it in the Library"
+        }
+        if article.state == .error { return articleCreditsMessage ?? article.errorMessage ?? "Couldn\u{2019}t load" }
+        if article.hasPaywallMarker { return "Paywalled" }
+        return nil
+    }
+
+    /// The cover or the kind's glyph, 22 pt.
+    @ViewBuilder
+    private var compactThumbnail: some View {
+        if let artworkURLString = article.artworkURL,
+           MeetingIconService.localArtworkPath(for: artworkURLString) == nil,
+           let artworkURL = URL(string: artworkURLString) {
+            CachedAsyncImage(url: artworkURL) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                default:
+                    compactGlyph
+                }
+            }
+            .frame(width: 22, height: 22)
+            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+        } else {
+            compactGlyph
+        }
+    }
+
+    private var compactGlyph: some View {
+        Image(systemName: sourceTypeIcon(article.sourceType))
+            .zoomedSystemFont(size: 13)
+            .foregroundStyle(.secondary)
+            .frame(width: 22, height: 22)
+    }
+
+    private var fullContent: some View {
         HStack(alignment: .top, spacing: 10) {
             if showsThumbnail {
                 sourceThumbnailView
@@ -453,37 +604,6 @@ struct ArticleRow: View {
         }
         .padding(.vertical, 2)
         .frame(maxWidth: .infinity, minHeight: Self.thumbnailSize.height, alignment: .topLeading)
-        // Same neutral wash the app's buttons use, so a source reads as something
-        // you can act on. The wash reaches into the list's row insets and the whole
-        // of it is hit-testable, matching the button treatment: what lights up is
-        // what you can click.
-        .padding(.horizontal, 6)
-        .background {
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(Color.primary.opacity(isHovering && !containerOwnsRowHoverWash ? 0.06 : 0))
-        }
-        .padding(.horizontal, -6)
-        .contentShape(Rectangle())
-        .onHover { isHovering = $0 }
-        // SwiftUI can omit the hover-exit callback while AppKit owns a drag
-        // session. Clear both edges of the session so its wash cannot stick.
-        .onChange(of: dragVisibility.isDragging) { _, _ in isHovering = false }
-        .animation(.easeOut(duration: 0.12), value: isHovering)
-        .modifier(SourceRowDragModifier(
-            itemProvider: dragProvider,
-            preview: {
-                SourceDragPreview(
-                    title: displayTitle,
-                    subtitle: dragPreviewSubtitle,
-                    sourceType: article.sourceType,
-                    isMissing: article.state == .error
-                )
-            }
-        ))
-        .task(id: article.artworkURL) {
-            await vm.backfillArtworkIfNeeded(article.id)
-        }
-        .siriSourceAnnotation(article.id)
     }
 
     private var paperContentCleanupFailureView: some View {

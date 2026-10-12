@@ -570,7 +570,8 @@ extension StudioViewModel {
             )
         }
         return NotebookDiscoveryContext(
-            title: notebook.title,
+            // A placeholder ("New notebook 2") says nothing to search for.
+            title: NotebookNaming.isPlaceholder(notebook.title) ? "" : notebook.title,
             instructions: notebook.description,
             researchQuestions: notebook.researchQuestions ?? [],
             sources: lines
