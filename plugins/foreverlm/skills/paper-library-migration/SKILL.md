@@ -22,9 +22,9 @@ Build a list of title, DOI and PDF path before touching ForeverLM, and show the 
 ## Import
 
 - A PDF on disk: `import_local_pdf_as_paper` with the absolute path and the title as a hint. ForeverLM copies the file into the synced Papers folder, extracts the text, saves the paper with its PDF and answers at once with its id and a `work_id`; the metadata and cleanup models then read it in the background. It deduplicates on the DOI it finds in the PDF, so a paper already in the library takes the PDF instead of being added twice.
-- A DOI or URL but no PDF: `import_paper_from_url` with `https://doi.org/<DOI>`. A paper the publisher blocks is still added, marked paywalled, ready for the user to attach the PDF later.
+- A DOI or URL but no PDF: `import_paper_from_url` with `https://doi.org/<DOI>`. It answers once the PDF is downloaded, with the paper's id and a `work_id`, and the models read it in the background as they read a local PDF. A paper the publisher blocks is still added, marked paywalled, ready for the user to attach the PDF later.
 - Neither: skip it and name it in the report.
-- Send a batch's PDF imports, then call `list_running_ai_work` until none of their `work_id`s is listed before reporting the batch: the background reading takes a minute or two a paper, a few papers at a time. A paper whose reading failed keeps its PDF and shows the failure; `extract_paper_metadata` retries it. Import papers by URL one at a time. Never delete, move or rename anything in the Zotero or Paperpile folders.
+- Send a batch's imports, local and by URL, then call `list_running_ai_work` until none of their `work_id`s is listed before reporting the batch: the background reading takes a minute or two a paper, a few papers at a time. A paper whose reading failed keeps its PDF and shows the failure; `extract_paper_metadata` retries it. Never delete, move or rename anything in the Zotero or Paperpile folders.
 
 ## Report
 

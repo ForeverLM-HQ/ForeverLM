@@ -2113,18 +2113,39 @@ extension MCPDataStore {
         sourceURL rawSourceURL: String,
         title: String?
     ) async throws -> PaperImportOutcome {
+        switch try await stagePaperFromDownloadURL(rawURL, sourceURL: rawSourceURL, title: title) {
+        case .settled(let outcome):
+            return outcome
+        case .staged(let staged):
+            return try await finishStagedLocalPaper(staged)
+        }
+    }
+
+    /// `importPaperFromDownloadURLOutcome` up to the models: the PDF
+    /// downloaded, holding nothing, and staged as a local PDF
+    /// (`stageLocalPDFAsPaper`), which saves it as a pending paper in a
+    /// stretch of its own.
+    func stagePaperFromDownloadURL(
+        _ rawURL: String,
+        sourceURL rawSourceURL: String,
+        title: String?
+    ) async throws -> LocalPaperStaging {
         let downloadURL = try normalizedPaperImportURL(rawURL)
         guard let canonicalURL = Self.httpURLString(rawSourceURL.trimmingCharacters(in: .whitespacesAndNewlines)) else {
             throw MCPError.invalidInput(
                 "source_url must be an http(s) URL: the file's stable provenance address, such as a Slack file permalink."
             )
         }
-        let store = try knowledgeStore()
-        if let existing = store.sourceExistsByNormalizedURL(URLNormalizer.normalize(canonicalURL))
-            ?? store.sourceExistsByURL(canonicalURL),
-           let article = try store.loadSourceForSync(existing.id),
-           !Self.existingPaperTakesArrivingPDF(article) {
-            return PaperImportOutcome(message: "Source already exists (id: \(existing.id), status: \(existing.status.rawValue))", sourceID: existing.id)
+        let held = try await withStoreGate(.shared) { () -> (id: String, status: SourceStatus)? in
+            let store = try knowledgeStore()
+            guard let existing = store.sourceExistsByNormalizedURL(URLNormalizer.normalize(canonicalURL))
+                    ?? store.sourceExistsByURL(canonicalURL),
+                  let article = try store.loadSourceForSync(existing.id),
+                  !Self.existingPaperTakesArrivingPDF(article) else { return nil }
+            return (existing.id, existing.status)
+        }
+        if let held {
+            return .settled(PaperImportOutcome(message: "Source already exists (id: \(held.id), status: \(held.status.rawValue))", sourceID: held.id))
         }
 
         let pdfURL = try await resolvedPDFURLForAttachment(downloadURL)
@@ -2137,7 +2158,7 @@ extension MCPDataStore {
         defer { try? FileManager.default.removeItem(at: stagingDir) }
         let staged = stagingDir.appendingPathComponent(baseName).appendingPathExtension("pdf")
         try await downloadPaperPDFForImport(from: pdfURL, sourceURL: canonicalURL, to: staged)
-        return try await importLocalPDFAsPaperOutcome(filePath: staged.path, title: title, canonicalURL: canonicalURL)
+        return try await stageLocalPDFAsPaper(filePath: staged.path, title: title, canonicalURL: canonicalURL)
     }
 
     /// `importPaperFromDownloadURLOutcome`'s answer alone.
@@ -2228,16 +2249,6 @@ extension MCPDataStore {
             suffix += 1
         }
         return candidate
-    }
-
-    func movePaperToDOIFilenameIfNeeded(_ destination: inout URL, papersDir: URL, doi: String?, sourceURL: String) throws {
-        guard let doi else { return }
-        let doiStem = Self.normalizeDOI(doi).replacingOccurrences(of: "/", with: "_")
-        guard !destination.lastPathComponent.hasPrefix(doiStem) else { return }
-        let doiDestination = uniquePaperDestination(in: papersDir, doi: doi, url: sourceURL)
-        guard doiDestination.path != destination.path else { return }
-        try FileManager.default.moveItem(at: destination, to: doiDestination)
-        destination = doiDestination
     }
 
     func cleanedOptional(_ value: String?) -> String? {
@@ -2426,27 +2437,65 @@ extension MCPDataStore {
         let sourceID: String?
     }
 
+    /// `import_paper_from_url` for a caller that wants the paper read before
+    /// it answers (a connector's paper, a course's citations, a video's cited
+    /// paper): staged with its PDF, then read by the models in the same call.
+    /// A failure is saved on the paper, which keeps its PDF.
     func importPaperFromURLOutcome(
         _ rawURL: String,
         title titleOverride: String?,
         connectorLabel: String? = nil
     ) async throws -> PaperImportOutcome {
+        switch try await stagePaperFromURL(rawURL, title: titleOverride, connectorLabel: connectorLabel) {
+        case .settled(let outcome):
+            return outcome
+        case .staged(let staged):
+            return try await finishStagedLocalPaper(staged)
+        }
+    }
+
+    /// The half of a URL import that needs no model: the paper's PDF found and
+    /// downloaded (the publisher's, then open-access copies, each held to the
+    /// paper asked for), its text extracted and its bibliography looked up,
+    /// then saved as a pending paper with its PDF, ready for
+    /// `finishStagedLocalPaper`. A publisher that blocks the PDF leaves a
+    /// paywalled paper, and a paper the library already holds by URL or DOI
+    /// answers with its id (or, when it has no PDF, takes this one).
+    ///
+    /// The store is held only for each lookup and save, never across a
+    /// download or a scholarly lookup. Until 2026-10-12 the dispatcher held it
+    /// alone for the whole import, models included: several imports sent
+    /// together ran one after another, every other call queued behind them,
+    /// and the later clients timed out. Imports now run side by side, so the
+    /// PDF is downloaded into a folder of its own and claimed in the Papers
+    /// folder by the move that puts it there (`movePaperIntoPapersFolder`),
+    /// and the library is asked again for the paper inside the stretch that
+    /// saves it.
+    func stagePaperFromURL(
+        _ rawURL: String,
+        title titleOverride: String?,
+        connectorLabel: String? = nil
+    ) async throws -> LocalPaperStaging {
         let sourceURL = try normalizedPaperImportURL(rawURL)
-        let store = try knowledgeStore()
         let normalizedURL = URLNormalizer.normalize(sourceURL)
-        if let existing = store.sourceExistsByNormalizedURL(normalizedURL) ?? store.sourceExistsByURL(sourceURL) {
-            return PaperImportOutcome(message: "Source already exists (id: \(existing.id), status: \(existing.status.rawValue))", sourceID: existing.id)
+        if let existing = try await withStoreGate(.shared, { try existingSource(atPaperURL: sourceURL, normalizedURL: normalizedURL) }) {
+            return .settled(PaperImportOutcome(message: "Source already exists (id: \(existing.id), status: \(existing.status.rawValue))", sourceID: existing.id))
         }
 
         let pageMetadata = await PaperService.fetchPaperPageMetadata(at: sourceURL)
         var doi = (PaperService.extractDOI(from: sourceURL) ?? pageMetadata?.doi).map(Self.normalizeDOI)
-        if let doi, let existing = try existingPaperByDOI(doi) {
-            return PaperImportOutcome(message: "Paper already exists for DOI \(doi) (id: \(existing.id), status: \(existing.status.rawValue))", sourceID: existing.id)
+        if let settled = try await existingPaperAnswer(doi: doi) {
+            return .settled(settled)
         }
 
         let papersDir = sourceContentRoot.appendingPathComponent("Papers", isDirectory: true)
         try FileManager.default.createDirectory(at: papersDir, withIntermediateDirectories: true)
-        var destination = uniquePaperDestination(in: papersDir, doi: doi, url: sourceURL)
+        let stagingDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ForeverLM-paper-downloads", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: stagingDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: stagingDir) }
+        let destination = stagingDir.appendingPathComponent(Self.preferredPaperFilename(doi: doi, url: sourceURL))
 
         // What was asked for, before any PDF speaks for itself. Every file
         // below is held to it (`PaperPDFIdentity`): an index can list another
@@ -2554,23 +2603,33 @@ extension MCPDataStore {
                 )
                 if doi == nil, let metaDOI = scholarlyMetadata?.doi {
                     doi = Self.normalizeDOI(metaDOI)
-                    if let doi, let existing = try existingPaperByDOI(doi) {
-                        return PaperImportOutcome(message: "Paper already exists for DOI \(doi) (id: \(existing.id), status: \(existing.status.rawValue))", sourceID: existing.id)
-                    }
                 }
-                if let saved = try savePaywalledPaperImport(
-                    sourceURL: sourceURL,
-                    normalizedURL: normalizedURL,
-                    titleOverride: titleOverride,
-                    pageMetadata: pageMetadata,
-                    scholarlyMetadata: scholarlyMetadata,
-                    doi: doi,
-                    evidence: evidence,
-                    connectorLabel: connectorLabel
-                ) {
+                let paywalledDOI = doi
+                // Asked again where the row is saved: another call may have
+                // brought the paper in while this one looked for its PDF.
+                let saved = try await withStoreGate(.exclusive) { () -> PaperImportOutcome? in
+                    if let existing = try existingSource(atPaperURL: sourceURL, normalizedURL: normalizedURL) {
+                        return PaperImportOutcome(message: "Source already exists (id: \(existing.id), status: \(existing.status.rawValue))", sourceID: existing.id)
+                    }
+                    if let paywalledDOI, let existing = try existingPaperByDOI(paywalledDOI) {
+                        return PaperImportOutcome(message: "Paper already exists for DOI \(paywalledDOI) (id: \(existing.id), status: \(existing.status.rawValue))", sourceID: existing.id)
+                    }
+                    guard let message = try savePaywalledPaperImport(
+                        sourceURL: sourceURL,
+                        normalizedURL: normalizedURL,
+                        titleOverride: titleOverride,
+                        pageMetadata: pageMetadata,
+                        scholarlyMetadata: scholarlyMetadata,
+                        doi: paywalledDOI,
+                        evidence: evidence,
+                        connectorLabel: connectorLabel
+                    ) else { return nil }
                     // Saved under the address it was asked for, which is how
                     // its row is found again.
-                    return PaperImportOutcome(message: saved, sourceID: store.sourceExistsByNormalizedURL(normalizedURL)?.id)
+                    return PaperImportOutcome(message: message, sourceID: try knowledgeStore().sourceExistsByNormalizedURL(normalizedURL)?.id)
+                }
+                if let saved {
+                    return .settled(saved)
                 }
             }
             throw failure
@@ -2578,14 +2637,11 @@ extension MCPDataStore {
         if doi == nil {
             doi = PaperService.extractDOI(from: pdfURL).map(Self.normalizeDOI)
         }
-        if let doi, let existing = try existingPaperByDOI(doi) {
-            let adopted = try await adoptPDFForExistingPaper(id: existing.id, stagedPDF: destination, attachedFrom: pdfURL)
-            try? FileManager.default.removeItem(at: destination)
-            return PaperImportOutcome(message: adopted ?? "Paper already exists for DOI \(doi) (id: \(existing.id), status: \(existing.status.rawValue))", sourceID: existing.id)
+        if let settled = try await settleDownloadedPDFForExistingPaper(doi: doi, pdf: destination, pdfURL: pdfURL) {
+            return .settled(settled)
         }
 
         guard SourceService.canOpenPDF(at: destination.path) else {
-            try? FileManager.default.removeItem(at: destination)
             throw SourceError.pdfReadFailed
         }
 
@@ -2593,13 +2649,9 @@ extension MCPDataStore {
         if doi == nil {
             doi = Self.extractDOIFromPDF(at: destination.path) ?? Self.extractDOIFromText(pdfText)
         }
-        if let doi, let existing = try existingPaperByDOI(doi) {
-            let adopted = try await adoptPDFForExistingPaper(id: existing.id, stagedPDF: destination, attachedFrom: pdfURL)
-            try? FileManager.default.removeItem(at: destination)
-            return PaperImportOutcome(message: adopted ?? "Paper already exists for DOI \(doi) (id: \(existing.id), status: \(existing.status.rawValue))", sourceID: existing.id)
+        if let settled = try await settleDownloadedPDFForExistingPaper(doi: doi, pdf: destination, pdfURL: pdfURL) {
+            return .settled(settled)
         }
-
-        try movePaperToDOIFilenameIfNeeded(&destination, papersDir: papersDir, doi: doi, sourceURL: sourceURL)
 
         var resolvedTitle = cleanedOptional(titleOverride)
             ?? usablePageTitle(pageMetadata?.title, sourceURL: sourceURL)
@@ -2613,10 +2665,8 @@ extension MCPDataStore {
         if doi == nil {
             doi = metadata?.doi.map(Self.normalizeDOI)
         }
-        if let doi, let existing = try existingPaperByDOI(doi) {
-            let adopted = try await adoptPDFForExistingPaper(id: existing.id, stagedPDF: destination, attachedFrom: pdfURL)
-            try? FileManager.default.removeItem(at: destination)
-            return PaperImportOutcome(message: adopted ?? "Paper already exists for DOI \(doi) (id: \(existing.id), status: \(existing.status.rawValue))", sourceID: existing.id)
+        if let settled = try await settleDownloadedPDFForExistingPaper(doi: doi, pdf: destination, pdfURL: pdfURL) {
+            return .settled(settled)
         }
 
         if metadata == nil, let pageTitle = usablePageTitle(pageMetadata?.title, sourceURL: sourceURL), pageTitle != resolvedTitle {
@@ -2624,21 +2674,19 @@ extension MCPDataStore {
         }
         if doi == nil, let metaDOI = metadata?.doi {
             doi = Self.normalizeDOI(metaDOI)
-            if let doi, let existing = try existingPaperByDOI(doi) {
-                let adopted = try await adoptPDFForExistingPaper(id: existing.id, stagedPDF: destination, attachedFrom: pdfURL)
-                try? FileManager.default.removeItem(at: destination)
-                return PaperImportOutcome(message: adopted ?? "Paper already exists for DOI \(doi) (id: \(existing.id), status: \(existing.status.rawValue))", sourceID: existing.id)
+            if let settled = try await settleDownloadedPDFForExistingPaper(doi: doi, pdf: destination, pdfURL: pdfURL) {
+                return .settled(settled)
             }
         }
-        try movePaperToDOIFilenameIfNeeded(&destination, papersDir: papersDir, doi: doi, sourceURL: sourceURL)
 
+        let paperPDF = try movePaperIntoPapersFolder(destination, papersDir: papersDir, doi: doi, sourceURL: sourceURL)
         let host = URL(string: sourceURL)?.host ?? "Paper"
         var article = StudioArticle(
             url: sourceURL,
             title: resolvedTitle,
             sourceType: .paper,
             discoveryOrigin: connectorLabel == nil ? .manual : .plugin,
-            localFilePath: relativeSourceContentPath(destination) ?? StorageService.relativeSourcePath(destination.path),
+            localFilePath: relativeSourceContentPath(paperPDF) ?? StorageService.relativeSourcePath(paperPDF.path),
             author: pageMetadata?.authorsDisplay ?? metadata?.authorsDisplay ?? StudioArticle.unknownPaperAuthor,
             journal: pageMetadata?.journal ?? metadata?.journal ?? StudioArticle.unknownPaperJournal,
             publishedYear: pageMetadata?.year ?? metadata?.year ?? StudioArticle.unknownPaperYear
@@ -2651,31 +2699,97 @@ extension MCPDataStore {
         article.prepareForPaperMetadataExtraction()
         article.doi = doi ?? metadata?.doi.map(Self.normalizeDOI)
         article.isPaywalled = false
-
         // Scholarly APIs provide context, but every successful paper import must
         // read the paper itself with the configured Paper Metadata model.
-        let firstPageText = PDFDocument(url: destination)?.page(at: 0)?.string ?? ""
-        let aiStatus: String
+        let firstPageText = PDFDocument(url: paperPDF)?.page(at: 0)?.string ?? ""
+
+        let pending = article
+        let settled: PaperImportOutcome?
         do {
-            aiStatus = try await extractRequiredPaperMetadataWithAI(
-                article: &article,
-                firstPageText: firstPageText
-            )
+            settled = try await withStoreGate(.exclusive) { () -> PaperImportOutcome? in
+                // Another call may have brought in the same paper while this
+                // one downloaded and read it.
+                if let existing = try existingSource(atPaperURL: sourceURL, normalizedURL: normalizedURL) {
+                    return PaperImportOutcome(message: "Source already exists (id: \(existing.id), status: \(existing.status.rawValue))", sourceID: existing.id)
+                }
+                if let settled = try await settleDownloadedPDFForExistingPaper(doi: pending.doi, pdf: paperPDF, pdfURL: pdfURL) {
+                    return settled
+                }
+                try knowledgeStore().saveSource(pending)
+                return nil
+            }
         } catch {
-            await discardUnsavedPaperPDF(destination, sourceID: article.id)
+            try? FileManager.default.removeItem(at: paperPDF)
             throw error
         }
+        if let settled {
+            try? FileManager.default.removeItem(at: paperPDF)
+            return .settled(settled)
+        }
+        return .staged(StagedLocalPaper(
+            article: article,
+            destination: paperPDF,
+            firstPageText: firstPageText,
+            marks: "",
+            downloadedFrom: pdfURL
+        ))
+    }
 
-        try store.saveSource(article)
+    /// The library's source at a paper's address, by its normalized URL or
+    /// the URL as given. Read inside a store stretch.
+    private func existingSource(atPaperURL sourceURL: String, normalizedURL: String) throws -> (id: String, status: SourceStatus)? {
+        let store = try knowledgeStore()
+        guard let existing = store.sourceExistsByNormalizedURL(normalizedURL) ?? store.sourceExistsByURL(sourceURL) else {
+            return nil
+        }
+        return (existing.id, existing.status)
+    }
 
-        let metadataSummary = [
-            article.author.map { "author: \($0)" },
-            article.journal.map { "journal: \($0)" },
-            article.publishedYear.map { "year: \($0)" },
-            article.doi.map { "doi: \($0)" },
-        ].compactMap { $0 }.joined(separator: ", ")
-        let filePath = relativeSourceContentPath(destination) ?? StorageService.relativeSourcePath(destination.path)
-        return PaperImportOutcome(message: "Imported paper '\(article.title)' (id: \(article.id), PDF: \(filePath), \(metadataSummary); \(aiStatus))", sourceID: article.id)
+    /// "Paper already exists" for a DOI the library holds; nil when it holds
+    /// none (or there is no DOI). Reads in a shared stretch of its own.
+    private func existingPaperAnswer(doi: String?) async throws -> PaperImportOutcome? {
+        guard let doi, let existing = try await withStoreGate(.shared, { try existingPaperByDOI(doi) }) else {
+            return nil
+        }
+        return PaperImportOutcome(message: "Paper already exists for DOI \(doi) (id: \(existing.id), status: \(existing.status.rawValue))", sourceID: existing.id)
+    }
+
+    /// What became of a downloaded PDF whose DOI the library already holds: a
+    /// paper listed without a PDF (paywalled, or its file gone) takes a copy
+    /// of it (`adoptPDFForExistingPaper`, which reads it with the Paper
+    /// Metadata model as attach_pdf_to_paper does, holding the store alone),
+    /// any other answers that it already exists. Nil when the DOI is new, found
+    /// in a shared stretch so a new paper never waits for the store alone. The
+    /// caller removes its own file.
+    private func settleDownloadedPDFForExistingPaper(doi: String?, pdf: URL, pdfURL: String) async throws -> PaperImportOutcome? {
+        guard let doi, try await withStoreGate(.shared, { try existingPaperByDOI(doi) }) != nil else { return nil }
+        return try await withStoreGate(.exclusive) { () -> PaperImportOutcome? in
+            guard let existing = try existingPaperByDOI(doi) else { return nil }
+            let adopted = try await adoptPDFForExistingPaper(id: existing.id, stagedPDF: pdf, attachedFrom: pdfURL)
+            return PaperImportOutcome(message: adopted ?? "Paper already exists for DOI \(doi) (id: \(existing.id), status: \(existing.status.rawValue))", sourceID: existing.id)
+        }
+    }
+
+    /// Moves a downloaded PDF into the Papers folder under the paper's own
+    /// name (`preferredPaperFilename`), or that name numbered when it is
+    /// taken. URL imports run side by side, so the name is claimed by the move
+    /// itself, which never overwrites, rather than by a look beforehand: two
+    /// papers whose links both end in `fulltext.pdf` would otherwise be
+    /// written to the same file.
+    func movePaperIntoPapersFolder(_ downloaded: URL, papersDir: URL, doi: String?, sourceURL: String) throws -> URL {
+        var lastError: Error?
+        for _ in 0..<20 {
+            let candidate = uniquePaperDestination(in: papersDir, doi: doi, url: sourceURL)
+            do {
+                try FileManager.default.moveItem(at: downloaded, to: candidate)
+                return candidate
+            } catch {
+                // Taken between the look and the move: the next free name.
+                guard FileManager.default.fileExists(atPath: candidate.path) else { throw error }
+                lastError = error
+            }
+        }
+        throw lastError ?? SourceError.pdfReadFailed
     }
 
     /// `importPaperFromURLOutcome`'s answer alone.
@@ -3849,8 +3963,7 @@ extension MCPDataStore {
     /// The store gate is held per paper, not for the batch
     /// (`MCPToolRegistry.selfGatedToolNames`): a paper's import rewrites its whole row
     /// with what the metadata model returned, so it holds the gate alone for that one
-    /// paper, as import_paper_from_url does, and calls that arrive meanwhile run
-    /// between papers.
+    /// paper, and calls that arrive meanwhile run between papers.
     func downloadPapersNeedingAttention(sourceIDs: [String]?, limit: Int?) async throws -> String {
         let allSources = try await withStoreGate(.shared) {
             try knowledgeStore().loadActiveSources()
@@ -4932,18 +5045,26 @@ extension MCPDataStore {
         }
     }
 
-    /// A local PDF on its way in as a new paper: copied into the Papers folder
-    /// and saved there as a pending paper, its Paper Metadata and Source
-    /// Content Cleanup still to run.
+    /// A PDF on its way in as a new paper, a local file's or one
+    /// `import_paper_from_url` downloaded: in the Papers folder and saved
+    /// there as a pending paper, its Paper Metadata and Source Content Cleanup
+    /// still to run.
     struct StagedLocalPaper {
         var article: StudioArticle
         let destination: URL
         let firstPageText: String
         /// The sentence `importDocumentMarks` returned for the PDF's own marks.
         let marks: String
+        /// The address the PDF was downloaded from; nil for a file on the Mac.
+        var downloadedFrom: String? = nil
+
+        /// How the import's answers begin.
+        var answerLead: String {
+            downloadedFrom == nil ? "Imported local PDF as paper" : "Imported paper"
+        }
     }
 
-    /// What staging a local PDF came to.
+    /// What staging a local or downloaded PDF came to.
     enum LocalPaperStaging {
         /// Nothing left to read: the library already held the paper, or a
         /// paper it held without a PDF took this one.
@@ -5120,7 +5241,7 @@ extension MCPDataStore {
         }
     }
 
-    /// The half of a local PDF's import that the models do: Paper Metadata
+    /// The half of a paper's import that the models do: Paper Metadata
     /// and Source Content Cleanup on the staged paper, then its save. It holds
     /// the store only for its reads and writes, never across a model call.
     /// Whatever stops it, the paper keeps its PDF: a failure is saved on the
@@ -5150,15 +5271,30 @@ extension MCPDataStore {
             )
         }
         try await saveFinishedLocalPaper(article)
+        guard staged.downloadedFrom != nil else {
+            return PaperImportOutcome(
+                message: "\(staged.answerLead) '\(article.title)' (id: \(article.id), \(article.wordCount ?? 0) words; \(metadataStatus)).\(staged.marks)",
+                sourceID: article.id
+            )
+        }
+        let metadataSummary = [
+            article.author.map { "author: \($0)" },
+            article.journal.map { "journal: \($0)" },
+            article.publishedYear.map { "year: \($0)" },
+            article.doi.map { "doi: \($0)" },
+        ].compactMap { $0 }.joined(separator: ", ")
         return PaperImportOutcome(
-            message: "Imported local PDF as paper '\(article.title)' (id: \(article.id), \(article.wordCount ?? 0) words; \(metadataStatus)).\(staged.marks)",
+            message: "\(staged.answerLead) '\(article.title)' (id: \(article.id), PDF: \(article.localFilePath ?? staged.destination.path), \(metadataSummary); \(metadataStatus))\(staged.marks)",
             sourceID: article.id
         )
     }
 
     /// Saves what the models made of a staged paper, holding the store alone
     /// for the write only. A paper deleted while they read it is not written
-    /// back.
+    /// back. A team Notebook the paper was filed in while it was read holds a
+    /// copy taken from the pending row; once the paper is ready, that copy
+    /// takes it again (`refreshTeamCopiesAwaitingText`), as it does after the
+    /// app's own save.
     private func saveFinishedLocalPaper(_ article: StudioArticle) async throws {
         try await withStoreGate(.exclusive) {
             let store = try knowledgeStore()
@@ -5167,19 +5303,7 @@ extension MCPDataStore {
             }
             try store.saveSource(article)
         }
-    }
-
-    /// Removes a PDF an import copied into the Papers folder for a paper it
-    /// could not finish, unless the paper was saved with it meanwhile: the
-    /// metadata step saves a stopped paper as pending, and a PDF taken away
-    /// under it leaves a paper reading "PDF needed". When the store cannot
-    /// say, the file stays.
-    func discardUnsavedPaperPDF(_ destination: URL, sourceID: String) async {
-        let saved = (try? await withStoreGate(.shared) {
-            try knowledgeStore().loadSourceForSync(sourceID) != nil
-        }) ?? true
-        guard !saved else { return }
-        try? FileManager.default.removeItem(at: destination)
+        await notebookFileStorage.refreshTeamCopiesAwaitingText(of: [article])
     }
 
     // MARK: - A local paper in the background
@@ -5213,14 +5337,31 @@ extension MCPDataStore {
         case .settled(let outcome):
             return outcome.message
         case .staged(let staged):
-            let workID = startStagedLocalPaperReading(staged, tool: tool, spendLimitUSD: approvedSpendUSD)
-            let article = staged.article
-            return """
-            Imported local PDF as paper '\(article.title)' (id: \(article.id), \(article.wordCount ?? 0) words): it is in the library with its PDF. The Paper Metadata model and Source Content Cleanup read it in the background, usually within a minute or two.\(staged.marks)
-            work_id: \(workID) (list_running_ai_work shows it while it runs; cancel_ai_work stops it, and the paper keeps its PDF for extract_paper_metadata to finish)
-            When it is done, the paper carries its title, authors, venue and year, and get_source_content returns its cleaned text. A failure is saved on the paper and shows under Papers that need attention.
-            """
+            return try await readStagedPaperInBackground(staged, tool: tool, approvedSpendUSD: approvedSpendUSD)
         }
+    }
+
+    /// Starts the models on a staged paper in the background and answers with
+    /// the paper's id and the work's. With no Paper Metadata model set up the
+    /// paper is read at once instead, which fails before any model call, saves
+    /// that failure on the paper (it keeps its PDF) and throws it, so the
+    /// client hears it now rather than from Papers that need attention.
+    func readStagedPaperInBackground(
+        _ staged: StagedLocalPaper,
+        tool: String,
+        approvedSpendUSD: Double?
+    ) async throws -> String {
+        guard KeychainService.resolveConfig(for: .paperMetadata) != nil else {
+            return try await finishStagedLocalPaper(staged).message
+        }
+        let workID = startStagedLocalPaperReading(staged, tool: tool, spendLimitUSD: approvedSpendUSD)
+        let article = staged.article
+        let pdf = staged.downloadedFrom == nil ? "" : "PDF: \(article.localFilePath ?? staged.destination.path), "
+        return """
+        \(staged.answerLead) '\(article.title)' (id: \(article.id), \(pdf)\(article.wordCount ?? 0) words): it is in the library with its PDF. The Paper Metadata model and Source Content Cleanup read it in the background, usually within a minute or two.\(staged.marks)
+        work_id: \(workID) (list_running_ai_work shows it while it runs; cancel_ai_work stops it, and the paper keeps its PDF for extract_paper_metadata to finish)
+        When it is done, the paper carries its title, authors, venue and year, and get_source_content returns its cleaned text. A failure is saved on the paper and shows under Papers that need attention.
+        """
     }
 
     /// Reads a staged paper as background work and returns the work's id.
@@ -6009,16 +6150,21 @@ extension MCPDataStore {
             .appendingPathComponent(Self.safeFilenameBase(baseName))
             .appendingPathExtension(fileExtension)
         var suffix = 2
-        while FileManager.default.fileExists(atPath: destination.path),
-              destination.standardizedFileURL.path != sourceURL.standardizedFileURL.path {
+        while destination.standardizedFileURL.path != sourceURL.standardizedFileURL.path {
+            if !FileManager.default.fileExists(atPath: destination.path) {
+                do {
+                    try FileManager.default.copyItem(at: sourceURL, to: destination)
+                    return destination
+                } catch {
+                    // Imports run side by side: another one took the name
+                    // between the look and the copy, which never overwrites.
+                    guard FileManager.default.fileExists(atPath: destination.path), suffix < 100 else { throw error }
+                }
+            }
             destination = destinationDirectory
                 .appendingPathComponent("\(Self.safeFilenameBase(baseName))-\(suffix)")
                 .appendingPathExtension(fileExtension)
             suffix += 1
-        }
-
-        if destination.standardizedFileURL.path != sourceURL.standardizedFileURL.path {
-            try FileManager.default.copyItem(at: sourceURL, to: destination)
         }
         return destination
     }

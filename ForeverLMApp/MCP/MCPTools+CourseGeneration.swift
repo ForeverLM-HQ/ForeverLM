@@ -145,7 +145,8 @@ extension MCPDataStore {
     /// nil when the page produced no source. Papers go through the paper import
     /// so the mandatory metadata gate runs; anything else is added as an article
     /// whose text the app fetches in the background. Holds the store gate alone
-    /// for the import, as import_paper_from_url and add_source hold it.
+    /// for the import, models included: the course wants each paper read
+    /// before it is planned around.
     func importCourseWebCandidate(_ candidate: DeepResearchCandidate) async throws -> String? {
         try await withStoreGate(.exclusive) {
             try await importCourseWebCandidateHoldingGate(candidate)

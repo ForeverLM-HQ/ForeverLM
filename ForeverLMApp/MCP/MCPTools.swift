@@ -3424,7 +3424,7 @@ final class MCPToolRegistry: @unchecked Sendable {
             ),
             MCPToolDef(
                 name: "import_paper_from_url",
-                description: "Download an academic paper PDF from a URL, DOI landing page, arXiv/OpenReview page, ScienceDirect page, publisher page, or direct PDF URL; copy the PDF into ForeverLM's synced Papers folder; extract text and metadata; and add it as a paper source. ScienceDirect imports use the app's authenticated WebKit session when direct download requires access. When the publisher blocks the PDF (paywall: access denied, login or payment required, an HTML page instead of the file, or no open-access copy anywhere), the paper is still added — as a paywalled paper carrying its bibliography (title, authors, venue, year, DOI) — so tell the user it was added and can be finished by attaching the PDF (attach_pdf_to_paper, or dropping it into the Papers folder) or rechecked later with recheck_paywalled_papers. Only transient failures (network errors, 404) add nothing. Pass notebook_id to file the paper in a Notebook as well (a Notebook id from list_notebooks, or a Goal id from list_goals); a paper the library already holds — by URL or DOI — joins the Notebook instead of being imported again, and the answer's last line, notebook_id_applied, says whether it is in the Notebook.",
+                description: "Download an academic paper PDF from a URL, DOI landing page, arXiv/OpenReview page, ScienceDirect page, publisher page, or direct PDF URL; copy the PDF into ForeverLM's synced Papers folder; extract its text; and add it as a paper source, saved at once with its PDF. The Paper Metadata model and Source Content Cleanup then read it in the background, so the answer comes once the PDF is downloaded, with the paper's id and a work_id (list_running_ai_work shows it while it runs; cancel_ai_work stops it and the paper keeps its PDF). Several imports can be sent together: each answers when its PDF is in, and their reading waits its turn. When the work is done the paper carries its title, authors, venue and year and get_source_content returns its text; a failure is saved on the paper, and extract_paper_metadata retries it. ScienceDirect imports use the app's authenticated WebKit session when direct download requires access. When the publisher blocks the PDF (paywall: access denied, login or payment required, an HTML page instead of the file, or no open-access copy anywhere), the paper is still added — as a paywalled paper carrying its bibliography (title, authors, venue, year, DOI) — so tell the user it was added and can be finished by attaching the PDF (attach_pdf_to_paper, or dropping it into the Papers folder) or rechecked later with recheck_paywalled_papers. Only transient failures (network errors, 404) add nothing. Pass notebook_id to file the paper in a Notebook as well (a Notebook id from list_notebooks, or a Goal id from list_goals); a paper the library already holds — by URL or DOI — joins the Notebook instead of being imported again, and the answer's last line, notebook_id_applied, says whether it is in the Notebook.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -5161,8 +5161,8 @@ final class MCPToolRegistry: @unchecked Sendable {
     /// `knowledgeStore()` use it runs sits inside such a stretch.
     static let selfGatedToolNames: Set<String> = [
         // The lessons are written through the storage actor; each web page
-        // the course cites is imported holding the gate alone, as
-        // import_paper_from_url holds it.
+        // the course cites is imported holding the gate alone, a paper read
+        // by its models before the call goes on.
         "generate_course",
         // The quizzes are read and pictured through the storage actor; the
         // slides are captured in extract_video_slides' own stretches.
@@ -5204,8 +5204,8 @@ final class MCPToolRegistry: @unchecked Sendable {
         // stretches of its own.
         "extract_video_slides", "fetch_video_transcript", "scan_video_for_cited_papers", "find_lecture_papers",
         // A paper's PDF import rewrites its whole row with what the metadata
-        // model returned, so each paper holds the gate alone, as
-        // import_paper_from_url does, and calls queued meanwhile run between papers.
+        // model returned, so each paper holds the gate alone, and calls queued
+        // meanwhile run between papers.
         "download_papers_needing_attention", "recheck_paywalled_papers",
         // A local PDF is matched and saved as a pending paper in stretches
         // held alone, around a copy and a text extraction that hold nothing;
@@ -5216,6 +5216,15 @@ final class MCPToolRegistry: @unchecked Sendable {
         // routes a paper the same way, a book and a text file through the
         // Studio's storage actor.
         "import_local_pdf_as_paper", "import_local_file",
+        // A paper's PDF is found, downloaded, read and looked up in the
+        // scholarly indexes holding nothing; the library is asked for the
+        // paper in shared stretches, and the pending paper (or a paywalled
+        // one) saved in a stretch held alone that asks again. Its models read
+        // it after the call answers, as a local PDF's do. A paper the library
+        // lists without a PDF takes the download in a stretch held alone, its
+        // metadata read included, as attach_pdf_to_paper holds it. The notebook
+        // is checked and filed in stretches of their own.
+        "import_paper_from_url",
         // A YouTube video's uploader is asked of YouTube holding nothing; the
         // row is then saved in one stretch held alone.
         "add_source",
@@ -6730,7 +6739,8 @@ final class MCPToolRegistry: @unchecked Sendable {
                     url: arguments["url"] as? String ?? "",
                     sourceURL: arguments["source_url"] as? String,
                     title: arguments["title"] as? String,
-                    notebookID: arguments["notebook_id"] as? String
+                    notebookID: arguments["notebook_id"] as? String,
+                    approvedSpendUSD: (arguments["approved_spend_usd"] as? NSNumber)?.doubleValue
                 )
             case "import_connector_paper":
                 guard access.scope == .ingest else {

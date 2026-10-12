@@ -7324,7 +7324,7 @@ struct MCPDataStoreTests {
             "generate_source_audio", "import_teachable_course", "ingest_lecture_papers",
             "scan_meeting_for_mentioned_papers", "scan_article_for_linked_sources",
             "extract_paper_metadata", "extract_article_metadata",
-            "import_paper_from_url", "import_connector_paper", "import_video_cited_paper",
+            "import_connector_paper", "import_video_cited_paper",
             "make_article_reading_view",
         ])
         for name in [
@@ -7337,7 +7337,7 @@ struct MCPDataStoreTests {
             "generate_course", "add_course_quiz_pictures", "add_textbook_to_course", "generate_explainer",
             "transcribe_meeting_recording", "fetch_video_transcript", "scan_video_for_cited_papers",
             "find_lecture_papers", "download_papers_needing_attention", "recheck_paywalled_papers",
-            "import_local_pdf_as_paper", "import_local_file",
+            "import_local_pdf_as_paper", "import_local_file", "import_paper_from_url",
         ] {
             #expect(MCPToolRegistry.selfGatedToolNames.contains(name), "\(name) should gate only its own store stretches")
         }
@@ -14310,9 +14310,42 @@ struct MCPLocalPaperImportTests {
         #expect(await line.waitingCount == 0)
     }
 
+    @Test("A downloaded paper answers as a URL import does, with its PDF's path and bibliography")
+    func downloadedPaperAnswersAsAURLImport() async throws {
+        let (store, dir) = try makeStore()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        var staged = try await stage(store, pages: [Self.paperText], in: dir)
+        staged.downloadedFrom = "https://example.org/papers/droplets.pdf"
+
+        let outcome = try await store.finishStagedLocalPaper(staged) { article, _ in
+            article.author = "Zara Holt"
+            _ = article.attestPaperMetadataExtractionAfterLLM()
+            return "read by the test"
+        }
+        #expect(outcome.message.hasPrefix("Imported paper 'Droplets in the cell' (id: \(staged.article.id), PDF: Papers/Droplets.pdf, author: Zara Holt"))
+        #expect(outcome.message.hasSuffix("; read by the test)"))
+    }
+
+    @Test("Two downloads under one name both land in the Papers folder, neither overwritten")
+    func downloadsClaimTheirOwnNames() throws {
+        let (store, dir) = try makeStore()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let papers = dir.appendingPathComponent("Papers", isDirectory: true)
+        try FileManager.default.createDirectory(at: papers, withIntermediateDirectories: true)
+        var landed: [URL] = []
+        for (index, url) in ["https://example.org/a/fulltext.pdf", "https://example.org/b/fulltext.pdf"].enumerated() {
+            let download = dir.appendingPathComponent("download-\(index).pdf")
+            try Data("pdf \(index)".utf8).write(to: download)
+            landed.append(try store.movePaperIntoPapersFolder(download, papersDir: papers, doi: nil, sourceURL: url))
+        }
+        #expect(landed.map(\.lastPathComponent) == ["fulltext.pdf", "fulltext-2.pdf"])
+        #expect(try String(contentsOf: landed[0], encoding: .utf8) == "pdf 0")
+        #expect(try String(contentsOf: landed[1], encoding: .utf8) == "pdf 1")
+    }
+
     @Test("The paper imports gate only their own store stretches")
     func paperImportsAreSelfGated() {
-        for name in ["import_local_pdf_as_paper", "import_local_file"] {
+        for name in ["import_local_pdf_as_paper", "import_local_file", "import_paper_from_url"] {
             #expect(MCPToolRegistry.selfGatedToolNames.contains(name), "\(name)")
             #expect(MCPToolRegistry.paidWorkToolNames.contains(name), "\(name)")
         }

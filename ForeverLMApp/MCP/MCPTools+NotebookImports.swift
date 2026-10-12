@@ -222,17 +222,47 @@ extension MCPDataStore {
     /// `import_paper_from_url` with an optional notebook_id, checked before the
     /// download starts. A paper the library already holds — by URL or DOI —
     /// joins the Notebook instead of being imported again.
-    func importPaperFilingInNotebook(url: String, sourceURL: String?, title: String?, notebookID: String?) async throws -> String {
+    ///
+    /// The call answers once the paper is saved with its PDF (or as
+    /// paywalled), with its id and, for a new PDF, a work_id: the Paper
+    /// Metadata model and Source Content Cleanup read it in the background, as
+    /// import_local_pdf_as_paper's papers are read
+    /// (`readStagedPaperInBackground`). The download stays in the call, so the
+    /// answer still says whether the paper came with its PDF, was paywalled,
+    /// or could not be fetched. A new paper is filed in the Notebook as soon
+    /// as it is saved; a team Notebook's copy takes the read paper when it is
+    /// done (`saveFinishedLocalPaper`).
+    func importPaperFilingInNotebook(
+        url: String,
+        sourceURL: String?,
+        title: String?,
+        notebookID: String?,
+        approvedSpendUSD: Double? = nil
+    ) async throws -> String {
         let notebook = try await withStoreGate(.shared) { try notebookForImport(notebookID: notebookID) }
-        let outcome: PaperImportOutcome
+        let staging: LocalPaperStaging
         if let sourceURL = Self.nilIfBlank(sourceURL ?? "") {
-            outcome = try await importPaperFromDownloadURLOutcome(url, sourceURL: sourceURL, title: title)
+            staging = try await stagePaperFromDownloadURL(url, sourceURL: sourceURL, title: title)
         } else {
-            outcome = try await importPaperFromURLOutcome(url, title: title)
+            staging = try await stagePaperFromURL(url, title: title)
         }
-        guard let notebook else { return outcome.message }
-        let filing = await fileImportedSources(outcome.sourceID.map { [$0] } ?? [], in: notebook)
-        return outcome.message + "\n" + filing.answer(for: notebook, batch: false)
+        let answer: String
+        let sourceID: String?
+        switch staging {
+        case .settled(let outcome):
+            answer = outcome.message
+            sourceID = outcome.sourceID
+        case .staged(let staged):
+            answer = try await readStagedPaperInBackground(
+                staged,
+                tool: "import_paper_from_url",
+                approvedSpendUSD: approvedSpendUSD
+            )
+            sourceID = staged.article.id
+        }
+        guard let notebook else { return answer }
+        let filing = await fileImportedSources(sourceID.map { [$0] } ?? [], in: notebook)
+        return answer + "\n" + filing.answer(for: notebook, batch: false)
     }
 
     // MARK: - add_notebook_sources
