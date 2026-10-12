@@ -94,18 +94,22 @@ struct TeamsStoreTests {
             id: "doc-private", title: "Private Doc", homeNotebookID: nil, linkedNotebookIDs: [],
             isDraft: false, teamID: nil, createdAt: now, updatedAt: now
         ))
-        // A teammate's Doc, and an own linked site with a team row at its address.
+        // A teammate's Doc, and an own linked site with a team row at its
+        // address, written without the trailing slash. The address is compared
+        // through `URLNormalizer`, which drops a path's trailing slash but keeps
+        // a bare host's ("example.com/" is not "example.com", pinned in
+        // schema/vectors/url-normalize.json), so the page here has a path.
         try store.saveArtifactRecord(ArtifactRecord(
             id: "doc-team", title: "Team Doc", homeNotebookID: nil, linkedNotebookIDs: [],
             isDraft: false, teamID: team.id, createdAt: now, updatedAt: now
         ))
         try store.saveArtifactRecord(ArtifactRecord(
             id: "site-own", title: "Atlas", homeNotebookID: nil, linkedNotebookIDs: [],
-            isDraft: false, linkedURL: "https://atlas.learner-1234.chatgpt.site/", teamID: nil, createdAt: now, updatedAt: now
+            isDraft: false, linkedURL: "https://learner-1234.chatgpt.site/atlas/", teamID: nil, createdAt: now, updatedAt: now
         ))
         try store.saveArtifactRecord(ArtifactRecord(
             id: "site-team-row", title: "Atlas", homeNotebookID: nil, linkedNotebookIDs: [],
-            isDraft: false, linkedURL: "https://atlas.learner-1234.chatgpt.site", teamID: team.id, createdAt: now, updatedAt: now
+            isDraft: false, linkedURL: "https://learner-1234.chatgpt.site/atlas", teamID: team.id, createdAt: now, updatedAt: now
         ))
 
         let teams = try store.teamIDsByMyLibraryArtifact()
