@@ -565,6 +565,9 @@ targets:
       - Shared/Models/MemoryCardTriage.swift
       - Shared/Models/MemoryCardVariation.swift
       - Shared/Models/MemoryCardSitting.swift
+      # Check on a card: the answer judged against the card's back, and the
+      # grade the verdict gives (docs/memory-design.md, "The answer is checked").
+      - Shared/Models/MemoryCardAnswerCheck.swift
       # How a card looks, the Mac's own (docs/memory-design.md, "How a card
       # looks"): its paper, the deck's edges, the fold, the round's strip.
       - Shared/Views/MemoryCardDeck.swift

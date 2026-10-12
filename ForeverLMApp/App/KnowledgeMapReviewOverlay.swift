@@ -160,8 +160,14 @@ private struct KnowledgeMapReviewCardHost: View {
             vm.endKnowledgeMapReview()
             return true
         case .confirm:
-            guard isVisible, sitting.isRoundOver else { return false }
-            vm.endKnowledgeMapReview()
+            guard isVisible else { return false }
+            if sitting.isRoundOver {
+                vm.endKnowledgeMapReview()
+                return true
+            }
+            // Return takes the check's verdict once it is in.
+            guard sitting.verdictRemembers != nil else { return false }
+            vm.confirmKnowledgeMapReviewVerdict()
             return true
         case .forgot, .remembered:
             guard isVisible, sitting.isAnswerShown, !sitting.isRoundOver else { return false }
@@ -176,8 +182,9 @@ private struct KnowledgeMapReviewCardHost: View {
 /// The question card: "MEMORY · <source>", where the round stands, the card
 /// in the wording the review asks it, the learner's answer typed or
 /// dictated and Check (never a bare flip: product owner, 2026-10-11), then
-/// their answer over the back, why it is right and the source it quotes, and
-/// Forgot or Remembered; I Don't Know leaves only Forgot. At the round's
+/// their answer over the back, the check's verdict on it, why it is right
+/// and the source it quotes, and Forgot or Remembered, the verdict's grade
+/// first; I Don't Know leaves only Forgot. At the round's
 /// end, how it went, Again for the forgotten ones, and Done.
 private struct KnowledgeMapReviewCard: View {
     @Environment(StudioViewModel.self) private var vm
@@ -297,6 +304,9 @@ private struct KnowledgeMapReviewCard: View {
             }
             if sitting.isAnswerShown {
                 Divider()
+                if let check = sitting.answerCheck {
+                    MemoryCardVerdictLine(check: check)
+                }
                 Text(card.back)
                     .font(.system(size: 14.5))
                     .fixedSize(horizontal: false, vertical: true)
@@ -359,12 +369,25 @@ private struct KnowledgeMapReviewCard: View {
                 .disabled(session.isKeepingDraft)
                 .accessibilityIdentifier("knowledgeMap.review.forgot")
         } else if sitting.isAnswerShown {
+            // With the check's verdict, its grade is filled and Return takes
+            // it; the other side is the override. While it checks, both are
+            // pale; with no verdict, the learner's own grade as before.
+            let verdict = sitting.verdictRemembers
+            let checking = sitting.answerCheck == .checking
             HStack(spacing: 8) {
-                capsule("Forgot", key: "1", prominent: false) { vm.answerKnowledgeMapReview(remembered: false) }
-                    .help("Forgot (1 or \u{2190})")
+                capsule(
+                    verdict == true ? "I Was Wrong" : "Forgot",
+                    key: verdict == false ? "\u{21A9}" : "1",
+                    prominent: verdict == false
+                ) { vm.answerKnowledgeMapReview(remembered: false) }
+                    .help(verdict == true ? "The check was wrong: Forgot (1 or \u{2190})" : "Forgot (1 or \u{2190})")
                     .accessibilityIdentifier("knowledgeMap.review.forgot")
-                capsule("Remembered", key: "2", prominent: true) { vm.answerKnowledgeMapReview(remembered: true) }
-                    .help("Remembered (2 or \u{2192})")
+                capsule(
+                    verdict == false ? "I Was Right" : "Remembered",
+                    key: verdict == true ? "\u{21A9}" : "2",
+                    prominent: verdict == true || (verdict == nil && !checking)
+                ) { vm.answerKnowledgeMapReview(remembered: true) }
+                    .help(verdict == false ? "The check was wrong: Remembered (2 or \u{2192})" : "Remembered (2 or \u{2192})")
                     .accessibilityIdentifier("knowledgeMap.review.remembered")
             }
             .disabled(session.isKeepingDraft)
@@ -531,7 +554,7 @@ enum KnowledgeMapReviewKey: Equatable {
     case remembered
     /// Escape: end the review.
     case escape
-    /// Return: Done, at the round's end.
+    /// Return: the check's verdict, once it is in; Done, at the round's end.
     case confirm
 
     init?(_ event: NSEvent) {

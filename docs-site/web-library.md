@@ -65,8 +65,14 @@ and so get the notebook with its sources. A notebook in no team is shared by
 your Mac while it is open: it makes a team named after the notebook, moves the
 notebook into it and answers with the link. The first time you share, on any device, you confirm
 that you have the rights to share these sources.
-Studio's **Cards** reviews the notebook's kept cards one at a time: Show
-answer, then Forgot or Remembered, counted the way the Mac counts them. It
+Studio's **Cards** reviews the notebook's kept cards one at a time: type
+your answer and press **Check** (Return), or **I don't know**; ForeverLM checks
+your answer against the card with your Card Answer Check model and says
+**Right**, **Partly** or **Not quite** with a line on what was missing. The
+check's grade is the dark button and Return takes it; the other says **I was
+right** or **I was wrong**, and what you choose is recorded, counted the way
+the Mac counts it. When the check cannot run, the card says so and you grade
+it yourself. It
 brings in new cards up to your **New cards each day** (Settings → General →
 Memory review on your Mac, 10 by default), counting those you began today in
 any notebook; the rest wait for another day, or for **Practice** once nothing

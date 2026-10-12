@@ -36,6 +36,13 @@ enum MemoryReviewFocus {
 /// Next Card, which is there from the start, so the probe is never a gate.
 /// The two model calls and the analogy's partner come in as `DeeperSteps`,
 /// so the states are tested without a model; nothing they produce is stored.
+///
+/// **Check** sends the learner's answer to the Card Answer Check task
+/// (`AnswerCheckStep`, docs/memory-design.md "The answer is checked") while
+/// the back opens: the verdict, kept in the sitting, suggests the grade,
+/// which Return confirms (`confirmVerdict`) and Forgot or Remembered
+/// overrides. A check that fails is said on the card and the learner grades
+/// themselves.
 @MainActor
 @Observable
 final class MemoryCardSessionModel: Identifiable {
@@ -57,6 +64,11 @@ final class MemoryCardSessionModel: Identifiable {
             -> MemoryUnderstandingProbe.CardQuestion?
         let reply: @MainActor (_ request: MemoryUnderstandingProbe.CardReplyRequest, _ cardID: String) async throws -> String
     }
+
+    /// The model's check of an answer (`AIService.checkCardAnswer`), for the
+    /// card the request is about. Thrown errors are said on the card.
+    typealias AnswerCheckStep = @MainActor (_ request: MemoryCardAnswerCheck.Request, _ cardID: String, _ sourceTitle: String?) async throws
+        -> MemoryCardAnswerCheck.Result
 
     /// The panel Go Deeper opens for the card it answered.
     struct Deeper: Equatable, Identifiable {
@@ -143,6 +155,9 @@ final class MemoryCardSessionModel: Identifiable {
     @ObservationIgnored private var hasReportedFirstDeal = false
     @ObservationIgnored private var writes: Task<Void, Never>?
     @ObservationIgnored private let deeperSteps: DeeperSteps?
+    @ObservationIgnored private let answerCheckStep: AnswerCheckStep?
+    /// The check of the answer on screen, while it runs.
+    @ObservationIgnored private var checkWork: Task<Void, Never>?
     /// The model work of the panel showing: its question, then its reply.
     @ObservationIgnored private var deeperWork: Task<Void, Never>?
     /// The kind of the last probe asked in this sitting: the kinds rotate.
@@ -159,7 +174,8 @@ final class MemoryCardSessionModel: Identifiable {
         stateDefaults: UserDefaults = .standard,
         followup: @escaping @MainActor () async throws -> Followup,
         firstDealAnswered: @escaping @MainActor (_ dayHasCardsLeft: Bool) -> Void = { _ in },
-        deeper: DeeperSteps? = nil
+        deeper: DeeperSteps? = nil,
+        answerCheck: AnswerCheckStep? = nil
     ) {
         self.id = sitting.key
         self.sitting = sitting
@@ -172,6 +188,7 @@ final class MemoryCardSessionModel: Identifiable {
         self.followup = followup
         self.firstDealAnswered = firstDealAnswered
         self.deeperSteps = deeper
+        self.answerCheckStep = answerCheck
     }
 
     /// Whether leaving now ends today's session: the review made the
@@ -192,12 +209,51 @@ final class MemoryCardSessionModel: Identifiable {
     var offersGoDeeper: Bool { deeperSteps != nil }
 
     /// Check: the learner's answer turns the card to its back, the answer
-    /// shown over it. A blank answer turns nothing. True when the back shows.
+    /// shown over it, and goes to the model to be checked. A blank answer
+    /// turns nothing. True when the back shows.
     @discardableResult
     func showAnswer(attempt: String) -> Bool {
         guard sitting.showAnswer(attempt: attempt) else { return false }
         attemptDraft = ""
+        startAnswerCheck()
         return true
+    }
+
+    /// Whether the review checks answers with a model: one made with the
+    /// step. A review made without it (a test's) grades by the learner alone.
+    var checksAnswers: Bool { answerCheckStep != nil }
+
+    /// Sends the answer on screen to the check, off the main actor; the
+    /// verdict lands in the sitting only while its card still waits for it.
+    private func startAnswerCheck() {
+        guard let step = answerCheckStep, let begun = sitting.beginAnswerCheck() else { return }
+        let sourceTitle = sitting.current?.sourceID.flatMap { sourceTitles[$0] }
+        checkWork?.cancel()
+        checkWork = Task { [weak self] in
+            let outcome: MemoryCardSitting.AnswerCheck
+            do {
+                let result = try await step(begun.request, begun.itemID, sourceTitle)
+                outcome = .judged(result)
+            } catch {
+                if error is CancellationError || Task.isCancelled { return }
+                self?.logger.error("A card answer was not checked: \(error.localizedDescription, privacy: .public)")
+                outcome = .failed(MemoryCardAnswerCheck.failureLine(error.localizedDescription))
+            }
+            guard !Task.isCancelled else { return }
+            self?.sitting.settleAnswerCheck(outcome, token: begun.token)
+        }
+    }
+
+    /// Return once the verdict is in: the grade it suggests. Nothing while
+    /// the check runs, or when it failed.
+    func confirmVerdict() {
+        guard let remembered = sitting.verdictRemembers else { return }
+        answer(remembered: remembered)
+    }
+
+    /// The check of the answer on screen, for a test to wait on.
+    func waitForAnswerCheck() async {
+        await checkWork?.value
     }
 
     /// Check on what the learner has typed or dictated.
@@ -216,6 +272,10 @@ final class MemoryCardSessionModel: Identifiable {
     /// On a draft a notebook's Practice dealt, the answer keeps it first.
     func answer(remembered: Bool) {
         guard sitting.isAnswerShown, !isKeepingDraft else { return }
+        // Graded before the verdict came: the learner's own grade stands, and
+        // the check is no longer waited for.
+        checkWork?.cancel()
+        checkWork = nil
         if let answer = sitting.answer(remembered: remembered) {
             record(answer)
         }

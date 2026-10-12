@@ -3,9 +3,10 @@ import SwiftUI
 /// The card review, in the window-filling memory focus (docs/memory-design.md,
 /// "The card review"): one card at a time, the wording large, the learner's
 /// answer typed or dictated on the card and Check (never a bare flip:
-/// product owner, 2026-10-11), then their answer over the back, why it is
-/// right and the source it quotes, and Forgot or Remembered. I Don't Know
-/// opens the back too, and leaves only Forgot.
+/// product owner, 2026-10-11), then their answer over the back, the check's
+/// verdict on it under the fold, why it is right and the source it quotes,
+/// and Forgot or Remembered, the verdict's grade first. I Don't Know opens
+/// the back too, and leaves only Forgot.
 ///
 /// Since 2026-10-11 it is drawn as a deck (docs/memory-design.md, "How a card
 /// looks"; `MemoryCardChrome.swift`): over the card, the source it is from
@@ -23,7 +24,8 @@ import SwiftUI
 /// here, as it showed in the chat.
 ///
 /// Keys: Return in the answer field checks it (Shift-Return a new line);
-/// once the back shows, ← or 1 is Forgot, → or 2 Remembered, D Go Deeper.
+/// once the back shows, Return takes the verdict's grade when the check has
+/// one, ← or 1 is Forgot, → or 2 Remembered, D Go Deeper.
 /// They are off while the answer field is up, which takes the keys, while
 /// the Reader is beside the review, which takes keys of its own, while a
 /// draft is being edited, and while Go Deeper's panel is up, whose answer
@@ -358,6 +360,10 @@ struct MemoryCardSessionView: View {
         VStack(alignment: .leading, spacing: 0) {
             MemoryCardFold()
                 .padding(.vertical, 22)
+            if let check = sitting.answerCheck {
+                MemoryCardVerdictLine(check: check)
+                    .padding(.bottom, 16)
+            }
             Text(card.back)
                 .font(MemoryCardMetrics.backFont)
                 .lineSpacing(2)
@@ -495,34 +501,21 @@ struct MemoryCardSessionView: View {
                     hiddenShortcut("1") { answer(remembered: false) }
                 }
             } else if sitting.isAnswerShown {
-                HStack(spacing: 12) {
-                    MemoryReviewButton(
-                        title: "Forgot",
-                        key: keysEnabled ? "←" : nil,
-                        kind: .secondary,
-                        minWidth: 170,
-                        shortcut: keysEnabled ? KeyboardShortcut(.leftArrow, modifiers: []) : nil
-                    ) {
-                        answer(remembered: false)
+                gradeButtons
+                    .disabled(session.isKeepingDraft)
+                // The arrow of the verdict's side still answers when Return
+                // took its button.
+                if keysEnabled, !session.isKeepingDraft, let verdict = sitting.verdictRemembers {
+                    if verdict {
+                        hiddenKey(.rightArrow) { answer(remembered: true) }
+                    } else {
+                        hiddenKey(.leftArrow) { answer(remembered: false) }
                     }
-                    .help(keysEnabled ? "Forgot (← or 1)" : "Forgot")
-                    .accessibilityIdentifier("memory.cards.forgot")
-                    MemoryReviewButton(
-                        title: "Remembered",
-                        key: keysEnabled ? "→" : nil,
-                        kind: .primary,
-                        minWidth: 170,
-                        shortcut: keysEnabled ? KeyboardShortcut(.rightArrow, modifiers: []) : nil
-                    ) {
-                        answer(remembered: true)
-                    }
-                    .help(keysEnabled ? "Remembered (→ or 2)" : "Remembered")
-                    .accessibilityIdentifier("memory.cards.remembered")
                 }
-                .disabled(session.isKeepingDraft)
                 // Remembered, then a question past it, in place of the next
-                // card: quieter than the two answers, never in their way.
-                if session.offersGoDeeper {
+                // card: quieter than the two answers, never in their way. Not
+                // offered on an answer the check found partly right or wrong.
+                if session.offersGoDeeper, sitting.verdictRemembers != false {
                     MemoryReviewButton(
                         title: "Go Deeper",
                         key: keysEnabled ? "D" : nil,
@@ -601,6 +594,63 @@ struct MemoryCardSessionView: View {
         .frame(maxWidth: .infinity)
     }
 
+    /// Forgot and Remembered once the back shows, as the check left them
+    /// (docs/memory-design.md, "The answer is checked"). With a verdict, its
+    /// grade is the dark pill and Return confirms it; the other side is the
+    /// override, "I Was Wrong" or "I Was Right", on its arrow. While the
+    /// check runs both are pale and either grades at once; with no verdict
+    /// (the check failed, or none was asked) they are Forgot and Remembered
+    /// as the learner's own grade. ← and →, 1 and 2 always answer Forgot and
+    /// Remembered.
+    private var gradeButtons: some View {
+        let verdict = sitting.verdictRemembers
+        let checking = sitting.answerCheck == .checking
+        return HStack(spacing: 12) {
+            MemoryReviewButton(
+                title: verdict == true ? "I Was Wrong" : "Forgot",
+                key: keysEnabled ? (verdict == false ? "↩" : "←") : nil,
+                kind: verdict == false ? .primary : .secondary,
+                minWidth: 170,
+                shortcut: keysEnabled
+                    ? KeyboardShortcut(verdict == false ? .return : .leftArrow, modifiers: [])
+                    : nil
+            ) {
+                answer(remembered: false)
+            }
+            .help(Self.gradeHelp(remembered: false, verdict: verdict, keys: keysEnabled))
+            .accessibilityIdentifier("memory.cards.forgot")
+            MemoryReviewButton(
+                title: verdict == false ? "I Was Right" : "Remembered",
+                key: keysEnabled ? (verdict == true ? "↩" : "→") : nil,
+                kind: verdict == true || (verdict == nil && !checking) ? .primary : .secondary,
+                minWidth: 170,
+                shortcut: keysEnabled
+                    ? KeyboardShortcut(verdict == true ? .return : .rightArrow, modifiers: [])
+                    : nil
+            ) {
+                answer(remembered: true)
+            }
+            .help(Self.gradeHelp(remembered: true, verdict: verdict, keys: keysEnabled))
+            .accessibilityIdentifier("memory.cards.remembered")
+        }
+    }
+
+    private static func gradeHelp(remembered: Bool, verdict: Bool?, keys: Bool) -> String {
+        let arrow = remembered ? "→ or 2" : "← or 1"
+        switch (verdict, remembered) {
+        case (true?, true), (false?, false):
+            let title = remembered ? "Remembered, as the check found" : "Forgot, as the check found"
+            return keys ? "\(title) (Return, \(arrow))" : title
+        case (true?, false):
+            return keys ? "The check was wrong: Forgot (\(arrow))" : "The check was wrong: Forgot"
+        case (false?, true):
+            return keys ? "The check was wrong: Remembered (\(arrow))" : "The check was wrong: Remembered"
+        default:
+            let title = remembered ? "Remembered" : "Forgot"
+            return keys ? "\(title) (\(arrow))" : title
+        }
+    }
+
     private static let dealAnimation = Animation.spring(response: 0.38, dampingFraction: 0.86)
 
     /// Answers the card in front, tossing it toward its key's side. The side
@@ -616,8 +666,12 @@ struct MemoryCardSessionView: View {
 
     /// A key that answers with no button of its own on screen.
     private func hiddenShortcut(_ key: Character, action: @escaping () -> Void) -> some View {
+        hiddenKey(KeyEquivalent(key), action: action)
+    }
+
+    private func hiddenKey(_ key: KeyEquivalent, action: @escaping () -> Void) -> some View {
         Button("", action: action)
-            .keyboardShortcut(KeyEquivalent(key), modifiers: [])
+            .keyboardShortcut(key, modifiers: [])
             .buttonStyle(.hoverWash)
             .frame(width: 0, height: 0)
             .opacity(0)

@@ -184,7 +184,8 @@ extension StudioViewModel {
                     sourceTitles: self.knowledgeMapReviewSourceTitles(cards),
                     storage: self.storage,
                     // A review in place deals what it was asked on and nothing after it.
-                    followup: { MemoryCardSessionModel.Followup(cards: [], dayHasCardsLeft: true) }
+                    followup: { MemoryCardSessionModel.Followup(cards: [], dayHasCardsLeft: true) },
+                    answerCheck: self.memoryCardAnswerCheck()
                 )
                 memory.begin(KnowledgeMapReview(session: session, kind: dealt.kind, anchors: dealt.anchors, windowID: window.id))
             } catch {
@@ -222,6 +223,12 @@ extension StudioViewModel {
     /// Forgot.
     func showKnowledgeMapReviewAnswerNotKnown() {
         knowledgeMap.memory.review?.session.showAnswerNotKnown()
+    }
+
+    /// Return once the check's verdict is in: the grade it suggests.
+    func confirmKnowledgeMapReviewVerdict() {
+        guard let remembered = knowledgeMap.memory.review?.session.sitting.verdictRemembers else { return }
+        answerKnowledgeMapReview(remembered: remembered)
     }
 
     /// Forgot or Remembered on the card asked, once its back shows: written
