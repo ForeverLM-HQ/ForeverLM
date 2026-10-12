@@ -4,6 +4,15 @@ All notable changes to ForeverLM are documented here. Dates are in YYYY-MM-DD fo
 
 ForeverLM follows [semantic versioning](https://semver.org) against its public surface: the MCP tool contracts, the knowledge-base/sync format, and licensing compatibility. While the version is 0.x, minor releases may include breaking changes to that surface; patch releases never do.
 
+## 0.143.0 (build 218) — 2026-10-12
+
+**Highlights:**
+- **The top left is the traffic lights, ‹ › and the sidebar toggle.** ‹ › go back and forward through the places a window showed.
+- **The icon strip keeps shortcuts.** Its ⋯ opens any place and keeps the ones you use on the strip; the strip itself never folds.
+- **An empty canvas is somewhere to drop things**, with the Library beside it.
+- **The Reader's ‹ goes back to the Library or Space it covered.**
+- **Podcasts played in Apple Podcasts count as listening** on the day they were played.
+
 ## 0.142.1 (build 217) — 2026-10-12
 
 **Highlights:**
