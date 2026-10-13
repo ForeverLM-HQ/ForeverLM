@@ -4,6 +4,12 @@ All notable changes to ForeverLM are documented here. Dates are in YYYY-MM-DD fo
 
 ForeverLM follows [semantic versioning](https://semver.org) against its public surface: the MCP tool contracts, the knowledge-base/sync format, and licensing compatibility. While the version is 0.x, minor releases may include breaking changes to that surface; patch releases never do.
 
+## 0.146.1 (build 226) — 2026-10-13
+
+**Highlights:**
+- **Typing straight after Return in a list keeps every letter**, where the first ones were scrambled.
+- **Empty lines are stored as blank lines**, not `<br />`.
+
 ## 0.146.0 (build 225) — 2026-10-13
 
 **Highlights:**
