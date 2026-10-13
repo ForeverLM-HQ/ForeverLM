@@ -6037,6 +6037,13 @@ All notable changes to ForeverLM are documented here. Dates are in YYYY-MM-DD fo
 
 ForeverLM follows [semantic versioning](https://semver.org) against its public surface: the MCP tool contracts, the knowledge-base/sync format, and licensing compatibility. While the version is 0.x, minor releases may include breaking changes to that surface; patch releases never do.
 
+## 0.145.0 (build 224) — 2026-10-12
+
+**Highlights:**
+- **A book is one file**: a PDF or an EPUB is kept as itself, and books split by earlier builds are put back together on the first launch.
+- **Every paid background step has a Stop**, and a stop lasts until Resume.
+- **Add Book reads scanned PDFs** and takes several books at once.
+
 ## 0.144.0 (build 223) — 2026-10-12
 
 **Highlights:**
