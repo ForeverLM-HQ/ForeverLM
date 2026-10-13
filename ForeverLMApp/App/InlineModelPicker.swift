@@ -138,6 +138,10 @@ struct InlineModelPicker: View {
     /// OpenRouter's measured endpoint speeds for the selected model, keyed by
     /// lowercased slug. Read through `endpointSpeeds(slug:)`, cache first.
     @State private var speedsBySlug: [String: [OpenRouterEndpointSpeed]] = [:]
+    /// The models and efforts last chosen for chats, newest first, for the
+    /// menu's Recent models (`ChatRecentModels`). Read off-main with the rest
+    /// of the selection.
+    @State private var recentModels: [ChatRecentModels.Entry] = []
     let task: AITask?
 
     init(task: AITask? = nil) {
@@ -589,7 +593,8 @@ struct InlineModelPicker: View {
     @ViewBuilder
     private var modelMenu: some View {
         if #available(macOS 14.4, *) {
-            UpwardMenuChip {
+            // ⌃⇧M opens the chat's chip, Codex's key for its model picker.
+            UpwardMenuChip(opensOn: task == .chat ? .openChatModelPicker : nil) {
                 modelMenuItems
             } label: {
                 modelMenuLabel
@@ -623,8 +628,45 @@ struct InlineModelPicker: View {
         )
     }
 
+    /// Recent models the menu leads with: the chat's last picks other than
+    /// the one on the chip, each still on the menu's list.
+    private var recentMenuRows: [RecentMenuRow] {
+        guard task == .chat else { return [] }
+        return recentModels.compactMap { recent in
+            guard !(recent.provider == selectedProvider.rawValue && recent.model == selectedModel),
+                  let entry = menuEntries.first(where: {
+                      $0.provider.rawValue == recent.provider && $0.modelID == recent.model
+                  }),
+                  isEntryAvailable(entry) else { return nil }
+            return RecentMenuRow(recent: recent, entry: entry)
+        }
+    }
+
+    private struct RecentMenuRow {
+        let recent: ChatRecentModels.Entry
+        let entry: AIModelCatalogEntry
+    }
+
     @ViewBuilder
     private var modelMenuItems: some View {
+        // Codex's model picker leads with Recent models: the combinations
+        // chosen lately, one press back to each (composer.recentModelConfigurations).
+        let recents = recentMenuRows
+        if !recents.isEmpty {
+            Section("Recent models") {
+                ForEach(recents, id: \.recent) { row in
+                    Button {
+                        selectRecent(row.recent, entry: row.entry)
+                    } label: {
+                        menuRowTitle(for: row.entry)
+                        if let effort = row.recent.effort.flatMap(AIEffort.init(rawValue:)) {
+                            Text(effort.displayName)
+                        }
+                    }
+                }
+            }
+            Divider()
+        }
         if !menuEntries.isEmpty {
             // One flat item per model — picking a model also picks its
             // serving host, and the maker grouping already lives in
@@ -805,6 +847,7 @@ struct InlineModelPicker: View {
         if let task {
             KeychainService.setTaskRoute(provider: entry.provider, model: entry.modelID, for: task)
             dropUnsupportedTuning(for: task)
+            rememberRecentChoice()
         } else {
             KeychainService.setDefaultChatRoute(provider: entry.provider, model: entry.modelID)
         }
@@ -816,7 +859,27 @@ struct InlineModelPicker: View {
             KeychainService.setTaskEffort(effort, for: task)
             // The next chat starts on this effort too (`taskEffort`).
             if let effort { KeychainService.chosenChatEffort = effort }
+            rememberRecentChoice()
         }
+    }
+
+    /// A Recent models row: its model, then the effort it was used with
+    /// when the model still takes it. A model not yet tried is tested first,
+    /// and its effort waits for the next pick.
+    private func selectRecent(_ recent: ChatRecentModels.Entry, entry: AIModelCatalogEntry) {
+        select(entry)
+        guard isCurrent(entry) else { return }
+        if let effort = recent.effort.flatMap(AIEffort.init(rawValue:)), supportedEfforts.contains(effort) {
+            selectEffort(effort)
+        }
+    }
+
+    /// Files the chat's model and effort as the newest Recent models row.
+    private func rememberRecentChoice() {
+        guard task == .chat else { return }
+        recentModels = ChatRecentModels.record(
+            .init(provider: selectedProvider.rawValue, model: selectedModel, effort: currentEffort?.rawValue)
+        )
     }
 
     private func selectSpeed(_ speed: AISpeed) {
@@ -864,6 +927,7 @@ struct InlineModelPicker: View {
         let model: String
         let effort: AIEffort?
         let speed: AISpeed?
+        let recentModels: [ChatRecentModels.Entry]
     }
 
     @MainActor
@@ -883,7 +947,8 @@ struct InlineModelPicker: View {
                     provider: selection.provider,
                     model: selection.model,
                     effort: KeychainService.taskEffort(task),
-                    speed: KeychainService.taskSpeed(task)
+                    speed: KeychainService.taskSpeed(task),
+                    recentModels: task == .chat ? ChatRecentModels.load() : []
                 )
             }
             let provider = KeychainService.aiProvider
@@ -894,7 +959,8 @@ struct InlineModelPicker: View {
                 provider: provider,
                 model: KeychainService.model(for: provider),
                 effort: nil,
-                speed: nil
+                speed: nil,
+                recentModels: []
             )
         }.value
         guard !Task.isCancelled else { return }
@@ -905,6 +971,7 @@ struct InlineModelPicker: View {
         selectedModel = snapshot.model
         selectedEffort = snapshot.effort
         selectedSpeed = snapshot.speed
+        recentModels = snapshot.recentModels
         // Load the tiers for the synced selection here as well as from the
         // selection-keyed task: seen live, the first menu open otherwise built
         // its items before the restarted task had fetched them, and the popup
@@ -963,6 +1030,10 @@ private struct ModelMenuChrome: ViewModifier {
 /// would leave the screen, so a chip near the top of a display gets it below.
 @available(macOS 14.4, *)
 struct UpwardMenuChip<Items: View, Label: View>: View {
+    /// A request that opens the menu as a press would, answered by the chip in
+    /// the key window (the model chip's ⌃⇧M). The request's object is a token
+    /// one chip takes, so two chats side by side open one menu, not two.
+    var opensOn: Notification.Name? = nil
     @ViewBuilder var items: () -> Items
     @ViewBuilder var label: () -> Label
 
@@ -976,6 +1047,59 @@ struct UpwardMenuChip<Items: View, Label: View>: View {
         }
         .buttonStyle(.pickerPill)
         .background(UpwardMenuAnchorView(anchor: anchor))
+        .onReceive(NotificationCenter.default.publisher(for: opensOn ?? .upwardMenuChipNeverOpens)) { note in
+            guard opensOn != nil, anchor.view?.window?.isKeyWindow == true,
+                  let token = note.object as? UUID, UpwardMenuAnchor.claim(token) else { return }
+            anchor.present(NSHostingMenu(rootView: items()))
+        }
+    }
+}
+
+extension Notification.Name {
+    /// Opens the chat's model chip in the key window (⌃⇧M); the object is a
+    /// fresh `UUID` per press.
+    static let openChatModelPicker = Notification.Name("openChatModelPicker")
+    /// Never posted: what a chip with no `opensOn` listens to.
+    static let upwardMenuChipNeverOpens = Notification.Name("upwardMenuChipNeverOpens")
+}
+
+/// The models and efforts chosen lately for chats, newest first: the model
+/// chip's Recent models, as Codex's picker has (composer.recentModelConfigurations,
+/// "Open recently used model, effort, and speed combinations"). One row per
+/// model, with the effort it was last used at. This Mac's convenience, kept in
+/// its defaults: what a learner switches between here is not a setting.
+enum ChatRecentModels {
+    struct Entry: Codable, Equatable, Hashable, Sendable {
+        let provider: String
+        let model: String
+        let effort: String?
+    }
+
+    static let defaultsKey = "chat.recentModels"
+    /// Rows kept; the chip's own model is one of them and is not listed.
+    static let limit = 4
+
+    /// `entry` at the head of `list`, replacing that model's older row,
+    /// with no more than `limit` rows.
+    static func adding(_ entry: Entry, to list: [Entry]) -> [Entry] {
+        let rest = list.filter { !($0.provider == entry.provider && $0.model == entry.model) }
+        return Array(([entry] + rest).prefix(limit))
+    }
+
+    static func load(defaults: UserDefaults = .standard) -> [Entry] {
+        guard let data = defaults.data(forKey: defaultsKey),
+              let list = try? JSONDecoder().decode([Entry].self, from: data) else { return [] }
+        return list
+    }
+
+    /// Files `entry` as the newest row and returns the list as stored.
+    @discardableResult
+    static func record(_ entry: Entry, defaults: UserDefaults = .standard) -> [Entry] {
+        let list = adding(entry, to: load(defaults: defaults))
+        if let data = try? JSONEncoder().encode(list) {
+            defaults.set(data, forKey: defaultsKey)
+        }
+        return list
     }
 }
 
@@ -995,6 +1119,17 @@ final class UpwardMenuAnchor {
             ? bounds.minY - gap - menuHeight
             : bounds.maxY + gap + menuHeight
         return NSPoint(x: bounds.minX, y: y)
+    }
+
+    /// Tokens of open requests a chip has answered; see `UpwardMenuChip.opensOn`.
+    @MainActor private static var claimedTokens: [UUID] = []
+
+    /// True for the first chip to claim `token`.
+    @MainActor
+    static func claim(_ token: UUID) -> Bool {
+        guard !claimedTokens.contains(token) else { return false }
+        claimedTokens = Array((claimedTokens + [token]).suffix(8))
+        return true
     }
 
     @MainActor

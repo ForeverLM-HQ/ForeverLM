@@ -796,6 +796,13 @@ struct ForeverLMApp: App {
                 }
                 .keyboardShortcut("k", modifiers: .command)
 
+                // The model chip of the chat in the key window, with its
+                // Recent models on top: Codex's model picker key.
+                Button("Select Model") {
+                    NotificationCenter.default.post(name: .openChatModelPicker, object: UUID())
+                }
+                .keyboardShortcut("m", modifiers: [.control, .shift])
+
                 Button("Open Reader") {
                     postToActiveStudioWindow(.openStudioReader)
                 }

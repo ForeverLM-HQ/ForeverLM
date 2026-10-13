@@ -6778,6 +6778,52 @@ struct UpwardMenuAnchorTests {
         let unflipped = UpwardMenuAnchor.origin(in: chip, isFlipped: false, menuHeight: 342)
         #expect(unflipped == NSPoint(x: 0, y: 24 + gap + 342))
     }
+
+    @Test("A press of the picker's key opens one chip's menu, however many chats are listening")
+    @MainActor
+    func oneChipClaimsAKeyPress() {
+        let press = UUID()
+        #expect(UpwardMenuAnchor.claim(press))
+        #expect(!UpwardMenuAnchor.claim(press))
+        #expect(UpwardMenuAnchor.claim(UUID()))
+    }
+}
+
+/// The model chip leads with Recent models, as Codex's picker does.
+@Suite("Recent chat models")
+struct ChatRecentModelsTests {
+    typealias Entry = ChatRecentModels.Entry
+
+    @Test("A pick goes to the head, replaces its model's older row, and the list stays short")
+    func newestFirstOnePerModel() {
+        let a = Entry(provider: "openRouter", model: "lab/a", effort: "high")
+        let b = Entry(provider: "openRouter", model: "lab/b", effort: nil)
+        var list = ChatRecentModels.adding(a, to: [])
+        list = ChatRecentModels.adding(b, to: list)
+        #expect(list == [b, a])
+        let aLow = Entry(provider: "openRouter", model: "lab/a", effort: "low")
+        list = ChatRecentModels.adding(aLow, to: list)
+        #expect(list == [aLow, b])
+        for index in 0..<10 {
+            list = ChatRecentModels.adding(Entry(provider: "openRouter", model: "lab/m\(index)", effort: nil), to: list)
+        }
+        #expect(list.count == ChatRecentModels.limit)
+        #expect(list.first?.model == "lab/m9")
+    }
+
+    @Test("Recorded picks survive a relaunch in this Mac's defaults")
+    func recordsAndLoads() throws {
+        let suite = "ChatRecentModelsTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        #expect(ChatRecentModels.load(defaults: defaults).isEmpty)
+        let entry = Entry(provider: "openRouter", model: "lab/a", effort: "medium")
+        ChatRecentModels.record(entry, defaults: defaults)
+        ChatRecentModels.record(Entry(provider: "openRouter", model: "lab/b", effort: nil), defaults: defaults)
+        #expect(ChatRecentModels.load(defaults: defaults).map(\.model) == ["lab/b", "lab/a"])
+        defaults.set(Data("not json".utf8), forKey: ChatRecentModels.defaultsKey)
+        #expect(ChatRecentModels.load(defaults: defaults).isEmpty)
+    }
 }
 
 /// 2026-09-25: a chat asked to add one compound to a Site called save_site,
