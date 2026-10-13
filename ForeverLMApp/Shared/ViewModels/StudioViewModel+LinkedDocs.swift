@@ -104,7 +104,8 @@ extension StudioViewModel {
 
     /// Copy a Markdown doc into a new Google Doc in the user's Drive and make
     /// the doc a linked doc pointing at it. The content sent is the stored
-    /// body, rendered to HTML by `MarkdownHTML`; the caller flushes any
+    /// body, rendered to HTML by `MarkdownHTML`, its attached sources as
+    /// numbered citations and a References list; the caller flushes any
     /// unsaved draft first so the two cannot disagree. A Mac without a
     /// `drive.file` grant is sent through Google's consent in the browser by
     /// `GoogleDriveService` before the create. On success the doc keeps its
@@ -115,7 +116,11 @@ extension StudioViewModel {
         guard !snapshot.artifact.isLinked else {
             throw ArtifactError.alreadyLinked(snapshot.artifact.title)
         }
-        let html = MarkdownHTML.document(title: snapshot.artifact.title, markdown: snapshot.markdown)
+        let html = MarkdownHTML.document(
+            title: snapshot.artifact.title,
+            markdown: snapshot.markdown,
+            references: citationReferences(in: snapshot.markdown)
+        )
         let documentID = try await GoogleDriveService.shared.createGoogleDoc(
             title: snapshot.artifact.title,
             html: html
@@ -125,6 +130,90 @@ extension StudioViewModel {
         artifacts = try await loadScopedArtifacts()
         showToast("Converted to \(LinkedGoogleDoc.label)")
         return linked
+    }
+
+    /// What each source a Doc's body attaches to a passage or links reads as
+    /// in a reference list, by the token its address carries. A book attached
+    /// whole (`book:<id>`) is one reference, the book; a source or book the
+    /// library no longer holds is left out, so its passages cite nothing.
+    func citationReferences(in markdown: String) -> [String: MarkdownHTML.Reference] {
+        var references: [String: MarkdownHTML.Reference] = [:]
+        for token in StorageService.groundingTokens(in: markdown) where references[token] == nil {
+            if token.hasPrefix(Self.notepadGroundingBookPrefix) {
+                let bookID = String(token.dropFirst(Self.notepadGroundingBookPrefix.count))
+                let chapters = bookChapterArticlesInOrder(for: bookID)
+                guard let first = chapters.first else { continue }
+                references[token] = Self.citationReference(
+                    book: groupDisplayTitle(bookID) ?? first.title,
+                    chapters: chapters
+                )
+            } else if let source = articlesById[token] {
+                references[token] = Self.citationReference(for: source, groupTitle: sourceGroupTitle(for: source))
+            }
+        }
+        return references
+    }
+
+    /// One source as a reference list prints it. A paper names its journal
+    /// and links its DOI; a chapter, an episode or a lecture names the book,
+    /// show or course it is part of (`groupTitle`); a web page names its site.
+    /// The placeholders a paper carries while its metadata is unread ("Unknown
+    /// authors") are left out, and so is a meeting's address: a recording's
+    /// link is private, and a document is for sharing.
+    nonisolated static func citationReference(for source: StudioArticle, groupTitle: String?) -> MarkdownHTML.Reference {
+        var reference = MarkdownHTML.Reference(title: source.title)
+        reference.authors = citationAuthors(source.author)
+        if let year = source.normalizedPublishedYear, year != StudioArticle.unknownPaperYear {
+            reference.year = year
+        } else if source.sourceType == .video, let published = source.videoPublishedAt {
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = TimeZone(identifier: "UTC") ?? .current
+            reference.year = String(calendar.component(.year, from: published))
+        }
+        switch source.sourceType {
+        case .paper:
+            if let journal = source.normalizedJournal, journal != StudioArticle.unknownPaperJournal {
+                reference.container = journal
+            }
+        case .article, .manual, .unclassified, .xPost:
+            reference.container = source.displayDomain
+        case .book, .course, .podcast, .video, .meeting:
+            let group = groupTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let group, !group.isEmpty, group != source.title { reference.container = group }
+        }
+        guard source.sourceType != .meeting else { return reference }
+        if let doi = PaperWalkthroughCitation.normalizedDOI(source.doi) {
+            reference.url = "https://doi.org/" + doi
+        } else {
+            reference.url = [source.publicURL, source.url, source.podcastWebPageURL]
+                .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .first { candidate in
+                    let lowered = candidate.lowercased()
+                    return lowered.hasPrefix("https://") || lowered.hasPrefix("http://")
+                }
+        }
+        return reference
+    }
+
+    /// A book attached whole: its title, and the author and year its chapters
+    /// carry. No address: a book in the library is a file on this Mac.
+    nonisolated static func citationReference(book title: String, chapters: [StudioArticle]) -> MarkdownHTML.Reference {
+        var reference = MarkdownHTML.Reference(title: title)
+        reference.authors = chapters.lazy.map { citationAuthors($0.author) }.first { !$0.isEmpty } ?? []
+        reference.year = chapters.lazy.compactMap(\.normalizedPublishedYear).first
+        return reference
+    }
+
+    /// The names an author field holds. Paper metadata separates them with a
+    /// semicolon; any other field is one entry, since a name is not parsed.
+    nonisolated static func citationAuthors(_ author: String?) -> [String] {
+        guard let raw = author?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !raw.isEmpty, raw != StudioArticle.unknownPaperAuthor else { return [] }
+        var seen = Set<String>()
+        return raw
+            .split(separator: ";")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty && seen.insert($0.lowercased()).inserted }
     }
 
     /// Make a linked doc an editable Markdown doc again, keeping the text

@@ -150,6 +150,126 @@ struct GoogleDocConversionTests {
         }
     }
 
+    // MARK: - Citations
+
+    @Test("Attached sources become numbered citations and a References list, in the order first cited")
+    func groundedPassagesBecomeCitations() {
+        let references: [String: MarkdownHTML.Reference] = [
+            "p1": .init(title: "Mitochondria in ageing", authors: ["Ada Lane", "Ben Ortiz"], year: "2021", container: "Cell Metabolism", url: "https://doi.org/10.1000/xyz"),
+            "p2": .init(title: "Why do cells age?", url: "https://example.org/aging"),
+            "book:b1": .init(title: "The Cell", authors: ["Cy Moss"], year: "2019"),
+        ]
+        let html = MarkdownHTML.body("""
+        [Cells age.](foreverlm://grounding/p2,p1) Then [they repair](foreverlm://grounding/p1) and [read](foreverlm://grounding/gone,book%3Ab1).
+
+        [Nothing known](foreverlm://grounding/gone) stays words, and [the book again](foreverlm://grounding/book:b1).
+        """, references: references)
+
+        #expect(html == """
+        <p>Cells age.<sup>1,2</sup> Then they repair<sup>2</sup> and read<sup>3</sup>.</p>
+        <p>Nothing known stays words, and the book again<sup>3</sup>.</p>
+        <h2>References</h2>
+        <ol>
+        <li>Why do cells age? <a href="https://example.org/aging">https://example.org/aging</a></li>
+        <li>Ada Lane &amp; Ben Ortiz. Mitochondria in ageing. <em>Cell Metabolism</em> (2021). <a href="https://doi.org/10.1000/xyz">https://doi.org/10.1000/xyz</a></li>
+        <li>Cy Moss. The Cell. (2019).</li>
+        </ol>
+
+        """)
+        // Without references the passage is its words, as before.
+        #expect(MarkdownHTML.body("[Cells age.](foreverlm://grounding/p1)") == "<p>Cells age.</p>\n")
+    }
+
+    @Test("A passage's numbers read in order with runs as ranges; long author lists shorten")
+    func citationLabelsAndAuthors() {
+        #expect(MarkdownHTML.citationLabel([3, 1, 2, 5]) == "1\u{2013}3,5")
+        #expect(MarkdownHTML.citationLabel([2, 1]) == "1,2")
+        #expect(MarkdownHTML.citationLabel([4, 4]) == "4")
+        #expect(MarkdownHTML.authorList(["A"]) == "A")
+        #expect(MarkdownHTML.authorList(["A", " ", "B", "C"]) == "A, B & C")
+        #expect(MarkdownHTML.authorList(["A", "B", "C", "D", "E", "F"]) == "A et al.")
+        #expect(MarkdownHTML.referenceHTML(.init(title: "")) == "Untitled source.")
+    }
+
+    @Test("A source link leads to the source's web address, or is its words when it has none")
+    func sourceLinksTakeTheirWebAddress() {
+        let html = MarkdownHTML.body(
+            "[A paper](foreverlm://source/p1?book=x) and [a note](foreverlm://source/local) and [gone](foreverlm://source/none).",
+            references: [
+                "p1": .init(title: "A paper", url: "https://example.org/a (draft)"),
+                "local": .init(title: "A note", url: "file:///Users/someone/note.pdf"),
+            ]
+        )
+        #expect(html == "<p><a href=\"https://example.org/a%20%28draft%29\">A paper</a> and a note and gone.</p>\n")
+    }
+
+    @Test("A source reads as a reference: a paper's journal and DOI, a page's site, no placeholders, no meeting link")
+    @MainActor
+    func sourcesAsReferences() {
+        var paper = StudioArticle(
+            url: "https://www.nature.com/articles/x",
+            title: "Mitochondrial transfer",
+            sourceType: .paper,
+            author: "Ada Lane; Ben Ortiz; ada lane",
+            journal: "Nature",
+            publishedYear: "2024",
+            id: "paper-1"
+        )
+        paper.doi = "https://doi.org/10.1038/S41586-024-0001"
+        #expect(StudioViewModel.citationReference(for: paper, groupTitle: nil) == MarkdownHTML.Reference(
+            title: "Mitochondrial transfer",
+            authors: ["Ada Lane", "Ben Ortiz"],
+            year: "2024",
+            container: "Nature",
+            url: "https://doi.org/10.1038/s41586-024-0001"
+        ))
+
+        let unread = StudioArticle(
+            url: "https://example.org/p",
+            title: "Unread",
+            sourceType: .paper,
+            author: StudioArticle.unknownPaperAuthor,
+            journal: StudioArticle.unknownPaperJournal,
+            publishedYear: StudioArticle.unknownPaperYear,
+            id: "paper-2"
+        )
+        #expect(StudioViewModel.citationReference(for: unread, groupTitle: nil) == MarkdownHTML.Reference(title: "Unread", url: "https://example.org/p"))
+
+        let page = StudioArticle(url: "https://blog.example.com/post", title: "A post", sourceType: .article, id: "page-1")
+        #expect(StudioViewModel.citationReference(for: page, groupTitle: nil) == MarkdownHTML.Reference(
+            title: "A post",
+            container: "blog.example.com",
+            url: "https://blog.example.com/post"
+        ))
+
+        let meeting = StudioArticle(url: "https://meetings.example.com/r/abc", title: "Standup", sourceType: .meeting, parentGroup: "series-1", id: "meeting-1")
+        #expect(StudioViewModel.citationReference(for: meeting, groupTitle: "Weekly standup") == MarkdownHTML.Reference(
+            title: "Standup",
+            container: "Weekly standup"
+        ))
+
+        let chapter = StudioArticle(
+            url: "file:///Books/b1/Chapters/03.pdf",
+            title: "Chapter 3",
+            sourceType: .book,
+            parentGroup: "b1",
+            author: "Cy Moss",
+            publishedYear: "2019",
+            id: "chapter-3"
+        )
+        #expect(StudioViewModel.citationReference(for: chapter, groupTitle: "The Cell") == MarkdownHTML.Reference(
+            title: "Chapter 3",
+            authors: ["Cy Moss"],
+            year: "2019",
+            container: "The Cell"
+        ))
+        #expect(StudioViewModel.citationReference(book: "The Cell", chapters: [chapter]) == MarkdownHTML.Reference(
+            title: "The Cell",
+            authors: ["Cy Moss"],
+            year: "2019"
+        ))
+    }
+
     // MARK: - Drive request
 
     @Test("The create request is one multipart upload: JSON metadata naming a Google Doc, then the HTML")

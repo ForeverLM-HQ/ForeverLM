@@ -5,13 +5,23 @@ import Foundation
 /// Google Doc on upload.
 ///
 /// This is structure, not prose: headings, paragraphs, emphasis, lists, links,
-/// code, quotes, rules and tables, the grammar the Docs editor writes. Two
-/// things the editor stores are ForeverLM's own and have no meaning outside
-/// it, so they are unwrapped rather than sent along:
+/// code, quotes, rules and tables, the grammar the Docs editor writes. What
+/// the editor stores in ForeverLM's own addresses means nothing outside it,
+/// so it is translated or unwrapped rather than sent along:
 ///
-/// - `foreverlm://…` links (grounding over a passage, the retired source chip)
-///   render as their text alone — the attachment is invisible in the prose by
-///   design, and the address opens nothing in Google Docs.
+/// - A grounded passage (`foreverlm://grounding/<id>,<id>`) is a claim that
+///   stands on sources, and a document outside the app says so the way papers
+///   do: the passage keeps its words, a superscript number follows it, and a
+///   numbered References list closes the document, one entry per source in
+///   the order first cited (product owner, 2026-10-12: attached sources "would
+///   need to be converted to proper citations"). The caller says what each
+///   source is (`references`); a source it cannot name is dropped, and a
+///   passage left with none is its words alone.
+/// - A source link (`foreverlm://source/<id>`, a source card or the retired
+///   chip) links to where the source lives on the web when it has an address,
+///   and is its text alone when it has none.
+/// - Every other `foreverlm://…` link renders as its text alone: the address
+///   opens nothing in Google Docs.
 /// - `foreverlm://attachment/…` images render as their alt text, or nothing.
 ///   The picture's bytes live in the doc's body package, and a multipart create
 ///   carries one HTML part; shipping them would be a second upload per image.
@@ -20,22 +30,202 @@ import Foundation
 /// randomness, so a test can pin a whole document.
 enum MarkdownHTML {
     /// A complete HTML document with `title` in its head and the rendered body.
-    static func document(title: String, markdown: String) -> String {
+    /// `references` names the sources the body's passages stand on, by the
+    /// token their addresses carry (a source id or `book:<id>`).
+    static func document(title: String, markdown: String, references: [String: Reference] = [:]) -> String {
         var html = "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n"
         html += "<title>\(escape(title))</title>\n</head>\n<body>\n"
-        html += body(markdown)
+        html += body(markdown, references: references)
         html += "</body>\n</html>\n"
         return html
     }
 
-    /// The rendered blocks alone, one per line, without a document wrapper.
-    static func body(_ markdown: String) -> String {
-        let lines = markdown
+    /// The rendered blocks alone, one per line, without a document wrapper,
+    /// followed by the References list when a passage cites a source.
+    static func body(_ markdown: String, references: [String: Reference] = [:]) -> String {
+        let cited = citing(markdown, references: references)
+        let lines = cited.markdown
             .replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\r", with: "\n")
             .split(separator: "\n", omittingEmptySubsequences: false)
             .map(String.init)
-        return renderBlocks(lines)
+        return renderBlocks(lines) + referencesSection(cited.references)
+    }
+
+    // MARK: - Citations
+
+    /// A source a Doc's passages stand on, the way a reference list prints it.
+    struct Reference: Equatable, Sendable {
+        var title: String
+        /// One name per entry, in the source's own order.
+        var authors: [String] = []
+        var year: String?
+        /// Where it appeared: a journal, a show, a site, the book a chapter is in.
+        var container: String?
+        /// Where a reader outside the app finds it: a DOI's address or a web page.
+        var url: String?
+    }
+
+    /// The heading the References list opens with.
+    static let referencesHeading = "References"
+
+    /// More authors than this print as the first one and "et al.", as Nature's
+    /// reference style does.
+    static let listedAuthorLimit = 5
+
+    /// The Markdown with each grounded passage's address turned into the
+    /// numbers its sources are cited by (`foreverlm://cite/1,3`, read back by
+    /// `renderLink`), and each source link's into the source's web address;
+    /// with the sources cited, in number order. A source is numbered where it
+    /// is first cited and keeps that number. A token `references` does not
+    /// name is not cited, and an address left citing nothing is not touched,
+    /// so the passage renders as its words.
+    static func citing(_ markdown: String, references: [String: Reference]) -> (markdown: String, references: [Reference]) {
+        guard !references.isEmpty, let expression = productAddressExpression else { return (markdown, []) }
+        var numbers: [String: Int] = [:]
+        var cited: [Reference] = []
+        var out = ""
+        let text = markdown as NSString
+        var cursor = 0
+        for match in expression.matches(in: markdown, range: NSRange(location: 0, length: text.length)) {
+            out += text.substring(with: NSRange(location: cursor, length: match.range.location - cursor))
+            cursor = match.range.location + match.range.length
+            let address = text.substring(with: match.range)
+            let kind = text.substring(with: match.range(at: 1)).lowercased()
+            let raw = text.substring(with: match.range(at: 2))
+            if kind == "grounding" {
+                var passage: [Int] = []
+                for token in addressTokens(raw, list: true) {
+                    guard let reference = references[token] else { continue }
+                    let number: Int
+                    if let known = numbers[token] {
+                        number = known
+                    } else {
+                        cited.append(reference)
+                        number = cited.count
+                        numbers[token] = number
+                    }
+                    if !passage.contains(number) { passage.append(number) }
+                }
+                out += passage.isEmpty ? address : citationAddressPrefix + passage.map(String.init).joined(separator: ",")
+            } else if let token = addressTokens(raw, list: false).first,
+                      let url = references[token]?.url.flatMap(webAddress) {
+                out += url
+            } else {
+                out += address
+            }
+        }
+        out += text.substring(from: cursor)
+        return (out, cited)
+    }
+
+    /// The References list for the sources cited, nothing when none is.
+    static func referencesSection(_ cited: [Reference]) -> String {
+        guard !cited.isEmpty else { return "" }
+        var html = "<h2>\(referencesHeading)</h2>\n<ol>\n"
+        for reference in cited { html += "<li>\(referenceHTML(reference))</li>\n" }
+        html += "</ol>\n"
+        return html
+    }
+
+    /// One entry of the list: authors, title, where and when it appeared, and
+    /// its address, each a sentence, the venue in italics. A field the source
+    /// does not have is left out rather than written as unknown.
+    static func referenceHTML(_ reference: Reference) -> String {
+        var parts: [String] = []
+        let names = authorList(reference.authors)
+        if !names.isEmpty { parts.append(escape(sentence(names))) }
+        let title = reference.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let url = reference.url.flatMap(webAddress)
+        if !title.isEmpty {
+            parts.append(escape(sentence(title)))
+        } else if url == nil {
+            parts.append("Untitled source.")
+        }
+        var place = ""
+        if let container = reference.container?.trimmingCharacters(in: .whitespacesAndNewlines), !container.isEmpty {
+            place = "<em>\(escape(container))</em>"
+        }
+        if let year = reference.year?.trimmingCharacters(in: .whitespacesAndNewlines), !year.isEmpty {
+            place += place.isEmpty ? "(\(escape(year)))" : " (\(escape(year)))"
+        }
+        if !place.isEmpty { parts.append(place + ".") }
+        if let url { parts.append("<a href=\"\(escape(url))\">\(escape(url))</a>") }
+        return parts.joined(separator: " ")
+    }
+
+    /// "A", "A & B", "A, B & C", up to the limit; past it "A et al.".
+    static func authorList(_ authors: [String]) -> String {
+        let names = authors
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard let first = names.first else { return "" }
+        if names.count > listedAuthorLimit { return first + " et al." }
+        if names.count == 1 { return first }
+        return names.dropLast().joined(separator: ", ") + " & " + names[names.count - 1]
+    }
+
+    /// The citation a passage carries: its numbers in order, a run of three
+    /// or more as a range, as `1–3,5`.
+    static func citationLabel(_ numbers: [Int]) -> String {
+        let sorted = Array(Set(numbers)).sorted()
+        var pieces: [String] = []
+        var index = 0
+        while index < sorted.count {
+            var end = index
+            while end + 1 < sorted.count, sorted[end + 1] == sorted[end] + 1 { end += 1 }
+            if end - index >= 2 {
+                pieces.append("\(sorted[index])\u{2013}\(sorted[end])")
+            } else {
+                pieces.append(contentsOf: sorted[index...end].map(String.init))
+            }
+            index = end + 1
+        }
+        return pieces.joined(separator: ",")
+    }
+
+    /// The address a cited passage carries between `citing` and `renderLink`.
+    private static let citationAddressPrefix = "foreverlm://cite/"
+
+    /// A grounded passage's or a source link's address, the way the editor
+    /// writes it into a link's destination.
+    private static let productAddressExpression = try? NSRegularExpression(
+        pattern: #"foreverlm://(grounding|source)/([^\)\s\]"'<>]+)"#,
+        options: [.caseInsensitive]
+    )
+
+    /// The tokens an address's path carries: a grounding's list, or a source
+    /// link's one id without its query (`?book=`) or fragment.
+    private static func addressTokens(_ raw: String, list: Bool) -> [String] {
+        var path = raw
+        if let end = path.firstIndex(where: { $0 == "?" || $0 == "#" }) { path = String(path[..<end]) }
+        let parts = list ? path.split(separator: ",").map(String.init) : [path]
+        var tokens: [String] = []
+        for part in parts {
+            let token = (part.removingPercentEncoding ?? part).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !token.isEmpty, !tokens.contains(token) { tokens.append(token) }
+        }
+        return tokens
+    }
+
+    /// An http(s) address as a Markdown destination can carry it, or nil for
+    /// anything else (a file path, an app's own scheme). Spaces and
+    /// parentheses are escaped so the address cannot end the link early.
+    private static func webAddress(_ value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lowered = trimmed.lowercased()
+        guard lowered.hasPrefix("https://") || lowered.hasPrefix("http://") else { return nil }
+        return trimmed
+            .replacingOccurrences(of: " ", with: "%20")
+            .replacingOccurrences(of: "(", with: "%28")
+            .replacingOccurrences(of: ")", with: "%29")
+    }
+
+    /// Text closed as a sentence: a full stop unless it already ends in one,
+    /// or in a question or exclamation mark.
+    private static func sentence(_ text: String) -> String {
+        guard let last = text.last else { return text }
+        return ".?!".contains(last) ? text : text + "."
     }
 
     // MARK: - Blocks
@@ -561,6 +751,12 @@ enum MarkdownHTML {
 
     private static func renderLink(text: String, destination: String, title: String?) -> String {
         let label = inline(text)
+        if destination.lowercased().hasPrefix(citationAddressPrefix) {
+            let numbers = destination.dropFirst(citationAddressPrefix.count)
+                .split(separator: ",")
+                .compactMap { Int($0) }
+            return numbers.isEmpty ? label : label + "<sup>\(citationLabel(numbers))</sup>"
+        }
         guard !isInternalDestination(destination), !destination.isEmpty else { return label }
         var attributes = " href=\"\(escape(destination))\""
         if let title, !title.isEmpty { attributes += " title=\"\(escape(title))\"" }
