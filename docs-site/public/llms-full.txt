@@ -214,7 +214,9 @@ Space's lists come newest activity first, a page's **⋯** leads with Codex's
 another in **Pinned** moves there, the same order your Mac shows. ⌘-click (Ctrl
 on Windows) or Shift-click rows to choose several, and the bar at the foot of
 the list moves them to a space, pins them or puts them in Trash (in Trash,
-restores or deletes them). The
+restores or deletes them). The search in All, Pages and a space finds a page
+by what it says as well as by its name; a page this browser has not read yet
+is fetched for the search in the background. The
 rail's **Notebooks** comes back to All, and under it are your pinned notebooks
 and the six you worked in last, rather than every notebook. A chat's right-click
 has **Pin Chat**, **Rename**, **Mark as Unread**, Move to Notebook and **Delete**
@@ -785,6 +787,12 @@ chooses too. A bar at the foot of the list says how many and offers **Move to
 Space ▸**, **Pin** and **Move to Trash** (in Trash, **Restore** and **Delete
 Forever…**), with **Select All**, and **×** lets them all go; the right-click
 of a chosen row offers the same. Chats and Images are chosen one at a time.
+
+The search at the head of **All**, **Pages**, a space or a team's space finds
+a page by what it says as well as by its name: every word you type, anywhere
+in the page, in any case and with or without accents. The magnifier at the
+top of the Space's sidebar searches every place at once: it opens **All**
+with its search ready.
 
 Goals and Ideas have no place of their own in the Space since 2026-10-10: ask
 the chat ("what are my goals?", "what are my ideas?") and it lists them, and

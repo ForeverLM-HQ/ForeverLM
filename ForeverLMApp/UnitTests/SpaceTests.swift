@@ -153,6 +153,16 @@ struct SpaceTests {
         #expect(SpaceBrowseView.countLabel(4) == "4 Items")
     }
 
+    @Test("A page is found by its text when every word of the search is somewhere in it")
+    func pageTextWords() {
+        let blocks = [DocGraphText.folded("Membrane potential collapses."), DocGraphText.folded("Then Mitophagy follows.")]
+        #expect(DocGraphText.holdsEveryWord(DocGraphText.foldedWords("mitophagy MEMBRANE"), inBlocks: blocks))
+        #expect(DocGraphText.holdsEveryWord(DocGraphText.foldedWords("potent"), inBlocks: blocks), "a word's start finds it")
+        #expect(!DocGraphText.holdsEveryWord(DocGraphText.foldedWords("mitophagy autophagy"), inBlocks: blocks))
+        #expect(!DocGraphText.holdsEveryWord([], inBlocks: blocks), "no words is no match")
+        #expect(!DocGraphText.holdsEveryWord(["a"], inBlocks: []))
+    }
+
     @Test("Last activity is the default order, as Codex's Space lists, on the Mac and the phone")
     func defaultSortIsActivity() {
         #expect(SpaceSort.standard == .activity)

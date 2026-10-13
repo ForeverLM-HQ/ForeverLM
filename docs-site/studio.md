@@ -389,6 +389,12 @@ Space ▸**, **Pin** and **Move to Trash** (in Trash, **Restore** and **Delete
 Forever…**), with **Select All**, and **×** lets them all go; the right-click
 of a chosen row offers the same. Chats and Images are chosen one at a time.
 
+The search at the head of **All**, **Pages**, a space or a team's space finds
+a page by what it says as well as by its name: every word you type, anywhere
+in the page, in any case and with or without accents. The magnifier at the
+top of the Space's sidebar searches every place at once: it opens **All**
+with its search ready.
+
 Goals and Ideas have no place of their own in the Space since 2026-10-10: ask
 the chat ("what are my goals?", "what are my ideas?") and it lists them, and
 `/goal` sets a goal. A list of goals or of ideas you want to keep in view is a

@@ -622,6 +622,23 @@ struct DocGraphStorageTests {
         #expect(try await storage.docGraphSearchBlocks("zzz qqq", teamID: nil, limit: 12).isEmpty)
     }
 
+    @Test("The Space's page search: a page whose text holds every word, in any block, any case and accent; archived pages are not found")
+    func pageTextSearch() async throws {
+        let (storage, root) = makeStorage()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let both = try await doc(storage, "Notes", "Membrane potential collapses.\n\nThen mitophagy follows.")
+        let accent = try await doc(storage, "Café", "The MITOPHAGY of a café cell.")
+        try await doc(storage, "Other", "Membrane only.")
+        #expect(try await storage.docGraphSearchPageIDs("mitophagy membrane", teamID: nil) == [both.artifact.id],
+                "every word, each in any block")
+        #expect(try await storage.docGraphSearchPageIDs("Mitophagy", teamID: nil) == [both.artifact.id, accent.artifact.id])
+        #expect(try await storage.docGraphSearchPageIDs("cafe", teamID: nil) == [accent.artifact.id], "accents are folded")
+        #expect(try await storage.docGraphSearchPageIDs("   ", teamID: nil).isEmpty)
+        #expect(try await storage.docGraphSearchPageIDs("zzz", teamID: nil).isEmpty)
+        _ = try await storage.updateArtifact(artifactID: accent.artifact.id, title: nil, homeNotebookID: nil, linkedNotebookIDs: nil, isArchived: true)
+        #expect(try await storage.docGraphSearchPageIDs("mitophagy", teamID: nil) == [both.artifact.id], "a page in Trash is not found")
+    }
+
     @Test("Title targets: the newest Doc of a title, a daily note by its day; archived Docs and other libraries are not named")
     func titleTargetsAndLibraries() async throws {
         let (storage, root) = makeStorage()

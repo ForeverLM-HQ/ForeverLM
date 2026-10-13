@@ -1634,6 +1634,15 @@ enum DocGraphText {
     static func foldedWords(_ text: String) -> [String] {
         folded(text).split(whereSeparator: { $0.isWhitespace }).map(String.init)
     }
+
+    /// Whether a page holds every one of `words` (folded, `foldedWords`)
+    /// somewhere in its blocks' search text, each word in any block: the
+    /// Space's search into what pages say (Codex's "Search spaces and
+    /// content"). No words is no match.
+    static func holdsEveryWord(_ words: [String], inBlocks texts: [String]) -> Bool {
+        guard !words.isEmpty else { return false }
+        return words.allSatisfy { word in texts.contains { contains($0, word) } }
+    }
 }
 
 // MARK: - Finding words in prose

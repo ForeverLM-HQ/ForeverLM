@@ -784,9 +784,9 @@ struct ArtifactCanvas: View {
 
     /// The sidebar's search: every place at once, with the field focused.
     private func searchSpace() {
-        let place = spaceDestination
-        if !showsSpaceList || place == .images || place == .trash {
-            showSpacePlace(place == .images || place == .trash ? .all : place)
+        // Every place at once, as the Space's own sidebar search does.
+        if !showsSpaceList || spaceDestination != .all {
+            showSpacePlace(.all)
         }
         spaceSearchFocusRequest += 1
     }

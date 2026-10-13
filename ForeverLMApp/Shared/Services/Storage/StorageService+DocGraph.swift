@@ -205,6 +205,24 @@ extension StorageService {
         return ranked.prefix(limit).map(\.hit)
     }
 
+    /// The pages whose text holds every word of `query` — anywhere in the page,
+    /// any case, any accents — for the Space's search, which finds a page by
+    /// what it says as well as by its name (Codex's "Search spaces and
+    /// content"; docs/docs-design.md, "The Space as Codex's"). Read from the
+    /// same parse the block search reads, remembered per `updatedAt`, so a
+    /// search after the first rereads only the pages that changed.
+    func docGraphSearchPageIDs(_ query: String, teamID: String?) throws -> Set<String> {
+        let words = DocGraphText.foldedWords(query)
+        guard !words.isEmpty else { return [] }
+        let store = try notebookFilesKnowledgeStore()
+        var ids: Set<String> = []
+        for page in docGraphPages(from: try store.loadArtifacts(), teamID: teamID)
+        where DocGraphText.holdsEveryWord(words, inBlocks: page.parse.blocks.map(\.searchText)) {
+            ids.insert(page.artifact.id)
+        }
+        return ids
+    }
+
     /// How many times each block of this Doc that has an id is referenced or
     /// embedded elsewhere in the library, for the count beside a block.
     ///

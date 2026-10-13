@@ -154,11 +154,11 @@ struct ArtifactsHomePane: View {
         if windowState.spaceDestinationKey != place.key { windowState.spaceDestinationKey = place.key }
     }
 
-    /// The sidebar's search: every place at once, with the field focused.
+    /// The sidebar's search: every place at once, All with its field focused,
+    /// as Codex's sidebar search looks through every space and what pages say
+    /// ("Search spaces and content"). A place's own field searches that place.
     private func search() {
-        if destination == .images || destination == .trash {
-            select(.all)
-        }
+        select(.all)
         searchFocusRequest += 1
     }
 

@@ -405,6 +405,10 @@ struct SpaceBrowseView: View {
     @State private var collectionToDelete: NotebookCollection?
     /// The rows chosen for the selection bar (`SpaceSelection`).
     @State private var selection = SpaceSelection()
+    /// The pages whose text holds the search's words (`pageIDsMatchingText`),
+    /// and the search they answer, so a stale answer finds nothing.
+    @State private var textMatches: Set<String> = []
+    @State private var textMatchesQuery = ""
     private let previews = ArtifactPreviewStore.shared
 
     private var query: String { searchText.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -426,7 +430,8 @@ struct SpaceBrowseView: View {
         let filters = SpaceItemFilters(
             scope: effectiveScope,
             notebookFilter: effectiveNotebookFilter,
-            query: query
+            query: query,
+            textMatches: textMatchesQuery == query ? textMatches : []
         )
         let filtered = sorted(inPlace.filter { passesFilters($0, filters) })
         // Trash lists what was trashed first, then the archived notebooks.
@@ -473,6 +478,21 @@ struct SpaceBrowseView: View {
         }
         .animation(.easeOut(duration: 0.15), value: selected.isEmpty)
         .task(id: listsImages) { await loadImages() }
+        // What pages say, searched off the main actor once the typing rests.
+        .task(id: searchesPageText ? query : "") {
+            let asked = searchesPageText ? query : ""
+            guard !asked.isEmpty else {
+                textMatches = []
+                textMatchesQuery = ""
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(180))
+            guard !Task.isCancelled else { return }
+            let found = await vm.pageIDsMatchingText(asked)
+            guard !Task.isCancelled else { return }
+            textMatches = found
+            textMatchesQuery = asked
+        }
         .onChange(of: destination) { _, _ in
             scope = .all
             selection.clear()
@@ -618,6 +638,17 @@ struct SpaceBrowseView: View {
         let scope: SpaceScope
         let notebookFilter: ArtifactsNotebookFilter
         let query: String
+        /// The pages whose text holds the search's words.
+        var textMatches: Set<String> = []
+    }
+
+    /// Whether the place's search reads what pages say as well as names:
+    /// wherever pages are listed (Codex's "Search spaces and content").
+    private var searchesPageText: Bool {
+        switch destination {
+        case .all, .pages, .space, .team: return true
+        default: return false
+        }
     }
 
     /// The scope, the notebook filter, the hidden rule, the daily-note rule
@@ -644,6 +675,8 @@ struct SpaceBrowseView: View {
         guard !query.isEmpty else { return true }
         if item.title.localizedCaseInsensitiveContains(query) { return true }
         if item.location?.localizedCaseInsensitiveContains(query) == true { return true }
+        // A page is also found by what it says.
+        if item.artifact != nil, filters.textMatches.contains(item.id) { return true }
         if let prompt = item.image?.latest.details?.text, prompt.localizedCaseInsensitiveContains(query) { return true }
         // A notebook is also found by what it says about itself, as the
         // Notebooks home's search found it.
@@ -978,7 +1011,11 @@ struct SpaceBrowseView: View {
     private func header(inPlace: [SpaceItem], shown: [SpaceItem]) -> some View {
         let scopes = scopes(inPlace: inPlace)
         return VStack(alignment: .leading, spacing: 14) {
-            SpacePlaceHeader(searchText: $searchText, searchFocusRequest: searchFocusRequest) {
+            SpacePlaceHeader(
+                searchText: $searchText,
+                searchFocusRequest: searchFocusRequest,
+                searchPrompt: searchesPageText ? "Search names and text" : "Search by name"
+            ) {
                 titleView
             } actions: {
                 primaryActions(shown: shown)
@@ -2409,6 +2446,8 @@ struct SpacePlaceHeader<Title: View, Actions: View>: View {
     @Binding var searchText: String
     /// Bumped to give the search the focus (the Space sidebar's search).
     var searchFocusRequest = 0
+    /// The field's prompt: "Search by name" where a list has names alone.
+    var searchPrompt = "Search by name"
     var searchIdentifier = "space.search"
     @ViewBuilder let title: () -> Title
     @ViewBuilder let actions: () -> Actions
@@ -2434,7 +2473,7 @@ struct SpacePlaceHeader<Title: View, Actions: View>: View {
     }
 
     private var search: some View {
-        SpaceSearchField(text: $searchText, focusRequest: searchFocusRequest, identifier: searchIdentifier)
+        SpaceSearchField(text: $searchText, prompt: searchPrompt, focusRequest: searchFocusRequest, identifier: searchIdentifier)
     }
 }
 

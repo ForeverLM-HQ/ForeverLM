@@ -306,6 +306,21 @@ extension StudioViewModel {
         }
     }
 
+    /// The open library's pages whose text holds every word of `query`: the
+    /// Space's search reads what pages say as well as their names, from the
+    /// notes graph's parse of each page (`docGraphSearchPageIDs`), off the
+    /// main actor. Empty for a blank query, or when the pages cannot be read.
+    func pageIDsMatchingText(_ query: String) async -> Set<String> {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        do {
+            return try await storage.docGraphSearchPageIDs(trimmed, teamID: activeTeamID)
+        } catch {
+            logger.error("Searching page text failed: \(error.localizedDescription)")
+            return []
+        }
+    }
+
     /// A Pinned row dragged onto another (Codex's "Drag to reorder pinned
     /// navigation items"): the pin moves just above `beforeID` (nil: last).
     /// Only the pin values change, so a page, a canvas and a list keep one
