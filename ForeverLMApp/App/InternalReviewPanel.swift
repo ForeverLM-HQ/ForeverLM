@@ -325,6 +325,10 @@ private struct InternalReviewPanelContent: View {
     /// The passage a queued message was asked about, kept so the × on its
     /// bubble can hand the passage back along with the words.
     @State private var queuedReaderSelections: [UUID: ReaderSelectionExplanationRequest] = [:]
+    /// The learner's newest message while Edit has it in the composer: the
+    /// send replaces it and the reply after it. What was in the composer
+    /// before comes back on Cancel.
+    @State private var editingMessage: ChatEditMessage.Editing?
     /// The doc passages this conversation was opened on, once they are saved.
     /// `pendingReaderSelection` is the same thing before the question is sent;
     /// these outlive the send, and the pane, and the app.
@@ -3353,7 +3357,14 @@ private struct InternalReviewPanelContent: View {
                 skipQuizQuestion: offersCourseQuizSkip(context: context)
                     ? { Task { await skipCourseQuizQuestion() } }
                     : nil,
-                asideActionsOnly: showsMemoryReviewCards
+                asideActionsOnly: showsMemoryReviewCards,
+                tryAgain: context.isLatest && !context.isLive && !showsMemoryReviewCards
+                    && editingMessage == nil && manager.canTakeBackNewestTurn
+                    ? ReviewChatTryAgainControl(
+                        retry: { Task { await manager.tryAgain() } },
+                        retryWith: { entry in tryAgain(with: entry) }
+                    )
+                    : nil
             ) {
                 // Every step the reply took is one "Worked for" line where the
                 // first ran; a topic card draws no thinking among them.
@@ -3807,9 +3818,74 @@ private struct InternalReviewPanelContent: View {
                 openPassageInReader(passage)
             },
             // A page this chat cites is added to its notebook as well.
-            webSourcesNotebookID: linkedResearchNotebook?.id
+            webSourcesNotebookID: linkedResearchNotebook?.id,
+            editMessage: editAction(for: message)
         )
         .equatable()
+    }
+
+    /// Try Again With: the chat moves to `entry`, as the composer's picker
+    /// would (a model not yet tried is tested first), and the newest reply is
+    /// asked again on it.
+    private func tryAgain(with entry: AIModelCatalogEntry) {
+        Task { @MainActor in
+            if !AIModelQualification.isPassed(provider: entry.provider, model: entry.modelID, role: .chat) {
+                let verdict = await Task.detached(priority: .userInitiated) {
+                    await AIModelQualification.testBeforeSelecting(provider: entry.provider, model: entry.modelID, role: .chat)
+                }.value
+                guard verdict == .go else {
+                    manager.errorMessage = AIModelQualification.refusalText(name: entry.displayName, role: .chat, verdict: verdict)
+                    return
+                }
+            }
+            KeychainService.setTaskRoute(provider: entry.provider, model: entry.modelID, for: .chat)
+            ChatRecentModels.record(.init(provider: entry.provider.rawValue, model: entry.modelID, effort: nil))
+            await manager.tryAgain()
+        }
+    }
+
+    /// Edit on the newest learner message, when its turn can be taken back
+    /// and the composer can carry all of it (`ChatEditMessage.isEditable`).
+    private func editAction(for message: ReviewSessionManager.Message) -> (() -> Void)? {
+        guard message.role == .user, editingMessage == nil, manager.canTakeBackNewestTurn,
+              let turn = ReviewSessionManager.newestSettledTurn(in: manager.chatMessages),
+              manager.chatMessages[turn.userIndex].id == message.id,
+              ChatEditMessage.isEditable(message) else { return nil }
+        return { beginEditing(message) }
+    }
+
+    /// The message's words into the composer, its quote as a quote again;
+    /// the send replaces it (`submitComposer`).
+    @MainActor
+    private func beginEditing(_ message: ReviewSessionManager.Message) {
+        guard let exchangeID = message.exchangeID,
+              let text = ReviewSessionManager.displayableMessageContent(role: .user, content: message.content)
+        else { return }
+        editingMessage = ChatEditMessage.Editing(
+            exchangeID: exchangeID,
+            stashedDraft: draft == lastInsertedDefaultPrompt ? "" : draft,
+            stashedQuote: quotedPassage
+        )
+        if let quoted = ChatQuoteDraft.split(userMessage: text) {
+            quotedPassage = quoted.quote
+            draft = quoted.body
+        } else {
+            quotedPassage = ""
+            draft = text
+        }
+        lastInsertedDefaultPrompt = nil
+        requestComposerFocus()
+    }
+
+    /// Cancel on the editing line: the message stays as it was sent, and the
+    /// composer gets back what it held before.
+    @MainActor
+    private func cancelEditing() {
+        guard let editing = editingMessage else { return }
+        editingMessage = nil
+        draft = editing.stashedDraft
+        quotedPassage = editing.stashedQuote
+        requestComposerFocus()
     }
 
     /// Opens the source a learner turn's quoted passage was selected in, in
@@ -4064,6 +4140,9 @@ private struct InternalReviewPanelContent: View {
     /// controls under it.
     private var composerCard: some View {
         VStack(spacing: StudioDesign.Spacing.small) {
+            if editingMessage != nil {
+                ReviewChatEditingLine(cancel: cancelEditing)
+            }
             readerSelectionChip
             pendingImagesRow
 
@@ -5383,6 +5462,14 @@ private struct InternalReviewPanelContent: View {
             slashSelectionIndex = 0
             await runSlashCommand(parsed.command, argument: parsed.argument)
             return
+        }
+
+        // Edit: the message being edited and its reply go first, and this
+        // send takes their place. Gone already (another turn came after it),
+        // and this is simply the next message.
+        if let editing = editingMessage {
+            editingMessage = nil
+            await manager.takeBackNewestTurn(exchangeID: editing.exchangeID)
         }
 
         // Chats pointed at with `@` go with this message: their transcripts
@@ -7795,6 +7882,7 @@ private struct InternalReviewPanelContent: View {
         draft = sessionStore.draft(for: .session(session.id))
         composer.referencedChats = []
         composer.pastedTexts = []
+        editingMessage = nil
         lastInsertedDefaultPrompt = nil
         pendingReaderSelection = nil
     }
@@ -7826,6 +7914,7 @@ private struct InternalReviewPanelContent: View {
         draft = sessionStore.draft(for: .session(session.id))
         composer.referencedChats = []
         composer.pastedTexts = []
+        editingMessage = nil
         lastInsertedDefaultPrompt = nil
         pendingReaderSelection = nil
         await vm.loadReviewSessionLinks()

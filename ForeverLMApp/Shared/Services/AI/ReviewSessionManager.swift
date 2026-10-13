@@ -3202,6 +3202,111 @@ final class ReviewSessionManager {
         }
     }
 
+    // MARK: - Try again and Edit
+
+    /// The newest learner message and the reply saved on its row: the turn
+    /// Try again asks again and Edit takes back (Codex's retry and
+    /// edit-and-resend). Nil when the newest message has no saved reply.
+    struct SettledTurn: Equatable {
+        let userIndex: Int
+        let exchangeID: String
+    }
+
+    nonisolated static func newestSettledTurn(in messages: [Message]) -> SettledTurn? {
+        guard let userIndex = messages.lastIndex(where: { $0.role == .user && $0.toolActivity == nil }),
+              let exchangeID = messages[userIndex].exchangeID,
+              messages[userIndex].exchangeField == .userAnswer else { return nil }
+        let replied = messages[(userIndex + 1)...].contains {
+            $0.role == .assistant && $0.exchangeID == exchangeID && $0.exchangeField == .evaluation
+        }
+        return replied ? SettledTurn(userIndex: userIndex, exchangeID: exchangeID) : nil
+    }
+
+    /// Whether the newest turn can be asked again or taken back: a chat, not
+    /// a review (a review's turns are graded and scheduled, and storage keeps
+    /// a turn linked to memory history immutable), nothing running or
+    /// waiting, and the newest message's reply saved.
+    var canTakeBackNewestTurn: Bool {
+        sessionActive && !isTutorLed && stagedMemoryAttempt == nil && !queuesSendsNow && !isSearching
+            && Self.newestSettledTurn(in: chatMessages) != nil
+    }
+
+    /// Try again: the newest reply goes, from the transcript and from its
+    /// row, and the learner's message is asked again on the model the chat is
+    /// set to now (Try again with… sets it first). False, with nothing
+    /// changed, once the turn can no longer be taken back.
+    @discardableResult
+    func tryAgain() async -> Bool {
+        guard canTakeBackNewestTurn, let sessionID,
+              let turn = Self.newestSettledTurn(in: chatMessages) else { return false }
+        // Held across the writes so a send made meanwhile queues behind the
+        // new reply rather than starting a turn of its own.
+        beginGenerationPreparation()
+        let sequence: Int?
+        do {
+            try await storage.deleteReviewExchangeMessage(
+                sessionID: sessionID, exchangeID: turn.exchangeID, field: .evaluation
+            )
+            sequence = try? await storage.loadReviewSessionExchanges(sessionID: sessionID)
+                .first { $0.id == turn.exchangeID }?.sequenceNumber
+        } catch {
+            endGenerationPreparation()
+            errorMessage = error.localizedDescription
+            logger.error("Try again could not remove the reply: \(error.localizedDescription)")
+            return false
+        }
+        endGenerationPreparation()
+        guard self.sessionID == sessionID, chatMessages.indices.contains(turn.userIndex),
+              chatMessages[turn.userIndex].exchangeID == turn.exchangeID else { return false }
+        dropRows(after: turn.userIndex)
+        // The message's row is open again, and the new reply is written to it.
+        newestMessageRow = sequence.map { ReplyRow(sessionID: sessionID, sequence: $0) }
+        await generateQuestion(isFirst: false)
+        return true
+    }
+
+    /// Edit and resend: the newest learner message and the reply after it
+    /// go, from the transcript and from storage, so the edited words can be
+    /// sent in their place. `exchangeID` is the message the learner chose to
+    /// edit; false, with nothing changed, when it is no longer the newest
+    /// settled turn.
+    @discardableResult
+    func takeBackNewestTurn(exchangeID: String) async -> Bool {
+        guard canTakeBackNewestTurn, let sessionID,
+              let turn = Self.newestSettledTurn(in: chatMessages),
+              turn.exchangeID == exchangeID else { return false }
+        do {
+            try await storage.deleteReviewExchangeMessage(
+                sessionID: sessionID, exchangeID: exchangeID, field: .evaluation
+            )
+            try await storage.deleteReviewExchangeMessage(
+                sessionID: sessionID, exchangeID: exchangeID, field: .userAnswer
+            )
+        } catch {
+            errorMessage = error.localizedDescription
+            logger.error("Edit could not take back the message: \(error.localizedDescription)")
+            return false
+        }
+        guard self.sessionID == sessionID, chatMessages.indices.contains(turn.userIndex),
+              chatMessages[turn.userIndex].exchangeID == exchangeID else { return false }
+        dropRows(after: turn.userIndex - 1)
+        newestMessageRow = nil
+        return true
+    }
+
+    /// Everything after `index` leaves the transcript, and what was read off
+    /// the rows that went is read again from the ones that stay.
+    private func dropRows(after index: Int) {
+        let start = max(0, index + 1)
+        guard start < chatMessages.count else { return }
+        chatMessages.removeSubrange(start...)
+        historyDigestCoveredMessageCount = min(historyDigestCoveredMessageCount, chatMessages.count)
+        lastAssistantQuestion = chatMessages.last(where: { $0.role == .assistant && $0.toolActivity == nil })?.content
+        completedSummary = nil
+        lastGenerationFailed = false
+        errorMessage = nil
+    }
+
     func stopGeneration() {
         guard canStopGeneration else { return }
         // Stop means stop everything, including any message queued mid-turn.

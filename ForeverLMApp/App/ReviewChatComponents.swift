@@ -187,6 +187,10 @@ struct ReviewChatBubble: View, Equatable {
     /// The notebook this chat works in: a cited page's Add files it there as
     /// well as in Sources. nil outside a notebook.
     var webSourcesNotebookID: String? = nil
+    /// Edit on the newest learner message: its words go back to the composer,
+    /// and the send replaces it and the reply after it (Codex's edit and
+    /// resend). Nil on every other message.
+    var editMessage: (() -> Void)? = nil
 
     private var displayContent: String? {
         ReviewSessionManager.displayableMessageContent(role: message.role, content: message.content)
@@ -237,6 +241,7 @@ struct ReviewChatBubble: View, Equatable {
         (lhs.discussInNewChat == nil) == (rhs.discussInNewChat == nil) &&
         (lhs.openPassage == nil) == (rhs.openPassage == nil) &&
         lhs.webSourcesNotebookID == rhs.webSourcesNotebookID &&
+        (lhs.editMessage == nil) == (rhs.editMessage == nil) &&
         lhs.linkedNotebookTitle == rhs.linkedNotebookTitle
     }
 
@@ -318,6 +323,11 @@ struct ReviewChatBubble: View, Equatable {
                 .id(message.id)
                 .modifier(ReviewChatBubbleChrome(role: message.role))
                 .contextMenu {
+                    if let editMessage {
+                        Button(action: editMessage) {
+                            Label("Edit Message", systemImage: "pencil")
+                        }
+                    }
                     if let discussInNewChat {
                         Button(action: discussInNewChat) {
                             Label("Discuss in New Chat", systemImage: "bubble.left.and.text.bubble.right")
@@ -344,13 +354,24 @@ struct ReviewChatBubble: View, Equatable {
                 // Opacity rather than removal, as under a reply: the row keeps
                 // its height so the transcript never shifts under the pointer,
                 // and the button stays in the accessibility tree.
-                ReviewChatFooterButton(
-                    systemImage: didCopy ? "checkmark" : "doc.on.doc",
-                    label: didCopy ? "Message copied" : "Copy message",
-                    tint: didCopy ? .green : .secondary,
-                    action: { copyMessage(copyText) }
-                )
-                .accessibilityIdentifier("mac.chatCopyMessage")
+                HStack(spacing: 2) {
+                    if let editMessage {
+                        ReviewChatFooterButton(
+                            systemImage: "pencil",
+                            label: "Edit message",
+                            tint: .secondary,
+                            action: editMessage
+                        )
+                        .accessibilityIdentifier("mac.chatEditMessage")
+                    }
+                    ReviewChatFooterButton(
+                        systemImage: didCopy ? "checkmark" : "doc.on.doc",
+                        label: didCopy ? "Message copied" : "Copy message",
+                        tint: didCopy ? .green : .secondary,
+                        action: { copyMessage(copyText) }
+                    )
+                    .accessibilityIdentifier("mac.chatCopyMessage")
+                }
                 .opacity(isHovering || didCopy ? 1 : 0)
                 .animation(.easeOut(duration: 0.12), value: isHovering)
                 .padding(.top, 1)
@@ -1259,11 +1280,17 @@ struct ReviewChatAnswerBlock<Content: View>: View {
     /// card is a study surface, and copy, branching and the time are chat
     /// furniture on it. The conversation view keeps them all.
     let asideActionsOnly: Bool
+    /// Try again on the newest reply, and Try Again With a model. Nil on
+    /// every other reply, and while the turn cannot be asked again.
+    let tryAgain: ReviewChatTryAgainControl?
     let content: Content
 
     @State private var didCopy = false
     @State private var isHovering = false
     @State private var feedbackTask: Task<Void, Never>?
+    /// The chat picker's models, for Try Again With; loaded off-main once
+    /// the reply offers Try again.
+    @State private var tryAgainModels: [AIModelCatalogEntry] = []
 
     init(
         messages: [ReviewSessionManager.Message],
@@ -1278,6 +1305,7 @@ struct ReviewChatAnswerBlock<Content: View>: View {
         moreDetails: (() -> Void)? = nil,
         skipQuizQuestion: (() -> Void)? = nil,
         asideActionsOnly: Bool = false,
+        tryAgain: ReviewChatTryAgainControl? = nil,
         @ViewBuilder content: () -> Content
     ) {
         self.messages = messages
@@ -1292,6 +1320,7 @@ struct ReviewChatAnswerBlock<Content: View>: View {
         self.moreDetails = moreDetails
         self.skipQuizQuestion = skipQuizQuestion
         self.asideActionsOnly = asideActionsOnly
+        self.tryAgain = tryAgain
         self.content = content()
     }
 
@@ -1313,7 +1342,8 @@ struct ReviewChatAnswerBlock<Content: View>: View {
             offersAddToCanvas: addToCanvas != nil,
             offersDiscussInNewChat: discussInNewChat != nil,
             offersMoreDetails: moreDetails != nil,
-            asideActionsOnly: asideActionsOnly
+            asideActionsOnly: asideActionsOnly,
+            offersTryAgain: tryAgain != nil
         )
     }
 
@@ -1340,6 +1370,14 @@ struct ReviewChatAnswerBlock<Content: View>: View {
         .accessibilityAction(named: "Copy answer", copyAnswer)
         .onDisappear {
             feedbackTask?.cancel()
+        }
+        .task(id: tryAgain != nil) {
+            guard tryAgain != nil, tryAgainModels.isEmpty else { return }
+            let entries = await Task.detached(priority: .utility) {
+                InlineModelPicker.loadMenuEntries(task: .chat)
+            }.value
+            guard !Task.isCancelled else { return }
+            tryAgainModels = entries
         }
     }
 
@@ -1454,6 +1492,20 @@ struct ReviewChatAnswerBlock<Content: View>: View {
         case .moreDetails:
             Button(item.title) { moreDetails?() }
                 .accessibilityIdentifier("mac.chatMoreDetails")
+        case .tryAgain:
+            Button(item.title) { tryAgain?.retry() }
+                .accessibilityIdentifier("mac.chatTryAgain")
+        case .tryAgainWith:
+            Menu(item.title) {
+                ForEach(tryAgainModels) { entry in
+                    Button(AIModelCatalog.pickerName(provider: entry.provider, modelID: entry.modelID)) {
+                        tryAgain?.retryWith(entry)
+                    }
+                }
+                if !tryAgainModels.isEmpty { Divider() }
+                Button("Choose Models…") { ModelPickerSheetRequest.open(.chat) }
+            }
+            .accessibilityIdentifier("mac.chatTryAgainWith")
         }
     }
 
@@ -1488,6 +1540,10 @@ enum ReviewChatReplyMenu {
         case branch
         case discussInNewChat
         case moreDetails
+        /// The newest reply asked again (Codex's Try again).
+        case tryAgain
+        /// The newest reply asked again on another model, a submenu.
+        case tryAgainWith
 
         var title: String {
             switch self {
@@ -1498,6 +1554,8 @@ enum ReviewChatReplyMenu {
             case .branch: return "Branch in New Chat"
             case .discussInNewChat: return "Discuss in New Chat"
             case .moreDetails: return "More Details"
+            case .tryAgain: return "Try Again"
+            case .tryAgainWith: return "Try Again With"
             }
         }
 
@@ -1516,11 +1574,13 @@ enum ReviewChatReplyMenu {
         offersAddToCanvas: Bool = false,
         offersDiscussInNewChat: Bool,
         offersMoreDetails: Bool,
-        asideActionsOnly: Bool
+        asideActionsOnly: Bool,
+        offersTryAgain: Bool = false
     ) -> [Item] {
         var items: [Item] = []
         if !asideActionsOnly {
             if let timeLine { items.append(.time(timeLine)) }
+            if offersTryAgain { items += [.tryAgain, .tryAgainWith] }
             if let savedDocID {
                 items.append(savedDocID.map { .openNote(docID: $0) } ?? .saveToNote)
             }
@@ -1562,6 +1622,67 @@ enum ReviewChatReplyMenu {
 
 /// The ⋯'s Save to Note: the Doc this answer was saved to in this chat, once
 /// it has been, and the two things the item does.
+/// Edit and resend on the newest learner message (Codex's edit). The words go
+/// back to the composer; the send takes back the message and its reply
+/// (`ReviewSessionManager.takeBackNewestTurn`) and goes in their place.
+enum ChatEditMessage {
+    struct Editing: Equatable {
+        /// The row of the message being edited.
+        let exchangeID: String
+        /// What the composer held before Edit, for Cancel.
+        let stashedDraft: String
+        let stashedQuote: String
+    }
+
+    /// Whether the composer can carry the whole message: words and a quote
+    /// typed into them, yes; pictures, a Reader passage riding beside it, a
+    /// side question's mark or a guess, no, since the field cannot hold
+    /// them and an edit would silently drop them.
+    static func isEditable(_ message: ReviewSessionManager.Message) -> Bool {
+        guard message.role == .user, message.toolActivity == nil, message.exchangeID != nil else { return false }
+        guard AttachedImageReference.split(message.content).images.isEmpty else { return false }
+        return ChatPassageOrigin.parse(contextContent: message.contextualContent) == nil
+            && !message.isSideQuestion
+            && !message.isMoreDetailsRequest
+            && ChatGuess.guess(contextContent: message.contextualContent) == nil
+    }
+}
+
+/// Above the field while Edit has a message in the composer: what the send
+/// will do, and Cancel.
+struct ReviewChatEditingLine: View {
+    let cancel: () -> Void
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "pencil")
+                .zoomedSystemFont(size: 10, weight: .semibold)
+                .foregroundStyle(.secondary)
+            Text("Editing message. Sending replaces it and the reply after it.")
+                .zoomedSystemFont(size: 11)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Spacer(minLength: 4)
+            Button("Cancel", action: cancel)
+                .buttonStyle(.hoverWash(cornerRadius: 5, inset: -3))
+                .zoomedSystemFont(size: 11, weight: .medium)
+                .accessibilityIdentifier("mac.chatEditCancel")
+        }
+        .padding(.horizontal, ReviewChatComposerTextView.overlayTextLeadingInset)
+        .padding(.top, 4)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("mac.chatEditing")
+    }
+}
+
+/// The newest reply's Try again: asked again on the chat's model, or on
+/// another one picked from Try Again With.
+struct ReviewChatTryAgainControl {
+    let retry: () -> Void
+    let retryWith: (AIModelCatalogEntry) -> Void
+}
+
 struct ReviewChatSaveToNoteControl {
     let savedDocID: String?
     /// Makes the Doc. Nothing opens.

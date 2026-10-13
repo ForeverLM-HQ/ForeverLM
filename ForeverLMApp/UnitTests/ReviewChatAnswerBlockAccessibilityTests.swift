@@ -258,3 +258,56 @@ enum AccessibilityWalk {
         (value as? String) ?? (value as? NSAttributedString)?.string ?? ""
     }
 }
+
+/// Try again and Edit on the newest turn, as Codex's.
+@Suite("Try again and Edit on the newest turn")
+@MainActor
+struct ChatTryAgainAndEditTests {
+    private typealias Message = ReviewSessionManager.Message
+
+    @Test("The newest reply's ⋯ offers Try Again and Try Again With after its time")
+    func menuOffersTryAgain() {
+        let items = ReviewChatReplyMenu.items(
+            timeLine: "Today, 23:05",
+            savedDocID: .some(nil),
+            offersDiscussInNewChat: false,
+            offersMoreDetails: true,
+            asideActionsOnly: false,
+            offersTryAgain: true
+        )
+        #expect(items == [.time("Today, 23:05"), .tryAgain, .tryAgainWith, .saveToNote, .branch, .moreDetails])
+        #expect(items[1].title == "Try Again")
+        #expect(items[2].title == "Try Again With")
+    }
+
+    @Test("The settled turn is the newest message with a reply saved on its row")
+    func newestSettledTurn() {
+        let older = Message(role: .user, content: "what is LTP?", exchangeID: "x1", exchangeField: .userAnswer)
+        let olderReply = Message(role: .assistant, content: "Long-term potentiation …", exchangeID: "x1", exchangeField: .evaluation)
+        let newest = Message(role: .user, content: "and LTD?", exchangeID: "x2", exchangeField: .userAnswer)
+        let tool = Message(role: .tool, content: "", toolActivity: nil)
+        let reply = Message(role: .assistant, content: "Long-term depression …", exchangeID: "x2", exchangeField: .evaluation)
+
+        #expect(ReviewSessionManager.newestSettledTurn(in: [older, olderReply, newest, tool, reply])
+            == .init(userIndex: 2, exchangeID: "x2"))
+        // A reply still being written (not yet saved on the row) is not settled.
+        let streaming = Message(role: .assistant, content: "Long-term dep")
+        #expect(ReviewSessionManager.newestSettledTurn(in: [older, olderReply, newest, streaming]) == nil)
+        // A message whose row was never saved cannot be taken back.
+        let unsaved = Message(role: .user, content: "and STDP?")
+        #expect(ReviewSessionManager.newestSettledTurn(in: [older, olderReply, unsaved, reply]) == nil)
+    }
+
+    @Test("Edit is offered for words and typed quotes, not for pictures, passages, asides or guesses")
+    func editableMessages() {
+        #expect(ChatEditMessage.isEditable(Message(role: .user, content: "and LTD?", exchangeID: "x2", exchangeField: .userAnswer)))
+        #expect(!ChatEditMessage.isEditable(Message(role: .user, content: "and LTD?")))
+        #expect(!ChatEditMessage.isEditable(Message(role: .assistant, content: "reply", exchangeID: "x2", exchangeField: .evaluation)))
+        let aside = Message(
+            role: .user, content: "why?",
+            contextualContent: ChatSideQuestion.contextContent(openQuestion: nil, aboutReply: "the reply", referenceContext: nil),
+            exchangeID: "x3", exchangeField: .userAnswer
+        )
+        #expect(!ChatEditMessage.isEditable(aside))
+    }
+}
