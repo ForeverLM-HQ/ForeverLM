@@ -588,6 +588,13 @@ today's schedule (see [Layout](#layout)) and your account. Each icon can be
 hidden from its own menu and brought back with **Show in Sidebar**; hiding
 **New chat** also takes it out of the sidebar beside a chat.
 
+To keep a place one click away, drag its row from the Space's sidebar
+(**Pages**, **Notebooks**, **Courses**, **Google Drive** and the rest) onto
+the strip, or tick it under the strip's **⋯ › Show in Sidebar**. It stays
+under a short line as its icon alone. Drop a place on a kept icon to put it
+above that one, drag a kept icon up or down to reorder, and right-click it
+for **Remove from Sidebar**.
+
 While anything that costs money runs in the background, a grey OpenRouter
 logo shows in the strip; click it for **Running in the background**: each
 narration, automatic audio, explainer video, mnemonic reading, scheduled task

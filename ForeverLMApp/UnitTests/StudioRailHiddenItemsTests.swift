@@ -248,6 +248,66 @@ struct StudioRailShortcutsTests {
         #expect(kept.shown(listsCanvases: true) == [.place(.canvases), .place(.images)])
     }
 
+    @Test("A place dropped on the strip is kept at the end, or above the shortcut it was dropped on; a kept one moves there")
+    func keepingWhereDropped() {
+        let kept = StudioRailShortcuts([.place(.pages), .courses])
+        #expect(kept.keeping(.place(.images), before: nil).items == [.place(.pages), .courses, .place(.images)])
+        #expect(kept.keeping(.place(.images), before: .courses).items == [.place(.pages), .place(.images), .courses])
+        // Dragged up or down the strip, a kept one moves rather than repeats.
+        #expect(kept.keeping(.courses, before: .place(.pages)).items == [.courses, .place(.pages)])
+        #expect(kept.keeping(.place(.pages), before: nil).items == [.courses, .place(.pages)])
+        // Dropped back on itself, nothing moves.
+        #expect(kept.keeping(.courses, before: .courses) == kept)
+        // Above a place that is not kept (it left meanwhile): the end.
+        #expect(kept.keeping(.place(.sites), before: .place(.drive)).items == [.place(.pages), .courses, .place(.sites)])
+    }
+
+    @Test("A Space row's drag carries the place for the strip, and its pane where it has one")
+    func dragCarriesPlaceAndPane() async {
+        func load(_ provider: NSItemProvider) async -> StudioRailShortcut? {
+            await withCheckedContinuation { continuation in
+                let found = StudioRailShortcut.loadDropped(from: [provider]) { continuation.resume(returning: $0) }
+                if !found { continuation.resume(returning: nil) }
+            }
+        }
+
+        let pages = StudioRailShortcut.place(.pages).dragProvider()
+        #expect(pages.hasItemConformingToTypeIdentifier(StudioCenterTabDragPayload.contentType.identifier), "the edge split still opens Pages beside")
+        #expect(await load(pages) == .place(.pages))
+
+        let courses = StudioRailShortcut(hub: .courses).dragProvider()
+        #expect(courses.hasItemConformingToTypeIdentifier(StudioCenterTabDragPayload.contentType.identifier))
+        #expect(await load(courses) == .courses)
+
+        // Notebooks opens only in the Space: the strip is its one destination.
+        let notebooks = StudioRailShortcut.place(.notebooks).dragProvider()
+        #expect(!notebooks.hasItemConformingToTypeIdentifier(StudioCenterTabDragPayload.contentType.identifier))
+        #expect(await load(notebooks) == .place(.notebooks))
+
+        #expect(StudioRailShortcut.loadDropped(from: [NSItemProvider(object: "pages" as NSString)]) { _ in } == false)
+    }
+
+    @Test("A place on its way to the strip hides the content drop zones, as a pane does")
+    @MainActor
+    func placeDragIsPaneDrag() {
+        let visibility = StudioDragVisibility.shared
+        defer { visibility.endNow() }
+        StudioRailShortcut.place(.images).beginDrag()
+        #expect(visibility.draggedRailShortcut == .place(.images))
+        #expect(visibility.draggedCenterTab == nil)
+        #expect(visibility.isPaneDrag)
+        StudioRailShortcut.place(.pages).beginDrag()
+        #expect(visibility.draggedCenterTab == .notepad)
+        visibility.endNow()
+        #expect(visibility.draggedRailShortcut == nil)
+    }
+
+    @Test("Google Drive keeps its own logo on the strip; the other places their symbol")
+    func driveLogo() {
+        #expect(StudioRailShortcut.place(.drive).assetImage == "GoogleDriveIcon")
+        #expect(StudioRailShortcut.offered(listsCanvases: true).filter { $0.assetImage != nil } == [.place(.drive)])
+    }
+
     @Test("Over MCP the shortcuts are a JSON array of place ids, refused when one is unknown")
     @MainActor
     func mcpRoundTrip() throws {

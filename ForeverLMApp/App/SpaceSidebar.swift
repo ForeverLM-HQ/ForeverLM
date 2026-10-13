@@ -627,9 +627,12 @@ struct SpaceSidebar: View {
         } trailing: {
             EmptyView()
         }
+        // To an edge of the center it opens beside; onto the icon strip it
+        // is kept there.
         .onDrag {
-            StudioDragVisibility.shared.begin(centerTab: target.tab.centerTab)
-            return studioCenterTabDragProvider(for: target.tab.centerTab)
+            let shortcut = StudioRailShortcut(hub: target)
+            shortcut.beginDrag()
+            return shortcut.dragProvider()
         }
         .contextMenu {
             Button("Open \(target.title) Beside", systemImage: "rectangle.split.2x1") {
@@ -659,18 +662,23 @@ struct SpaceSidebar: View {
         } trailing: {
             EmptyView()
         }
-        if let kind = place.openableKind {
-            // Pages and Sites each open in a pane of their own as well:
-            // dragged to an edge of the center, or from the right-click.
-            row
-                .onDrag {
-                    StudioDragVisibility.shared.begin(centerTab: kind.centerTab)
-                    return studioCenterTabDragProvider(for: kind.centerTab)
-                }
-                .contextMenu {
+        if let shortcut = StudioRailShortcut(key: place.key) {
+            // Dragged onto the icon strip, the place is kept there, its
+            // glyph alone. Pages and Sites each open in a pane of their own
+            // as well: dragged to an edge of the center, or from the
+            // right-click.
+            let draggable = row.onDrag {
+                shortcut.beginDrag()
+                return shortcut.dragProvider()
+            }
+            if let kind = place.openableKind {
+                draggable.contextMenu {
                     Button("Open \(kind.title) Beside", systemImage: "rectangle.split.2x1") { kind.openBeside(in: vm) }
                     OtherWindowMenuItem(kind.otherWindowDestination)
                 }
+            } else {
+                draggable
+            }
         } else {
             row
         }

@@ -4939,6 +4939,9 @@ extension UTType {
     /// those (`KnowledgeMapCardTransfer`). It rides beside the card's own drag
     /// (a source's, a Doc's, a clip's), which a chat or an Idea still takes.
     static let knowledgeMapCard = UTType(exportedAs: "com.foreverlm.canvas-card")
+    /// Custom UTType for a Space place dragged onto the icon strip, which
+    /// keeps it there as a shortcut (`StudioRailShortcut`): its key.
+    static let studioRailShortcut = UTType(exportedAs: "com.foreverlm.studio-rail-shortcut")
     /// Finder-style web location files for dragging URL-only sources to external apps.
     static let webInternetLocation = UTType(filenameExtension: "webloc")
         ?? UTType(importedAs: "com.apple.web-internet-location")

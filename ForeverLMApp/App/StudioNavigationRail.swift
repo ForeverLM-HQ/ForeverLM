@@ -196,6 +196,13 @@ enum StudioRailShortcut: Hashable, Identifiable, Sendable {
         self = .place(place)
     }
 
+    /// The Space sidebar's hub as a shortcut: every hub is one.
+    init(hub: SpaceHub) {
+        switch hub {
+        case .courses: self = .courses
+        }
+    }
+
     var title: String {
         switch self {
         case .place(let place): return place.title
@@ -208,6 +215,64 @@ enum StudioRailShortcut: Hashable, Identifiable, Sendable {
         case .place(let place): return place.symbolName
         case .courses: return SpaceHub.courses.symbolName
         }
+    }
+
+    /// The picture the strip draws instead of `systemImage`, where the Space
+    /// sidebar's row draws one: Google Drive's own logo.
+    var assetImage: String? {
+        self == .place(.drive) ? "GoogleDriveIcon" : nil
+    }
+
+    /// The pane the place also opens in, dragged to an edge of the center:
+    /// Pages, Sites and Courses. Nil for a place that opens only in the Space.
+    var centerTab: StudioCenterTab? {
+        switch self {
+        case .place(let place): return place.openableKind?.centerTab
+        case .courses: return SpaceHub.courses.tab.centerTab
+        }
+    }
+
+    /// What a Space sidebar row or a kept shortcut drags: the place, which
+    /// the strip keeps where it is dropped (product owner, 2026-10-13: "let me
+    /// drag these things to the left side bar to pin them; e.g. pages"), and
+    /// the place's pane where it has one, which an edge of the center opens
+    /// beside, as the row's drag always did. Each destination reads only the
+    /// type it registered for.
+    func dragProvider() -> NSItemProvider {
+        let provider = centerTab.map { studioCenterTabDragProvider(for: $0) } ?? NSItemProvider()
+        let data = Data(key.utf8)
+        provider.registerDataRepresentation(
+            forTypeIdentifier: UTType.studioRailShortcut.identifier,
+            visibility: .ownProcess
+        ) { completion in
+            completion(data, nil)
+            return nil
+        }
+        provider.suggestedName = title
+        return provider
+    }
+
+    /// Starts the drag: the strip draws the place where it would land, and
+    /// the content drop zones stay hidden, as for a pane.
+    func beginDrag() {
+        StudioDragVisibility.shared.begin(centerTab: centerTab, railShortcut: self)
+    }
+
+    /// The place a strip drop carries, read off the first provider with one.
+    /// False when none carries a place.
+    @discardableResult
+    static func loadDropped(
+        from providers: [NSItemProvider],
+        _ receive: @escaping @MainActor (StudioRailShortcut) -> Void
+    ) -> Bool {
+        guard let provider = providers.first(where: {
+            $0.hasItemConformingToTypeIdentifier(UTType.studioRailShortcut.identifier)
+        }) else { return false }
+        provider.loadDataRepresentation(forTypeIdentifier: UTType.studioRailShortcut.identifier) { data, _ in
+            guard let data, let shortcut = StudioRailShortcut(key: String(decoding: data, as: UTF8.self)) else { return }
+            Task { @MainActor in receive(shortcut) }
+        }
+        return true
     }
 }
 
@@ -244,6 +309,21 @@ struct StudioRailShortcuts: Equatable {
     func setting(_ shortcut: StudioRailShortcut, shown: Bool) -> StudioRailShortcuts {
         var kept = items.filter { $0 != shortcut }
         if shown { kept.append(shortcut) }
+        return StudioRailShortcuts(kept)
+    }
+
+    /// Kept just above `next`, the shortcut it was dropped on, or at the end
+    /// when dropped anywhere else on the strip. One already kept moves there,
+    /// which is how a drag up or down the strip reorders it.
+    func keeping(_ shortcut: StudioRailShortcut, before next: StudioRailShortcut?) -> StudioRailShortcuts {
+        // Dropped back on itself: kept where it is.
+        if next == shortcut, contains(shortcut) { return self }
+        var kept = items.filter { $0 != shortcut }
+        if let next, let index = kept.firstIndex(of: next) {
+            kept.insert(shortcut, at: index)
+        } else {
+            kept.append(shortcut)
+        }
         return StudioRailShortcuts(kept)
     }
 
@@ -307,6 +387,11 @@ struct StudioNavigationRail: View {
     private var hiddenRailItems: StudioRailHiddenItems { StudioRailHiddenItems(storage: hiddenRailItemsStorage) }
     @SyncedStorage(wrappedValue: "", StudioRailShortcuts.storageKey) private var railShortcutsStorage: String
     private var railShortcuts: StudioRailShortcuts { StudioRailShortcuts(storage: railShortcutsStorage) }
+    /// A Space place is being dragged over the strip, which keeps it at the
+    /// end of its shortcuts unless it is over one of them.
+    @State private var shortcutDropIsTargeted = false
+    /// The kept shortcut a dragged place is over: dropped, it lands above it.
+    @State private var shortcutDropBefore: StudioRailShortcut?
     /// Which page the account menu shows: the root, or the library switcher
     /// it drills into. Reset to the root each time the menu opens.
     @State private var accountMenuPage: AccountMenuPage = .root
@@ -559,7 +644,8 @@ struct StudioNavigationRail: View {
 
     /// The window's rail, Codex's: a + for a new chat, Spaces, Memory and
     /// Library as icons, the ⋯ with every other place, and under a short
-    /// line the places the learner kept there (`StudioRailShortcuts`); then
+    /// line the places the learner kept there (`StudioRailShortcuts`), from
+    /// the ⋯ or by dragging a Space sidebar row onto the strip; then
     /// the day's calendar glyph, whose popover is the schedule, and the
     /// account. The notebooks and the chats are Home's sidebar (`fullRail`),
     /// which shows beside a chat or the Reader; "Plan your day?" and "Cards
@@ -570,6 +656,12 @@ struct StudioNavigationRail: View {
         let hiddenItems = hiddenRailItems
         let shortcuts = railShortcuts.shown(listsCanvases: vm.listsCanvases)
         let litShortcut = shortcuts.first(where: isShowing)
+        // The place a drag over the strip would keep at the end, drawn
+        // there until the drop: over a kept shortcut, a line above that one
+        // shows where it lands instead.
+        let landing = shortcutDropIsTargeted && shortcutDropBefore == nil
+            ? StudioDragVisibility.shared.draggedRailShortcut
+            : nil
         VStack(spacing: 4) {
             ForEach(hiddenItems.railItems()) { item in
                 switch item {
@@ -587,7 +679,7 @@ struct StudioNavigationRail: View {
                     .filter { !shortcuts.contains($0) },
                 open: openShortcut
             )
-            if !shortcuts.isEmpty {
+            if !shortcuts.isEmpty || landing != nil {
                 Rectangle()
                     .fill(Color(nsColor: .separatorColor))
                     .frame(width: 24, height: 1)
@@ -595,6 +687,15 @@ struct StudioNavigationRail: View {
                     .accessibilityHidden(true)
                 ForEach(shortcuts) { shortcut in
                     shortcutButton(shortcut, isSelected: shortcut == litShortcut)
+                        // A kept one dragged to the end shows there instead.
+                        .opacity(shortcut == landing ? 0.35 : 1)
+                }
+                if let landing {
+                    RailGlyph(systemImage: landing.systemImage, assetImage: landing.assetImage)
+                        .background(StudioSelectionBackground(isSelected: true, isHovered: false))
+                        .opacity(0.6)
+                        .accessibilityHidden(true)
+                        .transition(.opacity)
                 }
             }
             Spacer(minLength: 0)
@@ -637,6 +738,26 @@ struct StudioNavigationRail: View {
         .task { BackgroundWorkMonitor.shared.start() }
         .padding(.top, titlebarBandHeight == nil && edge == .leading ? 48 : StudioDesign.Spacing.medium)
         .frame(maxWidth: .infinity)
+        // A Space sidebar row dropped anywhere on the strip is kept at the
+        // end of its shortcuts, its glyph alone, as the ⋯'s Show in Sidebar
+        // keeps one.
+        .contentShape(Rectangle())
+        .onDrop(of: [.studioRailShortcut], isTargeted: $shortcutDropIsTargeted) { providers in
+            StudioDragVisibility.shared.endSoon()
+            return keepDroppedShortcut(providers, before: nil)
+        }
+        .animation(.easeInOut(duration: 0.16), value: landing)
+    }
+
+    /// Keeps the place a drop carries on the strip, above `next` or at the end.
+    private func keepDroppedShortcut(_ providers: [NSItemProvider], before next: StudioRailShortcut?) -> Bool {
+        StudioRailShortcut.loadDropped(from: providers) { shortcut in
+            withAnimation(.easeInOut(duration: 0.16)) {
+                railShortcutsStorage = StudioRailShortcuts(storage: railShortcutsStorage)
+                    .keeping(shortcut, before: next)
+                    .storage
+            }
+        }
     }
 
     /// The corner cards with something to say right now, tucked or not: what
@@ -1265,11 +1386,14 @@ struct StudioNavigationRail: View {
     // MARK: - Shortcuts
 
     /// A place the learner kept on the strip: its glyph, lit while the
-    /// window shows it, its menu taking it off again.
+    /// window shows it, its menu taking it off again. It drags as its
+    /// Space sidebar row does, so a drag up or down the strip reorders the
+    /// shortcuts: a place dropped on one lands above it.
     private func shortcutButton(_ shortcut: StudioRailShortcut, isSelected: Bool) -> some View {
         RailButtonRow(
             title: shortcut.title,
             systemImage: shortcut.systemImage,
+            assetImage: shortcut.assetImage,
             isSelected: isSelected,
             otherWindowDestination: otherWindowDestination(for: shortcut),
             identifier: "studio.navigation.shortcut.\(shortcut.key)",
@@ -1281,6 +1405,33 @@ struct StudioNavigationRail: View {
             }
         ) {
             openShortcut(shortcut)
+        }
+        .onDrag {
+            shortcut.beginDrag()
+            return shortcut.dragProvider()
+        }
+        .onDrop(of: [.studioRailShortcut], isTargeted: Binding(
+            get: { shortcutDropBefore == shortcut },
+            set: { targeted in
+                if targeted {
+                    shortcutDropBefore = shortcut
+                } else if shortcutDropBefore == shortcut {
+                    shortcutDropBefore = nil
+                }
+            }
+        )) { providers in
+            StudioDragVisibility.shared.endSoon()
+            return keepDroppedShortcut(providers, before: shortcut)
+        }
+        .overlay(alignment: .top) {
+            if shortcutDropBefore == shortcut, StudioDragVisibility.shared.draggedRailShortcut != shortcut {
+                Capsule()
+                    .fill(Color.primary.opacity(0.5))
+                    .frame(width: 24, height: 2)
+                    .offset(y: -3)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
         }
     }
 
@@ -2403,6 +2554,9 @@ struct WindowPlaceArrows: View {
 private struct RailButtonRow: View {
     let title: String
     var systemImage: String? = nil
+    /// A picture drawn in the strip in place of `systemImage`: a kept
+    /// place's own logo (`StudioRailShortcut.assetImage`).
+    var assetImage: String? = nil
     /// Non-nil for a row the learner may hide: its menu then ends with Hide
     /// and the Show in Sidebar submenu that brings any hidden row back.
     var railItem: StudioRailItem? = nil
@@ -2440,14 +2594,7 @@ private struct RailButtonRow: View {
 
     private var compactBody: some View {
         Button(action: action) {
-            // Lit, the glyph is filled, as Codex's strip draws its lit icon
-            // (measured off its window, 2026-10-12); a symbol with no fill
-            // keeps its outline.
-            Image(systemName: systemImage ?? "circle")
-                .font(.system(size: 13, weight: .medium))
-                .symbolVariant(isSelected ? .fill : .none)
-                .foregroundStyle(iconStyle)
-                .frame(width: 36, height: 30)
+            RailGlyph(systemImage: systemImage ?? "circle", assetImage: assetImage, isSelected: isSelected)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -2526,6 +2673,33 @@ private struct RailButtonRow: View {
                 }
                 RailItemVisibilityMenu()
             }
+    }
+}
+
+/// An icon strip glyph in its 36 × 30 square. Lit, a symbol is filled, as
+/// Codex's strip draws its lit icon (measured off its window, 2026-10-12); a
+/// symbol with no fill keeps its outline. A logo (`assetImage`) is drawn as
+/// it is, the selection fill behind it saying it is lit.
+private struct RailGlyph: View {
+    let systemImage: String
+    var assetImage: String? = nil
+    var isSelected = false
+
+    var body: some View {
+        Group {
+            if let assetImage {
+                Image(assetImage)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 14, height: 14)
+            } else {
+                Image(systemName: systemImage)
+                    .font(.system(size: 13, weight: .medium))
+                    .symbolVariant(isSelected ? .fill : .none)
+                    .foregroundStyle(isSelected ? Color.primary : Color.secondary)
+            }
+        }
+        .frame(width: 36, height: 30)
     }
 }
 

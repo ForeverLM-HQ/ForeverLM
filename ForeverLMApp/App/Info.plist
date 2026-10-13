@@ -221,6 +221,18 @@
 			<key>UTTypeTagSpecification</key>
 			<dict/>
 		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.foreverlm.studio-rail-shortcut</string>
+			<key>UTTypeDescription</key>
+			<string>Studio Rail Shortcut Transfer</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict/>
+		</dict>
 	</array>
 </dict>
 </plist>
