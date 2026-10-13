@@ -700,3 +700,131 @@ struct WorkingLogTests {
         #expect(!cut.dropLast(2).hasSuffix("entry number 1"), "cut at a line boundary, not mid-line")
     }
 }
+
+/// `@` finds the learner's sources, Pages, Sites, chats and notebooks as
+/// Codex's `@` finds files, chats and pages, with the plugins kept under All.
+@Suite("Chat library mentions")
+struct ChatLibraryMentionTests {
+    private static let found: [ChatMention.Item] = [
+        .init(kind: .source, reference: "source:s1", title: "Neural circuits of fear", subtitle: "Paper · Zara Holt"),
+        .init(kind: .source, reference: "source:s2", title: "Neurons, a primer", subtitle: "Article"),
+        .init(kind: .source, reference: "book:b1", title: "Neuroscience", subtitle: "Book"),
+        .init(kind: .source, reference: "source:s3", title: "Neuromodulation", subtitle: "Podcast"),
+        .init(kind: .page, reference: "doc-1", title: "Neuro notes", subtitle: "Page · edited today"),
+        .init(kind: .site, reference: "site-1", title: "Neuro site", subtitle: "Published page"),
+        .init(kind: .chat, reference: "chat-1", title: "Neurons and memory", subtitle: "Acme Lab · yesterday"),
+        .init(kind: .notebook, reference: "nb-1", title: "Neuroscience", subtitle: "12 sources"),
+    ]
+
+    @Test("An @ that starts a word is a query up to the end of the draft; an address or a finished word is not")
+    func pendingQueries() throws {
+        #expect(ChatMention.pendingQuery(in: "what does @neur")?.query == "neur")
+        #expect(ChatMention.pendingQuery(in: "@")?.query == "")
+        #expect(ChatMention.pendingQuery(in: "see @Über")?.query == "Über")
+        #expect(ChatMention.pendingQuery(in: "mail zara@example") == nil)
+        #expect(ChatMention.pendingQuery(in: "@neuro ") == nil)
+        #expect(ChatMention.pendingQuery(in: "@a@b") == nil)
+        #expect(ChatMention.pendingQuery(in: "/source @neuro") == nil)
+        #expect(ChatMention.pendingQuery(in: "") == nil)
+
+        // Choosing a row takes the `@` and its query out and keeps the rest.
+        #expect(ChatMention.removingPending(from: "what does @neur") == "what does ")
+        #expect(ChatMention.removingPending(from: "@neur") == "")
+        #expect(ChatMention.removingPending(from: "plain text") == "plain text")
+    }
+
+    @Test("A title that is the query ranks first, then one that starts with it, then a word that does")
+    func ranking() {
+        #expect(ChatMention.matchRank(title: "Neuroscience", query: "neuroscience") == 0)
+        #expect(ChatMention.matchRank(title: "Neuroscience notes", query: "NEURO") == 1)
+        #expect(ChatMention.matchRank(title: "The neuroscience of sleep", query: "neuro") == 2)
+        #expect(ChatMention.matchRank(title: "Café culture", query: "cafe") == 1)
+        #expect(ChatMention.matchRank(title: "Synaptic neurotransmission", query: "trans") == 3)
+        #expect(ChatMention.matchRank(title: "Sleep", query: "neuro") == nil)
+        #expect(ChatMention.matchRank(title: "Sleep", query: "  ") == nil)
+
+        let titles = ["The neuroscience of sleep", "Sleep", "Neuro basics", "Neuro", "Other neuro talk"]
+        // Equal ranks keep the order given (newest first).
+        #expect(ChatMention.ranked(titles, query: "neuro", title: { $0 }) == [
+            "Neuro", "Neuro basics", "The neuroscience of sleep", "Other neuro talk",
+        ])
+    }
+
+    @Test("All shows a few of each kind in order, a tab shows more of its own, Pages holds Sites")
+    func tabs() {
+        let all = ChatMention.rows(Self.found, tab: .all)
+        #expect(all.map(\.kind) == [.source, .source, .source, .page, .site, .chat, .notebook])
+        #expect(ChatMention.rows(Self.found, tab: .sources).count == 4)
+        #expect(ChatMention.rows(Self.found, tab: .pages).map(\.kind) == [.page, .site])
+        #expect(ChatMention.rows(Self.found, tab: .chats).map(\.reference) == ["chat-1"])
+        #expect(ChatMention.rows(Self.found, tab: .notebooks).map(\.reference) == ["nb-1"])
+    }
+
+    @Test("Library rows show only while they answer the query; plugins stay under All; choosing keeps the words")
+    func suggestions() throws {
+        let mentions = [ChatPlugin.notion.mention(slackWorkspaces: [])]
+        let live = ChatMention.LiveResults(query: "neu", items: Self.found)
+
+        let shown = ReviewSlashCommandParser.suggestions(for: "compare @neu", mentions: mentions, liveMentions: live)
+        #expect(shown.count == 7)
+        #expect(shown.first?.libraryItem?.reference == "source:s1")
+        #expect(shown.first?.mentionGroupTitle == "Sources")
+        #expect(shown.first?.isLibraryRow == true)
+        #expect(shown.first?.runsImmediately == false)
+        #expect(shown.first?.completionText == "compare ")
+        #expect(shown.first?.subtitle == "Paper · Zara Holt")
+
+        // A stale answer (the previous keystroke's) shows nothing.
+        #expect(ReviewSlashCommandParser.suggestions(for: "compare @neur", liveMentions: live).isEmpty)
+        // A bare @ offers the plugins and leaves the rest to the hint.
+        #expect(ReviewSlashCommandParser.suggestions(for: "@", mentions: mentions, liveMentions: live).map(\.title) == ["@notion"])
+
+        // A plugin matching the query leads All and is not in a kind's tab.
+        let notion = ChatMention.LiveResults(query: "no", items: [
+            .init(kind: .page, reference: "doc-2", title: "Notes", subtitle: ""),
+        ])
+        let both = ReviewSlashCommandParser.suggestions(for: "@no", mentions: mentions, liveMentions: notion)
+        #expect(both.map(\.title) == ["@notion", "Notes"])
+        #expect(both.map(\.mentionGroupTitle) == ["Plugins", "Pages"])
+        #expect(both.last?.subtitle == nil)
+        let pagesOnly = ReviewSlashCommandParser.suggestions(
+            for: "@no", mentions: mentions, liveMentions: notion, mentionTab: .pages
+        )
+        #expect(pagesOnly.map(\.title) == ["Notes"])
+    }
+
+    @Test("The popup says what to type, then that it searches, then that nothing matched")
+    func statusLines() {
+        #expect(ReviewMentionPopupHeader.statusLine(query: "", tab: .all, hasRows: false, hasAnswer: true)
+            == "Type to search sources, Pages, chats and notebooks")
+        #expect(ReviewMentionPopupHeader.statusLine(query: "", tab: .chats, hasRows: false, hasAnswer: true)
+            == "Type to search chats")
+        #expect(ReviewMentionPopupHeader.statusLine(query: "zz", tab: .all, hasRows: false, hasAnswer: false) == "Searching…")
+        #expect(ReviewMentionPopupHeader.statusLine(query: "zz", tab: .all, hasRows: false, hasAnswer: true) == "No results")
+        #expect(ReviewMentionPopupHeader.statusLine(query: "zz", tab: .all, hasRows: true, hasAnswer: true) == nil)
+    }
+
+    @Test("A chat pointed at rides as its transcript, the oldest turns left out when it is long, and names no id")
+    func chatReference() {
+        let short = ChatMention.chatReferenceContext(
+            title: "Neurons and memory",
+            turns: [("Learner", "What is LTP?"), ("ForeverLM", "Long-term potentiation is…"), ("Learner", "  ")]
+        )
+        #expect(short.hasPrefix("Referenced chat \u{201C}Neurons and memory\u{201D}"))
+        #expect(short.contains("Learner: What is LTP?"))
+        #expect(short.contains("ForeverLM: Long-term potentiation is…"))
+        #expect(!short.contains("Earlier turns left out"))
+        #expect(!short.contains("chat-1"))
+
+        let turns = (0..<50).map { (speaker: "Learner", text: "Turn \($0) " + String(repeating: "x", count: 100)) }
+        let long = ChatMention.chatReferenceContext(title: "Long", turns: turns, characterLimit: 1_000)
+        #expect(long.contains("(Earlier turns left out.)"))
+        #expect(long.contains("Turn 49"))
+        #expect(!long.contains("Turn 0 "))
+        #expect(long.count < 1_400)
+
+        let empty = ChatMention.chatReferenceContext(title: " ", turns: [])
+        #expect(empty.contains("Untitled chat"))
+        #expect(empty.contains("no messages yet"))
+    }
+}

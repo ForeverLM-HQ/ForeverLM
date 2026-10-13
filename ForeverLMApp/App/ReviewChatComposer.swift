@@ -441,6 +441,14 @@ final class ReviewComposerDraft {
     /// which runs the search; read by the box so Return and the arrows act on
     /// exactly the rows that are on screen.
     var liveArguments: ReviewSlashLiveArguments?
+    /// What the library search found for the `@` query being typed, stamped
+    /// with that query, written by the overlay as `liveArguments` is.
+    var liveMentions: ChatMention.LiveResults?
+    /// The `@` popup's tab. Back to All whenever no `@` is being typed.
+    var mentionTab: ChatMention.Tab = .all
+    /// Chats the learner pointed at with `@`, drawn as chips above the field;
+    /// their transcripts go with the next message as reference material.
+    var referencedChats: [ChatMention.Item] = []
 }
 
 /// The editable box: the AppKit text view and the empty-state placeholder.
@@ -505,7 +513,9 @@ struct ReviewChatComposerBox: View {
             for: composer.text,
             commands: slashCommands,
             mentions: mentions,
-            liveArguments: composer.liveArguments
+            liveArguments: composer.liveArguments,
+            liveMentions: composer.liveMentions,
+            mentionTab: composer.mentionTab
         )
     }
 
@@ -530,6 +540,15 @@ struct ReviewChatComposerBox: View {
                     .padding(.trailing, 4)
                     .padding(.top, 4)
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
+            if !composer.referencedChats.isEmpty {
+                ReviewChatReferencedChats(chats: composer.referencedChats) { item in
+                    composer.referencedChats.removeAll { $0.id == item.id }
+                }
+                .padding(.leading, ReviewChatComposerTextView.overlayTextLeadingInset)
+                .padding(.trailing, 4)
+                .padding(.top, 4)
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
             if let guessQuestion, skipGuess != nil {
                 ReviewChatGuessQuestion(question: guessQuestion)
@@ -557,6 +576,7 @@ struct ReviewChatComposerBox: View {
         .animation(.easeOut(duration: 0.12), value: showsDeepResearchToken)
         .animation(.easeOut(duration: 0.12), value: skipGuess != nil)
         .animation(.easeOut(duration: 0.12), value: composer.quotedPassage.isEmpty)
+        .animation(.easeOut(duration: 0.12), value: composer.referencedChats)
     }
 
     /// Escape takes off the token nearest the words: the guess's, then the
@@ -616,7 +636,9 @@ struct ReviewChatComposerBox: View {
                 for: text,
                 commands: slashCommands,
                 mentions: mentions,
-                liveArguments: composer.liveArguments
+                liveArguments: composer.liveArguments,
+                liveMentions: composer.liveMentions,
+                mentionTab: composer.mentionTab
             ).count
             if composer.slashSelectionIndex >= count {
                 composer.slashSelectionIndex = 0
@@ -625,6 +647,12 @@ struct ReviewChatComposerBox: View {
         .onChange(of: composer.liveArguments) { _, _ in
             // A fresh search result is a fresh list: the highlight goes back to
             // the top rather than pointing at whatever row number it was on.
+            composer.slashSelectionIndex = 0
+        }
+        .onChange(of: composer.liveMentions) { _, _ in
+            composer.slashSelectionIndex = 0
+        }
+        .onChange(of: composer.mentionTab) { _, _ in
             composer.slashSelectionIndex = 0
         }
     }
@@ -712,6 +740,51 @@ struct ReviewChatComposerQuote: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Quoting: \(passage)")
         .accessibilityIdentifier("mac.chatComposerQuote")
+    }
+}
+
+/// Chats the learner pointed at with `@`, above the field as chips: each
+/// chat's transcript goes with the next message as reference material, and
+/// its × leaves it out (`ChatMention.chatReferenceContext`).
+struct ReviewChatReferencedChats: View {
+    let chats: [ChatMention.Item]
+    let remove: (ChatMention.Item) -> Void
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(chats) { chat in
+                HStack(spacing: 4) {
+                    Image(systemName: ChatMention.Kind.chat.systemImage)
+                        .zoomedSystemFont(size: 9, weight: .semibold)
+                        .foregroundStyle(.secondary)
+                    Text(chat.title)
+                        .zoomedSystemFont(size: 11, weight: .medium)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .frame(maxWidth: 220, alignment: .leading)
+                        .textSelection(.disabled)
+                    Button {
+                        remove(chat)
+                    } label: {
+                        Image(systemName: "xmark")
+                            .zoomedSystemFont(size: 7, weight: .bold)
+                            .frame(width: 14, height: 14)
+                            .contentShape(Circle())
+                    }
+                    .buttonStyle(.hoverWash(in: Circle(), opacity: 0.14))
+                    .help("Send the message without this chat")
+                    .accessibilityLabel("Remove \(chat.title)")
+                }
+                .padding(.leading, 6)
+                .padding(.trailing, 2)
+                .padding(.vertical, 2)
+                .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .help("The next message carries this chat's transcript")
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("mac.chatReferencedChat")
+            }
+            Spacer(minLength: 0)
+        }
     }
 }
 
@@ -878,10 +951,18 @@ struct ReviewSlashSuggestionsOverlay: View {
     /// the rows to show, already matched and ranked. Called from a task keyed
     /// on the query, so a keystroke cancels the search it superseded.
     let resolveLiveArguments: (ReviewSlashCommand, String) async -> [ReviewSlashCommand.Argument]
+    /// Runs the library search an `@` query asks for: sources, Pages, Sites,
+    /// chats and notebooks matching it, each kind ranked (`ChatMention`).
+    var resolveMentions: (String) async -> [ChatMention.Item] = { _ in [] }
     let onSelect: (ReviewSlashSuggestion) -> Void
 
     /// Measured height of the popup so it can float above the composer.
     @State private var popupHeight: CGFloat = 0
+
+    /// The `@` query being typed, as a value `task(id:)` can key on.
+    private var mentionQuery: String? {
+        ChatMention.pendingQuery(in: composer.text)?.query
+    }
 
     /// The search the draft currently asks for, as a value `task(id:)` can key on.
     private var liveQuery: LiveQuery? {
@@ -902,13 +983,30 @@ struct ReviewSlashSuggestionsOverlay: View {
             for: composer.text,
             commands: slashCommands,
             mentions: mentions,
-            liveArguments: composer.liveArguments
+            liveArguments: composer.liveArguments,
+            liveMentions: composer.liveMentions,
+            mentionTab: composer.mentionTab
         )
+        // An `@` being typed opens the popup even before there is a row to
+        // pick: it says what to type, then that it is searching, as Codex's.
+        let mentionHeader = mentionQuery.map { query in
+            ReviewMentionPopupHeader(
+                tab: composer.mentionTab,
+                statusLine: ReviewMentionPopupHeader.statusLine(
+                    query: query,
+                    tab: composer.mentionTab,
+                    hasRows: !suggestions.isEmpty,
+                    hasAnswer: composer.liveMentions?.answers(query) == true
+                ),
+                selectTab: { composer.mentionTab = $0 }
+            )
+        }
         ZStack(alignment: .topLeading) {
-            if !suggestions.isEmpty {
+            if !suggestions.isEmpty || mentionHeader != nil {
                 ReviewSlashCommandPopup(
                     suggestions: suggestions,
                     selectedIndex: composer.slashSelectionIndex,
+                    mentionHeader: mentionHeader,
                     onSelect: onSelect
                 )
                 .background(
@@ -942,6 +1040,23 @@ struct ReviewSlashSuggestionsOverlay: View {
                 query: liveQuery.query,
                 arguments: arguments
             )
+        }
+        .task(id: mentionQuery) {
+            guard let query = mentionQuery else {
+                // The `@` is over: the next one opens on All again.
+                composer.liveMentions = nil
+                composer.mentionTab = .all
+                return
+            }
+            guard !query.isEmpty else {
+                composer.liveMentions = ChatMention.LiveResults(query: query, items: [])
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(120))
+            guard !Task.isCancelled else { return }
+            let items = await resolveMentions(query)
+            guard !Task.isCancelled else { return }
+            composer.liveMentions = ChatMention.LiveResults(query: query, items: items)
         }
     }
 }

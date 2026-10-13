@@ -274,8 +274,227 @@ struct ReviewSlashCommand: Identifiable, Equatable {
     ]
 }
 
+// MARK: - `@` mentions of the library
+
+/// What an `@` in the composer finds besides the connected plugins: the
+/// learner's sources, Pages, Sites, chats and notebooks, as Codex's `@` finds
+/// files, chats, pages and sites (`composer.atMentionList.*`, with the tabs
+/// All · Chats · Pages). The library is ForeverLM's core, so sources lead.
+/// Choosing one brings it into the chat through the path its slash command
+/// or its drop already uses: a source the way `/source` adds it, a Page or a
+/// Site the way `/page` and `/site` attach them, a notebook's sources the way
+/// dropping a collection adds its sources. A chat has no such path, so it is
+/// held beside the next message and its transcript rides with that message
+/// as reference material (`chatReferenceContext`). The slash commands stay.
+///
+/// Pure text rules and ranking, shared by the popup, its key handling and the
+/// pane that runs the search, so the three agree on what is being typed.
+enum ChatMention {
+    enum Kind: String, CaseIterable, Sendable {
+        case source
+        case page
+        case site
+        case chat
+        case notebook
+
+        /// The group heading the popup draws over this kind's rows.
+        var groupTitle: String {
+            switch self {
+            case .source: return "Sources"
+            case .page: return "Pages"
+            case .site: return "Sites"
+            case .chat: return "Chats"
+            case .notebook: return "Notebooks"
+            }
+        }
+
+        var systemImage: String {
+            switch self {
+            case .source: return "books.vertical"
+            case .page: return "doc.text"
+            case .site: return "globe"
+            case .chat: return "bubble.left.and.bubble.right"
+            case .notebook: return NotebookGlyph.systemImage
+            }
+        }
+    }
+
+    /// The popup's tabs, as Codex's `@` list has All · Chats · Pages · People.
+    /// Sites are Pages with a page on the web, so they sit in the Pages tab.
+    enum Tab: String, CaseIterable, Sendable {
+        case all
+        case sources
+        case pages
+        case chats
+        case notebooks
+
+        var title: String {
+            switch self {
+            case .all: return "All"
+            case .sources: return "Sources"
+            case .pages: return "Pages"
+            case .chats: return "Chats"
+            case .notebooks: return "Notebooks"
+            }
+        }
+
+        func admits(_ kind: Kind) -> Bool {
+            switch self {
+            case .all: return true
+            case .sources: return kind == .source
+            case .pages: return kind == .page || kind == .site
+            case .chats: return kind == .chat
+            case .notebooks: return kind == .notebook
+            }
+        }
+
+        /// Plugins are offered under All only, the way Codex lists them in
+        /// its whole list and not under a category.
+        var admitsPlugins: Bool { self == .all }
+
+        /// What the popup says before anything is typed after the `@`.
+        var emptyQueryLine: String {
+            switch self {
+            case .all: return "Type to search sources, Pages, chats and notebooks"
+            case .sources: return "Type to search sources"
+            case .pages: return "Type to search Pages and Sites"
+            case .chats: return "Type to search chats"
+            case .notebooks: return "Type to search notebooks"
+            }
+        }
+    }
+
+    /// One thing the popup offers. `reference` is what the add path takes:
+    /// a source picker token (`source:<id>`, `book:<id>`), a Page's or Site's
+    /// artifact id, a chat's session id or a notebook's id.
+    struct Item: Equatable, Identifiable, Hashable, Sendable {
+        let kind: Kind
+        let reference: String
+        let title: String
+        let subtitle: String
+
+        var id: String { "\(kind.rawValue).\(reference)" }
+    }
+
+    /// The rows a search produced, stamped with the query they answer, so a
+    /// keystroke's stale rows never show under the next query.
+    struct LiveResults: Equatable, Sendable {
+        let query: String
+        let items: [Item]
+
+        func answers(_ query: String) -> Bool { self.query == query }
+    }
+
+    static let sigil: Character = "@"
+    /// Rows per kind under All; a kind's own tab shows `rowsPerTab`.
+    static let rowsPerKindInAll = 3
+    static let rowsPerTab = 8
+
+    /// The `@` query being typed at the very end of `text`: everything after
+    /// an `@` that starts a word, up to the end, with no whitespace in it. Nil
+    /// for a `/` command, an address (`zara@example.org`), or once a space
+    /// follows: the mention is over and the popup has nothing to offer.
+    static func pendingQuery(in text: String) -> (query: String, range: Range<String.Index>)? {
+        guard !text.hasPrefix("/"), let last = text.last, !last.isWhitespace else { return nil }
+        var start = text.endIndex
+        while start > text.startIndex {
+            let before = text.index(before: start)
+            if text[before].isWhitespace { break }
+            start = before
+        }
+        guard text[start] == sigil else { return nil }
+        let query = String(text[text.index(after: start)...])
+        // A second `@` inside the word is an address being typed, not a query.
+        guard !query.contains(sigil) else { return nil }
+        return (query, start..<text.endIndex)
+    }
+
+    /// `text` once a row is chosen for the pending query: the `@` and what was
+    /// typed after it go, since what was chosen shows where it landed (the
+    /// context chips, the chat chip above the field), and the learner goes
+    /// on typing where the `@` was.
+    static func removingPending(from text: String) -> String {
+        guard let pending = pendingQuery(in: text) else { return text }
+        return String(text[..<pending.range.lowerBound])
+    }
+
+    /// How well `title` answers `query`: 0 for the title itself, 1 for a
+    /// title that starts with it, 2 for one with a word that does, 3 for one
+    /// that holds every word of it somewhere; nil when it does not match.
+    /// Case and accents are ignored.
+    static func matchRank(title: String, query: String) -> Int? {
+        let folded = fold(title)
+        let wanted = fold(query)
+        let terms = wanted.split(whereSeparator: { $0.isWhitespace }).map(String.init)
+        guard !terms.isEmpty else { return nil }
+        if folded == wanted { return 0 }
+        if folded.hasPrefix(wanted) { return 1 }
+        let words = folded.split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init)
+        if terms.allSatisfy({ term in words.contains { $0.hasPrefix(term) } }) { return 2 }
+        if terms.allSatisfy({ folded.contains($0) }) { return 3 }
+        return nil
+    }
+
+    /// `records` that match `query`, best match first; records that match
+    /// equally keep the order given (callers pass them newest first).
+    static func ranked<T>(_ records: [T], query: String, title: (T) -> String) -> [T] {
+        records.enumerated()
+            .compactMap { offset, record in
+                matchRank(title: title(record), query: query).map { (rank: $0, offset: offset, record: record) }
+            }
+            .sorted { ($0.rank, $0.offset) < ($1.rank, $1.offset) }
+            .map(\.record)
+    }
+
+    /// The rows a tab shows, grouped by kind in `Kind`'s order: a few of each
+    /// under All, more in a kind's own tab.
+    static func rows(_ items: [Item], tab: Tab) -> [Item] {
+        let limit = tab == .all ? rowsPerKindInAll : rowsPerTab
+        return Kind.allCases.filter(tab.admits).flatMap { kind in
+            items.filter { $0.kind == kind }.prefix(limit)
+        }
+    }
+
+    /// The transcript of a chat the learner pointed at with `@`, as the
+    /// reference material the next message carries. Turns run oldest first;
+    /// when the whole chat is longer than `characterLimit`, the oldest turns
+    /// are left out and the block says so, since the end of a chat is where
+    /// it arrived. Names no id: the block is read by the model, never shown.
+    static func chatReferenceContext(
+        title: String,
+        turns: [(speaker: String, text: String)],
+        characterLimit: Int = 12_000
+    ) -> String {
+        let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let heading = "Referenced chat \u{201C}\(name.isEmpty ? "Untitled chat" : name)\u{201D}: the learner pointed at this earlier chat with @. Read it as background to their message."
+        let lines = turns.compactMap { turn -> String? in
+            let text = turn.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            return text.isEmpty ? nil : "\(turn.speaker): \(text)"
+        }
+        guard !lines.isEmpty else { return heading + "\n(The chat has no messages yet.)" }
+        var kept: [String] = []
+        var used = 0
+        for line in lines.reversed() {
+            let cost = line.count + 2
+            if used + cost > characterLimit, !kept.isEmpty { break }
+            kept.insert(line, at: 0)
+            used += cost
+        }
+        var block = [heading]
+        if kept.count < lines.count { block.append("(Earlier turns left out.)") }
+        block.append(contentsOf: kept)
+        return block.joined(separator: "\n\n")
+    }
+
+    private static func fold(_ text: String) -> String {
+        text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
 /// A single row in the composer's autocomplete popup — a `/` command, one of
-/// its argument values, or an `@` plugin mention.
+/// its argument values, an `@` plugin mention, or something of the library
+/// an `@` found.
 struct ReviewSlashSuggestion: Identifiable, Equatable {
     enum Payload: Equatable {
         case command(ReviewSlashCommand)
@@ -286,6 +505,9 @@ struct ReviewSlashSuggestion: Identifiable, Equatable {
         /// `@` being typed replaced by the mention, since the mention can sit
         /// anywhere in the text rather than only at its head like a command.
         case mention(ReviewComposerMention, completion: String)
+        /// A source, Page, Site, chat or notebook an `@` found. `completion`
+        /// is the draft with the `@` query taken out (`ChatMention`).
+        case library(ChatMention.Item, completion: String)
     }
 
     let payload: Payload
@@ -296,6 +518,7 @@ struct ReviewSlashSuggestion: Identifiable, Equatable {
         case .argument(let argument, let command):
             return "arg.\(command.name).\(argument.reference ?? argument.value)"
         case .mention(let mention, _): return "mention.\(mention.id)"
+        case .library(let item, _): return "library.\(item.id)"
         }
     }
 
@@ -303,6 +526,21 @@ struct ReviewSlashSuggestion: Identifiable, Equatable {
     var mentionedPlugin: ChatPlugin? {
         guard case .mention(let mention, _) = payload else { return nil }
         return mention.plugin
+    }
+
+    /// The library item an `@` row stands for.
+    var libraryItem: ChatMention.Item? {
+        guard case .library(let item, _) = payload else { return nil }
+        return item
+    }
+
+    /// The heading the `@` popup groups this row under.
+    var mentionGroupTitle: String? {
+        switch payload {
+        case .mention: return "Plugins"
+        case .library(let item, _): return item.kind.groupTitle
+        case .command, .argument: return nil
+        }
     }
 
     /// The library record an accepted row stands for — a source token or a Doc
@@ -316,7 +554,7 @@ struct ReviewSlashSuggestion: Identifiable, Equatable {
 
     /// Library rows read as prose — a title over an attribution — where a
     /// command or a fixed token reads as code.
-    var isLibraryRow: Bool { reference != nil }
+    var isLibraryRow: Bool { reference != nil || libraryItem != nil }
 
     /// Primary text shown in the popup; monospaced unless `isLibraryRow`.
     var title: String {
@@ -330,6 +568,8 @@ struct ReviewSlashSuggestion: Identifiable, Equatable {
             return argument.value
         case .mention(let mention, _):
             return mention.plugin.mentionToken
+        case .library(let item, _):
+            return item.title
         }
     }
 
@@ -339,6 +579,7 @@ struct ReviewSlashSuggestion: Identifiable, Equatable {
         case .command(let command): return command.summary
         case .argument(let argument, _): return argument.display
         case .mention(let mention, _): return mention.summary
+        case .library(let item, _): return item.subtitle.isEmpty ? nil : item.subtitle
         }
     }
 
@@ -349,7 +590,7 @@ struct ReviewSlashSuggestion: Identifiable, Equatable {
             return command.takesArgument ? "/\(command.name) " : "/\(command.name)"
         case .argument(let argument, let command):
             return "/\(command.name) \(argument.value)"
-        case .mention(_, let completion):
+        case .mention(_, let completion), .library(_, let completion):
             return completion
         }
     }
@@ -361,7 +602,8 @@ struct ReviewSlashSuggestion: Identifiable, Equatable {
         case .argument: return true
         // The mention waits for the question, like a command with an argument;
         // a bare mention sent on purpose asks the plugin's default question.
-        case .mention: return false
+        // A library row brings its item in and leaves the question to come.
+        case .mention, .library: return false
         }
     }
 }
@@ -460,9 +702,14 @@ enum ReviewSlashCommandParser {
         for text: String,
         commands: [ReviewSlashCommand] = ReviewSlashCommand.all,
         mentions: [ReviewComposerMention] = [],
-        liveArguments: ReviewSlashLiveArguments? = nil
+        liveArguments: ReviewSlashLiveArguments? = nil,
+        liveMentions: ChatMention.LiveResults? = nil,
+        mentionTab: ChatMention.Tab = .all
     ) -> [ReviewSlashSuggestion] {
-        guard text.hasPrefix("/") else { return mentionSuggestions(for: text, mentions: mentions) }
+        guard text.hasPrefix("/") else {
+            return mentionSuggestions(for: text, mentions: mentions, tab: mentionTab)
+                + librarySuggestions(for: text, liveMentions: liveMentions, tab: mentionTab)
+        }
         guard !text.contains("\n") else { return [] }
         let body = String(text.dropFirst())
 
@@ -505,9 +752,10 @@ enum ReviewSlashCommandParser {
     /// none once the mention is complete or when nothing is connected.
     static func mentionSuggestions(
         for text: String,
-        mentions: [ReviewComposerMention]
+        mentions: [ReviewComposerMention],
+        tab: ChatMention.Tab = .all
     ) -> [ReviewSlashSuggestion] {
-        guard !mentions.isEmpty else { return [] }
+        guard !mentions.isEmpty, tab.admitsPlugins else { return [] }
         let candidates = ChatPluginRequest.Mention.candidates(in: text, plugins: mentions.map(\.plugin))
         return candidates.compactMap { plugin in
             guard let mention = mentions.first(where: { $0.plugin == plugin }) else { return nil }
@@ -515,6 +763,23 @@ enum ReviewSlashCommandParser {
                 mention,
                 completion: ChatPluginRequest.Mention.completing(text, with: plugin)
             ))
+        }
+    }
+
+    /// The `@` rows of the library for the query being typed: what the
+    /// pane's search found for exactly this query (`liveMentions`), grouped
+    /// by kind and narrowed to `tab`. None for a bare `@`: the popup says
+    /// what to type instead, as Codex's does.
+    static func librarySuggestions(
+        for text: String,
+        liveMentions: ChatMention.LiveResults?,
+        tab: ChatMention.Tab
+    ) -> [ReviewSlashSuggestion] {
+        guard let pending = ChatMention.pendingQuery(in: text), !pending.query.isEmpty,
+              let liveMentions, liveMentions.answers(pending.query) else { return [] }
+        let completion = ChatMention.removingPending(from: text)
+        return ChatMention.rows(liveMentions.items, tab: tab).map {
+            ReviewSlashSuggestion(payload: .library($0, completion: completion))
         }
     }
 
@@ -655,11 +920,38 @@ enum ReviewSlashCommandParser {
 struct ReviewSlashCommandPopup: View {
     let suggestions: [ReviewSlashSuggestion]
     let selectedIndex: Int
+    /// The `@` popup's tabs and what it says while there is nothing to pick;
+    /// nil for a `/` command.
+    var mentionHeader: ReviewMentionPopupHeader? = nil
     let onSelect: (ReviewSlashSuggestion) -> Void
+
+    /// Group headings name the kinds where a list mixes them: under All, and
+    /// in Pages, which holds Sites too.
+    private var showsGroupHeadings: Bool {
+        guard let mentionHeader else { return false }
+        return mentionHeader.tab == .all || mentionHeader.tab == .pages
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            if let mentionHeader {
+                ReviewMentionTabs(selected: mentionHeader.tab, select: mentionHeader.selectTab)
+                    .padding(.horizontal, 6)
+                    .padding(.top, 2)
+                    .padding(.bottom, 4)
+            }
             ForEach(Array(suggestions.enumerated()), id: \.element.id) { index, suggestion in
+                if showsGroupHeadings, let group = suggestion.mentionGroupTitle,
+                   index == 0 || suggestions[index - 1].mentionGroupTitle != group {
+                    Text(group)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .textSelection(.disabled)
+                        .padding(.horizontal, 10)
+                        .padding(.top, index == 0 ? 2 : 8)
+                        .padding(.bottom, 2)
+                        .accessibilityAddTraits(.isHeader)
+                }
                 Button {
                     onSelect(suggestion)
                 } label: {
@@ -668,6 +960,11 @@ struct ReviewSlashCommandPopup: View {
                             // The plugin's brand mark lives here, on the row
                             // that offers it, rather than in the composer's chrome.
                             ChatPluginMark(plugin: plugin)
+                        } else if let item = suggestion.libraryItem {
+                            Image(systemName: item.kind.systemImage)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .frame(width: 13)
                         }
                         Text(suggestion.title)
                             .font(suggestion.isLibraryRow ? .callout : .callout.monospaced())
@@ -695,9 +992,18 @@ struct ReviewSlashCommandPopup: View {
                 }
                 .buttonStyle(.hoverWash(cornerRadius: 6, inset: 0))
             }
+            if let line = mentionHeader?.statusLine {
+                Text(line)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.disabled)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
         .padding(4)
-        .frame(width: 360, alignment: .leading)
+        .frame(width: mentionHeader == nil ? 360 : 400, alignment: .leading)
         .reviewGlassSurface(
             in: RoundedRectangle(cornerRadius: 10, style: .continuous),
             fallbackBorder: Color.secondary.opacity(0.18),
@@ -705,5 +1011,62 @@ struct ReviewSlashCommandPopup: View {
             shadowRadius: 12,
             shadowY: 6
         )
+    }
+}
+
+/// What the `@` popup draws above and below its rows: the tab chosen, and a
+/// line while there is nothing to pick ("Type to search …", "Searching…",
+/// "No results"), as Codex's `@` list says them.
+struct ReviewMentionPopupHeader {
+    let tab: ChatMention.Tab
+    let statusLine: String?
+    let selectTab: (ChatMention.Tab) -> Void
+
+    /// The line for a pending `@` query: what to type before anything is,
+    /// "Searching…" until the search for this query has answered, "No
+    /// results" when it answered with nothing to show; nil when rows show.
+    static func statusLine(
+        query: String,
+        tab: ChatMention.Tab,
+        hasRows: Bool,
+        hasAnswer: Bool
+    ) -> String? {
+        guard !hasRows else { return nil }
+        if query.isEmpty { return tab.emptyQueryLine }
+        return hasAnswer ? "No results" : "Searching…"
+    }
+}
+
+/// The `@` popup's tabs: All · Sources · Pages · Chats · Notebooks, a row of
+/// quiet capsules with the chosen one filled, as Codex's mention categories.
+struct ReviewMentionTabs: View {
+    let selected: ChatMention.Tab
+    let select: (ChatMention.Tab) -> Void
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(ChatMention.Tab.allCases, id: \.self) { tab in
+                Button {
+                    select(tab)
+                } label: {
+                    Text(tab.title)
+                        .font(.caption.weight(tab == selected ? .semibold : .regular))
+                        .foregroundStyle(tab == selected ? .primary : .secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(
+                            tab == selected ? Color.primary.opacity(0.08) : Color.clear,
+                            in: Capsule()
+                        )
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.hoverWash(in: Capsule(), opacity: 0.08))
+                .accessibilityAddTraits(tab == selected ? .isSelected : [])
+                .accessibilityIdentifier("mac.chatMentionTab.\(tab.rawValue)")
+            }
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Mention categories")
     }
 }

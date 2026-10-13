@@ -4025,6 +4025,9 @@ private struct InternalReviewPanelContent: View {
                 resolveLiveArguments: { command, query in
                     await resolveSlashLiveArguments(for: command, query: query)
                 },
+                resolveMentions: { query in
+                    await resolveMentionItems(matching: query)
+                },
                 onSelect: { acceptSlashSuggestion($0) }
             )
         }
@@ -5204,6 +5207,7 @@ private struct InternalReviewPanelContent: View {
         quotedPassage = ""
         lastInsertedDefaultPrompt = nil
         coursePlanningArmed = false
+        composer.referencedChats = []
     }
 
     private func appendDictation(_ text: String) {
@@ -5335,8 +5339,15 @@ private struct InternalReviewPanelContent: View {
             return
         }
 
+        // Chats pointed at with `@` go with this message: their transcripts
+        // ride beside it as reference material, and their chips leave the field.
+        let referencedChats = composer.referencedChats
+        composer.referencedChats = []
         clearComposer()
         manualDictationResultDestination = nil
+        if let chatContext = await chatMentionContext(for: referencedChats) {
+            readerContext = [readerContext, chatContext].compactMap { $0 }.joined(separator: "\n\n")
+        }
 
         let send = ComposedChatSend(
             text: trimmed,
@@ -5504,10 +5515,142 @@ private struct InternalReviewPanelContent: View {
             Task { await runSlashReference(picked.command, reference: picked.reference) }
             return
         }
+        // Something an `@` found: the `@` and its query leave the draft, the
+        // rest of what was typed stays, and the item comes in by its own path.
+        if let item = suggestion.libraryItem {
+            draft = suggestion.completionText
+            lastInsertedDefaultPrompt = nil
+            Task { await bringMentionIntoChat(item) }
+            requestComposerFocus()
+            return
+        }
         draft = suggestion.completionText
         if suggestion.runsImmediately {
             Task { await submitComposer() }
         }
+    }
+
+    /// Brings what an `@` found into this chat, each kind by the path that
+    /// already brings it in: a source as `/source` adds it, a Page or a Site as
+    /// `/page` and `/site` attach them, a notebook's sources as a dropped
+    /// collection adds its sources. A chat waits above the field as a chip;
+    /// the send carries its transcript (`chatMentionContext`).
+    @MainActor
+    private func bringMentionIntoChat(_ item: ChatMention.Item) async {
+        switch item.kind {
+        case .source:
+            await addSourceTokensToChatContext([item.reference])
+        case .page, .site:
+            await addDocToChatContext(item.reference)
+        case .notebook:
+            guard let notebook = vm.notebooks.first(where: { $0.id == item.reference }) else { return }
+            let sourceIDs = notebook.approvedSourceIDs
+            guard !sourceIDs.isEmpty else {
+                vm.showToast("\(notebook.title) has no sources yet.")
+                return
+            }
+            await addSourceIDsToChatContext(sourceIDs)
+        case .chat:
+            guard !composer.referencedChats.contains(where: { $0.reference == item.reference }) else { return }
+            composer.referencedChats.append(item)
+        }
+    }
+
+    /// The reference material for the chats the learner pointed at with `@`:
+    /// each one's transcript, read from storage as the message goes, so it
+    /// is the chat as it stands now. Nil when none was pointed at.
+    @MainActor
+    private func chatMentionContext(for chats: [ChatMention.Item]) async -> String? {
+        guard !chats.isEmpty else { return nil }
+        var blocks: [String] = []
+        for chat in chats {
+            let exchanges: [ReviewExchangeRecord]
+            do {
+                exchanges = try await vm.storage.loadReviewSessionExchanges(sessionID: chat.reference)
+            } catch {
+                vm.errorMessage = "Could not read \(chat.title): \(error.localizedDescription)"
+                continue
+            }
+            var turns: [(speaker: String, text: String)] = []
+            for exchange in exchanges.sorted(by: { $0.sequenceNumber < $1.sequenceNumber }) {
+                if let opening = ReviewSessionManager.displayableMessageContent(role: .assistant, content: exchange.question) {
+                    turns.append(("ForeverLM", opening))
+                }
+                if let answer = exchange.userAnswer {
+                    turns.append(("Learner", answer))
+                }
+                if let reply = exchange.evaluation.flatMap({
+                    ReviewSessionManager.displayableMessageContent(role: .assistant, content: $0)
+                }) {
+                    turns.append(("ForeverLM", reply))
+                }
+            }
+            blocks.append(ChatMention.chatReferenceContext(title: chat.title, turns: turns))
+        }
+        return blocks.isEmpty ? nil : blocks.joined(separator: "\n\n")
+    }
+
+    /// What an `@` query finds: sources through the same index and ranking
+    /// as `/source`; Pages and Sites over the lists `/page` and `/site` offer;
+    /// the learner's chats (not this one, nor a hidden one or a shared link)
+    /// and notebooks by title. Each kind newest first among equal matches.
+    @MainActor
+    private func resolveMentionItems(matching query: String) async -> [ChatMention.Item] {
+        guard !query.isEmpty else { return [] }
+        var items: [ChatMention.Item] = []
+
+        let index = await vm.artifactSourcePickerIndex()
+        let ranked = await Task.detached(priority: .userInitiated) {
+            index.rows(matching: query)
+        }.value
+        items += ranked.prefix(ChatMention.rowsPerTab).map { row in
+            ChatMention.Item(kind: .source, reference: row.id, title: row.title, subtitle: row.subtitle)
+        }
+
+        for (kind, section) in [(ChatMention.Kind.page, ArtifactSection.docs), (.site, .sites)] {
+            let artifacts = slashArtifacts(in: section).sorted { $0.updatedAt > $1.updatedAt }
+            items += ChatMention.ranked(artifacts, query: query, title: \.title)
+                .prefix(ChatMention.rowsPerTab)
+                .map { artifact in
+                    ChatMention.Item(
+                        kind: kind,
+                        reference: artifact.id,
+                        title: artifact.title.isEmpty ? "Untitled" : artifact.title,
+                        subtitle: Self.slashArtifactSubtitle(for: artifact, section: section)
+                    )
+                }
+        }
+
+        let chats = vm.reviewSessionLinks.filter { record in
+            record.id != manager.currentSessionID && !record.isHidden && !record.isExternalLink
+                && !record.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        items += ChatMention.ranked(chats, query: query, title: \.title)
+            .prefix(ChatMention.rowsPerTab)
+            .map { record in
+                let notebook = record.goalID.flatMap { id in vm.notebooks.first { $0.id == id }?.title }
+                let started = record.createdAt.formatted(.relative(presentation: .named))
+                return ChatMention.Item(
+                    kind: .chat,
+                    reference: record.id,
+                    title: record.title,
+                    subtitle: notebook.map { "\($0) · \(started)" } ?? started
+                )
+            }
+
+        let notebooks = vm.notebooks.sorted { $0.updatedAt > $1.updatedAt }
+        items += ChatMention.ranked(notebooks, query: query, title: \.title)
+            .prefix(ChatMention.rowsPerTab)
+            .map { notebook in
+                let count = notebook.approvedSourceIDs.count
+                return ChatMention.Item(
+                    kind: .notebook,
+                    reference: notebook.id,
+                    title: notebook.title,
+                    subtitle: count == 1 ? "1 source" : "\(count) sources"
+                )
+            }
+        return items
     }
 
     /// Runs a `/source`, `/doc` or `/site` command on the row the learner
@@ -5617,9 +5760,12 @@ private struct InternalReviewPanelContent: View {
         return artifact.isDraft ? "Draft · edited \(edited)" : "Page · edited \(edited)"
     }
 
+    /// Escape over the popup. A `/` draft is only the command, so it goes;
+    /// an `@` takes back just itself and what was typed after it, leaving the
+    /// rest of the message.
     @MainActor
     private func dismissSlashSuggestions() {
-        draft = ""
+        draft = draft.hasPrefix("/") ? "" : ChatMention.removingPending(from: draft)
         slashSelectionIndex = 0
     }
 
@@ -7517,6 +7663,7 @@ private struct InternalReviewPanelContent: View {
             linkedResearchNotebookID = nil
         }
         draft = sessionStore.draft(for: .session(session.id))
+        composer.referencedChats = []
         lastInsertedDefaultPrompt = nil
         pendingReaderSelection = nil
     }
@@ -7546,6 +7693,7 @@ private struct InternalReviewPanelContent: View {
             courseQuiz: courseQuiz
         )
         draft = sessionStore.draft(for: .session(session.id))
+        composer.referencedChats = []
         lastInsertedDefaultPrompt = nil
         pendingReaderSelection = nil
         await vm.loadReviewSessionLinks()
