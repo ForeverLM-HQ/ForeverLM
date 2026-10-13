@@ -14133,6 +14133,22 @@ struct MCPToolContractTests {
         }
     }
 
+    @Test("save_card_drafts tells assistants to use useful images by default")
+    func cardDraftImagesAreTheDefault() throws {
+        let tool = try #require(MCPToolRegistry().tools.first { $0.name == "save_card_drafts" })
+        #expect(tool.description.contains("Images are the default"))
+
+        let properties = try #require(tool.inputSchema["properties"] as? [String: Any])
+        let cards = try #require(properties["cards"] as? [String: Any])
+        let items = try #require(cards["items"] as? [String: Any])
+        let cardProperties = try #require(items["properties"] as? [String: Any])
+        for field in ["front_images", "back_images"] {
+            let imageSchema = try #require(cardProperties[field] as? [String: Any])
+            let description = try #require(imageSchema["description"] as? String)
+            #expect(description.contains("by default"), "\(field) should advertise the image default")
+        }
+    }
+
     /// Schema v2 §3.5.3 (WP12b): under generation 2 every synced key that stays a Setting is settable over
     /// MCP, a Notebook Collection's name only through `update_notebook_collection` and never through
     /// `set_app_setting`. The catalog's `records` hold keys that generation 2 moves into records, except
