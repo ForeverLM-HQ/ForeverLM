@@ -189,7 +189,7 @@ struct SettingsView: View {
 
 }
 
-private struct SettingsSearchItem: Identifiable {
+struct SettingsSearchItem: Identifiable {
     let id: String
     let title: String
     let subtitle: String
@@ -206,7 +206,9 @@ private struct SettingsSearchItem: Identifiable {
     }
 }
 
-private enum SettingsSearchCatalog {
+/// Settings' search: the panes by the words a learner may type for them. The
+/// command menu offers the same rows (`ShellCommands.setting`).
+enum SettingsSearchCatalog {
     static func items() -> [SettingsSearchItem] {
         [
             SettingsSearchItem(

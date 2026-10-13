@@ -604,6 +604,9 @@ struct StudioView: View {
                 }
             }
             .animation(.spring(response: 0.32, dampingFraction: 0.86), value: showSettings)
+            // Codex's command menu (⇧⌘P) and keyboard shortcuts sheet (⌘/),
+            // and every shell command the menu bar sends this window.
+            .shellCommandHost(reopen: reopenPlaceContent)
             // The toast overlay is applied after every modal overlay
             // (Settings and the getting-started guide) so errors and
             // status messages are never hidden behind them.

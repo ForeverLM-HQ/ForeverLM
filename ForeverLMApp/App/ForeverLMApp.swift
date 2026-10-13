@@ -791,6 +791,14 @@ struct ForeverLMApp: App {
                 }
                 .keyboardShortcut("s", modifiers: [.command, .control])
 
+                // Codex's command menu: chats, notebooks, Pages, sources,
+                // places, commands and settings from one field
+                // (docs/codex-parity-audit.md, section 6).
+                Button(ShellAction.commandMenu.title) {
+                    ShellActionRequest.post(.commandMenu, to: activeWindowState?.id)
+                }
+                .shellShortcut(.commandMenu)
+
                 Button("Open Chat") {
                     postToActiveStudioWindow(.toggleStudioAssistant)
                 }
