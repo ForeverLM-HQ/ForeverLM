@@ -6809,6 +6809,7 @@ async function create(markdown, fontSize) {
     editor.editor.use(referenceCardsPlugin)
     editor.editor.use(linkPickerPlugin)
     editor.editor.use(aiEditHighlightPlugin)
+    editor.editor.use(selectionPublishPlugin)
     editor.editor.use(outlineFoldPlugin)
     editor.editor.use(blockIDPlugin)
     editor.editor.use(pastedLinesPlugin)
@@ -9551,6 +9552,37 @@ document.addEventListener('drop', (event) => {
 for (const eventName of ['pointerup', 'keyup']) {
   document.addEventListener(eventName, () => requestAnimationFrame(publishSelection), true)
 }
+
+// The selection as the editor holds it, not as it stood when the pointer went
+// up: a shift-click (or a double-click) extends the selection after pointerup,
+// when `selectionchange` reaches the editor, so the bar read a caret, stayed
+// hidden, and the words stood selected with nothing to act on them. Any change
+// of the editor's selection publishes it again, once the pointer is up (a bar
+// that followed a drag would jump with every word).
+let pointerIsDown = false
+document.addEventListener('pointerdown', () => { pointerIsDown = true }, true)
+document.addEventListener('pointerup', () => { pointerIsDown = false }, true)
+let selectionPublishScheduled = false
+
+function scheduleSelectionPublish() {
+  if (selectionPublishScheduled) return
+  selectionPublishScheduled = true
+  const run = () => {
+    selectionPublishScheduled = false
+    publishSelection()
+  }
+  if (document.hidden) setTimeout(run, 0)
+  else requestAnimationFrame(run)
+}
+
+const selectionPublishPlugin = $prose(() => new Plugin({
+  view: () => ({
+    update(view, previous) {
+      if (pointerIsDown || previous.selection.eq(view.state.selection)) return
+      scheduleSelectionPublish()
+    },
+  }),
+}))
 
 document.addEventListener('scroll', () => {
   hideSelectionBar()
