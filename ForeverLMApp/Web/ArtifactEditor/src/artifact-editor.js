@@ -3620,6 +3620,127 @@ let joinsPastedLines = false
 const askedLines = new Map()
 let pastedLinesRequestCount = 0
 
+// ─── A pasted block starts its own line ─────────────────────────────────────
+// ProseMirror pours the first block of a paste into the paragraph at the
+// caret. For a paragraph that is what typing would do; for a heading, a list,
+// a quote or code it is not: pasted at the end of a written sentence, the
+// heading "Results from the trial" became "Start here.Results from the trial"
+// with its heading gone. At either end of a line with words in it, such a
+// paste now starts on a line of its own; in the middle of a line, and for
+// plain paragraphs anywhere, a paste continues the line as before.
+
+/// The first block a paste writes, read the way the paste will read it:
+/// ProseMirror's slice when the clipboard has HTML, the page's Markdown reader
+/// when it has only text (Milkdown's paste reads text as Markdown).
+function firstPastedBlock(event, slice) {
+  const data = event.clipboardData
+  if (!data) return null
+  if (data.getData('text/html')) return slice?.content?.firstChild ?? null
+  const text = data.getData('text/plain')
+  if (!text || !editor) return null
+  try {
+    const parse = editor.editor.action((ctx) => ctx.get(parserCtx))
+    const doc = parse(text)
+    return doc && typeof doc !== 'string' ? doc.firstChild : null
+  } catch {
+    return null
+  }
+}
+
+function withBlockPastesOnTheirOwnLine(ctx) {
+  ctx.update(editorViewOptionsCtx, (previous) => ({
+    ...previous,
+    // A view prop runs before every plugin's, Milkdown's paste among them:
+    // this only makes room, and the paste then lands in it.
+    handlePaste: (view, event, slice) => {
+      if (pastePlainWords(view, event) || pastePhraseWithItsSpaces(view, event, slice)) return true
+      makeRoomForPastedBlock(view, event, slice)
+      return previous.handlePaste?.(view, event, slice) ?? false
+    },
+  }))
+}
+
+/// One line copied as plain text goes into the line at the caret with the
+/// spaces at its ends. Read as Markdown it lost them: " and more words"
+/// pasted after "Start here." gave "Start here.and more words". Its words are
+/// still read as Markdown, so " with **bold**" pastes bold.
+function pastePlainWords(view, event) {
+  const data = event.clipboardData
+  if (!data || data.getData('text/html') || !editor) return false
+  const text = data.getData('text/plain')
+  if (!text || !text.trim() || /[\r\n]/.test(text)) return false
+  const { $from } = view.state.selection
+  if (!$from.parent.isTextblock || $from.parent.type.spec.code) return false
+  let words
+  try {
+    const parse = editor.editor.action((ctx) => ctx.get(parserCtx))
+    const doc = parse(text)
+    words = doc && typeof doc !== 'string' && doc.childCount === 1 ? doc.firstChild : null
+  } catch {
+    return false
+  }
+  if (!words || words.type.name !== 'paragraph' || words.content.size === 0) return false
+  // Plain words take the formatting at the caret, as typed words do.
+  if (words.childCount === 1 && words.firstChild.isText && words.firstChild.marks.length === 0 && words.textContent === text.trim()) {
+    view.dispatch(view.state.tr.insertText(text).scrollIntoView())
+    return true
+  }
+  const { schema } = view.state
+  const leading = /^\s*/.exec(text)[0]
+  const trailing = /\s*$/.exec(text)[0]
+  let inline = words.content
+  if (leading) inline = Fragment.from(schema.text(leading)).append(inline)
+  if (trailing) inline = inline.append(Fragment.from(schema.text(trailing)))
+  view.dispatch(view.state.tr.replaceSelection(new Slice(inline, 0, 0)).scrollIntoView())
+  return true
+}
+
+/// A phrase copied from a web page keeps the spaces at its ends. The HTML
+/// reader drops them ("Start here.and the words"); the plain text the browser
+/// puts beside the HTML says what they were.
+function pastePhraseWithItsSpaces(view, event, slice) {
+  const data = event.clipboardData
+  const text = data?.getData('text/plain') ?? ''
+  if (!data?.getData('text/html') || !text.trim() || /[\r\n]/.test(text) || !slice) return false
+  if (view.state.selection.$from.parent.type.spec.code) return false
+  let inline = slice.content
+  // A phrase reads either as bare inline nodes or as one open paragraph.
+  if (inline.childCount === 1 && inline.firstChild.type.name === 'paragraph' && slice.openStart > 0) {
+    inline = inline.firstChild.content
+  }
+  let phrase = inline.size > 0
+  inline.forEach((node) => { if (!node.isInline) phrase = false })
+  if (!phrase) return false
+  const words = inline.textBetween(0, inline.size, '', '')
+  const leading = /^\s/.test(words) ? '' : /^\s*/.exec(text)[0]
+  const trailing = /\s$/.test(words) ? '' : /\s*$/.exec(text)[0]
+  if (!leading && !trailing) return false
+  const { schema } = view.state
+  if (leading) inline = Fragment.from(schema.text(leading)).append(inline)
+  if (trailing) inline = inline.append(Fragment.from(schema.text(trailing)))
+  view.dispatch(view.state.tr.replaceSelection(new Slice(inline, 0, 0)).scrollIntoView())
+  return true
+}
+
+function makeRoomForPastedBlock(view, event, slice) {
+  const { selection } = view.state
+  if (!selection.empty || !view.editable) return
+  const { $from } = selection
+  const line = $from.parent
+  if (!line.isTextblock || line.type.spec.code || line.content.size === 0) return
+  const atEnd = $from.parentOffset === line.content.size
+  const atStart = $from.parentOffset === 0
+  if (!atEnd && !atStart) return
+  // Words with no block around them (a phrase copied from a page) continue
+  // the line like a paragraph does.
+  const first = firstPastedBlock(event, slice)
+  if (!first || !first.isBlock || first.type.name === 'paragraph') return
+  const tr = view.state.tr.split($from.pos)
+  // At the start, the empty line the split leaves is the one before the words.
+  if (atStart) tr.setSelection(TextSelection.create(tr.doc, $from.pos))
+  view.dispatch(tr)
+}
+
 function setJoinsPastedLines(joins) {
   joinsPastedLines = Boolean(joins)
 }
@@ -6504,6 +6625,7 @@ async function create(markdown, fontSize) {
     editor.editor.config(withBlockIDs)
     editor.editor.config(withBlockProperties)
     editor.editor.config(withFootnotes)
+    editor.editor.config(withBlockPastesOnTheirOwnLine)
     editor.editor.config(withDoubleDollarMath)
     // After Crepe's remark-math, whose `$` reading and writing it changes.
     editor.editor.use(dollarMathRemark)
