@@ -219,25 +219,115 @@ struct ModelBrowserTests {
         #expect(ModelCostOrder.blended(input: nil, output: 6) == nil)
     }
 
-    @Test("The table's Features filters read what the directory lists, and an unknown is not a yes")
+    private static func directoryModel(
+        _ id: String,
+        input: Double? = 1,
+        output: Double? = 2,
+        context: Int? = nil,
+        vision: Bool? = nil,
+        weights: String? = nil,
+        listed: Date? = nil
+    ) -> OpenRouterDirectoryModel {
+        OpenRouterDirectoryModel(
+            id: id, name: id,
+            inputUSDPerMTokens: input, outputUSDPerMTokens: output, contextLength: context, price: nil,
+            supportsTools: true, supportsTemperature: nil, supportsVision: vision,
+            createdAt: listed,
+            huggingFaceID: weights
+        )
+    }
+
+    @Test("The Model column's features read what the directory lists, and an unknown is not a yes")
     func tableFeatures() {
-        func model(vision: Bool?, context: Int?, weights: String?) -> OpenRouterDirectoryModel {
-            OpenRouterDirectoryModel(
-                id: "x/y", name: "Y",
-                inputUSDPerMTokens: 1, outputUSDPerMTokens: 2, contextLength: context, price: nil,
-                supportsTools: true, supportsTemperature: nil, supportsVision: vision,
-                huggingFaceID: weights
-            )
-        }
-        let open = model(vision: true, context: 1_000_000, weights: "x/Y")
-        let closed = model(vision: nil, context: 262_000, weights: nil)
+        let open = Self.directoryModel("x/open", context: 1_000_000, vision: true, weights: "x/Open")
+        let closed = Self.directoryModel("x/closed", context: 262_000)
         #expect(ModelTableFeature.readsImages.matches(open))
         #expect(!ModelTableFeature.readsImages.matches(closed))
-        #expect(ModelTableFeature.longContext.matches(open))
-        #expect(!ModelTableFeature.longContext.matches(closed))
         #expect(ModelTableFeature.openWeights.matches(open))
         #expect(!ModelTableFeature.openWeights.matches(closed))
         #expect(!ModelTableFeature.reasoning.matches(closed))
+    }
+
+    @Test("Each column filters on its own value, and every filter must pass")
+    func tableColumnFilters() {
+        let free = ModelTableRow(Self.directoryModel("a/free", input: 0, output: 0, context: 128_000, vision: true), in: .empty)
+        let cheap = ModelTableRow(Self.directoryModel("b/cheap", input: 0.2, output: 0.8, context: 1_000_000), in: .empty)
+        let dear = ModelTableRow(Self.directoryModel("c/dear", input: 15, output: 75, context: 200_000), in: .empty)
+        let unpriced = ModelTableRow(Self.directoryModel("d/unpriced", input: nil, output: nil), in: .empty)
+        func admitted(_ filters: ModelTableFilters, speed: Double? = nil, chosen: Bool = false) -> [String] {
+            [free, cheap, dear, unpriced]
+                .filter { filters.admits($0, isNew: $0.id == "b/cheap", speed: speed, hasChosenProvider: chosen) }
+                .map(\.id)
+        }
+
+        #expect(ModelTableFilters().isEmpty)
+        #expect(admitted(ModelTableFilters()) == ["a/free", "b/cheap", "c/dear", "d/unpriced"])
+
+        // Price bands go by the blended figure the column sorts on.
+        #expect(ModelTablePriceBand.of(free.model) == .free)
+        #expect(ModelTablePriceBand.of(cheap.model) == .underOne)
+        #expect(ModelTablePriceBand.of(dear.model) == .twentyAndUp)
+        #expect(ModelTablePriceBand.of(unpriced.model) == .unlisted)
+        #expect(admitted(ModelTableFilters(prices: [.free, .twentyAndUp])) == ["a/free", "c/dear"])
+
+        // A context floor keeps windows at or over it; an unpublished one is none.
+        #expect(admitted(ModelTableFilters(minimumContext: 200_000)) == ["b/cheap", "c/dear"])
+
+        // Every column's filter must pass.
+        var both = ModelTableFilters(features: [.readsImages])
+        both.minimumContext = 256_000
+        #expect(both.isActive(.model) && both.isActive(.context) && !both.isActive(.price))
+        #expect(admitted(both).isEmpty)
+        both.clear(.context)
+        #expect(admitted(both) == ["a/free"])
+
+        #expect(admitted(ModelTableFilters(onlyNew: true)) == ["b/cheap"])
+
+        // No speed read passes no Speed filter.
+        let fast = ModelTableFilters(minimumSpeed: 50)
+        #expect(admitted(fast).isEmpty)
+        #expect(admitted(fast, speed: 49.6).isEmpty)
+        #expect(admitted(fast, speed: 50).count == 4)
+
+        #expect(admitted(ModelTableFilters(provider: .chosen)).isEmpty)
+        #expect(admitted(ModelTableFilters(provider: .automatic)).count == 4)
+        #expect(admitted(ModelTableFilters(provider: .chosen), chosen: true).count == 4)
+    }
+
+    @Test("A header sorts either way, unpriced last going up, ties as given")
+    func tableSort() {
+        let rows = [
+            ModelTableRow(Self.directoryModel("a/a", input: 5, output: 5), in: .empty),
+            ModelTableRow(Self.directoryModel("b/b", input: nil, output: nil), in: .empty),
+            ModelTableRow(Self.directoryModel("c/c", input: 1, output: 1), in: .empty),
+            ModelTableRow(Self.directoryModel("d/d", input: 5, output: 5), in: .empty),
+        ]
+        #expect(ModelTableSort.sorted(rows, by: .price, ascending: true).map(\.id) == ["c/c", "a/a", "d/d", "b/b"])
+        #expect(ModelTableSort.sorted(rows, by: .price, ascending: false).map(\.id).first == "b/b")
+        #expect(ModelTableSort.sorted(rows, by: .model, ascending: false).map(\.id) == ["d/d", "c/c", "b/b", "a/a"])
+        // A column that does not sort keeps the pane's order.
+        #expect(ModelTableSort.sorted(rows, by: .speed, ascending: true).map(\.id) == rows.map(\.id))
+    }
+
+    @Test("A Refresh names what OpenRouter lists that the read before did not, and New covers a week")
+    func directoryRefresh() {
+        let before = [Self.directoryModel("a/one"), Self.directoryModel("b/two")]
+        let after = before + [Self.directoryModel("C/Three")]
+        let refresh = ModelDirectoryRefresh(before: before, after: after)
+        #expect(refresh.newIDs == ["C/Three"])
+        #expect(ModelDirectoryRefresh(before: after, after: before).newIDs.isEmpty)
+
+        #expect(ModelDirectoryRefresh.summary([]) == "No new models on OpenRouter.")
+        #expect(ModelDirectoryRefresh.summary(["Zeta 2"]) == "New on OpenRouter: Zeta 2.")
+        #expect(ModelDirectoryRefresh.summary(["A", "B", "C", "D"]) == "4 new models on OpenRouter.")
+
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let recent = ModelTableRow(Self.directoryModel("x/recent", listed: now.addingTimeInterval(-6 * 86_400)), in: .empty)
+        let old = ModelTableRow(Self.directoryModel("x/old", listed: now.addingTimeInterval(-8 * 86_400)), in: .empty)
+        let undated = ModelTableRow(Self.directoryModel("x/undated"), in: .empty)
+        #expect(recent.isListedRecently(asOf: now))
+        #expect(!old.isListedRecently(asOf: now))
+        #expect(!undated.isListedRecently(asOf: now))
     }
 
     @Test("A model row's marks are one grey line, in a fixed order, and none at all says nothing")

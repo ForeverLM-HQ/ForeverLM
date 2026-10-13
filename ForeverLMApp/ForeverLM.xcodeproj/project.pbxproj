@@ -1893,6 +1893,7 @@
 		FC63C5FA98D3120EE40A930C /* ZoneBootstrap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1342775128861749337F1555 /* ZoneBootstrap.swift */; };
 		FC9D00FC4C66520315E7917E /* MobileAudioSessionArbiter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0019D61F2C89C51CF18A96F3 /* MobileAudioSessionArbiter.swift */; };
 		FCF301A9525F9E838CC523C1 /* PaperPDFIdentityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57E065274B561454B60332D5 /* PaperPDFIdentityTests.swift */; };
+		FD3D3A3BD2D77D873B65D355 /* SettingsModelTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04AD542500669D5601E4722C /* SettingsModelTable.swift */; };
 		FD47D4467DBF45DEEEB3AADB /* CacheDirectorySweep.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98625A6F1F8F6EC319EB597B /* CacheDirectorySweep.swift */; };
 		FD9F5560619468301FAE78EB /* GoalEditTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B4E0118721090A26F400908 /* GoalEditTests.swift */; };
 		FDDC6EEC370DD84AC19915F9 /* SyncNotebookChatContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99ED0A91F8F429A44030360D /* SyncNotebookChatContext.swift */; };
@@ -2029,6 +2030,7 @@
 		045DAAD4F1D3E13A9C69BC9E /* ActivityLogProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityLogProjection.swift; sourceTree = "<group>"; };
 		048B78629147B2B1348C2D21 /* MemoryTutorGradeMapping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryTutorGradeMapping.swift; sourceTree = "<group>"; };
 		049D0316C4F20238A6EB2B33 /* MCPTools+Directions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MCPTools+Directions.swift"; sourceTree = "<group>"; };
+		04AD542500669D5601E4722C /* SettingsModelTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsModelTable.swift; sourceTree = "<group>"; };
 		04DDC26FAEB962A7CE529129 /* MobileChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileChatView.swift; sourceTree = "<group>"; };
 		0543EBE5641D6CD42EE8EB6F /* MobileSpeechLoudness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileSpeechLoudness.swift; sourceTree = "<group>"; };
 		054A8DB9BE6F549D22828119 /* ReadableMathPreviewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadableMathPreviewTests.swift; sourceTree = "<group>"; };
@@ -5195,6 +5197,7 @@
 				A63D1CD31A31083FF9A17E80 /* SettingsICloudMigration.swift */,
 				C73050F61DAE7A4E75F786BA /* SettingsImageGeneration.swift */,
 				DE511D3E7369208F3F9E0679 /* SettingsModelBrowser.swift */,
+				04AD542500669D5601E4722C /* SettingsModelTable.swift */,
 				B7CD16CF9351AEE0B0EC0FC8 /* SettingsVideoGeneration.swift */,
 				8C4750014C8E0EB229B62660 /* SettingsView.swift */,
 				16A64027ECB9D6117D12257C /* SettingsWorkingNotes.swift */,
@@ -7895,6 +7898,7 @@
 				00BFE10A42246327F5890E4B /* SettingsICloudMigration.swift in Sources */,
 				0098DD6BD001EADB4BBB7851 /* SettingsImageGeneration.swift in Sources */,
 				352C994EAFB4BD1A8290558D /* SettingsModelBrowser.swift in Sources */,
+				FD3D3A3BD2D77D873B65D355 /* SettingsModelTable.swift in Sources */,
 				1DFB43309761F518556682F2 /* SettingsVideoGeneration.swift in Sources */,
 				DF3C8E9ADE00C7F0FFF07613 /* SettingsView.swift in Sources */,
 				109BCC26929B56CD3AD8C251 /* SettingsWorkingNotes.swift in Sources */,

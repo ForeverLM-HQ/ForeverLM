@@ -34,6 +34,8 @@ struct BackgroundModelsPane: View {
     @State private var directory: [OpenRouterDirectoryModel]?
     @State private var isLoadingDirectory = false
     @State private var directoryLoadError: String?
+    /// What the table's Refresh last found.
+    @State private var lastRefresh: ModelDirectoryRefresh?
     @State private var lists = ChatModelLists.Built.empty
     /// The slot's model when the pane opened; nil until the first read.
     @State private var openedOn: AITaskModelRoute?
@@ -84,7 +86,8 @@ struct BackgroundModelsPane: View {
                     rows: tableRows,
                     state: browserState,
                     subject: slot.requiresVision ? "models that read images" : "models",
-                    retry: { Task { await loadDirectory() } },
+                    refresh: { Task { await loadDirectory(forceRefresh: true) } },
+                    lastRefresh: lastRefresh,
                     purpose: .background(slot),
                     toggle: { rows in
                         // A slot runs on one model: only a single row picks.
@@ -147,14 +150,21 @@ struct BackgroundModelsPane: View {
         rebuild()
     }
 
+    /// `forceRefresh` reads past the directory's few-minute cache: the
+    /// table's Refresh, for a model OpenRouter has just listed.
     @MainActor
-    private func loadDirectory() async {
+    private func loadDirectory(forceRefresh: Bool = false) async {
         guard !isLoadingDirectory else { return }
         isLoadingDirectory = true
         directoryLoadError = nil
         defer { isLoadingDirectory = false }
         do {
-            directory = try await OpenRouterCatalogAvailability.shared.models()
+            let before = directory
+            let fresh = try await OpenRouterCatalogAvailability.shared.models(forceRefresh: forceRefresh)
+            directory = fresh
+            if forceRefresh, let before {
+                lastRefresh = ModelDirectoryRefresh(before: before, after: fresh)
+            }
             rebuild()
         } catch {
             directoryLoadError = error.localizedDescription
@@ -337,32 +347,30 @@ struct BackgroundModelsPane: View {
 
     /// The table's context menu for one row: what a Suggested row's menu
     /// holds, and the pick itself.
-    @ViewBuilder
-    private func tableActions(_ rows: [ModelTableRow]) -> some View {
-        if rows.count == 1, let row = rows.first {
-            Button {
+    private func tableActions(_ rows: [ModelTableRow]) -> [ModelTableMenuItem] {
+        guard rows.count == 1, let row = rows.first else { return [] }
+        var items: [ModelTableMenuItem] = [
+            .button("Use for \(slot.title)", systemImage: "checkmark.circle", isEnabled: !row.isOn) {
                 pick(row)
-            } label: {
-                Label("Use for \(slot.title)", systemImage: "checkmark.circle")
-            }
-            .disabled(row.isOn)
-            // The model the work runs on is not its own backup.
-            if !row.isOn, slot.ownTask == nil {
-                ModelBackupMenuItem(backupRank: row.backupRank, backupsAreFull: backups.count >= AIBackupModels.limit) {
-                    toggleBackup(
-                        provider: row.entry.provider,
-                        model: row.entry.modelID,
-                        name: row.name,
-                        directoryModel: row.isCatalogued ? nil : row.model
-                    )
-                }
-            }
-            if AIModelCatalog.isCustom(row.entry) {
-                Button("Remove from Catalog") {
-                    AIModelCatalog.removeCustomOpenRouterModel(id: row.entry.modelID)
-                }
-            }
+            },
+        ]
+        // The model the work runs on is not its own backup.
+        if !row.isOn, slot.ownTask == nil {
+            items.append(.backup(rank: row.backupRank, isFull: backups.count >= AIBackupModels.limit) {
+                toggleBackup(
+                    provider: row.entry.provider,
+                    model: row.entry.modelID,
+                    name: row.name,
+                    directoryModel: row.isCatalogued ? nil : row.model
+                )
+            })
         }
+        if AIModelCatalog.isCustom(row.entry) {
+            items.append(.button("Remove from Catalog") {
+                AIModelCatalog.removeCustomOpenRouterModel(id: row.entry.modelID)
+            })
+        }
+        return items
     }
 
     /// A task: whether it follows Background or runs on the model picked
