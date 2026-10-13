@@ -586,6 +586,13 @@ body.ready #editor {
   color: Canvas;
 }
 
+/* With a proposal up, taking it is the one blue button; asking for another
+   change is the follow-up and stands grey beside it. */
+.artifact-ai-edit:has(.artifact-ai-edit-actions:not([hidden])) .artifact-ai-edit-ask button[data-action="ask"] {
+  background: color-mix(in srgb, CanvasText 7%, Canvas);
+  color: CanvasText;
+}
+
 .artifact-ai-edit-ask button[data-action="chat"] {
   white-space: nowrap;
 }
