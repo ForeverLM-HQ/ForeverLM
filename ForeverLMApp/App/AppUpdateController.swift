@@ -205,8 +205,8 @@ enum BetaFeatures {
         ForeverLMRuntimeIdentity.isDevelopment && !ForeverLMRuntimeIdentity.isFirstRun
     }
 
-    /// The panes the Canvas gate closes.
-    static let canvasCenterTabs: Set<StudioCenterTab> = [.knowledgeMap, .atlas]
+    /// The panes the Canvas gate closes: the Canvas module's places.
+    static let canvasCenterTabs: Set<StudioCenterTab> = ShellPlaces.tabs(of: .canvas)
 
     /// The panes this Mac does not offer now: none when the Canvas shows.
     static var unofferedCenterTabs: Set<StudioCenterTab> {

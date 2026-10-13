@@ -2225,7 +2225,7 @@ enum StudioCenterTabGroupSizing {
     static func minimumWidth(for groups: [StudioCenterTabGroups.Group]) -> CGFloat {
         guard !groups.isEmpty else { return 0 }
         let contentWidth = groups.reduce(CGFloat.zero) { result, group in
-            result + ([.chat, .secondaryChat].contains(group.activeTab)
+            result + (ShellPlaces.descriptor(for: group.activeTab).role == .thread
                 ? minimumChatContentWidth
                 : minimumContentWidth)
         }
@@ -2266,28 +2266,9 @@ enum StudioCenterTabGroupSizing {
 
 private extension StudioCenterTab {
     /// Familiar, monochrome symbols help distinguish peer destinations without
-    /// introducing another color system into the titlebar.
-    var systemImage: String {
-        switch self {
-        case .chat, .secondaryChat: return "bubble.left.and.bubble.right"
-        case .reader: return "doc.text"
-        case .tasks: return "clock.arrow.circlepath"
-        case .activity: return DayActivityReaderPane.systemImage
-        case .goals: return "target"
-        case .courses: return "graduationcap"
-        case .ideas: return "lightbulb"
-        case .notepad: return "note.text"
-        case .sites: return "globe"
-        case .browser: return "safari"
-        case .videos: return "film"
-        case .animations: return ArtifactKind.animation.symbolName
-        case .artifacts: return "square.grid.2x2"
-        case .memory: return MemoryReviewSession.sidebarIcon
-        case .library: return StudioRailItem.library.systemImage
-        case .knowledgeMap: return KnowledgeMap.symbolName
-        case .atlas: return AtlasPane.systemImage
-        }
-    }
+    /// introducing another color system into the titlebar: the place
+    /// registry's glyph (`ShellPlaces`).
+    var systemImage: String { ShellPlaces.descriptor(for: self).glyph }
 }
 
 /// Where a dragged center tab would land.

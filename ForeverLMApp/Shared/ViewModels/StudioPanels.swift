@@ -94,27 +94,8 @@ enum StudioCenterTab: String, Codable, CaseIterable, Identifiable {
     /// Ideas, which a Doc's idea link opens beside it (`openIdea`).
     static let artifactKinds: Set<StudioCenterTab> = [.notepad, .sites, .ideas]
 
-    var title: String {
-        switch self {
-        case .chat, .secondaryChat: return "Chat"
-        case .reader: return "Reader"
-        case .tasks: return "Tasks"
-        case .activity: return "Day"
-        case .goals: return "Goals"
-        case .courses: return "Courses"
-        case .ideas: return "Ideas"
-        case .notepad: return "Pages"
-        case .sites: return "Sites"
-        case .browser: return "Browser"
-        case .videos: return "Videos"
-        case .animations: return "Animations"
-        case .artifacts: return "Space"
-        case .memory: return "Memory"
-        case .library: return "Library"
-        case .knowledgeMap: return "Canvas"
-        case .atlas: return "Atlas"
-        }
-    }
+    /// What the place registry calls it (`ShellPlaces`).
+    var title: String { ShellPlaces.descriptor(for: self).title }
 }
 
 extension ArtifactSection {
@@ -521,30 +502,32 @@ final class StudioWindowState: Identifiable {
     /// columns, and a course's page has no Space sidebar.
     var showsSpace: Bool {
         guard notebook == nil else { return false }
-        return centerTabGroups.groups.contains { group in
-            switch group.activeTab {
-            case .artifacts, .sites: true
-            case .notepad: artifactCanvasNotebookID == nil
-            case .courses: coursePageID == nil
-            default: false
-            }
+        return centerTabGroups.groups.contains { showsSpaceSidebar(beside: $0.activeTab) }
+    }
+
+    /// Whether `tab`, in front of a pane, draws the Space's sidebar: a place
+    /// the registry puts beside it (`ShellPlace.sidebar`), unless the pane is
+    /// on one thing of its own that has no Space sidebar — a notebook's own
+    /// Pages, or one course's page.
+    private func showsSpaceSidebar(beside tab: StudioCenterTab) -> Bool {
+        guard ShellPlaces.descriptor(for: tab).sidebar == .space else { return false }
+        switch tab {
+        case .notepad: return artifactCanvasNotebookID == nil
+        case .courses: return coursePageID == nil
+        default: return true
         }
     }
 
     /// Whether this window is on Home, the window with no place of its own:
-    /// no notebook, and none of the places that bring a sidebar or a whole
-    /// window of their own — the Space, the Library, the Canvas, the Atlas and
-    /// Memory. Chats, the Reader and the rest of what the learner opens from
-    /// the Space are Home's. There is no Notebooks home page since 2026-10-09;
-    /// this is only the window that shows Home's sidebar.
+    /// no notebook, no Space, and none of the places that have the window's
+    /// card to themselves (`ShellPlace.sidebar` nil) — the Library, the
+    /// Canvas, the Atlas and Memory. Chats, the Reader and the rest of what
+    /// the learner opens from the Space are Home's. There is no Notebooks home
+    /// page since 2026-10-09; this is only the window that shows Home's
+    /// sidebar.
     var isOnHome: Bool {
         guard notebook == nil, !showsSpace else { return false }
-        return !centerTabGroups.groups.contains { group in
-            switch group.activeTab {
-            case .library, .knowledgeMap, .atlas, .memory: true
-            default: false
-            }
-        }
+        return !centerTabGroups.groups.contains { ShellPlaces.descriptor(for: $0.activeTab).sidebar == nil }
     }
 
     /// Whether Home's sidebar — New chat, the notebooks and the chats, as
