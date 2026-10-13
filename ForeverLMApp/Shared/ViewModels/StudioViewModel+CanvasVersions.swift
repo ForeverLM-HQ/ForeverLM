@@ -4,7 +4,7 @@ import Foundation
 //
 // Heptabase's version history of a whiteboard (docs/knowledge-map-design.md,
 // "Versions, export and publishing"): the learner names a version
-// (**Save Version…**, ⌥⌘S), the app keeps one on its own after a burst of
+// (**Save Version…**, ⌥⇧⌘S), the app keeps one on its own after a burst of
 // edits, and **Versions…** lists them with Restore and Delete. A version is a
 // snapshot of the canvas's layout row, kept on this Mac only
 // (`KnowledgeMapVersionHistory`). The same calls answer the MCP tools

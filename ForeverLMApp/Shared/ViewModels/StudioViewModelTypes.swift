@@ -916,7 +916,7 @@ struct ReaderSelectionExplanationRequest: Identifiable, Equatable {
         )
     }
 
-    /// A passage out of a source: the Reader's Chat pill, ⌘K, a highlight's
+    /// A passage out of a source: the Reader's Chat pill, ⇧⌘K, a highlight's
     /// note. Only this kind is judged against the open chat's sources before
     /// it is staged; a doc's passage, a review's exchange and a quiz's side
     /// question each name their own grounding and have already asked for a
@@ -1340,7 +1340,7 @@ enum PageSideChatLayout {
     }
 }
 
-/// The live text selection in whichever reader is frontmost, so ⌘K can chat about
+/// The live text selection in whichever reader is frontmost, so ⇧⌘K can chat about
 /// it instead of just toggling the assistant. Kept deliberately tiny.
 struct ReaderChatSelection: Equatable {
     let sourceID: String

@@ -84,8 +84,8 @@ When a paper opens beside the chat in a narrow window, Sources folds to a
 strip with an icon for each source, and Studio stays; if there is still no
 room, Studio folds to a strip of Share and its outputs, and then the rail
 steps aside for that window until it widens again. A strip's top button
-brings its column back. The **Notebook** menu holds **Add Sources…** (⇧⌘A),
-**Show/Hide Sources** (⌥⌘S), **Show/Hide Studio**, **Make ▸** (the Studio's
+brings its column back. The **Notebook** menu holds **Add Sources…** (⇧⌘I),
+**Show/Hide Sources** (⌃⌥⌘S), **Show/Hide Studio**, **Make ▸** (the Studio's
 tiles), **New Note**, **Rename Notebook…** and **Close
 Notebook**. Two windows can hold two notebooks; each keeps its own.
 
@@ -193,7 +193,7 @@ The Sources column's field, **Search your library and the web**, has
 ### Adding sources
 
 **Add sources** (in the Sources column, the **⋯** menu, an empty chat, or
-⇧⌘A) opens a sheet:
+⇧⌘I) opens a sheet:
 
 - One field, **Search your library or paste a link**. With
   nothing typed it shows **Suggested from your library**. A search finds
@@ -279,7 +279,7 @@ the window. A rail you hid stays hidden.
 
 ### The command menu and keyboard shortcuts
 
-Press **⇧⌘P** (View → Command Menu) for the command menu, as in Codex: one field,
+Press **⌘K** or **⇧⌘P** (View → Command Menu) for the command menu, as in Codex: one field,
 "Search chats or run a command". Before you type it offers Quick actions (New
 Chat, New Page, Plan the Day in Chat, Today's Review, Keyboard Shortcuts), your
 pinned and recent chats and your recent Pages. As you type it finds commands,
@@ -294,24 +294,30 @@ follow Codex:
 
 | Keys | What they do |
 |------|--------------|
-| ⇧⌘P | Command menu |
+| ⌘K or ⇧⌘P | Command menu |
 | ⌘/ | Keyboard shortcuts |
 | ⌘[ / ⌘] | Back and forward through the places the window showed (a course, the Atlas or a plugin's page keeps its own ⌘[ while you are in it) |
 | ⌃⌘S or ⇧⌘S | Show or hide the sidebar |
-| ⇧⌘O | New chat |
+| ⌘N or ⇧⌘O | New chat (a new window is ⌃⌘N) |
 | ⌥⌘N | Quick chat (the Quick Assistant panel) |
 | ⇧⌘[ / ⇧⌘], ⌃⇧Tab / ⌃Tab | Previous and next chat in the sidebar |
 | ⌘1 – ⌘9 | Go to the chat at that place in the sidebar, pinned chats first |
 | ⌥⌘1 – ⌥⌘6 | Open one of the chats started most recently |
 | ⌥⌘R, ⌥⌘P, ⇧⌘U, ⌥⌘L | Rename, pin or unpin, mark as unread, copy the link of the chat on screen |
+| ⌥⌘S | Side chat about the whole conversation, as `/side` |
+| ⌥⌘A | Next unread chat |
+| ⇧⌘A | Hide the chat on screen (Codex's Archive) |
 | ⇧Esc | Mark all chats as read |
 | ⌃⇧M or ⌃⌘M | The chat's model picker, recent models on top |
 | ⌘F, ⌘G, ⇧⌘G | Find in a chat, next, previous |
 
-The **Chat** menu holds all of these, with **Side Chat** (a new chat beside the
-one open), **Next Unread Chat** and **Hide Chat**. ForeverLM's own keys stay:
-⌘K Open Chat, ⌘R Open Reader, ⌘P Space, ⇧⌘L Library, ⌘D Plan the Day in Chat,
-⇧⌘D Daily Notes, ⇧⌘B the Pomodoro timer, ⇧⌘A Add Sources… in a notebook.
+The **Chat** menu holds these, New Chat is in **File**. ForeverLM's own keys:
+⇧⌘K Open Chat (chat about the Reader's selection, else the composer), ⌘R Open
+Reader, ⌘P Space, ⇧⌘L Library, ⌘D Plan the Day in Chat, ⇧⌘D Daily Notes, ⇧⌘B
+the Pomodoro timer, ⇧⌘I Add Sources… in a notebook, ⌃⌥⌘S Show/Hide Sources, ⌃⌘A
+the Atlas and ⌥⇧⌘S Save Canvas Version (both beta). Open Chat was ⌘K, a new
+window ⌘N, Add Sources… ⇧⌘A, Show/Hide Sources and Save Canvas Version ⌥⌘S and
+the Atlas ⌥⌘A until Codex's keys took them.
 
 On the web, ⌘K or ⇧⌘P opens the same menu over places, chats, notebooks, Pages
 and sources ([Web library](./web-library)).
@@ -885,7 +891,7 @@ The rail and the Space's **Chats** list both in-app sessions and external chats 
 
 Select words in any reader — article, PDF, book chapter, podcast, meeting or
 YouTube transcript — and a small bar appears over the passage. **Chat** carries
-the passage into a chat, the same thing ⌘K does. **Side chat** (the split
+the passage into a chat, the same thing ⇧⌘K does. **Side chat** (the split
 bubble beside it) asks about it without leaving the page: a small chat opens
 over the words, answers from the source, and stays until you close it with
 its ×; the arrow in its corner moves the conversation into a full chat beside

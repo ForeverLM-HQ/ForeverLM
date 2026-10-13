@@ -1770,7 +1770,7 @@ class StudioViewModel {
     var reviewChatAutoStartRequestID: UUID? {
         didSet { if reviewChatAutoStartRequestID != nil { stampChatRequestTargetWindow() } }
     }
-    /// Token used by ⌘K to focus the docked Chat composer without stealing focus at launch.
+    /// Token used by ⇧⌘K to focus the docked Chat composer without stealing focus at launch.
     var reviewChatFocusRequestID: UUID?
     /// Token used by Reader "Chat about this" actions to let the Studio shell
     /// reclaim side-panel width after the Reader and Chat panes are visible.
@@ -1859,7 +1859,7 @@ class StudioViewModel {
     var pendingChatCanvasCards: KnowledgeMapChatCards? {
         didSet { if pendingChatCanvasCards != nil { stampChatRequestTargetWindow() } }
     }
-    /// The current reader text selection, if any. Read imperatively by the ⌘K
+    /// The current reader text selection, if any. Read imperatively by the ⇧⌘K
     /// handler; no view observes it, so it stays observation-ignored to avoid
     /// invalidating views on every selection change.
     @ObservationIgnored var activeReaderSelection: ReaderChatSelection?

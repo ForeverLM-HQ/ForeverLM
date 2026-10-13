@@ -25,13 +25,13 @@ struct ReviewChatComposerTextView: NSViewRepresentable {
     @Binding var text: String
     let onSubmit: () -> Void
     /// When true, the text view grabs first-responder focus as soon as it appears.
-    /// Used by the ⌘K command bar so the learner can type immediately; off for the
+    /// Used by the ⇧⌘K command bar so the learner can type immediately; off for the
     /// docked Chat column, which should not steal focus on launch.
     var autoFocus: Bool = false
     /// A changed non-nil token focuses an already-mounted docked composer.
     var focusRequestID: UUID? = nil
     /// Invoked when the learner presses Escape. The text view consumes Escape before it
-    /// reaches SwiftUI, so the ⌘K command bar handles dismissal through here.
+    /// reaches SwiftUI, so the ⇧⌘K command bar handles dismissal through here.
     var onCancel: (() -> Void)? = nil
 
     // MARK: Slash-command and mention autocomplete

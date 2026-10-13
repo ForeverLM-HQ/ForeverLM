@@ -4076,7 +4076,7 @@ struct ScheduleChatNavigationTests {
         #expect(vm.pendingReviewChatNotebookID == nil)
     }
 
-    @Test("⌘K expands and focuses docked Chat")
+    @Test("Open Chat (⇧⌘K) expands and focuses docked Chat")
     func assistantShortcutFocusesDockedChat() {
         let restoreLayout = capturedCenterTabLayout()
         defer { restoreLayout() }

@@ -668,7 +668,7 @@ extension StudioSidebarTab {
 // MARK: - Notification Names
 
 extension Notification.Name {
-    /// Toggles the ⌘K ForeverLM Assistant command bar in Studio.
+    /// Toggles the ⇧⌘K ForeverLM Assistant command bar in Studio.
     static let toggleStudioAssistant = Notification.Name("toggleStudioAssistant")
     /// ⌘R: reveals the docked reader column in Studio.
     static let openStudioReader = Notification.Name("openStudioReader")
@@ -682,7 +682,7 @@ extension Notification.Name {
     /// A `foreverlm://cards?…` link (`ChatSavedCards`) followed from the chat
     /// transcript's web view, carried for `ContentView` to open in To Check.
     static let requestOpenChatSavedCards = Notification.Name("requestOpenChatSavedCards")
-    /// Posted after a mutating MCP tool call (from the ⌘K bar, the docked Chat column,
+    /// Posted after a mutating MCP tool call (from the ⇧⌘K bar, the docked Chat column,
     /// or an external MCP client) so open Studio views reload instead of going stale.
     static let foreverLMDataDidChange = Notification.Name("foreverLMDataDidChange")
     /// Posted after listening has durably recorded completion. One source ID or

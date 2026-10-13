@@ -1566,6 +1566,13 @@ private struct InternalReviewPanelContent: View {
                 notebookQuestionsRevision &+= 1
             }
         }
+        // Chat › Side Chat (⌥⌘S, Codex's key): the window's docked chat opens
+        // its side chat about the whole conversation, as `/side` does.
+        .onReceive(NotificationCenter.default.publisher(for: .openThreadSideChat)) { note in
+            guard let windowState, note.object as? UUID == windowState.id,
+                  let sessionID = manager.currentSessionID, sessionID == windowState.chatSessionID else { return }
+            openThreadSideChat()
+        }
     }
 
     /// The guide's Suggest questions: the request goes out as the learner's

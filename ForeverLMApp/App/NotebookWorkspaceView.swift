@@ -836,7 +836,7 @@ struct NotebookWorkspaceView: View {
     /// and the overview, each in its own place in one stack. A pane keeps its
     /// identity while another comes or goes: a chat pane rebuilt on every
     /// citation stopped speech and dictation and lost its state and scroll,
-    /// and a Reader rebuilt by ⌘K reloaded its PDF or video.
+    /// and a Reader rebuilt by ⇧⌘K reloaded its PDF or video.
     private func center(width: CGFloat, start: CGFloat, totalWidth: CGFloat) -> some View {
         let layout = Sizing.centerLayout(for: workspace, centerWidth: width, leadingFraction: leadingFraction)
         let leadingWidth = layout.leadingWidth ?? 0

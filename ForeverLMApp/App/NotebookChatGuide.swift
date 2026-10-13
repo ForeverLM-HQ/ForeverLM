@@ -44,7 +44,7 @@ struct NotebookChatGuideHeading: View {
 /// the composer: the notebook's guide (docs/notebooks-design.md, "The
 /// notebook guide"). Only when it has sources, a row of chips that ask for
 /// something; an empty one offers nothing here, since the notebook's ⋯ and
-/// the Notebook menu (⇧⌘A) add sources, and its Sources column suggests them
+/// the Notebook menu (⇧⌘I) add sources, and its Sources column suggests them
 /// (product owner, 2026-10-12: "get rid of this add sources button"). How
 /// many sources the chat reads is the Sources column's Select all row,
 /// beside it ("N of M in chat" while not every source is ticked), and is

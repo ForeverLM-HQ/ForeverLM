@@ -163,7 +163,7 @@ enum ShellAction: String, CaseIterable, Sendable {
         case .resetZoom: return "1.magnifyingglass"
         case .whatsNew: return "sparkles"
         case .newChat: return "square.and.pencil"
-        case .sideChat: return "rectangle.split.2x1"
+        case .sideChat: return "bubble.left.and.text.bubble.right"
         case .quickChat: return "bolt.horizontal.circle"
         case .openChat: return "bubble.left"
         case .previousChat: return "chevron.up"
@@ -203,7 +203,7 @@ enum ShellAction: String, CaseIterable, Sendable {
         case .resetZoom: return ["actual size", "font size"]
         case .whatsNew: return ["changelog", "release notes", "updates"]
         case .newChat: return ["start chat", "conversation", "ask"]
-        case .sideChat: return ["chat beside", "second chat", "split"]
+        case .sideChat: return ["side question", "about this conversation", "aside"]
         case .quickChat: return ["quick assistant", "floating"]
         case .openChat: return ["ask about selection", "explain", "composer", "assistant"]
         case .previousChat: return ["chat above", "switch chat"]
@@ -231,7 +231,8 @@ enum ShellAction: String, CaseIterable, Sendable {
     /// The keys, the menu bar's first. Empty for a command with no key.
     var keys: [ShellKey] {
         switch self {
-        case .commandMenu: return [ShellKey("p", [.command, .shift])]
+        // Codex's two keys. ⌘K was Open Chat until 2026-10-13 (now ⇧⌘K).
+        case .commandMenu: return [.command("k"), ShellKey("p", [.command, .shift])]
         case .keyboardShortcuts: return [.command("/")]
         case .settings: return [.command(",")]
         // ForeverLM's ⌃⌘S (macOS's sidebar key) and Codex's ⇧⌘S; Codex's ⌘B
@@ -239,22 +240,24 @@ enum ShellAction: String, CaseIterable, Sendable {
         case .toggleSidebar: return [ShellKey("s", [.command, .control]), ShellKey("s", [.command, .shift])]
         case .back: return [.command("[")]
         case .forward: return [.command("]")]
-        case .newWindow: return [.command("n")]
+        // ⌘N is Codex's New Chat; a window is ⌃⌘N.
+        case .newWindow: return [ShellKey("n", [.command, .control])]
         case .zoomIn: return [.command("+")]
         case .zoomOut: return [.command("-")]
         case .resetZoom: return [.command("0")]
         case .whatsNew: return []
-        case .newChat: return [ShellKey("o", [.command, .shift])]
-        case .sideChat: return []
+        case .newChat: return [.command("n"), ShellKey("o", [.command, .shift])]
+        case .sideChat: return [ShellKey("s", [.command, .option])]
         case .quickChat: return [ShellKey("n", [.command, .option])]
-        case .openChat: return [.command("k")]
+        case .openChat: return [ShellKey("k", [.command, .shift])]
         case .previousChat: return [ShellKey("[", [.command, .shift]), ShellKey(ShellKey.tab, [.control, .shift])]
         case .nextChat: return [ShellKey("]", [.command, .shift]), ShellKey(ShellKey.tab, .control)]
-        case .nextUnreadChat: return []
+        case .nextUnreadChat: return [ShellKey("a", [.command, .option])]
         case .renameChat: return [ShellKey("r", [.command, .option])]
         case .togglePinChat: return [ShellKey("p", [.command, .option])]
         case .markChatUnread: return [ShellKey("u", [.command, .shift])]
-        case .hideChat: return []
+        // Codex's Archive chat; Hide is ForeverLM's put-away.
+        case .hideChat: return [ShellKey("a", [.command, .shift])]
         case .copyChatLink: return [ShellKey("l", [.command, .option])]
         case .clearUnread: return [ShellKey(ShellKey.escape, .shift)]
         // Codex's model picker and its Open recent models; ForeverLM's picker
@@ -265,7 +268,8 @@ enum ShellAction: String, CaseIterable, Sendable {
         case .openReader: return [.command("r")]
         case .space: return [.command("p")]
         case .library: return [ShellKey("l", [.command, .shift])]
-        case .addSources: return [ShellKey("a", [.command, .shift])]
+        // ⇧⌘A is Codex's Archive (Hide Chat); Add Sources… is ⇧⌘I, "import".
+        case .addSources: return [ShellKey("i", [.command, .shift])]
         case .dailyNotes: return [ShellKey("d", [.command, .shift])]
         case .planTheDay: return [.command("d")]
         case .todaysReview: return []
@@ -656,6 +660,12 @@ struct ShellShortcutEntry: Hashable, Sendable {
 /// Navigation, Chat) and ForeverLM's own after them. Read-only, as Settings
 /// holds only what a learner changes.
 enum ShellKeyboardShortcuts {
+    /// Keys bound outside `ShellAction`, which the menu bar reads from here.
+    /// Each moved off a key Codex uses (⌥⌘A, ⌥⌘S) on 2026-10-13.
+    static let atlas = [ShellKey("a", [.command, .control])]
+    static let notebookSources = [ShellKey("s", [.command, .option, .control])]
+    static let saveCanvasVersion = [ShellKey("s", [.command, .option, .shift])]
+
     static var sections: [(title: String, entries: [ShellShortcutEntry])] {
         [
             ("General", [
@@ -677,7 +687,7 @@ enum ShellKeyboardShortcuts {
                 ShellShortcutEntry(.space),
                 ShellShortcutEntry(.library),
                 ShellShortcutEntry(.openReader),
-                ShellShortcutEntry("Atlas (beta)", [ShellKey("a", [.command, .option])]),
+                ShellShortcutEntry("Atlas (beta)", ShellKeyboardShortcuts.atlas),
             ]),
             ("Chat", [
                 ShellShortcutEntry(.newChat),
@@ -705,10 +715,10 @@ enum ShellKeyboardShortcuts {
                 // The Space's own key: it works while the Space shows.
                 ShellShortcutEntry("New Page (in the Space)", ShellAction.newPage.keys),
                 ShellShortcutEntry(.addSources),
-                ShellShortcutEntry("Show or Hide Sources", [ShellKey("s", [.command, .option])]),
+                ShellShortcutEntry("Show or Hide Sources", ShellKeyboardShortcuts.notebookSources),
                 ShellShortcutEntry("Show Pages", [ShellKey("e", [.command, .shift])]),
                 ShellShortcutEntry("Block Menu in a Page", [ShellKey("/", [.command, .option])]),
-                ShellShortcutEntry("Save Canvas Version (beta)", [ShellKey("s", [.command, .option])]),
+                ShellShortcutEntry("Save Canvas Version (beta)", ShellKeyboardShortcuts.saveCanvasVersion),
             ]),
             ("Reading", [
                 ShellShortcutEntry("Find", [.command("f")]),

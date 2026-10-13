@@ -50,7 +50,7 @@ extension SpaceCanvasMenuItems {
     /// Export as Image…, Copy as Markdown, Save Version…, Versions… and
     /// Publish… (docs/knowledge-map-design.md, "Versions, export and
     /// publishing"): of the canvas open on this Mac, whose picture a Canvas
-    /// pane draws and whose cards' words its model holds. ⌥⌘S is Save
+    /// pane draws and whose cards' words its model holds. ⌥⇧⌘S is Save
     /// Version's, as the View menu's item says.
     @ViewBuilder
     fileprivate var canvasExportItems: some View {
@@ -67,7 +67,7 @@ extension SpaceCanvasMenuItems {
         Button("Save Version…", systemImage: "clock.badge.checkmark") {
             vm.promptSaveCanvasVersion(canvasID: canvas.id)
         }
-        .keyboardShortcut("s", modifiers: [.command, .option])
+        .keyboardShortcut(ShellKeyboardShortcuts.saveCanvasVersion.first?.keyboardShortcut)
         Button("Versions…", systemImage: "clock.arrow.circlepath") {
             vm.showCanvasVersions(canvasID: canvas.id)
         }

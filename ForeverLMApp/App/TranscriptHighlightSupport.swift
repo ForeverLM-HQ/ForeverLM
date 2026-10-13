@@ -174,7 +174,7 @@ struct TranscriptParagraphSelection: Equatable {
 @MainActor
 final class TranscriptSelectionCoordinator {
     /// The selected text, or "" on deselect. Feeds the reader's `selectedText`
-    /// binding, which is what ⌘K and the Chat pill act on.
+    /// binding, which is what ⇧⌘K and the Chat pill act on.
     var selectionChanged: (@MainActor (String) -> Void)?
     /// The reader pressed Highlight over this passage, whose frame on screen
     /// is where the card that follows the mark hangs.

@@ -11,6 +11,9 @@ extension Notification.Name {
     /// is the object (`ShellActionRequest.chatIndexKey`,
     /// `ShellActionRequest.recentKey`).
     static let shellGoToChat = Notification.Name("shellGoToChat")
+    /// Chat › Side Chat (⌥⌘S): the side chat about the whole conversation, in
+    /// the docked chat of the window whose id is the object.
+    static let openThreadSideChat = Notification.Name("openThreadSideChat")
 }
 
 enum ShellActionRequest {
@@ -64,6 +67,16 @@ extension View {
     /// The menu bar's key for `action`, from `ShellAction.keys`.
     func shellShortcut(_ action: ShellAction) -> some View {
         keyboardShortcut(action.key?.keyboardShortcut)
+    }
+}
+
+/// File › New Window (⌃⌘N): a Studio window. ⌘N is Codex's New Chat.
+struct NewStudioWindowMenuItem: View {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Button(ShellAction.newWindow.title) { openWindow(id: "studio") }
+            .shellShortcut(.newWindow)
     }
 }
 
@@ -290,11 +303,9 @@ struct ShellCommandHost: ViewModifier {
         case .newChat:
             vm.inWindow(windowState) { vm.requestNewChat() }
         case .sideChat:
-            // A new chat beside the one open, as a chat row's Open Beside.
-            vm.inWindow(windowState) {
-                vm.openCenterTabBeside(.chat)
-                vm.requestNewChat()
-            }
+            // Codex's side chat: the popover about the whole conversation
+            // (`/side`), opened by the window's docked chat.
+            NotificationCenter.default.post(name: .openThreadSideChat, object: windowState.id)
         case .quickChat:
             QuickAssistantController.shared.shortcutPressed()
         case .openChat:

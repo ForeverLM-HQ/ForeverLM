@@ -34,7 +34,7 @@ enum ReaderSelectionCallout {
     static let sideChatLabel = "Side chat"
     static let highlightLabel = "Highlight"
 
-    /// Routes a pill press through the same path as ⌘K, which chats about
+    /// Routes a pill press through the same path as ⇧⌘K, which chats about
     /// whatever the active reader selection is.
     static func requestChat() {
         NotificationCenter.default.post(name: .toggleStudioAssistant, object: nil)

@@ -895,7 +895,7 @@ extension StudioViewModel {
     /// (`ReaderSelectionImageResolver`), so the message the learner sends
     /// carries the figure itself and the model can read it; `pictureSnapshot`
     /// is the reader's web view photographing a picture its page will not
-    /// hand over any other way, and is nil for a selection recalled from ⌘K
+    /// hand over any other way, and is nil for a selection recalled from ⇧⌘K
     /// or a saved mark. A picture that cannot be read is said so, and the
     /// words (or the other pictures) still go.
     func requestReaderSelectionExplanation(
@@ -1132,7 +1132,7 @@ extension StudioViewModel {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// ⌘K entry point: if the reader has a live selection, chat about it;
+    /// ⇧⌘K entry point: if the reader has a live selection, chat about it;
     /// otherwise reveal and focus the docked Chat panel.
     func handleAssistantShortcut() {
         if let selection = activeReaderSelection,
@@ -1157,7 +1157,7 @@ extension StudioViewModel {
         activateCenterTab(.reader)
     }
 
-    /// Called by reader panels as the selection changes so ⌘K knows what to act on.
+    /// Called by reader panels as the selection changes so ⇧⌘K knows what to act on.
     /// An empty selection only clears state that belongs to the same source, so a
     /// deselect in one reader can't wipe a live selection in another.
     ///

@@ -472,9 +472,9 @@ struct ForeverLMApp: App {
     }
 
 
-    /// Whether the key Studio window shows a canvas, whose menu then owns
-    /// ⌥⌘S as Save Version (docs/knowledge-map-design.md, "Versions, export
-    /// and publishing"): the Sources toggles give it up while it shows.
+    /// Whether the key Studio window shows a canvas, whose View menu then
+    /// offers Save Canvas Version (docs/knowledge-map-design.md, "Versions,
+    /// export and publishing").
     private var activeWindowShowsCanvas: Bool {
         guard showsCanvas, let state = activeWindowState else { return false }
         return studioViewModel.visibleCenterTabs(in: state).contains(.knowledgeMap)
@@ -763,6 +763,13 @@ struct ForeverLMApp: App {
                 .shellShortcut(.settings)
             }
 
+            // File: Codex's New Chat on ⌘N (and ⇧⌘O beside it), and a new
+            // window on ⌃⌘N, where ⌘N was.
+            CommandGroup(replacing: .newItem) {
+                shellActionButton(.newChat)
+                NewStudioWindowMenuItem()
+            }
+
             // Codex's Keyboard shortcuts (⌘/), read-only, in Help.
             CommandGroup(replacing: .help) {
                 Button(ShellAction.keyboardShortcuts.title) {
@@ -872,7 +879,8 @@ struct ForeverLMApp: App {
                         guard let state = activeWindowState else { return }
                         studioViewModel.inWindow(state) { studioViewModel.openAtlasPane(in: state) }
                     }
-                    .keyboardShortcut("a", modifiers: [.command, .option])
+                    // ⌃⌘A: Codex's ⌥⌘A is Next Unread Chat.
+                    .keyboardShortcut(ShellKeyboardShortcuts.atlas.first?.keyboardShortcut)
                 }
 
                 // Today's page in Docs, in the key window, as the rail's
@@ -884,14 +892,14 @@ struct ForeverLMApp: App {
                 }
                 .shellShortcut(.dailyNotes)
 
-                // While the key window shows a canvas, ⌥⌘S saves a version of
-                // it (Heptabase's shortcut), here and nowhere else; the
-                // Notebook menu's Sources item takes ⌥⌘S in a notebook.
+                // While the key window shows a canvas, ⌥⇧⌘S saves a version
+                // of it. It was ⌥⌘S (Heptabase's) until 2026-10-13, when
+                // Codex's Side Chat took that key.
                 if activeWindowShowsCanvas {
                     Button("Save Canvas Version…") {
                         studioViewModel.promptSaveCanvasVersion(canvasID: studioViewModel.knowledgeMap.mapID)
                     }
-                    .keyboardShortcut("s", modifiers: [.command, .option])
+                    .keyboardShortcut(ShellKeyboardShortcuts.saveCanvasVersion.first?.keyboardShortcut)
                 }
 
                 Divider()
@@ -964,7 +972,6 @@ struct ForeverLMApp: App {
             // key window's `ShellCommandHost`; the ones about one chat act on
             // the chat that window shows.
             CommandMenu("Chat") {
-                shellActionButton(.newChat)
                 shellActionButton(.sideChat)
                 shellActionButton(.quickChat)
 
@@ -1013,8 +1020,7 @@ struct ForeverLMApp: App {
             // The notebook the key window holds (docs/notebooks-design.md, "The
             // notebook workspace"). Every column toggle has a menu item, as
             // ui-design principle 5 asks, and every Studio tile has one under
-            // Make; with no notebook open only Add Sources… shows, disabled,
-            // and ⌥⌘S stays the View menu's.
+            // Make; with no notebook open only Add Sources… shows, disabled.
             CommandMenu("Notebook") {
                 Button(ShellAction.addSources.title) {
                     postToActiveStudioWindow(.showNotebookAddSources)
@@ -1022,9 +1028,8 @@ struct ForeverLMApp: App {
                 .shellShortcut(.addSources)
                 .disabled(activeWindowNotebook == nil)
 
-                // ⌥⌘S belongs to whichever Sources the key window shows: the
-                // View menu's library list, or this column — never both — and
-                // to Save Version while a canvas shows.
+                // ⌃⌥⌘S: it was ⌥⌘S until 2026-10-13, when Codex's Side Chat
+                // took that key.
                 if let notebook = activeWindowNotebook, let state = activeWindowState {
                     Button(notebook.sourcesCollapsed ? "Show Sources" : "Hide Sources") {
                         guard state.notebook != nil else { return }
@@ -1032,8 +1037,7 @@ struct ForeverLMApp: App {
                             state.notebook?.sourcesCollapsed.toggle()
                         }
                     }
-                    // A canvas on show takes ⌥⌘S for Save Version (the View menu's).
-                    .keyboardShortcut(activeWindowShowsCanvas ? nil : KeyboardShortcut("s", modifiers: [.command, .option]))
+                    .keyboardShortcut(ShellKeyboardShortcuts.notebookSources.first?.keyboardShortcut)
 
                     Divider()
 

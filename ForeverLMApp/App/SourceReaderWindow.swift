@@ -395,7 +395,7 @@ struct SourceReaderWindow: View {
             selectedText = ""
         }
         // The pop-out reader feeds the same active-selection state as the docked
-        // one, so ⌘K and the in-page "Chat about this" pill act on what is
+        // one, so ⇧⌘K and the in-page "Chat about this" pill act on what is
         // selected here.
         .onChange(of: selectedText) { _, newValue in
             vm.updateActiveReaderSelection(sourceID: displayedArticle.id, text: newValue)

@@ -1180,7 +1180,7 @@ struct NativeTranscriptReaderView: View {
 
     // MARK: Highlights
 
-    /// Points the shared coordinator at this source: selections feed ⌘K and
+    /// Points the shared coordinator at this source: selections feed ⇧⌘K and
     /// the Chat pill, Highlight anchors the passage against the whole
     /// transcript, and a click on a mark opens its card.
     private func configureSelectionCoordinator() {

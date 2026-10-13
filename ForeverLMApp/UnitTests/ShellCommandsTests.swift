@@ -143,10 +143,25 @@ struct ShellCommandsTests {
 
     @Test("Keys read as the menu bar writes them")
     func keyDisplay() {
-        #expect(ShellAction.commandMenu.key?.display == "⇧⌘P")
+        #expect(ShellAction.commandMenu.keys.map(\.display) == ["⌘K", "⇧⌘P"])
         #expect(ShellKey(ShellKey.tab, [.control, .shift]).display == "⌃⇧Tab")
         #expect(ShellKey(ShellKey.escape, .shift).display == "⇧Esc")
         #expect(ShellKey("n", [.command, .option]).display == "⌥⌘N")
+    }
+
+    @Test("Codex's version wins the five clashes, and each displaced command has a key of its own")
+    func clashes() {
+        #expect(ShellAction.commandMenu.key == ShellKey("k", .command))
+        #expect(ShellAction.openChat.key == ShellKey("k", [.command, .shift]))
+        #expect(ShellAction.newChat.key == ShellKey("n", .command))
+        #expect(ShellAction.newWindow.key == ShellKey("n", [.command, .control]))
+        #expect(ShellAction.hideChat.key == ShellKey("a", [.command, .shift]))
+        #expect(ShellAction.addSources.key == ShellKey("i", [.command, .shift]))
+        #expect(ShellAction.sideChat.key == ShellKey("s", [.command, .option]))
+        #expect(ShellAction.nextUnreadChat.key == ShellKey("a", [.command, .option]))
+        let others = ShellKeyboardShortcuts.atlas + ShellKeyboardShortcuts.notebookSources + ShellKeyboardShortcuts.saveCanvasVersion
+        #expect(Set(others).isDisjoint(with: ShellAction.allCases.flatMap(\.keys)))
+        #expect(Set(others).count == others.count)
     }
 
     @Test("No two commands share a key")

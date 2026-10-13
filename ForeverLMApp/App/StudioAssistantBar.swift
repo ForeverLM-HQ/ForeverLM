@@ -639,7 +639,7 @@ struct StudioDockedAssistantPanel: View {
         }
     }
 
-    /// Closes the Chat pane entirely (nothing is left behind); ⌘K reopens it.
+    /// Closes the Chat pane entirely (nothing is left behind); ⇧⌘K reopens it.
     private var closeButton: some View {
         // A `Button` on the chrome line hands its mouse-down to the titlebar's
         // window drag; see `TitlebarBandHitSurfaceView`.
