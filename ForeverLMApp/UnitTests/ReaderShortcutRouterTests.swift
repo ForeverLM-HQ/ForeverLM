@@ -170,6 +170,46 @@ struct ReaderShortcutRouterTests {
         #expect(ReaderShortcutRouter.shared.clickedControlFindHandler(for: window) == nil)
     }
 
+    @Test("Chat's find takes Cmd+F with focus in it, and is never the window's primary reader")
+    @MainActor
+    func chatFindIsNeverPrimary() {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 600, height: 400),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+        let content = NSView(frame: NSRect(x: 0, y: 0, width: 600, height: 400))
+        window.contentView = content
+        let chatAnchor = NSView(frame: NSRect(x: 0, y: 0, width: 300, height: 400))
+        let chatComposer = NSTextView(frame: NSRect(x: 20, y: 20, width: 200, height: 40))
+        let readerAnchor = NSView(frame: NSRect(x: 300, y: 0, width: 300, height: 400))
+        content.addSubview(chatAnchor)
+        content.addSubview(readerAnchor)
+        chatAnchor.addSubview(chatComposer)
+        var log: [String] = []
+        let chatID = UUID(), readerID = UUID()
+        // Chat registers first, as it does when the window opens on a chat.
+        ReaderShortcutRouter.shared.register(id: chatID, window: window, anchor: chatAnchor, isPrimaryCandidate: false) {
+            .init(find: { log.append("chat.find") })
+        }
+        ReaderShortcutRouter.shared.register(id: readerID, window: window, anchor: readerAnchor) {
+            .init(find: { log.append("reader.find") })
+        }
+        defer {
+            ReaderShortcutRouter.shared.unregister(id: chatID)
+            ReaderShortcutRouter.shared.unregister(id: readerID)
+        }
+
+        ReaderShortcutRouter.shared.findHandler(for: window)?()
+        #expect(log == ["reader.find"])
+        window.makeFirstResponder(chatComposer)
+        ReaderShortcutRouter.shared.findHandler(for: window)?()
+        #expect(log == ["reader.find", "chat.find"])
+    }
+
     @Test("A surface without document zoom leaves Cmd+=/- to the app")
     @MainActor
     func focusedDocHasNoZoom() {

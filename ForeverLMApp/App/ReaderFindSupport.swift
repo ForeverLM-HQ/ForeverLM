@@ -1237,6 +1237,9 @@ final class ReaderShortcutRouter {
         /// answering for whatever the surface displays now — including whether
         /// it currently supports zoom at all.
         var handlers: () -> Handlers
+        /// False for a surface that finds only when focus or a click is in it
+        /// (Chat's find): it is never the window's primary reader.
+        var isPrimaryCandidate = true
     }
 
     private var entries: [Entry] = []
@@ -1258,14 +1261,23 @@ final class ReaderShortcutRouter {
 
     private var clickClaim: ClickClaim?
 
-    func register(id: UUID, window: NSWindow, anchor: NSView, handlers: @escaping () -> Handlers) {
+    func register(
+        id: UUID,
+        window: NSWindow,
+        anchor: NSView,
+        isPrimaryCandidate: Bool = true,
+        handlers: @escaping () -> Handlers
+    ) {
         entries.removeAll { $0.window == nil || $0.anchor == nil }
         if let index = entries.firstIndex(where: { $0.id == id }) {
             entries[index].window = window
             entries[index].anchor = anchor
             entries[index].handlers = handlers
+            entries[index].isPrimaryCandidate = isPrimaryCandidate
         } else {
-            entries.append(Entry(id: id, window: window, anchor: anchor, handlers: handlers))
+            entries.append(Entry(
+                id: id, window: window, anchor: anchor, handlers: handlers, isPrimaryCandidate: isPrimaryCandidate
+            ))
         }
     }
 
@@ -1277,7 +1289,7 @@ final class ReaderShortcutRouter {
     /// reader registered later in the same window.
     func handlers(for window: NSWindow?) -> Handlers? {
         guard let window else { return nil }
-        return entries.first { $0.window === window && $0.anchor != nil }?.handlers()
+        return entries.first { $0.window === window && $0.anchor != nil && $0.isPrimaryCandidate }?.handlers()
     }
 
     /// Cmd+F goes to the surface that has keyboard focus when one does — a Doc
@@ -1397,6 +1409,9 @@ struct ReaderShortcutTarget: NSViewRepresentable {
     var zoomOut: (() -> Void)? = nil
     var resetZoom: (() -> Void)? = nil
     var magnify: ((CGFloat) -> Void)? = nil
+    /// False for a surface that takes ⌘F only while focus or the last click
+    /// is in it, never as the window's primary reader (Chat's find).
+    var isPrimaryCandidate = true
 
     private var currentHandlers: ReaderShortcutRouter.Handlers {
         .init(find: find, zoomIn: zoomIn, zoomOut: zoomOut, resetZoom: resetZoom, magnify: magnify)
@@ -1408,6 +1423,7 @@ struct ReaderShortcutTarget: NSViewRepresentable {
         let coordinator = context.coordinator
         coordinator.handlers = currentHandlers
         let view = AnchorView(frame: .zero)
+        let isPrimaryCandidate = isPrimaryCandidate
         view.onWindowChange = { [weak view] window in
             if let window, let view {
                 // Registered once per window; the router asks the coordinator
@@ -1417,6 +1433,7 @@ struct ReaderShortcutTarget: NSViewRepresentable {
                     id: coordinator.id,
                     window: window,
                     anchor: view,
+                    isPrimaryCandidate: isPrimaryCandidate,
                     handlers: { [weak coordinator] in
                         coordinator?.handlers ?? .init()
                     }

@@ -329,6 +329,10 @@ private struct InternalReviewPanelContent: View {
     /// send replaces it and the reply after it. What was in the composer
     /// before comes back on Cancel.
     @State private var editingMessage: ChatEditMessage.Editing?
+    /// Find in this chat (⌘F while focus or the last click is in it).
+    @State private var chatFind = ChatFind()
+    /// The transcript is scrolled up from its newest turn: the jump arrow shows.
+    @State private var isTranscriptScrolledUp = false
     /// The doc passages this conversation was opened on, once they are saved.
     /// `pendingReaderSelection` is the same thing before the question is sent;
     /// these outlive the send, and the pane, and the app.
@@ -1329,6 +1333,9 @@ private struct InternalReviewPanelContent: View {
         }
         .animation(.easeInOut(duration: 0.22), value: shouldShowTranscript)
         .frame(maxWidth: .infinity)
+        // ⌘F finds in this chat while focus, or the last click, is in it; a
+        // Reader beside it keeps ⌘F otherwise.
+        .background(ReaderShortcutTarget(find: { chatFind.show() }, isPrimaryCandidate: false))
         .contentShape(Rectangle())
         .onDrop(
             of: reviewChatDropTypes,
@@ -3201,6 +3208,7 @@ private struct InternalReviewPanelContent: View {
                     followUpSideQuestion: { followUpSideQuestion() },
                     openSideQuestionInNewChat: { openSideQuestionInNewChat() },
                     laneExpansionRequest: laneExpansionRequest,
+                    findMatchID: chatFind.isVisible ? chatFind.currentMatchID : nil,
                     citationContexts: $citationContexts,
                     row: { block, context in
                         chatTranscriptBlock(block, context: context)
@@ -3212,6 +3220,36 @@ private struct InternalReviewPanelContent: View {
             }
             .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { height in
                 transcriptViewportHeight = height
+            }
+            .modifier(ChatScrolledUpReader(bottomReserve: transcriptBottomReserve, isScrolledUp: $isTranscriptScrolledUp))
+            .overlay(alignment: .top) {
+                if chatFind.isVisible {
+                    ChatFindBar(find: chatFind, blocks: {
+                        ReviewChatTranscriptBlock.grouping(manager.chatMessages)
+                    })
+                    .padding(.horizontal, 12)
+                    .padding(.top, 6)
+                    .transition(.opacity)
+                }
+            }
+            .overlay(alignment: .bottom) {
+                if isTranscriptScrolledUp, !showsMemoryReviewCards {
+                    ChatJumpToLatestButton {
+                        guard let last = ReviewChatTranscriptBlock.grouping(manager.chatMessages).last else { return }
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            proxy.scrollTo(last.id, anchor: .bottom)
+                        }
+                    }
+                    .padding(.bottom, 10)
+                    .transition(.opacity)
+                }
+            }
+            .animation(.easeOut(duration: 0.15), value: isTranscriptScrolledUp)
+            .onChange(of: chatFind.scrollRevision) { _, _ in
+                guard let id = chatFind.currentMatchID else { return }
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    proxy.scrollTo(id, anchor: .center)
+                }
             }
             // Started here rather than in the indicator's own `onAppear`: it sits
             // at the end of a LazyVStack, so scrolling away mid-turn would tear it
@@ -7883,6 +7921,7 @@ private struct InternalReviewPanelContent: View {
         composer.referencedChats = []
         composer.pastedTexts = []
         editingMessage = nil
+        chatFind.close()
         lastInsertedDefaultPrompt = nil
         pendingReaderSelection = nil
     }
@@ -7915,6 +7954,7 @@ private struct InternalReviewPanelContent: View {
         composer.referencedChats = []
         composer.pastedTexts = []
         editingMessage = nil
+        chatFind.close()
         lastInsertedDefaultPrompt = nil
         pendingReaderSelection = nil
         await vm.loadReviewSessionLinks()
@@ -8047,6 +8087,8 @@ private struct ReviewChatTranscriptStack<Row: View, ErrorView: View>: View {
     /// More details pressed on a reply whose lane already exists: that lane
     /// opens and the transcript scrolls to it.
     let laneExpansionRequest: ReviewChatLaneExpansionRequest?
+    /// The turn Find in chat is on, marked in the transcript.
+    let findMatchID: UUID?
     /// Which source each `[n]` names, and whose card has been listed already.
     /// Written here rather than read here: the rows belong to the panel, but
     /// this is the view that already watches the messages, and rebuilding the
@@ -8138,11 +8180,13 @@ private struct ReviewChatTranscriptStack<Row: View, ErrorView: View>: View {
                         openSideQuestionInNewChat: openSideQuestionInNewChat
                     ) { block in
                         row(block, context(block, section))
+                            .modifier(ChatFindMatchMark(isMatch: block.id == findMatchID))
                             .id(block.id)
                     }
                 } else {
                     ForEach(section.blocks) { block in
                         row(block, context(block, section))
+                            .modifier(ChatFindMatchMark(isMatch: block.id == findMatchID))
                             .id(block.id)
                     }
                 }

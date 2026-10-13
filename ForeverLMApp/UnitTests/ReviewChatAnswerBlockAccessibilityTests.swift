@@ -311,3 +311,50 @@ struct ChatTryAgainAndEditTests {
         #expect(!ChatEditMessage.isEditable(aside))
     }
 }
+
+/// Find in chat and the jump arrow, as Codex's.
+@Suite("Find in chat and Jump to latest")
+@MainActor
+struct ChatFindTests {
+    private typealias Message = ReviewSessionManager.Message
+
+    @Test("Find lands on the newest matching turn, then steps and wraps")
+    func stepsThroughMatches() {
+        let messages = [
+            Message(role: .user, content: "What is calcium doing in LTP?"),
+            Message(role: .assistant, content: "Calcium enters through NMDA receptors."),
+            Message(role: .user, content: "and dopamine?"),
+            Message(role: .assistant, content: "Dopamine gates plasticity."),
+            Message(role: .user, content: "Back to CALCIUM: how much?"),
+            Message(role: .assistant, content: "Micromolar."),
+        ]
+        let blocks = ReviewChatTranscriptBlock.grouping(messages)
+        let matches = ChatFind.matchingBlockIDs("calcium", in: blocks)
+        #expect(matches.count == 3)
+
+        let find = ChatFind()
+        find.query = "calcium"
+        find.step(in: blocks)
+        #expect(find.currentMatchID == matches.last)
+        #expect(find.status == "3 of 3")
+        find.step(in: blocks)
+        #expect(find.currentMatchID == matches.first)
+        find.step(in: blocks, backwards: true)
+        #expect(find.currentMatchID == matches.last)
+
+        find.query = "serotonin"
+        #expect(find.status.isEmpty)
+        find.step(in: blocks)
+        #expect(find.currentMatchID == nil)
+        #expect(find.status == "No matches")
+        find.close()
+        #expect(!find.isVisible && find.query.isEmpty)
+    }
+
+    @Test("The arrow shows once the view is well above the end, past the empty band under the last row")
+    func jumpToLatestThreshold() {
+        #expect(!ChatJumpToLatest.isScrolledUp(offsetY: 900, visibleHeight: 500, contentHeight: 1400, bottomReserve: 0))
+        #expect(!ChatJumpToLatest.isScrolledUp(offsetY: 600, visibleHeight: 500, contentHeight: 1400, bottomReserve: 250))
+        #expect(ChatJumpToLatest.isScrolledUp(offsetY: 200, visibleHeight: 500, contentHeight: 1400, bottomReserve: 250))
+    }
+}
