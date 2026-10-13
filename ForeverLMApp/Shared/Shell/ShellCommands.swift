@@ -257,7 +257,10 @@ enum ShellAction: String, CaseIterable, Sendable {
         case .hideChat: return []
         case .copyChatLink: return [ShellKey("l", [.command, .option])]
         case .clearUnread: return [ShellKey(ShellKey.escape, .shift)]
-        case .selectModel: return [ShellKey("m", [.control, .shift])]
+        // Codex's model picker and its Open recent models; ForeverLM's picker
+        // leads with the recent models, so both open it.
+        case .selectModel: return [ShellKey("m", [.control, .shift]), ShellKey("m", [.command, .control])]
+        // Shown, not bound by the menu bar: the Space binds it while it shows.
         case .newPage: return [ShellKey("n", [.command, .shift])]
         case .openReader: return [.command("r")]
         case .space: return [.command("p")]
@@ -693,10 +696,14 @@ enum ShellKeyboardShortcuts {
                 ShellShortcutEntry(.copyChatLink),
                 ShellShortcutEntry(.clearUnread),
                 ShellShortcutEntry(.selectModel),
+                ShellShortcutEntry("Find in Chat", [.command("f")]),
+                ShellShortcutEntry("Find Next", [.command("g")]),
+                ShellShortcutEntry("Find Previous", [ShellKey("g", [.command, .shift])]),
                 ShellShortcutEntry("Side Question", [ShellKey(ShellKey.returnKey, .option)]),
             ].filter { !$0.keys.isEmpty || $0.keysText != nil }),
             ("Notebooks and Pages", [
-                ShellShortcutEntry(.newPage),
+                // The Space's own key: it works while the Space shows.
+                ShellShortcutEntry("New Page (in the Space)", ShellAction.newPage.keys),
                 ShellShortcutEntry(.addSources),
                 ShellShortcutEntry("Show or Hide Sources", [ShellKey("s", [.command, .option])]),
                 ShellShortcutEntry("Show Pages", [ShellKey("e", [.command, .shift])]),

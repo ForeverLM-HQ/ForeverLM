@@ -491,6 +491,15 @@ struct ForeverLMApp: App {
         NotificationCenter.default.post(name: name, object: activeWindowState?.id)
     }
 
+    /// A menu bar item for a shell command (`ShellAction`): its title and its
+    /// key from the shared table, run by the key window's `ShellCommandHost`.
+    private func shellActionButton(_ action: ShellAction) -> some View {
+        Button(action.title) {
+            ShellActionRequest.post(action, to: activeWindowState?.id)
+        }
+        .shellShortcut(action)
+    }
+
     /// The Today menu reads the day for its titles and enabled states.
     private var day: DayModel { DayModel.shared }
 
@@ -751,7 +760,15 @@ struct ForeverLMApp: App {
                         object: nil
                     )
                 }
-                .keyboardShortcut(",", modifiers: .command)
+                .shellShortcut(.settings)
+            }
+
+            // Codex's Keyboard shortcuts (⌘/), read-only, in Help.
+            CommandGroup(replacing: .help) {
+                Button(ShellAction.keyboardShortcuts.title) {
+                    ShellActionRequest.post(.keyboardShortcuts, to: activeWindowState?.id)
+                }
+                .shellShortcut(.keyboardShortcuts)
             }
 
             // AppKit's About window, which says Beta while this build is one
@@ -789,7 +806,25 @@ struct ForeverLMApp: App {
                         UserDefaults.standard.set(!shown, forKey: "space.sidebarHidden")
                     }
                 }
-                .keyboardShortcut("s", modifiers: [.command, .control])
+                // ⌃⌘S here, and Codex's ⇧⌘S beside it (`ShellCommandHost`).
+                .shellShortcut(.toggleSidebar)
+
+                // Codex's Back and Forward: the window's ‹ › through the
+                // places it showed. A pane with a history of its own (a
+                // course, the Atlas, a plugin's page) keeps ⌘[ while it has
+                // the focus.
+                Button(ShellAction.back.title) {
+                    ShellActionRequest.post(.back, to: activeWindowState?.id)
+                }
+                .shellShortcut(.back)
+                .disabled(activeWindowState?.canGoBackInPlaces != true)
+                Button(ShellAction.forward.title) {
+                    ShellActionRequest.post(.forward, to: activeWindowState?.id)
+                }
+                .shellShortcut(.forward)
+                .disabled(activeWindowState?.canGoForwardInPlaces != true)
+
+                Divider()
 
                 // Codex's command menu: chats, notebooks, Pages, sources,
                 // places, commands and settings from one field
@@ -799,36 +834,28 @@ struct ForeverLMApp: App {
                 }
                 .shellShortcut(.commandMenu)
 
-                Button("Open Chat") {
+                Button(ShellAction.openChat.title) {
                     postToActiveStudioWindow(.toggleStudioAssistant)
                 }
-                .keyboardShortcut("k", modifiers: .command)
+                .shellShortcut(.openChat)
 
-                // The model chip of the chat in the key window, with its
-                // Recent models on top: Codex's model picker key.
-                Button("Select Model") {
-                    NotificationCenter.default.post(name: .openChatModelPicker, object: UUID())
-                }
-                .keyboardShortcut("m", modifiers: [.control, .shift])
-
-                Button("Open Reader") {
+                Button(ShellAction.openReader.title) {
                     postToActiveStudioWindow(.openStudioReader)
                 }
-                .keyboardShortcut("r", modifiers: .command)
+                .shellShortcut(.openReader)
 
                 // The Space and the full-window Library, by shortcut as well
                 // as from the rail. Nothing in the app saves or prints, so ⌘P
                 // is free for the Space (where every notebook is listed); ⇧⌘L
                 // is the Library's.
-                ForEach(StudioShellCommand.allCases, id: \.self) { command in
-                    Button(command.title) {
-                        switch command {
-                        case .space: postToActiveStudioWindow(.openStudioSpace)
-                        case .library: postToActiveStudioWindow(.openStudioLibrary)
-                        }
-                    }
-                    .keyboardShortcut(command.key, modifiers: command.modifiers)
+                Button(ShellAction.space.title) {
+                    postToActiveStudioWindow(.openStudioSpace)
                 }
+                .shellShortcut(.space)
+                Button(ShellAction.library.title) {
+                    postToActiveStudioWindow(.openStudioLibrary)
+                }
+                .shellShortcut(.library)
 
                 // Plugins, the strip's row under the Library, in the key
                 // window (docs/codex-shell-plan.md, Track 2).
@@ -855,7 +882,7 @@ struct ForeverLMApp: App {
                     guard let state = activeWindowState else { return }
                     Task { await studioViewModel.openDailyNote(in: state) }
                 }
-                .keyboardShortcut("d", modifiers: [.command, .shift])
+                .shellShortcut(.dailyNotes)
 
                 // While the key window shows a canvas, ⌥⌘S saves a version of
                 // it (Heptabase's shortcut), here and nowhere else; the
@@ -916,12 +943,12 @@ struct ForeverLMApp: App {
                 Button("Zoom In") {
                     uiZoomStep = min(uiZoomStep + 1, UIZoom.maxStep)
                 }
-                .keyboardShortcut("+", modifiers: .command)
+                .shellShortcut(.zoomIn)
 
                 Button("Zoom Out") {
                     uiZoomStep = max(uiZoomStep - 1, UIZoom.minStep)
                 }
-                .keyboardShortcut("-", modifiers: .command)
+                .shellShortcut(.zoomOut)
 
                 Button("Reset Zoom") {
                     uiZoomStep = UIZoom.defaultStep
@@ -929,7 +956,58 @@ struct ForeverLMApp: App {
                     // pinched larger in a window on the other display stays.
                     ChatZoomShortcutRouter.shared.resetAll(in: NSApp.keyWindow)
                 }
-                .keyboardShortcut("0", modifiers: .command)
+                .shellShortcut(.resetZoom)
+            }
+
+            // Codex's chat commands and keys (learn.chatgpt.com/docs/reference/
+            // commands; docs/codex-parity-audit.md, lane E). Each is run by the
+            // key window's `ShellCommandHost`; the ones about one chat act on
+            // the chat that window shows.
+            CommandMenu("Chat") {
+                shellActionButton(.newChat)
+                shellActionButton(.sideChat)
+                shellActionButton(.quickChat)
+
+                Divider()
+
+                shellActionButton(.previousChat)
+                shellActionButton(.nextChat)
+                shellActionButton(.nextUnreadChat)
+                Menu("Go to Chat") {
+                    ForEach(0..<9, id: \.self) { index in
+                        Button("Chat \(index + 1)") {
+                            ShellActionRequest.postGoToChat(index, recent: false, to: activeWindowState?.id)
+                        }
+                        .keyboardShortcut(KeyEquivalent(Character(String(index + 1))), modifiers: .command)
+                    }
+                }
+                Menu("Open Recent Chat") {
+                    ForEach(0..<6, id: \.self) { index in
+                        Button("Recent Chat \(index + 1)") {
+                            ShellActionRequest.postGoToChat(index, recent: true, to: activeWindowState?.id)
+                        }
+                        .keyboardShortcut(KeyEquivalent(Character(String(index + 1))), modifiers: [.command, .option])
+                    }
+                }
+
+                Divider()
+
+                let showsChat = activeWindowState?.chatSessionID.map { !MemoryReviewSession.isMemorySession($0) } ?? false
+                Group {
+                    shellActionButton(.renameChat)
+                    shellActionButton(.togglePinChat)
+                    shellActionButton(.markChatUnread)
+                    shellActionButton(.hideChat)
+                    shellActionButton(.copyChatLink)
+                }
+                .disabled(!showsChat)
+                shellActionButton(.clearUnread)
+
+                Divider()
+
+                // The model chip of the chat in the key window, with its
+                // Recent models on top: Codex's model picker key.
+                shellActionButton(.selectModel)
             }
 
             // The notebook the key window holds (docs/notebooks-design.md, "The
@@ -938,10 +1016,10 @@ struct ForeverLMApp: App {
             // Make; with no notebook open only Add Sources… shows, disabled,
             // and ⌥⌘S stays the View menu's.
             CommandMenu("Notebook") {
-                Button("Add Sources…") {
+                Button(ShellAction.addSources.title) {
                     postToActiveStudioWindow(.showNotebookAddSources)
                 }
-                .keyboardShortcut("a", modifiers: [.command, .shift])
+                .shellShortcut(.addSources)
                 .disabled(activeWindowNotebook == nil)
 
                 // ⌥⌘S belongs to whichever Sources the key window shows: the
@@ -1013,10 +1091,10 @@ struct ForeverLMApp: App {
             // while something is happening, so this menu is where the day's
             // ways on always are.
             CommandMenu("Today") {
-                Button("Plan the Day in Chat") {
+                Button(ShellAction.planTheDay.title) {
                     postToActiveStudioWindow(.requestPlanTheDayChat)
                 }
-                .keyboardShortcut("d", modifiers: .command)
+                .shellShortcut(.planTheDay)
 
                 Button("Open Calendar") {
                     AppleCalendarService.openCalendarApp()
@@ -1042,15 +1120,15 @@ struct ForeverLMApp: App {
                 // The timer, from the menu bar so a bout can be started and
                 // written up from wherever the learner is reading.
                 if day.liveBout == nil {
-                    Button("Start Pomodoro Timer…") {
+                    Button(ShellAction.startPomodoro.title) {
                         DayModel.shared.requestStart()
                     }
-                    .keyboardShortcut("b", modifiers: [.command, .shift])
+                    .shellShortcut(.startPomodoro)
                 } else {
                     Button("Write Up the Bout…") {
                         DayModel.shared.requestWriteUp()
                     }
-                    .keyboardShortcut("b", modifiers: [.command, .shift])
+                    .shellShortcut(.startPomodoro)
                     .disabled(day.liveBout?.writtenAt != nil)
                     Button("Stop the Clock") {
                         guard let bout = DayModel.shared.liveBout else { return }

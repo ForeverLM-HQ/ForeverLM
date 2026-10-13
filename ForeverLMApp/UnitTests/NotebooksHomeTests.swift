@@ -234,23 +234,20 @@ struct NotebooksHomeTests {
         #expect(LibraryBulkAction.readToggle(readStates: []) == nil)
     }
 
-    @Test("The View menu says Space on ⌘P and Library on ⇧⌘L, clear of the Notebook menu's ⌥⌘L")
+    @Test("The View menu says Space on ⌘P and Library on ⇧⌘L")
     func shellCommands() {
-        #expect(StudioShellCommand.allCases == [.space, .library])
-        #expect(StudioShellCommand.space.title == "Space")
-        #expect(StudioShellCommand.space.key.character == "p")
-        #expect(StudioShellCommand.space.modifiers == .command)
-        #expect(StudioShellCommand.library.title == "Library")
-        #expect(StudioShellCommand.library.key.character == "l")
-        #expect(StudioShellCommand.library.modifiers == [.command, .shift])
-        #expect(StudioShellCommand.library.modifiers != [.command, .option], "⌥⌘L is a notebook's Library face")
+        #expect(ShellAction.space.title == "Space")
+        #expect(ShellAction.space.keys == [ShellKey("p", .command)])
+        #expect(ShellAction.library.title == "Library")
+        #expect(ShellAction.library.keys == [ShellKey("l", [.command, .shift])])
+        #expect(ShellAction.library.key != ShellKey("l", [.command, .option]), "⌥⌘L is Codex's Copy Chat Link")
         // One name for each place, wherever it is offered: the Space's tab
         // and its Open in Other Window say Space as the menu does.
-        #expect(StudioCenterTab.artifacts.title == StudioShellCommand.space.title)
-        #expect(StudioWindowDestination.artifacts.noun == StudioShellCommand.space.title)
-        #expect(StudioRailItem.library.title == StudioShellCommand.library.title)
-        #expect(StudioCenterTab.library.title == StudioShellCommand.library.title)
-        #expect(StudioWindowDestination.library.noun == StudioShellCommand.library.title)
+        #expect(StudioCenterTab.artifacts.title == ShellAction.space.title)
+        #expect(StudioWindowDestination.artifacts.noun == ShellAction.space.title)
+        #expect(StudioRailItem.library.title == ShellAction.library.title)
+        #expect(StudioCenterTab.library.title == ShellAction.library.title)
+        #expect(StudioWindowDestination.library.noun == ShellAction.library.title)
         #expect(StudioCenterTab.permanentTabs.last == .plugins, "the newest place is appended, so stored layouts keep their order")
     }
 

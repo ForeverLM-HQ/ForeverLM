@@ -7,39 +7,6 @@ extension Notification.Name {
     static let openStudioLibrary = Notification.Name("openStudioLibrary")
 }
 
-// MARK: - The two places of the library, as the View menu names them
-
-/// The View menu's ways to the shell's two library places, named once so the
-/// menu, the rail and their tests agree: **Space** (⌘P), the Space's All list,
-/// where every notebook is listed (the Notebooks home was ⌘P until 2026-10-09),
-/// and **Library** (⇧⌘L), the full-window Library. Inside a notebook the
-/// library is its Sources column's search.
-enum StudioShellCommand: CaseIterable {
-    case space
-    case library
-
-    var title: String {
-        switch self {
-        case .space: return "Space"
-        case .library: return "Library"
-        }
-    }
-
-    var key: KeyEquivalent {
-        switch self {
-        case .space: return "p"
-        case .library: return "l"
-        }
-    }
-
-    var modifiers: EventModifiers {
-        switch self {
-        case .space: return .command
-        case .library: return [.command, .shift]
-        }
-    }
-}
-
 // MARK: - The Sources list's two layouts
 
 /// How the library's Sources list (`StudioSidebar`) lays itself out: compact
