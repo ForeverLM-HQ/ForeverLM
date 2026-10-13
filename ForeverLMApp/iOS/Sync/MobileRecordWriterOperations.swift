@@ -37,6 +37,9 @@ enum MobileSettingCatalog {
         // the list a goal or an idea is in. Only the Mac's Space writes them so far.
         LeftOut(prefix: "spaceList.", type: "string", scopes: ["account"]),
         LeftOut(prefix: "spaceListItem.", type: "string", scopes: ["account"]),
+        // A chat's pin (`ChatPins` on the Mac): Home's Pinned section on the Mac and the web. The phone
+        // has no Pinned yet; it would write the row as they do.
+        LeftOut(prefix: "chat.pinned.", type: "string", scopes: ["account"]),
     ]
 
     static func leftOutEntry(for key: String) -> LeftOut? {

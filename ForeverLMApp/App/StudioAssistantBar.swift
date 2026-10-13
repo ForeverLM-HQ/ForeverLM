@@ -425,6 +425,9 @@ final class StudioAssistantSessionStore {
     }
 
     func deleteSession(_ sessionID: String) {
+        // Ending its running turn below is no reply that finished: the chat
+        // is going, and its unread mark with it.
+        ChatReadMarks.shared.forget(sessionID)
         drafts.removeValue(forKey: .session(sessionID))
         if activeManager.currentSessionID == sessionID {
             activeManager.endSession()

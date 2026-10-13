@@ -956,6 +956,11 @@ class StudioViewModel {
     /// is its one writer.
     var pagePins = PagePinRows.read()
 
+    /// The chats the learner pinned: mirrors the `chat.pinned.*` rows
+    /// (`ChatPins`), reseeded in `reloadSyncedPreferences`. `setChatPinned`
+    /// and `reorderPinnedChat` are its writers.
+    var chatPins = ChatPinRows.read()
+
     /// The learner's lists of goals and of ideas in the Space: mirrors the
     /// `spaceList.*` and `spaceListItem.*` rows (`SpaceLists`), reseeded in
     /// `reloadSyncedPreferences`. The `StudioViewModel+SpaceLists` actions

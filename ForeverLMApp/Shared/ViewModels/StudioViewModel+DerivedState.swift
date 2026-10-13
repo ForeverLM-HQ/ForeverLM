@@ -3421,6 +3421,8 @@ extension StudioViewModel {
         if pins != pagePins {
             pagePins = pins
         }
+        // Chats pinned, unpinned or reordered on another device.
+        refreshChatPinsFromRows()
         // Lists of goals and ideas made, renamed or trashed on another
         // device, and goals and ideas filed in them there.
         refreshSpaceListsFromRows()
@@ -4187,6 +4189,10 @@ extension StudioViewModel {
             logger.error("Failed to delete review session link: \(error.localizedDescription)")
             return false
         }
+        // Its pin and its unread mark go with it, so neither outlives the
+        // chat on any device.
+        setChatPinned(id, pinned: false)
+        ChatReadMarks.shared.forget(id)
 
         do {
             sourceReviewedAt = try await storage.sourceReviewDates()

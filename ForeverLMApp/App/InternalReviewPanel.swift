@@ -261,6 +261,11 @@ private struct InternalReviewPanelContent: View {
     /// although the window is not yet filling up, and the ring opens its
     /// breakdown; the ring sets this back once the breakdown closes.
     @State private var isContextBreakdownRequested = false
+    /// The chat's title is a field: Codex's rename, from a click on the title
+    /// or the header's Rename….
+    @State private var isRenamingChatTitle = false
+    @State private var chatTitleDraft = ""
+    @FocusState private var chatTitleFieldFocused: Bool
     /// New Notebook from This Chat, asked from the notebook picker or ⋯.
     @State private var notebookFromChatRequest: NotebookFromChatRequest?
     /// The composer sends the next message as a side question: an aside about
@@ -2277,13 +2282,7 @@ private struct InternalReviewPanelContent: View {
         if let title = selectedChatTitle {
             let docked = usesDockedHeaderChrome
             let band = docked ? titlebarBandHeight : nil
-            Text(title)
-                .font(.subheadline.weight(.medium))
-                .lineLimit(1)
-                .truncationMode(.tail)
-            // A quiz or chat title is worth pasting elsewhere; the titlebar
-            // band's WindowDragBlocker keeps a drag here a text selection.
-                .textSelection(.enabled)
+            chatTitleLabel(title)
             // A title long enough to fill the column would otherwise run under
             // the header's ⋯, which no longer travels with the column's edge.
             // Truncate it a control-gap short of the button, and give up
@@ -2329,6 +2328,75 @@ private struct InternalReviewPanelContent: View {
                 }
                 .accessibilityAddTraits(.isHeader)
         }
+    }
+
+    /// The title, or the field renaming it. A click on the title renames the
+    /// chat, as Codex's does (product owner, 2026-10-13: "at first it should be a
+    /// copy of the codex ... functionality"); Return keeps the new name and
+    /// Escape the old. A chat with no row yet, a day's review and a team's
+    /// snapshot keep a plain title, selectable to paste elsewhere.
+    @ViewBuilder
+    private func chatTitleLabel(_ title: String) -> some View {
+        if isRenamingChatTitle {
+            TextField("Add a title…", text: $chatTitleDraft)
+                .textFieldStyle(.plain)
+                .font(.subheadline.weight(.medium))
+                .focused($chatTitleFieldFocused)
+                .onSubmit { commitChatTitleRename() }
+                .onExitCommand { isRenamingChatTitle = false }
+                .onChange(of: chatTitleFieldFocused) { _, focused in
+                    if !focused { commitChatTitleRename() }
+                }
+                .onChange(of: manager.currentSessionID) { _, _ in isRenamingChatTitle = false }
+                .accessibilityLabel("Chat title")
+        } else if canRenameChat {
+            Text(title)
+                .font(.subheadline.weight(.medium))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .textSelection(.disabled)
+                .contentShape(Rectangle())
+                .onTapGesture { beginChatTitleRename() }
+                .accessibilityAddTraits(.isButton)
+                .accessibilityHint("Renames the chat")
+        } else {
+            Text(title)
+                .font(.subheadline.weight(.medium))
+                .lineLimit(1)
+                .truncationMode(.tail)
+            // A quiz or chat title is worth pasting elsewhere; the titlebar
+            // band's WindowDragBlocker keeps a drag here a text selection.
+                .textSelection(.enabled)
+        }
+    }
+
+    /// The chat's saved row, which a rename, a pin and a hide act on; nil
+    /// before the chat is saved.
+    private var openChatRecord: ReviewSessionRecord? {
+        guard let sessionID = manager.currentSessionID else { return nil }
+        return vm.reviewSessionLinks.first { $0.id == sessionID }
+    }
+
+    /// Whether the open chat is the learner's to rename here: saved, not a
+    /// day's review (Memory names it), not a team's snapshot.
+    private var canRenameChat: Bool {
+        guard let record = openChatRecord else { return false }
+        return !MemoryReviewSession.isMemorySession(record.id) && !record.isTeamSnapshot
+    }
+
+    private func beginChatTitleRename() {
+        guard let record = openChatRecord, canRenameChat else { return }
+        chatTitleDraft = record.title
+        isRenamingChatTitle = true
+        chatTitleFieldFocused = true
+    }
+
+    private func commitChatTitleRename() {
+        guard isRenamingChatTitle else { return }
+        isRenamingChatTitle = false
+        let title = chatTitleDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let record = openChatRecord, !title.isEmpty, title != record.title else { return }
+        Task { await vm.renameReviewSession(record.id, title: title) }
     }
 
     /// Whether this panel is the review the window has given itself over to.
@@ -2456,6 +2524,29 @@ private struct InternalReviewPanelContent: View {
 
     @ViewBuilder
     private func chatActionsSessionItems(sessionID: String) -> some View {
+        // Codex's header menu leads with the chat's own marks: Pin, Rename,
+        // and Hide in place of its Archive, as the sidebar row's menu does.
+        if let record = openChatRecord, record.id == sessionID, !MemoryReviewSession.isMemorySession(sessionID) {
+            let isPinned = vm.isChatPinned(sessionID)
+            Button {
+                vm.setChatPinned(sessionID, pinned: !isPinned)
+            } label: {
+                Label(isPinned ? "Unpin Chat" : "Pin Chat", systemImage: isPinned ? "pin.slash" : "pin")
+            }
+            if canRenameChat {
+                Button {
+                    beginChatTitleRename()
+                } label: {
+                    Label("Rename…", systemImage: "pencil")
+                }
+            }
+            Button {
+                Task { await vm.setReviewSessionHidden(sessionID, hidden: !record.isHidden) }
+            } label: {
+                Label(record.isHidden ? "Show" : "Hide", systemImage: record.isHidden ? "eye" : "eye.slash")
+            }
+            Divider()
+        }
         OpenStudioDestinationInOtherWindowMenu(
             destination: .chat(sessionID),
             currentWindowState: windowState,

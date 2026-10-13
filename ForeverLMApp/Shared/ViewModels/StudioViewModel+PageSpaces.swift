@@ -453,6 +453,7 @@ extension StudioViewModel {
             PageSpaces.namePreferenceKeyPrefix,
             PageSpaces.membershipPreferenceKeyPrefix,
             PagePins.preferenceKeyPrefix,
+            ChatPins.preferenceKeyPrefix,
             PageParents.preferenceKeyPrefix,
             NotebookCollections.namePreferenceKeyPrefix,
             NotebookCollections.membershipPreferenceKeyPrefix,
@@ -468,6 +469,7 @@ extension StudioViewModel {
         refreshPageSpacesFromRows()
         let pins = PagePinRows.read()
         if pins != pagePins { pagePins = pins }
+        refreshChatPinsFromRows()
         refreshPageParentsFromRows()
         let collections = NotebookCollectionRows.read()
         if collections != notebookCollections { notebookCollections = collections }

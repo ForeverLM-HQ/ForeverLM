@@ -1329,6 +1329,7 @@ extension MCPDataStore {
                 return !screenRecordHidden.contains(id)
             }
             let rows = unfilteredListing && screenScope != nil ? Array(visible.prefix(20)) : visible
+            let pins = ChatPinRows.read()
             var lines = ["Review sessions (\(rows.count)):"]
             for r in rows {
                 let id = r["id"] as? String ?? ""
@@ -1347,7 +1348,8 @@ extension MCPDataStore {
                 // A hidden chat is still the learner's: it stays listed, marked,
                 // so an assistant can find it and show it again.
                 let hidden = r["hidden_at"] is Double ? " [hidden from the sidebar]" : ""
-                lines.append("- \(t) (id: \(id)) [\(status)]\(hidden) \(String(format: "%.0f%%", score * 100)) (\(exchanges) exchanges, \(date)\(model.isEmpty ? "" : ", model: \(model)"))\(summary.isEmpty ? "" : " — \(summary)")")
+                let pinned = pins.isPinned(id) ? " [pinned]" : ""
+                lines.append("- \(t) (id: \(id)) [\(status)]\(pinned)\(hidden) \(String(format: "%.0f%%", score * 100)) (\(exchanges) exchanges, \(date)\(model.isEmpty ? "" : ", model: \(model)"))\(summary.isEmpty ? "" : " — \(summary)")")
             }
             return lines.joined(separator: "\n")
         }
@@ -4373,13 +4375,17 @@ extension MCPDataStore {
         sessionID: String,
         title: String?,
         notebookID: String?,
-        isHidden: Bool? = nil
+        isHidden: Bool? = nil,
+        isPinned: Bool? = nil
     ) throws -> String {
         let store = try knowledgeStore()
         let id = sessionID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !id.isEmpty else { throw MCPError.invalidInput("session_id is required.") }
-        guard title != nil || notebookID != nil || isHidden != nil else {
-            throw MCPError.invalidInput("Pass title, notebook_id, is_hidden, or several.")
+        guard title != nil || notebookID != nil || isHidden != nil || isPinned != nil else {
+            throw MCPError.invalidInput("Pass title, notebook_id, is_hidden, is_pinned, or several.")
+        }
+        if isPinned != nil, MemoryReviewSession.isMemorySession(id) {
+            throw MCPError.invalidInput("A day's memory review is Memory's and is never pinned.")
         }
         guard try store.loadReviewSessionForSync(id) != nil else {
             throw MCPError.notFound("Review session not found: \(id). Call get_review_sessions for the current ids.")
@@ -4404,6 +4410,20 @@ extension MCPDataStore {
         if let isHidden {
             try store.setReviewSessionHidden(id, hidden: isHidden)
         }
+        // A pin is the learner's synced preference row (`ChatPins`), written
+        // as Pin Chat writes it; the open window reseeds its pins from the
+        // rows on the data-change reload.
+        var pins = ChatPinRows.read()
+        if let isPinned, isPinned != pins.isPinned(id) {
+            if isPinned {
+                let seconds = pins.newPinValue(at: Date())
+                ChatPinRows.write(String(seconds), sessionID: id)
+                pins = pins.setting(seconds, for: id)
+            } else {
+                ChatPinRows.write(nil, sessionID: id)
+                pins = pins.setting(nil, for: id)
+            }
+        }
         guard let updated = try store.loadReviewSessionForSync(id) else {
             throw MCPError.notFound("Review session not found: \(id).")
         }
@@ -4421,9 +4441,11 @@ extension MCPDataStore {
             "notebook_id": updated.goalID.map { $0 as Any } ?? NSNull(),
             "is_hidden": hiddenAt != nil,
             "hidden_at": hiddenAt.map { ISO8601DateFormatter().string(from: $0) as Any } ?? NSNull(),
-            "message": hiddenAt == nil
+            "is_pinned": pins.isPinned(id),
+            "message": (hiddenAt == nil
                 ? placement
-                : placement + " It is hidden from the sidebar; the Hidden fold under Chats lists it.",
+                : placement + " It is hidden from the sidebar; the Hidden fold under Chats lists it.")
+                + (pins.isPinned(id) ? " It is pinned: Home's sidebar lists it under Pinned." : ""),
         ] as [String: Any])
     }
 

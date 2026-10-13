@@ -34,7 +34,13 @@ new one), **Pin to Sidebar**, Archive and Delete; an archived notebook waits in
 renames or deletes it; this browser remembers the choice. **Courses**, in the
 Space's sidebar, shows every course, and a course opens its lessons there. The
 rail's **Notebooks** comes back to All, and under it are your pinned notebooks
-and the six you worked in last, rather than every notebook; **Memory** starts a
+and the six you worked in last, rather than every notebook. A chat's right-click
+has **Pin Chat**, **Rename**, **Mark as Unread**, Move to Notebook and **Delete**
+(which asks first): a pinned chat leaves the Chats list for **Pinned**, under
+your pinned notebooks, the same pins your Mac shows, and dragging one onto
+another reorders them. A chat whose reply finished while you had another chat
+open shows a dot, as does a notebook holding one, until you open it; these
+dots are this browser's own. **Memory** starts a
 review of what is due in a chat; **Plugins** lists the plugins a browser can
 reach (Google Drive, Slack, Linear, GitHub and Notion) with whether each is
 connected, and a plugin's page has its one action: **Manage** for the four read

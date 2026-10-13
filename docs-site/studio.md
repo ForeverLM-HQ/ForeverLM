@@ -252,6 +252,17 @@ Chat** on its right-click menu) starts a library chat; a chat's
 check** wait at the foot of this sidebar, or in the window's corner where it is
 not showing.
 
+Chats work as Codex's do. A chat's menu (right-click, or its **⋯** on hover)
+starts with **Pin Chat**, **Rename…**, **Mark as Unread** and **Hide**, then
+**Move to Notebook ▸** and where it opens, and ends with **Delete…**, which
+asks first. A pinned chat leaves its list for **Pinned**, under your pinned
+notebooks, on every Mac and on the web; drag one pinned chat onto another to
+reorder them. When a reply finishes while its chat is not on screen in any
+window, the chat's row shows a dot until you open it, and a folded notebook
+holding such a chat shows one too (its menu has **Mark All as Read**). The
+dots are this Mac's own. In an open chat, click its title to rename it; its
+**⋯** has **Pin Chat**, **Rename…** and **Hide** too.
+
 Inside a notebook only the strip stays, so the notebook's three columns have
 the window. A rail you hid stays hidden.
 

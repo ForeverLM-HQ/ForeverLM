@@ -368,6 +368,10 @@ enum SyncedPreferenceKeys {
         // `page.parent.<childArtifactID>`: the page a page is nested under
         // (`PageParents`), ChatGPT's subpages. One row per child, per member.
         PageParents.preferenceKeyPrefix,
+        // `chat.pinned.<sessionID>`: a chat in Home's Pinned section and its
+        // place there (`ChatPins`), Codex's Pin chat. One row per chat, per
+        // member, never on the chat's record.
+        ChatPins.preferenceKeyPrefix,
         // `notebook.naming.<notebookID>` — the name and description ForeverLM
         // last put on a notebook made without one, which it may replace while
         // the notebook still carries them (`NotebookNaming`). Follows the
@@ -573,6 +577,9 @@ enum SyncedPreferenceKeys {
         "space.groupByCollection": "device-local: whether this Mac's Space groups All under its collections",
         "space.sidebarHidden": "device-local: whether this Mac's Space sidebar is hidden",
         "space.pagesExpanded": "device-local: which pages' subpages this Mac's Space lists show",
+        // Codex's unread dot is that app's view; ForeverLM's is this Mac's,
+        // as a notebook's outputs' seen marks are (`ChatReadMarks`).
+        ChatReadMarks.defaultsKey: "device-local: the chats this Mac shows as unread",
 
         // Which of this Mac's preference writes knowledge.db has not confirmed.
         PreferenceWriteJournal.defaultsKey: "bookkeeping for this Mac's own unfinished writes",

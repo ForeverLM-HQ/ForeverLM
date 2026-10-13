@@ -1485,8 +1485,22 @@ struct SpaceBrowseView: View {
             vm.showToast("Link copied")
         }
         KnowledgeMapAddToCanvasMenu(refs: [KnowledgeMapOutside.chatRef(chat.id)])
+        Divider()
+        // Codex's marks on a chat, as the sidebar row has them: its pin, which
+        // follows the account, and this Mac's unread dot.
+        let isPinned = vm.isChatPinned(chat.id)
+        Button(isPinned ? "Unpin Chat" : "Pin Chat", systemImage: isPinned ? "pin.slash" : "pin") {
+            vm.setChatPinned(chat.id, pinned: !isPinned)
+        }
+        let isUnread = ChatReadMarks.shared.isUnread(chat.id)
+        Button(isUnread ? "Mark as Read" : "Mark as Unread", systemImage: isUnread ? "checkmark.circle" : "circle") {
+            if isUnread {
+                ChatReadMarks.shared.markRead(chat.id)
+            } else {
+                ChatReadMarks.shared.markUnread(chat.id)
+            }
+        }
         if item.isOwnedHere {
-            Divider()
             Button("Rename…", systemImage: "pencil") {
                 renameDraft = item.title
                 renaming = item

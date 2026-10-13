@@ -203,7 +203,13 @@ new one), **Pin to Sidebar**, Archive and Delete; an archived notebook waits in
 renames or deletes it; this browser remembers the choice. **Courses**, in the
 Space's sidebar, shows every course, and a course opens its lessons there. The
 rail's **Notebooks** comes back to All, and under it are your pinned notebooks
-and the six you worked in last, rather than every notebook; **Memory** starts a
+and the six you worked in last, rather than every notebook. A chat's right-click
+has **Pin Chat**, **Rename**, **Mark as Unread**, Move to Notebook and **Delete**
+(which asks first): a pinned chat leaves the Chats list for **Pinned**, under
+your pinned notebooks, the same pins your Mac shows, and dragging one onto
+another reorders them. A chat whose reply finished while you had another chat
+open shows a dot, as does a notebook holding one, until you open it; these
+dots are this browser's own. **Memory** starts a
 review of what is due in a chat; **Plugins** lists the plugins a browser can
 reach (Google Drive, Slack, Linear, GitHub and Notion) with whether each is
 connected, and a plugin's page has its one action: **Manage** for the four read
@@ -629,6 +635,17 @@ Chat** on its right-click menu) starts a library chat; a chat's
 **Move to Notebook ▸** files it in a notebook. "Plan your day?" and **Cards to
 check** wait at the foot of this sidebar, or in the window's corner where it is
 not showing.
+
+Chats work as Codex's do. A chat's menu (right-click, or its **⋯** on hover)
+starts with **Pin Chat**, **Rename…**, **Mark as Unread** and **Hide**, then
+**Move to Notebook ▸** and where it opens, and ends with **Delete…**, which
+asks first. A pinned chat leaves its list for **Pinned**, under your pinned
+notebooks, on every Mac and on the web; drag one pinned chat onto another to
+reorder them. When a reply finishes while its chat is not on screen in any
+window, the chat's row shows a dot until you open it, and a folded notebook
+holding such a chat shows one too (its menu has **Mark All as Read**). The
+dots are this Mac's own. In an open chat, click its title to rename it; its
+**⋯** has **Pin Chat**, **Rename…** and **Hide** too.
 
 Inside a notebook only the strip stays, so the notebook's three columns have
 the window. A rail you hid stays hidden.
@@ -4129,7 +4146,7 @@ is durably recorded.
 | `get_review_session_transcript` | `session_id` | Return the stored transcript and parsed exchanges. Accepts a chat link, `foreverlm://chat/<id>` — what **Copy Link** in a chat's sidebar menu copies — in place of the id, as does every tool that takes a `session_id`. A chat still in progress returns its turns so far. |
 | `import_review_chat` | `title`, `transcript` \| `transcript_file`, `session_id?`, `notebook_id?`, `source_ids?`, `mark_reviewed?`, `summary?`, `overall_score?`, `model_provider?`, `model_id?`, `started_at?`, `ended_at?` | Import an externally completed review as searchable per-turn exchanges and link its completed state. `transcript_file` reads the assistant's own record of the chat on the Mac (a Claude Code session id or its file) in place of `transcript`, so the chat is stored word for word; `started_at` and `ended_at` draw it on the day's log at the hours it ran. `mark_reviewed: false` saves a chat that researched or discussed its sources without counting them as reviewed or checking them off on the Schedule, and the chat keeps that choice: the sources a later call adds with its `session_id` stay unreviewed unless that call passes `mark_reviewed: true`. On the first chunk, `notebook_id` files the chat directly under that Notebook, or under a Goal from `list_goals` (a chat clearly about a Goal's sources belongs on that Goal, where its row and editor list it), without changing any source pool. A chat too long for one call arrives in chunks: import the first without `session_id`, then pass the id on the `session_id:` line that call's answer ends with as `session_id` with each further chunk and its turns are appended after the stored ones; the title and Notebook are kept, `source_ids` are added, and a summary, score or model given replaces the stored one. A retried chunk identical to the stored tail is not stored twice. The same two calls keep an ordinary conversation about your sources as it happens: the assistant saves the first question and answer without `session_id`, keeps the id, and appends each later exchange with it as soon as it has answered, so every chat about a source is in ForeverLM whether or not it ever ends. The hosted service requires explicit `source_ids` on a first import; only an active Mac can use its current app selection. |
 | `search_review_sessions` | `query`, `limit?` | Search saved review topics, summaries, and transcript text. |
-| `update_review_session` | `session_id`, `title?`, `notebook_id?`, `is_hidden?` | Rename a chat, file it under a notebook (`""` moves it out to the ungrouped Chats), or hide it from the sidebar. |
+| `update_review_session` | `session_id`, `title?`, `notebook_id?`, `is_hidden?`, `is_pinned?` | Rename a chat, file it under a notebook (`""` moves it out to the ungrouped Chats), pin it to Home's Pinned, or hide it from the sidebar. |
 | `delete_review_session` | `session_id` | Delete a review or chat. |
 | `list_review_session_links` | — | The saved Claude and ChatGPT review share links. |
 | `set_review_depth` | `depth`, `source_id?`, `source_type?` | How much of a memory review one source, or a whole kind of source, gets: `quick` (the contour only), `standard` (a probe or two more) or `deep` (the full plan), as in "keep podcasts quick". |

@@ -203,7 +203,7 @@ test("the settings catalog gives every key a value type, a scope and the route a
   // Setting that only its own writers set, so the catalog leaves it out by name (§3.5.3).
   assert.deepEqual(catalog.records["notebook.collections."], { match: "prefix", record: "NotebookState", field: "collections" });
   assert.deepEqual(catalog.records["notebook.chatContextNotebooks."], { match: "prefix", record: "NotebookState", field: "contextNotebooks", origin: "spec" });
-  assert.deepEqual(Object.keys(catalog.leftOut).sort(), ["images.notebookCoverBackfill.", "map.layout.", "notebook.naming.", "notebook.questions.", "notebookCollection.", "page.parent.", "page.pinned.", "page.space.", "pageSpace.", "spaceList.", "spaceListItem.", "studio.workspaceView."]);
+  assert.deepEqual(Object.keys(catalog.leftOut).sort(), ["chat.pinned.", "images.notebookCoverBackfill.", "map.layout.", "notebook.naming.", "notebook.questions.", "notebookCollection.", "page.parent.", "page.pinned.", "page.space.", "pageSpace.", "spaceList.", "spaceListItem.", "studio.workspaceView."]);
   assert.equal(catalog.leftOut["notebook.questions."].type, "string");
   assert.equal(catalog.leftOut["notebookCollection."].type, "string");
   // A space of pages' name and a page's one space (PageSpaces) are their writers' Settings too.

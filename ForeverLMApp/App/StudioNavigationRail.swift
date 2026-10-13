@@ -376,6 +376,8 @@ struct StudioNavigationRail: View {
     @Environment(\.openWindow) private var openWindow
 
     @State private var renamingSession: ReviewSessionRecord?
+    /// The chat whose Delete… is asking first.
+    @State private var deletingSession: ReviewSessionRecord?
     @State private var notebookFromChatRequest: NotebookFromChatRequest?
     @State private var renameText = ""
     /// Disclosure is local navigation state, but it persists across launches so
@@ -628,6 +630,7 @@ struct StudioNavigationRail: View {
         .onChange(of: vm.notebooks.map(\.id)) { _, _ in
             reconcileExpandedNotebooks()
         }
+        // Codex's Rename chat: the title in a field, Save.
         .alert(
             "Rename Chat",
             isPresented: Binding(
@@ -635,9 +638,9 @@ struct StudioNavigationRail: View {
                 set: { if !$0 { renamingSession = nil } }
             )
         ) {
-            TextField("Chat title", text: $renameText)
+            TextField("Add a title…", text: $renameText)
             Button("Cancel", role: .cancel) { renamingSession = nil }
-            Button("Rename") {
+            Button("Save") {
                 if let session = renamingSession {
                     let title = renameText
                     Task { await vm.renameReviewSession(session.id, title: title) }
@@ -645,7 +648,32 @@ struct StudioNavigationRail: View {
                 renamingSession = nil
             }
         }
+        // Delete asks first, as Codex's does and the Space's Chats do; until
+        // 2026-10-13 the rail's Delete was the one hard delete that did not.
+        .confirmationDialog(
+            "Delete \u{2018}\(deletingSession.map(railChatTitle) ?? "this chat")\u{2019}?",
+            isPresented: Binding(
+                get: { deletingSession != nil },
+                set: { if !$0 { deletingSession = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: deletingSession
+        ) { session in
+            Button("Delete", role: .destructive) {
+                deleteSession(session)
+                deletingSession = nil
+            }
+        } message: { _ in
+            Text("The chat and its transcript are deleted. This can\u{2019}t be undone; Hide keeps it out of the list instead.")
+        }
         .newNotebookFromChat($notebookFromChatRequest, vm: vm, window: windowState)
+    }
+
+    /// A chat's name as its row shows it.
+    private func railChatTitle(_ session: ReviewSessionRecord) -> String {
+        session.title.isEmpty
+            ? "Untitled chat"
+            : MemoryReviewSession.displayTitle(storedTitle: session.title, sessionID: session.id)
     }
 
     /// The window's rail, Codex's: a + for a new chat, Spaces, Memory,
@@ -743,6 +771,11 @@ struct StudioNavigationRail: View {
                 .padding(.bottom, 8)
         }
         .task { BackgroundWorkMonitor.shared.start() }
+        // The strip is in every window, always: it reports the window's chats
+        // to the unread marks.
+        .background {
+            ChatActivityReporter(sessionStore: sessionStore, comparisonSessionStore: comparisonSessionStore)
+        }
         .padding(.top, titlebarBandHeight == nil && edge == .leading ? 48 : StudioDesign.Spacing.medium)
         .frame(maxWidth: .infinity)
         // A Space sidebar row dropped anywhere on the strip is kept at the
@@ -843,6 +876,14 @@ struct StudioNavigationRail: View {
                 let notebooks = railNotebooksByID(rail)
                 let railNotebooks = rail.notebookIDs.compactMap { notebooks[$0] }
                 let chatGroups = vm.reviewSessionGroups(for: railNotebooks)
+                // A pinned chat leaves its notebook's chats or the loose ones
+                // for Pinned, under the pinned notebooks, as Codex's pinned
+                // chats leave their project (`ChatPins`).
+                let chats = vm.splittingPinnedChats(
+                    byNotebookID: chatGroups.byNotebookID,
+                    outsideNotebooks: chatGroups.outsideNotebooks
+                )
+                let unreadChatIDs = ChatReadMarks.shared.unreadSessionIDs
                 // Hidden chats leave every list above and sit folded under the
                 // loose chats, whichever Notebook they are filed in.
                 let hiddenChats = vm.hiddenReviewSessions(for: railNotebooks)
@@ -929,14 +970,31 @@ struct StudioNavigationRail: View {
                         )
                     }
 
-                    if !rail.pinnedIDs.isEmpty {
+                    if !rail.pinnedIDs.isEmpty || !chats.pinned.isEmpty {
                         RailSectionHeader(title: "Pinned")
                         ForEach(rail.pinnedIDs.compactMap { notebooks[$0] }) { notebook in
                             notebookRow(
                                 notebook,
                                 scopedNotebook: scopedNotebook,
-                                chatGroups: chatGroups.byNotebookID,
-                                runningSessionIDs: runningSessionIDs
+                                chatGroups: chats.byNotebookID,
+                                runningSessionIDs: runningSessionIDs,
+                                unreadChatIDs: unreadChatIDs
+                            )
+                        }
+                        // The pinned chats, in the learner's order: a drop on
+                        // one moves the dragged pin to its place.
+                        let pinnedIDs = chats.pinned.map(\.id)
+                        ForEach(chats.pinned) { session in
+                            chatRow(
+                                session,
+                                siblingIDs: pinnedIDs,
+                                runningSessionIDs: runningSessionIDs,
+                                indent: 0,
+                                reorder: { dragged in
+                                    withAnimation(.easeInOut(duration: 0.16)) {
+                                        vm.reorderPinnedChat(from: dragged, to: session.id, listed: pinnedIDs)
+                                    }
+                                }
                             )
                         }
                     }
@@ -951,8 +1009,9 @@ struct StudioNavigationRail: View {
                             notebookRow(
                                 notebook,
                                 scopedNotebook: scopedNotebook,
-                                chatGroups: chatGroups.byNotebookID,
-                                runningSessionIDs: runningSessionIDs
+                                chatGroups: chats.byNotebookID,
+                                runningSessionIDs: runningSessionIDs,
+                                unreadChatIDs: unreadChatIDs
                             )
                         }
                     }
@@ -1011,7 +1070,7 @@ struct StudioNavigationRail: View {
                                 )
                             }
                         } else {
-                            chatList(chatGroups.outsideNotebooks, listID: Self.looseChatListID, runningSessionIDs: runningSessionIDs)
+                            chatList(chats.outsideNotebooks, listID: Self.looseChatListID, runningSessionIDs: runningSessionIDs)
                             if !hiddenChats.isEmpty, isHiddenChatsExpanded {
                                 hiddenChatsFold(hiddenChats, runningSessionIDs: runningSessionIDs)
                             }
@@ -1079,9 +1138,15 @@ struct StudioNavigationRail: View {
         _ notebook: LearningGoalRecord,
         scopedNotebook: LearningGoalRecord?,
         chatGroups: [String: [ReviewSessionRecord]],
-        runningSessionIDs: Set<String>
+        runningSessionIDs: Set<String>,
+        unreadChatIDs: Set<String>
     ) -> some View {
         let isExpanded = expandedNotebookIDs.contains(notebook.id)
+        // Its chats that read as unread on this Mac: the row carries Codex's
+        // dot for them while it is folded, and Mark All as Read.
+        let unreadInNotebook = unreadChatIDs.isEmpty
+            ? []
+            : (chatGroups[notebook.id] ?? []).map(\.id).filter(unreadChatIDs.contains)
         RailNotebookRow(
             goal: notebook,
             notebookTitle: NotebookTitle(notebook.title),
@@ -1092,6 +1157,7 @@ struct StudioNavigationRail: View {
             // Selected while its notebook fills this window.
             isSelected: windowState.NotebookID == notebook.id,
             isExpanded: isExpanded,
+            unreadChatIDs: unreadInNotebook,
             // A click opens the notebook in this window and shows
             // its chats; it never closes the notebook or folds
             // them — ‹ Notebooks, the notebook's ⋯ and the
@@ -1167,6 +1233,9 @@ struct StudioNavigationRail: View {
             if MemoryReviewSession.isMemorySession(session.id) {
                 // A day's review has no row in the rail; the Memory row is
                 // where it is reached, and nothing unfolds.
+                continue
+            } else if vm.isChatPinned(session.id) {
+                // Its row is in Pinned, which never folds.
                 continue
             } else if let goalID = session.goalID, railIDs.contains(goalID) {
                 expandedNotebookIDs.insert(goalID)
@@ -1609,17 +1678,21 @@ struct StudioNavigationRail: View {
         chatList(sessions, listID: Self.hiddenChatListID, runningSessionIDs: runningSessionIDs, indent: 12)
     }
 
+    /// One chat's row. `reorder` replaces the list's own drop (the chats'
+    /// order) where the row is in Pinned, whose drop moves a pin.
     private func chatRow(
         _ session: ReviewSessionRecord,
         siblingIDs: [String],
         runningSessionIDs: Set<String>,
-        indent: CGFloat = 8
+        indent: CGFloat = 8,
+        reorder: ((String) -> Void)? = nil
     ) -> some View {
-        RailChatRow(
+        let isMemoryReview = MemoryReviewSession.isMemorySession(session.id)
+        let isPinned = vm.isChatPinned(session.id)
+        let isUnread = ChatReadMarks.shared.isUnread(session.id)
+        return RailChatRow(
             sessionID: session.id,
-            title: session.title.isEmpty
-                ? "Untitled chat"
-                : MemoryReviewSession.displayTitle(storedTitle: session.title, sessionID: session.id),
+            title: railChatTitle(session),
             // A team's snapshot is the one chat marked apart: nobody
             // continues it (docs/teams-design.md).
             systemImage: chatRowIcon(for: session),
@@ -1643,9 +1716,26 @@ struct StudioNavigationRail: View {
             moveToNotebook: { goalID in
                 Task { await vm.moveReviewSession(session.id, toNotebook: goalID) }
             },
-            reorder: { draggedSessionID in
+            reorder: reorder ?? { draggedSessionID in
                 withAnimation(.easeInOut(duration: 0.16)) {
                     vm.reorderReviewSession(from: draggedSessionID, to: session.id)
+                }
+            },
+            // Codex's Pin chat: a day's review is Memory's and never pins.
+            isPinned: isPinned,
+            togglePinned: isMemoryReview ? nil : {
+                withAnimation(.easeInOut(duration: 0.16)) {
+                    vm.setChatPinned(session.id, pinned: !isPinned)
+                }
+            },
+            // Codex's dot, this Mac's: Mark as Read takes it off by hand,
+            // Mark as Unread puts it on until the chat is opened again.
+            isUnread: isUnread,
+            toggleUnread: {
+                if isUnread {
+                    ChatReadMarks.shared.markRead(session.id)
+                } else {
+                    ChatReadMarks.shared.markUnread(session.id)
                 }
             },
             rename: {
@@ -1666,7 +1756,9 @@ struct StudioNavigationRail: View {
                 || vm.isActiveLibraryReadOnly
                 ? nil
                 : { notebookFromChatRequest = NotebookFromChatRequest(sessionID: session.id, title: session.title) },
-            delete: { deleteSession(session) }
+            // Delete asks first, as Codex's does: it is the chat's fate, where
+            // Hide is only the list's.
+            delete: { deletingSession = session }
         )
         .onDrag { () -> NSItemProvider in
             StudioDragVisibility.shared.begin(sessionID: session.id)
@@ -1691,8 +1783,7 @@ struct StudioNavigationRail: View {
         // keep that actor busy for a while; leaving the selected chat active in
         // the meantime lets an in-flight response save back into the session the
         // learner just deleted.
-        sessionStore.deleteSession(session.id)
-        comparisonSessionStore.deleteSession(session.id)
+        StudioAssistantSessionStore.deleteSessionEverywhere(session.id)
         Task {
             await vm.deleteReviewSessionLink(session.id)
         }
@@ -2841,6 +2932,9 @@ private struct RailNotebookRow: View {
     let isActive: Bool
     let isSelected: Bool
     let isExpanded: Bool
+    /// Its chats that read as unread on this Mac (`ChatReadMarks`): folded,
+    /// the row carries Codex's dot for them, and its menu Mark All as Read.
+    let unreadChatIDs: [String]
     let open: () -> Void
     let toggleExpanded: () -> Void
     let newChat: () -> Void
@@ -2923,6 +3017,11 @@ private struct RailNotebookRow: View {
                 }
                 .buttonStyle(.hoverWash(cornerRadius: 6, inset: 0, opacity: 0.10))
                 .help("New chat in this notebook")
+            } else if !isExpanded, !unreadChatIDs.isEmpty {
+                // A folded notebook holding an unread chat shows Codex's dot,
+                // as a Codex project does; unfolded, the chat's own row has it.
+                RailUnreadDot()
+                    .frame(width: 20, height: 20)
             } else {
                 newChatGlyph
                     .hidden()
@@ -2965,6 +3064,7 @@ private struct RailNotebookRow: View {
         .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityValue(unreadChatIDs.isEmpty ? "" : "Unread chats")
         // The + and the chevron, for VoiceOver: it has no pointer to bring
         // them out, and neither is on the right-click menu.
         .accessibilityAction(named: Text("New Chat in Notebook"), newChat)
@@ -2979,6 +3079,12 @@ private struct RailNotebookRow: View {
                 openNewWindow: { openWindow(id: "studio") }
             )
             Divider()
+            // Codex's Mark all as read on a project.
+            if !unreadChatIDs.isEmpty {
+                Button("Mark All as Read", systemImage: "checkmark.circle") {
+                    for id in unreadChatIDs { ChatReadMarks.shared.markRead(id) }
+                }
+            }
             // Pinning is this learner's own rail, not the team's Notebook, so
             // a read-only library does not disable it.
             NotebookPinToggleButton(goal: goal)
@@ -3126,6 +3232,14 @@ private struct RailChatRow: View {
     let moveToNotebook: (String?) -> Void
     /// Called with the dragged chat's id once a sibling has been dropped here.
     let reorder: (String) -> Void
+    /// Whether the chat is in Pinned (`ChatPins`).
+    let isPinned: Bool
+    /// Pin Chat / Unpin Chat; nil where a chat never pins (a day's review).
+    let togglePinned: (() -> Void)?
+    /// Whether the chat reads as unread on this Mac (`ChatReadMarks`): the
+    /// row's leading column shows Codex's dot.
+    let isUnread: Bool
+    let toggleUnread: () -> Void
     let rename: () -> Void
     /// Whether the chat is hidden from the sidebar — the row is then
     /// drawn under the Hidden fold and its menu offers Show instead of Hide.
@@ -3166,7 +3280,11 @@ private struct RailChatRow: View {
                     // edge. One colour, selected or not: the row's fill says
                     // which is selected.
                     Group {
-                        if let systemImage {
+                        // Codex's unread dot, in the leading column; a chat
+                        // still running shows its spinner instead.
+                        if isUnread, !isRunning {
+                            RailUnreadDot()
+                        } else if let systemImage {
                             Image(systemName: systemImage)
                                 .font(.system(size: 11, weight: .medium))
                                 .foregroundStyle(isSelected ? Color.primary : Color.secondary)
@@ -3222,7 +3340,7 @@ private struct RailChatRow: View {
         }
         .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
-        .accessibilityValue(isRunning ? "Running" : "")
+        .accessibilityValue(isRunning ? "Running" : isUnread ? "Unread" : "")
         .onHover { isHovering in
             hovering = isHovering
             if isHovering {
@@ -3285,28 +3403,38 @@ private struct RailChatRow: View {
         .help("More actions")
     }
 
+    /// The row's menu, in Codex's order (product owner, 2026-10-13: "at first it
+    /// should be a copy of the codex ... functionality"): Pin, Rename, Mark as
+    /// Unread and Hide — ForeverLM's put-away in place of Codex's Archive —
+    /// then where the chat is filed, then where it opens and its address,
+    /// then Delete…, which asks first. ForeverLM's own items (Open Beside,
+    /// Add to Canvas, New Notebook from This Chat, Share Transcript with Team)
+    /// sit in the sections they belong to.
     @ViewBuilder
     private var menuItems: some View {
-        Button(action: openBeside) {
-            Label("Open Beside", systemImage: "rectangle.split.2x1")
+        if let togglePinned {
+            Button(action: togglePinned) {
+                Label(isPinned ? "Unpin Chat" : "Pin Chat", systemImage: isPinned ? "pin.slash" : "pin")
+            }
         }
-        OpenStudioDestinationInOtherWindowMenu(
-            destination: .chat(sessionID),
-            currentWindowState: windowState,
-            openNewWindow: { openWindow(id: "studio") }
-        )
-        // The chat's address, `foreverlm://chat/<id>`: it opens the chat in the
-        // app, a doc renders it as a link, and every plugin tool that takes a
-        // session_id takes it as given — so a chat still running here can be
-        // pasted to Codex or Claude, which read its turns so far over MCP.
-        Button(action: copyLink) {
-            Label("Copy Link", systemImage: "link")
-        }
-        .help("Copy this chat's address; paste it to a person or to an assistant using the ForeverLM plugin")
-        KnowledgeMapAddToCanvasMenu(refs: [KnowledgeMapOutside.chatRef(sessionID)])
-        Divider()
         Button(action: rename) {
-            Label("Rename", systemImage: "pencil")
+            Label("Rename…", systemImage: "pencil")
+        }
+        Button(action: toggleUnread) {
+            Label(isUnread ? "Mark as Read" : "Mark as Unread", systemImage: isUnread ? "checkmark.circle" : "circle")
+        }
+        // Hide is the learner's view, where Delete is the record's fate (product owner,
+        // 2026-09-12: "please allow me to hide chats as well"). The chat, its
+        // transcript and its Notebook link stay; only the row leaves, for the
+        // Hidden fold under Chats, where Show on this same menu brings it back.
+        Button(action: toggleHidden) {
+            Label(isHidden ? "Show" : "Hide", systemImage: isHidden ? "eye" : "eye.slash")
+        }
+        .help(isHidden
+            ? "List this chat in the sidebar again"
+            : "Take this chat out of the sidebar on every Mac signed into your account; it stays under Hidden, beneath Chats")
+        if !notebooks.isEmpty || !goals.isEmpty || newNotebookFromChat != nil || shareWithTeam != nil {
+            Divider()
         }
         if !notebooks.isEmpty || !goals.isEmpty {
             Menu {
@@ -3360,23 +3488,31 @@ private struct RailChatRow: View {
                 Label("New Notebook from This Chat", systemImage: "rectangle.stack.badge.plus")
             }
         }
-        // Hide is the learner's view, where Delete is the record's fate (product owner,
-        // 2026-09-12: "please allow me to hide chats as well"). The chat, its
-        // transcript and its Notebook link stay; only the row leaves, for the
-        // Hidden fold under Chats, where Show on this same menu brings it back.
-        Button(action: toggleHidden) {
-            Label(isHidden ? "Show" : "Hide", systemImage: isHidden ? "eye" : "eye.slash")
-        }
-        .help(isHidden
-            ? "List this chat in the sidebar again"
-            : "Take this chat out of the sidebar on every Mac signed into your account; it stays under Hidden, beneath Chats")
         if let shareWithTeam {
             // A transcript carries no source, so it asks nothing first.
             ShareWithTeamMenu(title: "Share Transcript with Team", asksSharingRights: false, share: shareWithTeam)
         }
         Divider()
+        Button(action: openBeside) {
+            Label("Open Beside", systemImage: "rectangle.split.2x1")
+        }
+        OpenStudioDestinationInOtherWindowMenu(
+            destination: .chat(sessionID),
+            currentWindowState: windowState,
+            openNewWindow: { openWindow(id: "studio") }
+        )
+        // The chat's address, `foreverlm://chat/<id>`: it opens the chat in the
+        // app, a doc renders it as a link, and every plugin tool that takes a
+        // session_id takes it as given — so a chat still running here can be
+        // pasted to Codex or Claude, which read its turns so far over MCP.
+        Button(action: copyLink) {
+            Label("Copy Link", systemImage: "link")
+        }
+        .help("Copy this chat's address; paste it to a person or to an assistant using the ForeverLM plugin")
+        KnowledgeMapAddToCanvasMenu(refs: [KnowledgeMapOutside.chatRef(sessionID)])
+        Divider()
         Button(role: .destructive, action: delete) {
-            Label("Delete", systemImage: "trash")
+            Label("Delete…", systemImage: "trash")
         }
     }
 
@@ -3391,6 +3527,58 @@ private struct RailChatRow: View {
 
     private func notebookTitle(_ notebook: LearningGoalRecord) -> String {
         notebook.title.isEmpty ? "Untitled notebook" : notebook.title
+    }
+}
+
+/// Codex's unread dot: on a chat whose reply finished while no window showed
+/// it, and on a folded notebook holding one (`ChatReadMarks`).
+struct RailUnreadDot: View {
+    var body: some View {
+        Circle()
+            .fill(Color.accentColor)
+            .frame(width: 6, height: 6)
+            .accessibilityHidden(true)
+    }
+}
+
+/// Tells `ChatReadMarks` what this window's chats are doing: the ones on
+/// screen, which a window showing them reads, and the ones running, whose
+/// reply leaves them unread when it finishes with no window showing them. Its
+/// own view, mounted once per window by the icon strip, so a turn's flags
+/// flipping redraw this and not the strip.
+private struct ChatActivityReporter: View {
+    let sessionStore: StudioAssistantSessionStore
+    let comparisonSessionStore: StudioAssistantSessionStore
+
+    @Environment(StudioWindowState.self) private var windowState
+
+    private var shown: Set<String> {
+        StudioNavigationRail.highlightedSessionIDs(
+            primary: sessionStore.activeSessionID,
+            comparison: comparisonSessionStore.activeSessionID,
+            in: windowState
+        )
+    }
+
+    private var running: Set<String> {
+        sessionStore.runningSessionIDs.union(comparisonSessionStore.runningSessionIDs)
+    }
+
+    var body: some View {
+        Color.clear
+            .frame(width: 0, height: 0)
+            .accessibilityHidden(true)
+            .onChange(of: shown, initial: true) { _, ids in
+                ChatReadMarks.shared.showing(ids, inWindow: windowState.id.uuidString)
+            }
+            .onChange(of: running) { before, now in
+                for sessionID in before.subtracting(now) {
+                    ChatReadMarks.shared.replyFinished(sessionID)
+                }
+            }
+            .onDisappear {
+                ChatReadMarks.shared.closingWindow(windowState.id.uuidString)
+            }
     }
 }
 

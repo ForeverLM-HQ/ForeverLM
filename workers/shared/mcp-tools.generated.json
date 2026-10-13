@@ -12165,11 +12165,15 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Rename a review session or chat, file it under a Notebook, or hide it from the sidebar — what the chat's sidebar row offers. Omit a field to keep it; pass notebook_id \"\" to move the chat out of its Notebook into the ungrouped Chats list. Linked sources are changed with update_review_session_sources.",
+    "description" : "Rename a review session or chat, file it under a Notebook, pin it, or hide it from the sidebar — what the chat's sidebar row offers. Omit a field to keep it; pass notebook_id \"\" to move the chat out of its Notebook into the ungrouped Chats list. Linked sources are changed with update_review_session_sources.",
     "inputSchema" : {
       "properties" : {
         "is_hidden" : {
           "description" : "Optional: true hides the chat from the sidebar on every Mac signed into this account (the Hidden fold under Chats lists it again), false shows it. The chat, its transcript, its Notebook and its team copies are untouched, and search and get_review_sessions still find it; only the hide itself syncs.",
+          "type" : "boolean"
+        },
+        "is_pinned" : {
+          "description" : "Optional: true pins the chat, as its row's Pin Chat does: Home's sidebar lists it under Pinned, newest pin first, on every device signed into this account; false unpins it. Only the pin syncs, never the chat's record; a day's memory review is never pinned. get_review_sessions marks pinned chats [pinned].",
           "type" : "boolean"
         },
         "notebook_id" : {

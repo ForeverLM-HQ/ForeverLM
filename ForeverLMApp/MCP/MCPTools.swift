@@ -4395,7 +4395,7 @@ final class MCPToolRegistry: @unchecked Sendable {
             ),
             MCPToolDef(
                 name: "update_review_session",
-                description: "Rename a review session or chat, file it under a Notebook, or hide it from the sidebar — what the chat's sidebar row offers. Omit a field to keep it; pass notebook_id \"\" to move the chat out of its Notebook into the ungrouped Chats list. Linked sources are changed with update_review_session_sources.",
+                description: "Rename a review session or chat, file it under a Notebook, pin it, or hide it from the sidebar — what the chat's sidebar row offers. Omit a field to keep it; pass notebook_id \"\" to move the chat out of its Notebook into the ungrouped Chats list. Linked sources are changed with update_review_session_sources.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -4403,6 +4403,7 @@ final class MCPToolRegistry: @unchecked Sendable {
                         "title": ["type": "string", "description": "New title. Must not be empty."],
                         "notebook_id": ["type": "string", "description": "The Notebook (from list_notebooks) or the Goal (from list_goals) to file the chat under — a chat clearly about a Goal's sources belongs on that Goal, where its row and editor list it and its reviews read it as history; \"\" removes it from its Notebook or Goal."],
                         "is_hidden": ["type": "boolean", "description": "Optional: true hides the chat from the sidebar on every Mac signed into this account (the Hidden fold under Chats lists it again), false shows it. The chat, its transcript, its Notebook and its team copies are untouched, and search and get_review_sessions still find it; only the hide itself syncs."],
+                        "is_pinned": ["type": "boolean", "description": "Optional: true pins the chat, as its row's Pin Chat does: Home's sidebar lists it under Pinned, newest pin first, on every device signed into this account; false unpins it. Only the pin syncs, never the chat's record; a day's memory review is never pinned. get_review_sessions marks pinned chats [pinned]."],
                     ],
                     "required": ["session_id"],
                 ]
@@ -7118,7 +7119,8 @@ final class MCPToolRegistry: @unchecked Sendable {
                     sessionID: MCPDataStore.reviewSessionID(from: arguments["session_id"]),
                     title: arguments["title"] as? String,
                     notebookID: arguments["notebook_id"] as? String,
-                    isHidden: arguments["is_hidden"] as? Bool
+                    isHidden: arguments["is_hidden"] as? Bool,
+                    isPinned: arguments["is_pinned"] as? Bool
                 )
             case "extract_paper_metadata":
                 return try await store.extractPaperMetadataForSource(sourceID: arguments["source_id"] as? String ?? "")
