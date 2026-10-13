@@ -724,6 +724,36 @@ body.read-only .artifact-selection-assistant button[data-role="ai"] {
 
 .artifact-link-picker[hidden] { display: none; }
 
+/* The Link field shows its whole placeholder ("Paste a link, or type a
+   page's title"); at Crepe's 200px it was cut off mid-word. */
+.milkdown .milkdown-link-edit > .link-edit > .input-area {
+  width: 260px;
+}
+
+/* An address in the Link field is offered as a row of its own, "Link to …",
+   with the link glyph, so a web link reads as a choice beside the pages. What
+   it would take off grounded words is said in full on a line of its own. */
+.artifact-link-picker[data-source="field"] {
+  min-width: 300px;
+}
+
+.artifact-link-picker-row[data-kind="web"] {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+}
+
+.artifact-link-picker-row[data-kind="web"] .artifact-link-picker-title {
+  flex: 1 1 0;
+}
+
+.artifact-link-picker-row[data-kind="web"] .artifact-link-picker-detail {
+  flex: 1 0 100%;
+  max-width: none;
+  padding-left: 26px;
+  white-space: normal;
+}
+
 .artifact-link-picker-row {
   display: flex;
   align-items: baseline;

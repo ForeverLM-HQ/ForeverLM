@@ -1821,6 +1821,7 @@ function pickerRows(state) {
     case 'slash': return slashRows(state.query)
     case 'mention': return linkTargetMatches(state.query, 10).map(targetRow)
     case 'block': return state.rows ?? []
+    case 'field': return linkFieldRows(state)
     default: return linkTargetMatches(state.query).map(targetRow)
   }
 }
@@ -1909,12 +1910,25 @@ function choosePickerRow(index) {
   const view = activeEditorView()
   if (!row || !view) return
   if (state.source === 'field') {
+    const input = state.input
+    if (row.kind === 'web') {
+      // A web address is Crepe's own kind of link: the field confirms it,
+      // over the selected words or, with none, as the address itself. The
+      // field is handed the address with its scheme first, and the Return
+      // reaches it once the list is gone (the field's input redraws it).
+      if (input.value !== row.address) {
+        input.value = row.address
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+      }
+      hideLinkPicker()
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
+      return
+    }
     // Crepe selected the link's range when it opened the field, and its
     // Escape puts the field away and hands focus back to the prose; the
     // link is then written over that range here rather than confirmed
     // through the field, whose confirm would make the address the text.
     const { from, to } = view.state.selection
-    const input = state.input
     hideLinkPicker()
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
     writeInAppLink(row.target, from, to)
@@ -2098,27 +2112,73 @@ function linkFieldInput(target) {
   return target instanceof HTMLInputElement && target.matches('.milkdown-link-edit input') ? target : null
 }
 
-/// A scheme, `www.`, a bare domain with a path, an anchor or a path: the field
-/// holds an address, and the list stays out of the way of pasting one.
+/// A scheme with `//`, `mailto:` or `tel:`, `www.`, a bare domain with a path,
+/// `localhost`, an anchor or a path: the field holds an address. A title with
+/// a colon in it ("Biotech: strategy") is a title, not a scheme.
 function looksLikeAddress(value) {
   const text = String(value ?? '').trim()
   if (!text) return false
-  return /^[a-z][a-z0-9+.-]*:/i.test(text)
+  return /^[a-z][a-z0-9+.-]*:\/\//i.test(text)
+    || /^(mailto|tel):\S/i.test(text)
     || /^(www\.|[#/])/i.test(text)
-    || /^\S+\.[a-z]{2,}(\/\S*)?$/i.test(text)
+    || /^localhost(:\d+)?(\/\S*)?$/i.test(text)
+    || /^\S+\.[a-z]{2,}(:\d+)?(\/\S*)?$/i.test(text)
+}
+
+/// What a link to an address the field holds points at. One typed without a
+/// scheme ("nature.com/articles/…") gets `https://`: written bare, it was a
+/// relative address that opened nothing.
+function webAddressFromField(value) {
+  const text = String(value ?? '').trim()
+  if (!text || /^[a-z][a-z0-9+.-]*:/i.test(text) || /^[#/]/.test(text)) return text
+  return `https://${text}`
+}
+
+/// Whether any words in a range stand on attached sources.
+function rangeHasGrounding(state, from, to) {
+  const link = state.schema.marks.link
+  let found = false
+  state.doc.nodesBetween(from, to, (node) => {
+    if (found || !node.isText) return !found
+    found = node.marks.some((mark) => mark.type === link && groundingSourceIDs(mark.attrs.href).length > 0)
+    return false
+  })
+  return found
+}
+
+/// The Link field's list. An address is offered as itself, the first row,
+/// so a web link is as plain a choice as a page (product owner, 2026-10-12:
+/// "the link really should allow for a hyperlink"); anything else searches
+/// the pages and Notebooks. A passage's attached sources and a web address
+/// ride the same link mark, so a web link written over grounded words takes
+/// their sources off them, and the row says so before it is chosen.
+function linkFieldRows(state) {
+  const query = String(state.query ?? '').trim()
+  if (!looksLikeAddress(query)) return linkTargetMatches(query).map(targetRow)
+  return [{
+    key: `web:${query}`,
+    kind: 'web',
+    icon: 'link',
+    title: `Link to ${query}`,
+    detail: state.grounded ? 'Replaces the attached sources' : '',
+    address: webAddressFromField(query),
+  }]
 }
 
 function refreshLinkFieldPicker(input) {
   const current = linkPickerState?.source === 'field' ? linkPickerState : null
-  if (!input || !isEditable || document.activeElement !== input || looksLikeAddress(input.value)) {
+  if (!input || !isEditable || document.activeElement !== input) {
     if (current) hideLinkPicker()
     return
   }
+  const view = activeEditorView()
+  const selection = view?.state.selection
   const anchor = input.closest('.milkdown-link-edit') ?? input
   openLinkPicker({
     source: 'field',
     input,
     query: input.value,
+    grounded: Boolean(view && selection && selection.to > selection.from && rangeHasGrounding(view.state, selection.from, selection.to)),
     anchorRect: () => (anchor.isConnected ? anchor.getBoundingClientRect() : null),
   })
 }
