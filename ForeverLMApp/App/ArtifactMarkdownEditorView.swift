@@ -616,6 +616,55 @@ struct ArtifactAIEditRequest: Equatable, Sendable {
     static let instructionsLimit = 2_000
 }
 
+/// Pictures pasted or dropped onto a page (`imagesPasted`): each one's data
+/// URL, written to a file in a folder of its own under `directory` for the
+/// host to keep in the page's attachments the way it keeps a file picked for
+/// the Image row. The file is named for the picture, because that name is
+/// the picture's alt text; WebKit names every pasted picture "image", which
+/// says nothing, so it reads "Pasted image". A data URL that is not a base64
+/// picture of a type the system knows is skipped; so is anything past the
+/// first `limit`.
+enum ArtifactPastedImages {
+    static let limit = 20
+
+    static func files(from payload: [String: Any], in directory: URL = FileManager.default.temporaryDirectory) -> [URL] {
+        guard let images = payload["images"] as? [[String: Any]] else { return [] }
+        var files: [URL] = []
+        for image in images.prefix(limit) {
+            guard let dataURL = image["dataURL"] as? String, let picture = decode(dataURL) else { continue }
+            let named = ((image["name"] as? String) ?? "") as NSString
+            let stem = String(named.deletingPathExtension.unicodeScalars.filter {
+                CharacterSet.alphanumerics.contains($0) || $0 == "-" || $0 == "_" || $0 == " "
+            }).trimmingCharacters(in: .whitespaces)
+            let name = stem.isEmpty || stem.lowercased() == "image" ? "Pasted image" : String(stem.prefix(60))
+            let folder = directory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+            let url = folder.appendingPathComponent("\(name).\(picture.fileExtension)")
+            do {
+                try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                try picture.data.write(to: url, options: .atomic)
+                files.append(url)
+            } catch {
+                continue
+            }
+        }
+        return files
+    }
+
+    /// `data:image/<type>;base64,<data>`, read as the bytes and the file
+    /// ending of that type; nil for anything else.
+    static func decode(_ dataURL: String) -> (data: Data, fileExtension: String)? {
+        guard dataURL.hasPrefix("data:"), let comma = dataURL.firstIndex(of: ",") else { return nil }
+        let header = dataURL[dataURL.index(dataURL.startIndex, offsetBy: 5)..<comma]
+        guard header.hasSuffix(";base64") else { return nil }
+        let mimeType = String(header.dropLast(";base64".count))
+        guard let type = UTType(mimeType: mimeType), type.conforms(to: .image),
+              let fileExtension = type.preferredFilenameExtension,
+              let data = Data(base64Encoded: String(dataURL[dataURL.index(after: comma)...])),
+              !data.isEmpty else { return nil }
+        return (data, fileExtension)
+    }
+}
+
 /// The editor's `openAttachmentRequested` payload: the writer chose Save file…
 /// on a link to a file attached to the page. The token is the link's own and is
 /// checked by whoever resolves it (`ArtifactFileAttachment.isStoredToken`); the
@@ -755,6 +804,11 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
     /// Image was chosen in the slash menu: the host asks the writer for a
     /// picture file, and the pick comes back as an `attachmentInsertion`.
     let onRequestImage: () -> Void
+    /// Pictures were pasted or dropped onto the page, written to temporary
+    /// files, each in a folder of its own (`ArtifactPastedImages`): the host
+    /// keeps them in the doc's Attachments and writes each where the caret
+    /// is, as for the Image row, then removes the folders.
+    var onImageFiles: ([URL]) -> Void = { _ in }
     /// Generate image was chosen and described: the answer is the picture,
     /// kept in the doc's Attachments, for the editor to write where the caret
     /// was. A thrown error is shown in the panel.
@@ -873,6 +927,7 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
     }
 
     func updateNSView(_ webView: WKWebView, context: Context) {
+        context.coordinator.onImageFiles = onImageFiles
         context.coordinator.openFoldDocument(foldDocumentID)
         context.coordinator.useNotesGraph(notesGraph)
         context.coordinator.update(
@@ -1015,6 +1070,7 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
         private var onRequestGrounding: (ArtifactGroundingRequest) -> Void
         private var onRequestAIEdit: (ArtifactAIEditRequest) async throws -> String
         private var onRequestImage: () -> Void
+        var onImageFiles: ([URL]) -> Void = { _ in }
         private var onRequestImageGeneration: (ArtifactImageGenerationRequest) async throws -> ArtifactGeneratedImage
         private var onGeneratedImageInserted: (ArtifactGeneratedImage) -> Void
         private var onRequestPrompt: (String) -> Void
@@ -1514,6 +1570,9 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
                 // The writer chose Image in the slash menu: the host asks for a
                 // picture file, and the pick comes back as an insertion.
                 onRequestImage()
+            case "imagesPasted":
+                let files = ArtifactPastedImages.files(from: payload)
+                if !files.isEmpty { onImageFiles(files) }
             case "promptRequested":
                 // A Prompt block's Chat about this: its words wait under the
                 // composer of a chat opened beside the page; nothing is sent.

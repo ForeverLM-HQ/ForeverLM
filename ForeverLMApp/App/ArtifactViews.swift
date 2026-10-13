@@ -3885,6 +3885,17 @@ private struct ArtifactEditor: View {
                 onRequestAIEdit: { request in try await vm.editDocPassageWithAI(request.edit) },
                 // Image in the slash menu: the file picker for a picture.
                 onRequestImage: { isImportingImage = true },
+                // A screenshot pasted, a picture dropped: kept like a picked file,
+                // one after another, and the temporary copies removed.
+                onImageFiles: { files in
+                    guard !isReadOnly else { return }
+                    Task {
+                        for file in files {
+                            await insertImage(from: file)
+                            try? FileManager.default.removeItem(at: file.deletingLastPathComponent())
+                        }
+                    }
+                },
                 // Generate image: drawn on the account's image model and kept in
                 // this doc's Attachments; the editor writes it at the caret.
                 onRequestImageGeneration: { [artifactID = artifact.id] request in

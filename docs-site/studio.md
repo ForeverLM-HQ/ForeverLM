@@ -552,7 +552,7 @@ little between the Mac app and Web Studio.
 | **Visualize** | Makes an interactive visualization from your description. Mac only for now |
 | **Page** | Makes a new Page inside this one and links to it |
 | **Link to page** | Links to another Page or to a notebook |
-| **Image** | Puts a picture from your computer into the Page |
+| **Image** | Puts a picture from your computer into the Page; pasting a screenshot or dropping a picture on the Page does the same |
 | **Generate image** | Describe a picture and the AI draws it into the Page |
 | **Assistant instructions** | Adds guidance for assistants working on the Page. It is stored as a quote that starts with the bold words **Assistant instructions**, so Chat and assistants over MCP read it with the Page, and the AI is given it when it is asked to write or change something there |
 | **Prompt** | Adds a request that readers can open in Chat. It is stored as a quote that starts with the bold word **Prompt** |

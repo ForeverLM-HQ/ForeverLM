@@ -116,6 +116,29 @@ struct ArtifactMarkdownEditorViewTests {
         #expect(ArtifactImageGenerationRequest.parse(["prompt": "A cell"]) == nil)
     }
 
+    @Test("A pasted picture's data URL becomes a file of its own type; anything else is skipped")
+    func pastedImagesBecomeFiles() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("pasted-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let png = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+        let payload: [String: Any] = ["type": "imagesPasted", "images": [
+            ["name": "Screen Shot 2026/10/12.png", "type": "image/png", "dataURL": "data:image/png;base64," + png.base64EncodedString()],
+            ["name": "image.png", "type": "image/png", "dataURL": "data:image/png;base64," + png.base64EncodedString()],
+            ["name": "photo.jpeg", "type": "image/jpeg", "dataURL": "data:image/jpeg;base64," + png.base64EncodedString()],
+            ["name": "notes.txt", "type": "text/plain", "dataURL": "data:text/plain;base64,aGVsbG8="],
+            ["name": "broken.png", "type": "image/png", "dataURL": "data:image/png;base64,***"],
+            ["name": "plain.png", "type": "image/png", "dataURL": "data:image/png,not-base64"],
+        ]]
+        let files = ArtifactPastedImages.files(from: payload, in: directory)
+        // The file's name is the picture's alt text; each is in a folder of its own.
+        #expect(files.map(\.lastPathComponent) == ["Screen Shot 20261012.png", "Pasted image.png", "photo.jpeg"])
+        #expect(Set(files.map { $0.deletingLastPathComponent() }).count == 3)
+        #expect(try Data(contentsOf: files[0]) == png)
+        #expect(ArtifactPastedImages.files(from: ["images": "nope"], in: directory).isEmpty)
+        #expect(ArtifactPastedImages.decode("data:image/gif;base64,") == nil)
+    }
+
     @Test("A drawn picture's alt text is its description on one line, cut at a word under the limit")
     func generatedImageAltText() {
         #expect(ArtifactGeneratedImage.altText(forPrompt: "A cell\nwith a nucleus") == "A cell with a nucleus")

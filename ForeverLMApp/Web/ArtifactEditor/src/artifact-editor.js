@@ -3768,12 +3768,58 @@ function withBlockPastesOnTheirOwnLine(ctx) {
     // A view prop runs before every plugin's, Milkdown's paste among them:
     // this only makes room, and the paste then lands in it.
     handlePaste: (view, event, slice) => {
+      const pictures = pictureFiles(event.clipboardData)
+      if (pictures.length) {
+        keepPictures(pictures)
+        return true
+      }
       if (linkSelectionToPastedAddress(view, event)) return true
       if (pastePlainWords(view, event) || pastePhraseWithItsSpaces(view, event, slice)) return true
       makeRoomForPastedBlock(view, event, slice)
       return previous.handlePaste?.(view, event, slice) ?? false
     },
+    handleDrop: (view, event, slice, moved) => {
+      const pictures = moved ? [] : pictureFiles(event.dataTransfer)
+      if (pictures.length) {
+        // Where it was dropped is where the pictures go in.
+        const at = view.posAtCoords({ left: event.clientX, top: event.clientY })
+        if (at) view.dispatch(view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(at.pos))))
+        keepPictures(pictures)
+        event.preventDefault()
+        return true
+      }
+      return previous.handleDrop?.(view, event, slice, moved) ?? false
+    },
   }))
+}
+
+/// Pictures pasted or dropped onto a page (a screenshot, an image copied from
+/// Preview or Finder) are kept with the page, as a file picked from the Image
+/// row is: the host stores each in the page's attachments and writes it at the
+/// caret (`imagesPasted`, answered with `insertAttachment`). Left to Milkdown,
+/// a picture became a `blob:` address that died with the page, so a pasted
+/// figure was gone the next time the page opened. Only a host that keeps
+/// pictures (`setSlashFeatures({ images })`) is sent them; words copied with
+/// a picture are a passage, and paste as one.
+function pictureFiles(data) {
+  if (!slashFeatures.images || !data) return []
+  const files = [...(data.files ?? [])].filter((file) => file.type.startsWith('image/'))
+  if (files.length === 0) return []
+  const html = data.getData?.('text/html') ?? ''
+  const words = html.replace(/<img\b[^>]*>/gi, '').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim()
+  return words ? [] : files
+}
+
+function keepPictures(files) {
+  Promise.all(files.map((file) => new Promise((resolve) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve({ name: file.name || '', type: file.type, dataURL: String(reader.result ?? '') })
+    reader.onerror = () => resolve(null)
+    reader.readAsDataURL(file)
+  }))).then((images) => {
+    const read = images.filter((image) => image?.dataURL.startsWith('data:image/'))
+    if (read.length) post('imagesPasted', { images: read })
+  })
 }
 
 /// A web address pasted over selected words links them, as ChatGPT's, Notion's
