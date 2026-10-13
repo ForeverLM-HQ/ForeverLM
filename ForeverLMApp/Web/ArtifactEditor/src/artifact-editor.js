@@ -6843,9 +6843,10 @@ async function create(markdown, fontSize) {
         // are Milkdown's keymaps, unchanged.
         [Crepe.Feature.Toolbar]: false,
         [Crepe.Feature.AI]: false,
-        // Empty paragraphs are normal writing space in Notes. Crepe's default
-        // block placeholder repeats "Please enter..." throughout a document.
-        [Crepe.Feature.Placeholder]: false,
+        // A hint on an empty page only (`featureConfigs`): empty paragraphs
+        // are normal writing space, and Crepe's default repeated "Please
+        // enter..." on every one of them.
+        [Crepe.Feature.Placeholder]: true,
         // The per-line drag and add buttons clutter the page, and the slash menu
         // this feature ships is replaced by the editor's own (see "The slash
         // menu"), which also offers what the host can do: AI, pages, pictures.
@@ -6862,6 +6863,9 @@ async function create(markdown, fontSize) {
         // Crepe's code blocks wear One Dark in either appearance: pale words on
         // a light page and a black square behind the current line's number.
         [Crepe.Feature.CodeMirror]: { theme: pageCodeTheme },
+        // A new page said nothing at all: no sign that `/` holds the blocks,
+        // pictures and AI. The hint stands only while the page is empty.
+        [Crepe.Feature.Placeholder]: { text: 'Write, or type / for blocks, pictures and AI', mode: 'doc' },
         [Crepe.Feature.LinkTooltip]: {
           // The field takes a web address or a doc's title (see "Writing a
           // link to a doc or a Notebook"), and says so.
@@ -7090,8 +7094,16 @@ function setMarkdown(markdown, foldState = null) {
       return
     }
   }
-  if (value === currentMarkdown()) {
-    if (opensAnotherDoc) applyFolds(foldState.key, foldState.folds)
+  // Another page always opens fresh, its own words and its own undo, even when
+  // its text matches what is here: two empty pages, two empty daily notes.
+  // `currentMarkdown` trails typing by Milkdown's pause, so a page opened
+  // within it, the same as the text before the typing, kept the typing on
+  // screen, and the host then saved it into the page just opened. The one
+  // exception is an editor just made with this page's text, which the host
+  // names straight after (`create`, then a key).
+  const justMadeWithThisPage = opensAnotherDoc && foldDocumentKey == null && !userHasInteracted && !hasUserChanges && value === lastMarkdown
+  if (justMadeWithThisPage) applyFolds(foldState.key, foldState.folds)
+  if (justMadeWithThisPage || (!opensAnotherDoc && value === currentMarkdown())) {
     // The same doc again: a pooled web view re-attached to a new host — the
     // doc closed and reopened, or opened in a second window. That host starts
     // with no answers and has just cleared the cards to their quiet form; it
