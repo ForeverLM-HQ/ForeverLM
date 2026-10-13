@@ -22,6 +22,13 @@ team's link or has your Mac share it; inviting people by name and removing
 members, and sharing anything else into a team, happen on the Mac in this
 release.
 
+Press **⌘K** or **⇧⌘P** (Ctrl on Windows and Linux) for the command menu, as on
+the Mac and in Codex: one field, "Search chats or run a command". Before you
+type it lists your pinned and recent chats and your recent Pages; as you type
+it finds places (the Space, Pages, Sites, Courses, Google Drive, Plugins),
+chats, notebooks, Pages and Sites, and sources by title. ↑ and ↓ move, Return
+opens, Escape closes. Inside a Page, ⌘K still makes a link.
+
 The web app opens on your Space, as the Mac does: **All** lists every notebook
 and course beside your Pages, sites and Google Docs, and the Space's search finds
 a notebook by its name, summary or topic. **New ▾ › Notebook** asks for nothing:

@@ -277,6 +277,45 @@ so a card stays out of the corner until it has something new to say.
 Inside a notebook only the strip stays, so the notebook's three columns have
 the window. A rail you hid stays hidden.
 
+### The command menu and keyboard shortcuts
+
+Press **⇧⌘P** (View → Command Menu) for the command menu, as in Codex: one field,
+"Search chats or run a command". Before you type it offers Quick actions (New
+Chat, New Page, Plan the Day in Chat, Today's Review, Keyboard Shortcuts), your
+pinned and recent chats and your recent Pages. As you type it finds commands,
+places (the Space, Pages, Sites, Courses, Memory, the Library, Plugins and the
+rest), chats, notebooks, Pages and Sites, sources (by title at once, then by
+what is inside them) and Settings panes, grouped and best match first. ↑ and ↓
+move, Return opens, Escape or a click beside it closes. A command that has a key
+shows it at the end of its row.
+
+**Help → Keyboard Shortcuts** (⌘/) lists every key the app has. The ones that
+follow Codex:
+
+| Keys | What they do |
+|------|--------------|
+| ⇧⌘P | Command menu |
+| ⌘/ | Keyboard shortcuts |
+| ⌘[ / ⌘] | Back and forward through the places the window showed (a course, the Atlas or a plugin's page keeps its own ⌘[ while you are in it) |
+| ⌃⌘S or ⇧⌘S | Show or hide the sidebar |
+| ⇧⌘O | New chat |
+| ⌥⌘N | Quick chat (the Quick Assistant panel) |
+| ⇧⌘[ / ⇧⌘], ⌃⇧Tab / ⌃Tab | Previous and next chat in the sidebar |
+| ⌘1 – ⌘9 | Go to the chat at that place in the sidebar, pinned chats first |
+| ⌥⌘1 – ⌥⌘6 | Open one of the chats started most recently |
+| ⌥⌘R, ⌥⌘P, ⇧⌘U, ⌥⌘L | Rename, pin or unpin, mark as unread, copy the link of the chat on screen |
+| ⇧Esc | Mark all chats as read |
+| ⌃⇧M or ⌃⌘M | The chat's model picker, recent models on top |
+| ⌘F, ⌘G, ⇧⌘G | Find in a chat, next, previous |
+
+The **Chat** menu holds all of these, with **Side Chat** (a new chat beside the
+one open), **Next Unread Chat** and **Hide Chat**. ForeverLM's own keys stay:
+⌘K Open Chat, ⌘R Open Reader, ⌘P Space, ⇧⌘L Library, ⌘D Plan the Day in Chat,
+⇧⌘D Daily Notes, ⇧⌘B the Pomodoro timer, ⇧⌘A Add Sources… in a notebook.
+
+On the web, ⌘K or ⇧⌘P opens the same menu over places, chats, notebooks, Pages
+and sources ([Web library](./web-library)).
+
 ### Plugins
 
 **Plugins** — the rail's grid icon under Library, or View → Plugins — is
