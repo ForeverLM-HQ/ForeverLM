@@ -22,8 +22,6 @@ struct DocSharePopover: View {
     let publish: (DocPageAccess) async throws -> PublishedDocStatus
     /// A team was just given a copy; the header re-reads who holds one.
     let teamShared: () async -> Void
-    /// The Doc got its page: the pane shows it, as the publish sheet does.
-    let firstPublished: () -> Void
     /// The gear: the publish sheet, for the address and the legacy cases.
     let openSettings: () -> Void
     let close: () -> Void
@@ -465,10 +463,8 @@ struct DocSharePopover: View {
     }
 
     private func publishAndRecord(_ access: DocPageAccess) async throws {
-        let wasPublished = status != nil
         let result = try await publish(access)
         vm.publishedDocStatuses[artifact.id] = result
-        if !wasPublished { firstPublished() }
         await vm.refreshPublishedDocStatuses()
     }
 

@@ -40,10 +40,9 @@ final class ArtifactFormattingBridge {
 final class ArtifactDocChromeBridge {
     /// The Page view: the doc drawn the way foreverlm.com draws it, rendered by
     /// the site from the current text. The editor is hidden while it shows.
+    /// Only View as Page turns it on: every page opens in the editor, published
+    /// or not, as a page opens in Codex (docs/codex-parity-audit.md, F1).
     var showsPage = false
-    /// Once the writer explicitly presses Edit/Page, their choice wins for this
-    /// open Doc. Until then a published Doc opens as its rendered page.
-    var pagePresentationWasChosen = false
     var isCommentsVisible = false
     var isPublishSheetPresented = false
     var showUnpublishConfirmation = false
@@ -91,15 +90,13 @@ final class ArtifactDocChromeBridge {
 
     /// Edit or read: the page is the doc as foreverlm.com draws it.
     func togglePage() {
-        pagePresentationWasChosen = true
         showsPage.toggle()
     }
 
-    /// A doc's editor appearing takes the header over. A published doc opens as
-    /// its page; nothing of the previous doc's carries across.
-    func reset(opensAsPage: Bool) {
-        showsPage = opensAsPage
-        pagePresentationWasChosen = false
+    /// A doc's editor appearing takes the header over. Every page opens in the
+    /// editor; nothing of the previous doc's carries across.
+    func reset() {
+        showsPage = false
         isCommentsVisible = false
         isPublishSheetPresented = false
         showUnpublishConfirmation = false
@@ -1381,10 +1378,6 @@ struct ArtifactCanvas: View {
                 },
                 teamShared: {
                     sharingTeamsByArtifactID[artifact.id] = await vm.teamsHoldingDoc(artifact.id)
-                },
-                firstPublished: {
-                    docChrome.pagePresentationWasChosen = false
-                    docChrome.showsPage = true
                 },
                 openSettings: {
                     isSharePopoverPresented = false
@@ -3046,9 +3039,7 @@ private struct ArtifactEditor: View {
                             // The HTML owns its title and report header, and the
                             // doc's controls are in the pane header: nothing of
                             // ours stands between the chrome line and the page
-                            // until Cmd+F opens the find bar. A published doc
-                            // opens as its page, so this is where most presses
-                            // of the shortcut land.
+                            // until Cmd+F opens the find bar.
                             ReaderFindBar(state: findState, prompt: "Find in page")
                             pageSurface
                         } else {
@@ -3120,14 +3111,11 @@ private struct ArtifactEditor: View {
             return true
         }
         .task(id: "\(artifact.id)-\(chrome.reloadGeneration)") { await load() }
-        .onChange(of: publishedStatus, initial: true) { oldStatus, newStatus in
-            if newStatus != nil, !chrome.pagePresentationWasChosen {
-                chrome.showsPage = true
-            } else if oldStatus != nil, newStatus == nil {
-                chrome.showsPage = false
-                chrome.pagePresentationWasChosen = false
-                pageHTML = nil
-            }
+        // Unpublished while its page showed: back to the editor.
+        .onChange(of: publishedStatus) { oldStatus, newStatus in
+            guard oldStatus != nil, newStatus == nil else { return }
+            chrome.showsPage = false
+            pageHTML = nil
         }
         // The page follows the text: toggling it on renders the current draft,
         // and a change to the text while it shows re-renders (the revision
@@ -3187,9 +3175,9 @@ private struct ArtifactEditor: View {
         }
         .onAppear {
             titleDraft = artifact.title
-            // This editor takes the pane header over: a published doc opens
-            // as its page, and nothing of the previous doc's carries across.
-            chrome.reset(opensAsPage: publishedStatus != nil)
+            // This editor takes the pane header over: every page opens here,
+            // ready to type in, and nothing of the previous doc's carries across.
+            chrome.reset()
             chrome.flushDraft = { try await flushDraft() }
             applyBlockReveal()
         }
@@ -3316,9 +3304,9 @@ private struct ArtifactEditor: View {
                 try await flushDraft()
                 return try await vm.publishDoc(artifact.id, access: access, slug: slug)
             } published: { status in
+                // Publishing leaves the page where it is, as a Codex page's
+                // Share does; View as Page shows it as foreverlm.com draws it.
                 publishedStatus = status
-                chrome.pagePresentationWasChosen = false
-                chrome.showsPage = true
             }
         }
         .confirmationDialog(
@@ -4435,13 +4423,10 @@ private struct ArtifactEditor: View {
     }
 
     /// A block asked to be shown in this doc: the editor shows it once it
-    /// holds the doc. A published doc opens as its page, which has no blocks
-    /// to flash, so the doc comes up in the editor for it.
+    /// holds the doc. The rendered page has no blocks to flash, so a doc
+    /// showing it comes back to the editor for it.
     private func applyBlockReveal() {
         guard let blockReveal, blockReveal.artifactID == artifact.id else { return }
-        // Also keeps a page status arriving later from turning the pane to
-        // the page (`publishedStatus`'s handler respects a chosen view).
-        chrome.pagePresentationWasChosen = true
         if chrome.showsPage { chrome.showsPage = false }
         notesGraph.bridge.reveal(blockReveal)
     }
@@ -4667,7 +4652,6 @@ private struct ArtifactEditor: View {
             guard snapshot != nil else { return }
             pendingPublicationExport = format
             if chrome.showsPage {
-                chrome.pagePresentationWasChosen = true
                 chrome.showsPage = false
                 // The editor is made on this pass with the current request
                 // id; a later bump is what it answers.
