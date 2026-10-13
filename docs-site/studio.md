@@ -712,6 +712,9 @@ Transcript** and **Theater View**. A podcast's are under **⋯ › Speakers**:
 **Update Speakers with AI** and **Edit Speakers Manually…**. In a notebook,
 ‹ in the Reader takes you back to the Page or chat it opened from.
 
+The Reader's title drags its source into a chat, so its words do not select;
+right-click the title for **Copy Title**.
+
 ## Text to Speech
 
 Use [Text to Speech](/text-to-speech) from the Reader's ⋯ menu or source menu to listen to articles and text sources. The playback bar supports pause/resume, 15-second seeking, speed controls, and stop.

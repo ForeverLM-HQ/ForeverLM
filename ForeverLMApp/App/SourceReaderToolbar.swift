@@ -214,11 +214,11 @@ struct SourceReaderToolbarIdentity: View {
             }
             // Over the icon and words only, not the full-width frame below: the
             // rest of the header stays titlebar, so the window still moves by it.
+            // It is there for a page the library does not hold too, without the
+            // drag, for its right-click Copy Title.
             .overlay {
-                if let draggableSource {
-                    SourceReaderTitleDragHandle(source: draggableSource, title: title)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
+                SourceReaderTitleDragHandle(source: draggableSource, title: title)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .layoutPriority(1)
         }
@@ -314,9 +314,13 @@ extension StudioWindowState {
 /// `.studioArticle` transfer and the `.studioSourceID` — which every in-app
 /// source destination already takes, the chat's `StudioDropCatcher` included.
 /// A still click does nothing, a double-click keeps the titlebar's own
-/// double-click action, and a right-click falls through.
+/// double-click action, and a right- or control-click opens Copy Title: a
+/// drag handle's words cannot be selected the way other text can.
+///
+/// With no source (a page the library does not hold) it only answers the
+/// right-click, and every left press stays ordinary titlebar.
 struct SourceReaderTitleDragHandle: NSViewRepresentable {
-    let source: StudioArticle
+    let source: StudioArticle?
     let title: String
     var toolTip = "Drag into a chat to add it to the context"
     /// Pointer in and out, for a handle that paints its own hover wash. It
@@ -340,7 +344,7 @@ struct SourceReaderTitleDragHandle: NSViewRepresentable {
     private func update(_ view: SourceReaderTitleDragHandleView) {
         view.source = source
         view.title = title
-        view.toolTip = toolTip
+        view.toolTip = source == nil ? nil : toolTip
         view.onHoverChange = onHoverChange
     }
 }
@@ -349,7 +353,14 @@ final class SourceReaderTitleDragHandleView: NSView, NSDraggingSource {
     private static let registeredHandles = NSHashTable<SourceReaderTitleDragHandleView>.weakObjects()
     private static var mouseDownMonitor: Any?
 
-    var source: StudioArticle?
+    var source: StudioArticle? {
+        didSet {
+            // The open hand is only for a title that drags.
+            if (oldValue == nil) != (source == nil) {
+                window?.invalidateCursorRects(for: self)
+            }
+        }
+    }
     var title = ""
     var onHoverChange: ((Bool) -> Void)?
 
@@ -359,6 +370,7 @@ final class SourceReaderTitleDragHandleView: NSView, NSDraggingSource {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     override func resetCursorRects() {
+        guard source != nil else { return }
         addCursorRect(bounds, cursor: .openHand)
     }
 
@@ -385,7 +397,11 @@ final class SourceReaderTitleDragHandleView: NSView, NSDraggingSource {
     }
 
     override func cursorUpdate(with event: NSEvent) {
-        NSCursor.openHand.set()
+        if source != nil {
+            NSCursor.openHand.set()
+        } else {
+            super.cursorUpdate(with: event)
+        }
     }
 
     override func viewDidMoveToWindow() {
@@ -403,25 +419,37 @@ final class SourceReaderTitleDragHandleView: NSView, NSDraggingSource {
     /// offset, and there AppKit hit-tests a press to the hosting view, not to
     /// this one, and reads it as a window move — the reason the band's buttons
     /// go through `TitlebarBandHitSurfaceView`'s router. A handle routes its
-    /// own presses the same way: a left press inside a registered handle is
-    /// handed to it, and every other click stays ordinary titlebar.
+    /// own presses the same way: a left press inside a handle that drags is
+    /// handed to it, a right- or control-click inside any handle opens its
+    /// Copy Title, and every other click stays ordinary titlebar.
     private static func installMouseDownMonitorIfNeeded() {
         guard mouseDownMonitor == nil else { return }
-        mouseDownMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { event in
-            guard let eventWindow = event.window,
-                  !event.modifierFlags.contains(.control),
-                  let handle = registeredHandle(at: event.locationInWindow, in: eventWindow)
-            else { return event }
-            handle.mouseDown(with: event)
+        mouseDownMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { event in
+            guard let eventWindow = event.window else { return event }
+            let isContextClick = event.type == .rightMouseDown || event.modifierFlags.contains(.control)
+            guard let handle = registeredHandle(
+                at: event.locationInWindow,
+                in: eventWindow,
+                drags: !isContextClick
+            ) else { return event }
+            if isContextClick {
+                handle.showTitleMenu(with: event)
+            } else {
+                handle.mouseDown(with: event)
+            }
             return nil
         }
     }
 
-    private static func registeredHandle(at point: NSPoint, in window: NSWindow) -> SourceReaderTitleDragHandleView? {
+    private static func registeredHandle(
+        at point: NSPoint,
+        in window: NSWindow,
+        drags: Bool
+    ) -> SourceReaderTitleDragHandleView? {
         registeredHandles.allObjects
             .filter { handle in
                 handle.window === window
-                    && handle.source != nil
+                    && (!drags || handle.source != nil)
                     && !handle.isHiddenOrHasHiddenAncestor
                     && handle.convert(handle.bounds, to: nil).contains(point)
             }
@@ -432,22 +460,29 @@ final class SourceReaderTitleDragHandleView: NSView, NSDraggingSource {
             }
     }
 
-    /// Own the left mouse only, so a right- or control-click reaches whatever
-    /// sits underneath.
+    /// Own a press only where the title drags, so another page's title stays
+    /// ordinary titlebar. A right- or control-click never gets this far: the
+    /// router above takes it first and opens Copy Title.
     override func hitTest(_ point: NSPoint) -> NSView? {
-        if let event = NSApp.currentEvent, isContextClick(event) { return nil }
-        return super.hitTest(point)
+        source == nil ? nil : super.hitTest(point)
     }
 
-    private func isContextClick(_ event: NSEvent) -> Bool {
-        switch event.type {
-        case .rightMouseDown, .rightMouseUp, .rightMouseDragged:
-            return true
-        case .leftMouseDown, .leftMouseUp:
-            return event.modifierFlags.contains(.control)
-        default:
-            return false
-        }
+    /// The title's one context command. Its words cannot be selected — a
+    /// press on them starts the drag — so this is how they are copied.
+    private func showTitleMenu(with event: NSEvent) {
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        let copy = NSMenuItem(title: "Copy Title", action: #selector(copyTitle(_:)), keyEquivalent: "")
+        copy.target = self
+        copy.image = NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: nil)
+        copy.isEnabled = !title.isEmpty
+        menu.addItem(copy)
+        NSMenu.popUpContextMenu(menu, with: event, for: self)
+    }
+
+    @objc private func copyTitle(_ sender: Any?) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(title, forType: .string)
     }
 
     /// Consume the whole press here, as a band button does: a routed press
