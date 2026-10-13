@@ -94,7 +94,7 @@ struct StudioRailHiddenItemsTests {
         #expect(stale.items == [.browser, .memory], "the retired name is dropped; the other rows stay hidden")
         #expect(stale.storage == "browser,memory", "the learner's next change leaves it out")
         #expect(StudioRailHiddenItems().visibleTopItems.last == .library)
-        #expect(StudioRailHiddenItems.railOrder == [.space, .memory, .library], "the Space is the rail's first row")
+        #expect(StudioRailHiddenItems.railOrder == [.newChat, .space, .memory, .library], "New chat's + leads, then the Space")
         let libraryHidden = StudioRailHiddenItems().setting(.library, hidden: true)
         #expect(libraryHidden.visibleTopItems.last == .browser)
     }

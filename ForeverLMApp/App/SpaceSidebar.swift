@@ -533,11 +533,10 @@ struct SpaceSidebar: View {
 
     /// New chat leads the sidebar, as it leads ChatGPT's (product owner,
     /// 2026-10-10, of the row that was New page: "we should just have new
-    /// chat"). The icon rail beside the Space has no New chat, so this is the
-    /// window's way to one: the rail's own route (`requestNewChat`), a chat in
-    /// the window's notebook while it holds one, taking this pane as Chat
-    /// does. A page stays one step away: New Page leads the ⋯, the list's
-    /// New ▾ makes one, and ⇧⌘N still does.
+    /// chat"). The icon strip's + beside it does the same: the rail's own
+    /// route (`requestNewChat`), a chat in the window's notebook while it
+    /// holds one, taking this pane as Chat does. A page stays one step away:
+    /// New Page leads the ⋯, the list's New ▾ makes one, and ⇧⌘N still does.
     private var newChatRow: some View {
         SpaceSidebarRow(
             title: "New chat",

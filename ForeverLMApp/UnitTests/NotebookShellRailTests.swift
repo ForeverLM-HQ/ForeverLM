@@ -163,16 +163,22 @@ struct HomeSidebarTests {
         #expect(window.centerTabGroups.groups.map(\.activeTab) == [.library])
     }
 
-    @Test("The rail is Spaces, Memory and Library, and New chat and the Browser are Home's sidebar")
+    @Test("The rail is New chat's +, Spaces, Memory and Library, and New chat and the Browser are Home's sidebar")
     func railRowsAndSidebarRows() {
         let nothingHidden = StudioRailHiddenItems()
         // The Canvas left the rail on 2026-10-07: canvases open from the Space.
-        // The Notebooks home, which led it, went on 2026-10-09.
-        #expect(nothingHidden.railItems() == [.space, .memory, .library])
+        // The Notebooks home, which led it, went on 2026-10-09. New chat's +
+        // went on top on 2026-10-13.
+        #expect(nothingHidden.railItems() == [.newChat, .space, .memory, .library])
         #expect(nothingHidden.sidebarItems() == [.newChat, .browser])
         let hidden = StudioRailHiddenItems([.memory, .browser])
-        #expect(hidden.railItems() == [.space, .library])
+        #expect(hidden.railItems() == [.newChat, .space, .library])
         #expect(hidden.sidebarItems() == [.newChat])
+        // One New chat row in Show in Sidebar: hiding it takes the + off the
+        // strip and the row off Home's sidebar.
+        let newChatHidden = StudioRailHiddenItems([.newChat])
+        #expect(newChatHidden.railItems() == [.space, .memory, .library])
+        #expect(newChatHidden.sidebarItems() == [.browser])
     }
 
     @Test("Home's sidebar shows on Home: a chat, the Reader, Goals; not on the Space, its Courses list, Library, Memory or Canvas")

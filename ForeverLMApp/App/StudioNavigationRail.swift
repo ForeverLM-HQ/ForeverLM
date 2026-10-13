@@ -124,10 +124,13 @@ struct StudioRailHiddenItems: Equatable {
         [.newChat, .memory, .space, .browser, .library].filter { !items.contains($0) }
     }
 
-    /// The icon rail's rows, Codex's: Spaces, Memory and Library, in that
-    /// order, less any the learner hid. The Space leads since the Notebooks
-    /// home, which led until 2026-10-09, went.
-    static let railOrder: [StudioRailItem] = [.space, .memory, .library]
+    /// The icon rail's rows, Codex's: a + for a new chat, then Spaces,
+    /// Memory and Library, in that order, less any the learner hid. The
+    /// Space led the places since the Notebooks home, which led until
+    /// 2026-10-09, went; the + went above it on 2026-10-13. New chat is one
+    /// row in Show in Sidebar, so hiding it takes it off the strip and Home's
+    /// sidebar together.
+    static let railOrder: [StudioRailItem] = [.newChat, .space, .memory, .library]
 
     /// The rows at the top of Home's sidebar: New chat and the Browser.
     static let sidebarOrder: [StudioRailItem] = [.newChat, .browser]
@@ -554,13 +557,14 @@ struct StudioNavigationRail: View {
         .newNotebookFromChat($notebookFromChatRequest, vm: vm, window: windowState)
     }
 
-    /// The window's rail, Codex's: Spaces, Memory and Library as icons, the
-    /// ⋯ with every other place, and under a short line the places the
-    /// learner kept there (`StudioRailShortcuts`); then the day's calendar
-    /// glyph, whose popover is the schedule, and the account. The notebooks
-    /// and the chats are Home's sidebar (`fullRail`), which shows beside a
-    /// chat or the Reader; "Plan your day?" and "Cards to check" are in its
-    /// footer, or in the window's corner where Home's sidebar is not showing.
+    /// The window's rail, Codex's: a + for a new chat, Spaces, Memory and
+    /// Library as icons, the ⋯ with every other place, and under a short
+    /// line the places the learner kept there (`StudioRailShortcuts`); then
+    /// the day's calendar glyph, whose popover is the schedule, and the
+    /// account. The notebooks and the chats are Home's sidebar (`fullRail`),
+    /// which shows beside a chat or the Reader; "Plan your day?" and "Cards
+    /// to check" are in its footer, or in the window's corner where Home's
+    /// sidebar is not showing.
     @ViewBuilder
     private var compactRail: some View {
         let hiddenItems = hiddenRailItems
@@ -572,7 +576,8 @@ struct StudioNavigationRail: View {
                 case .space: spaceButton(compact: true, yieldsTo: litShortcut != nil)
                 case .memory: memoryButton(compact: true)
                 case .library: libraryButton(compact: true)
-                case .newChat, .browser: EmptyView()
+                case .newChat: newChatButton(compact: true)
+                case .browser: EmptyView()
                 }
             }
             // Always drawn: it is also the way back for a hidden row, its
@@ -1094,17 +1099,23 @@ struct StudioNavigationRail: View {
     /// carries the team's name while a team is open, so the learner is never
     /// left guessing whose sources and chats they are looking at.
 
+    /// New chat: Home's sidebar's first row, and on the icon strip a + above
+    /// Spaces (product owner, 2026-10-13: "maybe we need a 'new chat' button
+    /// at the top of the left side bar as well; just a + sign"), so a chat
+    /// is one click away from every place, a notebook window included.
     private func newChatButton(compact: Bool = false) -> some View {
         // Highlighted only while the user is actually on a fresh/blank chat
         // (no session loaded yet) and that chat is on screen. Once a real chat
         // is open its own row carries the selection, and once Docs or Notebooks
         // has replaced Chat in its pane that row does, so the rail never shows
-        // two selected items at once.
+        // two selected items at once. The strip's + is never lit: it is an
+        // action, not a place, and Home's sidebar beside it lights its own row.
         RailButtonRow(
             title: "New chat",
-            systemImage: "square.and.pencil",
+            systemImage: compact ? "plus" : "square.and.pencil",
             railItem: .newChat,
-            isSelected: sessionStore.activeSessionID == nil
+            isSelected: !compact
+                && sessionStore.activeSessionID == nil
                 && Self.isChatVisible(in: windowState),
             openBeside: {
                 vm.inWindow(windowState) {
@@ -1114,7 +1125,7 @@ struct StudioNavigationRail: View {
             },
             otherWindowDestination: .newChat,
             help: "Start a new chat",
-            identifier: "studio.navigation.newChat",
+            identifier: compact ? "studio.navigation.strip.newChat" : "studio.navigation.newChat",
             isCompact: compact
         ) {
             vm.inWindow(windowState) { vm.requestNewChat() }

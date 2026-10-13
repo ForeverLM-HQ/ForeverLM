@@ -581,10 +581,12 @@ The web and PubMed are searched from the Sources column's own field (see
 
 ### The rail
 
-The navigation rail is a narrow strip of icons: **Spaces**, **Memory** and
-**Library**, and at its foot the calendar glyph that opens today's schedule
-(see [Layout](#layout)) and your account. Each icon can be hidden from its own
-menu and brought back with **Show in Sidebar**.
+The navigation rail is a narrow strip of icons: **+**, which starts a new
+chat (in a notebook window, a chat in that notebook), then **Spaces**,
+**Memory** and **Library**, and at its foot the calendar glyph that opens
+today's schedule (see [Layout](#layout)) and your account. Each icon can be
+hidden from its own menu and brought back with **Show in Sidebar**; hiding
+**New chat** also takes it out of the sidebar beside a chat.
 
 While anything that costs money runs in the background, a grey OpenRouter
 logo shows in the strip; click it for **Running in the background**: each
@@ -770,7 +772,7 @@ rail's **Library** row to an edge to dock it beside another.
 
 | Panel | What it does |
 |-------|-------------|
-| **Navigation** (left) | **Spaces**, **Memory** (where today's cards wait) and **Library**, and at the foot the calendar glyph for today's schedule from the Mac's Calendar; beside a chat or the Reader, **New chat**, **Browser**, **Notebooks** with your pinned and recent notebooks and their chats, and your library's own **Chats** ([The rail](#the-rail)) |
+| **Navigation** (left) | **+** for a new chat, **Spaces**, **Memory** (where today's cards wait) and **Library**, and at the foot the calendar glyph for today's schedule from the Mac's Calendar; beside a chat or the Reader, **New chat**, **Browser**, **Notebooks** with your pinned and recent notebooks and their chats, and your library's own **Chats** ([The rail](#the-rail)) |
 | **Library** | The whole library, organized by type, across the window for managing it or docked beside another pane ([The Library](#the-library)) |
 | **Reader** | Displays the selected source: web article, PDF, video, or transcript |
 | **Chat** | In-app source-grounded chat and review sessions |
