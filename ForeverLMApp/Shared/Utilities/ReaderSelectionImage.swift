@@ -115,10 +115,12 @@ struct ReaderSelectionImage: Equatable, Sendable {
 
     /// The URL the app fetches the picture from, when it can be fetched at all.
     /// A `blob:` URL cannot be, and a `data:` URL is decoded rather than fetched.
+    /// `foreverlm-book` is a picture of an EPUB book the Mac reads from the
+    /// book's one file (`EPUBBookScheme`).
     var fetchURL: URL? {
         guard let url = URL(string: src), let scheme = url.scheme?.lowercased() else { return nil }
         switch scheme {
-        case "http", "https", "file": return url
+        case "http", "https", "file", "foreverlm-book": return url
         default: return nil
         }
     }

@@ -2056,8 +2056,8 @@ struct NotebookLinkReleaseMigrationTests {
         let root = try Self.temporaryRoot("fresh")
         defer { try? FileManager.default.removeItem(at: root) }
         let store = try KnowledgeStore(storeDirectory: root)
-        #expect(Self.scalar(at: root, "PRAGMA user_version") == "169")
-        #expect(KnowledgeStore.schemaVersion == 169)
+        #expect(Self.scalar(at: root, "PRAGMA user_version") == "170")
+        #expect(KnowledgeStore.schemaVersion == 170)
         let released = try store.releaseLinksToDeletedNotebooks()
         #expect(released.deletedNotebooks == 0 && released.republished == 0)
     }
@@ -2076,7 +2076,7 @@ struct NotebookLinkReleaseMigrationTests {
 
         let migrated = try KnowledgeStore(storeDirectory: root)
         #expect(Self.scalar(at: root, "PRAGMA user_version") == "\(KnowledgeStore.schemaVersion)")
-        #expect(KnowledgeStore.schemaVersion == 169)
+        #expect(KnowledgeStore.schemaVersion == 170)
 
         // Every record is still there, and none of them names the gone notebook.
         let sessions = Dictionary(uniqueKeysWithValues: try migrated.loadReviewSessionLinks().map { ($0.id, $0) })
@@ -2143,7 +2143,7 @@ struct NotebookLinkReleaseMigrationTests {
         let metadataBefore = Self.scalar(at: root, "SELECT COUNT(*) FROM sync_metadata")
 
         let migrated = try KnowledgeStore(storeDirectory: root)
-        #expect(Self.scalar(at: root, "PRAGMA user_version") == "169")
+        #expect(Self.scalar(at: root, "PRAGMA user_version") == "170")
         #expect(Self.scalar(at: root, "SELECT COUNT(*) FROM sync_metadata") == metadataBefore)
         #expect(try migrated.pendingSyncChanges().isEmpty)
         try library.held.expectFiled(under: library.goneID, in: migrated)
@@ -2217,7 +2217,7 @@ struct NotebookLinkReleaseMigrationTests {
         let migrated = try KnowledgeStore(storeDirectory: root)
         let elapsed = started.duration(to: .now)
         #expect(elapsed < .seconds(1))
-        #expect(Self.scalar(at: root, "PRAGMA user_version") == "169")
+        #expect(Self.scalar(at: root, "PRAGMA user_version") == "170")
         #expect(Self.scalar(at: root, "SELECT COUNT(*) FROM review_sessions WHERE goal_id = 'gone-notebook'") == "0")
         #expect(Self.scalar(at: root, "SELECT COUNT(*) FROM review_sessions WHERE goal_id IS NULL") == "500")
         #expect(Self.scalar(at: root, "SELECT COUNT(*) FROM memory_items WHERE goal_id IS NOT NULL") == "0")

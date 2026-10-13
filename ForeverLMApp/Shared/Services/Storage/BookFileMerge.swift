@@ -4,7 +4,7 @@ import CoreGraphics
 import PDFKit
 
 /// Puts a PDF book that an older build split into chapter files back into one
-/// file (schema 169; docs/backend-storage-sync.md, "A PDF book is one file").
+/// file (schema 169; docs/backend-storage-sync.md, "A book is one file").
 ///
 /// A chapter keeps its id and everything stored about it, all of which counts
 /// pages from the chapter's first page; only where its pages are changes. So

@@ -127,7 +127,8 @@ enum SourceImageCatalog {
         page: Int?
     ) throws -> [SourceImageEntry] {
         let location = SourcePDFPages(stored: filePath)
-        guard FileManager.default.fileExists(atPath: location.path) else { throw Failure.fileUnavailable }
+        // A file on disk, or a chapter of an EPUB book kept as one file (`EPUBBookFiles`).
+        guard EPUBBookFiles.exists(atPath: location.path) else { throw Failure.fileUnavailable }
         let ext = URL(fileURLWithPath: location.path).pathExtension.lowercased()
         let trimmedQuery = query?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if ext == "pdf" {
@@ -864,9 +865,7 @@ enum SourceImageCatalog {
     /// Chapters are usually UTF-8; a few older exports are Latin-1, and reading
     /// those as UTF-8 fails outright rather than producing mojibake.
     static func readMarkup(at path: String) -> String? {
-        guard let data = FileManager.default.contents(atPath: path) else { return nil }
-        if let utf8 = String(data: data, encoding: .utf8) { return utf8 }
-        return String(data: data, encoding: .isoLatin1)
+        EPUBBookFiles.text(atPath: path)
     }
 }
 

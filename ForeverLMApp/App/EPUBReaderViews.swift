@@ -671,149 +671,7 @@ struct InlineTextReaderView: NSViewRepresentable {
     }
 }
 
-// MARK: - Inline EPUB Reader (WKWebView with native EPUB assets via loadFileURL)
-
-struct EPUBKitBookReaderView: View {
-    let initialFilePath: String
-    /// The chapter the panel currently has selected. It follows in-reader
-    /// chapter navigation, because the panel re-selects the source whenever the
-    /// reader reports a new chapter file.
-    let sourceID: String
-    let initialReadingLocator: String?
-    @Binding var selectedText: String
-    let findState: ReaderFindState
-    let findRevision: Int
-    let zoomScale: CGFloat
-    let readerTheme: ReaderColorTheme
-    var bookNavigationBridge: ReaderBookNavigationBridge?
-    let chapterFileChanged: (String) -> Void
-    let readingLocatorChanged: (String, String) -> Void
-    /// Supplies the book's ingested chapter paths relative to the extracted
-    /// `Chapters` directory (→ isArchived) so the Contents menu can mirror the app's
-    /// source model. Returns empty for a "no filter" reader.
-    let chapterRelativePaths: () async -> [String: Bool]
-    let zoomInAction: () -> Void
-    let zoomOutAction: () -> Void
-    let resetZoomAction: () -> Void
-
-    /// In-reader chapter navigation (Contents menu, auto-advance). Cleared when the
-    /// sidebar/schedule selects a different chapter so external selection wins immediately.
-    @State private var bridgeNavigatedPath: String?
-    @State private var navigation: EPUBKitBookNavigation?
-
-    private var externalFilePath: String {
-        Self.resolvedInitialFilePath(
-            fallbackPath: initialFilePath,
-            locator: initialReadingLocator
-        )
-    }
-
-    private var activeFilePath: String {
-        bridgeNavigatedPath ?? externalFilePath
-    }
-
-    var body: some View {
-        InlineEPUBReaderView(
-            filePath: activeFilePath,
-            sourceID: sourceID,
-            initialScrollFraction: initialScrollFraction(for: activeFilePath),
-            selectedText: $selectedText,
-            findState: findState,
-            findRevision: findRevision,
-            zoomScale: zoomScale,
-            readerTheme: readerTheme,
-            scrollPositionChanged: { fraction in
-                persistPosition(filePath: activeFilePath, scrollFraction: fraction)
-            },
-            nextChapterTitle: navigation?.nextItem?.title,
-            nextChapterRequested: {
-                guard let next = navigation?.nextItem else { return }
-                navigate(to: next)
-            },
-            zoomInAction: zoomInAction,
-            zoomOutAction: zoomOutAction,
-            resetZoomAction: resetZoomAction
-        )
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .task(id: activeFilePath) {
-            await loadNavigation(for: activeFilePath)
-        }
-        .onChange(of: externalFilePath) { _, _ in
-            bridgeNavigatedPath = nil
-            selectedText = ""
-        }
-        .onChange(of: navigation) { _, loaded in
-            syncBookNavigationBridge(loaded)
-        }
-        .onDisappear {
-            bookNavigationBridge?.clear()
-        }
-    }
-
-    private func syncBookNavigationBridge(_ loaded: EPUBKitBookNavigation?) {
-        if let loaded {
-            bookNavigationBridge?.update(navigation: loaded, navigate: navigate(to:))
-        } else {
-            bookNavigationBridge?.clear()
-        }
-    }
-
-    private func navigate(to item: EPUBKitBookNavigationItem) {
-        guard item.path != activeFilePath else { return }
-        bridgeNavigatedPath = item.path
-        selectedText = ""
-        findState.resetForDocumentChange()
-        chapterFileChanged(item.path)
-        persistPosition(filePath: item.path, scrollFraction: 0)
-    }
-
-    private static func resolvedInitialFilePath(fallbackPath: String, locator: String?) -> String {
-        guard let locator = EPUBReadingPositionLocator(encoded: locator),
-              let resolved = EPUBKitReaderSupport.resolvedChapterPath(
-                relativePath: locator.relativePath,
-                fallbackPath: fallbackPath
-              ) else {
-            return fallbackPath
-        }
-        return resolved
-    }
-
-    private func initialScrollFraction(for filePath: String) -> Double? {
-        guard let locator = EPUBReadingPositionLocator(encoded: initialReadingLocator),
-              let relativePath = EPUBKitReaderSupport.relativeChapterPath(for: filePath),
-              relativePath == locator.relativePath else { return nil }
-        return locator.scrollFraction
-    }
-
-    private func persistPosition(filePath: String, scrollFraction: Double) {
-        guard let relativePath = EPUBKitReaderSupport.relativeChapterPath(for: filePath),
-              let encoded = EPUBReadingPositionLocator(
-                relativePath: relativePath,
-                scrollFraction: scrollFraction
-              ).encoded else { return }
-        readingLocatorChanged(filePath, encoded)
-    }
-
-    /// `.task(id: activeFilePath)` cancels this when the reader moves to
-    /// another file, so cancellation is the staleness check. Comparing with
-    /// `activeFilePath` after an await read a copy of this view from before
-    /// the move: Next chapter sets `bridgeNavigatedPath`, the panel echoes the
-    /// chapter back and clears it, and the copy's own `initialFilePath` was
-    /// still the old chapter — so the new chapter's navigation was thrown
-    /// away, the toolbar kept the old position, and Next pointed at the
-    /// chapter already on screen and did nothing.
-    private func loadNavigation(for path: String) async {
-        let paths = await chapterRelativePaths()
-        guard !Task.isCancelled else { return }
-        let sourceChapterPaths = paths.isEmpty ? nil : paths
-        let loaded = await Task.detached(priority: .userInitiated) {
-            EPUBKitReaderSupport.navigation(containing: path, sourceChapterPaths: sourceChapterPaths)
-        }.value
-        guard !Task.isCancelled else { return }
-        navigation = loaded
-        syncBookNavigationBridge(loaded)
-    }
-}
+// MARK: - EPUB book reader (WKWebView over the book, from its file or its unpacked folder)
 
 /// An EPUB book on the Mac, read as one document: every chapter's file end to
 /// end (`EPUBBookDocument`), so the whole book scrolls and Find covers all of
@@ -1639,6 +1497,8 @@ struct InlineEPUBReaderView: NSViewRepresentable {
         let config = WKWebViewConfiguration()
         SharedWebKit.applySharedProcessPool(to: config)
         SharedWebKit.disableSystemWritingTools(on: config)
+        // A book kept as one file is read from it (`EPUBBookScheme`).
+        config.setURLSchemeHandler(EPUBBookScheme.handler, forURLScheme: EPUBBookScheme.name)
 
         let darkModeScript = WKUserScript(
             source: EPUBReaderStyles.injectionScript(
@@ -1967,9 +1827,12 @@ struct InlineEPUBReaderView: NSViewRepresentable {
             chapterLoadTask?.cancel()
             if let book = parent.book {
                 // Assembled and written off-main by the host, into the book's
-                // `Chapters` folder, which every reference was rewritten to.
+                // `Chapters` folder, which every reference was rewritten to; a
+                // book kept as one file is served from it instead.
                 chapterLoadTask = nil
-                if let fileURL = book.fileURL {
+                if let fileURL = book.fileURL, !fileURL.isFileURL {
+                    webView.load(URLRequest(url: fileURL))
+                } else if let fileURL = book.fileURL {
                     webView.loadFileURL(fileURL, allowingReadAccessTo: book.baseURL)
                 } else {
                     webView.loadHTMLString(book.html, baseURL: book.baseURL)
@@ -2076,7 +1939,7 @@ struct InlineEPUBReaderView: NSViewRepresentable {
             // page scrolls to what the link names instead.
             if let book = parent.book,
                navigationAction.targetFrame?.isMainFrame != false,
-               let url = navigationAction.request.url, url.isFileURL,
+               let url = navigationAction.request.url, EPUBBookScheme.isLocalDocument(url),
                url.standardizedFileURL.path != book.documentURL.standardizedFileURL.path,
                let data = try? JSONSerialization.data(withJSONObject: [url.absoluteString]),
                let argument = String(data: data, encoding: .utf8) {
@@ -2107,7 +1970,7 @@ struct InlineEPUBReaderView: NSViewRepresentable {
 
         private static func shouldOpenWithSystem(_ url: URL) -> Bool {
             guard let scheme = url.scheme?.lowercased() else { return false }
-            return !["http", "https", "file", "about", "data", "blob", "javascript"].contains(scheme)
+            return !["http", "https", "file", "about", "data", "blob", "javascript", EPUBBookScheme.name].contains(scheme)
         }
 
         /// The URL this page was published at, for resolving site-relative links
@@ -2233,7 +2096,7 @@ struct InlineEPUBReaderView: NSViewRepresentable {
                 // Archived articles keep live hyperlinks, so this web view can
                 // be showing an external page. Only the local document's scroll
                 // is reading progress; an external page must not overwrite it.
-                guard message.webView?.url?.isFileURL != false else { return }
+                guard EPUBBookScheme.isLocalDocument(message.webView?.url) else { return }
                 // A book's progress is its chapters', reported over `bookPosition`.
                 guard parent.book == nil else { return }
                 let fraction: Double?
@@ -2296,7 +2159,7 @@ struct InlineEPUBReaderView: NSViewRepresentable {
             appliedChapterFooter = nil
             // A saved article's link can take this view to a live page, and
             // the notes are the saved copy's, not that page's.
-            if webView.url?.isFileURL != false {
+            if EPUBBookScheme.isLocalDocument(webView.url) {
                 appliedHighlightFingerprint = []
                 applyHighlightsIfNeeded(to: webView)
             }

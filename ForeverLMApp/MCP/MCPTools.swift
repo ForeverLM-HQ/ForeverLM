@@ -7525,6 +7525,13 @@ final class MCPDataStore {
     static func extractTextFromLocalFile(_ path: String, pages: Range<Int>? = nil) -> String? {
         guard let resolved = SourceService.resolveLocalFileURL(path) else { return nil }
         let fullPath = resolved.path
+        // A file on disk, or a chapter of an EPUB book kept as one file: its text, not its markup.
+        let lower = fullPath.lowercased()
+        if lower.hasSuffix(".xhtml") || lower.hasSuffix(".html") || lower.hasSuffix(".htm") {
+            guard let raw = EPUBBookFiles.text(atPath: fullPath) else { return nil }
+            let text = EPUBParser.stripHTML(raw).trimmingCharacters(in: .whitespacesAndNewlines)
+            return text.isEmpty ? nil : text
+        }
         guard FileManager.default.fileExists(atPath: fullPath) else { return nil }
 
         if fullPath.lowercased().hasSuffix(".pdf") {

@@ -163,7 +163,7 @@ struct TeamApprovalSchemaMigrationTests {
 
         let migrated = try KnowledgeStore(storeDirectory: root)
         #expect(Self.scalar(at: root, "PRAGMA user_version") == "\(KnowledgeStore.schemaVersion)")
-        #expect(KnowledgeStore.schemaVersion == 169)
+        #expect(KnowledgeStore.schemaVersion == 170)
 
         // Exactly the three, and nothing else queued.
         #expect(Self.scalar(at: root, "SELECT group_concat(logical_key, ',') FROM (SELECT logical_key FROM sync_changes ORDER BY logical_key)") == Self.staged.joined(separator: ","))

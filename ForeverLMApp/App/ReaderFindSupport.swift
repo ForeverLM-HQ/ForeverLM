@@ -596,8 +596,9 @@ struct LocalTextFileContentView<LoadedContent: View>: View {
         content = nil
         didFail = false
         let path = self.path
+        // A file on disk, or a chapter of an EPUB book kept as one file.
         let loaded = await Task.detached(priority: .userInitiated) {
-            try? String(contentsOfFile: path, encoding: .utf8)
+            EPUBBookFiles.text(atPath: path)
         }.value
         if let loaded, !loaded.isEmpty {
             content = loaded
@@ -652,8 +653,9 @@ struct BookChapterFileGate<FileReader: View, TextReader: View>: View {
         }
         .task(id: "\(path)|\(documentInstallRevision)") {
             let path = self.path
+            // A chapter of a book kept as one file is there when its entry is.
             let exists = await Task.detached(priority: .userInitiated) {
-                FileManager.default.fileExists(atPath: path)
+                EPUBBookFiles.exists(atPath: path)
             }.value
             guard !Task.isCancelled else { return }
             // The book reader moves between chapter files by itself; while the

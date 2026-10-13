@@ -77,7 +77,8 @@ extension StudioViewModel {
 
     nonisolated static func loadEPUBChapterContent(path: String) async -> String? {
         await Task.detached(priority: .utility) {
-            guard let raw = try? String(contentsOfFile: path, encoding: .utf8), !raw.isEmpty else {
+            // A file on disk, or a chapter of an EPUB book kept as one file.
+            guard let raw = EPUBBookFiles.text(atPath: path), !raw.isEmpty else {
                 return nil
             }
             let lower = path.lowercased()

@@ -437,7 +437,8 @@ actor SourceService {
         }
         let expandedPath = resolvedURL.path
 
-        guard FileManager.default.fileExists(atPath: expandedPath) else {
+        // A file on disk, or a chapter of an EPUB book kept as one file.
+        guard EPUBBookFiles.exists(atPath: expandedPath) else {
             throw SourceError.fileNotFound
         }
 
@@ -452,7 +453,8 @@ actor SourceService {
         }
 
         // Handle text/markdown files
-        return try String(contentsOfFile: expandedPath, encoding: .utf8).removingSoftHyphens()
+        guard let text = EPUBBookFiles.text(atPath: expandedPath) else { throw SourceError.fileNotFound }
+        return text.removingSoftHyphens()
     }
     /// Extract clean transcript text from an Apple Podcasts TTML file.
     /// TTML files contain XML with speaker segments and word-level spans.

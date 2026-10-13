@@ -1,11 +1,12 @@
 import Foundation
 
-// MARK: - A PDF book is one file (schema 169)
+// MARK: - A book is one file (schemas 169 and 170)
 
 extension StudioViewModel {
-    /// Puts each PDF book an older build split into chapter files back into one
-    /// file (`BookFileMerge`), a book at a time, off the main actor, once the
-    /// library has loaded. A no-op once schema 169's queue is empty.
+    /// Puts each book an older build split into files back into one file, a
+    /// book at a time, off the main actor, once the library has loaded: a PDF
+    /// book's chapter files (`BookFileMerge`), an EPUB book's unpacked folder
+    /// (`EPUBBookFiles.pack`). A no-op once the queue is empty.
     func runDeferredBookFileMerge() async {
         guard hasCompletedInitialQueueLoad else { return }
         do {
@@ -20,6 +21,11 @@ extension StudioViewModel {
 
     private func mergeBookFile(_ bookID: String) async {
         do {
+            let paths = try await storage.bookChapterPaths(bookID: bookID)
+            if paths.contains(where: Self.isUnpackedEPUBChapterPath) {
+                try await packEPUBBook(bookID, chapterPaths: paths)
+                return
+            }
             let rows = try await storage.bookFileChapters(bookID: bookID)
             let split = rows.filter { $0.pages == nil && $0.localFilePath?.lowercased().hasSuffix(".pdf") == true }
             // Nothing is split any more, or not every chapter is a file here: a chapter
@@ -66,6 +72,45 @@ extension StudioViewModel {
             logger.error("Could not put book \(bookID, privacy: .public) back into one file: \(error.localizedDescription)")
             try? await storage.failBookFileMerge(bookID: bookID, message: error.localizedDescription)
         }
+    }
+
+    /// A chapter addressed inside an EPUB book's `Chapters` folder.
+    nonisolated static func isUnpackedEPUBChapterPath(_ path: String) -> Bool {
+        let lowered = path.lowercased()
+        return path.contains("/\(EPUBBookFiles.rootName)/")
+            && (lowered.hasSuffix(".xhtml") || lowered.hasSuffix(".html") || lowered.hasSuffix(".htm"))
+    }
+
+    /// Packs the EPUB book whose chapters are addressed in `chapterPaths` into
+    /// its one file and removes the unpacked folder. The chapters keep their
+    /// addresses, which now name entries of the file (`EPUBBookFiles`), so no
+    /// record changes. A folder already gone, or never on this Mac, leaves
+    /// nothing to do.
+    private func packEPUBBook(_ bookID: String, chapterPaths: [String]) async throws {
+        let folders = Set(chapterPaths.filter(Self.isUnpackedEPUBChapterPath).compactMap {
+            EPUBBookFiles.split(StorageService.absoluteSourcePath($0))?.chapters
+        })
+        let packed = try await Task.detached(priority: .utility) { () -> Int in
+            var packed = 0
+            for chapters in folders.sorted() {
+                var directory: ObjCBool = false
+                guard FileManager.default.fileExists(atPath: chapters, isDirectory: &directory), directory.boolValue else { continue }
+                let target = EPUBBookFiles.packingTarget(inFolder: (chapters as NSString).deletingLastPathComponent)
+                try EPUBBookFiles.pack(
+                    URL(fileURLWithPath: chapters, isDirectory: true),
+                    original: target.original,
+                    to: target.destination,
+                    skipping: [EPUBBookDocument.fileName]
+                )
+                try FileManager.default.removeItem(atPath: chapters)
+                packed += 1
+            }
+            return packed
+        }.value
+        try await storage.dropBookFileMerge(bookID: bookID)
+        guard packed > 0 else { return }
+        StudioArticle.invalidateResolvedPathCache(forRawPaths: chapterPaths)
+        logger.notice("[BookImport] Packed EPUB book \(bookID, privacy: .public) into one file")
     }
 
     /// The loaded chapters take their new file and pages. Assigned once:

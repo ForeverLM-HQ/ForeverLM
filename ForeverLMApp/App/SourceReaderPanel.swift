@@ -1745,48 +1745,25 @@ struct SourceReaderPanel: View {
                     sourceID: article.id,
                     inMemoryText: article.content
                 ) {
-                    if let group = article.parentGroup {
-                        // A book's chapters read as one document: the whole book
-                        // scrolls, and reading on moves the selection with it.
-                        EPUBBookReaderView(
-                            initialArticle: article,
-                            chapterArticles: vm.bookChaptersWithReadingProgress(for: group),
-                            selectedText: $selectedText,
-                            findState: findState,
-                            findRevision: findState.searchRevision,
-                            zoomScale: readerZoomScale,
-                            readerTheme: .system,
-                            bookNavigationBridge: bookNavigationBridge,
-                            chapterChanged: { chapter in
-                                Task { await vm.selectReaderSource(chapter.id) }
-                            },
-                            zoomInAction: { setReaderZoomScale(readerZoomScale + ArticleReaderZoom.step) },
-                            zoomOutAction: { setReaderZoomScale(readerZoomScale - ArticleReaderZoom.step) },
-                            resetZoomAction: resetReaderZoom
-                        )
-                    } else {
-                        EPUBKitBookReaderView(
-                            initialFilePath: path,
-                            sourceID: article.id,
-                            initialReadingLocator: article.readingPositionLocator,
-                            selectedText: $selectedText,
-                            findState: findState,
-                            findRevision: findState.searchRevision,
-                            zoomScale: readerZoomScale,
-                            readerTheme: .system,
-                            bookNavigationBridge: bookNavigationBridge,
-                            chapterFileChanged: { path in
-                                Task { await vm.selectReaderSource(matchingLocalPath: path) }
-                            },
-                            readingLocatorChanged: { path, locator in vm.updateReadingLocator(forLocalPath: path, locator: locator) },
-                            chapterRelativePaths: { [group = article.parentGroup] in
-                                await vm.readerChapterArchivedByRelativePath(forGroup: group)
-                            },
-                            zoomInAction: { setReaderZoomScale(readerZoomScale + ArticleReaderZoom.step) },
-                            zoomOutAction: { setReaderZoomScale(readerZoomScale - ArticleReaderZoom.step) },
-                            resetZoomAction: resetReaderZoom
-                        )
-                    }
+                    // A book's chapters read as one document: the whole book
+                    // scrolls, and reading on moves the selection with it. A
+                    // chapter that lost its book reads as a book of one.
+                    EPUBBookReaderView(
+                        initialArticle: article,
+                        chapterArticles: article.parentGroup.map { vm.bookChaptersWithReadingProgress(for: $0) } ?? [],
+                        selectedText: $selectedText,
+                        findState: findState,
+                        findRevision: findState.searchRevision,
+                        zoomScale: readerZoomScale,
+                        readerTheme: .system,
+                        bookNavigationBridge: bookNavigationBridge,
+                        chapterChanged: { chapter in
+                            Task { await vm.selectReaderSource(chapter.id) }
+                        },
+                        zoomInAction: { setReaderZoomScale(readerZoomScale + ArticleReaderZoom.step) },
+                        zoomOutAction: { setReaderZoomScale(readerZoomScale - ArticleReaderZoom.step) },
+                        resetZoomAction: resetReaderZoom
+                    )
                 } textReader: { content in
                     InlineTextReaderView(
                         content: content,

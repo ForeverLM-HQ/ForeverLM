@@ -449,7 +449,7 @@ enum EPUBReaderStyles {
         function linkTarget(href) {
             var url;
             try { url = new URL(href, document.baseURI); } catch (e) { return undefined; }
-            if (url.protocol !== 'file:') { return undefined; }
+            if (url.protocol !== 'file:' && url.protocol !== '\(EPUBBookScheme.name):') { return undefined; }
             var basePath = decodeURIComponent(new URL(document.baseURI).pathname).replace(/[^\\/]*$/, '');
             var path = decodeURIComponent(url.pathname);
             var relative = path.indexOf(basePath) === 0 ? path.slice(basePath.length) : '';

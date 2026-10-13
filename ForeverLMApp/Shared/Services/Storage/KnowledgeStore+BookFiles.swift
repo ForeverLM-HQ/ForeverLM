@@ -15,6 +15,8 @@ struct BookFileChapterRow: Equatable, Sendable {
 
 extension KnowledgeStore {
     static let bookFilesSchemaVersion: Int32 = 169
+    /// EPUB books are one file too: schema 170 queues the books still unpacked.
+    static let epubBookFilesSchemaVersion: Int32 = 170
 
     /// `book_sources.page_start` and `page_count`, for a store an older build
     /// held below 154, which never ran the column list (`createSchema`).
@@ -57,6 +59,29 @@ extension KnowledgeStore {
               AND s.status = 'active'
               AND bs.page_start IS NULL
               AND LOWER(COALESCE(bs.local_file_path, '')) LIKE '%.pdf'
+            ON CONFLICT(book_id) DO NOTHING
+        """, [.real(Date().timeIntervalSinceReferenceDate)])
+        return Int(try scalarInteger("SELECT COUNT(*) FROM book_file_merge_queue") ?? 0)
+    }
+
+    /// Queues every book with a chapter that is a document of an unpacked EPUB
+    /// (`…/Chapters/<entry>.xhtml`): `BookFileMerge` packs the folder back into
+    /// the book's one file (`EPUBBookFiles`). A team's copy shares the folder,
+    /// so a book held only through a team is queued too. Set-based; reads no
+    /// file. Returns the queue's length.
+    @discardableResult
+    func enqueueUnpackedEPUBBooks() throws -> Int {
+        try execute("""
+            INSERT INTO book_file_merge_queue (book_id, enqueued_at)
+            SELECT DISTINCT gm.group_id, ?
+            FROM group_members gm
+            JOIN books b ON b.id = gm.group_id
+            JOIN book_sources bs ON bs.source_id = gm.source_id
+            JOIN sources s ON s.id = gm.source_id
+            WHERE s.status = 'active'
+              AND bs.local_file_path LIKE '%/\(EPUBBookFiles.rootName)/%'
+              AND (LOWER(bs.local_file_path) LIKE '%.xhtml' OR LOWER(bs.local_file_path) LIKE '%.html'
+                   OR LOWER(bs.local_file_path) LIKE '%.htm')
             ON CONFLICT(book_id) DO NOTHING
         """, [.real(Date().timeIntervalSinceReferenceDate)])
         return Int(try scalarInteger("SELECT COUNT(*) FROM book_file_merge_queue") ?? 0)
@@ -121,6 +146,22 @@ extension KnowledgeStore {
             chapters.append(BookFileChapterRow(sourceID: id, title: row.text(1) ?? "", localFilePath: row.text(2), pages: pages))
         }
         return chapters
+    }
+
+    /// Where every active chapter of a book, a team's copy included, is
+    /// addressed: what finds an EPUB book's folder.
+    func bookChapterPaths(bookID: String) throws -> [String] {
+        var paths: [String] = []
+        try query("""
+            SELECT bs.local_file_path FROM group_members gm
+            JOIN sources s ON s.id = gm.source_id
+            JOIN book_sources bs ON bs.source_id = s.id
+            WHERE gm.group_id = ? AND s.status = 'active' AND COALESCE(bs.local_file_path, '') != ''
+            ORDER BY gm.sort_index IS NULL, gm.sort_index, s.id
+        """, [.text(bookID)]) { row in
+            if let path = row.text(0) { paths.append(path) }
+        }
+        return paths
     }
 
     /// Points each chapter at its pages of the book's file, queues it to be

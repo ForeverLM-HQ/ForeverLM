@@ -683,14 +683,17 @@ actor StorageService {
     /// `StudioArticle`'s memoized accessors rather than calling this directly.
     static func locateSourceFile(_ storedPath: String) -> String? {
         let fm = FileManager.default
-        for candidate in sourceFileCandidatePaths(for: storedPath) {
+        let candidates = sourceFileCandidatePaths(for: storedPath)
+        for candidate in candidates {
             if fm.fileExists(atPath: candidate) { return candidate }
             let url = URL(fileURLWithPath: candidate)
             let placeholder = url.deletingLastPathComponent()
                 .appendingPathComponent(".\(url.lastPathComponent).icloud")
             if fm.fileExists(atPath: placeholder.path) { return candidate }
         }
-        return nil
+        // A chapter of an EPUB book kept as one file is an entry of the book's
+        // file, at the address it had when the book was unpacked (`EPUBBookFiles`).
+        return candidates.first { EPUBBookFiles.exists(atPath: $0) }
     }
 
     /// Returns true for files managed under the ForeverLM content root.
@@ -2390,10 +2393,15 @@ actor StorageService {
               let resolvedURL = SourceService.resolveLocalFileURL(candidatePath) else {
             return nil
         }
-        guard ensureICloudFileDownloaded(at: resolvedURL, fileManager: .default) else { return nil }
-
         let path = resolvedURL.path
         let ext = resolvedURL.pathExtension.lowercased()
+        // A chapter of an EPUB book kept as one file is an entry of it, not a file.
+        if ["html", "htm", "xhtml"].contains(ext), EPUBBookFiles.location(ofPath: path) != nil {
+            guard let raw = EPUBBookFiles.text(atPath: path) else { return nil }
+            let text = EPUBParser.stripHTML(raw).trimmingCharacters(in: .whitespacesAndNewlines)
+            return text.isEmpty ? nil : text
+        }
+        guard ensureICloudFileDownloaded(at: resolvedURL, fileManager: .default) else { return nil }
 
         do {
             switch ext {
@@ -5517,6 +5525,11 @@ extension StorageService {
     func bookFileChapters(bookID: String) throws -> [BookFileChapterRow] {
         try ensureStoreExists()
         return try knowledgeStore().bookFileChapters(bookID: bookID)
+    }
+
+    func bookChapterPaths(bookID: String) throws -> [String] {
+        try ensureStoreExists()
+        return try knowledgeStore().bookChapterPaths(bookID: bookID)
     }
 
     /// Points a merged book's chapters at their pages of its file; their records

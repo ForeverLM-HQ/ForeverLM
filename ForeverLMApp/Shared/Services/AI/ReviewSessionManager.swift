@@ -14775,7 +14775,8 @@ final class ReviewSessionManager {
             case "ttml":
                 text = try SourceService.extractTextFromTTMLContent(String(contentsOf: resolvedURL, encoding: .utf8))
             case "html", "htm", "xhtml":
-                let raw = try String(contentsOf: resolvedURL, encoding: .utf8)
+                // A file, or a chapter of an EPUB book kept as one file.
+                guard let raw = EPUBBookFiles.text(atPath: resolvedURL.path) else { throw SourceError.fileNotFound }
                 text = EPUBParser.stripHTML(raw)
             default:
                 text = try String(contentsOf: resolvedURL, encoding: .utf8)

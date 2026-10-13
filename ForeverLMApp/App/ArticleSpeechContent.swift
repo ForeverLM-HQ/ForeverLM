@@ -149,8 +149,8 @@ enum ArticleSpeechContent {
     }
 
     private static func fileText(at path: String) -> String? {
-        let url = URL(fileURLWithPath: path)
-        guard let data = try? Data(contentsOf: url), !data.isEmpty else { return nil }
+        // A file, or a chapter of an EPUB book kept as one file.
+        guard let data = EPUBBookFiles.contents(atPath: path), !data.isEmpty else { return nil }
 
         let lowercasedPath = path.lowercased()
         if lowercasedPath.hasSuffix(".htm") || lowercasedPath.hasSuffix(".html") || lowercasedPath.hasSuffix(".xhtml") {

@@ -526,7 +526,8 @@ enum EPUBParser {
     /// next to the unzipped image assets. This gives chapter rows a real visual
     /// thumbnail without re-unzipping the source EPUB.
     static func firstImagePath(inXHTMLAt chapterPath: String) -> String? {
-        guard let data = FileManager.default.contents(atPath: chapterPath),
+        // A chapter of a book kept as one file reads from it (`EPUBBookFiles`).
+        guard let data = EPUBBookFiles.contents(atPath: chapterPath),
               let html = String(data: data, encoding: .utf8) else { return nil }
 
         let patterns = [
@@ -775,7 +776,7 @@ enum EPUBParser {
         return unreadable
     }
 
-    private static func zipEntryContents(_ entry: ZIPEntryRecord, in data: Data) -> Data? {
+    static func zipEntryContents(_ entry: ZIPEntryRecord, in data: Data) -> Data? {
         let header = entry.localHeaderOffset
         guard entry.flags & 1 == 0,
               zipHasSignature(data, zipLocalHeaderSignature, at: header),
@@ -1416,9 +1417,11 @@ enum EPUBParser {
             path = (chapterDir as NSString).appendingPathComponent(ref)
         }
 
+        // The picture's address: a file, or an entry of a book kept as one file
+        // (`EPUBBookFiles`), which reads either.
         let standardized = URL(fileURLWithPath: path).standardizedFileURL.path
         guard isSupportedImagePath(standardized),
-              FileManager.default.fileExists(atPath: standardized) else { return nil }
+              EPUBBookFiles.exists(atPath: standardized) else { return nil }
         return standardized
     }
 
@@ -1658,9 +1661,7 @@ enum EPUBParser {
     /// EPUB chapters are usually UTF-8; a few older exports are Latin-1, and
     /// reading those as UTF-8 fails outright rather than mojibake.
     private static func readChapterMarkup(at path: String) -> String? {
-        guard let data = FileManager.default.contents(atPath: path) else { return nil }
-        if let utf8 = String(data: data, encoding: .utf8) { return utf8 }
-        return String(data: data, encoding: .isoLatin1)
+        EPUBBookFiles.text(atPath: path)
     }
 
     /// Everything a chapter must not carry onto another device. `extractBodyHTML`
@@ -1765,33 +1766,29 @@ enum EPUBParser {
     /// One image as a `data:` URI, re-encoded only when it has to be. nil for a
     /// file ImageIO cannot read, which the caller turns into a visible note.
     static func imageDataURI(atPath path: String) -> String? {
-        let url = URL(fileURLWithPath: path)
-        let fileExtension = url.pathExtension.lowercased()
-        guard let size = (try? FileManager.default.attributesOfItem(atPath: path)[.size] as? Int) ?? nil,
-              size > 0 else {
-            return nil
-        }
+        let fileExtension = URL(fileURLWithPath: path).pathExtension.lowercased()
+        // A file, or an entry of a book kept as one file (`EPUBBookFiles`).
+        guard let data = EPUBBookFiles.contents(atPath: path), !data.isEmpty else { return nil }
+        let size = data.count
 
         // SVG is markup: inlining the bytes keeps it sharp at any zoom.
         if fileExtension == "svg" {
-            guard size <= maxReaderVerbatimOnlyImageBytes, let data = try? Data(contentsOf: url) else { return nil }
+            guard size <= maxReaderVerbatimOnlyImageBytes else { return nil }
             return dataURI(mediaType: "image/svg+xml", data: data)
         }
         // Re-encoding a GIF through ImageIO keeps one frame and loses the
         // animation, so an animated figure is inlined verbatim or not at all.
         if fileExtension == "gif" {
-            guard size <= maxReaderVerbatimOnlyImageBytes, let data = try? Data(contentsOf: url) else { return nil }
+            guard size <= maxReaderVerbatimOnlyImageBytes else { return nil }
             return dataURI(mediaType: "image/gif", data: data)
         }
         if size <= maxReaderVerbatimImageBytes,
-           let mediaType = webSafeImageMediaType(forExtension: fileExtension),
-           let data = try? Data(contentsOf: url) {
+           let mediaType = webSafeImageMediaType(forExtension: fileExtension) {
             return dataURI(mediaType: mediaType, data: data)
         }
-        guard let downscaled = downscaledImage(at: url) else {
+        guard let downscaled = downscaledImage(from: data) else {
             // TIFF/BMP that ImageIO refused has no web-safe verbatim form.
-            guard let mediaType = webSafeImageMediaType(forExtension: fileExtension),
-                  let data = try? Data(contentsOf: url) else { return nil }
+            guard let mediaType = webSafeImageMediaType(forExtension: fileExtension) else { return nil }
             return dataURI(mediaType: mediaType, data: data)
         }
         return dataURI(mediaType: downscaled.mediaType, data: downscaled.data)
@@ -1811,8 +1808,8 @@ enum EPUBParser {
     /// Downscales with ImageIO. Alpha decides the output format: a transparent
     /// line drawing encoded as JPEG comes back with a black background, which is
     /// worse than the extra PNG bytes.
-    private static func downscaledImage(at url: URL) -> (data: Data, mediaType: String)? {
-        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
+    private static func downscaledImage(from data: Data) -> (data: Data, mediaType: String)? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
         let thumbnailOptions: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,

@@ -675,8 +675,8 @@ extension KnowledgeStore {
     // after launch). The migration reads no full-text row. It does not wait
     // with 154 on a store held below it: this build's full-text writes read
     // the map. Never synced, so no CloudKit schema change.
-    // 169: a PDF book is one file (docs/backend-storage-sync.md, "A PDF book
-    // is one file"). `book_sources` gains `page_start` and `page_count`: the
+    // 169: a PDF book is one file (docs/backend-storage-sync.md, "A book is
+    // one file"). `book_sources` gains `page_start` and `page_count`: the
     // run of the book file's pages that is the chapter. NULL on every
     // existing row is the truth, since every chapter there is a file of its
     // own. A local-only queue, `book_file_merge_queue`, takes the id of every
@@ -687,7 +687,15 @@ extension KnowledgeStore {
     // held below it, since this build's book writes name the columns. They
     // travel as `Source.meta.pageStart` and `pageCount`, inside the encrypted
     // payload, so no CloudKit schema change.
-    static let schemaVersion: Int32 = 169
+    // 170: an EPUB book is one file too. An older build unpacked each EPUB
+    // into `Books/<book>/Chapters/`; a chapter keeps that address, which now
+    // names the entry inside the book's `.epub` (`EPUBBookFiles`). The
+    // migration queues, in 169's queue, every book with a chapter addressed
+    // in an unpacked folder (ids only, no file read), and after launch the
+    // drain packs each folder into the book's file, reads every entry back,
+    // and removes the folder. No column, nothing synced: a chapter's file
+    // never travelled, only its text.
+    static let schemaVersion: Int32 = 170
     static let minimumMigratableSchemaVersion: Int32 = 1
 
     /// The day Goals shipped — schema 120, build 114, 2026-09-19 — as midnight
@@ -831,6 +839,7 @@ extension KnowledgeStore {
         var queuedYouTubeTranscriptCheckCount = 0
         var queuedSoftHyphenRepairCount = 0
         var queuedSplitBookMergeCount = 0
+        var queuedUnpackedEPUBBookCount = 0
         var stagedTeamApprovalRepublishCount = 0
         var releasedDeletedNotebookLinks = (deletedNotebooks: 0, republished: 0)
         var rebuiltPerMemberRows: [String: Int] = [:]
@@ -4176,6 +4185,13 @@ extension KnowledgeStore {
                 try probeBookFileSchema()
                 queuedSplitBookMergeCount = try enqueueSplitBookMerge()
             }
+            if currentVersion < Self.epubBookFilesSchemaVersion {
+                // An EPUB book is one file (2026-10-12): every book still
+                // unpacked joins the queue above, to be packed after launch.
+                // Ids only; no file is read.
+                let before = try scalarInteger("SELECT COUNT(*) FROM book_file_merge_queue") ?? 0
+                queuedUnpackedEPUBBookCount = try enqueueUnpackedEPUBBooks() - Int(before)
+            }
             // Preparing the projection catches an older, structurally incompatible
             // table before the version stamp commits. The transaction then rolls
             // back completely instead of leaving a half-migrated store.
@@ -4334,6 +4350,11 @@ extension KnowledgeStore {
             if queuedSplitBookMergeCount > 0 {
                 logger.notice(
                     "Queued \(queuedSplitBookMergeCount) PDF book(s) to put back into one file"
+                )
+            }
+            if queuedUnpackedEPUBBookCount > 0 {
+                logger.notice(
+                    "Queued \(queuedUnpackedEPUBBookCount) EPUB book(s) to pack back into one file"
                 )
             }
             if stagedTeamApprovalRepublishCount > 0 {

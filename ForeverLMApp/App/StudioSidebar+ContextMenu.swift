@@ -48,19 +48,30 @@ struct RevealSourceInFinderButton: View {
         // Cached-only lookup: the menu is built eagerly with the row body.
         if let path = article.cachedResolvedLocalPath {
             Button {
-                let fileURL = URL(fileURLWithPath: path)
-                NSWorkspace.shared.activateFileViewerSelecting([fileURL])
-                // Finder's first reveal into an iCloud ubiquity container can land on
-                // the container root instead of selecting the file (CloudDocs
-                // virtual-path translation race). Re-issuing the same reveal is
-                // idempotent when the first one worked and corrects it when it didn't.
-                if path.contains("Library/Mobile Documents/") {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-                        NSWorkspace.shared.activateFileViewerSelecting([fileURL])
-                    }
+                // A chapter of an EPUB book kept as one file shows the book's file.
+                Task {
+                    let target = await Task.detached(priority: .userInitiated) {
+                        FileManager.default.fileExists(atPath: path) ? path : (EPUBBookFiles.location(ofPath: path)?.book ?? path)
+                    }.value
+                    Self.reveal(target)
                 }
             } label: {
                 Label("Reveal in Finder", systemImage: "folder")
+            }
+        }
+    }
+
+    @MainActor
+    private static func reveal(_ path: String) {
+        let fileURL = URL(fileURLWithPath: path)
+        NSWorkspace.shared.activateFileViewerSelecting([fileURL])
+        // Finder's first reveal into an iCloud ubiquity container can land on
+        // the container root instead of selecting the file (CloudDocs
+        // virtual-path translation race). Re-issuing the same reveal is
+        // idempotent when the first one worked and corrects it when it didn't.
+        if path.contains("Library/Mobile Documents/") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                NSWorkspace.shared.activateFileViewerSelecting([fileURL])
             }
         }
     }

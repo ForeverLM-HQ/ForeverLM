@@ -14,12 +14,14 @@ import Foundation
 /// nothing is written back to the chapter files and a chapter's notes mean the
 /// same thing here as on a device that reads it alone.
 ///
-/// Resource references are rewritten relative to the `Chapters` folder. The
-/// page itself is written there too, as a hidden file (`writingFile()`), and
-/// loaded with read access to that folder: WebKit gives a page loaded from a
-/// string no access to `file:` pictures or stylesheets at all, whatever its
-/// base URL. The app already keeps derived files in that folder (combined
-/// chapters in `ForeverLMCombinedChapters`).
+/// Resource references are rewritten relative to the `Chapters` folder, the
+/// root a chapter's address names. A book kept as one file (`EPUBBookFiles`)
+/// has no such folder on disk: its page is served from memory, and its
+/// pictures and stylesheets from the book's file, under `EPUBBookScheme` at
+/// the same paths. A book still unpacked has the page written into its
+/// `Chapters` folder as a hidden file (`writingFile()`) and loaded with read
+/// access to that folder: WebKit gives a page loaded from a string no access
+/// to `file:` pictures or stylesheets at all, whatever its base URL.
 struct EPUBBookDocument: Equatable, Sendable {
     struct Input: Sendable {
         let sourceID: String
@@ -35,7 +37,8 @@ struct EPUBBookDocument: Equatable, Sendable {
         let path: String
     }
 
-    /// The book's `Chapters` folder, as a directory URL.
+    /// The book's `Chapters` folder, as a directory URL: a `file:` URL for a
+    /// book still unpacked, an `EPUBBookScheme` URL for one kept as one file.
     let baseURL: URL
     let html: String
     /// The chapters in the document, in reading order: those whose file could
@@ -55,11 +58,18 @@ struct EPUBBookDocument: Equatable, Sendable {
     /// Writes the page into the `Chapters` folder, only when it changed —
     /// reopening a book rewrites nothing. File work: off the main actor. A
     /// folder that refuses the write leaves `fileURL` nil, and the book still
-    /// reads, without its pictures and publisher styles.
+    /// reads, without its pictures and publisher styles. A book kept as one
+    /// file writes nothing: its page is served from memory at that path.
     func writingFile() -> EPUBBookDocument {
+        var written = self
+        if !baseURL.isFileURL, let folder = EPUBBookScheme.path(of: baseURL) {
+            let path = (folder as NSString).appendingPathComponent(Self.fileName)
+            EPUBBookScheme.register(page: html, atPath: path)
+            written.fileURL = EPUBBookScheme.url(forPath: path)
+            return written
+        }
         let url = baseURL.appendingPathComponent(Self.fileName, isDirectory: false)
         let data = Data(html.utf8)
-        var written = self
         if FileManager.default.contents(atPath: url.path) != data {
             do {
                 try data.write(to: url, options: .atomic)
@@ -163,6 +173,13 @@ struct EPUBBookDocument: Equatable, Sendable {
 
         guard !chapters.isEmpty else { return nil }
 
+        // No `Chapters` folder on disk: the book is its one file, read through the scheme.
+        var isDirectory: ObjCBool = false
+        let unpacked = FileManager.default.fileExists(atPath: chaptersDir, isDirectory: &isDirectory) && isDirectory.boolValue
+        guard let baseURL = unpacked
+            ? URL(fileURLWithPath: chaptersDir, isDirectory: true)
+            : EPUBBookScheme.url(forPath: chaptersDir, isDirectory: true) else { return nil }
+
         let links = stylesheets
             .map { "<link rel=\"stylesheet\" type=\"text/css\" href=\"\(escapeAttribute($0))\"/>" }
             .joined(separator: "\n")
@@ -182,7 +199,7 @@ struct EPUBBookDocument: Equatable, Sendable {
         </html>
         """
         return EPUBBookDocument(
-            baseURL: URL(fileURLWithPath: chaptersDir, isDirectory: true),
+            baseURL: baseURL,
             html: html,
             chapters: chapters,
             fileURL: nil
@@ -191,11 +208,10 @@ struct EPUBBookDocument: Equatable, Sendable {
 
     // MARK: - Markup
 
-    /// EPUB chapters are usually UTF-8; a few older exports are Latin-1.
+    /// EPUB chapters are usually UTF-8; a few older exports are Latin-1. Read
+    /// from the book's file when the book is kept as one.
     private static func readMarkup(at path: String) -> String? {
-        guard let data = FileManager.default.contents(atPath: path) else { return nil }
-        if let utf8 = String(data: data, encoding: .utf8) { return utf8 }
-        return String(data: data, encoding: .isoLatin1)
+        EPUBBookFiles.text(atPath: path)
     }
 
     private static func headHTML(of html: String) -> String {

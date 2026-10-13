@@ -62,9 +62,13 @@ enum ReaderSelectionImageResolver {
 
     /// The picture's bytes from its URL, as the signed-in reader would get
     /// them. A `file:` URL — an archived article's or a book chapter's own
-    /// picture — reads straight from disk.
+    /// picture — reads straight from disk, and one of an EPUB book kept as one
+    /// file (`EPUBBookScheme`) from the book's file.
     @MainActor
     static func fetch(_ url: URL) async -> Data? {
+        if let path = EPUBBookScheme.path(of: url) {
+            return await Task.detached(priority: .userInitiated) { EPUBBookScheme.response(forPath: path)?.data }.value
+        }
         var request = URLRequest(url: url, timeoutInterval: requestTimeout)
         if !url.isFileURL {
             let cookies = await InAppWebSession.cookies(for: url)

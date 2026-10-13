@@ -1003,7 +1003,7 @@ extension KnowledgeStore {
 
         var rebuiltContent = false
         if let path = article.resolvedLocalPath,
-           let raw = try? String(contentsOfFile: path, encoding: .utf8),
+           let raw = EPUBBookFiles.text(atPath: path),
            !raw.isEmpty {
             let lower = path.lowercased()
             let isMarkup = lower.hasSuffix(".html") || lower.hasSuffix(".htm") || lower.hasSuffix(".xhtml")

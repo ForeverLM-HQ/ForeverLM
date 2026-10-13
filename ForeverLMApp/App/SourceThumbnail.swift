@@ -239,7 +239,7 @@ enum SourceArtwork {
         guard case .file(let stored) = origin else { return nil }
         let location = SourcePDFPages(stored: stored)
         guard let filePath = BookCoverThumbnail.candidatePaths(for: location.path)
-            .first(where: { FileManager.default.fileExists(atPath: $0) }) else { return nil }
+            .first(where: { EPUBBookFiles.exists(atPath: $0) }) else { return nil }
 
         let lower = filePath.lowercased()
         if lower.hasSuffix(".jpg") || lower.hasSuffix(".jpeg")
@@ -248,7 +248,7 @@ enum SourceArtwork {
         }
         if lower.hasSuffix(".htm") || lower.hasSuffix(".html") || lower.hasSuffix(".xhtml") {
             guard let imagePath = EPUBParser.firstImagePath(inXHTMLAt: filePath) else { return nil }
-            return scaled(NSImage(contentsOfFile: imagePath), maxPixelSize: maxPixelSize)
+            return scaled(EPUBBookFiles.contents(atPath: imagePath).flatMap(NSImage.init(data:)), maxPixelSize: maxPixelSize)
         }
         guard let document = PDFDocument(url: URL(fileURLWithPath: filePath)),
               let page = document.page(at: location.pages?.lowerBound ?? 0) else { return nil }

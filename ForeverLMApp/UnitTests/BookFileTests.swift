@@ -428,9 +428,12 @@ struct BookFileMigrationTests {
         let migrated = try reopen(root)
 
         #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
-        #expect(KnowledgeStore.schemaVersion == 169)
+        #expect(KnowledgeStore.schemaVersion == 170)
         #expect(try migrated.holdsBookFileSchema())
-        #expect(try migrated.dueBookFileMerges(limit: 10) == ["split"], "an EPUB's chapters and a team's copies are not queued")
+        #expect(
+            Set(try migrated.dueBookFileMerges(limit: 10)) == ["split", "epub"],
+            "a team's copy of a PDF book is not queued; an unpacked EPUB book is, by schema 170"
+        )
         // The library is whole and on screen while the merge waits; nothing points at pages yet.
         #expect(Set(try migrated.loadActiveSources().map(\.id)).isSuperset(of: ["split-1", "split-2", "epub-1"]))
         #expect(try migrated.loadSourceForSync("split-1")?.bookPages == nil)
@@ -448,7 +451,7 @@ struct BookFileMigrationTests {
         let elapsed = started.duration(to: .now)
 
         #expect(elapsed < .seconds(1))
-        #expect(try migrated.scalarInteger("SELECT COUNT(*) FROM book_file_merge_queue") == 401)
+        #expect(try migrated.scalarInteger("SELECT COUNT(*) FROM book_file_merge_queue") == 402)
     }
 
     @Test("A failed step rolls back and leaves the released library as it was")

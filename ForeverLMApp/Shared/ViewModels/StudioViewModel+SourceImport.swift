@@ -779,27 +779,22 @@ extension StudioViewModel {
         if let bookEdition { bookEditions[bookID] = bookEdition }
         if let kind, !kind.isEmpty { bookKinds[bookID] = kind }
 
-        // Check if chapter records already exist. Files alone are not book identity,
-        // but an explicit re-import can revive records for a known book.
-        if fm.fileExists(atPath: importedFile.chaptersDir) {
-            let groupedChapterCount = (try? await storage.sourceCountByParentGroup(bookID)) ?? 0
-            if groupedChapterCount > 0 {
-                if isEPUB {
-                    logger.info("[BookImport] Rebuilding existing EPUB chapter records for explicit re-import")
-                    try? await storage.saveBookMetadata(
-                        groupName: bookID,
-                        title: cleanedBookTitle,
-                        subtitle: bookSubtitle,
-                        author: bookAuthor,
-                        edition: bookEdition,
-                        coverPath: bookCoverPaths[bookID],
-                        kind: kind
-                    )
-                } else {
-                    logger.info("[BookImport] Rebuilding existing PDF chapter files for explicit re-import")
-                }
+        // An explicit re-import of a known book revives its chapter records.
+        let groupedChapterCount = (try? await storage.sourceCountByParentGroup(bookID)) ?? 0
+        if groupedChapterCount > 0 {
+            if isEPUB {
+                logger.info("[BookImport] Rebuilding existing EPUB chapter records for explicit re-import")
+                try? await storage.saveBookMetadata(
+                    groupName: bookID,
+                    title: cleanedBookTitle,
+                    subtitle: bookSubtitle,
+                    author: bookAuthor,
+                    edition: bookEdition,
+                    coverPath: bookCoverPaths[bookID],
+                    kind: kind
+                )
             } else {
-                logger.warning("[BookImport] Chapters folder exists without grouped sources; rebuilding chapter records")
+                logger.info("[BookImport] Rebuilding existing PDF chapter records for explicit re-import")
             }
         }
 
@@ -1283,17 +1278,20 @@ extension StudioViewModel {
     /// chapter splitting model decides which documents make each chapter, names
     /// them, and names the chapters a damaged file has lost, which the learner
     /// is then told about.
+    ///
+    /// The book stays one file (`EPUBBookFiles`): it is unpacked only into a
+    /// staging folder to be read, and what the import made there — the
+    /// chapters that join several documents — is packed back into the book's
+    /// `.epub`. A chapter is addressed `<book folder>/Chapters/<entry>`, the
+    /// entry of that file, and no `Chapters` folder is left on disk; one an
+    /// earlier import left goes once the chapters are saved.
     func importEPUBChapters(from epubPath: String, bookID: String, bookTitle: String, bookDir: String, chaptersDir: String) async throws {
         bookImportStatus = "Reading EPUB…"
         logger.info("[BookImport] EPUB path: \(epubPath)")
 
-        // Unpack beside the current chapters and swap in only once the model
-        // has answered, so a failed re-import leaves the book's files alone.
+        // Unpacked to be read, never kept: a failed import leaves the book's files alone.
         let stagingDir = chaptersDir + ".incoming-\(UUID().uuidString)"
-        var installed = false
-        defer {
-            if !installed { try? FileManager.default.removeItem(atPath: stagingDir) }
-        }
+        defer { try? FileManager.default.removeItem(atPath: stagingDir) }
         let staged: EPUBParser.Inventory
         do {
             staged = try await Task.detached(priority: .userInitiated) {
@@ -1324,20 +1322,11 @@ extension StudioViewModel {
         }
         logger.info("[BookImport] Chapter model chose \(selection.chapters.count) chapters; \(selection.missingChapters.count) missing")
 
-        let inventory = try await Task.detached(priority: .userInitiated) {
-            if FileManager.default.fileExists(atPath: chaptersDir) {
-                try FileManager.default.removeItem(atPath: chaptersDir)
-            }
-            try FileManager.default.moveItem(atPath: stagingDir, toPath: chaptersDir)
-            return staged.relocated(to: chaptersDir)
-        }.value
-        installed = true
-
         let progress = BookImportProgress(self)
-        let drafts = try await Task.detached(priority: .userInitiated) {
+        let staging = try await Task.detached(priority: .userInitiated) {
             try Self.prepareEPUBChapterDrafts(
                 epubPath: epubPath,
-                inventory: inventory,
+                inventory: staged,
                 spans: selection.chapters,
                 bookTitle: bookTitle,
                 bookDir: bookDir,
@@ -1345,10 +1334,30 @@ extension StudioViewModel {
             )
         }.value
 
-        guard !drafts.isEmpty else {
+        guard !staging.isEmpty else {
             logger.error("[BookImport] No chapters found in EPUB")
             errorMessage = "No chapters found in EPUB."
             throw SourceError.pdfReadFailed
+        }
+
+        // The staging tree, with the chapters made in it, becomes the book's one file.
+        bookImportStatus = "Saving the book…"
+        try await Task.detached(priority: .userInitiated) {
+            let original = URL(fileURLWithPath: epubPath)
+            try EPUBBookFiles.pack(
+                URL(fileURLWithPath: stagingDir, isDirectory: true),
+                original: EPUBParser.isDirectoryEPUB(at: epubPath) ? nil : original,
+                to: original
+            )
+        }.value
+        let drafts = staging.map { draft in
+            BookChapterImportDraft(
+                path: chaptersDir + String(draft.path.dropFirst(stagingDir.count)),
+                title: draft.title,
+                sortIndex: draft.sortIndex,
+                plainText: draft.plainText,
+                wordCount: draft.wordCount
+            )
         }
 
         try await storage.archiveSourcesByParentGroup(bookID)
@@ -1371,12 +1380,21 @@ extension StudioViewModel {
 
             try await saveImportedBookChapterDraft(article)
         }
+        // A folder of chapter files an earlier import left is no one's now, nor
+        // the book's place in the merge queue.
+        try? await storage.dropBookFileMerge(bookID: bookID)
+        try? await Task.detached(priority: .utility) {
+            if FileManager.default.fileExists(atPath: chaptersDir) {
+                try FileManager.default.removeItem(atPath: chaptersDir)
+            }
+        }.value
+        StudioArticle.invalidateResolvedPathCache(forRawPaths: drafts.map(\.path))
 
         logger.info("[BookImport] Inserted \(drafts.count) chapter sources for \"\(bookTitle)\"")
         if let notice = Self.damagedEPUBNotice(
             bookTitle: bookTitle,
             missingChapters: selection.missingChapters,
-            missingFileCount: inventory.missingFiles.count
+            missingFileCount: staged.missingFiles.count
         ) {
             bookImportNotice = notice
             showBookImportNotice = true

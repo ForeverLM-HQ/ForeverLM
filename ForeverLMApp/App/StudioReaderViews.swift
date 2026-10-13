@@ -101,13 +101,14 @@ struct BookCoverThumbnail: View {
             // A book chapter's thumbnail is its first page of the book's file.
             let location = SourcePDFPages(stored: path)
             let candidates = Self.candidatePaths(for: location.path)
-            guard let filePath = candidates.first(where: { Self.ensureICloudFileAvailable(at: $0) })
+            // A chapter of an EPUB book kept as one file is an entry of it (`EPUBBookFiles`).
+            guard let filePath = candidates.first(where: { Self.ensureICloudFileAvailable(at: $0) || EPUBBookFiles.exists(atPath: $0) })
             else { return (nil, nil) }
             if isImage {
                 return (NSImage(contentsOfFile: filePath), filePath)
             }
             if isEPUBChapter, let imagePath = EPUBParser.firstImagePath(inXHTMLAt: filePath) {
-                return (NSImage(contentsOfFile: imagePath), filePath)
+                return (EPUBBookFiles.contents(atPath: imagePath).flatMap(NSImage.init(data:)), filePath)
             }
             if isEPUBChapter {
                 return (nil, filePath)
@@ -188,23 +189,34 @@ final class EPUBChapterSnapshotRenderer: NSObject, WKNavigationDelegate {
     static func snapshot(path: String, size: CGSize) async -> NSImage? {
         let width = max(320, size.width * 8)
         let height = max(420, width * size.height / max(size.width, 1))
+        // A chapter of an EPUB book kept as one file is drawn from it (`EPUBBookScheme`).
+        let bookURL = await Task.detached(priority: .utility) { () -> URL? in
+            guard !FileManager.default.fileExists(atPath: path), EPUBBookFiles.location(ofPath: path) != nil else { return nil }
+            return EPUBBookScheme.url(forPath: path)
+        }.value
         let renderer = EPUBChapterSnapshotRenderer(path: path, snapshotSize: CGSize(width: width, height: height))
-        return await renderer.render()
+        return await renderer.render(bookURL: bookURL)
     }
 
     private init(path: String, snapshotSize: CGSize) {
         self.path = path
         self.snapshotSize = snapshotSize
-        self.webView = WKWebView(frame: CGRect(origin: .zero, size: snapshotSize))
+        let configuration = WKWebViewConfiguration()
+        configuration.setURLSchemeHandler(EPUBBookScheme.handler, forURLScheme: EPUBBookScheme.name)
+        self.webView = WKWebView(frame: CGRect(origin: .zero, size: snapshotSize), configuration: configuration)
         super.init()
         webView.navigationDelegate = self
     }
 
-    private func render() async -> NSImage? {
+    private func render(bookURL: URL?) async -> NSImage? {
         await withCheckedContinuation { continuation in
             self.continuation = continuation
-            let fileURL = URL(fileURLWithPath: path)
-            webView.loadFileURL(fileURL, allowingReadAccessTo: Self.readAccessRoot(for: fileURL))
+            if let bookURL {
+                webView.load(URLRequest(url: bookURL))
+            } else {
+                let fileURL = URL(fileURLWithPath: path)
+                webView.loadFileURL(fileURL, allowingReadAccessTo: Self.readAccessRoot(for: fileURL))
+            }
             DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
                 Task { @MainActor in
                     self?.complete(nil)
