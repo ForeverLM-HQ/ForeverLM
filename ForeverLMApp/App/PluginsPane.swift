@@ -12,26 +12,41 @@ import AppKit
 /// ‹ Plugins back to the list. A place like the Library: a pane with its ×,
 /// Open Beside, Open in Other Window and a drag; it leaves a notebook the way
 /// the Library does. Settings has no Plugins since.
+///
+/// Codex's place has two lists, Plugins and Skills, under one head
+/// (`skills.appsPage.browseTabs`); so does this one: the Skills tab lists the
+/// learner's chat skills, each with a page to read, edit or delete it, and
+/// New Skill (`SkillsView.swift`). Where the window is in the place is
+/// `StudioWindowState.pluginsLocation`, so ‹ › step through it.
 struct PluginsPane: View {
     @Environment(StudioViewModel.self) private var vm
     @Environment(StudioWindowState.self) private var windowState
 
     var body: some View {
+        let location = windowState.pluginsLocation
         Group {
-            if let page = windowState.pluginPage {
+            switch location {
+            case .directory, .skills:
+                PluginsBrowseView(tab: location.tab) { vm.openPluginsPlace(at: $0, in: windowState) }
+            case .plugin(let page):
                 PluginPageContent(page: page)
                     .id(page)
-                    .environment(\.pluginPageBack, { vm.openPluginsPlace(nil, in: windowState) })
-            } else {
-                PluginDirectoryView { page in vm.openPluginsPlace(page, in: windowState) }
+                    .environment(\.pluginPageBack, { vm.openPluginsPlace(at: .directory, in: windowState) })
+            case .skill(let skillID):
+                SkillPage(skillID: skillID) { vm.openPluginsPlace(at: $0, in: windowState) }
+                    .id(location)
+            case .newSkill:
+                SkillPage(skillID: nil) { vm.openPluginsPlace(at: $0, in: windowState) }
+                    .id(location)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .windowBackgroundColor))
         .studioCenterTabCloseChrome(for: .plugins)
         .onExitCommand {
-            guard windowState.pluginPage != nil else { return }
-            vm.openPluginsPlace(nil, in: windowState)
+            // A skill being written handles its own Escape (it may ask first).
+            guard location.pluginPage != nil else { return }
+            vm.openPluginsPlace(at: location.list, in: windowState)
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Plugins")
@@ -40,44 +55,193 @@ struct PluginsPane: View {
 }
 
 /// Ways into the Plugins place from what is not a window's own view: a
-/// banner, a chat's prompt, Settings, a menu, MCP. The key window opens it,
-/// closing its Settings first when Settings is open.
+/// banner, a chat's prompt, Settings, a menu, a `foreverlm://` link, MCP. The
+/// key window opens it, closing its Settings first when Settings is open.
 enum PluginsPlace {
     @MainActor
     static func requestOpen(_ page: PluginPage? = nil) {
-        NotificationCenter.default.post(name: .requestOpenPluginsPlace, object: page)
+        requestOpen(at: page.map(PluginsPlaceLocation.plugin) ?? .directory)
+    }
+
+    @MainActor
+    static func requestOpen(at location: PluginsPlaceLocation) {
+        NotificationCenter.default.post(name: .requestOpenPluginsPlace, object: location)
+    }
+
+    /// A `foreverlm://plugins…` or `foreverlm://skills…` address opened: the
+    /// place there. A skill is found by its name, the newest of that name;
+    /// one that is gone opens the Skills list and says so.
+    @MainActor
+    static func open(_ link: PluginsPlaceLink, vm: StudioViewModel) async {
+        switch link {
+        case .plugins(let page):
+            requestOpen(page)
+        case .skills(nil):
+            requestOpen(at: .skills)
+        case .skills(let name?):
+            await SkillLibrary.shared.loadIfNeeded()
+            if let skill = SkillLibrary.shared.skills.skill(named: name) {
+                requestOpen(at: .skill(skill.id))
+            } else {
+                requestOpen(at: .skills)
+                vm.showToast("There is no skill /\(name) any more.")
+            }
+        }
+    }
+
+    /// Puts `url` on the pasteboard, for a row's or a page's Copy Link.
+    @MainActor
+    static func copy(_ link: PluginsPlaceLink, vm: StudioViewModel) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(link.url.absoluteString, forType: .string)
+        vm.showToast("Link copied.")
     }
 }
 
 extension Notification.Name {
-    /// The Plugins place in the key window, at the `PluginPage` the object
-    /// names, or at its list when there is none.
+    /// The Plugins place in the key window, at the `PluginsPlaceLocation`
+    /// the object names, or at its directory when there is none.
     static let requestOpenPluginsPlace = Notification.Name("requestOpenPluginsPlace")
 }
 
 extension StudioViewModel {
     /// The Plugins place in `window` (the window in scope when nil), at
-    /// `page` or at its list: the strip's Plugins row, a plugin's row, a
+    /// `page` or at its directory: the strip's Plugins row, a plugin's row, a
     /// reconnect banner, `open_settings` with a plugin's id. A window holding
     /// a notebook leaves it the way it does for the Library (`.plugins`
     /// routes `.leave`), and its rail row brings it back.
     func openPluginsPlace(_ page: PluginPage? = nil, in window: StudioWindowState? = nil) {
+        openPluginsPlace(at: page.map(PluginsPlaceLocation.plugin) ?? .directory, in: window)
+    }
+
+    /// The Plugins place at `location`: a list, a plugin's page or a skill's.
+    func openPluginsPlace(at location: PluginsPlaceLocation, in window: StudioWindowState? = nil) {
         let window = window ?? activeWindowState
-        if window.pluginPage != page { window.pluginPage = page }
+        if window.pluginsLocation != location { window.pluginsLocation = location }
         activateCenterTab(.plugins, in: window)
+    }
+}
+
+// MARK: - The head and its two lists
+
+/// The place's lists under Codex's head: the title, its one line, the
+/// search, and the Plugins | Skills tabs; the Skills tab's one action is
+/// New Skill (Codex's `skills.page.createSkill`). The search is the tab's own
+/// and starts empty on each.
+private struct PluginsBrowseView: View {
+    let tab: PluginsPlaceTab
+    let go: (PluginsPlaceLocation) -> Void
+    @State private var query = ""
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: StudioDesign.Spacing.xLarge) {
+                VStack(alignment: .leading, spacing: StudioDesign.Spacing.small) {
+                    SpacePlaceHeader(searchText: $query, searchIdentifier: "plugins.search.\(tab.rawValue)") {
+                        SpacePlaceTitle(title: tab.title)
+                    } actions: {
+                        if tab == .skills {
+                            SpaceDarkPillButton(title: "New Skill", systemImage: "plus", image: nil) { go(.newSkill) }
+                                .help("Write a skill for the chat")
+                                .accessibilityIdentifier("skills.new")
+                        }
+                    }
+                    Text(tab.subtitle)
+                        .zoomedSystemFont(size: 13)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.disabled)
+                    HStack(spacing: 4) {
+                        ForEach(PluginsPlaceTab.allCases, id: \.self) { candidate in
+                            SpaceScopePill(title: candidate.title, isSelected: candidate == tab) {
+                                guard candidate != tab else { return }
+                                query = ""
+                                go(candidate.location)
+                            }
+                            .accessibilityIdentifier("plugins.tab.\(candidate.rawValue)")
+                        }
+                    }
+                    .padding(.top, StudioDesign.Spacing.small)
+                }
+                switch tab {
+                case .plugins:
+                    PluginDirectoryView(query: query) { go(.plugin($0)) }
+                case .skills:
+                    SkillsListView(query: query, go: go)
+                }
+            }
+            .spacePlaceColumn()
+        }
+    }
+}
+
+/// Codex's breadcrumb over a page in the place: the list it belongs to, a
+/// click away (⌘[ too), then the page's own name.
+struct PluginsPlaceBreadcrumb: View {
+    let root: String
+    let current: String
+    let back: () -> Void
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Button(action: back) {
+                Text(root)
+                    .zoomedSystemFont(size: 12, weight: .medium)
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.hoverWash)
+            .keyboardShortcut("[", modifiers: .command)
+            .help("Back to \(root)")
+            .accessibilityIdentifier("plugins.page.back")
+            Image(systemName: "chevron.right")
+                .zoomedSystemFont(size: 9, weight: .semibold)
+                .foregroundStyle(.tertiary)
+                .accessibilityHidden(true)
+            Text(current)
+                .zoomedSystemFont(size: 12, weight: .medium)
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .textSelection(.disabled)
+        }
+    }
+}
+
+/// What a plugin brings, under its controls (Codex's Includes): the
+/// ForeverLM tools a chat and an assistant over MCP may use once it is
+/// connected, by the names those tools go by.
+struct PluginIncludesSection: View {
+    let tools: [String]
+
+    var body: some View {
+        SettingsSection(title: "Includes", description: "Tools a chat, and an assistant connected over MCP, can use with it.") {
+            FlowLayout(spacing: 6) {
+                ForEach(tools, id: \.self) { tool in
+                    Text(tool)
+                        .font(.system(size: 11.5, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Capsule().fill(Color.primary.opacity(0.05)))
+                        .textSelection(.enabled)
+                }
+            }
+        }
+        .accessibilityIdentifier("plugins.page.includes")
     }
 }
 
 // MARK: - The directory
 
-/// Every plugin and its state, in the Space's list head (`SpacePlaceHeader`):
-/// the built-in plugins, then Your Plugins — the meeting providers and the
-/// learner's own ingest plugins, and Build Your Own. A row shows what the
-/// plugin reads once it is connected, its own description until then.
+/// Every plugin and its state under the place's head: Installed first — every
+/// plugin that is connected or needs reconnecting, as Codex's Installed
+/// section — then the built-in plugins, then Your Plugins: the meeting
+/// providers, the learner's own ingest plugins, and Build Your Own. A row
+/// shows what the plugin reads once it is connected, its own description
+/// until then.
 private struct PluginDirectoryView: View {
     @Environment(StudioViewModel.self) private var vm
+    let query: String
     let open: (PluginPage) -> Void
-    @State private var query = ""
     // Placeholders only: these are *synced* Keychain keys, so each read is
     // securityd IPC that bypasses the vault cache — and `@State` initializers
     // re-run on every re-init of this struct. `refreshPluginStates()` fills
@@ -293,23 +457,17 @@ private struct PluginDirectoryView: View {
     var body: some View {
         let builtIn = searched(builtInRows)
         let yours = searched(yourPluginRows)
-        ScrollView {
-            VStack(alignment: .leading, spacing: StudioDesign.Spacing.xLarge) {
-                SpacePlaceHeader(searchText: $query, searchIdentifier: "plugins.search") {
-                    SpacePlaceTitle(title: "Plugins")
-                } actions: {
-                    EmptyView()
-                }
-                if builtIn.isEmpty && yours.isEmpty {
-                    SpaceEmptyLine(systemImage: "magnifyingglass", text: "No results for “\(query.trimmingCharacters(in: .whitespacesAndNewlines))”")
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, SpacePlaceMetrics.emptyTopPadding - StudioDesign.Spacing.xLarge)
-                } else {
-                    section("Built-In", builtIn)
-                    section("Your Plugins", yours)
-                }
+        let installed = (builtIn + yours).filter { PluginStatus.isInstalled($0.status) }
+        VStack(alignment: .leading, spacing: StudioDesign.Spacing.xLarge) {
+            if builtIn.isEmpty && yours.isEmpty {
+                SpaceEmptyLine(systemImage: "magnifyingglass", text: "No results for “\(query.trimmingCharacters(in: .whitespacesAndNewlines))”")
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, SpacePlaceMetrics.emptyTopPadding - StudioDesign.Spacing.xLarge)
+            } else {
+                section("Installed", installed)
+                section("Built-In", builtIn.filter { !PluginStatus.isInstalled($0.status) })
+                section("Your Plugins", yours.filter { !PluginStatus.isInstalled($0.status) })
             }
-            .spacePlaceColumn()
         }
         .onAppear {
             refreshPluginStates()
@@ -328,16 +486,62 @@ private struct PluginDirectoryView: View {
                     .foregroundStyle(.secondary)
                     .textSelection(.disabled)
                 ForEach(rows) { row in
-                    Button { open(row.page) } label: {
-                        PluginPickerRow(title: row.title, subtitle: row.subtitle, status: row.status) {
-                            logo(row.logo)
-                        }
+                    PluginDirectoryRow(row: row, open: open) {
+                        logo(row.logo)
                     }
-                    .buttonStyle(.plain)
-                    .hoverHighlight(cornerRadius: 18, inset: 0)
-                    .accessibilityIdentifier("plugins.row.\(row.id)")
                 }
             }
+        }
+    }
+
+    /// A row with Codex's card actions: a click opens the plugin's page;
+    /// the ⋯ (and a right-click) holds Open, Open in Other Window and Copy
+    /// Link. Connecting and disconnecting are on the page, where each
+    /// plugin's own steps are.
+    private struct PluginDirectoryRow<Logo: View>: View {
+        @Environment(StudioViewModel.self) private var vm
+        let row: Row
+        let open: (PluginPage) -> Void
+        @ViewBuilder var logo: () -> Logo
+        @State private var isHovering = false
+
+        var body: some View {
+            Button { open(row.page) } label: {
+                PluginPickerRow(title: row.title, subtitle: row.subtitle, status: row.status, reservesMenuSpace: true) {
+                    logo()
+                }
+            }
+            .buttonStyle(.plain)
+            .hoverHighlight(cornerRadius: 18, inset: 0)
+            .overlay(alignment: .trailing) {
+                Menu {
+                    menuItems
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .zoomedSystemFont(size: 12, weight: .semibold)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 24, height: 24)
+                        .contentShape(Rectangle())
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help("More actions")
+                .opacity(isHovering ? 1 : 0)
+                .padding(.trailing, 40)
+                .accessibilityLabel("More actions for \(row.title)")
+            }
+            .onHover { isHovering = $0 }
+            .contextMenu { menuItems }
+            .accessibilityIdentifier("plugins.row.\(row.id)")
+        }
+
+        @ViewBuilder
+        private var menuItems: some View {
+            Button("Open") { open(row.page) }
+            OtherWindowMenuItem(.plugins(.plugin(row.page)))
+            Divider()
+            Button("Copy Link") { PluginsPlace.copy(.plugins(row.page), vm: vm) }
         }
     }
 
@@ -540,14 +744,17 @@ private struct PluginDirectoryView: View {
     }
 }
 
-/// A plugin's row in the directory: its logo, its name and one line, its
-/// state, and the chevron that says it opens a page.
-private struct PluginPickerRow<Icon: View>: View {
+/// A plugin's row in the directory, and a skill's in the Skills list: its
+/// logo, its name and one line, its state, and the chevron that says it
+/// opens a page.
+struct PluginPickerRow<Icon: View>: View {
     let title: String
     let subtitle: String
     /// nil renders no state chip — for action rows (Build Your Own) that have
     /// no connection of their own.
     var status: PluginStatus?
+    /// Leaves room before the chevron for the row's ⋯, drawn over it.
+    var reservesMenuSpace = false
     @ViewBuilder var icon: () -> Icon
 
     var body: some View {
@@ -585,6 +792,10 @@ private struct PluginPickerRow<Icon: View>: View {
                             Capsule(style: .continuous)
                                 .fill(status.color.opacity(status == .connected ? 0.12 : 0.08))
                         )
+                }
+
+                if reservesMenuSpace {
+                    Color.clear.frame(width: 24, height: 1)
                 }
 
                 Image(systemName: "chevron.right")

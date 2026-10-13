@@ -3,7 +3,8 @@ import Observation
 import OSLog
 
 /// The learner's chat skills as the Mac's windows see them: the chat composer
-/// offers each as a `/` command.
+/// offers each as a `/` or `$` command, and the Plugins place's Skills tab
+/// lists, edits, creates and deletes them (`SkillsListView`, `SkillPage`).
 ///
 /// The list is read off-main through `StorageService` and read again when a
 /// skill is written here (`skillsDidChange`), by an MCP tool

@@ -18,35 +18,35 @@ struct PluginPageContent: View {
     var body: some View {
         switch page {
         case .x:
-            PluginSetupDetailView(title: page.title, description: page.about) {
+            PluginSetupDetailView(title: page.title, description: page.about, includedTools: page.includedTools) {
                 XPluginSettingsView()
             }
         case .youtube:
-            PluginSetupDetailView(title: page.title, description: page.about) {
+            PluginSetupDetailView(title: page.title, description: page.about, includedTools: page.includedTools) {
                 YouTubeConnectionSettingsView()
             }
         case .googleDrive:
-            PluginSetupDetailView(title: page.title, description: page.about) {
+            PluginSetupDetailView(title: page.title, description: page.about, includedTools: page.includedTools) {
                 GoogleDriveConnectionSettingsView()
             }
         case .appleCalendar:
-            PluginSetupDetailView(title: page.title, description: page.about) {
+            PluginSetupDetailView(title: page.title, description: page.about, includedTools: page.includedTools) {
                 AppleCalendarConnectionSettingsView()
             }
         case .slack:
-            PluginSetupDetailView(title: page.title, description: page.about) {
+            PluginSetupDetailView(title: page.title, description: page.about, includedTools: page.includedTools) {
                 SlackPluginSettingsView()
             }
         case .linear:
-            PluginSetupDetailView(title: page.title, description: page.about) {
+            PluginSetupDetailView(title: page.title, description: page.about, includedTools: page.includedTools) {
                 LinearPluginSettingsView()
             }
         case .github:
-            PluginSetupDetailView(title: page.title, description: page.about) {
+            PluginSetupDetailView(title: page.title, description: page.about, includedTools: page.includedTools) {
                 GitHubPluginSettingsView()
             }
         case .notion:
-            PluginSetupDetailView(title: page.title, description: page.about) {
+            PluginSetupDetailView(title: page.title, description: page.about, includedTools: page.includedTools) {
                 NotionPluginSettingsView()
             }
         case .yourPlugins:
@@ -919,7 +919,8 @@ private struct UserPluginsSettingsDetailView: View {
     var body: some View {
         PluginSetupDetailView(
             title: "Build Your Own",
-            description: "A private plugin your AI assistant builds; it can add sources, never read your library."
+            description: "A private plugin your AI assistant builds; it can add sources, never read your library.",
+            includedTools: PluginPage.yourPlugins.includedTools
         ) {
             VStack(alignment: .leading, spacing: 24) {
                 setupSection
@@ -1216,11 +1217,13 @@ private struct UserPluginSettingsRow: View {
     }
 }
 
-/// A plugin's page: ‹ Plugins, its name and what it reads, then its controls,
-/// in the Plugins place's column.
+/// A plugin's page: Codex's breadcrumb (Plugins › its name), its name and
+/// what it reads, then its controls, then what it includes — the tools it
+/// brings to a chat and over MCP — in the Plugins place's column.
 private struct PluginSetupDetailView<Content: View>: View {
     let title: String
     let description: String
+    var includedTools: [String] = []
     @ViewBuilder var content: () -> Content
     @Environment(\.pluginPageBack) private var back
 
@@ -1228,21 +1231,16 @@ private struct PluginSetupDetailView<Content: View>: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 if let back {
-                    Button(action: back) {
-                        Label("Plugins", systemImage: "chevron.left")
-                            .zoomedSystemFont(size: 12, weight: .medium)
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.hoverWash)
-                    .keyboardShortcut("[", modifiers: .command)
-                    .help("Back to every plugin")
-                    .accessibilityIdentifier("plugins.page.back")
+                    PluginsPlaceBreadcrumb(root: "Plugins", current: title, back: back)
                 }
                 SettingsSection(
                     title: title,
                     description: description
                 ) {
                     content()
+                }
+                if !includedTools.isEmpty {
+                    PluginIncludesSection(tools: includedTools)
                 }
             }
             .frame(maxWidth: 680, alignment: .leading)
@@ -2421,6 +2419,13 @@ enum PluginStatus: Equatable {
         case .needsAttention: return "exclamationmark.triangle.fill"
         case .notConnected: return "circle"
         }
+    }
+
+    /// Whether the directory lists a plugin under Installed (Codex's
+    /// `skills.appsPage.section.connected`): connected, or connected and
+    /// needing a reconnect. A state not known yet is not installed.
+    static func isInstalled(_ status: PluginStatus?) -> Bool {
+        status == .connected || status == .needsAttention
     }
 }
 

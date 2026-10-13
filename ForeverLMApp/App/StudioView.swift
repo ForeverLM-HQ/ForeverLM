@@ -1137,7 +1137,7 @@ struct StudioView: View {
             .onReceive(NotificationCenter.default.publisher(for: .requestOpenPluginsPlace)) { note in
                 guard StudioWindowRegistry.shared.activeState === windowState else { return }
                 if showSettings { dismissSettings() }
-                vm.openPluginsPlace(note.object as? PluginPage, in: windowState)
+                vm.openPluginsPlace(at: note.object as? PluginsPlaceLocation ?? .directory, in: windowState)
             }
     }
 

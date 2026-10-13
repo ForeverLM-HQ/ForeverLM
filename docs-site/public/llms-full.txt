@@ -1723,9 +1723,11 @@ Two icons in the footer of every finished reply ask something about that reply w
 
 ## Skills
 
-A skill is a set of instructions you write once for a kind of work you ask for often: how you like a paper walked through, how a meeting should be summarized, what a literature table should contain. Ask an assistant connected through the [ForeverLM MCP tools](./mcp-tools.md#skills) to write one for you with `save_skill`.
+A skill is a set of instructions you write once for a kind of work you ask for often: how you like a paper walked through, how a meeting should be summarized, what a literature table should contain.
 
-Each skill has a name, a description and its instructions. Chat reads every description and uses a skill on its own when your request matches one. You can also call a skill by name: type `/` and its name, then what to apply it to — `/paper-walkthrough the MitoSpace paper`. Your skills sync to your other Macs.
+On the Mac, your skills are under **Plugins › Skills**, as in Codex: the Plugins place on the icon strip has a **Skills** tab beside its plugins, listing every skill by name with its description and a search over both. **New Skill** opens an empty skill to write — a name (what you type after `/`), a description, and the instructions — or **Import SKILL.md…** fills them from a `SKILL.md` file. Click a skill to read it; **Edit** changes it, and its **⋯** has **Open in Other Window**, **Copy Link**, **Copy Markdown** (the skill as a `SKILL.md`, the format Claude, Codex and the Gemini CLI read) and **Delete…**, which asks first. Leaving a skill with unsaved changes asks before throwing them away. An assistant connected through the [ForeverLM MCP tools](./mcp-tools.md#skills) can write, change and delete the same skills with `save_skill` and `delete_skill`.
+
+Each skill has a name, a description and its instructions. Chat reads every description and uses a skill on its own when your request matches one. You can also call a skill by name: type `/` or `$` and its name, then what to apply it to — `/paper-walkthrough the MitoSpace paper`. Your skills sync to your other Macs; the web library does not have them yet.
 
 ## Citing a moment
 
@@ -2636,7 +2638,7 @@ Tap **Sync Bookmarks** in the X sidebar tab. New bookmarks are fetched and added
 
 # Plugins
 
-Plugins are optional. On the Mac, **Plugins** is a place of its own on the icon strip, under Library, as in Codex: it lists each plugin with its connection status, and selecting one opens its page there, with **‹ Plugins** to go back. Every built-in plugin, Slack included, shows **Connected** or **Not connected** in the list. Settings has no Plugins. The web library has the same place on its rail for the plugins the browser can reach: Google Drive, Slack, Linear, GitHub and Notion.
+Plugins are optional. On the Mac, **Plugins** is a place of its own on the icon strip, under Library, as in Codex. Its head has two tabs, **Plugins** and **Skills** (your [chat skills](/in-app-chat#skills)), and a search. The Plugins tab lists **Installed** first — every plugin that is connected, or connected and needing a reconnect — then the **Built-In** plugins and **Your Plugins** that are not connected yet. Every built-in plugin, Slack included, shows **Connected**, **Reconnect needed** or **Not connected**. Selecting one opens its page there, under a breadcrumb (**Plugins › Slack**; click **Plugins** or press ⌘[ to go back), with its controls and, under **Includes**, the ForeverLM tools it brings to a chat and to an assistant over MCP. A row's **⋯** (or a right-click) has **Open**, **Open in Other Window** and **Copy Link**, a `foreverlm://plugins/…` address that opens the page again. Settings has no Plugins. The web library has the same place on its rail for the plugins the browser can reach: Google Drive, Slack, Linear, GitHub and Notion.
 
 Plugins run only after you explicitly connect them. ForeverLM never scans X or YouTube on app startup. A selected Google Drive folder refreshes on app activation, when its tab opens, or when you refresh Studio.
 
@@ -3735,7 +3737,8 @@ can use the same skills: read one with `get_skill` before doing the work it
 describes.
 
 These tools need the learner's Mac open and connected: a skill is a row in the
-app's own store, and these tools are how it is written.
+app's own store. The learner writes the same rows under **Plugins › Skills** in
+the Mac app; these tools are how an assistant writes them.
 
 | Tool | Parameters | Description |
 |---|---|---|

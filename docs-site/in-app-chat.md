@@ -77,9 +77,11 @@ Two icons in the footer of every finished reply ask something about that reply w
 
 ## Skills
 
-A skill is a set of instructions you write once for a kind of work you ask for often: how you like a paper walked through, how a meeting should be summarized, what a literature table should contain. Ask an assistant connected through the [ForeverLM MCP tools](./mcp-tools.md#skills) to write one for you with `save_skill`.
+A skill is a set of instructions you write once for a kind of work you ask for often: how you like a paper walked through, how a meeting should be summarized, what a literature table should contain.
 
-Each skill has a name, a description and its instructions. Chat reads every description and uses a skill on its own when your request matches one. You can also call a skill by name: type `/` and its name, then what to apply it to — `/paper-walkthrough the MitoSpace paper`. Your skills sync to your other Macs.
+On the Mac, your skills are under **Plugins › Skills**, as in Codex: the Plugins place on the icon strip has a **Skills** tab beside its plugins, listing every skill by name with its description and a search over both. **New Skill** opens an empty skill to write — a name (what you type after `/`), a description, and the instructions — or **Import SKILL.md…** fills them from a `SKILL.md` file. Click a skill to read it; **Edit** changes it, and its **⋯** has **Open in Other Window**, **Copy Link**, **Copy Markdown** (the skill as a `SKILL.md`, the format Claude, Codex and the Gemini CLI read) and **Delete…**, which asks first. Leaving a skill with unsaved changes asks before throwing them away. An assistant connected through the [ForeverLM MCP tools](./mcp-tools.md#skills) can write, change and delete the same skills with `save_skill` and `delete_skill`.
+
+Each skill has a name, a description and its instructions. Chat reads every description and uses a skill on its own when your request matches one. You can also call a skill by name: type `/` or `$` and its name, then what to apply it to — `/paper-walkthrough the MitoSpace paper`. Your skills sync to your other Macs; the web library does not have them yet.
 
 ## Citing a moment
 

@@ -42,8 +42,10 @@ struct PluginsPlaceTests {
         // It leaves a notebook, as the Library does.
         #expect(NotebookWorkspace.route(.plugins, coursePageID: nil) == .leave)
         // Open in Other Window names the plugin, or the place.
-        #expect(StudioWindowDestination.plugins(nil).noun == "Plugins")
-        #expect(StudioWindowDestination.plugins(.slack).noun == "Slack")
+        #expect(StudioWindowDestination.plugins(.directory).noun == "Plugins")
+        #expect(StudioWindowDestination.plugins(.plugin(.slack)).noun == "Slack")
+        #expect(StudioWindowDestination.plugins(.skills).noun == "Skills")
+        #expect(StudioWindowDestination.plugins(.skill("s1")).noun == "skill")
     }
 
     @Test("open_settings takes the same ids, the plugins' opening the Plugins place")
@@ -108,18 +110,174 @@ struct PluginsPlaceWindowTests {
         let window = StudioWindowState()
         window.centerTabGroups = StudioCenterTabGroups(groups: [.init(tabs: [.plugins, .chat], activeTab: .plugins)])
         window.notePlaceSettled()
-        window.pluginPage = .slack
+        window.pluginsLocation = .plugin(.slack)
         window.notePlaceSettled()
         #expect(window.canGoBackInPlaces, "a plugin's page is a place of its own")
         _ = window.goBackInPlaces()
-        #expect(window.pluginPage == nil)
+        #expect(window.pluginsLocation == .directory)
         _ = window.goForwardInPlaces()
-        #expect(window.pluginPage == .slack)
+        #expect(window.pluginsLocation == .plugin(.slack))
         // Behind another pane the page is no place: moving it is no step.
         window.centerTabGroups = StudioCenterTabGroups(groups: [.init(tabs: [.chat, .plugins], activeTab: .chat)])
         window.notePlaceSettled()
         let before = window.currentPlace.identity
-        window.pluginPage = .notion
+        window.pluginsLocation = .plugin(.notion)
         #expect(window.currentPlace.identity == before)
+    }
+
+    @Test("‹ steps from a skill's page to the Skills list and from there to the plugins")
+    func skillsHistory() {
+        let restore = capturingDefaults()
+        defer { restore() }
+        let window = StudioWindowState()
+        window.centerTabGroups = StudioCenterTabGroups(groups: [.init(tabs: [.plugins], activeTab: .plugins)])
+        window.notePlaceSettled()
+        window.pluginsLocation = .skills
+        window.notePlaceSettled()
+        window.pluginsLocation = .skill("s1")
+        window.notePlaceSettled()
+        _ = window.goBackInPlaces()
+        #expect(window.pluginsLocation == .skills)
+        _ = window.goBackInPlaces()
+        #expect(window.pluginsLocation == .directory)
+        _ = window.goForwardInPlaces()
+        _ = window.goForwardInPlaces()
+        #expect(window.pluginsLocation == .skill("s1"))
+    }
+}
+
+// Lane H (docs/codex-parity-audit.md §7): the place checked against Codex's
+// — Plugins | Skills under one head, Installed first, a breadcrumb and an
+// Includes list on a plugin's page, Copy Link — and the Skills list and
+// editor beside the plugins.
+
+@Suite("The Plugins place, as Codex's")
+struct PluginsPlaceCodexTests {
+    @Test("Two tabs under one head, in Codex's words")
+    func tabs() {
+        #expect(PluginsPlaceTab.allCases.map(\.title) == ["Plugins", "Skills"])
+        #expect(PluginsPlaceTab.plugins.subtitle == "Connect plugins to let ForeverLM work across your tools.")
+        #expect(PluginsPlaceTab.skills.subtitle == "Extend ForeverLM with task-specific skills.")
+        #expect(PluginsPlaceTab.plugins.location == .directory)
+        #expect(PluginsPlaceTab.skills.location == .skills)
+    }
+
+    @Test("Each place in the place knows its tab and the list it goes back to")
+    func locations() {
+        let all: [PluginsPlaceLocation] = [.directory, .plugin(.slack), .skills, .skill("s1"), .newSkill]
+        #expect(all.map(\.tab) == [.plugins, .plugins, .skills, .skills, .skills])
+        #expect(all.map(\.list) == [.directory, .directory, .skills, .skills, .skills])
+        #expect(all.map(\.isList) == [true, false, true, false, false])
+        #expect(all.map(\.pluginPage) == [nil, .slack, nil, nil, nil])
+    }
+
+    @Test("Installed holds the connected plugins and those to reconnect, never an unknown state")
+    func installed() {
+        #expect(PluginStatus.isInstalled(.connected))
+        #expect(PluginStatus.isInstalled(.needsAttention))
+        #expect(!PluginStatus.isInstalled(.notConnected))
+        #expect(!PluginStatus.isInstalled(nil), "a gateway that has not answered lists the plugin where it was")
+    }
+
+    @Test("A plugin's Includes names tools the registry has, each in one plugin")
+    func includedToolsExist() {
+        let names = Set(MCPToolRegistry(store: MCPDataStore()).tools.map(\.name))
+        for page in PluginPage.allCases {
+            for tool in page.includedTools {
+                #expect(names.contains(tool), "\(page) includes \(tool), which is no ForeverLM tool")
+            }
+        }
+        #expect(PluginPage.slack.includedTools.contains("read_slack_channel"))
+        #expect(PluginPage.googleDrive.includedTools.isEmpty, "Drive's recordings arrive as sources; nothing to list")
+        let all = PluginPage.allCases.flatMap(\.includedTools)
+        #expect(Set(all).count == all.count, "a tool is listed once, under one plugin")
+    }
+
+    @Test("Copy Link writes an address the app opens again")
+    func links() {
+        #expect(PluginsPlaceLink.plugins(nil).url.absoluteString == "foreverlm://plugins")
+        #expect(PluginsPlaceLink.plugins(.googleDrive).url.absoluteString == "foreverlm://plugins/google_drive")
+        #expect(PluginsPlaceLink.skills(name: nil).url.absoluteString == "foreverlm://skills")
+        #expect(PluginsPlaceLink.skills(name: "Paper Walkthrough").url.absoluteString == "foreverlm://skills/paper-walkthrough")
+        let links: [PluginsPlaceLink] = [.plugins(nil), .plugins(.slack), .plugins(.yourPlugins), .skills(name: nil), .skills(name: "outline")]
+        for link in links {
+            #expect(PluginsPlaceLink.parse(link.url) == link)
+        }
+        let parse = { (text: String) in URL(string: text).flatMap(PluginsPlaceLink.parse) }
+        #expect(parse("foreverlm://plugins/nope") == nil, "an unknown plugin is no link, not the list")
+        #expect(parse("foreverlm://plugins/slack/more") == nil)
+        #expect(parse("foreverlm://skills/!!!") == nil)
+        #expect(parse("foreverlm://doc/abc") == nil, "a doc link is StudioEntityLink's")
+        #expect(parse("https://plugins/slack") == nil)
+        #expect(parse("\(ForeverLMRuntimeIdentity.urlScheme)://plugins/notion") == .plugins(.notion), "the running build's own scheme reads too")
+    }
+}
+
+@Suite("The Skills list and a skill's page")
+struct SkillsDirectoryTests {
+    private let day = Date(timeIntervalSince1970: 1_790_000_000)
+
+    private func skill(_ name: String, _ description: String, edited offset: TimeInterval = 0, id: String? = nil) -> SkillRecord {
+        SkillRecord(id: id ?? name, name: name, description: description, instructions: "Do it.", createdAt: day, updatedAt: day + offset)
+    }
+
+    @Test("The list is by name; the search reads names and descriptions, / and $ read past")
+    func rows() {
+        let skills = [
+            skill("outline", "Turn notes into headings"),
+            skill("paper-walkthrough", "Walk through a paper with cards"),
+            skill("glossary", "Define every term in a source"),
+        ]
+        #expect(SkillsDirectory.rows(skills, query: "").map(\.name) == ["glossary", "outline", "paper-walkthrough"])
+        #expect(SkillsDirectory.rows(skills, query: "cards").map(\.name) == ["paper-walkthrough"])
+        #expect(SkillsDirectory.rows(skills, query: "/outline").map(\.name) == ["outline"])
+        #expect(SkillsDirectory.rows(skills, query: "$gloss term").map(\.name) == ["glossary"])
+        #expect(SkillsDirectory.rows(skills, query: "PAPER").map(\.name) == ["paper-walkthrough"])
+        #expect(SkillsDirectory.rows(skills, query: "headings cards").isEmpty, "every word must match")
+        #expect(SkillsDirectory.rows(skills, query: "  /  ").count == 3)
+    }
+
+    @Test("Two skills of one name (two Macs wrote each) list newest first")
+    func sameName() {
+        let skills = [skill("outline", "Older", edited: 0, id: "a"), skill("outline", "Newer", edited: 60, id: "b")]
+        #expect(SkillsDirectory.rows(skills, query: "").map(\.id) == ["b", "a"])
+    }
+
+    @Test("A draft says what stops it saving, a taken name included")
+    func draftProblems() {
+        let skills = [skill("outline", "Headings", id: "o")]
+        #expect(SkillDraft().problem(among: skills, editing: nil) != nil)
+        let fresh = SkillDraft(name: "Glossary Builder", description: "Define terms", instructions: "List them.")
+        #expect(fresh.command == "glossary-builder")
+        #expect(fresh.problem(among: skills, editing: nil) == nil)
+        let taken = SkillDraft(name: "Outline", description: "Mine", instructions: "Mine.")
+        #expect(taken.problem(among: skills, editing: nil) == "Another skill is already called /outline. Pick another name.")
+        #expect(taken.problem(among: skills, editing: "o") == nil, "a skill keeps its own name")
+        #expect(SkillDraft(name: "review", description: "x", instructions: "y").problem(among: [], editing: nil)?.contains("/review") == true)
+    }
+
+    @Test("Leaving asks only when the draft holds something new")
+    func changes() {
+        let saved = skill("outline", "Headings")
+        #expect(!SkillDraft().hasChanges(from: nil))
+        #expect(!SkillDraft(name: "  ").hasChanges(from: nil))
+        #expect(SkillDraft(name: "x").hasChanges(from: nil))
+        #expect(!SkillDraft(saved).hasChanges(from: saved))
+        var edited = SkillDraft(saved)
+        edited.instructions += " Then stop."
+        #expect(edited.hasChanges(from: saved))
+    }
+
+    @Test("Import SKILL.md fills the fields the file has and keeps the rest")
+    func importMarkdown() {
+        let typed = SkillDraft(name: "mine", description: "Typed", instructions: "")
+        let file = "---\nname: Paper Walkthrough\ndescription: Walk a paper\n---\n\n# Steps\n\nOne card a point.\n"
+        #expect(typed.filled(fromSkillMarkdown: file) == SkillDraft(name: "Paper Walkthrough", description: "Walk a paper", instructions: "# Steps\n\nOne card a point."))
+        let nameless = "---\ndescription: Only this\n---\nBody"
+        #expect(typed.filled(fromSkillMarkdown: nameless)?.name == "mine")
+        #expect(typed.filled(fromSkillMarkdown: "# Just markdown") == nil, "no frontmatter, no SKILL.md")
+        // What Copy Markdown writes, Import reads back.
+        let saved = SkillRecord(name: "outline", description: "Headings: from notes", instructions: "Make them.")
+        #expect(SkillDraft().filled(fromSkillMarkdown: saved.skillMarkdown) == SkillDraft(saved))
     }
 }

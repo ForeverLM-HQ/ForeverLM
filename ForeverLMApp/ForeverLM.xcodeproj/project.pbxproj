@@ -535,6 +535,7 @@
 		4838C3FD0F40BBCFF4E22F4A /* CutoverSatellites.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1B1BC7D0444B2A40506E3EB /* CutoverSatellites.swift */; };
 		4841D7881A589D1B775C5C3F /* StorageService+ArtifactCollaboration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CEC6379D0006477CFACC937 /* StorageService+ArtifactCollaboration.swift */; };
 		48515B3E20FF4AA6AB0F1C35 /* MobileStreamingChat.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2908DC327A81F7760326C40 /* MobileStreamingChat.swift */; };
+		48578725C1437C5A440928C5 /* SkillsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB94D15762DEEC123E904A23 /* SkillsView.swift */; };
 		4891A5F8EBB5CE2DD0096390 /* AppcastFeedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BB67F2E70A2CA6DD52AA3FC /* AppcastFeedTests.swift */; };
 		48CDDF3F356D6DE9B756C02B /* KnowledgeStore+VideoCitedPapers.swift in Sources */ = {isa = PBXBuildFile; fileRef = C97F8F0D472F688E081EB417 /* KnowledgeStore+VideoCitedPapers.swift */; };
 		490A392DD207B6A083C4E66C /* Generation1ReleaseThenT0Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CBBC09B2F24AE86380C3D9F /* Generation1ReleaseThenT0Tests.swift */; };
@@ -3668,6 +3669,7 @@
 		EB5FC3CE5DC6593C7ED33311 /* StudioViewModel+CoursePath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StudioViewModel+CoursePath.swift"; sourceTree = "<group>"; };
 		EB62D24E26151EC8B5EF125E /* MemorySyncFixture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemorySyncFixture.swift; sourceTree = "<group>"; };
 		EB8B19A0D56FBF83014966DC /* StudioViewModel+NotebookQuestions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StudioViewModel+NotebookQuestions.swift"; sourceTree = "<group>"; };
+		EB94D15762DEEC123E904A23 /* SkillsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillsView.swift; sourceTree = "<group>"; };
 		EBECFAC0E037DD91788278D4 /* StorageService+SourceFaces.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StorageService+SourceFaces.swift"; sourceTree = "<group>"; };
 		EC131A9E3DA02A9644570D24 /* TeachableCourseServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeachableCourseServiceTests.swift; sourceTree = "<group>"; };
 		EC280C6284470543DEC0E2FE /* MobileSpaceModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileSpaceModelsTests.swift; sourceTree = "<group>"; };
@@ -5241,6 +5243,7 @@
 				5C8A08108235AC261AEF6FD3 /* SharingRightsSheet.swift */,
 				22737B68371AB50932609F2E /* SiriAppIntents.swift */,
 				427D926893BB1B9709F8D99F /* SkillLibrary.swift */,
+				EB94D15762DEEC123E904A23 /* SkillsView.swift */,
 				6A84BC883B8F97B0197E7B0B /* SlowFreeModelOffer.swift */,
 				5EC8FC4A09589338AD216860 /* SourceAudioGenerationQueue.swift */,
 				CFF3D34ECBB84AE8D4D7077C /* SourceFilterPopover.swift */,
@@ -7976,6 +7979,7 @@
 				59192B250F0AFFA311230636 /* SituatedCardDrafter.swift in Sources */,
 				663620C994D0EB625992B984 /* SkillLibrary.swift in Sources */,
 				E6A4AF99C281CF30E08C7FF2 /* SkillRecord.swift in Sources */,
+				48578725C1437C5A440928C5 /* SkillsView.swift in Sources */,
 				8EC182747DC22595AAD35FBA /* SlideCitationService.swift in Sources */,
 				C8567F6E4533F8CBC52128E6 /* SlideFrameExtraction.swift in Sources */,
 				4CC10F98F918182012376499 /* SlowFreeModelOffer.swift in Sources */,

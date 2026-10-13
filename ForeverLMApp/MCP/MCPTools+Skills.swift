@@ -4,7 +4,8 @@ import Foundation
 //
 // The learner's chat skills over MCP, so an assistant beside the app can list,
 // read, write and delete them. Settings has no Skills pane (product owner,
-// 2026-09-25); these tools are the way skills are written. `get_skill` is
+// 2026-09-25); the Plugins place's Skills tab is the window's way
+// (App/SkillsView.swift), and these tools write the same rows. `get_skill` is
 // also how ForeverLM's own chat reads a skill whose description matches a
 // request. Nothing here asks a model anything; every tool is a read or a row
 // write.

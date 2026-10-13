@@ -703,10 +703,11 @@ final class StudioWindowState: Identifiable {
     /// tab: two windows can be on two courses. Presentation, so not in
     /// `Snapshot`.
     var coursePageID: String?
-    /// The plugin whose page this window's Plugins place shows; nil shows
-    /// every plugin. The window's, like the course page: two windows can be
-    /// on two plugins. Presentation, so not in `Snapshot`.
-    var pluginPage: PluginPage?
+    /// Where this window's Plugins place is: the plugins' directory, a
+    /// plugin's page, the skills, a skill's page. The window's, like the
+    /// course page: two windows can be on two plugins. Presentation, so not
+    /// in `Snapshot`.
+    var pluginsLocation: PluginsPlaceLocation = .directory
     /// The notebook this window holds; nil while it holds none. It belongs
     /// to the window: two windows can hold two notebooks, and opening one
     /// here leaves the other window's alone. While it holds one, the notebook
@@ -852,7 +853,7 @@ final class StudioWindowState: Identifiable {
             readerArticleID: readerArticleID,
             chatSessionID: chatSessionID,
             openArtifactID: openArtifactID,
-            pluginPage: pluginPage
+            pluginsLocation: pluginsLocation
         )
     }
 
@@ -898,7 +899,7 @@ final class StudioWindowState: Identifiable {
         if notebook != place.notebook { notebook = place.notebook }
         if spaceDestinationKey != place.spaceDestinationKey { spaceDestinationKey = place.spaceDestinationKey }
         if coursePageID != place.coursePageID { coursePageID = place.coursePageID }
-        if pluginPage != place.pluginPage { pluginPage = place.pluginPage }
+        if pluginsLocation != place.pluginsLocation { pluginsLocation = place.pluginsLocation }
         if centerTabGroups != place.centerTabGroups { centerTabGroups = place.centerTabGroups }
         if let artifactID = place.openArtifactID, openArtifactID != artifactID {
             // Both, as a resume does: the request switches a canvas already
@@ -1138,7 +1139,7 @@ struct StudioWindowPlace: Equatable {
     var readerArticleID: String?
     var chatSessionID: String?
     var openArtifactID: String?
-    var pluginPage: PluginPage? = nil
+    var pluginsLocation: PluginsPlaceLocation = .directory
 
     /// What makes two places two to the learner: which panes are in front
     /// and what they show. A fold, a pin or what waits behind another pane
@@ -1154,7 +1155,7 @@ struct StudioWindowPlace: Equatable {
         var readerArticleID: String?
         var chatSessionID: String?
         var openArtifactID: String?
-        var pluginPage: PluginPage?
+        var pluginsLocation: PluginsPlaceLocation?
     }
 
     var identity: Identity {
@@ -1172,7 +1173,7 @@ struct StudioWindowPlace: Equatable {
             readerArticleID: shows(.reader) || documents.contains(.reader) ? readerArticleID : nil,
             chatSessionID: shows(.chat) || notebook?.showsChat == true ? chatSessionID : nil,
             openArtifactID: shows(.notepad) || documents.contains(.docs) ? openArtifactID : nil,
-            pluginPage: shows(.plugins) ? pluginPage : nil
+            pluginsLocation: shows(.plugins) ? pluginsLocation : nil
         )
     }
 }

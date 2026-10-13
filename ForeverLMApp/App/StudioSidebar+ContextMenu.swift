@@ -301,8 +301,9 @@ enum StudioWindowDestination: Equatable {
     /// nil, every notebook: the notebook's Studio Cards row when nothing
     /// waits to be checked.
     case memoryReview(notebookID: String?)
-    /// The Plugins place, at one plugin's page or, with nil, every plugin.
-    case plugins(PluginPage?)
+    /// The Plugins place where it is: its directory, a plugin's page, the
+    /// skills or one skill's page.
+    case plugins(PluginsPlaceLocation)
 
     /// What the menu item is opening, for the toast and for the label.
     var noun: String {
@@ -328,7 +329,14 @@ enum StudioWindowDestination: Equatable {
         case .atlas: return "Atlas"
         case .cardsToCheck: return "cards to check"
         case .memoryReview: return "Memory"
-        case .plugins(let page): return page?.title ?? "Plugins"
+        case .plugins(let location):
+            switch location {
+            case .directory: return "Plugins"
+            case .plugin(let page): return page.title
+            case .skills: return "Skills"
+            case .skill: return "skill"
+            case .newSkill: return "new skill"
+            }
         }
     }
 
@@ -368,7 +376,7 @@ enum StudioWindowDestination: Equatable {
                 vm.openCardsToCheck(scope: notebookID.map { .notebook($0) } ?? .allNotebooks)
             case .memoryReview(let notebookID):
                 vm.requestCardReview(scope: notebookID.map { .notebook($0) } ?? .allNotebooks)
-            case .plugins(let page): vm.openPluginsPlace(page, in: target)
+            case .plugins(let location): vm.openPluginsPlace(at: location, in: target)
             }
         }
     }

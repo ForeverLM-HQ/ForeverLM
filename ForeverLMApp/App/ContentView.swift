@@ -237,6 +237,13 @@ struct ContentView: View {
             }
         }
 
+        // A plugin's or a skill's Copy Link (`PluginsPlaceLink`).
+        if let link = PluginsPlaceLink.parse(url) {
+            bringStudioForward()
+            Task { await PluginsPlace.open(link, vm: vm) }
+            return
+        }
+
         if url.host?.lowercased() == "mcp" {
             // The OAuth waiting page deep-links here to bring the app forward;
             // re-surface the approval prompt in case it was dismissed.

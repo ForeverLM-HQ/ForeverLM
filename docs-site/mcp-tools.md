@@ -543,7 +543,8 @@ can use the same skills: read one with `get_skill` before doing the work it
 describes.
 
 These tools need the learner's Mac open and connected: a skill is a row in the
-app's own store, and these tools are how it is written.
+app's own store. The learner writes the same rows under **Plugins › Skills** in
+the Mac app; these tools are how an assistant writes them.
 
 | Tool | Parameters | Description |
 |---|---|---|

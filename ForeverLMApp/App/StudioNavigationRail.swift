@@ -1484,7 +1484,7 @@ struct StudioNavigationRail: View {
             openBeside: {
                 vm.inWindow(windowState) { vm.openCenterTabBeside(.plugins) }
             },
-            otherWindowDestination: .plugins(nil),
+            otherWindowDestination: .plugins(.directory),
             help: "Open Plugins",
             identifier: "studio.navigation.plugins",
             isCompact: compact
