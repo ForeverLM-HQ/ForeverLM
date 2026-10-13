@@ -304,6 +304,47 @@ struct ArtifactMarkdownEditorViewTests {
     }
 }
 
+/// The page's text held out of the editor host's observed state: a report
+/// replaces it and starts the autosave's pause over (docs/codex-parity-audit.md, F3).
+@Suite("Page draft held outside the view")
+@MainActor
+struct ArtifactEditorDraftTests {
+    @Test("Reports in quick succession save once, after the text stands still, with the last text")
+    func autosaveRunsOnceAfterThePause() async throws {
+        let draft = ArtifactEditorDraft()
+        var saved: [String] = []
+        for words in ["The", "The cell", "The cell divides."] {
+            #expect(draft.replaceText(with: words, autosaveAfter: .milliseconds(80), save: { saved.append(draft.text) }))
+        }
+        #expect(saved.isEmpty, "nothing is written while the writer is still typing")
+        try await Task.sleep(for: .milliseconds(600))
+        #expect(saved == ["The cell divides."])
+    }
+
+    @Test("The same text is no change: no autosave starts, and the caller is told")
+    func sameTextIsNoChange() async throws {
+        let draft = ArtifactEditorDraft()
+        var saves = 0
+        #expect(draft.replaceText(with: "Mitosis", autosaveAfter: .milliseconds(40), save: { saves += 1 }))
+        try await Task.sleep(for: .milliseconds(400))
+        #expect(saves == 1)
+        #expect(!draft.replaceText(with: "Mitosis", autosaveAfter: .milliseconds(40), save: { saves += 1 }))
+        try await Task.sleep(for: .milliseconds(400))
+        #expect(saves == 1)
+    }
+
+    @Test("A page closing ends the pause without a save")
+    func closingCancelsTheAutosave() async throws {
+        let draft = ArtifactEditorDraft()
+        var saves = 0
+        draft.replaceText(with: "Last words before ⌘W", autosaveAfter: .milliseconds(80), save: { saves += 1 })
+        draft.cancelAutosave()
+        try await Task.sleep(for: .milliseconds(500))
+        #expect(saves == 0)
+        #expect(draft.text == "Last words before ⌘W", "the text stays for the closing save")
+    }
+}
+
 /// The source drag from the sidebar lands on the editor's web view, because
 /// WebKit registers for the file, URL and text types the same drag advertises
 /// for other apps, and AppKit hands the whole drag to the deepest registered

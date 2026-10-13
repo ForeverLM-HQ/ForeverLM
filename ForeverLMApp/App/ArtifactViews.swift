@@ -2806,6 +2806,44 @@ enum ArtifactHomeFilter: String, CaseIterable, Identifiable {
     }
 }
 
+/// The page's text as the editor last reported it, kept out of its host's
+/// observed state. The editor reports the text at each pause in typing. Held
+/// in `@State`, every report ran the host's whole body again (some 2,900 lines
+/// of view code) and hashed the page for the page view's task, between words
+/// (docs/codex-parity-audit.md, F3: "Typing never touches the rest of the
+/// window"). Here a report replaces what is held and starts the autosave's
+/// pause over, and nothing is drawn again.
+@MainActor
+final class ArtifactEditorDraft {
+    /// The page's text: the writer's typing as last reported, or what the
+    /// host put in its place.
+    private(set) var text = ""
+    private var autosave: Task<Void, Never>?
+
+    /// Takes `newText`; false when the draft already holds it. A change starts
+    /// the autosave's pause over: `save` runs once the text has stood still
+    /// for `pause`, and decides then whether there is anything to write.
+    @discardableResult
+    func replaceText(with newText: String, autosaveAfter pause: Duration, save: @escaping @MainActor () -> Void) -> Bool {
+        guard newText != text else { return false }
+        text = newText
+        autosave?.cancel()
+        autosave = Task { @MainActor in
+            try? await Task.sleep(for: pause)
+            guard !Task.isCancelled else { return }
+            save()
+        }
+        return true
+    }
+
+    /// The page is closing, and saves what it holds itself: a pause still
+    /// running ends without a save.
+    func cancelAutosave() {
+        autosave?.cancel()
+        autosave = nil
+    }
+}
+
 private struct ArtifactEditor: View {
     @Environment(StudioViewModel.self) private var vm
     @Environment(StudioWindowState.self) private var windowState
@@ -2822,7 +2860,15 @@ private struct ArtifactEditor: View {
     /// the answers to what it asks (`ArtifactNotesGraphHost`).
     @State private var notesGraph = ArtifactNotesGraphHost()
     @State private var snapshot: ArtifactMarkdownSnapshot?
-    @State private var draft = ""
+    /// The page's text as the editor last reported it, read where it is
+    /// needed and never to decide what the body draws (`ArtifactEditorDraft`).
+    @State private var editorDraft = ArtifactEditorDraft()
+    /// Bumped when the host, not the editor, changes the text — a load, a
+    /// merge, a restore, Keep on a proposal — so the editor is handed the new
+    /// text and the rendered page draws it. The editor's reports leave it be.
+    @State private var draftRevision = 0
+    /// How long the text stands still before it is saved.
+    private static let autosavePause: Duration = .milliseconds(800)
     @State private var isLoading = true
     @State private var isDownloadingFromICloud = false
     @State private var isSaving = false
@@ -2864,6 +2910,11 @@ private struct ArtifactEditor: View {
     /// the row goes blank rather than away: taking it away moved the whole
     /// page up under the caret as the writer went on from the heading.
     @State private var titleRowHeld = false
+    /// The selection as the view draws it (the shelf, the passage's chats):
+    /// current whenever it holds words. A bare caret moving as the writer
+    /// types is not taken: nothing here reads where a caret is, and taking it
+    /// ran this body again at every pause in typing. A request that needs the
+    /// caret (Chat, Comment) arrives with the selection in hand.
     @State private var editorSelection = ArtifactEditorSelection(text: "", from: 0, to: 0)
     @State private var attachmentDataURLs: [String: String] = [:]
     /// The web references the editor draws as cards, and the library's answer
@@ -2930,9 +2981,34 @@ private struct ArtifactEditor: View {
 
     private var commentsWidth: CGFloat { min(300, max(240, paneWidth * 0.4)) }
 
+    /// The page's text as it stands (`ArtifactEditorDraft`).
+    private var draft: String { editorDraft.text }
+
     private var hasUnsavedChanges: Bool {
         guard let snapshot else { return false }
         return draft != snapshot.markdown
+    }
+
+    /// The host's own change to the text. The editor takes it on the pass the
+    /// revision brings, and the autosave hears it as it hears typing.
+    private func setDraft(_ text: String) {
+        guard editorDraft.replaceText(with: text, autosaveAfter: Self.autosavePause, save: autosaveIfDue) else { return }
+        draftRevision &+= 1
+    }
+
+    /// The editor's report of what the writer typed: held, and nothing drawn.
+    /// While the rendered page shows there is no typing to report; a report
+    /// then is the editor's last word as it left, and the page draws it.
+    private func editorReported(_ text: String) {
+        guard editorDraft.replaceText(with: text, autosaveAfter: Self.autosavePause, save: autosaveIfDue) else { return }
+        if chrome.showsPage { draftRevision &+= 1 }
+    }
+
+    /// The text stood still: write it, unless there is nothing new or another
+    /// writer's version waits for the writer's choice.
+    private func autosaveIfDue() {
+        guard snapshot != nil, hasUnsavedChanges, heldRemoteMarkdown == nil else { return }
+        save(draft)
     }
 
     /// A team Doc reads as a page here; a member edits a private draft of it
@@ -3054,11 +3130,11 @@ private struct ArtifactEditor: View {
             }
         }
         // The page follows the text: toggling it on renders the current draft,
-        // and a save while it shows re-renders. Off, nothing is fetched. Nor is
-        // it before the text has loaded: a published doc opens as its page, and
-        // the status arrives ahead of the file, so rendering then would post an
+        // and a change to the text while it shows re-renders (the revision
+        // says when, without hashing the page). Off, nothing is fetched. Nor
+        // is it before the text has loaded: rendering then would post an
         // empty doc that the loaded text cancels a moment later.
-        .task(id: chrome.showsPage && snapshot != nil ? "page:\(titleDraft):\(draft.hashValue):\(pageEdit?.renderKey ?? "")" : "editor") {
+        .task(id: chrome.showsPage && snapshot != nil ? "page:\(titleDraft):\(draftRevision):\(pageEdit?.renderKey ?? "")" : "editor") {
             guard chrome.showsPage, snapshot != nil else { return }
             await renderPage()
         }
@@ -3070,12 +3146,9 @@ private struct ArtifactEditor: View {
             // reopens over the other one with Cmd+F.
             findState.close()
         }
-        .task(id: draft) {
-            guard snapshot != nil, hasUnsavedChanges, heldRemoteMarkdown == nil else { return }
-            try? await Task.sleep(for: .milliseconds(800))
-            guard !Task.isCancelled else { return }
-            save(draft)
-        }
+        // The autosave runs from `editorDraft`, 800 ms after the text last
+        // changed (`setDraft`, `editorReported`), not from a task keyed on
+        // the text, which re-ran this body at every report.
         // The notes graph follows the library — another doc saved, a page
         // made, an Idea linked — and the doc's own saves, half a second after
         // each settles (docs/notes-graph-design.md).
@@ -3121,6 +3194,7 @@ private struct ArtifactEditor: View {
             applyBlockReveal()
         }
         .onDisappear {
+            editorDraft.cancelAutosave()
             save(draft)
             saveTitle()
             referenceArtworkTask?.cancel()
@@ -3576,7 +3650,7 @@ private struct ArtifactEditor: View {
             performPageEdit(session)
         case .keep:
             guard var session = pageEdit, session.status == .proposed, let candidate = session.candidate else { return }
-            draft = candidate
+            setDraft(candidate)
             nextSaveVersionReason = .assistantEdit
             session.status = .kept
             pageEdit = session
@@ -3587,7 +3661,7 @@ private struct ArtifactEditor: View {
                 pageEdit = nil
                 return
             }
-            draft = session.original
+            setDraft(session.original)
             if draft == snapshot?.markdown { nextSaveVersionReason = nil }
             pageEdit = nil
         case .sourceRequested:
@@ -3599,7 +3673,7 @@ private struct ArtifactEditor: View {
             guard DocPagePassage.passage(markdown: draft, start: start, end: end) != nil else { return }
             let session = DocPageEditSession.kept(start: start, end: end, original: draft, markdown: markdown)
             guard let candidate = session.candidate else { return }
-            draft = candidate
+            setDraft(candidate)
             pageEdit = session
         }
     }
@@ -3764,8 +3838,12 @@ private struct ArtifactEditor: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if snapshot != nil {
+            // Read so that a change the host made to the text brings this
+            // pass back, and the pass hands the editor the text. The editor's
+            // own reports go to `editorDraft` alone and bring nothing back.
+            let _ = draftRevision
             ArtifactMarkdownEditorView(
-                markdown: $draft,
+                markdown: Binding(get: { editorDraft.text }, set: { editorReported($0) }),
                 saveRequestID: 0,
                 publicationRequestID: publicationRequestID,
                 aiEditOpenRequestID: chrome.aiEditOpenRequestID,
@@ -3915,7 +3993,7 @@ private struct ArtifactEditor: View {
                     Task { await saveAttachment(request) }
                 },
                 onSelectionChange: { selection in
-                    editorSelection = selection
+                    if selection.hasText || editorSelection.hasText { editorSelection = selection }
                     formatting.activeFormats = selection.activeFormats
                 },
                 onError: { chrome.errorMessage = $0 }
@@ -4065,10 +4143,6 @@ private struct ArtifactEditor: View {
 
     private static func batches<Element>(of elements: [Element], size: Int) -> [[Element]] {
         stride(from: 0, to: elements.count, by: size).map { Array(elements[$0..<min($0 + size, elements.count)]) }
-    }
-
-    private func openChatAboutSelection() {
-        openChat(about: editorSelection)
     }
 
     /// The editor's publication HTML, asked for by Export ▸ HTML… or PDF…:
@@ -4287,7 +4361,7 @@ private struct ArtifactEditor: View {
             do {
                 let loaded = await vm.keepingDocPictures(of: try await vm.artifactMarkdown(artifact.id))
                 snapshot = loaded
-                draft = loaded.markdown
+                setDraft(loaded.markdown)
                 titleFollowsHeading = ArtifactMarkdownTitle.names(artifact.title, in: loaded.markdown)
                 titleRowHeld = !titleFollowsHeading
                 // A page made a moment ago opens on its name, as ChatGPT's and
@@ -4352,7 +4426,7 @@ private struct ArtifactEditor: View {
             draft: { draft },
             replaceInDraft: { old, new in
                 let replaced = draft.replacingOccurrences(of: old, with: new)
-                if replaced != draft { draft = replaced }
+                if replaced != draft { setDraft(replaced) }
             },
             // A page made from the editor opens in this pane: the draft is
             // written first, so the link to it is kept.
@@ -4403,7 +4477,7 @@ private struct ArtifactEditor: View {
                       !isSaving,
                       !isUpdatingTitle else { return }
                 if !hasUnsavedChanges {
-                    draft = latest.markdown
+                    setDraft(latest.markdown)
                 } else {
                     switch ArtifactThreeWayMerge.merge(
                         base: openedSnapshot.markdown,
@@ -4412,7 +4486,7 @@ private struct ArtifactEditor: View {
                     ) {
                     case .merged(let merged):
                         // Autosave carries the combined text back out.
-                        draft = merged
+                        setDraft(merged)
                     case .conflict:
                         heldRemoteMarkdown = latest.markdown
                     }
@@ -4456,7 +4530,7 @@ private struct ArtifactEditor: View {
     private func resolveHeldRemoteVersion(keepMine: Bool) {
         guard let held = heldRemoteMarkdown else { return }
         heldRemoteMarkdown = nil
-        if !keepMine { draft = held }
+        if !keepMine { setDraft(held) }
         Task { await vm.discardArtifactHeldRemoteMarkdown(artifact.id) }
         save(draft)
     }
@@ -4494,7 +4568,7 @@ private struct ArtifactEditor: View {
                     versionReason: versionReason
                 )
                 self.snapshot = saved
-                if draft == markdown { draft = saved.markdown }
+                if draft == markdown { setDraft(saved.markdown) }
                 await saveInferredTitleIfNeeded(from: saved.markdown)
             } catch ArtifactError.conflict {
                 // Another writer's body landed between this draft's snapshot
@@ -4564,7 +4638,7 @@ private struct ArtifactEditor: View {
             expectedRevision: opened.revision
         )
         snapshot = restored
-        draft = restored.markdown
+        setDraft(restored.markdown)
         titleFollowsHeading = ArtifactMarkdownTitle.names(artifact.title, in: restored.markdown)
         if let urls = try? await vm.artifactAttachmentDataURLs(artifact.id, markdown: restored.markdown) {
             attachmentDataURLs = urls
