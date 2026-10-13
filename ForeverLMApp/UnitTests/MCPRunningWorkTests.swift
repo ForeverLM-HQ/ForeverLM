@@ -180,6 +180,127 @@ struct MCPRunningWorkTests {
         #expect(work.snapshot.isEmpty)
     }
 
+    // MARK: - The same call made again
+
+    /// Counts how often a body ran.
+    private final class Counter: @unchecked Sendable {
+        private let lock = NSLock()
+        private var stored = 0
+        var value: Int { lock.withLock { stored } }
+        func increment() { lock.withLock { stored += 1 } }
+    }
+
+    private func waitUntil(_ condition: () -> Bool) async {
+        for _ in 0..<300 where !condition() {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+    }
+
+    /// Waits until `released` is set or the task is cancelled; true when it was cancelled.
+    private static func hold(until released: CancelFlag) async -> Bool {
+        while !released.isSet, !Task.isCancelled {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        return Task.isCancelled
+    }
+
+    @Test("A call made again while the first runs waits for its answer instead of running twice")
+    func repeatJoinsTheRunningCall() async throws {
+        let calls = MCPRepeatedCalls<String>()
+        let runs = Counter()
+        let released = CancelFlag()
+        let body: () async -> String = {
+            runs.increment()
+            _ = await Self.hold(until: released)
+            return "scanned"
+        }
+        let first = Task { await calls.value(for: "scan|video-1", body) }
+        await waitUntil { runs.value == 1 }
+        let second = Task { await calls.value(for: "scan|video-1", body) }
+        await waitUntil { calls.callers(for: "scan|video-1") == 2 }
+        #expect(calls.callers(for: "scan|video-1") == 2)
+        #expect(await calls.value(for: "scan|video-2") { "other video" } == "other video", "a different call runs on its own")
+
+        released.set()
+        #expect(await first.value == "scanned")
+        #expect(await second.value == "scanned")
+        #expect(runs.value == 1, "the scan ran \(runs.value) times")
+        #expect(calls.callers(for: "scan|video-1") == 0)
+
+        // Once it has answered, the same call runs again.
+        #expect(await calls.value(for: "scan|video-1") { "scanned again" } == "scanned again")
+    }
+
+    @Test("A caller that gives up stops only its own wait while another still waits")
+    func cancelledCallerLeavesTheRunGoing() async throws {
+        let calls = MCPRepeatedCalls<Bool>()
+        let runs = Counter()
+        let released = CancelFlag()
+        let body: () async -> Bool = {
+            runs.increment()
+            return await Self.hold(until: released)
+        }
+        let first = Task { await calls.value(for: "course|quizzes", body) }
+        await waitUntil { runs.value == 1 }
+        let second = Task { await calls.value(for: "course|quizzes", body) }
+        await waitUntil { calls.callers(for: "course|quizzes") == 2 }
+
+        let gaveUpAt = Date()
+        first.cancel()
+        #expect(await first.value == nil, "the caller that gave up got an answer meant for the one still waiting")
+        #expect(Date().timeIntervalSince(gaveUpAt) < 10)
+        #expect(calls.callers(for: "course|quizzes") == 1)
+
+        released.set()
+        #expect(await second.value == false, "the work was cancelled though a caller still waited")
+        #expect(runs.value == 1)
+        #expect(calls.callers(for: "course|quizzes") == 0)
+    }
+
+    @Test("When every caller gives up the work is cancelled and the last one hears how it ended")
+    func lastCallerCancelsTheRun() async throws {
+        let calls = MCPRepeatedCalls<Bool>()
+        let runs = Counter()
+        let body: () async -> Bool = {
+            runs.increment()
+            return await Self.hold(until: CancelFlag())
+        }
+        let first = Task { await calls.value(for: "course|generate", body) }
+        await waitUntil { runs.value == 1 }
+        let second = Task { await calls.value(for: "course|generate", body) }
+        await waitUntil { calls.callers(for: "course|generate") == 2 }
+
+        second.cancel()
+        #expect(await second.value == nil)
+        let stoppedAt = Date()
+        first.cancel()
+        #expect(await first.value == true, "the work never saw the cancellation")
+        #expect(Date().timeIntervalSince(stoppedAt) < 10)
+        #expect(calls.callers(for: "course|generate") == 0)
+        #expect(runs.value == 1)
+    }
+
+    @Test("Only paid calls with the same arguments, credential and chat count as the same call")
+    func repeatedCallKeys() {
+        let codex = MCPAccessContext(clientID: "client-a", scope: .full, connectorLabel: "Codex")
+        let claude = MCPAccessContext(clientID: "client-b", scope: .full, connectorLabel: "Claude")
+        let key = { (name: String, arguments: [String: Any], session: String?, access: MCPAccessContext) in
+            MCPToolRegistry.repeatedCallKey(name: name, arguments: arguments, hostSessionID: session, access: access)
+        }
+        let scan = key("scan_video_for_cited_papers", ["source_id": "src_1", "force": false], nil, codex)
+        #expect(scan != nil)
+        #expect(scan == key("scan_video_for_cited_papers", ["force": false, "source_id": "src_1"], nil, codex),
+                "the order the arguments arrive in does not matter")
+        #expect(scan != key("scan_video_for_cited_papers", ["source_id": "src_2", "force": false], nil, codex))
+        #expect(scan != key("scan_video_for_cited_papers", ["source_id": "src_1", "force": true], nil, codex))
+        #expect(scan != key("scan_video_for_cited_papers", ["source_id": "src_1", "force": false], nil, claude))
+        #expect(scan != key("scan_video_for_cited_papers", ["source_id": "src_1", "force": false], "session-1", codex))
+        #expect(key("generate_image", ["prompt": "a mitochondrion"], nil, codex) == nil,
+                "the same prompt drawn twice is two pictures")
+        #expect(key("list_sources", [:], nil, codex) == nil, "an unpaid call always runs")
+        #expect(key("update_source", ["source_id": "src_1", "title": "x"], nil, codex) == nil)
+    }
+
     // MARK: - Through the tools
 
     @Test("cancel_ai_work stops listed work by its work_id and names what was not running")

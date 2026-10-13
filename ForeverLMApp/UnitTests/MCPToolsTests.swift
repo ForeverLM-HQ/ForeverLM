@@ -43,6 +43,32 @@ private struct HeldMCPExplainerBackend: ExplainerModelBackend {
     }
 }
 
+/// Counts the explainers written, each held until `release`.
+private struct CountingHeldExplainerBackend: ExplainerModelBackend {
+    final class Count: @unchecked Sendable {
+        private let lock = NSLock()
+        private var stored = 0
+        var value: Int { lock.withLock { stored } }
+        func increment() { lock.withLock { stored += 1 } }
+    }
+
+    let writes: Count
+    let release: MCPTestSignal
+    let draft: ExplainerDraft
+
+    func write(
+        request: ExplainerRequest,
+        source: StudioArticle,
+        text: String,
+        truncated: Bool,
+        figureLines: [String]
+    ) async throws -> ExplainerDraft {
+        writes.increment()
+        await release.wait()
+        return draft
+    }
+}
+
 /// The value of an answer's own `key: value` line, where a tool result hands
 /// back a new id instead of writing it beside a name (Prompts.hiddenIDs).
 func mcpAnswerValue(_ key: String, in text: String) -> String? {
@@ -7542,6 +7568,62 @@ struct MCPDataStoreTests {
         #expect(try kstore.loadCourseQuizzes(courseID: "bioenergetics").count == 1)
         #expect(!writerOutcome.isError, "\(writerOutcome.text)")
         #expect(try kstore.loadSourceForSync(GeneratedExplainer.sourceID(explaining: "mito-1")) != nil)
+    }
+
+    /// 2026-10-13: an assistant's paid call outlasted the gateway's 60 s, it
+    /// called again, and the Mac ran the same paid work twice side by side.
+    @Test("A paid call made again while the first runs waits for it: one model call, both answered")
+    func repeatedPaidCallJoinsTheRunningOne() async throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("mcp_test_\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+        defer { cleanup(tmpDir.path) }
+        let writes = CountingHeldExplainerBackend.Count()
+        let releaseWriter = MCPTestSignal()
+        let store = MCPDataStore(
+            dbPath: tmpDir.appendingPathComponent("knowledge.db").path,
+            explainerBackend: CountingHeldExplainerBackend(
+                writes: writes,
+                release: releaseWriter,
+                draft: ExplainerDraft(title: "Why mitochondria matter", script: "They make the energy.\n\nAnd more.")
+            )
+        )
+        let kstore = try store.knowledgeStore()
+        let sourceID = "mito-repeat-\(UUID().uuidString.prefix(8))"
+        try Self.seedReadySource(
+            kstore, id: sourceID, url: "https://example.org/\(sourceID)", title: "Mitochondria explained", sourceType: .article,
+            content: "The full text of the article, long enough for a writer to work with."
+        )
+        let registry = MCPToolRegistry(store: store)
+        let arguments: [String: Any] = ["source_id": sourceID, "length": "brief", "generate_audio": false]
+        let key = try #require(MCPToolRegistry.repeatedCallKey(
+            name: "generate_explainer", arguments: arguments, hostSessionID: nil, access: .internalFullAccess
+        ))
+
+        let first = Task { await registry.callToolDetailed(name: "generate_explainer", arguments: arguments) }
+        for _ in 0..<500 where writes.value == 0 {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        guard writes.value == 1 else {
+            await releaseWriter.signal()
+            let early = await first.value
+            Issue.record("generate_explainer never reached its model call: \(early.text)")
+            return
+        }
+        let second = Task { await registry.callToolDetailed(name: "generate_explainer", arguments: arguments) }
+        for _ in 0..<500 where registry.repeatedCalls.callers(for: key) < 2 {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(registry.repeatedCalls.callers(for: key) == 2, "the second call did not join the first")
+        #expect(MCPRunningWork.shared.snapshot.filter { $0.about == "source_id \(sourceID)" }.count == 1)
+
+        await releaseWriter.signal()
+        let firstOutcome = await first.value
+        let secondOutcome = await second.value
+        #expect(!firstOutcome.isError, "\(firstOutcome.text)")
+        #expect(secondOutcome.text == firstOutcome.text)
+        #expect(writes.value == 1, "the explainer was written \(writes.value) times")
+        #expect(registry.repeatedCalls.callers(for: key) == 0)
     }
 
     @Test("Cached-store reads wait for atomic review completion")

@@ -279,7 +279,134 @@ final class MCPRunningWork: @unchecked Sendable {
     }
 }
 
+// MARK: - The same call made again while it runs (2026-10-13)
+//
+// An assistant's `scan_video_for_cited_papers` on an 87-minute talk outlasted
+// the gateway's 60 s, which answered "still working, check the library before
+// calling again". The scan saves its candidates only at the end, so the
+// read-back found none, and the assistant called again: the Mac ran the same
+// paid scan side by side, and the work chip showed it twice. A call made again
+// with the same arguments while the first still runs now waits for that one's
+// answer (`MCPToolRegistry.repeatedCallKey` says which calls count as the same).
+
+/// Calls in flight by what they ask for, so a repeat of one waits for the run
+/// already going instead of starting the work again.
+///
+/// Each caller stops only its own wait. The work itself is cancelled when the
+/// last caller waiting for it is, exactly as a lone call's is, and that caller
+/// gets the answer the stopped work gives.
+final class MCPRepeatedCalls<Value>: @unchecked Sendable {
+    private final class Run: @unchecked Sendable {
+        var task: Task<Void, Never>?
+        var value: Value?
+        /// Callers waiting for the answer, the one that started the run included.
+        var waiting = 0
+        var continuations: [UUID: CheckedContinuation<Value?, Never>] = [:]
+        /// Callers that stopped waiting before their continuation was stored.
+        var gaveUp: Set<UUID> = []
+    }
+
+    private let lock = NSLock()
+    private var runs: [String: Run] = [:]
+
+    /// How many callers wait for the run a new caller under `key` would join;
+    /// 0 when there is none.
+    func callers(for key: String) -> Int {
+        lock.withLock { runs[key]?.waiting ?? 0 }
+    }
+
+    /// The answer of `body`, run once for every caller asking under `key` while
+    /// it runs. Nil when this caller was cancelled and others still wait.
+    func value(for key: String, _ body: @escaping () async -> Value) async -> Value? {
+        let caller = UUID()
+        let run: Run = lock.withLock {
+            if let run = runs[key] {
+                run.waiting += 1
+                return run
+            }
+            let run = Run()
+            run.waiting = 1
+            runs[key] = run
+            // Inherits the first caller's priority and task-locals, among them
+            // the chat's `AIUsageAttribution`, as `MCPRunningWork.run` does.
+            run.task = Task {
+                let value = await body()
+                self.finish(run, key: key, value: value)
+            }
+            return run
+        }
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Value?, Never>) in
+                let ready: Value?? = lock.withLock {
+                    if let value = run.value { return .some(value) }
+                    if run.gaveUp.remove(caller) != nil { return .some(nil) }
+                    run.continuations[caller] = continuation
+                    return nil
+                }
+                if let ready { continuation.resume(returning: ready) }
+            }
+        } onCancel: {
+            leave(run, key: key, caller: caller)
+        }
+    }
+
+    private func finish(_ run: Run, key: String, value: Value) {
+        let waiting: [CheckedContinuation<Value?, Never>] = lock.withLock {
+            run.value = value
+            if runs[key] === run { runs[key] = nil }
+            let waiting = Array(run.continuations.values)
+            run.continuations = [:]
+            return waiting
+        }
+        for continuation in waiting { continuation.resume(returning: value) }
+    }
+
+    private func leave(_ run: Run, key: String, caller: UUID) {
+        let (released, stopping): (CheckedContinuation<Value?, Never>?, Task<Void, Never>?) = lock.withLock {
+            guard run.value == nil else { return (nil, nil) }
+            run.waiting -= 1
+            if run.waiting == 0 {
+                // Nobody else wants the answer: the work stops, and this caller
+                // waits for what it says. A new call starts afresh.
+                if runs[key] === run { runs[key] = nil }
+                return (nil, run.task)
+            }
+            if let continuation = run.continuations.removeValue(forKey: caller) {
+                return (continuation, nil)
+            }
+            run.gaveUp.insert(caller)
+            return (nil, nil)
+        }
+        // Outside the lock: cancelling runs the task's cancellation handlers
+        // on this thread.
+        released?.resume(returning: nil)
+        stopping?.cancel()
+    }
+}
+
 extension MCPToolRegistry {
+    /// What makes two calls the same call, or nil for a call that always runs
+    /// on its own. Only the paid tools join: they are the long ones a caller
+    /// gives up waiting for, and a second run bills the learner again. Not
+    /// `generate_image`, where the same prompt drawn twice is two pictures.
+    /// The caller's credential and chat are part of it, so no answer reaches a
+    /// caller other than one that could have made the call itself.
+    static func repeatedCallKey(
+        name: String,
+        arguments: [String: Any],
+        hostSessionID: String?,
+        access: MCPAccessContext
+    ) -> String? {
+        guard paidWorkToolNames.contains(name), name != "generate_image",
+              JSONSerialization.isValidJSONObject(arguments),
+              let data = try? JSONSerialization.data(withJSONObject: arguments, options: [.sortedKeys])
+        else { return nil }
+        return [
+            name, access.clientID, access.scope.rawValue, hostSessionID ?? "",
+            String(decoding: data, as: UTF8.self),
+        ].joined(separator: "\u{1F}")
+    }
+
     static var runningWorkToolDefs: [MCPToolDef] {
         [
             MCPToolDef(

@@ -135,6 +135,10 @@ final class MCPToolRegistry: @unchecked Sendable {
     static let shared = MCPToolRegistry()
     private let logger = Logger(subsystem: "ForeverLM", category: "MCPTools")
     private let store: MCPDataStore
+    /// Calls in flight by what they ask for (`repeatedCallKey`), so the same
+    /// call made again while it runs waits for it. One per registry, as the
+    /// store is: every caller in the app goes through `shared`.
+    let repeatedCalls = MCPRepeatedCalls<ToolCallOutcome>()
 
     init(store: MCPDataStore = MCPDataStore()) {
         self.store = store
@@ -4875,6 +4879,29 @@ final class MCPToolRegistry: @unchecked Sendable {
         } else {
             spendLimitUSD = nil
         }
+        // The same call made again while the first still runs, most often an
+        // assistant retrying after its request timed out, waits for that one's
+        // answer rather than doing the work twice (MCPRepeatedCalls).
+        guard let key = Self.repeatedCallKey(name: name, arguments: arguments, hostSessionID: hostSessionID, access: access) else {
+            return await runListedCall(name: name, arguments: arguments, hostSessionID: hostSessionID, access: access, spendLimitUSD: spendLimitUSD)
+        }
+        let outcome = await repeatedCalls.value(for: key) {
+            await self.runListedCall(name: name, arguments: arguments, hostSessionID: hostSessionID, access: access, spendLimitUSD: spendLimitUSD)
+        }
+        return outcome ?? ToolCallOutcome(
+            text: "\(Self.stoppedResultPrefix) waiting for \(name). The same call goes on for another caller that made it.",
+            isError: true
+        )
+    }
+
+    /// One call, listed in `MCPRunningWork` while it runs.
+    private func runListedCall(
+        name: String,
+        arguments: [String: Any],
+        hostSessionID: String?,
+        access: MCPAccessContext,
+        spendLimitUSD: Double?
+    ) async -> ToolCallOutcome {
         // Every other call runs as a task `cancel_ai_work` can stop, however
         // long it takes and whether or not its caller is still waiting.
         let run = await MCPRunningWork.shared.run(
