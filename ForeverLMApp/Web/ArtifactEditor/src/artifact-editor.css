@@ -172,6 +172,42 @@ body.ready #editor {
   --crepe-font-default: var(--artifact-prose-font);
 }
 
+/* Crepe's frame theme is a light one, and the page follows the system: in dark
+   mode a code block, the Link field, a table's handles and a picture's caption
+   stood as light boxes on the dark page. Its colours are the system's here, so
+   every part Crepe draws follows the page as the prose does. */
+.milkdown {
+  --crepe-color-background: Canvas;
+  --crepe-color-on-background: CanvasText;
+  --crepe-color-surface: color-mix(in srgb, CanvasText 5%, Canvas);
+  --crepe-color-surface-low: color-mix(in srgb, CanvasText 7%, Canvas);
+  --crepe-color-on-surface: color-mix(in srgb, CanvasText 88%, Canvas);
+  --crepe-color-on-surface-variant: color-mix(in srgb, CanvasText 64%, Canvas);
+  --crepe-color-outline: color-mix(in srgb, CanvasText 38%, Canvas);
+  --crepe-color-primary: color-mix(in srgb, CanvasText 78%, Canvas);
+  --crepe-color-secondary: color-mix(in srgb, CanvasText 18%, Canvas);
+  --crepe-color-on-secondary: CanvasText;
+  --crepe-color-inverse: color-mix(in srgb, CanvasText 6%, Canvas);
+  --crepe-color-on-inverse: CanvasText;
+  --crepe-color-inline-code: light-dark(#ba1a1a, #ff7b72);
+  --crepe-color-error: light-dark(#ba1a1a, #ff7b72);
+  --crepe-color-hover: color-mix(in srgb, CanvasText 8%, Canvas);
+  --crepe-color-selected: color-mix(in srgb, CanvasText 13%, Canvas);
+  --crepe-color-inline-area: color-mix(in srgb, CanvasText 16%, Canvas);
+}
+
+/* A code block's words (`pageCodeTheme`): GitHub's light and dark colours. */
+.milkdown {
+  --code-comment: light-dark(#6e7781, #8b949e);
+  --code-keyword: light-dark(#cf222e, #ff7b72);
+  --code-string: light-dark(#0a3069, #a5d6ff);
+  --code-number: light-dark(#0550ae, #79c0ff);
+  --code-function: light-dark(#8250df, #d2a8ff);
+  --code-type: light-dark(#953800, #ffa657);
+  --code-property: light-dark(#0550ae, #79c0ff);
+  --code-meta: light-dark(#57606a, #8b949e);
+}
+
 .milkdown .editor {
   box-sizing: border-box;
   width: min(100%, var(--artifact-page-width));

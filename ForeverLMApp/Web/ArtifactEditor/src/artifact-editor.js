@@ -1,3 +1,6 @@
+import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
+import { EditorView as CodeEditorView } from '@codemirror/view'
+import { tags as codeTags } from '@lezer/highlight'
 import { Crepe } from '@milkdown/crepe'
 import { imageBlockSchema } from '@milkdown/kit/component/image-block'
 import { linkPreviewTooltip, linkTooltipAPI } from '@milkdown/kit/component/link-tooltip'
@@ -6697,6 +6700,38 @@ function setBlockReferencesFor(blockID, groups) {
 
 connectNotesGraph({ post, snippetOptions: graphSnippetOptions })
 
+/// A code block's colours, the page's own: what CodeMirror draws comes from
+/// the system colours and the `--code-*` variables (artifact-editor.css),
+/// which hold a light and a dark value each, so code reads in both.
+const pageCodeTheme = [
+  CodeEditorView.theme({
+    '&': { color: 'CanvasText', backgroundColor: 'transparent' },
+    '.cm-content': { caretColor: 'AccentColor' },
+    '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'AccentColor' },
+    '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
+      backgroundColor: 'color-mix(in srgb, AccentColor 24%, transparent)',
+    },
+    '.cm-activeLine': { backgroundColor: 'color-mix(in srgb, CanvasText 4%, transparent)' },
+    '.cm-gutters': { backgroundColor: 'transparent', color: 'color-mix(in srgb, CanvasText 38%, transparent)', border: 'none' },
+    '.cm-activeLineGutter': { backgroundColor: 'transparent', color: 'color-mix(in srgb, CanvasText 70%, transparent)' },
+  }),
+  syntaxHighlighting(HighlightStyle.define([
+    { tag: codeTags.comment, color: 'var(--code-comment)', fontStyle: 'italic' },
+    { tag: [codeTags.keyword, codeTags.controlKeyword, codeTags.operatorKeyword, codeTags.modifier, codeTags.definitionKeyword], color: 'var(--code-keyword)' },
+    { tag: [codeTags.string, codeTags.special(codeTags.string), codeTags.regexp, codeTags.character], color: 'var(--code-string)' },
+    { tag: [codeTags.number, codeTags.bool, codeTags.null, codeTags.atom], color: 'var(--code-number)' },
+    { tag: [codeTags.function(codeTags.variableName), codeTags.function(codeTags.propertyName)], color: 'var(--code-function)' },
+    { tag: [codeTags.typeName, codeTags.className, codeTags.namespace], color: 'var(--code-type)' },
+    { tag: [codeTags.propertyName, codeTags.attributeName, codeTags.tagName], color: 'var(--code-property)' },
+    { tag: [codeTags.meta, codeTags.processingInstruction, codeTags.operator], color: 'var(--code-meta)' },
+    { tag: codeTags.heading, fontWeight: 'bold' },
+    { tag: codeTags.emphasis, fontStyle: 'italic' },
+    { tag: codeTags.strong, fontWeight: 'bold' },
+    { tag: codeTags.link, textDecoration: 'underline' },
+    { tag: codeTags.invalid, color: 'var(--code-keyword)' },
+  ])),
+]
+
 async function create(markdown, fontSize) {
   lastMarkdown = String(markdown ?? '')
   collapsedSectionKeys.clear()
@@ -6746,6 +6781,9 @@ async function create(markdown, fontSize) {
         // position 0 between selections, so the first block jumped, and drew
         // a second caret beside the native one.
         [Crepe.Feature.Cursor]: { virtual: false },
+        // Crepe's code blocks wear One Dark in either appearance: pale words on
+        // a light page and a black square behind the current line's number.
+        [Crepe.Feature.CodeMirror]: { theme: pageCodeTheme },
         [Crepe.Feature.LinkTooltip]: {
           // The field takes a web address or a doc's title (see "Writing a
           // link to a doc or a Notebook"), and says so.
