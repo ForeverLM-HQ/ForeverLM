@@ -3743,6 +3743,11 @@ function blockFromFence(state, dispatch) {
   const language = code ? code[1] : text === '$$' ? 'LaTeX' : null
   if (language == null) return false
   const codeBlock = state.schema.nodes.code_block
+  // Only where a code block may stand: a list item opens with a paragraph, so
+  // there the fence stays text and Return goes on as Return.
+  const holder = $from.node(-1)
+  const index = $from.index(-1)
+  if (!holder.canReplaceWith(index, index + 1, codeBlock)) return false
   const start = $from.start()
   const tr = state.tr.delete(start, $from.end())
   tr.setBlockType(start, start, codeBlock, { language })
