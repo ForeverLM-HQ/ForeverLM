@@ -27,7 +27,7 @@ import {
 import { addRowAfterCommand, createTable, footnoteDefinitionSchema, footnoteReferenceSchema, selectRowCommand, strikethroughSchema, tableSchema, toggleStrikethroughCommand } from '@milkdown/kit/preset/gfm'
 import { trailingConfig } from '@milkdown/kit/plugin/trailing'
 import { nodeRule } from '@milkdown/kit/prose'
-import { lift } from '@milkdown/kit/prose/commands'
+import { lift, setBlockType } from '@milkdown/kit/prose/commands'
 import { closeHistory } from '@milkdown/kit/prose/history'
 import { inputRules } from '@milkdown/kit/prose/inputrules'
 import { liftListItem } from '@milkdown/kit/prose/schema-list'
@@ -3665,6 +3665,43 @@ function withQuietTab(ctx) {
   }))
 }
 
+/// Backspace at the start of a heading, a quote or a list item takes the
+/// block's kind away first, as writing apps do: the heading becomes a
+/// paragraph, the quote's line leaves the quote, the item leaves its list one
+/// level at a time. ProseMirror's own Backspace poured the line into the block
+/// above ("Intro.quoted line", or a quote into the page's title), and
+/// Milkdown's step for a heading made a level-2 heading a level-1 one. A
+/// note's lines keep the footnotes' own handling.
+function withBackspaceUnwrapping(ctx) {
+  ctx.update(editorViewOptionsCtx, (previous) => ({
+    ...previous,
+    handleKeyDown: (view, event) => {
+      if (event.key === 'Backspace' && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey
+        && unwrapAtStart(view.state, view.dispatch)) {
+        event.preventDefault()
+        return true
+      }
+      return previous.handleKeyDown?.(view, event) ?? false
+    },
+  }))
+}
+
+function unwrapAtStart(state, dispatch) {
+  const { $from, empty } = state.selection
+  if (!empty || $from.parentOffset !== 0 || !$from.parent.isTextblock || $from.depth < 1) return false
+  const line = $from.parent
+  const { schema } = state
+  if (line.type.name === 'heading') {
+    const attrs = 'blockID' in (schema.nodes.paragraph.spec.attrs ?? {}) ? { blockID: line.attrs.blockID ?? '' } : null
+    return setBlockType(schema.nodes.paragraph, attrs)(state, dispatch)
+  }
+  if ($from.depth < 2 || $from.index($from.depth - 1) !== 0) return false
+  const holder = $from.node($from.depth - 1)
+  if (holder.type.name === 'list_item') return liftListItem(holder.type)(state, dispatch)
+  if (holder.type.name === 'blockquote') return lift(state, dispatch)
+  return false
+}
+
 function tabActsHere(state) {
   const { $from, $to } = state.selection
   for (const $pos of [$from, $to]) {
@@ -6677,6 +6714,7 @@ async function create(markdown, fontSize) {
     editor.editor.config(withFootnotes)
     editor.editor.config(withBlockPastesOnTheirOwnLine)
     editor.editor.config(withQuietTab)
+    editor.editor.config(withBackspaceUnwrapping)
     editor.editor.config(withDoubleDollarMath)
     // After Crepe's remark-math, whose `$` reading and writing it changes.
     editor.editor.use(dollarMathRemark)
