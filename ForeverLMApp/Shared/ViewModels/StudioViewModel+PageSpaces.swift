@@ -313,6 +313,34 @@ extension StudioViewModel {
         }
     }
 
+    /// **New ▸** a template (Codex's "Start from template"): a page with the
+    /// template's title and headings, in no notebook, in the space chosen when
+    /// there is one, opened in `windowState`.
+    func createPage(from template: SpacePageTemplate, inPageSpace spaceID: String?, in windowState: StudioWindowState?) async {
+        do {
+            let snapshot = try await createArtifact(
+                title: template.pageTitle,
+                homeNotebookID: nil,
+                linkedNotebookIDs: [],
+                markdown: template.markdown,
+                pageSpaceID: spaceID
+            )
+            revealArtifact(snapshot.artifact.id, in: windowState)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// **New ▸ Image** (Codex's "Create image"): a new chat, as New chat makes
+    /// one in `windowState`, with "Create an image of " typed and unsent, so
+    /// the learner names the picture and the chat's image tool draws it.
+    func requestImageChat(in windowState: StudioWindowState?) {
+        inWindow(windowState ?? activeWindowState) {
+            pendingReviewChatDraft = SpacePageTemplate.imageChatDraft
+            requestNewChat()
+        }
+    }
+
     /// The open library's pages whose text holds every word of `query`: the
     /// Space's search reads what pages say as well as their names, from the
     /// notes graph's parse of each page (`docGraphSearchPageIDs`), off the

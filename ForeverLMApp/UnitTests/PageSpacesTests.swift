@@ -275,6 +275,39 @@ struct PageSpacesMacTests {
         }
     }
 
+    @Test("The learning templates: four, each a titled page with its headings and empty list items to type in")
+    func pageTemplates() throws {
+        #expect(SpacePageTemplate.all.map(\.id) == ["reading-notes", "literature-review", "lecture-notes", "weekly-learning-log"])
+        #expect(Set(SpacePageTemplate.all.map(\.id)).count == SpacePageTemplate.all.count)
+        for template in SpacePageTemplate.all {
+            #expect(!template.pageTitle.isEmpty && !template.title.isEmpty)
+            #expect(template.markdown.contains("## "), "\(template.id) has headings")
+            #expect(!template.markdown.contains("\t"))
+            #expect(SpacePageTemplate.template(template.id) == template)
+        }
+        let reading = try #require(SpacePageTemplate.template("reading-notes"))
+        #expect(reading.markdown.hasPrefix("**Source:** \n"), "a label with room to type after it")
+        #expect(reading.markdown.contains("\n- \n"), "an empty list item, ready to type in")
+        #expect(SpacePageTemplate.template("nope") == nil)
+        #expect(SpacePageTemplate.imageChatDraft == "Create an image of ")
+    }
+
+    @Test("A page from a template is made with its title and body, in the space chosen")
+    func pageFromTemplate() async throws {
+        let suite = "PageSpacesTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        try await PageSpaceRows.$overrideDefaults.withValue(PageSpaceRows.DefaultsOverride(defaults: defaults)) {
+            let vm = makeViewModel()
+            let lab = try #require(vm.createPageSpace(named: "Lab"))
+            let template = try #require(SpacePageTemplate.template("lecture-notes"))
+            await vm.createPage(from: template, inPageSpace: lab.id, in: nil)
+            let page = try #require(vm.artifacts.first { $0.title == "Lecture notes" })
+            #expect(vm.pageSpace(ofPage: page.id) == lab)
+            #expect(try await vm.artifactMarkdown(page.id).markdown == template.markdown)
+        }
+    }
+
     @Test("Trash rows are read beside the names; one whose space is gone is read past")
     func trashRows() {
         let spaces = PageSpaces(rows: [

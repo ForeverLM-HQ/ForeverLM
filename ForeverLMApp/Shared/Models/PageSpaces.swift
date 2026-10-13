@@ -691,3 +691,132 @@ struct PageParents: Equatable, Sendable {
         }
     }
 }
+
+// MARK: - Page templates
+
+/// Codex's "Start from template", for learning: a few pages that come with
+/// their headings, made from the Space's New ▾ and the sidebar's New chat ⋯
+/// (docs/codex-parity-audit.md, item 39). Codex's own gallery (To-do list,
+/// Weekly update, Project tracker…) is for work; ForeverLM's is for reading,
+/// lectures and review. A template only fills a new page: nothing about it is
+/// stored once the page is made. The web's twin is library-space.js's
+/// `SPACE_PAGE_TEMPLATES`, the same ids, titles and Markdown. Foundation-only.
+struct SpacePageTemplate: Identifiable, Equatable, Sendable {
+    let id: String
+    /// The row's name in the menus.
+    let title: String
+    let systemImage: String
+    /// The new page's title.
+    let pageTitle: String
+    /// The new page's body.
+    let markdown: String
+
+    static let all: [SpacePageTemplate] = [
+        SpacePageTemplate(
+            id: "reading-notes",
+            title: "Reading Notes",
+            systemImage: "book",
+            pageTitle: "Reading notes",
+            markdown: """
+            **Source:**\u{20}
+            **Why I'm reading it:**\u{20}
+
+            ## The main claim
+
+            ## Key ideas
+
+            -\u{20}
+
+            ## Evidence and examples
+
+            -\u{20}
+
+            ## Questions I still have
+
+            -\u{20}
+
+            ## In my own words
+
+            """
+        ),
+        SpacePageTemplate(
+            id: "literature-review",
+            title: "Literature Review",
+            systemImage: "books.vertical",
+            pageTitle: "Literature review",
+            markdown: """
+            **Question:**\u{20}
+
+            ## Papers
+
+            | Paper | Claim | Method | What it adds |
+            | --- | --- | --- | --- |
+            |  |  |  |  |
+
+            ## Where they agree
+
+            ## Where they disagree
+
+            ## Gaps and next reads
+
+            -\u{20}
+
+            """
+        ),
+        SpacePageTemplate(
+            id: "lecture-notes",
+            title: "Lecture Notes",
+            systemImage: "graduationcap",
+            pageTitle: "Lecture notes",
+            markdown: """
+            **Course:**\u{20}
+            **Date:**\u{20}
+
+            ## Big ideas
+
+            ## Notes
+
+            ## Terms to remember
+
+            -\u{20}
+
+            ## Questions for review
+
+            -\u{20}
+
+            """
+        ),
+        SpacePageTemplate(
+            id: "weekly-learning-log",
+            title: "Weekly Learning Log",
+            systemImage: "calendar",
+            pageTitle: "Weekly learning log",
+            markdown: """
+            ## What I learned this week
+
+            -\u{20}
+
+            ## What I'm still unsure about
+
+            -\u{20}
+
+            ## What I'll review
+
+            -\u{20}
+
+            ## Next week's focus
+
+            -\u{20}
+
+            """
+        ),
+    ]
+
+    static func template(_ id: String) -> SpacePageTemplate? {
+        all.first { $0.id == id }
+    }
+
+    /// What Create image types, unsent, into a new chat, whose image tool
+    /// draws it (Codex's "Create image" opens an image chat).
+    static let imageChatDraft = "Create an image of "
+}

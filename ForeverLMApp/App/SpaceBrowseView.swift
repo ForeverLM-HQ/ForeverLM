@@ -1202,11 +1202,15 @@ struct SpaceBrowseView: View {
             .accessibilityIdentifier("space.new")
     }
 
-    /// New's rows, in Codex's groups: what you make, then a space, then what
-    /// you link from elsewhere.
+    /// New's rows, in Codex's groups: what you make (Page, then Codex's Create
+    /// image), then a space, then a page from a template (Codex's "Start from
+    /// template"), then what you link from elsewhere.
     private var newMenuSections: [[SpaceMenuItem]] {
         var make: [SpaceMenuItem] = [
             SpaceMenuItem(id: "space.new.page", title: "Page", systemImage: "doc.text", action: onNewPage),
+            SpaceMenuItem(id: "space.new.image", title: "Image", systemImage: "photo") {
+                vm.requestImageChat(in: windowState)
+            },
         ]
         // The Notebooks home's New notebook, which the Space took over:
         // made at once, named by ForeverLM, and opened in this window.
@@ -1236,11 +1240,17 @@ struct SpaceBrowseView: View {
         let space: [SpaceMenuItem] = vm.activeTeamID == nil
             ? [SpaceMenuItem(id: "space.new.space", title: "Space\u{2026}", systemImage: "square.stack", action: onNewSpace)]
             : []
+        let spaceID = destination.pageSpaceID
+        let templates: [SpaceMenuItem] = SpacePageTemplate.all.map { template in
+            SpaceMenuItem(id: "space.new.template.\(template.id)", title: template.title, systemImage: template.systemImage, trailing: "Template") {
+                Task { await vm.createPage(from: template, inPageSpace: spaceID, in: windowState) }
+            }
+        }
         let link: [SpaceMenuItem] = [
             SpaceMenuItem(id: "space.new.linkDoc", title: ArtifactSection.docs.linkActionTitle, systemImage: "link") { onLink(.docs) },
             SpaceMenuItem(id: "space.new.linkSite", title: ArtifactSection.sites.linkActionTitle, systemImage: "globe") { onLink(.sites) },
         ]
-        return [make, space, link]
+        return [make, space, templates, link]
     }
 
     /// **New ▸ Notebook** on All and **New Notebook** on Notebooks: made at

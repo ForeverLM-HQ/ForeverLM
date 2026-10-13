@@ -218,7 +218,9 @@ restores or deletes them). The search in All, Pages and a space finds a page
 by what it says as well as by its name; a page this browser has not read yet
 is fetched for the search in the background. A space's **⋯** moves it to
 **Trash**, where **Restore** brings it back with its pages; Trash keeps
-everything until you empty it. The
+everything until you empty it. **New ▾** also makes an **Image** (a new chat
+with "Create an image of" typed) and a page from one of the learning
+templates, as on the Mac. The
 rail's **Notebooks** comes back to All, and under it are your pinned notebooks
 and the six you worked in last, rather than every notebook. A chat's right-click
 has **Pin Chat**, **Rename**, **Mark as Unread**, Move to Notebook and **Delete**
@@ -795,6 +797,12 @@ chooses too. A bar at the foot of the list says how many and offers **Move to
 Space ▸**, **Pin** and **Move to Trash** (in Trash, **Restore** and **Delete
 Forever…**), with **Select All**, and **×** lets them all go; the right-click
 of a chosen row offers the same. Chats and Images are chosen one at a time.
+
+**New ▾** on **All** and on a space, and **New chat**'s **⋯** in the sidebar,
+also make an **Image** (a new chat with "Create an image of" typed, ready for
+you to say what to draw) and a page from a **template**: **Reading Notes**,
+**Literature Review**, **Lecture Notes** or **Weekly Learning Log**, each a
+page with its headings, filed in the space you are in.
 
 A space's **⋯** has **Move to Trash**: the space leaves the sidebar, its pages
 stay in **All**, and **Trash** lists it with **Restore** (the space comes back

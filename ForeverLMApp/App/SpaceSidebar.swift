@@ -474,6 +474,20 @@ struct SpaceSidebar: View {
         } trailing: {
             Menu {
                 Button("New Page", systemImage: "doc.badge.plus", action: onNewPage)
+                // Codex's Create image and Start from template.
+                Button("New Image", systemImage: "photo") {
+                    vm.requestImageChat(in: windowState)
+                }
+                Menu {
+                    ForEach(SpacePageTemplate.all) { template in
+                        Button(template.title, systemImage: template.systemImage) {
+                            Task { await vm.createPage(from: template, inPageSpace: selection?.pageSpaceID, in: windowState) }
+                        }
+                    }
+                } label: {
+                    Label("New Page from Template", systemImage: "doc.on.doc")
+                }
+                .disabled(vm.isActiveLibraryReadOnly)
                 Button("New Notebook", systemImage: NotebookGlyph.systemImage) {
                     vm.makeAndOpenNotebook(in: windowState)
                 }

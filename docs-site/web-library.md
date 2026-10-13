@@ -49,7 +49,9 @@ restores or deletes them). The search in All, Pages and a space finds a page
 by what it says as well as by its name; a page this browser has not read yet
 is fetched for the search in the background. A space's **⋯** moves it to
 **Trash**, where **Restore** brings it back with its pages; Trash keeps
-everything until you empty it. The
+everything until you empty it. **New ▾** also makes an **Image** (a new chat
+with "Create an image of" typed) and a page from one of the learning
+templates, as on the Mac. The
 rail's **Notebooks** comes back to All, and under it are your pinned notebooks
 and the six you worked in last, rather than every notebook. A chat's right-click
 has **Pin Chat**, **Rename**, **Mark as Unread**, Move to Notebook and **Delete**

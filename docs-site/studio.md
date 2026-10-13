@@ -395,6 +395,12 @@ Space ▸**, **Pin** and **Move to Trash** (in Trash, **Restore** and **Delete
 Forever…**), with **Select All**, and **×** lets them all go; the right-click
 of a chosen row offers the same. Chats and Images are chosen one at a time.
 
+**New ▾** on **All** and on a space, and **New chat**'s **⋯** in the sidebar,
+also make an **Image** (a new chat with "Create an image of" typed, ready for
+you to say what to draw) and a page from a **template**: **Reading Notes**,
+**Literature Review**, **Lecture Notes** or **Weekly Learning Log**, each a
+page with its headings, filed in the space you are in.
+
 A space's **⋯** has **Move to Trash**: the space leaves the sidebar, its pages
 stay in **All**, and **Trash** lists it with **Restore** (the space comes back
 with its pages) and **Delete Forever…**. Things stay in Trash until you empty
