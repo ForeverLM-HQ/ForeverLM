@@ -124,9 +124,13 @@ enum ManagedImageGeneration {
 
         return try await AIUsageAttribution.$task.withValue(usageTask) {
             try await withOptionalSource(source) {
-                // Built inside the closure: the body is not Sendable.
-                let payload = try requestBody(prompt: trimmed, model: resolved, shape: shape, quality: quality, reference: reference)
-                return try await post(payload, model: resolved)
+                // Listed for the background-work list, where Stop cancels it:
+                // a notebook's cover or a meeting's icon drawn on its own.
+                try await AIInFlightCalls.current.track(step: usageTask) { _ in
+                    // Built inside the closure: the body is not Sendable.
+                    let payload = try requestBody(prompt: trimmed, model: resolved, shape: shape, quality: quality, reference: reference)
+                    return try await post(payload, model: resolved)
+                }
             }
         }
     }

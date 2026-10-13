@@ -177,6 +177,9 @@ struct DayClosePass: Sendable {
         // keep the watermark where it was, so the next run reads them again
         // (a source whose ideas match its text costs nothing then).
         var ideasWaiting = 0
+        // Set when the learner stopped idea extraction under Running in the
+        // background: the sources not reached wait, as they do at the cap.
+        var ideasStopped: String?
         do {
             let consumed = try await storage.sourceIDsConsumed(since: since, now: now)
             for (index, sourceID) in consumed.enumerated() {
@@ -191,6 +194,10 @@ struct DayClosePass: Sendable {
                 do {
                     let ideas = try await ideaExtraction.prepare(sourceID: sourceID)
                     if !ideas.isEmpty { report.warmedSources += 1 }
+                } catch where AITransientErrorClassifier.isCancellation(error) {
+                    ideasStopped = error.localizedDescription
+                    ideasWaiting = consumed.count - index
+                    break
                 } catch {
                     report.failures.append("Ideas for a source could not be extracted: \(error.localizedDescription)")
                 }
@@ -199,9 +206,10 @@ struct DayClosePass: Sendable {
             report.failures.append("Today's reading could not be listed: \(error.localizedDescription)")
         }
         if ideasWaiting > 0 {
+            let reason = ideasStopped ?? "today's background AI limit is reached."
             report.notes.append(ideasWaiting == 1
-                ? "The ideas of 1 source wait: today's background AI limit is reached."
-                : "The ideas of \(ideasWaiting) sources wait: today's background AI limit is reached.")
+                ? "The ideas of 1 source wait: \(reason)"
+                : "The ideas of \(ideasWaiting) sources wait: \(reason)")
         }
 
         // 2b. What was done becomes working notes and the running log

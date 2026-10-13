@@ -241,6 +241,9 @@ final class AutomaticSourceAudioGenerationService: ObservableObject {
     private var completedBatchSourceIDs: Set<String> = []
     private var schedulePreparationTask: Task<Void, Never>?
     private var worker: Task<Void, Never>?
+    /// The source being generated. Its work runs detached, off the main
+    /// actor, so cancelling `worker` does not reach it: Stop cancels it here.
+    private var generation: Task<Void, Error>?
     private let storage = StorageService()
     private var librarySources: [StudioArticle] = []
 
@@ -254,6 +257,12 @@ final class AutomaticSourceAudioGenerationService: ObservableObject {
         }
         guard Self.automaticSelectionIsAllowed else {
             discardPendingWork()
+            return
+        }
+        // Stopped under Running in the background: nothing starts until the
+        // learner resumes it there (`AIInFlightCalls`).
+        guard !Self.isStoppedByLearner else {
+            discardPendingWork(disableOptIns: false)
             return
         }
         if retryFailures {
@@ -499,6 +508,11 @@ final class AutomaticSourceAudioGenerationService: ObservableObject {
                     self.discardPendingWork()
                     break
                 }
+                // A stop made on another Mac arrives between sources.
+                guard !Self.isStoppedByLearner else {
+                    self.discardPendingWork(disableOptIns: false)
+                    break
+                }
                 guard let source = self.nextSource() else { break }
                 self.currentTitle = source.title
                 self.currentSourceType = source.audioAutomationKind
@@ -506,12 +520,21 @@ final class AutomaticSourceAudioGenerationService: ObservableObject {
                 self.publishProgress()
                 do {
                     let storage = self.storage
-                    try await Task.detached(priority: .utility) {
+                    let generation = Task.detached(priority: .utility) {
                         try await Self.generate(source, storage: storage)
-                    }.value
+                    }
+                    self.generation = generation
+                    defer { self.generation = nil }
+                    try await generation.value
                     self.completedSourceIDs.insert(source.id)
                     self.completedBatchSourceIDs.insert(source.id)
-                } catch is CancellationError {
+                } catch where AITransientErrorClassifier.isCancellation(error) {
+                    // Stopped: the source was never given its chance, so it
+                    // is not counted as failed, and it is let go of here so
+                    // the next schedule offers it again.
+                    self.currentTitle = nil
+                    self.currentSourceType = nil
+                    self.currentSourceID = nil
                     break
                 } catch {
                     self.failedSourceIDs.insert(source.id)
@@ -541,13 +564,35 @@ final class AutomaticSourceAudioGenerationService: ObservableObject {
     /// User-facing abort for the batch in flight. Deliberately leaves the
     /// per-type opt-ins and the paid consent alone: this stops what is running
     /// now, and the copy shown afterwards says the switches are still on.
+    @discardableResult
     func stopCurrentRun() -> Int {
         let generated = completedBatchSourceIDs.count
+        generation?.cancel()
         worker?.cancel()
         worker = nil
         discardPendingWork(disableOptIns: false)
         lastError = nil
         return generated
+    }
+
+    /// Stop under Running in the background: the source being generated is
+    /// cancelled mid-request, and no automatic audio starts again, on any Mac
+    /// of the account, until the learner resumes it there. The switches stay
+    /// as they are.
+    func stopFromBackgroundWork() {
+        AIInFlightCalls.shared.stop(step: AutomaticAudioStep.step)
+        stopCurrentRun()
+    }
+
+    /// Resume under Running in the background: the library is looked at again
+    /// at once rather than at the next source event.
+    func resumeAfterStop() {
+        AIInFlightCalls.shared.resume(step: AutomaticAudioStep.step)
+        schedule(librarySources)
+    }
+
+    private nonisolated static var isStoppedByLearner: Bool {
+        AIInFlightCalls.shared.isStopped(AutomaticAudioStep.step)
     }
 
     /// Per-type backlogs for the whole pending library, so the consent dialog

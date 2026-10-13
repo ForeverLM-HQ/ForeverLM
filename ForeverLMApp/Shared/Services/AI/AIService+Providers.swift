@@ -224,6 +224,10 @@ extension AIService {
         return extractAPIErrorMessage(from: data)
     }
 
+    /// Listed for the background-work list while it streams, unless it is a
+    /// chat the learner is typing in (`AIInFlightCalls`). Its callbacks
+    /// cannot leave this call, so it does not run as a task of its own: Stop
+    /// cancels its data task instead, once the response has begun.
     func streamSSE(
         request: URLRequest,
         usageProvider: String? = nil,
@@ -232,7 +236,43 @@ extension AIService {
         onEvent: ([String: Any]) throws -> String?,
         onDelta: (String) -> Void
     ) async throws {
+        let registry = AIInFlightCalls.current
+        let step = AIUsageAttribution.task
+        let inFlightID = try registry.begin(
+            taskLabel: step,
+            sourceTitle: AIUsageAttribution.sourceTitle,
+            subjectID: AIUsageAttribution.subjectID
+        )
+        do {
+            try await streamSSEListed(
+                inFlightID: inFlightID,
+                registry: registry,
+                request: request,
+                usageProvider: usageProvider,
+                usageModel: usageModel,
+                usageOperation: usageOperation,
+                onEvent: onEvent,
+                onDelta: onDelta
+            )
+            registry.end(inFlightID)
+        } catch {
+            throw registry.end(inFlightID, failure: error, step: step)
+        }
+    }
+
+    private func streamSSEListed(
+        inFlightID: UUID?,
+        registry: AIInFlightCalls,
+        request: URLRequest,
+        usageProvider: String?,
+        usageModel: String?,
+        usageOperation: String,
+        onEvent: ([String: Any]) throws -> String?,
+        onDelta: (String) -> Void
+    ) async throws {
         let (bytes, response) = try await session.foreverLMBytes(for: request)
+        let dataTask = bytes.task
+        registry.attach(inFlightID) { dataTask.cancel() }
 
         if let http = response as? HTTPURLResponse,
            !(200...299).contains(http.statusCode) {

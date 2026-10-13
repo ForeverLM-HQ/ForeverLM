@@ -13,6 +13,11 @@ import OSLog
 /// All blocking media work runs off the main actor. The proxy owns the provider
 /// credential and meters every unit before its transcript is served.
 actor MeetingTranscriptionService {
+    /// The ledger's label for a meeting recording's transcription: what AI
+    /// Usage files it under, and the step a Stop under Running in the
+    /// background stops.
+    static let meetingTask = "meeting_transcription"
+
     static let shared = MeetingTranscriptionService()
     private static let maximumChunkDuration: TimeInterval = 10 * 60
     private let logger = Logger(subsystem: "ForeverLM", category: "MeetingTranscription")
@@ -70,14 +75,14 @@ actor MeetingTranscriptionService {
         }
         let audioURL = try await extractAudio(from: media, into: workDir)
         logger.info("Transcribing recording \(fileID, privacy: .public)")
-        return try await transcribeAudio(audioURL, into: workDir, task: "meeting_transcription")
+        return try await transcribeAudio(audioURL, into: workDir, task: Self.meetingTask)
     }
 
     /// Transcribe a media file already on disk (any AVFoundation-readable
     /// container, e.g. a downloaded Zoom recording). Returns the transcript text.
     /// `task` names the work in the usage ledger (`course_video_transcription`
     /// for a course lecture's audio).
-    func transcribe(localMediaURL: URL, task: String = "meeting_transcription") async throws -> String {
+    func transcribe(localMediaURL: URL, task: String = MeetingTranscriptionService.meetingTask) async throws -> String {
         await acquireTranscriptionTurn()
         defer { releaseTranscriptionTurn() }
 
@@ -161,11 +166,15 @@ actor MeetingTranscriptionService {
             logger.info("Transcribing managed audio chunk \(index + 1)/\(chunks.count)")
             let result = try await AIUsageAttribution.$activityID.withValue(activityID) {
                 try await AIUsageAttribution.$task.withValue(task) {
-                    try await ManagedTranscriptionClient.transcribe(
-                        fileURL: chunk,
-                        session: URLSession.shared,
-                        purpose: .media
-                    )
+                    // Listed for the background-work list, where Stop cancels
+                    // it: a Zoom recording's or an episode's transcription.
+                    try await AIInFlightCalls.current.track(step: task) { _ in
+                        try await ManagedTranscriptionClient.transcribe(
+                            fileURL: chunk,
+                            session: URLSession.shared,
+                            purpose: .media
+                        )
+                    }
                 }
             }
             try await AIUsageTracker.shared.record(

@@ -586,6 +586,19 @@ The navigation rail is a narrow strip of icons: **Spaces**, **Memory** and
 (see [Layout](#layout)) and your account. Each icon can be hidden from its own
 menu and brought back with **Show in Sidebar**.
 
+While anything that costs money runs in the background, a grey OpenRouter
+logo shows in the strip; click it for **Running in the background**: each
+narration, automatic audio, explainer video, mnemonic reading, scheduled task
+run and assistant job, and every paid step ForeverLM takes on its own, such as
+Text-to-Speech Preparation, Paper Metadata, a recording's transcription or a
+notebook's cover, each with **✕** to stop it. A chat you are typing in is not
+listed; it has its own Stop. Stopping a step stops it for every source, since
+its queue would otherwise move on to the next one. A step that runs on its
+own, and automatic audio, then waits under **Stopped**, on every Mac of your
+account, until you press **Resume**; what you ask for yourself, such as
+Listen, still runs. A step you asked for, such as a report, is only stopped,
+and asking again runs it.
+
 Beside a chat or the Reader, outside a notebook, a sidebar joins the strip:
 **New chat** and **Browser** at the top, then **Notebooks**, which opens the
 Space's All list, where every notebook is (its right-click menu also opens
@@ -3159,8 +3172,9 @@ tools instead of calling a paid ForeverLM generator.
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `list_running_ai_work` | — | What is running now, each with its `work_id`, what started it, what it is about, how long it has run, whether it spends money, its recorded spend, and its approved ceiling. |
-| `cancel_ai_work` | `work_ids?`, `all?` | Stop work by `work_id`, or everything that spends money with `all`. A stopped bulk re-queue waits for a decision again in `get_background_ai_jobs`. |
+| `list_running_ai_work` | — | What is running now, each with its `work_id`, what started it, what it is about, how long it has run, whether it spends money, its recorded spend, and its approved ceiling. The app's own paid steps (Text-to-Speech Preparation, Paper Metadata, a recording's transcription, a notebook's cover) are listed one entry a step, automatic audio as its own entry, and `stopped_steps` names the steps stopped until you resume them. |
+| `cancel_ai_work` | `work_ids?`, `all?` | Stop work by `work_id`, or everything that spends money with `all`. A stopped bulk re-queue waits for a decision again in `get_background_ai_jobs`. A stopped step that runs on its own, or automatic audio, stays stopped on every Mac until it is resumed, though what you ask for yourself still runs; a step you asked for is only cancelled. |
+| `resume_ai_work` | `steps?`, `all?` | Let stopped steps run again, by the `task` values `list_running_ai_work` gives under `stopped_steps`, or every one with `all`, as **Resume** does in the app. |
 
 ## Text-to-speech audio
 

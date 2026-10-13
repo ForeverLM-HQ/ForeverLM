@@ -43,6 +43,8 @@ struct BackgroundWorkItem: Identifiable, Equatable {
         /// A step of the app's own processing (Text-to-Speech Preparation,
         /// Paper Metadata), for every source it is running on.
         case modelStep(step: String)
+        /// Automatic source audio's run (`AutomaticSourceAudioGenerationService`).
+        case automaticAudio
     }
 
     let id: String
@@ -77,7 +79,7 @@ final class BackgroundWorkMonitor: ObservableObject {
 
     @Published private(set) var items: [BackgroundWorkItem] = []
     @Published private(set) var finished: [FinishedNarration] = []
-    /// Steps the learner stopped, until they resume them or the app quits.
+    /// Steps the learner stopped, on this Mac or another, until they resume them.
     @Published private(set) var stopped: [AIInFlightCalls.StoppedStep] = []
 
     private var timer: Timer?
@@ -103,6 +105,9 @@ final class BackgroundWorkMonitor: ObservableObject {
     }
 
     func refresh() {
+        // A stop made on another Mac refuses what starts here next; what was
+        // already running here is cancelled now.
+        AIInFlightCalls.shared.cancelInFlightOfStoppedSteps()
         let current = collect()
         if current != items { items = current }
         let ended = Self.collectFinished()
@@ -112,7 +117,11 @@ final class BackgroundWorkMonitor: ObservableObject {
     }
 
     func resume(_ step: AIInFlightCalls.StoppedStep) {
-        AIInFlightCalls.shared.resume(step: step.step)
+        if step.step == AutomaticAudioStep.step {
+            AutomaticSourceAudioGenerationService.shared.resumeAfterStop()
+        } else {
+            AIInFlightCalls.shared.resume(step: step.step)
+        }
         refresh()
     }
 
@@ -165,6 +174,8 @@ final class BackgroundWorkMonitor: ObservableObject {
             _ = MCPRunningWork.shared.stop(id, by: .learner)
         case .modelStep(let step):
             AIInFlightCalls.shared.stop(step: step)
+        case .automaticAudio:
+            AutomaticSourceAudioGenerationService.shared.stopFromBackgroundWork()
         }
         refresh()
     }
@@ -233,6 +244,24 @@ final class BackgroundWorkMonitor: ObservableObject {
                 startedAt: waiting.map(\.enqueuedAt).min(),
                 spend: nil,
                 stop: .queuedNarrations(sourceIDs: waiting.map(\.sourceID))
+            ))
+        }
+
+        // Automatic source audio makes narrations of its own, one source after
+        // another, with nothing else showing them.
+        if let progress = AutomaticSourceAudioGenerationService.shared.progress {
+            var detail = "\(progress.completedCount) of \(progress.totalCount) made"
+            if let current = progress.currentTitle { detail = "\(current) · " + detail }
+            items.append(BackgroundWorkItem(
+                id: "automatic-audio",
+                kind: .narration,
+                title: AIInFlightCalls.stepName(AutomaticAudioStep.step),
+                sourceID: nil,
+                detail: detail,
+                fraction: progress.fractionCompleted,
+                startedAt: nil,
+                spend: nil,
+                stop: .automaticAudio
             ))
         }
 
@@ -477,13 +506,27 @@ private struct BackgroundWorkList: View {
         .frame(width: 320)
     }
 
+    /// What Stop does, where it does more than stop the row.
+    private func stopHelp(_ item: BackgroundWorkItem) -> String {
+        switch item.stop {
+        case .modelStep(let step) where AIInFlightCalls.staysStopped(step):
+            return "Stop \(title(item)) for every source until you resume it"
+        case .modelStep:
+            return "Stop \(title(item)) for every source"
+        case .automaticAudio:
+            return "Stop automatic audio until you resume it"
+        default:
+            return "Stop"
+        }
+    }
+
     private var heading: String {
         if !monitor.items.isEmpty { return "Running in the background" }
         return monitor.finished.isEmpty && !monitor.stopped.isEmpty ? "Stopped" : "Finished"
     }
 
-    /// A step the learner stopped: it waits until they resume it here, or
-    /// until ForeverLM next opens.
+    /// A step the learner stopped: it waits, on every Mac of the account,
+    /// until they resume it here.
     private func stoppedRow(_ step: AIInFlightCalls.StoppedStep) -> some View {
         HStack(alignment: .center, spacing: 8) {
             Image(systemName: "pause.circle")
@@ -565,7 +608,7 @@ private struct BackgroundWorkList: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.hoverWash(cornerRadius: 5, inset: 0))
-            .help(item.kind == .modelCall ? "Stop \(title(item)) for every source until you resume it" : "Stop")
+            .help(stopHelp(item))
             .accessibilityLabel("Stop \(title(item))")
         }
     }

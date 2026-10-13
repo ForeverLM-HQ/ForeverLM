@@ -604,6 +604,10 @@ actor NotebookCoverService {
             }
         } catch is NotebookCoverMaker.Wait {
             return false
+        } catch where AITransientErrorClassifier.isCancellation(error) {
+            // Stopped (under Running in the background, or by quitting): not
+            // an attempt, so the row waits whole for the next drain.
+            return false
         } catch {
             Self.logger.error("A notebook cover failed: \(String(describing: error), privacy: .public)")
             let message = String(describing: error)

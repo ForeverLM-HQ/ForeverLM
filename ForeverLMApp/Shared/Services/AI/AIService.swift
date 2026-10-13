@@ -98,21 +98,24 @@ enum AIError: LocalizedError {
     }
 }
 
-/// A model step the learner stopped in the background-work list
+/// A paid step the learner stopped in the background-work list
 /// (`AIInFlightCalls.stop`). Not a failure of the source, the model or the
 /// request, so it counts as a cancellation: a queue leaves the item waiting
 /// rather than recording an error or spending an attempt, and the backup chain
 /// does not go on to the next model.
 struct AIStepStoppedError: LocalizedError, Equatable {
-    /// The step's name as Settings shows it.
+    /// The step's name as Settings or AI Usage shows it.
     let step: String
+    /// The step stays stopped until the learner resumes it.
+    let staysStopped: Bool
 
-    /// The fixed tail of the message, by which a failure already reduced to
-    /// text is still recognised as this one.
-    static let messageTail = "Resume it under Running in the background, or it runs again when ForeverLM next opens."
+    /// How every message of this error begins, by which a failure already
+    /// reduced to text is still recognised as this one.
+    static let messageStart = "You stopped "
 
     var errorDescription: String? {
-        "You stopped \(step). \(Self.messageTail)"
+        let stopped = "\(Self.messageStart)\(step)."
+        return staysStopped ? stopped + " It waits until you resume it under Running in the background." : stopped
     }
 }
 
@@ -160,7 +163,9 @@ enum AITransientErrorClassifier {
         // precisely enough to be matched anywhere inside a wrapping sentence.
         if trimmed.contains(CancellationError().localizedDescription) { return true }
         if trimmed.contains("NSURLErrorDomain error \(NSURLErrorCancelled).") { return true }
-        if trimmed.contains(AIStepStoppedError.messageTail) { return true }
+        // A stopped step's message, whole or after the app's own prefix.
+        if trimmed.hasPrefix(AIStepStoppedError.messageStart)
+            || trimmed.contains(": " + AIStepStoppedError.messageStart) { return true }
         // A cancelled URLSession task describes itself with the single word.
         // Match that only where a wrapped message keeps its detail -- at the
         // end, after the app's own prefix -- so a provider sentence that merely

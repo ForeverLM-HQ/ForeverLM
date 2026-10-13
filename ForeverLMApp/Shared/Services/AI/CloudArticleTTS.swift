@@ -927,12 +927,28 @@ enum CloudArticleTTS {
         }
 
         return try await AIUsageAttribution.$task.withValue("voice_preview") {
-            try await synthesizeRequest(
-                input,
-                selection: Selection(model: modelID, voice: voiceID),
-                priority: .opening
-            )
+            try await listed(step: "voice_preview") {
+                try await synthesizeRequest(
+                    input,
+                    selection: Selection(model: modelID, voice: voiceID),
+                    priority: .opening
+                )
+            }
         }
+    }
+
+    /// On the Mac, a request made outside a narration is listed for the
+    /// background-work list, where Stop cancels it: the voice samples warmed
+    /// at launch, the test of a pick. A narration's own requests are its row.
+    private static func listed(
+        step: String,
+        _ body: @escaping @Sendable () async throws -> SpeechResponse
+    ) async throws -> SpeechResponse {
+        #if os(macOS)
+        return try await AIInFlightCalls.current.track(step: step) { _ in try await body() }
+        #else
+        return try await body()
+        #endif
     }
 
     /// One short synthesis for the test of a pick
@@ -949,11 +965,13 @@ enum CloudArticleTTS {
         await OpenRouterAudioDirectory.prepare(.speech)
         let voice = voiceID.trimmingCharacters(in: .whitespacesAndNewlines)
         _ = try await AIUsageAttribution.$task.withValue(AIModelQualification.taskLabel) {
-            try await synthesizeRequest(
-                text,
-                selection: Selection(model: modelID, voice: voice.isEmpty ? nil : voice),
-                priority: .opening
-            )
+            try await listed(step: AIModelQualification.taskLabel) {
+                try await synthesizeRequest(
+                    text,
+                    selection: Selection(model: modelID, voice: voice.isEmpty ? nil : voice),
+                    priority: .opening
+                )
+            }
         }
     }
 

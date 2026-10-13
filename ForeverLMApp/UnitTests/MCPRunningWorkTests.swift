@@ -43,6 +43,9 @@ struct MCPRunningWorkTests {
         #expect(cancel["destructiveHint"] as? Bool == false)
         #expect(MCPToolRegistry.isToolAllowed("cancel_ai_work", scope: .full))
         #expect(!MCPToolRegistry.isToolAllowed("cancel_ai_work", scope: .ingest))
+        let resume = MCPToolRegistry.annotations(for: "resume_ai_work")
+        #expect(resume["readOnlyHint"] as? Bool == false)
+        #expect(resume["destructiveHint"] as? Bool == false)
     }
 
     @Test("Every tool marked as spending money is a registered tool")
@@ -218,6 +221,61 @@ struct MCPRunningWorkTests {
         }
         #expect(!MCPRunningWork.shared.snapshot.contains { $0.id == id })
     }
+
+    @Test("A paid step of the app's own is listed, stopped by cancel_ai_work until resume_ai_work, and its request cancelled")
+    func modelStepsThroughTheTools() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("mcp_running_work_\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = MCPDataStore(dbPath: dir.appendingPathComponent("knowledge.db").path)
+        _ = try store.knowledgeStore()
+        let registry = MCPToolRegistry(store: store)
+        // A registry of the test's own, its stops in memory: nothing reaches
+        // this Mac's settings or another test's calls.
+        let calls = AIInFlightCalls(stops: .memory())
+        let step = "meeting_icon"
+
+        try await AIInFlightCalls.$current.withValue(calls) {
+            let id = try calls.begin(taskLabel: step, sourceTitle: "Lab meeting", subjectID: "meeting-7")
+            let cancelled = CancelFlag()
+            calls.attach(id) { cancelled.set() }
+
+            let listed = await registry.callToolDetailed(name: "list_running_ai_work", arguments: [:])
+            let listJSON = try #require(try JSONSerialization.jsonObject(with: Data(listed.text.utf8)) as? [String: Any])
+            let work = try #require(listJSON["work"] as? [[String: Any]])
+            let entry = try #require(work.first { $0["work_id"] as? String == "model-\(step)" })
+            #expect(entry["kind"] as? String == "model_step")
+            #expect(entry["task"] as? String == step)
+            #expect(entry["about"] as? String == "Lab meeting")
+
+            let stopped = await registry.callToolDetailed(name: "cancel_ai_work", arguments: ["work_ids": ["model-\(step)"]])
+            #expect(!stopped.isError, "\(stopped.text)")
+            #expect(cancelled.isSet)
+            #expect(calls.isStopped(step))
+            #expect(calls.end(id))
+
+            let after = await registry.callToolDetailed(name: "list_running_ai_work", arguments: [:])
+            let afterJSON = try #require(try JSONSerialization.jsonObject(with: Data(after.text.utf8)) as? [String: Any])
+            let held = try #require(afterJSON["stopped_steps"] as? [[String: Any]])
+            #expect(held.map { $0["task"] as? String } == [step])
+
+            let refused = await registry.callToolDetailed(name: "resume_ai_work", arguments: [:])
+            #expect(refused.isError)
+            let resumed = await registry.callToolDetailed(name: "resume_ai_work", arguments: ["steps": [step, "paper_metadata"]])
+            #expect(!resumed.isError, "\(resumed.text)")
+            let resumedJSON = try #require(try JSONSerialization.jsonObject(with: Data(resumed.text.utf8)) as? [String: Any])
+            #expect((resumedJSON["resumed"] as? [[String: Any]])?.map { $0["task"] as? String } == [step])
+            #expect(resumedJSON["not_stopped"] as? [String] == ["paper_metadata"])
+            #expect(!calls.isStopped(step))
+        }
+    }
+}
+
+private final class CancelFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = false
+    func set() { lock.withLock { value = true } }
+    var isSet: Bool { lock.withLock { value } }
 }
 
 #endif

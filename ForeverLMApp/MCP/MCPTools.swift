@@ -5114,10 +5114,11 @@ final class MCPToolRegistry: @unchecked Sendable {
         // Explains a figure it has never seen with a vision model call — tens
         // of seconds — and reads the paper through the storage actor.
         "inspect_paper_figure",
-        // A stop must not queue behind the writer it stops. None of the three
-        // touches the cached connection; stopping audio resolves its link
-        // token through the storage actor.
-        "list_running_ai_work", "cancel_ai_work", "cancel_source_audio_generation",
+        // A stop must not queue behind the writer it stops, nor a resume
+        // behind whatever is writing. None of them touches the cached
+        // connection; stopping audio resolves its link token through the
+        // storage actor.
+        "list_running_ai_work", "cancel_ai_work", "resume_ai_work", "cancel_source_audio_generation",
         // Images live in files under the content root, never knowledge.db
         // (a notebook_id is read through the storage actor), and
         // generate_image waits on an image model for tens of seconds.

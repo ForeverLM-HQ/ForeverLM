@@ -574,15 +574,19 @@ extension StudioViewModel {
         let homeDir = realHomeDirectory
         let config = KeychainService.resolveConfig(for: .transcriptFormatting)
         let result = await Task.detached(priority: .utility) {
-            await Self.hydratePodcastTranscript(
-                candidate,
-                storage: storage,
-                aiService: aiService,
-                homeDir: homeDir,
-                config: config,
-                forceRefresh: true,
-                allowAudioTranscription: true
-            )
+            // The learner pressed Transcribe Audio: a transcription stopped
+            // under Running in the background still runs for it.
+            await AIUsageAttribution.$learnerAsked.withValue(true) {
+                await Self.hydratePodcastTranscript(
+                    candidate,
+                    storage: storage,
+                    aiService: aiService,
+                    homeDir: homeDir,
+                    config: config,
+                    forceRefresh: true,
+                    allowAudioTranscription: true
+                )
+            }
         }.value
         await applyPodcastHydrationResult(result)
     }
@@ -1180,6 +1184,12 @@ extension StudioViewModel {
                     throw MeetingTranscriptionService.TranscriptionError.emptyTranscript
                 }
                 extractedText = transcript
+            } catch where AITransientErrorClassifier.isCancellation(error) {
+                // Stopped, not failed: the episode says so, and is not given
+                // the terminal message that would send its reader looking on
+                // YouTube; Transcribe Audio asks again.
+                log.info("Transcribing podcast audio for \(candidate.id) was stopped")
+                return result(.failed(message: error.localizedDescription))
             } catch {
                 log.warning("Could not transcribe podcast audio for \(candidate.id): \(error.localizedDescription)")
                 return result(.failed(message: podcastAudioTranscriptionMessage))

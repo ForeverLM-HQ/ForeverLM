@@ -75,6 +75,10 @@ enum SyncedPreferenceKeys {
         // (`BackgroundAIDailyCap.preferenceKey`): a decision about the
         // account's spend, and every Mac reads the same synced ledger.
         "aiSpend.backgroundDailyCapUSD",
+        // The background steps the learner stopped until they resume them
+        // (`AIInFlightCalls.stoppedStepsKey`): every Mac of the account runs
+        // the same queues, and a stop is meant for all of them.
+        "aiSpend.stoppedSteps",
 
         // AI model selection. The `<provider>_model` / `*_provider` keys are the
         // `KeychainService.Key` raw values migrated out of the Keychain vault; see

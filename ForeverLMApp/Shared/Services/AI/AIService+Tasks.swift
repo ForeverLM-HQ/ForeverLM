@@ -676,16 +676,14 @@ extension AIService {
             sessionID: AIUsageAttribution.sessionID,
             fallback: UUID().uuidString
         )
-        let inFlightID = try AIInFlightCalls.shared.begin(
-            taskLabel: config.taskLabel,
+        // Listed for the background-work list, where Stop cancels it
+        // (`AIInFlightCalls.track`): the backup chain does not go on after a
+        // cancellation.
+        return try await AIInFlightCalls.current.track(
+            step: config.taskLabel,
             sourceTitle: sourceTitle,
             subjectID: subjectID
-        )
-        // The call runs as a task of its own so a Stop in the background-work
-        // list can cancel it: the request on the wire is aborted, and the
-        // backup chain does not go on after a cancellation. It inherits this
-        // task's priority and task-locals, the ledger's attribution among them.
-        let work = Task {
+        ) { inFlightID in
             try await self.runWithBackups(
                 inFlightID: inFlightID,
                 config: config,
@@ -706,29 +704,10 @@ extension AIService {
                 activityID: resolvedActivityID
             )
         }
-        AIInFlightCalls.shared.attach(inFlightID) { work.cancel() }
-        // Nothing after the wait touches the actor's state: at -O the hop
-        // back after a wait inside withTaskCancellationHandler can be lost
-        // (the pacer crash of 2026-10-12), so only the locked registry and
-        // locals are used past it.
-        do {
-            let answer = try await withTaskCancellationHandler {
-                try await work.value
-            } onCancel: {
-                work.cancel()
-            }
-            AIInFlightCalls.shared.end(inFlightID)
-            return answer
-        } catch {
-            if AIInFlightCalls.shared.end(inFlightID), AITransientErrorClassifier.isCancellation(error) {
-                throw AIStepStoppedError(step: AIInFlightCalls.stepName(config.taskLabel))
-            }
-            throw error
-        }
     }
 
     private func runWithBackups(
-        inFlightID: UUID,
+        inFlightID: UUID?,
         config: AITaskConfig,
         system: String,
         user: String,
@@ -764,7 +743,7 @@ extension AIService {
                     throw AIError.apiError("\(config.model) was passed over as a backup: its context window cannot take this whole request.")
                 }
             }
-            AIInFlightCalls.shared.setModel(inFlightID, provider: config.provider, model: config.model)
+            AIInFlightCalls.current.setModel(inFlightID, provider: config.provider, model: config.model)
             return try await self.callOneShot(
                 route: AITaskModelRoute(provider: config.provider, model: config.model),
                 apiKey: config.apiKey,
@@ -1071,16 +1050,22 @@ extension AIService {
             messages: messages,
             requestedMaxTokens: effectiveMaxTokens
         )
-        return try await AIUsageAttribution.$task.withValue(config.taskLabel) {
-            try await callOpenAICompatibleChat(
-                provider: route.provider,
-                apiKey: config.apiKey,
-                system: budgeted.system,
-                messages: budgeted.messages,
-                maxTokens: budgeted.maxTokens,
-                model: route.model,
-                effort: config.effort
-            )
+        // Listed for the background-work list, where Stop cancels it: a
+        // chat's history fold, a review's grade, the PDF finder's browsing.
+        let messages = budgeted.messages
+        return try await AIInFlightCalls.current.track(step: config.taskLabel) { inFlightID in
+            AIInFlightCalls.current.setModel(inFlightID, provider: route.provider, model: route.model)
+            return try await AIUsageAttribution.$task.withValue(config.taskLabel) {
+                try await self.callOpenAICompatibleChat(
+                    provider: route.provider,
+                    apiKey: config.apiKey,
+                    system: budgeted.system,
+                    messages: messages,
+                    maxTokens: budgeted.maxTokens,
+                    model: route.model,
+                    effort: config.effort
+                )
+            }
         }
     }
     

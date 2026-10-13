@@ -1120,7 +1120,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Stop work listed by list_running_ai_work: pass its work_ids, or all: true to stop everything it marks spends_money. The job_id generate_explainer_video returned is accepted as it is. A tool call aborts the model request in flight and starts nothing further; what it already saved stays, so generate_course_quizzes keeps the quizzes written so far and calling it again writes only the rest. An explainer video is discarded, though scenes already filmed were billed; a mnemonic reading keeps the questions of the sources already written, the rest waiting in it as pending; text-to-speech audio keeps its finished chunks; a scheduled task's chat keeps the reply so far and the run is recorded as stopped; a released bulk re-queue puts the sources the drain has not reached back on hold in get_background_ai_jobs, where skip drops them; a model step is stopped for every source, its requests aborted, and does not run again until the learner resumes it under Running in the background in ForeverLM or ForeverLM restarts, though what the learner asks for themselves still runs. Work running on another device is not reached. Returns what was stopped and what had already finished.",
+    "description" : "Stop work listed by list_running_ai_work: pass its work_ids, or all: true to stop everything it marks spends_money. The job_id generate_explainer_video returned is accepted as it is. A tool call aborts the model request in flight and starts nothing further; what it already saved stays, so generate_course_quizzes keeps the quizzes written so far and calling it again writes only the rest. An explainer video is discarded, though scenes already filmed were billed; a mnemonic reading keeps the questions of the sources already written, the rest waiting in it as pending; text-to-speech audio keeps its finished chunks; a scheduled task's chat keeps the reply so far and the run is recorded as stopped; a released bulk re-queue puts the sources the drain has not reached back on hold in get_background_ai_jobs, where skip drops them; a model step is stopped for every source, its requests aborted: one that runs on its own stays stopped on every Mac of the account until resume_ai_work or the learner's Resume, though what the learner asks for themselves still runs, while one the learner asked for runs again when asked; automatic audio stops mid-source and stays stopped the same way. Work running on another device is not reached. Returns what was stopped and what had already finished.",
     "inputSchema" : {
       "properties" : {
         "all" : {
@@ -6362,7 +6362,7 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "List the ForeverLM work running right now, above all what is spending money, so the learner can stop what they no longer want: tool calls still running on this Mac (a course's quizzes being written, a course, a walkthrough, a transcription — including a call whose assistant timed out waiting for it), explainer videos being filmed, mnemonic readings whose questions are being written, the text-to-speech audio queue, Teachable transcripts made in the background, scheduled task runs generating on this Mac, bulk re-queues released with decide_background_ai_job that the background drains are still working through, and the app's own model steps on the library (Text-to-Speech Preparation, Paper Metadata, a transcript's formatting: kind model_step, one entry a step with its requests and the sources it is on). stopped_steps lists the steps stopped until the learner resumes them in ForeverLM. Each registered entry has its work_id for cancel_ai_work, its kind, the tool that started it, what it is about, when it started, spends_money, current recorded spend and approved ceiling, and progress when the tool reports a current stage or count. Answers at once, even while a long call is still writing to the library.",
+    "description" : "List the ForeverLM work running right now, above all what is spending money, so the learner can stop what they no longer want: tool calls still running on this Mac (a course's quizzes being written, a course, a walkthrough, a transcription — including a call whose assistant timed out waiting for it), explainer videos being filmed, mnemonic readings whose questions are being written, the text-to-speech audio queue, Teachable transcripts made in the background, scheduled task runs generating on this Mac, bulk re-queues released with decide_background_ai_job that the background drains are still working through, the app's own paid requests (Text-to-Speech Preparation, Paper Metadata, a transcript's formatting, a Zoom recording's transcription, a notebook's cover, a PDF found by browsing: kind model_step, one entry a step with its requests and the sources it is on), and automatic source audio (kind automatic_audio). A chat the learner is typing in is not listed. stopped_steps lists the steps stopped until resume_ai_work or the learner's Resume. Each registered entry has its work_id for cancel_ai_work, its kind, the tool that started it, what it is about, when it started, spends_money, current recorded spend and approved ceiling, and progress when the tool reports a current stage or count. Answers at once, even while a long call is still writing to the library.",
     "inputSchema" : {
       "properties" : {
 
@@ -8013,6 +8013,30 @@
       "type" : "object"
     },
     "name" : "restore_doc_version",
+    "readOnlyHint" : false
+  },
+  {
+    "description" : "Let a step stopped with cancel_ai_work or in ForeverLM's background-work list run again: pass its task values from list_running_ai_work's stopped_steps (automatic_audio is automatic source audio), or all: true for every stopped step. A stopped step that runs on its own stays stopped on every Mac of the account until it is resumed; its queue then picks up where it left off, at the next library event or at once for automatic audio. Returns the steps resumed and those that were not stopped.",
+    "inputSchema" : {
+      "properties" : {
+        "all" : {
+          "description" : "Resume every stopped step. Defaults to false.",
+          "type" : "boolean"
+        },
+        "steps" : {
+          "description" : "task values from list_running_ai_work's stopped_steps.",
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        }
+      },
+      "required" : [
+
+      ],
+      "type" : "object"
+    },
+    "name" : "resume_ai_work",
     "readOnlyHint" : false
   },
   {

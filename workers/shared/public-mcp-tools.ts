@@ -582,9 +582,11 @@ export const DESKTOP_ONLY_TOOL_NAMES: ReadonlySet<string> = new Set([
   "cancel_source_audio_generation",
   // What is running and spending money is the Mac's own: its tool calls in
   // flight, its video films, its queues and drains. A stop has to reach the
-  // process doing the work, and only the Mac holds it.
+  // process doing the work, and only the Mac holds it; a resume lets the
+  // Mac's own queues run again.
   "list_running_ai_work",
   "cancel_ai_work",
+  "resume_ai_work",
   // The keyword sweep reads every source's stored full text and counts literal
   // matches in it. That text is the Mac's local SQLite; the hosted CloudKit
   // account holds source assets it would have to download one by one to answer

@@ -147,8 +147,9 @@ tools instead of calling a paid ForeverLM generator.
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `list_running_ai_work` | — | What is running now, each with its `work_id`, what started it, what it is about, how long it has run, whether it spends money, its recorded spend, and its approved ceiling. The app's own model steps (Text-to-Speech Preparation, Paper Metadata) are listed one entry a step, and `stopped_steps` names the steps stopped until you resume them. |
-| `cancel_ai_work` | `work_ids?`, `all?` | Stop work by `work_id`, or everything that spends money with `all`. A stopped bulk re-queue waits for a decision again in `get_background_ai_jobs`. A stopped model step stops for every source until you press **Resume** in the app or ForeverLM restarts; what you ask for yourself still runs. |
+| `list_running_ai_work` | — | What is running now, each with its `work_id`, what started it, what it is about, how long it has run, whether it spends money, its recorded spend, and its approved ceiling. The app's own paid steps (Text-to-Speech Preparation, Paper Metadata, a recording's transcription, a notebook's cover) are listed one entry a step, automatic audio as its own entry, and `stopped_steps` names the steps stopped until you resume them. |
+| `cancel_ai_work` | `work_ids?`, `all?` | Stop work by `work_id`, or everything that spends money with `all`. A stopped bulk re-queue waits for a decision again in `get_background_ai_jobs`. A stopped step that runs on its own, or automatic audio, stays stopped on every Mac until it is resumed, though what you ask for yourself still runs; a step you asked for is only cancelled. |
+| `resume_ai_work` | `steps?`, `all?` | Let stopped steps run again, by the `task` values `list_running_ai_work` gives under `stopped_steps`, or every one with `all`, as **Resume** does in the app. |
 
 ## Text-to-speech audio
 

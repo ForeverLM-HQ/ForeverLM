@@ -255,7 +255,7 @@ struct MCPAuthScopeTests {
             "ask_canvas",
             "make_atlas", "get_atlas", "list_atlases", "delete_atlas",
             "inspect_paper_figure",
-            "list_running_ai_work", "cancel_ai_work", "cancel_source_audio_generation",
+            "list_running_ai_work", "cancel_ai_work", "resume_ai_work", "cancel_source_audio_generation",
             "list_images", "get_image", "generate_image", "save_image", "rename_image", "delete_image",
             "list_slack_channels", "read_slack_channel", "read_slack_thread", "search_slack_messages",
             "get_linear_issue", "search_linear_issues", "list_linear_issues",

@@ -1201,6 +1201,24 @@ extension StudioViewModel {
                     await reloadSourcesAfterZoomLocalFiling(base: base, log: log)
                 }
 
+                // Transcription stopped under Running in the background: the
+                // recording waits, filed and saying so, and the first pass
+                // after the learner resumes it transcribes it. No attempt is
+                // spent and no audio is read while it waits.
+                if AIInFlightCalls.shared.isStopped(MeetingTranscriptionService.meetingTask) {
+                    let stop = AIStepStoppedError(
+                        step: AIInFlightCalls.stepName(MeetingTranscriptionService.meetingTask),
+                        staysStopped: true
+                    )
+                    if article.errorMessage != stop.localizedDescription {
+                        article.state = .error
+                        article.errorMessage = stop.localizedDescription
+                        try? await storage.saveSource(article)
+                    }
+                    await MainActor.run { _ = self.zoomLocalRecordingRetryPending.insert(folder.path) }
+                    await reloadSourcesAfterZoomLocalFiling(base: base, log: log)
+                    continue
+                }
                 await MainActor.run { self.zoomLocalRecordingTranscriptAttempts[folder.path] = attempts + 1 }
                 do {
                     let transcript = try await MeetingTranscriptionService.shared.transcribe(
@@ -1231,6 +1249,17 @@ extension StudioViewModel {
                         self.zoomLocalRecordingRetryPending.remove(folder.path)
                     }
                     log.info("Zoom recording \(folder.path, privacy: .public) transcribed")
+                } catch where AITransientErrorClassifier.isCancellation(error) {
+                    // Stopped, not failed: the attempt is given back, and the
+                    // recording waits for the next pass.
+                    article.state = .error
+                    article.errorMessage = error.localizedDescription
+                    try? await storage.saveSource(article)
+                    await MainActor.run {
+                        self.zoomLocalRecordingTranscriptAttempts[folder.path] = attempts
+                        _ = self.zoomLocalRecordingRetryPending.insert(folder.path)
+                    }
+                    log.info("Transcribing Zoom recording \(folder.path, privacy: .public) was stopped")
                 } catch {
                     article.state = .error
                     article.errorMessage = "Transcribing the Zoom recording failed: \(error.localizedDescription)"

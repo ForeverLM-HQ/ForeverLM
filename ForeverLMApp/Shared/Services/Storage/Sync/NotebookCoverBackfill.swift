@@ -213,9 +213,10 @@ extension NotebookCoverService {
         return .finished(drawn: drawn, gaveUp: gaveUp)
     }
 
-    /// Whether `error` is a cancellation, whichever layer raised it.
+    /// Whether `error` is a cancellation, whichever layer raised it. A cover
+    /// drawing the learner stopped under Running in the background is one.
     static func isCancellation(_ error: Error) -> Bool {
-        if error is CancellationError { return true }
+        if error is CancellationError || error is AIStepStoppedError { return true }
         if let url = error as? URLError, url.code == .cancelled { return true }
         if let cloud = error as? CloudError, cloud.code == .operationCancelled { return true }
         let bridged = error as NSError

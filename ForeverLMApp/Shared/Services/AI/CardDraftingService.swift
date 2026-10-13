@@ -264,7 +264,9 @@ actor CardDraftingService {
                     drafts += answer.drafts
                     outcome.notSaved += answer.refused
                 } catch {
-                    if error is CancellationError || Task.isCancelled { throw CancellationError() }
+                    // A stop under Running in the background is one too: the
+                    // source was never given its chance, so it is no failure.
+                    if AITransientErrorClassifier.isCancellation(error) || Task.isCancelled { throw CancellationError() }
                     outcome.failure = error.localizedDescription
                 }
             } else {
@@ -291,7 +293,7 @@ actor CardDraftingService {
             drafts = screened.passed
             outcome.notSaved += screened.refused
         } catch {
-            if error is CancellationError || Task.isCancelled { throw CancellationError() }
+            if AITransientErrorClassifier.isCancellation(error) || Task.isCancelled { throw CancellationError() }
             outcome.failure = "Not saved: the cards' wording could not be checked. \(error.localizedDescription)"
             return outcome
         }

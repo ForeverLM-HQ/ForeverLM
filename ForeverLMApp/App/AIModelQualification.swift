@@ -162,7 +162,10 @@ extension AIModelQualification {
     static func speechProbe(model: String, voice: String) async throws {
         let text = "This is a short test, number \(Int.random(in: 1000...9999))."
         _ = try await AIUsageAttribution.$task.withValue(taskLabel) {
-            try await MacArticleTTSClient.openRouter(text: text, voice: voice, model: model)
+            // Listed for the background-work list, where Stop cancels it.
+            try await AIInFlightCalls.current.track(step: taskLabel) { _ in
+                try await MacArticleTTSClient.openRouter(text: text, voice: voice, model: model)
+            }
         }
     }
 
