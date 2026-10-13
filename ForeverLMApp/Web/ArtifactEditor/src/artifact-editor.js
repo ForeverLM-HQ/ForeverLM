@@ -6862,6 +6862,31 @@ async function create(markdown, fontSize) {
   }
 }
 
+/// Put a whole document in the editor without making it something the writer
+/// can undo. A page opened in an editor that showed another starts a history
+/// of its own (`fresh`): before, ⌘Z after typing on it went back past the
+/// writer's words to the page shown before, and autosave then wrote that page
+/// over this one. A body replaced from outside the same page (a teammate's
+/// edit, a merge, its pictures arriving) stays out of the history, so ⌘Z
+/// undoes only what was done here; the writer's own steps are carried
+/// through it.
+function replaceDocument(markdown, { fresh = false } = {}) {
+  if (!editor) return
+  if (fresh) {
+    editor.editor.action(replaceAll(markdown, true))
+    return
+  }
+  editor.editor.action((ctx) => {
+    const view = ctx.get(editorViewCtx)
+    const doc = ctx.get(parserCtx)(markdown)
+    if (!doc || typeof doc === 'string') return
+    const { state } = view
+    view.dispatch(state.tr
+      .replace(0, state.doc.content.size, new Slice(doc.content, 0, 0))
+      .setMeta('addToHistory', false))
+  })
+}
+
 /// `foldState` is `{ key, folds }` from a host that keeps folds: the doc's id
 /// and what was folded in it when it was last open (`applyFolds`). The open
 /// doc's own folds outlive a body replaced from outside — only opening
@@ -6933,8 +6958,8 @@ function setMarkdown(markdown, foldState = null) {
   collapsedSectionKeys.clear()
   activeDocumentTabKey = 'document'
   lastPostedReferenceHrefs = null
-  editor.editor.action(replaceAll(markdownForEditor(value)))
-  keepFootnotesOnOpen(view)
+  replaceDocument(markdownForEditor(value), { fresh: opensAnotherDoc })
+  keepFootnotesOnOpen(activeEditorView())
   if (caret) restoreCaretAfterReplacement(view, caret)
   if (keptFolds != null) applyFolds(foldState.key, keptFolds)
   requestAnimationFrame(() => {
@@ -9000,7 +9025,7 @@ function setAttachmentURLs(values) {
   const interacted = userHasInteracted
   const changed = hasUserChanges
   applyingExternalMarkdown = true
-  editor.editor.action(replaceAll(markdownForEditor(value)))
+  replaceDocument(markdownForEditor(value))
   requestAnimationFrame(() => {
     applyingExternalMarkdown = false
     userHasInteracted = interacted
