@@ -3647,6 +3647,35 @@ function firstPastedBlock(event, slice) {
   }
 }
 
+/// Tab in a paragraph or a heading does nothing. Crepe's indent plugin typed
+/// four spaces there (over a selection too, after it), which Markdown cannot
+/// keep as an indent: the page stored "&#x20;   " and a published page drew
+/// none. Left to the browser, Tab would take the caret out of the page. A list
+/// item, a table cell and code keep their own Tab.
+function withQuietTab(ctx) {
+  ctx.update(editorViewOptionsCtx, (previous) => ({
+    ...previous,
+    handleKeyDown: (view, event) => {
+      if (event.key === 'Tab' && !event.metaKey && !event.ctrlKey && !event.altKey && !tabActsHere(view.state)) {
+        event.preventDefault()
+        return true
+      }
+      return previous.handleKeyDown?.(view, event) ?? false
+    },
+  }))
+}
+
+function tabActsHere(state) {
+  const { $from, $to } = state.selection
+  for (const $pos of [$from, $to]) {
+    if ($pos.parent.type.spec.code) return true
+    for (let depth = $pos.depth; depth > 0; depth -= 1) {
+      if (['list_item', 'table_cell', 'table_header'].includes($pos.node(depth).type.name)) return true
+    }
+  }
+  return false
+}
+
 function withBlockPastesOnTheirOwnLine(ctx) {
   ctx.update(editorViewOptionsCtx, (previous) => ({
     ...previous,
@@ -6626,6 +6655,7 @@ async function create(markdown, fontSize) {
     editor.editor.config(withBlockProperties)
     editor.editor.config(withFootnotes)
     editor.editor.config(withBlockPastesOnTheirOwnLine)
+    editor.editor.config(withQuietTab)
     editor.editor.config(withDoubleDollarMath)
     // After Crepe's remark-math, whose `$` reading and writing it changes.
     editor.editor.use(dollarMathRemark)
