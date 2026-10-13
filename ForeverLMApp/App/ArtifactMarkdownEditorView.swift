@@ -820,6 +820,10 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
     var onCommentAnchorClicked: (String) -> Void = { _ in }
     /// The threads whose words are no longer in the page.
     var onCommentAnchorsDetached: (Set<String>) -> Void = { _ in }
+    /// Ask for change or Generate wrote the model's answer into the page, as
+    /// a tracked change waiting for Accept or Undo: the next save is an
+    /// assistant's edit, so the body before it is kept as a version.
+    var onAIEditWritten: () -> Void = {}
     /// Generate image was chosen and described: the answer is the picture,
     /// kept in the doc's Attachments, for the editor to write where the caret
     /// was. A thrown error is shown in the panel.
@@ -941,6 +945,7 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
         context.coordinator.onImageFiles = onImageFiles
         context.coordinator.onCommentAnchorClicked = onCommentAnchorClicked
         context.coordinator.onCommentAnchorsDetached = onCommentAnchorsDetached
+        context.coordinator.onAIEditWritten = onAIEditWritten
         context.coordinator.openFoldDocument(foldDocumentID)
         context.coordinator.useNotesGraph(notesGraph)
         context.coordinator.update(
@@ -1087,6 +1092,7 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
         var onImageFiles: ([URL]) -> Void = { _ in }
         var onCommentAnchorClicked: (String) -> Void = { _ in }
         var onCommentAnchorsDetached: (Set<String>) -> Void = { _ in }
+        var onAIEditWritten: () -> Void = {}
         private var commentAnchors: [ArtifactCommentAnchor] = []
         private var activeCommentID: String?
         private var onRequestImageGeneration: (ArtifactImageGenerationRequest) async throws -> ArtifactGeneratedImage
@@ -1589,6 +1595,8 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
             case "aiEditRequested":
                 guard let request = ArtifactAIEditRequest.parse(payload, docTitle: docTitle) else { return }
                 answerAIEdit(request, in: message.webView)
+            case "aiEditWritten":
+                onAIEditWritten()
             case "pastedLinesNeedJoining":
                 guard let request = PastedLineJoining.Request.parse(payload) else {
                     // Not a paste this host asks about: the editor stops waiting.

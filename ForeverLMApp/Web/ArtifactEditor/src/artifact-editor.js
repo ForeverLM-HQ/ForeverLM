@@ -66,7 +66,7 @@ import { textWithItsEscapes } from './markdown-text.js'
 import { citationFootnote, footnoteKey, freshNumericLabel, planFootnotes } from './footnotes.js'
 import { joinPastedLines, mayBePrintedLines, pastedLines, writtenSpan } from './pasted-lines.js'
 import { resolveAnchor, textIndex } from './comment-anchors.js'
-import { aliasedAddresses, isAddressStandIn, markedWordChanges, newAddressAliases, restoredAddresses, wordsOfDOM } from './ai-edit-proposal.js'
+import { aliasedAddresses, isAddressStandIn, newAddressAliases, restoredAddresses, reviewWordMarks } from './ai-edit-proposal.js'
 import { renderInline, renderMarkdown } from './notes-markdown.js'
 import {
   closeNotesPanels,
@@ -416,9 +416,10 @@ function publicationHTML(title = 'Untitled Article') {
   }
   // Comments, and the passage under an AI edit, are marked for the writer
   // here; a reader of the copy gets the words alone.
-  for (const mark of article.querySelectorAll('.artifact-comment-anchor, .artifact-ai-edit-target')) {
+  for (const mark of article.querySelectorAll('.artifact-comment-anchor, .artifact-ai-edit-target, .artifact-ai-insertion')) {
     mark.replaceWith(...mark.childNodes)
   }
+  for (const removed of article.querySelectorAll('.artifact-ai-removed')) removed.remove()
   // A reference card's control and a paragraph's margin cards are the
   // library's answer to this Mac, not part of the writing; the titles and
   // their links stay.
@@ -8716,9 +8717,13 @@ function convertSourceChipsToGrounding() {
 //
 // The writer says what should change — "tighten this", "turn this into a
 // list", "add a sentence on the 2024 trial" — and the host's model answers
-// with revised Markdown for the passage. Nothing is written until the writer
-// has read the proposal and chosen Replace or Insert below, and ⌘Z undoes
-// either. The editor owns the panel and the edit so the Mac and Web Studio
+// with revised Markdown for the passage. As in Codex, the answer is written
+// into the page as a tracked change (the new words washed green, the words they
+// replace struck through before them) under Accept · Undo · Ask for change
+// (`codex.space.page.magicEdit.*`): Accept keeps it, Undo puts the passage
+// back, and an instruction asked then changes the written words again. ⌘Z
+// undoes it too. A visualization is still proposed in the panel first and
+// written with Insert. The editor owns the panel and the edit so the Mac and Web Studio
 // behave alike; the host owns only the model call — `aiEditRequested` goes out,
 // `completeAIEdit` or `failAIEdit` comes back — the same split grounding and
 // formatting use.
@@ -8747,17 +8752,18 @@ const aiEditHighlightPlugin = $prose(() => new Plugin({
         // Nothing selected (Generate, Generate image): the place the writing
         // will go is a mark with no width, which ProseMirror still maps
         // through every keystroke.
+        if (meta.review) return aiReviewDecorations(tr.doc, meta)
         if (!(meta.to > meta.from)) {
           return DecorationSet.create(tr.doc, [
             Decoration.widget(meta.from, () => {
               const anchor = document.createElement('span')
               anchor.className = 'artifact-ai-generate-anchor'
               return anchor
-            }, { side: -1, key: 'artifact-ai-generate-anchor' }),
+            }, { side: -1, key: 'artifact-ai-generate-anchor', target: true }),
           ])
         }
         return DecorationSet.create(tr.doc, [
-          Decoration.inline(meta.from, meta.to, { class: 'artifact-ai-edit-target' }),
+          Decoration.inline(meta.from, meta.to, { class: 'artifact-ai-edit-target' }, { target: true }),
         ])
       }
       return decorations.map(tr.mapping, tr.doc)
@@ -8768,11 +8774,96 @@ const aiEditHighlightPlugin = $prose(() => new Plugin({
   },
 }))
 
+/// The words an AI edit wrote into the page as a tracked change: where the
+/// edit kept most of the passage's words, only the new words are washed and
+/// the words taken out stand struck through where they were (the word diff the
+/// panel used to draw, now in the page); a rewrite is washed whole, with the
+/// passage it replaced struck through before it. Removed words are drawn,
+/// never in the document. The whole stretch carries the `target` mark the
+/// panel follows.
+function aiReviewDecorations(doc, { from, to, removed }) {
+  const decorations = []
+  if (to > from) decorations.push(Decoration.inline(from, to, { class: 'artifact-ai-review' }, { target: true }))
+  const after = wordsBetween(doc, from, to)
+  const before = []
+  removed?.content.descendants((node) => {
+    if (node.isText) for (const match of node.text.matchAll(/\S+/g)) before.push(match[0])
+    return true
+  })
+  const marks = reviewWordMarks(before, after.map((word) => word.text))
+  if (!marks.wordLevel) {
+    if (to > from) decorations.push(Decoration.inline(from, to, { class: 'artifact-ai-insertion' }))
+    // An empty line Generate wrote over replaced nothing a reader would miss.
+    let replacedSomething = false
+    removed?.content.descendants((node) => {
+      if (node.isText || (node.isLeaf && !isHardBreak(node))) replacedSomething = true
+      return !replacedSomething
+    })
+    if (replacedSomething) {
+      decorations.push(Decoration.widget(from, () => aiRemovedWidget(removed), {
+        side: -1,
+        key: `artifact-ai-removed-${removed.content.size}`,
+        ignoreSelection: true,
+      }))
+    }
+    return DecorationSet.create(doc, decorations)
+  }
+  for (const index of marks.added) {
+    decorations.push(Decoration.inline(after[index].from, after[index].to, { class: 'artifact-ai-insertion' }))
+  }
+  for (const [index, words] of marks.removed) {
+    const atEnd = index >= after.length
+    const at = atEnd ? after[after.length - 1].to : after[index].from
+    decorations.push(Decoration.widget(at, () => {
+      const struck = document.createElement('span')
+      struck.className = 'artifact-ai-removed'
+      struck.contentEditable = 'false'
+      struck.textContent = atEnd ? ` ${words.join(' ')}` : `${words.join(' ')} `
+      return struck
+    }, { side: atEnd ? 1 : -1, key: `artifact-ai-removed-${index}-${words.join(' ')}`, ignoreSelection: true }))
+  }
+  return DecorationSet.create(doc, decorations)
+}
+
+/// The words between two places in reading order, each with its own place; a
+/// word split by formatting is two words, as it is on the passage's side.
+function wordsBetween(doc, from, to) {
+  const words = []
+  doc.nodesBetween(from, to, (node, pos) => {
+    if (!node.isText) return true
+    const start = Math.max(from, pos)
+    const end = Math.min(to, pos + node.nodeSize)
+    const text = node.text.slice(start - pos, end - pos)
+    for (const match of text.matchAll(/\S+/g)) {
+      words.push({ from: start + match.index, to: start + match.index + match[0].length, text: match[0] })
+    }
+    return false
+  })
+  return words
+}
+
+/// The replaced words, struck through: inline words as a span, whole blocks
+/// as a block of their own.
+function aiRemovedWidget(removed) {
+  const view = activeEditorView()
+  const inline = removed.content.firstChild?.isInline ?? true
+  const holder = document.createElement(inline ? 'span' : 'div')
+  holder.className = 'artifact-ai-removed'
+  holder.contentEditable = 'false'
+  holder.setAttribute('aria-label', 'Removed by the AI edit')
+  try {
+    if (view) holder.append(DOMSerializer.fromSchema(view.state.schema).serializeFragment(removed.content, { document }))
+  } catch {
+    holder.textContent = removed.content.textBetween(0, removed.content.size, ' ', ' ')
+  }
+  return holder
+}
+
 /// Where the passage under edit is now, or null when it has been deleted.
 function aiEditRange() {
   const view = activeEditorView()
   if (!view) return null
-  const found = aiEditHighlightKey.getState(view.state)?.find() ?? []
+  const found = (aiEditHighlightKey.getState(view.state)?.find() ?? []).filter((decoration) => decoration.spec?.target)
   const first = found[0]
   if (!first) return null
   // A passage has words in it; Generate stands at a point.
@@ -9000,18 +9091,24 @@ function ensureAIEditPanel() {
   actions.dataset.role = 'actions'
   actions.hidden = true
   for (const [action, title, hint] of [
-    ['replace', 'Replace', 'Put the proposal in place of the passage (⌘↩; ⌘Z undoes)'],
-    ['insert', 'Insert below', 'Keep the passage and add the proposal after it'],
+    ['accept', 'Accept', 'Keep the edit in the page (⌘↩)'],
+    ['undo', 'Undo', 'Put the passage back as it was'],
+    ['askChange', 'Ask for change', 'Say what should change in the edit'],
+    ['insert', 'Insert', 'Write the visualization here (⌘↩; ⌘Z undoes)'],
     ['retry', 'Try again', 'Ask once more with the same instruction'],
     ['discard', 'Discard', 'Close without changing the page'],
   ]) {
     const button = document.createElement('button')
     button.type = 'button'
     button.dataset.action = action
+    if (['accept', 'undo', 'askChange'].includes(action)) button.dataset.review = 'true'
     button.textContent = title
     button.title = hint
     button.addEventListener('click', () => {
-      if (action === 'replace' || action === 'insert') applyAIEdit(action)
+      if (action === 'accept') acceptAIEdit()
+      else if (action === 'undo') undoAIEdit()
+      else if (action === 'askChange') aiEditElement('instruction').focus()
+      else if (action === 'insert') insertAIVisualization()
       else if (action === 'retry') submitAIEdit(aiEdit?.instruction ?? '', { again: true })
       else closeAIEdit()
     })
@@ -9080,7 +9177,22 @@ function newAIEdit(mode, target) {
     proposal: null,
     asked: null,
     aliases: newAddressAliases(),
+    // Written into the page and waiting for Accept or Undo: what the edit
+    // replaced (a Slice, empty for new writing) and the notes it added at
+    // the foot of the page.
+    reviewing: false,
+    original: null,
+    addedNotes: [],
   }
+}
+
+/// Which buttons the panel's actions row shows: a written edit's Accept ·
+/// Undo · Ask for change, or a proposal's Insert · Try again · Discard.
+function setAIEditActions(state) {
+  const actions = aiEditElement('actions')
+  actions.dataset.state = state
+  actions.hidden = state === 'none'
+  scheduleAIEditPanelReposition()
 }
 
 /// Open the panel over the passage the writer means: the selection, or the
@@ -9101,7 +9213,7 @@ function openAIEdit() {
   instruction.value = ''
   aiEditElement('proposal').hidden = true
   aiEditElement('proposal').textContent = ''
-  aiEditElement('actions').hidden = true
+  setAIEditActions('none')
   setAIEditStatus('')
   panel.hidden = false
   hideSelectionBar()
@@ -9109,30 +9221,14 @@ function openAIEdit() {
   instruction.focus()
 }
 
-/// What the panel says and offers for each thing it is opened for: changing a
-/// passage, writing new text where the caret was (the slash menu's Generate),
-/// or drawing a picture there (Generate image).
+/// What the panel asks for each thing it is opened for: changing a passage,
+/// writing new text where the caret was (the slash menu's Generate), drawing a
+/// picture there (Generate image), or a visualization.
 const aiEditModes = {
-  edit: {
-    placeholder: 'What should change? Tighten it, add a sentence on…',
-    insertLabel: 'Insert below',
-    insertHint: 'Keep the passage and add the proposal after it',
-  },
-  generate: {
-    placeholder: 'Describe what you want to write',
-    insertLabel: 'Insert',
-    insertHint: 'Write the proposal here (⌘↩; ⌘Z undoes)',
-  },
-  image: {
-    placeholder: 'Describe the picture',
-    insertLabel: 'Insert',
-    insertHint: '',
-  },
-  visualize: {
-    placeholder: 'Describe the visualization: a chart, a calculator, a diagram',
-    insertLabel: 'Insert',
-    insertHint: 'Write the visualization here (⌘↩; ⌘Z undoes)',
-  },
+  edit: { placeholder: 'What should change? Tighten it, add a sentence on…' },
+  generate: { placeholder: 'What would you like to write?' },
+  image: { placeholder: 'Describe the picture' },
+  visualize: { placeholder: 'Describe the visualization: a chart, a calculator, a diagram' },
 }
 
 function setAIEditPanelMode(mode) {
@@ -9144,9 +9240,6 @@ function setAIEditPanelMode(mode) {
   submit.textContent = { edit: 'Edit', generate: 'Write', image: 'Draw', visualize: 'Create' }[mode] ?? 'Ask'
   const chat = panel.querySelector('[data-action="chat"]')
   chat.hidden = mode === 'image' || mode === 'visualize'
-  const insert = panel.querySelector('[data-action="insert"]')
-  insert.textContent = copy.insertLabel
-  insert.title = copy.insertHint
 }
 
 /// Open the panel at the caret to write something new there: text (Generate)
@@ -9171,7 +9264,7 @@ function openAIGenerate({ image = false, visualize = false, prompt = '', submit 
   instruction.value = String(prompt ?? '')
   aiEditElement('proposal').hidden = true
   aiEditElement('proposal').textContent = ''
-  aiEditElement('actions').hidden = true
+  setAIEditActions('none')
   setAIEditStatus('')
   panel.hidden = false
   hideSelectionBar()
@@ -9228,6 +9321,9 @@ function submitAIEdit(instructionText, { again = false, label = null } = {}) {
     return
   }
   const requestID = `ai-edit-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+  // A written edit is what a follow-up changes, as the writer may have
+  // touched it since: read from the page, not from the answer.
+  if (aiEdit.reviewing) aiEdit.proposal = markdownOfContent(aiEditPassageContent(view.state, range.from, range.to, aiEdit.mode === 'edit' && aiEdit.inline))
   const passage = again && aiEdit.asked != null
     ? aiEdit.asked
     : aiEdit.proposal != null && aiEdit.mode !== 'image'
@@ -9242,7 +9338,7 @@ function submitAIEdit(instructionText, { again = false, label = null } = {}) {
   aiEdit.asked = passage
   aiEdit.proposal = null
   aiEditElement('proposal').hidden = true
-  aiEditElement('actions').hidden = true
+  if (!aiEdit.reviewing) setAIEditActions('none')
   if (aiEdit.mode === 'image') {
     // A picture is not proposed in words: the host draws it and the editor
     // writes it where the caret was (`completeImageGeneration`).
@@ -9251,7 +9347,7 @@ function submitAIEdit(instructionText, { again = false, label = null } = {}) {
     return
   }
   setAIEditStatus('Working…', { busy: true })
-  const contextRange = aiEdit.mode === 'edit' ? range : generateSpan(view.state, range.from)
+  const contextRange = aiEdit.mode === 'edit' || aiEdit.reviewing ? range : generateSpan(view.state, range.from)
   const aliased = (text) => aliasedAddresses(text, aiEdit.aliases)
   post('aiEditRequested', {
     requestID,
@@ -9322,33 +9418,29 @@ function completeAIEdit(requestID, result) {
   const answer = cleanedAIEditProposal(result?.markdown ?? result)
   if (!answer) {
     setAIEditStatus('The AI returned nothing for this passage.', { error: true })
-    aiEditElement('actions').hidden = false
+    setAIEditActions(aiEdit.reviewing ? 'review' : 'failed')
     return
   }
   // A visualization is a program and carries no page addresses.
   const proposal = aiEdit.mode === 'visualize' ? answer : restoredAddresses(answer, aiEdit.aliases)
   aiEdit.proposal = proposal
-  const box = aiEditElement('proposal')
-  if (aiEdit.mode === 'visualize') {
-    // The proposal is a program: it is shown running, in the same frame the
-    // page will draw it in, and Insert writes its source.
-    box.classList.remove('is-drawn')
-    box.replaceChildren(visualizationFrame(proposal))
-  } else {
-    const drawn = drawnProposal(proposal)
-    box.classList.toggle('is-drawn', Boolean(drawn))
-    if (drawn) box.replaceChildren(drawn)
-    else box.textContent = proposal
+  if (aiEdit.mode === 'edit' || aiEdit.mode === 'generate') {
+    writeAIEditIntoPage(proposal)
+    return
   }
+  // A visualization is a program: it is shown running, in the same frame the
+  // page will draw it in, and Insert writes its source.
+  const box = aiEditElement('proposal')
+  box.replaceChildren(visualizationFrame(proposal))
   box.hidden = false
   box.scrollTop = 0
-  aiEditElement('actions').hidden = false
+  setAIEditActions('proposal')
   // The instruction asked is the line above the proposal; the field is free
   // for the next one, which changes this proposal.
   setAIEditStatus(aiEdit.instructionLabel ?? `“${aiEdit.instruction}”`, { quiet: true })
   const instruction = aiEditElement('instruction')
   instruction.value = ''
-  instruction.placeholder = aiEdit.mode === 'visualize' ? 'Ask for a change to it…' : 'Ask for a change to this…'
+  instruction.placeholder = 'Ask for a change to it…'
   showAIEditQuickInstructions()
   // Back to the field only when the writer was waiting at the panel; one who
   // went back to the page while the model worked keeps typing there.
@@ -9391,91 +9483,47 @@ function withoutMadeUpAddresses(doc) {
   return transform.doc
 }
 
-/// The proposal drawn as the page will draw it, with what it changes in the
-/// passage marked: new words washed, words taken out struck through
-/// (`markedWordChanges`). Null when it cannot be read as Markdown, and the
-/// panel shows the text as it came.
-function drawnProposal(markdown) {
-  const view = activeEditorView()
-  if (!view) return null
-  const parsed = parsedProposal(markdown, view.state)
-  if (!parsed || parsed.doc.childCount === 0) return null
-  const serializer = DOMSerializer.fromSchema(view.state.schema)
-  const drawn = document.createElement('div')
-  drawn.className = 'artifact-ai-edit-drawn'
-  try {
-    drawn.append(serializer.serializeFragment(parsed.doc.content, { document }))
-  } catch {
-    return null
-  }
-  const range = aiEditRange()
-  if (aiEdit?.mode === 'edit' && range) {
-    const passage = document.createElement('div')
-    try {
-      passage.append(serializer.serializeFragment(aiEditPassageContent(view.state, range.from, range.to, aiEdit.inline), { document }))
-      markedWordChanges(drawn, wordsOfDOM(passage).map((word) => word.text))
-    } catch {
-      // Drawn without marks: what Replace writes is still exactly this.
-    }
-  }
-  return drawn
-}
-
 function failAIEdit(requestID, message) {
   if (!aiEdit || aiEdit.requestID !== requestID) return
   setAIEditStatus(String(message ?? 'The AI could not edit this passage.'), { error: true })
-  aiEditElement('actions').hidden = false
+  setAIEditActions(aiEdit.reviewing ? 'review' : 'failed')
 }
 
-/// Write the proposal: over the passage, or after the block it ends in. The
-/// proposal is parsed as Markdown so a list comes in as a list; inside a
-/// sentence it is kept to inline prose, several paragraphs joined, so the
-/// sentence's own paragraph is not split in two.
-function applyAIEdit(mode) {
+/// The answer written into the page as a tracked change (Codex's "Review
+/// edit"): over the passage — or, for new writing, where the caret was — with
+/// the new words washed and the replaced ones struck through before them, and
+/// the panel turned to Accept · Undo · Ask for change. A follow-up answer
+/// replaces the written words again; Undo still brings back the passage as it
+/// was before the first. Inside a sentence the answer is kept to inline prose
+/// and takes the passage's grounding, as Replace did.
+function writeAIEditIntoPage(proposal) {
   const view = activeEditorView()
-  if (!view || !editor || !aiEdit?.proposal) return
   const range = aiEditRange()
-  if (!range) {
-    setAIEditStatus('That passage is no longer in the page.', { error: true })
+  if (!view || !editor || !range) {
+    setAIEditStatus('This edit couldn’t be applied. Select the content again to retry.', { error: true })
+    setAIEditActions(aiEdit?.reviewing ? 'review' : 'failed')
     return
   }
-  let parsed
-  // Notes the AI wrote of its own, added at the foot of the page.
-  let proposedNotes = []
-  // A visualization is a program, not Markdown: it is written as it came.
-  if (aiEdit.mode !== 'visualize') {
-    const read = parsedProposal(aiEdit.proposal, view.state)
-    if (!read) {
-      setAIEditStatus('The proposal could not be read as Markdown.', { error: true })
-      return
-    }
-    parsed = read.doc
-    proposedNotes = read.notes
-    if (!parsed || parsed.childCount === 0) {
-      setAIEditStatus('The AI returned nothing for this passage.', { error: true })
-      return
-    }
+  const read = parsedProposal(proposal, view.state)
+  if (!read || read.doc.childCount === 0) {
+    setAIEditStatus(read ? 'The AI returned nothing for this passage.' : 'The proposal could not be read as Markdown.', { error: true })
+    setAIEditActions(aiEdit.reviewing ? 'review' : 'failed')
+    return
   }
+  const parsed = read.doc
   const { schema } = view.state
   const tr = view.state.tr
+  let from = range.from
+  let to = range.to
+  if (aiEdit.mode === 'generate' && !aiEdit.reviewing) {
+    const span = generateSpan(view.state, range.from)
+    from = span.from
+    to = span.replace ? span.to : span.from
+  }
+  const original = aiEdit.reviewing ? aiEdit.original : view.state.doc.slice(from, to)
   let end
-  if (aiEdit.mode === 'visualize') {
-    const block = schema.nodes.code_block.create({ language: visualizationLanguage }, schema.text(aiEdit.proposal))
-    const span = generateSpan(view.state, range.from)
-    if (span.replace) tr.replaceWith(span.from, span.to, block)
-    else tr.insert(span.from, block)
-    end = span.from + block.nodeSize
-  } else if (aiEdit.mode === 'generate') {
-    const span = generateSpan(view.state, range.from)
-    if (span.replace) tr.replaceWith(span.from, span.to, parsed.content)
-    else tr.insert(span.from, parsed.content)
-    end = span.from + parsed.content.size
-  } else if (mode === 'replace' && aiEdit.inline) {
-    // Words inside a grounded passage stay grounded: the sources a passage
-    // stands on are an invisible link mark over its words, and the model's
-    // words arrive without it, so they take the mark the words they replace
-    // carried. A citation the model kept is a link of its own and is left alone.
-    const grounding = groundingMarksIn(view.state, range.from, range.to)
+  if (aiEdit.mode === 'edit' && aiEdit.inline) {
+    const grounding = groundingMarksIn(view.state, from, to)
     const inline = []
     const withGrounding = (node) => (
       (node.isText || isHardBreak(node)) && grounding.length && !node.marks.some((mark) => mark.type === schema.marks.link)
@@ -9489,22 +9537,107 @@ function applyAIEdit(mode) {
     })
     if (inline.length === 0) {
       setAIEditStatus('The AI returned nothing for this passage.', { error: true })
+      setAIEditActions(aiEdit.reviewing ? 'review' : 'failed')
       return
     }
-    tr.replaceWith(range.from, range.to, inline)
-    end = range.from + inline.reduce((size, node) => size + node.nodeSize, 0)
-  } else if (mode === 'replace') {
-    tr.replaceWith(range.from, range.to, parsed.content)
-    end = range.from + parsed.content.size
+    tr.replaceWith(from, to, inline)
+    end = from + inline.reduce((size, node) => size + node.nodeSize, 0)
   } else {
-    // After the block the passage ends in, inside the note when it is one.
-    const $to = view.state.doc.resolve(range.to)
-    const depth = (footnoteAround($to)?.depth ?? 0) + 1
-    const at = $to.depth >= depth ? $to.after(depth) : range.to
-    tr.insert(at, parsed.content)
-    end = at + parsed.content.size
+    tr.replaceWith(from, to, parsed.content)
+    end = from + parsed.content.size
   }
-  if (proposedNotes.length) tr.insert(tr.doc.content.size, proposedNotes)
+  // Notes the AI wrote of its own go at the foot of the page; a follow-up
+  // takes the last answer's notes back out first.
+  removeAddedAINotes(tr)
+  if (read.notes.length) tr.insert(tr.doc.content.size, read.notes)
+  aiEdit.addedNotes = read.notes
+  tr.setMeta(aiEditHighlightKey, { from, to: end, review: true, removed: original })
+  // The writer waiting at the panel follows the edit; one who went back to
+  // the page while the model worked keeps their place.
+  const active = document.activeElement
+  const waiting = !active || active === document.body || aiEditPanel?.contains(active)
+  userHasInteracted = true
+  hasUserChanges = true
+  view.dispatch(waiting ? tr.scrollIntoView() : tr)
+  aiEdit.reviewing = true
+  aiEdit.original = original
+  post('aiEditWritten', {})
+  aiEditElement('proposal').hidden = true
+  setAIEditStatus(aiEdit.instructionLabel ?? `“${aiEdit.instruction}”`, { quiet: true })
+  setAIEditActions('review')
+  const instruction = aiEditElement('instruction')
+  instruction.value = ''
+  instruction.placeholder = 'Ask for change…'
+  showAIEditQuickInstructions()
+  if (waiting) aiEditPanel?.querySelector('[data-action="accept"]')?.focus()
+  scheduleAIEditPanelReposition()
+}
+
+/// The notes the last written answer added at the foot of the page, taken out
+/// of `tr` while they still stand there as they were written.
+function removeAddedAINotes(tr) {
+  const notes = aiEdit?.addedNotes ?? []
+  if (!notes.length) return
+  const size = notes.reduce((total, node) => total + node.nodeSize, 0)
+  const start = tr.doc.content.size - size
+  if (start < 0) return
+  let at = start
+  for (const note of notes) {
+    const node = tr.doc.nodeAt(at)
+    if (!node || !node.eq(note)) return
+    at += node.nodeSize
+  }
+  tr.delete(start, tr.doc.content.size)
+}
+
+/// Accept: the written edit stays as it is, and the marks go.
+function acceptAIEdit() {
+  const view = activeEditorView()
+  closeAIEdit()
+  view?.focus()
+  requestAnimationFrame(publishSelection)
+}
+
+/// Undo: the passage comes back as it was before the first answer was
+/// written, and any notes the edit added go.
+function undoAIEdit() {
+  const view = activeEditorView()
+  const range = aiEditRange()
+  if (!view || !aiEdit?.reviewing || !range) {
+    closeAIEdit()
+    return
+  }
+  const tr = view.state.tr.replace(range.from, range.to, aiEdit.original ?? Slice.empty)
+  removeAddedAINotes(tr)
+  tr.setMeta(aiEditHighlightKey, null)
+  tr.setSelection(TextSelection.near(tr.doc.resolve(Math.min(range.from + (aiEdit.original?.size ?? 0), tr.doc.content.size)), -1))
+  userHasInteracted = true
+  hasUserChanges = true
+  view.dispatch(tr)
+  aiEdit = null
+  if (aiEditPanel) aiEditPanel.hidden = true
+  view.focus()
+  requestAnimationFrame(publishSelection)
+}
+
+/// Insert: the visualization proposed in the panel is written where the caret
+/// was, as a code block of its own, over the empty line it was asked on or
+/// after the block the caret sat in.
+function insertAIVisualization() {
+  const view = activeEditorView()
+  if (!view || !editor || aiEdit?.mode !== 'visualize' || !aiEdit.proposal) return
+  const range = aiEditRange()
+  if (!range) {
+    setAIEditStatus('That place is no longer in the page.', { error: true })
+    return
+  }
+  const { schema } = view.state
+  const tr = view.state.tr
+  const block = schema.nodes.code_block.create({ language: visualizationLanguage }, schema.text(aiEdit.proposal))
+  const span = generateSpan(view.state, range.from)
+  if (span.replace) tr.replaceWith(span.from, span.to, block)
+  else tr.insert(span.from, block)
+  const end = span.from + block.nodeSize
   tr.setSelection(TextSelection.near(tr.doc.resolve(Math.min(end, tr.doc.content.size)), -1))
   tr.setMeta(aiEditHighlightKey, null)
   userHasInteracted = true
@@ -10231,10 +10364,14 @@ document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
       event.preventDefault()
       closeAIEdit()
-    } else if (event.metaKey && event.key === 'Enter' && aiEdit?.proposal != null) {
-      // ⌘↩ takes the proposal the way its blue button does.
+    } else if (event.metaKey && event.key === 'Enter' && aiEdit?.reviewing) {
+      // ⌘↩ accepts the edit written into the page.
       event.preventDefault()
-      applyAIEdit(aiEdit.mode === 'edit' ? 'replace' : 'insert')
+      acceptAIEdit()
+    } else if (event.metaKey && event.key === 'Enter' && aiEdit?.mode === 'visualize' && aiEdit.proposal != null) {
+      // ⌘↩ inserts the visualization the way its blue button does.
+      event.preventDefault()
+      insertAIVisualization()
     }
     return
   }

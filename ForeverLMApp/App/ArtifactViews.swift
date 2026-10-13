@@ -4065,6 +4065,9 @@ private struct ArtifactEditor: View {
                     chrome.isCommentsVisible = true
                 },
                 onCommentAnchorsDetached: { detachedCommentThreadIDs = $0 },
+                // An AI edit written into the page: the body before it is kept
+                // in Page activity as "Before an AI edit".
+                onAIEditWritten: { nextSaveVersionReason = .assistantEdit },
                 // Generate image: drawn on the account's image model and kept in
                 // this doc's Attachments; the editor writes it at the caret.
                 onRequestImageGeneration: { [artifactID = artifact.id] request in

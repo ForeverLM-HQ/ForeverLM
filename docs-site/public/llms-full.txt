@@ -1004,10 +1004,17 @@ underline, because a Page is stored as Markdown, which has none. To have the AI
 make a change, select a passage and choose **Ask for change** (the page menu's
 **Edit with AI…** is the same), or press **AI** in the header with
 the caret in a section (or in a footnote, which edits that note), and say what
-should change, or press **Polish**, **Shorter**, **Longer** or **Simpler**: the proposal appears under the passage drawn as the page will
-show it, with the words it adds washed green and the words it takes out struck
-through. Type another instruction to change the proposal ("shorter", "keep the
-first sentence"); **Replace** (⌘↩) or **Insert below** writes it (⌘Z undoes). The
+should change, or press **Polish**, **Shorter**, **Longer** or **Simpler**. As in
+Codex, the answer is written straight into the Page as a tracked change: the
+words it adds washed green and the words it takes out struck through where they
+stood (a passage rewritten past recognition is washed whole, with the old one
+struck through above it). Choose **Accept** (⌘↩) to keep it, **Undo** to put the
+passage back, or **Ask for change** and type another instruction ("shorter",
+"keep the first sentence") to change the written words again; Undo still brings
+back the passage as it was before the first answer, and ⌘Z undoes the edit too.
+**Generate** in the slash menu writes the same way at the caret, and a
+visualization is shown in the panel first and written with **Insert**. The body
+the edit replaced is kept in Page activity as "Before an AI edit". The
 ForeverLM logo at the top of that panel chooses the model Pages use: the
 Default Model until you pick another, and your pick applies to every Page, on
 the rendered page too, on each of your Macs.

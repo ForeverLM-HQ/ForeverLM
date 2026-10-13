@@ -3,7 +3,7 @@
 
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { aliasedAddresses, isAddressStandIn, newAddressAliases, restoredAddresses, wordChanges } from '../src/ai-edit-proposal.js'
+import { aliasedAddresses, isAddressStandIn, newAddressAliases, restoredAddresses, reviewWordMarks, wordChanges } from '../src/ai-edit-proposal.js'
 
 const quoteSource = 'foreverlm://grounding/src_8fcdf69cde54199827fc0d9c0487955011b277304017b849b034c0528b2c8616'
 
@@ -68,4 +68,17 @@ test('a middle too long to align reads as replaced whole', () => {
   const { kept, removed } = wordChanges(['start', ...before], after, { limit: 1000 })
   assert.equal(kept.filter(Boolean).length, 1)
   assert.equal(removed.get(1).length, 600)
+})
+
+test('a written edit that keeps most words marks only the new ones, and what it took out where it stood', () => {
+  const marks = reviewWordMarks('the big grey cell divides'.split(' '), 'the small grey cell divides'.split(' '))
+  assert.equal(marks.wordLevel, true)
+  assert.deepEqual(marks.added, [1])
+  assert.deepEqual([...marks.removed], [[1, ['big']]])
+})
+
+test('a rewrite, new writing, or an emptied passage is marked whole', () => {
+  assert.equal(reviewWordMarks('one two three four five'.split(' '), 'entirely different words here'.split(' ')).wordLevel, false)
+  assert.equal(reviewWordMarks([], 'new words'.split(' ')).wordLevel, false)
+  assert.equal(reviewWordMarks('old words'.split(' '), []).wordLevel, false)
 })

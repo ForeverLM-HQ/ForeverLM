@@ -52,12 +52,12 @@ export function isAddressStandIn(address) {
   return standInAddress.test(String(address ?? ''))
 }
 
-// ─── What the proposal changes ──────────────────────────────────────────────
-// The proposal is drawn as the page will draw it, and the words it changes
-// are marked against the passage: new words washed, removed ones struck
-// through, the way a tracked change reads. Words are compared as the page
-// shows them (a link's words, not its address), so keeping a citation is no
-// change and joining lines that a PDF broke is none either.
+// ─── What the edit changes ──────────────────────────────────────────────────
+// An edit written into the page is marked against the passage it replaced:
+// new words washed, removed ones struck through, the way a tracked change
+// reads. Words are compared as the page shows them (a link's words, not its
+// address), so keeping a citation is no change and joining lines that a PDF
+// broke is none either.
 
 /// Which words of `after` the edit kept from `before`, and the words it took
 /// out, by the index of the word in `after` they stood before (`after.length`
@@ -115,80 +115,18 @@ export function wordChanges(before, after, { limit = 250_000 } = {}) {
   return { kept, removed }
 }
 
-/// The words of a drawn fragment in reading order, each with the text node it
-/// is in and its place there. A word split by formatting is two words; it is
-/// split the same way on both sides of a comparison.
-export function wordsOfDOM(root) {
-  const words = []
-  const walker = root.ownerDocument.createTreeWalker(root, 4 /* NodeFilter.SHOW_TEXT */)
-  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-    for (const match of node.data.matchAll(/\S+/g)) {
-      words.push({ node, start: match.index, end: match.index + match[0].length, text: match[0] })
-    }
-  }
-  return words
-}
-
-/// Mark in `root` what the proposal changes against `before` (the passage's
-/// words): `<ins>` around new words, a `<del>` holding the words taken out
-/// where they stood. Nothing is marked when the proposal keeps less than
-/// `minimumKept` of its words from the passage: a rewrite reads better
-/// clean than covered in marks. Says what it found.
-export function markedWordChanges(root, before, { minimumKept = 0.35 } = {}) {
-  const words = wordsOfDOM(root)
-  const { kept, removed } = wordChanges(before, words.map((word) => word.text))
+/// What a tracked change marks once an edit is written into the page: the
+/// indices of the new words that are new, and the words taken out by the index
+/// of the word they stood before (`after.length` for the end). `wordLevel` is
+/// false when the edit keeps less than `minimumKept` of its words from the
+/// passage, or either side has none: a rewrite reads better washed whole, with
+/// the passage it replaced struck through, than covered in marks.
+export function reviewWordMarks(before, after, { minimumKept = 0.35 } = {}) {
+  if (before.length === 0 || after.length === 0) return { wordLevel: false, added: [], removed: new Map() }
+  const { kept, removed } = wordChanges(before, after)
   const keptCount = kept.filter(Boolean).length
-  const removedCount = [...removed.values()].reduce((sum, list) => sum + list.length, 0)
-  const added = words.length - keptCount
-  const summary = { added, removed: removedCount, kept: keptCount, marked: false }
-  if (added === 0 && removedCount === 0) return summary
-  if (words.length === 0 || keptCount / words.length < minimumKept) return summary
-
-  // Runs: a stretch of new words in one text node, and what was taken out
-  // before it, worked from the last to the first so the places of earlier
-  // words in a node stay where they were measured.
-  const document = root.ownerDocument
-  const runs = []
-  for (let index = 0; index < words.length; index += 1) {
-    const word = words[index]
-    const taken = removed.get(index)
-    const last = runs[runs.length - 1]
-    if (!kept[index] && last && last.inserted && last.node === word.node && last.lastIndex === index - 1 && !taken) {
-      last.end = word.end
-      last.lastIndex = index
-      continue
-    }
-    runs.push({ node: word.node, start: word.start, end: word.end, inserted: !kept[index], lastIndex: index, taken })
-  }
-  const deletion = (list) => {
-    const element = document.createElement('del')
-    element.textContent = list.join(' ')
-    return element
-  }
-  const tail = removed.get(words.length)
-  if (tail && words.length) {
-    const last = words[words.length - 1]
-    const range = document.createRange()
-    range.setStart(last.node, last.end)
-    range.collapse(true)
-    range.insertNode(deletion(tail))
-    range.insertNode(document.createTextNode(' '))
-  }
-  for (let index = runs.length - 1; index >= 0; index -= 1) {
-    const run = runs[index]
-    const range = document.createRange()
-    if (run.inserted) {
-      range.setStart(run.node, run.start)
-      range.setEnd(run.node, run.end)
-      range.surroundContents(document.createElement('ins'))
-    }
-    if (run.taken) {
-      range.setStart(run.node, run.start)
-      range.collapse(true)
-      range.insertNode(document.createTextNode(' '))
-      range.insertNode(deletion(run.taken))
-    }
-  }
-  summary.marked = true
-  return summary
+  if (keptCount / after.length < minimumKept) return { wordLevel: false, added: [], removed: new Map() }
+  const added = []
+  kept.forEach((wasKept, index) => { if (!wasKept) added.push(index) })
+  return { wordLevel: true, added, removed }
 }

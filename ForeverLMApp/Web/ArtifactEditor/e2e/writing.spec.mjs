@@ -140,7 +140,7 @@ test('a pasted picture goes to a host that keeps pictures, and nowhere on one th
   expect(await messages(page, 'imagesPasted')).toEqual([])
 })
 
-test('Edit with AI sends the passage alone, draws the proposal, and ⌘↩ then ⌘Z go back', async ({ page }) => {
+test('Edit with AI sends the passage alone, writes the answer into the page, and ⌘↩ then ⌘Z go back', async ({ page }) => {
   const source = 'foreverlm://grounding/src_8fcdf69cde54199827fc0d9c0487955011b277304017b849b034c0528b2c8616'
   await openEditor(page, `# A\n\nBody.[^1]\n\n[^1]: [one](${source})\\\n  [two](${source})\n`)
   await selectBlock(page, 'one')
@@ -153,9 +153,14 @@ test('Edit with AI sends the passage alone, draws the proposal, and ⌘↩ then 
   expect(request.passage).toContain('foreverlm://grounding/1')
   expect(request.passage).not.toContain('src_8fcdf')
   await page.evaluate((id) => window.foreverLMArtifactEditor.completeAIEdit(id, { markdown: '[one two](foreverlm://grounding/1)' }), request.requestID)
-  await expect(page.locator('.artifact-ai-edit-drawn')).toBeVisible()
+  // Joining the lines changes no word: the edit is written, and nothing in it
+  // is marked new.
+  await expect(page.locator('.artifact-ai-review')).toBeVisible()
+  await expect(page.locator('.artifact-ai-insertion, .artifact-ai-removed')).toHaveCount(0)
+  expect(await stored(page)).toContain(`[one two](${source})`)
   await page.keyboard.press('Meta+Enter')
   await settle(page)
+  await expect(page.locator('.artifact-ai-review')).toHaveCount(0)
   expect(await stored(page)).toContain(`[one two](${source})`)
   await page.locator('.ProseMirror').focus()
   await page.keyboard.press('Meta+z')
