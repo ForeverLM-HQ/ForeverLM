@@ -100,6 +100,8 @@ struct ArtifactMarkdownEditorViewTests {
         #expect(ArtifactEditorTool.image.script == "window.foreverLMArtifactEditor.runSlashRow(\"image\");")
         #expect(ArtifactEditorTool.visualize.script == "window.foreverLMArtifactEditor.runSlashRow(\"visualize\");")
         #expect(ArtifactEditorTool.insert.script == "window.foreverLMArtifactEditor.openInsertMenu();")
+        // Return in a new page's title puts the caret in the page.
+        #expect(ArtifactEditorTool.focus.script == "window.foreverLMArtifactEditor.focus();")
         let first = ArtifactFormatRequest(tool: .image)
         let second = ArtifactFormatRequest(tool: .image)
         #expect(first != second)
