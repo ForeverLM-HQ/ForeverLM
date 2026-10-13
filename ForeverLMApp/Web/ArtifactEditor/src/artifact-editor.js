@@ -57,6 +57,7 @@ import {
 } from './notes-graph-syntax.js'
 import { attachBlockProperties, defaultProperties, highlightHex, properties as blockPropertyValues, propertyComment } from './block-properties.js'
 import { remarkMoneyIsNotMath } from './dollar-math.js'
+import { remarkJoinedGrounding } from './joined-grounding.js'
 import { citationFootnote, footnoteKey, freshNumericLabel, planFootnotes } from './footnotes.js'
 import { joinPastedLines, mayBePrintedLines, pastedLines, writtenSpan } from './pasted-lines.js'
 import { aliasedAddresses, isAddressStandIn, markedWordChanges, newAddressAliases, restoredAddresses, wordsOfDOM } from './ai-edit-proposal.js'
@@ -6504,6 +6505,7 @@ async function create(markdown, fontSize) {
     // After Crepe's remark-math, whose `$` reading and writing it changes.
     editor.editor.use(dollarMathRemark)
     editor.editor.use(blockPropertiesRemark)
+    editor.editor.use(joinedGroundingRemark)
     editor.editor.use(referenceCardsPlugin)
     editor.editor.use(linkPickerPlugin)
     editor.editor.use(aiEditHighlightPlugin)
@@ -6749,6 +6751,10 @@ function withDoubleDollarMath(ctx) {
 }
 
 const dollarMathRemark = $remark('foreverlm-dollar-math', () => remarkMoneyIsNotMath)
+
+/// A passage grounded one printed line at a time opens as one passage
+/// (joined-grounding.js).
+const joinedGroundingRemark = $remark('foreverlm-joined-grounding', () => remarkJoinedGrounding)
 
 /// The page's formatting actions. Each entry runs exactly the command Crepe's
 /// own selection toolbar ran, so formatting has moved twice — into the pane
@@ -7503,7 +7509,9 @@ function groundingTokenForChip(href) {
 function groundingRuns(state, from, to, takeSourceChips = false) {
   const runs = []
   state.doc.nodesBetween(from, to, (node, position) => {
-    if (!node.isText) return
+    // A line break is part of the passage it stands in, so a quote's lines
+    // are one run and one link.
+    if (!node.isText && !isHardBreak(node)) return
     const start = Math.max(from, position)
     const end = Math.min(to, position + node.nodeSize)
     if (end <= start) return
@@ -7531,9 +7539,21 @@ function addGrounding(tr, state, from, to, tokens, takeSourceChips = false) {
       if (!ordered.includes(token)) ordered.push(token)
     }
     if (ordered.length === run.attached.length) continue
+    const mark = link.create({ href: groundingHref(ordered) })
     tr.removeMark(run.from, run.to, link)
-    tr.addMark(run.from, run.to, link.create({ href: groundingHref(ordered) }))
+    // The run's line breaks take the mark node by node, and before the words:
+    // Milkdown's hard-break plugin strips every break in the range of a
+    // transaction whose first step adds a mark, which ended the link at each
+    // line of a quote.
+    state.doc.nodesBetween(run.from, run.to, (node, position) => {
+      if (isHardBreak(node)) tr.addNodeMark(position, mark)
+    })
+    tr.addMark(run.from, run.to, mark)
   }
+}
+
+function isHardBreak(node) {
+  return node?.type?.name === 'hardbreak'
 }
 
 /// The same range without the whitespace at its edges, so an attached passage's
@@ -8362,7 +8382,7 @@ function applyAIEdit(mode) {
     const grounding = groundingMarksIn(view.state, range.from, range.to)
     const inline = []
     const withGrounding = (node) => (
-      node.isText && grounding.length && !node.marks.some((mark) => mark.type === schema.marks.link)
+      (node.isText || isHardBreak(node)) && grounding.length && !node.marks.some((mark) => mark.type === schema.marks.link)
         ? node.mark(node.marks.concat(grounding))
         : node
     )
