@@ -3303,6 +3303,9 @@ private struct ArtifactEditor: View {
                     .onSubmit {
                         saveTitle()
                         titleFocused = false
+                        // Return goes on into the page, as it does from a title
+                        // in Notion and ChatGPT's Pages.
+                        formatting.run(.focus)
                     }
                     .task(id: titleDraft) {
                         guard titleFocused else { return }
@@ -4276,6 +4279,16 @@ private struct ArtifactEditor: View {
                 draft = loaded.markdown
                 titleFollowsHeading = ArtifactMarkdownTitle.names(artifact.title, in: loaded.markdown)
                 titleRowHeld = !titleFollowsHeading
+                // A page made a moment ago opens on its name, as ChatGPT's and
+                // Notion's do: type it, press Return, and the caret is in the
+                // page. Left empty, it keeps the placeholder and still takes its
+                // first heading.
+                if !isReadOnly, dailyNoteDayKey == nil,
+                   loaded.markdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                   ArtifactPlaceholderTitle.isPlaceholder(artifact.title) {
+                    titleDraft = ""
+                    isEditingTitle = true
+                }
                 attachmentDataURLs = try await vm.artifactAttachmentDataURLs(
                     artifact.id,
                     markdown: loaded.markdown

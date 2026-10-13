@@ -193,6 +193,8 @@ enum ArtifactEditorTool: String, Hashable, Sendable {
     case visualize
     /// Insert +: the `/` list itself, opened at the caret.
     case insert
+    /// Return in the title: the caret goes into the page.
+    case focus
 
     /// The call into the editor (`runSlashRow`, `openInsertMenu`).
     var script: String {
@@ -200,6 +202,7 @@ enum ArtifactEditorTool: String, Hashable, Sendable {
         case .image: return "window.foreverLMArtifactEditor.runSlashRow(\"image\");"
         case .visualize: return "window.foreverLMArtifactEditor.runSlashRow(\"visualize\");"
         case .insert: return "window.foreverLMArtifactEditor.openInsertMenu();"
+        case .focus: return "window.foreverLMArtifactEditor.focus();"
         }
     }
 }
