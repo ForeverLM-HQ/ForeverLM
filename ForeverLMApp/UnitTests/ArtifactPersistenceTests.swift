@@ -2058,3 +2058,49 @@ struct ArtifactSaveListTests {
         #expect(spans.count == 1, "the page's writing is one span of the day")
     }
 }
+
+/// Move to Trash takes a page's subpages with it, as a Codex page's Delete
+/// does, says so, and Undo brings back exactly what went
+/// (docs/codex-parity-audit.md, 1B "Delete").
+@Suite("A page goes to Trash with its subpages")
+struct PageTrashWithSubpagesTests {
+    @Test("The question and the toast say how many subpages go, in Codex's words")
+    func wording() {
+        #expect(PageTrashWording.message(subpageCount: 0) == "This page will move to Trash. You can restore it from Trash.")
+        #expect(PageTrashWording.message(subpageCount: 1) == "This page and its subpage will move to Trash. You can restore them from Trash.")
+        #expect(PageTrashWording.message(subpageCount: 3) == "This page and its 3 subpages will move to Trash. You can restore them from Trash.")
+        #expect(PageTrashWording.toast(title: "Essay", subpageCount: 0) == "Moved to Trash")
+        #expect(PageTrashWording.toast(title: "Essay", subpageCount: 2) == "Moved “Essay” and its 2 subpages to Trash")
+        #expect(PageTrashWording.toast(title: "  ", subpageCount: 1) == "Moved the page and its subpage to Trash")
+    }
+
+    @Test("A parent goes with every page under it, a sibling stays, and Undo restores the three")
+    @MainActor
+    func parentTakesItsSubpages() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("PageTrashTree_\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let storage = StorageService(storeRoot: root)
+        let parent = try await storage.createArtifact(title: "Field guide", homeNotebookID: nil, linkedNotebookIDs: [], markdown: "Top.")
+        let child = try await storage.createArtifact(title: "Birds", homeNotebookID: nil, linkedNotebookIDs: [], markdown: "Wings.")
+        let grandchild = try await storage.createArtifact(title: "Owls", homeNotebookID: nil, linkedNotebookIDs: [], markdown: "Night.")
+        let sibling = try await storage.createArtifact(title: "Weather", homeNotebookID: nil, linkedNotebookIDs: [], markdown: "Rain.")
+        let vm = StudioViewModel(storageService: storage, observeCloudKitChanges: false)
+        await vm.loadArtifacts()
+        vm.pageParents = PageParents(parentIDs: [
+            child.artifact.id: parent.artifact.id,
+            grandchild.artifact.id: child.artifact.id,
+        ])
+
+        await vm.moveArtifactToTrash(parent.artifact.id)
+        let trashed = Set(vm.artifacts.filter(\.isArchived).map(\.id))
+        #expect(trashed == [parent.artifact.id, child.artifact.id, grandchild.artifact.id])
+        #expect(vm.toastMessage == "Moved “Field guide” and its 2 subpages to Trash")
+        #expect(vm.artifacts.first { $0.id == sibling.artifact.id }?.isArchived == false)
+
+        await vm.undoToast()
+        #expect(vm.artifacts.allSatisfy { !$0.isArchived }, "Undo brings back every page that went")
+        #expect(vm.toastMessage == "Restored")
+        #expect(vm.pageParent(of: grandchild.artifact.id)?.id == child.artifact.id, "and they nest as they did")
+    }
+}

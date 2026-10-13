@@ -384,12 +384,56 @@ extension StudioViewModel {
     /// Restore brings it back and Delete Forever removes it. Until 2026-10-06
     /// Move to Trash deleted the record outright and only its folder reached
     /// the Finder's Trash, so nothing in the app could undo a slipped click.
-    /// No question is asked: the move is undone from Trash.
+    ///
+    /// A page goes with the pages nested under it, as a Codex page's Delete
+    /// takes its subpages ("This page and its subpages will move to Trash",
+    /// docs/codex-parity-audit.md, 1B); until 2026-10-13 they stayed behind at
+    /// the top of the lists. Each is in Trash on its own and restored there.
+    /// The toast says what went, and its Undo brings back exactly that; the
+    /// page menu asks first when subpages would go too (`PageTrashWording`).
     func moveArtifactToTrash(_ artifactID: String) async {
-        await updateArtifact(artifactID: artifactID, isArchived: true)
-        if artifacts.first(where: { $0.id == artifactID })?.isArchived == true {
-            showToast("Moved to Trash")
+        let going = [artifactID] + pageTree.descendantIDs(of: artifactID)
+        let title = artifacts.first { $0.id == artifactID }?.title ?? ""
+        let trashed = await setArchived(going, isArchived: true)
+        guard trashed.contains(artifactID) else { return }
+        showToast(
+            PageTrashWording.toast(title: title, subpageCount: trashed.count - 1),
+            undo: { [weak self] in
+                guard let self else { return }
+                if await self.setArchived(trashed, isArchived: false).count == trashed.count {
+                    self.showToast("Restored")
+                }
+            }
+        )
+    }
+
+    /// Puts records in Trash or takes them out, then reads the list once.
+    /// Stops at the first failure and says it; answers the ids that changed.
+    private func setArchived(_ artifactIDs: [String], isArchived: Bool) async -> [String] {
+        var changed: [String] = []
+        for artifactID in artifactIDs {
+            do {
+                _ = try await storage.updateArtifact(
+                    artifactID: artifactID,
+                    title: nil,
+                    homeNotebookID: nil,
+                    linkedNotebookIDs: nil,
+                    isArchived: isArchived
+                )
+                changed.append(artifactID)
+            } catch {
+                logger.error("\(isArchived ? "Moving" : "Restoring") \(artifactID) failed: \(error.localizedDescription)")
+                errorMessage = error.localizedDescription
+                break
+            }
         }
+        do {
+            artifacts = try await loadScopedArtifacts()
+        } catch {
+            logger.error("Reloading artifacts after a Trash move failed: \(error.localizedDescription)")
+            errorMessage = error.localizedDescription
+        }
+        return changed
     }
 
     /// **Restore** in the Space's Trash: the record is current again, in every
@@ -619,5 +663,28 @@ extension StudioViewModel {
 
     func setArtifactCommentResolved(_ commentID: String, resolved: Bool) async throws {
         try await storage.setArtifactCommentResolvedAndSync(commentID, resolved: resolved)
+    }
+}
+
+/// What Move to Trash says about a page's subpages: the page menu's question,
+/// in Codex's words (`codex.space.page.archive.description`: "This page and its
+/// subpages will move to Trash. You can restore them from Trash."), and the
+/// toast after.
+enum PageTrashWording {
+    static func message(subpageCount: Int) -> String {
+        switch subpageCount {
+        case 0: return "This page will move to Trash. You can restore it from Trash."
+        case 1: return "This page and its subpage will move to Trash. You can restore them from Trash."
+        default: return "This page and its \(subpageCount) subpages will move to Trash. You can restore them from Trash."
+        }
+    }
+
+    static func toast(title: String, subpageCount: Int) -> String {
+        let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        switch subpageCount {
+        case 0: return "Moved to Trash"
+        case 1: return name.isEmpty ? "Moved the page and its subpage to Trash" : "Moved “\(name)” and its subpage to Trash"
+        default: return name.isEmpty ? "Moved the page and its \(subpageCount) subpages to Trash" : "Moved “\(name)” and its \(subpageCount) subpages to Trash"
+        }
     }
 }

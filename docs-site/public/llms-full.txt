@@ -874,6 +874,18 @@ The **Browser** row in the rail opens a web browser inside ForeverLM (in a noteb
 
 **Share**, beside the More menu on an open Page, is the one place to say who can open it. Its popover invites people by email (they read the published page, which reads the same for everyone but its author), lists who has access: an **Anyone with the link** row with **Can read** or **No access**, an **Anyone at \<team\>** row per team that shares a copy into the team and admits its members to the published page, each reader with a remove control, and you as the author. It ends with one sentence saying who can open the Page, a gear that opens the publish sheet for a custom address, and **Copy link**. A Page that is not published yet is published by the first invite, or by **Can read** on the link row; **Unpublish…** stays in the More menu. Web Studio's publish dialog has the same rows and the same sentence.
 
+The page menu, the ▾ beside an open Page's mark, starts as Codex's does, in its
+order: **Show pages** (⇧⌘E), **Rename…**, **Pin**, **Move to Trash**, then
+**Share…**, **Copy ▸** (as Markdown, or the Page's link) and **Download as
+Markdown**, then **Open in Other Window**. Everything else is under **More**: New
+Page, Duplicate, the subpage items, Version History…, Edit with AI…, Format, View
+as Page, Page Width, Discussion, Add to Chat, the notebooks, canvases, spaces and
+teams the Page is in, publishing, Convert to Google Doc…, Export and Show in
+Finder. **Move to Trash** takes a Page's subpages with it: from the page menu, a
+Page that has some asks first, and **Undo** on the notice brings back all that
+went. Web Studio's **•••** on an open Page lists the same, with **More** for its
+own items.
+
 Every Page opens in the editor, published or not, ready to type in. Changes are
 saved to the Page as you type; on a published Page, **Update Page** in the pane
 header publishes them to the web page when you are ready, and publishing leaves

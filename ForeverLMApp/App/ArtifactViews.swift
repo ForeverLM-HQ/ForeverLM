@@ -164,6 +164,9 @@ struct ArtifactCanvas: View {
     @State private var artifactToNest: ArtifactRecord?
     @State private var artifactRenameDraft = ""
     @State private var artifactToDelete: ArtifactRecord?
+    /// A page with subpages whose Move to Trash is asking first, since its
+    /// subpages go with it.
+    @State private var pageToTrash: ArtifactRecord?
     /// The open doc's chrome controls — Page/Edit, the published address, the
     /// overflow — drawn in the toolbar and acted on by the editor beneath.
     @State private var docChrome = ArtifactDocChromeBridge()
@@ -493,6 +496,23 @@ struct ArtifactCanvas: View {
                 } else if artifact.isLinked {
                     Text("The \(artifact.linkedKind?.label ?? "page") itself is not touched.")
                 }
+            }
+            // Codex's Delete asks, and says the subpages go too
+            // (`codex.space.page.archive.description`). Here only a page that
+            // has subpages asks: one alone goes at once, with Undo on the toast.
+            .confirmationDialog(
+                "Move “\(pageToTrash?.title ?? "")” to Trash?",
+                isPresented: Binding(
+                    get: { pageToTrash != nil },
+                    set: { if !$0 { pageToTrash = nil } }
+                ),
+                titleVisibility: .visible,
+                presenting: pageToTrash
+            ) { page in
+                Button("Move to Trash", role: .destructive) { moveToTrash(page) }
+                Button("Cancel", role: .cancel) {}
+            } message: { page in
+                Text(PageTrashWording.message(subpageCount: vm.pageTree.descendantIDs(of: page.id).count))
             }
             // The inverse of Convert to Google Doc, and the non-destructive
             // way out for any linked doc: the text copy stays as an editable
@@ -1486,225 +1506,23 @@ struct ArtifactCanvas: View {
             .contentShape(Rectangle())
     }
 
-    /// The page's menu, on the leading side of its top line: ChatGPT's page ▾.
-    /// Everything the page can do that is not happening now — the AI, the
-    /// formatting a keyboardless writer reaches for, how it is drawn, where it
-    /// lives and who has it, publishing, and the Trash — so the line itself
-    /// holds only Share and what needs the learner now ("Quiet chrome",
-    /// docs/ui-design.md). What it opens — the publish sheet, the
-    /// confirmations, the Google Doc conversion, the comments drawer — is
-    /// presented by the editor, which binds to the same bridge this menu
-    /// writes.
+    /// The page's menu, on the leading side of its top line: Codex's page ▾.
+    /// Codex's items come first and in Codex's order (docs/codex-parity-audit.md,
+    /// F8; product owner, 2026-10-13: "at first it should be a copy of the codex
+    /// pages functionality; THEN we can gradually add some features on top"),
+    /// and everything ForeverLM adds is under **More**, below one divider, so the
+    /// menu reads as Codex's ("Quiet chrome", docs/ui-design.md, holds for menus
+    /// as for bars). What it opens — the publish sheet, the confirmations, the
+    /// Google Doc conversion, the comments drawer — is presented by the editor,
+    /// which binds to the same bridge this menu writes.
     private func pageMenu(for artifact: ArtifactRecord) -> some View {
-        let publishedStatus = publishedStatuses[artifact.id]
-        let isOwnEditable = artifact.teamID == nil && !docChrome.showsPage
-        return Menu {
-            // Codex's first item: the Space sidebar beside the page, out of
-            // the way and back. The key is also held by an invisible button
-            // (`pagesShortcut`), since a menu's shortcut does not run while the
-            // menu is shut.
-            if spaceSidebarFitsPane {
-                Button {
-                    togglePagesSidebar()
-                } label: {
-                    Label(showsSpaceSidebar ? "Hide pages" : "Show pages", systemImage: "sidebar.leading")
-                }
-                .keyboardShortcut("e", modifiers: [.command, .shift])
-            }
-            if section == .docs {
-                Button {
-                    beginCreation()
-                } label: {
-                    Label("New Page", systemImage: "doc.badge.plus")
-                }
-            }
-            pageEverydayItems(for: artifact)
-            if isOwnEditable {
-                Button {
-                    docChrome.aiEditOpenRequestID += 1
-                } label: {
-                    Label("Edit with AI…", systemImage: "sparkles")
-                }
-                .help("Ask for a change to the selected passage, or to the section at the caret")
-                // The tool pill's other three, while the line is too short
-                // to hold the pill.
-                if !showsPageTools(for: artifact) {
-                    Menu {
-                        Button("Image…", systemImage: "photo") { formatting.run(.image) }
-                        Button("Visualize…", systemImage: "square.on.circle") { formatting.run(.visualize) }
-                        Button("All Blocks…", systemImage: "plus") { formatting.run(.insert) }
-                    } label: {
-                        Label("Insert", systemImage: "plus")
-                    }
-                }
-                Menu {
-                    Section { formatItems(ArtifactFormatCommand.markGroup) }
-                    Section { formatItems(ArtifactFormatCommand.insertGroup) }
-                } label: {
-                    Label("Format", systemImage: "textformat")
-                }
-            }
-            Button {
-                docChrome.togglePage()
-            } label: {
-                Label(
-                    docChrome.showsPage ? "Edit Page" : "View as Page",
-                    systemImage: docChrome.showsPage ? "pencil" : "doc.richtext"
-                )
-            }
-            .help("This Page as it reads on foreverlm.com, published or not")
+        Menu {
+            pageCodexItems(for: artifact)
+            Divider()
             Menu {
-                Picker("Page Width", selection: $pageWidth) {
-                    ForEach(ArtifactPageWidth.allCases) { width in
-                        Text(width.title).tag(width)
-                    }
-                }
-                .pickerStyle(.inline)
-                .labelsHidden()
-                Divider()
-                // The cards beside a paragraph for the sources it cites. A
-                // reader who wants the prose alone turns them off for every
-                // page; the links stay in the prose.
-                Toggle(isOn: $showsMarginCards) {
-                    Label("Show Source Cards", systemImage: "sidebar.right")
-                }
+                pageMoreItems(for: artifact)
             } label: {
-                Label("Page Width", systemImage: "arrow.left.and.right")
-            }
-            Button {
-                docChrome.isCommentsVisible.toggle()
-            } label: {
-                Label(docChrome.isCommentsVisible ? "Hide Discussion" : "Discussion", systemImage: "text.bubble")
-            }
-            .help("Comments on this page, and the chats its passages started")
-            Divider()
-            Button {
-                // The side chat over the page takes the page with its
-                // sources; a window with none keeps the docked route.
-                if pageHostsSideChat {
-                    docChrome.wholePageChatRequest = PageSideChatWholePageRequest(intent: .addToChat)
-                } else {
-                    Task { await vm.attachDocToChat(artifact.id) }
-                }
-            } label: {
-                Label("Add to Chat", systemImage: "message")
-            }
-            OpenStudioDestinationInOtherWindowMenu(
-                destination: .doc(artifact.id),
-                currentWindowState: windowState,
-                openNewWindow: { openWindow(id: "studio") }
-            )
-            ArtifactNotebooksMenu(artifact: artifact)
-            KnowledgeMapAddToCanvasMenu(refs: ["doc:\(artifact.id)"])
-            KnowledgeMapOnCanvasesSection(ref: "doc:\(artifact.id)", windowState: windowState)
-            PageSpaceMenu(page: artifact)
-            // A team copy needs no publishing and no reader list, so this
-            // sits with Notebooks (where the Doc is filed) rather than with
-            // Share… and Publish… (who outside the library may read it).
-            ShareWithTeamMenu { teamID in
-                Task {
-                    await vm.shareArtifact(artifact.id, withTeam: teamID)
-                    sharingTeamsByArtifactID[artifact.id] = await vm.teamsHoldingDoc(artifact.id)
-                }
-            }
-            // Where a Doc in My Library has gone: each team holding a copy.
-            if vm.activeTeamID == nil, let teams = sharingTeamsByArtifactID[artifact.id], !teams.isEmpty {
-                Menu {
-                    ForEach(teams) { team in
-                        Button(team.name) {
-                            Task { await vm.openTeamCopy(ofDoc: artifact.id, inTeam: team.id) }
-                        }
-                    }
-                } label: {
-                    Label("Open Team Copy", systemImage: "person.2")
-                }
-            }
-            AssignToMemberMenu { member in
-                Task { await vm.assign(artifactID: artifact.id, to: member) }
-            }
-            if vm.teamArtifactID(forDraft: artifact.id) != nil {
-                Divider()
-                Button(role: .destructive) {
-                    docChrome.showDiscardDraftConfirmation = true
-                } label: {
-                    Label("Discard Draft…", systemImage: "trash")
-                }
-            }
-            Divider()
-            Button {
-                ArtifactSharingService.shared.presentShare(
-                    artifactID: artifact.id,
-                    title: artifact.title
-                )
-            } label: {
-                Label("Share…", systemImage: "person.crop.circle.badge.plus")
-            }
-            // Who can open the page is the Share popover's; the submenu names
-            // the answer with the same sentence and keeps what the popover
-            // does not do — the address, a republish of the text, Unpublish.
-            if let publishedStatus {
-                Menu {
-                    Button {
-                        isSharePopoverPresented = true
-                    } label: {
-                        Label("Who Can Open the Page…", systemImage: "person.badge.plus")
-                    }
-                    .help("Invite people, open the link to anyone, or share with a team")
-                    Button {
-                        NSWorkspace.shared.open(publishedStatus.url)
-                    } label: {
-                        Label("Open Page", systemImage: "safari")
-                    }
-                    Button {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(publishedStatus.url.absoluteString, forType: .string)
-                        vm.showToast("Link copied")
-                    } label: {
-                        Label("Copy Link", systemImage: "link")
-                    }
-                    Button {
-                        docChrome.isPublishSheetPresented = true
-                    } label: {
-                        Label("Update Page or Address…", systemImage: "arrow.triangle.2.circlepath")
-                    }
-                    .help("Replace the published page with this Page's current text, or give it a custom address")
-                    Divider()
-                    Button(role: .destructive) {
-                        docChrome.showUnpublishConfirmation = true
-                    } label: {
-                        Label("Unpublish…", systemImage: "globe.badge.chevron.backward")
-                    }
-                } label: {
-                    Label(accessSummary(for: artifact), systemImage: publishedStatus.isProtected ? "lock" : "globe")
-                }
-            } else {
-                Button {
-                    isSharePopoverPresented = true
-                } label: {
-                    Label("Publish to foreverlm.com…", systemImage: "globe")
-                }
-                .help("Publish this Page on foreverlm.com — for anyone with the link, or for the people you invite")
-            }
-            Button {
-                docChrome.isConvertingToGoogleDoc = true
-            } label: {
-                Label("Convert to Google Doc…", systemImage: LinkedGoogleDoc.symbolName)
-            }
-            .help("Copy this page into a new Google Doc and edit it there from now on")
-            Divider()
-            Button {
-                Task {
-                    guard let url = await vm.artifactFileURL(artifact.id) else { return }
-                    NSWorkspace.shared.activateFileViewerSelecting([url])
-                }
-            } label: {
-                Label("Show in Finder", systemImage: "folder")
-            }
-            Divider()
-            Button(role: .destructive) {
-                trash(artifact)
-            } label: {
-                Label("Move to Trash", systemImage: "trash")
+                Label("More", systemImage: "ellipsis.circle")
             }
         } label: {
             pageMenuLabel {
@@ -1721,15 +1539,30 @@ struct ArtifactCanvas: View {
         .accessibilityIdentifier("page.menu")
     }
 
-    /// ChatGPT's page menu, its everyday items, in a block of their own under
-    /// New Page: Rename…, Duplicate, Version History… and Export ▸
-    /// (docs/docs-design.md, "The page" and "Version history"; the product owner,
-    /// 2026-10-06: "make sure the docs etc work equally nicely and have
-    /// feature parity"). A team's page is read and exported here, never
-    /// renamed or copied; a daily note is named by its day.
+    /// Codex's page menu, in its order: Show pages · Rename · Pin · Delete │
+    /// Share · Copy ▸ · Download as Markdown │ Open in new window (the product
+    /// owner's screenshot of 2026-10-07; `codex.space.page.actions.*`), in
+    /// ForeverLM's words where they differ: Move to Trash for Delete, and Open
+    /// in Other Window, which also names the windows already open. Codex's
+    /// New schedule is left out while Scheduled has no way in (product owner,
+    /// 2026-10-13: "scheduled is not so important btw; skip that for now"),
+    /// and Show attribution is not built (docs/docs-design.md, "The page menu,
+    /// after Codex's"). A team's page is read, shared and exported here, never
+    /// renamed or pinned; a daily note is named by its day.
     @ViewBuilder
-    private func pageEverydayItems(for artifact: ArtifactRecord) -> some View {
+    private func pageCodexItems(for artifact: ArtifactRecord) -> some View {
         let isOwn = artifact.teamID == nil
+        // The Space sidebar beside the page, out of the way and back. The key
+        // is also held by an invisible button (`pagesShortcut`), since a
+        // menu's shortcut does not run while the menu is shut.
+        if spaceSidebarFitsPane {
+            Button {
+                togglePagesSidebar()
+            } label: {
+                Label(showsSpaceSidebar ? "Hide pages" : "Show pages", systemImage: "sidebar.leading")
+            }
+            .keyboardShortcut("e", modifiers: [.command, .shift])
+        }
         if isOwn, DailyNote.dayKey(ofID: artifact.id) == nil {
             Button {
                 renamePage(artifact)
@@ -1740,30 +1573,24 @@ struct ArtifactCanvas: View {
         if isOwn, vm.activeTeamID == nil {
             SpacePagePinItem(artifact: artifact)
         }
-        if isOwn, vm.teamArtifactID(forDraft: artifact.id) == nil {
-            Button {
-                duplicatePage(artifact)
-            } label: {
-                Label("Duplicate", systemImage: "plus.square.on.square")
-            }
-        }
-        // Nested pages (docs/docs-design.md, "Subpages"): a page made inside
-        // this one, this one put under another, and back to the top.
-        if isOwn, vm.activeTeamID == nil {
-            PageNestMenuItems(page: artifact, onMoveToPage: { artifactToNest = artifact }) { subpage in
-                openSubpage(subpage)
-            }
-        }
-        Button {
-            docChrome.isVersionHistoryPresented = true
+        Button(role: .destructive) {
+            trash(artifact)
         } label: {
-            Label("Version History…", systemImage: "clock.arrow.circlepath")
+            Label("Move to Trash", systemImage: "trash")
         }
-        .help("Earlier versions of this page on this Mac")
-        // Codex's page menu has Copy ▸ and Download as Markdown as items of
-        // their own (product owner, 2026-10-07, with its screenshot): the text is
-        // the Markdown, so the one everyday export is a single press, and
-        // Export ▸ keeps the formats that are drawn rather than written.
+        Divider()
+        Button {
+            ArtifactSharingService.shared.presentShare(
+                artifactID: artifact.id,
+                title: artifact.title
+            )
+        } label: {
+            Label("Share…", systemImage: "person.crop.circle.badge.plus")
+        }
+        // Copy ▸ and Download as Markdown are items of their own, as in
+        // Codex: the text is the Markdown, so the one everyday export is a
+        // single press, and More's Export ▸ keeps the formats that are drawn
+        // rather than written. Both take the text on screen.
         Menu {
             Button {
                 docChrome.exportRequest = PageExportRequest(format: .markdown, delivery: .copy)
@@ -1786,6 +1613,211 @@ struct ArtifactCanvas: View {
         } label: {
             Label("Download as Markdown", systemImage: "arrow.down.to.line")
         }
+        Divider()
+        OpenStudioDestinationInOtherWindowMenu(
+            destination: .doc(artifact.id),
+            currentWindowState: windowState,
+            openNewWindow: { openWindow(id: "studio") }
+        )
+    }
+
+    /// What ForeverLM adds to Codex's page menu, under **More**, in four
+    /// groups: the page itself (New Page, Duplicate, subpages, Version
+    /// History…), writing and reading it (Edit with AI…, Format, View as Page,
+    /// Page Width, Discussion), where it lives and who has it (Add to Chat,
+    /// notebooks, canvases, spaces, teams), and taking it out of ForeverLM
+    /// (publishing, Google Docs, Export, Finder).
+    @ViewBuilder
+    private func pageMoreItems(for artifact: ArtifactRecord) -> some View {
+        let publishedStatus = publishedStatuses[artifact.id]
+        let isOwn = artifact.teamID == nil
+        let isOwnEditable = isOwn && !docChrome.showsPage
+        if section == .docs {
+            Button {
+                beginCreation()
+            } label: {
+                Label("New Page", systemImage: "doc.badge.plus")
+            }
+        }
+        if isOwn, vm.teamArtifactID(forDraft: artifact.id) == nil {
+            Button {
+                duplicatePage(artifact)
+            } label: {
+                Label("Duplicate", systemImage: "plus.square.on.square")
+            }
+        }
+        // Nested pages (docs/docs-design.md, "Subpages"): a page made inside
+        // this one, this one put under another, and back to the top.
+        if isOwn, vm.activeTeamID == nil {
+            PageNestMenuItems(page: artifact, onMoveToPage: { artifactToNest = artifact }) { subpage in
+                openSubpage(subpage)
+            }
+        }
+        Button {
+            docChrome.isVersionHistoryPresented = true
+        } label: {
+            Label("Version History…", systemImage: "clock.arrow.circlepath")
+        }
+        .help("Earlier versions of this page on this Mac")
+        Divider()
+        if isOwnEditable {
+            Button {
+                docChrome.aiEditOpenRequestID += 1
+            } label: {
+                Label("Edit with AI…", systemImage: "sparkles")
+            }
+            .help("Ask for a change to the selected passage, or to the section at the caret")
+            // The tool pill's other three, while the line is too short to
+            // hold the pill.
+            if !showsPageTools(for: artifact) {
+                Menu {
+                    Button("Image…", systemImage: "photo") { formatting.run(.image) }
+                    Button("Visualize…", systemImage: "square.on.circle") { formatting.run(.visualize) }
+                    Button("All Blocks…", systemImage: "plus") { formatting.run(.insert) }
+                } label: {
+                    Label("Insert", systemImage: "plus")
+                }
+            }
+            Menu {
+                Section { formatItems(ArtifactFormatCommand.markGroup) }
+                Section { formatItems(ArtifactFormatCommand.insertGroup) }
+            } label: {
+                Label("Format", systemImage: "textformat")
+            }
+        }
+        Button {
+            docChrome.togglePage()
+        } label: {
+            Label(
+                docChrome.showsPage ? "Edit Page" : "View as Page",
+                systemImage: docChrome.showsPage ? "pencil" : "doc.richtext"
+            )
+        }
+        .help("This Page as it reads on foreverlm.com, published or not")
+        Menu {
+            Picker("Page Width", selection: $pageWidth) {
+                ForEach(ArtifactPageWidth.allCases) { width in
+                    Text(width.title).tag(width)
+                }
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+            Divider()
+            // The cards beside a paragraph for the sources it cites. A reader
+            // who wants the prose alone turns them off for every page; the
+            // links stay in the prose.
+            Toggle(isOn: $showsMarginCards) {
+                Label("Show Source Cards", systemImage: "sidebar.right")
+            }
+        } label: {
+            Label("Page Width", systemImage: "arrow.left.and.right")
+        }
+        Button {
+            docChrome.isCommentsVisible.toggle()
+        } label: {
+            Label(docChrome.isCommentsVisible ? "Hide Discussion" : "Discussion", systemImage: "text.bubble")
+        }
+        .help("Comments on this page, and the chats its passages started")
+        Divider()
+        Button {
+            // The side chat over the page takes the page with its sources; a
+            // window with none keeps the docked route.
+            if pageHostsSideChat {
+                docChrome.wholePageChatRequest = PageSideChatWholePageRequest(intent: .addToChat)
+            } else {
+                Task { await vm.attachDocToChat(artifact.id) }
+            }
+        } label: {
+            Label("Add to Chat", systemImage: "message")
+        }
+        ArtifactNotebooksMenu(artifact: artifact)
+        KnowledgeMapAddToCanvasMenu(refs: ["doc:\(artifact.id)"])
+        KnowledgeMapOnCanvasesSection(ref: "doc:\(artifact.id)", windowState: windowState)
+        PageSpaceMenu(page: artifact)
+        // A team copy needs no publishing and no reader list, so this sits
+        // with Notebooks (where the Doc is filed) rather than with publishing
+        // (who outside the library may read it).
+        ShareWithTeamMenu { teamID in
+            Task {
+                await vm.shareArtifact(artifact.id, withTeam: teamID)
+                sharingTeamsByArtifactID[artifact.id] = await vm.teamsHoldingDoc(artifact.id)
+            }
+        }
+        // Where a Doc in My Library has gone: each team holding a copy.
+        if vm.activeTeamID == nil, let teams = sharingTeamsByArtifactID[artifact.id], !teams.isEmpty {
+            Menu {
+                ForEach(teams) { team in
+                    Button(team.name) {
+                        Task { await vm.openTeamCopy(ofDoc: artifact.id, inTeam: team.id) }
+                    }
+                }
+            } label: {
+                Label("Open Team Copy", systemImage: "person.2")
+            }
+        }
+        AssignToMemberMenu { member in
+            Task { await vm.assign(artifactID: artifact.id, to: member) }
+        }
+        if vm.teamArtifactID(forDraft: artifact.id) != nil {
+            Button(role: .destructive) {
+                docChrome.showDiscardDraftConfirmation = true
+            } label: {
+                Label("Discard Draft…", systemImage: "trash")
+            }
+        }
+        Divider()
+        // Who can open the page is the Share popover's; the submenu names the
+        // answer with the same sentence and keeps what the popover does not
+        // do — the address, a republish of the text, Unpublish.
+        if let publishedStatus {
+            Menu {
+                Button {
+                    isSharePopoverPresented = true
+                } label: {
+                    Label("Who Can Open the Page…", systemImage: "person.badge.plus")
+                }
+                .help("Invite people, open the link to anyone, or share with a team")
+                Button {
+                    NSWorkspace.shared.open(publishedStatus.url)
+                } label: {
+                    Label("Open Page", systemImage: "safari")
+                }
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(publishedStatus.url.absoluteString, forType: .string)
+                    vm.showToast("Link copied")
+                } label: {
+                    Label("Copy Link", systemImage: "link")
+                }
+                Button {
+                    docChrome.isPublishSheetPresented = true
+                } label: {
+                    Label("Update Page or Address…", systemImage: "arrow.triangle.2.circlepath")
+                }
+                .help("Replace the published page with this Page's current text, or give it a custom address")
+                Divider()
+                Button(role: .destructive) {
+                    docChrome.showUnpublishConfirmation = true
+                } label: {
+                    Label("Unpublish…", systemImage: "globe.badge.chevron.backward")
+                }
+            } label: {
+                Label(accessSummary(for: artifact), systemImage: publishedStatus.isProtected ? "lock" : "globe")
+            }
+        } else {
+            Button {
+                isSharePopoverPresented = true
+            } label: {
+                Label("Publish to foreverlm.com…", systemImage: "globe")
+            }
+            .help("Publish this Page on foreverlm.com — for anyone with the link, or for the people you invite")
+        }
+        Button {
+            docChrome.isConvertingToGoogleDoc = true
+        } label: {
+            Label("Convert to Google Doc…", systemImage: LinkedGoogleDoc.symbolName)
+        }
+        .help("Copy this page into a new Google Doc and edit it there from now on")
         Menu {
             ForEach(PageExportFormat.allCases.filter { $0 != .markdown }) { format in
                 Button {
@@ -1797,15 +1829,14 @@ struct ArtifactCanvas: View {
         } label: {
             Label("Export", systemImage: "square.and.arrow.up")
         }
-        if isOwn {
-            Button {
-                vm.requestNewScheduledTaskChat(aboutPageID: artifact.id, title: artifact.title)
-            } label: {
-                Label("New schedule…", systemImage: "clock")
+        Button {
+            Task {
+                guard let url = await vm.artifactFileURL(artifact.id) else { return }
+                NSWorkspace.shared.activateFileViewerSelecting([url])
             }
-            .help("Ask the assistant to run something about this page on a schedule")
+        } label: {
+            Label("Show in Finder", systemImage: "folder")
         }
-        Divider()
     }
 
     /// Rename… puts the caret in the page's title, as a click on it does; on
@@ -1845,14 +1876,29 @@ struct ArtifactCanvas: View {
     }
 
     /// Move to Trash, from any of the page's menus: a page or a site goes to
-    /// the Space's Trash at once, undone from there (Restore); an animation
-    /// keeps its question and is deleted, as it has no Trash to be found in.
+    /// the Space's Trash at once, undone from the toast or from Trash
+    /// (Restore); an animation keeps its question and is deleted, as it has
+    /// no Trash to be found in. A page with subpages takes them with it, as a
+    /// Codex page's Delete does, so it asks first and says so.
     private func trash(_ artifact: ArtifactRecord) {
         guard section != .animations else {
             artifactToDelete = artifact
             return
         }
-        closeIfOpen(artifact)
+        guard vm.pageTree.descendantIDs(of: artifact.id).isEmpty else {
+            pageToTrash = artifact
+            return
+        }
+        moveToTrash(artifact)
+    }
+
+    /// The move itself, the page's subpages with it; the pane lets go of
+    /// whichever of them it shows.
+    private func moveToTrash(_ artifact: ArtifactRecord) {
+        let going = [artifact.id] + vm.pageTree.descendantIDs(of: artifact.id)
+        if let open = artifacts.first(where: { $0.id == selectedArtifactID }), going.contains(open.id) {
+            closeIfOpen(open)
+        }
         Task { await vm.moveArtifactToTrash(artifact.id) }
     }
 

@@ -485,14 +485,6 @@ struct NotesGraphHostTests {
         #expect(ArtifactPageLinkTargets.chats([chat("a", "A", at: 1), chat("b", "B", at: 2)], limit: 1).map(\.id) == ["b"])
     }
 
-    @Test("A page's New schedule… opens a chat that names the page by its address")
-    func scheduledTaskDraftNamesThePage() {
-        let draft = StudioViewModel.scheduledTaskDraft(pageID: "abc", title: "Weekly [notes]")
-        #expect(draft.contains("(foreverlm://doc/abc)"))
-        #expect(draft.contains("Weekly \\[notes\\]"))
-        #expect(StudioViewModel.scheduledTaskDraft(pageID: "abc", title: "  ").contains("[this page]"))
-    }
-
     @Test("A day's page foot lists what was read, chatted and written, and the passages highlighted, in the day's order")
     func dailyActivity() {
         let calendar = Self.utc

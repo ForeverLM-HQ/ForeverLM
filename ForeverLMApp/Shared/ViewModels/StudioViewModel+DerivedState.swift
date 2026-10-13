@@ -4592,20 +4592,6 @@ extension StudioViewModel {
         requestBlankReviewChat()
     }
 
-    /// The same hand-off from a page's menu (New schedule…): the draft names
-    /// the page and its address, so the assistant can read it with `read_doc`
-    /// and the task it creates is about that page.
-    func requestNewScheduledTaskChat(aboutPageID pageID: String, title: String) {
-        pendingReviewChatDraft = Self.scheduledTaskDraft(pageID: pageID, title: title)
-        requestBlankReviewChat()
-    }
-
-    nonisolated static func scheduledTaskDraft(pageID: String, title: String) -> String {
-        let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        let page = StudioEntityLink.doc(pageID).markdown(title: name.isEmpty ? "this page" : name)
-        return "Set up a recurring scheduled task about my page \(page). Read the page first, ask me what the task should do and when it should run, then create it."
-    }
-
     /// Open a fresh chat that makes an animation. With a source, the chat
     /// starts with that source in context and the request typed but unsent —
     /// the source menu's Animate…; without one, the Animations home's button
