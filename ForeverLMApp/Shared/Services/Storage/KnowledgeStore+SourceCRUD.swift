@@ -1003,7 +1003,7 @@ extension KnowledgeStore {
 
         var rebuiltContent = false
         if let path = article.resolvedLocalPath,
-           let raw = EPUBBookFiles.text(atPath: path),
+           let raw = Self.textOfLocalFile(atPath: path),
            !raw.isEmpty {
             let lower = path.lowercased()
             let isMarkup = lower.hasSuffix(".html") || lower.hasSuffix(".htm") || lower.hasSuffix(".xhtml")
@@ -1015,6 +1015,22 @@ extension KnowledgeStore {
             }
         }
         return SourceUnarchiveOutcome(title: article.title, rebuiltContent: rebuiltContent)
+    }
+
+    /// A source's local file read as its text, or nil when the file is not
+    /// text. A web or EPUB document is read wherever it is (on disk or inside
+    /// its book's `.epub`), Latin-1 when not UTF-8, as a few older EPUB exports
+    /// are; any other file only as UTF-8. A PDF's text is in its pages, never
+    /// its bytes: read through the Latin-1 fallback, which decodes any bytes,
+    /// a paper or a PDF book's chapter took its file's raw bytes as its text
+    /// on unarchive (from e5ac5bb, 2026-10-12).
+    static func textOfLocalFile(atPath path: String) -> String? {
+        let lower = path.lowercased()
+        if lower.hasSuffix(".html") || lower.hasSuffix(".htm") || lower.hasSuffix(".xhtml") {
+            return EPUBBookFiles.text(atPath: path)
+        }
+        guard !lower.hasSuffix(".pdf") else { return nil }
+        return try? String(contentsOfFile: path, encoding: .utf8)
     }
 
     /// The library's answer for each id whatever the row's status: its title

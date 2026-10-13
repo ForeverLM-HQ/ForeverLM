@@ -360,6 +360,36 @@ struct BookFileStorageTests {
         #expect(store.sourceExistsByBookLocalFilePath(book.path) == nil)
     }
 
+    @Test("Unarchiving a PDF book's chapter never makes the PDF's bytes its text; a text file still gives its text")
+    func unarchiveKeepsPDFBytesOut() throws {
+        let folder = try BookFileFixture.folder("unarchive-pdf")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let book = folder.appendingPathComponent("Book.pdf")
+        try BookFileFixture.book(BookFileFixture.labels, at: book)
+        let store = try KnowledgeStore(inMemory: true)
+        var chapter = StudioArticle(
+            url: StudioArticle.bookChapterURL(bookFilePath: book.path, pages: 2..<5),
+            title: "Water", sourceType: .book, localFilePath: book.path
+        )
+        chapter.content = "Water is a polar molecule."
+        chapter.state = .ready
+        chapter.bookPages = 2..<5
+        #expect(try store.insertSourceIfNew(&chapter))
+        try store.archiveSource(chapter.id)
+
+        let outcome = try store.unarchiveSourceRestoringContent(chapter.id)
+        #expect(outcome?.rebuiltContent == false)
+        #expect(try store.loadSourceForSync(chapter.id)?.content?.hasPrefix("%PDF") != true)
+        #expect(KnowledgeStore.textOfLocalFile(atPath: book.path) == nil)
+
+        let notes = folder.appendingPathComponent("notes.txt")
+        try Data("Plain notes".utf8).write(to: notes)
+        #expect(KnowledgeStore.textOfLocalFile(atPath: notes.path) == "Plain notes")
+        let page = folder.appendingPathComponent("page.xhtml")
+        try Data([0x3C, 0x70, 0x3E, 0x63, 0x61, 0x66, 0xE9, 0x3C, 0x2F, 0x70, 0x3E]).write(to: page)
+        #expect(KnowledgeStore.textOfLocalFile(atPath: page.path) == "<p>café</p>", "a Latin-1 EPUB document still reads")
+    }
+
     @Test("A re-import finds a chapter by its title among the ones it archived, and takes each once")
     func reimportByTitle() throws {
         let store = try KnowledgeStore(inMemory: true)
