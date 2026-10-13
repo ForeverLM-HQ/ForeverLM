@@ -3147,13 +3147,11 @@ enum SourceError: LocalizedError, Equatable {
     case paperIngestionFailed(String)
     case aiCreditsRequired
     case insufficientContent
-    case bookMetadataMissing
     case unsupportedBookFormat
     case bookChapterBoundaryMismatch(String)
     case kindleConversionToolMissing
     case kindleConversionFailed(String)
     case googleDocsUnavailable(SourceService.GoogleDocsResource.Kind)
-    case scholarlyPaperNotBook
 
     /// `aiCreditsRequired`'s sentence before the prepaid balance was retired
     /// (2026-09-25). Sources that stored it are still on hold for that reason.
@@ -3183,15 +3181,12 @@ enum SourceError: LocalizedError, Equatable {
             return message
         case .aiCreditsRequired:
             return "Saved to your library, but reading it in is on hold: add your OpenRouter key in Settings → AI Usage to finish ingesting it. You can open and read it now."
-        case .bookMetadataMissing: return "Could not read a book title from the file metadata or front matter"
         case .unsupportedBookFormat: return "Unsupported book format"
         case .bookChapterBoundaryMismatch(let message): return message
         case .kindleConversionToolMissing: return "Install Calibre to import Kindle files: brew install --cask calibre"
         case .kindleConversionFailed(let message): return message
         case .googleDocsUnavailable(let kind):
             return "Could not export this \(kind.label) as text. Set its sharing to “Anyone with the link” — ForeverLM can only read link-accessible Google files."
-        case .scholarlyPaperNotBook:
-            return "This file looks like a scholarly paper, not a book. Add it from the Papers tab instead."
         }
     }
 }

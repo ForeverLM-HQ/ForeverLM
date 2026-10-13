@@ -242,3 +242,117 @@ extension KnowledgeStore {
         try execute("DELETE FROM book_file_merge_queue WHERE book_id = ?", [.text(bookID)])
     }
 }
+
+// MARK: - A book reads the moment it is added (schema 171)
+
+/// A book added on this Mac whose chapters are still to be found. Until they
+/// are, the book reads as one entry over its whole file (`wholeBookSourceID`),
+/// and `StudioViewModel.finishBookImport` does the work Add Book used to make
+/// the learner wait for: the metadata and paper checks, reading scanned pages,
+/// and the chapter split.
+struct BookImportFinishJob: Equatable, Sendable {
+    let bookID: String
+    /// The library's copy of the book, as stored: relative to the content
+    /// roots, or absolute.
+    let bookFilePath: String
+    /// The entry the book reads as until its chapters are found, which the
+    /// first chapter takes over; nil when the book already had chapters (a
+    /// re-import), which the new ones replace.
+    let wholeBookSourceID: String?
+    /// The kind the learner gave the book when adding it.
+    let kind: String?
+    let attempts: Int
+    let lastError: String?
+}
+
+extension KnowledgeStore {
+    static let bookImportFinishSchemaVersion: Int32 = 171
+
+    /// The books added on this Mac that are still to be finished, one row a
+    /// book. Local-only: the Mac that added a book finishes it, and what the
+    /// work changes (the chapters, the book's details, its file's text) reaches
+    /// other devices as those records.
+    func createBookImportFinishQueue() throws {
+        try exec("""
+            CREATE TABLE IF NOT EXISTS book_import_finish_queue (
+                book_id TEXT PRIMARY KEY,
+                book_file_path TEXT NOT NULL,
+                whole_book_source_id TEXT,
+                kind TEXT,
+                enqueued_at REAL NOT NULL,
+                attempts INTEGER NOT NULL DEFAULT 0,
+                last_error TEXT
+            )
+        """)
+    }
+
+    /// Fails when a table of another shape was there before, so the migration
+    /// rolls back.
+    func probeBookImportFinishQueue() throws {
+        try query("""
+            SELECT book_id, book_file_path, whole_book_source_id, kind, enqueued_at, attempts, last_error
+            FROM book_import_finish_queue LIMIT 0
+        """) { _ in }
+    }
+
+    func holdsBookImportFinishQueue() throws -> Bool {
+        try scalarInteger(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'book_import_finish_queue'"
+        ) == 1
+    }
+
+    /// Puts a book on the queue, or puts it back at the start of its attempts
+    /// when the learner adds it again.
+    func enqueueBookImportFinish(bookID: String, bookFilePath: String, wholeBookSourceID: String?, kind: String?) throws {
+        try execute("""
+            INSERT INTO book_import_finish_queue (book_id, book_file_path, whole_book_source_id, kind, enqueued_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(book_id) DO UPDATE SET
+                book_file_path = excluded.book_file_path,
+                whole_book_source_id = COALESCE(excluded.whole_book_source_id, book_import_finish_queue.whole_book_source_id),
+                kind = COALESCE(excluded.kind, book_import_finish_queue.kind),
+                enqueued_at = excluded.enqueued_at,
+                attempts = 0,
+                last_error = NULL
+        """, [
+            .text(bookID), .text(StorageService.relativeSourcePath(bookFilePath)), .text(wholeBookSourceID),
+            .text(kind), .real(Date().timeIntervalSinceReferenceDate),
+        ])
+    }
+
+    /// Books still to finish, oldest first. One whose finishing failed three
+    /// times waits until the learner adds it again.
+    func dueBookImportFinishes(limit: Int) throws -> [BookImportFinishJob] {
+        guard try holdsBookImportFinishQueue() else { return [] }
+        var jobs: [BookImportFinishJob] = []
+        try query("""
+            SELECT book_id, book_file_path, whole_book_source_id, kind, attempts, last_error
+            FROM book_import_finish_queue
+            WHERE attempts < 3
+            ORDER BY enqueued_at, book_id
+            LIMIT ?
+        """, [.integer(Int64(limit))]) { row in
+            guard let bookID = row.text(0), let path = row.text(1) else { return }
+            jobs.append(BookImportFinishJob(
+                bookID: bookID,
+                bookFilePath: path,
+                wholeBookSourceID: row.text(2),
+                kind: row.text(3),
+                attempts: Int(row.integer(4) ?? 0),
+                lastError: row.text(5)
+            ))
+        }
+        return jobs
+    }
+
+    func failBookImportFinish(bookID: String, message: String) throws {
+        try execute(
+            "UPDATE book_import_finish_queue SET attempts = attempts + 1, last_error = ? WHERE book_id = ?",
+            [.text(message), .text(bookID)]
+        )
+    }
+
+    func dropBookImportFinish(bookID: String) throws {
+        try execute("DELETE FROM book_import_finish_queue WHERE book_id = ?", [.text(bookID)])
+    }
+}

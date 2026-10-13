@@ -706,159 +706,288 @@ extension StudioViewModel {
         }.value
         logger.info("[BookImport] Prepared file at: \(importedFile.destPath)")
 
-        var bookTitle = importedFile.importedTitle
-        var bookSubtitle = importedFile.importedSubtitle
-        var bookAuthor = importedFile.importedAuthor
-        var bookEdition = importedFile.importedEdition
-        let trimmedImportedTitle = bookTitle?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let preflightTitle = trimmedImportedTitle.isEmpty
-            ? (importedFile.destPath as NSString).deletingPathExtension
-            : trimmedImportedTitle
-        let preflightCleanTitle = Self.cleanBookTitle(
-            preflightTitle,
-            subtitle: bookSubtitle,
-            edition: bookEdition
-        )
-        // Choose the durable book identity before the first model call. The book
-        // directory check preserves an existing ID even when AI improves its title.
+        // The book is named from its file for now: Book Author reads its front
+        // matter once the book is in (`finishBookImport`). A book added again
+        // keeps the details found for it before.
+        let fileTitle = Self.bookTitleFromFile(importedFile)
         let bookID = existingBookID(
-            forCleanedTitle: preflightCleanTitle,
+            forCleanedTitle: fileTitle,
             bookDir: importedFile.bookDir
         ) ?? UUID().uuidString
-        let usageSource = AIUsageSource(id: bookID, type: "book", title: preflightTitle)
-
-        if let config = KeychainService.resolveConfig(for: .bookAuthor) {
-            bookImportStatus = "Extracting book metadata…"
-            await Task.yield()
-            if let aiMetadata = await aiService.extractBookMetadata(
-                source: usageSource,
-                filename: (importedFile.destPath as NSString).lastPathComponent,
-                title: bookTitle,
-                author: bookAuthor,
-                firstPagesText: importedFile.firstPagesText,
-                config: config
-            ) {
-                if let title = aiMetadata.title {
-                    bookTitle = title
-                }
-                if let subtitle = aiMetadata.subtitle {
-                    bookSubtitle = subtitle
-                }
-                if let author = aiMetadata.author {
-                    bookAuthor = author
-                }
-                if let edition = aiMetadata.edition {
-                    bookEdition = edition
-                }
-            }
-        }
-
-        guard let extractedTitle = bookTitle?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !extractedTitle.isEmpty else {
-            throw SourceError.bookMetadataMissing
-        }
-        // Guard against importing a scholarly paper as a book. Instead of matching
-        // hardcoded title patterns, ask the source classifier (LLM) using the title
-        // and extracted front matter. Best-effort: if classification is unavailable
-        // or fails it returns nil, and we honor the user's explicit book import.
-        if let classifyConfig = KeychainService.resolveConfig(for: .sourceClassification),
-           await aiService.classifySourceType(
-               source: usageSource,
-               url: importedFile.destPath,
-               title: extractedTitle,
-               contentPreview: importedFile.firstPagesText,
-               config: classifyConfig
-           ) == .paper {
-            throw SourceError.scholarlyPaperNotBook
-        }
-        let cleanedBookTitle = Self.cleanBookTitle(extractedTitle, subtitle: bookSubtitle, edition: bookEdition)
-
-        bookTitles[bookID] = cleanedBookTitle
-        if let bookSubtitle { bookSubtitles[bookID] = bookSubtitle }
-        if let bookAuthor { bookAuthors[bookID] = bookAuthor }
-        if let bookEdition { bookEditions[bookID] = bookEdition }
+        let bookTitle = bookTitles[bookID] ?? fileTitle
+        bookTitles[bookID] = bookTitle
+        if bookSubtitles[bookID] == nil, let subtitle = importedFile.importedSubtitle { bookSubtitles[bookID] = subtitle }
+        if bookAuthors[bookID] == nil, let author = importedFile.importedAuthor { bookAuthors[bookID] = author }
+        if bookEditions[bookID] == nil, let edition = importedFile.importedEdition { bookEditions[bookID] = edition }
         if let kind, !kind.isEmpty { bookKinds[bookID] = kind }
 
         // An explicit re-import of a known book revives its chapter records.
         let groupedChapterCount = (try? await storage.sourceCountByParentGroup(bookID)) ?? 0
-        if groupedChapterCount > 0 {
-            if isEPUB {
-                logger.info("[BookImport] Rebuilding existing EPUB chapter records for explicit re-import")
-                try? await storage.saveBookMetadata(
-                    groupName: bookID,
-                    title: cleanedBookTitle,
-                    subtitle: bookSubtitle,
-                    author: bookAuthor,
-                    edition: bookEdition,
-                    coverPath: bookCoverPaths[bookID],
-                    kind: kind
-                )
-            } else {
-                logger.info("[BookImport] Rebuilding existing PDF chapter records for explicit re-import")
-            }
-        }
-
+        var wholeBookSourceID: String?
         if isEPUB {
+            if groupedChapterCount > 0 {
+                logger.info("[BookImport] Rebuilding existing EPUB chapter records for explicit re-import")
+            }
+            // An EPUB's chapters are documents of its own, which one model
+            // call groups; they are the book's first readable form.
             logger.info("[BookImport] Extracting EPUB chapters…")
-            try await importEPUBChapters(from: importedFile.destPath, bookID: bookID, bookTitle: cleanedBookTitle, bookDir: importedFile.bookDir, chaptersDir: importedFile.chaptersDir)
+            try await importEPUBChapters(from: importedFile.destPath, bookID: bookID, bookTitle: bookTitle, bookDir: importedFile.bookDir, chaptersDir: importedFile.chaptersDir)
+        } else if groupedChapterCount == 0 {
+            // A PDF reads as its file: the book is one entry over every page
+            // until its chapters are found.
+            bookImportStatus = "Opening the book…"
+            wholeBookSourceID = try await placeWholePDFBook(
+                pdfPath: importedFile.destPath,
+                bookID: bookID,
+                bookTitle: bookTitle,
+                bookDir: importedFile.bookDir
+            )
         } else {
-            logger.info("[BookImport] Extracting PDF chapters…")
-            try await importPDFChapters(from: importedFile.destPath, baseName: importedFile.baseName, bookID: bookID, bookTitle: cleanedBookTitle, bookDir: importedFile.bookDir, chaptersDir: importedFile.chaptersDir)
+            // A PDF book added again reads as the chapters it has until the
+            // new split replaces them.
+            logger.info("[BookImport] Rebuilding existing PDF chapter records for explicit re-import")
         }
 
-        // Immediately register the cover so it's visible after loadQueue
         let coverPath = (importedFile.bookDir as NSString).appendingPathComponent("cover.jpg")
         if FileManager.default.fileExists(atPath: coverPath) {
-            bookTitles[bookID] = cleanedBookTitle
             bookCoverPaths[bookID] = coverPath
-            try? await storage.saveBookMetadata(
-                groupName: bookID,
-                title: cleanedBookTitle,
-                subtitle: bookSubtitle,
-                author: bookAuthor,
-                edition: bookEdition,
-                coverPath: coverPath
-            )
             // Pre-warm the thumbnail cache so it renders instantly
             prewarmBookCoverThumbnail(coverPath: coverPath)
+        }
+        do {
+            try await storage.saveBookMetadata(
+                groupName: bookID,
+                title: bookTitle,
+                subtitle: bookSubtitles[bookID],
+                author: bookAuthors[bookID],
+                edition: bookEditions[bookID],
+                coverPath: bookCoverPaths[bookID],
+                kind: kind
+            )
+        } catch {
+            logger.error("Failed to save book metadata: \(error.localizedDescription)")
+            saveBooksToDisk()
         }
 
         bookImportStatus = "Refreshing library…"
         sidebarTab = .books
         await loadQueue()
-        var needsSave = false
-        if let bookSubtitle, !bookSubtitle.isEmpty {
-            bookSubtitles[bookID] = bookSubtitle
-            needsSave = true
+
+        // What the book still needs — its details, the paper check, a scan's
+        // text and a PDF's chapters — happens with the book already open to
+        // read, and is queued so a quit does not lose it.
+        try await storage.enqueueBookImportFinish(
+            bookID: bookID,
+            bookFilePath: importedFile.destPath,
+            wholeBookSourceID: wholeBookSourceID,
+            kind: kind
+        )
+        startBookImportFinishing()
+        logger.info("[BookImport] \(importedFile.baseName) is in the library; finishing it in the background")
+    }
+
+    /// The title a book reads under before Book Author has read it: the
+    /// file's own title, else its file name.
+    nonisolated private static func bookTitleFromFile(_ file: ImportedBookFile) -> String {
+        let title = file.importedTitle?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let named = title.isEmpty
+            ? ((file.destPath as NSString).lastPathComponent as NSString).deletingPathExtension
+            : title
+        return cleanBookTitle(named, subtitle: file.importedSubtitle, edition: file.importedEdition)
+    }
+
+    // MARK: Finishing a book after it is in (schema 171)
+
+    /// Finishes the books added on this Mac that are still to finish
+    /// (`book_import_finish_queue`), one at a time, while they read. Called
+    /// after Add Book and once the library has loaded after a launch; a call
+    /// while a run is going makes the run look at the queue again when it ends.
+    func startBookImportFinishing() {
+        bookImportFinishRequested = true
+        guard bookImportFinishRun == nil else { return }
+        bookImportFinishRun = Task { [weak self] in
+            await self?.drainBookImportFinishing()
         }
-        if let bookAuthor, !bookAuthor.isEmpty {
-            bookAuthors[bookID] = bookAuthor
-            needsSave = true
+    }
+
+    private func drainBookImportFinishing() async {
+        defer { bookImportFinishRun = nil }
+        while bookImportFinishRequested, !Task.isCancelled {
+            bookImportFinishRequested = false
+            // Each book once a run: a book that failed waits for the next.
+            var tried: Set<String> = []
+            while !Task.isCancelled {
+                let due: [BookImportFinishJob]
+                do {
+                    due = try await storage.dueBookImportFinishes()
+                } catch {
+                    logger.error("[BookImport] Could not read the books still to finish: \(error.localizedDescription)")
+                    return
+                }
+                guard let job = due.first(where: { !tried.contains($0.bookID) }) else { break }
+                tried.insert(job.bookID)
+                await finishBookImport(job)
+            }
         }
-        if let bookEdition, !bookEdition.isEmpty {
-            bookEditions[bookID] = bookEdition
-            needsSave = true
+    }
+
+    /// The work Add Book used to make the learner wait for, done while the
+    /// book reads: Book Author's details, the paper check, and for a PDF a
+    /// scan's text and the chapters. A stop of one of its steps, or any
+    /// cancellation, leaves the book on the queue as it was, its attempts
+    /// unspent. A failure is said, counted, and tried again at the next
+    /// launch, three times in all; the book reads as one entry meanwhile,
+    /// and is given its text when the last attempt fails.
+    private func finishBookImport(_ job: BookImportFinishJob) async {
+        let bookID = job.bookID
+        let bookPath = StorageService.absoluteSourcePath(job.bookFilePath)
+        guard let bookTitle = bookTitles[bookID], FileManager.default.fileExists(atPath: bookPath) else {
+            // The book was removed, or its file is gone: nothing is left to finish.
+            try? await storage.dropBookImportFinish(bookID: bookID)
+            return
         }
-        if let kind, !kind.isEmpty {
-            bookKinds[bookID] = kind
-            needsSave = true
+        let progress = BookImportProgress(self, bookID: bookID)
+        finishingBookStatus[bookID] = "Reading the book’s details…"
+        defer { finishingBookStatus[bookID] = nil }
+        do {
+            await refineBookDetails(bookID: bookID, bookPath: bookPath, kind: job.kind)
+            let title = bookTitles[bookID] ?? bookTitle
+            if await bookReadsAsPaper(bookID: bookID, bookPath: bookPath, title: title) {
+                try await storage.dropBookImportFinish(bookID: bookID)
+                await giveWholeBookItsText(job.wholeBookSourceID, bookPath: bookPath)
+                bookImportNoticeTitle = "This Looks Like a Paper"
+                bookImportNotice = "“\(title)” reads like a scholarly paper rather than a book, so its chapters were not looked for. It stays in Books as one piece; to keep it with your papers, add the PDF from the Papers tab and remove the book."
+                showBookImportNotice = true
+                return
+            }
+            if bookPath.lowercased().hasSuffix(".pdf") {
+                try await importPDFChapters(
+                    from: bookPath,
+                    bookID: bookID,
+                    bookTitle: title,
+                    wholeBookSourceID: job.wholeBookSourceID,
+                    progress: progress
+                )
+            }
+            try await storage.dropBookImportFinish(bookID: bookID)
+            await refreshArticles()
+            logger.info("[BookImport] Finished \(bookID)")
+        } catch where AITransientErrorClassifier.isCancellation(error) {
+            logger.info("[BookImport] Finishing \(bookID) stopped; it waits on the queue: \(error.localizedDescription)")
+        } catch {
+            let message = error.localizedDescription
+            logger.error("[BookImport] Finishing \(bookID) failed: \(message)")
+            try? await storage.failBookImportFinish(bookID: bookID, message: message)
+            let lastAttempt = job.attempts + 1 >= 3
+            if lastAttempt {
+                await giveWholeBookItsText(job.wholeBookSourceID, bookPath: bookPath)
+            }
+            let title = bookTitles[bookID] ?? bookTitle
+            errorMessage = lastAttempt
+                ? "ForeverLM could not find the chapters of “\(title)”: \(message) The book stays readable as one piece."
+                : "ForeverLM could not find the chapters of “\(title)” yet: \(message) The book stays readable as one piece, and ForeverLM tries again the next time it opens."
+            showBookImportError = true
         }
-        let finalCoverPath = bookCoverPaths[bookID]
+    }
+
+    /// Book Author's reading of the front matter: a better title, subtitle,
+    /// author and edition than the file's own. A detail that is no longer the
+    /// file's own — the learner's edit, or what an earlier import found — stays.
+    private func refineBookDetails(bookID: String, bookPath: String, kind: String?) async {
+        guard let config = KeychainService.resolveConfig(for: .bookAuthor) else { return }
+        let fromFile = await Task.detached(priority: .utility) {
+            Self.extractBookMetadata(fromBookFile: bookPath)
+        }.value
+        let fileTitle = Self.cleanBookTitle(
+            fromFile.title ?? ((bookPath as NSString).lastPathComponent as NSString).deletingPathExtension,
+            subtitle: fromFile.subtitle,
+            edition: fromFile.edition
+        )
+        guard let found = await aiService.extractBookMetadata(
+            source: AIUsageSource(id: bookID, type: "book", title: bookTitles[bookID] ?? fileTitle),
+            filename: (bookPath as NSString).lastPathComponent,
+            title: fromFile.title,
+            author: fromFile.author,
+            firstPagesText: fromFile.firstPagesText,
+            config: config
+        ) else { return }
+
+        func keepsFileValue(_ current: String?, _ file: String?) -> Bool { current == nil || current == file }
+        let subtitle = keepsFileValue(bookSubtitles[bookID], fromFile.subtitle) ? (found.subtitle ?? bookSubtitles[bookID]) : bookSubtitles[bookID]
+        let author = keepsFileValue(bookAuthors[bookID], fromFile.author) ? (found.author ?? bookAuthors[bookID]) : bookAuthors[bookID]
+        let edition = keepsFileValue(bookEditions[bookID], fromFile.edition) ? (found.edition ?? bookEditions[bookID]) : bookEditions[bookID]
+        let oldTitle = bookTitles[bookID]
+        var title = oldTitle
+        if keepsFileValue(oldTitle, fileTitle), let foundTitle = found.title?.trimmingCharacters(in: .whitespacesAndNewlines), !foundTitle.isEmpty {
+            title = Self.cleanBookTitle(foundTitle, subtitle: subtitle, edition: edition)
+        }
+        guard title != oldTitle || subtitle != bookSubtitles[bookID]
+            || author != bookAuthors[bookID] || edition != bookEditions[bookID] else { return }
+        bookTitles[bookID] = title
+        bookSubtitles[bookID] = subtitle
+        bookAuthors[bookID] = author
+        bookEditions[bookID] = edition
         do {
             try await storage.saveBookMetadata(
                 groupName: bookID,
-                title: cleanedBookTitle,
-                subtitle: bookSubtitle,
-                author: bookAuthor,
-                edition: bookEdition,
-                coverPath: finalCoverPath,
+                title: title,
+                subtitle: subtitle,
+                author: author,
+                edition: edition,
+                coverPath: bookCoverPaths[bookID],
                 kind: kind
             )
         } catch {
-            logger.error("Failed to save final book metadata: \(error.localizedDescription)")
-            if needsSave { saveBooksToDisk() }
+            logger.error("Failed to save book metadata: \(error.localizedDescription)")
+            saveBooksToDisk()
         }
-        logger.info("[BookImport] Import complete for \(importedFile.baseName)")
+        // A book still read as one entry is named as the book is.
+        if let title, let oldTitle, title != oldTitle {
+            for chapter in articles where chapter.parentGroup == bookID && chapter.status == .active && chapter.title == oldTitle {
+                var renamed = chapter
+                renamed.title = title
+                try? await storage.saveSource(renamed)
+                if let index = articles.firstIndex(where: { $0.id == renamed.id }) { articles[index] = renamed }
+            }
+        }
+    }
+
+    /// Whether the source classifier reads the book as a scholarly paper: a
+    /// paper dropped on Add Book. Nil from the classifier (not configured,
+    /// failed) keeps it a book, as the learner asked.
+    private func bookReadsAsPaper(bookID: String, bookPath: String, title: String) async -> Bool {
+        guard let config = KeychainService.resolveConfig(for: .sourceClassification) else { return false }
+        let preview = await Task.detached(priority: .utility) {
+            Self.extractBookMetadata(fromBookFile: bookPath).firstPagesText
+        }.value
+        return await aiService.classifySourceType(
+            source: AIUsageSource(id: bookID, type: "book", title: title),
+            url: bookPath,
+            title: title,
+            contentPreview: preview,
+            config: config
+        ) == .paper
+    }
+
+    /// Gives a book that stays one entry its file's own text, so search and
+    /// the assistant read it. A scan with no text of its own keeps none.
+    private func giveWholeBookItsText(_ sourceID: String?, bookPath: String) async {
+        guard let sourceID, var entry = articlesById[sourceID], entry.bookPages != nil else { return }
+        guard entry.content?.isEmpty != false else { return }
+        let text = await Task.detached(priority: .utility) { () -> String in
+            guard let document = PDFDocument(url: URL(fileURLWithPath: bookPath)) else { return "" }
+            return PDFTextExtractor.embeddedText(from: document, pages: 0..<document.pageCount)
+        }.value
+        guard !text.isEmpty else { return }
+        entry.content = text
+        entry.wordCount = text.split(separator: " ").count
+        entry.state = .ready
+        do {
+            try await storage.saveSource(entry)
+            if let index = articles.firstIndex(where: { $0.id == sourceID }) { articles[index] = entry }
+        } catch {
+            logger.error("[BookImport] Could not keep the text of \(sourceID): \(error.localizedDescription)")
+        }
     }
 
     /// Turns browser-authored book-file Source shells into the same chapterized
@@ -960,8 +1089,7 @@ extension StudioViewModel {
             importedTitle: importedMetadata.title,
             importedSubtitle: importedMetadata.subtitle,
             importedAuthor: importedMetadata.author,
-            importedEdition: importedMetadata.edition,
-            firstPagesText: importedMetadata.firstPagesText
+            importedEdition: importedMetadata.edition
         )
     }
 
@@ -1053,26 +1181,69 @@ extension StudioViewModel {
         return .kindleConversionFailed("Kindle conversion failed:\n\(summary)")
     }
 
-    /// Import chapters from a PDF book. The book stays one file: each chapter
-    /// is the run of its pages the chapter splitting model chose
+    /// Saves a PDF book as one entry over its whole file, so it reads the
+    /// moment it is added: the Reader shows the book's file, its outline is
+    /// the Contents, and a highlight or the page reached is kept. The entry
+    /// holds no text: the chapters found after it (`importPDFChapters`) hold
+    /// the book's text, and the first of them takes the entry over. Returns
+    /// the entry's id, or nil when the learner had removed this book's
+    /// address from the library.
+    private func placeWholePDFBook(pdfPath: String, bookID: String, bookTitle: String, bookDir: String) async throws -> String? {
+        let pageCount = try await Task.detached(priority: .userInitiated) { () throws -> Int in
+            guard let document = PDFDocument(url: URL(fileURLWithPath: pdfPath)), document.pageCount > 0 else {
+                throw SourceError.pdfReadFailed
+            }
+            Self.extractPDFCover(from: document, to: bookDir)
+            return document.pageCount
+        }.value
+        let pages = 0..<pageCount
+        var article = StudioArticle(
+            url: StudioArticle.bookChapterURL(bookFilePath: pdfPath, pages: pages),
+            title: bookTitle,
+            sourceType: .book,
+            discoveryOrigin: .manual,
+            localFilePath: pdfPath
+        )
+        article.parentGroup = bookID
+        article.courseSortIndex = 0
+        article.bookPages = pages
+        // Queued, with no text: nothing fetches a book's address, and a text
+        // given now would be cleaned up by a model once here and again in the
+        // chapters.
+        article.state = .queued
+        return try await saveImportedBookChapterDraft(article)
+    }
+
+    /// Splits a PDF book into its chapters. The book stays one file: each
+    /// chapter is the run of its pages the chapter splitting model chose
     /// (`StudioArticle.bookPages`), and no chapter file is written. A book
-    /// imported again while it was still split into chapter files (`chaptersDir`)
-    /// loses that folder once its chapters point at the book.
-    func importPDFChapters(from pdfPath: String, baseName: String, bookID: String, bookTitle: String, bookDir: String, chaptersDir: String) async throws {
-        bookImportStatus = "Reading PDF…"
-        await Task.yield()
-        try await addTextToScannedPages(pdfPath: pdfPath, bookID: bookID, bookTitle: bookTitle)
-        let snapshot = try await Task.detached(priority: .userInitiated) {
+    /// imported again while it was still split into chapter files loses that
+    /// folder once its chapters point at the book.
+    ///
+    /// Runs after the book is in (`finishBookImport`). A book that read as
+    /// one entry until now (`wholeBookSourceID`) has that entry become its
+    /// first chapter, and what the learner did on it moves to the chapters
+    /// holding those pages (`moveWholeBookState`).
+    func importPDFChapters(
+        from pdfPath: String,
+        bookID: String,
+        bookTitle: String,
+        wholeBookSourceID: String?,
+        progress: BookImportProgress
+    ) async throws {
+        let bookDir = (pdfPath as NSString).deletingLastPathComponent
+        let chaptersDir = (bookDir as NSString).appendingPathComponent("Chapters")
+        progress.update("Reading the book…")
+        try await addTextToScannedPages(pdfPath: pdfPath, bookID: bookID, bookTitle: bookTitle, progress: progress)
+        let snapshot = try await Task.detached(priority: .utility) {
             try Self.readPDFBookSnapshot(pdfPath: pdfPath, bookDir: bookDir)
         }.value
 
         guard let config = KeychainService.resolveConfig(for: .bookChapterSplitting) else {
-            let message = "Book chapter splitting AI is not configured."
-            errorMessage = message
-            throw SourceError.bookChapterBoundaryMismatch(message)
+            throw SourceError.bookChapterBoundaryMismatch("Book chapter splitting AI is not configured.")
         }
 
-        bookImportStatus = "Asking AI to identify chapters…"
+        progress.update("Finding the chapters…")
         let aiChapters = try await aiService.selectBookChapterBoundaries(
             source: AIUsageSource(id: bookID, type: "book", title: bookTitle),
             bookTitle: bookTitle,
@@ -1084,25 +1255,27 @@ extension StudioViewModel {
             frontMatterPages: snapshot.frontMatterPages.map { (pageIndex: $0.pageIndex, text: $0.text) },
             config: config
         )
-        let chapters = aiChapters.map {
+        var chapters = aiChapters.map {
             (title: $0.title, pageIndex: $0.pageIndex, endPageIndexExclusive: $0.endPageIndexExclusive)
         }
         guard !chapters.isEmpty else {
-            let message = "The book chapter splitting AI did not identify any chapters."
-            errorMessage = message
-            throw SourceError.bookChapterBoundaryMismatch(message)
+            throw SourceError.bookChapterBoundaryMismatch("The book chapter splitting AI did not identify any chapters.")
         }
         if let issue = Self.bookChapterSelectionIssue(
             chapters: chapters.map { (title: $0.title, pageIndex: $0.pageIndex) },
             pageCount: snapshot.pageCount
         ) {
-            let message = "The book chapter splitting AI returned an unsafe chapter list: \(issue)"
-            errorMessage = message
-            throw SourceError.bookChapterBoundaryMismatch(message)
+            throw SourceError.bookChapterBoundaryMismatch(
+                "The book chapter splitting AI returned an unsafe chapter list: \(issue)"
+            )
         }
 
-        let progress = BookImportProgress(self)
-        let drafts = try await Task.detached(priority: .userInitiated) {
+        // A page the learner marked or reached while the book read as one
+        // entry stays in the book, even front or back matter the split left out.
+        let wholeBookState = await wholeBookState(of: wholeBookSourceID)
+        chapters = Self.chapters(chapters, reachingPages: wholeBookState.pages, pageCount: snapshot.pageCount)
+
+        let drafts = try await Task.detached(priority: .utility) {
             try Self.preparePDFChapterDrafts(
                 pdfPath: pdfPath,
                 bookTitle: bookTitle,
@@ -1112,13 +1285,13 @@ extension StudioViewModel {
         }.value
 
         guard !drafts.isEmpty else {
-            errorMessage = "The book chapter splitting AI did not identify chapters in this PDF."
-            throw SourceError.pdfReadFailed
+            throw SourceError.bookChapterBoundaryMismatch("The book chapter splitting AI did not identify chapters in this PDF.")
         }
 
         try await storage.archiveSourcesByParentGroup(bookID)
+        var saved: [(sourceID: String, pages: Range<Int>)] = []
         for draft in drafts {
-            bookImportStatus = "Saving chapter \(draft.sortIndex + 1)/\(drafts.count): \(draft.title)…"
+            progress.update("Saving chapter \(draft.sortIndex + 1)/\(drafts.count): \(draft.title)…")
             let url = draft.pages.map { StudioArticle.bookChapterURL(bookFilePath: draft.path, pages: $0) } ?? draft.path
             var article = StudioArticle(
                 url: url,
@@ -1136,7 +1309,20 @@ extension StudioViewModel {
                 article.wordCount = draft.wordCount
             }
 
-            try await saveImportedBookChapterDraft(article)
+            let sourceID: String?
+            if draft.sortIndex == 0, let wholeBookSourceID {
+                article.normalizedURL = URLNormalizer.normalize(article.url)
+                try await refreshExistingImportedBookChapter(existingID: wholeBookSourceID, replacement: article)
+                sourceID = wholeBookSourceID
+            } else {
+                sourceID = try await saveImportedBookChapterDraft(article)
+            }
+            if let sourceID, let pages = draft.pages {
+                saved.append((sourceID, pages))
+            }
+        }
+        if let wholeBookSourceID {
+            await moveWholeBookState(wholeBookState, from: wholeBookSourceID, to: saved)
         }
         // Every chapter now names the book's pages: a folder of chapter files
         // an earlier import left is no longer anyone's, nor is the book's
@@ -1151,17 +1337,119 @@ extension StudioViewModel {
         logger.info("[BookImport] Inserted \(drafts.count) chapters of \(pdfPath)")
     }
 
+    /// What the learner did on a book while it read as one entry: its
+    /// highlights, and the page reached, as pages of the book's file.
+    struct WholeBookState: Sendable {
+        var highlights: [SourceHighlight] = []
+        var pageReached: Int?
+
+        /// Every page that holds a mark or was reached.
+        var pages: [Int] {
+            highlights.compactMap(\.pdfAnchor?.pageIndex) + (pageReached.map { [$0] } ?? [])
+        }
+    }
+
+    private func wholeBookState(of sourceID: String?) async -> WholeBookState {
+        guard let sourceID else { return WholeBookState() }
+        let highlights = (try? await storage.sourceHighlights(sourceID: sourceID)) ?? []
+        let page = readingProgressStore.page(for: sourceID) ?? articlesById[sourceID]?.readingPositionPage
+        return WholeBookState(highlights: highlights, pageReached: page.flatMap { $0 > 0 ? $0 : nil })
+    }
+
+    /// The chosen chapters, with the first starting early enough and the
+    /// last ending late enough to hold every one of `pages`. The split leaves
+    /// out front and back matter on purpose; a page there the learner marked
+    /// or reached is kept in the book rather than lost.
+    nonisolated static func chapters(
+        _ chapters: [(title: String, pageIndex: Int, endPageIndexExclusive: Int)],
+        reachingPages pages: [Int],
+        pageCount: Int
+    ) -> [(title: String, pageIndex: Int, endPageIndexExclusive: Int)] {
+        let held = pages.filter { $0 >= 0 && $0 < pageCount }
+        guard !chapters.isEmpty, let lowest = held.min(), let highest = held.max() else { return chapters }
+        var result = chapters
+        result[0].pageIndex = min(result[0].pageIndex, lowest)
+        let last = result.count - 1
+        result[last].endPageIndexExclusive = max(result[last].endPageIndexExclusive, highest + 1)
+        return result
+    }
+
+    /// Moves what the learner did on a book while it read as one entry onto
+    /// the chapters that now hold those pages: each highlight to the chapter
+    /// its page is in, counted from that chapter's first page, as every
+    /// chapter's marks are, and the page reached likewise.
+    private func moveWholeBookState(
+        _ state: WholeBookState,
+        from wholeBookSourceID: String,
+        to chapters: [(sourceID: String, pages: Range<Int>)]
+    ) async {
+        func chapter(holding page: Int) -> (sourceID: String, pages: Range<Int>)? {
+            chapters.first { $0.pages.contains(page) }
+        }
+        var touched: Set<String> = [wholeBookSourceID]
+        for highlight in state.highlights {
+            guard let anchor = highlight.pdfAnchor, let target = chapter(holding: anchor.pageIndex) else { continue }
+            let page = anchor.pageIndex - target.pages.lowerBound
+            guard target.sourceID != wholeBookSourceID || page != anchor.pageIndex else { continue }
+            let moved = Self.highlight(highlight, movedTo: target.sourceID, page: page)
+            do {
+                try await storage.saveSourceHighlight(moved)
+                touched.insert(target.sourceID)
+            } catch {
+                logger.error("[BookImport] Could not move highlight \(highlight.id) to its chapter: \(error.localizedDescription)")
+            }
+        }
+        for sourceID in touched {
+            await reloadReaderHighlights(for: sourceID)
+        }
+        if let page = state.pageReached, let target = chapter(holding: page) {
+            updateReadingPosition(for: target.sourceID, page: page - target.pages.lowerBound)
+            if target.sourceID != wholeBookSourceID {
+                updateReadingPosition(for: wholeBookSourceID, page: 0)
+            }
+        }
+    }
+
+    /// `highlight` as a mark on `sourceID`, on `page` of it: the same mark,
+    /// note and passage, under the same id.
+    nonisolated static func highlight(_ highlight: SourceHighlight, movedTo sourceID: String, page: Int) -> SourceHighlight {
+        SourceHighlight(
+            id: highlight.id,
+            sourceID: sourceID,
+            quote: highlight.quote,
+            note: highlight.note,
+            color: highlight.color,
+            anchor: highlight.anchor,
+            pdfAnchor: highlight.pdfAnchor.map { anchor in
+                var moved = anchor
+                moved.pageIndex = page
+                return moved
+            },
+            imageAnchors: highlight.imageAnchors,
+            chatSessionID: highlight.chatSessionID,
+            references: highlight.references,
+            publicationUpdate: highlight.publicationUpdate,
+            publicationUpdateAt: highlight.publicationUpdateAt,
+            createdAt: highlight.createdAt,
+            updatedAt: Date()
+        )
+    }
+
     /// A scanned book is pictures of pages: PDFKit finds no text in them, so
     /// the chapter splitter was handed nothing and a chapter's text came out
-    /// empty. Pages with no text of their own are read by OCR, Scanned Page
-    /// Proofreading corrects what OCR read against each page's picture, and
-    /// the result is written into the library's copy of the PDF as the pages'
-    /// text — before the chapter split, which reads it, and for the reader's
-    /// search and highlights afterwards. A book whose pages all carry text
-    /// passes through untouched.
-    private func addTextToScannedPages(pdfPath: String, bookID: String, bookTitle: String) async throws {
-        let progress = BookImportProgress(self)
-        let pages = try await Task.detached(priority: .userInitiated) {
+    /// empty. In a book that is a scan (`ScannedPDFTextLayer.isScan`), pages
+    /// with no text of their own are read by OCR, Scanned Page Proofreading
+    /// corrects what OCR read against each page's picture, and the result is
+    /// written into the library's copy of the PDF as the pages' text — before
+    /// the chapter split, which reads it, and for the reader's search and
+    /// highlights afterwards. A book made as a PDF passes through untouched.
+    private func addTextToScannedPages(
+        pdfPath: String,
+        bookID: String,
+        bookTitle: String,
+        progress: BookImportProgress
+    ) async throws {
+        let pages = try await Task.detached(priority: .utility) {
             try ScannedPDFTextLayer.recognizeUnreadablePages(pdfPath: pdfPath) { read, total in
                 progress.update("Reading scanned page \(read)/\(total)…")
             }
@@ -1170,12 +1458,12 @@ extension StudioViewModel {
         guard !pages.lines.isEmpty else { return }
 
         guard let config = KeychainService.resolveConfig(for: .scannedPageProofreading) else {
-            let message = KeychainService.backgroundAIUnavailableMessage(for: .scannedPageProofreading)
-                ?? "Scanned page proofreading AI is not configured."
-            errorMessage = message
-            throw AIError.apiError(message)
+            throw AIError.apiError(
+                KeychainService.backgroundAIUnavailableMessage(for: .scannedPageProofreading)
+                    ?? "Scanned page proofreading AI is not configured."
+            )
         }
-        bookImportStatus = "Proofreading scanned pages…"
+        progress.update("Proofreading scanned pages…")
         let corrected = try await ScannedPageProofreading.proofread(
             pages,
             bookTitle: bookTitle,
@@ -1185,8 +1473,8 @@ extension StudioViewModel {
         ) { proofread, total in
             progress.update("Proofreading scanned page \(proofread)/\(total)…")
         }
-        bookImportStatus = "Writing the book's text…"
-        try await Task.detached(priority: .userInitiated) {
+        progress.update("Writing the book's text…")
+        try await Task.detached(priority: .utility) {
             try ScannedPDFTextLayer.writeTextLayer(corrected, intoPDFAt: URL(fileURLWithPath: pdfPath))
         }.value
     }
@@ -1396,6 +1684,7 @@ extension StudioViewModel {
             missingChapters: selection.missingChapters,
             missingFileCount: staged.missingFiles.count
         ) {
+            bookImportNoticeTitle = "Book Imported With Parts Missing"
             bookImportNotice = notice
             showBookImportNotice = true
         }
@@ -1424,20 +1713,25 @@ extension StudioViewModel {
         return "\(bookTitle) was imported, but \(lost). Drop a fresh copy of the book on Add Book to fill them in."
     }
 
-    private func saveImportedBookChapterDraft(_ article: StudioArticle) async throws {
+    /// Saves a chapter, or brings back the one already there at its address
+    /// or under its title. Returns the chapter's id, or nil when the learner
+    /// removed that address from the library.
+    @discardableResult
+    private func saveImportedBookChapterDraft(_ article: StudioArticle) async throws -> String? {
         var draft = article
         draft.normalizedURL = URLNormalizer.normalize(draft.url)
-        if await storage.isSourceDismissed(url: draft.url) { return }
+        if await storage.isSourceDismissed(url: draft.url) { return nil }
         if let existing = await storage.existingImportedChapterRecord(for: draft) {
             try await refreshExistingImportedBookChapter(
                 existingID: existing.id,
                 replacement: draft
             )
-            return
+            return existing.id
         }
         if try await storage.insertSourceIfNew(&draft) {
             articles.append(draft)
         }
+        return draft.id
     }
 
     func refreshExistingImportedBookChapter(

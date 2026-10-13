@@ -2652,6 +2652,13 @@ extension StudioSidebar {
                 ProgressView()
                     .controlSize(.small)
             }
+            // A book added on this Mac reads while its details and chapters
+            // are still being found.
+            if sidebar.sidebarTab == .books, let status = vm.finishingBookStatus[groupName] {
+                ProgressView()
+                    .controlSize(.small)
+                    .help(status)
+            }
             if sidebar.sidebarTab == .meetings {
                 let providers = MeetingProvider.marks(for: vm.meetingGroupProviders(groupName))
                 HStack(spacing: 3) {

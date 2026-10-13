@@ -5555,3 +5555,32 @@ extension StorageService {
         try knowledgeStore().dropBookFileMerge(bookID: bookID)
     }
 }
+
+// MARK: - A book reads the moment it is added (schema 171)
+
+extension StorageService {
+    func enqueueBookImportFinish(bookID: String, bookFilePath: String, wholeBookSourceID: String?, kind: String?) throws {
+        try ensureStoreExists()
+        try knowledgeStore().enqueueBookImportFinish(
+            bookID: bookID,
+            bookFilePath: bookFilePath,
+            wholeBookSourceID: wholeBookSourceID,
+            kind: kind
+        )
+    }
+
+    func dueBookImportFinishes(limit: Int = 20) throws -> [BookImportFinishJob] {
+        try ensureStoreExists()
+        return try knowledgeStore().dueBookImportFinishes(limit: limit)
+    }
+
+    func failBookImportFinish(bookID: String, message: String) throws {
+        try ensureStoreExists()
+        try knowledgeStore().failBookImportFinish(bookID: bookID, message: message)
+    }
+
+    func dropBookImportFinish(bookID: String) throws {
+        try ensureStoreExists()
+        try knowledgeStore().dropBookImportFinish(bookID: bookID)
+    }
+}

@@ -561,7 +561,7 @@ struct BackgroundAISpendTests {
         var version: Int32 = 0
         try migrated.query("PRAGMA user_version") { stmt in version = sqlite3_column_int(stmt, 0) }
         #expect(version == KnowledgeStore.schemaVersion)
-        #expect(KnowledgeStore.schemaVersion == 170)
+        #expect(KnowledgeStore.schemaVersion == 171)
         #expect(try migrated.pendingBackgroundAIBulkJobs().isEmpty, "nothing is backfilled")
         #expect(try migrated.canonicalContentCleanupCandidates(limit: 500).count == count,
                 "rows an older re-queue left keep draining")

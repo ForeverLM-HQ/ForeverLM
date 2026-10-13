@@ -695,7 +695,13 @@ extension KnowledgeStore {
     // drain packs each folder into the book's file, reads every entry back,
     // and removes the folder. No column, nothing synced: a chapter's file
     // never travelled, only its text.
-    static let schemaVersion: Int32 = 170
+    // 171: a book reads the moment it is added. Add Book saves the book as one
+    // entry over its whole file and leaves the metadata and paper checks,
+    // reading scanned pages and the chapter split to the work after it, which
+    // a local-only queue, `book_import_finish_queue`, keeps across a quit.
+    // DDL only: the table is created empty and proved before the stamp. Never
+    // synced, so no CloudKit schema change.
+    static let schemaVersion: Int32 = 171
     static let minimumMigratableSchemaVersion: Int32 = 1
 
     /// The day Goals shipped — schema 120, build 114, 2026-09-19 — as midnight
@@ -780,6 +786,11 @@ extension KnowledgeStore {
                     try? exec("ROLLBACK")
                     throw error
                 }
+            }
+            // Nor is schema 171's queue of books still to finish, which this
+            // build's Add Book writes.
+            if try !holdsBookImportFinishQueue() {
+                try createBookImportFinishQueue()
             }
             try reconcileSourceProjectionView()
             return
@@ -1514,6 +1525,9 @@ extension KnowledgeStore {
 
         // The PDF books still split into chapter files (schema 169).
         try createBookFileMergeQueue()
+
+        // The books added on this Mac whose chapters are still to be found (schema 171).
+        try createBookImportFinishQueue()
 
         // What the indexer has already done, and for which version of a source's text.
         //
@@ -4191,6 +4205,12 @@ extension KnowledgeStore {
                 // Ids only; no file is read.
                 let before = try scalarInteger("SELECT COUNT(*) FROM book_file_merge_queue") ?? 0
                 queuedUnpackedEPUBBookCount = try enqueueUnpackedEPUBBooks() - Int(before)
+            }
+            if currentVersion < Self.bookImportFinishSchemaVersion {
+                // A book reads the moment it is added (2026-10-13): the queue
+                // of books still to finish, created above, empty, proved
+                // before the stamp.
+                try probeBookImportFinishQueue()
             }
             // Preparing the projection catches an older, structurally incompatible
             // table before the version stamp commits. The transaction then rolls

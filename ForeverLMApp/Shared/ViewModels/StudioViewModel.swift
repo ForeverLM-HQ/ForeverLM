@@ -239,7 +239,6 @@ class StudioViewModel {
         let importedSubtitle: String?
         let importedAuthor: String?
         let importedEdition: String?
-        let firstPagesText: String
     }
 
     struct KindleConversionResult: Sendable {
@@ -280,14 +279,26 @@ class StudioViewModel {
 
     final class BookImportProgress: @unchecked Sendable {
         weak var viewModel: StudioViewModel?
+        /// The book being finished in the background, whose row the line
+        /// goes to (`finishingBookStatus`); nil for the import the learner
+        /// waits on under Add Book.
+        let bookID: String?
 
-        init(_ viewModel: StudioViewModel) {
+        init(_ viewModel: StudioViewModel, bookID: String? = nil) {
             self.viewModel = viewModel
+            self.bookID = bookID
         }
 
         func update(_ message: String) {
             Task { @MainActor in
-                self.viewModel?.bookImportStatus = message
+                guard let viewModel = self.viewModel else { return }
+                if let bookID = self.bookID {
+                    // A line that arrives after the book finished is dropped.
+                    guard viewModel.finishingBookStatus[bookID] != nil else { return }
+                    viewModel.finishingBookStatus[bookID] = message
+                } else {
+                    viewModel.bookImportStatus = message
+                }
             }
         }
     }
@@ -1366,9 +1377,19 @@ class StudioViewModel {
     @ObservationIgnored var bookImportTail: Task<Void, Never>?
     var showBookImportError = false
     /// Said after a book import that succeeded with parts missing, such as a
-    /// damaged EPUB whose lost chapters the learner should replace.
+    /// damaged EPUB whose lost chapters the learner should replace, or a book
+    /// the source classifier reads as a paper.
     var bookImportNotice: String?
+    var bookImportNoticeTitle = "Book Imported With Parts Missing"
     var showBookImportNotice = false
+    /// What each book added on this Mac is doing while it reads as one
+    /// entry, by book id, for its row: its details, a scan's text, its
+    /// chapters (`finishBookImport`). Absent once the book is finished.
+    var finishingBookStatus: [String: String] = [:]
+    /// The run finishing books in the background, while one goes.
+    @ObservationIgnored var bookImportFinishRun: Task<Void, Never>?
+    /// A book joined the queue while the run went: it looks again at the end.
+    @ObservationIgnored var bookImportFinishRequested = false
     /// Bulk Zotero/Paperpile import is catalog-first: this progress covers the
     /// fast inventory/copy pass while the normal serial paper queue handles the
     /// expensive ingestion work afterward.

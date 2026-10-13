@@ -431,7 +431,7 @@ struct BookFileMigrationTests {
         let migrated = try reopen(root)
 
         #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
-        #expect(KnowledgeStore.schemaVersion == 170)
+        #expect(KnowledgeStore.schemaVersion == 171)
         #expect(try migrated.holdsBookFileSchema())
         #expect(
             Set(try migrated.dueBookFileMerges(limit: 10)) == ["split", "epub"],
@@ -593,5 +593,98 @@ struct BookChapterSyncTests {
         // A paper's own file keeps its key, as before.
         try store.pointPublishedSourceFiles(sourceID: "src-water", files: [(.files, Self.bookFile(owner: "src-water"), "Books/Foo/Foo.pdf")])
         #expect(try store.scalarInteger("SELECT COUNT(*) FROM source_work_keys WHERE source_id = 'src-water' AND work_key LIKE 'file:%'") == 1)
+    }
+}
+
+/// A book reads the moment it is added (schema 171): Add Book saves it as one entry over its whole
+/// file and queues the rest — its details, the paper check, a scan's text, the chapter split — in
+/// `book_import_finish_queue`, which a quit does not lose.
+@Suite("Book import finish queue", .serialized)
+struct BookImportFinishQueueTests {
+    @Test("Schema 171 adds the queue empty from 170 and publishes nothing")
+    func migrationFrom170() throws {
+        let root = try Schema154Fixture.temporaryRoot("book-import-finish-170")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        try store.clearAllPendingSyncChanges()
+        // A store as schema 170 left it: everything but the queue.
+        try store.execForTesting("DROP TABLE book_import_finish_queue; PRAGMA user_version = 170;")
+
+        Schema154Fixture.newLaunch(root)
+        let migrated = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+
+        #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
+        #expect(KnowledgeStore.schemaVersion == KnowledgeStore.bookImportFinishSchemaVersion)
+        #expect(try migrated.holdsBookImportFinishQueue())
+        #expect(try migrated.dueBookImportFinishes(limit: 10).isEmpty)
+        #expect(try migrated.pendingSyncChanges().isEmpty)
+    }
+
+    @Test("A book waits until it is dropped; three failures park it until it is added again")
+    func queueKeepsABookUntilFinished() throws {
+        let root = try Schema154Fixture.temporaryRoot("book-import-finish-queue")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        try store.clearAllPendingSyncChanges()
+
+        try store.enqueueBookImportFinish(bookID: "older", bookFilePath: "/tmp/Books/Older/Older.pdf", wholeBookSourceID: nil, kind: nil)
+        try store.enqueueBookImportFinish(bookID: "book", bookFilePath: "/tmp/Books/Book/Book.pdf", wholeBookSourceID: "whole", kind: "Textbook")
+        var due = try store.dueBookImportFinishes(limit: 10)
+        #expect(due.map(\.bookID) == ["older", "book"])
+        #expect(due[1].wholeBookSourceID == "whole" && due[1].kind == "Textbook" && due[1].attempts == 0)
+
+        for _ in 0..<3 { try store.failBookImportFinish(bookID: "book", message: "The split failed.") }
+        #expect(try store.dueBookImportFinishes(limit: 10).map(\.bookID) == ["older"])
+
+        // Added again: its attempts start over, and it keeps the entry it reads as.
+        try store.enqueueBookImportFinish(bookID: "book", bookFilePath: "/tmp/Books/Book/Book.pdf", wholeBookSourceID: nil, kind: nil)
+        due = try store.dueBookImportFinishes(limit: 10)
+        let again = try #require(due.first { $0.bookID == "book" })
+        #expect(again.attempts == 0 && again.lastError == nil && again.wholeBookSourceID == "whole")
+
+        try store.dropBookImportFinish(bookID: "book")
+        try store.dropBookImportFinish(bookID: "older")
+        #expect(try store.dueBookImportFinishes(limit: 10).isEmpty)
+        // Local work: nothing here reaches another device.
+        #expect(try store.pendingSyncChanges().isEmpty)
+    }
+
+    @Test("The split's chapters stretch to hold a page marked or reached before they were found")
+    func chaptersHoldTheLearnersPages() {
+        let split: [(title: String, pageIndex: Int, endPageIndexExclusive: Int)] = [
+            ("One", 10, 40), ("Two", 40, 90),
+        ]
+        let untouched = StudioViewModel.chapters(split, reachingPages: [12, 60], pageCount: 120)
+        #expect(untouched.map(\.pageIndex) == [10, 40] && untouched.map(\.endPageIndexExclusive) == [40, 90])
+        // A mark in the preface and the index the split left out.
+        let stretched = StudioViewModel.chapters(split, reachingPages: [3, 101], pageCount: 120)
+        #expect(stretched.map(\.pageIndex) == [3, 40] && stretched.map(\.endPageIndexExclusive) == [40, 102])
+        #expect(stretched.map(\.title) == ["One", "Two"])
+        // A page outside the file changes nothing.
+        let outside = StudioViewModel.chapters(split, reachingPages: [500], pageCount: 120)
+        #expect(outside.map(\.endPageIndexExclusive) == [40, 90])
+    }
+
+    @Test("A mark moves to its chapter as the same mark, its page counted from the chapter's first")
+    func markMovesToItsChapter() {
+        let made = Date(timeIntervalSince1970: 1_700_000_000)
+        let mark = SourceHighlight(
+            id: "mark",
+            sourceID: "whole",
+            quote: "the membrane holds a charge",
+            note: "Why a charge?",
+            color: .default,
+            anchor: ReaderTextAnchor(exact: "the membrane holds a charge", prefix: "so ", suffix: ".", offset: 4_000),
+            pdfAnchor: ReaderPDFAnchor(pageIndex: 57, rects: [CGRect(x: 20, y: 100, width: 60, height: 14)]),
+            chatSessionID: "chat",
+            createdAt: made,
+            updatedAt: made
+        )
+        let moved = StudioViewModel.highlight(mark, movedTo: "chapter-3", page: 17)
+        #expect(moved.id == "mark" && moved.sourceID == "chapter-3")
+        #expect(moved.pdfAnchor?.pageIndex == 17)
+        #expect(moved.pdfAnchor?.rects == mark.pdfAnchor?.rects)
+        #expect(moved.quote == mark.quote && moved.note == mark.note && moved.anchor == mark.anchor)
+        #expect(moved.chatSessionID == "chat" && moved.createdAt == made && moved.updatedAt > made)
     }
 }

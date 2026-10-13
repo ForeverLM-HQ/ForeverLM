@@ -4,6 +4,12 @@ All notable changes to ForeverLM are documented here. Dates are in YYYY-MM-DD fo
 
 ForeverLM follows [semantic versioning](https://semver.org) against its public surface: the MCP tool contracts, the knowledge-base/sync format, and licensing compatibility. While the version is 0.x, minor releases may include breaking changes to that surface; patch releases never do.
 
+## Unreleased
+
+**Highlights:**
+- **A book reads the moment you add it.** A PDF book opens whole at once; its details and chapters are found in the background, and what you mark meanwhile moves to its chapter.
+- **An ebook PDF is never treated as a scan**, so a picture cover no longer sends pages to OCR proofreading.
+
 ## 0.146.1 (build 226) — 2026-10-13
 
 **Highlights:**
