@@ -32,7 +32,7 @@ A book opens at the chapter you pick, where you left it, and reads as one book: 
 
 ## Hiding or Removing a Book
 
-Select a book in the Books list and press Delete, or right-click its cover, then choose **Hide Book**. Every chapter leaves the list together; nothing is deleted, and hiding is visual only, so chat, search and reviews still draw on the book. The foot of the Books list then shows a quiet **N hidden books** row, which opens Hidden Items, where a book comes back with one click of **Unhide**. Selecting several covers and pressing Delete offers **Hide N Books**.
+Select a book in the Books list and press Delete, or right-click its cover, then choose **Hide Book**. Every chapter leaves the list together; nothing is deleted, and hiding is visual only, so chat, search and reviews still draw on the book. The foot of the Books list then shows a quiet **N hidden books** row, which opens Hidden Items. Click a hidden book there to read it in the Reader, where it opens like any book, at the chapter you reached; it stays hidden from the Books list. The arrow beside it lists its chapters, and each opens the same way. **Unhide** brings the whole book back, and **Show** one chapter. Selecting several covers and pressing Delete offers **Hide N Books**.
 
 The same confirmation offers **Remove Book from Library**, which forgets the book but leaves its files in iCloud, with a short undo. To delete the files as well, use **Remove Book** in the cover's right-click menu and choose **Remove & Delete Files**.
 

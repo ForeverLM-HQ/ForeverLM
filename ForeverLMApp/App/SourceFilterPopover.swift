@@ -75,6 +75,8 @@ struct ActiveFilterChip: View {
 /// View-layer snapshot of everything hidden on the current sidebar tab, in a
 /// shape shared by all tabs: hidden groups (shows, courses, books, playlists)
 /// that may expose per-episode overrides, plus individually hidden items.
+/// A source, and a hidden book, opens in the Reader from its row and stays
+/// hidden; Unhide is the row's second action.
 struct HiddenItemsModel {
     struct ItemEntry: Identifiable {
         let id: String
@@ -82,6 +84,8 @@ struct HiddenItemsModel {
         let unhide: () async -> Void
         /// Removes the item from the library; nil when the row is unhide-only.
         let remove: (() async -> Void)?
+        /// Opens the item in the Reader, still hidden; nil when it has nothing to open.
+        var open: (() async -> Void)? = nil
     }
 
     struct GroupEntry: Identifiable {
@@ -102,6 +106,10 @@ struct HiddenItemsModel {
         /// Removes the whole group from the library; nil when the row is
         /// unhide-only.
         let remove: (() async -> Void)?
+        /// Opens the group in the Reader, still hidden, as a book opens from
+        /// the Books list; nil for a group that is a folder of things (a show,
+        /// a channel, a playlist, a meeting group).
+        var open: (() async -> Void)? = nil
     }
 
     let groupsTitle: String
@@ -271,9 +279,18 @@ struct HiddenItemsModel {
         }
     }
 
+    /// `windowState` is the window whose Reader a row opens in; nil is the
+    /// key window.
     @MainActor
-    static func build(for tab: StudioSidebarTab, vm: StudioViewModel) -> HiddenItemsModel {
+    static func build(
+        for tab: StudioSidebarTab,
+        vm: StudioViewModel,
+        in windowState: StudioWindowState? = nil
+    ) -> HiddenItemsModel {
         let shown = RecordingFilter(tab: tab, vm: vm)
+        func opening(_ sourceID: String) -> () async -> Void {
+            { await vm.openHiddenSource(sourceID, in: windowState) }
+        }
         switch tab {
         case .podcasts:
             let hiddenShowNames = Set(vm.hiddenPodcastShowNames)
@@ -339,7 +356,8 @@ struct HiddenItemsModel {
                                         await vm.setPodcastEpisodeHidden(episode.id, hidden: false)
                                     }
                                 },
-                                remove: { await vm.removeSelected([episode.id]) }
+                                remove: { await vm.removeSelected([episode.id]) },
+                                open: opening(episode.id)
                             )
                         },
                         unhide: unhideShow,
@@ -377,20 +395,32 @@ struct HiddenItemsModel {
                     )
                 },
                 items: vm.hiddenSourceArticles(for: tab).filter(shown.admits).map { article in
-                    unhideEntry(for: article, vm: vm)
+                    unhideEntry(for: article, vm: vm, open: opening(article.id))
                 }
             )
         case .books:
             return HiddenItemsModel(
                 groupsTitle: "Books",
                 itemsTitle: "Chapters",
+                // A hidden book opens as a book does, and lists its chapters
+                // beneath, each one opening on its own; Show brings one
+                // chapter back into the Books list, Unhide the whole book.
                 groups: vm.hiddenBookGroupNames.filter(shown.admitsGroup).map { groupName in
                     GroupEntry(
                         id: groupName,
                         title: vm.bookDisplayName(groupName),
-                        hiddenEpisodes: [],
+                        hiddenEpisodes: vm.bookChapterArticlesInOrder(for: groupName).filter(shown.admits).map { chapter in
+                            ItemEntry(
+                                id: chapter.id,
+                                title: chapter.title,
+                                unhide: { await vm.setSourceHidden(chapter.id, hidden: false) },
+                                remove: { await vm.removeSelected([chapter.id]) },
+                                open: opening(chapter.id)
+                            )
+                        },
                         unhide: { await vm.setBookHidden(groupName, hidden: false) },
-                        remove: nil
+                        remove: nil,
+                        open: { await vm.openHiddenBook(groupName, in: windowState) }
                     )
                 },
                 items: vm.hiddenBookChapterArticles.filter(shown.admits).map { article in
@@ -398,7 +428,8 @@ struct HiddenItemsModel {
                         id: article.id,
                         title: article.title,
                         unhide: { await vm.setSourceHidden(article.id, hidden: false) },
-                        remove: { await vm.removeSelected([article.id]) }
+                        remove: { await vm.removeSelected([article.id]) },
+                        open: opening(article.id)
                     )
                 }
             )
@@ -421,7 +452,8 @@ struct HiddenItemsModel {
                             id: video.id,
                             title: video.title,
                             unhide: { await vm.setYouTubeVideoVisibleOverride(video.id, visible: true) },
-                            remove: { await vm.removeSelected([video.id]) }
+                            remove: { await vm.removeSelected([video.id]) },
+                            open: opening(video.id)
                         )
                     },
                     unhide: { await vm.setYouTubeChannelHidden(channelName, hidden: false) },
@@ -433,7 +465,7 @@ struct HiddenItemsModel {
                 itemsTitle: "Videos",
                 groups: channelGroups + playlistGroups,
                 items: vm.hiddenSourceArticles(for: .videos).filter(shown.admits).map { article in
-                    unhideEntry(for: article, vm: vm)
+                    unhideEntry(for: article, vm: vm, open: opening(article.id))
                 }
             )
         default:
@@ -442,14 +474,18 @@ struct HiddenItemsModel {
                 itemsTitle: "Items",
                 groups: [],
                 items: vm.hiddenSourceArticles(for: tab).filter(shown.admits).map { article in
-                    unhideEntry(for: article, vm: vm)
+                    unhideEntry(for: article, vm: vm, open: opening(article.id))
                 }
             )
         }
     }
 
     @MainActor
-    private static func unhideEntry(for article: StudioArticle, vm: StudioViewModel) -> ItemEntry {
+    private static func unhideEntry(
+        for article: StudioArticle,
+        vm: StudioViewModel,
+        open: @escaping () async -> Void
+    ) -> ItemEntry {
         ItemEntry(
             id: article.id,
             title: article.title,
@@ -460,7 +496,8 @@ struct HiddenItemsModel {
                     await vm.setSourceHidden(article.id, hidden: false)
                 }
             },
-            remove: { await vm.removeSelected([article.id]) }
+            remove: { await vm.removeSelected([article.id]) },
+            open: open
         )
     }
 }
@@ -470,10 +507,13 @@ struct HiddenItemsModel {
 /// Searchable list of hidden groups and items with unhide actions. Opens from
 /// the `HiddenItemsFooter` at the bottom of a sources list; `onBack` is for a
 /// host that stacks it behind another page, and nil draws no back control.
+/// Clicking a row that can open (a source, a book) reads it in the Reader and
+/// closes the list; it stays hidden.
 struct HiddenItemsPage: View {
     let model: HiddenItemsModel
     let onBack: (() -> Void)?
 
+    @Environment(\.dismiss) private var dismiss
     @State private var query: String
     /// Groups the user opened or closed by hand, over the default that opens a
     /// group the search reached only through its episodes. Cleared when the
@@ -624,15 +664,10 @@ struct HiddenItemsPage: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.hoverWash)
-                .help(isExpanded ? "Hide the episodes" : "Show hidden episodes")
+                .help(isExpanded ? "Hide the \(model.itemsTitle.lowercased())" : "Show the hidden \(model.itemsTitle.lowercased())")
             }
 
-            Text(group.title)
-                .font(.subheadline)
-                .lineLimit(1)
-                .truncationMode(.tail)
-
-            Spacer(minLength: 8)
+            rowTitle(group.title, font: .subheadline, style: .primary, open: group.open)
 
             if let unhide = group.unhide {
                 unhideButton(title: group.unhideTitle) {
@@ -659,12 +694,12 @@ struct HiddenItemsPage: View {
         actionTitle: String = "Unhide"
     ) -> some View {
         HStack(spacing: 6) {
-            Text(item.title)
-                .font(indented ? .caption : .subheadline)
-                .foregroundStyle(indented ? .secondary : .primary)
-                .lineLimit(1)
-                .truncationMode(.tail)
-            Spacer(minLength: 8)
+            rowTitle(
+                item.title,
+                font: indented ? .caption : .subheadline,
+                style: indented ? .secondary : .primary,
+                open: item.open
+            )
             unhideButton(title: actionTitle) {
                 await item.unhide()
             }
@@ -675,6 +710,37 @@ struct HiddenItemsPage: View {
         .padding(.leading, indented ? 38 : 12)
         .padding(.trailing, 12)
         .padding(.vertical, 3)
+    }
+
+    /// A row's title, filling the row up to its buttons. A row that opens
+    /// something is a button that reads it in the Reader and closes the list.
+    @ViewBuilder
+    private func rowTitle(
+        _ title: String,
+        font: Font,
+        style: HierarchicalShapeStyle,
+        open: (() async -> Void)?
+    ) -> some View {
+        let label = Text(title)
+            .font(font)
+            .foregroundStyle(style)
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        if let open {
+            Button {
+                dismiss()
+                Task { await open() }
+            } label: {
+                label
+                    .padding(.vertical, 1)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.hoverWash(cornerRadius: 4, inset: -2))
+            .help("Open in the Reader; it stays hidden")
+        } else {
+            label
+        }
     }
 
     private func unhideButton(title: String, action: @escaping () async -> Void) -> some View {
@@ -718,6 +784,8 @@ struct HiddenItemsFooter: View {
     let searchText: String
 
     @Environment(StudioViewModel.self) private var vm
+    /// The window a row opens its source in.
+    @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
     @State private var isPresented = false
     /// Hidden rows matching the search, or nil while no search is typed. Built
     /// off the main render path: the podcasts model walks every hidden show's
@@ -752,7 +820,7 @@ struct HiddenItemsFooter: View {
             .accessibilityValue(title(counts: counts))
             .popover(isPresented: $isPresented, arrowEdge: .bottom) {
                 HiddenItemsPage(
-                    model: HiddenItemsModel.build(for: tab, vm: vm),
+                    model: HiddenItemsModel.build(for: tab, vm: vm, in: windowState),
                     initialQuery: trimmedQuery
                 )
                 .frame(width: 300)

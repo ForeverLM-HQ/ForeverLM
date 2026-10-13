@@ -304,7 +304,9 @@ through OpenRouter, as on the Mac, and are billed like the web's chat.
 Reader progress, read state, notebook membership, and a notebook's ticks sync
 back through CloudKit. Add a URL or import a PDF, text, Markdown, HTML, RTF, or
 CSV file. Sources can be selected in batches, dragged onto a notebook, edited,
-hidden, removed, or restored from Hidden Items. Collection actions
+hidden, removed, or restored from Hidden Items, where clicking a hidden source opens
+it in the Reader and it stays hidden (a hidden book is listed as its chapters).
+Collection actions
 cover books, courses, meeting groups, and YouTube playlists. Web-authored chats
 and completed reviews also appear in the native chat history.
 Notebook open questions can be added, resolved, and reopened on either Mac or
@@ -1031,7 +1033,7 @@ Ready is an import state, not a learning-completion state. Reading state is kept
 
 A video's row says how much of it you have watched, *42% watched* and then *Watched*. Right-click a watched video in the sidebar or on its course's page, or open the Reader's ⋯ menu, for **Mark as Not Watched**: the video reads as new again on every Mac, its read mark goes too, and a course counts that lecture unfinished unless you reviewed it (a quiz before it holds it back again). Your Schedule, your history and your reviews keep what you did. A video you have started but not finished offers **Mark as Watched** instead; it needs the video's length, which ForeverLM learns the first time the video plays. An assistant does the same with `set_source_read`.
 
-Any source can be hidden without being removed: right-click its row and choose **Hide**, or select it and press Delete, then **Hide Source**. Hiding one source is purely visual. A hidden podcast episode, paper, article or video leaves the sources list and nothing else: chat can still read and cite it, search still finds it, and reviews still draw on it. Hiding a whole podcast show or YouTube channel is stronger: its episodes are kept out of chat, search and reviews too, and unhiding one episode from Hidden Items brings that episode back into both. To keep a whole family of sources away from the AI, use the per-tab knowledge exclusion in Settings. The tab's quiet **hidden items** row at the foot of the list opens Hidden Items, where a hidden source comes back with one click. Several selected rows hide together as **Hide N Sources**.
+Any source can be hidden without being removed: right-click its row and choose **Hide**, or select it and press Delete, then **Hide Source**. Hiding one source is purely visual. A hidden podcast episode, paper, article or video leaves the sources list and nothing else: chat can still read and cite it, search still finds it, and reviews still draw on it. Hiding a whole podcast show or YouTube channel is stronger: its episodes are kept out of chat, search and reviews too, and unhiding one episode from Hidden Items brings that episode back into both. To keep a whole family of sources away from the AI, use the per-tab knowledge exclusion in Settings. The tab's quiet **hidden items** row at the foot of the list opens Hidden Items. Click a hidden source there to read it in the Reader without unhiding it, or click **Unhide** to bring it back to the list. Several selected rows hide together as **Hide N Sources**.
 
 After removing a source or collection, an **Undo** banner appears briefly.
 Undo before it expires to restore the untouched item. Once the banner expires,
@@ -2121,7 +2123,7 @@ A book opens at the chapter you pick, where you left it, and reads as one book: 
 
 ## Hiding or Removing a Book
 
-Select a book in the Books list and press Delete, or right-click its cover, then choose **Hide Book**. Every chapter leaves the list together; nothing is deleted, and hiding is visual only, so chat, search and reviews still draw on the book. The foot of the Books list then shows a quiet **N hidden books** row, which opens Hidden Items, where a book comes back with one click of **Unhide**. Selecting several covers and pressing Delete offers **Hide N Books**.
+Select a book in the Books list and press Delete, or right-click its cover, then choose **Hide Book**. Every chapter leaves the list together; nothing is deleted, and hiding is visual only, so chat, search and reviews still draw on the book. The foot of the Books list then shows a quiet **N hidden books** row, which opens Hidden Items. Click a hidden book there to read it in the Reader, where it opens like any book, at the chapter you reached; it stays hidden from the Books list. The arrow beside it lists its chapters, and each opens the same way. **Unhide** brings the whole book back, and **Show** one chapter. Selecting several covers and pressing Delete offers **Hide N Books**.
 
 The same confirmation offers **Remove Book from Library**, which forgets the book but leaves its files in iCloud, with a short undo. To delete the files as well, use **Remove Book** in the cover's right-click menu and choose **Remove & Delete Files**.
 

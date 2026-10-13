@@ -9604,6 +9604,46 @@ struct ArticleQueueManagementTests {
         #expect(vm.hiddenBookChapterArticles.isEmpty)
     }
 
+    @Test("A hidden book and its chapters open from Hidden Items in the Reader, and stay hidden")
+    func hiddenBookOpensFromHiddenItems() async throws {
+        let vm = makeViewModel()
+        var chapter1 = makeArticle(url: "/books/example/ch1.pdf", title: "Chapter 1", sourceType: .book, state: .ready, parentGroup: "Example Book", sortIndex: 0)
+        var chapter2 = makeArticle(url: "/books/example/ch2.pdf", title: "Chapter 2", sourceType: .book, state: .ready, parentGroup: "Example Book", sortIndex: 1)
+        var stray = makeArticle(url: "/books/other/ch2.pdf", title: "A Hidden Chapter", sourceType: .book, state: .ready, parentGroup: "Other Book", sortIndex: 1)
+        var shown = makeArticle(url: "/books/other/ch1.pdf", title: "Chapter 1", sourceType: .book, state: .ready, parentGroup: "Other Book", sortIndex: 0)
+        chapter1.isHidden = true
+        chapter2.isHidden = true
+        stray.isHidden = true
+        chapter1.content = "The first chapter."
+        chapter2.content = "The second chapter."
+        stray.content = "A chapter hidden on its own."
+        shown.content = "A chapter in the list."
+        vm.articles = [chapter1, chapter2, stray, shown]
+        let window = StudioWindowState()
+
+        let model = HiddenItemsModel.build(for: .books, vm: vm, in: window)
+        let book = try #require(model.groups.first)
+        #expect(model.groups.map(\.id) == ["Example Book"])
+        #expect(book.hiddenEpisodes.map(\.id) == [chapter1.id, chapter2.id], "a hidden book lists its chapters in order")
+        #expect(model.items.map(\.id) == [stray.id])
+        #expect(book.unhide != nil, "Unhide is still offered")
+
+        // The book opens as a book opens from the Books list: nothing read yet, so its first chapter.
+        await book.open?()
+        #expect(window.readerArticleID == chapter1.id)
+        #expect(vm.selectedArticleId == chapter1.id)
+        await book.hiddenEpisodes[1].open?()
+        #expect(window.readerArticleID == chapter2.id)
+        await model.items[0].open?()
+        #expect(window.readerArticleID == stray.id)
+
+        // Reading it changed nothing about what is hidden.
+        #expect(vm.hiddenBookGroupNames == ["Example Book"])
+        #expect(vm.visibleBookGroupNames == ["Other Book"])
+        #expect(vm.hiddenBookChapterArticles.map(\.id) == [stray.id])
+        #expect([chapter1.id, chapter2.id, stray.id].allSatisfy { id in vm.articlesById[id]?.isHidden == true })
+    }
+
     @Test("book metadata without chapters is not shown as a book group")
     func orphanBookMetadataIsNotShownAsBookGroup() {
         let vm = makeViewModel()

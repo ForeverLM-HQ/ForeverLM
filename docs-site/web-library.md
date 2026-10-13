@@ -135,7 +135,9 @@ through OpenRouter, as on the Mac, and are billed like the web's chat.
 Reader progress, read state, notebook membership, and a notebook's ticks sync
 back through CloudKit. Add a URL or import a PDF, text, Markdown, HTML, RTF, or
 CSV file. Sources can be selected in batches, dragged onto a notebook, edited,
-hidden, removed, or restored from Hidden Items. Collection actions
+hidden, removed, or restored from Hidden Items, where clicking a hidden source opens
+it in the Reader and it stays hidden (a hidden book is listed as its chapters).
+Collection actions
 cover books, courses, meeting groups, and YouTube playlists. Web-authored chats
 and completed reviews also appear in the native chat history.
 Notebook open questions can be added, resolved, and reopened on either Mac or

@@ -2210,6 +2210,24 @@ extension StudioViewModel {
         return !sources.isEmpty && sources.allSatisfy { isSourceHidden($0) }
     }
 
+    /// Opens a hidden source from Hidden Items in the window's Reader, as its
+    /// row in the list would, and leaves it hidden: hiding takes a source out
+    /// of the lists, not out of reach (product owner, 2026-10-12: "I should be
+    /// able to just ... click the hidden books and then still see all of them
+    /// and be able to read them ... without first needing to unhide them").
+    func openHiddenSource(_ sourceID: String, in windowState: StudioWindowState?) async {
+        guard articlesById[sourceID] != nil else { return }
+        readerPoppedOut = false
+        await selectArticle(sourceID, in: windowState, revealingReader: true)
+    }
+
+    /// Opens a hidden book where a book opens from the Books list: at the
+    /// chapter read furthest, else its first. It stays hidden.
+    func openHiddenBook(_ groupName: String, in windowState: StudioWindowState?) async {
+        guard let chapter = resumeBookChapter(for: groupName) else { return }
+        await openHiddenSource(chapter.id, in: windowState)
+    }
+
     func sourceBelongsToTab(_ article: StudioArticle, tab: StudioSidebarTab) -> Bool {
         // An explainer belongs to no tab as a row of its own; it is folded
         // under the source it explains. `sidebarTab(listing:)` resolves that.
