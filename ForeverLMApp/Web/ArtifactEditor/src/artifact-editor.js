@@ -2944,6 +2944,7 @@ function setPageWidth(width) {
   )
   applyMarginTier()
   scheduleMarginCardLayout()
+  scheduleContentsLayout()
 }
 
 // Whether margin cards are drawn at all. A reader who wants the prose alone
@@ -3013,6 +3014,12 @@ function layoutMarginCards() {
   const asides = [...root.querySelectorAll('.artifact-margin-cards')]
   document.body.classList.toggle('has-margin-cards', asides.length > 0)
   applyMarginTier()
+  // The page contents give the titles' room to source cards beside the page.
+  const cardsKey = `${asides.length > 0} ${document.body.dataset.marginTier ?? ''}`
+  if (cardsKey !== contentsCardsKey) {
+    contentsCardsKey = cardsKey
+    scheduleContentsLayout()
+  }
   if (asides.length === 0) return
   // The pane crossed the breakpoint since the stacks were written: they belong
   // at the other end of their paragraphs now, which is a decoration change.
@@ -6630,6 +6637,187 @@ function placeBlockMenu(target) {
   menu.style.top = `${Math.round(Math.max(margin, below ? anchor.bottom + 4 : anchor.top - 4 - height))}px`
 }
 
+// ─── Page contents ──────────────────────────────────────────────────────────
+// Codex's "Page contents": the page's headings at its edge, each a "Jump to
+// heading" that scrolls the page there. Quiet chrome (docs/ui-design.md): at
+// rest it is a column of short ticks at the right edge, one per heading, the
+// one being read darker; the titles show while the pointer rests on it. A
+// window with room to the right of the writing (and no source cards there)
+// shows the titles themselves, small and grey. A page with fewer than two
+// headings has none, and a touch screen never shows it.
+//
+// It costs typing nothing: a change to the page only restarts a timer, and
+// the headings are read again once the writing has paused (`contentsDelay`).
+// Scrolling marks the heading being read, once a frame at most.
+
+const contentsDelay = 400
+const contentsPlugin = $prose(() => new Plugin({
+  key: new PluginKey('foreverlm-page-contents'),
+  view: () => {
+    scheduleContentsRefresh()
+    return {
+      update: (view, previous) => {
+        if (view.state.doc !== previous.doc) scheduleContentsRefresh()
+      },
+      destroy: () => {
+        clearTimeout(contentsTimer)
+        contentsKey = ''
+        if (contentsNav) {
+          contentsNav.hidden = true
+          contentsNav.replaceChildren()
+        }
+      },
+    }
+  },
+}))
+
+let contentsNav = null
+let contentsTimer = 0
+let contentsFrame = 0
+let contentsLayoutFrame = 0
+/// The headings listed: `[{ level, title }]`, in page order.
+let contentsHeadings = []
+let contentsKey = ''
+/// What the source cards beside the page were the last time it was laid out.
+let contentsCardsKey = ''
+
+function scheduleContentsRefresh() {
+  clearTimeout(contentsTimer)
+  contentsTimer = setTimeout(refreshContents, contentsDelay)
+}
+
+/// The headings the rail lists: top-level headings 1 to 3 that have words,
+/// each with its place in the document now.
+function pageContentsHeadings(doc) {
+  const headings = []
+  doc.forEach((node, offset) => {
+    if (node.type.name !== 'heading') return
+    const level = node.attrs?.level ?? 1
+    const title = node.textContent.replace(/\s+/g, ' ').trim()
+    if (level <= 3 && title) headings.push({ level, title, pos: offset })
+  })
+  return headings
+}
+
+function ensureContents() {
+  if (contentsNav) return contentsNav
+  contentsNav = document.createElement('nav')
+  contentsNav.className = 'artifact-contents'
+  contentsNav.setAttribute('aria-label', 'Page contents')
+  contentsNav.hidden = true
+  // A press must not take the caret out of the page.
+  contentsNav.addEventListener('pointerdown', (event) => event.preventDefault())
+  contentsNav.addEventListener('click', (event) => {
+    const button = event.target instanceof Element ? event.target.closest('button[data-index]') : null
+    if (button) jumpToHeading(Number(button.dataset.index))
+  })
+  document.body.append(contentsNav)
+  return contentsNav
+}
+
+function refreshContents() {
+  contentsTimer = 0
+  const view = activeEditorView()
+  if (!view) return
+  const headings = pageContentsHeadings(view.state.doc).map(({ level, title }) => ({ level, title }))
+  const key = headings.map(({ level, title }) => `${level} ${title}`).join('\n')
+  if (key === contentsKey && contentsNav) {
+    scheduleContentsCurrent()
+    return
+  }
+  contentsKey = key
+  contentsHeadings = headings
+  const nav = ensureContents()
+  if (headings.length < 2) {
+    nav.hidden = true
+    nav.replaceChildren()
+    return
+  }
+  const list = document.createElement('ol')
+  headings.forEach((heading, index) => {
+    const item = document.createElement('li')
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.dataset.index = String(index)
+    button.dataset.level = String(heading.level)
+    button.setAttribute('aria-label', `Jump to heading ${index + 1}: ${heading.title}`)
+    const tick = document.createElement('span')
+    tick.className = 'artifact-contents-tick'
+    const title = document.createElement('span')
+    title.className = 'artifact-contents-title'
+    title.textContent = heading.title
+    button.append(tick, title)
+    item.append(button)
+    list.append(item)
+  })
+  nav.replaceChildren(list)
+  nav.hidden = false
+  layoutContents()
+  scheduleContentsCurrent()
+}
+
+/// Ticks at the right edge, or the titles beside the writing where the window
+/// has room for them and no source cards stand there.
+function layoutContents() {
+  contentsLayoutFrame = 0
+  const nav = contentsNav
+  const root = activeEditorView()?.dom
+  if (!nav || nav.hidden || !root) return
+  const rect = root.getBoundingClientRect()
+  const textRight = rect.right - (parseFloat(getComputedStyle(root).paddingRight) || 0)
+  const room = window.innerWidth - textRight
+  const cardsBeside = document.body.classList.contains('has-margin-cards')
+    && ['wide', 'medium'].includes(document.body.dataset.marginTier ?? '')
+  const titles = !cardsBeside && room >= 280
+  nav.dataset.mode = titles ? 'titles' : 'ticks'
+  nav.style.left = titles ? `${Math.round(textRight + 48)}px` : ''
+  nav.style.width = titles ? `${Math.round(Math.min(220, room - 72))}px` : ''
+}
+
+function scheduleContentsLayout() {
+  if (contentsLayoutFrame || !contentsNav || contentsNav.hidden) return
+  contentsLayoutFrame = document.hidden ? setTimeout(layoutContents, 0) : requestAnimationFrame(layoutContents)
+}
+
+/// The heading being read: the last one above a fifth of the window.
+function markCurrentHeading() {
+  contentsFrame = 0
+  const nav = contentsNav
+  const root = activeEditorView()?.dom
+  if (!nav || nav.hidden || !root) return
+  const elements = [...root.querySelectorAll(':scope > h1, :scope > h2, :scope > h3')]
+    .filter((element) => element.textContent.trim())
+  const buttons = [...nav.querySelectorAll('button[data-index]')]
+  if (elements.length !== buttons.length) return
+  const line = Math.min(160, window.innerHeight / 5)
+  let current = -1
+  elements.forEach((element, index) => {
+    const top = element.getBoundingClientRect().top
+    if (top <= line && element.offsetParent !== null) current = index
+  })
+  buttons.forEach((button, index) => {
+    if (index === current) button.setAttribute('aria-current', 'location')
+    else button.removeAttribute('aria-current')
+  })
+}
+
+function scheduleContentsCurrent() {
+  if (contentsFrame || !contentsNav || contentsNav.hidden) return
+  contentsFrame = document.hidden ? setTimeout(markCurrentHeading, 0) : requestAnimationFrame(markCurrentHeading)
+}
+
+/// Scroll to the listed heading `index`, opening a folded section that hides it.
+function jumpToHeading(index) {
+  const view = activeEditorView()
+  const heading = view ? pageContentsHeadings(view.state.doc)[index] : null
+  if (!heading) return
+  unfoldAround(view, heading.pos + 1)
+  const element = view.nodeDOM(heading.pos)
+  if (element instanceof Element) element.scrollIntoView({ block: 'start', behavior: 'smooth' })
+}
+
+window.addEventListener('scroll', scheduleContentsCurrent, { passive: true })
+
 // ── Visualizations ──────────────────────────────────────────────────────────
 
 const visualizationLanguage = 'visualization'
@@ -7191,6 +7379,7 @@ async function create(markdown, fontSize) {
     editor.editor.use(pastedLinesPlugin)
     editor.editor.use(notesGraphPlugin)
     editor.editor.use(blockFlashPlugin)
+    editor.editor.use(contentsPlugin)
     editor.editor.use(calloutPlugin)
     editor.editor.use(blockPropertiesPlugin)
     editor.editor.use(filePlugin)
@@ -10183,6 +10372,7 @@ document.addEventListener('scroll', () => {
 }, true)
 
 window.addEventListener('resize', () => {
+  scheduleContentsLayout()
   positionLinkPicker()
   scheduleSectionFoldRefresh()
   scheduleSelectionButtonReposition()

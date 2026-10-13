@@ -3059,3 +3059,165 @@ body.artifact-block-dragging * {
 .artifact-footnote-card a {
   color: AccentColor;
 }
+
+/* Page contents: the page's headings at its edge (Codex's "Page contents").
+   At rest a column of short grey ticks at the right edge, one a heading, the
+   one being read darker; resting the pointer on it opens the titles on a
+   card. Where the window has room beside the writing it lists the titles
+   themselves, small and grey, with no card. */
+.artifact-contents {
+  position: fixed;
+  z-index: 20;
+  top: 50%;
+  right: 6px;
+  box-sizing: border-box;
+  max-height: min(70vh, 560px);
+  padding: 8px 6px;
+  overflow-y: auto;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  transform: translateY(-50%);
+  font: 12px/1.35 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  scrollbar-width: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.artifact-contents[hidden] {
+  display: none;
+}
+
+.artifact-contents ol {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.artifact-contents button {
+  display: flex;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  width: 100%;
+  min-height: 14px;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: color-mix(in srgb, CanvasText 50%, transparent);
+  cursor: default;
+  font: inherit;
+  text-align: left;
+}
+
+.artifact-contents-tick {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 2px;
+  border-radius: 1px;
+  background: color-mix(in srgb, CanvasText 22%, transparent);
+}
+
+.artifact-contents button[data-level="2"] .artifact-contents-tick {
+  width: 9px;
+  margin-left: 3px;
+}
+
+.artifact-contents button[data-level="3"] .artifact-contents-tick {
+  width: 6px;
+  margin-left: 6px;
+}
+
+.artifact-contents button[aria-current] .artifact-contents-tick {
+  background: color-mix(in srgb, CanvasText 70%, transparent);
+}
+
+.artifact-contents-title {
+  display: none;
+  overflow: hidden;
+  flex: 1 1 auto;
+  max-width: 220px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Ticks, opened by the pointer or the keyboard: the titles on a card. */
+.artifact-contents[data-mode="ticks"]:hover,
+.artifact-contents[data-mode="ticks"]:focus-within {
+  border-color: color-mix(in srgb, CanvasText 10%, transparent);
+  background: Canvas;
+  box-shadow: 0 8px 24px color-mix(in srgb, CanvasText 12%, transparent);
+}
+
+.artifact-contents[data-mode="ticks"]:hover .artifact-contents-title,
+.artifact-contents[data-mode="ticks"]:focus-within .artifact-contents-title {
+  display: block;
+}
+
+.artifact-contents[data-mode="ticks"]:hover button,
+.artifact-contents[data-mode="ticks"]:focus-within button {
+  justify-content: flex-start;
+}
+
+.artifact-contents[data-mode="ticks"] button[data-level="2"] .artifact-contents-title {
+  padding-left: 10px;
+}
+
+.artifact-contents[data-mode="ticks"] button[data-level="3"] .artifact-contents-title {
+  padding-left: 20px;
+}
+
+/* Room beside the writing: the titles alone, quiet, at the top of the page. */
+.artifact-contents[data-mode="titles"] {
+  top: 96px;
+  right: auto;
+  padding: 0;
+  transform: none;
+}
+
+.artifact-contents[data-mode="titles"] button {
+  justify-content: flex-start;
+  padding: 3px 6px;
+}
+
+.artifact-contents[data-mode="titles"] .artifact-contents-tick {
+  display: none;
+}
+
+.artifact-contents[data-mode="titles"] .artifact-contents-title {
+  display: block;
+}
+
+.artifact-contents[data-mode="titles"] button[data-level="2"] {
+  padding-left: 16px;
+}
+
+.artifact-contents[data-mode="titles"] button[data-level="3"] {
+  padding-left: 26px;
+}
+
+.artifact-contents button[aria-current] {
+  color: color-mix(in srgb, CanvasText 88%, transparent);
+}
+
+.artifact-contents button:hover,
+.artifact-contents button:focus-visible {
+  background: color-mix(in srgb, CanvasText 6%, transparent);
+  color: CanvasText;
+  outline: none;
+}
+
+@media (hover: none) {
+  .artifact-contents {
+    display: none;
+  }
+}
+
+@media print {
+  .artifact-contents {
+    display: none;
+  }
+}

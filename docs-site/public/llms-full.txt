@@ -1042,6 +1042,17 @@ flashes for a moment; anywhere else it opens the Page. To reach the menu from
 the keyboard, press **⌥⌘/**: it opens for the block the caret is in, the arrow
 keys move through it, Return chooses, and Escape goes back to the caret.
 
+### Page contents
+
+A Page with two or more headings lists them at its right edge, as Codex's
+**Page contents** does. At rest it is a column of short grey ticks, one for
+each heading, the one you are reading darker; rest the pointer on it and the
+headings' titles open beside it. When the window has room to the right of the
+writing (and no source cards stand there), the titles themselves are listed
+there instead, small and grey. Click a title to jump to that heading; a folded
+section opens to show it, and the caret stays where it was. The list catches up
+with your headings a moment after you stop typing.
+
 ### Footnotes
 
 A Page takes footnotes the way a Substack post does. Choose **Footnote** in the

@@ -106,3 +106,62 @@ test('on a page that reads only, the bar keeps Comment and the passage\'s own', 
   await settle(page)
   expect(await selectionBar(page)).toEqual([['Comment'], ['Add sources', 'Chat']])
 })
+
+// ─── Page contents ──────────────────────────────────────────────────────────
+
+const filler = (words) => Array.from({ length: 14 }, (_, index) => `${words} paragraph ${index + 1} has a few sentences of made-up working notes in it.`).join('\n\n')
+const sectionedPage = `# Membranes\n\n${filler('Opening')}\n\n## Gradients\n\n${filler('Gradient')}\n\n### Proton leak\n\n${filler('Leak')}\n\n## Synthase\n\n${filler('Synthase')}\n`
+const contentsTitles = (page) => page.evaluate(() => [...document.querySelectorAll('.artifact-contents button')].map((button) => button.textContent.trim()))
+const contentsMode = (page) => page.evaluate(() => document.querySelector('.artifact-contents')?.dataset.mode ?? '')
+
+test('the page contents list the headings once the writing pauses, and a page with one heading has none', async ({ page }) => {
+  await openEditor(page, sectionedPage)
+  await expect(page.locator('.artifact-contents')).toBeVisible()
+  expect(await contentsTitles(page)).toEqual(['Membranes', 'Gradients', 'Proton leak', 'Synthase'])
+  expect(await contentsMode(page)).toBe('ticks')
+  // Typing a heading changes nothing until the writing has paused.
+  await caretIn(page, 'Synthase paragraph 14')
+  await page.keyboard.press('End')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('## Summary')
+  expect(await contentsTitles(page)).toHaveLength(4)
+  await expect.poll(() => contentsTitles(page)).toEqual(['Membranes', 'Gradients', 'Proton leak', 'Synthase', 'Summary'])
+
+  await openEditor(page, '# Only one\n\nA short note.\n')
+  await page.waitForTimeout(500)
+  await expect(page.locator('.artifact-contents')).toBeHidden()
+})
+
+test('resting on the ticks shows the titles, and a title scrolls its heading into view with the caret left in the page', async ({ page }) => {
+  await openEditor(page, sectionedPage)
+  await expect(page.locator('.artifact-contents')).toBeVisible()
+  await caretIn(page, 'Opening paragraph 2')
+  const title = page.locator('.artifact-contents-title', { hasText: 'Synthase' })
+  await expect(title).toBeHidden()
+  await page.locator('.artifact-contents').hover()
+  await expect(title).toBeVisible()
+  const before = await page.evaluate(() => window.scrollY)
+  await title.click()
+  await expect.poll(async () => page.evaluate(() => {
+    const heading = [...document.querySelectorAll('.ProseMirror h2')].find((element) => element.textContent.trim() === 'Synthase')
+    return Math.round(heading.getBoundingClientRect().top)
+  })).toBeLessThan(120)
+  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(before)
+  expect(await page.evaluate(() => document.activeElement?.closest('.ProseMirror') !== null)).toBe(true)
+  await expect(page.locator('.artifact-contents button[aria-current]')).toHaveText('Synthase')
+})
+
+test('a window with room beside the writing lists the titles there instead of ticks', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 800 })
+  await openEditor(page, sectionedPage)
+  await expect(page.locator('.artifact-contents')).toBeVisible()
+  await expect.poll(() => contentsMode(page)).toBe('titles')
+  await expect(page.locator('.artifact-contents-title', { hasText: 'Gradients' })).toBeVisible()
+  const [textRight, railLeft] = await page.evaluate(() => [
+    document.querySelector('.ProseMirror').getBoundingClientRect().right,
+    document.querySelector('.artifact-contents').getBoundingClientRect().left,
+  ])
+  expect(railLeft).toBeGreaterThan(textRight - 80)
+  await page.setViewportSize({ width: 1000, height: 800 })
+  await expect.poll(() => contentsMode(page)).toBe('ticks')
+})
