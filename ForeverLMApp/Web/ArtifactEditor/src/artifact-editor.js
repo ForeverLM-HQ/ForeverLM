@@ -293,6 +293,9 @@ function isPrivateAddress(href) {
 
 function post(type, detail = {}) {
   const message = { type, ...detail }
+  if ((type === 'markdownChanged' || type === 'saveRequested') && typeof detail.markdown === 'string') {
+    rememberReportedMarkdown(detail.markdown)
+  }
   if (window.webkit?.messageHandlers?.artifactEditor) {
     window.webkit.messageHandlers.artifactEditor.postMessage(message)
   } else {
@@ -6565,10 +6568,41 @@ async function create(markdown, fontSize) {
 /// and what was folded in it when it was last open (`applyFolds`). The open
 /// doc's own folds outlive a body replaced from outside — only opening
 /// another doc takes the host's.
+// ─── The page the host hands back ───────────────────────────────────────────
+// The editor reports its text a moment after the writer stops (Milkdown's
+// 200 ms listener), and the host keeps what it was last told. A host can hand
+// back text the writer has already typed past: the Mac's autosave once
+// replayed a save that waited behind another with the words it was asked with,
+// and taking them deleted everything typed since and threw the caret. So text
+// this editor reported in the last few seconds is never taken back over newer
+// typing in the same page; the host is told the page as it stands instead.
+// Another page opening, or text the editor never reported (a teammate's edit, a
+// version restored), is taken as always.
+
+const reportedMarkdown = []
+const reportedMarkdownWindow = 10_000
+
+function rememberReportedMarkdown(markdown) {
+  const now = Date.now()
+  reportedMarkdown.push({ markdown, at: now })
+  while (reportedMarkdown.length > 16 || (reportedMarkdown.length && now - reportedMarkdown[0].at > reportedMarkdownWindow)) {
+    reportedMarkdown.shift()
+  }
+}
+
+function isReportedBefore(markdown) {
+  const now = Date.now()
+  return reportedMarkdown.some((entry) => entry.markdown === markdown && now - entry.at <= reportedMarkdownWindow)
+}
+
 function setMarkdown(markdown, foldState = null) {
   const value = String(markdown ?? '')
   if (!editor) return
   const opensAnotherDoc = foldState != null && foldState.key !== foldDocumentKey
+  if (!opensAnotherDoc && hasUserChanges && value !== currentMarkdown() && isReportedBefore(value)) {
+    post('markdownChanged', { markdown: currentMarkdown() })
+    return
+  }
   if (value === currentMarkdown()) {
     if (opensAnotherDoc) applyFolds(foldState.key, foldState.folds)
     // The same doc again: a pooled web view re-attached to a new host — the
@@ -6593,6 +6627,7 @@ function setMarkdown(markdown, foldState = null) {
   hideInAppLinkTooltip(true)
   const view = activeEditorView()
   const caret = view ? captureCaretForReplacement(view) : null
+  reportedMarkdown.length = 0
   applyingExternalMarkdown = true
   userHasInteracted = false
   hasUserChanges = false
@@ -8480,6 +8515,11 @@ function requestChat() {
   })
 }
 
+/// What the host was last told of the selection, and the post of a caret
+/// moving while the writer types, which waits for a pause.
+let lastPostedSelection = null
+let caretSelectionTimer = 0
+
 function publishSelection() {
   const view = activeEditorView()
   const button = ensureSelectionButton()
@@ -8493,7 +8533,7 @@ function publishSelection() {
   currentSelection = { from, to, text }
   const grounded = empty ? [] : groundedSourceIDs(from, to)
   const formats = activeFormats()
-  post('selectionChanged', {
+  const selection = {
     from,
     to,
     selected: text,
@@ -8503,7 +8543,20 @@ function publishSelection() {
     grounded,
     formats,
     ...currentSectionContext(),
-  })
+  }
+  // A caret moving as the writer types tells the host nothing it shows at
+  // once: it keeps the section (for Chat) and the formats (for the header),
+  // which can wait for a pause. Posting on every keyup rebuilt the whole page
+  // pane on the Mac per key. A selection, a caret leaving one, or a change of
+  // formats goes at once.
+  clearTimeout(caretSelectionTimer)
+  const formatsKey = JSON.stringify(formats)
+  if (!text && lastPostedSelection?.empty && lastPostedSelection.formatsKey === formatsKey) {
+    caretSelectionTimer = setTimeout(() => post('selectionChanged', selection), 400)
+  } else {
+    post('selectionChanged', selection)
+  }
+  lastPostedSelection = { empty: !text, formatsKey }
   // Comment, Chat or Idea put the bar away for this passage only.
   const dismissed = selectionBarDismissedRange
   if (dismissed && (!text || dismissed.from !== from || dismissed.to !== to)) selectionBarDismissedRange = null

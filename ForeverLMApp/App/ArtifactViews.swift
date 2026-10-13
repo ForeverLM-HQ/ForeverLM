@@ -2826,7 +2826,9 @@ private struct ArtifactEditor: View {
     @State private var isLoading = true
     @State private var isDownloadingFromICloud = false
     @State private var isSaving = false
-    @State private var pendingSaveMarkdown: String?
+    /// A save was asked for while one was in flight. Only that it was: when
+    /// the first one lands, what goes out is the draft as it is then.
+    @State private var saveQueued = false
     /// Another writer's version of the body that could not be merged into this
     /// draft — the same passage changed on both sides. Held until the writer
     /// picks one; autosave waits with it.
@@ -4444,10 +4446,9 @@ private struct ArtifactEditor: View {
     private func save(_ markdown: String) {
         guard let snapshot, markdown != snapshot.markdown else { return }
         if isSaving {
-            pendingSaveMarkdown = markdown
+            saveQueued = true
             return
         }
-        draft = markdown
         isSaving = true
         chrome.errorMessage = nil
         let versionReason = nextSaveVersionReason ?? .learnerEdit
@@ -4469,7 +4470,7 @@ private struct ArtifactEditor: View {
                 // result; `draft` already holds the newest typing, so a save
                 // queued behind this one has nothing more to add.
                 isSaving = false
-                pendingSaveMarkdown = nil
+                saveQueued = false
                 await refreshBodyAfterArtifactUpdate()
                 if hasUnsavedChanges, heldRemoteMarkdown == nil { save(draft) }
                 return
@@ -4477,9 +4478,13 @@ private struct ArtifactEditor: View {
                 chrome.errorMessage = error.localizedDescription
             }
             isSaving = false
-            if let pendingSaveMarkdown {
-                self.pendingSaveMarkdown = nil
-                save(pendingSaveMarkdown)
+            if saveQueued {
+                saveQueued = false
+                // The draft as it is now. Replaying the text the queued request
+                // carried set the draft back to it, and the editor with it
+                // (`setMarkdown`): words typed while the first save was out
+                // vanished and the caret jumped.
+                save(draft)
             }
         }
     }
