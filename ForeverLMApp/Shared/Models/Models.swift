@@ -2186,6 +2186,16 @@ struct StudioArticle: Identifiable, Codable, Equatable {
     var localFilePath: String? {
         didSet { if oldValue != localFilePath { edits.note(.localFilePath) } }
     }
+    /// For a chapter of a PDF book: the pages of the book's file (`localFilePath`)
+    /// that are the chapter, from `book_sources.page_start` and `page_count`.
+    /// A PDF book is kept as one file, and everything else about a chapter
+    /// (highlights, reading position, figures) still counts pages from the
+    /// chapter's first page; only code that opens the file adds the start
+    /// (`SourcePDFPages`). Nil when the file is the chapter: an EPUB chapter,
+    /// or a PDF book still split into chapter files.
+    var bookPages: Range<Int>? {
+        didSet { if oldValue != bookPages { edits.note(.bookPages) } }
+    }
     /// Fallback web page URL for podcast episodes whose TTML isn't cached locally
     var podcastWebPageURL: String? {
         didSet { if oldValue != podcastWebPageURL { edits.note(.podcastWebPageURL) } }
@@ -2384,6 +2394,7 @@ struct StudioArticle: Identifiable, Codable, Equatable {
         case paperIngestionMethod
         case paywallSuspicion
         case teamID
+        case bookPages
     }
 
     init(from decoder: Decoder) throws {
@@ -2428,6 +2439,7 @@ struct StudioArticle: Identifiable, Codable, Equatable {
         likedAt = try c.decodeIfPresent(Date.self, forKey: .likedAt)
         videoPublishedAt = try c.decodeIfPresent(Date.self, forKey: .videoPublishedAt)
         connectorLabel = try c.decodeIfPresent(String.self, forKey: .connectorLabel)
+        bookPages = try c.decodeIfPresent(Range<Int>.self, forKey: .bookPages)
     }
 
     private static func normalizedMetadataField(_ value: String?) -> String? {
@@ -3704,7 +3716,7 @@ struct SourceEdits: Equatable, Sendable {
         case localFilePath, podcastWebPageURL, author, journal, publishedYear, status
         case archivedAt, normalizedURL, publicURL, courseSortIndex, lectureGroupId, isPaywalled
         case paywallSuspicion, isHidden, doi, publishedDOI, paperIngestionMethod, readingPositionPage
-        case readingPositionLocator, readAt, likedAt, videoPublishedAt, connectorLabel
+        case readingPositionLocator, readAt, likedAt, videoPublishedAt, connectorLabel, bookPages
     }
 
     /// False for a copy never read from the store, which a save writes whole.
@@ -3796,6 +3808,7 @@ extension StudioArticle {
         keep(.likedAt, \.likedAt)
         keep(.videoPublishedAt, \.videoPublishedAt)
         keep(.connectorLabel, \.connectorLabel)
+        keep(.bookPages, \.bookPages)
         return (merged, keptStored)
     }
 }

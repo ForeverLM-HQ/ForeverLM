@@ -253,6 +253,9 @@ class StudioViewModel {
         let sortIndex: Int
         let plainText: String
         let wordCount: Int
+        /// A PDF book's chapter: its pages of the book's file, which `path`
+        /// names. Nil for an EPUB chapter, whose file is the chapter.
+        var pages: Range<Int>? = nil
     }
 
     struct PDFBookSnapshot: Sendable {

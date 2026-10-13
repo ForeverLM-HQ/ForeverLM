@@ -98,7 +98,9 @@ struct BookCoverThumbnail: View {
             // a partial candidate list here stranded every thumbnail whose PDF
             // `StudioArticle` had correctly resolved into one of those forks.
             // First existing/downloadable candidate wins.
-            let candidates = Self.candidatePaths(for: path)
+            // A book chapter's thumbnail is its first page of the book's file.
+            let location = SourcePDFPages(stored: path)
+            let candidates = Self.candidatePaths(for: location.path)
             guard let filePath = candidates.first(where: { Self.ensureICloudFileAvailable(at: $0) })
             else { return (nil, nil) }
             if isImage {
@@ -111,7 +113,7 @@ struct BookCoverThumbnail: View {
                 return (nil, filePath)
             }
             guard let doc = PDFDocument(url: URL(fileURLWithPath: filePath)),
-                  let page = doc.page(at: 0) else { return (nil, filePath) }
+                  let page = doc.page(at: location.pages?.lowerBound ?? 0) else { return (nil, filePath) }
             let bounds = page.bounds(for: .mediaBox)
             let scale = min(size.width / bounds.width, size.height / bounds.height)
             let thumbnailSize = CGSize(width: bounds.width * scale, height: bounds.height * scale)
@@ -313,12 +315,17 @@ func dragFileURL(for article: StudioArticle) -> URL? {
         .replacingOccurrences(of: ":", with: " -")
         .prefix(80))
 
-    // Local PDF — return directly
+    // Local PDF — return directly; a book chapter is its pages of the book,
+    // written to a file of their own.
     if let path = article.localFilePath,
        path.lowercased().hasSuffix(".pdf"),
        let resolved = SourceService.resolveLocalFileURL(path),
        FileManager.default.fileExists(atPath: resolved.path) {
-        return resolved
+        guard let pages = article.bookPages else { return resolved }
+        let chapterURL = FileManager.default.temporaryDirectory.appendingPathComponent("\(sanitized).pdf")
+        if let chapter = SourcePDFPages(path: resolved.path, pages: pages).document(), chapter.write(to: chapterURL) {
+            return chapterURL
+        }
     }
 
     // Try stored content

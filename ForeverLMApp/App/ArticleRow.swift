@@ -173,7 +173,8 @@ struct ArticleRow: View {
     /// Read from `sourceThumbnailView` during render, so every lookup here is
     /// cached-only — a cold stat against an evicted iCloud file blocks for seconds.
     private var localDocumentThumbnailPath: String? {
-        if let pdfPath = article.cachedResolvedPDFPath { return pdfPath }
+        // A book chapter's thumbnail is its first page of the book's file.
+        if let pdfPath = article.cachedResolvedPDFPath { return SourcePDFPages.stored(path: pdfPath, pages: article.bookPages) }
         if article.cachedIsEPUBChapter, let path = article.cachedResolvedLocalPath { return path }
         // A captured or drawn meeting icon is a file this app wrote. Building
         // its path is string work against the content root, with no stat, so it

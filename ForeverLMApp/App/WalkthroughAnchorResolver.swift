@@ -190,8 +190,9 @@ actor WalkthroughAnchorResolver {
     private func page(at index: Int) -> PDFPage? {
         if !openedDocument {
             openedDocument = true
-            if let pdfPath, let url = SourceService.resolveLocalFileURL(pdfPath) {
-                document = PDFDocument(url: url)
+            // A book chapter's path names its pages of the book's file (`SourcePDFPages`).
+            if let pdfPath, let location = SourcePDFPages(stored: pdfPath).resolved() {
+                document = location.document()
                 documentOpens += 1
             }
         }

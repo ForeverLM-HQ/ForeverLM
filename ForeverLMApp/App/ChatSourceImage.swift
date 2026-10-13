@@ -325,7 +325,7 @@ struct ChatSourceImage: Encodable, Sendable {
             return rendered
         }
         let rendered = await Task.detached(priority: .userInitiated) { () -> SourceImageCatalog.RenderedImage? in
-            guard let path = article.resolvedLocalPath else { return nil }
+            guard let path = article.resolvedFileLocation else { return nil }
             return SourceImageCatalog.render(reference, filePath: path)
         }.value
         guard let rendered else { return nil }

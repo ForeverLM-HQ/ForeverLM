@@ -436,6 +436,7 @@ extension StudioViewModel {
             await self.convergePaperIdentityDuplicates()
             await self.drainPendingWebCourseImports()
             await self.drainPendingWebBookImports()
+            await self.runDeferredBookFileMerge()
             await self.runDeferredZoomMeetingAdoption()
             // Zoom sessions still waiting for their transcript are asked
             // about now and every quarter hour from here.

@@ -218,8 +218,7 @@ extension StudioViewModel {
         let pdfText: String? = await Task.detached(priority: .userInitiated) {
             // Off the main actor on purpose: resolving the path stats an iCloud-backed file
             // and reading the PDF pulls it down when it is evicted.
-            guard let path = article.resolvedPDFPath,
-                  let document = PDFDocument(url: URL(fileURLWithPath: path)) else { return nil }
+            guard let document = article.pdfPages?.document() else { return nil }
             let text = PDFTextExtractor.embeddedText(from: document, pages: 0..<document.pageCount)
             return text.isEmpty ? nil : text
         }.value

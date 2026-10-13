@@ -116,19 +116,23 @@ enum SourceImageCatalog {
     // MARK: - Listing
 
     /// Lists the pictures of the file at `filePath`, narrowed by `query`
-    /// (figure label or caption words) or pinned to one PDF `page`.
+    /// (figure label or caption words) or pinned to one PDF `page`. A book
+    /// chapter's `filePath` names its pages of the book's file
+    /// (`StudioArticle.resolvedFileLocation`), and its pages count from the
+    /// chapter's first.
     static func entries(
         sourceID: String,
         filePath: String,
         query: String?,
         page: Int?
     ) throws -> [SourceImageEntry] {
-        guard FileManager.default.fileExists(atPath: filePath) else { throw Failure.fileUnavailable }
-        let ext = URL(fileURLWithPath: filePath).pathExtension.lowercased()
+        let location = SourcePDFPages(stored: filePath)
+        guard FileManager.default.fileExists(atPath: location.path) else { throw Failure.fileUnavailable }
+        let ext = URL(fileURLWithPath: location.path).pathExtension.lowercased()
         let trimmedQuery = query?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if ext == "pdf" {
             #if os(macOS)
-            guard let document = PDFDocument(url: URL(fileURLWithPath: filePath)) else {
+            guard let document = location.document() else {
                 throw Failure.fileUnavailable
             }
             return try pdfEntries(sourceID: sourceID, document: document, query: trimmedQuery, page: page)
@@ -653,7 +657,7 @@ enum SourceImageCatalog {
         switch reference.location {
         case .page(let page):
             #if os(macOS)
-            guard let document = PDFDocument(url: URL(fileURLWithPath: filePath)),
+            guard let document = SourcePDFPages(stored: filePath).document(),
                   page >= 1, page <= document.pageCount,
                   let pdfPage = document.page(at: page - 1) else { return nil }
             return renderPage(pdfPage, crop: reference.crop)

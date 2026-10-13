@@ -193,7 +193,7 @@ extension MCPDataStore {
         }
 
         var images: [MCPToolImage] = []
-        if let path = article.resolvedLocalPath {
+        if let path = article.resolvedFileLocation {
             if crop == nil || panelToLocate != nil {
                 // The figure's crop off the page, and the panel's from the
                 // page's own panel letters (`PaperFigurePanelLocator`) — the
@@ -242,7 +242,7 @@ extension MCPDataStore {
         pdfPath: String
     ) -> PaperFigureRect? {
         guard let analysis = figure.analysis, let figureRect = analysis.figureRect, figureRect.isValid,
-              let document = PDFDocument(url: URL(fileURLWithPath: pdfPath)),
+              let document = SourcePDFPages(stored: pdfPath).document(),
               let page = document.page(at: figure.pageIndex) else { return nil }
         return withExtendedLifetime(document) {
             guard let mask = PaperFigureRectRefiner.mask(for: page) else { return nil }
@@ -266,7 +266,7 @@ extension MCPDataStore {
         pdfPath: String,
         panel: String? = nil
     ) -> (figure: PaperFigureRect?, panel: PaperFigureRect?) {
-        guard let document = PDFDocument(url: URL(fileURLWithPath: pdfPath)),
+        guard let document = SourcePDFPages(stored: pdfPath).document(),
               let page = document.page(at: figure.pageIndex) else { return (nil, nil) }
         // A PDFPage holds its document weakly, and PDFKit's text scanner
         // dereferences it: with the document released early (ARC may drop it
@@ -332,7 +332,7 @@ extension MCPDataStore {
         if figures.isEmpty {
             figures = (try? await paperFigureIndexer.prepareStructure(sourceID: sourceID)) ?? []
         }
-        guard let path = article.resolvedLocalPath else {
+        guard let path = article.resolvedFileLocation else {
             return .failure(SourceImageCatalog.Failure.fileUnavailable.message)
         }
         let entries: [SourceImageEntry]

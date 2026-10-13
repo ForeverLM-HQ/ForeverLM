@@ -1,5 +1,7 @@
 import CryptoKit
 import Foundation
+import OSLog
+import PDFKit
 import UIKit
 
 // On-device file cache for synced source content.
@@ -20,6 +22,7 @@ import UIKit
 // (MobileOfflineSourceStore), which this actor prefers when one exists.
 actor MobileSourceFileStore {
     static let shared = MobileSourceFileStore()
+    fileprivate static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "MobileSourceFileStore")
 
     /// Books whose cover came back empty this launch. Without this, every
     /// scroll past a coverless book asks again. Fetch *errors* are deliberately
@@ -67,18 +70,39 @@ actor MobileSourceFileStore {
     }
 
     /// Returns the local PDF: the saved-offline copy, or the source's `pdf`
-    /// satellite, downloaded on first use.
-    func fetchPDF(sourceID: String, relativePath: String? = nil) async throws -> URL {
+    /// satellite, downloaded on first use. A page-range book chapter's satellite
+    /// is its whole book's file, the same FileRef on every chapter, so it is
+    /// fetched and kept by that file's hash once however many chapters open it;
+    /// the result names the chapter's pages, which `MobileSourcePDF.document()`
+    /// shows on their own.
+    func fetchPDF(sourceID: String, relativePath: String? = nil) async throws -> MobileSourcePDF {
         // A saved-offline document comes first: it is the same bytes, in the one
-        // directory iOS will not purge out from under the reader.
+        // directory iOS will not purge out from under the reader. It is only ever
+        // the source's own document (a chapter saved before its book was kept as
+        // one file is that chapter's pages), never a book.
         if let saved = await MobileOfflineSourceStore.shared.savedPDFURL(sourceID: sourceID) {
-            return saved
+            return MobileSourcePDF(url: saved, pages: nil)
         }
         guard let satellites = await MobileSatellites.current() else { throw MobileSourceFileError.missingRecord }
-        guard let url = try await satelliteURL(sourceID: sourceID, role: "pdf", satellites: satellites) else {
+        guard let located = try await satellites.sourcePDF(sourceID) else {
             throw MobileSourceFileError.noPDFAvailable
         }
-        return url
+        let pages: Range<Int>?
+        switch located.pages {
+        case .wholeFile:
+            pages = nil
+        case .run(let run):
+            pages = run
+        case .invalid:
+            Self.logger.error("Source \(sourceID, privacy: .public) names no usable run of its book's pages; its PDF is not shown")
+            throw MobileSourceFileError.chapterPagesUnavailable
+        }
+        let holder = MobileOfflinePins.contains(sourceID) ? MobileSatelliteHolder.source(sourceID) : nil
+        do {
+            return MobileSourcePDF(url: try await satellites.url(located.satellite, keepingFor: holder), pages: pages)
+        } catch let error as BlobStoreError {
+            throw MobileSourceFileError(error)
+        }
     }
 
     // MARK: - Paper thumbnails
@@ -244,6 +268,52 @@ actor MobileSourceFileStore {
     }
 }
 
+/// A source's PDF on this phone: the file, and for a page-range book chapter
+/// the run of the file's pages that is the chapter (`MobileBookChapterPages`).
+struct MobileSourcePDF: Equatable, Sendable {
+    let url: URL
+    /// The chapter's pages in its book's file; nil when the file is the
+    /// source's own document.
+    let pages: Range<Int>?
+
+    /// The document a reader shows and counts pages in: the file itself, or a
+    /// document of only the chapter's pages, its page 0 the chapter's first, so
+    /// highlights, figures, walkthrough anchors and find keep counting from the
+    /// chapter's first page. A run the file does not hold is refused, never
+    /// shown on other pages. Reads the file: call it off the main actor.
+    func document() throws -> PDFDocument {
+        guard let file = PDFDocument(url: url) else { throw MobileSourceFileError.noPDFAvailable }
+        guard let pages else { return file }
+        guard let chapter = MobileChapterPDFDocument(pages, of: file) else {
+            MobileSourceFileStore.logger.error(
+                "A chapter's pages \(pages.lowerBound)..<\(pages.upperBound) are not all in its book's \(file.pageCount) pages; its PDF is not shown"
+            )
+            throw MobileSourceFileError.chapterPagesUnavailable
+        }
+        return chapter
+    }
+}
+
+/// A chapter's pages copied out of its book into a document of their own, in
+/// memory. The book's file is never rewritten (a PDFKit write re-encodes its
+/// images, many times larger), and the copies keep the book's text layer, so
+/// selection, find and highlights read as they do in the book.
+final class MobileChapterPDFDocument: PDFDocument {
+    /// The book the pages were copied from, held while they are shown.
+    let book: PDFDocument
+
+    /// nil when the book does not hold the whole run.
+    init?(_ pages: Range<Int>, of book: PDFDocument) {
+        guard let run = MobileBookChapterPages.pages(pages, inBookOf: book.pageCount) else { return nil }
+        self.book = book
+        super.init()
+        for index in run {
+            guard let page = book.page(at: index)?.copy() as? PDFPage else { return nil }
+            insert(page, at: pageCount)
+        }
+    }
+}
+
 enum MobileSourceFileError: LocalizedError {
     case missingRecord
     case noPDFAvailable
@@ -251,6 +321,9 @@ enum MobileSourceFileError: LocalizedError {
     case keptOnMac
     /// The file's satellites have not reached iCloud yet (the seed sends bytes last).
     case arriving
+    /// A book chapter's record names a run of its book's pages that the book's
+    /// file does not hold, or no usable run at all.
+    case chapterPagesUnavailable
 
     init(_ error: BlobStoreError) {
         switch error {
@@ -270,6 +343,8 @@ enum MobileSourceFileError: LocalizedError {
             return "This document is kept on your Mac only, by its iCloud storage setting. Read it there, or open its text here."
         case .arriving:
             return "This document is still arriving in iCloud. Try again in a little while."
+        case .chapterPagesUnavailable:
+            return "This chapter's pages could not be found in its book's PDF."
         }
     }
 }

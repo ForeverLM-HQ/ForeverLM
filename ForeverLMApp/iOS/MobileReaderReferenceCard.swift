@@ -13,6 +13,11 @@ import SwiftUI
 @MainActor
 final class MobileReaderReferenceCards: ObservableObject {
     @Published var card: MobileReaderReferenceCard?
+    /// The file the shown document was opened from. A chapter kept as a run of
+    /// its book's pages is shown as those pages alone, so its links are read
+    /// from the book at the book's page numbers, and a landing is gone to only
+    /// when it is one of the chapter's pages.
+    var file: MobileSourcePDF?
 
     private weak var pdfView: MobileHighlightPDFView?
     private var entries: (url: URL, entries: PDFReferenceEntries)?
@@ -28,12 +33,13 @@ final class MobileReaderReferenceCards: ObservableObject {
     /// Takes every link within a document opened from its file, so PDFKit
     /// never jumps first.
     private func tapped(_ annotation: PDFAnnotation) -> Bool {
-        guard let pdfView, let document = pdfView.document, let url = document.documentURL,
+        guard let pdfView, let document = pdfView.document, let file,
               let page = annotation.page else { return false }
         let pageIndex = document.index(for: page)
         guard pageIndex != NSNotFound else { return false }
-        let entries = entries(for: url)
-        let link = PDFReferenceEntries.Link(pageIndex: pageIndex, bounds: annotation.bounds)
+        let firstPage = file.pages?.lowerBound ?? 0
+        let entries = entries(for: file.url)
+        let link = PDFReferenceEntries.Link(pageIndex: firstPage + pageIndex, bounds: annotation.bounds)
         let anchor = pdfView.convert(annotation.bounds, from: page)
         pending?.cancel()
         pending = Task { [weak self] in
@@ -44,9 +50,14 @@ final class MobileReaderReferenceCards: ObservableObject {
             }
             let landing = await entries.landing(for: link)
             guard !Task.isCancelled, let self, let pdfView = self.pdfView, pdfView.document === document else { return }
-            if let landing, let page = document.page(at: landing.pageIndex) {
+            let landingIndex = landing.map { $0.pageIndex - firstPage }
+            if let landing, let landingIndex, (0..<document.pageCount).contains(landingIndex),
+               let page = document.page(at: landingIndex) {
                 pdfView.followLink(to: PDFDestination(page: page, at: landing.point))
-            } else if let destination = annotation.destination ?? (annotation.action as? PDFActionGoTo)?.destination {
+            } else if let destination = annotation.destination ?? (annotation.action as? PDFActionGoTo)?.destination,
+                      let target = destination.page, document.index(for: target) != NSNotFound {
+                // Only a page of this document: a chapter's copied links can
+                // name pages of its book that are not shown here.
                 pdfView.followLink(to: destination)
             }
         }

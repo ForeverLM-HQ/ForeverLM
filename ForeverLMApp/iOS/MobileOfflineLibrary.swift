@@ -255,6 +255,9 @@ final class MobileOfflineLibrary: ObservableObject {
     @Published private(set) var savingSourceIDs: Set<String> = []
     @Published private(set) var bytesBySourceID: [String: Int64] = [:]
     @Published private(set) var failureMessages: [String: String] = [:]
+    /// What saved sources keep of one file more than once: a book kept as one
+    /// file counts in each of its saved chapters, but is on the phone once.
+    @Published private(set) var sharedBytes: Int64 = 0
 
     private let store: MobileOfflineSourceStore
 
@@ -264,7 +267,7 @@ final class MobileOfflineLibrary: ObservableObject {
     }
 
     var totalBytes: Int64 {
-        bytesBySourceID.values.reduce(0, +)
+        bytesBySourceID.values.reduce(0, +) - sharedBytes
     }
 
     /// nil until sizes have been read from disk, so no surface flashes a total of
@@ -340,6 +343,7 @@ final class MobileOfflineLibrary: ObservableObject {
         if let satellites = await MobileSatellites.current() {
             await saveSatellites(of: source, satellites: satellites)
             bytesBySourceID[source.id] = await byteCount(sourceID: source.id)
+            await recountSharedBytes()
             return
         }
 
@@ -357,7 +361,7 @@ final class MobileOfflineLibrary: ObservableObject {
                         url: source.url
                     )
                 )
-                try await store.savePDF(copyingFrom: downloaded, sourceID: source.id)
+                try await store.savePDF(copyingFrom: downloaded.url, sourceID: source.id)
             } catch {
                 recordFailure(
                     "Saved this paper's text. Its original document could not be "
@@ -366,17 +370,19 @@ final class MobileOfflineLibrary: ObservableObject {
                 )
             }
         } else if source.isPDFBackedBookChapter {
-            // A PDF-split chapter reads as its document too, but its reader falls
+            // A PDF chapter reads as its document too, but its reader falls
             // back to text when that document is unavailable — so an unreachable
-            // chapter PDF is not worth a notice, let alone a failed save.
+            // chapter PDF is not worth a notice, let alone a failed save. The
+            // copy kept here is only ever the chapter's own file: a chapter kept
+            // as a run of its book's pages is never copied whole per chapter.
             if let downloaded = try? await MobileSourceFileStore.shared.fetchPDF(
                 sourceID: source.id,
                 relativePath: MobileSourceFilePath.relativePDFPath(
                     localFilePath: source.localFilePath,
                     url: source.url
                 )
-            ) {
-                _ = try? await store.savePDF(copyingFrom: downloaded, sourceID: source.id)
+            ), downloaded.pages == nil {
+                _ = try? await store.savePDF(copyingFrom: downloaded.url, sourceID: source.id)
             }
         } else if source.sourceType == "book",
                   let readerHTML = await MobileSourceFileStore.shared.fetchReaderHTML(
@@ -399,7 +405,9 @@ final class MobileOfflineLibrary: ObservableObject {
     /// Generation 2 (docs/cloudkit-schema-design.md §2.3, §8b): a saved source's files are its
     /// satellites, kept durable for it (`MobileSatelliteHolder.source`): the paper's document, a
     /// chapter's document or reader page, and its narration with every chunk, which no longer lives in
-    /// iCloud Drive for the phone to materialize. The text is saved above, as on generation 1.
+    /// iCloud Drive for the phone to materialize. The text is saved above, as on generation 1. A
+    /// chapter kept as a run of its book's pages keeps the book's file, which every saved chapter of
+    /// that book keeps as a hard link to one copy, so a whole book saved is stored once.
     private func saveSatellites(of source: MobileCloudSource, satellites: MobileSatellites) async {
         if source.sourceType == "paper" {
             do {
@@ -439,6 +447,7 @@ final class MobileOfflineLibrary: ObservableObject {
         unpin(sourceID)
         bytesBySourceID[sourceID] = nil
         failureMessages[sourceID] = nil
+        await recountSharedBytes()
     }
 
     func removeAll() async {
@@ -450,6 +459,17 @@ final class MobileOfflineLibrary: ObservableObject {
         MobileOfflinePins.write([])
         bytesBySourceID = [:]
         failureMessages = [:]
+        sharedBytes = 0
+    }
+
+    /// Counts again what saved sources keep of one file more than once
+    /// (`MobileSatellites.sharedByteCount`), which the total takes off.
+    private func recountSharedBytes() async {
+        guard !savedSourceIDs.isEmpty, let satellites = await MobileSatellites.current() else {
+            sharedBytes = 0
+            return
+        }
+        sharedBytes = await satellites.sharedByteCount(holders: savedSourceIDs.map(MobileSatelliteHolder.source))
     }
 
     /// Recomputes sizes from disk and drops any pin whose files are gone, so the
@@ -458,6 +478,7 @@ final class MobileOfflineLibrary: ObservableObject {
         let pinned = savedSourceIDs
         guard !pinned.isEmpty else {
             bytesBySourceID = [:]
+            sharedBytes = 0
             return
         }
 
@@ -467,11 +488,12 @@ final class MobileOfflineLibrary: ObservableObject {
         }
         let present = counts.filter { $0.value > 0 }
         bytesBySourceID = present
-        guard present.count != pinned.count else { return }
-
-        let survivors = Set(present.keys)
-        savedSourceIDs = survivors
-        MobileOfflinePins.write(survivors)
+        if present.count != pinned.count {
+            let survivors = Set(present.keys)
+            savedSourceIDs = survivors
+            MobileOfflinePins.write(survivors)
+        }
+        await recountSharedBytes()
     }
 
     // MARK: - Pins

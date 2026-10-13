@@ -1077,7 +1077,7 @@ extension StorageService {
                 reasonPrefix: "slide \(index) is not on this Mac, and "
             )
         case .page, .image:
-            guard let path = article.resolvedLocalPath else {
+            guard let path = article.resolvedFileLocation else {
                 return failure("‘\(article.title)’ has no file on this Mac")
             }
             let rendered = await Task.detached(priority: .userInitiated) {

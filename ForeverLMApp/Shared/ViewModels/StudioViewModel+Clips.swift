@@ -213,8 +213,8 @@ extension StudioViewModel {
     func knowledgeMapPDFShape(of article: StudioArticle, pages: [Int]?) async -> (pageCount: Int, aspects: [Int: Double])? {
         #if canImport(PDFKit)
         return await Task.detached(priority: .userInitiated) { () -> (Int, [Int: Double])? in
-            guard let path = article.resolvedPDFPath, let document = PDFDocument(url: URL(fileURLWithPath: path)),
-                  document.pageCount > 0 else { return nil }
+            // A book chapter is its pages of the book's file, numbered from its first.
+            guard let document = article.pdfPages?.document(), document.pageCount > 0 else { return nil }
             var aspects: [Int: Double] = [:]
             for number in pages ?? Array(1...document.pageCount) where number >= 1 && number <= document.pageCount {
                 // The media box, as the picture is drawn from it.
@@ -319,7 +319,7 @@ extension StudioViewModel {
         let extendedLeftOut = includeExtended ? 0 : figures.filter { PaperFigureSelection.isExtended($0.figureLabel) }.count
 
         // Each figure's crop, read once per page from the caption anchor and the ink.
-        let path = await Task.detached(priority: .userInitiated) { article.resolvedPDFPath }.value
+        let path = await Task.detached(priority: .userInitiated) { article.pdfPages?.cacheKey }.value
         let resolver = WalkthroughAnchorResolver(figures: figures, pdfPath: path)
         var regionsByPage: [Int: [ReaderClipFigureRegion]] = [:]
         await loadReaderHighlightsIfNeeded(for: article.id)
@@ -492,7 +492,7 @@ extension StudioViewModel {
         #if canImport(PDFKit)
         guard let article = articlesById[sourceID] ?? articlesById[canonicalSourceID(sourceID)] else { return nil }
         let rendered = await Task.detached(priority: .utility) { () -> SourceImageCatalog.RenderedImage? in
-            guard let path = article.resolvedPDFPath, let document = PDFDocument(url: URL(fileURLWithPath: path)),
+            guard let document = article.pdfPages?.document(),
                   page >= 1, page <= document.pageCount, let pdfPage = document.page(at: page - 1) else { return nil }
             return SourceImageCatalog.renderPage(pdfPage, crop: nil, maxPixelSize: 1100)
         }.value

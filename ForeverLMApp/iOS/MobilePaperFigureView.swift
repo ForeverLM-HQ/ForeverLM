@@ -25,7 +25,7 @@ private actor MobilePaperFigureRenderer {
         sharesPageWithOtherFigures: Bool = false,
         relativePDFPath: String? = nil
     ) async throws -> UIImage {
-        let pdfURL = try await MobileSourceFileStore.shared.fetchPDF(
+        let pdf = try await MobileSourceFileStore.shared.fetchPDF(
             sourceID: figure.sourceID,
             relativePath: relativePDFPath
         )
@@ -39,8 +39,10 @@ private actor MobilePaperFigureRenderer {
         let caption = figure.caption
         let wantedPanel = panelLabel ?? panel?.label
         return try await Task.detached(priority: .userInitiated) {
-            guard let document = PDFDocument(url: pdfURL),
-                  let page = document.page(at: pageIndex) else {
+            // A book chapter's figure counts its page from the chapter's first
+            // page, which is the chapter document's page 0.
+            let document = try pdf.document()
+            guard let page = document.page(at: pageIndex) else {
                 throw MobileSourceFileError.noPDFAvailable
             }
             return withExtendedLifetime(document) {

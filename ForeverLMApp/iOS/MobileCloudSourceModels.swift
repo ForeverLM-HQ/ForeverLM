@@ -83,6 +83,11 @@ struct MobileCloudSource: Identifiable, Equatable, Sendable {
     var normalizedURL: String? = nil
     var doi: String? = nil
     var publishedDOI: String? = nil
+    /// A PDF book's chapter kept as a run of its book's pages (`Source.meta.pageStart`, 0-based, and
+    /// `meta.pageCount`): its `files.pdf` is the whole book's file, the same FileRef on every chapter.
+    /// Both nil when the chapter's PDF, if it has one, is the chapter.
+    var pageStart: Int? = nil
+    var pageCount: Int? = nil
 
     /// Watched to the end, by the Mac's measure (`isEssentiallyWatched`).
     var isWatched: Bool {
@@ -98,14 +103,26 @@ struct MobileCloudSource: Identifiable, Equatable, Sendable {
         return nil
     }
 
-    /// A book chapter whose synced document is a PDF. Books imported from a PDF
-    /// are split into one PDF per chapter, and that file is the only place the
-    /// chapter's figures, plates and layout exist — synced text has none of them
-    /// — so those chapters read as their document, exactly like a paper. EPUB
-    /// chapters have no PDF and read their illustrated reader document instead.
+    /// A book chapter whose synced document is a PDF. A book imported from a
+    /// PDF is one file whose chapters are runs of its pages (`pageStart`,
+    /// `pageCount`); one imported before that is split into one PDF per
+    /// chapter, found by its `.pdf` path. That file is the only place the
+    /// chapter's figures, plates and layout exist — synced text has none of
+    /// them — so those chapters read as their document, exactly like a paper.
+    /// EPUB chapters have no PDF and read their illustrated reader document
+    /// instead. A page-range chapter's url ends in `#page=N`, never `.pdf`, so
+    /// its run says it, not its url.
     var isPDFBackedBookChapter: Bool {
-        sourceType == "book"
-            && MobileSourceFilePath.relativePDFPath(localFilePath: localFilePath, url: url) != nil
+        isPageRangeBookChapter
+            || (sourceType == "book"
+                && MobileSourceFilePath.relativePDFPath(localFilePath: localFilePath, url: url) != nil)
+    }
+
+    /// A book chapter kept as a run of its book's pages. Either key says so: a
+    /// run that names only one of them is refused where the document opens
+    /// (`MobileBookChapterPages.invalid`), never read as the whole book.
+    var isPageRangeBookChapter: Bool {
+        sourceType == "book" && (pageStart != nil || pageCount != nil)
     }
 
     /// Archived web article HTML is a rich reader document just like an EPUB
@@ -393,6 +410,8 @@ enum MobileSourceFilePath {
         }
         guard !standardized.isEmpty else { return nil }
         let relative = standardized.joined(separator: "/")
+        // A page-range chapter's url (`Books/X/X.pdf#page=17`) names a run of its
+        // book, not a file of its own, and stops here: its extension is not `pdf`.
         guard (relative as NSString).pathExtension.lowercased() == "pdf" else { return nil }
         return relative
     }
@@ -430,6 +449,38 @@ enum MobileSourceFilePath {
         }
         components.scheme = "shareddocuments"
         return components.url
+    }
+}
+
+/// Where a page-range book chapter lies in its book's PDF (`Source.meta.pageStart`,
+/// 0-based, and `meta.pageCount`). Everything stored about a chapter counts its
+/// pages from the chapter's first page, so the phone shows exactly these pages,
+/// numbered from 0; only the code that opens the book's file adds `pageStart`.
+enum MobileBookChapterPages: Equatable, Sendable {
+    /// The record names no run: the source's PDF is the source.
+    case wholeFile
+    /// The source is these pages of its book's file.
+    case run(Range<Int>)
+    /// The record names a run that cannot be one (a key missing, negative, empty
+    /// or not a whole number). Such a chapter is never shown, rather than shown
+    /// on pages that are not its own.
+    case invalid
+
+    init(pageStart: Int?, pageCount: Int?) {
+        switch (pageStart, pageCount) {
+        case (nil, nil):
+            self = .wholeFile
+        case let (start?, count?) where start >= 0 && count > 0 && start <= Int.max - count:
+            self = .run(start ..< start + count)
+        default:
+            self = .invalid
+        }
+    }
+
+    /// The run, when a book of `bookPageCount` pages holds all of it.
+    static func pages(_ run: Range<Int>, inBookOf bookPageCount: Int) -> Range<Int>? {
+        guard !run.isEmpty, run.lowerBound >= 0, run.upperBound <= bookPageCount else { return nil }
+        return run
     }
 }
 

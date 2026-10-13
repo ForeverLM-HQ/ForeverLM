@@ -82,6 +82,23 @@ struct MobileSatelliteDisk: Sendable {
     }
 }
 
+extension MobileBookChapterPages {
+    /// The run a book Source's `meta` names. A key that is there but is not a whole number makes the
+    /// run invalid, never absent: an absent run would show the whole book as the chapter.
+    init(meta: SyncJSON?) {
+        func key(_ name: String) -> (present: Bool, value: Int?) {
+            guard let value = meta?[name], value != .null else { return (false, nil) }
+            return (true, value.intValue)
+        }
+        let start = key("pageStart"), count = key("pageCount")
+        if (start.present && start.value == nil) || (count.present && count.value == nil) {
+            self = .invalid
+        } else {
+            self.init(pageStart: start.value, pageCount: count.value)
+        }
+    }
+}
+
 /// The holders the durable copies are filed under.
 enum MobileSatelliteHolder {
     /// A source the learner saved offline (`MobileOfflinePins`).
@@ -191,6 +208,24 @@ actor MobileSatellites {
         try await locate(.source, id: sourceID) { Self.file(in: $0, map: map, matching: matches) }
     }
 
+    /// A source's `pdf` satellite and the run of its pages the source is, read from the one copy of the
+    /// record that names the file, so the run is the one written with that FileRef. A page-range book
+    /// chapter's `files.pdf` is its whole book's file (`meta.pageStart`, `meta.pageCount` say which
+    /// pages are the chapter); for any other source the file is the source. Nil when no held copy names
+    /// a PDF.
+    func sourcePDF(_ sourceID: String) async throws -> (satellite: MobileSatellite, pages: MobileBookChapterPages)? {
+        for zoneKey in try await zonesHolding(.source, id: sourceID) {
+            guard let envelope = try await projection.envelope(.source, id: sourceID, zoneKey: zoneKey),
+                  let file = Self.file(in: envelope, map: "files", matching: { $0 == "pdf" }),
+                  let satellite = try await satellite(file, ownerZoneKey: zoneKey) else { continue }
+            let pages = envelope.fields["type"]?.stringValue == "book"
+                ? MobileBookChapterPages(meta: envelope.fields["meta"])
+                : .wholeFile
+            return (satellite, pages)
+        }
+        return nil
+    }
+
     /// The first live FileRef of an envelope's map whose role `matches`, by role name.
     static func file(in envelope: SyncEnvelope, map: String, matching matches: (String) -> Bool) -> FileRef? {
         guard let files = envelope.fields[map]?.objectValue else { return nil }
@@ -281,6 +316,23 @@ actor MobileSatellites {
             let size = (try? folder.appendingPathComponent(name).resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
             total += Int64(size)
         }
+    }
+
+    /// The bytes `holders` keep of one file more than once. A book kept as one file is kept for each of
+    /// its chapters saved offline, as hard links to a single copy (`keep`), so a total over the holders
+    /// takes this off to count the book once.
+    func sharedByteCount(holders: [String]) -> Int64 {
+        var seen = Set<String>()
+        var shared: Int64 = 0
+        for holder in Set(holders) {
+            let folder = disk.holderFolder(holder)
+            guard let names = try? FileManager.default.contentsOfDirectory(atPath: folder.path) else { continue }
+            // A file's name is its hash: the same name in two holders is the same bytes.
+            for name in names where !seen.insert(name).inserted {
+                shared += Int64((try? folder.appendingPathComponent(name).resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
+            }
+        }
+        return shared
     }
 
     /// Every holder's durable copies by hash, read from disk once per process and kept current here.

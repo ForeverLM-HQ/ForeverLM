@@ -181,8 +181,9 @@ final class MobileReplica: PrivateSyncLocalStore, PrivateSyncLocalState, @unchec
     /// quiz scores, its review answers, a learning bout's break; WP20b). 4: a course's retired
     /// `notebookID` and `homing` leave `m_courses`, since a notebook lists the courses it follows
     /// (spec revision 9). 5: the Schedule's Placements, the member's Highlights, and each ActivityLog's
-    /// sources, which the Schedule folds into activity days (WP20c).
-    static let indexVersion: Int64 = 5
+    /// sources, which the Schedule folds into activity days (WP20c). 6: a PDF book chapter's run of
+    /// its book's pages (`meta.pageStart`, `meta.pageCount`), since its url no longer ends in `.pdf`.
+    static let indexVersion: Int64 = 6
     static let fileName = "ForeverLMReplica.sqlite"
     /// Records indexed again per transaction when the index is rebuilt.
     static let rebuildBatch = 500
@@ -215,6 +216,7 @@ final class MobileReplica: PrivateSyncLocalStore, PrivateSyncLocalState, @unchec
             .integer("added_at", "addedAt"), .integer("published_at", "publishedAt"), .integer("edited_at", "editedAt"),
             .text("merged_into", "mergedInto"), .holds("has_pdf", "files", "pdf"), .text("subtitle", "subtitle"),
             .text("doi", "doi"), .memberInteger("word_count", "metrics", "wordCount"), .holdsPrefixed("has_audio", "files", "audio."),
+            .memberInteger("page_start", "meta", "pageStart"), .memberInteger("page_count", "meta", "pageCount"),
         ], indexes: [
             "CREATE INDEX IF NOT EXISTS idx_m_sources_added ON m_sources(zone_key, status, added_at DESC, id)",
             "CREATE INDEX IF NOT EXISTS idx_m_sources_title ON m_sources(zone_key, status, title_key, id)",

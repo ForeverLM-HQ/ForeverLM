@@ -235,10 +235,11 @@ extension StudioViewModel {
             var documents: [String: PDFDocument] = [:]
             for item in wanted {
                 // Resolving the path stats an iCloud-backed file: here, off the main actor.
-                guard let path = item.article.resolvedPDFPath else { continue }
-                let document = documents[path] ?? PDFDocument(url: URL(fileURLWithPath: path))
+                // A book chapter is searched in its own pages of the book's file.
+                guard let location = item.article.pdfPages else { continue }
+                let document = documents[location.cacheKey] ?? location.document()
                 guard let document else { continue }
-                documents[path] = document
+                documents[location.cacheKey] = document
                 let words = item.quote.split(whereSeparator: \.isWhitespace).prefix(12).joined(separator: " ")
                 guard !words.isEmpty,
                       let page = document.findString(words, withOptions: [.caseInsensitive]).first?.pages.first else { continue }

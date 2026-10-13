@@ -675,7 +675,19 @@ extension KnowledgeStore {
     // after launch). The migration reads no full-text row. It does not wait
     // with 154 on a store held below it: this build's full-text writes read
     // the map. Never synced, so no CloudKit schema change.
-    static let schemaVersion: Int32 = 168
+    // 169: a PDF book is one file (docs/backend-storage-sync.md, "A PDF book
+    // is one file"). `book_sources` gains `page_start` and `page_count`: the
+    // run of the book file's pages that is the chapter. NULL on every
+    // existing row is the truth, since every chapter there is a file of its
+    // own. A local-only queue, `book_file_merge_queue`, takes the id of every
+    // book with a chapter that is a PDF file (set-based, one row a book), and
+    // after launch `BookFileMerge` puts each book back into one file, points
+    // its chapters at their pages and deletes the chapter files. The
+    // migration reads no file. Like 168 it does not wait with 154 on a store
+    // held below it, since this build's book writes name the columns. They
+    // travel as `Source.meta.pageStart` and `pageCount`, inside the encrypted
+    // payload, so no CloudKit schema change.
+    static let schemaVersion: Int32 = 169
     static let minimumMigratableSchemaVersion: Int32 = 1
 
     /// The day Goals shipped — schema 120, build 114, 2026-09-19 — as midnight
@@ -747,6 +759,20 @@ extension KnowledgeStore {
                     throw error
                 }
             }
+            // Nor are schema 169's chapter pages, which this build's book
+            // writes name.
+            if try !holdsBookFileSchema() {
+                try exec("BEGIN IMMEDIATE")
+                do {
+                    try addBookPageColumns()
+                    try createBookFileMergeQueue()
+                    try enqueueSplitBookMerge()
+                    try exec("COMMIT")
+                } catch {
+                    try? exec("ROLLBACK")
+                    throw error
+                }
+            }
             try reconcileSourceProjectionView()
             return
         }
@@ -804,6 +830,7 @@ extension KnowledgeStore {
         var queuedRegisteredTitleCheckCount = 0
         var queuedYouTubeTranscriptCheckCount = 0
         var queuedSoftHyphenRepairCount = 0
+        var queuedSplitBookMergeCount = 0
         var stagedTeamApprovalRepublishCount = 0
         var releasedDeletedNotebookLinks = (deletedNotebooks: 0, republished: 0)
         var rebuiltPerMemberRows: [String: Int] = [:]
@@ -1475,6 +1502,9 @@ extension KnowledgeStore {
 
         // Where each source's full-text row is, by rowid (schema 168).
         try createSourceFTSRowTables()
+
+        // The PDF books still split into chapter files (schema 169).
+        try createBookFileMergeQueue()
 
         // What the indexer has already done, and for which version of a source's text.
         //
@@ -3019,7 +3049,9 @@ extension KnowledgeStore {
                 domain TEXT NOT NULL DEFAULT '',
                 discovery_origin TEXT,
                 word_count INTEGER,
-                artwork_url TEXT
+                artwork_url TEXT,
+                page_start INTEGER,
+                page_count INTEGER
             )
         """)
 
@@ -4135,6 +4167,15 @@ extension KnowledgeStore {
                 try enqueueSourceFTSRowBackfill()
                 try probeSourceFTSRowTables()
             }
+            if currentVersion < Self.bookFilesSchemaVersion {
+                // A PDF book is one file (2026-10-12): the chapters' page
+                // columns, added above, and the merge queue, created above,
+                // proved before the stamp; then every book with a chapter that
+                // is a PDF file queued for the merge after launch. Ids only;
+                // no file is read.
+                try probeBookFileSchema()
+                queuedSplitBookMergeCount = try enqueueSplitBookMerge()
+            }
             // Preparing the projection catches an older, structurally incompatible
             // table before the version stamp commits. The transaction then rolls
             // back completely instead of leaving a half-migrated store.
@@ -4288,6 +4329,11 @@ extension KnowledgeStore {
             if queuedSoftHyphenRepairCount > 0 {
                 logger.notice(
                     "Queued \(queuedSoftHyphenRepairCount) source(s) to check their stored text for soft hyphens"
+                )
+            }
+            if queuedSplitBookMergeCount > 0 {
+                logger.notice(
+                    "Queued \(queuedSplitBookMergeCount) PDF book(s) to put back into one file"
                 )
             }
             if stagedTeamApprovalRepublishCount > 0 {
@@ -6274,6 +6320,11 @@ extension KnowledgeStore {
             // Schema 150: the notebook a course lives in. NULL on every
             // existing row is the truth — no course had a home before.
             ("courses", "home_notebook_id", "TEXT"),
+            // Schema 169: a book chapter's pages in its book's one file. NULL
+            // on every existing row is the truth — every chapter was a file of
+            // its own. Not held with 154: this build's book writes name them.
+            ("book_sources", "page_start", "INTEGER"),
+            ("book_sources", "page_count", "INTEGER"),
         ]
         if includingSchema154 {
             columns += [
@@ -6549,6 +6600,8 @@ extension KnowledgeStore {
                 COALESCE(book_meta.title, course_meta.title, video_playlist_meta.title, meeting_meta.title) AS parent_group_title,
                 gm.sort_index AS group_sort_index,
                 gm.lecture_group_id,
+                bs.page_start AS book_page_start,
+                bs.page_count AS book_page_count,
                 \(sourcePluginLabelProjection),
                 \(sourceTeamIDProjection)
             FROM sources s

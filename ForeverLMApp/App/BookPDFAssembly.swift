@@ -15,12 +15,15 @@ struct BookPDFChapterRange: Equatable {
 
 /// Page arithmetic for a book shown as one document.
 ///
-/// A PDF-imported book is stored as one PDF per chapter, and everything the app
-/// remembers about reading it — the resume page, the depth reached, every
-/// highlight — is keyed by chapter and numbered in the chapter's own pages. The
-/// reader shows the chapters end to end as one document, so this map is how a
-/// page of the book turns back into "page 7 of chapter 4", and how a chapter's
-/// saved page turns into the page of the book to scroll to.
+/// A PDF-imported book is one file and each chapter a run of its pages
+/// (`StudioArticle.bookPages`); a book an older build split is one file per
+/// chapter until it is merged. Everything the app remembers about reading it —
+/// the resume page, the depth reached, every highlight — is keyed by chapter
+/// and numbered in the chapter's own pages. The reader shows the book as one
+/// document, so this map is how a page of the book turns back into "page 7 of
+/// chapter 4", and how a chapter's saved page turns into the page of the book
+/// to scroll to. A page in no chapter (the book's front matter, its index) has
+/// no position.
 struct BookPageMap: Equatable {
     struct Chapter: Equatable {
         let sourceID: String
@@ -39,7 +42,10 @@ struct BookPageMap: Equatable {
     /// Chapters in reading order, each occupying a contiguous run of pages.
     /// A chapter without pages is left out: it has nowhere to land.
     let chapters: [BookPDFChapterRange]
+    /// The pages of the document the map describes.
+    let pageCount: Int
 
+    /// Chapters copied end to end, each its own pages.
     init(chapters: [Chapter]) {
         var ranges: [BookPDFChapterRange] = []
         var next = 0
@@ -53,9 +59,24 @@ struct BookPageMap: Equatable {
             next += chapter.pageCount
         }
         self.chapters = ranges
+        self.pageCount = next
     }
 
-    var pageCount: Int { chapters.last?.pageRange.upperBound ?? 0 }
+    /// Chapters already in place in a document of `pageCount` pages: a book
+    /// kept as one file. Nil unless every run is in the document, in reading
+    /// order, and overlaps no other.
+    init?(placed chapters: [BookPDFChapterRange], pageCount: Int) {
+        var next = 0
+        for chapter in chapters {
+            guard !chapter.pageRange.isEmpty,
+                  chapter.pageRange.lowerBound >= next,
+                  chapter.pageRange.upperBound <= pageCount else { return nil }
+            next = chapter.pageRange.upperBound
+        }
+        self.chapters = chapters
+        self.pageCount = pageCount
+    }
+
     var isEmpty: Bool { chapters.isEmpty }
 
     func chapterIndex(containing page: Int) -> Int? {
@@ -135,17 +156,21 @@ struct BookPageMap: Equatable {
     }
 }
 
-/// A book's chapter PDFs, copied in reading order into one document.
+/// A book as one document: its file, when it is kept as one, or its chapter
+/// files' pages copied in reading order.
 ///
-/// The document is assembled in memory and never written back; the chapter
-/// files on disk stay exactly as ingestion left them. Pages are copied rather
-/// than moved so the per-chapter documents the loader caches stay whole.
+/// A copied document is assembled in memory and never written back; the
+/// chapter files on disk stay exactly as ingestion left them. Pages are copied
+/// rather than moved so the per-chapter documents the loader caches stay whole.
 final class BookPDFAssembly: @unchecked Sendable {
     struct Input: @unchecked Sendable {
         let sourceID: String
         let title: String
         let path: String
         let document: PDFDocument
+        /// The chapter's pages of `document`, for a book kept as one file; nil
+        /// when the document is the chapter.
+        var pages: Range<Int>? = nil
     }
 
     let document: PDFDocument
@@ -156,13 +181,26 @@ final class BookPDFAssembly: @unchecked Sendable {
         self.map = map
     }
 
-    /// `nil` when no chapter contributed a page.
+    /// `nil` when no chapter contributed a page. A book whose chapters are all
+    /// runs of one document is that document, front matter and all, with
+    /// nothing copied.
     static func assemble(_ inputs: [Input]) -> BookPDFAssembly? {
+        if let book = inputs.first?.document,
+           inputs.allSatisfy({ $0.document === book && $0.pages != nil }),
+           let map = BookPageMap(
+               placed: inputs.compactMap { input in
+                   input.pages.map { BookPDFChapterRange(sourceID: input.sourceID, title: input.title, path: input.path, pageRange: $0) }
+               },
+               pageCount: book.pageCount
+           ), !map.isEmpty {
+            return BookPDFAssembly(document: book, map: map)
+        }
         let document = PDFDocument()
         var chapters: [BookPageMap.Chapter] = []
         for input in inputs {
             var copied = 0
-            for index in 0..<input.document.pageCount {
+            let pages = input.pages ?? 0..<input.document.pageCount
+            for index in pages {
                 guard let page = input.document.page(at: index),
                       let copy = page.copy() as? PDFPage else { continue }
                 document.insert(copy, at: document.pageCount)
@@ -206,9 +244,11 @@ struct BookChapterSection: Equatable, Sendable {
 
 /// Finds the sections inside a PDF book's chapters, for the Contents menu.
 ///
-/// Import splits a book into one PDF per chapter and keeps no bookmarks below
-/// the chapter, so most chapter files carry no outline of their own. Where one
-/// does, it is used as written. Otherwise the sections are read off the pages:
+/// A book kept as one file has the book's own bookmarks: a chapter's sections
+/// are the ones inside its pages, one level below the chapter (`sectionEntries`).
+/// A chapter file an older build split off carries an outline of its own only
+/// sometimes; where it does, it is used as written. Otherwise the sections are
+/// read off the pages:
 /// a section of a book like Cell Biology by the Numbers opens with a heading
 /// set well above the body text ("What is the energy of a hydrogen bond?" at
 /// 18 pt over 11 pt prose), and those headings, found by font size alone, are
@@ -245,28 +285,72 @@ enum BookSectionIndex {
         var result: [String: [BookChapterSection]] = [:]
         for input in inputs {
             guard !Task.isCancelled else { break }
-            let key = cacheKey(for: input.path) as NSString
+            var key = cacheKey(for: input.path)
+            if let pages = input.pages { key += "|\(pages.lowerBound)..<\(pages.upperBound)" }
             let sections: [BookChapterSection]
-            if let cached = cache.object(forKey: key) {
+            if let cached = cache.object(forKey: key as NSString) {
                 sections = cached.sections
             } else {
-                sections = Self.sections(of: input.document)
-                cache.setObject(Entry(sections), forKey: key)
+                sections = Self.sections(of: input.document, pages: input.pages)
+                cache.setObject(Entry(sections), forKey: key as NSString)
             }
             if !sections.isEmpty { result[input.sourceID] = sections }
         }
         return result
     }
 
-    static func sections(of document: PDFDocument) -> [BookChapterSection] {
-        let outlined = outlineSections(of: document)
+    /// The sections of `pages` of `document`, numbered from their first page,
+    /// or of the whole document when `pages` is nil.
+    static func sections(of document: PDFDocument, pages: Range<Int>? = nil) -> [BookChapterSection] {
+        let range = pages ?? 0..<document.pageCount
+        let outlined = pages == nil
+            ? outlineSections(of: document)
+            : sectionEntries(outlineEntries(of: document), pages: range)
         if !outlined.isEmpty { return outlined }
-        var pages: [[Line]] = []
-        for index in 0..<document.pageCount {
+        var lines: [[Line]] = []
+        for index in range {
             guard !Task.isCancelled else { return [] }
-            pages.append(document.page(at: index).map(lines(on:)) ?? [])
+            lines.append(document.page(at: index).map(Self.lines(on:)) ?? [])
         }
-        return headingSections(pages: pages)
+        return headingSections(pages: lines)
+    }
+
+    /// Every bookmark of `document`, depth first: its title, page and depth.
+    static func outlineEntries(of document: PDFDocument) -> [(title: String, pageIndex: Int, depth: Int)] {
+        guard let root = document.outlineRoot else { return [] }
+        var entries: [(title: String, pageIndex: Int, depth: Int)] = []
+        func walk(_ node: PDFOutline, depth: Int) {
+            for index in 0..<node.numberOfChildren {
+                guard let child = node.child(at: index) else { continue }
+                if let label = child.label?.trimmingCharacters(in: .whitespacesAndNewlines), !label.isEmpty,
+                   let page = child.destination?.page {
+                    let pageIndex = document.index(for: page)
+                    if pageIndex >= 0, pageIndex < document.pageCount {
+                        entries.append((title: label, pageIndex: pageIndex, depth: depth))
+                    }
+                }
+                walk(child, depth: depth + 1)
+            }
+        }
+        walk(root, depth: 0)
+        return entries
+    }
+
+    /// The book's bookmarks inside a chapter's pages, as its sections. The
+    /// section level is the shallowest depth with at least two bookmarks inside
+    /// the chapter, so the entry for the chapter itself — and a part that opens
+    /// on the same page — is passed over for the headings under it. Pages come
+    /// back relative to the chapter's first page.
+    static func sectionEntries(
+        _ entries: [(title: String, pageIndex: Int, depth: Int)],
+        pages: Range<Int>
+    ) -> [BookChapterSection] {
+        let inside = entries.filter { pages.contains($0.pageIndex) }
+        let countsByDepth = Dictionary(grouping: inside, by: { $0.depth }).mapValues { $0.count }
+        guard let level = countsByDepth.filter({ $0.value > 1 }).keys.min() else { return [] }
+        return inside
+            .filter { $0.depth == level }
+            .map { BookChapterSection(title: $0.title, pageInChapter: $0.pageIndex - pages.lowerBound) }
     }
 
     /// The chapter file's own bookmarks. A chapter outline that is a single

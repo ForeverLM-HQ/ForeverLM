@@ -276,9 +276,11 @@ extension KnowledgeStore {
 extension KnowledgeStore {
     /// The work keys an import knows for `article`: its address, the DOIs, and the `file:` hash of a
     /// local original when `hashingFile` (an import reads the file once; an ordinary save never does).
+    /// A chapter of a PDF book has no `file:` key: its file is the book's, which every chapter shares,
+    /// and a key they all held would find the first chapter for each of the others.
     func workKeys(for article: StudioArticle, hashingFile: Bool) -> [String] {
         var fileHash: String?
-        if hashingFile, let path = article.localFilePath, !path.contains("://") {
+        if hashingFile, article.bookPages == nil, let path = article.localFilePath, !path.contains("://") {
             fileHash = try? SourceFileHash.sha256Hex(ofFileAt: URL(fileURLWithPath: StorageService.absoluteSourcePath(path)))
         }
         return SourceWorkKeys.keys(

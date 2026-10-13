@@ -207,11 +207,12 @@ actor PaperFigureIndexer {
         analyzing labels: Set<String>?
     ) async throws {
         try Task.checkCancellation()
-        guard let resolvedURL = SourceService.resolveLocalFileURL(candidate.pdfPath),
-              FileManager.default.fileExists(atPath: resolvedURL.path) else {
+        // A book chapter's path names its pages of the book's file; the document is
+        // those pages, so every figure's page counts from the chapter's first.
+        guard let location = SourcePDFPages(stored: candidate.pdfPath).resolved() else {
             throw PaperFigureIndexerError.missingPDF(candidate.pdfPath)
         }
-        guard let document = PDFDocument(url: resolvedURL) else {
+        guard let document = location.document() else {
             throw PaperFigureIndexerError.unreadablePDF(candidate.pdfPath)
         }
 
@@ -333,11 +334,10 @@ actor PaperFigureIndexer {
         guard let candidate = target else {
             throw PaperFigureIndexerError.missingPDF(figure.sourceID)
         }
-        guard let resolvedURL = SourceService.resolveLocalFileURL(candidate.pdfPath),
-              FileManager.default.fileExists(atPath: resolvedURL.path) else {
+        guard let location = SourcePDFPages(stored: candidate.pdfPath).resolved() else {
             throw PaperFigureIndexerError.missingPDF(candidate.pdfPath)
         }
-        guard let document = PDFDocument(url: resolvedURL) else {
+        guard let document = location.document() else {
             throw PaperFigureIndexerError.unreadablePDF(candidate.pdfPath)
         }
         guard let render = pageRender(from: document, pageIndex: figure.pageIndex) else {

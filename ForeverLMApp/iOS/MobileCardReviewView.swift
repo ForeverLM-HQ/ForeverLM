@@ -1551,8 +1551,9 @@ private actor MobileMemoryCardImageRenderer {
     func data(for image: MemoryCardImage) async -> Data? {
         guard let reference = SourceImageReference(urlString: image.target),
               case .page(let pageNumber) = reference.location,
-              let url = try? await MobileSourceFileStore.shared.fetchPDF(sourceID: reference.sourceID, relativePath: nil),
-              let document = PDFDocument(url: url),
+              let pdf = try? await MobileSourceFileStore.shared.fetchPDF(sourceID: reference.sourceID, relativePath: nil),
+              // A book chapter's page number counts from the chapter's first page.
+              let document = try? pdf.document(),
               let page = document.page(at: pageNumber - 1) else { return nil }
         return Self.render(page: page, crop: reference.crop).pngData()
     }

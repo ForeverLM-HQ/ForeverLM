@@ -267,23 +267,33 @@ final class SatelliteReader: @unchecked Sendable {
         for (key, file) in wish.files.sorted(by: { $0.key < $1.key }) {
             do {
                 let body: Data
-                do {
-                    if let zone = wish.zone, let zonedFetch {
-                        body = try await zonedFetch(file, zone)
-                    } else {
-                        body = try await fetch(file)
-                    }
-                } catch {
-                    guard wish.kind == InboundSourceFiles.queueKind,
-                          let held = try await store.onStore({ try $0.locallyHeldSourceSatellite(file) }) else {
-                        throw error
-                    }
+                // A book's file another of its chapters already brought is not fetched again.
+                let isPDF = wish.kind == InboundSourceFiles.queueKind && key == InboundSourceFiles.pdfRole
+                if isPDF, let held = try await store.onStore({ try $0.locallyHeldSourceSatellite(file) }) {
                     body = held
+                } else {
+                    do {
+                        if let zone = wish.zone, let zonedFetch {
+                            body = try await zonedFetch(file, zone)
+                        } else {
+                            body = try await fetch(file)
+                        }
+                    } catch {
+                        guard wish.kind == InboundSourceFiles.queueKind,
+                              let held = try await store.onStore({ try $0.locallyHeldSourceSatellite(file) }) else {
+                            throw error
+                        }
+                        body = held
+                    }
                 }
-                // A paper's PDF is a file: written here, off the store, and the row learns where it is.
+                // A paper's PDF, or a book's, is a file: written here, off the store, and the row learns where it is.
                 var installedPath: String?
-                if wish.kind == InboundSourceFiles.queueKind, key == InboundSourceFiles.pdfRole, SyncIdentity.sha256Hex(body) == file.hash {
-                    installedPath = try SourceFileInstall.installPDF(body, hash: file.hash)
+                if isPDF, SyncIdentity.sha256Hex(body) == file.hash {
+                    let target = wish.target
+                    let isBook = try await store.onStore {
+                        try InboundSourceFiles.isPageRangeChapter(sourceID: target, connection: $0)
+                    }
+                    installedPath = try SourceFileInstall.installPDF(body, hash: file.hash, folder: isBook ? "Books" : "Papers")
                 }
                 let taken = try await store.onStore { try $0.receiveSatellite(wish, key: key, body: body, installedPath: installedPath) }
                 if taken { written += 1 } else { failure = "the bytes of \(key) are not the ones wanted" }
@@ -298,14 +308,14 @@ final class SatelliteReader: @unchecked Sendable {
     }
 }
 
-/// Where a paper's PDF lands on this Mac when it arrives as a satellite.
+/// Where a paper's or a book's PDF lands on this Mac when it arrives as a satellite.
 enum SourceFileInstall {
-    /// Writes the PDF under the content root's `Papers` folder, named by its hash so two sources that share
-    /// the file share the copy, and returns its path relative to the content roots. A file already there
-    /// with the same bytes is kept.
-    static func installPDF(_ body: Data, hash: String) throws -> String {
+    /// Writes the PDF under the content root's `folder` (`Papers`, or `Books` for a book kept as one file),
+    /// named by its hash so two sources that share the file share the copy, and returns its path relative
+    /// to the content roots. A file already there with the same bytes is kept.
+    static func installPDF(_ body: Data, hash: String, folder name: String = "Papers") throws -> String {
         let root = KnowledgeStore.installedSourceFileRootOverride ?? URL(fileURLWithPath: StorageService.libraryRootPath, isDirectory: true)
-        let folder = root.appendingPathComponent("Papers", isDirectory: true)
+        let folder = root.appendingPathComponent(name, isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let url = folder.appendingPathComponent("synced-\(hash.prefix(24)).pdf")
         let held = (try? Data(contentsOf: url, options: .mappedIfSafe)).map(SyncIdentity.sha256Hex)

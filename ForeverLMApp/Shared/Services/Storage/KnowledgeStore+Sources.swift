@@ -439,8 +439,8 @@ extension KnowledgeStore {
         case .book:
             try execBind("""
                 INSERT INTO book_sources
-                (source_id, url, local_file_path, normalized_url, title, domain, discovery_origin, word_count, artwork_url)
-                VALUES (?,?,?,?,?,?,?,?,?)
+                (source_id, url, local_file_path, normalized_url, title, domain, discovery_origin, word_count, artwork_url, page_start, page_count)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(source_id) DO UPDATE SET
                     url = excluded.url,
                     local_file_path = excluded.local_file_path,
@@ -449,7 +449,9 @@ extension KnowledgeStore {
                     domain = excluded.domain,
                     discovery_origin = excluded.discovery_origin,
                     word_count = excluded.word_count,
-                    artwork_url = excluded.artwork_url
+                    artwork_url = excluded.artwork_url,
+                    page_start = excluded.page_start,
+                    page_count = excluded.page_count
             """) { stmt in
                 bind(stmt, 1, article.id)
                 bind(stmt, 2, persistURL)
@@ -460,6 +462,8 @@ extension KnowledgeStore {
                 bind(stmt, 7, article.discoveryOrigin?.rawValue)
                 bind(stmt, 8, article.wordCount)
                 bind(stmt, 9, article.artworkURL)
+                bind(stmt, 10, article.bookPages?.lowerBound)
+                bind(stmt, 11, article.bookPages?.count)
             }
         case .course:
             try execBind("""
@@ -1611,7 +1615,8 @@ extension KnowledgeStore {
         END,
         sp.published_doi,
         sp.team_id,
-        sp.paywall_suspicion
+        sp.paywall_suspicion,
+        sp.book_page_start, sp.book_page_count
     """
 
     static let sourceJoins = """

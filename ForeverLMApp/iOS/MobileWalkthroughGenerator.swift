@@ -241,7 +241,7 @@ final class MobileWalkthroughGenerator: ObservableObject {
         let chosen = PaperWalkthroughWriting.firstPerLabel(rows, label: \.figureLabel, pageIndex: \.pageIndex)
         var readings: [String: PaperFigurePanelLocator.TextLayerReading] = [:]
         let relativePath = MobileSourceFilePath.relativePDFPath(localFilePath: source.localFilePath, url: source.url)
-        if let url = try? await MobileSourceFileStore.shared.fetchPDF(sourceID: source.id, relativePath: relativePath) {
+        if let pdf = try? await MobileSourceFileStore.shared.fetchPDF(sourceID: source.id, relativePath: relativePath) {
             let locations = chosen.map {
                 PaperFigurePanelLocator.FigureLocation(
                     id: $0.id,
@@ -252,7 +252,8 @@ final class MobileWalkthroughGenerator: ObservableObject {
                 )
             }
             readings = await Task.detached(priority: .userInitiated) {
-                guard let document = PDFDocument(url: url) else { return [:] }
+                // A chapter's figure pages are the chapter document's.
+                guard let document = try? pdf.document() else { return [:] }
                 return PaperFigurePanelLocator.textLayer(for: locations, in: document)
             }.value
         }

@@ -93,10 +93,13 @@ enum TextbookOutlineReader {
         }
         guard let document = await AsyncPDFDocumentLoader.load(url: url) else { return nil }
         let sendable = UncheckedPDFDocument(document: document)
+        // A chapter of a book kept as one file is its pages of the book's file.
+        let pages = article.bookPages
         return await Task.detached(priority: .utility) {
-            let sections = BookSectionIndex.sections(of: sendable.document)
+            if let pages, pages.upperBound > sendable.document.pageCount { return nil }
+            let sections = BookSectionIndex.sections(of: sendable.document, pages: pages)
             return ChapterFile(
-                pageCount: sendable.document.pageCount,
+                pageCount: pages?.count ?? sendable.document.pageCount,
                 sections: sections.map { (title: $0.title, pageIndex: $0.pageInChapter) }
             )
         }.value

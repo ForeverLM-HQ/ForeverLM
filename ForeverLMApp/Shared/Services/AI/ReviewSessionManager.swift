@@ -7723,7 +7723,7 @@ final class ReviewSessionManager {
             figures = (try? await paperFigureIndexer.prepareStructure(sourceID: sourceID)) ?? []
         }
         let listing = await Task.detached(priority: .userInitiated) { () -> Result<[SourceImageEntry], SourceImageCatalog.Failure> in
-            guard let path = article.resolvedLocalPath else { return .failure(.fileUnavailable) }
+            guard let path = article.resolvedFileLocation else { return .failure(.fileUnavailable) }
             do {
                 let found = try SourceImageCatalog.entries(
                     sourceID: sourceID,
@@ -8289,7 +8289,7 @@ final class ReviewSessionManager {
               entries.contains(where: { if case .page = $0.reference.location { true } else { false } })
         else { return entries }
         #if os(macOS)
-        guard let document = PDFDocument(url: URL(fileURLWithPath: filePath)) else { return entries }
+        guard let document = SourcePDFPages(stored: filePath).document() else { return entries }
         let labelsPerPage = Dictionary(grouping: figures, by: \.pageIndex)
             .mapValues { Set($0.map(\.figureLabel)).count }
 
@@ -14768,10 +14768,10 @@ final class ReviewSessionManager {
                 guard let pdfDocument = PDFDocument(url: resolvedURL) else {
                     throw SourceError.pdfReadFailed
                 }
-                text = PDFTextExtractor.textWithFigureReferences(
-                    from: pdfDocument,
-                    pages: 0..<pdfDocument.pageCount
-                )
+                // A book chapter's pages of its book's file.
+                let pages = article.bookPages ?? 0..<pdfDocument.pageCount
+                guard pages.upperBound <= pdfDocument.pageCount else { throw SourceError.pdfReadFailed }
+                text = PDFTextExtractor.textWithFigureReferences(from: pdfDocument, pages: pages)
             case "ttml":
                 text = try SourceService.extractTextFromTTMLContent(String(contentsOf: resolvedURL, encoding: .utf8))
             case "html", "htm", "xhtml":

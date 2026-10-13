@@ -189,11 +189,19 @@ extension KnowledgeStore {
     /// outline its figures; the historical migration staging
     /// (`enqueueHistoricalPaperFigureIndex`) stays papers-only on purpose, so
     /// no launch indexes a library's books unasked — a chapter is indexed when
-    /// something asks for its figures.
+    /// something asks for its figures. A chapter of a book kept as one file is
+    /// its pages of the book's file, in the stored form `SourcePDFPages`
+    /// reads (`Books/…/Book.pdf#pages=12..<40`): the index's figures count
+    /// pages from the chapter's first, and a chapter whose pages change is a
+    /// new path, so it is indexed again.
     static let figureIndexableSourcesSQL = """
         (SELECT source_id, title, local_file_path FROM papers
          UNION ALL
-         SELECT source_id, title, local_file_path FROM book_sources)
+         SELECT source_id, title,
+                CASE WHEN page_start IS NULL OR page_count IS NULL THEN local_file_path
+                     ELSE local_file_path || '#pages=' || page_start || '..<' || (page_start + page_count)
+                END
+         FROM book_sources)
         """
 
     func nextPaperFigureIndexCandidate() throws -> PaperFigureIndexCandidate? {
@@ -304,7 +312,7 @@ extension KnowledgeStore {
               AND s.status = 'active'
               AND p.local_file_path IS NOT NULL
               AND TRIM(p.local_file_path) != ''
-              AND LOWER(p.local_file_path) LIKE '%.pdf'
+              AND (LOWER(p.local_file_path) LIKE '%.pdf' OR LOWER(p.local_file_path) LIKE '%.pdf#pages=%')
             LIMIT 1
         """, bind: { stmt in
             bind(stmt, 1, sourceID)

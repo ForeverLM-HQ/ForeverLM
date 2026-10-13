@@ -1,10 +1,10 @@
 import PDFKit
 import SwiftUI
 
-// The paper reader's primary content, and a PDF-split book chapter's. It fetches
-// the same original PDF the Mac reader opens from shared iCloud Documents (with
-// sourcePDFAsset as a fallback), caches it through MobileSourceFileStore, and
-// renders it directly with PDFKit.
+// The paper reader's primary content, and a PDF book chapter's. It fetches the
+// same original PDF the Mac reader opens, caches it through
+// MobileSourceFileStore, and renders it directly with PDFKit: for a chapter kept
+// as a run of its book's pages, a document of just those pages.
 struct MobileSourcePDFView: View {
     let source: MobileCloudSource
     var highlights: [SourceHighlight] = []
@@ -26,7 +26,7 @@ struct MobileSourcePDFView: View {
 
     private enum LoadState {
         case loading
-        case ready(URL)
+        case ready(MobileSourcePDF, PDFDocument)
         case failed(String)
     }
 
@@ -36,9 +36,10 @@ struct MobileSourcePDFView: View {
             case .loading:
                 ProgressView("Downloading PDF…")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            case .ready(let url):
+            case .ready(let file, let document):
                 MobilePDFKitView(
-                    url: url,
+                    file: file,
+                    document: document,
                     highlights: highlights,
                     find: find,
                     referenceCards: referenceCards,
@@ -89,15 +90,21 @@ struct MobileSourcePDFView: View {
     private func load() async {
         state = .loading
         do {
-            let url = try await MobileSourceFileStore.shared.fetchPDF(
+            let file = try await MobileSourceFileStore.shared.fetchPDF(
                 sourceID: source.id,
                 relativePath: MobileSourceFilePath.relativePDFPath(
                     localFilePath: source.localFilePath,
                     url: source.url
                 )
             )
+            // Opening reads the file synchronously — cheap for the cached local
+            // copy, but kept off the main actor anyway. A chapter whose pages its
+            // book does not hold fails here, onto the chapter's text.
+            let document = try await Task.detached(priority: .userInitiated) {
+                try file.document()
+            }.value
             guard !Task.isCancelled else { return }
-            state = .ready(url)
+            state = .ready(file, document)
         } catch is CancellationError {
             return
         } catch {
@@ -250,7 +257,10 @@ private final class LinkTapDelegate: NSObject, UIGestureRecognizerDelegate {
 }
 
 private struct MobilePDFKitView: UIViewRepresentable {
-    let url: URL
+    let file: MobileSourcePDF
+    /// Opened from `file`: for a chapter kept as a run of its book's pages,
+    /// only those pages, so every page index here is the chapter's.
+    let document: PDFDocument
     let highlights: [SourceHighlight]
     let find: MobileReaderFindState?
     let referenceCards: MobileReaderReferenceCards
@@ -276,19 +286,12 @@ private struct MobilePDFKitView: UIViewRepresentable {
         if let find, let performer = context.coordinator.findPerformer, find.performer !== performer {
             find.performer = performer
         }
-        if view.document?.documentURL == url {
-            context.coordinator.apply(highlights, to: view.document)
-            return
+        // The citation cards read the file the document came from.
+        referenceCards.file = file
+        if view.document !== document {
+            view.document = document
         }
-        // PDFDocument(url:) reads the file synchronously — cheap for the cached
-        // local copy, but keep it off the render pass anyway.
-        Task.detached(priority: .userInitiated) {
-            let document = PDFDocument(url: url)
-            await MainActor.run {
-                view.document = document
-                context.coordinator.apply(highlights, to: document)
-            }
-        }
+        context.coordinator.apply(highlights, to: document)
     }
 
     final class Coordinator {

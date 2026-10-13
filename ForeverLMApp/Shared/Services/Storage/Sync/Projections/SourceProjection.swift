@@ -34,6 +34,8 @@ enum SourceLocalTables {
         case "meeting_sources": return commonColumns + ["occurred_at", "presenter"]
         case "videos": return commonColumns + ["video_published_at"]
         case "x_posts": return commonColumns + ["author", "author_handle"]
+        // A chapter's pages of its book's file (`meta.pageStart`, `meta.pageCount`).
+        case "book_sources": return commonColumns + ["page_start", "page_count"]
         default: return commonColumns
         }
     }
@@ -279,6 +281,7 @@ struct SourceProjection: RecordProjection {
                 venue, .columns(table: "articles", ["domain"]), .columns(table: "meeting_sources", ["occurred_at"]),
                 .columns(table: "x_posts", ["author_handle"]), .columns(table: "meeting_artifacts", SourceLocalTables.attachmentColumns),
                 .columns(table: "group_members", ["sort_index"]), Self.subtypeColumns("url"), Self.wireColumn("extra_meta_json"),
+                .columns(table: "book_sources", ["page_start", "page_count"]),
             ]),
             "addedAt": .columns(table: "sources", ["date_added"]),
             "madeBy": .anyOf([Self.wireColumn("made_by_json"), .columns(table: "sources", ["date_added"])]),
@@ -584,6 +587,11 @@ struct SourceProjection: RecordProjection {
             if let attachments = rows.attachments { meta["attachments"] = .object(attachments) }
         case "book_sources":
             if rows.membership?.kind == .book { set("bookID", rows.membership?.groupID) }
+            // A chapter of a book kept as one file: its pages of the book's file, which `files.pdf` names.
+            if let start = rows.integer("page_start"), let count = rows.integer("page_count"), start >= 0, count > 0 {
+                meta["pageStart"] = SyncJSON(start)
+                meta["pageCount"] = SyncJSON(count)
+            }
         case "x_posts":
             set("postID", rows.text("url").flatMap { WorkKey.normalizeRemote("x:" + $0) }.map { String($0.dropFirst(2)) })
             set("handle", rows.text("author_handle"))
@@ -603,7 +611,7 @@ struct SourceProjection: RecordProjection {
         case "podcasts": return ["showName"]
         case "videos": return ["youtubeID", "channelName"]
         case "meeting_sources": return ["startAt", "groupKey"]
-        case "book_sources": return ["bookID"]
+        case "book_sources": return ["bookID", "pageStart", "pageCount"]
         case "x_posts": return ["postID", "handle"]
         case "articles": return ["siteName"]
         default: return []
@@ -741,6 +749,7 @@ extension SourceProjection {
     ) throws {
         var row: [String: SQLiteValue] = [:]
         var carried: [String: SQLiteValue] = [:]
+        var releasesLocalFile = false
         if let existing {
             for column in SourceLocalTables.commonColumns + ["local_file_path"] {
                 if let value = existing.subtype[column] { row[column] = value }
@@ -790,6 +799,19 @@ extension SourceProjection {
             if let handle = meta["handle"] { row["author_handle"] = handle.stringValue.map(SQLiteValue.text) ?? .null }
         case "articles":
             if let site = meta["siteName"] { row["domain"] = .text(site.stringValue ?? "") }
+        case "book_sources":
+            if fields["meta"] != nil {
+                // A chapter of a book kept as one file. A file this Mac held as the chapter's
+                // own is not the book's: once the record names other pages, it is let go and
+                // the book's file is fetched in its place (`InboundSourceFiles.take`).
+                let pages = Self.bookPages(meta)
+                row["page_start"] = pages.map { .integer(Int64($0.lowerBound)) } ?? .null
+                row["page_count"] = pages.map { .integer(Int64($0.count)) } ?? .null
+                if pages != nil,
+                   existing?.subtype["page_start"] != row["page_start"] || existing?.subtype["page_count"] != row["page_count"] {
+                    releasesLocalFile = true
+                }
+            }
         default:
             break
         }
@@ -837,9 +859,20 @@ extension SourceProjection {
             VALUES (?\(String(repeating: ", ?", count: columns.count)))
             ON CONFLICT(source_id) \(conflict)
         """, [.text(localID)] + columns.map { write[$0] ?? .null })
+        if releasesLocalFile {
+            try connection.execute("UPDATE book_sources SET local_file_path = NULL WHERE source_id = ?", [.text(localID)])
+        }
         for other in SourceLocalTables.subtypeTables where other != table {
             try connection.execute("DELETE FROM \(other) WHERE source_id = ?", [.text(localID)])
         }
+    }
+
+    /// A book chapter's pages of its book's file from `meta`: nil unless both are whole numbers making
+    /// a run.
+    static func bookPages(_ meta: [String: SyncJSON]) -> Range<Int>? {
+        guard let start = meta["pageStart"]?.int64Value, let count = meta["pageCount"]?.int64Value,
+              start >= 0, count > 0 else { return nil }
+        return Int(start)..<Int(start + count)
     }
 
     /// `collectionID` and `collectionOrder` as the source's book or meeting-series membership. A

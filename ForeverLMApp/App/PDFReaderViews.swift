@@ -550,13 +550,14 @@ struct PDFPageJump: Equatable {
 
 /// A PDF-imported book, read as one document.
 ///
-/// Ingestion splits such a book into one PDF per chapter. The reader copies
-/// those chapters end to end into a single document (`BookPDFAssembly`), so
-/// the whole book scrolls and searches as one and the Contents menu is a list
-/// of places to jump to, rather than a list of documents to swap in. Chapters
-/// stay the unit everything is stored in — the resume page, the depth reached,
-/// every highlight — so each page the view reports is translated back through
-/// the book's page map before it leaves this view.
+/// A PDF book is one file and each chapter a run of its pages, so the reader
+/// shows that file (`BookPDFAssembly`): the whole book scrolls and searches as
+/// one and the Contents menu is a list of places to jump to, rather than a
+/// list of documents to swap in. A book an older build split into chapter
+/// files, until it is merged, has its chapters copied end to end instead.
+/// Chapters stay the unit everything is stored in — the resume page, the depth
+/// reached, every highlight — so each page the view reports is translated back
+/// through the book's page map before it leaves this view.
 struct PDFBookReaderView: View {
     @Environment(StudioViewModel.self) private var vm
     let initialArticle: StudioArticle
@@ -601,6 +602,8 @@ struct PDFBookReaderView: View {
         let article: StudioArticle
         let path: String
         var url: URL { URL(fileURLWithPath: path) }
+        /// The chapter's pages of the file; nil when the file is the chapter.
+        var pages: Range<Int>? { article.bookPages }
     }
 
     init(
@@ -738,8 +741,8 @@ struct PDFBookReaderView: View {
         // show a real "downloading" state, and pull the bytes down through the
         // proper iCloud API instead.
         var evicted: [URL] = []
-        for chapter in chapters where !(await AsyncPDFDocumentLoader.isLocallyAvailable(url: chapter.url)) {
-            evicted.append(chapter.url)
+        for url in Set(chapters.map(\.url)) where !(await AsyncPDFDocumentLoader.isLocallyAvailable(url: url)) {
+            evicted.append(url)
         }
         guard !Task.isCancelled else { return }
         var downloadFailures: [URL: ICloudDownload.Failure] = [:]
@@ -770,15 +773,28 @@ struct PDFBookReaderView: View {
             return
         }
 
+        // A book kept as one file is shown as that file, opened here rather than
+        // taken from the loader's cache, since the view paints its notes onto it.
+        let isOneFile = chapters.allSatisfy { $0.pages != nil } && Set(chapters.map(\.path)).count == 1
+        var documents: [String: PDFDocument] = [:]
         var inputs: [BookPDFAssembly.Input] = []
         for chapter in chapters where downloadFailures[chapter.url] == nil {
-            guard let document = await AsyncPDFDocumentLoader.load(url: chapter.url) else { continue }
+            var document = documents[chapter.path]
+            if document == nil {
+                let url = chapter.url
+                document = isOneFile
+                    ? await Task.detached(priority: .userInitiated) { PDFDocument(url: url) }.value
+                    : await AsyncPDFDocumentLoader.load(url: url)
+                documents[chapter.path] = document
+            }
+            guard let document else { continue }
             guard !Task.isCancelled else { return }
             inputs.append(BookPDFAssembly.Input(
                 sourceID: chapter.article.id,
                 title: chapter.article.title,
                 path: chapter.path,
-                document: document
+                document: document,
+                pages: chapter.pages
             ))
         }
         let assembled = await Task.detached(priority: .userInitiated) {
@@ -801,8 +817,9 @@ struct PDFBookReaderView: View {
         for chapter in assembled.map.chapters {
             await vm.loadReaderHighlightsIfNeeded(for: chapter.sourceID)
         }
-        // Sections are read from the chapter files, not the assembled copy,
-        // so this runs beside the text warm-up rather than on the same pages.
+        // Sections are read from the chapter files or the book's outline, not
+        // a copy, so a split book's run beside the text warm-up rather than on
+        // the same pages.
         let indexing = Task.detached(priority: .utility) { [inputs] in
             BookSectionIndex.sections(for: inputs)
         }

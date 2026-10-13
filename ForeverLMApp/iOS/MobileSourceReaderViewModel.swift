@@ -187,8 +187,8 @@ final class MobileSourceReaderViewModel: ObservableObject {
         let sourceType = source.sourceType
         let sourceTitle = source.title
         // EPUB-backed chapters and archived articles publish rich reader HTML.
-        // A PDF-split chapter reads its own PDF, so asking for HTML would be a
-        // round trip that finds nothing.
+        // A PDF book's chapter reads its pages of the PDF, so asking for HTML
+        // would be a round trip that finds nothing.
         let expectsReaderDocument = (sourceType == "book" && !source.isPDFBackedBookChapter)
             || source.isArchivedArticle
 

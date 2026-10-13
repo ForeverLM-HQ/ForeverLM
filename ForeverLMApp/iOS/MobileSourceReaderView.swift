@@ -192,10 +192,11 @@ struct MobileSourceReaderView: View {
                 onOpenCitedSource: { citedDestination = MobileCitedSourceDestination(source: $0) }
             )
         } else if source.isPDFBackedBookChapter, !chapterPDFUnavailable {
-            // A book imported from a PDF is split into one PDF per chapter, and
-            // that document is the only place the chapter's figures, plates and
-            // layout exist — extracted text has none of them. Read it the same
-            // way the Mac does, and fall through to text if it cannot be fetched.
+            // A book imported from a PDF is one file whose chapters are runs of
+            // its pages (older imports: one PDF per chapter), and those pages are
+            // the only place the chapter's figures, plates and layout exist —
+            // extracted text has none of them. Read them the same way the Mac
+            // does, and fall through to text if they cannot be fetched or found.
             MobileSourcePDFView(
                 source: source,
                 highlights: viewModel.highlights,

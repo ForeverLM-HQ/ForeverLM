@@ -24,7 +24,8 @@ enum NowPlayingArtwork {
         if let bookCoverPath, let cover = renderLocal(path: bookCoverPath) {
             return cover
         }
-        if let pdfPath = article.cachedResolvedPDFPath, let page = renderLocal(path: pdfPath) {
+        if let pdfPath = article.cachedResolvedPDFPath,
+           let page = renderLocal(path: SourcePDFPages.stored(path: pdfPath, pages: article.bookPages)) {
             return page
         }
         if let artworkURL = article.artworkURL {
@@ -52,7 +53,9 @@ enum NowPlayingArtwork {
     /// Relative paths are the library's; the same candidate walk the sidebar
     /// thumbnails use finds a file iCloud has moved between roots.
     private nonisolated static func renderLocal(path: String) -> NSImage? {
-        let candidates = StorageService.sourceFileCandidatePaths(for: path)
+        // A book chapter's path names its pages of the book's file; its picture is the first.
+        let location = SourcePDFPages(stored: path)
+        let candidates = StorageService.sourceFileCandidatePaths(for: location.path)
         guard let filePath = candidates.first(where: { FileManager.default.fileExists(atPath: $0) }) else {
             return nil
         }
@@ -61,7 +64,7 @@ enum NowPlayingArtwork {
             return NSImage(contentsOfFile: filePath)
         }
         guard let document = PDFDocument(url: URL(fileURLWithPath: filePath)),
-              let page = document.page(at: 0) else { return nil }
+              let page = document.page(at: location.pages?.lowerBound ?? 0) else { return nil }
         let bounds = page.bounds(for: .mediaBox)
         guard bounds.width > 0, bounds.height > 0 else { return nil }
         let scale = min(renderSize.width / bounds.width, renderSize.height / bounds.height)

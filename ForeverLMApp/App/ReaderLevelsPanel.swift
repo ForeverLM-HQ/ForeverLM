@@ -150,8 +150,11 @@ final class ReaderLevelsModel {
         guard await AsyncPDFDocumentLoader.isLocallyAvailable(url: url),
               let document = await AsyncPDFDocumentLoader.load(url: url) else { return }
         let anchors = levels.sections.flatMap(\.paragraphs).map { (number: $0.index, anchor: $0.anchor) }
+        // A book chapter is its pages of the book's file, numbered from its first.
+        let range = article.bookPages ?? 0..<document.pageCount
         let found = await Task.detached(priority: .utility) { () -> [Int: Int] in
-            let texts = (0..<document.pageCount).map { document.page(at: $0)?.string ?? "" }
+            guard range.upperBound <= document.pageCount else { return [:] }
+            let texts = range.map { document.page(at: $0)?.string ?? "" }
             return SourceLevelsPageLocator.pages(for: anchors, pageTexts: texts)
         }.value
         guard token == loadToken, !found.isEmpty else { return }

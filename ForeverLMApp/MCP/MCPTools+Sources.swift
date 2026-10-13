@@ -402,6 +402,7 @@ extension MCPDataStore {
         let response: String = try withDB { db in
             let rows = try query(db, """
                 SELECT sp.title, sp.source_type, sp.author, sp.word_count, sp.url, sp.local_file_path,
+                       sp.book_page_start, sp.book_page_count,
                        COALESCE(sp.is_paywalled, 0) as is_paywalled, sc.content
                 FROM source_projection sp
                 LEFT JOIN source_content sc ON sp.id = sc.source_id
@@ -428,7 +429,7 @@ extension MCPDataStore {
             // If no stored content, try extracting from local file on the fly
             if type != "paper", content == nil || content?.isEmpty == true {
                 if let path = localPath ?? (url.hasPrefix("/") ? url : nil) {
-                    content = Self.extractTextFromLocalFile(path)
+                    content = Self.extractTextFromLocalFile(path, pages: Self.bookPages(r))
                     contentIsPersistedCanonical = false
                 }
             }
@@ -1337,6 +1338,7 @@ extension MCPDataStore {
             let placeholders = ids.map { _ in "?" }.joined(separator: ",")
             let rows = try query(db, """
                 SELECT sp.id, sp.title, sp.source_type, sp.word_count, sp.url, sp.local_file_path,
+                       sp.book_page_start, sp.book_page_count,
                        COALESCE(sp.is_paywalled, 0) as is_paywalled, sc.content
                 FROM source_projection sp
                 LEFT JOIN source_content sc ON sp.id = sc.source_id
@@ -1364,7 +1366,7 @@ extension MCPDataStore {
                 // If no stored content, try extracting from local file
                 if type != "paper", content == nil || content?.isEmpty == true {
                     if let path = localPath ?? (url.hasPrefix("/") ? url : nil) {
-                        content = Self.extractTextFromLocalFile(path)
+                        content = Self.extractTextFromLocalFile(path, pages: Self.bookPages(r))
                     }
                 }
 

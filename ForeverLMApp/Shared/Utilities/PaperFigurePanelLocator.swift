@@ -447,8 +447,8 @@ enum PaperFigurePanelLocator {
 
     /// `textLayer(for:in:)` over the Mac's figure index, one document open.
     static func textLayer(for figures: [PaperFigureRecord], pdfPath: String) -> [String: TextLayerReading] {
-        guard !figures.isEmpty, let url = SourceService.resolveLocalFileURL(pdfPath),
-              let document = PDFDocument(url: url) else { return [:] }
+        // A book chapter's path names its pages of the book's file (`SourcePDFPages`).
+        guard !figures.isEmpty, let document = SourcePDFPages.document(atStored: pdfPath) else { return [:] }
         return textLayer(
             for: figures.map {
                 FigureLocation(

@@ -2686,7 +2686,7 @@ struct ChatModelTuningPersistenceTests {
 
         let migrated = try KnowledgeStore(storeDirectory: root)
         #expect(Self.scalar(at: root, "PRAGMA user_version") == "\(KnowledgeStore.schemaVersion)")
-        #expect(KnowledgeStore.schemaVersion == 168)
+        #expect(KnowledgeStore.schemaVersion == 169)
         #expect(Self.scalar(at: root, Self.tuningColumns) == "2")
 
         // The chat is whole, on its model, at the model's default: no chat

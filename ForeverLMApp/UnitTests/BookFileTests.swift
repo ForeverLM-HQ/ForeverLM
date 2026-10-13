@@ -1,0 +1,585 @@
+import AppKit
+import Foundation
+import PDFKit
+import SQLite3
+import Testing
+@testable import ForeverLM
+
+/// A PDF book kept as one file (schema 169; docs/backend-storage-sync.md, "A PDF book is one
+/// file"): a chapter is a run of the book file's pages, everything stored about it still counts
+/// pages from its first, and a book an older build split into chapter files is put back into one.
+enum BookFileFixture {
+    /// A PDF whose every page shows its own label and a box of its own size and place, so no two
+    /// pages render alike.
+    static func book(_ labels: [String], at url: URL) throws {
+        var mediaBox = CGRect(x: 0, y: 0, width: 300, height: 400)
+        let context = try #require(CGContext(url as CFURL, mediaBox: &mediaBox, nil))
+        for (index, label) in labels.enumerated() {
+            context.beginPDFPage(nil)
+            context.setFillColor(gray: 0.2, alpha: 1)
+            context.fill(CGRect(
+                x: 20 + CGFloat(index % 5) * 40, y: 40 + CGFloat(index / 5) * 50,
+                width: 60, height: 30 + CGFloat(index) * 4
+            ))
+            NSGraphicsContext.saveGraphicsState()
+            NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
+            NSAttributedString(string: label, attributes: [.font: NSFont.systemFont(ofSize: 28)])
+                .draw(at: CGPoint(x: 30, y: 300))
+            NSGraphicsContext.restoreGraphicsState()
+            context.endPDFPage()
+        }
+        context.closePDF()
+    }
+
+    /// `pages` of the book at `book`, written as a chapter file the way builds before 169 split a
+    /// book: a fresh document, written by PDFKit, with `sections` as its own bookmarks.
+    static func chapter(_ pages: Range<Int>, of book: URL, to url: URL, sections: [(String, Int)] = []) throws {
+        let document = try #require(PDFDocument(url: book))
+        let chapter = PDFDocument()
+        for index in pages {
+            chapter.insert(try #require(document.page(at: index)?.copy() as? PDFPage), at: chapter.pageCount)
+        }
+        if !sections.isEmpty {
+            let root = PDFOutline()
+            for (title, page) in sections {
+                let item = PDFOutline()
+                item.label = title
+                item.destination = PDFDestination(page: try #require(chapter.page(at: page)), at: .zero)
+                root.insertChild(item, at: root.numberOfChildren)
+            }
+            chapter.outlineRoot = root
+        }
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        #expect(chapter.write(to: url))
+    }
+
+    static func folder(_ name: String) throws -> URL {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("BookFile-\(name)-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        return folder
+    }
+
+    static let labels = ["cover", "contents", "a one", "a two", "a three", "b one", "b two", "index"]
+}
+
+@Suite("SourcePDFPages")
+struct SourcePDFPagesTests {
+    @Test("A chapter is its pages of the book's file, numbered from its first")
+    func chapterDocument() throws {
+        let folder = try BookFileFixture.folder("pages")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let url = folder.appendingPathComponent("Book.pdf")
+        try BookFileFixture.book(BookFileFixture.labels, at: url)
+
+        let chapter = SourcePDFPages(path: url.path, pages: 5..<7)
+        let document = try #require(chapter.document())
+        #expect(document.pageCount == 2)
+        #expect(document.page(at: 0)?.string?.contains("b one") == true)
+        #expect(document.page(at: 1)?.string?.contains("b two") == true)
+        #expect(chapter.filePage(0) == 5)
+        #expect(chapter.filePage(1) == 6)
+        #expect(chapter.filePage(2) == nil)
+        #expect(SourcePDFPages(path: url.path).document()?.pageCount == 8)
+        // Pages the file does not hold are never shown as other pages of the book.
+        #expect(SourcePDFPages(path: url.path, pages: 6..<10).document() == nil)
+    }
+
+    @Test("The stored form names the file and the chapter's pages, and reads back")
+    func storedForm() {
+        let stored = SourcePDFPages.stored(path: "Books/Foo/Foo.pdf", pages: 12..<40)
+        #expect(stored == "Books/Foo/Foo.pdf#pages=12..<40")
+        #expect(SourcePDFPages(stored: stored) == SourcePDFPages(path: "Books/Foo/Foo.pdf", pages: 12..<40))
+        #expect(SourcePDFPages(stored: "Books/Foo/Chapters/01 One.pdf") == SourcePDFPages(path: "Books/Foo/Chapters/01 One.pdf"))
+        #expect(SourcePDFPages(stored: "Books/Foo/Foo.pdf#pages=9..<3").pages == nil)
+        #expect(SourcePDFPages(path: "/b.pdf", pages: 0..<4).cacheKey != SourcePDFPages(path: "/b.pdf", pages: 4..<9).cacheKey)
+    }
+
+    @Test("A new chapter is addressed by its book's file at its first page, one address and one id a chapter")
+    func chapterAddress() {
+        let first = StudioArticle.bookChapterURL(bookFilePath: "Books/Foo/Foo.pdf", pages: 2..<5)
+        let second = StudioArticle.bookChapterURL(bookFilePath: "Books/Foo/Foo.pdf", pages: 5..<7)
+        #expect(first == "Books/Foo/Foo.pdf#page=3")
+        #expect(URLNormalizer.normalize(first) == first)
+        #expect(SourceIdentity.stableID(for: first) != SourceIdentity.stableID(for: second))
+    }
+}
+
+@Suite("BookFileMerge", .serialized)
+struct BookFileMergeTests {
+    /// `Books/Foo/` with chapter files cut from `cut` (pages 2..<5 and 5..<7), and `Foo.pdf`
+    /// holding `bookLabels` when given.
+    private func splitBook(_ name: String, bookLabels: [String]?) throws -> (folder: URL, chapters: [BookFileMerge.Chapter]) {
+        let root = try BookFileFixture.folder(name)
+        let folder = root.appendingPathComponent("Books/Foo", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let cut = root.appendingPathComponent("cut.pdf")
+        try BookFileFixture.book(BookFileFixture.labels, at: cut)
+        let first = folder.appendingPathComponent("Chapters/01 A.pdf")
+        let second = folder.appendingPathComponent("Chapters/02 B.pdf")
+        try BookFileFixture.chapter(2..<5, of: cut, to: first, sections: [("A.1", 0), ("A.2", 2)])
+        try BookFileFixture.chapter(5..<7, of: cut, to: second)
+        if let bookLabels {
+            try BookFileFixture.book(bookLabels, at: folder.appendingPathComponent("Foo.pdf"))
+        }
+        return (folder, [
+            BookFileMerge.Chapter(sourceID: "a", title: "A", path: first.path),
+            BookFileMerge.Chapter(sourceID: "b", title: "B", path: second.path),
+        ])
+    }
+
+    @Test("A book whose own file holds every chapter keeps that file, front matter and all")
+    func keepsTheBookFile() throws {
+        let (folder, chapters) = try splitBook("kept", bookLabels: BookFileFixture.labels)
+        defer { try? FileManager.default.removeItem(at: folder.deletingLastPathComponent().deletingLastPathComponent()) }
+        let bookPath = folder.appendingPathComponent("Foo.pdf").path
+        let before = try Data(contentsOf: URL(fileURLWithPath: bookPath))
+
+        let merged = try BookFileMerge.merge(chapters)
+
+        #expect(merged.keptBookFile)
+        #expect(merged.bookPath == bookPath)
+        #expect(merged.pages.map(\.sourceID) == ["a", "b"])
+        #expect(merged.pages.map(\.pages) == [2..<5, 5..<7])
+        #expect(try Data(contentsOf: URL(fileURLWithPath: bookPath)) == before, "the book's file is untouched")
+    }
+
+    @Test("Chapters that are no run of the book's file are joined into it, each a bookmark over its own")
+    func joinsWhenTheBookFileDiffers() throws {
+        let (folder, chapters) = try splitBook("joined", bookLabels: ["other one", "other two", "other three"])
+        defer { try? FileManager.default.removeItem(at: folder.deletingLastPathComponent().deletingLastPathComponent()) }
+
+        let merged = try BookFileMerge.merge(chapters)
+
+        #expect(!merged.keptBookFile)
+        #expect(merged.pages.map(\.pages) == [0..<3, 3..<5])
+        let book = try #require(PDFDocument(url: URL(fileURLWithPath: merged.bookPath)))
+        #expect(merged.bookPath == folder.appendingPathComponent("Foo.pdf").path)
+        #expect(book.pageCount == 5)
+        #expect(book.page(at: 3)?.string?.contains("b one") == true)
+        let outline = try #require(book.outlineRoot)
+        #expect(outline.numberOfChildren == 2)
+        #expect(outline.child(at: 0)?.label == "A")
+        #expect(outline.child(at: 0)?.numberOfChildren == 2, "the chapter file's own bookmarks stay under it")
+        #expect(outline.child(at: 1)?.destination?.page.map { book.index(for: $0) } == 3)
+        // The reader reads a chapter's sections off the book's bookmarks inside its pages.
+        #expect(BookSectionIndex.sections(of: book, pages: 0..<3).map(\.title) == ["A.1", "A.2"])
+        #expect(BookSectionIndex.sections(of: book, pages: 0..<3).map(\.pageInChapter) == [0, 2])
+    }
+
+    @Test("A book with no file of its own is joined")
+    func joinsWithoutABookFile() throws {
+        let (folder, chapters) = try splitBook("no-book", bookLabels: nil)
+        defer { try? FileManager.default.removeItem(at: folder.deletingLastPathComponent().deletingLastPathComponent()) }
+        let merged = try BookFileMerge.merge(chapters)
+        #expect(!merged.keptBookFile)
+        #expect(merged.pages.map(\.pages) == [0..<3, 3..<5])
+        #expect(FileManager.default.fileExists(atPath: folder.appendingPathComponent("Foo.pdf").path))
+    }
+
+    @Test("A chapter file this Mac does not hold is nothing to merge here")
+    func missingChapter() throws {
+        let (folder, chapters) = try splitBook("missing", bookLabels: BookFileFixture.labels)
+        defer { try? FileManager.default.removeItem(at: folder.deletingLastPathComponent().deletingLastPathComponent()) }
+        try FileManager.default.removeItem(atPath: chapters[1].path)
+        #expect(throws: BookFileMerge.Failure.chapterFileMissing(chapters[1].path)) { try BookFileMerge.merge(chapters) }
+    }
+
+    @Test("The same page renders alike whoever wrote it; a neighbouring page does not")
+    func pageRenders() throws {
+        let (folder, chapters) = try splitBook("renders", bookLabels: BookFileFixture.labels)
+        defer { try? FileManager.default.removeItem(at: folder.deletingLastPathComponent().deletingLastPathComponent()) }
+        let book = try #require(PDFDocument(url: folder.appendingPathComponent("Foo.pdf")))
+        let chapter = try #require(PDFDocument(url: URL(fileURLWithPath: chapters[0].path)))
+        let fromChapter = try #require(chapter.page(at: 0).flatMap(BookFileMerge.PageRender.init))
+        let same = try #require(book.page(at: 2).flatMap(BookFileMerge.PageRender.init))
+        let next = try #require(book.page(at: 3).flatMap(BookFileMerge.PageRender.init))
+        #expect(fromChapter.matches(same))
+        #expect(!fromChapter.matches(next))
+    }
+
+    @Test("The chapter files go once the chapters read the book, and their folder with them")
+    func removesChapterFiles() throws {
+        let (folder, chapters) = try splitBook("remove", bookLabels: BookFileFixture.labels)
+        defer { try? FileManager.default.removeItem(at: folder.deletingLastPathComponent().deletingLastPathComponent()) }
+        BookFileMerge.removeChapterFiles(chapters.map(\.path))
+        #expect(!FileManager.default.fileExists(atPath: folder.appendingPathComponent("Chapters").path))
+        #expect(FileManager.default.fileExists(atPath: folder.appendingPathComponent("Foo.pdf").path))
+    }
+}
+
+@Suite("BookPageMap placed in one file")
+struct BookPageMapPlacedTests {
+    @Test("A book kept as one file is shown as that file, front matter and all, with nothing copied")
+    func oneFile() throws {
+        let folder = try BookFileFixture.folder("placed")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let url = folder.appendingPathComponent("Book.pdf")
+        try BookFileFixture.book(BookFileFixture.labels, at: url)
+        let book = try #require(PDFDocument(url: url))
+
+        let assembly = try #require(BookPDFAssembly.assemble([
+            .init(sourceID: "a", title: "A", path: url.path, document: book, pages: 2..<5),
+            .init(sourceID: "b", title: "B", path: url.path, document: book, pages: 5..<7),
+        ]))
+        #expect(assembly.document === book)
+        #expect(assembly.map.pageCount == 8)
+        #expect(assembly.map.position(ofPage: 0) == nil, "the cover is no chapter's")
+        #expect(assembly.map.position(ofPage: 6)?.chapter.sourceID == "b")
+        #expect(assembly.map.position(ofPage: 6)?.pageInChapter == 1)
+        #expect(assembly.map.page(forSourceID: "b", chapterPage: 1) == 6)
+        #expect(assembly.map.page(forSourceID: "a") == 2)
+    }
+
+    @Test("Runs that overlap or leave the file are no placement, and the chapters' pages are copied")
+    func badRunsAreCopied() throws {
+        #expect(BookPageMap(placed: [
+            BookPDFChapterRange(sourceID: "a", title: "A", path: "/b.pdf", pageRange: 0..<4),
+            BookPDFChapterRange(sourceID: "b", title: "B", path: "/b.pdf", pageRange: 3..<6),
+        ], pageCount: 8) == nil)
+        #expect(BookPageMap(placed: [
+            BookPDFChapterRange(sourceID: "a", title: "A", path: "/b.pdf", pageRange: 6..<9),
+        ], pageCount: 8) == nil)
+
+        let folder = try BookFileFixture.folder("overlap")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let url = folder.appendingPathComponent("Book.pdf")
+        try BookFileFixture.book(BookFileFixture.labels, at: url)
+        let book = try #require(PDFDocument(url: url))
+        let assembly = try #require(BookPDFAssembly.assemble([
+            .init(sourceID: "a", title: "A", path: url.path, document: book, pages: 2..<5),
+            .init(sourceID: "b", title: "B", path: url.path, document: book, pages: 4..<7),
+        ]))
+        #expect(assembly.document !== book)
+        #expect(assembly.document.pageCount == 6)
+        #expect(assembly.map.chapters.map(\.pageRange) == [0..<3, 3..<6])
+    }
+}
+
+@Suite("Book file storage", .serialized)
+struct BookFileStorageTests {
+    private static let bookID = "BOOK-0001"
+
+    private static func addChapter(
+        _ store: KnowledgeStore, _ id: String, book: String = bookID, path: String, pages: Range<Int>? = nil,
+        status: String = "active", sortIndex: Int = 0, title: String? = nil
+    ) throws {
+        let start = pages.map { "\($0.lowerBound)" } ?? "NULL"
+        let count = pages.map { "\($0.count)" } ?? "NULL"
+        try store.execForTesting("""
+            INSERT OR IGNORE INTO books (id, title) VALUES ('\(book)', 'A Book');
+            INSERT INTO sources (id, date_added, state, source_type, status) VALUES ('\(id)', 0, 'ready', 'book', '\(status)');
+            INSERT INTO book_sources (source_id, url, local_file_path, title, page_start, page_count)
+            VALUES ('\(id)', '\(path)', '\(path)', '\(title ?? id)', \(start), \(count));
+            INSERT INTO group_members (source_id, group_id, sort_index) VALUES ('\(id)', '\(book)', \(sortIndex));
+        """)
+    }
+
+    @Test("A fresh store has the chapters' page columns and the merge queue")
+    func freshStore() throws {
+        let store = try KnowledgeStore(inMemory: true)
+        #expect(try store.holdsBookFileSchema())
+        #expect(try store.dueBookFileMerges(limit: 10).isEmpty)
+    }
+
+    @Test("Only a book with a chapter that is a PDF of its own is queued for the merge")
+    func queuesSplitBooks() throws {
+        let store = try KnowledgeStore(inMemory: true)
+        try Self.addChapter(store, "split-1", book: "split", path: "Books/Split/Chapters/01 One.pdf")
+        try Self.addChapter(store, "epub-1", book: "epub", path: "Books/Epub/Chapters/text/part1.xhtml")
+        try Self.addChapter(store, "one-1", book: "one", path: "Books/One/One.pdf", pages: 0..<5)
+        try Self.addChapter(store, "gone-1", book: "gone", path: "Books/Gone/Chapters/01 Old.pdf", status: "archived")
+        #expect(try store.enqueueSplitBookMerge() == 1)
+        #expect(try store.dueBookFileMerges(limit: 10) == ["split"])
+    }
+
+    @Test("A merged book's chapters point at their pages, keeping their search and figure indexes, and leave the queue")
+    func pointsChapters() throws {
+        let store = try KnowledgeStore(inMemory: true)
+        try Self.addChapter(store, "c1", path: "Books/Foo/Chapters/01 A.pdf", sortIndex: 0)
+        try Self.addChapter(store, "c2", path: "Books/Foo/Chapters/02 B.pdf", sortIndex: 1)
+        try store.execForTesting("""
+            INSERT INTO source_index_state (source_id, model, content_length, file_path, indexed_at)
+            VALUES ('c1', 'model', 10, 'Books/Foo/Chapters/01 A.pdf', 0);
+            INSERT INTO paper_figure_index_state (source_id, pdf_path, index_version, page_count, indexed_at)
+            VALUES ('c2', 'Books/Foo/Chapters/02 B.pdf', 1, 2, 0);
+        """)
+        try store.enqueueSplitBookMerge()
+        #expect(try store.bookFileChapters(bookID: Self.bookID).map(\.sourceID) == ["c1", "c2"])
+
+        try store.pointBookChapters(bookID: Self.bookID, bookFilePath: "Books/Foo/Foo.pdf", pages: [("c1", 2..<5), ("c2", 5..<7)])
+
+        let c2 = try #require(try store.loadSourceForSync("c2"))
+        #expect(c2.bookPages == 5..<7)
+        #expect(c2.localFilePath?.hasSuffix("Books/Foo/Foo.pdf") == true)
+        #expect(try store.scalarText("SELECT file_path FROM source_index_state WHERE source_id = 'c1'") == "Books/Foo/Foo.pdf")
+        #expect(try store.scalarText("SELECT pdf_path FROM paper_figure_index_state WHERE source_id = 'c2'") == "Books/Foo/Foo.pdf#pages=5..<7")
+        #expect(try store.dueBookFileMerges(limit: 10).isEmpty)
+        // The figure index reads a chapter as its pages of the book's file.
+        #expect(try store.scalarText("""
+            SELECT p.local_file_path FROM \(KnowledgeStore.figureIndexableSourcesSQL) p WHERE p.source_id = 'c1'
+        """) == "Books/Foo/Foo.pdf#pages=2..<5")
+    }
+
+    @Test("A chapter's pages are saved and read back with it")
+    func pagesRoundTrip() throws {
+        let store = try KnowledgeStore(inMemory: true)
+        var article = StudioArticle(
+            url: StudioArticle.bookChapterURL(bookFilePath: "Books/Foo/Foo.pdf", pages: 12..<40),
+            title: "Water", sourceType: .book, localFilePath: "Books/Foo/Foo.pdf"
+        )
+        article.state = .ready
+        article.bookPages = 12..<40
+        try store.saveSource(article)
+        #expect(try store.loadSourceForSync(article.id)?.bookPages == 12..<40)
+    }
+
+    @Test("Two chapters of one book's file are two sources, and neither takes the file's key")
+    func chaptersShareTheFile() throws {
+        let (root, store) = try SourceSyncFixture.makeStore("book-file-keys")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let book = root.appendingPathComponent("Foo.pdf")
+        try BookFileFixture.book(BookFileFixture.labels, at: book)
+        var ids: [String] = []
+        for pages in [2..<5, 5..<7] {
+            var article = StudioArticle(
+                url: StudioArticle.bookChapterURL(bookFilePath: book.path, pages: pages),
+                title: "Chapter \(pages.lowerBound)", sourceType: .book, localFilePath: book.path
+            )
+            article.state = .ready
+            article.bookPages = pages
+            #expect(try store.insertSourceIfNew(&article))
+            ids.append(article.id)
+        }
+        #expect(Set(ids).count == 2)
+        #expect(try store.scalarInteger("SELECT COUNT(*) FROM source_work_keys WHERE work_key LIKE 'file:%'") == 0)
+        // A chapter that is a file of its own is still found by its file; one of a book's file is not.
+        #expect(store.sourceExistsByBookLocalFilePath(book.path) == nil)
+    }
+
+    @Test("A re-import finds a chapter by its title among the ones it archived, and takes each once")
+    func reimportByTitle() throws {
+        let store = try KnowledgeStore(inMemory: true)
+        try Self.addChapter(store, "old-water", path: "Books/Foo/Chapters/01 Water.pdf", status: "archived", title: "Water")
+        try Self.addChapter(store, "old-ions", path: "Books/Foo/Chapters/02 Ions.pdf", status: "archived", title: "Ions")
+        #expect(store.archivedBookChapter(bookID: Self.bookID, title: "water")?.id == "old-water")
+        try store.execForTesting("UPDATE sources SET status = 'active' WHERE id = 'old-water'")
+        #expect(store.archivedBookChapter(bookID: Self.bookID, title: "Water") == nil)
+        #expect(store.archivedBookChapter(bookID: "another-book", title: "Ions") == nil)
+    }
+}
+
+/// The schema-169 step from the released shape (168): the chapters' page columns and the merge
+/// queue, and every split book of the learner's own library queued by id.
+@Suite("Schema 169 migration", .serialized)
+struct BookFileMigrationTests {
+    private func makeReleasedLibrary(at root: URL, extraBooks: Int = 0) throws {
+        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        try store.execForTesting("""
+            INSERT INTO books (id, title) VALUES ('split', 'Split'), ('epub', 'Epub');
+            INSERT INTO sources (id, date_added, state, source_type, status) VALUES
+                ('split-1', 0, 'ready', 'book', 'active'), ('split-2', 0, 'ready', 'book', 'active'),
+                ('epub-1', 0, 'ready', 'book', 'active'), ('team-1', 0, 'ready', 'book', 'active');
+            UPDATE sources SET team_id = 'team' WHERE id = 'team-1';
+            INSERT INTO book_sources (source_id, url, local_file_path, title) VALUES
+                ('split-1', 'Books/Split/Chapters/01 One.pdf', 'Books/Split/Chapters/01 One.pdf', 'One'),
+                ('split-2', 'Books/Split/Chapters/02 Two.pdf', 'Books/Split/Chapters/02 Two.pdf', 'Two'),
+                ('epub-1', 'Books/Epub/Chapters/part1.xhtml', 'Books/Epub/Chapters/part1.xhtml', 'Part'),
+                ('team-1', 'Books/Team/Chapters/01 One.pdf', 'Books/Team/Chapters/01 One.pdf', 'One');
+            INSERT INTO group_members (source_id, group_id, sort_index) VALUES
+                ('split-1', 'split', 0), ('split-2', 'split', 1), ('epub-1', 'epub', 0), ('team-1', 'team-book', 0);
+            INSERT INTO books (id, title) VALUES ('team-book', 'Team');
+        """)
+        if extraBooks > 0 {
+            try store.execForTesting("""
+                WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < \(extraBooks * 25))
+                INSERT INTO sources (id, date_added, state, source_type, status) SELECT printf('ch-%06d', i), i, 'ready', 'book', 'active' FROM n;
+                WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < \(extraBooks * 25))
+                INSERT INTO book_sources (source_id, url, local_file_path, title)
+                SELECT printf('ch-%06d', i), printf('Books/B%d/Chapters/%02d.pdf', i / 25, i % 25),
+                       printf('Books/B%d/Chapters/%02d.pdf', i / 25, i % 25), printf('Chapter %d', i) FROM n;
+                WITH RECURSIVE n(i) AS (SELECT 0 UNION ALL SELECT i + 1 FROM n WHERE i < \(extraBooks))
+                INSERT INTO books (id, title) SELECT printf('book-%d', i), printf('Book %d', i) FROM n;
+                WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < \(extraBooks * 25))
+                INSERT INTO group_members (source_id, group_id, sort_index) SELECT printf('ch-%06d', i), printf('book-%d', i / 25), i % 25 FROM n;
+            """)
+        }
+        try store.clearAllPendingSyncChanges()
+        try store.execForTesting("""
+            DROP TABLE book_file_merge_queue;
+            DROP VIEW IF EXISTS source_projection;
+            ALTER TABLE book_sources DROP COLUMN page_count;
+            ALTER TABLE book_sources DROP COLUMN page_start;
+            PRAGMA user_version = 168;
+        """)
+    }
+
+    private func reopen(_ root: URL) throws -> KnowledgeStore {
+        Schema154Fixture.newLaunch(root)
+        return try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+    }
+
+    @Test("Adds the page columns, queues every split book of the learner's own by id, reads no file, publishes nothing")
+    func queuesSplitBooks() throws {
+        let root = try Schema154Fixture.temporaryRoot("book-files-168")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try makeReleasedLibrary(at: root)
+
+        let migrated = try reopen(root)
+
+        #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
+        #expect(KnowledgeStore.schemaVersion == 169)
+        #expect(try migrated.holdsBookFileSchema())
+        #expect(try migrated.dueBookFileMerges(limit: 10) == ["split"], "an EPUB's chapters and a team's copies are not queued")
+        // The library is whole and on screen while the merge waits; nothing points at pages yet.
+        #expect(Set(try migrated.loadActiveSources().map(\.id)).isSuperset(of: ["split-1", "split-2", "epub-1"]))
+        #expect(try migrated.loadSourceForSync("split-1")?.bookPages == nil)
+        #expect(try migrated.pendingSyncChanges().isEmpty)
+    }
+
+    @Test("Queues books by id at production scale, well under a second")
+    func scaleRegression() throws {
+        let root = try Schema154Fixture.temporaryRoot("book-files-scale")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try makeReleasedLibrary(at: root, extraBooks: 400)
+
+        let started = ContinuousClock.now
+        let migrated = try reopen(root)
+        let elapsed = started.duration(to: .now)
+
+        #expect(elapsed < .seconds(1))
+        #expect(try migrated.scalarInteger("SELECT COUNT(*) FROM book_file_merge_queue") == 401)
+    }
+
+    @Test("A failed step rolls back and leaves the released library as it was")
+    func rollsBack() throws {
+        let root = try Schema154Fixture.temporaryRoot("book-files-rollback")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try makeReleasedLibrary(at: root)
+        // A same-named queue of another shape, which `CREATE TABLE IF NOT EXISTS` keeps: the probe
+        // fails inside the migration.
+        var database: OpaquePointer?
+        #expect(sqlite3_open(root.appendingPathComponent("knowledge.db").path, &database) == SQLITE_OK)
+        #expect(sqlite3_exec(database, "CREATE TABLE book_file_merge_queue (unexpected TEXT)", nil, nil, nil) == SQLITE_OK)
+        sqlite3_close(database)
+
+        #expect(throws: (any Error).self) { _ = try reopen(root) }
+
+        #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == 168)
+        #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM pragma_table_info('book_sources') WHERE name = 'page_start'") == 0)
+        #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM book_sources") == 4)
+    }
+}
+
+@Suite("Book chapter sync")
+struct BookChapterSyncTests {
+    private typealias Fixture = SourceSyncFixture
+    private static let bookID = "BOOK-SYNC-0001"
+
+    private static func bookFile(owner: String = bookID) -> FileRef {
+        FileRef(owner: owner, role: "pdf", hash: String(repeating: "b", count: 64), size: 1_000, mime: "application/pdf",
+                encoding: "identity", storedParts: [Data("%PDF-book".utf8)])
+    }
+
+    private static func chapter(_ pages: Range<Int>?, url: String = "Books/Foo/Foo.pdf#page=13") -> [String: SyncJSON] {
+        var meta: [String: SyncJSON] = ["bookID": .string(bookID)]
+        if let pages {
+            meta["pageStart"] = SyncJSON(pages.lowerBound)
+            meta["pageCount"] = SyncJSON(pages.count)
+        }
+        return [
+            "type": "book", "title": "Water", "url": .string(url), "status": "active",
+            "ingest": .object(["ord": .array([0, 1]), "state": "ready"]),
+            "collectionID": .string(bookID), "collectionOrder": .string(SourceOrderKeys.key(forIndex: 0) ?? ""),
+            "files": .object(["pdf": bookFile().value]),
+            "meta": .object(meta), "addedAt": SyncJSON(Int64(1_759_000_000_000)),
+        ]
+    }
+
+    @Test("A chapter's pages of its book's file travel in meta and land in its columns")
+    func pagesRoundTrip() throws {
+        let (root, store) = try Fixture.makeStore("book-pages")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Fixture.prepareReplica(store)
+        try store.execForTesting("INSERT INTO books (id, title) VALUES ('\(Self.bookID)', 'Foo')")
+        try Fixture.apply(store, [try Fixture.record(.source, "src-water", Self.chapter(12..<32))])
+
+        #expect(try Fixture.text(store, "SELECT page_start || '|' || page_count FROM book_sources WHERE source_id = 'src-water'") == "12|20")
+        let rows = try #require(try SourceProjection.loadRows(localID: "src-water", connection: store))
+        let meta = SourceProjection.encodeRows(rows)["meta"]?.objectValue ?? [:]
+        #expect(meta["pageStart"] == SyncJSON(12))
+        #expect(meta["pageCount"] == SyncJSON(20))
+        #expect(try Fixture.pending(store)["Source:src-water"] == nil, "an applied record has nothing to send back")
+
+        // A local change of the pages sends them.
+        try store.execForTesting("UPDATE book_sources SET page_start = 13 WHERE source_id = 'src-water'")
+        let change = try #require(try Fixture.pending(store)["Source:src-water"])
+        #expect(Fixture.savedFields(change)?["meta"]?["pageStart"] == SyncJSON(13))
+    }
+
+    @Test("A file this Mac held as the chapter's own is let go once the record names pages of the book")
+    func releasesTheChapterFile() throws {
+        let (root, store) = try Fixture.makeStore("book-release")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Fixture.prepareReplica(store)
+        try store.execForTesting("INSERT INTO books (id, title) VALUES ('\(Self.bookID)', 'Foo')")
+        try Fixture.apply(store, [try Fixture.record(.source, "src-water", Self.chapter(nil, url: "Books/Foo/Chapters/01 Water.pdf"))])
+        try store.execForTesting("UPDATE book_sources SET local_file_path = 'Books/Foo/Chapters/01 Water.pdf' WHERE source_id = 'src-water'")
+
+        try Fixture.apply(store, [try Fixture.record(.source, "src-water", Self.chapter(12..<32, url: "Books/Foo/Chapters/01 Water.pdf"))])
+        #expect(try Fixture.text(store, "SELECT COALESCE(local_file_path, 'none') FROM book_sources WHERE source_id = 'src-water'") == "none")
+
+        // The book's file once here, the same pages again leave it be.
+        try store.execForTesting("UPDATE book_sources SET local_file_path = 'Books/synced-book.pdf' WHERE source_id = 'src-water'")
+        try Fixture.apply(store, [try Fixture.record(.source, "src-water", Self.chapter(12..<32, url: "Books/Foo/Chapters/01 Water.pdf"))])
+        #expect(try Fixture.text(store, "SELECT local_file_path FROM book_sources WHERE source_id = 'src-water'") == "Books/synced-book.pdf")
+    }
+
+    @Test("A chapter arriving after another of its book reads the file that one brought, with nothing fetched")
+    func pointsAtTheInstalledBook() throws {
+        let (root, store) = try Fixture.makeStore("book-installed")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Fixture.prepareReplica(store)
+        try store.execForTesting("INSERT INTO books (id, title) VALUES ('\(Self.bookID)', 'Foo')")
+        try Fixture.apply(store, [try Fixture.record(.source, "src-water", Self.chapter(12..<32))])
+        // The first chapter's book file is wanted, then installed.
+        #expect(try InboundSourceFiles.waiting(sourceID: "src-water", connection: store)[InboundSourceFiles.pdfRole] != nil)
+        try store.replica.apply { _ in
+            _ = try InboundSourceFiles.receivedPDF(
+                Data("%PDF-book".utf8), installedPath: "Books/synced-book.pdf", sourceID: "src-water", connection: store
+            )
+        }
+        #expect(try Fixture.text(store, "SELECT local_file_path FROM book_sources WHERE source_id = 'src-water'") == "Books/synced-book.pdf")
+
+        try Fixture.apply(store, [try Fixture.record(.source, "src-ions", Self.chapter(32..<50, url: "Books/Foo/Foo.pdf#page=33"))])
+        #expect(try Fixture.text(store, "SELECT local_file_path FROM book_sources WHERE source_id = 'src-ions'") == "Books/synced-book.pdf")
+        #expect(try InboundSourceFiles.waiting(sourceID: "src-ions", connection: store).isEmpty)
+    }
+
+    @Test("A chapter's PDF goes up as its book's file under the book, and gives no chapter its key")
+    func publishesUnderTheBook() throws {
+        let (root, store) = try Fixture.makeStore("book-publish")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let book = root.appendingPathComponent("Foo.pdf")
+        try BookFileFixture.book(BookFileFixture.labels, at: book)
+        try store.execForTesting("""
+            INSERT INTO books (id, title) VALUES ('\(Self.bookID)', 'Foo');
+            INSERT INTO sources (id, date_added, state, source_type, status) VALUES ('src-water', 0, 'ready', 'book', 'active');
+            INSERT INTO book_sources (source_id, url, local_file_path, title, page_start, page_count)
+            VALUES ('src-water', 'Books/Foo/Foo.pdf#page=3', 'Books/Foo/Foo.pdf', 'Water', 2, 3);
+            INSERT INTO group_members (source_id, group_id, sort_index) VALUES ('src-water', '\(Self.bookID)', 0);
+        """)
+        let plan = try KnowledgeStore.$sourceFileLocationOverride.withValue({ _ in book }) {
+            try store.sourcePublishPlan(sourceID: "src-water")
+        }
+        let pdf = try #require(plan?.items.first { $0.role == "pdf" })
+        #expect(pdf.owner?.id == Self.bookID)
+        #expect(pdf.owner?.type == .collection)
+
+        try store.pointPublishedSourceFiles(sourceID: "src-water", files: [(.files, Self.bookFile(), "Books/Foo/Foo.pdf")])
+        #expect(try store.scalarInteger("SELECT COUNT(*) FROM source_work_keys WHERE source_id = 'src-water' AND work_key LIKE 'file:%'") == 0)
+        // A paper's own file keeps its key, as before.
+        try store.pointPublishedSourceFiles(sourceID: "src-water", files: [(.files, Self.bookFile(owner: "src-water"), "Books/Foo/Foo.pdf")])
+        #expect(try store.scalarInteger("SELECT COUNT(*) FROM source_work_keys WHERE source_id = 'src-water' AND work_key LIKE 'file:%'") == 1)
+    }
+}

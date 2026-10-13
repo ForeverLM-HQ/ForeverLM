@@ -78,7 +78,7 @@ enum ArticleSpeechContent {
         }
 
         if article.isPDF, let path = article.resolvedPDFPath {
-            if let text = pdfText(at: path) {
+            if let text = pdfText(at: path, pages: article.bookPages) {
                 return text
             }
         }
@@ -164,11 +164,15 @@ enum ArticleSpeechContent {
         return nil
     }
 
-    private static func pdfText(at path: String) -> String? {
+    /// The text of `pages` of the PDF at `path`, or of every page: a book
+    /// chapter is its pages of the book's file.
+    private static func pdfText(at path: String, pages: Range<Int>?) -> String? {
         guard let document = PDFDocument(url: URL(fileURLWithPath: path)) else { return nil }
+        let range = pages ?? 0..<document.pageCount
+        guard range.upperBound <= document.pageCount else { return nil }
 
         var parts: [String] = []
-        for index in 0..<document.pageCount {
+        for index in range {
             if let pageText = document.page(at: index)?.string,
                let cleanedText = cleaned(pageText),
                !cleanedText.isEmpty {

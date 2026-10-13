@@ -723,8 +723,9 @@ extension MCPDataStore {
         let localPath = cleanedOptional(source.localFilePath)
             ?? (source.url.hasPrefix("/") ? source.url : nil)
         guard let localPath else { return nil }
+        let pages = source.bookPages
         let extractionTask = Task.detached(priority: .utility) {
-            Self.extractTextFromLocalFile(localPath)
+            Self.extractTextFromLocalFile(localPath, pages: pages)
                 .flatMap(Self.nilIfBlank)
         }
         return await extractionTask.value

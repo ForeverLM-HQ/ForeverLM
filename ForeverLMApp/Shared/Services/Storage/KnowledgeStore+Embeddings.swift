@@ -213,6 +213,8 @@ extension KnowledgeStore {
         let domain: String
         let author: String
         let localFilePath: String?
+        /// A book chapter's pages of its book's file (`localFilePath`).
+        var bookPages: Range<Int>? = nil
     }
 
     /// Source ids that must not participate in ambient search or AI discovery.
@@ -272,7 +274,7 @@ extension KnowledgeStore {
         var candidates: [EmbeddingCandidate] = []
         try queryBind("""
             SELECT sp.id, sp.source_type, COALESCE(sp.title, ''), COALESCE(sp.domain, ''),
-                   COALESCE(sp.author, ''), sp.local_file_path
+                   COALESCE(sp.author, ''), sp.local_file_path, sp.book_page_start, sp.book_page_count
             FROM source_projection sp
             LEFT JOIN source_content sc ON sc.source_id = sp.id
             LEFT JOIN source_index_state st ON st.source_id = sp.id AND st.model = ?
@@ -308,7 +310,8 @@ extension KnowledgeStore {
                     title: self.string(stmt, 2) ?? "",
                     domain: self.string(stmt, 3) ?? "",
                     author: self.string(stmt, 4) ?? "",
-                    localFilePath: self.string(stmt, 5)
+                    localFilePath: self.string(stmt, 5),
+                    bookPages: self.bookPages(stmt, startColumn: 6)
                 )
             )
         }
@@ -405,7 +408,7 @@ extension KnowledgeStore {
         var candidates: [EmbeddingCandidate] = []
         try queryBind("""
             SELECT sp.id, sp.source_type, COALESCE(sp.title, ''), COALESCE(sp.domain, ''),
-                   COALESCE(sp.author, ''), sp.local_file_path
+                   COALESCE(sp.author, ''), sp.local_file_path, sp.book_page_start, sp.book_page_count
             FROM source_projection sp
             LEFT JOIN source_fts_state fs ON fs.source_id = sp.id
             WHERE sp.status = 'active'
@@ -422,7 +425,8 @@ extension KnowledgeStore {
                     title: self.string(stmt, 2) ?? "",
                     domain: self.string(stmt, 3) ?? "",
                     author: self.string(stmt, 4) ?? "",
-                    localFilePath: self.string(stmt, 5)
+                    localFilePath: self.string(stmt, 5),
+                    bookPages: self.bookPages(stmt, startColumn: 6)
                 )
             )
         }

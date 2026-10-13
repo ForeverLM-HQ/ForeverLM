@@ -18,6 +18,15 @@ struct SourceLocalSatellite: Equatable, Sendable {
     let localPath: String?
     /// The text a machine output was made from, as `gen.input` (§5.4: stale when it differs).
     let input: String?
+    /// The record the bytes are uploaded under when it is not the source: a book chapter's `pdf` is its
+    /// book's whole file, shared by every chapter, so it goes up once under the book (D41).
+    var owner: (id: String, type: SyncRecordType)? = nil
+
+    static func == (lhs: SourceLocalSatellite, rhs: SourceLocalSatellite) -> Bool {
+        lhs.map == rhs.map && lhs.role == rhs.role && lhs.mime == rhs.mime && lhs.encoding == rhs.encoding
+            && lhs.body == rhs.body && lhs.localPath == rhs.localPath && lhs.input == rhs.input
+            && lhs.owner?.id == rhs.owner?.id && lhs.owner?.type == rhs.owner?.type
+    }
 }
 
 /// Where each role comes from today, and which this package builds (§3.5.30). Built here: `pdf` and
@@ -34,14 +43,26 @@ enum SourceSatelliteRoles {
             "SELECT \(KnowledgeStore.subtypeCoalesce("local_file_path")) FROM sources s \(KnowledgeStore.subtypeJoins) WHERE s.id = ?",
             [.text(sourceID)]
         ) { filePath = $0.text(0) }
-        if let filePath, !filePath.isEmpty, !filePath.contains("://") {
+        // A chapter of a book kept as one file: the file is the book's, uploaded under the book.
+        let bookOwner = try connection.scalarText("""
+            SELECT gm.group_id FROM book_sources bs
+            JOIN group_members gm ON gm.source_id = bs.source_id
+            JOIN books b ON b.id = gm.group_id
+            WHERE bs.source_id = ? AND bs.page_start IS NOT NULL
+            LIMIT 1
+        """, [.text(sourceID)])
+        let isPageRangeChapter = try connection.scalarInteger(
+            "SELECT COUNT(*) FROM book_sources WHERE source_id = ? AND page_start IS NOT NULL", [.text(sourceID)]
+        ) == 1
+        if let filePath, !filePath.isEmpty, !filePath.contains("://"), !isPageRangeChapter || bookOwner != nil {
             let lowered = filePath.lowercased()
             let kind: (role: String, mime: String)? = lowered.hasSuffix(".pdf")
                 ? ("pdf", "application/pdf")
                 : lowered.hasSuffix(".epub") ? ("epub", "application/epub+zip") : nil
             if let kind, let body = try? Data(contentsOf: resolve(filePath), options: .mappedIfSafe) {
                 satellites.append(SourceLocalSatellite(
-                    map: .files, role: kind.role, mime: kind.mime, encoding: .identity, body: body, localPath: filePath, input: nil
+                    map: .files, role: kind.role, mime: kind.mime, encoding: .identity, body: body, localPath: filePath, input: nil,
+                    owner: bookOwner.map { (id: $0, type: SyncRecordType.collection) }
                 ))
             }
         }
@@ -354,6 +375,18 @@ enum InboundSourceFiles {
         if localType == "paper", let pdf = try pointer(pdfRole, sourceID: sourceID, connection: connection), pdf.heldBy == nil,
            (try localFilePath(table: table, sourceID: sourceID, connection: connection) ?? "").isEmpty {
             waiting[pdfRole] = pdf.value
+        } else if localType == "book", try isPageRangeChapter(sourceID: sourceID, connection: connection),
+                  let pdf = try pointer(pdfRole, sourceID: sourceID, connection: connection), pdf.heldBy == nil {
+            // A chapter of a book kept as one file: the book's file, which the first of its chapters to
+            // arrive brings and the others then point at with nothing fetched.
+            if let installed = try installedBookFile(hash: pdf.hash, connection: connection) {
+                try pointChapter(sourceID: sourceID, at: installed, connection: connection)
+                waiting[pdfRole] = nil
+            } else if (try localFilePath(table: table, sourceID: sourceID, connection: connection) ?? "").isEmpty {
+                waiting[pdfRole] = pdf.value
+            } else {
+                waiting[pdfRole] = nil
+            }
         } else {
             waiting[pdfRole] = nil
         }
@@ -456,11 +489,48 @@ enum InboundSourceFiles {
         return true
     }
 
+    /// A chapter whose record names its pages of its book's file (`book_sources.page_start`).
+    static func isPageRangeChapter(sourceID: String, connection: SQLiteConnection) throws -> Bool {
+        try connection.scalarInteger(
+            "SELECT COUNT(*) FROM book_sources WHERE source_id = ? AND page_start IS NOT NULL", [.text(sourceID)]
+        ) == 1
+    }
+
+    /// Where this Mac already keeps the book file `hash` names: a chapter that reads it, with the bytes
+    /// checked when they were installed or published. Nil when no chapter here has it yet.
+    static func installedBookFile(hash: String, connection: SQLiteConnection) throws -> String? {
+        try connection.scalarText("""
+            SELECT f.local_path FROM source_files f
+            JOIN book_sources bs ON bs.source_id = f.source_id
+            WHERE f.role = ? AND json_extract(f.file_ref, '$.hash') = ?
+              AND COALESCE(f.local_path, '') != '' AND bs.page_start IS NOT NULL AND bs.local_file_path = f.local_path
+            LIMIT 1
+        """, [.text(pdfRole), .text(hash)])
+    }
+
+    /// Points a chapter of a book kept as one file at the book's file on this Mac.
+    static func pointChapter(sourceID: String, at path: String, connection: SQLiteConnection) throws {
+        try connection.execute(
+            "UPDATE book_sources SET local_file_path = ? WHERE source_id = ? AND page_start IS NOT NULL",
+            [.text(path), .text(sourceID)]
+        )
+        try connection.execute(
+            "UPDATE source_files SET local_path = ? WHERE source_id = ? AND role = ?", [.text(path), .text(sourceID), .text(pdfRole)]
+        )
+    }
+
     /// The satellite reader's half for `pdf`: the file the reader wrote is the paper's file, unless this Mac
-    /// has one by now. `installedPath` is relative to the content roots.
+    /// has one by now, or the book's file a chapter is pages of. `installedPath` is relative to the content
+    /// roots.
     static func receivedPDF(_ body: Data, installedPath: String, sourceID: String, connection: SQLiteConnection) throws -> Bool {
         var waiting = try self.waiting(sourceID: sourceID, connection: connection)
         guard let wanted = waiting[pdfRole].flatMap(FileRef.init(json:)), wanted.hash == SyncIdentity.sha256Hex(body) else { return false }
+        if try isPageRangeChapter(sourceID: sourceID, connection: connection) {
+            try pointChapter(sourceID: sourceID, at: installedPath, connection: connection)
+            waiting[pdfRole] = nil
+            try save(waiting, sourceID: sourceID, connection: connection)
+            return true
+        }
         try connection.execute(
             "UPDATE papers SET local_file_path = ? WHERE source_id = ? AND COALESCE(local_file_path, '') = ''",
             [.text(installedPath), .text(sourceID)]
@@ -601,6 +671,8 @@ struct SourcePublishPlan: Sendable {
         let input: String?
         let localPath: String?
         let keeping: FileRef?
+        /// Who the bytes are uploaded under, when not the source (`SourceLocalSatellite.owner`).
+        var owner: (id: String, type: SyncRecordType)? = nil
     }
 
     let sourceID: String
@@ -632,6 +704,12 @@ extension KnowledgeStore {
                OR (s.source_type = 'paper'
                    AND LOWER(COALESCE((SELECT p.local_file_path FROM papers p WHERE p.source_id = s.id), '')) LIKE '%.pdf'
                    AND NOT EXISTS (SELECT 1 FROM source_files f WHERE f.source_id = s.id AND f.role = 'pdf'))
+                  -- A chapter of a book kept as one file whose pointer does not yet name the book's file.
+               OR (s.source_type = 'book'
+                   AND EXISTS (SELECT 1 FROM book_sources bs WHERE bs.source_id = s.id AND bs.page_start IS NOT NULL
+                               AND LOWER(COALESCE(bs.local_file_path, '')) LIKE '%.pdf')
+                   AND NOT EXISTS (SELECT 1 FROM source_files f WHERE f.source_id = s.id AND f.role = 'pdf'
+                                   AND json_extract(f.file_ref, '$.owner') != s.id))
               )
             ORDER BY s.date_added DESC
             LIMIT ?
@@ -677,12 +755,18 @@ extension KnowledgeStore {
         for satellite in satellites {
             let table = satellite.map == .files ? "source_files" : "source_derived"
             let element = satellite.map == .files ? "role" : "kind"
-            let held = ArtifactBody.fileRef(try scalarText(
+            var held = ArtifactBody.fileRef(try scalarText(
                 "SELECT file_ref FROM \(table) WHERE source_id = ? AND \(element) = ?", [.text(sourceID), .text(satellite.role)]
             ))
+            // A book's file another chapter already put up is kept as it is, not uploaded again.
+            if let owner = satellite.owner, held?.owner != owner.id {
+                held = ArtifactBody.fileRef(try scalarText("""
+                    SELECT file_ref FROM \(table) WHERE \(element) = ? AND json_extract(file_ref, '$.owner') = ? LIMIT 1
+                """, [.text(satellite.role), .text(owner.id)]))
+            }
             items.append(SourcePublishPlan.Item(
                 map: satellite.map, role: satellite.role, mime: satellite.mime, encoding: satellite.encoding, body: satellite.body,
-                input: satellite.input, localPath: satellite.localPath, keeping: held
+                input: satellite.input, localPath: satellite.localPath, keeping: held, owner: satellite.owner
             ))
         }
         return SourcePublishPlan(sourceID: sourceID, items: items)
@@ -707,7 +791,9 @@ extension KnowledgeStore {
                         ON CONFLICT(source_id) DO UPDATE SET content_hash = excluded.content_hash
                     """, [.text(sourceID), .text(item.file.hash)])
                 }
-                if item.map == .files, item.file.role == InboundSourceFiles.pdfRole {
+                // A book's file names the book, never one chapter: a `file:` key every chapter held would
+                // make them one source to duplicate resolution.
+                if item.map == .files, item.file.role == InboundSourceFiles.pdfRole, item.file.owner == sourceID {
                     try execute(
                         "INSERT INTO source_work_keys (source_id, work_key) VALUES (?, ?) ON CONFLICT(source_id, work_key) DO NOTHING",
                         [.text(sourceID), .text("file:" + item.file.hash)]
@@ -781,7 +867,8 @@ struct SourceFilePublisher: Sendable {
             var uploaded: [(map: SourceLocalSatellite.Map, file: FileRef, localPath: String?)] = []
             for satellite in plan.items {
                 let file = try await blobs.upload(
-                    satellite.body, owner: source, ownerType: .source, role: satellite.role, mime: satellite.mime,
+                    satellite.body, owner: satellite.owner?.id ?? source, ownerType: satellite.owner?.type ?? .source,
+                    role: satellite.role, mime: satellite.mime,
                     encoding: satellite.encoding, into: zone, keeping: satellite.keeping,
                     gen: satellite.input.map { SyncJSON.object(["input": .string($0)]) }
                 )

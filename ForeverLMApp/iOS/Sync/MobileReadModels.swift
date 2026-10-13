@@ -133,7 +133,7 @@ enum MobileReadModels {
         // `Catalog` first: a source the learner holds and a space holds too is listed once, as theirs.
         try connection.query("""
             SELECT id, type, title, authors, venue, url, collection_id, collection_order, status, ingest_state, added_at,
-                   published_at, subtitle, doi, word_count, has_audio
+                   published_at, subtitle, doi, word_count, has_audio, page_start, page_count
             FROM m_sources WHERE zone_key IN (\(placeholders(keys.count))) AND (merged_into IS NULL OR merged_into = '')
             ORDER BY CASE zone_key WHEN ? THEN 0 ELSE 1 END, zone_key, added_at DESC, id
         """, keys.map { .text($0) } + [.text(catalogKey)]) { row in
@@ -156,6 +156,11 @@ enum MobileReadModels {
             source.parentGroup = row.text(6)
             source.url = url
             source.doi = row.text(13)
+            if type == "book" {
+                // A chapter kept as a run of its book's pages (`meta.pageStart`, `meta.pageCount`).
+                source.pageStart = row.integer(16).flatMap { Int(exactly: $0) }
+                source.pageCount = row.integer(17).flatMap { Int(exactly: $0) }
+            }
             source.isHidden = marks.isHidden("src", id)
             source.visiblePodcastEpisodeOverride = type == "podcast" && marks.visibleOverride.contains("src:\(id)")
             source.visibleYouTubeVideoOverride = type == "video" && marks.visibleOverride.contains("src:\(id)")

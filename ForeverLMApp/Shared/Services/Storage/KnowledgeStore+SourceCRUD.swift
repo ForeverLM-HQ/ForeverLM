@@ -193,7 +193,9 @@ extension KnowledgeStore {
         return ids
     }
 
-    /// Check if a book chapter with this persisted local file path already exists.
+    /// Check if a book chapter whose file is this persisted local file path already exists. Only a
+    /// chapter that is a file of its own can be found by its file: every chapter of a book kept as
+    /// one file has the book's.
     func sourceExistsByBookLocalFilePath(_ localFilePath: String) -> (id: String, status: SourceStatus)? {
         let persistedPath = StorageService.relativeSourcePath(localFilePath)
         var result: (id: String, status: SourceStatus)?
@@ -201,7 +203,7 @@ extension KnowledgeStore {
             SELECT s.id, s.status
             FROM book_sources bs
             JOIN sources s ON s.id = bs.source_id
-            WHERE bs.local_file_path = ?
+            WHERE bs.local_file_path = ? AND bs.page_start IS NULL
             LIMIT 1
         """, bind: { stmt in
             self.bind(stmt, 1, persistedPath)
@@ -1699,6 +1701,7 @@ extension KnowledgeStore {
         article?.publishedDOI = string(stmt, 35)
         article?.teamID = string(stmt, 36)
         article?.paywallSuspicion = string(stmt, 37)
+        article?.bookPages = bookPages(stmt, startColumn: 38)
         // From here on the copy notes what its holder changes, which is all its save writes
         // (`StudioArticle.written(over:)`).
         article?.edits = .read

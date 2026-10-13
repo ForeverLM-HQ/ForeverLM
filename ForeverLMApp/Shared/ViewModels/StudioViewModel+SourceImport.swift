@@ -1058,7 +1058,11 @@ extension StudioViewModel {
         return .kindleConversionFailed("Kindle conversion failed:\n\(summary)")
     }
 
-    /// Import chapters from a PDF book.
+    /// Import chapters from a PDF book. The book stays one file: each chapter
+    /// is the run of its pages the chapter splitting model chose
+    /// (`StudioArticle.bookPages`), and no chapter file is written. A book
+    /// imported again while it was still split into chapter files (`chaptersDir`)
+    /// loses that folder once its chapters point at the book.
     func importPDFChapters(from pdfPath: String, baseName: String, bookID: String, bookTitle: String, bookDir: String, chaptersDir: String) async throws {
         bookImportStatus = "Reading PDF…"
         await Task.yield()
@@ -1107,22 +1111,22 @@ extension StudioViewModel {
             try Self.preparePDFChapterDrafts(
                 pdfPath: pdfPath,
                 bookTitle: bookTitle,
-                chaptersDir: chaptersDir,
                 preselectedChapters: chapters,
                 progress: progress
             )
         }.value
 
         guard !drafts.isEmpty else {
-            errorMessage = "The book chapter splitting AI did not identify chapters in this PDF. Split manually into Books/\(baseName)/Chapters/ folder."
+            errorMessage = "The book chapter splitting AI did not identify chapters in this PDF."
             throw SourceError.pdfReadFailed
         }
 
         try await storage.archiveSourcesByParentGroup(bookID)
         for draft in drafts {
             bookImportStatus = "Saving chapter \(draft.sortIndex + 1)/\(drafts.count): \(draft.title)…"
+            let url = draft.pages.map { StudioArticle.bookChapterURL(bookFilePath: draft.path, pages: $0) } ?? draft.path
             var article = StudioArticle(
-                url: draft.path,
+                url: url,
                 title: draft.title,
                 sourceType: .book,
                 discoveryOrigin: .manual,
@@ -1131,6 +1135,7 @@ extension StudioViewModel {
             article.parentGroup = bookID
             article.state = .ready
             article.courseSortIndex = draft.sortIndex
+            article.bookPages = draft.pages
             if !draft.plainText.isEmpty {
                 article.content = draft.plainText
                 article.wordCount = draft.wordCount
@@ -1138,8 +1143,17 @@ extension StudioViewModel {
 
             try await saveImportedBookChapterDraft(article)
         }
+        // Every chapter now names the book's pages: a folder of chapter files
+        // an earlier import left is no longer anyone's, nor is the book's
+        // place in the merge queue.
+        try? await storage.dropBookFileMerge(bookID: bookID)
+        try? await Task.detached(priority: .utility) {
+            if FileManager.default.fileExists(atPath: chaptersDir) {
+                try FileManager.default.removeItem(atPath: chaptersDir)
+            }
+        }.value
 
-        logger.info("Created and inserted \(drafts.count) chapter PDFs in \(chaptersDir)")
+        logger.info("[BookImport] Inserted \(drafts.count) chapters of \(pdfPath)")
     }
 
     /// A scanned book is pictures of pages: PDFKit finds no text in them, so
@@ -1215,7 +1229,6 @@ extension StudioViewModel {
     nonisolated private static func preparePDFChapterDrafts(
         pdfPath: String,
         bookTitle: String,
-        chaptersDir: String,
         preselectedChapters: [(title: String, pageIndex: Int, endPageIndexExclusive: Int)],
         progress: BookImportProgress
     ) throws -> [BookChapterImportDraft] {
@@ -1233,15 +1246,9 @@ extension StudioViewModel {
 
         chapters = try validatePDFChapterRanges(chapters, pageCount: doc.pageCount)
 
-        if FileManager.default.fileExists(atPath: chaptersDir) {
-            try FileManager.default.removeItem(atPath: chaptersDir)
-        }
-        try FileManager.default.createDirectory(atPath: chaptersDir, withIntermediateDirectories: true)
-        // Read before the pages move into the chapter documents below.
-        let outlineEntries = extractPDFOutlineEntries(doc)
         var drafts: [BookChapterImportDraft] = []
         for (i, chapter) in chapters.enumerated() {
-            progress.update("Splitting chapter \(i + 1)/\(chapters.count): \(chapter.title)…")
+            progress.update("Reading chapter \(i + 1)/\(chapters.count): \(chapter.title)…")
             let startPage = chapter.pageIndex
             let endPage = chapter.endPageIndexExclusive - 1
 
@@ -1249,19 +1256,8 @@ extension StudioViewModel {
 
             let title = sanitizedPDFOutlineLabel(chapter.title)
             let chapterTitle = importedBookChapterTitle(title, bookTitle: bookTitle)
-            let safeTitle = cleanChapterTitle(chapterTitle)
-            let chapterFilename = String(format: "%02d %@.pdf", i + 1, safeTitle)
-            let chapterPath = (chaptersDir as NSString).appendingPathComponent(chapterFilename)
-            guard writePDFChapter(
-                pages: startPage...endPage,
-                of: doc,
-                sections: pdfChapterSectionEntries(outlineEntries, pages: startPage...endPage),
-                toFile: chapterPath
-            ) else {
-                throw SourceError.pdfReadFailed
-            }
 
-            // Extract plain text from the chapter PDF for MCP/search, falling back to OCR for scanned pages.
+            // Extract plain text from the chapter's pages for MCP/search, falling back to OCR for scanned pages.
             let pageLabel = chapters.count == 1 ? "OCR page" : "OCR chapter \(i + 1) page"
             let plainText = PDFTextExtractor.textWithFigureReferences(
                 from: doc,
@@ -1271,11 +1267,12 @@ extension StudioViewModel {
             }
 
             drafts.append(BookChapterImportDraft(
-                path: chapterPath,
+                path: pdfPath,
                 title: chapterTitle,
                 sortIndex: i,
                 plainText: plainText,
-                wordCount: plainText.split(separator: " ").count
+                wordCount: plainText.split(separator: " ").count,
+                pages: startPage..<(endPage + 1)
             ))
         }
         return drafts
@@ -1466,6 +1463,7 @@ extension StudioViewModel {
         updated.archivedAt = nil
         updated.courseSortIndex = replacement.courseSortIndex
         updated.lectureGroupId = replacement.lectureGroupId
+        updated.bookPages = replacement.bookPages
 
         try await storage.saveSource(updated)
         if let index = articles.firstIndex(where: { $0.id == updated.id }) {
@@ -1755,20 +1753,6 @@ extension StudioViewModel {
         return nil
     }
 
-    /// Clean a chapter title for use in a filename.
-    nonisolated private static func cleanChapterTitle(_ title: String) -> String {
-        let cleanTitle = sanitizedPDFOutlineLabel(title)
-        let filesystemUnsafe = CharacterSet(charactersIn: "/:\\\u{0}")
-            .union(.controlCharacters)
-        let sanitized = cleanTitle.unicodeScalars.map { scalar -> String in
-            filesystemUnsafe.contains(scalar) ? " " : String(scalar)
-        }.joined()
-        let collapsed = sanitized
-            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
-            .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: ".")))
-        return collapsed.isEmpty ? "Chapter" : String(collapsed.prefix(120))
-    }
-
     // MARK: - Chapter Extraction Helpers
 
     struct PDFOutlineChapterEntry: Sendable {
@@ -1787,64 +1771,6 @@ extension StudioViewModel {
         return scalars
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    /// The book's bookmarks below a chapter, for the chapter file to keep:
-    /// the reader lists them as the chapter's sections. The section level is
-    /// the shallowest depth with at least two bookmarks inside the chapter's
-    /// pages, so the entry for the chapter itself — and a part that opens on
-    /// the same page — is passed over for the headings under it. Page indexes
-    /// come back relative to the chapter's first page.
-    nonisolated static func pdfChapterSectionEntries(
-        _ entries: [(title: String, pageIndex: Int, depth: Int)],
-        pages: ClosedRange<Int>
-    ) -> [(title: String, pageIndex: Int)] {
-        let inside = entries.filter { pages.contains($0.pageIndex) }
-        let countsByDepth = Dictionary(grouping: inside, by: { $0.depth }).mapValues { $0.count }
-        guard let level = countsByDepth.filter({ $0.value > 1 }).keys.min() else { return [] }
-        return inside
-            .filter { $0.depth == level }
-            .map { (title: $0.title, pageIndex: $0.pageIndex - pages.lowerBound) }
-    }
-
-    /// Writes one chapter of a PDF book as its own file, from `doc`'s pages,
-    /// with `sections` (page indexes relative to the chapter) as the file's
-    /// outline: the Reader's Contents lists them under the chapter.
-    ///
-    /// The chapter is a fresh `PDFDocument`. PDFKit drops an outline assigned
-    /// to a document opened from a file that had none, so opening the book and
-    /// removing the other pages would write the chapter without its sections.
-    nonisolated static func writePDFChapter(
-        pages: ClosedRange<Int>,
-        of doc: PDFDocument,
-        sections: [(title: String, pageIndex: Int)],
-        toFile path: String
-    ) -> Bool {
-        let chapterDoc = PDFDocument()
-        for p in pages {
-            guard let page = doc.page(at: p) else { continue }
-            chapterDoc.insert(page, at: chapterDoc.pageCount)
-        }
-        if chapterDoc.pageCount == pages.count {
-            addPDFChapterSectionOutline(to: chapterDoc, sections: sections)
-        }
-        return chapterDoc.write(toFile: path)
-    }
-
-    nonisolated private static func addPDFChapterSectionOutline(
-        to chapterDoc: PDFDocument,
-        sections: [(title: String, pageIndex: Int)]
-    ) {
-        guard !sections.isEmpty else { return }
-        let root = PDFOutline()
-        for section in sections {
-            guard let page = chapterDoc.page(at: section.pageIndex) else { continue }
-            let item = PDFOutline()
-            item.label = section.title
-            item.destination = PDFDestination(page: page, at: CGPoint(x: 0, y: page.bounds(for: .mediaBox).maxY))
-            root.insertChild(item, at: root.numberOfChildren)
-        }
-        chapterDoc.outlineRoot = root
     }
 
     nonisolated private static func extractPDFOutlineEntries(_ doc: PDFDocument) -> [(title: String, pageIndex: Int, depth: Int)] {

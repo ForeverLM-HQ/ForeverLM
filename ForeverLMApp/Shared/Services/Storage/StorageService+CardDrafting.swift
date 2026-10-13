@@ -137,7 +137,7 @@ extension StorageService {
         // Its captioned figures, which a card may show: read off the file on
         // this Mac, off the storage actor, as a course quiz reads a reading's.
         let figures = await Task.detached(priority: .utility) { [sourceID, source] in
-            CourseQuizGeneratorService.readingFigures(sourceID: sourceID, filePath: source.resolvedLocalPath, pages: nil)
+            CourseQuizGeneratorService.readingFigures(sourceID: sourceID, filePath: source.resolvedFileLocation, pages: nil)
         }.value
 
         return .source(CardDraftingSource(

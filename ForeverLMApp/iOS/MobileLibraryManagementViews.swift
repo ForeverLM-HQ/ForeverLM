@@ -183,17 +183,35 @@ final class MobileSourcePDFExport: ObservableObject {
         preparingSourceIDs.insert(source.id)
         defer { preparingSourceIDs.remove(source.id) }
         do {
-            return try await MobileSourceFileStore.shared.fetchPDF(
+            let pdf = try await MobileSourceFileStore.shared.fetchPDF(
                 sourceID: source.id,
                 relativePath: MobileSourceFilePath.relativePDFPath(
                     localFilePath: source.localFilePath,
                     url: source.url
                 )
             )
+            guard pdf.pages != nil else { return pdf.url }
+            return try await Self.chapterFile(pdf)
         } catch {
             Self.presentFailure(title: failureTitle, error: error)
             return nil
         }
+    }
+
+    /// A chapter kept as a run of its book's pages leaves as the chapter, not
+    /// the whole book: its pages written to a file of their own, in a scratch
+    /// folder that keeps only the latest.
+    private static func chapterFile(_ pdf: MobileSourcePDF) async throws -> URL {
+        try await Task.detached(priority: .userInitiated) {
+            let document = try pdf.document()
+            let fileManager = FileManager.default
+            let folder = fileManager.temporaryDirectory.appendingPathComponent("ChapterPDFs", isDirectory: true)
+            try? fileManager.removeItem(at: folder)
+            try fileManager.createDirectory(at: folder, withIntermediateDirectories: true)
+            let file = folder.appendingPathComponent("Chapter.pdf", isDirectory: false)
+            guard document.write(to: file) else { throw MobileSourceFileError.noPDFAvailable }
+            return file
+        }.value
     }
 
     /// The document under the source's title, since the phone's copy is named

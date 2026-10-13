@@ -7519,23 +7519,32 @@ final class MCPDataStore {
 
     // MARK: - Local File Content Extraction
 
-    /// Extract text from a local PDF or text file on disk.
-    /// Resolves relative paths against the app's Documents directory.
-    static func extractTextFromLocalFile(_ path: String) -> String? {
+    /// Extract text from a local PDF or text file on disk: for a book chapter,
+    /// `pages` of its book's file. Resolves relative paths against the app's
+    /// Documents directory.
+    static func extractTextFromLocalFile(_ path: String, pages: Range<Int>? = nil) -> String? {
         guard let resolved = SourceService.resolveLocalFileURL(path) else { return nil }
         let fullPath = resolved.path
         guard FileManager.default.fileExists(atPath: fullPath) else { return nil }
 
         if fullPath.lowercased().hasSuffix(".pdf") {
             guard let doc = PDFDocument(url: resolved) else { return nil }
-            let text = PDFTextExtractor.textWithFigureReferences(
-                from: doc,
-                pages: 0..<doc.pageCount
-            )
+            let range = pages ?? 0..<doc.pageCount
+            guard range.upperBound <= doc.pageCount else { return nil }
+            let text = PDFTextExtractor.textWithFigureReferences(from: doc, pages: range)
             return text.isEmpty ? nil : text
         }
 
         return try? String(contentsOfFile: fullPath, encoding: .utf8)
+    }
+
+    /// The pages `book_page_start` and `book_page_count` name in a
+    /// `source_projection` row read through `query`: a book chapter's pages of
+    /// its book's file.
+    static func bookPages(_ row: [String: Any]) -> Range<Int>? {
+        guard let start = row["book_page_start"] as? Int, let count = row["book_page_count"] as? Int,
+              start >= 0, count > 0 else { return nil }
+        return start..<(start + count)
     }
 
     // MARK: - SQLite Helper

@@ -164,7 +164,8 @@ enum SourceArtwork {
     /// accessors answer from their memoization tables instead, so a render path
     /// can call this without risking a cold iCloud stat.
     static func filePath(for article: StudioArticle) -> String? {
-        if let pdfPath = article.resolvedPDFPath { return pdfPath }
+        // A book chapter's picture is its first page of the book's file.
+        if let pdfPath = article.resolvedPDFPath { return SourcePDFPages.stored(path: pdfPath, pages: article.bookPages) }
         if article.isEPUBChapter, let path = article.resolvedLocalPath { return path }
         // Only a bare relative path names stored content. Anything carrying a
         // scheme is a URL, and a `file:` one is not this app's to open on a
@@ -235,8 +236,9 @@ enum SourceArtwork {
         maxPixelSize: CGFloat
     ) -> NSImage? {
         if let cached = ThumbnailDiskCache.shared.cachedImage(for: key) { return cached }
-        guard case .file(let path) = origin else { return nil }
-        guard let filePath = BookCoverThumbnail.candidatePaths(for: path)
+        guard case .file(let stored) = origin else { return nil }
+        let location = SourcePDFPages(stored: stored)
+        guard let filePath = BookCoverThumbnail.candidatePaths(for: location.path)
             .first(where: { FileManager.default.fileExists(atPath: $0) }) else { return nil }
 
         let lower = filePath.lowercased()
@@ -249,7 +251,7 @@ enum SourceArtwork {
             return scaled(NSImage(contentsOfFile: imagePath), maxPixelSize: maxPixelSize)
         }
         guard let document = PDFDocument(url: URL(fileURLWithPath: filePath)),
-              let page = document.page(at: 0) else { return nil }
+              let page = document.page(at: location.pages?.lowerBound ?? 0) else { return nil }
         let bounds = page.bounds(for: .mediaBox)
         guard bounds.width > 0, bounds.height > 0 else { return nil }
         let scale = min(maxPixelSize / bounds.width, maxPixelSize / bounds.height)

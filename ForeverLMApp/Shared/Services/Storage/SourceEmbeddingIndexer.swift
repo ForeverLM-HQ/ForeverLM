@@ -280,7 +280,7 @@ actor SourceEmbeddingIndexer {
         // into embeddings while chat and voice see different text.
         if candidate.sourceType != StudioSourceType.paper.rawValue,
            let path = candidate.localFilePath,
-           let extracted = Self.extractTextFromLocalFile(path),
+           let extracted = Self.extractTextFromLocalFile(path, pages: candidate.bookPages),
            !extracted.isEmpty {
             return extracted
         }
@@ -299,18 +299,18 @@ actor SourceEmbeddingIndexer {
     /// PDF/text extraction mirroring the MCP `get_source_content` fallback. Static and
     /// nonisolated so it runs on the calling actor's executor without hopping.
 
-    private static func extractTextFromLocalFile(_ path: String) -> String? {
+    private static func extractTextFromLocalFile(_ path: String, pages: Range<Int>?) -> String? {
         guard let resolved = SourceService.resolveLocalFileURL(path),
               FileManager.default.fileExists(atPath: resolved.path) else { return nil }
 
         #if canImport(PDFKit)
         if resolved.path.lowercased().hasSuffix(".pdf") {
             guard let document = PDFDocument(url: resolved) else { return nil }
-            // Every page so a term appearing late in a long document remains findable.
-            let text = PDFTextExtractor.textWithFigureReferences(
-                from: document,
-                pages: 0..<document.pageCount
-            )
+            // Every page so a term appearing late in a long document remains findable;
+            // a book chapter's pages of its book's file.
+            let range = pages ?? 0..<document.pageCount
+            guard range.upperBound <= document.pageCount else { return nil }
+            let text = PDFTextExtractor.textWithFigureReferences(from: document, pages: range)
             return text.isEmpty ? nil : text
         }
         #endif

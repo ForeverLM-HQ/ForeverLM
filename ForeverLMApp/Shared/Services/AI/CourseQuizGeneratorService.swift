@@ -259,7 +259,7 @@ struct CourseQuizGeneratorService: Sendable {
             // The figures on the planned pages, for the writer to show with a
             // question as it shows a lecture's slides. Read off the file on
             // this Mac; a reading whose file is elsewhere lists none.
-            let filePath = article.resolvedLocalPath
+            let filePath = article.resolvedFileLocation
             let figures = await Task.detached(priority: .utility) {
                 Self.readingFigures(sourceID: sourceID, filePath: filePath, pages: pages)
             }.value
@@ -294,9 +294,12 @@ struct CourseQuizGeneratorService: Sendable {
     /// question. Empty when the file is not on this Mac or shows no figure.
     /// File and PDF work: never on the main actor.
     static func readingFigures(sourceID: String, filePath: String?, pages: ClosedRange<Int>?) -> [CourseQuizFigure] {
-        guard let filePath, FileManager.default.isReadableFile(atPath: filePath) else { return [] }
-        if URL(fileURLWithPath: filePath).pathExtension.lowercased() == "pdf" {
-            guard let document = PDFDocument(url: URL(fileURLWithPath: filePath)), document.pageCount > 0 else { return [] }
+        guard let filePath else { return [] }
+        // A book chapter's path names its pages of the book's file; its pages count from the chapter's first.
+        let location = SourcePDFPages(stored: filePath)
+        guard FileManager.default.isReadableFile(atPath: location.path) else { return [] }
+        if URL(fileURLWithPath: location.path).pathExtension.lowercased() == "pdf" {
+            guard let document = location.document(), document.pageCount > 0 else { return [] }
             // A PDFPage holds its document weakly; keep it while pages are read.
             return withExtendedLifetime(document) {
                 let first = max(1, pages?.lowerBound ?? 1)

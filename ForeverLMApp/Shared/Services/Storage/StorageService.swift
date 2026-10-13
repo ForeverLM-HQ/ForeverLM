@@ -2400,10 +2400,10 @@ actor StorageService {
             case "pdf":
                 #if canImport(PDFKit)
                 guard let document = PDFDocument(url: resolvedURL) else { return nil }
-                let text = PDFTextExtractor.textWithFigureReferences(
-                    from: document,
-                    pages: 0..<document.pageCount
-                )
+                // A book chapter's text is its pages of the book's file.
+                let pages = article.bookPages ?? 0..<document.pageCount
+                guard pages.upperBound <= document.pageCount else { return nil }
+                let text = PDFTextExtractor.textWithFigureReferences(from: document, pages: pages)
                 return text.isEmpty ? nil : text
                 #else
                 return nil
@@ -5230,6 +5230,14 @@ actor StorageService {
            let match = store.sourceExistsByBookLocalFilePath(localFilePath) {
             return match
         }
+        // A chapter of a book kept as one file is addressed by its first page, so a re-import that
+        // moved the chapter's start, or one of a book split into chapter files before, finds it by
+        // its title among the chapters the re-import just archived: it keeps its id, and with it
+        // its highlights, reading position and notebooks.
+        if article.bookPages != nil, let bookID = article.parentGroup,
+           let match = store.archivedBookChapter(bookID: bookID, title: article.title) {
+            return match
+        }
         return nil
     }
 
@@ -5496,4 +5504,36 @@ struct ReadNextSuggestion: Equatable, Sendable {
     let sourceID: String
     let nearestReadSourceID: String
     let score: Float
+}
+
+// MARK: - A PDF book is one file (schema 169)
+
+extension StorageService {
+    func dueBookFileMerges(limit: Int = 50) throws -> [String] {
+        try ensureStoreExists()
+        return try knowledgeStore().dueBookFileMerges(limit: limit)
+    }
+
+    func bookFileChapters(bookID: String) throws -> [BookFileChapterRow] {
+        try ensureStoreExists()
+        return try knowledgeStore().bookFileChapters(bookID: bookID)
+    }
+
+    /// Points a merged book's chapters at their pages of its file; their records
+    /// then name the book's bytes and their pages (`SourceFilePublisher`).
+    func pointBookChapters(bookID: String, bookFilePath: String, pages: [(sourceID: String, pages: Range<Int>)]) throws {
+        try ensureStoreExists()
+        try knowledgeStore().pointBookChapters(bookID: bookID, bookFilePath: bookFilePath, pages: pages)
+        scheduleCloudKitSync(.immediate)
+    }
+
+    func failBookFileMerge(bookID: String, message: String) throws {
+        try ensureStoreExists()
+        try knowledgeStore().failBookFileMerge(bookID: bookID, message: message)
+    }
+
+    func dropBookFileMerge(bookID: String) throws {
+        try ensureStoreExists()
+        try knowledgeStore().dropBookFileMerge(bookID: bookID)
+    }
 }

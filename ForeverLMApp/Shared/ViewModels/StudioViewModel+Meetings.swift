@@ -2701,6 +2701,9 @@ extension StudioViewModel {
     func sourceMatchingLocalPath(_ path: String) -> StudioArticle? {
         let target = Self.standardizedReaderPath(path)
         return articles.first { article in
+            // A chapter of a book kept as one file shares the book's path with
+            // every other chapter, so a path names none of them.
+            guard article.bookPages == nil else { return false }
             let candidates = [
                 article.cachedResolvedLocalPath,
                 article.localFilePath,
