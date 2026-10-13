@@ -1241,6 +1241,32 @@ extension StorageService {
         try store.saveArtifactCommentRecord(comment)
     }
 
+    func replyToArtifactComment(
+        _ commentID: String,
+        authorRecordName: String,
+        authorDisplayName: String,
+        body: String
+    ) throws -> ArtifactCommentRecord {
+        try notebookFilesKnowledgeStore().replyToArtifactComment(
+            commentID,
+            authorRecordName: authorRecordName,
+            authorDisplayName: authorDisplayName,
+            body: body
+        )
+    }
+
+    func editArtifactComment(_ commentID: String, body: String) throws {
+        try notebookFilesKnowledgeStore().editArtifactComment(commentID, body: body)
+    }
+
+    func deleteArtifactComment(_ commentID: String) throws {
+        try notebookFilesKnowledgeStore().deleteArtifactComment(commentID)
+    }
+
+    func deleteArtifactCommentThread(_ commentID: String) throws {
+        try notebookFilesKnowledgeStore().deleteArtifactCommentThread(commentID)
+    }
+
     func notebookArtifactContext(notebookID: String) throws -> String {
         // An audio overview's body is only its recipe; its script is a
         // spoken retelling of sources the chat reads for itself.

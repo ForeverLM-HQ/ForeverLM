@@ -1624,7 +1624,7 @@ struct ArtifactCanvas: View {
     /// What ForeverLM adds to Codex's page menu, under **More**, in four
     /// groups: the page itself (New Page, Duplicate, subpages, Version
     /// History…), writing and reading it (Edit with AI…, Format, View as Page,
-    /// Page Width, Discussion), where it lives and who has it (Add to Chat,
+    /// Page Width, Comments), where it lives and who has it (Add to Chat,
     /// notebooks, canvases, spaces, teams), and taking it out of ForeverLM
     /// (publishing, Google Docs, Export, Finder).
     @ViewBuilder
@@ -1715,7 +1715,7 @@ struct ArtifactCanvas: View {
         Button {
             docChrome.isCommentsVisible.toggle()
         } label: {
-            Label(docChrome.isCommentsVisible ? "Hide Discussion" : "Discussion", systemImage: "text.bubble")
+            Label(docChrome.isCommentsVisible ? "Hide Comments" : "Comments", systemImage: "text.bubble")
         }
         .help("Comments on this page, and the chats its passages started")
         Divider()
@@ -2982,7 +2982,11 @@ private struct ArtifactEditor: View {
     @State private var comments: [ArtifactCommentRecord] = []
     @State private var chatLinks: [ArtifactChatLink] = []
     @State private var pendingCommentSelection: ArtifactEditorSelection?
-    @State private var commentDraft = ""
+    /// The comment thread open in the Comments panel, whose passage the page
+    /// marks and shows; set from the panel or by clicking marked words.
+    @State private var selectedCommentThreadID: String?
+    /// Threads whose words the editor no longer finds in the page.
+    @State private var detachedCommentThreadIDs: Set<String> = []
     @State private var paneWidth: CGFloat = 0
     @State private var findState = ReaderFindState()
     @FocusState private var titleFocused: Bool
@@ -3749,7 +3753,7 @@ private struct ArtifactEditor: View {
     ///
     /// Same rule as the shelf: a chat anchored to a paragraph is invisible in
     /// the prose, so it appears the moment the writer selects that paragraph and
-    /// nowhere else on the page. The doc-wide list stays in Discussion. Offsets
+    /// nowhere else on the page. The doc-wide list stays in the Comments panel. Offsets
     /// are trusted only for the saved revision the page is showing; a draft
     /// with unsaved edits has moved its positions, so the quote decides instead.
     private var selectionChatLinks: [ArtifactChatLink] {
@@ -3988,6 +3992,7 @@ private struct ArtifactEditor: View {
                 onRequestComment: { selection in
                     editorSelection = selection
                     pendingCommentSelection = selection
+                    selectedCommentThreadID = nil
                     chrome.isCommentsVisible = true
                 },
                 onRequestGrounding: { request in groundingRequest = request },
@@ -4005,6 +4010,15 @@ private struct ArtifactEditor: View {
                         }
                     }
                 },
+                // Comments sit on their passages in the page, and a click on
+                // the words opens the thread in the Comments panel.
+                commentAnchors: ArtifactCommentThread.threads(from: comments).map(ArtifactCommentAnchor.init(thread:)),
+                activeCommentID: chrome.isCommentsVisible ? selectedCommentThreadID : nil,
+                onCommentAnchorClicked: { id in
+                    selectedCommentThreadID = id
+                    chrome.isCommentsVisible = true
+                },
+                onCommentAnchorsDetached: { detachedCommentThreadIDs = $0 },
                 // Generate image: drawn on the account's image model and kept in
                 // this doc's Attachments; the editor writes it at the caret.
                 onRequestImageGeneration: { [artifactID = artifact.id] request in
@@ -4730,214 +4744,31 @@ private struct ArtifactEditor: View {
         }
     }
 
-    private func sidebarSectionLabel(_ title: String) -> some View {
-        Text(title.uppercased())
-            .zoomedSystemFont(size: 9, weight: .semibold)
-            .foregroundStyle(.tertiary)
-            .padding(.top, 4)
-            .padding(.horizontal, 2)
-    }
-
-    /// The conversations this doc's passages started.
-    ///
-    /// One row per passage, newest first, showing the words that were asked
-    /// about rather than the chat's topic — the quote is what tells the writer
-    /// which of five conversations about this doc is the one they want, and it
-    /// stays readable after the paragraph it came from has been rewritten.
-    @ViewBuilder
-    private var chatLinksSection: some View {
-        if !chatLinks.isEmpty {
-            sidebarSectionLabel("Chats")
-            ForEach(chatLinks) { entry in
-                Button {
-                    vm.requestResumeReviewSession(entry.session.id)
-                } label: {
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack(alignment: .firstTextBaseline, spacing: 6) {
-                            Image(systemName: "bubble.left.and.text.bubble.right")
-                                .zoomedSystemFont(size: 9)
-                                .foregroundStyle(Color.accentColor)
-                            Text(entry.displayTitle)
-                                .zoomedSystemFont(size: 11, weight: .medium)
-                                .lineLimit(2)
-                                .multilineTextAlignment(.leading)
-                            Spacer(minLength: 4)
-                            Text(entry.link.createdAt, style: .relative)
-                                .zoomedSystemFont(size: 9)
-                                .foregroundStyle(.tertiary)
-                        }
-                        Text(entry.link.anchorQuote)
-                            .zoomedSystemFont(size: 10)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(3)
-                            .multilineTextAlignment(.leading)
-                            .padding(.leading, 8)
-                            .overlay(alignment: .leading) {
-                                Rectangle()
-                                    .fill(Color.secondary.opacity(0.28))
-                                    .frame(width: 2)
-                            }
-                        if !entry.link.sectionTitle.isEmpty {
-                            Text(entry.link.sectionTitle)
-                                .zoomedSystemFont(size: 9)
-                                .foregroundStyle(.tertiary)
-                                .lineLimit(1)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(11)
-                    .background(
-                        Color.primary.opacity(0.04),
-                        in: RoundedRectangle(cornerRadius: 9)
-                    )
-                }
-                .buttonStyle(.plain)
-                .help("Open the chat that started on this passage")
-                .contextMenu {
-                    OtherWindowMenuItem(.chat(entry.session.id))
-                    Divider()
-                    Button("Forget This Link") {
-                        Task {
-                            await vm.forgetArtifactChatLink(entry.link.id)
-                            chatLinks = await vm.artifactChatLinks(artifact.id)
-                        }
-                    }
-                }
-                .accessibilityLabel("Chat \(entry.displayTitle), about: \(entry.link.anchorQuote)")
-            }
-        }
-    }
-
+    /// The page's Comments panel (`PageCommentsSidebar`): its threads, and
+    /// the chats its passages started.
     private var commentsSidebar: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("Discussion")
-                    .zoomedSystemFont(size: 13, weight: .semibold)
-                if !comments.isEmpty {
-                    Text("\(comments.filter { !$0.isResolved }.count)")
-                        .zoomedSystemFont(size: 10, weight: .medium)
-                        .foregroundStyle(.tertiary)
-                }
-                Spacer()
-                Button {
-                    chrome.isCommentsVisible = false
-                } label: {
-                    Image(systemName: "xmark")
-                }
-                .buttonStyle(.hoverWash)
-            }
-            .padding(14)
-
-            Divider()
-
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 10) {
-                    chatLinksSection
-                    if !chatLinks.isEmpty && !comments.isEmpty {
-                        sidebarSectionLabel("Comments")
-                    }
-                    ForEach(comments.filter { $0.parentCommentID == nil }) { comment in
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Text(comment.authorDisplayName)
-                                    .zoomedSystemFont(size: 10, weight: .semibold)
-                                Spacer()
-                                Text(comment.updatedAt, style: .relative)
-                                    .zoomedSystemFont(size: 9)
-                                    .foregroundStyle(.tertiary)
-                            }
-                            if !comment.anchorQuote.isEmpty {
-                                Text(comment.anchorQuote)
-                                    .zoomedSystemFont(size: 10)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(3)
-                                    .padding(.leading, 8)
-                                    .overlay(alignment: .leading) {
-                                        Rectangle()
-                                            .fill(Color.secondary.opacity(0.28))
-                                            .frame(width: 2)
-                                    }
-                            }
-                            Text(comment.body)
-                                .zoomedSystemFont(size: 11)
-                                .foregroundStyle(comment.isResolved ? .secondary : .primary)
-                            Button(comment.isResolved ? "Reopen" : "Resolve") {
-                                Task {
-                                    do {
-                                        try await vm.setArtifactCommentResolved(
-                                            comment.id,
-                                            resolved: !comment.isResolved
-                                        )
-                                        comments = try await vm.artifactComments(artifact.id)
-                                    } catch {
-                                        chrome.errorMessage = error.localizedDescription
-                                    }
-                                }
-                            }
-                            .buttonStyle(.hoverWash(tint: Color.accentColor))
-                            .zoomedSystemFont(size: 9, weight: .medium)
-                        }
-                        .padding(11)
-                        .background(
-                            Color.primary.opacity(comment.isResolved ? 0.02 : 0.04),
-                            in: RoundedRectangle(cornerRadius: 9)
-                        )
-                    }
-                }
-                .padding(10)
-            }
-
-            if let selection = pendingCommentSelection, selection.hasText {
-                Divider()
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(selection.text)
-                        .zoomedSystemFont(size: 9)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                    TextField("Add a comment…", text: $commentDraft, axis: .vertical)
-                        .textFieldStyle(.plain)
-                        .lineLimit(2...5)
-                        .onSubmit { addComment() }
-                    HStack {
-                        Spacer()
-                        Button("Comment") { addComment() }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.small)
-                            .disabled(commentDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    }
-                }
-                .padding(12)
-            }
-        }
-        .background(Color(nsColor: .controlBackgroundColor))
+        PageCommentsSidebar(
+            artifactID: artifact.id,
+            comments: $comments,
+            chatLinks: $chatLinks,
+            pendingSelection: $pendingCommentSelection,
+            selectedThreadID: $selectedCommentThreadID,
+            detachedThreadIDs: detachedCommentThreadIDs,
+            prepareToComment: { try await saveDraftBeforeComment() },
+            onClose: { chrome.isCommentsVisible = false },
+            onError: { chrome.errorMessage = $0 }
+        )
     }
 
-    private func addComment() {
-        guard let selection = pendingCommentSelection,
-              let openedSnapshot = snapshot else { return }
-        let body = commentDraft
-        Task {
-            do {
-                if draft != openedSnapshot.markdown {
-                    let saved = try await vm.saveArtifactMarkdown(
-                        artifactID: artifact.id,
-                        markdown: draft,
-                        expectedRevision: openedSnapshot.revision
-                    )
-                    snapshot = saved
-                }
-                _ = try await vm.addArtifactComment(
-                    artifactID: artifact.id,
-                    body: body,
-                    selection: selection
-                )
-                comments = try await vm.artifactComments(artifact.id)
-                commentDraft = ""
-                pendingCommentSelection = nil
-            } catch {
-                chrome.errorMessage = error.localizedDescription
-            }
-        }
+    /// A comment is anchored on the saved text: the draft is written first
+    /// when it holds words the store has not seen.
+    private func saveDraftBeforeComment() async throws {
+        guard let openedSnapshot = snapshot, draft != openedSnapshot.markdown else { return }
+        snapshot = try await vm.saveArtifactMarkdown(
+            artifactID: artifact.id,
+            markdown: draft,
+            expectedRevision: openedSnapshot.revision
+        )
     }
 
     /// File in the slash menu: the writer picks any file, and the page keeps a

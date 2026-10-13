@@ -117,6 +117,107 @@ extension KnowledgeStore {
         try markRecordDeleted(entity: .artifactComment, logicalKey: commentID)
     }
 
+    /// A reply in a comment's thread: it stands on the thread's passage (the
+    /// opening comment's anchor), and its parent is the thread's opening
+    /// comment however deep the comment answered sits, as Codex keeps a thread
+    /// one level deep.
+    @discardableResult
+    func replyToArtifactComment(
+        _ commentID: String,
+        id: String = UUID().uuidString.lowercased(),
+        authorRecordName: String,
+        authorDisplayName: String,
+        body: String,
+        at date: Date = Date()
+    ) throws -> ArtifactCommentRecord {
+        let text = body.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { throw ArtifactCommentError.emptyBody }
+        guard let answered = try loadArtifactCommentForSync(commentID) else { throw ArtifactCommentError.unavailable }
+        let comments = try loadArtifactComments(answered.artifactID)
+        let rootID = ArtifactCommentThread.rootID(of: answered, in: comments)
+        guard let root = comments.first(where: { $0.id == rootID }) else { throw ArtifactCommentError.unavailable }
+        let reply = ArtifactCommentRecord(
+            id: id,
+            artifactID: root.artifactID,
+            parentCommentID: root.id,
+            authorRecordName: authorRecordName,
+            authorDisplayName: authorDisplayName,
+            body: text,
+            anchorRevision: root.anchorRevision,
+            anchorStart: root.anchorStart,
+            anchorEnd: root.anchorEnd,
+            anchorQuote: root.anchorQuote,
+            createdAt: date,
+            updatedAt: date,
+            resolvedAt: nil
+        )
+        try saveArtifactCommentRecord(reply)
+        return reply
+    }
+
+    /// A comment's words, rewritten by its author (Codex's Edit comment).
+    @discardableResult
+    func editArtifactComment(_ commentID: String, body: String, at date: Date = Date()) throws -> ArtifactCommentRecord {
+        let text = body.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { throw ArtifactCommentError.emptyBody }
+        guard var comment = try loadArtifactCommentForSync(commentID) else { throw ArtifactCommentError.unavailable }
+        guard comment.body != text else { return comment }
+        comment.body = text
+        comment.updatedAt = date
+        try saveArtifactCommentRecord(comment)
+        return comment
+    }
+
+    /// One comment taken out, its replies kept (Codex's Delete comment: "The
+    /// comment text will be removed, but replies will remain"). Deleting the
+    /// comment that opened a thread hands the thread to its first reply, which
+    /// already stands on the same passage, so the rest of the conversation and
+    /// its place on the page survive.
+    func deleteArtifactComment(_ commentID: String, at date: Date = Date()) throws {
+        guard let comment = try loadArtifactCommentForSync(commentID) else { throw ArtifactCommentError.unavailable }
+        let comments = try loadArtifactComments(comment.artifactID)
+        let replies = comments
+            .filter { $0.parentCommentID == comment.id }
+            .sorted { ($0.createdAt, $0.id) < ($1.createdAt, $1.id) }
+        if let heir = replies.first {
+            for reply in replies {
+                let promoted = ArtifactCommentRecord(
+                    id: reply.id,
+                    artifactID: reply.artifactID,
+                    parentCommentID: reply.id == heir.id ? comment.parentCommentID : heir.id,
+                    authorRecordName: reply.authorRecordName,
+                    authorDisplayName: reply.authorDisplayName,
+                    body: reply.body,
+                    anchorRevision: comment.anchorRevision,
+                    anchorStart: comment.anchorStart,
+                    anchorEnd: comment.anchorEnd,
+                    anchorQuote: comment.anchorQuote,
+                    createdAt: reply.createdAt,
+                    updatedAt: date,
+                    // The thread keeps whether it was resolved.
+                    resolvedAt: reply.id == heir.id ? comment.resolvedAt : reply.resolvedAt
+                )
+                try saveArtifactCommentRecord(promoted)
+            }
+        }
+        try deleteArtifactCommentRecord(comment.id)
+    }
+
+    /// A whole thread taken out: the comment that opened it and every reply
+    /// (Codex's Delete thread: "This removes the thread and all its messages").
+    func deleteArtifactCommentThread(_ commentID: String) throws {
+        guard let comment = try loadArtifactCommentForSync(commentID) else { throw ArtifactCommentError.unavailable }
+        let comments = try loadArtifactComments(comment.artifactID)
+        let rootID = ArtifactCommentThread.rootID(of: comment, in: comments)
+        // Replies before the comment they answer, each deletion recorded for
+        // sync: the table's cascade would take them silently.
+        let members = comments.filter { ArtifactCommentThread.rootID(of: $0, in: comments) == rootID }
+        for member in members where member.id != rootID {
+            try deleteArtifactCommentRecord(member.id)
+        }
+        try deleteArtifactCommentRecord(rootID)
+    }
+
     func deleteArtifactCommentFromSync(_ commentID: String) throws {
         try withoutSyncTracking {
             try execBind("DELETE FROM artifact_comments WHERE id = ?") { statement in

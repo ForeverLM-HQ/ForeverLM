@@ -785,6 +785,28 @@ body.ready #editor {
   border-radius: 2px;
 }
 
+/* A comment's passage, as Codex marks it: the words washed in yellow with a
+   line under them; the thread open in the Comments panel more strongly. An
+   inline decoration, so it follows the words through any edit. */
+.milkdown .editor .artifact-comment-anchor {
+  background: color-mix(in srgb, var(--artifact-highlight-yellow) 16%, transparent);
+  border-bottom: 2px solid color-mix(in srgb, var(--artifact-highlight-yellow) 55%, transparent);
+  border-radius: 1px;
+  cursor: pointer;
+}
+
+.milkdown .editor .artifact-comment-anchor.is-active {
+  background: color-mix(in srgb, var(--artifact-highlight-yellow) 34%, transparent);
+  border-bottom-color: var(--artifact-highlight-yellow);
+}
+
+@media print {
+  .milkdown .editor .artifact-comment-anchor {
+    background: none;
+    border-bottom: none;
+  }
+}
+
 /* A team Doc reads without a caret; nothing there can be rewritten in place. */
 body.read-only .artifact-selection-assistant button[data-role="ai"] {
   display: none;

@@ -2104,3 +2104,164 @@ struct PageTrashWithSubpagesTests {
         #expect(vm.pageParent(of: grandchild.artifact.id)?.id == child.artifact.id, "and they nest as they did")
     }
 }
+
+/// A page's comment threads as Codex keeps them: replies one level deep on
+/// the thread's passage, a message edited or deleted with its replies kept,
+/// a whole thread deleted, and the anchors the page editor marks.
+@Suite("Page comment threads")
+struct PageCommentThreadTests {
+    private static let pageID = "commented-page"
+
+    private func storeWithPage() throws -> KnowledgeStore {
+        let store = try KnowledgeStore(inMemory: true)
+        try store.saveArtifactRecord(ArtifactRecord(
+            id: Self.pageID,
+            title: "Commented Page",
+            homeNotebookID: "notebook-a",
+            linkedNotebookIDs: ["notebook-a"],
+            createdAt: Date(timeIntervalSinceReferenceDate: 10),
+            updatedAt: Date(timeIntervalSinceReferenceDate: 20)
+        ))
+        return store
+    }
+
+    private func comment(
+        _ id: String,
+        parent: String? = nil,
+        start: Int = 4,
+        quote: String = "energy",
+        at seconds: Double,
+        resolved: Bool = false
+    ) -> ArtifactCommentRecord {
+        ArtifactCommentRecord(
+            id: id,
+            artifactID: Self.pageID,
+            parentCommentID: parent,
+            authorRecordName: "writer-record",
+            authorDisplayName: "Robin Vale",
+            body: "Comment \(id)",
+            anchorRevision: "revision-a",
+            anchorStart: start,
+            anchorEnd: start + quote.count,
+            anchorQuote: quote,
+            createdAt: Date(timeIntervalSinceReferenceDate: seconds),
+            updatedAt: Date(timeIntervalSinceReferenceDate: seconds),
+            resolvedAt: resolved ? Date(timeIntervalSinceReferenceDate: seconds + 1) : nil
+        )
+    }
+
+    @Test("Threads read in the page's order, each with its replies oldest first")
+    func threadsGroupAndOrder() {
+        let comments = [
+            comment("late-root", start: 40, quote: "fission", at: 5),
+            comment("early-root", start: 4, at: 9),
+            comment("reply-2", parent: "early-root", at: 12),
+            comment("reply-1", parent: "early-root", at: 11),
+            comment("orphan", parent: "gone", start: 20, quote: "proton", at: 3),
+        ]
+        let threads = ArtifactCommentThread.threads(from: comments)
+        #expect(threads.map(\.id) == ["early-root", "orphan", "late-root"])
+        #expect(threads[0].replies.map(\.id) == ["reply-1", "reply-2"])
+        #expect(threads[0].lastActivity == Date(timeIntervalSinceReferenceDate: 12))
+        #expect(threads[1].replies.isEmpty, "a reply whose thread is gone opens its own")
+    }
+
+    @Test("A reply stands on the thread's passage and answers its opening comment, however deep")
+    func replyJoinsTheThread() throws {
+        let store = try storeWithPage()
+        try store.saveArtifactCommentRecord(comment("root", start: 7, quote: "membrane", at: 30))
+        let first = try store.replyToArtifactComment(
+            "root", id: "reply-a", authorRecordName: "other-record", authorDisplayName: "Sam Reed",
+            body: "  Agreed.  ", at: Date(timeIntervalSinceReferenceDate: 31)
+        )
+        let second = try store.replyToArtifactComment(
+            "reply-a", id: "reply-b", authorRecordName: "writer-record", authorDisplayName: "Robin Vale",
+            body: "Thanks", at: Date(timeIntervalSinceReferenceDate: 32)
+        )
+        #expect(first.body == "Agreed.")
+        #expect(first.parentCommentID == "root")
+        #expect(second.parentCommentID == "root", "a reply to a reply joins the same thread")
+        #expect(second.anchorStart == 7 && second.anchorQuote == "membrane" && second.anchorRevision == "revision-a")
+        let threads = ArtifactCommentThread.threads(from: try store.loadArtifactComments(Self.pageID))
+        #expect(threads.count == 1)
+        #expect(threads[0].replies.map(\.id) == ["reply-a", "reply-b"])
+        #expect(throws: ArtifactCommentError.emptyBody) {
+            try store.replyToArtifactComment("root", authorRecordName: "w", authorDisplayName: "W", body: "   ")
+        }
+        #expect(throws: ArtifactCommentError.unavailable) {
+            try store.replyToArtifactComment("missing", authorRecordName: "w", authorDisplayName: "W", body: "Hi")
+        }
+    }
+
+    @Test("Editing a comment changes its words and queues it for sync; the same words change nothing")
+    func editComment() throws {
+        let store = try storeWithPage()
+        try store.saveArtifactCommentRecord(comment("root", at: 30))
+        try store.clearPendingSyncChange(entity: .artifactComment, logicalKey: "root")
+        let unchanged = try store.editArtifactComment("root", body: "Comment root", at: Date(timeIntervalSinceReferenceDate: 40))
+        #expect(unchanged.updatedAt == Date(timeIntervalSinceReferenceDate: 30))
+        #expect(try store.pendingSyncChanges().allSatisfy { $0.logicalKey != "root" })
+        let edited = try store.editArtifactComment("root", body: "Say more here.", at: Date(timeIntervalSinceReferenceDate: 41))
+        #expect(edited.body == "Say more here.")
+        #expect(try store.loadArtifactComments(Self.pageID).first?.body == "Say more here.")
+        #expect(try store.pendingSyncChanges().contains { $0.logicalKey == "root" && $0.operation == .save })
+        #expect(throws: ArtifactCommentError.emptyBody) { try store.editArtifactComment("root", body: "") }
+    }
+
+    @Test("Deleting a thread's opening comment hands the thread to its first reply, passage and resolution kept")
+    func deleteOpeningCommentKeepsReplies() throws {
+        let store = try storeWithPage()
+        try store.saveArtifactCommentRecord(comment("root", start: 9, quote: "gradient", at: 30, resolved: true))
+        try store.saveArtifactCommentRecord(comment("reply-a", parent: "root", start: 9, quote: "gradient", at: 31))
+        try store.saveArtifactCommentRecord(comment("reply-b", parent: "root", start: 9, quote: "gradient", at: 32))
+        try store.deleteArtifactComment("root", at: Date(timeIntervalSinceReferenceDate: 50))
+        let comments = try store.loadArtifactComments(Self.pageID)
+        #expect(comments.map(\.id).sorted() == ["reply-a", "reply-b"])
+        let threads = ArtifactCommentThread.threads(from: comments)
+        #expect(threads.map(\.id) == ["reply-a"])
+        #expect(threads[0].replies.map(\.id) == ["reply-b"])
+        #expect(threads[0].root.anchorQuote == "gradient" && threads[0].root.anchorStart == 9)
+        #expect(threads[0].isResolved, "the thread stays resolved")
+        let pending = try store.pendingSyncChanges()
+        #expect(pending.contains { $0.logicalKey == "root" && $0.operation == .delete })
+        #expect(pending.contains { $0.logicalKey == "reply-b" && $0.operation == .save })
+    }
+
+    @Test("Deleting a reply takes only that reply")
+    func deleteReply() throws {
+        let store = try storeWithPage()
+        try store.saveArtifactCommentRecord(comment("root", at: 30))
+        try store.saveArtifactCommentRecord(comment("reply-a", parent: "root", at: 31))
+        try store.deleteArtifactComment("reply-a")
+        #expect(try store.loadArtifactComments(Self.pageID).map(\.id) == ["root"])
+    }
+
+    @Test("Deleting a thread takes every message in it and leaves other threads")
+    func deleteThread() throws {
+        let store = try storeWithPage()
+        try store.saveArtifactCommentRecord(comment("root", at: 30))
+        try store.saveArtifactCommentRecord(comment("reply-a", parent: "root", at: 31))
+        try store.saveArtifactCommentRecord(comment("other", start: 30, quote: "budget", at: 33))
+        try store.deleteArtifactCommentThread("reply-a")
+        #expect(try store.loadArtifactComments(Self.pageID).map(\.id) == ["other"])
+        let deleted = Set(try store.pendingSyncChanges().filter { $0.operation == .delete }.map(\.logicalKey))
+        #expect(deleted == ["root", "reply-a"])
+    }
+
+    @Test("The editor is handed each thread's place, words and resolution")
+    func anchorsForTheEditor() throws {
+        let threads = ArtifactCommentThread.threads(from: [
+            comment("root", start: 4, quote: "say \"hi\"", at: 30, resolved: true),
+            comment("reply", parent: "root", at: 31),
+        ])
+        let anchors = threads.map(ArtifactCommentAnchor.init(thread:))
+        #expect(anchors.count == 1)
+        #expect(anchors[0].from == 4 && anchors[0].to == 4 + "say \"hi\"".count && anchors[0].resolved)
+        let script = ArtifactCommentAnchor.script(for: anchors)
+        #expect(script.hasPrefix("window.foreverLMArtifactEditor.setCommentAnchors(["))
+        let json = String(script.dropFirst("window.foreverLMArtifactEditor.setCommentAnchors(".count).dropLast(2))
+        let decoded = try #require(try JSONSerialization.jsonObject(with: Data(json.utf8)) as? [[String: Any]])
+        #expect(decoded.first?["quote"] as? String == "say \"hi\"")
+        #expect(decoded.first?["id"] as? String == "root")
+    }
+}

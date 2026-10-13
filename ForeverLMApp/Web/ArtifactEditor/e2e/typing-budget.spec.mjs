@@ -35,10 +35,11 @@ function longPage() {
   return `# Long working page\n\n${sections.join('\n\n')}\n\nA closing line.[^1]\n\n[^1]: ${sentence(12)}\n`
 }
 
-test('a key on a long page is handled within a frame', async ({ page }) => {
-  const markdown = longPage()
+/// Type 104 keys in the middle of the page and measure each, after `prepare`.
+async function measureTyping(page, markdown, label, prepare = async () => {}) {
   expect(markdown.split(/\s+/).length).toBeGreaterThan(6000)
   await openEditor(page, markdown)
+  await prepare()
   await caretIn(page, 'Section 12')
   await page.keyboard.press('ArrowDown')
   await page.keyboard.press('End')
@@ -56,9 +57,32 @@ test('a key on a long page is handled within a frame', async ({ page }) => {
   const times = (await page.evaluate(() => window.keyTimes)).sort((left, right) => left - right)
   const at = (fraction) => times[Math.min(times.length - 1, Math.floor(fraction * times.length))]
   const result = { keys: times.length, median: +at(0.5).toFixed(1), p90: +at(0.9).toFixed(1), max: +times.at(-1).toFixed(1) }
-  console.log(`typing on a ${markdown.split(/\s+/).length}-word page: ${JSON.stringify(result)} (budget ${JSON.stringify(budget)})`)
+  console.log(`typing on a ${markdown.split(/\s+/).length}-word page${label}: ${JSON.stringify(result)} (budget ${JSON.stringify(budget)})`)
   expect(result.keys).toBeGreaterThan(100)
   expect(result.median).toBeLessThanOrEqual(budget.median)
   expect(result.p90).toBeLessThanOrEqual(budget.p90)
   expect(result.max).toBeLessThanOrEqual(budget.max)
+}
+
+test('a key on a long page is handled within a frame', async ({ page }) => {
+  await measureTyping(page, longPage(), '')
+})
+
+// Comment threads are marks the editor carries through every keystroke
+// (comment-anchors.js); forty of them, spread over the page, cost no frame.
+test('a key on a long page with forty comment threads is handled within a frame', async ({ page }) => {
+  await measureTyping(page, longPage(), ' with 40 comment threads', async () => {
+    const marked = await page.evaluate(() => {
+      const view = window.__editorTest.view()
+      const threads = []
+      view.state.doc.descendants((node, pos) => {
+        if (threads.length >= 40 || !node.isText || node.text.length < 12) return true
+        if (pos % 3 === 0) threads.push({ id: `c${threads.length}`, from: pos + 2, to: pos + 10, resolved: false, quote: node.text.slice(2, 10) })
+        return true
+      })
+      window.foreverLMArtifactEditor.setCommentAnchors(threads)
+      return document.querySelectorAll('.artifact-comment-anchor').length
+    })
+    expect(marked).toBeGreaterThanOrEqual(40)
+  })
 })

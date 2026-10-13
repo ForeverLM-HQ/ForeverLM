@@ -65,6 +65,7 @@ import { blankLinesAsEmptyLines, emptyLinesAsBlankLines } from './empty-lines.js
 import { textWithItsEscapes } from './markdown-text.js'
 import { citationFootnote, footnoteKey, freshNumericLabel, planFootnotes } from './footnotes.js'
 import { joinPastedLines, mayBePrintedLines, pastedLines, writtenSpan } from './pasted-lines.js'
+import { resolveAnchor, textIndex } from './comment-anchors.js'
 import { aliasedAddresses, isAddressStandIn, markedWordChanges, newAddressAliases, restoredAddresses, wordsOfDOM } from './ai-edit-proposal.js'
 import { renderInline, renderMarkdown } from './notes-markdown.js'
 import {
@@ -412,6 +413,11 @@ function publicationHTML(title = 'Untitled Article') {
   // sentences are not a citation — and a doc or Notebook link keeps its title.
   for (const anchor of article.querySelectorAll('a[href^="https://foreverlm.invalid/"]')) {
     anchor.replaceWith(...anchor.childNodes)
+  }
+  // Comments, and the passage under an AI edit, are marked for the writer
+  // here; a reader of the copy gets the words alone.
+  for (const mark of article.querySelectorAll('.artifact-comment-anchor, .artifact-ai-edit-target')) {
+    mark.replaceWith(...mark.childNodes)
   }
   // A reference card's control and a paragraph's margin cards are the
   // library's answer to this Mac, not part of the writing; the titles and
@@ -7372,6 +7378,7 @@ async function create(markdown, fontSize) {
     editor.editor.use(referenceCardsPlugin)
     editor.editor.use(linkPickerPlugin)
     editor.editor.use(aiEditHighlightPlugin)
+    editor.editor.use(commentAnchorPlugin)
     editor.editor.use(selectionPublishPlugin)
     editor.editor.use(editWatchPlugin)
     editor.editor.use(outlineFoldPlugin)
@@ -7612,6 +7619,7 @@ function setMarkdown(markdown, foldState = null) {
   }
 
   const keptFolds = foldState == null ? null : opensAnotherDoc ? foldState.folds : foldsJSON(currentFolds())
+  if (opensAnotherDoc) forgetCommentAnchors()
   // Another doc: a list open over the old one has nothing to point at, and
   // neither has a preview, a reference list or a menu.
   hideLinkPicker()
@@ -10380,6 +10388,163 @@ window.addEventListener('resize', () => {
   scheduleAIEditPanelReposition()
 })
 
+// MARK: - Comment anchors
+//
+// A comment sits on the passage it was made on, as Codex's do: its words are
+// marked in the page, and clicking them opens the thread in the host's
+// Comments panel (`commentAnchorClicked`); choosing a thread there marks and
+// shows its passage (`setActiveComment`). The host owns the threads and sends
+// each one's stored place and words (`setCommentAnchors([{ id, from, to,
+// resolved, quote }])`); the editor finds the passage now (comment-anchors.js)
+// and maps it through every edit after that, so the mark follows the words as
+// the writer types. A resolved thread's passage is marked only while its
+// thread is the one open. A thread whose words are gone from the page is
+// detached, and the host hears which (`commentAnchorsResolved`), to say
+// "Original text unavailable". Nothing here enters the document or its undo.
+const commentAnchorKey = new PluginKey('foreverlm-comment-anchors')
+/// The threads as the host last sent them, and the one open in its panel.
+let commentAnchorThreads = []
+let activeCommentID = null
+let postedDetachedKey = ''
+
+/// The marks for `ranges` (id → { from, to, resolved }): an open thread's
+/// passage washed, the active one more strongly, a resolved one only while
+/// active.
+function commentAnchorDecorations(doc, ranges, active) {
+  const decorations = []
+  for (const [id, range] of ranges) {
+    if (range.resolved && id !== active) continue
+    if (!(range.to > range.from) || range.to > doc.content.size) continue
+    decorations.push(Decoration.inline(range.from, range.to, {
+      class: id === active ? 'artifact-comment-anchor is-active' : 'artifact-comment-anchor',
+      'data-comment-id': id,
+    }, { commentID: id }))
+  }
+  return DecorationSet.create(doc, decorations)
+}
+
+/// Each thread's passage in `doc`: a thread already marked keeps the place its
+/// mark was carried to by the writer's edits; a new one is found from what the
+/// host stored. Threads whose words are not in the page are `detached`.
+function resolvedCommentRanges(doc, threads, previous) {
+  const ranges = new Map()
+  const detached = []
+  const text = (from, to) => doc.textBetween(from, to, '\n', '\n')
+  let index = null
+  for (const thread of threads) {
+    const id = String(thread?.id ?? '')
+    if (!id) continue
+    const resolved = thread.resolved === true
+    const live = previous?.get(id)
+    if (live && live.to > live.from && live.to <= doc.content.size) {
+      ranges.set(id, { from: live.from, to: live.to, resolved })
+      continue
+    }
+    index ??= textIndex(doc)
+    const found = resolveAnchor(doc, thread, text, index)
+    if (found) ranges.set(id, { ...found, resolved })
+    else detached.push(id)
+  }
+  return { ranges, detached }
+}
+
+const commentAnchorPlugin = $prose(() => new Plugin({
+  key: commentAnchorKey,
+  state: {
+    init: (_config, state) => {
+      const { ranges, detached } = resolvedCommentRanges(state.doc, commentAnchorThreads, null)
+      return { ranges, detached, decorations: commentAnchorDecorations(state.doc, ranges, activeCommentID) }
+    },
+    apply(tr, value) {
+      let ranges = value.ranges
+      let detached = value.detached
+      let decorations = value.decorations
+      if (tr.docChanged && ranges.size > 0) {
+        // The words moved with the edit; a passage deleted whole is detached
+        // until the host sends the threads again.
+        const mapped = new Map()
+        for (const [id, range] of ranges) {
+          const from = tr.mapping.map(range.from, 1)
+          const to = tr.mapping.map(range.to, -1)
+          if (to > from) mapped.set(id, { from, to, resolved: range.resolved })
+          else detached = detached.concat(id)
+        }
+        ranges = mapped
+        decorations = decorations.map(tr.mapping, tr.doc)
+      }
+      const meta = tr.getMeta(commentAnchorKey)
+      if (!meta) return ranges === value.ranges ? value : { ranges, detached, decorations }
+      if (meta.threads) ({ ranges, detached } = resolvedCommentRanges(tr.doc, meta.threads, ranges))
+      return { ranges, detached, decorations: commentAnchorDecorations(tr.doc, ranges, activeCommentID) }
+    },
+  },
+  props: {
+    decorations: (state) => commentAnchorKey.getState(state)?.decorations ?? DecorationSet.empty,
+    // A click on marked words opens their thread; the caret still goes where
+    // the click put it, so writing in a commented passage is never in the way.
+    handleClick(view, pos) {
+      const id = commentAnchorAt(view.state, pos)
+      if (id) {
+        setActiveComment(id)
+        post('commentAnchorClicked', { id })
+      }
+      return false
+    },
+  },
+  view: () => ({
+    update(view) {
+      const detached = commentAnchorKey.getState(view.state)?.detached ?? []
+      const key = detached.join('\n')
+      if (key === postedDetachedKey) return
+      postedDetachedKey = key
+      post('commentAnchorsResolved', { detached })
+    },
+  }),
+}))
+
+/// The thread whose passage holds `pos`, the shortest passage winning where
+/// two overlap; null off every mark.
+function commentAnchorAt(state, pos) {
+  const found = commentAnchorKey.getState(state)?.decorations.find(pos, pos) ?? []
+  let best = null
+  for (const decoration of found) {
+    if (pos < decoration.from || pos > decoration.to) continue
+    if (!best || decoration.to - decoration.from < best.to - best.from) best = decoration
+  }
+  return best?.spec?.commentID ?? null
+}
+
+/// The host's threads: `[{ id, from, to, resolved, quote }]`.
+function setCommentAnchors(threads) {
+  commentAnchorThreads = Array.isArray(threads) ? threads.filter((thread) => thread && typeof thread.id === 'string') : []
+  if (activeCommentID && !commentAnchorThreads.some((thread) => thread.id === activeCommentID)) activeCommentID = null
+  const view = activeEditorView()
+  if (!view) return
+  view.dispatch(view.state.tr.setMeta(commentAnchorKey, { threads: commentAnchorThreads }).setMeta('addToHistory', false))
+}
+
+/// The thread open in the host's panel, or null: its passage is marked more
+/// strongly and, with `reveal`, scrolled into view.
+function setActiveComment(id, { reveal = false } = {}) {
+  activeCommentID = typeof id === 'string' && id ? id : null
+  const view = activeEditorView()
+  if (!view) return
+  view.dispatch(view.state.tr.setMeta(commentAnchorKey, { active: activeCommentID }).setMeta('addToHistory', false))
+  if (!reveal || !activeCommentID) return
+  if (!commentAnchorKey.getState(view.state)?.ranges.has(activeCommentID)) return
+  const shown = activeCommentID
+  requestAnimationFrame(() => {
+    const mark = view.dom.querySelector(`.artifact-comment-anchor[data-comment-id="${CSS.escape(shown)}"]`)
+    mark?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  })
+}
+
+/// Another page opened: the threads were the last page's.
+function forgetCommentAnchors() {
+  commentAnchorThreads = []
+  activeCommentID = null
+}
+
 window.foreverLMArtifactEditor = {
   create,
   setMarkdown,
@@ -10414,6 +10579,10 @@ window.foreverLMArtifactEditor = {
   forgetPastedLineJoining,
   runSlashRow,
   openInsertMenu,
+  setCommentAnchors,
+  setActiveComment(id, options) {
+    setActiveComment(id, options ?? {})
+  },
   setFontSize(fontSize) {
     document.documentElement.style.setProperty('--artifact-font-size', `${fontSize}px`)
     scheduleMarginCardLayout()

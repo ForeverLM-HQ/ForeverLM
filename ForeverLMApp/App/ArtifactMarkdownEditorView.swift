@@ -809,6 +809,17 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
     /// keeps them in the doc's Attachments and writes each where the caret
     /// is, as for the Image row, then removes the folders.
     var onImageFiles: ([URL]) -> Void = { _ in }
+    /// The page's comment threads, each marked on its passage
+    /// (`setCommentAnchors`); the editor finds the words again and keeps the
+    /// mark on them as the page changes.
+    var commentAnchors: [ArtifactCommentAnchor] = []
+    /// The thread open in the Comments panel: its passage is marked more
+    /// strongly, and shown when the choice was made in the panel.
+    var activeCommentID: String? = nil
+    /// Marked words were clicked: the host opens that thread.
+    var onCommentAnchorClicked: (String) -> Void = { _ in }
+    /// The threads whose words are no longer in the page.
+    var onCommentAnchorsDetached: (Set<String>) -> Void = { _ in }
     /// Generate image was chosen and described: the answer is the picture,
     /// kept in the doc's Attachments, for the editor to write where the caret
     /// was. A thrown error is shown in the panel.
@@ -928,6 +939,8 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
 
     func updateNSView(_ webView: WKWebView, context: Context) {
         context.coordinator.onImageFiles = onImageFiles
+        context.coordinator.onCommentAnchorClicked = onCommentAnchorClicked
+        context.coordinator.onCommentAnchorsDetached = onCommentAnchorsDetached
         context.coordinator.openFoldDocument(foldDocumentID)
         context.coordinator.useNotesGraph(notesGraph)
         context.coordinator.update(
@@ -974,6 +987,7 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
             onError: onError,
             in: webView
         )
+        context.coordinator.useComments(commentAnchors, activeID: activeCommentID, in: webView)
         context.coordinator.performFindIfNeeded(in: webView, revision: findRevision, state: findState)
     }
 
@@ -1071,6 +1085,10 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
         private var onRequestAIEdit: (ArtifactAIEditRequest) async throws -> String
         private var onRequestImage: () -> Void
         var onImageFiles: ([URL]) -> Void = { _ in }
+        var onCommentAnchorClicked: (String) -> Void = { _ in }
+        var onCommentAnchorsDetached: (Set<String>) -> Void = { _ in }
+        private var commentAnchors: [ArtifactCommentAnchor] = []
+        private var activeCommentID: String?
         private var onRequestImageGeneration: (ArtifactImageGenerationRequest) async throws -> ArtifactGeneratedImage
         private var onGeneratedImageInserted: (ArtifactGeneratedImage) -> Void
         private var onRequestPrompt: (String) -> Void
@@ -1433,7 +1451,12 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
                 lastEditorMarkdown = latestSwiftMarkdown
                 foldDocumentChanged = false
                 webView.evaluateJavaScript(setMarkdownScript())
-                if opensAnotherDoc { focusIfEmpty(in: webView) }
+                if opensAnotherDoc {
+                    // The editor forgets the last page's threads when another
+                    // opens; this page's go in after its body.
+                    deliverCommentAnchors(in: webView)
+                    focusIfEmpty(in: webView)
+                }
             }
 
             if self.aiEditOpenRequestID != aiEditOpenRequestID {
@@ -1608,6 +1631,12 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
                       let width = (payload["width"] as? NSNumber)?.doubleValue,
                       let height = (payload["height"] as? NSNumber)?.doubleValue else { return }
                 showAIEditModelMenu(below: CGRect(x: x, y: y, width: width, height: height), in: webView)
+            case "commentAnchorClicked":
+                guard let id = payload["id"] as? String, !id.isEmpty else { return }
+                editorChosenCommentID = id
+                onCommentAnchorClicked(id)
+            case "commentAnchorsResolved":
+                onCommentAnchorsDetached(Set((payload["detached"] as? [String]) ?? []))
             case "selectionChanged":
                 onSelectionChange(Self.selection(from: payload))
             case "openLinkRequested":
@@ -1779,6 +1808,8 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
             lastEditorMarkdown = latestSwiftMarkdown
             foldDocumentChanged = false
             webView.evaluateJavaScript(setMarkdownScript())
+            deliverCommentAnchors(in: webView)
+            deliverActiveComment(in: webView, reveal: false)
             deliverAttachmentURLs(in: webView)
             deliverReferenceStatuses(in: webView)
             deliverLinkTargets(in: webView)
@@ -2156,6 +2187,34 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
                     (payload["formats"] as? [String] ?? []).compactMap(ArtifactFormatCommand.init(rawValue:))
                 )
             )
+        }
+
+        /// The page's threads and the open one, sent when they change. A
+        /// choice of thread made here (from the panel) shows its passage; one
+        /// the editor reported (a click on the words) is already in view.
+        func useComments(_ anchors: [ArtifactCommentAnchor], activeID: String?, in webView: WKWebView) {
+            if commentAnchors != anchors {
+                commentAnchors = anchors
+                if isReady { deliverCommentAnchors(in: webView) }
+            }
+            if activeCommentID != activeID {
+                activeCommentID = activeID
+                if isReady { deliverActiveComment(in: webView, reveal: activeID != editorChosenCommentID) }
+                editorChosenCommentID = nil
+            }
+        }
+
+        /// The thread whose words were clicked in the page, until the host's
+        /// next pass hands it back as the open thread.
+        private var editorChosenCommentID: String?
+
+        private func deliverCommentAnchors(in webView: WKWebView) {
+            webView.evaluateJavaScript(ArtifactCommentAnchor.script(for: commentAnchors))
+        }
+
+        private func deliverActiveComment(in webView: WKWebView, reveal: Bool) {
+            let id = activeCommentID.map(Self.jsonString) ?? "null"
+            webView.evaluateJavaScript("window.foreverLMArtifactEditor.setActiveComment(\(id), { reveal: \(reveal) });")
         }
 
         func openFoldDocument(_ docID: String?) {

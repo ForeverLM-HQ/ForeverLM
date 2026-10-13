@@ -571,7 +571,7 @@ order: **Show pages** (⇧⌘E), **Rename…**, **Pin**, **Move to Trash**, then
 **Share…**, **Copy ▸** (as Markdown, or the Page's link) and **Download as
 Markdown**, then **Open in Other Window**. Everything else is under **More**: New
 Page, Duplicate, the subpage items, Version History…, Edit with AI…, Format, View
-as Page, Page Width, Discussion, Add to Chat, the notebooks, canvases, spaces and
+as Page, Page Width, Comments, Add to Chat, the notebooks, canvases, spaces and
 teams the Page is in, publishing, Convert to Google Doc…, Export and Show in
 Finder. **Move to Trash** takes a Page's subpages with it: from the page menu, a
 Page that has some asks first, and **Undo** on the notice brings back all that
@@ -733,6 +733,29 @@ writing (and no source cards stand there), the titles themselves are listed
 there instead, small and grey. Click a title to jump to that heading; a folded
 section opens to show it, and the caret stays where it was. The list catches up
 with your headings a moment after you stop typing.
+
+### Comments
+
+Comments sit on the words they are about, as in Codex. Select a passage and
+choose **Comment** on the bar over it: the **Comments** panel opens beside the
+Page with the passage quoted and a field to write in. Commented words are washed
+yellow in the Page, and the marks follow the words as you write around them.
+Click marked words to open their thread in the panel; choose a thread in the
+panel and its words are marked more strongly and scrolled into view.
+
+Each thread is a card: the passage, the comment, its replies, and **Reply…**
+under the open thread. A comment's **⋯** has **Edit comment**, **Delete
+comment** (the replies stay; deleting the comment that started a thread hands
+the thread to its first reply) and **Copy comment**, and the thread's first
+comment also has **Delete thread**, which removes every message in it. Both
+ask first. The check on a card resolves the thread; resolved threads leave the
+Page unmarked and are listed under **Resolved** in the panel's filter, where
+**Reopen** brings one back. A thread whose words are no longer in the Page says
+**Original text unavailable**. Below the threads, **Chats** lists the
+conversations the Page's passages started. Open the panel from the speech
+bubble on the Page's top line (it shows how many threads are open) or
+**Comments** in the page menu's **More**. Web Studio's **Comments** has the same
+threads, replies, edits, deletes and filter, and marks the words the same way.
 
 ### Footnotes
 

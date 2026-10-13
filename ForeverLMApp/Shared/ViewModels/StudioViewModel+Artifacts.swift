@@ -696,6 +696,37 @@ extension StudioViewModel {
     func setArtifactCommentResolved(_ commentID: String, resolved: Bool) async throws {
         try await storage.setArtifactCommentResolvedAndSync(commentID, resolved: resolved)
     }
+
+    /// This account as the library container names it: a comment's author id,
+    /// the same one the web reads. Nil while sync is not running.
+    func commentAuthorRecordName() async -> String? {
+        guard let coordinator = SyncCoordinator.current else { return nil }
+        return try? await coordinator.transport.userRecordName()
+    }
+
+    func replyToArtifactComment(_ commentID: String, body: String) async throws -> ArtifactCommentRecord {
+        guard let coordinator = SyncCoordinator.current else { throw SpaceServiceError.syncNotRunning }
+        let userID = try await coordinator.transport.userRecordName()
+        let displayName = NSFullUserName().trimmingCharacters(in: .whitespacesAndNewlines)
+        return try await storage.replyToArtifactComment(
+            commentID,
+            authorRecordName: userID,
+            authorDisplayName: displayName.isEmpty ? "Collaborator" : displayName,
+            body: body
+        )
+    }
+
+    func editArtifactComment(_ commentID: String, body: String) async throws {
+        try await storage.editArtifactComment(commentID, body: body)
+    }
+
+    func deleteArtifactComment(_ commentID: String) async throws {
+        try await storage.deleteArtifactComment(commentID)
+    }
+
+    func deleteArtifactCommentThread(_ commentID: String) async throws {
+        try await storage.deleteArtifactCommentThread(commentID)
+    }
 }
 
 /// What Move to Trash says about a page's subpages: the page menu's question,
