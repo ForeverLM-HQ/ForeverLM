@@ -6480,6 +6480,13 @@ async function create(markdown, fontSize) {
         [Crepe.Feature.BlockEdit]: false,
       },
       featureConfigs: {
+        // The browser's own caret. Crepe's virtual caret is a widget that
+        // measures the caret's place on every transaction, which forced a
+        // layout of the whole page per keystroke: about 21 ms a key on a
+        // 6,500-word page against 5 to 7 ms without it. It also stood at
+        // position 0 between selections, so the first block jumped, and drew
+        // a second caret beside the native one.
+        [Crepe.Feature.Cursor]: { virtual: false },
         [Crepe.Feature.LinkTooltip]: {
           // The field takes a web address or a doc's title (see "Writing a
           // link to a doc or a Notebook"), and says so.

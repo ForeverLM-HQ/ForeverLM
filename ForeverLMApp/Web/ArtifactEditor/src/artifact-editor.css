@@ -193,20 +193,6 @@ body.ready #editor {
   outline: none;
 }
 
-/* Crepe renders a virtual caret so the writer can move cleanly across link and
-   inline-code boundaries. Its base rule hides the browser caret, but the
-   Article's later AccentColor rule above has equal specificity and used to
-   override that safeguard, painting blue and gray carets side by side. Keep
-   the native caret as a fallback only when the virtual-cursor feature is not
-   active, and give the single virtual caret the Article accent color. */
-.milkdown .editor.virtual-cursor-enabled {
-  caret-color: transparent;
-}
-
-.milkdown .editor.ProseMirror-focused {
-  --prosemirror-virtual-cursor-color: AccentColor;
-}
-
 .milkdown img {
   display: block;
   width: auto;
@@ -1404,16 +1390,11 @@ body.has-margin-cards[data-margin-tier="medium"] .milkdown .editor {
   transform: rotate(-90deg);
 }
 
-/* The first block starts flush with the page. The virtual caret is a widget
-   parked at document position 0 — present while the selection is a caret and
-   gone while it is a range — and it rewrites its own class on every selection
-   change, so neither `:first-child` nor `.ProseMirror-widget + *` could tell
-   the first block from it. Matching by position made the whole page drop by a
-   heading margin each time a click collapsed the selection and lift again as a
-   drag extended it — highlighting a passage jolted the page under the pointer.
-   `:nth-child(1 of …)` names the first non-widget child directly, however many
-   widgets precede it. */
-.milkdown .editor > :nth-child(1 of :not(.ProseMirror-widget, .prosemirror-virtual-cursor)) {
+/* The first block starts flush with the page. Widgets can stand before it (a
+   drop caret, a generate anchor), so `:first-child` cannot tell the first
+   block from them: `:nth-child(1 of …)` names the first non-widget child
+   directly, however many widgets precede it. */
+.milkdown .editor > :nth-child(1 of :not(.ProseMirror-widget)) {
   margin-top: 0;
 }
 
