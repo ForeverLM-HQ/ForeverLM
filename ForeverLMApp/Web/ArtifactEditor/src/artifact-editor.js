@@ -84,9 +84,12 @@ let applyingExternalMarkdown = false
 let lastMarkdown = ''
 let userHasInteracted = false
 let hasUserChanges = false
-// The document the host last heard (`post`), or was handed: anything else on
-// screen is typing still inside Milkdown's pause (`reportMarkdownNow`).
-let reportedDoc = null
+// The writer changed the page since the host last heard it (`post`): a change
+// that went into the undo history, as Milkdown's own listener counts one. The
+// editor's own unseen changes (pictures drawn, footnotes put in order) stay
+// out of the history and do not count, so a page nobody touched is never
+// reported in Milkdown's spelling of it (`reportMarkdownNow`, `unsentMarkdown`).
+let unreportedEdit = false
 let currentSelection = null
 let selectionButton = null
 let selectionDropLayer = null
@@ -301,7 +304,10 @@ function post(type, detail = {}) {
   const message = { type, ...detail }
   if ((type === 'markdownChanged' || type === 'saveRequested') && typeof detail.markdown === 'string') {
     rememberReportedMarkdown(detail.markdown)
-    reportedDoc = activeEditorView()?.state.doc ?? null
+    unreportedEdit = false
+    // The page the text is, so a host that has opened another page since
+    // (a report sent on leaving arrives after the next page is up) can tell.
+    if (foldDocumentKey != null && message.key == null) message.key = foldDocumentKey
   }
   if (window.webkit?.messageHandlers?.artifactEditor) {
     window.webkit.messageHandlers.artifactEditor.postMessage(message)
@@ -3799,7 +3805,14 @@ function withBlockPastesOnTheirOwnLine(ctx) {
     handlePaste: (view, event, slice) => {
       const pictures = pictureFiles(event.clipboardData)
       if (pictures.length) {
-        keepPictures(pictures)
+        if (slashFeatures.images) {
+          keepPictures(pictures)
+          return true
+        }
+        // A host that keeps no pictures takes the words copied with them
+        // (a picture copied with its plain text, as Notes and Mail copy).
+        const words = event.clipboardData?.getData('text/plain') ?? ''
+        if (words.trim()) view.pasteText(words)
         return true
       }
       if (linkSelectionToPastedAddress(view, event)) return true
@@ -6896,6 +6909,7 @@ async function create(markdown, fontSize) {
     editor.editor.use(linkPickerPlugin)
     editor.editor.use(aiEditHighlightPlugin)
     editor.editor.use(selectionPublishPlugin)
+    editor.editor.use(editWatchPlugin)
     editor.editor.use(outlineFoldPlugin)
     editor.editor.use(blockIDPlugin)
     editor.editor.use(pastedLinesPlugin)
@@ -6940,7 +6954,7 @@ async function create(markdown, fontSize) {
 
     await editor.create()
     keepFootnotesOnOpen(activeEditorView())
-    reportedDoc = activeEditorView()?.state.doc ?? null
+    unreportedEdit = false
     applyingExternalMarkdown = false
     setEditable(isEditable)
     document.body.classList.add('ready')
@@ -6966,7 +6980,6 @@ function replaceDocument(markdown, { fresh = false } = {}) {
   if (!editor) return
   if (fresh) {
     editor.editor.action(replaceAll(markdown, true))
-    reportedDoc = activeEditorView()?.state.doc ?? null
     return
   }
   editor.editor.action((ctx) => {
@@ -6999,7 +7012,6 @@ function replaceDocument(markdown, { fresh = false } = {}) {
     view.dispatch(state.tr
       .replaceWith(from, to, Fragment.fromArray(blocks))
       .setMeta('addToHistory', false))
-    reportedDoc = view.state.doc
   })
 }
 
@@ -7050,18 +7062,32 @@ const reportedMarkdownWindow = 10_000
 // shortcut does (WebKit hands an unhandled key back to the app after the
 // page has seen it).
 function reportMarkdownNow() {
-  if (!editor || applyingExternalMarkdown || !userHasInteracted) return
-  const view = activeEditorView()
-  if (!view || view.state.doc === reportedDoc) return
+  const unsent = takeUnsentMarkdown()
+  if (unsent != null) post('markdownChanged', { markdown: unsent })
+}
+
+/// The page's text when the writer has changed it since the host last heard,
+/// taken as reported; otherwise null. Never for a page read as a page, and
+/// never for a change the writer did not make.
+function takeUnsentMarkdown() {
+  if (!editor || !isEditable || applyingExternalMarkdown || !userHasInteracted || !unreportedEdit) return null
   const storageMarkdown = markdownForStorage(editor.getMarkdown())
-  if (storageMarkdown === lastMarkdown) {
-    reportedDoc = view.state.doc
-    return
-  }
+  unreportedEdit = false
+  if (storageMarkdown === lastMarkdown) return null
   lastMarkdown = storageMarkdown
   hasUserChanges = true
-  post('markdownChanged', { markdown: storageMarkdown })
+  return storageMarkdown
 }
+
+/// Counts the writer's changes (`unreportedEdit`).
+const editWatchPlugin = $prose(() => new Plugin({
+  appendTransaction(transactions) {
+    if (!applyingExternalMarkdown && transactions.some((tr) => tr.docChanged && tr.getMeta('addToHistory') !== false)) {
+      unreportedEdit = true
+    }
+    return null
+  },
+}))
 
 document.addEventListener('keydown', (event) => {
   if (event.metaKey || event.ctrlKey) reportMarkdownNow()
@@ -7133,6 +7159,7 @@ function setMarkdown(markdown, foldState = null) {
   applyingExternalMarkdown = true
   userHasInteracted = false
   hasUserChanges = false
+  unreportedEdit = false
   lastMarkdown = value
   collapsedSectionKeys.clear()
   activeDocumentTabKey = 'document'
@@ -9936,5 +9963,13 @@ window.foreverLMArtifactEditor = {
   /// checks (demo-notes.html).
   serializedMarkdown() {
     return editor ? markdownForStorage(editor.getMarkdown()) : ''
+  },
+  /// What the writer typed that the host has not heard yet, or null: a host
+  /// about to save or leave the page takes it here instead of waiting out
+  /// Milkdown's pause. It counts as heard, as a report would.
+  unsentMarkdown() {
+    const unsent = takeUnsentMarkdown()
+    if (unsent != null) rememberReportedMarkdown(unsent)
+    return unsent
   },
 }

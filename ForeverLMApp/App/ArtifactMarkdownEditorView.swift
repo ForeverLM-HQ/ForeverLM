@@ -1249,16 +1249,25 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
             return true
         }
 
-        /// The editor's document as it stands, taken as the draft the pane
-        /// saves. `markdownChanged` trails an edit by the editor's debounce, so
-        /// a pane about to save right after the writer did something — a page
-        /// made and linked, then opened — asks for the text itself. Taken the
-        /// way `saveRequested` takes it.
+        /// A report the editor names another doc in was sent from the doc
+        /// before this one: a report sent on leaving can arrive after the next
+        /// doc is up. A report naming no doc is this one's.
+        private func isAboutOpenDoc(_ payload: [String: Any]) -> Bool {
+            guard let key = payload["key"] as? String, let foldDocumentID else { return true }
+            return key == foldDocumentID
+        }
+
+        /// What the writer typed that the pane has not heard yet, taken as the
+        /// draft the pane saves. `markdownChanged` trails an edit by the
+        /// editor's debounce, so a pane about to save right after the writer
+        /// did something — a page made and linked, then opened — asks for it.
+        /// A page the writer has not changed answers nothing: Milkdown's own
+        /// spelling of an untouched page is not an edit to save.
         func syncMarkdown(forDoc docID: String) async throws {
             guard isReady, let webView else { return }
             if let foldDocumentID, foldDocumentID != docID { return }
             let held: String? = try await withCheckedThrowingContinuation { continuation in
-                webView.evaluateJavaScript("window.foreverLMArtifactEditor.serializedMarkdown();") { result, error in
+                webView.evaluateJavaScript("window.foreverLMArtifactEditor.unsentMarkdown();") { result, error in
                     if let error {
                         continuation.resume(throwing: error)
                     } else {
@@ -1524,14 +1533,14 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
                       let folds = payload["folds"] as? String else { return }
                 ArtifactOutlineFolds.set(folds, for: docID)
             case "markdownChanged":
-                guard let value = payload["markdown"] as? String else { return }
+                guard let value = payload["markdown"] as? String, isAboutOpenDoc(payload) else { return }
                 lastEditorMarkdown = value
                 latestSwiftMarkdown = value
                 if markdown.wrappedValue != value {
                     markdown.wrappedValue = value
                 }
             case "saveRequested":
-                guard let value = payload["markdown"] as? String else { return }
+                guard let value = payload["markdown"] as? String, isAboutOpenDoc(payload) else { return }
                 lastEditorMarkdown = value
                 latestSwiftMarkdown = value
                 if markdown.wrappedValue != value {
