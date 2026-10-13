@@ -4573,12 +4573,13 @@ final class MCPToolRegistry: @unchecked Sendable {
             ),
             MCPToolDef(
                 name: "scan_video_for_cited_papers",
-                description: "Read a library video's slides for the papers it cites, and record what is found. Works on any YouTube video with a transcript: if it has no captured slide frames yet, they are captured first (this downloads storyboards and streams the video for frames, so it takes noticeably longer on the first pass) — or capture them beforehand with extract_video_slides. Neither capture nor scan runs automatically. By default a video that already has candidates is NOT rescanned, because that would put back papers already imported or dismissed; pass force to re-extract the slides with current detection and merge, keeping every existing decision and adding only genuinely new papers. Reports how many slides were read and how many failed, so a partly-read video is never reported as fully read.",
+                description: "Read a library video's distinct captured slides for the papers they cite, and record what is found. Works on any YouTube video with a transcript: if it has no captured slide frames yet, they are captured first (this downloads storyboards and streams the video for frames, so it takes noticeably longer on the first pass) — or capture them beforehand with extract_video_slides. Neither capture nor scan runs automatically. Independent slides are read concurrently. The default scan is spend-bounded to 40 slides and reports any skipped slides; pass all_slides true to read the complete captured deck and fully resolve its citations. By default a video that already has candidates is NOT rescanned, because that would put back papers already imported or dismissed; pass force to re-extract the slides with current detection and merge, keeping every existing decision and adding only genuinely new papers.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
                         "source_id": ["type": "string", "description": "Video source ID"],
                         "force": ["type": "boolean", "description": "Rescan a video that already has candidates and merge the results, preserving existing statuses. Defaults to false."],
+                        "all_slides": ["type": "boolean", "description": "Read every distinct captured slide and fully resolve its citations. Defaults to false, which reads at most 40 slides and reports how many were skipped."],
                     ],
                     "required": ["source_id"],
                 ]
@@ -7153,7 +7154,8 @@ final class MCPToolRegistry: @unchecked Sendable {
             case "scan_video_for_cited_papers":
                 return try await store.scanVideoForCitedPapers(
                     sourceID: arguments["source_id"] as? String ?? "",
-                    force: arguments["force"] as? Bool ?? false
+                    force: arguments["force"] as? Bool ?? false,
+                    exhaustive: arguments["all_slides"] as? Bool ?? false
                 )
             case "scan_meeting_for_mentioned_papers":
                 return try await store.scanMeetingForMentionedPapers(

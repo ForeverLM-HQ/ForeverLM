@@ -887,6 +887,8 @@ extension MCPDataStore {
             "forced": force,
             "scan_scope": exhaustive ? "all_captured_slides" : "bounded",
             "slides_scanned": result.slidesScanned,
+            "slides_available": result.slidesAvailable,
+            "slides_skipped": result.slidesSkipped,
             "slides_failed": result.slidesFailed,
             "scan_complete": result.isComplete,
             "papers_found": result.candidates.count,
@@ -914,9 +916,20 @@ extension MCPDataStore {
             alreadyKnownCount: matchedKeys.count
         )
 
-        // A partly-read video must never look like a fully-read one.
-        if !result.isComplete {
-            payload["warning"] = "\(result.slidesFailed) of \(result.slidesScanned) slide(s) could not be read, so this video may cite papers that are not listed here. Run scan_video_for_cited_papers again with force: true to retry; anything already found is kept."
+        // A bounded or partly-failed video must never look like a fully-read one.
+        var warnings: [String] = []
+        if result.slidesSkipped > 0 {
+            warnings.append(
+                "The bounded scan skipped \(result.slidesSkipped) of \(result.slidesAvailable) captured slide(s). Run scan_video_for_cited_papers with all_slides: true to read the complete distinct deck."
+            )
+        }
+        if result.slidesFailed > 0 {
+            warnings.append(
+                "\(result.slidesFailed) of \(result.slidesScanned) attempted slide(s) could not be read. Run scan_video_for_cited_papers again with force: true to retry; anything already found is kept."
+            )
+        }
+        if !warnings.isEmpty {
+            payload["warning"] = warnings.joined(separator: " ")
         }
 
         return try jsonString(payload)
@@ -933,13 +946,17 @@ extension MCPDataStore {
         if result.slidesScanned == 0 {
             return "Scanned '\(title)': no slide looked like it cited a paper, so none were read. This video appears to cite nothing on screen."
         }
+        let slideScope = result.slidesSkipped > 0
+            ? "\(result.slidesScanned) of \(result.slidesAvailable) captured slides"
+            : "\(result.slidesScanned) captured slide(s)"
         if result.candidates.isEmpty {
-            return "Scanned '\(title)': read \(result.slidesScanned - result.slidesFailed) of \(result.slidesScanned) candidate slide(s) and found no papers cited on them."
+            let readable = result.slidesScanned - result.slidesFailed
+            return "Scanned '\(title)': read \(readable) successfully across \(slideScope) and found no papers cited on them."
         }
         if addedCount == 0 {
-            return "Scanned '\(title)': found \(result.candidates.count) paper(s) across \(result.slidesScanned) slide(s), all of which were already recorded. Nothing new was added and no existing decision was changed."
+            return "Scanned '\(title)': found \(result.candidates.count) paper(s) across \(slideScope), all of which were already recorded. Nothing new was added and no existing decision was changed."
         }
-        var summary = "Scanned '\(title)': found \(result.candidates.count) paper(s) across \(result.slidesScanned) slide(s) and added \(addedCount) new candidate(s)."
+        var summary = "Scanned '\(title)': found \(result.candidates.count) paper(s) across \(slideScope) and added \(addedCount) new candidate(s)."
         if alreadyKnownCount > 0 {
             summary += " \(alreadyKnownCount) were already recorded and kept as they are."
         }

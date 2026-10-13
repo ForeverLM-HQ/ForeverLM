@@ -854,8 +854,8 @@ enum Prompts {
     /// This is the deduplication judgement: a conference recording cuts between the slide feed
     /// and a locked-off podium camera, so a deck page and a photo of the room with that page
     /// small behind the speaker both survive frame extraction as "slides". The flagged frame
-    /// gets a Non-slide mark and is hidden from the reader; the extraction pass never pays to
-    /// read citations off it.
+    /// gets a Non-slide mark and is hidden from the reader. This task is the compatibility
+    /// fallback for custom extraction prompts that do not return their own verdict.
     static let slideFrameClassification = """
     You look at one frame captured from a talk's video and judge whether it is a presentation \
     slide or a photograph of the room.
@@ -877,13 +877,15 @@ enum Prompts {
     Respond with ONLY the JSON object, no prose and no code fences.
     """
 
-    /// Extract metadata from an academic paper by reading its first page.
-    /// The first page of the PDF is the source of truth.
-    /// Read the papers cited on one slide of a talk. Frames reach this prompt only after
-    /// `slideFrameClassification` judged them real deck pages.
+    /// Read the papers cited on one captured frame and classify it in the same pass. Folding
+    /// the verdict into the citation read halves the normal deck's model round trips; the
+    /// dedicated classification task remains a fallback for custom prompts that omit it.
     static let slideCitationExtraction = """
-    You look at one slide captured from a talk's video and read the papers it cites. Layout is \
-    what tells you which lines belong together. Talks cite papers in three ways, and all count:
+    You look at one frame captured from a talk's video. First judge whether it is a presentation \
+    slide, then read every paper that the slide cites. A presentation slide is a deck page that \
+    fills the frame. A non-slide is a photograph of the speaker, room, panel, audience or stage, \
+    even if a small projected slide is visible behind them. When in doubt, call it a slide. \
+    Layout is what tells you which lines belong together. Talks cite papers in four ways, and all count:
 
     1. A prominent reference — a screenshot of an article header, or several side by side as \
     boxes or cards, showing the paper's full title and usually its authors.
@@ -901,9 +903,12 @@ enum Prompts {
     authors and journal the slide shows beside it.
 
     Return a single JSON object:
-    {"citations": [{"title": "...", "authors": "...", "year": "...", "journal": "...", "volume": "...", \
+    {"isPresentationSlide": true, "citations": [{"title": "...", "authors": "...", "year": "...", "journal": "...", "volume": "...", \
     "pages": "...", "doi": "..."}]}
 
+    - isPresentationSlide: false only when the frame is clearly a photograph of the room or \
+      people rather than a readable deck page. When false, return citations: [] and do not read \
+      papers from the small projected screen in the background.
     - citations: one object per distinct paper cited on the slide, or [] when the slide cites \
     none. Each object:
       - title: the paper's full title exactly as printed. Omit it entirely when the slide only \

@@ -5,11 +5,11 @@ import OSLog
 ///
 /// Runs after ingestion so candidates are ready before the learner opens the video.
 ///
-/// Reading a frame is two vision passes, each a user-configurable task of its own:
-/// a cheap classification look that tells a deck page from a camera shot of the room
-/// (`slideFrameClassification` — its verdict becomes the Non-slide mark that hides a
-/// slide's camera-shot twin), then the expensive citation read
-/// (`slideCitationExtraction`), paid only for frames the first pass kept.
+/// A frame normally takes one vision pass: citation extraction also says whether the image
+/// is a deck page or a room photograph. A user's older custom extraction prompt may omit
+/// that verdict; only then does the separately configurable `slideFrameClassification` task
+/// run as a compatibility fallback. The verdict becomes the Non-slide mark that hides a
+/// slide's camera-shot twin.
 actor SlideCitationService {
     static let shared = SlideCitationService()
 
@@ -54,6 +54,10 @@ actor SlideCitationService {
         let candidates: [VideoCitedPaper]
         let slidesScanned: Int
         let slidesFailed: Int
+        /// Every distinct captured slide that was available when the scan began. An ordinary
+        /// scan deliberately reads only the first bounded set; keeping that total prevents a
+        /// successful bounded pass from being reported as a complete-deck scan.
+        let slidesAvailable: Int
         /// Image paths of frames the model judged to be photographs of the room rather than
         /// deck pages — a wide shot of the speaker at the lectern, the audience, a seated
         /// panel. A conference recording cuts between the slide feed and a locked-off podium
@@ -67,7 +71,24 @@ actor SlideCitationService {
         /// misfired on the whole deck.
         let scannedFramePaths: [String]
 
-        var isComplete: Bool { slidesFailed == 0 }
+        init(
+            candidates: [VideoCitedPaper],
+            slidesScanned: Int,
+            slidesFailed: Int,
+            slidesAvailable: Int? = nil,
+            nonSlideFramePaths: [String],
+            scannedFramePaths: [String]
+        ) {
+            self.candidates = candidates
+            self.slidesScanned = slidesScanned
+            self.slidesFailed = slidesFailed
+            self.slidesAvailable = max(slidesScanned, slidesAvailable ?? slidesScanned)
+            self.nonSlideFramePaths = nonSlideFramePaths
+            self.scannedFramePaths = scannedFramePaths
+        }
+
+        var slidesSkipped: Int { max(0, slidesAvailable - slidesScanned) }
+        var isComplete: Bool { slidesFailed == 0 && slidesSkipped == 0 }
     }
 
     struct ExtractedCitation: Decodable, Sendable {
@@ -166,13 +187,17 @@ actor SlideCitationService {
 
     /// One frame's read: whether it is a slide at all, and the papers on it if it is.
     struct SlideRead: Sendable {
-        let isPresentationSlide: Bool
+        /// Nil only for a legacy bare-array response or a custom prompt that omitted the
+        /// verdict. Callers keep treating absence as a slide, while a deck scan asks the
+        /// dedicated classifier before it writes any Non-slide mark.
+        let presentationVerdict: Bool?
         let citations: [ExtractedCitation]
+
+        var isPresentationSlide: Bool { presentationVerdict ?? true }
     }
 
-    /// The object the model returns per frame. `isPresentationSlide` defaults to true when the
-    /// reply omits it, so a frame is only ever dropped on an explicit `false` — never because
-    /// the field could not be read.
+    /// The object the model returns per frame. A missing `isPresentationSlide` is kept as nil
+    /// so a deck scan can ask the compatibility classifier rather than inventing a verdict.
     private struct SlideReplyPayload: Decodable {
         let isPresentationSlide: Bool?
         let citations: [ExtractedCitation]?
@@ -225,6 +250,10 @@ actor SlideCitationService {
     /// Ceiling on slides sent by an ordinary per-video scan. The explicit
     /// all-papers lecture workflow opts into the complete captured deck.
     private static let maxSlidesPerScan = 40
+    /// Slide reads are independent. Four in flight keeps managed-model concurrency useful
+    /// without turning a long deck into a burst that trips provider limits; the shared request
+    /// pacer still applies each configured model's own lane limits and backoff.
+    private static let maxConcurrentSlideReads = 4
     /// Ceiling on paid web-search lookups for an ordinary per-video scan. Resolution
     /// reaches for the web only after the free catalog lookup fails; the explicit
     /// all-papers lecture workflow opts into resolving the complete leftover set.
@@ -323,7 +352,8 @@ actor SlideCitationService {
                 videoContext: videoContext,
                 aiService: aiService,
                 webLookupLimit: exhaustive ? nil : Self.maxWebLookupsPerScan,
-                retrying: true
+                retrying: true,
+                slidesAvailable: parsed.slides.count
             )
         }
     }
@@ -332,8 +362,8 @@ actor SlideCitationService {
     ///
     /// Scanning the whole deck is the expensive way to answer a question that is usually
     /// already answered on screen — the citation is printed on the slide they are looking at.
-    /// One slide is one classification look and one citation read, which stays worth spending
-    /// on a talk whose other forty slides cite nothing.
+    /// One slide is normally one citation read; a custom extraction prompt that omits the
+    /// slide verdict adds one classification fallback.
     func scanSlide(
         source: AIUsageSource,
         slide: YouTubeSlideFrameContext,
@@ -347,7 +377,8 @@ actor SlideCitationService {
                 videoContext: videoContext,
                 aiService: aiService,
                 webLookupLimit: Self.maxWebLookupsPerScan,
-                retrying: false
+                retrying: false,
+                slidesAvailable: 1
             )
         }
     }
@@ -403,7 +434,7 @@ actor SlideCitationService {
         guard let config = KeychainService.resolveConfig(for: .slideCitationExtraction) else { return nil }
         let system = AITask.slideCitationExtraction.effectivePrompt ?? Prompts.slideCitationExtraction
         do {
-            let read = try await readSlide(
+            let read = try await Self.readSlide(
                 imageData: await Self.frameImageData(for: slide),
                 slide: slide,
                 videoContext: videoContext,
@@ -471,21 +502,121 @@ actor SlideCitationService {
 
     /// `retrying` is true for a deck scan, which paces and retries each slide's calls,
     /// and false for a slide the learner is waiting on (`slideCall`).
+    private struct SlideAnalysis: Sendable {
+        let position: Int
+        let slide: YouTubeSlideFrameContext
+        let read: SlideRead?
+        let isNonSlide: Bool
+        let classificationFailure: String?
+        let readFailure: String?
+    }
+
+    /// Read one frame without touching actor state so independent slides can overlap. The
+    /// extraction response normally carries both citations and the slide verdict. Only a
+    /// custom or legacy response that omits the verdict pays for the classifier fallback.
+    private nonisolated static func analyzeSlide(
+        _ slide: YouTubeSlideFrameContext,
+        position: Int,
+        videoContext: String?,
+        classifySystem: String,
+        classifyConfig: AITaskConfig?,
+        extractSystem: String,
+        extractConfig: AITaskConfig,
+        retrying: Bool,
+        aiService: AIService
+    ) async throws -> SlideAnalysis {
+        let imageData = await frameImageData(for: slide)
+        let read: SlideRead
+        do {
+            read = try await readSlide(
+                imageData: imageData,
+                slide: slide,
+                videoContext: videoContext,
+                system: extractSystem,
+                config: extractConfig,
+                retrying: retrying,
+                aiService: aiService
+            )
+        } catch {
+            if let citationError = error as? SlideCitationError,
+               case .modelCannotReadImages = citationError {
+                throw citationError
+            }
+            return SlideAnalysis(
+                position: position,
+                slide: slide,
+                read: nil,
+                isNonSlide: false,
+                classificationFailure: nil,
+                readFailure: error.localizedDescription
+            )
+        }
+
+        if read.presentationVerdict == false {
+            return SlideAnalysis(
+                position: position,
+                slide: slide,
+                read: read,
+                isNonSlide: true,
+                classificationFailure: nil,
+                readFailure: nil
+            )
+        }
+
+        var classificationFailure: String?
+        if read.presentationVerdict == nil, let classifyConfig {
+            do {
+                if try await classifyFrame(
+                    imageData: imageData,
+                    system: classifySystem,
+                    config: classifyConfig,
+                    retrying: retrying,
+                    aiService: aiService
+                ) == false {
+                    return SlideAnalysis(
+                        position: position,
+                        slide: slide,
+                        read: read,
+                        isNonSlide: true,
+                        classificationFailure: nil,
+                        readFailure: nil
+                    )
+                }
+            } catch {
+                // Extraction already read this image successfully. A fallback classifier
+                // that cannot read it must not discard those citations or abort the deck;
+                // keep the frame visible and surface the diagnostic in the log.
+                classificationFailure = error.localizedDescription
+            }
+        }
+
+        return SlideAnalysis(
+            position: position,
+            slide: slide,
+            read: read,
+            isNonSlide: false,
+            classificationFailure: classificationFailure,
+            readFailure: nil
+        )
+    }
+
     private func scanSlides(
         _ slides: [YouTubeSlideFrameContext],
         sourceID: String,
         videoContext: String?,
         aiService: AIService,
         webLookupLimit: Int?,
-        retrying: Bool
+        retrying: Bool,
+        slidesAvailable: Int
     ) async throws -> ScanResult {
-        guard let classifyConfig = KeychainService.resolveConfig(for: .slideFrameClassification),
-              let extractConfig = KeychainService.resolveConfig(for: .slideCitationExtraction) else {
+        guard let extractConfig = KeychainService.resolveConfig(for: .slideCitationExtraction) else {
             throw SlideCitationError.notConfigured
         }
+        let classifyConfig = KeychainService.resolveConfig(for: .slideFrameClassification)
         guard !slides.isEmpty else {
             return ScanResult(
                 candidates: [], slidesScanned: 0, slidesFailed: 0,
+                slidesAvailable: slidesAvailable,
                 nonSlideFramePaths: [], scannedFramePaths: []
             )
         }
@@ -500,110 +631,102 @@ actor SlideCitationService {
         var failed = 0
         var nonSlideFramePaths: [String] = []
 
-        for slide in slides {
-            let imageData = await Self.frameImageData(for: slide)
+        // Each batch overlaps four independent frames. Results are merged back in deck
+        // order, so concurrency changes elapsed time but never candidate precedence or
+        // which duplicate keeps the first slide locator.
+        for batchStart in stride(from: 0, to: slides.count, by: Self.maxConcurrentSlideReads) {
+            let batchEnd = min(slides.count, batchStart + Self.maxConcurrentSlideReads)
+            let analyses = try await withThrowingTaskGroup(of: SlideAnalysis.self) { group in
+                for position in batchStart..<batchEnd {
+                    let slide = slides[position]
+                    group.addTask {
+                        // Bind the awaited value before returning it: a tuple around `try
+                        // await` miscompiled in Release on the pinned Swift toolchain.
+                        let analysis = try await Self.analyzeSlide(
+                            slide,
+                            position: position,
+                            videoContext: videoContext,
+                            classifySystem: classifySystem,
+                            classifyConfig: classifyConfig,
+                            extractSystem: extractSystem,
+                            extractConfig: extractConfig,
+                            retrying: retrying,
+                            aiService: aiService
+                        )
+                        return analysis
+                    }
+                }
 
-            // First pass — is this frame a deck page at all? A photograph of the room is
-            // recorded so the caller can hide it, and never reaches the citation read: a
-            // paper glimpsed on a screen in the background is exactly the frame we are
-            // removing, and its clean full-screen counterpart is already being read. A
-            // judgement that errors keeps the frame — a frame is only ever hidden on an
-            // explicit "not a slide", never because the classifier could not answer.
-            do {
-                if try await classifyFrame(
-                    imageData: imageData,
-                    system: classifySystem,
-                    config: classifyConfig,
-                    retrying: retrying,
-                    aiService: aiService
-                ) == false {
+                var completed: [SlideAnalysis] = []
+                for try await analysis in group {
+                    completed.append(analysis)
+                }
+                return completed.sorted { $0.position < $1.position }
+            }
+
+            for analysis in analyses {
+                let slide = analysis.slide
+                if let message = analysis.classificationFailure {
+                    logger.error(
+                        "Slide classification failed for \(sourceID, privacy: .public) slide \(slide.index): \(message, privacy: .public)"
+                    )
+                }
+                if analysis.isNonSlide {
                     nonSlideFramePaths.append(slide.imagePath)
                     continue
                 }
-            } catch {
-                // A model that cannot read images fails identically on every remaining
-                // frame, so stop rather than paying for the same refusal thirty times over.
-                if let citationError = error as? SlideCitationError,
-                   case .modelCannotReadImages = citationError {
-                    throw citationError
-                }
-                logger.error(
-                    "Slide classification failed for \(sourceID, privacy: .public) slide \(slide.index): \(error.localizedDescription, privacy: .public)"
-                )
-            }
-
-            // Second pass — read the papers the kept slide cites.
-            let read: SlideRead
-            do {
-                read = try await readSlide(
-                    imageData: imageData,
-                    slide: slide,
-                    videoContext: videoContext,
-                    system: extractSystem,
-                    config: extractConfig,
-                    retrying: retrying,
-                    aiService: aiService
-                )
-            } catch {
-                // Same stop-early rule as classification: a vision refusal is a
-                // configuration mistake, not thirty unreadable slides.
-                if let citationError = error as? SlideCitationError,
-                   case .modelCannotReadImages = citationError {
-                    throw citationError
-                }
-
-                // One unreadable slide must not be reported as a slide with no papers, so
-                // the count travels back with the result instead of being swallowed here.
-                failed += 1
-                logger.error(
-                    "Slide citation read failed for \(sourceID, privacy: .public) slide \(slide.index): \(error.localizedDescription, privacy: .public)"
-                )
-                continue
-            }
-
-            // The default extraction prompt no longer classifies, but a user's custom
-            // prompt override still can: honor an explicit "not a slide" by reading no
-            // citations off it. Marking stays with the classification pass above, so
-            // hide/show verdicts always come from one judge.
-            guard read.isPresentationSlide else { continue }
-
-            for citation in read.citations {
-                let authors = citation.authors?.nilIfBlank
-                let year = citation.year?.nilIfBlank
-                let journal = citation.journal?.nilIfBlank
-                let title = citation.title?.nilIfBlank
-                let doi = Self.printedDOI(citation.doi)
-                let locator = BibliographicLocator(volume: citation.volume, pages: citation.pages)
-
-                // A corner attribution — "Hayashida et al. BMC Medicine, 2023" — is a real
-                // citation with no title on the slide, and is how most figures are credited.
-                // So is a bare "(PNAS, 1980 77:3430-4)" after a bullet, which names its paper
-                // by venue, volume and page, and so is a DOI printed on its own. Keep them
-                // all, and stand in a readable label until a lookup supplies the title.
-                guard Self.readsAsCitation(
-                    title: title, authors: authors, year: year, journal: journal, doi: doi, locator: locator
-                ) else {
+                if let message = analysis.readFailure {
+                    // One unreadable slide must not be reported as a slide with no papers.
+                    failed += 1
+                    logger.error(
+                        "Slide citation read failed for \(sourceID, privacy: .public) slide \(slide.index): \(message, privacy: .public)"
+                    )
                     continue
                 }
-                let candidate = VideoCitedPaper(
-                    sourceID: sourceID,
-                    title: title ?? VideoCitedPaper.attributionLabel(
-                        authors: authors, journal: journal, year: year
-                    ),
-                    authors: authors,
-                    year: year,
-                    journal: journal,
-                    doi: doi,
-                    slideTimeSeconds: slide.timeSeconds,
-                    slideImagePath: slide.imagePath,
-                    status: .unresolved
-                )
-                guard seen.insert(Self.scanIdentity(of: candidate, locator: locator)).inserted else { continue }
-                found.append(candidate)
-                // "Szeto, Br J Pharmacol 2014; 171(8):2029-50" names one paper by its
-                // volume and first page even though the slide prints no title.
-                if let locator {
-                    locators[candidate.id] = locator
+
+                // Only an explicit non-slide verdict above drops the frame. A missing
+                // verdict or failed fallback keeps the successfully read citations.
+                guard let read = analysis.read, read.isPresentationSlide else { continue }
+
+                for citation in read.citations {
+                    let authors = citation.authors?.nilIfBlank
+                    let year = citation.year?.nilIfBlank
+                    let journal = citation.journal?.nilIfBlank
+                    let title = citation.title?.nilIfBlank
+                    let doi = Self.printedDOI(citation.doi)
+                    let locator = BibliographicLocator(volume: citation.volume, pages: citation.pages)
+
+                    // A corner attribution — "Hayashida et al. BMC Medicine, 2023" — is a real
+                    // citation with no title on the slide, and is how most figures are credited.
+                    // So is a bare "(PNAS, 1980 77:3430-4)" after a bullet, which names its paper
+                    // by venue, volume and page, and so is a DOI printed on its own. Keep them
+                    // all, and stand in a readable label until a lookup supplies the title.
+                    guard Self.readsAsCitation(
+                        title: title, authors: authors, year: year, journal: journal,
+                        doi: doi, locator: locator
+                    ) else {
+                        continue
+                    }
+                    let candidate = VideoCitedPaper(
+                        sourceID: sourceID,
+                        title: title ?? VideoCitedPaper.attributionLabel(
+                            authors: authors, journal: journal, year: year
+                        ),
+                        authors: authors,
+                        year: year,
+                        journal: journal,
+                        doi: doi,
+                        slideTimeSeconds: slide.timeSeconds,
+                        slideImagePath: slide.imagePath,
+                        status: .unresolved
+                    )
+                    guard seen.insert(Self.scanIdentity(of: candidate, locator: locator)).inserted else { continue }
+                    found.append(candidate)
+                    // "Szeto, Br J Pharmacol 2014; 171(8):2029-50" names one paper by its
+                    // volume and first page even though the slide prints no title.
+                    if let locator {
+                        locators[candidate.id] = locator
+                    }
                 }
             }
         }
@@ -623,6 +746,7 @@ actor SlideCitationService {
             ),
             slidesScanned: slides.count,
             slidesFailed: failed,
+            slidesAvailable: slidesAvailable,
             nonSlideFramePaths: nonSlideFramePaths,
             scannedFramePaths: slides.map(\.imagePath)
         )
@@ -661,7 +785,7 @@ actor SlideCitationService {
     /// was rate-limited at the same moment. Asked only once, that slide was counted
     /// unreadable and its papers never listed. A slide the learner pointed at is asked
     /// once, because they are waiting on the answer.
-    private func slideCall(
+    private nonisolated static func slideCall(
         config: AITaskConfig,
         retrying: Bool,
         _ operation: (AITaskConfig) async throws -> String
@@ -671,9 +795,9 @@ actor SlideCitationService {
     }
 
     /// One classification look at a frame: deck page or photograph of the room.
-    /// Cheap by construction — a one-field reply — so it can run on every frame
-    /// while the citation read only runs on the ones this pass keeps.
-    private func classifyFrame(
+    /// Cheap by construction — a one-field reply — and now reserved for the compatibility
+    /// path where a custom extraction prompt did not return that verdict itself.
+    private nonisolated static func classifyFrame(
         imageData: Data?,
         system: String,
         config: AITaskConfig,
@@ -720,7 +844,7 @@ actor SlideCitationService {
         return payload.isPresentationSlide ?? true
     }
 
-    private func readSlide(
+    private nonisolated static func readSlide(
         imageData: Data?,
         slide: YouTubeSlideFrameContext,
         videoContext: String?,
@@ -782,11 +906,9 @@ actor SlideCitationService {
 
     /// Parses the extraction reply into a frame classification and its citations.
     ///
-    /// The default prompt returns `{"citations": […]}`; classification lives in its own pass
-    /// now, so `isPresentationSlide` is normally absent and defaults to true. Both older
-    /// shapes are still accepted: the bundled object with an explicit classification (what a
-    /// user's custom prompt override may keep returning — an explicit `false` is honored by
-    /// reading no citations) and the bare legacy array, read as a kept slide.
+    /// The default prompt returns both fields. Older custom prompts may return an object
+    /// without the verdict or a bare legacy array; both preserve a nil verdict so the deck
+    /// scan can ask the dedicated compatibility classifier.
     nonisolated static func decodeReply(_ reply: String) throws -> SlideRead {
         let text = stripFences(reply)
 
@@ -798,12 +920,12 @@ actor SlideCitationService {
            let data = String(text[start...end]).data(using: .utf8),
            let payload = try? JSONDecoder().decode(SlideReplyPayload.self, from: data) {
             return SlideRead(
-                isPresentationSlide: payload.isPresentationSlide ?? true,
+                presentationVerdict: payload.isPresentationSlide,
                 citations: payload.citations ?? []
             )
         }
 
-        return SlideRead(isPresentationSlide: true, citations: try decodeCitations(reply))
+        return SlideRead(presentationVerdict: nil, citations: try decodeCitations(reply))
     }
 
     /// Parses a bare citation array.

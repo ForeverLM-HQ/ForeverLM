@@ -130,6 +130,53 @@ struct SlideCitationServiceTests {
         #expect(selected.last?.index == 200)
     }
 
+    @Test("The MCP scan exposes the complete-deck option")
+    func mcpScanExposesAllSlides() throws {
+        let tool = try #require(
+            MCPToolRegistry.shared.tools.first { $0.name == "scan_video_for_cited_papers" }
+        )
+        let properties = try #require(tool.inputSchema["properties"] as? [String: Any])
+        let allSlides = try #require(properties["all_slides"] as? [String: Any])
+
+        #expect(allSlides["type"] as? String == "boolean")
+    }
+
+    @Test("The normal citation read returns the slide verdict in the same call")
+    func extractionPromptCombinesVerdictAndCitations() {
+        #expect(Prompts.slideCitationExtraction.contains("isPresentationSlide"))
+        #expect(Prompts.slideCitationExtraction.contains("citations"))
+    }
+
+    @Test("A bounded successful pass is not reported as a complete-deck scan")
+    func boundedPassIsIncomplete() {
+        let result = SlideCitationService.ScanResult(
+            candidates: [],
+            slidesScanned: 40,
+            slidesFailed: 0,
+            slidesAvailable: 78,
+            nonSlideFramePaths: [],
+            scannedFramePaths: []
+        )
+
+        #expect(result.slidesSkipped == 38)
+        #expect(!result.isComplete)
+    }
+
+    @Test("A failure-free all-slide pass is complete")
+    func exhaustivePassIsComplete() {
+        let result = SlideCitationService.ScanResult(
+            candidates: [],
+            slidesScanned: 78,
+            slidesFailed: 0,
+            slidesAvailable: 78,
+            nonSlideFramePaths: [],
+            scannedFramePaths: []
+        )
+
+        #expect(result.slidesSkipped == 0)
+        #expect(result.isComplete)
+    }
+
     // MARK: - Attribution-only citations
 
     /// The common case this originally missed: a figure credited in tiny type in the corner
@@ -632,6 +679,7 @@ struct SlideCitationServiceTests {
 
         let read = try SlideCitationService.decodeReply(reply)
 
+        #expect(read.presentationVerdict == true)
         #expect(read.isPresentationSlide)
         #expect(read.citations.count == 1)
         #expect(read.citations.first?.title == "A paper")
@@ -660,22 +708,24 @@ struct SlideCitationServiceTests {
     }
 
     /// A bare array is the older reply shape, and what a user's custom prompt override still
-    /// returns. It must read as a kept slide, never as a dropped frame.
+    /// returns. It stays visible while signalling that the fallback classifier is needed.
     @Test("Treats a legacy array reply as a slide")
     func decodesLegacyArrayAsSlide() throws {
         let read = try SlideCitationService.decodeReply(
             #"[{"title": "A paper", "authors": null, "year": null, "journal": null, "doi": null}]"#
         )
 
+        #expect(read.presentationVerdict == nil)
         #expect(read.isPresentationSlide)
         #expect(read.citations.count == 1)
     }
 
-    /// A frame is dropped only on an explicit false, so a reply that omits the field is kept.
+    /// A field-less object also stays visible while signalling the classifier fallback.
     @Test("Defaults a classification-less object to a slide")
     func defaultsMissingClassificationToSlide() throws {
         let read = try SlideCitationService.decodeReply(#"{"citations": []}"#)
 
+        #expect(read.presentationVerdict == nil)
         #expect(read.isPresentationSlide)
         #expect(read.citations.isEmpty)
     }

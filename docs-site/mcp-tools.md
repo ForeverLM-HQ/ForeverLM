@@ -690,7 +690,7 @@ it.
 | Tool | Parameters | Description |
 |---|---|---|
 | `extract_video_slides` | `source_id` | Capture a video's slide frames so they can be shown and read; slides are not captured on import. No model call. |
-| `scan_video_for_cited_papers` | `source_id`, `force?`, `approved_spend_usd?` | Read a video's slides for the papers they cite, capturing the slides first when needed. A video already scanned is not scanned again unless `force`, which keeps every earlier decision. |
+| `scan_video_for_cited_papers` | `source_id`, `force?`, `all_slides?`, `approved_spend_usd?` | Read a video's distinct captured slides for the papers they cite, capturing the slides first when needed. Independent slides are read concurrently. The default pass reads at most 40 and reports how many were skipped; `all_slides` reads the complete deck. A video already scanned is not scanned again unless `force`, which keeps every earlier decision. |
 | `scan_meeting_for_mentioned_papers` | `source_id`, `force?`, `approved_spend_usd?` | Read a meeting's whole transcript and notes for papers someone named, transcribing a recording-only meeting on the Mac first. |
 | `scan_article_for_linked_sources` | `source_id`, `force?`, `approved_spend_usd?` | Read a web article's saved page for the sources its links point at (articles, papers, videos, podcast episodes), each with a line on what the article says about it. The links are read off the page; a model only judges which of them are sources. |
 | `list_video_cited_papers` | `source_id` | The candidates found for a source, each with its kind, address and status. |
