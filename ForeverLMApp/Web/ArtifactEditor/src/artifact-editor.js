@@ -9096,7 +9096,14 @@ function scheduleSelectionButtonReposition() {
   })
 }
 
+/// The pictures' data, by attachment token. The page's pictures are drawn
+/// again from it node by node, outside the history: before, the whole
+/// document was replaced, which threw the caret to the end of the page, and
+/// Web Studio hands the data over after every save, so its caret went to the
+/// end each time the writer paused. A picture with no data stands as its
+/// address, which is all the Markdown keeps of it either way.
 function setAttachmentURLs(values) {
+  const previousStorage = attachmentStorageURLs
   attachmentDataURLs = new Map()
   attachmentStorageURLs = new Map()
   for (const [token, dataURL] of Object.entries(values ?? {})) {
@@ -9106,17 +9113,34 @@ function setAttachmentURLs(values) {
     attachmentDataURLs.set(editorURL, String(dataURL))
     attachmentStorageURLs.set(String(dataURL), storageURL)
   }
-  if (!editor) return
-  const value = currentMarkdown()
+  const view = editor ? activeEditorView() : null
+  if (!view) return
+  const tr = view.state.tr
+  view.state.doc.descendants((node, pos) => {
+    const src = node.attrs?.src
+    if (typeof src !== 'string' || !src) return true
+    // Which attachment the picture is: its address, or the data it is drawn
+    // from, read against the data it was drawn with.
+    const address = src.startsWith(attachmentEditorPrefix)
+      ? src
+      : previousStorage.has(src) ? editorAddress(previousStorage.get(src)) : null
+    if (!address) return true
+    const drawn = attachmentDataURLs.get(address) ?? address
+    if (drawn !== src) tr.setNodeMarkup(pos, null, { ...node.attrs, src: drawn })
+    return true
+  })
+  if (!tr.docChanged) return
   const interacted = userHasInteracted
   const changed = hasUserChanges
   applyingExternalMarkdown = true
-  replaceDocument(markdownForEditor(value))
-  requestAnimationFrame(() => {
+  view.dispatch(tr.setMeta('addToHistory', false))
+  const settle = () => {
     applyingExternalMarkdown = false
     userHasInteracted = interacted
     hasUserChanges = changed
-  })
+  }
+  if (document.hidden) setTimeout(settle, 0)
+  else requestAnimationFrame(settle)
 }
 
 /// One more attachment the page can draw and save: its data URL is what the
@@ -9132,9 +9156,7 @@ function insertAttachment(attachment) {
   const token = String(attachment?.token ?? '').trim()
   const dataURL = String(attachment?.dataURL ?? '')
   if (!view || !token || !dataURL) return
-  // The picture is registered without drawing the page again: `setAttachmentURLs`
-  // replaces the whole document, and the caret this picture goes in at would
-  // be thrown to the end of the page.
+  // The picture is registered without drawing the page's other pictures again.
   registerAttachment(token, dataURL)
   const image = view.state.schema.nodes.image
   if (!image) {
