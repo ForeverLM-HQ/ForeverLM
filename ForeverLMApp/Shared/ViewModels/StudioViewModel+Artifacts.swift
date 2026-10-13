@@ -407,6 +407,38 @@ extension StudioViewModel {
         )
     }
 
+    /// **Move to Trash** on the Space's selection bar: several records at
+    /// once, each with the pages nested under it, then one toast whose Undo
+    /// brings back exactly what went.
+    func moveArtifactsToTrash(_ artifactIDs: [String]) async {
+        var going: [String] = []
+        var seen: Set<String> = []
+        let tree = pageTree
+        for artifactID in artifactIDs {
+            for id in [artifactID] + tree.descendantIDs(of: artifactID) where seen.insert(id).inserted {
+                going.append(id)
+            }
+        }
+        let trashed = await setArchived(going, isArchived: true)
+        guard !trashed.isEmpty else { return }
+        showToast(
+            trashed.count == 1 ? "Moved to Trash" : "Moved \(trashed.count) items to Trash",
+            undo: { [weak self] in
+                guard let self else { return }
+                if await self.setArchived(trashed, isArchived: false).count == trashed.count {
+                    self.showToast("Restored")
+                }
+            }
+        )
+    }
+
+    /// **Restore** on Trash's selection bar: several records current again.
+    func restoreArtifactsFromTrash(_ artifactIDs: [String]) async {
+        let restored = await setArchived(artifactIDs, isArchived: false)
+        guard !restored.isEmpty else { return }
+        showToast(restored.count == 1 ? "Restored" : "Restored \(restored.count) items")
+    }
+
     /// Puts records in Trash or takes them out, then reads the list once.
     /// Stops at the first failure and says it; answers the ids that changed.
     private func setArchived(_ artifactIDs: [String], isArchived: Bool) async -> [String] {

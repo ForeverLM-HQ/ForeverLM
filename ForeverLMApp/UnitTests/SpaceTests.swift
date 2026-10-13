@@ -115,6 +115,44 @@ struct SpaceTests {
         #expect(SpaceDateText.short(now.addingTimeInterval(-40 * 86_400), now: now).isEmpty == false)
     }
 
+    @Test("⌘-click chooses one row or lets it go, ⇧-click takes in the run from the last one chosen")
+    func selectionClicks() {
+        let order = ["a", "b", "c", "d", "e"]
+        var selection = SpaceSelection()
+        #expect(selection.isEmpty)
+        selection.toggle("b")
+        #expect(selection.ids == ["b"])
+        selection.extend(to: "d", in: order)
+        #expect(selection.ordered(in: order) == ["b", "c", "d"])
+        // A run upward from the same anchor adds to what is chosen, as Finder's does.
+        selection.extend(to: "a", in: order)
+        #expect(selection.ordered(in: order) == ["a", "b", "c", "d"])
+        selection.toggle("c")
+        #expect(selection.ordered(in: order) == ["a", "b", "d"], "⌘-click lets a chosen row go")
+        // The row let go is the anchor now: a run from it.
+        selection.extend(to: "e", in: order)
+        #expect(selection.ordered(in: order) == ["a", "b", "c", "d", "e"])
+        #expect(selection.count == 5)
+    }
+
+    @Test("Select All takes every row drawn; a row that leaves the list leaves the selection; a run with no anchor chooses one")
+    func selectionAllAndPrune() {
+        var selection = SpaceSelection()
+        selection.extend(to: "c", in: ["a", "b", "c"])
+        #expect(selection.ids == ["c"], "no anchor yet: a ⇧-click chooses the one row")
+        selection.selectAll(["a", "b", "c"])
+        #expect(selection.count == 3)
+        selection.keep(only: ["a", "c"])
+        #expect(selection.ids == ["a", "c"])
+        selection.keep(only: ["c"])
+        selection.extend(to: "c", in: ["c", "d"])
+        #expect(selection.ids == ["c"])
+        selection.clear()
+        #expect(selection.isEmpty)
+        #expect(SpaceBrowseView.countLabel(1) == "1 Item")
+        #expect(SpaceBrowseView.countLabel(4) == "4 Items")
+    }
+
     @Test("Last activity is the default order, as Codex's Space lists, on the Mac and the phone")
     func defaultSortIsActivity() {
         #expect(SpaceSort.standard == .activity)

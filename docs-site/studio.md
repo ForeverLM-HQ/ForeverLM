@@ -343,6 +343,13 @@ subpages, **Share with Team ▸**, **Hide**) follow after a divider. Every
 the sidebar has a **⋯** under the pointer. Pinned pages, canvases and lists
 share one order: drag a pinned row onto another to move it there.
 
+To act on several things at once, **⌘-click** rows or cards to choose them,
+or **⇧-click** to take in a run; while anything is chosen a plain click
+chooses too. A bar at the foot of the list says how many and offers **Move to
+Space ▸**, **Pin** and **Move to Trash** (in Trash, **Restore** and **Delete
+Forever…**), with **Select All**, and **×** lets them all go; the right-click
+of a chosen row offers the same. Chats and Images are chosen one at a time.
+
 Goals and Ideas have no place of their own in the Space since 2026-10-10: ask
 the chat ("what are my goals?", "what are my ideas?") and it lists them, and
 `/goal` sets a goal. A list of goals or of ideas you want to keep in view is a

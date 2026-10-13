@@ -132,6 +132,64 @@ enum SpaceLayout: String {
     static let groupsByCollectionKey = "space.groupByCollection"
 }
 
+/// The rows chosen in a Space list, as Codex's Space selects several pages
+/// ("Select all", "These # selected pages"; docs/codex-parity-audit.md, item
+/// 35): ⌘-click adds or takes away one, ⇧-click takes in the run from the last
+/// one chosen, and while anything is chosen a plain click does the same as
+/// ⌘-click, so the learner is choosing until they clear it. What is chosen is
+/// this list's, never stored.
+struct SpaceSelection: Equatable {
+    private(set) var ids: Set<String> = []
+    /// The row a ⇧-click's run starts from: the last one chosen alone.
+    private(set) var anchor: String?
+
+    var isEmpty: Bool { ids.isEmpty }
+    var count: Int { ids.count }
+
+    func contains(_ id: String) -> Bool { ids.contains(id) }
+
+    /// ⌘-click: chooses `id`, or lets it go; either way it anchors the next run.
+    mutating func toggle(_ id: String) {
+        if ids.remove(id) == nil { ids.insert(id) }
+        anchor = id
+    }
+
+    /// ⇧-click: every row from the anchor to `id` in `order` (the list as it is
+    /// drawn) is chosen, beside what was chosen already, as Finder adds a run.
+    /// With no anchor in the list, `id` is chosen and anchors the next run.
+    mutating func extend(to id: String, in order: [String]) {
+        guard let anchor, let from = order.firstIndex(of: anchor), let to = order.firstIndex(of: id) else {
+            ids.insert(id)
+            anchor = id
+            return
+        }
+        ids.formUnion(order[min(from, to)...max(from, to)])
+    }
+
+    /// Select All: every row of the list.
+    mutating func selectAll(_ order: [String]) {
+        ids = Set(order)
+        anchor = order.first
+    }
+
+    mutating func clear() {
+        ids = []
+        anchor = nil
+    }
+
+    /// What is still on the list: a row gone (trashed, filtered out, moved
+    /// elsewhere) is no longer chosen.
+    mutating func keep(only shown: Set<String>) {
+        ids.formIntersection(shown)
+        if let anchor, !shown.contains(anchor) { self.anchor = nil }
+    }
+
+    /// The chosen rows in the list's order.
+    func ordered(in order: [String]) -> [String] {
+        order.filter { ids.contains($0) }
+    }
+}
+
 /// Every Space item the open library holds, built once a pass.
 @MainActor
 enum SpaceCatalog {
@@ -345,6 +403,8 @@ struct SpaceBrowseView: View {
     @State private var collectionNameRequest: NotebookCollectionNameRequest?
     /// The collection a heading's Delete Collection… asks about.
     @State private var collectionToDelete: NotebookCollection?
+    /// The rows chosen for the selection bar (`SpaceSelection`).
+    @State private var selection = SpaceSelection()
     private let previews = ArtifactPreviewStore.shared
 
     private var query: String { searchText.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -372,6 +432,10 @@ struct SpaceBrowseView: View {
         // Trash lists what was trashed first, then the archived notebooks.
         let shown = destination == .trash ? SpaceCatalog.trashOrder(filtered) : filtered
         let sections = collectionSections(shown)
+        let runs = sections ?? [SpaceCollectionSection(collection: nil, items: shown)]
+        // The rows as they are drawn, for a ⇧-click's run and Select All.
+        let drawn = selectsRows ? drawnOrder(runs) : []
+        let selected = selection.isEmpty ? [] : shown.filter { selection.contains($0.id) }
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 header(inPlace: inPlace, shown: shown)
@@ -388,19 +452,33 @@ struct SpaceBrowseView: View {
                         .padding(.top, SpacePlaceMetrics.emptyTopPadding)
                         .padding(.bottom, 32)
                 } else if destination == .images || (layout == .grid && destination != .chats) {
-                    grid(sections ?? [SpaceCollectionSection(collection: nil, items: shown)], headings: sections != nil)
+                    grid(runs, headings: sections != nil, order: drawn, selected: selected)
                         .padding(.top, 18)
                 } else {
-                    list(sections ?? [SpaceCollectionSection(collection: nil, items: shown)], headings: sections != nil)
+                    list(runs, headings: sections != nil, order: drawn, selected: selected)
                         .padding(.top, 14)
                 }
             }
             .spacePlaceColumn()
+            // Room under the last row for the selection bar.
+            .padding(.bottom, selected.isEmpty ? 0 : 64)
         }
         .scrollIndicators(.automatic)
+        .overlay(alignment: .bottom) {
+            if !selected.isEmpty {
+                selectionBar(selected, drawn: drawn)
+                    .padding(.bottom, 18)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.easeOut(duration: 0.15), value: selected.isEmpty)
         .task(id: listsImages) { await loadImages() }
         .onChange(of: destination) { _, _ in
             scope = .all
+            selection.clear()
+        }
+        .onChange(of: drawn) { _, drawn in
+            selection.keep(only: Set(drawn))
         }
         .onChange(of: isMissingPlace, initial: true) { _, isMissing in
             if isMissing { onSelectPlace(.all) }
@@ -680,6 +758,194 @@ struct SpaceBrowseView: View {
         let groups = await GeneratedImageActions.loadDrawn()
         guard !Task.isCancelled else { return }
         if groups != images { images = groups }
+    }
+
+    // MARK: Selection
+
+    /// Whether the place's rows can be chosen: every list of things but
+    /// Chats (a chat's menu acts on one) and Images (a picture's sheet is
+    /// where it is renamed or trashed), and never a list's own page.
+    private var selectsRows: Bool {
+        destination != .chats && destination != .images && openList == nil
+    }
+
+    /// The ids of the rows as they are drawn: a list's rows with their open
+    /// subpages, or a grid's cards, section by section.
+    private func drawnOrder(_ runs: [SpaceCollectionSection]) -> [String] {
+        var seen: Set<String> = []
+        let ids = layout == .list
+            ? runs.flatMap { listEntries($0.items).map(\.id) }
+            : runs.flatMap { $0.items.map(\.id) }
+        return ids.filter { seen.insert($0).inserted }
+    }
+
+    /// What the chosen rows can have done to them, each act holding only the
+    /// rows it applies to: Codex's Move to Space, Pin and Move to Trash, or in
+    /// Trash its Restore and Delete Forever.
+    private struct SelectionTargets {
+        var pages: [ArtifactRecord] = []
+        var filedIDs: [String] = []
+        var pinIDs: [String] = []
+        var trashArtifactIDs: [String] = []
+        var trashCanvasIDs: [String] = []
+        var trashListIDs: [String] = []
+        var archiveNotebookIDs: [String] = []
+        var restorable: [SpaceItem] = []
+        var deletableIDs: [String] = []
+
+        var trashCount: Int { trashArtifactIDs.count + trashCanvasIDs.count + trashListIDs.count + archiveNotebookIDs.count }
+    }
+
+    private func selectionTargets(_ items: [SpaceItem]) -> SelectionTargets {
+        var targets = SelectionTargets()
+        let ownLibrary = vm.activeTeamID == nil
+        for item in items {
+            if destination == .trash {
+                guard item.isOwnedHere else { continue }
+                if restoreAction(for: item) != nil { targets.restorable.append(item) }
+                if let id = item.artifact?.id ?? item.canvas?.id ?? item.spaceList?.id { targets.deletableIDs.append(id) }
+                continue
+            }
+            if let artifact = item.artifact {
+                if vm.canFileInPageSpace(artifact) { targets.pages.append(artifact) }
+                if ownLibrary, artifact.teamID == nil { targets.pinIDs.append(artifact.id) }
+                if item.isOwnedHere { targets.trashArtifactIDs.append(artifact.id) }
+            } else if let canvas = item.canvas {
+                targets.filedIDs.append(canvas.id)
+                targets.pinIDs.append(canvas.id)
+                targets.trashCanvasIDs.append(canvas.id)
+            } else if let list = item.spaceList {
+                targets.filedIDs.append(list.id)
+                targets.pinIDs.append(list.id)
+                targets.trashListIDs.append(list.id)
+            } else if let goal = item.notebook, item.isOwnedHere, !goal.isArchived {
+                // Trash is the notebooks' archive.
+                targets.archiveNotebookIDs.append(goal.id)
+            }
+        }
+        return targets
+    }
+
+    /// The selection's acts, as menu items: on the selection bar and on the
+    /// right-click of any chosen row.
+    @ViewBuilder
+    private func selectionActions(_ items: [SpaceItem]) -> some View {
+        let targets = selectionTargets(items)
+        if destination == .trash {
+            if !targets.restorable.isEmpty {
+                Button("Restore \(Self.countLabel(targets.restorable.count))", systemImage: "arrow.uturn.backward") {
+                    restore(targets.restorable)
+                }
+            }
+            if !targets.deletableIDs.isEmpty {
+                Button("Delete \(Self.countLabel(targets.deletableIDs.count)) Forever…", systemImage: "trash", role: .destructive) {
+                    deletingForever = targets.deletableIDs
+                }
+            }
+        } else {
+            if !targets.pages.isEmpty || !targets.filedIDs.isEmpty {
+                PageSpaceMenu(pages: targets.pages, itemIDs: targets.filedIDs)
+            }
+            if !targets.pinIDs.isEmpty {
+                let allPinned = targets.pinIDs.allSatisfy { vm.isPagePinned($0) }
+                Button(allPinned ? "Unpin" : "Pin", systemImage: allPinned ? "pin.slash" : "pin") {
+                    for id in targets.pinIDs { vm.setPagePinned(id, pinned: !allPinned) }
+                }
+            }
+            if targets.trashCount > 0 {
+                Button("Move \(Self.countLabel(targets.trashCount)) to Trash", systemImage: "trash", role: .destructive) {
+                    moveToTrash(targets)
+                }
+            }
+        }
+    }
+
+    /// "1 Item", "3 Items": what a bulk act's name counts.
+    static func countLabel(_ count: Int) -> String {
+        count == 1 ? "1 Item" : "\(count) Items"
+    }
+
+    private func moveToTrash(_ targets: SelectionTargets) {
+        selection.clear()
+        if !targets.trashCanvasIDs.isEmpty { vm.moveCanvasesToTrash(targets.trashCanvasIDs) }
+        if !targets.trashListIDs.isEmpty { vm.moveSpaceListsToTrash(targets.trashListIDs) }
+        let artifactIDs = targets.trashArtifactIDs
+        let notebookIDs = targets.archiveNotebookIDs
+        Task {
+            if !artifactIDs.isEmpty { await vm.moveArtifactsToTrash(artifactIDs) }
+            for id in notebookIDs { await vm.setGoalStatus(goalID: id, status: .archived) }
+        }
+    }
+
+    private func restore(_ items: [SpaceItem]) {
+        selection.clear()
+        let canvasIDs = items.compactMap { $0.canvas?.id }
+        let listIDs = items.compactMap { $0.spaceList?.id }
+        let artifactIDs = items.compactMap { $0.artifact?.id }
+        let notebookIDs = items.compactMap { $0.notebook?.id }
+        if !canvasIDs.isEmpty { vm.restoreCanvases(canvasIDs) }
+        if !listIDs.isEmpty { vm.restoreSpaceLists(listIDs) }
+        Task {
+            if !artifactIDs.isEmpty { await vm.restoreArtifactsFromTrash(artifactIDs) }
+            for id in notebookIDs { await vm.setGoalStatus(goalID: id, status: .active) }
+        }
+    }
+
+    /// Codex's bar over a list with rows chosen: how many, the acts, Select
+    /// All, and × to let them all go.
+    private func selectionBar(_ selected: [SpaceItem], drawn: [String]) -> some View {
+        HStack(spacing: 4) {
+            Text("\(selected.count) selected")
+                .zoomedSystemFont(size: 12.5, weight: .semibold)
+                .monospacedDigit()
+                .padding(.leading, 10)
+                .padding(.trailing, 6)
+                .textSelection(.disabled)
+            Divider().frame(height: 16)
+            HStack(spacing: 2) {
+                selectionActions(selected)
+            }
+            .labelStyle(.titleAndIcon)
+            .buttonStyle(.hoverWash(cornerRadius: 7, inset: -4))
+            .menuStyle(.button)
+            .menuIndicator(.hidden)
+            .zoomedSystemFont(size: 12.5, weight: .medium)
+            .fixedSize()
+            .padding(.horizontal, 6)
+            Divider().frame(height: 16)
+            if selected.count < drawn.count {
+                Button("Select All") { selection.selectAll(drawn) }
+                    .buttonStyle(.hoverWash(cornerRadius: 7, inset: -4))
+                    .zoomedSystemFont(size: 12.5, weight: .medium)
+                    .fixedSize()
+                    .padding(.horizontal, 6)
+                    .accessibilityIdentifier("space.selection.selectAll")
+            }
+            Button {
+                selection.clear()
+            } label: {
+                Image(systemName: "xmark")
+                    .zoomedSystemFont(size: 11, weight: .semibold)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 24, height: 24)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.hoverWash(in: Circle(), inset: 0))
+            .help("Clear selection")
+            .accessibilityLabel("Clear selection")
+            .accessibilityIdentifier("space.selection.clear")
+        }
+        .padding(.horizontal, 8)
+        .frame(height: 40)
+        .background(
+            Capsule(style: .continuous)
+                .fill(Color(nsColor: .textBackgroundColor))
+                .shadow(color: .black.opacity(0.12), radius: 12, y: 4)
+        )
+        .overlay(Capsule(style: .continuous).strokeBorder(Color.primary.opacity(0.09), lineWidth: 1))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("\(selected.count) selected")
+        .accessibilityIdentifier("space.selection.bar")
     }
 
     // MARK: Header
@@ -1133,7 +1399,7 @@ struct SpaceBrowseView: View {
         }
     }
 
-    private func list(_ sections: [SpaceCollectionSection], headings: Bool) -> some View {
+    private func list(_ sections: [SpaceCollectionSection], headings: Bool, order: [String], selected: [SpaceItem]) -> some View {
         let runs = sections.map { ListRun(section: $0, entries: listEntries($0.items)) }
         // A chevron's column is kept in every row once any row has one, so the
         // tiles line up.
@@ -1166,6 +1432,7 @@ struct SpaceBrowseView: View {
                         let item = entry.item
                         SpaceListRow(
                             item: item,
+                            isSelected: selection.contains(item.id),
                             tile: { tile(for: item, size: 28) },
                             showsLocation: showsLocationColumn,
                             locationWidth: locationColumnWidth,
@@ -1177,8 +1444,8 @@ struct SpaceBrowseView: View {
                             disclosure: entry.hasChildren
                                 ? SpaceRowDisclosure(isExpanded: entry.isExpanded) { toggleExpanded(item.id) }
                                 : nil,
-                            open: { open(item) },
-                            menu: { menuItems(for: item) }
+                            open: { activate(item, order: order) },
+                            menu: { menuItems(for: item, selected: selected) }
                         )
                         .onDrag { dragProvider(for: item) }
                         // A source dropped on a notebook's row joins it.
@@ -1222,7 +1489,7 @@ struct SpaceBrowseView: View {
 
     // MARK: Grid
 
-    private func grid(_ sections: [SpaceCollectionSection], headings: Bool) -> some View {
+    private func grid(_ sections: [SpaceCollectionSection], headings: Bool, order: [String], selected: [SpaceItem]) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(sections) { section in
                 if headings {
@@ -1236,11 +1503,12 @@ struct SpaceBrowseView: View {
                     ForEach(section.items) { item in
                         SpaceGridCard(
                             item: item,
+                            isSelected: selection.contains(item.id),
                             previews: previews,
                             loadExcerpt: { id in try await vm.artifactMarkdown(id).markdown },
                             dateText: SpaceDateText.short(date(for: item)),
-                            open: { open(item) },
-                            menu: { menuItems(for: item) }
+                            open: { activate(item, order: order) },
+                            menu: { menuItems(for: item, selected: selected) }
                         )
                         .onDrag { dragProvider(for: item) }
                         // A source dropped on a notebook's card joins it.
@@ -1290,6 +1558,23 @@ struct SpaceBrowseView: View {
 
     // MARK: Actions
 
+    /// A click on a row or a card: ⌘ chooses it or lets it go, ⇧ takes in the
+    /// run from the last one chosen, and while anything is chosen a plain
+    /// click chooses too (`SpaceSelection`); otherwise it opens.
+    private func activate(_ item: SpaceItem, order: [String]) {
+        guard selectsRows else { return open(item) }
+        let flags = NSEvent.modifierFlags
+        if flags.contains(.command) {
+            selection.toggle(item.id)
+        } else if flags.contains(.shift) {
+            selection.extend(to: item.id, in: order)
+        } else if !selection.isEmpty {
+            selection.toggle(item.id)
+        } else {
+            open(item)
+        }
+    }
+
     private func open(_ item: SpaceItem) {
         if let canvas = item.canvas {
             vm.openCanvas(canvas.id, in: windowState)
@@ -1331,10 +1616,13 @@ struct SpaceBrowseView: View {
         return studioArtifactDragProvider(for: artifact)
     }
 
-    /// A row's or card's ⋯ and right-click.
+    /// A row's or card's ⋯ and right-click; on one of several chosen rows,
+    /// what the selection bar does, for all of them.
     @ViewBuilder
-    private func menuItems(for item: SpaceItem) -> some View {
-        if let goal = item.notebook {
+    private func menuItems(for item: SpaceItem, selected: [SpaceItem] = []) -> some View {
+        if selected.count > 1, selected.contains(where: { $0.id == item.id }) {
+            selectionActions(selected)
+        } else if let goal = item.notebook {
             SpaceNotebookMenuItems(
                 goal: goal,
                 onOpen: { open(item) },
@@ -1665,6 +1953,9 @@ private struct SpaceRowDisclosure {
 /// with subpages leads with a chevron, and a subpage is indented under it.
 private struct SpaceListRow<Tile: View, Menu: View>: View {
     let item: SpaceItem
+    /// Chosen for the selection bar: the row takes the selected fill and its
+    /// tile a check.
+    var isSelected = false
     @ViewBuilder let tile: () -> Tile
     let showsLocation: Bool
     let locationWidth: CGFloat
@@ -1711,13 +2002,14 @@ private struct SpaceListRow<Tile: View, Menu: View>: View {
         .frame(height: 46)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.primary.opacity(isHovering ? 0.04 : 0))
+                .fill(isSelected ? StudioDesign.selectionFill(isSelected: true, isHovered: isHovering) : Color.primary.opacity(isHovering ? 0.04 : 0))
         )
         // The row paints its own hover fill; the inner Button takes `.plain`.
         .ownsRowHoverWash()
         .onHover { isHovering = $0 }
         .contextMenu { menu() }
         .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
         .accessibilityIdentifier("space.item.\(item.id)")
     }
 
@@ -1725,6 +2017,9 @@ private struct SpaceListRow<Tile: View, Menu: View>: View {
         Button(action: open) {
             HStack(spacing: 12) {
                 tile()
+                    .overlay(alignment: .bottomTrailing) {
+                        if isSelected { SpaceSelectedCheck().offset(x: 4, y: 4) }
+                    }
                 HStack(spacing: 6) {
                     Text(item.title)
                         .zoomedSystemFont(size: 13.5)
@@ -1810,6 +2105,7 @@ private struct SpaceListRow<Tile: View, Menu: View>: View {
 /// the picture itself — then its name and its date.
 private struct SpaceGridCard<Menu: View>: View {
     let item: SpaceItem
+    var isSelected = false
     let previews: ArtifactPreviewStore
     let loadExcerpt: @Sendable (String) async throws -> String
     let dateText: String
@@ -1827,7 +2123,15 @@ private struct SpaceGridCard<Menu: View>: View {
                     .aspectRatio(item.kind == .image ? 1 : 16 / 10, contentMode: .fit)
                     .frame(maxWidth: .infinity)
                     .clipShape(shape)
-                    .overlay { shape.strokeBorder(Color.primary.opacity(isHovering ? 0.18 : 0.09), lineWidth: 1) }
+                    .overlay {
+                        shape.strokeBorder(
+                            isSelected ? Color.primary.opacity(0.55) : Color.primary.opacity(isHovering ? 0.18 : 0.09),
+                            lineWidth: isSelected ? 2 : 1
+                        )
+                    }
+                    .overlay(alignment: .topLeading) {
+                        if isSelected { SpaceSelectedCheck().padding(8) }
+                    }
                     .contentShape(shape)
             }
             .buttonStyle(.plain)
@@ -1865,7 +2169,21 @@ private struct SpaceGridCard<Menu: View>: View {
         .contextMenu { menu() }
         .help(item.title)
         .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
         .accessibilityIdentifier("space.item.\(item.id)")
+    }
+}
+
+/// The check a chosen row's tile or card wears: a filled circle with a tick,
+/// in the list's one colour.
+private struct SpaceSelectedCheck: View {
+    var body: some View {
+        Image(systemName: "checkmark.circle.fill")
+            .symbolRenderingMode(.palette)
+            .foregroundStyle(Color(nsColor: .textBackgroundColor), Color.primary)
+            .zoomedSystemFont(size: 14, weight: .semibold)
+            .background(Circle().fill(Color(nsColor: .textBackgroundColor)).padding(1))
+            .accessibilityHidden(true)
     }
 }
 

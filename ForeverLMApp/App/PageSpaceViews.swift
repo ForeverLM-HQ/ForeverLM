@@ -53,6 +53,12 @@ struct PageSpaceMenu: View {
         self.itemIDs = itemIDs
     }
 
+    /// Records and canvases or lists together: the Space's selection bar.
+    init(pages: [ArtifactRecord], itemIDs: [String]) {
+        self.pages = pages
+        self.itemIDs = itemIDs
+    }
+
     var body: some View {
         let ids = pages.filter { vm.canFileInPageSpace($0) }.map(\.id)
             + (vm.activeTeamID == nil ? itemIDs : [])

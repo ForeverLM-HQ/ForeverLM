@@ -35,7 +35,10 @@ renames or deletes it; this browser remembers the choice. **Courses**, in the
 Space's sidebar, shows every course, and a course opens its lessons there. The
 Space's lists come newest activity first, a page's **⋯** leads with Codex's
 **Rename…**, **Pin** and **Move to Trash**, and a pinned page dragged onto
-another in **Pinned** moves there, the same order your Mac shows. The
+another in **Pinned** moves there, the same order your Mac shows. ⌘-click (Ctrl
+on Windows) or Shift-click rows to choose several, and the bar at the foot of
+the list moves them to a space, pins them or puts them in Trash (in Trash,
+restores or deletes them). The
 rail's **Notebooks** comes back to All, and under it are your pinned notebooks
 and the six you worked in last, rather than every notebook. A chat's right-click
 has **Pin Chat**, **Rename**, **Mark as Unread**, Move to Notebook and **Delete**

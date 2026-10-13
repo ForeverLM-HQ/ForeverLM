@@ -204,7 +204,10 @@ renames or deletes it; this browser remembers the choice. **Courses**, in the
 Space's sidebar, shows every course, and a course opens its lessons there. The
 Space's lists come newest activity first, a page's **⋯** leads with Codex's
 **Rename…**, **Pin** and **Move to Trash**, and a pinned page dragged onto
-another in **Pinned** moves there, the same order your Mac shows. The
+another in **Pinned** moves there, the same order your Mac shows. ⌘-click (Ctrl
+on Windows) or Shift-click rows to choose several, and the bar at the foot of
+the list moves them to a space, pins them or puts them in Trash (in Trash,
+restores or deletes them). The
 rail's **Notebooks** comes back to All, and under it are your pinned notebooks
 and the six you worked in last, rather than every notebook. A chat's right-click
 has **Pin Chat**, **Rename**, **Mark as Unread**, Move to Notebook and **Delete**
@@ -729,6 +732,13 @@ subpages, **Share with Team ▸**, **Hide**) follow after a divider. Every
 **Recents** row has **Remove from Recents** on its menu, and every space in
 the sidebar has a **⋯** under the pointer. Pinned pages, canvases and lists
 share one order: drag a pinned row onto another to move it there.
+
+To act on several things at once, **⌘-click** rows or cards to choose them,
+or **⇧-click** to take in a run; while anything is chosen a plain click
+chooses too. A bar at the foot of the list says how many and offers **Move to
+Space ▸**, **Pin** and **Move to Trash** (in Trash, **Restore** and **Delete
+Forever…**), with **Select All**, and **×** lets them all go; the right-click
+of a chosen row offers the same. Chats and Images are chosen one at a time.
 
 Goals and Ideas have no place of their own in the Space since 2026-10-10: ask
 the chat ("what are my goals?", "what are my ideas?") and it lists them, and
