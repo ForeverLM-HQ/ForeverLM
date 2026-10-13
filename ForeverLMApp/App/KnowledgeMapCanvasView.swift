@@ -181,8 +181,10 @@ struct KnowledgeMapCanvasView: NSViewRepresentable {
             if pushedLayout != model.layoutRevision {
                 pushedLayout = model.layoutRevision
                 call("setLayout", json(model.layout))
-                // A page turned asks for the next page's picture.
+                // A page turned asks for the next page's picture, and a
+                // picture just placed for its own.
                 sendPagePictures()
+                sendPlacedPictures()
             }
             if pushedLens != model.lensRevision {
                 pushedLens = model.lensRevision
@@ -228,9 +230,10 @@ struct KnowledgeMapCanvasView: NSViewRepresentable {
 
         private func sendThumbnails() {
             sendClipPictures()
+            sendPlacedPictures()
             let placed = Set(model.layout.placements.keys)
             let pending = model.artworkOrigins
-                .filter { !sentThumbnails.contains($0.key) }
+                .filter { !sentThumbnails.contains($0.key) && sentPictures[$0.key] == nil }
                 .sorted { (placed.contains($0.key) ? 0 : 1, $0.key) < (placed.contains($1.key) ? 0 : 1, $1.key) }
             guard !pending.isEmpty else { return }
             thumbnailTask?.cancel()
@@ -242,6 +245,48 @@ struct KnowledgeMapCanvasView: NSViewRepresentable {
                           let dataURL = SourceArtwork.jpegDataURL(from: image) else { continue }
                     batch[ref] = dataURL
                     if batch.count >= 24 {
+                        self?.pushArtwork(batch)
+                        batch = [:]
+                    }
+                }
+                if !batch.isEmpty { self?.pushArtwork(batch) }
+            }
+        }
+
+        /// The small pictures above, less any picture placed and sent whole
+        /// since they were asked for: a late thumbnail must not cover it.
+        private func pushArtwork(_ batch: [String: String]) {
+            let kept = batch.filter { sentPictures[$0.key] == nil }
+            if !kept.isEmpty { pushThumbnails(kept) }
+        }
+
+        /// Each placed picture of the Images library, drawn as large as
+        /// `pictureSize` rather than as the Library's 192-pixel thumbnail: a
+        /// picture is the card itself, read zoomed in, and a slide's words
+        /// blur at 192 pixels. Only the placed ones, since the Library may hold
+        /// hundreds; one placed later is sent when the layout changes, and one
+        /// redrawn (its file changed) is sent again.
+        private var sentPictures: [String: SourceArtwork.Origin] = [:]
+        private var pictureTask: Task<Void, Never>?
+        private static let pictureSize: CGFloat = 1600
+
+        private func sendPlacedPictures() {
+            var pending: [(ref: String, origin: SourceArtwork.Origin)] = []
+            for ref in model.layout.placements.keys where KnowledgeMap.ItemRef(ref)?.kind == .picture {
+                guard let origin = model.artworkOrigins[ref], sentPictures[ref] != origin else { continue }
+                pending.append((ref, origin))
+            }
+            pending.sort { $0.ref < $1.ref }
+            guard !pending.isEmpty else { return }
+            for item in pending { sentPictures[item.ref] = item.origin }
+            pictureTask = Task { [weak self] in
+                var batch: [String: String] = [:]
+                for item in pending {
+                    if Task.isCancelled { return }
+                    guard let image = await SourceArtwork.thumbnail(for: item.origin, maxPixelSize: Self.pictureSize),
+                          let dataURL = SourceArtwork.jpegDataURL(from: image, quality: 0.9) else { continue }
+                    batch[item.ref] = dataURL
+                    if batch.count >= 4 {
                         self?.pushThumbnails(batch)
                         batch = [:]
                     }
