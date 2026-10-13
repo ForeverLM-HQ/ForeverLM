@@ -28,6 +28,7 @@ import { addRowAfterCommand, createTable, footnoteDefinitionSchema, footnoteRefe
 import { trailingConfig } from '@milkdown/kit/plugin/trailing'
 import { nodeRule } from '@milkdown/kit/prose'
 import { lift } from '@milkdown/kit/prose/commands'
+import { closeHistory } from '@milkdown/kit/prose/history'
 import { inputRules } from '@milkdown/kit/prose/inputrules'
 import { liftListItem } from '@milkdown/kit/prose/schema-list'
 import { Fragment, Slice } from '@milkdown/kit/prose/model'
@@ -57,6 +58,7 @@ import {
 import { attachBlockProperties, defaultProperties, highlightHex, properties as blockPropertyValues, propertyComment } from './block-properties.js'
 import { remarkMoneyIsNotMath } from './dollar-math.js'
 import { citationFootnote, footnoteKey, freshNumericLabel, planFootnotes } from './footnotes.js'
+import { joinPastedLines, mayBePrintedLines, pastedLines, writtenSpan } from './pasted-lines.js'
 import { renderInline, renderMarkdown } from './notes-markdown.js'
 import {
   closeNotesPanels,
@@ -3596,6 +3598,121 @@ function ensureBlockID(view, pos) {
   return blockID
 }
 
+// ─── Lines pasted from a PDF ────────────────────────────────────────────────
+// Text copied from a PDF arrives one printed line at a time: PDFKit (the
+// Reader, Preview) writes every line as a paragraph of its own, and a
+// plain-text copy breaks one paragraph at every line. Which breaks the page's
+// width made and which the author made only a reader can tell, so the host
+// asks the Pasted Line Joining model (PastedLineJoining.swift) what each break
+// was, and the editor joins the lines itself (pasted-lines.js), as an undo step
+// of its own, while the paste is still as it came. No word of the paste is the
+// model's.
+
+const pastedLinesKey = new PluginKey('foreverlm-pasted-lines')
+/// Whether the host answers `pastedLinesNeedJoining` (`setJoinsPastedLines`).
+let joinsPastedLines = false
+/// The lines each question carried, by request id, to be found again unchanged.
+const askedLines = new Map()
+let pastedLinesRequestCount = 0
+
+function setJoinsPastedLines(joins) {
+  joinsPastedLines = Boolean(joins)
+}
+
+/// What the paste being handled wrote (`pasted`), and the spans of the
+/// pastes the host was asked about (`asked`), mapped through every change.
+const pastedLinesPlugin = $prose(() => new Plugin({
+  key: pastedLinesKey,
+  state: {
+    init: () => ({ pasted: null, asked: new Map() }),
+    apply(tr, value) {
+      let { pasted, asked } = value
+      if (tr.docChanged) {
+        if (pasted) pasted = { from: tr.mapping.map(pasted.from, -1), to: tr.mapping.map(pasted.to, 1) }
+        if (asked.size) {
+          asked = new Map([...asked].map(([id, span]) => [id, {
+            from: tr.mapping.map(span.from, 1),
+            to: tr.mapping.map(span.to, -1),
+          }]))
+        }
+        // Milkdown's paste dispatches without saying so; `pastingNow` does.
+        if (pastingNow && joinsPastedLines && !tr.getMeta('appendedTransaction')) {
+          const written = writtenSpan(tr)
+          if (written) {
+            pasted = pasted
+              ? { from: Math.min(pasted.from, written.from), to: Math.max(pasted.to, written.to) }
+              : written
+          }
+        }
+      }
+      const meta = tr.getMeta(pastedLinesKey)
+      if (meta) {
+        pasted = null
+        asked = new Map(asked)
+        if (meta.ask) asked.set(meta.ask.id, meta.ask.span)
+        if (meta.done) asked.delete(meta.done)
+      }
+      return pasted === value.pasted && asked === value.asked ? value : { pasted, asked }
+    },
+  },
+}))
+
+/// Once the paste is in: ask the host about its lines, or forget it.
+function askAboutPaste() {
+  const view = activeEditorView()
+  const pasted = view ? pastedLinesKey.getState(view.state)?.pasted : null
+  if (!pasted) return
+  const passage = isEditable ? pastedLines(view.state.doc, pasted.from, pasted.to) : null
+  const asking = passage && mayBePrintedLines(passage.lines)
+  const requestID = asking ? `paste-${Date.now()}-${(pastedLinesRequestCount += 1)}` : null
+  view.dispatch(view.state.tr
+    .setMeta(pastedLinesKey, asking ? { ask: { id: requestID, span: { from: passage.from, to: passage.to } } } : {})
+    .setMeta('addToHistory', false))
+  if (!asking) return
+  askedLines.set(requestID, passage.lines)
+  post('pastedLinesNeedJoining', { requestID, lines: passage.lines })
+}
+
+document.addEventListener('paste', () => {
+  if (joinsPastedLines) setTimeout(askAboutPaste, 0)
+}, true)
+
+/// The host's answer: what each break of a paste was, in order.
+function completePastedLineJoining(requestID, breaks) {
+  const lines = askedLines.get(requestID)
+  askedLines.delete(requestID)
+  const view = activeEditorView()
+  if (!view) return
+  const span = pastedLinesKey.getState(view.state)?.asked.get(requestID)
+  let tr = view.state.tr
+  if (lines && span && isEditable) {
+    try {
+      joinPastedLines(tr, span, lines, breaks)
+    } catch (error) {
+      console.warn('Pasted lines left as pasted', error)
+      tr = view.state.tr
+    }
+  }
+  tr.setMeta(pastedLinesKey, { done: requestID })
+  if (tr.docChanged) {
+    // Its own undo step: ⌘Z after it gives back the lines as they were pasted.
+    closeHistory(tr)
+    userHasInteracted = true
+    hasUserChanges = true
+  } else {
+    tr.setMeta('addToHistory', false)
+  }
+  view.dispatch(tr)
+}
+
+/// No answer is coming for this paste: it stays as pasted.
+function forgetPastedLineJoining(requestID) {
+  askedLines.delete(requestID)
+  const view = activeEditorView()
+  if (!view || !pastedLinesKey.getState(view.state)?.asked.has(requestID)) return
+  view.dispatch(view.state.tr.setMeta(pastedLinesKey, { done: requestID }).setMeta('addToHistory', false))
+}
+
 // ─── Drawing the grammar ────────────────────────────────────────────────────
 // `((id))` reads as the referenced block's words, `{{embed: ((id))}}` as the
 // block framed, `[[Title]]` and `#tag` as links to pages. The block the caret
@@ -6384,6 +6501,7 @@ async function create(markdown, fontSize) {
     editor.editor.use(aiEditHighlightPlugin)
     editor.editor.use(outlineFoldPlugin)
     editor.editor.use(blockIDPlugin)
+    editor.editor.use(pastedLinesPlugin)
     editor.editor.use(notesGraphPlugin)
     editor.editor.use(blockFlashPlugin)
     editor.editor.use(calloutPlugin)
@@ -8931,6 +9049,9 @@ window.foreverLMArtifactEditor = {
   completeImageGeneration,
   insertFileAttachment,
   setSlashFeatures,
+  setJoinsPastedLines,
+  completePastedLineJoining,
+  forgetPastedLineJoining,
   runSlashRow,
   openInsertMenu,
   setFontSize(fontSize) {

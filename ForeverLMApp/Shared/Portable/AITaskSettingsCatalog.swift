@@ -36,7 +36,7 @@ public struct AITaskSettingsDescriptor: Codable, Equatable, Sendable {
 /// IDs are durable `AITask` raw values. The array order is presentation order,
 /// so clients should filter this list rather than sorting their own copies.
 public enum AITaskSettingsCatalog {
-    public static let version = 38
+    public static let version = 39
 
     public static let tasks: [AITaskSettingsDescriptor] = [
         task(
@@ -331,6 +331,11 @@ public enum AITaskSettingsCatalog {
             "notebook_naming",
             "Notebook Naming",
             "Name a notebook made without a name, and write its card description, from its sources and chats"
+        ),
+        task(
+            "pasted_line_joining",
+            "Pasted Line Joining",
+            "Join the printed lines of text pasted into a Page from a PDF back into its paragraphs"
         ),
         task(
             "map_summaries",

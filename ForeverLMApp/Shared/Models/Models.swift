@@ -609,6 +609,8 @@ extension AITask {
              .cardAnswerCheck, .cardWordingCheck,
              // A notebook is named from every kind of source it holds.
              .notebookNaming,
+             // A paste into a Page comes from any PDF, in the library or not.
+             .pastedLineJoining,
              // The Map summarizes clusters of every kind of source.
              .mapSummaries,
              // Asking the Canvas, an Atlas and a source's reading levels read
@@ -700,6 +702,7 @@ extension AITask {
         case .cardWordingCheck: return Prompts.cardWordingCheck
         case .mnemonicReadingWriting: return Prompts.mnemonicReadingWriter
         case .notebookNaming: return Prompts.notebookNaming
+        case .pastedLineJoining: return Prompts.pastedLineJoining
         case .mapSummaries: return Prompts.mapSummaries
         case .canvasAsk: return Prompts.canvasAsk
         case .atlasWriting: return Prompts.atlasWriter

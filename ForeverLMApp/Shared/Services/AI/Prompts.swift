@@ -1611,6 +1611,26 @@ enum Prompts {
     Return ONLY a JSON object: {"title": "<title>", "description": "<description>"}.
     """
 
+    /// Which line breaks of a paste into a Page end a paragraph. Text copied
+    /// from a PDF arrives one printed line at a time, with nothing that says
+    /// where a paragraph ended; the model says what each break was, and the
+    /// editor joins the lines itself (`PastedLineJoining`), so no word of the
+    /// paste is the model's.
+    static let pastedLineJoining = """
+    You restore the paragraphs of text a learner pasted into a page. Text copied from a PDF breaks at the end of every printed line, so one paragraph arrives as several lines; text copied from elsewhere may already be one paragraph per line.
+
+    You get the pasted lines, numbered. For every break between line n and line n+1, say what it was in the original text:
+    - "space": the same paragraph or sentence goes on; the two lines join with a space.
+    - "paragraph": a new paragraph, heading, list item, caption, quotation or other separate block starts on line n+1, or the lines are meant to stand on lines of their own (verse, an address, a table row, a reference list entry). A break next to an empty line is always "paragraph".
+    - "hyphen_split": line n ends with a hyphen that only splits a word across two printed lines ("informa-" then "tion"); the hyphen goes and the two halves join with no space.
+    - "hyphen_kept": line n ends with a hyphen that belongs to the words ("fifty-six-" then "year-old", "self-" then "nourishment"); the lines join with no space and the hyphen stays.
+    - "join": the lines join with nothing between them, as in a language written without spaces.
+
+    Judge each break by the text: a sentence that runs on into the next line is "space"; a line that ends a sentence well short of the others' length, or a next line that starts a new thought, a heading or a numbered item, is usually "paragraph". Use "hyphen_split" and "hyphen_kept" only when line n ends with a hyphen. When nothing suggests the lines were broken by the page's width, answer "paragraph" for every break.
+
+    Return ONLY a JSON object with exactly one entry per break, in order, so N lines give N-1 entries: {"breaks": ["space", "paragraph", …]}.
+    """
+
     /// The Map's levels of abstraction (docs/knowledge-map-design.md,
     /// "Levels of abstraction"): a cluster's gist far out and its thread
     /// closer in, and a caption for what the learner has on screen. The

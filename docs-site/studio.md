@@ -581,6 +581,18 @@ cited, and adding, moving or deleting one renumbers the rest.
   Markdown read them as they are. A published Page draws the notes at the end of
   the article, and a reader on a computer sees a note by resting on its number.
 
+### Pasting from a PDF
+
+Text copied from a PDF, in the Reader or in Preview, comes onto the clipboard
+one printed line at a time, so a quotation would land as a short paragraph per
+line. When you paste a few such lines into a Page on the Mac, your **Pasted Line
+Joining** model (on the **Tasks** tab of **Settings → Background**) says which
+line ends the page's width made and which end a paragraph, and a moment later
+the Page joins the lines back into their paragraphs, dropping any hyphen that
+only split a word. Your words are never rewritten. ⌘Z after the join brings the
+lines back as you pasted them, and lines you edit before the join arrives are
+left as you have them. Web Studio and the iPhone paste the lines as they come.
+
 ## How sources get in
 
 Sources flow into Studio from multiple directions:

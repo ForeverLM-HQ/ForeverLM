@@ -120,6 +120,9 @@ extension AITask {
              // Runs on its own when a notebook made without a name first
              // holds something, like a chat's title but outside the chat.
              .notebookNaming,
+             // Runs on its own after a paste into a Page, like a chat's title:
+             // counted against the cap, never paused, since no drain runs it.
+             .pastedLineJoining,
              // Runs on its own while the Map is open: a cluster's summary when
              // its cards change, and the view's caption as the learner pans.
              .mapSummaries:
@@ -193,7 +196,10 @@ extension AITask {
              // The gate a card passes before it is saved: without it no
              // drafted card is kept, so it is part of drafting, not a switch
              // of its own.
-             .cardWordingCheck:
+             .cardWordingCheck,
+             // Without it a paste from a PDF stays one paragraph per printed
+             // line, which is a paste half made, not a nice to have.
+             .pastedLineJoining:
             return .needed
         // Review questions are written ahead of time for the sources a review
         // is likely to be about; nothing else writes them, and a review

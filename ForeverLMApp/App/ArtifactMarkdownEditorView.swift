@@ -1496,6 +1496,15 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
             case "aiEditRequested":
                 guard let request = ArtifactAIEditRequest.parse(payload, docTitle: docTitle) else { return }
                 answerAIEdit(request, in: message.webView)
+            case "pastedLinesNeedJoining":
+                guard let request = PastedLineJoining.Request.parse(payload) else {
+                    // Not a paste this host asks about: the editor stops waiting.
+                    if let requestID = payload["requestID"] as? String, !requestID.isEmpty {
+                        message.webView?.evaluateJavaScript(Self.forgetPastedLineJoiningScript(requestID: requestID)) { _, _ in }
+                    }
+                    return
+                }
+                answerPastedLineJoining(request, in: message.webView)
             case "imageRequested":
                 // The writer chose Image in the slash menu: the host asks for a
                 // picture file, and the pick comes back as an insertion.
@@ -1656,6 +1665,7 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
             webView.evaluateJavaScript(Self.marginCardsScript(showsMarginCards))
             webView.evaluateJavaScript("window.foreverLMArtifactEditor.setEditable(\(isEditable));")
             webView.evaluateJavaScript(Self.slashFeaturesScript)
+            webView.evaluateJavaScript(Self.joinsPastedLinesScript)
             // A pooled web view may still contain the previously opened artifact.
             // `setMarkdown` is a no-op when this is already the current value.
             lastEditorMarkdown = latestSwiftMarkdown
@@ -1889,6 +1899,25 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
             }
         }
 
+        /// Ask the Pasted Line Joining model what each break of a paste was and
+        /// hand the answer to the editor, which joins the lines only while the
+        /// paste is still as it came. A failed or unconfigured call leaves the
+        /// paste as pasted; the ledger keeps the failure.
+        private func answerPastedLineJoining(_ request: PastedLineJoining.Request, in webView: WKWebView?) {
+            let pageTitle = docTitle
+            Task { @MainActor [weak webView] in
+                let script: String
+                do {
+                    let breaks = try await PastedLineJoining.liveBreaks(for: request, pageTitle: pageTitle)
+                    script = Self.pastedLineJoiningScript(requestID: request.requestID, breaks: breaks)
+                } catch {
+                    script = Self.forgetPastedLineJoiningScript(requestID: request.requestID)
+                }
+                guard let webView else { return }
+                webView.evaluateJavaScript(script) { _, _ in }
+            }
+        }
+
         /// Ask the writer for a file and hand it to the editor, which writes it
         /// where the caret was as a link to the page's copy
         /// (`insertFileAttachment`). The host says why when it cannot be kept.
@@ -1958,6 +1987,23 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
         /// shows none of them on a page that is not editable.
         static let slashFeaturesScript =
             "window.foreverLMArtifactEditor.setSlashFeatures({ pages: true, images: true, imageGeneration: true, visualize: true, files: true });"
+
+        /// This host answers `pastedLinesNeedJoining`, so the editor asks it
+        /// about a paste of printed lines; a host that never says so is never
+        /// asked, and its pastes stay as they came.
+        static let joinsPastedLinesScript =
+            "window.foreverLMArtifactEditor.setJoinsPastedLines(true);"
+
+        /// `completePastedLineJoining`'s call: what each break was, in order.
+        static func pastedLineJoiningScript(requestID: String, breaks: [PastedLineJoining.Break]) -> String {
+            let list = breaks.map { jsonString($0.rawValue) }.joined(separator: ", ")
+            return "window.foreverLMArtifactEditor.completePastedLineJoining(\(jsonString(requestID)), [\(list)]);"
+        }
+
+        /// `forgetPastedLineJoining`'s call: no answer is coming for this paste.
+        static func forgetPastedLineJoiningScript(requestID: String) -> String {
+            "window.foreverLMArtifactEditor.forgetPastedLineJoining(\(jsonString(requestID)));"
+        }
 
         /// Name the Docs model to the panel's ForeverLM mark, which shows once
         /// it has a name. The name is read off the main actor: the stored

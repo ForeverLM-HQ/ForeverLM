@@ -904,6 +904,7 @@ enum AIUsageTaskLabel {
         case "meeting_session_details": return "Extract Meeting Details"
         case "mnemonic_reading_writing": return "Write Mnemonic Reading"
         case "notebook_naming": return "Name Notebook"
+        case "pasted_line_joining": return "Join Pasted Lines"
         case "notebook_cover": return "Notebook Thumbnail"
         case "course_quiz_picture": return "Draw Quiz Picture"
         case "course_quiz_icon": return "Draw Quiz Icon"

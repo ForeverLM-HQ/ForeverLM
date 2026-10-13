@@ -104,6 +104,10 @@ enum AITask: String, CaseIterable, Codable, Identifiable, Sendable {
     /// from its sources and the first exchange of its chats
     /// (docs/notebooks-design.md, "A notebook names itself").
     case notebookNaming = "notebook_naming"
+    /// Says which line breaks of a paste into a Page end a paragraph, so
+    /// text copied from a PDF, which arrives one printed line at a time, is
+    /// joined back into its paragraphs (`PastedLineJoining`).
+    case pastedLineJoining = "pasted_line_joining"
     /// Writes the Map's summaries: a notebook cluster's or a region's gist at
     /// two levels of abstraction, and a sentence about what is in view
     /// (docs/knowledge-map-design.md, "Levels of abstraction").
