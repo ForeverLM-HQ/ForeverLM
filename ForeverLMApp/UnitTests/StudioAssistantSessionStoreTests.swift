@@ -823,3 +823,19 @@ struct ChatPastedTextTests {
         #expect(ChatPastedText.field("look at", showing: "pasted") == "look at\npasted")
     }
 }
+
+/// The queue above the composer, as Codex's.
+@Suite("Queued messages above the composer")
+@MainActor
+struct ChatQueuedMessagesTests {
+    @Test("A queued message reads on one line; Delete drops it without touching the rest")
+    func oneLineAndDelete() {
+        #expect(ReviewChatQueuedMessages.oneLine("first line\n\n  second line ") == "first line second line")
+        let manager = ReviewSessionManager()
+        let first = manager.enqueueFollowUp("why does LTP need calcium?")
+        let second = manager.enqueueFollowUp("and NMDA?")
+        #expect(manager.queuedFollowUps.count == 2)
+        manager.removeQueuedFollowUp(first!.id)
+        #expect(manager.queuedFollowUps.map(\.id) == [second!.id])
+    }
+}

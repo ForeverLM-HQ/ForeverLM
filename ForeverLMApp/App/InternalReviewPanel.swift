@@ -3191,8 +3191,6 @@ private struct InternalReviewPanelContent: View {
                     messageMaxWidth: showsMemoryReviewCards
                         ? memoryReviewCardTextWidth - 2 * MemoryReviewCardSurface.contentInset
                         : chatMessageMaxWidth,
-                    returnQueuedFollowUp: { item in returnQueuedFollowUpToComposer(item) },
-                    sendQueuedFollowUpNow: { item in Task { await manager.sendQueuedFollowUpNow(item.id) } },
                     openContextSource: { sourceID in Task { await vm.openLinkedSourceInReader(sourceID) } },
                     answerOpenQuestion: { returnToOpenQuestion() },
                     skipOpenQuestion: { Task { await skipOpenQuestion() } },
@@ -4011,6 +4009,24 @@ private struct InternalReviewPanelContent: View {
     /// behind its top edge, as Codex shows the project there
     /// (`ChatComposerStack`).
     private var inputBar: some View {
+        VStack(spacing: 6) {
+            // Messages sent while a reply is being written wait above the
+            // composer, as Codex's queue does, until the turn ends and they go.
+            if !manager.queuedFollowUps.isEmpty {
+                ReviewChatQueuedMessages(
+                    items: manager.queuedFollowUps,
+                    edit: { item in returnQueuedFollowUpToComposer(item) },
+                    delete: { item in deleteQueuedFollowUp(item) },
+                    sendNow: { item in Task { await manager.sendQueuedFollowUpNow(item.id) } }
+                )
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
+            composerStack
+        }
+        .animation(.easeOut(duration: 0.15), value: manager.queuedFollowUps.map(\.id))
+    }
+
+    private var composerStack: some View {
         ChatComposerStack(showsTray: showsComposerContextRow) {
             composerContextRow
         } card: {
@@ -4169,8 +4185,8 @@ private struct InternalReviewPanelContent: View {
                             ChatComposerActionCircle(systemImage: "stop.fill", glyphSize: 10)
                         }
                         .buttonStyle(.hoverWash(in: Circle(), inset: -2, opacity: 0.12))
-                        .help("Stop tutor response")
-                        .accessibilityLabel("Stop tutor response")
+                        .help("Stop")
+                        .accessibilityLabel("Stop")
                         .accessibilityIdentifier("mac.chatStop")
                     } else if !isManualDictationPending {
                         ReviewChatSendButton(
@@ -6196,6 +6212,13 @@ private struct InternalReviewPanelContent: View {
         }
     }
 
+    /// Delete on a queued message: it is not sent, and nothing of it is kept.
+    @MainActor
+    private func deleteQueuedFollowUp(_ item: ReviewSessionManager.QueuedFollowUp) {
+        manager.removeQueuedFollowUp(item.id)
+        queuedReaderSelections.removeValue(forKey: item.id)
+    }
+
     /// One queued message back into the composer: its words join the draft on
     /// their own line and its passage becomes the pending selection again.
     @MainActor
@@ -7923,10 +7946,6 @@ private struct ReviewChatTranscriptStack<Row: View, ErrorView: View>: View {
     let columnMaxWidth: CGFloat
     /// Width of one bubble; the queued rows draw at the same width as the sent ones.
     let messageMaxWidth: CGFloat
-    /// The × on a queued row: the message goes back to the composer.
-    let returnQueuedFollowUp: (ReviewSessionManager.QueuedFollowUp) -> Void
-    /// The ↑ on a queued row: the running reply stops and this message goes next.
-    let sendQueuedFollowUpNow: (ReviewSessionManager.QueuedFollowUp) -> Void
     /// A name in the sources-added row: that source opens in the reader.
     let openContextSource: (String) -> Void
     /// The ways on from a side question, drawn by the lane under the newest
@@ -8061,18 +8080,6 @@ private struct ReviewChatTranscriptStack<Row: View, ErrorView: View>: View {
                         send: sendMemoryAnswer,
                         dontRemember: dontRememberMemoryAnswer
                     )
-                }
-
-                // Messages sent while the turn above was still running. They sit
-                // under it, dimmed, until it ends and they move up as real turns.
-                ForEach(manager.queuedFollowUps) { item in
-                    ReviewChatQueuedFollowUpRow(
-                        text: item.text,
-                        maxContentWidth: messageMaxWidth,
-                        returnToComposer: { returnQueuedFollowUp(item) },
-                        sendNow: { sendQueuedFollowUpNow(item) }
-                    )
-                    .id(item.id)
                 }
 
                 if let errorMessage {

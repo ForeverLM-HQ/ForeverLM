@@ -1811,78 +1811,94 @@ private struct ReviewChatFooterButton: View {
     }
 }
 
-/// A message sent while the reply above it was still being written. It waits
-/// here, under the turn it follows, and moves up into the transcript as a real
-/// message the moment that turn ends. Dimmed so it reads as not yet sent, and
-/// the × hands it back to the composer rather than deleting it. The ↑ sends it
-/// now: the reply above stops where it is and this message is asked next, so
-/// a learner who sees the answer going the wrong way can steer it without
-/// waiting for it to finish, and without losing what was already said.
-///
-/// The × sits inside the width-capped column, beside the bubble: a cap is a
-/// greedy frame, so a control placed outside it lands at the cap's far edge,
-/// which in a wide transcript is nowhere near the message it belongs to.
-struct ReviewChatQueuedFollowUpRow: View {
-    let text: String
-    let maxContentWidth: CGFloat
-    let returnToComposer: () -> Void
-    let sendNow: () -> Void
+/// Messages sent while a reply was still being written, waiting above the
+/// composer as Codex's queue does, oldest first; each goes, in order, the
+/// moment the turn before it ends. Per message: Send now (the ↑) cuts the
+/// running reply short, keeping what it said, and asks this next; it does not
+/// steer the running turn, so it is not called Steer. Edit (the pencil) takes
+/// the words back into the composer; Delete (the trash) drops them.
+struct ReviewChatQueuedMessages: View {
+    let items: [ReviewSessionManager.QueuedFollowUp]
+    let edit: (ReviewSessionManager.QueuedFollowUp) -> Void
+    let delete: (ReviewSessionManager.QueuedFollowUp) -> Void
+    let sendNow: (ReviewSessionManager.QueuedFollowUp) -> Void
 
     var body: some View {
-        let attached = AttachedImageReference.split(text)
-        // The sent message's column, so the queued one stands where it will.
-        ChatUserMessageColumn(maxWidth: maxContentWidth) {
-            VStack(alignment: .trailing, spacing: 3) {
-                Text("Queued")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                    .padding(.trailing, 4)
-                    .opacity(0.6)
-                HStack(alignment: .top, spacing: 6) {
-                    Button(action: returnToComposer) {
-                        Image(systemName: "xmark")
-                            .zoomedSystemFont(size: 8, weight: .semibold)
-                            .frame(width: 20, height: 20)
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.hoverWash(in: Circle(), opacity: 0.12))
-                    .help("Take this message back into the composer")
-                    .accessibilityLabel("Take queued message back")
-                    .accessibilityIdentifier("mac.chatQueued.return")
-                    // Level with the first line of the bubble's text.
-                    .padding(.top, 8)
-
-                    Button(action: sendNow) {
-                        Image(systemName: "arrow.up")
-                            .zoomedSystemFont(size: 9, weight: .bold)
-                            .frame(width: 20, height: 20)
-                            .foregroundStyle(Color.accentColor)
-                    }
-                    .buttonStyle(.hoverWash(in: Circle(), opacity: 0.12))
-                    .help("Send now: stop the reply being written and ask this instead")
-                    .accessibilityLabel("Send queued message now")
-                    .accessibilityIdentifier("mac.chatQueued.sendNow")
-                    .padding(.top, 8)
-
-                    VStack(alignment: .trailing, spacing: 3) {
-                        if !attached.images.isEmpty {
-                            ReviewChatAttachedImagesRow(images: attached.images, maxContentWidth: maxContentWidth - 26)
-                                .padding(.bottom, attached.text.isEmpty ? 0 : 3)
-                        }
-                        if !attached.text.isEmpty {
-                            Text(attached.text)
-                                .zoomedSystemFont(size: ChatMarkdownView.baseFontSize)
-                                .multilineTextAlignment(.leading)
-                                .modifier(ReviewChatBubbleChrome(role: .user))
-                        }
-                    }
-                    .opacity(0.6)
-                }
+        VStack(alignment: .leading, spacing: 2) {
+            ForEach(items) { item in
+                row(item)
             }
         }
+        .padding(.horizontal, StudioDesign.Spacing.small)
+        .padding(.vertical, 5)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            StudioDesign.Chat.trayFill,
+            in: RoundedRectangle(cornerRadius: StudioDesign.Chat.trayCornerRadius, style: .continuous)
+        )
+        .padding(.horizontal, StudioDesign.Chat.trayInset)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Queued message: \(attached.text)")
+        .accessibilityLabel(items.count == 1 ? "1 queued message" : "\(items.count) queued messages")
         .accessibilityIdentifier("mac.chatQueued")
+    }
+
+    private func row(_ item: ReviewSessionManager.QueuedFollowUp) -> some View {
+        let attached = AttachedImageReference.split(item.text)
+        let line = ReviewChatQueuedMessages.oneLine(attached.text)
+        return HStack(spacing: 6) {
+            Image(systemName: "arrow.turn.down.right")
+                .zoomedSystemFont(size: 10, weight: .medium)
+                .foregroundStyle(.tertiary)
+            if !attached.images.isEmpty {
+                Image(systemName: "photo")
+                    .zoomedSystemFont(size: 10)
+                    .foregroundStyle(.secondary)
+            }
+            Text(line.isEmpty ? "Picture" : line)
+                .zoomedSystemFont(size: 12)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .help(attached.text)
+            button("arrow.up", label: "Send now", help: "Send now: stop the reply being written and ask this next",
+                   identifier: "mac.chatQueued.sendNow") { sendNow(item) }
+            button("pencil", label: "Edit", help: "Edit: put this message back in the composer",
+                   identifier: "mac.chatQueued.edit") { edit(item) }
+            button("trash", label: "Delete", help: "Delete this queued message",
+                   identifier: "mac.chatQueued.delete") { delete(item) }
+        }
+        .padding(.vertical, 2)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Queued message: \(line)")
+    }
+
+    private func button(
+        _ systemImage: String,
+        label: String,
+        help: String,
+        identifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .zoomedSystemFont(size: 10, weight: .semibold)
+                .frame(width: 22, height: 22)
+                .foregroundStyle(.secondary)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.hoverWash(in: Circle(), opacity: 0.12))
+        .help(help)
+        .accessibilityLabel(label)
+        .accessibilityIdentifier(identifier)
+    }
+
+    /// The message on one line, its line breaks as spaces.
+    static func oneLine(_ text: String) -> String {
+        text.split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
     }
 }
 

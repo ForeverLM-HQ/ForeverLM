@@ -934,8 +934,9 @@ final class ReviewSessionManager {
     /// A message sent while a turn was still running. It is not in
     /// `chatMessages`: a user turn appended under a reply that is still being
     /// written would ride into that reply's next tool round and break the
-    /// alternation the provider expects. It waits here, is drawn under the
-    /// running turn, and becomes a real message the moment that turn ends.
+    /// alternation the provider expects. It waits here, is drawn above the
+    /// composer (`ReviewChatQueuedMessages`), and becomes a real message the
+    /// moment that turn ends.
     struct QueuedFollowUp: Identifiable, Equatable {
         let id: UUID
         let text: String
