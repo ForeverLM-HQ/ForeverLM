@@ -1631,6 +1631,13 @@ body.has-margin-cards[data-margin-tier="medium"] .milkdown .editor {
   pointer-events: none;
 }
 
+/* A footnote's margin holds its number, where the mark would stand on top of
+   it and read as "|1". A note is a citation already; it takes no mark. */
+.milkdown .editor .artifact-footnote :is(p, li, h1, h2, h3, h4, h5, h6):has(a[href^="foreverlm://grounding/"])::before,
+.milkdown .editor .artifact-footnote :is(p, li, h1, h2, h3, h4, h5, h6):has(a[href^="https://foreverlm.invalid/grounding/"])::before {
+  content: none;
+}
+
 /* Which words, on demand. The mark says the block stands on something; hovering
    the passage says how far that reaches, without leaving a mark on the page for
    a reader who is only reading. */
