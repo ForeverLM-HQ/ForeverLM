@@ -2859,6 +2859,11 @@ private struct ArtifactEditor: View {
     /// name a second time, and is not drawn. The heading is the title then —
     /// editing it renames the doc, deleting it brings the header back.
     @State private var titleFollowsHeading = false
+    /// The page opened with its title row, so the row keeps its place until the
+    /// page is opened again. When the first heading names the page mid-visit,
+    /// the row goes blank rather than away: taking it away moved the whole
+    /// page up under the caret as the writer went on from the heading.
+    @State private var titleRowHeld = false
     @State private var editorSelection = ArtifactEditorSelection(text: "", from: 0, to: 0)
     @State private var attachmentDataURLs: [String: String] = [:]
     /// The web references the editor draws as cards, and the library's answer
@@ -2981,6 +2986,8 @@ private struct ArtifactEditor: View {
                                 dailyNoteHeader(dayKey: dayKey, inset: inset)
                             } else if !titleFollowsHeading || isEditingTitle {
                                 header(inset: inset)
+                            } else if titleRowHeld {
+                                header(inset: inset).hidden()
                             }
                             ReaderFindBar(state: findState, prompt: "Find in page")
                             heldVersionBanner(inset: inset)
@@ -4268,6 +4275,7 @@ private struct ArtifactEditor: View {
                 snapshot = loaded
                 draft = loaded.markdown
                 titleFollowsHeading = ArtifactMarkdownTitle.names(artifact.title, in: loaded.markdown)
+                titleRowHeld = !titleFollowsHeading
                 attachmentDataURLs = try await vm.artifactAttachmentDataURLs(
                     artifact.id,
                     markdown: loaded.markdown
