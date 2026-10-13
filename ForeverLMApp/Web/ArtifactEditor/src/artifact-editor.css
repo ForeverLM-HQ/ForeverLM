@@ -570,6 +570,32 @@ body.ready #editor {
   filter: brightness(0.94);
 }
 
+/* One-press instructions: quiet, the same pills as the panel's buttons but
+   lighter, gone once the writer types. */
+.artifact-ai-edit-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.artifact-ai-edit-quick[hidden] { display: none; }
+
+.artifact-ai-edit-quick button {
+  height: 24px;
+  padding: 0 9px;
+  border: 1px solid color-mix(in srgb, CanvasText 14%, transparent);
+  border-radius: 12px;
+  background: transparent;
+  color: color-mix(in srgb, CanvasText 78%, transparent);
+  cursor: pointer;
+  font: 500 11px/1 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+}
+
+.artifact-ai-edit-quick button:hover {
+  background: color-mix(in srgb, CanvasText 7%, Canvas);
+  color: CanvasText;
+}
+
 .artifact-ai-edit-status {
   margin: 0;
   color: color-mix(in srgb, CanvasText 62%, transparent);

@@ -8320,6 +8320,22 @@ function ensureAIEditPanel() {
     submitAIEdit(instruction.value)
   })
 
+  // The passes a writer asks for most, a press each, as ChatGPT's canvas
+  // offers them: shown while the field is empty, and on a proposal they change
+  // the proposal, like any instruction typed there.
+  const quick = document.createElement('div')
+  quick.className = 'artifact-ai-edit-quick'
+  quick.dataset.role = 'quick'
+  for (const [label, words] of aiEditQuickInstructions) {
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.textContent = label
+    button.title = words
+    button.addEventListener('click', () => submitAIEdit(words, { label }))
+    quick.append(button)
+  }
+  instruction.addEventListener('input', () => showAIEditQuickInstructions())
+
   const status = document.createElement('p')
   status.className = 'artifact-ai-edit-status'
   status.dataset.role = 'status'
@@ -8358,7 +8374,7 @@ function ensureAIEditPanel() {
     actions.append(button)
   }
 
-  panel.append(head, form, status, proposal, actions)
+  panel.append(head, form, quick, status, proposal, actions)
   // A press inside the panel must not read as a click on the page behind it:
   // the document's pointer listeners would drop the selection bubble and the
   // drag preview, and ProseMirror would move the caret.
@@ -8366,6 +8382,26 @@ function ensureAIEditPanel() {
   document.body.append(panel)
   aiEditPanel = panel
   return panel
+}
+
+/// One-press instructions for a passage (Polish, Shorter, Longer, Simpler):
+/// the label and the words the model is given.
+const aiEditQuickInstructions = [
+  ['Polish', 'Fix grammar, spelling and clarity. Keep the meaning, the voice and the length.'],
+  ['Shorter', 'Make it shorter. Keep the meaning and the voice.'],
+  ['Longer', 'Make it longer, saying more about what it already says. Keep the voice.'],
+  ['Simpler', 'Make it simpler to read. Keep the meaning.'],
+]
+
+/// The one-press instructions show while the writer has typed nothing and
+/// the model is not at work, for a passage (not for new writing or a picture).
+function showAIEditQuickInstructions() {
+  const quick = aiEditPanel?.querySelector('[data-role="quick"]')
+  if (!quick) return
+  const instruction = aiEditElement('instruction')
+  const busy = aiEditElement('status').dataset.busy === 'true'
+  quick.hidden = !aiEdit || aiEdit.mode !== 'edit' || busy || instruction.value.trim().length > 0
+  scheduleAIEditPanelReposition()
 }
 
 function aiEditElement(role) {
@@ -8381,6 +8417,7 @@ function setAIEditStatus(message, { busy = false, error = false, quiet = false }
   status.dataset.quiet = quiet ? 'true' : 'false'
   ensureAIEditPanel().querySelector('[data-action="ask"]').disabled = busy
   ensureAIEditPanel().querySelector('[data-action="chat"]').disabled = busy
+  showAIEditQuickInstructions()
   scheduleAIEditPanelReposition()
 }
 
@@ -8532,7 +8569,7 @@ function closeAIEdit() {
 /// proposal — "shorter", "keep the second sentence" — the way a writer follows
 /// up; Try again (`again`) asks the last question about the same passage once
 /// more. Every address reaches the model as its stand-in.
-function submitAIEdit(instructionText, { again = false } = {}) {
+function submitAIEdit(instructionText, { again = false, label = null } = {}) {
   const instruction = String(instructionText ?? '').trim()
   if (!aiEdit || !instruction) return
   const view = activeEditorView()
@@ -8550,6 +8587,8 @@ function submitAIEdit(instructionText, { again = false } = {}) {
         ? markdownOfContent(aiEditPassageContent(view.state, range.from, range.to, aiEdit.inline))
         : ''
   aiEdit.requestID = requestID
+  // Try again keeps the name the instruction was asked under.
+  if (!again) aiEdit.instructionLabel = label
   aiEdit.instruction = instruction
   aiEdit.asked = passage
   aiEdit.proposal = null
@@ -8657,10 +8696,11 @@ function completeAIEdit(requestID, result) {
   aiEditElement('actions').hidden = false
   // The instruction asked is the line above the proposal; the field is free
   // for the next one, which changes this proposal.
-  setAIEditStatus(`“${aiEdit.instruction}”`, { quiet: true })
+  setAIEditStatus(aiEdit.instructionLabel ?? `“${aiEdit.instruction}”`, { quiet: true })
   const instruction = aiEditElement('instruction')
   instruction.value = ''
   instruction.placeholder = aiEdit.mode === 'visualize' ? 'Ask for a change to it…' : 'Ask for a change to this…'
+  showAIEditQuickInstructions()
   instruction.focus()
   scheduleAIEditPanelReposition()
 }

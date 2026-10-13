@@ -834,7 +834,7 @@ opens the editor; changes are saved to the Page as you type, and **Update Page**
 publishes them to the web page when you are ready. To have the AI make a change,
 select a passage and choose **Edit with AI**, or press **AI** in the header with
 the caret in a section (or in a footnote, which edits that note), and say what
-should change: the proposal appears under the passage drawn as the page will
+should change, or press **Polish**, **Shorter**, **Longer** or **Simpler**: the proposal appears under the passage drawn as the page will
 show it, with the words it adds washed green and the words it takes out struck
 through. Type another instruction to change the proposal ("shorter", "keep the
 first sentence"); **Replace** (⌘↩) or **Insert below** writes it (⌘Z undoes). The
