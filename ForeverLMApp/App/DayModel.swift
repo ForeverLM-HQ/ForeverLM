@@ -21,6 +21,8 @@ struct BoutStartRequest: Identifiable, Equatable {
     let id = UUID()
     /// The calendar event the bout runs, shown as context above the goal.
     var eventTitle: String?
+    /// The length the start sheet opens on, which the learner may change:
+    /// what is left of `eventTitle`'s event, or the default bout.
     var minutes: Int = LearningBout.defaultMinutes
     var notebookID: String?
     var sourceIDs: [String] = []

@@ -313,44 +313,65 @@ struct LearningBoutWriteUpSheet: View {
 
 // MARK: - The goal
 
-/// What the session is for, asked before the clock starts.
+/// What the session is for and how long it runs, asked before the clock
+/// starts.
 ///
 /// The bout's title is the learner's goal in their own words, so a session
 /// is never a bare "Learning": Start stays disabled until the goal says
-/// something. A bout run on a calendar event names the event above the field
-/// for context, but the goal is still the learner's to write.
+/// something. The length is the learner's too (product owner, 2026-10-13:
+/// "we should be able to set the amount of time in minutes"): a minutes field
+/// that opens on what is left of the calendar event, or on the default bout,
+/// with the usual lengths one click away beside it and the time the clock
+/// will stop under it. A bout run on a calendar event names the event above
+/// the question for context, but the goal is still the learner's to write.
 struct LearningBoutStartSheet: View {
     let request: BoutStartRequest
-    /// Starts the bout with the goal and reports whether it started.
-    let onStart: (String) async -> Bool
+    /// Starts the bout with the goal and its minutes, and reports whether it
+    /// started.
+    let onStart: (String, Int) async -> Bool
     let onCancel: () -> Void
 
+    @Environment(\.uiZoomScale) private var uiZoomScale
     @State private var goal = ""
+    @State private var minutesText: String
     @State private var isStarting = false
-    @FocusState private var focused: Bool
+    @FocusState private var focus: Field?
+
+    private enum Field { case goal, minutes }
+
+    /// The lengths one click away: a short sitting, the Pomodoro's
+    /// twenty-five, and up to the ninety-minute block the method asks for.
+    nonisolated static let presetMinutes = [15, 25, 45, 60, 90]
+
+    init(
+        request: BoutStartRequest,
+        onStart: @escaping (String, Int) async -> Bool,
+        onCancel: @escaping () -> Void
+    ) {
+        self.request = request
+        self.onStart = onStart
+        self.onCancel = onCancel
+        _minutesText = State(initialValue: String(LearningBout.clampedMinutes(request.minutes)))
+    }
 
     private var trimmedGoal: String {
         goal.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private var canStart: Bool { !trimmedGoal.isEmpty && !isStarting }
+    private var minutes: Int? { Self.minutes(from: minutesText) }
+
+    private var canStart: Bool { !trimmedGoal.isEmpty && minutes != nil && !isStarting }
+
+    /// One height for the minutes field and the lengths beside it.
+    private var lengthRowHeight: CGFloat { 30 * uiZoomScale }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: StudioDesign.Spacing.large) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("What is this session for?")
-                    .zoomedSystemFont(size: 15, weight: .semibold)
-                Text(subtitle)
-                    .zoomedSystemFont(size: 11)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-                    .lineLimit(2)
+        VStack(alignment: .leading, spacing: StudioDesign.Spacing.xLarge) {
+            VStack(alignment: .leading, spacing: StudioDesign.Spacing.medium) {
+                header
+                goalField
             }
-            .textSelection(.disabled)
-            TextField("Goal", text: $goal, prompt: Text("e.g. Explain how ATP synthase turns"))
-                .textFieldStyle(.roundedBorder)
-                .focused($focused)
-                .onSubmit(start)
+            lengthSection
             HStack {
                 Button("Cancel", role: .cancel, action: onCancel)
                     .keyboardShortcut(.cancelAction)
@@ -359,27 +380,163 @@ struct LearningBoutStartSheet: View {
                     .keyboardShortcut(.defaultAction)
                     .disabled(!canStart)
             }
+            .controlSize(.large)
         }
-        .padding(StudioDesign.Spacing.large)
-        .frame(width: 440)
-        .onAppear { focused = true }
+        .padding(StudioDesign.Spacing.xLarge)
+        .frame(width: 360 * uiZoomScale)
+        .onAppear { focus = .goal }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("studio.bout.start")
     }
 
-    private var subtitle: String {
-        let length = DayNow.durationText(LearningBout.clampedMinutes(request.minutes))
-        if let eventTitle = request.eventTitle { return "\(length) on “\(eventTitle)”" }
-        return "\(length) on the clock"
+    private var header: some View {
+        VStack(alignment: .leading, spacing: StudioDesign.Spacing.xSmall) {
+            if let eventTitle = request.eventTitle {
+                Label(Self.eventLine(title: eventTitle, minutesLeft: request.minutes), systemImage: "calendar")
+                    .zoomedSystemFont(size: 11, weight: .medium)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                    .lineLimit(1)
+            }
+            Text("What is this session for?")
+                .zoomedSystemFont(size: 15, weight: .semibold)
+        }
+        .textSelection(.disabled)
+    }
+
+    private var goalField: some View {
+        TextField("Goal", text: $goal, prompt: Text("e.g. Explain how ATP synthase turns"))
+            .textFieldStyle(.plain)
+            .zoomedSystemFont(size: 14)
+            .focused($focus, equals: .goal)
+            .focusEffectDisabled()
+            .onSubmit(start)
+            .padding(.horizontal, StudioDesign.Spacing.medium)
+            .padding(.vertical, 10)
+            .boutStartWell(isFocused: focus == .goal)
+            .accessibilityLabel("Goal")
+    }
+
+    private var lengthSection: some View {
+        VStack(alignment: .leading, spacing: StudioDesign.Spacing.small) {
+            Text("How long")
+                .zoomedSystemFont(size: 12, weight: .medium)
+                .foregroundStyle(.secondary)
+                .textSelection(.disabled)
+            HStack(spacing: StudioDesign.Spacing.small) {
+                minutesField
+                Text("min")
+                    .zoomedSystemFont(size: 13)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.disabled)
+                Spacer(minLength: StudioDesign.Spacing.small)
+                HStack(spacing: StudioDesign.Spacing.xSmall) {
+                    ForEach(Self.presetMinutes, id: \.self) { preset in
+                        presetButton(preset)
+                    }
+                }
+            }
+            // The stop time moves with the clock while the sheet is open.
+            TimelineView(.everyMinute) { context in
+                Text(Self.lengthLine(minutes: minutes, now: context.date))
+                    .zoomedSystemFont(size: 11)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+            .textSelection(.disabled)
+        }
+    }
+
+    private var minutesField: some View {
+        TextField("Minutes", text: $minutesText)
+            .textFieldStyle(.plain)
+            .zoomedSystemFont(size: 14, weight: .semibold)
+            .monospacedDigit()
+            .multilineTextAlignment(.center)
+            .focused($focus, equals: .minutes)
+            .focusEffectDisabled()
+            .onSubmit(start)
+            // Digits only, three at most: a bout tops out at eight hours.
+            .onChange(of: minutesText) { _, text in
+                let digits = String(text.filter { ("0"..."9").contains($0) }.prefix(3))
+                if digits != text { minutesText = digits }
+            }
+            .frame(width: 48 * uiZoomScale, height: lengthRowHeight)
+            .boutStartWell(isFocused: focus == .minutes)
+            .accessibilityLabel("Minutes")
+    }
+
+    private func presetButton(_ preset: Int) -> some View {
+        let isSelected = minutes == preset
+        return Button {
+            minutesText = String(preset)
+        } label: {
+            Text("\(preset)")
+                .zoomedSystemFont(size: 12, weight: isSelected ? .semibold : .medium)
+                .monospacedDigit()
+                .foregroundStyle(isSelected ? Color.primary : Color.secondary)
+                .frame(minWidth: 30 * uiZoomScale, minHeight: lengthRowHeight)
+                .background(
+                    RoundedRectangle(cornerRadius: StudioDesign.Radius.control, style: .continuous)
+                        .fill(Color.primary.opacity(isSelected ? 0.09 : 0))
+                )
+        }
+        .buttonStyle(.hoverWash(cornerRadius: StudioDesign.Radius.control, inset: 0, opacity: 0.05))
+        .help("\(preset) minutes")
+        .accessibilityLabel("\(preset) minutes")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     private func start() {
-        guard canStart else { return }
+        guard canStart, let minutes else { return }
         isStarting = true
         Task {
-            let started = await onStart(trimmedGoal)
+            let started = await onStart(trimmedGoal, minutes)
             isStarting = false
             if started { onCancel() }
         }
+    }
+
+    // MARK: Wording
+
+    /// The minutes typed, when they make a bout: nil for nothing, and for a
+    /// length outside what a bout can be, which keeps Start off rather than
+    /// quietly starting a different clock than the one typed.
+    nonisolated static func minutes(from text: String) -> Int? {
+        guard let value = Int(text.trimmingCharacters(in: .whitespaces)),
+              (LearningBout.minimumMinutes...LearningBout.maximumMinutes).contains(value) else { return nil }
+        return value
+    }
+
+    /// "Open Office hours · 25m left": the event the bout runs on.
+    nonisolated static func eventLine(title: String, minutesLeft: Int) -> String {
+        guard minutesLeft > 1 else { return "\(title) · ending" }
+        return "\(title) · \(DayNow.durationText(minutesLeft)) left"
+    }
+
+    /// "Ends at 11:25 · earns a 5 min break" under the length, or what a
+    /// length can be when the field holds none.
+    nonisolated static func lengthLine(minutes: Int?, now: Date, calendar: Calendar = .current) -> String {
+        guard let minutes else {
+            return "A session runs \(LearningBout.minimumMinutes) to \(LearningBout.maximumMinutes) minutes"
+        }
+        let ends = DayNow.clockString(now.addingTimeInterval(TimeInterval(minutes * 60)), calendar: calendar)
+        let rest = LearningBout.earnedBreakMinutes(forMinutesLearned: minutes)
+        return "Ends at \(ends) · earns a \(rest) min break"
+    }
+}
+
+private extension View {
+    /// The start sheet's input look: a soft grey well with no bezel, outlined
+    /// while it has the keyboard.
+    func boutStartWell(isFocused: Bool) -> some View {
+        background(
+            RoundedRectangle(cornerRadius: StudioDesign.Radius.surface, style: .continuous)
+                .fill(Color.primary.opacity(0.05))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: StudioDesign.Radius.surface, style: .continuous)
+                .strokeBorder(Color.primary.opacity(isFocused ? 0.22 : 0))
+        )
     }
 }

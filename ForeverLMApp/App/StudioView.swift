@@ -1233,7 +1233,8 @@ struct StudioView: View {
                 }
             }
             // The chip's and the Today menu's Start Pomodoro Timer…: the goal
-            // is asked in the window in front, then the clock starts.
+            // and the minutes are asked in the window in front, then the
+            // clock starts.
             .onReceive(NotificationCenter.default.publisher(for: .requestBoutStart)) { note in
                 guard shouldHandleWindowCommand(note),
                       DayModel.shared.liveBout == nil,
@@ -1243,11 +1244,11 @@ struct StudioView: View {
             .sheet(item: $boutStartRequest) { request in
                 LearningBoutStartSheet(
                     request: request,
-                    onStart: { goal in
+                    onStart: { goal, minutes in
                         do {
                             _ = try await DayModel.shared.startBout(
                                 title: goal,
-                                minutes: request.minutes,
+                                minutes: minutes,
                                 notebookID: request.notebookID,
                                 sourceIDs: request.sourceIDs
                             )

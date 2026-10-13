@@ -88,6 +88,39 @@ struct LearningBoutTests {
         #expect(LearningBoutCard.overrunText(bout: bout, now: started.addingTimeInterval(175 * 60)) == "1h 25m over")
     }
 
+    // MARK: - The start sheet
+
+    @Test("The start sheet takes the minutes typed only when they make a bout")
+    func startSheetMinutes() {
+        #expect(LearningBoutStartSheet.minutes(from: "25") == 25)
+        #expect(LearningBoutStartSheet.minutes(from: " 90 ") == 90)
+        #expect(LearningBoutStartSheet.minutes(from: "5") == 5)
+        #expect(LearningBoutStartSheet.minutes(from: "480") == 480)
+        // Outside what a bout can be, Start stays off rather than starting a
+        // clock other than the one typed.
+        #expect(LearningBoutStartSheet.minutes(from: "4") == nil)
+        #expect(LearningBoutStartSheet.minutes(from: "0") == nil)
+        #expect(LearningBoutStartSheet.minutes(from: "481") == nil)
+        #expect(LearningBoutStartSheet.minutes(from: "") == nil)
+        // Every length offered one click away is one the field takes.
+        for preset in LearningBoutStartSheet.presetMinutes {
+            #expect(LearningBoutStartSheet.minutes(from: String(preset)) == preset)
+        }
+    }
+
+    @Test("The start sheet says when the clock will stop, what it earns, and the event it runs on")
+    func startSheetWording() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(identifier: "UTC"))
+        let now = try #require(calendar.date(from: DateComponents(year: 2026, month: 10, day: 13, hour: 11, minute: 0)))
+        #expect(LearningBoutStartSheet.lengthLine(minutes: 25, now: now, calendar: calendar) == "Ends at 11:25 · earns a 5 min break")
+        #expect(LearningBoutStartSheet.lengthLine(minutes: 90, now: now, calendar: calendar) == "Ends at 12:30 · earns a 10 min break")
+        #expect(LearningBoutStartSheet.lengthLine(minutes: nil, now: now, calendar: calendar) == "A session runs 5 to 480 minutes")
+        #expect(LearningBoutStartSheet.eventLine(title: "Office hours", minutesLeft: 25) == "Office hours · 25m left")
+        #expect(LearningBoutStartSheet.eventLine(title: "Office hours", minutesLeft: 90) == "Office hours · 1h 30m left")
+        #expect(LearningBoutStartSheet.eventLine(title: "Office hours", minutesLeft: 1) == "Office hours · ending")
+    }
+
     @Test("The live bout is the most recently started one that is still going")
     func liveBoutIsTheLatestUnfinished() {
         let base = Date(timeIntervalSinceReferenceDate: 800_000_000)
