@@ -6769,9 +6769,9 @@ const pageCodeTheme = [
     '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
       backgroundColor: 'color-mix(in srgb, AccentColor 24%, transparent)',
     },
-    '.cm-activeLine': { backgroundColor: 'color-mix(in srgb, CanvasText 4%, transparent)' },
-    '.cm-gutters': { backgroundColor: 'transparent', color: 'color-mix(in srgb, CanvasText 38%, transparent)', border: 'none' },
-    '.cm-activeLineGutter': { backgroundColor: 'transparent', color: 'color-mix(in srgb, CanvasText 70%, transparent)' },
+    // No band on the caret's line: it stood on every block's first line
+    // while the caret was elsewhere on the page.
+    '.cm-activeLine': { backgroundColor: 'transparent' },
   }),
   syntaxHighlighting(HighlightStyle.define([
     { tag: codeTags.comment, color: 'var(--code-comment)', fontStyle: 'italic' },

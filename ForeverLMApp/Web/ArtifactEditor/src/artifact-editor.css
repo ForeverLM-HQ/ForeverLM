@@ -208,6 +208,36 @@ body.ready #editor {
   --code-meta: light-dark(#57606a, #8b949e);
 }
 
+/* A code block shows its code and nothing else, as in a ChatGPT page: no line
+   numbers, and no empty band above the code for a language button and Copy
+   that only show under the pointer — they float in the block's corner. */
+.milkdown .milkdown-code-block {
+  padding: 10px 16px;
+  border-radius: 8px;
+}
+
+.milkdown .milkdown-code-block .cm-gutters {
+  display: none;
+}
+
+.milkdown .milkdown-code-block .tools {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  z-index: 2;
+  gap: 4px;
+}
+
+.milkdown .milkdown-code-block .tools .language-button {
+  margin-bottom: 0;
+}
+
+.milkdown .milkdown-code-block .language-picker {
+  top: 100%;
+  right: 0;
+  padding-top: 4px;
+}
+
 .milkdown .editor {
   box-sizing: border-box;
   width: min(100%, var(--artifact-page-width));
