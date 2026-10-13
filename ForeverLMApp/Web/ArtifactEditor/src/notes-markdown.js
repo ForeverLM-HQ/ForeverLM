@@ -12,6 +12,7 @@
 // by title by `data-title`, a web address by `href`. Grounding, the invisible
 // sources a passage stands on, is drawn as the words alone.
 
+import { singleDollarSpanIsMoney } from './dollar-math.js'
 import { embeddedBlockID, takeBlockIDMarker, unescapedTitle } from './notes-graph-syntax.js'
 
 const entities = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }
@@ -38,7 +39,7 @@ const referenceAt = /\(\(([a-z0-9]{9})\)\)/y
 const titleLinkAt = /\\?\[\\?\[((?:[^[\]\\\n]|\\[^\n])+?)\\?\]\\?\]/y
 const tagAt = /\\?#(?:\\?\[\\?\[((?:[^[\]\\\n]|\\[^\n])+?)\\?\]\\?\]|([\p{L}\p{N}_\-/]*[\p{L}\p{N}_][\p{L}\p{N}_\-/]*))/uy
 const autolinkAt = /<((?:https?:\/\/|mailto:)[^\s<>]+)>/y
-const mathAt = /\$([^$\n]+)\$/y
+const mathAt = /(\$\$?)([^$\n]+)\1/y
 
 function stickyMatch(pattern, text, index) {
   pattern.lastIndex = index
@@ -350,10 +351,14 @@ export function renderInline(source, options = {}, depth = 0) {
       continue
     }
     if (character === '$') {
+      // Math by the editor's own line (dollar-math.js): `$$x$$` always, `$x$`
+      // unless it reads as money, as "$20 and $30" does.
       const math = stickyMatch(mathAt, text, index)
-      if (math) {
+      const money = math && math[1] === '$'
+        && singleDollarSpanIsMoney(math[2][0], math[2][math[2].length - 1], text[index + math[0].length] ?? '')
+      if (math && !money) {
         flush()
-        html += `<span class="artifact-snippet-math">${textHTML(math[1])}</span>`
+        html += `<span class="artifact-snippet-math">${textHTML(math[2])}</span>`
         index += math[0].length
         continue
       }

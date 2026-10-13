@@ -1,7 +1,7 @@
 import { Crepe } from '@milkdown/crepe'
 import { imageBlockSchema } from '@milkdown/kit/component/image-block'
 import { linkPreviewTooltip, linkTooltipAPI } from '@milkdown/kit/component/link-tooltip'
-import { commandsCtx, editorViewCtx, editorViewOptionsCtx, parserCtx, schemaCtx, serializerCtx } from '@milkdown/kit/core'
+import { commandsCtx, editorStateOptionsCtx, editorViewCtx, editorViewOptionsCtx, inputRulesCtx, parserCtx, schemaCtx, serializerCtx } from '@milkdown/kit/core'
 import {
   addBlockTypeCommand,
   blockquoteSchema,
@@ -26,7 +26,9 @@ import {
 } from '@milkdown/kit/preset/commonmark'
 import { addRowAfterCommand, createTable, footnoteDefinitionSchema, footnoteReferenceSchema, selectRowCommand, strikethroughSchema, tableSchema, toggleStrikethroughCommand } from '@milkdown/kit/preset/gfm'
 import { trailingConfig } from '@milkdown/kit/plugin/trailing'
+import { nodeRule } from '@milkdown/kit/prose'
 import { lift } from '@milkdown/kit/prose/commands'
+import { inputRules } from '@milkdown/kit/prose/inputrules'
 import { liftListItem } from '@milkdown/kit/prose/schema-list'
 import { Fragment, Slice } from '@milkdown/kit/prose/model'
 import { Plugin, PluginKey, Selection, TextSelection } from '@milkdown/kit/prose/state'
@@ -53,6 +55,7 @@ import {
   takeBlockIDMarker,
 } from './notes-graph-syntax.js'
 import { attachBlockProperties, defaultProperties, highlightHex, properties as blockPropertyValues, propertyComment } from './block-properties.js'
+import { remarkMoneyIsNotMath } from './dollar-math.js'
 import { footnoteKey, freshNumericLabel, planFootnotes } from './footnotes.js'
 import { renderInline, renderMarkdown } from './notes-markdown.js'
 import {
@@ -6273,6 +6276,9 @@ async function create(markdown, fontSize) {
     editor.editor.config(withBlockIDs)
     editor.editor.config(withBlockProperties)
     editor.editor.config(withFootnotes)
+    editor.editor.config(withDoubleDollarMath)
+    // After Crepe's remark-math, whose `$` reading and writing it changes.
+    editor.editor.use(dollarMathRemark)
     editor.editor.use(blockPropertiesRemark)
     editor.editor.use(referenceCardsPlugin)
     editor.editor.use(linkPickerPlugin)
@@ -6491,12 +6497,40 @@ function activeEditorView() {
 const mathInlineNodeName = 'math_inline'
 const toggleLatexCommandName = 'ToggleLatex'
 
+// ─── Typing math ────────────────────────────────────────────────────────────
+// Crepe makes inline math the moment a second `$` is typed, so "a few $20
+// copies … the $" turned the whole run into TeX (product owner, 2026-10-12:
+// "don't do this when i do one dollar sign"). Typed math takes two dollar
+// signs a side instead, as on Notion: `$$x^2$$` makes the math, and a price
+// typed as text stays text. Crepe's rule is an input rule like any other and
+// its feature does not export it, so it is recognised by what it does (it
+// fires on `$x$`) and the input rules plugin is rebuilt without it, with this
+// one in its place. dollar-math.js has the same line for Markdown that is read.
+const doubleDollarMathPattern = /(?<![$\\])\$\$([^$]+)\$\$$/
+
+function doubleDollarMathRule(nodeType) {
+  return nodeRule(doubleDollarMathPattern, nodeType, { getAttr: (match) => ({ value: (match[1] ?? '').trim() }) })
+}
+
+function withDoubleDollarMath(ctx) {
+  ctx.update(editorStateOptionsCtx, (previous) => (options) => {
+    const nodeType = ctx.get(schemaCtx).nodes[mathInlineNodeName]
+    if (!nodeType) return previous(options)
+    const rules = ctx.get(inputRulesCtx).filter((rule) => !rule.match.test('$x$'))
+    rules.push(doubleDollarMathRule(nodeType))
+    const plugins = options.plugins.map((plugin) => (plugin.spec.isInputRules ? inputRules({ rules }) : plugin))
+    return previous({ ...options, plugins })
+  })
+}
+
+const dollarMathRemark = $remark('foreverlm-dollar-math', () => remarkMoneyIsNotMath)
+
 /// The page's formatting actions. Each entry runs exactly the command Crepe's
 /// own selection toolbar ran, so formatting has moved twice — into the pane
 /// header in 2026-09, onto the page's selection bar on 2026-10-06 (Quiet
 /// chrome) — without changing what it does. The bar shows bold, italic,
 /// strikethrough, inline code and link; inline math stays here for
-/// `runFormatCommand` and is otherwise typed (`$x$`) or a slash-menu Equation.
+/// `runFormatCommand` and is otherwise typed (`$$x$$`) or a slash-menu Equation.
 const formatCommands = {
   bold: {
     isActive: (ctx, commands) => commands.call(isMarkSelectedCommand.key, strongSchema.type(ctx)),
