@@ -219,7 +219,7 @@ struct ShellCommandHost: ViewModifier {
         case .ideas: destination = .ideas
         case .memory: destination = .memory
         case .library: destination = .library
-        case .plugins: destination = .plugins(nil)
+        case .plugins: destination = .plugins(.directory)
         case .activity: destination = .activity
         case .browser: destination = .browser
         case .knowledgeMap: destination = .knowledgeMap
