@@ -6,7 +6,11 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.147.0 (build 227) — 2026-10-13
+
 **Highlights:**
+- **The chat shows what is open beside it**, and a × leaves a source out.
+- **A + on the icon strip starts a new chat**, and any Space place can be dragged onto the strip to stay there.
 - **A book reads the moment you add it.** A PDF or EPUB book opens whole at once; its details and chapters are found in the background, and what you mark and where you read to meanwhile move to its chapter.
 - **An ebook PDF is never treated as a scan**, so a picture cover no longer sends pages to OCR proofreading.
 - **A text file or dropped text is in your library at once**, under its own name; its title follows.
