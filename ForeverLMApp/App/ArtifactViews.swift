@@ -4525,6 +4525,11 @@ private struct ArtifactEditor: View {
     /// and returns. Used before the doc changes kind: a conversion sends the
     /// stored body, so the stored body has to be the page.
     private func flushDraft() async throws {
+        // The page's text as it stands, not the draft, which trails typing by
+        // the editor's pause: the buttons that call this (Share, Duplicate,
+        // Restore, Convert) never take focus from the page, so nothing has
+        // told the pane about the last words yet.
+        try? await notesGraph.bridge.syncMarkdownFromPage()
         // A save already in flight owns the revision; let it land first.
         while isSaving {
             try await Task.sleep(for: .milliseconds(50))

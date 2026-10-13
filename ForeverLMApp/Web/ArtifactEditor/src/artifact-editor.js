@@ -84,6 +84,9 @@ let applyingExternalMarkdown = false
 let lastMarkdown = ''
 let userHasInteracted = false
 let hasUserChanges = false
+// The document the host last heard (`post`), or was handed: anything else on
+// screen is typing still inside Milkdown's pause (`reportMarkdownNow`).
+let reportedDoc = null
 let currentSelection = null
 let selectionButton = null
 let selectionDropLayer = null
@@ -298,6 +301,7 @@ function post(type, detail = {}) {
   const message = { type, ...detail }
   if ((type === 'markdownChanged' || type === 'saveRequested') && typeof detail.markdown === 'string') {
     rememberReportedMarkdown(detail.markdown)
+    reportedDoc = activeEditorView()?.state.doc ?? null
   }
   if (window.webkit?.messageHandlers?.artifactEditor) {
     window.webkit.messageHandlers.artifactEditor.postMessage(message)
@@ -6898,6 +6902,7 @@ async function create(markdown, fontSize) {
         Promise.resolve().then(refreshGraphDecorations)
       })
       listener.blur(() => {
+        reportMarkdownNow()
         document.body.classList.remove('editing')
         if (linkPickerState && linkPickerState.source !== 'field') hideLinkPicker()
         editorFocused = false
@@ -6907,6 +6912,7 @@ async function create(markdown, fontSize) {
 
     await editor.create()
     keepFootnotesOnOpen(activeEditorView())
+    reportedDoc = activeEditorView()?.state.doc ?? null
     applyingExternalMarkdown = false
     setEditable(isEditable)
     document.body.classList.add('ready')
@@ -6932,6 +6938,7 @@ function replaceDocument(markdown, { fresh = false } = {}) {
   if (!editor) return
   if (fresh) {
     editor.editor.action(replaceAll(markdown, true))
+    reportedDoc = activeEditorView()?.state.doc ?? null
     return
   }
   editor.editor.action((ctx) => {
@@ -6964,6 +6971,7 @@ function replaceDocument(markdown, { fresh = false } = {}) {
     view.dispatch(state.tr
       .replaceWith(from, to, Fragment.fromArray(blocks))
       .setMeta('addToHistory', false))
+    reportedDoc = view.state.doc
   })
 }
 
@@ -7005,6 +7013,34 @@ function sameBlock(left, right) {
 
 const reportedMarkdown = []
 const reportedMarkdownWindow = 10_000
+
+// Milkdown tells the host about typing once the writer pauses for 200 ms. A
+// writer who typed the last word and at once closed the window, went back, or
+// clicked another page left inside that pause, and the pane saved the page as
+// it stood before the word. So leaving the page reports it now: losing focus,
+// and any ⌘ or Control shortcut, whose message reaches the host before the
+// shortcut does (WebKit hands an unhandled key back to the app after the
+// page has seen it).
+function reportMarkdownNow() {
+  if (!editor || applyingExternalMarkdown || !userHasInteracted) return
+  const view = activeEditorView()
+  if (!view || view.state.doc === reportedDoc) return
+  const storageMarkdown = markdownForStorage(editor.getMarkdown())
+  if (storageMarkdown === lastMarkdown) {
+    reportedDoc = view.state.doc
+    return
+  }
+  lastMarkdown = storageMarkdown
+  hasUserChanges = true
+  post('markdownChanged', { markdown: storageMarkdown })
+}
+
+document.addEventListener('keydown', (event) => {
+  if (event.metaKey || event.ctrlKey) reportMarkdownNow()
+}, true)
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') reportMarkdownNow()
+})
 
 function rememberReportedMarkdown(markdown) {
   const now = Date.now()
