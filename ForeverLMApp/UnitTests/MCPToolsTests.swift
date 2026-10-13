@@ -295,6 +295,7 @@ struct MCPAuthScopeTests {
             "generate_course_quizzes", "generate_walkthrough", "generate_explainer_video", "close_day",
             "find_podcast_on_youtube", "import_podcast_youtube_transcript",
             "get_linked_references", "get_block", "get_daily_note", "append_to_daily_note",
+            "practice_cards",
         ])
 
         // Search is the call that replaces the channel sweep; the description
@@ -14262,9 +14263,12 @@ struct MCPLocalPaperImportTests {
         return staged
     }
 
+    /// A loaded source's path is resolved against the app's own content root
+    /// (`readSourceRow`), which a test store does not use, so the PDF is looked
+    /// for where the import copied it: `Papers/` under the test's folder.
     private func pdfIsOnDisk(_ article: StudioArticle, in dir: URL) -> Bool {
-        guard let relative = article.localFilePath else { return false }
-        return FileManager.default.fileExists(atPath: dir.appendingPathComponent(relative).path)
+        guard let path = article.localFilePath, path.hasSuffix("Papers/Droplets.pdf") else { return false }
+        return FileManager.default.fileExists(atPath: dir.appendingPathComponent("Papers/Droplets.pdf").path)
     }
 
     @Test("The paper is saved with its PDF and its text before any model reads it")
@@ -14278,7 +14282,7 @@ struct MCPLocalPaperImportTests {
         #expect(saved.title == "Droplets in the cell")
         #expect(saved.state == .queued)
         #expect(saved.requiresPaperMetadataAI, "the Paper Metadata model has not read it yet")
-        #expect(saved.localFilePath == "Papers/Droplets.pdf")
+        #expect(saved.localFilePath?.hasSuffix("/Papers/Droplets.pdf") == true)
         #expect(pdfIsOnDisk(saved, in: dir))
         let raw = try store.knowledgeStore().loadPaperContentPreparation(saved.id)?.raw
         #expect(raw?.contains("Phase separated droplets") == true)
