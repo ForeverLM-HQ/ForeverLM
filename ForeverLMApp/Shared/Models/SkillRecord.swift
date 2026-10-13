@@ -97,6 +97,7 @@ struct SkillRecord: Identifiable, Codable, Equatable, Hashable, Sendable {
         "goal", "source", "page", "doc", "site", "site-prompt", "animate", "video", "course",
         "today", "plan", "review", "notebook", "new", "model",
         "settings", "clear", "end", "help",
+        "rename", "pin", "hide", "fork", "reasoning",
     ]
 
     /// Why a skill cannot be saved as given, or nil when it can.

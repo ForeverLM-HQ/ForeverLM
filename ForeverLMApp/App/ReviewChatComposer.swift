@@ -396,6 +396,7 @@ private extension ReviewSlashCommand.Kind {
         case .settings, .help: return .secondaryLabelColor
         case .end: return .systemRed
         case .skill: return .systemYellow
+        case .rename, .pin, .hide, .fork, .reasoning: return .secondaryLabelColor
         }
     }
 }

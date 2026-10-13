@@ -5329,7 +5329,8 @@ private struct InternalReviewPanelContent: View {
         // the tutor. Text that starts with `/` but isn't a known command falls through and
         // is sent as a normal message. A message with a picture attached is never a
         // command: the picture is what the learner is sending.
-        if !hasImages, let parsed = ReviewSlashCommandParser.parse(typedTrimmed, commands: slashCommands) {
+        if !hasImages, let parsed = ReviewSlashCommandParser.parse(typedTrimmed, commands: slashCommands)
+            ?? ReviewSlashCommandParser.parseSkillInvocation(typedTrimmed, commands: slashCommands) {
             // The words go; a quoted passage waits for the message it belongs to.
             draft = ""
             lastInsertedDefaultPrompt = nil
@@ -5942,12 +5943,89 @@ private struct InternalReviewPanelContent: View {
                   let context = ChatSkillRequest.contextContent(
                       for: ChatSkillRequest.Skill(name: skill.name, instructions: skill.instructions)
                   ) else {
-                vm.showToast("The skill /\(command.name) is gone. Settings › Chat lists the ones you have.")
+                // No Settings pane lists skills; the composer does.
+                vm.showToast("The skill /\(command.name) is gone. Type / or $ to see the skills you have.")
                 return
             }
             let request = argument.map { "/\(skill.name) \($0)" } ?? "/\(skill.name)"
             await sendReviewChatMessage(request, contextualContent: context)
+
+        case .rename:
+            guard let record = openChatRecord, canRenameChat else {
+                vm.showToast(manager.currentSessionID == nil
+                    ? "A new chat takes its name from its first message."
+                    : "This chat can't be renamed here.")
+                return
+            }
+            let title = argument?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if title.isEmpty {
+                // No name typed: the title opens for editing, as a click on it does.
+                beginChatTitleRename()
+            } else if title != record.title {
+                await vm.renameReviewSession(record.id, title: title)
+            }
+
+        case .pin:
+            guard let record = openChatRecord, !MemoryReviewSession.isMemorySession(record.id) else {
+                vm.showToast("Send a message first: a new chat has nothing to pin yet.")
+                return
+            }
+            let pinned = !vm.isChatPinned(record.id)
+            vm.setChatPinned(record.id, pinned: pinned)
+            vm.showToast(pinned ? "Chat pinned" : "Chat unpinned")
+
+        case .hide:
+            guard let record = openChatRecord, !MemoryReviewSession.isMemorySession(record.id) else {
+                vm.showToast("Send a message first: a new chat has nothing to hide yet.")
+                return
+            }
+            await vm.setReviewSessionHidden(record.id, hidden: !record.isHidden)
+            vm.showToast(record.isHidden ? "Chat shown in Chats again" : "Chat hidden from Chats")
+
+        case .fork:
+            guard manager.currentSessionID != nil, !manager.chatMessages.isEmpty else {
+                vm.showToast("Send a message first: there is nothing to branch yet.")
+                return
+            }
+            // Branch in New Chat over the whole thread: the reply ⋯'s Branch,
+            // from the newest saved turn.
+            forkConversation(through: manager.chatMessages)
+
+        case .reasoning:
+            await setChatReasoning(argument)
         }
+    }
+
+    /// `/reasoning <effort>`: the chat's effort, as the model chip's Effort
+    /// submenu sets it, and the effort later chats start on. A bare
+    /// `/reasoning` offers the efforts; one the model does not take is
+    /// refused with the ones it does.
+    @MainActor
+    private func setChatReasoning(_ argument: String?) async {
+        let offered = await Task.detached(priority: .userInitiated) {
+            let selection = KeychainService.resolvedSelection(for: .chat)
+            return AIRequestOptionSupport.supportedEfforts(provider: selection.provider, model: selection.model)
+        }.value
+        guard !offered.isEmpty else {
+            vm.showToast("This chat's model has no reasoning effort to set.")
+            return
+        }
+        guard let argument, !argument.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            draft = "/reasoning "
+            return
+        }
+        let names = offered.map(\.displayName).joined(separator: ", ")
+        guard let effort = ReviewSlashCommandParser.effort(named: argument) else {
+            vm.showToast("Reasoning is one of: \(names).")
+            return
+        }
+        guard offered.contains(effort) else {
+            vm.showToast("This model takes \(names).")
+            return
+        }
+        KeychainService.setTaskEffort(effort, for: .chat)
+        KeychainService.chosenChatEffort = effort
+        vm.showToast("Reasoning: \(effort.displayName)")
     }
 
     @MainActor

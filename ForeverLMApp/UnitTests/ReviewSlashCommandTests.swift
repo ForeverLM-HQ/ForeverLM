@@ -701,6 +701,77 @@ struct WorkingLogTests {
     }
 }
 
+/// Codex's thread verbs as slash commands, and `$name` for a skill.
+@Suite("Chat thread verbs")
+struct ChatThreadVerbTests {
+    @Test("/rename, /pin, /hide, /fork and /reasoning are offered and parse their arguments")
+    func verbs() throws {
+        let names = Set(ReviewSlashCommand.all.map(\.name))
+        #expect(names.isSuperset(of: ["rename", "pin", "hide", "fork", "reasoning"]))
+
+        let offered = ReviewSlashCommandParser.suggestions(for: "/re").map(\.title)
+        #expect(offered.contains("/rename [title]"))
+        #expect(offered.contains("/reasoning <effort>"))
+        #expect(offered.contains("/review"))
+
+        let rename = try #require(ReviewSlashCommandParser.parse("/rename  Sleep and memory "))
+        #expect(rename.command.kind == .rename)
+        #expect(rename.argument == "Sleep and memory")
+        #expect(ReviewSlashCommandParser.parse("/rename")?.argument == nil)
+        #expect(ReviewSlashCommandParser.parse("/pin")?.command.kind == .pin)
+        #expect(ReviewSlashCommandParser.parse("/hide")?.command.kind == .hide)
+        #expect(ReviewSlashCommandParser.parse("/fork")?.command.kind == .fork)
+        // Verbs with no argument run as soon as they are picked.
+        let pin = try #require(ReviewSlashCommandParser.suggestions(for: "/pi").first)
+        #expect(pin.runsImmediately)
+    }
+
+    @Test("/reasoning offers every effort and reads it however it is written")
+    func reasoning() throws {
+        let rows = ReviewSlashCommandParser.suggestions(for: "/reasoning ")
+        #expect(rows.map(\.title) == AIEffort.allCases.map(\.rawValue))
+        #expect(rows.first?.subtitle == "None")
+        let high = try #require(ReviewSlashCommandParser.suggestions(for: "/reasoning hi").first)
+        #expect(high.completionText == "/reasoning high")
+        #expect(high.runsImmediately)
+
+        #expect(ReviewSlashCommandParser.effort(named: "High") == .high)
+        #expect(ReviewSlashCommandParser.effort(named: "xhigh") == .extraHigh)
+        #expect(ReviewSlashCommandParser.effort(named: "Extra High") == .extraHigh)
+        #expect(ReviewSlashCommandParser.effort(named: "extra-high") == .extraHigh)
+        #expect(ReviewSlashCommandParser.effort(named: "none") == .noReasoning)
+        #expect(ReviewSlashCommandParser.effort(named: "MAX") == .max)
+        #expect(ReviewSlashCommandParser.effort(named: "hard") == nil)
+        #expect(ReviewSlashCommandParser.effort(named: " ") == nil)
+    }
+
+    @Test("$name asks for a skill as /name does; $ names nothing else")
+    func dollarSkills() throws {
+        let skill = SkillRecord(name: "walk", description: "Walk through a paper", instructions: "Body")
+        let commands = ReviewSlashCommand.all + [.skill(skill)]
+
+        let offered = ReviewSlashCommandParser.suggestions(for: "$", commands: commands)
+        #expect(offered.map(\.title) == ["$walk [request]"])
+        let row = try #require(ReviewSlashCommandParser.suggestions(for: "$wa", commands: commands).first)
+        #expect(row.completionText == "$walk ")
+        #expect(!row.runsImmediately)
+        // Built-in commands are `/` only.
+        #expect(ReviewSlashCommandParser.suggestions(for: "$ne", commands: commands).isEmpty)
+
+        let parsed = try #require(ReviewSlashCommandParser.parseSkillInvocation("$walk the MitoSpace paper", commands: commands))
+        #expect(parsed.command.kind == .skill)
+        #expect(parsed.argument == "the MitoSpace paper")
+        #expect(ReviewSlashCommandParser.parseSkillInvocation("$new", commands: commands) == nil)
+        #expect(ReviewSlashCommandParser.parseSkillInvocation("$5 a month", commands: commands) == nil)
+        #expect(ReviewSlashCommandParser.parse("$walk", commands: commands) == nil)
+
+        // The composer paints `$walk` as it paints `/walk`.
+        let prefix = try #require(ReviewSlashCommandParser.commandPrefix(in: "$walk it", commands: commands))
+        #expect(prefix.command.name == "walk")
+        #expect(ReviewSlashCommandParser.commandPrefix(in: "$new", commands: commands) == nil)
+    }
+}
+
 /// `@` finds the learner's sources, Pages, Sites, chats and notebooks as
 /// Codex's `@` finds files, chats and pages, with the plugins kept under All.
 @Suite("Chat library mentions")

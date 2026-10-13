@@ -31,6 +31,14 @@ struct ReviewSlashCommand: Identifiable, Equatable {
         case settings
         case end
         case help
+        /// Codex's thread verbs, on the chat that is open: rename it, pin
+        /// it, hide it (ForeverLM's Hide is Codex's archive), fork it (Branch
+        /// in New Chat over the whole thread), and set its reasoning effort.
+        case rename
+        case pin
+        case hide
+        case fork
+        case reasoning
         /// One of the learner's own skills (chat-design.md, "Skills"): the
         /// command's name is the skill's, and the message goes to the chat
         /// with the skill's instructions beside it (`ChatSkillRequest`).
@@ -263,6 +271,44 @@ struct ReviewSlashCommand: Identifiable, Equatable {
             summary: "Complete and record the current review",
             argHint: nil,
             arguments: []
+        ),
+        // Codex's thread verbs (learn.chatgpt.com/docs/reference/slash-commands).
+        ReviewSlashCommand(
+            kind: .rename,
+            name: "rename",
+            summary: "Rename this chat",
+            argHint: "[title]",
+            arguments: []
+        ),
+        ReviewSlashCommand(
+            kind: .pin,
+            name: "pin",
+            summary: "Pin or unpin this chat",
+            argHint: nil,
+            arguments: []
+        ),
+        ReviewSlashCommand(
+            kind: .hide,
+            name: "hide",
+            summary: "Hide this chat from Chats",
+            argHint: nil,
+            arguments: []
+        ),
+        ReviewSlashCommand(
+            kind: .fork,
+            name: "fork",
+            summary: "Branch this chat into a new one",
+            argHint: nil,
+            arguments: []
+        ),
+        ReviewSlashCommand(
+            kind: .reasoning,
+            name: "reasoning",
+            summary: "Set how hard the model thinks",
+            argHint: "<effort>",
+            arguments: AIEffort.allCases.map {
+                Argument(value: ReviewSlashCommandParser.effortToken($0), display: $0.displayName)
+            }
         ),
         ReviewSlashCommand(
             kind: .help,
@@ -511,6 +557,9 @@ struct ReviewSlashSuggestion: Identifiable, Equatable {
     }
 
     let payload: Payload
+    /// What a command row is typed with: `/`, or `$` for a skill asked for the
+    /// way Codex's `$name` asks for one.
+    var sigil: Character = ReviewSlashCommandParser.commandSigil
 
     var id: String {
         switch payload {
@@ -561,9 +610,9 @@ struct ReviewSlashSuggestion: Identifiable, Equatable {
         switch payload {
         case .command(let command):
             if let argHint = command.argHint {
-                return "/\(command.name) \(argHint)"
+                return "\(sigil)\(command.name) \(argHint)"
             }
-            return "/\(command.name)"
+            return "\(sigil)\(command.name)"
         case .argument(let argument, _):
             return argument.value
         case .mention(let mention, _):
@@ -587,9 +636,9 @@ struct ReviewSlashSuggestion: Identifiable, Equatable {
     var completionText: String {
         switch payload {
         case .command(let command):
-            return command.takesArgument ? "/\(command.name) " : "/\(command.name)"
+            return command.takesArgument ? "\(sigil)\(command.name) " : "\(sigil)\(command.name)"
         case .argument(let argument, let command):
-            return "/\(command.name) \(argument.value)"
+            return "\(sigil)\(command.name) \(argument.value)"
         case .mention(_, let completion), .library(_, let completion):
             return completion
         }
@@ -683,12 +732,61 @@ enum ReviewSlashCommandParser {
         in text: String,
         commands: [ReviewSlashCommand] = ReviewSlashCommand.all
     ) -> (command: ReviewSlashCommand, range: Range<String.Index>)? {
-        guard text.hasPrefix("/"), !text.contains("\n") else { return nil }
+        guard let sigil = text.first, sigil == commandSigil || sigil == skillSigil,
+              !text.contains("\n") else { return nil }
         let end = text.firstIndex(where: { $0.isWhitespace }) ?? text.endIndex
         let range = text.startIndex..<end
         let name = text[text.index(after: text.startIndex)..<end].lowercased()
-        guard let command = commands.first(where: { $0.name == name }) else { return nil }
+        let offered = sigil == skillSigil ? commands.filter { $0.kind == .skill } : commands
+        guard let command = offered.first(where: { $0.name == name }) else { return nil }
         return (command, range)
+    }
+
+    /// What a command is typed with.
+    static let commandSigil: Character = "/"
+    /// `$name` asks for one of the learner's skills, as Codex's `$name` does;
+    /// `/name` still does too.
+    static let skillSigil: Character = "$"
+
+    /// A draft that asks for a skill with `$`, read as the `/` command it is,
+    /// over the skills alone: `$` names nothing else.
+    private static func skillDraftAsCommand(
+        _ text: String,
+        commands: [ReviewSlashCommand]
+    ) -> (text: String, skills: [ReviewSlashCommand])? {
+        guard text.first == skillSigil else { return nil }
+        let skills = commands.filter { $0.kind == .skill }
+        return ("\(commandSigil)\(text.dropFirst())", skills)
+    }
+
+    /// A submitted `$name request`: the skill command and its request, or nil
+    /// when `$` does not name one of the learner's skills (`$5 a month` is a
+    /// message).
+    static func parseSkillInvocation(
+        _ text: String,
+        commands: [ReviewSlashCommand] = ReviewSlashCommand.all
+    ) -> (command: ReviewSlashCommand, argument: String?)? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let asCommand = skillDraftAsCommand(trimmed, commands: commands) else { return nil }
+        return parse(asCommand.text, commands: asCommand.skills)
+    }
+
+    /// The word `/reasoning` takes for an effort: its stored value, which the
+    /// popup offers and the learner can type.
+    static func effortToken(_ effort: AIEffort) -> String {
+        effort.rawValue
+    }
+
+    /// The effort a `/reasoning` argument names: its stored value or its
+    /// display name, in any case, spaces and hyphens ignored ("Extra High",
+    /// "extra-high", "xhigh").
+    static func effort(named token: String) -> AIEffort? {
+        let squeezed = token.lowercased().filter { !$0.isWhitespace && $0 != "-" && $0 != "_" }
+        guard !squeezed.isEmpty else { return nil }
+        return AIEffort.allCases.first { effort in
+            effort.rawValue == squeezed
+                || effort.displayName.lowercased().filter { !$0.isWhitespace } == squeezed
+        }
     }
 
     /// Suggestions to show for the current composer text, or `[]` if the popup should be hidden.
@@ -706,6 +804,13 @@ enum ReviewSlashCommandParser {
         liveMentions: ChatMention.LiveResults? = nil,
         mentionTab: ChatMention.Tab = .all
     ) -> [ReviewSlashSuggestion] {
+        if let asCommand = skillDraftAsCommand(text, commands: commands) {
+            return suggestions(for: asCommand.text, commands: asCommand.skills).map { row in
+                var dollar = row
+                dollar.sigil = skillSigil
+                return dollar
+            }
+        }
         guard text.hasPrefix("/") else {
             return mentionSuggestions(for: text, mentions: mentions, tab: mentionTab)
                 + librarySuggestions(for: text, liveMentions: liveMentions, tab: mentionTab)
