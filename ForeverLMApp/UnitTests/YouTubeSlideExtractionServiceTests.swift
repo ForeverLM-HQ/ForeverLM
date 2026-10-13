@@ -103,72 +103,233 @@ struct YouTubeSlideExtractionServiceTests {
         #expect(streams[0].width == 1280)
         #expect(streams[0].height == 720)
         #expect(streams[0].qualityLabel == "720p")
+        #expect(streams[0].codecs == ["avc1.64001F", "mp4a.40.2"])
+        #expect(streams[0].isProgressive)
+        #expect(streams[0].initRange == nil)
+        #expect(streams[0].indexRange == nil)
+    }
+
+    /// The fields the segmented read depends on, in the shape YouTube sends them: the two
+    /// byte ranges as objects of decimal strings.
+    @Test("Parses an adaptive stream's codec, rate and byte ranges")
+    func parsesAdaptiveStreamFields() throws {
+        let json: [String: Any] = [
+            "streamingData": [
+                "adaptiveFormats": [
+                    Self.adaptiveFormat(itag: 137, codec: "avc1.640028", width: 1920, height: 1080, fps: 25, bitrate: 2_287_389),
+                    [
+                        "itag": 140,
+                        "url": "https://rr.example.com/videoplayback?itag=140",
+                        "mimeType": "audio/mp4; codecs=\"mp4a.40.2\"",
+                    ],
+                ]
+            ]
+        ]
+
+        let streams = YouTubeSlideExtractionService.parseVideoFrameStreams(json)
+
+        let stream = try #require(streams.first)
+        #expect(streams.count == 1)
+        #expect(!stream.isProgressive)
+        #expect(stream.codecs == ["avc1.640028"])
+        #expect(stream.isH264)
+        #expect(stream.framesPerSecond == 25)
+        #expect(stream.bitrate == 2_287_389)
+        #expect(stream.initRange == 0...741)
+        #expect(stream.indexRange == 742...13_277)
+    }
+
+    @Test("Reads codecs and byte ranges defensively")
+    func parsesCodecsAndByteRanges() {
+        #expect(YouTubeSlideExtractionService.codecs(fromMimeType: "video/mp4; codecs=\"av01.0.08M.08\"") == ["av01.0.08M.08"])
+        #expect(YouTubeSlideExtractionService.codecs(fromMimeType: "video/mp4; codecs=\"avc1.42001E, mp4a.40.2\"; profile=x") == ["avc1.42001E", "mp4a.40.2"])
+        #expect(YouTubeSlideExtractionService.codecs(fromMimeType: "video/mp4").isEmpty)
+
+        #expect(YouTubeSlideExtractionService.byteRange(["start": "742", "end": "13277"]) == 742...13_277)
+        #expect(YouTubeSlideExtractionService.byteRange(["start": 0, "end": 741]) == 0...741)
+        #expect(YouTubeSlideExtractionService.byteRange(["start": "900", "end": "100"]) == nil)
+        #expect(YouTubeSlideExtractionService.byteRange(["start": "-1", "end": "100"]) == nil)
+        #expect(YouTubeSlideExtractionService.byteRange(["start": "0"]) == nil)
+        #expect(YouTubeSlideExtractionService.byteRange(nil) == nil)
+    }
+
+    /// The visionOS request is turned away as a bot without the visitor id the ANDROID
+    /// answer carries.
+    @Test("Reads the visitor id from a player answer")
+    func readsVisitorData() {
+        #expect(YouTubeSlideExtractionService.visitorData(from: ["responseContext": ["visitorData": "CgtBdzhPVnd1"]]) == "CgtBdzhPVnd1")
+        #expect(YouTubeSlideExtractionService.visitorData(from: ["responseContext": ["visitorData": ""]]) == nil)
+        #expect(YouTubeSlideExtractionService.visitorData(from: [:]) == nil)
     }
 
     // MARK: - Frame stream selection
 
     /// The regression that made every slide come out as a 160x90 storyboard tile.
     ///
-    /// Sorting streams by resolution alone picks the 1080p entry from `adaptiveFormats`,
-    /// which is video-only fragmented DASH that `AVURLAsset` cannot open from a bare URL. All
-    /// captures then fail together and silently fall back to storyboard tiles, which carry no
-    /// legible text. A seekable 640x360 frame beats an unopenable 1080p one.
-    @Test("Prefers a seekable progressive stream over a higher-resolution adaptive one")
-    func prefersProgressiveStream() throws {
-        let json: [String: Any] = [
-            "streamingData": [
-                "formats": [
-                    [
-                        "url": "https://rr.example.com/videoplayback?itag=18",
-                        "mimeType": "video/mp4; codecs=\"avc1.42001E, mp4a.40.2\"",
-                        "width": 640, "height": 360, "qualityLabel": "360p",
-                    ]
-                ],
-                "adaptiveFormats": [
-                    [
-                        "url": "https://rr.example.com/videoplayback?itag=137",
-                        "mimeType": "video/mp4; codecs=\"avc1.640028\"",
-                        "width": 1920, "height": 1080, "qualityLabel": "1080p",
-                    ]
-                ],
-            ]
-        ]
+    /// The progressive pick is the stream `AVURLAsset` opens from its URL. An adaptive stream
+    /// fails to open there (-12190), and the ANDROID client's copies answer 403 past their
+    /// first minute besides, so choosing one sent every capture to a storyboard tile. A 640x360
+    /// progressive frame beats that, and 1080p comes through the segmented read instead.
+    @Test("The progressive pick never takes a higher-resolution adaptive stream")
+    func progressivePickIgnoresAdaptiveStreams() throws {
+        let streams = YouTubeSlideExtractionService.parseVideoFrameStreams(Self.talkStreamingData)
+        #expect(streams.count == 4)
 
-        let streams = YouTubeSlideExtractionService.parseVideoFrameStreams(json)
-        #expect(streams.count == 2)
-
-        let best = try #require(YouTubeSlideExtractionService.bestVideoFrameStream(from: streams))
+        let best = try #require(YouTubeSlideExtractionService.bestProgressiveFrameStream(from: streams))
         #expect(best.isProgressive)
         #expect(best.width == 640)
     }
 
-    @Test("Falls back to an adaptive stream when no progressive one exists")
-    func fallsBackToAdaptiveStream() throws {
+    @Test("Offers no progressive stream when YouTube lists only adaptive ones")
+    func noProgressiveStreamFromAdaptiveOnly() {
         let json: [String: Any] = [
             "streamingData": [
                 "adaptiveFormats": [
-                    [
-                        "url": "https://rr.example.com/videoplayback?itag=136",
-                        "mimeType": "video/mp4; codecs=\"avc1.64001f\"",
-                        "width": 1280, "height": 720, "qualityLabel": "720p",
-                    ],
-                    [
-                        "url": "https://rr.example.com/videoplayback?itag=137",
-                        "mimeType": "video/mp4; codecs=\"avc1.640028\"",
-                        "width": 1920, "height": 1080, "qualityLabel": "1080p",
-                    ],
+                    Self.adaptiveFormat(itag: 136, codec: "avc1.64001f", width: 1280, height: 720, fps: 25, bitrate: 1_065_464),
+                    Self.adaptiveFormat(itag: 137, codec: "avc1.640028", width: 1920, height: 1080, fps: 25, bitrate: 2_287_389),
+                ]
+            ]
+        ]
+
+        let streams = YouTubeSlideExtractionService.parseVideoFrameStreams(json)
+
+        #expect(YouTubeSlideExtractionService.bestProgressiveFrameStream(from: streams) == nil)
+        #expect(YouTubeSlideExtractionService.bestSegmentedFrameStream(from: streams)?.width == 1920)
+    }
+
+    /// What a 90-minute talk offered on 2026-10-13: the 1080p H.264 stream is the one slides
+    /// are read from, not the AV1 copy at the same size nor the muxed 360p.
+    @Test("Reads slides from the 1080p H.264 adaptive stream")
+    func segmentedPickTakesFullHDH264() throws {
+        let streams = YouTubeSlideExtractionService.parseVideoFrameStreams(Self.talkStreamingData)
+
+        let best = try #require(YouTubeSlideExtractionService.bestSegmentedFrameStream(from: streams))
+
+        #expect(!best.isProgressive)
+        #expect(best.url.absoluteString.hasSuffix("itag=137"))
+        #expect(best.width == 1920)
+        #expect(best.height == 1080)
+    }
+
+    /// AV1 decodes in hardware only on recent chips, so a sharper AV1 copy loses to H.264 that
+    /// every Mac decodes; a stream without its segment index cannot be read at all.
+    @Test("Skips AV1 and adaptive streams without a segment index")
+    func segmentedPickNeedsH264AndIndex() throws {
+        var unindexed = Self.adaptiveFormat(itag: 137, codec: "avc1.640028", width: 1920, height: 1080, fps: 25, bitrate: 2_287_389)
+        unindexed["indexRange"] = nil
+        let json: [String: Any] = [
+            "streamingData": [
+                "adaptiveFormats": [
+                    unindexed,
+                    Self.adaptiveFormat(itag: 399, codec: "av01.0.08M.08", width: 1920, height: 1080, fps: 25, bitrate: 1_338_726),
+                    Self.adaptiveFormat(itag: 136, codec: "avc1.64001F", width: 1280, height: 720, fps: 25, bitrate: 1_065_464),
                 ]
             ]
         ]
 
         let best = try #require(
-            YouTubeSlideExtractionService.bestVideoFrameStream(
+            YouTubeSlideExtractionService.bestSegmentedFrameStream(
                 from: YouTubeSlideExtractionService.parseVideoFrameStreams(json)
             )
         )
 
-        #expect(!best.isProgressive)
-        #expect(best.width == 1920)
+        #expect(best.url.absoluteString.hasSuffix("itag=136"))
+    }
+
+    /// Pixels beyond the capture's 1920x1080 are scaled away, so a larger stream keeps no more
+    /// than one that fills the capture, and a 60 fps copy holds the same slide in more bytes.
+    @Test("Takes the cheapest stream among those that fill the capture")
+    func segmentedPickPrefersCheaperAmongEqualCaptures() throws {
+        let json: [String: Any] = [
+            "streamingData": [
+                "adaptiveFormats": [
+                    Self.adaptiveFormat(itag: 264, codec: "avc1.640032", width: 2560, height: 1440, fps: 30, bitrate: 6_000_000),
+                    Self.adaptiveFormat(itag: 299, codec: "avc1.64002a", width: 1920, height: 1080, fps: 60, bitrate: 4_000_000),
+                    Self.adaptiveFormat(itag: 137, codec: "avc1.640028", width: 1920, height: 1080, fps: 30, bitrate: 2_500_000),
+                    Self.adaptiveFormat(itag: 136, codec: "avc1.64001F", width: 1280, height: 720, fps: 30, bitrate: 1_100_000),
+                ]
+            ]
+        ]
+
+        let best = try #require(
+            YouTubeSlideExtractionService.bestSegmentedFrameStream(
+                from: YouTubeSlideExtractionService.parseVideoFrameStreams(json)
+            )
+        )
+
+        #expect(best.url.absoluteString.hasSuffix("itag=137"))
+    }
+
+    /// A portrait stream is fitted by its height: 1080x1920 keeps 607.5x1080 of a 1920x1080
+    /// capture, no more than a 720x1280 copy of it would.
+    @Test("Counts the pixels a capture keeps after fitting the stream")
+    func capturedAreaFitsTheCapture() throws {
+        let json: [String: Any] = [
+            "streamingData": [
+                "adaptiveFormats": [
+                    Self.adaptiveFormat(itag: 137, codec: "avc1.640028", width: 1080, height: 1920, fps: 30, bitrate: 2_500_000),
+                    Self.adaptiveFormat(itag: 136, codec: "avc1.64001F", width: 720, height: 1280, fps: 30, bitrate: 1_100_000),
+                    Self.adaptiveFormat(itag: 135, codec: "avc1.4d401f", width: 480, height: 854, fps: 30, bitrate: 600_000),
+                ]
+            ]
+        ]
+        let streams = YouTubeSlideExtractionService.parseVideoFrameStreams(json)
+        let maximumSize = YouTubeSlideExtractionService.captureMaximumSize
+
+        #expect(streams[0].capturedArea(within: maximumSize) == 607.5 * 1_080)
+        #expect(streams[1].capturedArea(within: maximumSize) == 607.5 * 1_080)
+        #expect(streams[2].capturedArea(within: maximumSize) == 480 * 854)
+        let best = try #require(YouTubeSlideExtractionService.bestSegmentedFrameStream(from: streams))
+        #expect(best.url.absoluteString.hasSuffix("itag=136"))
+    }
+
+    /// The streams of the 2026-10-13 talk that matter here, trimmed to what the choice reads.
+    private static let talkStreamingData: [String: Any] = [
+        "streamingData": [
+            "formats": [
+                [
+                    "itag": 18,
+                    "url": "https://rr.example.com/videoplayback?itag=18",
+                    "mimeType": "video/mp4; codecs=\"avc1.42001E, mp4a.40.2\"",
+                    "width": 640, "height": 360, "qualityLabel": "360p", "fps": 25, "bitrate": 224_347,
+                ]
+            ],
+            "adaptiveFormats": [
+                Self.adaptiveFormat(itag: 137, codec: "avc1.640028", width: 1920, height: 1080, fps: 25, bitrate: 2_287_389),
+                Self.adaptiveFormat(itag: 399, codec: "av01.0.08M.08", width: 1920, height: 1080, fps: 25, bitrate: 1_338_726),
+                Self.adaptiveFormat(itag: 136, codec: "avc1.64001F", width: 1280, height: 720, fps: 25, bitrate: 1_065_464),
+                [
+                    "itag": 248,
+                    "url": "https://rr.example.com/videoplayback?itag=248",
+                    "mimeType": "video/webm; codecs=\"vp9\"",
+                    "width": 1920, "height": 1080, "fps": 25,
+                    "initRange": ["start": "0", "end": "220"],
+                    "indexRange": ["start": "221", "end": "18920"],
+                ],
+            ],
+        ]
+    ]
+
+    private static func adaptiveFormat(
+        itag: Int,
+        codec: String,
+        width: Int,
+        height: Int,
+        fps: Int,
+        bitrate: Int
+    ) -> [String: Any] {
+        [
+            "itag": itag,
+            "url": "https://rr.example.com/videoplayback?itag=\(itag)",
+            "mimeType": "video/mp4; codecs=\"\(codec)\"",
+            "width": width,
+            "height": height,
+            "qualityLabel": "\(height)p",
+            "fps": fps,
+            "bitrate": bitrate,
+            "initRange": ["start": "0", "end": "741"],
+            "indexRange": ["start": "742", "end": "13277"],
+        ]
     }
 
     // MARK: - Storyboard level selection

@@ -46,8 +46,8 @@ enum SlideExtractionError: LocalizedError, Equatable {
 /// The half of slide extraction that does not care where the frames came from.
 ///
 /// Two services feed it. `YouTubeSlideExtractionService` finds slide changes in YouTube's
-/// storyboard contact sheets and captures the representative frames from a progressive
-/// stream; `RecordingSlideExtractionService` does the same over a meeting recording already
+/// storyboard contact sheets and captures the representative frames from the video's
+/// streams; `RecordingSlideExtractionService` does the same over a meeting recording already
 /// on disk. Everything downstream of "here are frames on a time grid" is identical for
 /// both — the perceptual hash, run detection, on-screen windows, deduplication, JPEG
 /// storage, and the stored markdown block — so it lives here. That is what lets the reader
@@ -156,6 +156,9 @@ enum SlideFrameExtraction {
     /// many distinct slides a talk actually has rather than by a sampling budget.
     static let maxStoredFrames = 120
     static let frameTimescale: CMTimeScale = 600
+    /// How far a captured moment may sit from the second asked for. Tight on purpose; see
+    /// `captureMomentFrame(asset:seconds:maximumSize:)`.
+    static let momentToleranceSeconds: Double = 0.1
 
     /// dHash grid. 16 columns of comparisons across 16 rows gives a 256-bit signature.
     /// The previous 8x8 average hash could not tell apart two slides sharing a template
@@ -466,7 +469,7 @@ enum SlideFrameExtraction {
     static func captureMomentFrame(asset: AVAsset, seconds: Double, maximumSize: CGSize) async throws -> CGImage {
         let generator = AVAssetImageGenerator(asset: asset)
         generator.appliesPreferredTrackTransform = true
-        let tolerance = CMTime(seconds: 0.1, preferredTimescale: frameTimescale)
+        let tolerance = CMTime(seconds: momentToleranceSeconds, preferredTimescale: frameTimescale)
         generator.requestedTimeToleranceBefore = tolerance
         generator.requestedTimeToleranceAfter = tolerance
         generator.maximumSize = maximumSize
