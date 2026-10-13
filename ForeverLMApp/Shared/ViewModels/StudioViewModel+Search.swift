@@ -218,6 +218,30 @@ struct ArtifactSourcePickerIndex: Sendable {
         let row: ArtifactSourcePickerRow
         let sources: [AnalysedSource]
         let book: AnalysedBook?
+        /// The row's title in the folded form a query is ranked by.
+        let foldedTitle: String
+    }
+
+    /// How closely a row answers a query, closest first. A query lists its rows by
+    /// rank and then by title, so the source whose title is what was typed leads
+    /// instead of waiting its turn in the alphabet behind every source that only
+    /// mentions the words.
+    enum Rank: Int, Comparable, Sendable {
+        /// The title is the query.
+        case title
+        /// The title starts with the query, as it does while the title is being typed.
+        case titleStart
+        /// The query is a run of the title's words: "genome project" in
+        /// "Why the Human Genome Project Failed".
+        case titlePhrase
+        /// Every term of the query is somewhere in the title.
+        case titleTerms
+        /// The author, address, journal or kind, or a book's chapters.
+        case details
+        /// Only the source's own text.
+        case text
+
+        static func < (lhs: Rank, rhs: Rank) -> Bool { lhs.rawValue < rhs.rawValue }
     }
 
     /// A query, analysed once per keystroke.
@@ -253,6 +277,18 @@ struct ArtifactSourcePickerIndex: Sendable {
             if terms.allSatisfy({ text.normalized.containsBytes(of: $0) }) { return true }
             return terms.allSatisfy { text.folded.containsBytes(of: $0) }
         }
+
+        /// How close a folded title comes to this query, or nil when the title
+        /// holds none of it. A query confined to another field (`author:`) is
+        /// never ranked by title: the title is not what it asked about.
+        func titleRank(_ foldedTitle: String) -> Rank? {
+            guard scope.field == nil || scope.field == .title, !folded.isEmpty else { return nil }
+            if foldedTitle == folded { return .title }
+            if foldedTitle.hasPrefix(folded) { return .titleStart }
+            if (" " + foldedTitle).containsBytes(of: " " + folded) { return .titlePhrase }
+            if !terms.isEmpty, terms.allSatisfy({ foldedTitle.containsBytes(of: $0) }) { return .titleTerms }
+            return nil
+        }
     }
 
     /// Every row the picker can show, in title order.
@@ -261,9 +297,11 @@ struct ArtifactSourcePickerIndex: Sendable {
     init(_ rows: [RowFields], reusing previous: ArtifactSourcePickerIndex?) {
         var knownSources: [String: AnalysedSource] = [:]
         var knownBooks: [String: AnalysedBook] = [:]
+        var knownTitles: [String: String] = [:]
         for entry in previous?.entries ?? [] {
             for source in entry.sources { knownSources[source.fields.id] = source }
             if let book = entry.book { knownBooks[book.fields.id] = book }
+            knownTitles[entry.row.title] = entry.foldedTitle
         }
         entries = rows
             .map { row in
@@ -276,36 +314,51 @@ struct ArtifactSourcePickerIndex: Sendable {
                     book: row.book.map { fields in
                         if let known = knownBooks[fields.id], known.fields == fields { return known }
                         return AnalysedBook(fields: fields, text: SearchText(fields.metadata))
-                    }
+                    },
+                    foldedTitle: knownTitles[row.row.title] ?? StudioViewModel.foldedSidebarSearchString(
+                        StudioViewModel.normalizedSidebarSearchString(row.row.title)
+                    )
                 )
             }
             .sorted { $0.row.title.localizedStandardCompare($1.row.title) == .orderedAscending }
     }
 
-    /// The rows a query finds, in title order. `contentMatchIDs` are sources whose
-    /// own text holds every typed term, found by the indexed content pass the
-    /// sidebar's search runs too; they join the rows the title, author and domain
-    /// matched, so a page the words appear in is found here as it is there.
+    /// The rows a query finds, closest first (`Rank`) and in title order within a
+    /// rank. `contentMatchIDs` are sources whose own text holds every typed term,
+    /// found by the indexed content pass the sidebar's search runs too; they join
+    /// the rows the title, author and domain matched, so a page the words appear in
+    /// is found here as it is there, after every row that names them.
     func rows(matching query: String, contentMatchIDs: Set<String> = []) -> [ArtifactSourcePickerRow] {
         let normalized = StudioViewModel.normalizedSidebarSearchString(query)
         guard !normalized.isEmpty else { return entries.map(\.row) }
         let sourceQuery = Query(source: normalized)
         let bookQuery = Query(bookMetadata: normalized)
-        return entries.compactMap { entry in
-            let matches: Bool
+        let ranked: [(rank: Rank, row: ArtifactSourcePickerRow)] = entries.compactMap { entry in
+            let named: Bool
             if let book = entry.book {
-                matches = normalized == "book"
+                named = normalized == "book"
                     || bookQuery.matches(book.text)
-                    || entry.sources.contains { contentMatchIDs.contains($0.fields.id) || $0.matches(sourceQuery) }
+                    || entry.sources.contains { $0.matches(sourceQuery) }
             } else {
-                matches = entry.sources.contains {
-                    $0.matches(sourceQuery)
-                        || contentMatchIDs.contains($0.fields.id)
-                        || $0.normalizedType.containsBytes(of: normalized)
+                named = entry.sources.contains {
+                    $0.matches(sourceQuery) || $0.normalizedType.containsBytes(of: normalized)
                 }
             }
-            return matches ? entry.row : nil
+            let rank: Rank
+            if named {
+                rank = sourceQuery.titleRank(entry.foldedTitle) ?? .details
+            } else if entry.sources.contains(where: { contentMatchIDs.contains($0.fields.id) }) {
+                rank = .text
+            } else {
+                return nil
+            }
+            return (rank, entry.row)
         }
+        // A stable sort keeps the entries' title order inside each rank.
+        return ranked
+            .enumerated()
+            .sorted { ($0.element.rank, $0.offset) < ($1.element.rank, $1.offset) }
+            .map(\.element.row)
     }
 }
 

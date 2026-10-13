@@ -5389,8 +5389,9 @@ private struct InternalReviewPanelContent: View {
 
     /// Rows for the `/source`, `/doc` and `/site` popups. Sources go through
     /// the same search as the Docs source picker, so the two agree on what a
-    /// query finds; the ranking then puts a title that starts with the query
-    /// first, because eight rows is all the popup shows. Docs and Sites are
+    /// query finds and in what order: the title that is the query first, then
+    /// titles that start with it, which matters because eight rows is all the
+    /// popup shows. Docs and Sites are
     /// few, so they are matched here, each command over its own section — the
     /// split the rail draws (`StudioViewModel.section(of:)`), so `/doc` never
     /// offers a Codex site and `/site` never a draft.
@@ -5404,18 +5405,7 @@ private struct InternalReviewPanelContent: View {
             guard !query.isEmpty else { return [] }
             let index = await vm.artifactSourcePickerIndex()
             let ranked = await Task.detached(priority: .userInitiated) {
-                // The index answers in title order, so ranking is a stable split.
-                let folded = StudioViewModel.foldedSidebarSearchString(query)
-                var leading: [ArtifactSourcePickerRow] = []
-                var rest: [ArtifactSourcePickerRow] = []
-                for row in index.rows(matching: query) {
-                    if StudioViewModel.foldedSidebarSearchString(row.title).hasPrefix(folded) {
-                        leading.append(row)
-                    } else {
-                        rest.append(row)
-                    }
-                }
-                return leading + rest
+                index.rows(matching: query)
             }.value
             return ranked.prefix(Self.slashPopupRowLimit).map { row in
                 ReviewSlashCommand.Argument(

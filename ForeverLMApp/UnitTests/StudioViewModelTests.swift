@@ -10180,6 +10180,31 @@ struct ArticleQueueManagementTests {
         #expect(second.rows(matching: "").map(\.title) == ["Avocado", "Zebra"])
     }
 
+    @Test("The Docs source picker lists the title that is the query first and a source that only mentions it last")
+    func sourcePickerRanksTitleMatchesFirst() async {
+        let vm = makeViewModel()
+        let exact = makeArticle(url: "https://example.com/1", title: "Revolution Postponed")
+        let start = makeArticle(url: "https://example.com/2", title: "Revolution Postponed: Why the Genome Waited")
+        let phrase = makeArticle(url: "https://example.com/3", title: "The Revolution Postponed Again")
+        let terms = makeArticle(url: "https://example.com/4", title: "Postponed, a Revolution")
+        // Named by its publication, not its title.
+        var byDetails = makeArticle(url: "https://example.com/5", title: "Aardvark Notes")
+        byDetails.domain = "Revolution Postponed Weekly"
+        // Holds the words only in its own text.
+        let byText = makeArticle(url: "https://example.com/6", title: "Abacus Hour")
+        vm.articles = [byText, terms, byDetails, phrase, start, exact]
+
+        let index = await vm.artifactSourcePickerIndex()
+        let ranked = index.rows(matching: "revolution postponed", contentMatchIDs: [byText.id])
+        #expect(ranked.map(\.sourceID) == [exact.id, start.id, phrase.id, terms.id, byDetails.id, byText.id])
+        // Punctuation and case in the title do not cost it its place.
+        #expect(index.rows(matching: "REVOLUTION postponed:").first?.sourceID == exact.id)
+        // A query confined to the site is not ranked by the title it never asked about.
+        #expect(index.rows(matching: "site:revolution postponed").map(\.sourceID) == [byDetails.id])
+        // No query keeps the whole library in title order.
+        #expect(index.rows(matching: "").first?.sourceID == byDetails.id)
+    }
+
     @Test("The Docs source picker filters whole books by title and author")
     func notepadSourceSearchFiltersWholeBookMetadata() async {
         let vm = makeViewModel()
