@@ -724,15 +724,22 @@ extension StudioViewModel {
         // An explicit re-import of a known book revives its chapter records.
         let groupedChapterCount = (try? await storage.sourceCountByParentGroup(bookID)) ?? 0
         var wholeBookSourceID: String?
-        if isEPUB {
-            if groupedChapterCount > 0 {
-                logger.info("[BookImport] Rebuilding existing EPUB chapter records for explicit re-import")
-            }
-            // An EPUB's chapters are documents of its own, which one model
-            // call groups; they are the book's first readable form.
-            logger.info("[BookImport] Extracting EPUB chapters…")
-            try await importEPUBChapters(from: importedFile.destPath, bookID: bookID, bookTitle: bookTitle, bookDir: importedFile.bookDir, chaptersDir: importedFile.chaptersDir)
-        } else if groupedChapterCount == 0 {
+        if groupedChapterCount > 0 {
+            // A book added again reads as the chapters it has until the new
+            // split replaces them.
+            logger.info("[BookImport] Rebuilding existing chapter records for explicit re-import")
+        } else if isEPUB {
+            // An EPUB reads as its spine, one document, until the chapter
+            // model has grouped its documents into chapters.
+            bookImportStatus = "Opening the book…"
+            wholeBookSourceID = try await placeWholeEPUBBook(
+                epubPath: importedFile.destPath,
+                bookID: bookID,
+                bookTitle: bookTitle,
+                bookDir: importedFile.bookDir,
+                chaptersDir: importedFile.chaptersDir
+            )
+        } else {
             // A PDF reads as its file: the book is one entry over every page
             // until its chapters are found.
             bookImportStatus = "Opening the book…"
@@ -742,10 +749,6 @@ extension StudioViewModel {
                 bookTitle: bookTitle,
                 bookDir: importedFile.bookDir
             )
-        } else {
-            // A PDF book added again reads as the chapters it has until the
-            // new split replaces them.
-            logger.info("[BookImport] Rebuilding existing PDF chapter records for explicit re-import")
         }
 
         let coverPath = (importedFile.bookDir as NSString).appendingPathComponent("cover.jpg")
@@ -774,7 +777,7 @@ extension StudioViewModel {
         await loadQueue()
 
         // What the book still needs — its details, the paper check, a scan's
-        // text and a PDF's chapters — happens with the book already open to
+        // text and its chapters — happens with the book already open to
         // read, and is queued so a quit does not lose it.
         try await storage.enqueueBookImportFinish(
             bookID: bookID,
@@ -832,8 +835,8 @@ extension StudioViewModel {
     }
 
     /// The work Add Book used to make the learner wait for, done while the
-    /// book reads: Book Author's details, the paper check, and for a PDF a
-    /// scan's text and the chapters. A stop of one of its steps, or any
+    /// book reads: Book Author's details, the paper check, a PDF scan's text,
+    /// and the chapters. A stop of one of its steps, or any
     /// cancellation, leaves the book on the queue as it was, its attempts
     /// unspent. A failure is said, counted, and tried again at the next
     /// launch, three times in all; the book reads as one entry meanwhile,
@@ -862,6 +865,14 @@ extension StudioViewModel {
             }
             if bookPath.lowercased().hasSuffix(".pdf") {
                 try await importPDFChapters(
+                    from: bookPath,
+                    bookID: bookID,
+                    bookTitle: title,
+                    wholeBookSourceID: job.wholeBookSourceID,
+                    progress: progress
+                )
+            } else {
+                try await importEPUBChapters(
                     from: bookPath,
                     bookID: bookID,
                     bookTitle: title,
@@ -970,13 +981,21 @@ extension StudioViewModel {
     }
 
     /// Gives a book that stays one entry its file's own text, so search and
-    /// the assistant read it. A scan with no text of its own keeps none.
+    /// the assistant read it: a PDF's pages, an EPUB's whole-book document.
+    /// A scan with no text of its own keeps none.
     private func giveWholeBookItsText(_ sourceID: String?, bookPath: String) async {
-        guard let sourceID, var entry = articlesById[sourceID], entry.bookPages != nil else { return }
+        guard let sourceID, var entry = articlesById[sourceID] else { return }
         guard entry.content?.isEmpty != false else { return }
+        let isPDFBook = entry.bookPages != nil
+        let documentPath = entry.localFilePath.map(StorageService.absoluteSourcePath)
         let text = await Task.detached(priority: .utility) { () -> String in
-            guard let document = PDFDocument(url: URL(fileURLWithPath: bookPath)) else { return "" }
-            return PDFTextExtractor.embeddedText(from: document, pages: 0..<document.pageCount)
+            if isPDFBook {
+                guard let document = PDFDocument(url: URL(fileURLWithPath: bookPath)) else { return "" }
+                return PDFTextExtractor.embeddedText(from: document, pages: 0..<document.pageCount)
+            }
+            guard let documentPath, EPUBParser.isMarkupChapter(documentPath),
+                  let markup = EPUBBookFiles.text(atPath: documentPath) else { return "" }
+            return EPUBParser.stripHTML(EPUBParser.extractBodyHTML(markup))
         }.value
         guard !text.isEmpty else { return }
         entry.content = text
@@ -1071,10 +1090,26 @@ extension StudioViewModel {
         if sourceURL.path != destPath {
             let destExists = fm.fileExists(atPath: destPath)
             if !destExists || !filesHaveSameContents(sourceURL.path, destPath, fm: fm) {
+                // The documents this app wrote into an EPUB's old copy — the
+                // chapters joining several documents, or the whole book while
+                // it reads as one entry — go into the new one, so the book
+                // reads as it did until its new split replaces them.
+                let carried = destExists && destPath.lowercased().hasSuffix(".epub")
+                    ? EPUBBookFiles.appEntries(inBook: destPath)
+                    : []
                 if destExists {
                     try fm.removeItem(atPath: destPath)
                 }
                 try fm.copyItem(atPath: sourceURL.path, toPath: destPath)
+                if !carried.isEmpty, !EPUBParser.isDirectoryEPUB(at: destPath) {
+                    do {
+                        try EPUBBookFiles.addEntries(carried, toBook: URL(fileURLWithPath: destPath))
+                    } catch {
+                        Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "Studio").error(
+                            "[BookImport] Could not keep this app's chapters in the new copy of \(destPath): \(error.localizedDescription)"
+                        )
+                    }
+                }
             }
         }
 
@@ -1210,6 +1245,59 @@ extension StudioViewModel {
         // Queued, with no text: nothing fetches a book's address, and a text
         // given now would be cleaned up by a model once here and again in the
         // chapters.
+        article.state = .queued
+        return try await saveImportedBookChapterDraft(article)
+    }
+
+    /// Saves an EPUB book as one entry over its reading order, so it reads
+    /// the moment it is added: its spine is written into the book's file as
+    /// one document (`EPUBParser.writeWholeBook`), which the Reader shows as a
+    /// book of one chapter. The entry holds no text, as a whole PDF book's
+    /// does not: the chapters the chapter model groups after it
+    /// (`importEPUBChapters`) hold the book's text, and the first of them
+    /// takes the entry over. Returns the entry's id, or nil when the learner
+    /// had removed this book's address from the library.
+    private func placeWholeEPUBBook(
+        epubPath: String,
+        bookID: String,
+        bookTitle: String,
+        bookDir: String,
+        chaptersDir: String
+    ) async throws -> String? {
+        let wholeBookPath = try await Task.detached(priority: .userInitiated) { () throws -> String in
+            // Unpacked to be read, never kept.
+            let stagingDir = chaptersDir + ".incoming-\(UUID().uuidString)"
+            defer { try? FileManager.default.removeItem(atPath: stagingDir) }
+            let inventory = try EPUBParser.extractInventory(from: epubPath, to: stagingDir)
+            if let cover = EPUBParser.coverImage(inUnpackedBook: stagingDir) {
+                try? cover.write(to: URL(fileURLWithPath: (bookDir as NSString).appendingPathComponent("cover.jpg")))
+            }
+            let entry = try EPUBParser.writeWholeBook(from: inventory, title: bookTitle)
+            // The whole book written beside the book's documents goes into
+            // its file; so does a book Apple Books kept as a folder, which
+            // reads only once it is one file.
+            if entry == EPUBParser.wholeBookEntry || EPUBParser.isDirectoryEPUB(at: epubPath) {
+                let original = URL(fileURLWithPath: epubPath)
+                try EPUBBookFiles.pack(
+                    URL(fileURLWithPath: stagingDir, isDirectory: true),
+                    original: EPUBParser.isDirectoryEPUB(at: epubPath) ? nil : original,
+                    to: original
+                )
+            }
+            return (chaptersDir as NSString).appendingPathComponent(entry)
+        }.value
+        StudioArticle.invalidateResolvedPathCache(forRawPaths: [wholeBookPath])
+        var article = StudioArticle(
+            url: wholeBookPath,
+            title: bookTitle,
+            sourceType: .book,
+            discoveryOrigin: .manual,
+            localFilePath: wholeBookPath
+        )
+        article.parentGroup = bookID
+        article.courseSortIndex = 0
+        // Queued, with no text: nothing fetches a book's address, and its
+        // chapters carry the text once they are made.
         article.state = .queued
         return try await saveImportedBookChapterDraft(article)
     }
@@ -1413,18 +1501,33 @@ extension StudioViewModel {
     /// `highlight` as a mark on `sourceID`, on `page` of it: the same mark,
     /// note and passage, under the same id.
     nonisolated static func highlight(_ highlight: SourceHighlight, movedTo sourceID: String, page: Int) -> SourceHighlight {
+        moved(highlight, to: sourceID, anchor: highlight.anchor, pdfAnchor: highlight.pdfAnchor.map { anchor in
+            var moved = anchor
+            moved.pageIndex = page
+            return moved
+        })
+    }
+
+    /// `highlight` as a mark on `sourceID`, its passage found by `anchor`:
+    /// the same mark, note and passage, under the same id.
+    nonisolated static func highlight(_ highlight: SourceHighlight, movedTo sourceID: String, anchor: ReaderTextAnchor) -> SourceHighlight {
+        moved(highlight, to: sourceID, anchor: anchor, pdfAnchor: highlight.pdfAnchor)
+    }
+
+    nonisolated private static func moved(
+        _ highlight: SourceHighlight,
+        to sourceID: String,
+        anchor: ReaderTextAnchor,
+        pdfAnchor: ReaderPDFAnchor?
+    ) -> SourceHighlight {
         SourceHighlight(
             id: highlight.id,
             sourceID: sourceID,
             quote: highlight.quote,
             note: highlight.note,
             color: highlight.color,
-            anchor: highlight.anchor,
-            pdfAnchor: highlight.pdfAnchor.map { anchor in
-                var moved = anchor
-                moved.pageIndex = page
-                return moved
-            },
+            anchor: anchor,
+            pdfAnchor: pdfAnchor,
             imageAnchors: highlight.imageAnchors,
             chatSessionID: highlight.chatSessionID,
             references: highlight.references,
@@ -1561,42 +1664,47 @@ extension StudioViewModel {
         return drafts
     }
 
-    /// Import chapters from an EPUB book. The code unpacks the book (keeping
-    /// every intact file of a damaged one) and lists what it holds; the book
-    /// chapter splitting model decides which documents make each chapter, names
-    /// them, and names the chapters a damaged file has lost, which the learner
-    /// is then told about.
+    /// Groups an EPUB book's documents into its chapters. The code unpacks the
+    /// book (keeping every intact file of a damaged one) and lists what it
+    /// holds; the book chapter splitting model decides which documents make
+    /// each chapter, names them, and names the chapters a damaged file has
+    /// lost, which the learner is then told about.
     ///
     /// The book stays one file (`EPUBBookFiles`): it is unpacked only into a
-    /// staging folder to be read, and what the import made there — the
+    /// staging folder to be read, and what the split made there — the
     /// chapters that join several documents — is packed back into the book's
-    /// `.epub`. A chapter is addressed `<book folder>/Chapters/<entry>`, the
-    /// entry of that file, and no `Chapters` folder is left on disk; one an
-    /// earlier import left goes once the chapters are saved.
-    func importEPUBChapters(from epubPath: String, bookID: String, bookTitle: String, bookDir: String, chaptersDir: String) async throws {
-        bookImportStatus = "Reading EPUB…"
+    /// `.epub`, without the whole-book document it read as until now. A
+    /// chapter is addressed `<book folder>/Chapters/<entry>`, the entry of
+    /// that file, and no `Chapters` folder is left on disk; one an earlier
+    /// import left goes once the chapters are saved.
+    ///
+    /// Runs after the book is in (`finishBookImport`). A book that read as one
+    /// entry until now (`wholeBookSourceID`) has that entry become its first
+    /// chapter, and what the learner did on it moves to the chapters holding
+    /// those passages (`planWholeEPUBBook`, `moveWholeEPUBBookState`).
+    func importEPUBChapters(
+        from epubPath: String,
+        bookID: String,
+        bookTitle: String,
+        wholeBookSourceID: String?,
+        progress: BookImportProgress
+    ) async throws {
+        let bookDir = (epubPath as NSString).deletingLastPathComponent
+        let chaptersDir = (bookDir as NSString).appendingPathComponent(EPUBBookFiles.rootName)
         logger.info("[BookImport] EPUB path: \(epubPath)")
+        progress.update("Reading the book…")
 
-        // Unpacked to be read, never kept: a failed import leaves the book's files alone.
+        // Unpacked to be read, never kept: a failed split leaves the book's file alone.
         let stagingDir = chaptersDir + ".incoming-\(UUID().uuidString)"
         defer { try? FileManager.default.removeItem(atPath: stagingDir) }
-        let staged: EPUBParser.Inventory
-        do {
-            staged = try await Task.detached(priority: .userInitiated) {
-                try EPUBParser.extractInventory(from: epubPath, to: stagingDir)
-            }.value
-        } catch {
-            logger.error("[BookImport] EPUBParser.extractInventory failed: \(error.localizedDescription)")
-            errorMessage = "Could not read the EPUB: \(error.localizedDescription)."
-            throw error
-        }
+        let staged = try await Task.detached(priority: .utility) {
+            try EPUBParser.extractInventory(from: epubPath, to: stagingDir)
+        }.value
 
         guard let config = KeychainService.resolveConfig(for: .bookChapterSplitting) else {
-            let message = "Book chapter splitting AI is not configured."
-            errorMessage = message
-            throw SourceError.bookChapterBoundaryMismatch(message)
+            throw SourceError.bookChapterBoundaryMismatch("Book chapter splitting AI is not configured.")
         }
-        bookImportStatus = "Asking AI to identify chapters…"
+        progress.update("Finding the chapters…")
         let selection = try await aiService.selectEPUBChapters(
             source: AIUsageSource(id: bookID, type: "book", title: bookTitle),
             bookTitle: bookTitle,
@@ -1604,39 +1712,52 @@ extension StudioViewModel {
             config: config
         )
         guard !selection.chapters.isEmpty else {
-            let message = "The book chapter splitting AI did not identify any chapters in this EPUB."
-            errorMessage = message
-            throw SourceError.bookChapterBoundaryMismatch(message)
+            throw SourceError.bookChapterBoundaryMismatch("The book chapter splitting AI did not identify any chapters in this EPUB.")
         }
         logger.info("[BookImport] Chapter model chose \(selection.chapters.count) chapters; \(selection.missingChapters.count) missing")
 
-        let progress = BookImportProgress(self)
-        let staging = try await Task.detached(priority: .userInitiated) {
+        // A passage the learner marked or the place they reached while the
+        // book read whole stays in the book, even in a document the grouping
+        // left out, and moves to the chapter that holds it.
+        let wholeBookState = try await wholeEPUBBookState(of: wholeBookSourceID)
+        let plan = await Task.detached(priority: .utility) {
+            Self.planWholeEPUBBook(wholeBookState, chapters: selection.chapters, in: staged)
+        }.value
+
+        let staging = try await Task.detached(priority: .utility) {
             try Self.prepareEPUBChapterDrafts(
-                epubPath: epubPath,
                 inventory: staged,
-                spans: selection.chapters,
+                spans: plan.spans,
                 bookTitle: bookTitle,
                 bookDir: bookDir,
                 progress: progress
             )
         }.value
-
         guard !staging.isEmpty else {
-            logger.error("[BookImport] No chapters found in EPUB")
-            errorMessage = "No chapters found in EPUB."
-            throw SourceError.pdfReadFailed
+            throw SourceError.bookChapterBoundaryMismatch("No chapters were found in this EPUB.")
         }
 
-        // The staging tree, with the chapters made in it, becomes the book's one file.
-        bookImportStatus = "Saving the book…"
-        try await Task.detached(priority: .userInitiated) {
+        // The staging tree, with the chapters made in it, becomes the book's
+        // one file. What this app wrote into it that no chapter now reads
+        // goes: the whole book it read as, and the joined chapters of an
+        // earlier split. They stay in the staging tree until the chapters
+        // are saved.
+        progress.update("Saving the book…")
+        let chapterEntries = Set(staging.map { String($0.path.dropFirst(stagingDir.count + 1)) })
+        let dropped = try await Task.detached(priority: .utility) { () throws -> Set<String> in
+            let appFolder = (stagingDir as NSString).appendingPathComponent(EPUBParser.combinedChaptersFolder)
+            let unread = ((try? FileManager.default.subpathsOfDirectory(atPath: appFolder)) ?? [])
+                .map { EPUBParser.combinedChaptersFolder + "/" + $0 }
+                .filter { !chapterEntries.contains($0) }
+            let dropping = Set(unread).union([EPUBParser.wholeBookEntry])
             let original = URL(fileURLWithPath: epubPath)
             try EPUBBookFiles.pack(
                 URL(fileURLWithPath: stagingDir, isDirectory: true),
                 original: EPUBParser.isDirectoryEPUB(at: epubPath) ? nil : original,
-                to: original
+                to: original,
+                dropping: dropping
             )
+            return dropping
         }.value
         let drafts = staging.map { draft in
             BookChapterImportDraft(
@@ -1648,25 +1769,57 @@ extension StudioViewModel {
             )
         }
 
-        try await storage.archiveSourcesByParentGroup(bookID)
-        for draft in drafts {
-            bookImportStatus = "Saving chapter \(draft.sortIndex + 1)/\(drafts.count): \(draft.title)…"
-            var article = StudioArticle(
-                url: draft.path,
-                title: draft.title,
-                sourceType: .book,
-                discoveryOrigin: .manual,
-                localFilePath: draft.path
-            )
-            article.parentGroup = bookID
-            article.state = .ready
-            article.courseSortIndex = draft.sortIndex
-            if !draft.plainText.isEmpty {
-                article.content = draft.plainText
-                article.wordCount = draft.wordCount
-            }
+        // Each chapter's id and address, by its place among the chapters.
+        var saved: [Int: (sourceID: String, path: String)] = [:]
+        do {
+            try await storage.archiveSourcesByParentGroup(bookID)
+            for draft in drafts {
+                progress.update("Saving chapter \(draft.sortIndex + 1)/\(drafts.count): \(draft.title)…")
+                var article = StudioArticle(
+                    url: draft.path,
+                    title: draft.title,
+                    sourceType: .book,
+                    discoveryOrigin: .manual,
+                    localFilePath: draft.path
+                )
+                article.parentGroup = bookID
+                article.state = .ready
+                article.courseSortIndex = draft.sortIndex
+                if !draft.plainText.isEmpty {
+                    article.content = draft.plainText
+                    article.wordCount = draft.wordCount
+                }
 
-            try await saveImportedBookChapterDraft(article)
+                // The first chapter takes over the entry the book read as, so
+                // its chats and notebook marks stay.
+                let sourceID: String?
+                if draft.sortIndex == 0, let wholeBookSourceID {
+                    article.normalizedURL = URLNormalizer.normalize(article.url)
+                    try await refreshExistingImportedBookChapter(existingID: wholeBookSourceID, replacement: article)
+                    sourceID = wholeBookSourceID
+                } else {
+                    sourceID = try await saveImportedBookChapterDraft(article)
+                }
+                if let sourceID {
+                    saved[draft.sortIndex] = (sourceID, draft.path)
+                }
+            }
+        } catch {
+            // Until a split lands, the book reads as it did: what the pack
+            // left out goes back in.
+            let book = URL(fileURLWithPath: epubPath)
+            try? await Task.detached(priority: .utility) {
+                let entries = dropped.sorted().compactMap { name -> (name: String, data: Data)? in
+                    let file = URL(fileURLWithPath: (stagingDir as NSString).appendingPathComponent(name))
+                    return (try? Data(contentsOf: file)).map { (name, $0) }
+                }
+                try EPUBBookFiles.addEntries(entries, toBook: book)
+            }.value
+            throw error
+        }
+        StudioArticle.invalidateResolvedPathCache(forRawPaths: drafts.map(\.path))
+        if let wholeBookSourceID {
+            await moveWholeEPUBBookState(plan, from: wholeBookSourceID, to: saved)
         }
         // A folder of chapter files an earlier import left is no one's now, nor
         // the book's place in the merge queue.
@@ -1676,7 +1829,6 @@ extension StudioViewModel {
                 try FileManager.default.removeItem(atPath: chaptersDir)
             }
         }.value
-        StudioArticle.invalidateResolvedPathCache(forRawPaths: drafts.map(\.path))
 
         logger.info("[BookImport] Inserted \(drafts.count) chapter sources for \"\(bookTitle)\"")
         if let notice = Self.damagedEPUBNotice(
@@ -1687,6 +1839,274 @@ extension StudioViewModel {
             bookImportNoticeTitle = "Book Imported With Parts Missing"
             bookImportNotice = notice
             showBookImportNotice = true
+        }
+    }
+
+    // MARK: An EPUB read whole, until its chapters are made
+
+    /// What the learner did on an EPUB book while it read as one entry: its
+    /// marks, and the place reached, as a fraction of the whole book.
+    struct WholeEPUBBookState: Sendable {
+        var highlights: [SourceHighlight] = []
+        var fractionReached: Double?
+    }
+
+    /// A place in a run of a book's documents: the document or chapter (an
+    /// index) and how far through it, 0 at its top and 1 at its end.
+    struct EPUBPlace: Equatable, Sendable {
+        let index: Int
+        let fraction: Double
+    }
+
+    /// A mark on the whole book as it goes to its chapter: the chapter (an
+    /// index into the plan's spans) and its anchor counted in that chapter's
+    /// text, its own words and context unchanged.
+    struct MovedEPUBHighlight: Sendable {
+        let highlight: SourceHighlight
+        let chapter: Int
+        let anchor: ReaderTextAnchor
+    }
+
+    /// The chapters the model chose, stretched to hold what the learner did
+    /// on the whole book, and where each mark and the place reached go.
+    struct WholeEPUBBookPlan: Sendable {
+        let spans: [EPUBParser.ChapterSpan]
+        let highlights: [MovedEPUBHighlight]
+        /// The chapter the place reached is in, and how far through it.
+        let place: EPUBPlace?
+    }
+
+    private func wholeEPUBBookState(of sourceID: String?) async throws -> WholeEPUBBookState {
+        guard let sourceID else { return WholeEPUBBookState() }
+        // A mark that could not be read would stay on the first chapter, away
+        // from its passage: the split waits instead.
+        let highlights = try await storage.sourceHighlights(sourceID: sourceID)
+        let entry = articlesById[sourceID]
+        let locator = EPUBReadingPositionLocator(
+            encoded: readingProgressStore.locator(for: sourceID) ?? entry?.readingPositionLocator
+        )
+        // Only a place in the whole-book document itself is a place in the whole book.
+        let ownEntry = entry?.localFilePath.flatMap { EPUBBookFiles.split(StorageService.absoluteSourcePath($0))?.entry }
+        let fraction = locator.flatMap { $0.relativePath == ownEntry && $0.scrollFraction > 0 ? $0.scrollFraction : nil }
+        return WholeEPUBBookState(highlights: highlights, fractionReached: fraction)
+    }
+
+    /// Where what the learner did on the whole book goes once its documents
+    /// are grouped into `chapters`. Each mark is found among the book's
+    /// documents read end to end, as its whole-book document reads, by its own
+    /// words, the way the Reader finds it (a mark on pictures alone by its
+    /// pictures' file names); the place reached by the words before it. A
+    /// chapter is stretched over a document that holds either and that the
+    /// grouping left out (`epubChapterSpans`), and each then goes to the
+    /// chapter holding its document: a mark with its offset counted from that
+    /// chapter's start, the place at the same depth through it. A mark found
+    /// nowhere stays on the first chapter, the entry it was made on. Reads the
+    /// documents: off the main actor.
+    nonisolated static func planWholeEPUBBook(
+        _ state: WholeEPUBBookState,
+        chapters selected: [EPUBParser.ChapterSpan],
+        in inventory: EPUBParser.Inventory
+    ) -> WholeEPUBBookPlan {
+        guard !state.highlights.isEmpty || state.fractionReached != nil else {
+            return WholeEPUBBookPlan(spans: selected, highlights: [], place: nil)
+        }
+        let wholeBook = EPUBParser.wholeBookDocuments(of: inventory)
+        var located: [(highlight: SourceHighlight, place: EPUBReadingText.Place?)] = []
+        var reading: EPUBReadingText?
+        if !state.highlights.isEmpty {
+            let text = EPUBReadingText(wholeBook.map { (index: $0.index, text: EPUBParser.documentText(atPath: $0.path)) })
+            located = state.highlights.map { highlight in
+                (highlight, text.place(of: highlight) { index in
+                    inventory.documents.indices.contains(index) ? EPUBParser.readText(atPath: inventory.documents[index].path) : nil
+                })
+            }
+            reading = text
+        }
+        let place = state.fractionReached.flatMap { fraction in
+            epubDocumentPlace(atFraction: fraction, words: wholeBook.map { (document: $0.index, words: $0.wordCount) })
+        }
+        let held = located.compactMap { $0.place?.document } + (place.map { [$0.index] } ?? [])
+        let spans = epubChapterSpans(selected, holdingDocuments: held)
+
+        func chapter(holding document: Int) -> Int? {
+            spans.firstIndex { $0.firstDocument <= document && document <= $0.lastDocument }
+        }
+        let highlights = located.map { located -> MovedEPUBHighlight in
+            guard let found = located.place, let target = chapter(holding: found.document) else {
+                return MovedEPUBHighlight(highlight: located.highlight, chapter: 0, anchor: located.highlight.anchor)
+            }
+            var anchor = located.highlight.anchor
+            if let offset = found.offset,
+               let counted = reading?.countedOffset(offset, fromStartOf: spans[target].firstDocument) {
+                anchor.offset = counted
+            }
+            return MovedEPUBHighlight(highlight: located.highlight, chapter: target, anchor: anchor)
+        }
+        let words = Dictionary(inventory.documents.map { ($0.index, $0.wordCount) }, uniquingKeysWith: { first, _ in first })
+        let chapterPlace = place.flatMap { place in
+            chapter(holding: place.index).map { target in
+                EPUBPlace(index: target, fraction: epubChapterFraction(of: place, in: spans[target], words: words))
+            }
+        }
+        return WholeEPUBBookPlan(spans: spans, highlights: highlights, place: chapterPlace)
+    }
+
+    /// A book's documents end to end, in reading order, as its whole-book
+    /// document reads: the text a mark made on it is found in.
+    struct EPUBReadingText: Sendable {
+        /// Where a mark is: the document holding it, and for a mark with
+        /// words the character its passage starts at in `text`.
+        struct Place: Equatable, Sendable {
+            let document: Int
+            let offset: Int?
+        }
+
+        let text: String
+        /// Each document's index and the character its text starts at.
+        let starts: [(document: Int, offset: Int)]
+
+        init(_ documents: [(index: Int, text: String)]) {
+            var text = ""
+            var starts: [(document: Int, offset: Int)] = []
+            var length = 0
+            for document in documents {
+                if !text.isEmpty {
+                    text += "\n\n"
+                    length += 2
+                }
+                starts.append((document.index, length))
+                text += document.text
+                length += document.text.count
+            }
+            self.text = text
+            self.starts = starts
+        }
+
+        /// Where `highlight` was made: the document its passage starts in,
+        /// found as the Reader finds it (`ReaderTextAnchor.resolve`, its
+        /// offset counted in this same text), or for a mark on pictures alone
+        /// the first document whose markup names one of its pictures' files.
+        /// Nil when neither is found.
+        func place(of highlight: SourceHighlight, markup: (Int) -> String?) -> Place? {
+            if !highlight.isPictureOnly, let range = highlight.anchor.resolve(in: text) {
+                let offset = text.distance(from: text.startIndex, to: range.lowerBound)
+                return starts.last { $0.offset <= offset }.map { Place(document: $0.document, offset: offset) }
+            }
+            let names = highlight.imageAnchors.map(\.fileName).filter { !$0.isEmpty }
+            guard !names.isEmpty else { return nil }
+            return starts.first { start in
+                guard let html = markup(start.document) else { return false }
+                return names.contains { html.contains($0) }
+            }.map { Place(document: $0.document, offset: nil) }
+        }
+
+        /// The offset a passage starting at character `offset` has in a
+        /// chapter whose first document is `document`, counted as a mark made
+        /// there counts it (`ReaderTextAnchor(text:range:)`). Nil when
+        /// `document` is not in this text or starts after `offset`.
+        func countedOffset(_ offset: Int, fromStartOf document: Int) -> Int? {
+            guard let start = starts.first(where: { $0.document == document })?.offset, start <= offset,
+                  let lower = text.index(text.startIndex, offsetBy: start, limitedBy: text.endIndex),
+                  let upper = text.index(lower, offsetBy: offset - start, limitedBy: text.endIndex) else { return nil }
+            return ReaderTextAnchor.normalize(String(text[lower..<upper])).text.count
+        }
+    }
+
+    /// The document a place `fraction` through the whole book falls in, and
+    /// how far through it, counting words: the Reader measures the place by
+    /// the page's height, which the words stand for. Nil for no documents.
+    nonisolated static func epubDocumentPlace(atFraction fraction: Double, words: [(document: Int, words: Int)]) -> EPUBPlace? {
+        guard let first = words.first, let last = words.last else { return nil }
+        let total = words.reduce(0) { $0 + max($1.words, 0) }
+        guard total > 0 else { return EPUBPlace(index: first.document, fraction: 0) }
+        let target = min(max(fraction, 0), 1) * Double(total)
+        var before = 0.0
+        for entry in words {
+            let count = Double(max(entry.words, 0))
+            if target < before + count || entry.document == last.document {
+                let within = count > 0 ? (target - before) / count : 0
+                return EPUBPlace(index: entry.document, fraction: min(max(within, 0), 1))
+            }
+            before += count
+        }
+        return nil
+    }
+
+    /// `place`, in one of `span`'s documents, as a place through the whole
+    /// chapter, counting words.
+    nonisolated static func epubChapterFraction(of place: EPUBPlace, in span: EPUBParser.ChapterSpan, words: [Int: Int]) -> Double {
+        let documents = Array(span.firstDocument...span.lastDocument)
+        let total = documents.reduce(0) { $0 + max(words[$1] ?? 0, 0) }
+        guard total > 0 else { return 0 }
+        let before = documents.prefix { $0 < place.index }.reduce(0) { $0 + max(words[$1] ?? 0, 0) }
+        let within = Double(max(words[place.index] ?? 0, 0)) * place.fraction
+        return min(max((Double(before) + within) / Double(total), 0), 1)
+    }
+
+    /// The chapter model's spans, each stretched so that every one of
+    /// `documents` is in a chapter: a document before the first chapter
+    /// starts that chapter earlier, and one after a chapter (before the next,
+    /// or past the last) ends that chapter later. The grouping leaves out
+    /// front and back matter on purpose; a document there that the learner
+    /// marked or reached is kept in the book rather than lost.
+    nonisolated static func epubChapterSpans(
+        _ spans: [EPUBParser.ChapterSpan],
+        holdingDocuments documents: [Int]
+    ) -> [EPUBParser.ChapterSpan] {
+        guard !spans.isEmpty else { return spans }
+        var firsts = spans.map(\.firstDocument)
+        var lasts = spans.map(\.lastDocument)
+        for document in documents where document >= 0 {
+            guard !firsts.indices.contains(where: { firsts[$0] <= document && document <= lasts[$0] }) else { continue }
+            let owner = firsts.lastIndex { $0 <= document } ?? 0
+            firsts[owner] = min(firsts[owner], document)
+            lasts[owner] = max(lasts[owner], document)
+        }
+        return spans.indices.map {
+            EPUBParser.ChapterSpan(title: spans[$0].title, firstDocument: firsts[$0], lastDocument: lasts[$0])
+        }
+    }
+
+    /// Moves what the learner did on an EPUB book while it read as one entry
+    /// onto the chapters that now hold it (`planWholeEPUBBook`): each mark,
+    /// as the same mark, to its chapter, and the place reached to the same
+    /// depth of its chapter. A Reader open on the book follows that place.
+    /// `chapters` names each saved chapter's id and address by its place
+    /// among the chapters; a mark whose chapter was not saved (its address
+    /// was removed from the library) stays on the first.
+    private func moveWholeEPUBBookState(
+        _ plan: WholeEPUBBookPlan,
+        from wholeBookSourceID: String,
+        to chapters: [Int: (sourceID: String, path: String)]
+    ) async {
+        var touched: Set<String> = [wholeBookSourceID]
+        for move in plan.highlights {
+            let target = chapters[move.chapter]?.sourceID ?? wholeBookSourceID
+            guard target != move.highlight.sourceID || move.anchor != move.highlight.anchor else { continue }
+            do {
+                try await storage.saveSourceHighlight(Self.highlight(move.highlight, movedTo: target, anchor: move.anchor))
+                touched.insert(target)
+            } catch {
+                logger.error("[BookImport] Could not move highlight \(move.highlight.id) to its chapter: \(error.localizedDescription)")
+            }
+        }
+        for sourceID in touched {
+            await reloadReaderHighlights(for: sourceID)
+        }
+
+        guard let place = plan.place, let target = chapters[place.index],
+              let entry = EPUBBookFiles.split(target.path)?.entry,
+              let locator = EPUBReadingPositionLocator(relativePath: entry, scrollFraction: place.fraction).encoded else { return }
+        updateReadingLocator(for: target.sourceID, locator: locator)
+        guard target.sourceID != wholeBookSourceID else { return }
+        // The first chapter keeps the entry, not the place: it reads from its top.
+        if let first = chapters[0], first.sourceID == wholeBookSourceID,
+           let firstEntry = EPUBBookFiles.split(first.path)?.entry,
+           let top = EPUBReadingPositionLocator(relativePath: firstEntry, scrollFraction: 0).encoded {
+            updateReadingLocator(for: wholeBookSourceID, locator: top)
+        }
+        if selectedArticleId == wholeBookSourceID {
+            await selectReaderSource(target.sourceID)
         }
     }
 
@@ -1785,8 +2205,9 @@ extension StudioViewModel {
         }
     }
 
+    /// The chapter documents for `spans`, one draft a span in the same order
+    /// (`planWholeEPUBBook` moves a learner's marks by that order).
     nonisolated private static func prepareEPUBChapterDrafts(
-        epubPath: String,
         inventory: EPUBParser.Inventory,
         spans: [EPUBParser.ChapterSpan],
         bookTitle: String,
@@ -1795,9 +2216,14 @@ extension StudioViewModel {
     ) throws -> [BookChapterImportDraft] {
         let chapters = try EPUBParser.buildStructure(from: inventory, spans: spans)
         guard !chapters.isEmpty else { return [] }
+        guard chapters.count == spans.count else {
+            throw SourceError.bookChapterBoundaryMismatch(
+                "The book chapter splitting AI returned EPUB chapters outside the book."
+            )
+        }
 
-        // Save cover image into the per-book folder.
-        if let coverData = EPUBParser.extractCoverImage(from: epubPath) {
+        // The cover, from the book as unpacked: a re-import takes a new one.
+        if let coverData = EPUBParser.coverImage(inUnpackedBook: inventory.rootDir) {
             let coverPath = (bookDir as NSString).appendingPathComponent("cover.jpg")
             try? coverData.write(to: URL(fileURLWithPath: coverPath))
         }

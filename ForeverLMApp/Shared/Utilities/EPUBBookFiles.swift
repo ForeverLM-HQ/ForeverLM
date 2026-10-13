@@ -161,12 +161,15 @@ enum EPUBBookFiles {
     /// folder does not hold, so nothing either had is lost. `mimetype` comes
     /// first and stored, as EPUB requires. Every entry is read back before the
     /// file is moved into place. `skipping` names files of the folder that are
-    /// not the book's (a page the reader once wrote there).
+    /// not the book's (a page the reader once wrote there). `dropping` names
+    /// entries the book no longer holds, from the folder or the original (the
+    /// whole book once its chapters are made, `EPUBParser.wholeBookEntry`).
     static func pack(
         _ chapters: URL,
         original: URL?,
         to destination: URL,
-        skipping: Set<String> = []
+        skipping: Set<String> = [],
+        dropping: Set<String> = []
     ) throws {
         let fileManager = FileManager.default
         var files: [(name: String, url: URL)] = []
@@ -178,7 +181,7 @@ enum EPUBBookFiles {
                 guard path.hasPrefix(root + "/") else { continue }
                 let name = String(path.dropFirst(root.count + 1))
                 guard url.lastPathComponent != ".DS_Store", !url.lastPathComponent.hasPrefix("._"),
-                      !skipping.contains(name) else { continue }
+                      !skipping.contains(name), !dropping.contains(name) else { continue }
                 files.append((name, url))
             }
         }
@@ -187,7 +190,8 @@ enum EPUBBookFiles {
         var fromOriginal: [(name: String, data: Data)] = []
         if let original, let data = try? Data(contentsOf: original, options: .alwaysMapped),
            let records = EPUBParser.zipCentralDirectory(data) {
-            for record in records where !record.name.hasSuffix("/") && !held.contains(record.name) {
+            for record in records where !record.name.hasSuffix("/") && !held.contains(record.name)
+                && !dropping.contains(record.name) {
                 if let contents = EPUBParser.zipEntryContents(record, in: data) {
                     fromOriginal.append((record.name, contents))
                 }
@@ -238,6 +242,38 @@ enum EPUBBookFiles {
         } else {
             try fileManager.moveItem(at: staging, to: destination)
         }
+    }
+
+    /// The documents this app wrote into the book file at `book`
+    /// (`EPUBParser.combinedChaptersFolder`): the chapters that join several
+    /// of its documents, and the whole book while its chapters are being
+    /// found. Empty when it holds none, or `book` is not a file.
+    static func appEntries(inBook book: String) -> [(name: String, data: Data)] {
+        guard let index = index(of: book) else { return [] }
+        let folder = EPUBParser.combinedChaptersFolder + "/"
+        return index.names.compactMap { name in
+            guard name.hasPrefix(folder), !name.hasSuffix("/"), let record = index.entries[name],
+                  let data = EPUBParser.zipEntryContents(record, in: index.data) else { return nil }
+            return (name, data)
+        }
+    }
+
+    /// Writes `entries` into the book file at `book`, keeping everything else
+    /// it holds. A book added again over a file of different bytes keeps the
+    /// chapters this app wrote into the old one, so they read until the new
+    /// chapter split replaces them.
+    static func addEntries(_ entries: [(name: String, data: Data)], toBook book: URL) throws {
+        guard !entries.isEmpty else { return }
+        let fileManager = FileManager.default
+        let folder = book.deletingLastPathComponent()
+            .appendingPathComponent(".\(UUID().uuidString).adding", isDirectory: true)
+        defer { try? fileManager.removeItem(at: folder) }
+        for entry in entries {
+            let url = folder.appendingPathComponent(entry.name)
+            try fileManager.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try entry.data.write(to: url)
+        }
+        try pack(folder, original: book, to: book)
     }
 
     private static func add(_ name: String, _ data: Data, to archive: Archive, compressed: Bool) throws {

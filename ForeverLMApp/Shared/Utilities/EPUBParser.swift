@@ -266,10 +266,13 @@ enum EPUBParser {
 
         // Content documents the spine leaves out (or every one, without a
         // spine) follow in file order, so nothing readable is dropped unseen.
+        // The documents this app wrote into the book (`combinedChaptersFolder`)
+        // are its chapters' and the whole book's, never the book's own.
         let contentExtensions: Set<String> = ["xhtml", "html", "htm"]
         let listed = Set(spinePaths)
         let unlisted = (FileManager.default.subpaths(atPath: destDir) ?? [])
             .filter { contentExtensions.contains(($0 as NSString).pathExtension.lowercased()) }
+            .filter { !$0.hasPrefix(combinedChaptersFolder + "/") }
             .map { URL(fileURLWithPath: (destDir as NSString).appendingPathComponent($0)).standardizedFileURL.path }
             .filter { !listed.contains($0) && $0 != navPath }
             .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
@@ -320,7 +323,7 @@ enum EPUBParser {
         from inventory: Inventory,
         spans: [ChapterSpan]
     ) throws -> [(title: String, xhtmlPath: String)] {
-        let combinedDir = (inventory.rootDir as NSString).appendingPathComponent("ForeverLMCombinedChapters")
+        let combinedDir = (inventory.rootDir as NSString).appendingPathComponent(combinedChaptersFolder)
         var result: [(title: String, xhtmlPath: String)] = []
         for (idx, span) in spans.enumerated() {
             guard span.firstDocument >= 0,
@@ -340,6 +343,51 @@ enum EPUBParser {
             result.append((title: title, xhtmlPath: combinedPath))
         }
         return result
+    }
+
+    // MARK: - The whole book, before its chapters are chosen
+
+    /// The folder, at the unpacked book's root, holding the documents this
+    /// app writes into a book: chapters that join several of its documents,
+    /// and the whole book while its chapters are still to be chosen.
+    static let combinedChaptersFolder = "ForeverLMCombinedChapters"
+
+    /// The document a book reads as from the moment it is added until the
+    /// chapter model has grouped its documents. No chapter is written under
+    /// this name: a chapter's file is `NN <title>.xhtml`.
+    static let wholeBookEntry = combinedChaptersFolder + "/Whole Book.xhtml"
+
+    /// The documents a book reads as before its chapters are chosen: its
+    /// spine in reading order, or every content document when it has none.
+    /// Choosing which of them make a chapter is the chapter model's.
+    static func wholeBookDocuments(of inventory: Inventory) -> [Inventory.Document] {
+        let spine = inventory.documents.filter(\.inSpine)
+        return spine.isEmpty ? inventory.documents : spine
+    }
+
+    /// Writes `wholeBookDocuments` into the unpacked book as one document,
+    /// the way a chapter of several documents is written, so the book reads
+    /// whole the moment it is added. Returns that document's path inside the
+    /// book (`wholeBookEntry`); a book of one document is that document, and
+    /// nothing is written.
+    static func writeWholeBook(from inventory: Inventory, title: String) throws -> String {
+        let documents = wholeBookDocuments(of: inventory)
+        guard let first = documents.first else { throw EPUBError.noContentFiles }
+        if documents.count == 1 { return first.file }
+        let path = (inventory.rootDir as NSString).appendingPathComponent(wholeBookEntry)
+        try FileManager.default.createDirectory(
+            atPath: (path as NSString).deletingLastPathComponent,
+            withIntermediateDirectories: true
+        )
+        let html = combinedChapterHTML(title: title, chapterFiles: documents.map(\.path), combinedPath: path)
+        try html.write(toFile: path, atomically: true, encoding: .utf8)
+        return wholeBookEntry
+    }
+
+    /// The text of a document of an unpacked book, as the inventory counted
+    /// its words and as the Reader shows it: its body's text.
+    static func documentText(atPath path: String) -> String {
+        stripHTML(extractBodyHTML(readText(atPath: path) ?? ""))
     }
 
     /// Map TOC entries to their covered spine range, combining multi-file chapters when needed.
@@ -367,7 +415,7 @@ enum EPUBParser {
             return spineFiles.map { (title: titleFromFilename($0.path), xhtmlPath: $0.path) }
         }
 
-        let combinedDir = (destDir as NSString).appendingPathComponent("ForeverLMCombinedChapters")
+        let combinedDir = (destDir as NSString).appendingPathComponent(combinedChaptersFolder)
         var result: [(title: String, xhtmlPath: String)] = []
         for (idx, chapter) in chapters.enumerated() {
             guard chapter.startIndex < spineFiles.count,
@@ -402,7 +450,7 @@ enum EPUBParser {
     /// Older imports wrote HTML5 doctype lines into combined chapter files. Remove
     /// them in place so future loads use `loadFileURL` with correct relative paths.
     static func repairLegacyCombinedChapterDoctype(in chaptersDir: String) {
-        let combinedDir = (chaptersDir as NSString).appendingPathComponent("ForeverLMCombinedChapters")
+        let combinedDir = (chaptersDir as NSString).appendingPathComponent(combinedChaptersFolder)
         guard FileManager.default.fileExists(atPath: combinedDir),
               let enumerator = FileManager.default.enumerator(atPath: combinedDir) else { return }
 
@@ -414,7 +462,7 @@ enum EPUBParser {
     }
 
     static func repairLegacyCombinedChapterDoctype(at chapterPath: String) {
-        guard chapterPath.contains("ForeverLMCombinedChapters"),
+        guard chapterPath.contains(combinedChaptersFolder),
               chapterPath.lowercased().hasSuffix(".xhtml"),
               var html = try? String(contentsOfFile: chapterPath, encoding: .utf8) else { return }
 
@@ -477,13 +525,17 @@ enum EPUBParser {
     static func extractCoverImage(from epubPath: String) -> Data? {
         guard let tempDir = try? unzipEPUB(at: epubPath) else { return nil }
         defer { try? FileManager.default.removeItem(atPath: tempDir) }
+        return coverImage(inUnpackedBook: tempDir)
+    }
 
-        guard let opfRelPath = try? findOPFPath(in: tempDir),
-              let opfContent = try? readOPF(in: tempDir, relativePath: opfRelPath) else {
+    /// The cover image of a book already unpacked into `bookDir`, if it names one.
+    static func coverImage(inUnpackedBook bookDir: String) -> Data? {
+        guard let opfRelPath = try? findOPFPath(in: bookDir),
+              let opfContent = try? readOPF(in: bookDir, relativePath: opfRelPath) else {
             return nil
         }
 
-        let opfDir = (tempDir as NSString).appendingPathComponent(
+        let opfDir = (bookDir as NSString).appendingPathComponent(
             (opfRelPath as NSString).deletingLastPathComponent
         )
         let manifest = parseManifest(from: opfContent)

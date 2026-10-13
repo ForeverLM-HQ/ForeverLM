@@ -838,6 +838,68 @@ struct EPUBStructureExtractionTests {
         #expect(html.contains("More words."))
     }
 
+    @Test("A book reads whole as one document of its spine, which its next inventory leaves out")
+    func writesTheWholeBook() throws {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("whole-book-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let packageRoot = root.appendingPathComponent("package", isDirectory: true)
+        try writePackage(at: packageRoot, opf: Self.twoChapterOPF, chapters: Self.twoChapters)
+        let epubURL = root.appendingPathComponent("book.epub")
+        try zipDirectory(packageRoot, to: epubURL)
+
+        let staging = root.appendingPathComponent("staging", isDirectory: true)
+        let inventory = try EPUBParser.extractInventory(from: epubURL.path, to: staging.path)
+        #expect(EPUBParser.wholeBookDocuments(of: inventory).map(\.file) == ["OPS/one.xhtml", "OPS/two.xhtml"])
+        let entry = try EPUBParser.writeWholeBook(from: inventory, title: "Oil and Water")
+        #expect(entry == EPUBParser.wholeBookEntry)
+        let html = try String(contentsOf: staging.appendingPathComponent(entry), encoding: .utf8)
+        #expect(html.contains("Opening words.") && html.contains("More words."))
+        let opening = try #require(html.range(of: "Opening words."))
+        let more = try #require(html.range(of: "More words."))
+        #expect(opening.lowerBound < more.lowerBound, "in reading order")
+
+        // Packed into the book, it is the app's document, never one of the book's own.
+        try EPUBBookFiles.pack(staging, original: epubURL, to: epubURL)
+        #expect(EPUBBookFiles.entryNames(inBook: epubURL.path)?.contains(EPUBParser.wholeBookEntry) == true)
+        let again = try EPUBParser.extractInventory(from: epubURL.path, to: root.appendingPathComponent("again").path)
+        #expect(again.documents.map(\.file) == ["OPS/one.xhtml", "OPS/two.xhtml"])
+    }
+
+    @Test("A book of one document reads whole as that document, and one without a spine as all of them")
+    func wholeBookOfOneDocument() throws {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("whole-book-one-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let oneOPF = """
+        <package version="2.0" xmlns="http://www.idpf.org/2007/opf">
+          <manifest><item id="one" href="one.xhtml" media-type="application/xhtml+xml"/></manifest>
+          <spine><itemref idref="one"/></spine>
+        </package>
+        """
+        let single = root.appendingPathComponent("single", isDirectory: true)
+        try writePackage(at: single, opf: oneOPF, chapters: Array(Self.twoChapters.prefix(1)))
+        let singleBook = root.appendingPathComponent("single.epub")
+        try zipDirectory(single, to: singleBook)
+        let staged = root.appendingPathComponent("single-out", isDirectory: true)
+        let inventory = try EPUBParser.extractInventory(from: singleBook.path, to: staged.path)
+        #expect(try EPUBParser.writeWholeBook(from: inventory, title: "Oil") == "OPS/one.xhtml")
+        #expect(!FileManager.default.fileExists(atPath: staged.appendingPathComponent(EPUBParser.combinedChaptersFolder).path))
+
+        let noSpineOPF = """
+        <package version="2.0" xmlns="http://www.idpf.org/2007/opf">
+          <manifest/><spine/>
+        </package>
+        """
+        let loose = root.appendingPathComponent("loose", isDirectory: true)
+        try writePackage(at: loose, opf: noSpineOPF, chapters: Self.twoChapters)
+        let looseBook = root.appendingPathComponent("loose.epub")
+        try zipDirectory(loose, to: looseBook)
+        let looseInventory = try EPUBParser.extractInventory(from: looseBook.path, to: root.appendingPathComponent("loose-out").path)
+        #expect(looseInventory.documents.allSatisfy { !$0.inSpine })
+        #expect(EPUBParser.wholeBookDocuments(of: looseInventory).map(\.file) == ["OPS/one.xhtml", "OPS/two.xhtml"])
+    }
+
     private func zipDirectory(_ source: URL, to destination: URL) throws {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/zip")
