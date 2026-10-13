@@ -4,7 +4,7 @@ import { tags as codeTags } from '@lezer/highlight'
 import { Crepe } from '@milkdown/crepe'
 import { imageBlockSchema } from '@milkdown/kit/component/image-block'
 import { linkPreviewTooltip, linkTooltipAPI } from '@milkdown/kit/component/link-tooltip'
-import { commandsCtx, editorStateOptionsCtx, editorViewCtx, editorViewOptionsCtx, inputRulesCtx, parserCtx, schemaCtx, serializerCtx } from '@milkdown/kit/core'
+import { commandsCtx, editorStateOptionsCtx, editorViewCtx, editorViewOptionsCtx, inputRulesCtx, parserCtx, remarkStringifyOptionsCtx, schemaCtx, serializerCtx } from '@milkdown/kit/core'
 import {
   addBlockTypeCommand,
   blockquoteSchema,
@@ -27,7 +27,7 @@ import {
   toggleStrongCommand,
   wrapInBlockTypeCommand,
 } from '@milkdown/kit/preset/commonmark'
-import { addRowAfterCommand, createTable, footnoteDefinitionSchema, footnoteReferenceSchema, selectRowCommand, strikethroughSchema, tableSchema, toggleStrikethroughCommand } from '@milkdown/kit/preset/gfm'
+import { addRowAfterCommand, createTable, footnoteDefinitionSchema, footnoteReferenceSchema, remarkGFMPlugin, selectRowCommand, strikethroughSchema, tableSchema, toggleStrikethroughCommand } from '@milkdown/kit/preset/gfm'
 import { trailingConfig } from '@milkdown/kit/plugin/trailing'
 import { nodeRule } from '@milkdown/kit/prose'
 import { lift, setBlockType } from '@milkdown/kit/prose/commands'
@@ -61,6 +61,8 @@ import {
 import { attachBlockProperties, defaultProperties, highlightHex, properties as blockPropertyValues, propertyComment } from './block-properties.js'
 import { remarkMoneyIsNotMath } from './dollar-math.js'
 import { remarkJoinedGrounding } from './joined-grounding.js'
+import { blankLinesAsEmptyLines, emptyLinesAsBlankLines } from './empty-lines.js'
+import { textWithItsEscapes } from './markdown-text.js'
 import { citationFootnote, footnoteKey, freshNumericLabel, planFootnotes } from './footnotes.js'
 import { joinPastedLines, mayBePrintedLines, pastedLines, writtenSpan } from './pasted-lines.js'
 import { aliasedAddresses, isAddressStandIn, markedWordChanges, newAddressAliases, restoredAddresses, wordsOfDOM } from './ai-edit-proposal.js'
@@ -201,7 +203,8 @@ function storageAddress(target) {
 }
 
 function markdownForEditor(markdown) {
-  return rewriteTargets(graphParsableMarkdown(markdown), (target, isPicture) => {
+  // Blank lines a page keeps between blocks are its empty lines (empty-lines.js).
+  return rewriteTargets(graphParsableMarkdown(blankLinesAsEmptyLines(markdown)), (target, isPicture) => {
     const editorURL = editorAddress(target)
     // A picture is drawn from the data URL the host handed over; the
     // identity above is the only part the document keeps. A link to an
@@ -212,7 +215,8 @@ function markdownForEditor(markdown) {
 }
 
 function markdownForStorage(markdown) {
-  return graphReadableMarkdown(rewriteTargets(markdown, (target) => storageAddress(attachmentStorageURLs.get(target) ?? target)))
+  // An empty line is stored as a blank line, never as `<br />` (empty-lines.js).
+  return emptyLinesAsBlankLines(graphReadableMarkdown(rewriteTargets(markdown, (target) => storageAddress(attachmentStorageURLs.get(target) ?? target))))
 }
 
 // ─── The notes grammar at the Markdown boundary ────────────────────────────
@@ -6896,6 +6900,17 @@ async function create(markdown, fontSize) {
     editor.editor.config(withFootnotes)
     editor.editor.config(withBlockPastesOnTheirOwnLine)
     editor.editor.config(withQuietTab)
+    // A table is stored as written, `| a | b |`, not padded so its pipes line
+    // up: alignment wrote every cell out to its column's widest, rows of
+    // hundreds of spaces that a model reading the page, a diff and a Google Doc
+    // all took as text, and it rewrote every table a model had written the
+    // first time the page was saved.
+    editor.editor.config((ctx) => ctx.update(remarkGFMPlugin.options.key, (options) => ({ ...options, tablePipeAlign: false })))
+    // Text before bold or italic keeps its escapes (markdown-text.js).
+    editor.editor.config((ctx) => ctx.update(remarkStringifyOptionsCtx, (options) => ({
+      ...options,
+      handlers: { ...options.handlers, text: textWithItsEscapes },
+    })))
     editor.editor.config(withBackspaceUnwrapping)
     editor.editor.config(withRoomAroundTheCaret)
     editor.editor.config(withBlockShortcutsOnEnter)

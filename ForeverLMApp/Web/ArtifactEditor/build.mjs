@@ -1,4 +1,5 @@
 import { build } from 'esbuild'
+import { milkdownPatches } from './build-patches.mjs'
 import { copyFile, cp, mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -23,6 +24,7 @@ await build({
   },
   assetNames: 'fonts/[name]-[hash]',
   outfile: new URL('artifact-editor.js', outputDirectory).pathname,
+  plugins: [milkdownPatches()],
 })
 const editorBundleURL = new URL('artifact-editor.js', outputDirectory)
 const editorBundle = await readFile(editorBundleURL, 'utf8')
