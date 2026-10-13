@@ -25,13 +25,32 @@ In a [notebook](/studio#inside-a-notebook), the chat reads the sources ticked in
 
 On the Mac, any chat can take you somewhere: "open this notebook", "show me that paper" or "go to my Bioelectricity notebook" opens it in the window, as clicking it would. Chat says it opened, made or changed something only when it actually did.
 
-You never have to wait for a reply to finish before saying the next thing. A message sent while the tutor is still writing waits, dimmed, under the reply and goes the moment it ends; the × on it hands it back to the composer. Stop ends the reply and returns anything waiting to the composer.
+You never have to wait for a reply to finish before saying the next thing. A message sent while the tutor is still writing waits in a queue above the composer, one line each, and goes the moment the reply ends, as in Codex. Each queued message has **Send now** (the ↑: the reply stops where it is, keeping what it said, and this message is asked next), **Edit** (back into the composer) and **Delete**. **Stop** ends the reply and returns anything waiting to the composer. In Web Studio a queued message waits under the reply, with a × that hands it back.
 
 ## The composer and the transcript
 
 The composer is a card at the foot of the chat, where it stays from the first message on. The notebook the chat works in and what it has read in (**N in context**) sit on a grey tray behind the card's top edge: click the notebook to open it, or the count to see and remove what is in context. The tray also names each source open beside the chat, such as a paper in the Reader or a video playing, because the chat sees what you have open: "this paper" or "what did he just say?" means it. In Web Studio that is the source in the Reader beside the chat, in the library or in a notebook; a window too narrow for both shows one at a time, so nothing is beside the chat there. To ask about something else, point at its name and click its **×**. The chat then leaves it out for as long as it stays open; close it and open it again, or start a new chat, and the chat sees it again. **+** on the left adds files, sources or Deep Research; the dark circle on the right sends, as Return does, and while a reply is being written it becomes Stop, a square. An empty chat shows its notebook or a greeting in the middle, with a few starting points just above the composer.
 
 Your messages sit on the right in a grey pill; point at one for **Copy**. When a reply used tools or thought first, a line above it says how long it worked ("Worked for 2m 17s"); click it to see the steps. Web Studio's chat looks the same.
+
+### What the composer does, as in Codex
+
+- **`@`** opens a list of your library above the field, in tabs **All · Sources · Pages · Chats · Notebooks**; type to search. A source joins the chat's context, a notebook brings its sources, a Page or Site is attached for the chat to read, and a chat waits above the field as a chip whose transcript goes with your next message (its × leaves it out). The connected plugins (`@slack`, `@linear`, `@github`, `@notion`) are listed under All. `/source`, `/page`, `/site` and `/notebook` still work. Web Studio's `@` finds sources, Pages, chats and notebooks.
+- **Thread commands:** `/rename` (with a title, or bare to edit the title), `/pin`, `/hide` (hides the chat from Chats, Codex's archive), `/fork` (the chat so far in a new one), `/side` (a side chat about the whole chat) and `/reasoning` (the model's effort). `$name` runs a skill as `/name` does.
+- **The model chip** lists **Recent models** at the top, each with the effort you used it with; **⌃⇧M** opens it.
+- **A long paste** (more than about 24 lines or 4,000 characters) becomes a **Pasted text** chip above the field rather than a wall in it; click it to put the text back in the field (**Show in text field**), or × to leave it out. It is sent after your words.
+- **Drafts are kept per chat**, also across a quit: what you half typed is there when you come back. **↑** in an empty composer brings back the last message you sent, to edit and send again.
+
+### What you can do with the newest turn
+
+- **Try Again** on the newest reply's **⋯** asks your message again and replaces the reply; **Try Again With** asks it on another model, and the chat stays on that model. Web Studio has **Try again** in the newest reply's footer.
+- **Edit** (the pencil under your newest message, or **Edit Message** in its context menu) puts your words back in the composer under an **Editing message** line; sending replaces the message and the reply after it, and **Cancel** gives the composer back what it held. A message with pictures, a Reader passage, a side-question mark or a guess is not offered Edit.
+- Both are offered in chats, not in reviews, and not while a reply is being written.
+
+### Finding your way in a long chat
+
+- **⌘F** with the chat focused (or just clicked) opens **Find in chat** over the transcript. Return or **⌘G** goes to the next turn that holds your words, ⇧Return or **⌘⇧G** to the previous; the turn scrolls into the middle and is marked, and the bar says where you are ("2 of 7"). Escape closes it. A Reader beside the chat keeps ⌘F when it has the focus.
+- Scrolled up from the newest turn, a round **↓** at the foot of the transcript takes you back down (macOS 15 and later).
 
 ## Pictures from a source
 
@@ -65,7 +84,7 @@ Select words in a reply and a bar of three actions appears over the selection, t
 
 **More details** asks the tutor to expand those words, here, under the reply — the same lane as the footer's More details, about the passage rather than the whole reply.
 
-**Ask in side chat** opens a small chat in a popover hanging off the words. Type a question and the tutor answers it there, reading the passage, the reply it came from and the conversation before it; follow up as often as you like. Nothing is sent to the chat underneath, nothing is saved, and no new chat is started: close the popover and the chat is exactly as you left it. When a question outgrows a popover, the arrow in its corner moves the exchange to a new chat beside this one, with this chat's sources loaded, where nothing is held back; pressed before anything was asked, it opens that chat with the passage as its context. In a review the side chat keeps the open question's answer to itself, as a side question does. The bar over a selection in the Reader has the same **Side chat**, which answers from the source you are reading. On the Mac only.
+**Ask in side chat** opens a small chat in a popover hanging off the words. Type a question and the tutor answers it there, reading the passage, the reply it came from and the conversation before it; follow up as often as you like. Nothing is sent to the chat underneath, nothing is saved, and no new chat is started: close the popover and the chat is exactly as you left it. When a question outgrows a popover, the arrow in its corner moves the exchange to a new chat beside this one, with this chat's sources loaded, where nothing is held back; pressed before anything was asked, it opens that chat with the passage as its context. In a review the side chat keeps the open question's answer to itself, as a side question does. The bar over a selection in the Reader has the same **Side chat**, which answers from the source you are reading. A side chat about the whole chat, with nothing selected, opens from `/side` or **Open Side Chat** on the newest reply's **⋯**: it reads the conversation and the chat's sources, and its arrow branches the chat when nothing has been asked yet. On the Mac only.
 
 ## Side questions and More details
 
