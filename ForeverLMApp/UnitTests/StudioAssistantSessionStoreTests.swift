@@ -155,9 +155,18 @@ struct StudioAssistantSessionStoreTests {
         #expect(second.hasGenerationWorkInFlight)
     }
 
+    /// A draft archive on a defaults domain of its own: the unit host's
+    /// standard defaults are the app's real ones.
+    static func isolatedDrafts() -> ChatDraftArchive {
+        let suite = "StudioAssistantSessionStoreTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        return ChatDraftArchive(defaults: defaults)
+    }
+
     @Test("An unsent draft survives a trip to another chat")
     func unsentDraftIsKeptPerScope() {
-        let store = StudioAssistantSessionStore(managerFactory: { ReviewSessionManager() })
+        let store = StudioAssistantSessionStore(managerFactory: { ReviewSessionManager() }, drafts: Self.isolatedDrafts())
 
         store.setDraft("what was the session 7 weeks ago about?", for: .newChat(notebookID: "acme-nexus"))
         store.setDraft("half a question", for: .session("chat-one"))
@@ -174,7 +183,7 @@ struct StudioAssistantSessionStoreTests {
 
     @Test("Unlinking a Notebook carries the draft to the unlinked composer")
     func draftFollowsNotebookUnlink() {
-        let store = StudioAssistantSessionStore(managerFactory: { ReviewSessionManager() })
+        let store = StudioAssistantSessionStore(managerFactory: { ReviewSessionManager() }, drafts: Self.isolatedDrafts())
         store.setDraft("typed before unlinking", for: .newChat(notebookID: "acme-nexus"))
 
         store.moveDraft(from: .newChat(notebookID: "acme-nexus"), to: .newChat(notebookID: nil))
@@ -185,7 +194,7 @@ struct StudioAssistantSessionStoreTests {
 
     @Test("Deleting a chat drops the draft it was holding")
     func deletingChatDropsItsDraft() {
-        let store = StudioAssistantSessionStore(managerFactory: { ReviewSessionManager() })
+        let store = StudioAssistantSessionStore(managerFactory: { ReviewSessionManager() }, drafts: Self.isolatedDrafts())
         store.activeManager.configureNavigationStateForTesting(sessionID: "chat-one", generationInFlight: false)
         store.setDraft("never sent", for: .session("chat-one"))
         store.setDraft("still mine", for: .newChat(notebookID: nil))
@@ -731,5 +740,86 @@ struct PageSideChatTests {
         store.releaseChat("chat-one")
         #expect(store.activeManager !== shown)
         #expect(store.activeSessionID == nil)
+    }
+}
+
+/// Unsent drafts survive a relaunch, as Codex's composer recovers its drafts.
+@Suite("Chat drafts across a relaunch")
+@MainActor
+struct ChatDraftArchiveTests {
+    private func defaults() -> (UserDefaults, String) {
+        let suite = "ChatDraftArchiveTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        return (defaults, suite)
+    }
+
+    @Test("A draft written before a quit is there in the next launch's archive")
+    func survivesRelaunch() {
+        let (defaults, suite) = defaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let first = ChatDraftArchive(defaults: defaults)
+        first.set("half a question about LTP", for: .session("chat-one"))
+        first.set("in a notebook", for: .newChat(notebookID: "acme-nexus"))
+        first.set("", for: .newChat(notebookID: nil))
+        first.saveNow()
+
+        let relaunched = ChatDraftArchive(defaults: defaults)
+        #expect(relaunched.text(for: .session("chat-one")) == "half a question about LTP")
+        #expect(relaunched.text(for: .newChat(notebookID: "acme-nexus")) == "in a notebook")
+        #expect(relaunched.text(for: .newChat(notebookID: nil)).isEmpty)
+
+        // Sending empties it, and the next launch has nothing for that chat.
+        relaunched.set("", for: .session("chat-one"))
+        relaunched.saveNow()
+        #expect(ChatDraftArchive(defaults: defaults).text(for: .session("chat-one")).isEmpty)
+    }
+
+    @Test("The newest drafts are kept, one per chat, and a giant one is not written")
+    func boundedAndNewestLast() {
+        var entries: [ChatDraftArchive.Entry] = []
+        for index in 0..<(ChatDraftArchive.limit + 5) {
+            entries = ChatDraftArchive.updating(entries, scope: "chat:\(index)", text: "draft \(index)")
+        }
+        #expect(entries.count == ChatDraftArchive.limit)
+        #expect(entries.first?.scope == "chat:5")
+        entries = ChatDraftArchive.updating(entries, scope: "chat:5", text: "rewritten")
+        #expect(entries.last == .init(scope: "chat:5", text: "rewritten"))
+        #expect(entries.filter { $0.scope == "chat:5" }.count == 1)
+
+        let (defaults, suite) = defaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let archive = ChatDraftArchive(defaults: defaults)
+        let giant = String(repeating: "x", count: ChatDraftArchive.characterLimit + 1)
+        archive.set(giant, for: .session("big"))
+        archive.set("small", for: .session("small"))
+        #expect(archive.text(for: .session("big")) == giant)
+        archive.saveNow()
+        let relaunched = ChatDraftArchive(defaults: defaults)
+        #expect(relaunched.text(for: .session("big")).isEmpty)
+        #expect(relaunched.text(for: .session("small")) == "small")
+        #expect(ChatDraftArchive.decode(Data("not json".utf8)).isEmpty)
+    }
+}
+
+/// A long paste is an attachment, as Codex's "Pasted text".
+@Suite("Pasted text in the composer")
+struct ChatPastedTextTests {
+    @Test("What would fold once sent arrives as Pasted text; a short paste stays in the field")
+    func threshold() {
+        #expect(!ChatPastedText.becomesAttachment("a short question"))
+        #expect(ChatPastedText.becomesAttachment(String(repeating: "word ", count: 900)))
+        let transcript = (1...40).map { "[00:\($0)] line \($0)" }.joined(separator: "\n")
+        #expect(ChatPastedText.becomesAttachment(transcript))
+        #expect(ChatPastedText.summary(transcript) == "40 lines")
+    }
+
+    @Test("The message carries the words, then each paste; Show in text field puts it after the words")
+    func composing() {
+        #expect(ChatPastedText.message(typed: "summarize this ", pasted: ["first\npaste", " second "]) ==
+            "summarize this\n\nfirst\npaste\n\nsecond")
+        #expect(ChatPastedText.message(typed: "  ", pasted: ["only the paste"]) == "only the paste")
+        #expect(ChatPastedText.field("", showing: "pasted") == "pasted")
+        #expect(ChatPastedText.field("look at", showing: "pasted") == "look at\npasted")
     }
 }

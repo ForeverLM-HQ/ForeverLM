@@ -56,6 +56,12 @@ struct ReviewChatComposerTextView: NSViewRepresentable {
     /// that carries a picture goes here instead of into the text; a plain
     /// text paste is unaffected. Nil leaves paste to the text view.
     var onPasteImages: (([ChatPastedImage]) -> Void)? = nil
+    /// A paste long enough to be an attachment (`ChatPastedText`) goes here
+    /// rather than into the field, as Codex makes it "Pasted text".
+    var onPasteLongText: ((String) -> Void)? = nil
+    /// ↑ in an empty field: the last message sent comes back to edit, as
+    /// Codex's "Restore previous composer prompt".
+    var onRecallPrevious: (() -> Void)? = nil
     /// Invoked for ⌥Return: the draft goes as a side question, one the tutor
     /// answers without grading while its own question stays open.
     var onSubmitSideQuestion: (() -> Void)? = nil
@@ -99,6 +105,8 @@ struct ReviewChatComposerTextView: NSViewRepresentable {
         textView.onDismissSuggestions = onDismissSuggestions
         textView.onHeightChange = onHeightChange
         textView.onPasteImages = onPasteImages
+        textView.onPasteLongText = onPasteLongText
+        textView.onRecallPrevious = onRecallPrevious
         textView.mentionPlugins = mentionPlugins
         textView.delegate = context.coordinator
         textView.string = text
@@ -151,6 +159,8 @@ struct ReviewChatComposerTextView: NSViewRepresentable {
         textView.onDismissSuggestions = onDismissSuggestions
         textView.onHeightChange = onHeightChange
         textView.onPasteImages = onPasteImages
+        textView.onPasteLongText = onPasteLongText
+        textView.onRecallPrevious = onRecallPrevious
         textView.mentionPlugins = mentionPlugins
         if context.coordinator.focusRequestID != focusRequestID {
             context.coordinator.focusRequestID = focusRequestID
@@ -209,6 +219,8 @@ struct ReviewChatComposerTextView: NSViewRepresentable {
         var onDismissSuggestions: (() -> Void)?
         var onHeightChange: ((CGFloat) -> Void)?
         var onPasteImages: (([ChatPastedImage]) -> Void)?
+        var onPasteLongText: ((String) -> Void)?
+        var onRecallPrevious: (() -> Void)?
         /// See `ReviewChatComposerTextView.mentionPlugins`.
         var mentionPlugins: [ChatPlugin] = []
 
@@ -218,7 +230,8 @@ struct ReviewChatComposerTextView: NSViewRepresentable {
         /// A paste that carries a picture attaches it to the message rather
         /// than dropping an attachment cell, or nothing, into the draft.
         /// `importsGraphics` is off, so without this a screenshot pasted into
-        /// the composer simply vanished.
+        /// the composer simply vanished. A long text paste becomes the
+        /// message's "Pasted text" attachment instead of a wall in the field.
         override func paste(_ sender: Any?) {
             if let onPasteImages {
                 let images = Self.pastedImages(from: .general)
@@ -226,6 +239,12 @@ struct ReviewChatComposerTextView: NSViewRepresentable {
                     onPasteImages(images)
                     return
                 }
+            }
+            if let onPasteLongText,
+               let text = NSPasteboard.general.string(forType: .string),
+               ChatPastedText.becomesAttachment(text) {
+                onPasteLongText(text)
+                return
             }
             super.paste(sender)
         }
@@ -351,6 +370,12 @@ struct ReviewChatComposerTextView: NSViewRepresentable {
                 onSubmit?()
                 return
             }
+            // ↑ with nothing typed brings the last message back to edit.
+            if event.keyCode == 126, string.isEmpty, let onRecallPrevious,
+               event.modifierFlags.intersection([.command, .option, .control, .shift]).isEmpty {
+                onRecallPrevious()
+                return
+            }
             super.keyDown(with: event)
         }
 
@@ -450,6 +475,41 @@ final class ReviewComposerDraft {
     /// Chats the learner pointed at with `@`, drawn as chips above the field;
     /// their transcripts go with the next message as reference material.
     var referencedChats: [ChatMention.Item] = []
+    /// Long pastes held as attachments ("Pasted text"), oldest first; they go
+    /// with the next message after its words (`ChatPastedText`).
+    var pastedTexts: [String] = []
+}
+
+/// A long paste, attached to the message rather than poured into the field,
+/// as Codex makes one "Pasted text" (`composer.pastedTextAttachment.*`) with
+/// "Show in text field" to take it back. The bubble already folds a message
+/// this long (`ChatLongUserMessage`), so the same thresholds decide: what
+/// would fold once sent arrives folded in the composer too.
+enum ChatPastedText {
+    static func becomesAttachment(_ text: String) -> Bool {
+        ChatLongUserMessage.isLong(text)
+    }
+
+    /// The message a send carries: the words typed, then each pasted text,
+    /// a blank line between them.
+    static func message(typed: String, pasted: [String]) -> String {
+        let parts = ([typed] + pasted)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return parts.joined(separator: "\n\n")
+    }
+
+    /// The field once "Show in text field" takes `pasted` back: after what is
+    /// typed, on its own line.
+    static func field(_ typed: String, showing pasted: String) -> String {
+        let words = typed.trimmingCharacters(in: .whitespacesAndNewlines)
+        return words.isEmpty ? pasted : "\(typed)\n\(pasted)"
+    }
+
+    /// "166 lines" under the chip's name.
+    static func summary(_ text: String) -> String {
+        ChatLongUserMessage.summary(lineCount: ChatLongUserMessage.lineCount(text))
+    }
 }
 
 /// The editable box: the AppKit text view and the empty-state placeholder.
@@ -475,6 +535,8 @@ struct ReviewChatComposerBox: View {
     let onTextChange: (String) -> Void
     /// Pictures pasted into the box. See `ReviewChatComposerTextView.onPasteImages`.
     var onPasteImages: (([ChatPastedImage]) -> Void)? = nil
+    /// ↑ in the empty field. See `ReviewChatComposerTextView.onRecallPrevious`.
+    var onRecallPrevious: (() -> Void)? = nil
     /// ⌥Return: send the draft as a side question. See `ReviewChatComposerTextView`.
     var onSubmitSideQuestion: (() -> Void)? = nil
     /// Non-nil while the next message is a side question: a "Side question"
@@ -551,6 +613,25 @@ struct ReviewChatComposerBox: View {
                 .padding(.top, 4)
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
+            if !composer.pastedTexts.isEmpty {
+                ReviewChatPastedTexts(
+                    texts: composer.pastedTexts,
+                    show: { index in
+                        guard composer.pastedTexts.indices.contains(index) else { return }
+                        let text = composer.pastedTexts.remove(at: index)
+                        composer.text = ChatPastedText.field(composer.text, showing: text)
+                    },
+                    remove: { index in
+                        guard composer.pastedTexts.indices.contains(index) else { return }
+                        composer.pastedTexts.remove(at: index)
+                        onTextChange(composer.text)
+                    }
+                )
+                .padding(.leading, ReviewChatComposerTextView.overlayTextLeadingInset)
+                .padding(.trailing, 4)
+                .padding(.top, 4)
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
             if let guessQuestion, skipGuess != nil {
                 ReviewChatGuessQuestion(question: guessQuestion)
                     .padding(.leading, ReviewChatComposerTextView.overlayTextLeadingInset)
@@ -578,6 +659,7 @@ struct ReviewChatComposerBox: View {
         .animation(.easeOut(duration: 0.12), value: skipGuess != nil)
         .animation(.easeOut(duration: 0.12), value: composer.quotedPassage.isEmpty)
         .animation(.easeOut(duration: 0.12), value: composer.referencedChats)
+        .animation(.easeOut(duration: 0.12), value: composer.pastedTexts.count)
     }
 
     /// Escape takes off the token nearest the words: the guess's, then the
@@ -600,6 +682,12 @@ struct ReviewChatComposerBox: View {
                 onDismissSuggestions: onDismissSuggestions,
                 onHeightChange: { contentHeight = $0 },
                 onPasteImages: onPasteImages,
+                onPasteLongText: { text in
+                    composer.pastedTexts.append(text)
+                    // Filed with the draft, so a quit or a trip away keeps it.
+                    onTextChange(composer.text)
+                },
+                onRecallPrevious: onRecallPrevious,
                 onSubmitSideQuestion: onSubmitSideQuestion,
                 onDeleteBackwardAtStart: removeSideQuestionToken
                     ?? (skipGuess == nil ? removeDeepResearchToken : nil)
@@ -741,6 +829,62 @@ struct ReviewChatComposerQuote: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Quoting: \(passage)")
         .accessibilityIdentifier("mac.chatComposerQuote")
+    }
+}
+
+/// Long pastes held as attachments, above the field: "Pasted text" and its
+/// length; a click puts the text back in the field ("Show in text field",
+/// Codex's words), the × leaves it out of the message.
+struct ReviewChatPastedTexts: View {
+    let texts: [String]
+    let show: (Int) -> Void
+    let remove: (Int) -> Void
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(Array(texts.enumerated()), id: \.offset) { index, text in
+                HStack(spacing: 4) {
+                    Button {
+                        show(index)
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "doc.plaintext")
+                                .zoomedSystemFont(size: 10, weight: .medium)
+                                .foregroundStyle(.secondary)
+                            Text("Pasted text")
+                                .zoomedSystemFont(size: 11, weight: .medium)
+                                .textSelection(.disabled)
+                            Text(ChatPastedText.summary(text))
+                                .zoomedSystemFont(size: 11)
+                                .foregroundStyle(.secondary)
+                                .textSelection(.disabled)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.hoverWash(cornerRadius: 5, inset: -2, opacity: 0.08))
+                    .help("Show in text field")
+                    .accessibilityLabel("Pasted text, \(ChatPastedText.summary(text)). Show in text field")
+                    Button {
+                        remove(index)
+                    } label: {
+                        Image(systemName: "xmark")
+                            .zoomedSystemFont(size: 7, weight: .bold)
+                            .frame(width: 14, height: 14)
+                            .contentShape(Circle())
+                    }
+                    .buttonStyle(.hoverWash(in: Circle(), opacity: 0.14))
+                    .help("Remove pasted text")
+                    .accessibilityLabel("Remove pasted text attachment")
+                }
+                .padding(.leading, 6)
+                .padding(.trailing, 2)
+                .padding(.vertical, 2)
+                .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("mac.chatPastedText")
+            }
+            Spacer(minLength: 0)
+        }
     }
 }
 
@@ -922,6 +1066,7 @@ struct ReviewChatSendButton: View {
 
     private var hasSomethingToSend: Bool {
         hasAttachments
+            || !composer.pastedTexts.isEmpty
             || !composer.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             || !composer.quotedPassage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }

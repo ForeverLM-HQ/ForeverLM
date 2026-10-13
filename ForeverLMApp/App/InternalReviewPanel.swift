@@ -4077,6 +4077,7 @@ private struct InternalReviewPanelContent: View {
                 onPasteImages: { pasted in
                     Task { await attachPastedImages(pasted) }
                 },
+                onRecallPrevious: { recallPreviousPrompt() },
                 onSubmitSideQuestion: {
                     Task { await submitComposer(asSideQuestion: true) }
                 },
@@ -4879,6 +4880,8 @@ private struct InternalReviewPanelContent: View {
             !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
             // A quoted passage on its own is a message: it asks about itself.
             !quotedPassage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+            // So is a long paste waiting as an attachment.
+            !composer.pastedTexts.isEmpty ||
             !manager.pendingImages.isEmpty ||
             dictation.isRecording ||
             dictation.isTranscribing ||
@@ -5191,10 +5194,31 @@ private struct InternalReviewPanelContent: View {
     @MainActor
     private func fileDraft() {
         let typed = draft == lastInsertedDefaultPrompt ? "" : draft
+        // A long paste held as an attachment is filed with the words, so it
+        // survives a quit; it comes back in the field.
+        let body = composer.pastedTexts.isEmpty ? typed : ChatPastedText.message(typed: typed, pasted: composer.pastedTexts)
         sessionStore.setDraft(
-            ChatQuoteDraft.compose(quote: quotedPassage, body: typed),
+            ChatQuoteDraft.compose(quote: quotedPassage, body: body),
             for: currentDraftScope
         )
+    }
+
+    /// ↑ in an empty composer: the last message this chat sent comes back to
+    /// edit, its quoted passage as a quote again, as Codex's composer restores
+    /// its previous prompt. Its pictures stay with the sent message.
+    @MainActor
+    private func recallPreviousPrompt() {
+        guard draft.isEmpty, quotedPassage.isEmpty, composer.pastedTexts.isEmpty,
+              let last = manager.chatMessages.last(where: { $0.role == .user && $0.toolActivity == nil }),
+              let text = ReviewSessionManager.displayableMessageContent(role: .user, content: last.content)
+        else { return }
+        if let quoted = ChatQuoteDraft.split(userMessage: text) {
+            quotedPassage = quoted.quote
+            draft = quoted.body
+        } else {
+            draft = text
+        }
+        lastInsertedDefaultPrompt = nil
     }
 
     /// Empties the composer: the words, the machine-inserted opener it may have
@@ -5208,6 +5232,7 @@ private struct InternalReviewPanelContent: View {
         lastInsertedDefaultPrompt = nil
         coursePlanningArmed = false
         composer.referencedChats = []
+        composer.pastedTexts = []
     }
 
     private func appendDictation(_ text: String) {
@@ -5297,7 +5322,11 @@ private struct InternalReviewPanelContent: View {
         // command is what was typed, and the quote is only folded in for a
         // message that is actually going to the tutor.
         let typedTrimmed = answer.trimmingCharacters(in: .whitespacesAndNewlines)
-        answer = ChatQuoteDraft.compose(quote: quotedPassage, body: answer)
+        // A long paste held as an attachment goes after the words typed.
+        answer = ChatQuoteDraft.compose(
+            quote: quotedPassage,
+            body: composer.pastedTexts.isEmpty ? answer : ChatPastedText.message(typed: answer, pasted: composer.pastedTexts)
+        )
 
         // The anchor leaves with the message, not with the click that opened
         // Chat: a passage the learner opened Chat on and then said nothing about
@@ -7742,6 +7771,7 @@ private struct InternalReviewPanelContent: View {
         }
         draft = sessionStore.draft(for: .session(session.id))
         composer.referencedChats = []
+        composer.pastedTexts = []
         lastInsertedDefaultPrompt = nil
         pendingReaderSelection = nil
     }
@@ -7772,6 +7802,7 @@ private struct InternalReviewPanelContent: View {
         )
         draft = sessionStore.draft(for: .session(session.id))
         composer.referencedChats = []
+        composer.pastedTexts = []
         lastInsertedDefaultPrompt = nil
         pendingReaderSelection = nil
         await vm.loadReviewSessionLinks()

@@ -66,6 +66,97 @@ enum StudioAssistantSession {
 enum ChatDraftScope: Hashable {
     case newChat(notebookID: String?)
     case session(String)
+
+    /// The scope as the archive files it.
+    var archiveKey: String {
+        switch self {
+        case .newChat(let notebookID): return "new:\(notebookID ?? "")"
+        case .session(let sessionID): return "chat:\(sessionID)"
+        }
+    }
+}
+
+/// Unsent composer text, per chat, kept across a relaunch. Codex's composer
+/// recovers its drafts (`composer.draftRecovery.*`); ForeverLM's lived in
+/// memory only, so a quit lost whatever was half typed. One archive serves
+/// every window, so two windows on one chat share its draft.
+///
+/// Kept in this Mac's defaults, newest last: a draft is this Mac's unsent
+/// words, not a record to sync, like the chats' read marks. A keystroke
+/// writes memory; the defaults are written a moment after typing stops and
+/// when the app quits. The oldest drafts beyond `limit` are let go, and a
+/// draft longer than `characterLimit` stays in memory but is not written.
+@MainActor
+final class ChatDraftArchive {
+    static let shared = ChatDraftArchive()
+
+    struct Entry: Codable, Equatable, Sendable {
+        let scope: String
+        let text: String
+    }
+
+    static let defaultsKey = "chat.unsentDrafts"
+    static let limit = 40
+    static let characterLimit = 200_000
+    static let saveDelay: Duration = .milliseconds(600)
+
+    private let defaults: UserDefaults
+    /// Oldest first.
+    private var entries: [Entry]
+    private var saveTask: Task<Void, Never>?
+    private var terminationObserver: NSObjectProtocol?
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        entries = Self.decode(defaults.data(forKey: Self.defaultsKey))
+        terminationObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.saveNow() }
+        }
+    }
+
+    func text(for scope: ChatDraftScope) -> String {
+        entries.last { $0.scope == scope.archiveKey }?.text ?? ""
+    }
+
+    func set(_ text: String, for scope: ChatDraftScope) {
+        let next = Self.updating(entries, scope: scope.archiveKey, text: text)
+        guard next != entries else { return }
+        entries = next
+        saveTask?.cancel()
+        saveTask = Task { [weak self] in
+            try? await Task.sleep(for: Self.saveDelay)
+            guard !Task.isCancelled else { return }
+            self?.saveNow()
+        }
+    }
+
+    func saveNow() {
+        saveTask?.cancel()
+        saveTask = nil
+        let kept = entries.filter { $0.text.count <= Self.characterLimit }
+        if kept.isEmpty {
+            defaults.removeObject(forKey: Self.defaultsKey)
+        } else if let data = try? JSONEncoder().encode(kept) {
+            defaults.set(data, forKey: Self.defaultsKey)
+        }
+    }
+
+    /// `entries` with `scope`'s draft replaced by `text` at the newest end,
+    /// or gone when `text` is empty, keeping the newest `limit`.
+    nonisolated static func updating(_ entries: [Entry], scope: String, text: String) -> [Entry] {
+        var next = entries.filter { $0.scope != scope }
+        if !text.isEmpty { next.append(Entry(scope: scope, text: text)) }
+        return Array(next.suffix(limit))
+    }
+
+    nonisolated static func decode(_ data: Data?) -> [Entry] {
+        guard let data, let list = try? JSONDecoder().decode([Entry].self, from: data) else { return [] }
+        return list
+    }
 }
 
 /// Owns the selected Chat manager plus any managers that still have an
@@ -96,9 +187,10 @@ final class StudioAssistantSessionStore {
     /// never in the review it came out of.
     private(set) var pendingNewChatHandoff: NewChatHandoff?
     /// Unsent composer text, kept per chat so navigating away and back does not
-    /// throw away what the learner typed. Deliberately not observed: it is
-    /// written on every keystroke and read only when a composer is rebuilt.
-    @ObservationIgnored private var drafts: [ChatDraftScope: String] = [:]
+    /// throw away what the learner typed, nor does a quit (`ChatDraftArchive`).
+    /// Deliberately not observed: it is written on every keystroke and read
+    /// only when a composer is rebuilt.
+    @ObservationIgnored private let drafts: ChatDraftArchive
     /// This panel's own zoom, as an offset from the app-wide step (`ChatZoom`).
     /// A trackpad pinch over the panel moves it and nothing else: the store is
     /// one per chat host, so a chat window on the other display keeps its own
@@ -111,9 +203,11 @@ final class StudioAssistantSessionStore {
     var composerFocusRequestID = UUID()
 
     init(
-        managerFactory: @escaping @MainActor () -> ReviewSessionManager = StudioAssistantSession.makeManager
+        managerFactory: @escaping @MainActor () -> ReviewSessionManager = StudioAssistantSession.makeManager,
+        drafts: ChatDraftArchive = .shared
     ) {
         self.managerFactory = managerFactory
+        self.drafts = drafts
         activeManager = managerFactory()
         Self.live.add(self)
     }
@@ -405,22 +499,19 @@ final class StudioAssistantSessionStore {
     }
 
     func draft(for scope: ChatDraftScope) -> String {
-        drafts[scope] ?? ""
+        drafts.text(for: scope)
     }
 
     func setDraft(_ text: String, for scope: ChatDraftScope) {
-        if text.isEmpty {
-            drafts.removeValue(forKey: scope)
-        } else {
-            drafts[scope] = text
-        }
+        drafts.set(text, for: scope)
     }
 
     /// Carries a draft to another scope, for a new chat that changes the Notebook
     /// it would start in while text is already in the composer.
     func moveDraft(from old: ChatDraftScope, to new: ChatDraftScope) {
         guard old != new else { return }
-        let text = drafts.removeValue(forKey: old) ?? ""
+        let text = drafts.text(for: old)
+        drafts.set("", for: old)
         setDraft(text, for: new)
     }
 
@@ -428,7 +519,7 @@ final class StudioAssistantSessionStore {
         // Ending its running turn below is no reply that finished: the chat
         // is going, and its unread mark with it.
         ChatReadMarks.shared.forget(sessionID)
-        drafts.removeValue(forKey: .session(sessionID))
+        drafts.set("", for: .session(sessionID))
         if activeManager.currentSessionID == sessionID {
             activeManager.endSession()
             activeManager = managerFactory()
