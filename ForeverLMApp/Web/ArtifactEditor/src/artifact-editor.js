@@ -3812,7 +3812,7 @@ function withBlockPastesOnTheirOwnLine(ctx) {
       if (pictures.length) {
         // Where it was dropped is where the pictures go in.
         const at = view.posAtCoords({ left: event.clientX, top: event.clientY })
-        if (at) view.dispatch(view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(at.pos))))
+        if (at && slashFeatures.images) view.dispatch(view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(at.pos))))
         keepPictures(pictures)
         event.preventDefault()
         return true
@@ -3828,10 +3828,12 @@ function withBlockPastesOnTheirOwnLine(ctx) {
 /// caret (`imagesPasted`, answered with `insertAttachment`). Left to Milkdown,
 /// a picture became a `blob:` address that died with the page, so a pasted
 /// figure was gone the next time the page opened. Only a host that keeps
-/// pictures (`setSlashFeatures({ images })`) is sent them; words copied with
-/// a picture are a passage, and paste as one.
+/// pictures (`setSlashFeatures({ images })`) is sent them; one that keeps
+/// none (the phone) takes none, rather than a picture that would be gone the
+/// next time the page opened. Words copied with a picture are a passage, and
+/// paste as one.
 function pictureFiles(data) {
-  if (!slashFeatures.images || !data) return []
+  if (!data) return []
   const files = [...(data.files ?? [])].filter((file) => file.type.startsWith('image/'))
   if (files.length === 0) return []
   const html = data.getData?.('text/html') ?? ''
@@ -3840,6 +3842,7 @@ function pictureFiles(data) {
 }
 
 function keepPictures(files) {
+  if (!slashFeatures.images) return
   Promise.all(files.map((file) => new Promise((resolve) => {
     const reader = new FileReader()
     reader.onload = () => resolve({ name: file.name || '', type: file.type, dataURL: String(reader.result ?? '') })
