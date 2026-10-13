@@ -168,6 +168,30 @@ struct ChatContextAdditionsTests {
         #expect(ReviewSessionManager.onScreenContextForTesting(openPanes: nil, referenceContext: "> p") == "> p")
     }
 
+    @Test("A source left out with its chip's × rides no message; one still open beside it does")
+    @MainActor
+    func leftOutSourceRidesNoMessage() {
+        let paper = ChatContextAdditions.OnScreen(id: "src-paper", title: "An archaeal origin of eukaryotes", kind: "paper")
+        let panes = ChatOpenPanes(windows: [
+            .init(
+                isChatsWindow: true,
+                panes: [.init(onScreen: .init(name: "Reader", contents: [.source(
+                    id: articleOnScreen.id, title: articleOnScreen.title, kind: "article", position: nil
+                )]))],
+                alsoOnScreen: [.source(id: paper.id, title: paper.title, kind: "paper", position: nil)]
+            ),
+        ])
+        let stored = ReviewSessionManager.onScreenContextForTesting(
+            openPanes: panes, referenceContext: "> p", leftOut: [articleOnScreen.id]
+        )
+        #expect(ChatContextAdditions.parse(contextContent: stored).onScreen == [paper])
+        #expect(ChatContextAdditions.parse(contextContent: stored).remainder == "> p")
+        // Everything left out: the message carries what it carried anyway, and no mark.
+        #expect(ReviewSessionManager.onScreenContextForTesting(
+            openPanes: panes, referenceContext: "> p", leftOut: [articleOnScreen.id, paper.id]
+        ) == "> p")
+    }
+
     // MARK: - What the transcript says
 
     @Test("The line names the sources' own kind when they share one, and sources when they do not")

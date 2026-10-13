@@ -23,6 +23,15 @@ extension ChatOpenPanes {
         return ChatOpenPanes(windows: windows)
     }
 
+    /// The library sources on screen in one window, read the way a message
+    /// sent from a chat there reads them: what the chips over that chat's
+    /// composer show, so a chip names exactly what the chat is told.
+    @MainActor
+    static func sourcesOnScreen(in state: StudioWindowState, vm: StudioViewModel) -> [ChatContextAdditions.OnScreen] {
+        ChatOpenPanes(windows: [window(state, isChatsWindow: true, chatSessionID: nil, vm: vm)])
+            .sourcesOnScreenInChatsWindow
+    }
+
     @MainActor
     private static func window(
         _ state: StudioWindowState,

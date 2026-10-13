@@ -152,3 +152,62 @@ struct ChatOpenPanesVideoPlayheadTests {
         #expect(panes.sourcesOnScreenInChatsWindow.first?.moment == nil)
     }
 }
+
+/// The × on an open source's chip over the composer: the chat stops seeing
+/// that source while it stays open (2026-10-13).
+@Suite("Chat open panes: a source left out of the chat")
+struct ChatOpenPanesLeftOutTests {
+    /// A talk playing beside the chat, a paper in a second Reader, and the
+    /// same talk loaded behind a Page in another window.
+    private static let window = ChatOpenPanes(windows: [
+        .init(
+            isChatsWindow: true,
+            panes: [
+                .init(onScreen: .init(name: "Chat", contents: [.chat(title: "New chat", isThisChat: true)])),
+                .init(onScreen: .init(name: "Reader", contents: [.source(
+                    id: "src-talk", title: "Origins of the eukaryotic cell", kind: "video", position: "playing at 39:54"
+                )])),
+            ],
+            alsoOnScreen: [.source(id: "src-paper", title: "An archaeal origin of eukaryotes", kind: "paper", position: nil)],
+            videoPlayheads: ["src-talk": .init(seconds: 2394, isPlaying: true)]
+        ),
+        .init(isChatsWindow: false, panes: [.init(
+            onScreen: .init(name: "Pages", contents: [.artifact(id: "doc-1", title: "Notes")]),
+            behind: [.init(name: "Reader", contents: [.source(id: "src-talk", title: "Origins of the eukaryotic cell", kind: "video", position: nil)])]
+        )]),
+    ])
+
+    @Test("A left-out video is not on screen, has no moment and is not listed; the rest stays")
+    func leftOutVideoGoesEverywhere() {
+        let panes = Self.window.leavingOut(["src-talk"])
+        #expect(panes.sourcesOnScreenInChatsWindow.map(\.id) == ["src-paper"])
+        #expect(panes.windows[0].videoPlayheads.isEmpty)
+        #expect(!panes.text.contains("src-talk"))
+        #expect(panes.text.contains("- Right pane, on screen: Reader."))
+        #expect(panes.text.contains("(source_id: src-paper)"))
+        // The other window's tab held only the talk, so it is no longer listed behind the Page.
+        #expect(panes.windows[1].panes[0].behind.isEmpty)
+        #expect(panes.text.contains("“Notes” (artifact_id: doc-1)"))
+    }
+
+    @Test("Leaving nothing out changes nothing")
+    func nothingLeftOut() {
+        #expect(Self.window.leavingOut([]) == Self.window)
+        #expect(Self.window.leavingOut(["src-not-open"]).sourcesOnScreenInChatsWindow == Self.window.sourcesOnScreenInChatsWindow)
+    }
+
+    @Test("A left-out source stays out while it is open, comes back once it has left the window, and a new chat starts with none left out")
+    @MainActor
+    func leftOutLastsWhileOpen() {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("ChatOpenPanesLeftOut_\(UUID().uuidString)", isDirectory: true)
+        let manager = ReviewSessionManager(storage: StorageService(storeRoot: root))
+        manager.leaveOutOnScreenSource("src-talk")
+        manager.leaveOutOnScreenSource("src-paper")
+        manager.keepOnScreenSourcesLeftOut(within: ["src-talk", "src-paper"])
+        #expect(manager.onScreenSourcesLeftOut == ["src-talk", "src-paper"])
+        manager.keepOnScreenSourcesLeftOut(within: ["src-talk"])
+        #expect(manager.onScreenSourcesLeftOut == ["src-talk"], "the closed paper is forgotten")
+        manager.endSession()
+        #expect(manager.onScreenSourcesLeftOut.isEmpty)
+    }
+}

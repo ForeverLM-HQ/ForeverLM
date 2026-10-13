@@ -2609,6 +2609,8 @@ final class ReviewSessionManager {
         // restores the grader when that chat is reopened, including for
         // corrections after the first pass.
         courseQuiz = nil
+        // What the last chat left out of what is open is that chat's.
+        onScreenSourcesLeftOut = []
 
         // Everything from here down is session setup, so hold `isSearching` for
         // all of it rather than only for the source hydration. The transcript now
@@ -3727,7 +3729,7 @@ final class ReviewSessionManager {
     /// (`ChatContextAdditions.onScreen`). A chat outside a Studio window, or
     /// a window showing no source, leaves the context as it was.
     private func attachOnScreenSources(to contextualContent: String?) -> String? {
-        guard let onScreen = openPanesProvider?().sourcesOnScreenInChatsWindow else { return contextualContent }
+        guard let onScreen = openPanesForThisChat()?.sourcesOnScreenInChatsWindow else { return contextualContent }
         return ChatContextAdditions.contextContent(contextualContent, onScreen: onScreen)
     }
 
@@ -3759,7 +3761,7 @@ final class ReviewSessionManager {
         let holdsWords = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         defer { composerHoldsWords = holdsWords }
         guard holdsWords, !composerHoldsWords,
-              let onScreen = openPanesProvider?().sourcesOnScreenInChatsWindow else { return }
+              let onScreen = openPanesForThisChat()?.sourcesOnScreenInChatsWindow else { return }
         questionStartMoments = [:]
         for shown in onScreen where isVideoMomentForThisChat(shown) {
             guard let moment = shown.moment else { continue }
@@ -3977,6 +3979,7 @@ final class ReviewSessionManager {
         foundSources = []
         contextDocs = []
         canvasContext = nil
+        onScreenSourcesLeftOut = []
         discardPendingImages()
         sourceManifest = ""
         sourceContext = ""
@@ -5496,7 +5499,7 @@ final class ReviewSessionManager {
                     let activityID = appendToolActivity(
                         for: AppToolCall(name: call.name, arguments: call.arguments)
                     )
-                    let listed = openPanesProvider.map { AppToolResult(text: $0().text, isError: false) }
+                    let listed = openPanesForThisChat().map { AppToolResult(text: $0.text, isError: false) }
                         ?? AppToolResult(text: "Error: this chat is not shown in a ForeverLM window, so there are no panes to list.", isError: true)
                     completeToolActivity(activityID, result: listed)
                     results.append(AIToolResultPayload(
@@ -12133,6 +12136,35 @@ final class ReviewSessionManager {
     /// a chat outside a Studio window) leaves the tool off the request.
     @ObservationIgnored var openPanesProvider: (@MainActor () -> ChatOpenPanes)?
 
+    /// The sources open beside this chat that the learner took out of it
+    /// with the × on their chip over the composer, by source id. The chat is
+    /// told nothing of them while they stay open: no on-screen line on the
+    /// message, no moment, no pause on typing, nothing in `list_open_panes`
+    /// (product owner, 2026-10-13: "if i don't want to chat about that; i
+    /// can click a small X and it will remove it from context"). A source
+    /// leaves the set when it leaves the window (`keepOnScreenSourcesLeftOut`),
+    /// so opening it again shows its chip again; a new or reopened chat
+    /// starts with none left out.
+    private(set) var onScreenSourcesLeftOut: Set<String> = []
+
+    /// What the chat's window and the other windows have open, less what the
+    /// learner left out of this chat. Nil for a chat outside a Studio window.
+    private func openPanesForThisChat() -> ChatOpenPanes? {
+        openPanesProvider.map { $0().leavingOut(onScreenSourcesLeftOut) }
+    }
+
+    /// The chip's ×: this chat stops seeing the source while it stays open.
+    func leaveOutOnScreenSource(_ sourceID: String) {
+        onScreenSourcesLeftOut.insert(sourceID)
+    }
+
+    /// Forgets the left-out sources no longer on screen in the chat's window,
+    /// so the × lasts as long as the learner keeps that source open.
+    func keepOnScreenSourcesLeftOut(within onScreenIDs: Set<String>) {
+        let kept = onScreenSourcesLeftOut.intersection(onScreenIDs)
+        if kept != onScreenSourcesLeftOut { onScreenSourcesLeftOut = kept }
+    }
+
     /// How this chat pauses the video a Reader beside it is playing, by
     /// source id; set by the pane beside `openPanesProvider`. Nil for a chat
     /// with no Studio window around it, which pauses nothing.
@@ -16641,12 +16673,18 @@ extension ReviewSessionManager {
     }
 
     /// The stored context a message sent with `referenceContext` would carry
-    /// in a chat whose window shows `openPanes` (nil: no window).
-    static func onScreenContextForTesting(openPanes: ChatOpenPanes?, referenceContext: String?) -> String? {
+    /// in a chat whose window shows `openPanes` (nil: no window), with
+    /// `leftOut` taken out by their chips' × first.
+    static func onScreenContextForTesting(
+        openPanes: ChatOpenPanes?,
+        referenceContext: String?,
+        leftOut: [String] = []
+    ) -> String? {
         let manager = ReviewSessionManager(storage: StorageService(storeRoot: temporaryTestingRoot()))
         if let openPanes {
             manager.openPanesProvider = { openPanes }
         }
+        leftOut.forEach(manager.leaveOutOnScreenSource)
         return manager.attachOnScreenSources(to: referenceContext)
     }
 

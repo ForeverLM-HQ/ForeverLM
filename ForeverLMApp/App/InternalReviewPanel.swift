@@ -923,6 +923,12 @@ private struct InternalReviewPanelContent: View {
             guard readsNotebookTicksLive, let windowState, write.windowID == windowState.id else { return }
             readsNotebookTicksLive = false
         }
+        // A source left out of this chat with its chip's × is left out while
+        // it stays open; once it leaves the window, opening it again is
+        // asking about it again, so the chat sees it and its chip is back.
+        .onChange(of: sourcesOnScreenBesideChat.map(\.id), initial: true) { _, ids in
+            manager.keepOnScreenSourcesLeftOut(within: Set(ids))
+        }
         // An empty chat in a window that holds a notebook is that notebook's:
         // a relaunch brings the notebook back with a blank chat, and a New
         // chat in a notebook window is the notebook's.
@@ -2104,10 +2110,12 @@ private struct InternalReviewPanelContent: View {
 
         // `selectedArticle` outlives the reader that showed it, so this asked
         // about a source that had not been on screen for days. Offer it only
-        // while a Reader is genuinely open.
-        if let article = vm.selectedArticle,
-           vm.showReaderPanel,
-           vm.activeCenterTabs.contains(.reader) {
+        // while a Reader in this chat's own window shows it — the key
+        // window's tabs and the app-wide Reader flag said nothing about this
+        // one — and not for a source the learner left out of the chat.
+        let leftOut = manager.onScreenSourcesLeftOut
+        if let shown = sourcesOnScreenBesideChat.first(where: { !leftOut.contains($0.id) }),
+           let article = vm.articlesById[shown.id] {
             suggestions.append(IdleSuggestion(
                 id: "explain-reading",
                 systemImage: "text.book.closed",
@@ -4301,6 +4309,11 @@ private struct InternalReviewPanelContent: View {
     ///
     /// Since 2026-10-11 the row is the composer's tray, behind the card's top
     /// edge (`ChatComposerStack`), where Codex shows the project.
+    ///
+    /// What is open beside the chat has a chip too, in every window, a
+    /// notebook's included (2026-10-13): the chat is told of it with every
+    /// message, so the tray says so, and its × leaves it out
+    /// (`onScreenChips`).
     @ViewBuilder
     private var composerContextRow: some View {
         let chips = composerContextChips
@@ -4312,6 +4325,7 @@ private struct InternalReviewPanelContent: View {
                 if chips.notebook {
                     notebookChip
                 }
+                onScreenChips(chips.onScreen)
                 if chips.context {
                     attachedSourcesChip
                 }
@@ -4322,12 +4336,58 @@ private struct InternalReviewPanelContent: View {
 
     /// Which of the context row's chips are drawn: the notebook's outside its
     /// own window, the "in context" pill when something is (in the notebook's
-    /// window only for an attached Page), and the canvas's.
-    private var composerContextChips: (notebook: Bool, context: Bool, showsAny: Bool) {
+    /// window only for an attached Page), the canvas's, and one for each
+    /// source open beside the chat.
+    private var composerContextChips: (notebook: Bool, context: Bool, onScreen: [ChatContextAdditions.OnScreen], showsAny: Bool) {
         let inOwnNotebookWindow = notebookGuideNotebook != nil
         let notebook = linkedResearchNotebook != nil && !inOwnNotebookWindow
         let context = contextItemCount > 0 && (!inOwnNotebookWindow || !manager.contextDocs.isEmpty)
-        return (notebook, context, notebook || context || manager.canvasContext != nil)
+        let onScreen = onScreenChipSources
+        return (notebook, context, onScreen, notebook || context || !onScreen.isEmpty || manager.canvasContext != nil)
+    }
+
+    /// The library sources on screen in this chat's window, read as a
+    /// message sent now reads them (`ChatOpenPanes.sourcesOnScreen`). Empty
+    /// for a chat outside a Studio window.
+    private var sourcesOnScreenBesideChat: [ChatContextAdditions.OnScreen] {
+        guard let windowState else { return [] }
+        return ChatOpenPanes.sourcesOnScreen(in: windowState, vm: vm)
+    }
+
+    /// The open sources the tray gives a chip: what the chat is told is on
+    /// screen, less what the learner left out with a chip's ×, and less what
+    /// the "in context" pill already counts, whose text the chat has read in
+    /// and whose × is in that pill's list.
+    private var onScreenChipSources: [ChatContextAdditions.OnScreen] {
+        let leftOut = manager.onScreenSourcesLeftOut
+        let loaded = manager.loadedSourceIDs
+        return sourcesOnScreenBesideChat.filter { !leftOut.contains($0.id) && !loaded.contains($0.id) }
+    }
+
+    /// A chip for each source open beside the chat (product owner,
+    /// 2026-10-13: "perhaps a chat should know at all times what is OPEN;
+    /// i.e. it should know i have this youtube video open. and if i don't
+    /// want to chat about that; i can click a small X and it will remove it
+    /// from context"). The chat already reads what is on screen with every
+    /// message, a video with its moment (`ChatContextAdditions.onScreen`);
+    /// the chip shows it, and its × leaves the source out of this chat for
+    /// as long as it stays open (`ReviewSessionManager.onScreenSourcesLeftOut`).
+    /// The source is in front of the learner, so the chip opens nothing.
+    @ViewBuilder
+    private func onScreenChips(_ sources: [ChatContextAdditions.OnScreen]) -> some View {
+        ForEach(sources, id: \.id) { source in
+            ComposerRemovableChip(
+                symbol: vm.articlesById[source.id]?.sourceType.symbolName ?? "doc",
+                title: source.title,
+                maxTitleWidth: 220,
+                help: "Open beside this chat, so the chat sees it",
+                removeHelp: "Leave \u{201C}\(source.title)\u{201D} out of this chat while it is open",
+                accessibilityLabel: "Open beside the chat: \(source.title)",
+                open: nil,
+                remove: { manager.leaveOutOnScreenSource(source.id) }
+            )
+            .accessibilityIdentifier("chat.onScreenChip")
+        }
     }
 
     /// Whether the composer draws its tray.

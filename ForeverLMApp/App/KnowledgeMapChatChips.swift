@@ -27,7 +27,7 @@ struct KnowledgeMapChatChipRow: View {
 
     var body: some View {
         let split = KnowledgeMapChatChips.split(context.cards)
-        KnowledgeMapChatChip(
+        ComposerRemovableChip(
             symbol: KnowledgeMap.symbolName,
             title: context.name,
             maxTitleWidth: 180,
@@ -39,7 +39,7 @@ struct KnowledgeMapChatChipRow: View {
         )
         .accessibilityIdentifier("chat.canvasChip")
         ForEach(split.shown) { card in
-            KnowledgeMapChatChip(
+            ComposerRemovableChip(
                 symbol: symbol(card),
                 title: KnowledgeMapChatChips.title(of: card),
                 maxTitleWidth: nil,
@@ -91,11 +91,13 @@ struct KnowledgeMapChatChipRow: View {
     }
 }
 
-/// One chip: a glyph and a title that open what it names, and an × that takes
-/// it out of the chat. The × is built only under the pointer, its glyph's
-/// room kept, so a chip does not shift under the cursor and a row of chips
-/// does not read as a row of buttons.
-private struct KnowledgeMapChatChip: View {
+/// One chip over the composer: a glyph and a title that open what it names,
+/// and an × that takes it out of the chat. The × is built only under the
+/// pointer, its glyph's room kept, so a chip does not shift under the cursor
+/// and a row of chips does not read as a row of buttons. The canvas's chips
+/// and the chips for what is open beside the chat
+/// (`InternalReviewPanel.onScreenChips`) are drawn by it.
+struct ComposerRemovableChip: View {
     let symbol: String
     let title: String
     /// The width a long title is cut to; nil lets the title run to its length.
@@ -103,29 +105,25 @@ private struct KnowledgeMapChatChip: View {
     let help: String
     let removeHelp: String
     let accessibilityLabel: String
-    let open: () -> Void
+    /// Nil for a chip with nothing to open: a source already on screen
+    /// beside the chat is in front of the learner.
+    let open: (() -> Void)?
     let remove: () -> Void
 
     @State private var isHovering = false
 
     var body: some View {
         HStack(spacing: 3) {
-            Button(action: open) {
-                HStack(spacing: 5) {
-                    Image(systemName: symbol)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                    Text(title)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .frame(maxWidth: maxTitleWidth, alignment: .leading)
+            if let open {
+                Button(action: open) {
+                    label
                 }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .contentShape(Capsule())
+                .buttonStyle(.plain)
+                .help(help)
+            } else {
+                label
+                    .help(help)
             }
-            .buttonStyle(.plain)
-            .help(help)
             if isHovering {
                 Button(action: remove) {
                     KnowledgeMapChatChipRemoveGlyph()
@@ -153,6 +151,24 @@ private struct KnowledgeMapChatChip: View {
                 Button("Remove from Chat", action: remove)
             }
         }
+    }
+
+    private var label: some View {
+        HStack(spacing: 5) {
+            Image(systemName: symbol)
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+            Text(title)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: maxTitleWidth, alignment: .leading)
+            // A chip's name is a label, not text to copy; outside a button
+            // the window's text selection would otherwise take the drag.
+                .textSelection(.disabled)
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .contentShape(Capsule())
     }
 }
 
