@@ -178,6 +178,7 @@ User docs live in `docs-site/` (VitePress, published at docs.foreverlm.com) and 
 
 ## Commits
 
+- **Every ForeverLM commit and GitHub write must use the `foreverlm-admin` GitHub account.** Before committing, pushing, merging, or otherwise changing this repository on github.com, run `gh auth status` and verify that `foreverlm-admin` is the active account. Never perform those actions with any other account; switch first.
 - **Commit messages explain why**, name the area touched, and state the measured cost for any migration.
 - **Never commit generated scratch output, local databases, `.env`, keys or credentials.**
 - **Keep unrelated work in separate commits**, each with its own message; do not bundle a refactor into a bug fix.
