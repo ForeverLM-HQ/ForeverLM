@@ -271,10 +271,14 @@ enum MobileSpacePlace: Hashable, Sendable {
     }
 }
 
-/// The list's order (the Mac's `SpaceSort`): Date Created by default, so an edit never moves a page
-/// (product owner, 2026-09-29: "just do it by creation date and time").
+/// The list's order (the Mac's `SpaceSort`): Last Activity by default, as Codex's Space lists (product owner,
+/// 2026-10-13: "at first it should be a copy of the codex"); Date Created was the default before
+/// (2026-09-29: "just do it by creation date and time").
 enum MobileSpaceSort: String, CaseIterable, Identifiable, Sendable {
     case created, activity, name
+
+    /// The order a phone that never chose one lists in (the Mac's `SpaceSort.standard`).
+    static let standard: MobileSpaceSort = .activity
 
     var id: String { rawValue }
 

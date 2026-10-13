@@ -314,9 +314,9 @@ struct MobileSpacePlaceList: View {
     @State private var query = ""
     /// Which pages show their subpages: this device's, as the Mac's `space.pagesExpanded` is.
     @AppStorage(MobileSpaceExpansion.defaultsKey) private var expandedRaw = ""
-    @AppStorage("ios.space.sort") private var sortRaw = MobileSpaceSort.created.rawValue
+    @AppStorage("ios.space.sort") private var sortRaw = MobileSpaceSort.standard.rawValue
 
-    private var sort: MobileSpaceSort { MobileSpaceSort(rawValue: sortRaw) ?? .created }
+    private var sort: MobileSpaceSort { MobileSpaceSort(rawValue: sortRaw) ?? .standard }
     private var title: String { MobileSpacePlaceTitle.title(place, store: store) }
 
     var body: some View {

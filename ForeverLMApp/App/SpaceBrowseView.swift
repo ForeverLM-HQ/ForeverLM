@@ -91,12 +91,17 @@ enum SpaceScope: String, CaseIterable, Identifiable {
     }
 }
 
-/// The Space list's order. Date created is the default: an edit never moves
-/// a page (product owner, 2026-09-29: "just do it by creation date and time").
+/// The Space list's order. Last activity is the default, as Codex's Space
+/// lists by it (product owner, 2026-10-13: "at first it should be a copy of
+/// the codex ... functionality"). It replaced Date Created (2026-09-29: "just
+/// do it by creation date and time"), which stays one choice away; opening a
+/// page is a read and never moves it (docs/ui-design.md, "Opening is a read").
 enum SpaceSort: String, CaseIterable, Identifiable {
     case created, activity, name
 
     static let preferenceKey = "space.sort"
+    /// The order a Mac that never chose one lists in.
+    static let standard: SpaceSort = .activity
 
     var id: String { rawValue }
 
@@ -312,7 +317,7 @@ struct SpaceBrowseView: View {
     let onNewSpace: () -> Void
 
     @AppStorage(SpaceLayout.preferenceKey) private var layout: SpaceLayout = .list
-    @AppStorage(SpaceSort.preferenceKey) private var sort: SpaceSort = .created
+    @AppStorage(SpaceSort.preferenceKey) private var sort: SpaceSort = SpaceSort.standard
     @State private var scope: SpaceScope = .all
     @State private var notebookFilter: ArtifactsNotebookFilter = .all
     @State private var images: [GeneratedImageStore.ImageGroup] = []
@@ -1412,10 +1417,29 @@ struct SpaceBrowseView: View {
                     }
                 }
             } else {
-                Button("Open") { open(item) }
+                // Codex's page row menu first, in its order: Rename · Pin ·
+                // Delete (Move to Trash, since Trash is the archive) │ Share ·
+                // Copy ▸ · Download │ Open in new window. ForeverLM's own
+                // follow under one divider (docs/codex-parity-audit.md, item 36).
+                if item.isOwnedHere {
+                    Button("Rename…", systemImage: "pencil") {
+                        renameDraft = item.title
+                        renaming = item
+                    }
+                    SpacePagePinItem(artifact: artifact)
+                    Button("Move to Trash", systemImage: "trash", role: .destructive) {
+                        Task { await vm.moveArtifactToTrash(artifact.id) }
+                    }
+                }
+                if SpacePageSharingItems.applies(to: artifact) {
+                    Divider()
+                    SpacePageSharingItems(artifact: artifact)
+                }
                 if let destination = item.otherWindowDestination {
+                    Divider()
                     OtherWindowMenuItem(destination)
                 }
+                Divider()
                 Button("Add to Chat", systemImage: "message") {
                     Task { await vm.attachDocToChat(artifact.id) }
                 }
@@ -1424,12 +1448,6 @@ struct SpaceBrowseView: View {
                     Button("Open in Browser", systemImage: "safari") { NSWorkspace.shared.open(url) }
                 }
                 if item.isOwnedHere {
-                    Divider()
-                    Button("Rename…", systemImage: "pencil") {
-                        renameDraft = item.title
-                        renaming = item
-                    }
-                    SpacePagePinItem(artifact: artifact)
                     NotebookFilingMenuItems(
                         sourceIDs: artifact.sourceIDs,
                         livesIn: { vm.notebooksHolding(item.filing) },
@@ -1454,18 +1472,8 @@ struct SpaceBrowseView: View {
                         }
                     }
                 }
-                if SpacePageSharingItems.applies(to: artifact) {
-                    Divider()
-                    SpacePageSharingItems(artifact: artifact)
-                }
-                Divider()
                 Button(item.isHidden ? "Show in Lists" : "Hide", systemImage: item.isHidden ? "eye" : "eye.slash") {
                     Task { await vm.setArtifactHidden(artifactID: artifact.id, isHidden: !item.isHidden) }
-                }
-                if item.isOwnedHere {
-                    Button("Move to Trash", systemImage: "trash", role: .destructive) {
-                        Task { await vm.moveArtifactToTrash(artifact.id) }
-                    }
                 }
             }
         }

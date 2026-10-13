@@ -351,6 +351,70 @@ struct PagePinsTests {
             #expect(vm.pinnedPages.map(\.id) == ["doc-1"])
         }
     }
+
+    @Test("A drag reorders the pins by rewriting values: the moved pin lands between its neighbours, the rest stay put")
+    func reorderRows() {
+        let pins = PagePins(pinnedAt: ["a": 500, "b": 400, "c": 300, "d": 200])
+        #expect(pins.orderedPageIDs == ["a", "b", "c", "d"])
+
+        // Up into a gap: only the moved pin's row is written.
+        let up = pins.rowsAfterMoving("d", before: "b")
+        #expect(up == [PagePins.Row(pageID: "d", seconds: 450)])
+        #expect(pins.applying(up).orderedPageIDs == ["a", "d", "b", "c"])
+
+        // To the top: one over the first.
+        let top = pins.rowsAfterMoving("c", before: "a")
+        #expect(top == [PagePins.Row(pageID: "c", seconds: 501)])
+        #expect(pins.applying(top).orderedPageIDs == ["c", "a", "b", "d"])
+
+        // To the end, and down past one.
+        #expect(pins.applying(pins.rowsAfterMoving("a", before: nil)).orderedPageIDs == ["b", "c", "d", "a"])
+        #expect(pins.applying(pins.rowsAfterMoving("a", before: "c")).orderedPageIDs == ["b", "a", "c", "d"])
+
+        // Nothing moves: already there, onto itself, or not pinned.
+        #expect(pins.rowsAfterMoving("b", before: "c").isEmpty)
+        #expect(pins.rowsAfterMoving("d", before: nil).isEmpty)
+        #expect(pins.rowsAfterMoving("b", before: "b").isEmpty)
+        #expect(pins.rowsAfterMoving("x", before: "a").isEmpty)
+        #expect(pins.rowsAfterMoving("a", before: "x").isEmpty)
+    }
+
+    @Test("Pins with no room between them, or pinned the same second, are rewritten down the list until each sits under the last")
+    func reorderWithoutRoom() {
+        // Two devices pinned three pages within the same second.
+        let tied = PagePins(pinnedAt: ["a": 100, "b": 100, "c": 100, "d": 99])
+        #expect(tied.orderedPageIDs == ["a", "b", "c", "d"], "the id breaks a tie")
+        let rows = tied.rowsAfterMoving("c", before: "a")
+        let after = tied.applying(rows)
+        #expect(after.orderedPageIDs == ["c", "a", "b", "d"])
+        let values = after.orderedPageIDs.compactMap { after.pinnedAt[$0] }
+        #expect(zip(values, values.dropFirst()).allSatisfy { $0 > $1 }, "no two values tie after a move")
+
+        let tight = PagePins(pinnedAt: ["a": 10, "b": 9, "c": 8, "d": 7])
+        let moved = tight.applying(tight.rowsAfterMoving("d", before: "b"))
+        #expect(moved.orderedPageIDs == ["a", "d", "b", "c"])
+        #expect(moved.pinnedAt["a"] == 10, "the rows above the move are never written")
+    }
+
+    @Test("movePin writes the reorder rows, and pages, canvases and lists keep one pinned order")
+    func movePinWritesRows() throws {
+        let suite = "PagePinsTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        try PageSpaceRows.$overrideDefaults.withValue(PageSpaceRows.DefaultsOverride(defaults: defaults)) {
+            let vm = makeViewModel()
+            vm.artifacts = [page("doc-1"), page("doc-2"), page("doc-3")]
+            vm.setPagePinned("doc-1", pinned: true, now: Date(timeIntervalSince1970: 1_790_000_100))
+            vm.setPagePinned("doc-2", pinned: true, now: Date(timeIntervalSince1970: 1_790_000_200))
+            vm.setPagePinned("doc-3", pinned: true, now: Date(timeIntervalSince1970: 1_790_000_300))
+            #expect(vm.pinnedPages.map(\.id) == ["doc-3", "doc-2", "doc-1"])
+
+            vm.movePin("doc-1", before: "doc-3")
+            #expect(vm.pinnedPages.map(\.id) == ["doc-1", "doc-3", "doc-2"])
+            #expect(defaults.string(forKey: "page.pinned.doc-1") == "1790000301")
+            #expect(PagePinRows.read() == vm.pagePins, "what is written is what the sidebar reads")
+        }
+    }
 }
 
 // MARK: - Subpages (the rows)

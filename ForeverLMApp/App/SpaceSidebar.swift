@@ -368,6 +368,9 @@ struct SpaceSidebar: View {
     @State private var deletingSpace: PageSpace?
     /// The space row a dragged page is over.
     @State private var dropTargetSpaceID: String?
+    /// The Pinned row a dragged pin is over, and the pin dragged.
+    @State private var pinDropTargetID: String?
+    @State private var pinDraggedID: String?
     /// The page whose Rename… is asking, from a Pinned or Recents row.
     @State private var renamingPage: ArtifactRecord?
     @State private var pageNameDraft = ""
@@ -694,35 +697,129 @@ struct SpaceSidebar: View {
         return shown
     }
 
-    /// ChatGPT's **Pinned**: the pages the learner pinned, above Recents,
-    /// newest pin first. Each row has Recents' own menu.
-    @ViewBuilder
-    private var pinnedSection: some View {
-        let pinned = vm.pinnedPages
-        let pinnedCanvases = vm.pinnedCanvases
-        let pinnedLists = vm.pinnedSpaceLists
-        if !pinned.isEmpty || !pinnedCanvases.isEmpty || !pinnedLists.isEmpty {
-            SpaceSidebarSectionHeader(title: "Pinned")
-            ForEach(pinned) { artifact in
-                pageRow(
-                    artifact,
-                    identifier: "space.sidebar.pinned.\(artifact.id)",
-                    open: { onOpenRecent(SpaceRecents.Item(kind: .artifact, id: artifact.id, openedAt: Date())) }
-                )
-            }
-            ForEach(pinnedCanvases) { canvas in
-                canvasRow(canvas, identifier: "space.sidebar.pinned.\(canvas.id)")
-            }
-            ForEach(pinnedLists) { list in
-                listRow(list, identifier: "space.sidebar.pinned.\(list.id)")
+    /// One Pinned row: a page, a canvas or a list, in the pins' one order.
+    enum PinnedRow: Identifiable {
+        case page(ArtifactRecord)
+        case canvas(KnowledgeMapCanvas)
+        case list(SpaceList)
+
+        var id: String {
+            switch self {
+            case .page(let artifact): return artifact.id
+            case .canvas(let canvas): return canvas.id
+            case .list(let list): return list.id
             }
         }
+    }
+
+    /// The pinned pages, canvases and lists, in the order their pin rows
+    /// give (`PagePins.orderedPageIDs`): the newest pin first until the
+    /// learner drags one elsewhere.
+    private var pinnedRows: [PinnedRow] {
+        var byID: [String: PinnedRow] = [:]
+        for artifact in vm.pinnedPages { byID[artifact.id] = .page(artifact) }
+        for canvas in vm.pinnedCanvases { byID[canvas.id] = .canvas(canvas) }
+        for list in vm.pinnedSpaceLists { byID[list.id] = .list(list) }
+        return vm.pagePins.orderedPageIDs.compactMap { byID[$0] }
+    }
+
+    /// ChatGPT's **Pinned**: the pages, canvases and lists the learner
+    /// pinned, above Recents, in one order. A row dragged onto another moves
+    /// there, as Codex's pinned rows reorder by drag (`movePin`). Each row has
+    /// Recents' own menu.
+    @ViewBuilder
+    private var pinnedSection: some View {
+        let rows = pinnedRows
+        if !rows.isEmpty {
+            SpaceSidebarSectionHeader(title: "Pinned")
+            ForEach(rows) { row in
+                pinnedRow(row)
+                    .onDrag {
+                        pinDraggedID = row.id
+                        let provider = NSItemProvider()
+                        let data = Data(row.id.utf8)
+                        provider.registerDataRepresentation(forTypeIdentifier: UTType.spacePin.identifier, visibility: .ownProcess) { completion in
+                            completion(data, nil)
+                            return nil
+                        }
+                        return provider
+                    }
+                    .overlay(alignment: pinDropEdge(onto: row.id, in: rows) == .bottom ? .bottom : .top) {
+                        if pinDropTargetID == row.id {
+                            Capsule()
+                                .fill(Color.accentColor)
+                                .frame(height: 2)
+                                .padding(.horizontal, 6)
+                                .allowsHitTesting(false)
+                        }
+                    }
+                    .onDrop(of: [.spacePin], isTargeted: Binding(
+                        get: { pinDropTargetID == row.id },
+                        set: { isTargeted in
+                            if isTargeted {
+                                pinDropTargetID = row.id
+                            } else if pinDropTargetID == row.id {
+                                pinDropTargetID = nil
+                            }
+                        }
+                    )) { providers in
+                        dropPin(providers, onto: row.id, in: rows)
+                    }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func pinnedRow(_ row: PinnedRow) -> some View {
+        switch row {
+        case .page(let artifact):
+            pageRow(
+                artifact,
+                identifier: "space.sidebar.pinned.\(artifact.id)",
+                open: { onOpenRecent(SpaceRecents.Item(kind: .artifact, id: artifact.id, openedAt: Date())) }
+            )
+        case .canvas(let canvas):
+            canvasRow(canvas, identifier: "space.sidebar.pinned.\(canvas.id)")
+        case .list(let list):
+            listRow(list, identifier: "space.sidebar.pinned.\(list.id)")
+        }
+    }
+
+    /// Where a pin dropped on `targetID` lands: a row dragged down lands
+    /// under the row it is dropped on, one dragged up above it, so the first
+    /// and the last place are both in reach. Unknown until the drag says
+    /// which row it carries, so the line is drawn over the row meanwhile.
+    private func pinDropEdge(onto targetID: String, in rows: [PinnedRow]) -> VerticalEdge {
+        guard let dragged = pinDraggedID,
+              let from = rows.firstIndex(where: { $0.id == dragged }),
+              let to = rows.firstIndex(where: { $0.id == targetID }) else { return .top }
+        return from < to ? .bottom : .top
+    }
+
+    private func dropPin(_ providers: [NSItemProvider], onto targetID: String, in rows: [PinnedRow]) -> Bool {
+        pinDropTargetID = nil
+        guard let provider = providers.first(where: { $0.hasItemConformingToTypeIdentifier(UTType.spacePin.identifier) }) else { return false }
+        let order = rows.map(\.id)
+        provider.loadDataRepresentation(forTypeIdentifier: UTType.spacePin.identifier) { data, _ in
+            guard let data, let dragged = String(data: data, encoding: .utf8) else { return }
+            Task { @MainActor in
+                pinDraggedID = nil
+                guard dragged != targetID,
+                      let from = order.firstIndex(of: dragged),
+                      let to = order.firstIndex(of: targetID) else { return }
+                // Down: under the target, so above the row after it (none:
+                // last). Up: above the target.
+                let before: String? = from < to ? (to + 1 < order.count ? order[to + 1] : nil) : targetID
+                vm.movePin(dragged, before: before)
+            }
+        }
+        return true
     }
 
     /// A row for a list of goals or ideas: its glyph and name, lit while its
     /// page shows, and a list's menu under the ⋯ and on right-click
     /// (`SpaceListMenuItems`).
-    private func listRow(_ list: SpaceList, identifier: String) -> some View {
+    private func listRow(_ list: SpaceList, identifier: String, onRemoveFromRecents: (() -> Void)? = nil) -> some View {
         SpaceSidebarRow(
             title: list.name,
             isSelected: selection == .list(list.id),
@@ -734,6 +831,7 @@ struct SpaceSidebar: View {
         } trailing: {
             Menu {
                 SpaceListMenuItems(list: list, onRename: { renamingList = list })
+                SpaceRemoveFromRecentsItem(action: onRemoveFromRecents)
             } label: {
                 Image(systemName: "ellipsis")
                     .zoomedSystemFont(size: 11, weight: .semibold)
@@ -750,12 +848,13 @@ struct SpaceSidebar: View {
         }
         .contextMenu {
             SpaceListMenuItems(list: list, onRename: { renamingList = list })
+            SpaceRemoveFromRecentsItem(action: onRemoveFromRecents)
         }
     }
 
     /// A row for a canvas: its glyph and name, and a canvas's menu under the
     /// ⋯ and on right-click (`SpaceCanvasMenuItems`).
-    private func canvasRow(_ canvas: KnowledgeMapCanvas, identifier: String) -> some View {
+    private func canvasRow(_ canvas: KnowledgeMapCanvas, identifier: String, onRemoveFromRecents: (() -> Void)? = nil) -> some View {
         SpaceSidebarRow(
             title: canvas.name,
             isSelected: canvas.id == openArtifactID,
@@ -766,6 +865,7 @@ struct SpaceSidebar: View {
         } trailing: {
             Menu {
                 SpaceCanvasMenuItems(canvas: canvas, onRename: { renamingCanvas = canvas })
+                SpaceRemoveFromRecentsItem(action: onRemoveFromRecents)
             } label: {
                 Image(systemName: "ellipsis")
                     .zoomedSystemFont(size: 11, weight: .semibold)
@@ -782,6 +882,7 @@ struct SpaceSidebar: View {
         }
         .contextMenu {
             SpaceCanvasMenuItems(canvas: canvas, onRename: { renamingCanvas = canvas })
+            SpaceRemoveFromRecentsItem(action: onRemoveFromRecents)
         }
     }
 
@@ -790,7 +891,9 @@ struct SpaceSidebar: View {
     /// row: Rename, Pin, Delete, Share, Copy, Download as Markdown, Open in
     /// new window).
     @ViewBuilder
-    private func pageRow(_ artifact: ArtifactRecord, identifier: String, open: @escaping () -> Void) -> some View {
+    private func pageRow(
+        _ artifact: ArtifactRecord, identifier: String, onRemoveFromRecents: (() -> Void)? = nil, open: @escaping () -> Void
+    ) -> some View {
         SpaceSidebarRow(
             title: artifact.title,
             isSelected: artifact.id == openArtifactID,
@@ -802,6 +905,7 @@ struct SpaceSidebar: View {
             HStack(spacing: 0) {
                 Menu {
                     SpacePageRowMenuItems(artifact: artifact, onRename: { beginRename(artifact) })
+                    SpaceRemoveFromRecentsItem(action: onRemoveFromRecents)
                 } label: {
                     Image(systemName: "ellipsis")
                         .zoomedSystemFont(size: 11, weight: .semibold)
@@ -829,6 +933,7 @@ struct SpaceSidebar: View {
         }
         .contextMenu {
             SpacePageRowMenuItems(artifact: artifact, onRename: { beginRename(artifact) })
+            SpaceRemoveFromRecentsItem(action: onRemoveFromRecents)
         }
     }
 
@@ -844,16 +949,20 @@ struct SpaceSidebar: View {
             SpaceSidebarSectionHeader(title: "Recents", folded: $recentsFolded)
             if !recentsFolded {
                 ForEach(shown) { entry in
+                    // Every Recents row can leave Recents, as Codex's can;
+                    // the thing itself stays where it is.
+                    let forget = { recents.forget(entry.item.kind, id: entry.item.id) }
                     if let artifact = entry.artifact {
                         pageRow(
                             artifact,
                             identifier: "space.sidebar.recent.\(entry.item.id)",
+                            onRemoveFromRecents: forget,
                             open: { onOpenRecent(entry.item) }
                         )
                     } else if let canvas = entry.canvas {
-                        canvasRow(canvas, identifier: "space.sidebar.recent.\(entry.item.id)")
+                        canvasRow(canvas, identifier: "space.sidebar.recent.\(entry.item.id)", onRemoveFromRecents: forget)
                     } else if let list = entry.list {
-                        listRow(list, identifier: "space.sidebar.recent.\(entry.item.id)")
+                        listRow(list, identifier: "space.sidebar.recent.\(entry.item.id)", onRemoveFromRecents: forget)
                     } else {
                         SpaceSidebarRow(
                             title: entry.title,
@@ -866,9 +975,7 @@ struct SpaceSidebar: View {
                             EmptyView()
                         }
                         .contextMenu {
-                            Button("Remove from Recents", systemImage: "clock.badge.xmark") {
-                                recents.forget(entry.item.kind, id: entry.item.id)
-                            }
+                            SpaceRemoveFromRecentsItem(action: forget)
                         }
                     }
                 }
@@ -936,16 +1043,9 @@ struct SpaceSidebar: View {
                 ) {
                     SpaceTeamMark(name: team.name)
                 } trailing: {
-                    EmptyView()
+                    SpaceRowMoreMenu(help: "Space options") { teamMenuItems(team) }
                 }
-                .contextMenu {
-                    Button("Invite People…", systemImage: "person.badge.plus") {
-                        TeamSharingService.shared.presentMembers(for: team)
-                    }
-                    Button("Open \(team.name)’s Library", systemImage: "arrow.right.circle") {
-                        Task { await vm.setActiveTeam(team.id) }
-                    }
-                }
+                .contextMenu { teamMenuItems(team) }
             }
         }
     }
@@ -962,7 +1062,7 @@ struct SpaceSidebar: View {
         ) {
             PageSpaceGlyph(name: space.name)
         } trailing: {
-            EmptyView()
+            SpaceRowMoreMenu(help: "Space options") { pageSpaceMenuItems(space) }
         }
         .overlay {
             if dropTargetSpaceID == space.id {
@@ -983,14 +1083,30 @@ struct SpaceSidebar: View {
         )) { providers in
             dropPages(providers, into: space.id)
         }
-        .contextMenu {
-            Button("Rename…", systemImage: "pencil") {
-                spaceNameDraft = space.name
-                renamingSpace = space
-            }
-            Button("Delete Space…", systemImage: "trash", role: .destructive) {
-                deletingSpace = space
-            }
+        .contextMenu { pageSpaceMenuItems(space) }
+    }
+
+    /// A space's ⋯ (under the pointer, as Codex's space rows have one) and
+    /// right-click.
+    @ViewBuilder
+    private func pageSpaceMenuItems(_ space: PageSpace) -> some View {
+        Button("Rename…", systemImage: "pencil") {
+            spaceNameDraft = space.name
+            renamingSpace = space
+        }
+        Button("Delete Space…", systemImage: "trash", role: .destructive) {
+            deletingSpace = space
+        }
+    }
+
+    /// A team's ⋯ and right-click.
+    @ViewBuilder
+    private func teamMenuItems(_ team: TeamRecord) -> some View {
+        Button("Invite People…", systemImage: "person.badge.plus") {
+            TeamSharingService.shared.presentMembers(for: team)
+        }
+        Button("Open \(team.name)’s Library", systemImage: "arrow.right.circle") {
+            Task { await vm.setActiveTeam(team.id) }
         }
     }
 
@@ -1102,6 +1218,31 @@ private struct SpaceSidebarBadge: View {
     }
 }
 
+/// A sidebar row's ⋯, shown under the pointer (`SpaceSidebarRow` fades its
+/// trailing control in), holding the row's menu.
+struct SpaceRowMoreMenu<Items: View>: View {
+    let help: String
+    @ViewBuilder let items: () -> Items
+
+    var body: some View {
+        Menu {
+            items()
+        } label: {
+            Image(systemName: "ellipsis")
+                .zoomedSystemFont(size: 11, weight: .semibold)
+                .foregroundStyle(.secondary)
+                .frame(width: 22, height: 20)
+                .contentShape(Rectangle())
+        }
+        .menuStyle(.button)
+        .menuIndicator(.hidden)
+        .buttonStyle(.hoverWash(cornerRadius: 6, inset: 0, opacity: 0.10))
+        .fixedSize()
+        .help(help)
+        .accessibilityLabel(help)
+    }
+}
+
 /// A section's small grey label, and a control that shows beside it.
 struct SpaceSidebarSectionHeader<Trailing: View>: View {
     let title: String
@@ -1198,6 +1339,19 @@ struct SpacePagePinItem: View {
         let pinned = vm.isPagePinned(artifact.id)
         Button(pinned ? "Unpin" : "Pin", systemImage: pinned ? "pin.slash" : "pin") {
             vm.setPagePinned(artifact.id, pinned: !pinned)
+        }
+    }
+}
+
+/// **Remove from Recents** at the foot of a Recents row's menu, after a
+/// divider; nothing on a row that is not a Recents row (`action` nil).
+struct SpaceRemoveFromRecentsItem: View {
+    let action: (() -> Void)?
+
+    var body: some View {
+        if let action {
+            Divider()
+            Button("Remove from Recents", systemImage: "clock.badge.xmark", action: action)
         }
     }
 }

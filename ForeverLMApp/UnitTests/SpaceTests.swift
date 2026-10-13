@@ -115,8 +115,10 @@ struct SpaceTests {
         #expect(SpaceDateText.short(now.addingTimeInterval(-40 * 86_400), now: now).isEmpty == false)
     }
 
-    @Test("Date created is the default order, so an edit never moves a page")
-    func defaultSortIsCreation() {
+    @Test("Last activity is the default order, as Codex's Space lists, on the Mac and the phone")
+    func defaultSortIsActivity() {
+        #expect(SpaceSort.standard == .activity)
+        #expect(MobileSpaceSort.standard.rawValue == SpaceSort.standard.rawValue)
         #expect(SpaceSort.created.dateColumnTitle == "Created")
         #expect(SpaceSort.activity.dateColumnTitle == "Last activity")
     }

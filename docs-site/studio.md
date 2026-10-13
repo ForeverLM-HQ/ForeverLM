@@ -330,6 +330,19 @@ notebook that holds it, and **Walk Through** and **Listen** in the Reader's
 ⋯ menu reach them too. A picture drawn for a walkthrough or a quiz is in no notebook
 and shows where it is used.
 
+#### Working in the Space
+
+The Space's lists come newest activity first, as Codex's do; the sort and
+filter menu still offers **Date Created** and **Name**, and opening a page
+never moves it. A row's **⋯** and right-click start with Codex's own
+**Rename…**, **Pin** and **Move to Trash**, then **Share…**, **Copy ▸** and
+**Download as Markdown**, then **Open in Other Window**; ForeverLM's own
+(**Add to Chat**, the canvas items, **Add to Notebook ▸**, **Move to Space ▸**,
+subpages, **Share with Team ▸**, **Hide**) follow after a divider. Every
+**Recents** row has **Remove from Recents** on its menu, and every space in
+the sidebar has a **⋯** under the pointer. Pinned pages, canvases and lists
+share one order: drag a pinned row onto another to move it there.
+
 Goals and Ideas have no place of their own in the Space since 2026-10-10: ask
 the chat ("what are my goals?", "what are my ideas?") and it lists them, and
 `/goal` sets a goal. A list of goals or of ideas you want to keep in view is a

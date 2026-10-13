@@ -222,7 +222,8 @@ struct PageSpaces: Equatable, Sendable {
 /// `page.pinned.<artifactID>`: the second the page was pinned, as a String of
 /// whole seconds since 1970. One row per page, so two devices pinning two
 /// pages at once keep both; no row is an unpinned page. The newest pin lists
-/// first. Per member, keyed by the record's id and never on the Artifact
+/// first, until a drag reorders the Pinned rows (`rowsAfterMoving`), which
+/// rewrites values. Per member, keyed by the record's id and never on the Artifact
 /// record (teams-design rule 7), so no schema changes. Foundation-only, like
 /// `PageSpaces`.
 struct PagePins: Equatable, Sendable {
@@ -283,6 +284,64 @@ struct PagePins: Equatable, Sendable {
         var copy = self
         copy.pinnedAt[pageID] = seconds
         return copy
+    }
+
+    /// One pin row as a reorder leaves it.
+    struct Row: Equatable, Sendable {
+        let pageID: String
+        let seconds: Int
+    }
+
+    /// The rows Codex's "drag to reorder pinned" writes: `pageID` moves to sit
+    /// just above `beforeID` in the pinned order (nil: last). The order is the
+    /// rows' own values, newest first, so a move rewrites values, never adds a
+    /// field: the moved pin takes a value between its new neighbours, and a
+    /// row below it is rewritten only when it no longer sits under the row
+    /// above. Every value after the move differs from the next, so the id no
+    /// longer breaks a tie. None for a pin that is not one, a `beforeID` that
+    /// is not pinned, or a move that changes nothing.
+    func rowsAfterMoving(_ pageID: String, before beforeID: String?) -> [Row] {
+        guard pinnedAt[pageID] != nil, beforeID != pageID else { return [] }
+        let current = orderedPageIDs
+        var order = current.filter { $0 != pageID }
+        if let beforeID {
+            guard let index = order.firstIndex(of: beforeID) else { return [] }
+            order.insert(pageID, at: index)
+        } else {
+            order.append(pageID)
+        }
+        guard order != current else { return [] }
+        var rows: [Row] = []
+        // The value of the row above, already settled; none over the first.
+        var above: Int?
+        for (index, id) in order.enumerated() {
+            guard let stored = pinnedAt[id] else { continue }
+            var value = stored
+            if id == pageID {
+                let below = index + 1 < order.count ? pinnedAt[order[index + 1]] : nil
+                switch (above, below) {
+                case (nil, let below?):
+                    value = max(stored, below + 1)
+                case (let above?, let below?):
+                    if stored < above, stored > below { break }
+                    value = above - below >= 2 ? below + (above - below) / 2 : above - 1
+                case (let above?, nil):
+                    if stored >= above { value = above - 1 }
+                case (nil, nil):
+                    break
+                }
+            } else if let above, stored >= above {
+                value = above - 1
+            }
+            if value != stored { rows.append(Row(pageID: id, seconds: value)) }
+            above = value
+        }
+        return rows
+    }
+
+    /// This state after each reorder row is written.
+    func applying(_ rows: [Row]) -> PagePins {
+        rows.reduce(self) { $0.setting($1.seconds, for: $1.pageID) }
     }
 }
 

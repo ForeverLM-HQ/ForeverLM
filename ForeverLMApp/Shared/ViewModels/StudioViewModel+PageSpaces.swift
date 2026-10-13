@@ -306,6 +306,22 @@ extension StudioViewModel {
         }
     }
 
+    /// A Pinned row dragged onto another (Codex's "Drag to reorder pinned
+    /// navigation items"): the pin moves just above `beforeID` (nil: last).
+    /// Only the pin values change, so a page, a canvas and a list keep one
+    /// order between them. No network: the rows are local first and sync
+    /// after.
+    func movePin(_ id: String, before beforeID: String?) {
+        let stored = PagePinRows.read()
+        if stored != pagePins { pagePins = stored }
+        let rows = pagePins.rowsAfterMoving(id, before: beforeID)
+        guard !rows.isEmpty else { return }
+        for row in rows {
+            PagePinRows.write(String(row.seconds), pageID: row.pageID)
+        }
+        pagePins = pagePins.applying(rows)
+    }
+
     /// The learner's own pages that are pinned and still listed, the newest
     /// pin first: not in Trash, not hidden, not a team's draft copy.
     var pinnedPages: [ArtifactRecord] {
