@@ -5030,7 +5030,7 @@
           "type" : "string"
         },
         "kind" : {
-          "description" : "description",
+          "description" : "What to make of the file. auto (the default) chooses from the file: a PDF of 100 pages or more is a book, a shorter one a paper; an EPUB or Kindle file is a book; a text or Markdown file is text.",
           "enum" : [
             "auto",
             "paper",
