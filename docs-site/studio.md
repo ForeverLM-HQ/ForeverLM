@@ -602,25 +602,38 @@ Type `/` at the start of a line or after a space in a Page and the slash menu
 opens at the caret. Keep typing to narrow the list to the rows that match, move
 with the arrow keys, and press Return or Tab to use the highlighted row; Escape
 leaves the menu. A row is offered only where it works, so the list differs a
-little between the Mac app and Web Studio.
+little between the Mac app and Web Studio. The groups are Codex's, in Codex's
+order: **Generate**, **Create**, **Media**, **Basic** and **Mentioned**, then
+ForeverLM's own rows under **More**.
+
+When what you type after `/` names no row, the menu offers it as a prompt:
+**Generate — your words** writes with the AI from them, and **Visualize — your
+words** makes a visualization from them, at once. `/generate a short summary`
+or `/visualize the cell cycle` asks for one of the two by name.
 
 | Row | What it does |
 | --- | --- |
 | **Generate** | Writes with the AI at the caret: describe what you want to write and the AI writes it there |
-| **Visualize** | Makes an interactive visualization from your description. Mac only for now |
+| **Visualize** | Makes an interactive visualization from your description. Mac only for now. Type `app`, `diagram`, `screen` or `widget` after `/` for Codex's four starters, **Visualize (Create an app)**, **(Draw a diagram)**, **(Mock up a screen)** and **(Build a widget)**, which open Visualize with the start of the request filled in |
 | **Page** | Makes a new Page inside this one and links to it |
-| **Link to page** | Links to another Page or to a notebook |
 | **Image** | Puts a picture from your computer into the Page; pasting a screenshot or dropping a picture on the Page does the same |
+| **File** | Attaches a file from your computer for readers to download |
 | **Generate image** | Describe a picture and the AI draws it into the Page |
 | **Assistant instructions** | Adds guidance for assistants working on the Page. It is stored as a quote that starts with the bold words **Assistant instructions**, so Chat and assistants over MCP read it with the Page, and the AI is given it when it is asked to write or change something there |
+| **Heading 1** to **Heading 3**, **Bulleted list**, **Numbered list**, **Checklist**, **Quote**, **Code**, **Table**, **Divider** | The basic blocks: each changes the block at the caret into that kind |
+| **Link to page** | Links to another Page or to a notebook |
 | **Prompt** | Adds a request that readers can open in Chat. It is stored as a quote that starts with the bold word **Prompt** |
-| **Text**, **Heading 1** to **Heading 3**, **Bulleted list**, **Numbered list**, **Checklist**, **Quote**, **Code**, **Divider**, **Table**, **Equation** | The basic blocks: each changes the block at the caret into that kind |
-| **Footnote** | Puts a numbered note at the caret, as below |
+| **Highlight** | Draws attention to a note, in a colour you can change from the block's handle |
+| **Math** | A block of LaTeX |
+| **Files**, **Pages**, **Chats**, **Notebooks**, **Ideas** (Mentioned) | Writes an `@` whose list shows only that kind: a file already in this Page, another Page, a chat, a notebook or an Idea. A row shows only when there is something of its kind to mention |
+| **Chat**, **Find sources** (More) | Opens Chat about the Page, or asks Chat to find sources for it |
+| **Text**, **Footnote** (More) | A plain paragraph; a numbered note at the caret, as below |
+| **Today**, **Tomorrow**, **Yesterday**, **Block Reference**, **Embed Block** (More) | On the Mac: a link to that day's daily note, and the notes graph's `((` and `{{embed}}` |
 
 The basic blocks have Markdown shortcuts at the start of a line: `#`, `##` or
 `###` and a space for a heading, `-` or `1.` for a list, `[ ]` for a checklist
 item, `>` for a quote and `---` for a divider; a line of just ```` ``` ```` (a
-language after it if you like) or `$$` makes code or an equation when you press
+language after it if you like) or `$$` makes code or a math block when you press
 Return. Backspace at the start of a heading, a quote or a list item turns it
 back into plain text before it joins the line above, and Tab in a list item
 nests it.

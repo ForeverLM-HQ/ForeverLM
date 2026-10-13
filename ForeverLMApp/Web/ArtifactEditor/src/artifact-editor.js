@@ -1412,8 +1412,10 @@ const wikiLinkTrigger = /\[\[([^[\]\n]*)$/
 /// `((query`, or `{{embed: ((query` for an embed.
 const blockTrigger = /(\{\{\s*(?:\[\[)?embed(?:\]\])?\s*:\s*)?\(\(([^()\n]{0,80})$/
 /// `/query` at the start of a line or after a space: a slash inside a word
-/// ("and/or", an address) is writing, not a command.
-const slashTrigger = /(^|\s)\/([A-Za-z0-9][A-Za-z0-9 ]{0,23})?$/
+/// ("and/or", an address) is writing, not a command. The query may run to a
+/// sentence (it can be a prompt, "Generate — {query}") but holds no second
+/// slash, so a path typed at the start of a line ("/usr/local") is writing.
+const slashTrigger = /(^|\s)\/([\p{L}\p{N}][^\n/]{0,79})?$/u
 /// `@query` at the start of a line or after a space: a mention of a page, a
 /// notebook, an Idea or a chat. An address ("name@host") is writing, not a
 /// mention, and a space straight after the `@` ends it.
@@ -1445,12 +1447,13 @@ function searchKey(value) {
 
 /// The targets whose title (or detail) contains every typed term, at most
 /// eight, the ones whose title begins with the first term ahead of the rest.
-/// An empty query lists the first targets in the host's order.
-function linkTargetMatches(query, limit = 8) {
+/// An empty query lists the first targets in the host's order. `targets`
+/// narrows the list (the `@` list of one kind, the page's own files).
+function linkTargetMatches(query, limit = 8, targets = linkTargets) {
   const terms = searchKey(query).split(/\s+/).filter(Boolean)
   const leading = []
   const rest = []
-  for (const target of linkTargets) {
+  for (const target of targets) {
     const title = searchKey(target.title)
     const key = `${title} ${searchKey(target.detail)}`
     if (!terms.every((term) => key.includes(term))) continue
@@ -1641,20 +1644,32 @@ function wikiRows(query) {
 
 // ─── The slash menu ─────────────────────────────────────────────────────────
 // Typing `/` at the start of a line or after a space offers what can be put
-// on the page, as ChatGPT's Pages does: write with the AI, make a page inside
+// on the page, as Codex's Pages does: write with the AI, make a page inside
 // this one, add a picture, change the block into a heading, a list, a quote,
-// a table. The list is the caret list the `[[` gesture uses, drawn with group
-// headings, an icon and a line saying what the row does; typing narrows it to
-// the rows with a word each typed term begins, ↑↓ move, Return or Tab writes,
-// Escape leaves the typing.
+// a table, mention a file, a page or a chat. The list is the caret list the
+// `[[` gesture uses, drawn with group headings, an icon and a line saying what
+// the row does; typing narrows it to the rows with a word each typed term
+// begins, ↑↓ move, Return or Tab writes, Escape leaves the typing.
+//
+// Codex's groups come first and in Codex's order (product owner, 2026-10-13:
+// "at first it should be a copy of the codex pages functionality; THEN we can
+// gradually add some features on top"): Generate, Create, Media, Basic,
+// Mentioned. ForeverLM's own rows — Chat, Find sources, Text, Footnote, the
+// days and the block references — follow in a group of their own, More.
+//
+// Words that name no row are a prompt: "Generate — {words}" and "Visualize —
+// {words}" lead the list, under Codex's heading "Use your prompt", and run
+// the AI with the words as the instruction. `/generate words` and `/visualize
+// words` ask for one of the two by name.
 //
 // A row is offered only where it works. The block rows are the editor's own
 // and are always there; the rows that need the host — a page made by the
 // library, a picture taken from disk or drawn by a model — appear once the
-// host says it can do them (`setSlashFeatures`), and the day and block rows
-// once the host keeps the notes graph.
+// host says it can do them (`setSlashFeatures`), the day and block rows once
+// the host keeps the notes graph, and a Mentioned row once there is something
+// of its kind to mention.
 
-const slashGroups = ['Generate', 'Create', 'Media', 'Basic', 'Notes']
+const slashGroups = ['Use your prompt', 'Generate', 'Create', 'Media', 'Basic', 'Mentioned', 'More']
 
 /// What the host can do for a row that is not the editor's own, set by
 /// `setSlashFeatures({ pages, images, imageGeneration, visualize, files })`.
@@ -1698,6 +1713,8 @@ const slashIcons = {
   footnote: '<path d="M2.4 6.4h6.8M2.4 9.6h4.6M2.4 13h11.2" opacity=".55"/><path d="M10.6 3.4l1.2-.8V7M10.4 7h2.6"/>',
   calendar: '<rect x="2.2" y="3" width="11.6" height="10.6" rx="1.8"/><path d="M2.2 6.6h11.6M5.4 1.8v2.4M10.6 1.8v2.4"/>',
   reference: '<path d="M5.4 3H4.2v10h1.2M10.6 3h1.2v10h-1.2M7 6.4h2M7 9.6h2"/>',
+  notebook: '<path d="M4 2.2h7.6a1 1 0 0 1 1 1v9.6a1 1 0 0 1-1 1H4z"/><path d="M4 2.2v11.6M6.6 5.4h3.8"/>',
+  idea: '<path d="M8 2a4 4 0 0 0-2.4 7.2c.5.4.8.9.8 1.5v.5h3.2v-.5c0-.6.3-1.1.8-1.5A4 4 0 0 0 8 2z"/><path d="M6.6 13.4h2.8"/>',
   embed: '<rect x="2.2" y="3" width="11.6" height="10" rx="1.8"/><path d="M5.2 6.6l-1.2 1.4 1.2 1.4M10.8 6.6L12 8l-1.2 1.4M8.6 5.6L7.4 10.6"/>',
   // The selection bar's marks and its type menu.
   mention: '<circle cx="8" cy="8" r="2.4"/><path d="M10.4 8v1.1a1.6 1.6 0 0 0 3.2 0V8A5.6 5.6 0 1 0 8 13.6c1.1 0 2.1-.3 3-.9"/>',
@@ -1755,42 +1772,66 @@ const slashBlockCommands = {
 }
 
 /// One row per thing the menu can put on the page. `needs` names the host
-/// feature a row waits for; `keywords` are the other words that find it.
+/// feature a row waits for; `keywords` are the other words that find it. A
+/// `searchOnly` row is left out of the bare `/` list and found by typing.
+/// The ids are the host's too (`runSlashRow`): keep them.
 const slashItems = [
-  { id: 'chat', group: 'Generate', title: 'Chat', detail: 'Ask about this page or anything in your library', icon: 'chat', keywords: ['ask', 'question', 'research', 'library', 'sources', 'ai'] },
-  { id: 'find-sources', group: 'Generate', title: 'Find sources', detail: 'Search your library and the web from Chat', icon: 'search', keywords: ['find', 'search', 'research', 'references', 'papers', 'podcast', 'library', 'web'] },
   { id: 'generate', group: 'Generate', title: 'Generate', detail: 'Describe what you want to write', icon: 'sparkle', keywords: ['ai', 'write', 'draft', 'compose'] },
   { id: 'visualize', group: 'Generate', title: 'Visualize', detail: 'Create an interactive visualization', icon: 'chart', keywords: ['chart', 'diagram', 'graph', 'interactive', 'calculator', 'plot'], needs: 'visualize' },
+  // Codex's four starters: each opens Visualize with the start of a request.
+  { id: 'visualize-app', group: 'Generate', title: 'Visualize (Create an app)', detail: 'Build an interactive app', icon: 'chart', keywords: ['app', 'interactive', 'tool'], prompt: 'Create an app that ', needs: 'visualize', searchOnly: true },
+  { id: 'visualize-diagram', group: 'Generate', title: 'Visualize (Draw a diagram)', detail: 'Explain an idea with a diagram', icon: 'chart', keywords: ['diagram', 'draw', 'explain', 'flowchart'], prompt: 'Draw a diagram that explains ', needs: 'visualize', searchOnly: true },
+  { id: 'visualize-mockup', group: 'Generate', title: 'Visualize (Mock up a screen)', detail: 'Explore a screen design', icon: 'chart', keywords: ['mockup', 'mock-up', 'screen', 'design', 'ui'], prompt: 'Mock up a screen for ', needs: 'visualize', searchOnly: true },
+  { id: 'visualize-widget', group: 'Generate', title: 'Visualize (Build a widget)', detail: 'Build a compact interactive tool', icon: 'chart', keywords: ['widget', 'calculator', 'tool', 'compact'], prompt: 'Build a widget that ', needs: 'visualize', searchOnly: true },
   { id: 'page', group: 'Create', title: 'Page', detail: 'Create a page inside this one', icon: 'page', keywords: ['new', 'subpage', 'child'], needs: 'pages' },
-  { id: 'link', group: 'Create', title: 'Link to page', detail: 'Link to a page or a Notebook', icon: 'link', keywords: ['reference', 'notebook'] },
-  { id: 'mention', group: 'Create', title: 'Mention', detail: 'Link a page, notebook, idea or chat', icon: 'mention', hint: '@', keywords: ['at', 'reference', 'chat', 'notebook', 'page', 'idea'] },
   { id: 'image', group: 'Media', title: 'Image', detail: 'Upload an image', icon: 'image', keywords: ['picture', 'photo', 'upload'], needs: 'images' },
   { id: 'file', group: 'Media', title: 'File', detail: 'Upload a file for download', icon: 'paperclip', keywords: ['attach', 'attachment', 'document', 'pdf', 'download'], needs: 'files' },
   { id: 'draw', group: 'Media', title: 'Generate image', detail: 'Describe a picture and the AI draws it', icon: 'palette', keywords: ['image', 'picture', 'draw', 'ai', 'illustration'], needs: 'imageGeneration' },
   { id: 'instructions', group: 'Basic', title: 'Assistant instructions', detail: 'Guidance for assistants working on this page', icon: 'clipboard', keywords: ['agent', 'ai', 'rules', 'guidance', 'instructions'] },
-  { id: 'highlight', group: 'Basic', title: 'Highlight', detail: 'Make a passage stand out', icon: 'highlight', keywords: ['callout', 'note', 'important', 'tip', 'marker'] },
-  { id: 'prompt', group: 'Basic', title: 'Prompt', detail: 'A request readers can open in Chat', icon: 'chat', keywords: ['ask', 'question', 'request'] },
-  { id: 'text', group: 'Basic', title: 'Text', detail: 'Plain paragraph', icon: 'text', keywords: ['paragraph', 'plain'] },
-  { id: 'h1', group: 'Basic', title: 'Heading 1', icon: 'h1', hint: '#', keywords: ['h1', 'title', 'large'] },
-  { id: 'h2', group: 'Basic', title: 'Heading 2', icon: 'h2', hint: '##', keywords: ['h2', 'subtitle', 'medium'] },
-  { id: 'h3', group: 'Basic', title: 'Heading 3', icon: 'h3', hint: '###', keywords: ['h3', 'small'] },
-  { id: 'bullet', group: 'Basic', title: 'Bulleted list', icon: 'bullet', hint: '-', keywords: ['bullet', 'list', 'unordered', 'ul'] },
-  { id: 'numbered', group: 'Basic', title: 'Numbered list', icon: 'numbered', hint: '1.', keywords: ['ordered', 'list', 'ol'] },
-  { id: 'todo', group: 'Basic', title: 'Checklist', icon: 'todo', hint: '[ ]', keywords: ['todo', 'task', 'checkbox', 'to-do'] },
-  { id: 'quote', group: 'Basic', title: 'Quote', icon: 'quote', hint: '>', keywords: ['blockquote', 'cite'] },
-  { id: 'code', group: 'Basic', title: 'Code', detail: 'Code block', icon: 'code', hint: '```', keywords: ['snippet', 'pre'] },
-  { id: 'divider', group: 'Basic', title: 'Divider', icon: 'divider', hint: '---', keywords: ['line', 'rule', 'separator', 'hr'] },
-  { id: 'table', group: 'Basic', title: 'Table', icon: 'table', keywords: ['grid', 'rows', 'columns'] },
-  { id: 'math', group: 'Basic', title: 'Equation', detail: 'A block of LaTeX', icon: 'sigma', hint: '$$', keywords: ['math', 'latex', 'formula'] },
-  { id: 'footnote', group: 'Basic', title: 'Footnote', detail: 'A numbered note at the foot of the page', icon: 'footnote', hint: '⌥⌘F', keywords: ['note', 'endnote', 'citation', 'reference', 'fn'], needs: 'prose' },
-  { id: 'today', group: 'Notes', title: 'Today', icon: 'calendar', offset: 0, needs: 'dates' },
-  { id: 'tomorrow', group: 'Notes', title: 'Tomorrow', icon: 'calendar', offset: 1, needs: 'dates' },
-  { id: 'yesterday', group: 'Notes', title: 'Yesterday', icon: 'calendar', offset: -1, needs: 'dates' },
-  { id: 'reference', group: 'Notes', title: 'Block Reference', detail: '((', icon: 'reference', keywords: ['block', 'transclude'], needs: 'graph' },
-  { id: 'embed', group: 'Notes', title: 'Embed Block', detail: '{{embed}}', icon: 'embed', keywords: ['block', 'transclude'], needs: 'graph' },
+  { id: 'h1', group: 'Basic', title: 'Heading 1', detail: 'Big section heading', icon: 'h1', hint: '#', keywords: ['h1', 'title', 'large'] },
+  { id: 'h2', group: 'Basic', title: 'Heading 2', detail: 'Medium section heading', icon: 'h2', hint: '##', keywords: ['h2', 'subtitle', 'medium'] },
+  { id: 'h3', group: 'Basic', title: 'Heading 3', detail: 'Small section heading', icon: 'h3', hint: '###', keywords: ['h3', 'small'] },
+  { id: 'bullet', group: 'Basic', title: 'Bulleted list', detail: 'Organize ideas in a simple list', icon: 'bullet', hint: '-', keywords: ['bullet', 'list', 'unordered', 'ul'] },
+  { id: 'numbered', group: 'Basic', title: 'Numbered list', detail: 'An ordered list', icon: 'numbered', hint: '1.', keywords: ['ordered', 'list', 'ol'] },
+  { id: 'todo', group: 'Basic', title: 'Checklist', detail: 'Track your to-dos', icon: 'todo', hint: '[ ]', keywords: ['todo', 'task', 'checkbox', 'to-do'] },
+  { id: 'quote', group: 'Basic', title: 'Quote', detail: 'Set a quote apart from the text', icon: 'quote', hint: '>', keywords: ['blockquote', 'cite'] },
+  { id: 'code', group: 'Basic', title: 'Code', detail: 'Code with syntax highlighting', icon: 'code', hint: '```', keywords: ['snippet', 'pre'] },
+  { id: 'table', group: 'Basic', title: 'Table', detail: 'Organize content in rows and columns', icon: 'table', keywords: ['grid', 'rows', 'columns'] },
+  { id: 'divider', group: 'Basic', title: 'Divider', detail: 'Separate sections with a line', icon: 'divider', hint: '---', keywords: ['line', 'rule', 'separator', 'hr'] },
+  { id: 'link', group: 'Basic', title: 'Link to page', detail: 'Link to a page or a Notebook', icon: 'link', keywords: ['reference', 'notebook'] },
+  { id: 'prompt', group: 'Basic', title: 'Prompt', detail: 'A prompt readers can run', icon: 'chat', keywords: ['ask', 'question', 'request'] },
+  { id: 'highlight', group: 'Basic', title: 'Highlight', detail: 'Draw attention to a note', icon: 'highlight', keywords: ['callout', 'note', 'important', 'tip', 'marker'] },
+  { id: 'math', group: 'Basic', title: 'Math', detail: 'Write an equation in LaTeX', icon: 'sigma', hint: '$$', keywords: ['equation', 'latex', 'formula'] },
+  // Mentioned: each opens the `@` list showing only its kind.
+  { id: 'mention-files', group: 'Mentioned', title: 'Files', detail: 'Reference a file in this page', icon: 'paperclip', mention: 'file', keywords: ['attachment', 'mention', 'at'] },
+  { id: 'mention-pages', group: 'Mentioned', title: 'Pages', detail: 'Reference a page', icon: 'page', mention: 'doc', keywords: ['mention', 'at', 'link'] },
+  { id: 'mention-chats', group: 'Mentioned', title: 'Chats', detail: 'Reference a chat', icon: 'chat', mention: 'chat', keywords: ['mention', 'at', 'conversation'] },
+  { id: 'mention-notebooks', group: 'Mentioned', title: 'Notebooks', detail: 'Reference a notebook', icon: 'notebook', mention: 'notebook', keywords: ['mention', 'at'] },
+  { id: 'mention-ideas', group: 'Mentioned', title: 'Ideas', detail: 'Reference an Idea', icon: 'idea', mention: 'idea', keywords: ['mention', 'at'] },
+  // ForeverLM's own rows, after Codex's.
+  { id: 'chat', group: 'More', title: 'Chat', detail: 'Ask about this page or anything in your library', icon: 'chat', keywords: ['ask', 'question', 'research', 'library', 'sources', 'ai'] },
+  { id: 'find-sources', group: 'More', title: 'Find sources', detail: 'Search your library and the web from Chat', icon: 'search', keywords: ['find', 'search', 'research', 'references', 'papers', 'podcast', 'library', 'web'] },
+  { id: 'text', group: 'More', title: 'Text', detail: 'Plain paragraph', icon: 'text', keywords: ['paragraph', 'plain'] },
+  { id: 'footnote', group: 'More', title: 'Footnote', detail: 'A numbered note at the foot of the page', icon: 'footnote', hint: '⌥⌘F', keywords: ['note', 'endnote', 'citation', 'reference', 'fn'], needs: 'prose' },
+  { id: 'today', group: 'More', title: 'Today', icon: 'calendar', offset: 0, needs: 'dates' },
+  { id: 'tomorrow', group: 'More', title: 'Tomorrow', icon: 'calendar', offset: 1, needs: 'dates' },
+  { id: 'yesterday', group: 'More', title: 'Yesterday', icon: 'calendar', offset: -1, needs: 'dates' },
+  { id: 'reference', group: 'More', title: 'Block Reference', detail: '((', icon: 'reference', keywords: ['block', 'transclude'], needs: 'graph' },
+  { id: 'embed', group: 'More', title: 'Embed Block', detail: '{{embed}}', icon: 'embed', keywords: ['block', 'transclude'], needs: 'graph' },
 ]
 
+/// The rows the typed words make when they name no row: Codex's "Generate —
+/// {query}" and "Visualize — {query}", run with the words as the prompt.
+const slashPromptItems = [
+  { id: 'generate-query', group: 'Use your prompt', label: 'Generate', detail: 'Turn your prompt into text', icon: 'sparkle', command: 'generate' },
+  { id: 'visualize-query', group: 'Use your prompt', label: 'Visualize', detail: 'Create an interactive visualization', icon: 'chart', command: 'visualize', needs: 'visualize' },
+]
+
+/// The longest prompt the `/` list follows; past it the words are writing.
+const slashPromptLimit = 80
+
 function slashItemAvailable(item) {
+  if (item.mention && !mentionKindOffered(item.mention)) return false
   switch (item.needs) {
     case 'pages': return slashFeatures.pages || graph.active
     case 'images': return slashFeatures.images
@@ -1806,13 +1847,19 @@ function slashItemAvailable(item) {
 }
 
 /// The `/` list: every row on offer with a word that each typed term begins,
-/// in the order of the groups.
+/// in the order of the groups. Words that begin no row's word are a prompt:
+/// the list is then Generate — and Visualize — those words. `/generate words`
+/// and `/visualize words` name the one they want.
 function slashRows(query) {
-  const terms = searchKey(query).split(/\s+/).filter(Boolean)
-  return slashItems
+  const typed = String(query ?? '').replace(/\s+/g, ' ').trim()
+  const named = /^(generate|visualize)\s+(\S.*)$/i.exec(typed)
+  if (named) return slashPromptRows(named[2], named[1].toLowerCase())
+  const terms = searchKey(typed).split(/\s+/).filter(Boolean)
+  const rows = slashItems
+    .filter((item) => terms.length > 0 || !item.searchOnly)
     .filter(slashItemAvailable)
     .filter((item) => {
-      const words = [item.title, ...(item.keywords ?? [])].flatMap((text) => searchKey(text).split(/\s+/))
+      const words = [item.title, ...(item.keywords ?? [])].flatMap((text) => searchKey(text).split(/[\s()]+/))
       return terms.every((term) => words.some((word) => word.startsWith(term)))
     })
     .sort((left, right) => slashGroups.indexOf(left.group) - slashGroups.indexOf(right.group))
@@ -1825,6 +1872,27 @@ function slashRows(query) {
       detail: item.offset == null ? (item.detail ?? '') : dayTitle(relativeDayKey(item.offset)),
       hint: item.hint ?? '',
       command: item,
+    }))
+  if (rows.length > 0 || terms.length === 0) return rows
+  return slashPromptRows(typed)
+}
+
+/// "Generate — words" and "Visualize — words", or only the one `only` names.
+function slashPromptRows(prompt, only = null) {
+  const words = String(prompt ?? '').trim()
+  if (!words || words.length > slashPromptLimit) return []
+  return slashPromptItems
+    .filter((item) => !only || item.command === only)
+    .filter(slashItemAvailable)
+    .map((item) => ({
+      key: `slash:${item.id}`,
+      kind: 'command',
+      group: item.group,
+      icon: item.icon,
+      title: `${item.label} — ${words}`,
+      detail: item.detail,
+      hint: '',
+      command: { ...item, prompt: words },
     }))
 }
 
@@ -1839,11 +1907,63 @@ function blockRow(hit, index) {
   }
 }
 
+// ─── Mentioned ─────────────────────────────────────────────────────────────
+// The slash menu's Mentioned rows (Files, Pages, Chats, as Codex has them, and
+// ForeverLM's Notebooks and Ideas) write an `@` and open its list showing
+// only that kind, under the row's name. A file is one of this page's own
+// attachments, named by the page's link to it; choosing one writes another
+// link to the same attachment.
+
+/// The kind the `@` list shows while the `@` a Mentioned row wrote is being
+/// typed: `{ from, kind, title }`, or null for the whole list.
+let mentionKindFilter = null
+let pageFilesCache = { doc: null, files: [] }
+
+/// The files this page holds, each once, in the order the page first links
+/// them, as link targets. Read once per state of the page.
+function pageFileTargets() {
+  const view = activeEditorView()
+  if (!view) return []
+  const { doc } = view.state
+  if (pageFilesCache.doc === doc) return pageFilesCache.files
+  const byToken = new Map()
+  doc.descendants((node) => {
+    if (!node.isText) return true
+    const link = node.marks.find((mark) => mark.type.name === 'link')
+    const file = link ? fileAttachmentLink(link.attrs?.href, node.text) : null
+    if (file && !byToken.has(file.token)) {
+      byToken.set(file.token, {
+        kind: 'file',
+        id: file.token,
+        title: String(file.name || file.token).trim(),
+        detail: 'File',
+        href: `${attachmentMarkdownPrefix}${encodeURIComponent(file.token)}`,
+      })
+    }
+    return false
+  })
+  pageFilesCache = { doc, files: [...byToken.values()] }
+  return pageFilesCache.files
+}
+
+/// Whether a Mentioned row has anything to list.
+function mentionKindOffered(kind) {
+  if (kind === 'file') return pageFileTargets().length > 0
+  return linkTargets.some((target) => target.kind === kind)
+}
+
+/// The `@` list: every kind, or the one a Mentioned row asked for.
+function mentionRows(state) {
+  if (!state.kind) return linkTargetMatches(state.query, 10).map(targetRow)
+  const targets = state.kind === 'file' ? pageFileTargets() : linkTargets.filter((target) => target.kind === state.kind)
+  return linkTargetMatches(state.query, 10, targets).map((target) => ({ ...targetRow(target), group: state.title }))
+}
+
 function pickerRows(state) {
   switch (state.source) {
     case 'wiki': return wikiRows(state.query)
     case 'slash': return slashRows(state.query)
-    case 'mention': return linkTargetMatches(state.query, 10).map(targetRow)
+    case 'mention': return mentionRows(state)
     case 'block': return state.rows ?? []
     case 'field': return linkFieldRows(state)
     default: return linkTargetMatches(state.query).map(targetRow)
@@ -2115,10 +2235,16 @@ function refreshCaretPickers() {
     return
   }
   const trigger = caretTriggerAt(view)
+  // A Mentioned row's kind lasts as long as the `@` it wrote is typed.
+  if (mentionKindFilter && !(trigger?.source === 'mention' && trigger.from === mentionKindFilter.from)) mentionKindFilter = null
   if (!trigger) {
     dismissedTrigger = null
     if (current) hideLinkPicker()
     return
+  }
+  if (mentionKindFilter) {
+    trigger.kind = mentionKindFilter.kind
+    trigger.title = mentionKindFilter.title
   }
   if (dismissedTrigger && dismissedTrigger.source === trigger.source && dismissedTrigger.from === trigger.from) {
     if (current) hideLinkPicker()
@@ -4557,6 +4683,12 @@ function runSlashCommand(command, from, to) {
     writeDayLink(relativeDayKey(command.offset), from, to)
     return
   }
+  if (command.mention) {
+    // Set before the `@` is written: writing it opens the list at once.
+    mentionKindFilter = { from: Number(from), kind: command.mention, title: command.title }
+    writePlainText('@', from, to)
+    return
+  }
   switch (command.id) {
     case 'chat':
       if (removeSlashText(from, to)) post('promptRequested', { text: '' })
@@ -4569,9 +4701,6 @@ function runSlashCommand(command, from, to) {
       return
     case 'embed':
       writePlainText('{{embed: ((', from, to)
-      return
-    case 'mention':
-      writePlainText('@', from, to)
       return
     case 'link':
       // The `[[` is the gesture: its list opens on its own once it is written.
@@ -4590,6 +4719,20 @@ function runSlashCommand(command, from, to) {
       return
     case 'visualize':
       if (removeSlashText(from, to)) openAIGenerate({ visualize: true })
+      return
+    // The typed words are the prompt, and the AI is asked at once.
+    case 'generate-query':
+      if (removeSlashText(from, to)) openAIGenerate({ prompt: command.prompt, submit: true })
+      return
+    case 'visualize-query':
+      if (removeSlashText(from, to)) openAIGenerate({ visualize: true, prompt: command.prompt, submit: true })
+      return
+    // A starter opens Visualize with the start of its request, to finish.
+    case 'visualize-app':
+    case 'visualize-diagram':
+    case 'visualize-mockup':
+    case 'visualize-widget':
+      if (removeSlashText(from, to)) openAIGenerate({ visualize: true, prompt: command.prompt })
       return
     case 'instructions':
     case 'prompt':
@@ -7340,7 +7483,7 @@ const joinedGroundingRemark = $remark('foreverlm-joined-grounding', () => remark
 /// header in 2026-09, onto the page's selection bar on 2026-10-06 (Quiet
 /// chrome) — without changing what it does. The bar shows bold, italic,
 /// strikethrough, inline code and link; inline math stays here for
-/// `runFormatCommand` and is otherwise typed (`$$x$$`) or a slash-menu Equation.
+/// `runFormatCommand` and is otherwise typed (`$$x$$`) or the slash menu's Math.
 const formatCommands = {
   bold: {
     isActive: (ctx, commands) => commands.call(isMarkSelectedCommand.key, strongSchema.type(ctx)),
@@ -8692,8 +8835,10 @@ function setAIEditPanelMode(mode) {
 /// Open the panel at the caret to write something new there: text (Generate)
 /// or a picture (`image`, Generate image). The `/` that chose it is already
 /// gone. Nothing is written until the writer has read the proposal and chosen
-/// Insert; a picture goes in when the host has drawn it.
-function openAIGenerate({ image = false, visualize = false } = {}) {
+/// Insert; a picture goes in when the host has drawn it. `prompt` fills the
+/// instruction (a Visualize starter, the words of "Generate — {query}"), and
+/// `submit` asks the AI with it at once.
+function openAIGenerate({ image = false, visualize = false, prompt = '', submit = false } = {}) {
   if (!isEditable) return
   const view = activeEditorView()
   if (!view) return
@@ -8706,7 +8851,7 @@ function openAIGenerate({ image = false, visualize = false } = {}) {
   setAIEditPanelMode(aiEdit.mode)
   aiEditElement('scope').textContent = { image: 'Generate an image', visualize: 'Create a visualization', generate: 'Write with AI' }[mode]
   const instruction = aiEditElement('instruction')
-  instruction.value = ''
+  instruction.value = String(prompt ?? '')
   aiEditElement('proposal').hidden = true
   aiEditElement('proposal').textContent = ''
   aiEditElement('actions').hidden = true
@@ -8715,6 +8860,9 @@ function openAIGenerate({ image = false, visualize = false } = {}) {
   hideSelectionBar()
   positionAIEditPanel()
   instruction.focus()
+  const end = instruction.value.length
+  instruction.setSelectionRange(end, end)
+  if (submit && instruction.value.trim()) submitAIEdit(instruction.value)
 }
 
 /// The model an edit runs on, named by the host, or null where the writer
