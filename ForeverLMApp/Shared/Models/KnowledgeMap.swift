@@ -602,6 +602,12 @@ struct KnowledgeMapLayout: Codable, Equatable, Sendable {
             }
     }
 
+    /// Every region drawn inside `id`, at any depth, each before the regions
+    /// inside it.
+    func regionIDsInside(_ id: String) -> [String] {
+        nestedRegionIDs(in: id).flatMap { [$0] + regionIDsInside($0) }
+    }
+
     /// The regions around `id`, outermost first.
     func regionPath(of id: String) -> [String] {
         var out: [String] = []

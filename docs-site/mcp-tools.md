@@ -500,7 +500,7 @@ open and connected.
 | `update_canvas_card` | `item_ids`, `color?`, `folded?`, `w?`, `h?`, `fit_to_content?`, `page?`, `annotation?`, `plain?`, `answered?` | Change how cards look: tint, fold, size, a source shown as a page of its PDF, the learner's words under a card, an Idea drawn as plain words, a question marked answered. |
 | `create_canvas_region` | `name?`, `item_ids?`, `color?`, `locked?`, `notebook_id?` | Draw a region around cards or in free space; with `notebook_id`, that notebook's frame. |
 | `update_canvas_region` | `region`, `name?`, `color?`, `x?`, `y?`, `w?`, `h?`, `notebook_id?`, `collapsed?`, `locked?`, `layout?`, `fit_to_content?`, `grow_to_hold?` | Rename, recolour, move, resize, fold up or lock a region, link it to a notebook as its frame, lay it out as a mind map (`layout: tree`), or fit it to what it holds. |
-| `delete_canvas_region` | `region`, `take_cards_off?` | Delete a region; its cards stay unless `take_cards_off`. |
+| `delete_canvas_region` | `region`, `take_cards_off?` | Delete a region; its cards and the regions inside it stay unless `take_cards_off`. |
 | `draw_canvas_arrow` | `from`, `to`, `label?`, `stance?`, `route?`, `dashed?`, `heads?`, `color?`, `tree?` | Draw an arrow between two cards (an end may be a region) with a short label. `stance: supports` draws it green and `contradicts` red; `tree` makes it a mind-map branch. |
 | `update_canvas_arrow` | `edge_id?`, `from?`, `to?`, `label?`, `stance?`, `route?`, `dashed?`, `heads?`, `color?`, `tree?` | Change an arrow, named by its `edge_id` or its ends. |
 | `delete_canvas_arrow` | `edge_id?`, `from?`, `to?` | Delete an arrow; the cards stay. |

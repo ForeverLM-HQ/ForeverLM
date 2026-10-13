@@ -311,6 +311,8 @@ struct KnowledgeMapNestedRegionTests {
         #expect(layout.nestedRegionIDs(in: "thresholds").isEmpty)
         #expect(layout.regionPath(of: "thresholds") == ["mootha", "mtdna"])
         #expect(layout.regionPath(of: "mootha").isEmpty)
+        #expect(layout.regionIDsInside("mootha") == ["mtdna", "thresholds", "signalling"], "every depth, each before the regions inside it")
+        #expect(layout.regionIDsInside("aside").isEmpty)
     }
 
     @Test("A region drawn to the same rect as another is inside neither, and half a point over the edge still counts as inside")
@@ -1193,6 +1195,33 @@ struct KnowledgeMapParityModelTests {
             #expect(model.layout.edges[id] == nil, "and goes with the region")
             model.undo()
             #expect(model.layout.regions["r"] != nil && model.layout.edges[id] != nil, "Undo brings both back")
+        }
+    }
+
+    @Test("Deleting a region with its cards takes everything inside it, regions inside it too, in one Undo step; Keep Cards takes only the frame")
+    func deleteRegionWithEverythingInside() {
+        withModel { model in
+            model.saveRegion(id: "r", name: "Framing", x: 0, y: 0, w: 1000, h: 800, color: "#7F77DD")
+            model.saveRegion(id: "inner", name: "Physics", x: 20, y: 20, w: 400, h: 300, color: "#1D9E75")
+            model.saveRegion(id: "beside", name: "Beside", x: 2000, y: 0, w: 400, h: 300, color: "#1D9E75")
+            model.place([(ref: "idea:a", x: 60, y: 60), (ref: "source:b", x: 600, y: 500), (ref: "source:out", x: 2050, y: 50)])
+            model.selectedRegionID = "inner"
+
+            apart()
+            model.deleteRegion("r", takingCardsOff: true)
+            #expect(model.layout.regions["r"] == nil && model.layout.regions["inner"] == nil, "the region inside it goes too")
+            #expect(model.layout.placements["idea:a"] == nil && model.layout.placements["source:b"] == nil)
+            #expect(model.layout.regions["beside"] != nil && model.layout.placements["source:out"] != nil, "what is outside it stays")
+            #expect(model.selectedRegionID == nil, "a region that went is not left selected")
+
+            model.undo()
+            #expect(model.layout.regions["r"] != nil && model.layout.regions["inner"] != nil)
+            #expect(model.layout.placements["idea:a"] != nil && model.layout.placements["source:b"] != nil, "one Undo brings it all back")
+
+            apart()
+            model.deleteRegion("r")
+            #expect(model.layout.regions["r"] == nil)
+            #expect(model.layout.regions["inner"] != nil && model.layout.placements["idea:a"] != nil, "Keep Cards leaves what was inside")
         }
     }
 

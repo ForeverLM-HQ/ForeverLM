@@ -317,7 +317,7 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "delete_canvas_region",
-                description: "Delete a region from the learner's Canvas. Its cards stay where they are unless take_cards_off is true, which takes them off the Canvas too, in the same edit; a notebook's frame going takes nothing out of the notebook. Only on the learner's word: the Canvas is where they think, so never arrange it on your own initiative; to suggest an arrangement, show a lens (apply_map_lens) or ask_canvas. Each call is one edit of theirs, which Undo (⌘Z, or undo_canvas) takes back.",
+                description: "Delete a region from the learner's Canvas. Its cards stay where they are unless take_cards_off is true, which takes them off the Canvas too and deletes the regions inside it, in the same edit; a notebook's frame going takes nothing out of the notebook. Only on the learner's word: the Canvas is where they think, so never arrange it on your own initiative; to suggest an arrangement, show a lens (apply_map_lens) or ask_canvas. Each call is one edit of theirs, which Undo (⌘Z, or undo_canvas) takes back.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -327,7 +327,7 @@ extension MCPToolRegistry {
                         ],
                         "take_cards_off": [
                             "type": "boolean",
-                            "description": "Take the cards inside it off the Canvas as well. Defaults to false.",
+                            "description": "Take the cards inside it off the Canvas and delete the regions inside it as well. Defaults to false.",
                         ],
                     ] as [String: Any],
                     "required": ["region"],

@@ -18,7 +18,8 @@ import Foundation
 //           Tidy Up ▸, Align ▸, Copy as Markdown, Copy Link, Move to Canvas ▸,
 //           Take Off Canvas, Delete (an Idea)
 //   region: Rename, Colour ▸, Fold Up, Fit to Content, Lock, Layout ▸, Turn
-//           into Cards and Arrows, Ask in Chat, Delete Region
+//           into Cards and Arrows, Ask in Chat, Delete Region (with what is
+//           inside it), Delete Region, Keep Cards
 //   arrow:  Route ▸, Stance ▸, Heads ▸, Dashed, Colour ▸, Edit Label, Delete Arrow
 
 /// A menu item that runs a closure.
@@ -248,7 +249,9 @@ struct KnowledgeMapCanvasMenu {
         menu.addItem(.separator())
         menu.addItem(item("Ask in Chat") { vm.requestChatAboutKnowledgeMapSelection(model.refsInRegion(id)) })
         menu.addItem(.separator())
-        menu.addItem(item("Delete Region") { model.deleteRegion(id) })
+        // The region and everything inside it; Keep Cards takes only the frame.
+        menu.addItem(item("Delete Region") { model.deleteRegion(id, takingCardsOff: true) })
+        menu.addItem(item("Delete Region, Keep Cards") { model.deleteRegion(id) })
         return menu
     }
 

@@ -1011,15 +1011,18 @@ final class KnowledgeMapModel {
         }
     }
 
-    /// Deletes a region; with `takingCardsOff` its cards leave the plane too,
-    /// in the same write.
+    /// Deletes a region; with `takingCardsOff` everything inside it goes too,
+    /// in the same write: its cards leave the plane and the regions drawn
+    /// inside it go. One Undo brings the lot back.
     func deleteRegion(_ id: String, takingCardsOff: Bool) {
         let cards = takingCardsOff ? refsInRegion(id) : []
+        let inner = takingCardsOff ? layout.regionIDsInside(id) : []
         updateLayout { layout, at in
             for ref in cards { layout.unplace(ref, at: at) }
+            for region in inner { layout.removeRegion(region, at: at) }
             layout.removeRegion(id, at: at)
         }
-        if selectedRegionID == id { selectedRegionID = nil }
+        if let selected = selectedRegionID, selected == id || inner.contains(selected) { selectedRegionID = nil }
         selection.removeAll { cards.contains($0) }
     }
 

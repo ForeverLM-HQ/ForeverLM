@@ -438,7 +438,8 @@ struct KnowledgeMapCanvasView: NSViewRepresentable {
                     model.setRegionCollapsed(id, collapsed)
                 }
             case "regionDeleted":
-                if let id = body["id"] as? String { model.deleteRegion(id) }
+                // Delete on a selected region: it goes with everything inside it.
+                if let id = body["id"] as? String { model.deleteRegion(id, takingCardsOff: true) }
             case "regionSelected":
                 model.selectedRegionID = body["id"] as? String
                 if model.selectedRegionID != nil { model.selection = []; model.selectedEdgeID = nil }

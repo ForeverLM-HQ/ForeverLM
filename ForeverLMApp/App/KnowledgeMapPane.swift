@@ -1165,9 +1165,9 @@ struct KnowledgeMapPane: View {
                     .disabled(cardsInRegion(id).isEmpty)
                 Spacer()
                 regionMenu(id: id, region: region)
-                Button("Delete Region", role: .destructive) { map.deleteRegion(id) }
+                Button("Delete Region", role: .destructive) { map.deleteRegion(id, takingCardsOff: true) }
                     .buttonStyle(.hoverWash(cornerRadius: 6, inset: -4, opacity: 0.10))
-                    .help("The region goes; its cards stay where they are")
+                    .help("The region goes, with its cards and the regions inside it")
             }
         }
     }
