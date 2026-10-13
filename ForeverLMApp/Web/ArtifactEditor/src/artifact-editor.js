@@ -7612,20 +7612,22 @@ function runFormatCommand(name) {
 }
 
 // ─── The selection bar ──────────────────────────────────────────────────────
-// Selecting words shows one compact bar over them, in the order ChatGPT's Pages
-// draws its own (product owner, 2026-10-06: "learn from chatgpt, because there is
-// often way less"): what the passage stands on, Edit with AI, the marks (bold,
-// italic, strikethrough, inline code, link), the block type, then Comment and
-// Chat, and Idea where the host keeps the notes graph. Formatting came here
-// from the pane header under the Quiet chrome rule (docs/ui-design.md): a top
-// bar holds only what its pane cannot do without, and formatting acts on a
-// selection, so it is reached on one. No underline: Markdown has none, and the
-// page's body is Markdown (an `<u>` tag would be an HTML node on every other
-// client).
+// Selecting words shows one compact bar over them, in the order Codex's Pages
+// draws its own (product owner, 2026-10-13: "at first it should be a copy of
+// the codex pages functionality"): Ask for change and Comment, the marks (bold,
+// italic, strikethrough, inline code, link), Text styles (the block type, ▾);
+// then, after a hairline, ForeverLM's own: what the passage stands on, Chat,
+// and Idea where the host keeps the notes graph. Ask for change is ForeverLM's
+// Edit with AI under Codex's name. Formatting came here from the pane header
+// under the Quiet chrome rule (docs/ui-design.md): a top bar holds only what
+// its pane cannot do without, and formatting acts on a selection, so it is
+// reached on one. No underline, on purpose, where Codex has one: Markdown has
+// none, and the page's body is Markdown (an `<u>` tag would be an HTML node
+// on every other client).
 
 let selectionSourcesButton = null
 let selectionIdeaButton = null
-let selectionAIGroup = null
+let selectionAIButton = null
 let selectionFormatGroup = null
 let selectionBlockGroup = null
 let selectionBlockButton = null
@@ -7661,7 +7663,7 @@ const selectionBlockKinds = [
   { id: 'numbered', title: 'Numbered list', icon: 'numbered' },
   { id: 'todo', title: 'Checklist', icon: 'todo' },
   { id: 'quote', title: 'Quote', icon: 'quote' },
-  { id: 'code', title: 'Code block', icon: 'code' },
+  { id: 'code', title: 'Code', icon: 'code' },
 ]
 const selectionListKinds = new Set(['bullet', 'numbered', 'todo'])
 
@@ -7705,11 +7707,10 @@ function ensureSelectionButton() {
       sourceIDs: groundedSourceIDs(currentSelection.from, currentSelection.to),
     })
   })
-  // The AI edits this passage on the writer's instruction; the proposal is
-  // shown before anything is written (see `openAIEdit`).
-  const aiEditButton = selectionBarButton('ai', 'Ask the AI to change this passage', () => openAIEdit())
-  aiEditButton.textContent = 'Edit with AI'
-  selectionAIGroup = selectionBarGroup('ai', aiEditButton)
+  // Ask for change: the AI edits this passage on the writer's instruction;
+  // the proposal is shown before anything is written (see `openAIEdit`).
+  selectionAIButton = selectionBarButton('ai', 'Ask the AI to change this passage', () => openAIEdit())
+  selectionAIButton.append(slashIcon('sparkle', 14), document.createTextNode('Ask for change'))
 
   // The marks, lit while the selection carries them (`activeFormats`).
   const formatButtons = selectionFormatItems.map((item) => {
@@ -7725,8 +7726,9 @@ function ensureSelectionButton() {
   })
   selectionFormatGroup = selectionBarGroup('format', ...formatButtons)
 
-  // The block the selection is in, named; a press lists what it can become.
-  selectionBlockButton = selectionBarButton('block', 'Turn into', () => toggleSelectionBlockMenu())
+  // Text styles: the block the selection is in, named; a press lists what it
+  // can become.
+  selectionBlockButton = selectionBarButton('block', 'Text styles', () => toggleSelectionBlockMenu())
   selectionBlockButton.setAttribute('aria-haspopup', 'menu')
   selectionBlockButton.setAttribute('aria-expanded', 'false')
   selectionBlockLabel = document.createElement('span')
@@ -7762,12 +7764,12 @@ function ensureSelectionButton() {
   selectionIdeaButton.textContent = 'Idea'
   selectionIdeaButton.hidden = true
 
+  // Codex's order, then ForeverLM's own after a hairline.
   selectionButton.append(
-    selectionBarGroup('sources', selectionSourcesButton),
-    selectionAIGroup,
+    selectionBarGroup('ask', selectionAIButton, comment),
     selectionFormatGroup,
     selectionBlockGroup,
-    selectionBarGroup('talk', comment, chat, selectionIdeaButton),
+    selectionBarGroup('foreverlm', selectionSourcesButton, chat, selectionIdeaButton),
   )
   selectionButton.hidden = true
   document.body.append(selectionButton)
@@ -7829,7 +7831,7 @@ function ensureSelectionBlockMenu() {
   selectionBlockMenu = document.createElement('div')
   selectionBlockMenu.className = 'artifact-selection-block-menu'
   selectionBlockMenu.setAttribute('role', 'menu')
-  selectionBlockMenu.setAttribute('aria-label', 'Turn into')
+  selectionBlockMenu.setAttribute('aria-label', 'Text styles')
   for (const kind of selectionBlockKinds) {
     const row = document.createElement('button')
     row.type = 'button'
@@ -9330,7 +9332,7 @@ function publishSelection() {
   if (selectionIdeaButton) selectionIdeaButton.hidden = !graph.active
   // A team Doc reads as a page: the passage can be discussed and stands on
   // sources, but nothing in it can be restyled or rewritten.
-  if (selectionAIGroup) selectionAIGroup.hidden = !isEditable
+  if (selectionAIButton) selectionAIButton.hidden = !isEditable
   if (selectionFormatGroup) selectionFormatGroup.hidden = !isEditable
   const kind = selectionBlockKind(view.state)
   // Code keeps its characters as typed: no mark applies inside a code block.

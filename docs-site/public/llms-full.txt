@@ -901,8 +901,14 @@ Every Page opens in the editor, published or not, ready to type in. Changes are
 saved to the Page as you type; on a published Page, **Update Page** in the pane
 header publishes them to the web page when you are ready, and publishing leaves
 you in the editor. **View as Page** in the page menu shows the Page as its readers
-see it, and **Edit** comes back to the editor. To have the AI make a change,
-select a passage and choose **Edit with AI**, or press **AI** in the header with
+see it, and **Edit** comes back to the editor. Selecting words shows a bar over
+them in Codex's order: **Ask for change** and **Comment**, then bold, italic,
+strikethrough, code and link, then **Text styles** (the kind of block, to change
+it); after a divider come ForeverLM's own: the passage's sources (**Add
+sources** when it has none), **Chat**, and **Idea** on the Mac. There is no
+underline, because a Page is stored as Markdown, which has none. To have the AI
+make a change, select a passage and choose **Ask for change** (the page menu's
+**Edit with AI…** is the same), or press **AI** in the header with
 the caret in a section (or in a footnote, which edits that note), and say what
 should change, or press **Polish**, **Shorter**, **Longer** or **Simpler**: the proposal appears under the passage drawn as the page will
 show it, with the words it adds washed green and the words it takes out struck
