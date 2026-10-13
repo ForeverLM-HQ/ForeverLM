@@ -1046,7 +1046,7 @@ struct BookChapterAISelectionValidationTests {
             missingFileCount: 3
         )
         #expect(notice == "A Sample Book was imported, but these 2 parts of the file are damaged and could not be read: "
-            + "4) Chapter Four; 7) Chapter Seven. Drop a fresh copy of the book on Add Book to fill them in.")
+            + "4) Chapter Four; 7) Chapter Seven. To fill them in, choose Replace Book File… on the book and pick a fresh copy.")
         #expect(StudioViewModel.damagedEPUBNotice(bookTitle: "A Sample Book", missingChapters: [], missingFileCount: 0) == nil)
         #expect(StudioViewModel.damagedEPUBNotice(bookTitle: "A Sample Book", missingChapters: [], missingFileCount: 2)?
             .contains("2 parts of the file are damaged") == true)

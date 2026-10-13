@@ -16,7 +16,7 @@ struct SensemakingStoreTests {
             if let name = store.string(stmt, 0) { names.insert(name) }
         }
         #expect(names.isSuperset(of: ["atlases", "source_levels", "source_faces"]))
-        #expect(KnowledgeStore.schemaVersion == 172)
+        #expect(KnowledgeStore.schemaVersion == 173)
     }
 
     @Test("An Atlas row is saved, replaced, listed newest first and deleted")

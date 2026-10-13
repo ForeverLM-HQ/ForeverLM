@@ -431,7 +431,7 @@ struct BookFileMigrationTests {
         let migrated = try reopen(root)
 
         #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
-        #expect(KnowledgeStore.schemaVersion == 172)
+        #expect(KnowledgeStore.schemaVersion == 173)
         #expect(try migrated.holdsBookFileSchema())
         #expect(
             Set(try migrated.dueBookFileMerges(limit: 10)) == ["split", "epub"],
@@ -614,7 +614,7 @@ struct BookImportFinishQueueTests {
         let migrated = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
 
         #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
-        #expect(KnowledgeStore.schemaVersion == 172)
+        #expect(KnowledgeStore.schemaVersion == 173)
         #expect(try migrated.holdsBookImportFinishQueue())
         #expect(try migrated.dueBookImportFinishes(limit: 10).isEmpty)
         #expect(try migrated.pendingSyncChanges().isEmpty)
@@ -686,5 +686,257 @@ struct BookImportFinishQueueTests {
         #expect(moved.pdfAnchor?.rects == mark.pdfAnchor?.rects)
         #expect(moved.quote == mark.quote && moved.note == mark.note && moved.anchor == mark.anchor)
         #expect(moved.chatSessionID == "chat" && moved.createdAt == made && moved.updatedAt > made)
+    }
+}
+
+/// A book is the same book only when it is the same file (schema 173): Add Book matched a book by
+/// its title, so a second book called "Bioenergetics" took the first one's row and archived its
+/// chapters. Which book a file is now comes from its bytes (`BookFilePlacement`), remembered by
+/// sha256 in `book_file_digests`, and a new book gets a folder no other book's chapters name.
+@Suite("Which book a file is", .serialized)
+struct BookFileIdentityTests {
+    /// A library folder and a folder of downloads, each file in a folder of its own so two can
+    /// share a name, as two downloads of two books called the same do.
+    private struct Library {
+        let root: URL
+        var books: URL { root.appendingPathComponent("Books", isDirectory: true) }
+
+        init(_ name: String) throws {
+            root = try BookFileFixture.folder(name)
+            try FileManager.default.createDirectory(at: books, withIntermediateDirectories: true)
+        }
+
+        func download(_ name: String, labels: [String]) throws -> URL {
+            let folder = root.appendingPathComponent("Downloads-\(UUID().uuidString)", isDirectory: true)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let file = folder.appendingPathComponent(name)
+            try BookFileFixture.book(labels, at: file)
+            return file
+        }
+
+        /// What Add Book does with the file: decides which book it is and puts the library's copy
+        /// where that says.
+        func add(
+            _ file: URL,
+            recordedBookID: String? = nil,
+            replacingBookID: String? = nil,
+            bookFolders: [String: String] = [:],
+            foldersInUse: Set<String> = []
+        ) throws -> (placement: BookFilePlacement, digest: String) {
+            let digest = try BookFilePlacement.sha256Hex(ofBookAt: file.path)
+            let placement = BookFilePlacement.decide(
+                importPath: file.path,
+                digest: digest,
+                booksDir: books.path,
+                recordedBookID: recordedBookID,
+                replacingBookID: replacingBookID,
+                bookFolders: bookFolders,
+                foldersInUse: foldersInUse
+            )
+            _ = try StudioViewModel.copyBookFileAndExtractMetadata(sourcePath: file.path, placement: placement)
+            return (placement, digest)
+        }
+    }
+
+    private static func pageCount(_ path: String) -> Int? {
+        PDFDocument(url: URL(fileURLWithPath: path))?.pageCount
+    }
+
+    @Test("Two books with one title are two books in two folders, both readable, and the second changes nothing of the first")
+    func sameTitleDifferentFiles() throws {
+        let library = try Library("same-title")
+        defer { try? FileManager.default.removeItem(at: library.root) }
+        let store = try KnowledgeStore(inMemory: true)
+        let textbook = try library.download("Bioenergetics.pdf", labels: BookFileFixture.labels)
+        let monograph = try library.download("Bioenergetics.pdf", labels: ["cover", "one", "two"])
+
+        let first = try library.add(textbook)
+        #expect(first.placement.bookID == nil && first.placement.copy == .new)
+        #expect((first.placement.bookDir as NSString).lastPathComponent == "Bioenergetics")
+        try store.recordBookFileDigest(first.digest, bookID: "TEXTBOOK")
+        try store.execForTesting("""
+            INSERT INTO books (id, title, cover_path) VALUES ('TEXTBOOK', 'Bioenergetics', 'Books/Bioenergetics/cover.jpg');
+            INSERT INTO sources (id, date_added, state, source_type, status) VALUES ('tb-1', 0, 'ready', 'book', 'active');
+            INSERT INTO book_sources (source_id, url, local_file_path, title, page_start, page_count)
+            VALUES ('tb-1', 'Books/Bioenergetics/Bioenergetics.pdf#page=1', 'Books/Bioenergetics/Bioenergetics.pdf', 'Chapter 1', 0, 8);
+            INSERT INTO group_members (source_id, group_id, sort_index) VALUES ('tb-1', 'TEXTBOOK', 0);
+        """)
+        let textbookBytes = try Data(contentsOf: URL(fileURLWithPath: first.placement.destPath))
+
+        // The second file has the same name and makes a book with the same title.
+        #expect(try store.bookID(forFileDigest: try BookFilePlacement.sha256Hex(ofBookAt: monograph.path)) == nil)
+        let second = try library.add(
+            monograph,
+            bookFolders: ["TEXTBOOK": first.placement.bookDir],
+            foldersInUse: try store.bookFolderNamesInUse()
+        )
+        #expect(second.placement.bookID == nil, "a new book, never the textbook")
+        #expect(second.placement.copy == .new)
+        #expect(second.placement.bookDir != first.placement.bookDir)
+        #expect((second.placement.bookDir as NSString).lastPathComponent == "Bioenergetics \(second.digest.prefix(8))")
+        try store.recordBookFileDigest(second.digest, bookID: "MONOGRAPH")
+
+        // Both read: each folder holds its own book's file.
+        #expect(Self.pageCount(first.placement.destPath) == BookFileFixture.labels.count)
+        #expect(Self.pageCount(second.placement.destPath) == 3)
+        // Nothing of the first changed: its file, its folder, its record.
+        #expect(try Data(contentsOf: URL(fileURLWithPath: first.placement.destPath)) == textbookBytes)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: first.placement.bookDir) == ["Bioenergetics.pdf"])
+        #expect(try store.bookID(forFileDigest: first.digest) == "TEXTBOOK")
+        #expect(try store.bookID(forFileDigest: second.digest) == "MONOGRAPH")
+    }
+
+    @Test("The same file added twice is one book, even after the library rewrote its copy")
+    func sameFileTwice() throws {
+        let library = try Library("same-file")
+        defer { try? FileManager.default.removeItem(at: library.root) }
+        let store = try KnowledgeStore(inMemory: true)
+        let download = try library.download("Scanned Book.pdf", labels: BookFileFixture.labels)
+
+        let first = try library.add(download)
+        try store.recordBookFileDigest(first.digest, bookID: "BOOK")
+        // The import writes a scan's text layer into its copy: those bytes are no longer the file's.
+        try BookFileFixture.book(BookFileFixture.labels + ["text layer"], at: URL(fileURLWithPath: first.placement.destPath))
+        let rewritten = try Data(contentsOf: URL(fileURLWithPath: first.placement.destPath))
+
+        let again = try library.add(
+            download,
+            recordedBookID: try store.bookID(forFileDigest: try BookFilePlacement.sha256Hex(ofBookAt: download.path)),
+            bookFolders: ["BOOK": first.placement.bookDir],
+            foldersInUse: ["scanned book"]
+        )
+        #expect(again.placement == BookFilePlacement(
+            bookID: "BOOK", bookDir: first.placement.bookDir, destPath: first.placement.destPath, copy: .none
+        ))
+        #expect(try Data(contentsOf: URL(fileURLWithPath: first.placement.destPath)) == rewritten, "the library's copy stays as the import left it")
+        #expect(try FileManager.default.contentsOfDirectory(atPath: library.books.path) == ["Scanned Book"])
+    }
+
+    @Test("A book added before sha256s were kept is found by its copy's bytes; another file of its name is not")
+    func bookFromBeforeTheRecord() throws {
+        let library = try Library("before-record")
+        defer { try? FileManager.default.removeItem(at: library.root) }
+        let download = try library.download("Old Book.pdf", labels: BookFileFixture.labels)
+        let folder = library.books.appendingPathComponent("Old Book", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let copy = folder.appendingPathComponent("Old Book.pdf")
+        try FileManager.default.copyItem(at: download, to: copy)
+
+        let again = try library.add(download, bookFolders: ["OLD": folder.path], foldersInUse: ["old book"])
+        #expect(again.placement.bookID == "OLD" && again.placement.copy == .none)
+        #expect(URL(fileURLWithPath: again.placement.destPath).standardizedFileURL == copy.standardizedFileURL)
+
+        let other = try library.download("Old Book.pdf", labels: ["another", "book"])
+        let added = try library.add(other, bookFolders: ["OLD": folder.path], foldersInUse: ["old book"])
+        #expect(added.placement.bookID == nil && added.placement.bookDir != folder.path)
+        #expect(Self.pageCount(copy.path) == BookFileFixture.labels.count, "the old book's file is not written over")
+    }
+
+    @Test("Replace Book File makes the picked file that book's file, in its folder")
+    func replaceBookFile() throws {
+        let library = try Library("replace")
+        defer { try? FileManager.default.removeItem(at: library.root) }
+        let damaged = try library.download("Some Book.pdf", labels: ["cover", "one"])
+        let first = try library.add(damaged)
+        let fresh = try library.download("some-book-fresh.pdf", labels: BookFileFixture.labels)
+
+        let replaced = try library.add(fresh, replacingBookID: "BOOK", bookFolders: ["BOOK": first.placement.bookDir])
+        #expect(replaced.placement == BookFilePlacement(
+            bookID: "BOOK", bookDir: first.placement.bookDir, destPath: first.placement.destPath, copy: .replace
+        ))
+        #expect(Self.pageCount(first.placement.destPath) == BookFileFixture.labels.count)
+    }
+
+    @Test("A file already in the library's folder is the book whose folder it is")
+    func fileInTheLibrary() throws {
+        let library = try Library("in-place")
+        defer { try? FileManager.default.removeItem(at: library.root) }
+        let folder = library.books.appendingPathComponent("Kept", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let file = folder.appendingPathComponent("Kept.pdf")
+        try BookFileFixture.book(["cover", "one"], at: file)
+
+        let added = try library.add(file, bookFolders: ["KEPT": folder.path], foldersInUse: ["kept"])
+        #expect(added.placement.bookID == "KEPT" && added.placement.copy == .none)
+        let unknown = try library.add(file, foldersInUse: ["kept"])
+        #expect(unknown.placement.bookID == nil && unknown.placement.copy == .none, "a new book where the file is")
+    }
+
+    @Test("A new book's folder is its file's name, else that name and its sha256's start, never one in use")
+    func freeFolderNames() {
+        let digest = "4545308bfd30cebc94eb33c2b9d933d431c4fa9bfae996ee975c425dd99a81a9"
+        #expect(BookFilePlacement.freeFolderName("Bioenergetics", digest: digest) { _ in false } == "Bioenergetics")
+        #expect(BookFilePlacement.freeFolderName("Bioenergetics", digest: digest) { $0 == "Bioenergetics" }
+            == "Bioenergetics 4545308b")
+        #expect(BookFilePlacement.freeFolderName("Bioenergetics", digest: digest) { !$0.hasSuffix(" 3") }
+            == "Bioenergetics 4545308b 3")
+        #expect(BookFilePlacement.bookFolder(ofFileAt: "/L/Books/Foo/Foo.pdf", booksDir: "/L/Books") == "/L/Books/Foo")
+        #expect(BookFilePlacement.bookFolder(ofFileAt: "/L/Books/Foo/Chapters/a/b.xhtml", booksDir: "/L/Books") == "/L/Books/Foo")
+        #expect(BookFilePlacement.bookFolder(ofFileAt: "/L/Books/synced-ab12.pdf", booksDir: "/L/Books") == nil)
+        #expect(BookFilePlacement.bookFolder(ofFileAt: "/L/Papers/x.pdf", booksDir: "/L/Books") == nil)
+    }
+
+    @Test("An EPUB kept as a folder hashes as its files, wherever the folder is")
+    func folderEPUBDigest() throws {
+        let root = try BookFileFixture.folder("epub-digest")
+        defer { try? FileManager.default.removeItem(at: root) }
+        func epub(_ name: String, chapter: String) throws -> String {
+            let book = root.appendingPathComponent(name, isDirectory: true)
+            try FileManager.default.createDirectory(at: book.appendingPathComponent("OEBPS"), withIntermediateDirectories: true)
+            try Data("application/epub+zip".utf8).write(to: book.appendingPathComponent("mimetype"))
+            try Data(chapter.utf8).write(to: book.appendingPathComponent("OEBPS/ch1.xhtml"))
+            return book.path
+        }
+        let one = try BookFilePlacement.sha256Hex(ofBookAt: try epub("One.epub", chapter: "<p>One</p>"))
+        let copy = try epub("Copy.epub", chapter: "<p>One</p>")
+        try Data("Finder".utf8).write(to: URL(fileURLWithPath: copy).appendingPathComponent(".DS_Store"))
+        #expect(try BookFilePlacement.sha256Hex(ofBookAt: copy) == one)
+        #expect(try BookFilePlacement.sha256Hex(ofBookAt: try epub("Two.epub", chapter: "<p>Two</p>")) != one)
+    }
+
+    @Test("A file names one book; a removed book's files are forgotten; folders in use include removed chapters and covers")
+    func digestRecord() throws {
+        let store = try KnowledgeStore(inMemory: true)
+        #expect(try store.holdsBookFileDigests())
+        try store.recordBookFileDigest("aaa", bookID: "ONE")
+        try store.recordBookFileDigest("bbb", bookID: "ONE")
+        #expect(try store.bookID(forFileDigest: "aaa") == "ONE")
+        // A file of a book since removed names the book it is added as now.
+        try store.recordBookFileDigest("aaa", bookID: "TWO")
+        #expect(try store.bookID(forFileDigest: "aaa") == "TWO")
+        try store.dropBookFileDigests(bookID: "ONE")
+        #expect(try store.bookID(forFileDigest: "bbb") == nil)
+        #expect(try store.bookID(forFileDigest: "aaa") == "TWO")
+
+        try store.execForTesting("""
+            INSERT INTO books (id, title, cover_path) VALUES ('C', 'Covered', 'Books/Covered/cover.jpg');
+            INSERT INTO sources (id, date_added, state, source_type, status) VALUES ('gone', 0, 'ready', 'book', 'archived');
+            INSERT INTO book_sources (source_id, url, local_file_path, title)
+            VALUES ('gone', 'Books/Removed Book/Removed Book.pdf#page=3', 'Books/Removed Book/Removed Book.pdf', 'Gone');
+            INSERT INTO sources (id, date_added, state, source_type, status) VALUES ('synced', 0, 'ready', 'book', 'active');
+            INSERT INTO book_sources (source_id, url, local_file_path, title)
+            VALUES ('synced', 'Books/Elsewhere/Elsewhere.pdf#page=1', 'Books/synced-ab12.pdf', 'Synced');
+        """)
+        #expect(try store.bookFolderNamesInUse() == ["covered", "removed book", "elsewhere"])
+    }
+
+    @Test("Schema 173 adds the record of added files empty from 172, and nothing of it syncs")
+    func migrationFrom172() throws {
+        let root = try Schema154Fixture.temporaryRoot("book-file-digests-172")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        try store.clearAllPendingSyncChanges()
+        // A store as schema 172 left it: everything but the record.
+        try store.execForTesting("DROP TABLE book_file_digests; PRAGMA user_version = 172;")
+
+        Schema154Fixture.newLaunch(root)
+        let migrated = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+
+        #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
+        #expect(KnowledgeStore.schemaVersion == 173)
+        #expect(try migrated.holdsBookFileDigests())
+        #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM book_file_digests") == 0)
+        try migrated.recordBookFileDigest("abc", bookID: "BOOK")
+        #expect(try migrated.pendingSyncChanges().isEmpty)
     }
 }

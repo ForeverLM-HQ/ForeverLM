@@ -356,3 +356,75 @@ extension KnowledgeStore {
         try execute("DELETE FROM book_import_finish_queue WHERE book_id = ?", [.text(bookID)])
     }
 }
+
+// MARK: - Which book a file is (schema 173)
+
+extension KnowledgeStore {
+    static let bookFileDigestsSchemaVersion: Int32 = 173
+
+    /// The sha256 of every file a book was added from on this Mac, one row a
+    /// file: what tells the same file added again from another book that has
+    /// the same title. The library's copy cannot say it, since the import
+    /// rewrites that copy (a scan's text layer, an EPUB's chapters); the file
+    /// as it was added can. Local-only and never synced: it decides which book
+    /// a file added on this Mac is, and what that changes travels as the
+    /// book's own records.
+    func createBookFileDigests() throws {
+        try exec("""
+            CREATE TABLE IF NOT EXISTS book_file_digests (
+                sha256 TEXT PRIMARY KEY,
+                book_id TEXT NOT NULL,
+                recorded_at REAL NOT NULL
+            )
+        """)
+        try exec("CREATE INDEX IF NOT EXISTS idx_book_file_digests_book ON book_file_digests(book_id)")
+    }
+
+    /// Fails when a table of another shape was there before, so the migration
+    /// rolls back.
+    func probeBookFileDigests() throws {
+        try query("SELECT sha256, book_id, recorded_at FROM book_file_digests LIMIT 0") { _ in }
+    }
+
+    func holdsBookFileDigests() throws -> Bool {
+        try scalarInteger(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'book_file_digests'"
+        ) == 1
+    }
+
+    /// Records that the file with `sha256` is the book `bookID`. A file that
+    /// named a book since removed names this one from now on.
+    func recordBookFileDigest(_ sha256: String, bookID: String) throws {
+        try execute("""
+            INSERT INTO book_file_digests (sha256, book_id, recorded_at) VALUES (?, ?, ?)
+            ON CONFLICT(sha256) DO UPDATE SET book_id = excluded.book_id, recorded_at = excluded.recorded_at
+        """, [.text(sha256), .text(bookID), .real(Date().timeIntervalSinceReferenceDate)])
+    }
+
+    /// The book the file with `sha256` was added as, or nil.
+    func bookID(forFileDigest sha256: String) throws -> String? {
+        try scalarText("SELECT book_id FROM book_file_digests WHERE sha256 = ?", [.text(sha256)])
+    }
+
+    /// Forgets the files of a book the learner removed.
+    func dropBookFileDigests(bookID: String) throws {
+        try execute("DELETE FROM book_file_digests WHERE book_id = ?", [.text(bookID)])
+    }
+
+    /// Every folder under `Books/` that a book chapter's file or address, or a
+    /// book's cover, names, removed chapters included, lowercased. A new book
+    /// never takes one: the chapters it saved there would carry the
+    /// addresses, and so the ids, of another book's chapters.
+    func bookFolderNamesInUse() throws -> Set<String> {
+        var names: Set<String> = []
+        try query("SELECT local_file_path, url FROM book_sources", []) { row in
+            for path in [row.text(0), row.text(1)] {
+                if let folder = Self.bookFolderName(inStoredPath: path) { names.insert(folder.lowercased()) }
+            }
+        }
+        try query("SELECT cover_path FROM books", []) { row in
+            if let folder = Self.bookFolderName(inStoredPath: row.text(0)) { names.insert(folder.lowercased()) }
+        }
+        return names
+    }
+}

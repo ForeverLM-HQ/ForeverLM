@@ -219,15 +219,12 @@ extension StudioViewModel {
         return parts[booksIndex + 1].lowercased()
     }
 
-    /// Rename a book without changing its stable identity.
+    /// Rename a book without changing its stable identity. Two books may
+    /// share a title: a book is its id, never its name.
     func renameBook(groupName: String, newTitle: String) async {
         let value = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         let oldTitle = bookDisplayName(groupName)
         guard !value.isEmpty, value != oldTitle else { return }
-        guard !bookTitles.values.contains(value) else {
-            errorMessage = "A book named \"\(value)\" already exists."
-            return
-        }
 
         let ids = sourceIdsForGroup(groupName)
         let oldParentGroups = Dictionary(uniqueKeysWithValues: articles

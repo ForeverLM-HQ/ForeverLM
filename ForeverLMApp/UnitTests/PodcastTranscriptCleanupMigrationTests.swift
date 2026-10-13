@@ -504,7 +504,7 @@ struct PodcastTranscriptFormattingQueueTests {
         let migrated = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
 
         #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
-        #expect(KnowledgeStore.schemaVersion == 172)
+        #expect(KnowledgeStore.schemaVersion == 173)
         #expect(try migrated.holdsPodcastTranscriptFormattingColumns())
         let row = try #require(try Self.queueRow(migrated, "queued-before"))
         #expect(row.formatSHA == nil && row.learnerAsked == 0)

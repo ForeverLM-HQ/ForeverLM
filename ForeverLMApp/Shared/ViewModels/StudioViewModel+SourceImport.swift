@@ -641,25 +641,27 @@ extension StudioViewModel {
     /// Imports one book. A book asked for while another is importing waits
     /// for it, so the learner can keep adding books without the two runs
     /// writing over each other's progress, identity checks or library reload.
-    func importBook(from sourcePath: String, kind: String? = nil) async throws {
-        try await enqueueBookImport(from: sourcePath, kind: kind).value
+    /// With `replacingBookID`, the file becomes that book's file (Replace Book
+    /// File…), and the book's chapters are found again in it.
+    func importBook(from sourcePath: String, kind: String? = nil, replacingBookID: String? = nil) async throws {
+        try await enqueueBookImport(from: sourcePath, kind: kind, replacingBookID: replacingBookID).value
     }
 
     /// Puts a book in line now and returns its run, so books picked together
     /// import in the order they were picked.
-    func enqueueBookImport(from sourcePath: String, kind: String? = nil) -> Task<Void, Error> {
+    func enqueueBookImport(from sourcePath: String, kind: String? = nil, replacingBookID: String? = nil) -> Task<Void, Error> {
         bookImportsPending += 1
         let previous = bookImportTail
         let run = Task { @MainActor in
             defer { self.bookImportsPending -= 1 }
             _ = await previous?.value
-            try await self.importBookNow(from: sourcePath, kind: kind)
+            try await self.importBookNow(from: sourcePath, kind: kind, replacingBookID: replacingBookID)
         }
         bookImportTail = Task { _ = await run.result }
         return run
     }
 
-    private func importBookNow(from sourcePath: String, kind: String?) async throws {
+    private func importBookNow(from sourcePath: String, kind: String?, replacingBookID: String?) async throws {
         let fm = FileManager.default
         logger.info("[BookImport] Starting import from: \(sourcePath)")
         guard fm.fileExists(atPath: sourcePath) else {
@@ -698,11 +700,29 @@ extension StudioViewModel {
         await Task.yield()
         defer { bookImportStatus = "" }
 
-        let booksDir = (knowledgeBasePath as NSString).appendingPathComponent("Books")
+        let booksDir = await storage.booksDirectoryURL.path
         logger.info("[BookImport] Books dir: \(booksDir)")
 
+        // Which book the file is comes from its bytes, never its title or
+        // name (`BookFilePlacement`). The sha256 is of the file as the learner
+        // picked it: a Kindle book's EPUB is made anew each time.
+        let digest = try await Task.detached(priority: .userInitiated) {
+            try BookFilePlacement.sha256Hex(ofBookAt: sourcePath)
+        }.value
+        let ownBooks = ownBookFolders(booksDir: booksDir)
+        let recordedBookID = try await storage.bookID(forFileDigest: digest).flatMap { ownBooks.ids.contains($0) ? $0 : nil }
+        let foldersInUse = try await storage.bookFolderNamesInUse()
         let importedFile = try await Task.detached(priority: .userInitiated) {
-            try Self.copyBookFileAndExtractMetadata(sourcePath: importPath, booksDir: booksDir)
+            let placement = BookFilePlacement.decide(
+                importPath: importPath,
+                digest: digest,
+                booksDir: booksDir,
+                recordedBookID: recordedBookID,
+                replacingBookID: replacingBookID,
+                bookFolders: ownBooks.folders,
+                foldersInUse: foldersInUse
+            )
+            return try Self.copyBookFileAndExtractMetadata(sourcePath: importPath, placement: placement)
         }.value
         logger.info("[BookImport] Prepared file at: \(importedFile.destPath)")
 
@@ -710,10 +730,7 @@ extension StudioViewModel {
         // matter once the book is in (`finishBookImport`). A book added again
         // keeps the details found for it before.
         let fileTitle = Self.bookTitleFromFile(importedFile)
-        let bookID = existingBookID(
-            forCleanedTitle: fileTitle,
-            bookDir: importedFile.bookDir
-        ) ?? UUID().uuidString
+        let bookID = importedFile.bookID ?? UUID().uuidString
         let bookTitle = bookTitles[bookID] ?? fileTitle
         bookTitles[bookID] = bookTitle
         if bookSubtitles[bookID] == nil, let subtitle = importedFile.importedSubtitle { bookSubtitles[bookID] = subtitle }
@@ -770,6 +787,12 @@ extension StudioViewModel {
         } catch {
             logger.error("Failed to save book metadata: \(error.localizedDescription)")
             saveBooksToDisk()
+        }
+        // Added again, this file is this book.
+        do {
+            try await storage.recordBookFileDigest(digest, bookID: bookID)
+        } catch {
+            logger.error("[BookImport] Could not record which book \(importedFile.destPath) is: \(error.localizedDescription)")
         }
 
         bookImportStatus = "Refreshing library…"
@@ -1043,64 +1066,32 @@ extension StudioViewModel {
         }
     }
 
-    nonisolated private static func copyBookFileAndExtractMetadata(sourcePath: String, booksDir: String) throws -> ImportedBookFile {
+    /// Puts the file where `placement` says and reads the book's details
+    /// from the library's copy.
+    nonisolated static func copyBookFileAndExtractMetadata(
+        sourcePath: String,
+        placement: BookFilePlacement
+    ) throws -> ImportedBookFile {
         let fm = FileManager.default
-        let sourceURL = URL(fileURLWithPath: sourcePath).standardizedFileURL
-        let booksURL = URL(fileURLWithPath: booksDir, isDirectory: true).standardizedFileURL
-        let sourceFilename = sourceURL.lastPathComponent
-        let sourceExtension = sourceURL.pathExtension
-        let sourceParent = sourceURL.deletingLastPathComponent()
-        let sourceIsManagedBookFile = sourceParent.deletingLastPathComponent().path == booksURL.path
-
-        // The folder is the book's identity on disk and inside every chapter URL,
-        // so it is named after the file — minus the download-site tag some files
-        // arrive with. A file already inside the managed library keeps the folder
-        // it is in, whatever that folder is called.
-        let baseName: String
-        if sourceIsManagedBookFile {
-            baseName = sourceParent.lastPathComponent
-        } else {
-            baseName = BookFolderNaming.cleanedFolderName(
-                fromFileBaseName: (sourceFilename as NSString).deletingPathExtension
-            )
-        }
-
-        // Per-book folder: Books/BookName/. Files already there came from iCloud and
-        // should be used in place instead of copied into a new folder.
-        let bookDir: String
-        if sourceIsManagedBookFile {
-            bookDir = sourceParent.path
-        } else {
-            bookDir = booksURL.appendingPathComponent(baseName, isDirectory: true).path
-        }
-        try fm.createDirectory(atPath: bookDir, withIntermediateDirectories: true)
-
-        let destPath: String
-        if sourceIsManagedBookFile {
-            destPath = sourceURL.path
-        } else {
-            let managedFilename = sourceExtension.isEmpty ? baseName : "\(baseName).\(sourceExtension)"
-            destPath = (bookDir as NSString).appendingPathComponent(managedFilename)
-        }
-
-        // Copy the full book into its folder. On re-import the source file may have
-        // changed (e.g. the user fixed chapter order or added chapters), so refresh the
-        // managed copy when it differs from the source. Skipping this leaves the app
-        // extracting a stale copy and the user's edits never take effect.
-        if sourceURL.path != destPath {
-            let destExists = fm.fileExists(atPath: destPath)
-            if !destExists || !filesHaveSameContents(sourceURL.path, destPath, fm: fm) {
-                // The documents this app wrote into an EPUB's old copy — the
-                // chapters joining several documents, or the whole book while
-                // it reads as one entry — go into the new one, so the book
-                // reads as it did until its new split replaces them.
-                let carried = destExists && destPath.lowercased().hasSuffix(".epub")
+        let destPath = placement.destPath
+        try fm.createDirectory(atPath: placement.bookDir, withIntermediateDirectories: true)
+        switch placement.copy {
+        case .none:
+            break
+        case .new:
+            try fm.copyItem(atPath: sourcePath, toPath: destPath)
+        case .replace:
+            // The learner chose this file to be the book's. The documents this
+            // app wrote into an EPUB's old copy (the chapters joining several
+            // documents, or the whole book while it reads as one entry) go
+            // into the new one, so the book reads as it did until its new
+            // split replaces them.
+            if !filesHaveSameContents(sourcePath, destPath, fm: fm) {
+                let carried = destPath.lowercased().hasSuffix(".epub")
                     ? EPUBBookFiles.appEntries(inBook: destPath)
                     : []
-                if destExists {
-                    try fm.removeItem(atPath: destPath)
-                }
-                try fm.copyItem(atPath: sourceURL.path, toPath: destPath)
+                try fm.removeItem(atPath: destPath)
+                try fm.copyItem(atPath: sourcePath, toPath: destPath)
                 if !carried.isEmpty, !EPUBParser.isDirectoryEPUB(at: destPath) {
                     do {
                         try EPUBBookFiles.addEntries(carried, toBook: URL(fileURLWithPath: destPath))
@@ -1114,13 +1105,12 @@ extension StudioViewModel {
         }
 
         let importedMetadata = extractBookMetadata(fromBookFile: destPath)
-        let chaptersDir = (bookDir as NSString).appendingPathComponent("Chapters")
-
         return ImportedBookFile(
-            baseName: baseName,
-            bookDir: bookDir,
+            bookID: placement.bookID,
+            baseName: (placement.bookDir as NSString).lastPathComponent,
+            bookDir: placement.bookDir,
             destPath: destPath,
-            chaptersDir: chaptersDir,
+            chaptersDir: (placement.bookDir as NSString).appendingPathComponent("Chapters"),
             importedTitle: importedMetadata.title,
             importedSubtitle: importedMetadata.subtitle,
             importedAuthor: importedMetadata.author,
@@ -1129,7 +1119,7 @@ extension StudioViewModel {
     }
 
     /// Cheap equality check for two files: compare size first, then full contents.
-    /// Used to decide whether a re-imported book file should overwrite the managed copy.
+    /// Used to decide whether a replacing book file should overwrite the managed copy.
     nonisolated private static func filesHaveSameContents(_ pathA: String, _ pathB: String, fm: FileManager) -> Bool {
         let sizeA = (try? fm.attributesOfItem(atPath: pathA)[.size] as? NSNumber)?.int64Value
         let sizeB = (try? fm.attributesOfItem(atPath: pathB)[.size] as? NSNumber)?.int64Value
@@ -2130,7 +2120,7 @@ extension StudioViewModel {
         } else {
             return nil
         }
-        return "\(bookTitle) was imported, but \(lost). Drop a fresh copy of the book on Add Book to fill them in."
+        return "\(bookTitle) was imported, but \(lost). To fill them in, choose Replace Book File… on the book and pick a fresh copy."
     }
 
     /// Saves a chapter, or brings back the one already there at its address
@@ -2359,28 +2349,24 @@ extension StudioViewModel {
         return bookSectionHeadingWords.contains(normalized)
     }
 
-    func existingBookID(forCleanedTitle title: String, bookDir: String) -> String? {
-        let normalizedTitle = Self.normalizedBookLookupKey(title)
-        if let match = bookTitles.first(where: { Self.normalizedBookLookupKey($0.value) == normalizedTitle }) {
-            return match.key
+    /// The books of the learner's own library that have a chapter, and the
+    /// folder under `booksDir` each one's chapters read their file from (none
+    /// for a book whose file another Mac's chapter brought). What
+    /// `BookFilePlacement` tells a book already there by.
+    func ownBookFolders(booksDir: String) -> (ids: Set<String>, folders: [String: String]) {
+        var ids: Set<String> = []
+        var folders: [String: String] = [:]
+        for chapter in articles where chapter.sourceType == .book && chapter.status == .active && chapter.teamID == nil {
+            guard let bookID = chapter.parentGroup else { continue }
+            ids.insert(bookID)
+            guard folders[bookID] == nil, let path = chapter.localFilePath,
+                  let folder = BookFilePlacement.bookFolder(
+                      ofFileAt: StorageService.absoluteSourcePath(path),
+                      booksDir: booksDir
+                  ) else { continue }
+            folders[bookID] = folder
         }
-
-        let standardizedBookDir = URL(fileURLWithPath: bookDir).standardizedFileURL.path
-        return bookCoverPaths.first { entry in
-            URL(fileURLWithPath: entry.value)
-                .deletingLastPathComponent()
-                .standardizedFileURL
-                .path == standardizedBookDir
-        }?.key
-    }
-
-    nonisolated private static func normalizedBookLookupKey(_ value: String) -> String {
-        value
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-            .components(separatedBy: .whitespacesAndNewlines)
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
+        return (ids, folders)
     }
 
     /// Extract a cover image from the first page of a PDF and save it as cover.jpg in `bookDir`.

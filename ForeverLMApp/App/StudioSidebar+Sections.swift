@@ -2931,11 +2931,36 @@ extension StudioSidebar {
             } label: {
                 Label("Manage Chapters…", systemImage: "list.bullet.rectangle")
             }
+            // A book is the same book only when it is the same file, so a
+            // fresh copy of a damaged book, or the book on a Mac its file
+            // never reached, becomes this book's file only when asked for here.
+            Button {
+                Task { await replaceBookFile(groupName) }
+            } label: {
+                Label("Replace Book File…", systemImage: "doc.badge.arrow.up")
+            }
+            .help("Use another copy of this book's file; its chapters are found again in it")
             Button(role: .destructive) {
                 activeAlert = .deleteBook(groupName)
             } label: {
                 Label("Remove Book", systemImage: "trash")
             }
+        }
+    }
+
+    /// Asks for the file that is to be this book's, and imports it as the book.
+    private func replaceBookFile(_ bookID: String) async {
+        let urls = await FilePanel.open { panel in
+            panel.allowedContentTypes = supportedBookImportContentTypes
+            panel.allowsMultipleSelection = false
+            panel.message = "Select the file for “\(vm.bookDisplayName(bookID))” (PDF, EPUB, or DRM-free Kindle)"
+        }
+        guard let url = urls.first else { return }
+        do {
+            try await vm.importBook(from: url.path, replacingBookID: bookID)
+        } catch {
+            vm.errorMessage = error.localizedDescription
+            vm.showBookImportError = true
         }
     }
 

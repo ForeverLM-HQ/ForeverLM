@@ -258,6 +258,12 @@ extension StudioViewModel {
                     if deleteFiles {
                         await self.deleteBookFiles(groupName: groupName, sources: pendingArticles)
                     }
+                    // Its file, added again, is a new book.
+                    do {
+                        try await self.storage.dropBookFileDigests(bookID: groupName)
+                    } catch {
+                        self.logger.error("Could not forget the files of removed book \(groupName): \(error.localizedDescription)")
+                    }
                 } catch {
                     for id in hiddenIDs {
                         let wasHidden = priorHiddenStates[id] ?? false

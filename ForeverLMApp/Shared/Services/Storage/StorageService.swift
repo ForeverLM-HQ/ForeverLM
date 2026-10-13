@@ -5591,3 +5591,27 @@ extension StorageService {
         try knowledgeStore().dropBookImportFinish(bookID: bookID)
     }
 }
+
+// MARK: - Which book a file is (schema 173)
+
+extension StorageService {
+    func recordBookFileDigest(_ sha256: String, bookID: String) throws {
+        try ensureStoreExists()
+        try knowledgeStore().recordBookFileDigest(sha256, bookID: bookID)
+    }
+
+    func bookID(forFileDigest sha256: String) throws -> String? {
+        try ensureStoreExists()
+        return try knowledgeStore().bookID(forFileDigest: sha256)
+    }
+
+    func dropBookFileDigests(bookID: String) throws {
+        try ensureStoreExists()
+        try knowledgeStore().dropBookFileDigests(bookID: bookID)
+    }
+
+    func bookFolderNamesInUse() throws -> Set<String> {
+        try ensureStoreExists()
+        return try knowledgeStore().bookFolderNamesInUse()
+    }
+}

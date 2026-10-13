@@ -2057,7 +2057,7 @@ struct NotebookLinkReleaseMigrationTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let store = try KnowledgeStore(storeDirectory: root)
         #expect(Self.scalar(at: root, "PRAGMA user_version") == "171")
-        #expect(KnowledgeStore.schemaVersion == 172)
+        #expect(KnowledgeStore.schemaVersion == 173)
         let released = try store.releaseLinksToDeletedNotebooks()
         #expect(released.deletedNotebooks == 0 && released.republished == 0)
     }
@@ -2076,7 +2076,7 @@ struct NotebookLinkReleaseMigrationTests {
 
         let migrated = try KnowledgeStore(storeDirectory: root)
         #expect(Self.scalar(at: root, "PRAGMA user_version") == "\(KnowledgeStore.schemaVersion)")
-        #expect(KnowledgeStore.schemaVersion == 172)
+        #expect(KnowledgeStore.schemaVersion == 173)
 
         // Every record is still there, and none of them names the gone notebook.
         let sessions = Dictionary(uniqueKeysWithValues: try migrated.loadReviewSessionLinks().map { ($0.id, $0) })

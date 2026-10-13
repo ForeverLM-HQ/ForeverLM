@@ -234,6 +234,8 @@ class StudioViewModel {
     }
 
     struct ImportedBookFile: Sendable {
+        /// The book the file already is, or nil for a new book (`BookFilePlacement`).
+        let bookID: String?
         let baseName: String
         let bookDir: String
         let destPath: String

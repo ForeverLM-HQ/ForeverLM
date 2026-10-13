@@ -712,7 +712,16 @@ extension KnowledgeStore {
     // truth). DDL only: two ALTER TABLE ADD COLUMN, nothing read or rewritten.
     // Not held with 154: this build's transcript saves write them. Never
     // synced, so no CloudKit schema change.
-    static let schemaVersion: Int32 = 172
+    // 173: a book is the same book only when it is the same file. Add Book
+    // matched a book by its title, so a second book called "Bioenergetics"
+    // took the first's row and archived its chapters. A file is now a book
+    // already there only by its bytes, which the local-only
+    // `book_file_digests` remembers by sha256 for each file added (the
+    // library's copy is rewritten by the import, so its own bytes cannot say
+    // it). DDL only: the table and its index are created empty and proved
+    // before the stamp. Not held with 154: this build's Add Book writes it.
+    // Never synced, so no CloudKit schema change.
+    static let schemaVersion: Int32 = 173
     static let minimumMigratableSchemaVersion: Int32 = 1
 
     /// The day Goals shipped — schema 120, build 114, 2026-09-19 — as midnight
@@ -809,6 +818,18 @@ extension KnowledgeStore {
                 try exec("BEGIN IMMEDIATE")
                 do {
                     try addPodcastTranscriptFormattingColumns()
+                    try exec("COMMIT")
+                } catch {
+                    try? exec("ROLLBACK")
+                    throw error
+                }
+            }
+            // Nor is schema 173's record of the files books were added from,
+            // which this build's Add Book reads and writes.
+            if try !holdsBookFileDigests() {
+                try exec("BEGIN IMMEDIATE")
+                do {
+                    try createBookFileDigests()
                     try exec("COMMIT")
                 } catch {
                     try? exec("ROLLBACK")
@@ -1556,6 +1577,9 @@ extension KnowledgeStore {
 
         // The books added on this Mac whose chapters are still to be found (schema 171).
         try createBookImportFinishQueue()
+
+        // The files books were added from on this Mac, by sha256 (schema 173).
+        try createBookFileDigests()
 
         // What the indexer has already done, and for which version of a source's text.
         //
@@ -4239,6 +4263,12 @@ extension KnowledgeStore {
                 // of books still to finish, created above, empty, proved
                 // before the stamp.
                 try probeBookImportFinishQueue()
+            }
+            if currentVersion < Self.bookFileDigestsSchemaVersion {
+                // A book is the same book only when it is the same file
+                // (2026-10-13): the record of the files books were added from,
+                // created above, empty, proved before the stamp.
+                try probeBookFileDigests()
             }
             // Preparing the projection catches an older, structurally incompatible
             // table before the version stamp commits. The transaction then rolls
