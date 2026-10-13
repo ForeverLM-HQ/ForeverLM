@@ -183,13 +183,24 @@ extension StudioViewModel {
             expectedRevision: expectedRevision,
             versionReason: versionReason
         )
-        artifacts = try await loadScopedArtifacts()
-        // The Planner's log: a Doc being written is a thing the day was spent on.
-        let title = artifacts.first { $0.id == artifactID }?.title ?? snapshot.artifact.title
-        do {
-            try await storage.recordDayActivity(kind: .doc, targetID: artifactID, title: title)
-        } catch {
-            logger.error("Failed to log the doc save in the day's log: \(error.localizedDescription)")
+        // The save wrote one record, so the list takes that record and is
+        // otherwise left alone, and only when what it shows changes: the
+        // page's place, or its date by a minute (`ArtifactListOrder`). Saves
+        // come at each pause in typing; reading the library's list back on
+        // every one redrew every view that lists pages while the learner wrote.
+        if let move = ArtifactListOrder.move(afterSaving: snapshot.artifact, in: artifacts) {
+            ArtifactListOrder.apply(move, saving: snapshot.artifact, to: &artifacts)
+        }
+        // The Planner's log: a page being written is a thing the day was
+        // spent on. The log counts minutes, so it hears of a page once a minute.
+        let title = snapshot.artifact.title
+        if pageWritingMinutes.admits(artifactID, title: title, at: Date()) {
+            do {
+                try await storage.recordDayActivity(kind: .doc, targetID: artifactID, title: title)
+            } catch {
+                pageWritingMinutes.forget(artifactID)
+                logger.error("Failed to log the doc save in the day's log: \(error.localizedDescription)")
+            }
         }
         return snapshot
     }

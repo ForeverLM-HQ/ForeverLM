@@ -403,23 +403,29 @@ extension KnowledgeStore {
         let date = DayPlan.dateString(for: moment)
         guard let minute = DayPlan.minuteOfDay(for: moment, on: date) else { return nil }
         let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Most observations fall in a minute the span already covers — a page
+        // saved at each pause in typing, a chat's every turn — and change
+        // nothing. They are answered from the thing's own spans before the
+        // write lock, so they cost neither a transaction nor a read of the
+        // day's whole log.
+        if let latest = try latestDayActivity(dayPlanID: date, kind: kind, targetID: target),
+           latest.absorbs(minute: minute, named: name) {
+            return nil
+        }
         try exec("BEGIN IMMEDIATE")
         do {
             let plan = try ensureDayPlanRow(date, now: now)
-            let latest = try loadDayActivities(dayPlanID: plan.id)
-                .filter { $0.kind == kind && $0.targetID == target }
-                .max { $0.endMinute < $1.endMinute }
+            let latest = try latestDayActivity(dayPlanID: plan.id, kind: kind, targetID: target)
             var span: DayActivity
             if let latest, latest.continues(atMinute: minute) {
-                span = latest
-                let end = min(DayPlan.minutesPerDay, minute + 1)
-                let renamed = !name.isEmpty && name != span.title
-                guard end > span.endMinute || renamed else {
+                // Another writer may have extended it since the look above.
+                guard !latest.absorbs(minute: minute, named: name) else {
                     try exec("COMMIT")
                     return nil
                 }
-                span.endMinute = max(span.endMinute, end)
-                if renamed { span.title = name }
+                span = latest
+                span.endMinute = max(span.endMinute, min(DayPlan.minutesPerDay, minute + 1))
+                if !name.isEmpty, name != span.title { span.title = name }
                 span.updatedAt = now
             } else {
                 span = DayActivity(
@@ -962,6 +968,20 @@ extension KnowledgeStore {
             if let activity = self.dayActivity(from: stmt) { activities.append(activity) }
         }
         return activities
+    }
+
+    /// The span `recordDayActivity` extends: of the day's spans about
+    /// `targetID` doing `kind`, the one that ends latest (the earliest begun
+    /// of those). Reads only the thing's own spans.
+    private func latestDayActivity(dayPlanID: String, kind: DayActivityKind, targetID: String) throws -> DayActivity? {
+        var spans: [DayActivity] = []
+        try queryBind("\(Self.dayActivityColumns) WHERE day_plan_id = ? AND target_id = ? ORDER BY start_minute ASC, end_minute ASC, created_at ASC", bind: { stmt in
+            self.bind(stmt, 1, dayPlanID)
+            self.bind(stmt, 2, targetID)
+        }) { stmt in
+            if let span = self.dayActivity(from: stmt) { spans.append(span) }
+        }
+        return spans.filter { $0.kind == kind }.max { $0.endMinute < $1.endMinute }
     }
 
     /// One span of the log by id. Not private: `delete_day_activity` names the

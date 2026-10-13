@@ -288,6 +288,64 @@ struct ArtifactMarkdownSnapshot: Equatable, Sendable {
     let revision: String
 }
 
+/// The library's list of pages after a page's body was saved, worked out from
+/// the list in hand and the one record the save wrote, never by reading the
+/// library again. A save is a pause in typing, so it comes every few seconds
+/// while the learner writes, and a list read back each time redrew every view
+/// that lists pages — the Space, Recents, Pinned, the link targets — under the
+/// page being written (docs/codex-parity-audit.md, F2: "Typing never touches the
+/// rest of the window").
+enum ArtifactListOrder {
+    /// How far the listed copy of a page being written may trail its saves.
+    /// What a list shows of a page's date is its day, or "minutes ago"; within
+    /// a minute it would show the same.
+    static let listedDateTolerance: TimeInterval = 60
+
+    /// The order the list holds (`KnowledgeStore.loadArtifacts`,
+    /// `loadMyLibraryArtifacts`): the newest change first, then by title, then
+    /// by id.
+    static func precedes(_ lhs: ArtifactRecord, _ rhs: ArtifactRecord) -> Bool {
+        if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt > rhs.updatedAt }
+        let byTitle = lhs.title.localizedCaseInsensitiveCompare(rhs.title)
+        if byTitle != .orderedSame { return byTitle == .orderedAscending }
+        return lhs.id < rhs.id
+    }
+
+    /// Where `saved` moves in `list`, or nil when the list can keep what it
+    /// holds: the page is not listed (a list leaves out what it does not
+    /// show, and a save never adds to it), or the listed copy differs only in
+    /// a date less than `listedDateTolerance` older and the page keeps its
+    /// place. A save is a real edit, so the page moves toward the front past
+    /// every page it is now newer than; it stays among its own run, since a
+    /// team library lists the member's drafts after the team's pages
+    /// (`StudioViewModel.loadScopedArtifacts`).
+    static func move(afterSaving saved: ArtifactRecord, in list: [ArtifactRecord]) -> (from: Int, to: Int)? {
+        guard let from = list.firstIndex(where: { $0.id == saved.id }) else { return nil }
+        let isDraft = TeamContentIdentity.isDraftArtifactID(saved.id)
+        var to = from
+        while to > 0,
+              TeamContentIdentity.isDraftArtifactID(list[to - 1].id) == isDraft,
+              precedes(saved, list[to - 1]) {
+            to -= 1
+        }
+        let listed = list[from]
+        var listedAtSavedDate = listed
+        listedAtSavedDate.updatedAt = saved.updatedAt
+        if to == from,
+           listedAtSavedDate == saved,
+           saved.updatedAt.timeIntervalSince(listed.updatedAt) < listedDateTolerance {
+            return nil
+        }
+        return (from, to)
+    }
+
+    /// Puts `saved` where `move(afterSaving:in:)` said, in place.
+    static func apply(_ move: (from: Int, to: Int), saving saved: ArtifactRecord, to list: inout [ArtifactRecord]) {
+        list.remove(at: move.from)
+        list.insert(saved, at: move.to)
+    }
+}
+
 /// A Doc attached to a chat by identity rather than by copy.
 ///
 /// The chat carries the title, the artifact id, the body revision it was

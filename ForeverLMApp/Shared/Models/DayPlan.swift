@@ -1095,6 +1095,16 @@ struct DayActivity: Identifiable, Codable, Equatable, Sendable {
         minute >= startMinute && minute - endMinute <= DayPlan.activityMergeGapMinutes
     }
 
+    /// Whether an observation of the same thing at `minute`, under `name`,
+    /// changes nothing: the span already covers the minute and carries the
+    /// name (an empty name renames nothing). `recordDayActivity` answers one
+    /// with nil.
+    func absorbs(minute: Int, named name: String) -> Bool {
+        continues(atMinute: minute)
+            && min(DayPlan.minutesPerDay, minute + 1) <= endMinute
+            && (name.isEmpty || name == title)
+    }
+
     /// The minutes something was seen at, joined into spans by the rule above:
     /// each observation is a minute of the thing, and one within
     /// `DayPlan.activityMergeGapMinutes` of a span's end extends it. What
@@ -1126,6 +1136,32 @@ extension Notification.Name {
     /// A meeting series' schedule was set or cleared, so the Planner should
     /// import the day again without waiting out the cooldown.
     static let meetingSchedulesDidChange = Notification.Name("MeetingSchedulesDidChange")
+}
+
+/// Lets through the first observation of a thing in each minute, and one that
+/// names it anew: the log counts minutes (`recordDayActivity`), so a second
+/// observation inside the same minute could only be dropped there, after a
+/// trip to storage. A writer that observes often — a page saved at each pause
+/// in typing — asks here first.
+struct DayActivityMinuteGate {
+    private var lastAdmitted: [String: (minute: String, title: String)] = [:]
+
+    /// Whether an observation of `targetID` at `moment` under `title` can
+    /// change the log; when it can, it is noted as the minute's.
+    mutating func admits(_ targetID: String, title: String, at moment: Date, calendar: Calendar = .current) -> Bool {
+        let date = DayPlan.dateString(for: moment, calendar: calendar)
+        let minute = DayPlan.minuteOfDay(for: moment, on: date, calendar: calendar) ?? 0
+        let stamp = "\(date) \(minute)"
+        if let last = lastAdmitted[targetID], last.minute == stamp, last.title == title { return false }
+        lastAdmitted[targetID] = (stamp, title)
+        return true
+    }
+
+    /// The observation let through did not reach the log: the next one in the
+    /// same minute goes through again.
+    mutating func forget(_ targetID: String) {
+        lastAdmitted[targetID] = nil
+    }
 }
 
 /// One thing a day was spent on, as the log reads back: a paper with its

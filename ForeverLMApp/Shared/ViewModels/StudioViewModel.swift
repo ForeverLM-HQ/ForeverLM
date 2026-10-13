@@ -1579,6 +1579,9 @@ class StudioViewModel {
     /// Canonical Markdown artifacts are global; Notebook membership is carried
     /// on each record and never creates per-Notebook copies.
     var artifacts: [ArtifactRecord] = []
+    /// The pages being written, as the Planner's log last heard of them: a
+    /// save tells the log at most once a minute (`saveArtifactMarkdown`).
+    @ObservationIgnored var pageWritingMinutes = DayActivityMinuteGate()
     /// The teams each My Library artifact is in, keyed by artifact id — a
     /// team's own record, or a personal original a team holds a copy of —
     /// for the Docs tab's team filter. Empty in a team library.

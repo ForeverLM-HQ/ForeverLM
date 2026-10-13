@@ -912,6 +912,57 @@ struct DayPlanTests {
         }
     }
 
+    @Test("An observation the span already covers is answered without the write lock; a new name or minute still lands")
+    func coveredObservationTakesNoWriteLock() throws {
+        let root = temporaryRoot("DayPlanLogLock")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try KnowledgeStore(storeDirectory: root)
+        let midnight = try #require(DayPlan.startOfDay("2026-09-11"))
+        func at(_ minute: Int, seconds: Int = 0) -> Date { midnight.addingTimeInterval(TimeInterval(minute * 60 + seconds)) }
+        let first = try #require(try store.recordDayActivity(kind: .doc, targetID: "doc-essay", title: "Essay", at: at(600)))
+
+        // Another writer holds the database's write lock: a save later in the
+        // same minute neither waits for it nor fails.
+        var other: OpaquePointer?
+        #expect(sqlite3_open(root.appendingPathComponent("knowledge.db").path, &other) == SQLITE_OK)
+        defer { sqlite3_close(other) }
+        #expect(sqlite3_exec(other, "BEGIN IMMEDIATE", nil, nil, nil) == SQLITE_OK)
+        #expect(try store.recordDayActivity(kind: .doc, targetID: "doc-essay", title: "Essay", at: at(600, seconds: 40)) == nil)
+        #expect(try store.recordDayActivity(kind: .doc, targetID: "doc-essay", title: "  ", at: at(600, seconds: 45)) == nil, "an empty name renames nothing")
+        #expect(sqlite3_exec(other, "COMMIT", nil, nil, nil) == SQLITE_OK)
+
+        let renamed = try #require(try store.recordDayActivity(kind: .doc, targetID: "doc-essay", title: "Essay, retitled", at: at(600, seconds: 50)))
+        #expect(renamed.id == first.id)
+        #expect(renamed.title == "Essay, retitled")
+        #expect(renamed.endMinute == 601)
+        let grown = try #require(try store.recordDayActivity(kind: .doc, targetID: "doc-essay", title: "Essay, retitled", at: at(601)))
+        #expect(grown.id == first.id)
+        #expect(grown.endMinute == 602)
+        // The same id doing something else is its own span.
+        let chat = try #require(try store.recordDayActivity(kind: .chat, targetID: "doc-essay", title: "Essay", at: at(601, seconds: 10)))
+        #expect(chat.id != first.id)
+    }
+
+    @Test("The minute gate lets a thing through once a minute, again on a new name, and again after a failure")
+    func minuteGate() throws {
+        let midnight = try #require(DayPlan.startOfDay("2026-09-11"))
+        func at(_ minute: Int, seconds: Int = 0) -> Date { midnight.addingTimeInterval(TimeInterval(minute * 60 + seconds)) }
+        var gate = DayActivityMinuteGate()
+        var admitted: [Bool] = []
+        admitted.append(gate.admits("doc-essay", title: "Essay", at: at(600)))
+        admitted.append(gate.admits("doc-essay", title: "Essay", at: at(600, seconds: 59)))
+        // Each page has its own minute.
+        admitted.append(gate.admits("doc-notes", title: "Notes", at: at(600, seconds: 59)))
+        admitted.append(gate.admits("doc-essay", title: "Essay, retitled", at: at(600, seconds: 59)))
+        admitted.append(gate.admits("doc-essay", title: "Essay, retitled", at: at(601)))
+        admitted.append(gate.admits("doc-essay", title: "Essay, retitled", at: at(601, seconds: 30)))
+        gate.forget("doc-essay")
+        admitted.append(gate.admits("doc-essay", title: "Essay, retitled", at: at(601, seconds: 31)))
+        // The same minute of another day is another minute.
+        admitted.append(gate.admits("doc-essay", title: "Essay, retitled", at: at(601 + DayPlan.minutesPerDay)))
+        #expect(admitted == [true, false, true, true, true, false, true, true])
+    }
+
     @Test("Invalid blocks are refused before anything is written")
     func validation() throws {
         let root = temporaryRoot("DayPlanValidation")

@@ -1946,3 +1946,115 @@ struct DocFileAttachmentTests {
         }
     }
 }
+
+/// A page's save while the learner writes changes the library's list by the
+/// one record it wrote, and only when the list would show it differently
+/// (docs/codex-parity-audit.md, F2).
+@Suite("A page's save touches only its own row")
+struct ArtifactSaveListTests {
+    private static let start = Date(timeIntervalSinceReferenceDate: 800_000_000)
+
+    private func page(_ id: String, _ title: String, minutesAgo: Double, teamID: String? = nil) -> ArtifactRecord {
+        ArtifactRecord(
+            id: id,
+            title: title,
+            homeNotebookID: nil,
+            linkedNotebookIDs: [],
+            teamID: teamID,
+            createdAt: Self.start.addingTimeInterval(-86_400),
+            updatedAt: Self.start.addingTimeInterval(-minutesAgo * 60)
+        )
+    }
+
+    @Test("A saved page moves to the front past every page it is now newer than, and nothing else moves")
+    func savedPageMovesToTheFront() {
+        let list = [page("a", "Atlas", minutesAgo: 5), page("b", "Bench notes", minutesAgo: 30), page("c", "Cell cycle", minutesAgo: 90)]
+        var saved = list[2]
+        saved.updatedAt = Self.start
+        let move = ArtifactListOrder.move(afterSaving: saved, in: list)
+        #expect(move?.from == 2 && move?.to == 0)
+        var edited = list
+        if let move { ArtifactListOrder.apply(move, saving: saved, to: &edited) }
+        #expect(edited.map(\.id) == ["c", "a", "b"])
+        #expect(edited[0] == saved)
+        #expect(Array(edited[1...]) == Array(list[0...1]))
+    }
+
+    @Test("A save inside a minute of the listed date, at the same place, leaves the list alone")
+    func saveWithinTheMinuteChangesNothing() {
+        let list = [page("a", "Atlas", minutesAgo: 0.5), page("b", "Bench notes", minutesAgo: 30)]
+        var saved = list[0]
+        saved.updatedAt = Self.start
+        #expect(ArtifactListOrder.move(afterSaving: saved, in: list) == nil)
+
+        // A minute on, the list takes the date, in place.
+        saved.updatedAt = list[0].updatedAt.addingTimeInterval(ArtifactListOrder.listedDateTolerance)
+        let move = ArtifactListOrder.move(afterSaving: saved, in: list)
+        #expect(move?.from == 0 && move?.to == 0)
+
+        // A field the list shows that differs is taken at once.
+        var renamed = list[0]
+        renamed.title = "Atlas of the cell"
+        #expect(ArtifactListOrder.move(afterSaving: renamed, in: list) != nil)
+    }
+
+    @Test("A page the list does not show is not added by its save")
+    func unlistedPageIsNotAdded() {
+        let list = [page("a", "Atlas", minutesAgo: 5)]
+        let saved = page("hidden", "Kept out", minutesAgo: 0)
+        #expect(ArtifactListOrder.move(afterSaving: saved, in: list) == nil)
+    }
+
+    @Test("In a team library a member's draft moves only among the drafts listed after the team's pages")
+    func draftStaysAmongDrafts() {
+        let list = [
+            page("team-1", "Team plan", minutesAgo: 10, teamID: "team-x"),
+            page("team-2", "Team notes", minutesAgo: 20, teamID: "team-x"),
+            page("draft_one", "Team plan", minutesAgo: 40),
+            page("draft_two", "Team notes", minutesAgo: 60),
+        ]
+        var saved = list[3]
+        saved.updatedAt = Self.start
+        let move = ArtifactListOrder.move(afterSaving: saved, in: list)
+        #expect(move?.from == 3 && move?.to == 2)
+    }
+
+    @Test("Saving through the view model edits the listed row and logs the day once a minute")
+    @MainActor
+    func viewModelSaveEditsTheListedRow() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ArtifactSaveList_\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let storage = StorageService(storeRoot: root)
+        let first = try await storage.createArtifact(title: "Essay draft", homeNotebookID: nil, linkedNotebookIDs: [], markdown: "First words.")
+        let second = try await storage.createArtifact(title: "Reading list", homeNotebookID: nil, linkedNotebookIDs: [], markdown: "A book.")
+        let vm = StudioViewModel(storageService: storage, observeCloudKitChanges: false)
+        await vm.loadArtifacts()
+        let listed = vm.artifacts
+        #expect(Set(listed.map(\.id)) == [first.artifact.id, second.artifact.id])
+        let back = try #require(listed.last)
+        let other = try #require(listed.first)
+        let opened = back.id == first.artifact.id ? first : second
+
+        let saved = try await vm.saveArtifactMarkdown(
+            artifactID: back.id,
+            markdown: opened.markdown + " More.",
+            expectedRevision: opened.revision
+        )
+        #expect(vm.artifacts.map(\.id) == [back.id, other.id], "the page written comes to the front")
+        #expect(vm.artifacts.first == saved.artifact)
+        #expect(vm.artifacts.last == other, "the other row is the row it was")
+
+        let again = try await vm.saveArtifactMarkdown(
+            artifactID: back.id,
+            markdown: opened.markdown + " More, and more.",
+            expectedRevision: saved.revision
+        )
+        #expect(again.artifact.updatedAt > saved.artifact.updatedAt)
+        #expect(vm.artifacts.first?.updatedAt == saved.artifact.updatedAt, "a save inside the minute leaves the row as it was listed")
+
+        let today = try #require(try await storage.loadDayPlan(DayPlan.dateString(for: Date())))
+        let spans = today.activities.filter { $0.kind == .doc && $0.targetID == back.id }
+        #expect(spans.count == 1, "the page's writing is one span of the day")
+    }
+}
