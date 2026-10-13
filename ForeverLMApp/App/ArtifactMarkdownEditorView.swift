@@ -1361,9 +1361,11 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
             }
 
             if isReady, lastEditorMarkdown != latestSwiftMarkdown || foldDocumentChanged {
+                let opensAnotherDoc = foldDocumentChanged
                 lastEditorMarkdown = latestSwiftMarkdown
                 foldDocumentChanged = false
                 webView.evaluateJavaScript(setMarkdownScript())
+                if opensAnotherDoc { focusIfEmpty(in: webView) }
             }
 
             if self.aiEditOpenRequestID != aiEditOpenRequestID {
@@ -1656,6 +1658,18 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
             decisionHandler(.cancel)
         }
 
+        /// An empty page has nothing to read, only to write: the caret goes into
+        /// it, so what is typed after New Page (or opening an empty daily note)
+        /// lands on the page rather than nowhere until the page is clicked.
+        private func focusIfEmpty(in webView: WKWebView) {
+            guard isEditable,
+                  latestSwiftMarkdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+            // Never from a field being typed in (the title, a search).
+            if let field = webView.window?.firstResponder as? NSTextView, field.isFieldEditor { return }
+            webView.window?.makeFirstResponder(webView)
+            webView.evaluateJavaScript("window.foreverLMArtifactEditor.focus();")
+        }
+
         private func markReady(in webView: WKWebView) {
             isReady = true
             didFail = false
@@ -1688,6 +1702,7 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
             }
             attachPendingSources(in: webView)
             insertPendingLinks(in: webView)
+            focusIfEmpty(in: webView)
             insertPendingAttachment(in: webView)
             deliverPendingGrounding(in: webView)
             runPendingFormatCommand(in: webView)
