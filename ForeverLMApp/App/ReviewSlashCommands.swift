@@ -38,6 +38,8 @@ struct ReviewSlashCommand: Identifiable, Equatable {
         case pin
         case hide
         case fork
+        /// A side chat about the whole chat (Codex's /side).
+        case side
         case reasoning
         /// One of the learner's own skills (chat-design.md, "Skills"): the
         /// command's name is the skill's, and the message goes to the chat
@@ -298,6 +300,13 @@ struct ReviewSlashCommand: Identifiable, Equatable {
             kind: .fork,
             name: "fork",
             summary: "Branch this chat into a new one",
+            argHint: nil,
+            arguments: []
+        ),
+        ReviewSlashCommand(
+            kind: .side,
+            name: "side",
+            summary: "Ask about this chat in a side chat",
             argHint: nil,
             arguments: []
         ),

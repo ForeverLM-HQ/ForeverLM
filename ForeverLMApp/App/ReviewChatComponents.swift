@@ -1283,6 +1283,9 @@ struct ReviewChatAnswerBlock<Content: View>: View {
     /// Try again on the newest reply, and Try Again With a model. Nil on
     /// every other reply, and while the turn cannot be asked again.
     let tryAgain: ReviewChatTryAgainControl?
+    /// A side chat about the whole chat, from the newest reply's ⋯. Nil on
+    /// every other reply.
+    let openSideChat: (() -> Void)?
     let content: Content
 
     @State private var didCopy = false
@@ -1306,6 +1309,7 @@ struct ReviewChatAnswerBlock<Content: View>: View {
         skipQuizQuestion: (() -> Void)? = nil,
         asideActionsOnly: Bool = false,
         tryAgain: ReviewChatTryAgainControl? = nil,
+        openSideChat: (() -> Void)? = nil,
         @ViewBuilder content: () -> Content
     ) {
         self.messages = messages
@@ -1321,6 +1325,7 @@ struct ReviewChatAnswerBlock<Content: View>: View {
         self.skipQuizQuestion = skipQuizQuestion
         self.asideActionsOnly = asideActionsOnly
         self.tryAgain = tryAgain
+        self.openSideChat = openSideChat
         self.content = content()
     }
 
@@ -1343,7 +1348,8 @@ struct ReviewChatAnswerBlock<Content: View>: View {
             offersDiscussInNewChat: discussInNewChat != nil,
             offersMoreDetails: moreDetails != nil,
             asideActionsOnly: asideActionsOnly,
-            offersTryAgain: tryAgain != nil
+            offersTryAgain: tryAgain != nil,
+            offersSideChat: openSideChat != nil
         )
     }
 
@@ -1492,6 +1498,9 @@ struct ReviewChatAnswerBlock<Content: View>: View {
         case .moreDetails:
             Button(item.title) { moreDetails?() }
                 .accessibilityIdentifier("mac.chatMoreDetails")
+        case .sideChat:
+            Button(item.title) { openSideChat?() }
+                .accessibilityIdentifier("mac.chatOpenSideChat")
         case .tryAgain:
             Button(item.title) { tryAgain?.retry() }
                 .accessibilityIdentifier("mac.chatTryAgain")
@@ -1544,6 +1553,8 @@ enum ReviewChatReplyMenu {
         case tryAgain
         /// The newest reply asked again on another model, a submenu.
         case tryAgainWith
+        /// A side chat about the whole chat (Codex's Open side chat).
+        case sideChat
 
         var title: String {
             switch self {
@@ -1556,6 +1567,7 @@ enum ReviewChatReplyMenu {
             case .moreDetails: return "More Details"
             case .tryAgain: return "Try Again"
             case .tryAgainWith: return "Try Again With"
+            case .sideChat: return "Open Side Chat"
             }
         }
 
@@ -1575,7 +1587,8 @@ enum ReviewChatReplyMenu {
         offersDiscussInNewChat: Bool,
         offersMoreDetails: Bool,
         asideActionsOnly: Bool,
-        offersTryAgain: Bool = false
+        offersTryAgain: Bool = false,
+        offersSideChat: Bool = false
     ) -> [Item] {
         var items: [Item] = []
         if !asideActionsOnly {
@@ -1586,6 +1599,7 @@ enum ReviewChatReplyMenu {
             }
             if offersAddToCanvas { items.append(.addToCanvas) }
             items.append(.branch)
+            if offersSideChat { items.append(.sideChat) }
             if offersDiscussInNewChat { items.append(.discussInNewChat) }
         }
         if offersMoreDetails { items.append(.moreDetails) }

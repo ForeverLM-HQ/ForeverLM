@@ -163,10 +163,10 @@ struct ReviewChatSideChatPopover: View {
     /// The words this is about, the way out to a full chat, and the X.
     private var heading: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Image(systemName: "text.quote")
+            Image(systemName: model.context.origin == .thread ? "bubble.left.and.bubble.right" : "text.quote")
                 .zoomedSystemFont(size: 11)
                 .foregroundStyle(.secondary)
-            Text(model.context.passageHeadline)
+            Text(model.context.origin == .thread ? "Side chat about this conversation" : model.context.passageHeadline)
                 .zoomedSystemFont(size: 11)
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
@@ -205,8 +205,11 @@ struct ReviewChatSideChatPopover: View {
     private var continueHelp: String {
         let sources: String
         switch model.context.origin {
-        case .reply: sources = "this chat's sources"
+        case .reply, .thread: sources = "this chat's sources"
         case .reader: sources = "this source"
+        }
+        if model.context.origin == .thread, !model.hasExchange {
+            return "Branch this chat into a new one"
         }
         return model.hasExchange
             ? "Continue this side chat in a new chat, with \(sources)"

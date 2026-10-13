@@ -50,6 +50,9 @@ struct ChatReplySideChatContext: Equatable, Sendable {
         case reply
         /// In a source open in the Reader, named by its title.
         case reader(sourceTitle: String)
+        /// No words selected: the chat as a whole, opened from `/side` or the
+        /// newest reply's ⋯ (Codex's side chat beside a thread).
+        case thread
     }
 
     let origin: Origin
@@ -109,6 +112,23 @@ struct ChatReplySideChatContext: Equatable, Sendable {
         self.sourceText = sourceText
     }
 
+    /// The whole chat, with no words selected: the conversation, newest turns
+    /// first to keep, within the reply and transcript budgets together.
+    init(
+        threadTitle chatTitle: String,
+        turns: [ChatSideQuestionHandoff.Turn],
+        openQuestion: String?,
+        sourceText: String = ""
+    ) {
+        self.origin = .thread
+        self.passage = ""
+        self.replyText = ""
+        self.chatTitle = chatTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.recentTurns = Self.budgeted(turns, to: Self.transcriptCharacterBudget + Self.replyCharacterBudget)
+        self.openQuestion = openQuestion?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+        self.sourceText = sourceText
+    }
+
     /// This context with the source text read after the popover opened.
     func withSourceText(_ text: String) -> ChatReplySideChatContext {
         var context = self
@@ -151,7 +171,7 @@ struct ChatReplySideChatContext: Equatable, Sendable {
             body = String(text.prefix(room)) + "\n\n" + Self.sourceCutNote
         }
         switch origin {
-        case .reply:
+        case .reply, .thread:
             return "\n\n<chat_sources>\n"
                 + "The source text loaded into the chat the words came from, as its tutor reads it:\n\n"
                 + body
@@ -184,6 +204,28 @@ struct ChatReplySideChatContext: Equatable, Sendable {
         }
         var lines: [String] = []
         lines.append("<side_chat_context>")
+        if origin == .thread {
+            lines.append(
+                "The learner opened a side chat beside the chat"
+                    + (chatTitle.isEmpty ? "" : " \u{201C}\(chatTitle)\u{201D}")
+                    + " to ask about the conversation as a whole, without adding to it."
+                    + " The conversation, oldest first (its opening may be cut):"
+            )
+            lines.append("<conversation>")
+            lines.append(Self.transcript(of: recentTurns))
+            lines.append("</conversation>")
+            if let openQuestion {
+                lines.append("")
+                lines.append(
+                    "That chat is a review, and this question of yours is open. Do not give its answer away, "
+                        + "in whole or in part; answer what can be answered and say plainly that the remainder "
+                        + "is what the open question is asking."
+                )
+                lines.append("Open question: \(openQuestion)")
+            }
+            lines.append("</side_chat_context>")
+            return lines.joined(separator: "\n")
+        }
         lines.append(
             "The learner selected these words in one of your replies"
                 + (chatTitle.isEmpty ? "" : " in the chat \u{201C}\(chatTitle)\u{201D}")
@@ -358,6 +400,7 @@ struct LiveChatReplySideChatBackend: ChatReplySideChatBackend {
         switch context.origin {
         case .reply: instructions = Prompts.replySideChat
         case .reader: instructions = Prompts.readerSideChat
+        case .thread: instructions = Prompts.threadSideChat
         }
         return await aiService.streamChat(
             system: instructions + context.sourceHead(characterBudget: sourceBudget),
@@ -485,7 +528,7 @@ final class ChatReplySideChatModel {
         let spoken = turns.filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         guard !spoken.isEmpty else { return nil }
         var handoffTurns = spoken.map { ChatSideQuestionHandoff.Turn(speaker: $0.speaker, text: $0.text) }
-        if let first = handoffTurns.firstIndex(where: { $0.speaker == .learner }) {
+        if !context.passage.isEmpty, let first = handoffTurns.firstIndex(where: { $0.speaker == .learner }) {
             let quoted = context.passage
                 .components(separatedBy: .newlines)
                 .map { line in line.trimmingCharacters(in: .whitespaces).isEmpty ? ">" : "> \(line)" }
@@ -499,7 +542,7 @@ final class ChatReplySideChatModel {
         let title: String
         let named = chatTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         switch context.origin {
-        case .reply:
+        case .reply, .thread:
             origin = .chat
             title = named.isEmpty ? "Chat" : chatTitle
         case .reader(let sourceTitle):

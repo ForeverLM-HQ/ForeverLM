@@ -49,6 +49,27 @@ struct ChatReplySideChatTests {
         #expect(context.openQuestion == nil)
     }
 
+    @Test("A side chat about the whole chat reads the conversation, with no passage or reply of its own")
+    func threadSideChatReadsTheConversation() throws {
+        let context = ChatReplySideChatContext(
+            threadTitle: "Sestamibi kinetics",
+            turns: [
+                .init(speaker: .learner, text: "how is MMP different from the proton motive force"),
+                .init(speaker: .tutor, text: Self.reply),
+            ],
+            openQuestion: "What sets the matrix potential?"
+        )
+        #expect(context.origin == .thread)
+        let block = context.modelContext
+        #expect(block.hasPrefix("<side_chat_context>"))
+        #expect(block.hasSuffix("</side_chat_context>"))
+        #expect(block.contains("beside the chat \u{201C}Sestamibi kinetics\u{201D}"))
+        #expect(block.contains("Learner: how is MMP different from the proton motive force"))
+        #expect(!block.contains("<selected_passage>"))
+        #expect(!block.contains("<reply>"))
+        #expect(block.contains("Open question: What sets the matrix potential?"))
+    }
+
     @Test("A chat with no title and no earlier turns is described without them")
     func contextWithoutTitleOrConversation() {
         let context = Self.context(turns: [], chatTitle: "  ")

@@ -276,6 +276,12 @@ struct ChatTryAgainAndEditTests {
             offersTryAgain: true
         )
         #expect(items == [.time("Today, 23:05"), .tryAgain, .tryAgainWith, .saveToNote, .branch, .moreDetails])
+        let newest = ReviewChatReplyMenu.items(
+            timeLine: nil, savedDocID: nil, offersDiscussInNewChat: false, offersMoreDetails: false,
+            asideActionsOnly: false, offersSideChat: true
+        )
+        #expect(newest == [.branch, .sideChat])
+        #expect(newest[1].title == "Open Side Chat")
         #expect(items[1].title == "Try Again")
         #expect(items[2].title == "Try Again With")
     }

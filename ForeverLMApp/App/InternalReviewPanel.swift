@@ -3402,6 +3402,9 @@ private struct InternalReviewPanelContent: View {
                         retry: { Task { await manager.tryAgain() } },
                         retryWith: { entry in tryAgain(with: entry) }
                     )
+                    : nil,
+                openSideChat: context.isLatest && !context.isLive && !showsMemoryReviewCards
+                    ? { openThreadSideChat() }
                     : nil
             ) {
                 // Every step the reply took is one "Worked for" line where the
@@ -6161,6 +6164,9 @@ private struct InternalReviewPanelContent: View {
             // from the newest saved turn.
             forkConversation(through: manager.chatMessages)
 
+        case .side:
+            openThreadSideChat()
+
         case .reasoning:
             await setChatReasoning(argument)
         }
@@ -6502,6 +6508,48 @@ private struct InternalReviewPanelContent: View {
         }
     }
 
+    /// A side chat about the whole chat, no words selected (`/side`, the newest
+    /// reply's ⋯; Codex's side chat). It hangs off the newest reply, reads the
+    /// conversation and the chat's sources, and leaves the chat as it is.
+    private func openThreadSideChat() {
+        let messages = manager.chatMessages
+        guard let reply = messages.last(where: { message in
+            message.role == .assistant && message.toolActivity == nil
+                && ReviewSessionManager.displayableMessageContent(role: .assistant, content: message.content)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+        }) else {
+            vm.showToast("Send a message first: a side chat asks about the conversation.")
+            return
+        }
+        let replacesOpen = replySideChat.map { open in
+            closeReplySideChat(open)
+            return true
+        } ?? false
+        let turns = messages.compactMap { message -> ChatSideQuestionHandoff.Turn? in
+            guard message.role == .user || message.role == .assistant, message.toolActivity == nil,
+                  let text = ReviewSessionManager.displayableMessageContent(role: message.role, content: message.content)?
+                      .trimmingCharacters(in: .whitespacesAndNewlines),
+                  !text.isEmpty else { return nil }
+            return .init(speaker: message.role == .user ? .learner : .tutor, text: text)
+        }
+        let model = ChatReplySideChatModel(
+            messageID: reply.id,
+            anchor: nil,
+            context: ChatReplySideChatContext(
+                threadTitle: manager.topic,
+                turns: turns,
+                openQuestion: openTutorQuestion,
+                sourceText: manager.loadedSourceText
+            ),
+            backend: LiveChatReplySideChatBackend(aiService: AIService())
+        )
+        if replacesOpen {
+            DispatchQueue.main.async { replySideChat = model }
+        } else {
+            replySideChat = model
+        }
+    }
+
     /// The popover closed, by the learner or by another taking its place. An
     /// answer still being written stops; the exchange is gone with the view.
     private func closeReplySideChat(_ model: ChatReplySideChatModel) {
@@ -6518,6 +6566,13 @@ private struct InternalReviewPanelContent: View {
     /// it is. A pane with no neighbour to hand to — the comparison pane, the
     /// pop-out window — sends it to the primary Chat instead.
     private func continueReplySideChatInNewChat(_ model: ChatReplySideChatModel) {
+        // A side chat about the whole chat with nothing said in it yet: the
+        // new chat is this one, branched.
+        if model.context.origin == .thread, !model.hasExchange {
+            closeReplySideChat(model)
+            forkConversation(through: manager.chatMessages)
+            return
+        }
         let topic = manager.topic.trimmingCharacters(in: .whitespacesAndNewlines)
         let sourceIDs = manager.linkedSourceIDs.isEmpty ? reviewSources.map(\.id) : manager.linkedSourceIDs
         let request: ReaderSelectionExplanationRequest

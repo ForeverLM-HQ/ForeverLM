@@ -721,6 +721,7 @@ struct ChatThreadVerbTests {
         #expect(ReviewSlashCommandParser.parse("/pin")?.command.kind == .pin)
         #expect(ReviewSlashCommandParser.parse("/hide")?.command.kind == .hide)
         #expect(ReviewSlashCommandParser.parse("/fork")?.command.kind == .fork)
+        #expect(ReviewSlashCommandParser.parse("/side")?.command.kind == .side)
         // Verbs with no argument run as soon as they are picked.
         let pin = try #require(ReviewSlashCommandParser.suggestions(for: "/pi").first)
         #expect(pin.runsImmediately)
