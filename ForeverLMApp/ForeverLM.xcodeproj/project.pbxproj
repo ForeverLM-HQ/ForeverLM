@@ -1645,7 +1645,6 @@
 		D6AA185AC3661B23D19B7896 /* PrivateChatKindTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D07C9AAC8430DB8A4834860 /* PrivateChatKindTests.swift */; };
 		D6CAEC151F516106084A0E57 /* MnemonicReadingMCPTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0287C45A2E93F3E963A0837 /* MnemonicReadingMCPTests.swift */; };
 		D6DD14542DBAFE9C2A6A130A /* SyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F67348F71F5557FA6AA1BB39 /* SyncCoordinator.swift */; };
-		D748A9D789D157827565E4DF /* ShareRequestsBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0578DA4D9DECF2C45CD460DB /* ShareRequestsBanner.swift */; };
 		D74F4EA709FE88355C6E5E58 /* command_skip.wav in Resources */ = {isa = PBXBuildFile; fileRef = 6DD25F91A4AF7AE323426DA6 /* command_skip.wav */; };
 		D782E3B5A11858C2BFFA6B5C /* ReviewChatComposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63E0448551E869E91202D8C6 /* ReviewChatComposer.swift */; };
 		D7A87226E8A763D7E576FF18 /* RecordProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D38F2B6B90935057BE037EF /* RecordProjection.swift */; };
@@ -2044,7 +2043,6 @@
 		0543EBE5641D6CD42EE8EB6F /* MobileSpeechLoudness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileSpeechLoudness.swift; sourceTree = "<group>"; };
 		054A8DB9BE6F549D22828119 /* ReadableMathPreviewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadableMathPreviewTests.swift; sourceTree = "<group>"; };
 		057810EA1772530036CB0B2F /* FamilyAssignmentsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FamilyAssignmentsTests.swift; sourceTree = "<group>"; };
-		0578DA4D9DECF2C45CD460DB /* ShareRequestsBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareRequestsBanner.swift; sourceTree = "<group>"; };
 		058AE58E91B4507CFC21B08B /* StorageService+MemoryGoal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StorageService+MemoryGoal.swift"; sourceTree = "<group>"; };
 		05E0FFB0FC76E287D6E2DD49 /* GeminiNotebookServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeminiNotebookServiceTests.swift; sourceTree = "<group>"; };
 		05E38D35A7D30BD66B1062FA /* KnowledgeMapVersionsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeMapVersionsTests.swift; sourceTree = "<group>"; };
@@ -5226,7 +5224,6 @@
 				B7CD16CF9351AEE0B0EC0FC8 /* SettingsVideoGeneration.swift */,
 				8C4750014C8E0EB229B62660 /* SettingsView.swift */,
 				16A64027ECB9D6117D12257C /* SettingsWorkingNotes.swift */,
-				0578DA4D9DECF2C45CD460DB /* ShareRequestsBanner.swift */,
 				0D2EF1870735A3F2AE663A6E /* ShareWithTeamMenu.swift */,
 				5C8A08108235AC261AEF6FD3 /* SharingRightsSheet.swift */,
 				22737B68371AB50932609F2E /* SiriAppIntents.swift */,
@@ -7944,7 +7941,6 @@
 				1DFB43309761F518556682F2 /* SettingsVideoGeneration.swift in Sources */,
 				DF3C8E9ADE00C7F0FFF07613 /* SettingsView.swift in Sources */,
 				109BCC26929B56CD3AD8C251 /* SettingsWorkingNotes.swift in Sources */,
-				D748A9D789D157827565E4DF /* ShareRequestsBanner.swift in Sources */,
 				78D1F187C3AD65CAC58CC6CF /* ShareService.swift in Sources */,
 				E41087E9AE30122804E2FABD /* ShareWithTeamMenu.swift in Sources */,
 				19297F519A5F145D07F558DC /* SharedDerivedCacheAdoption.swift in Sources */,

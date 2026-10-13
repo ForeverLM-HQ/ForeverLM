@@ -365,7 +365,8 @@ extension StudioViewModel {
         }
     }
 
-    /// Share on a card or in the requests banner: answer with this Mac's copy.
+    /// Share on a card or on the request in the strip's bell: answer with this
+    /// Mac's copy.
     @discardableResult
     func fulfilShareRequest(_ requestID: String) async -> ShareRequestRecord? {
         do {
@@ -399,7 +400,7 @@ extension StudioViewModel {
         }
     }
 
-    /// Answer every request this Mac can, at once — the banner's Share All.
+    /// Answer every request this Mac can, at once — the bell's Share All.
     func fulfilAllShareRequests() async {
         for item in fulfillableShareRequests {
             _ = await fulfilShareRequest(item.request.id)

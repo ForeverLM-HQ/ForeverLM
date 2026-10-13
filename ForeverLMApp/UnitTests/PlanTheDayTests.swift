@@ -167,3 +167,80 @@ struct CornerNoticeReadMarkTests {
         )
     }
 }
+
+/// The strip's bell as the one inbox (docs/codex-shell-plan.md, Track 4): read
+/// marks that survive a relaunch, a card read for what it says now kept out
+/// of the corner, the notices only the bell holds, and the bell's dot.
+@MainActor
+@Suite("The bell: one inbox")
+struct InboxReadMarkTests {
+    private func withDefaults(_ body: (UserDefaults) throws -> Void) throws {
+        let suiteName = "InboxReadMarkTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        try body(defaults)
+    }
+
+    @Test("Read marks survive a relaunch; Mark as Unread takes one away for good")
+    func marksSurviveRelaunch() throws {
+        try withDefaults { defaults in
+            let tray = CornerNoticeTray(defaults: defaults)
+            tray.markRead(.shareRequests, subject: ["req-1"])
+            tray.markRead(.planTheDay, subject: ["2026-10-13"])
+            let relaunched = CornerNoticeTray(defaults: defaults)
+            #expect(relaunched.isRead(.shareRequests, subject: ["req-1"]))
+            #expect(relaunched.isRead(.planTheDay, subject: ["2026-10-13"]))
+            #expect(!relaunched.isRead(.shareRequests, subject: ["req-1", "req-2"]), "a new request is news")
+            relaunched.markUnread(.planTheDay)
+            #expect(!CornerNoticeTray(defaults: defaults).isRead(.planTheDay, subject: ["2026-10-13"]))
+            // A tray with no defaults keeps nothing past its run.
+            let scratch = CornerNoticeTray()
+            scratch.markRead(.cardsToCheck, subject: ["a"])
+            #expect(CornerNoticeTray().read.isEmpty)
+        }
+    }
+
+    @Test("A card read for what it says now stays out of the corner after a relaunch; news brings it back, and a tuck lasts one launch")
+    func corner() throws {
+        try withDefaults { defaults in
+            let tray = CornerNoticeTray(defaults: defaults)
+            #expect(tray.showsInCorner(.planTheDay, subject: ["2026-10-13"]))
+            tray.markRead(.planTheDay, subject: ["2026-10-13"])
+            #expect(!tray.showsInCorner(.planTheDay, subject: ["2026-10-13"]))
+            let relaunched = CornerNoticeTray(defaults: defaults)
+            #expect(!relaunched.showsInCorner(.planTheDay, subject: ["2026-10-13"]))
+            #expect(relaunched.showsInCorner(.planTheDay, subject: ["2026-10-14"]), "a new day's plan is news")
+            relaunched.tuck(.cardsToCheck)
+            #expect(!relaunched.showsInCorner(.cardsToCheck, subject: ["a"]))
+            #expect(CornerNoticeTray(defaults: defaults).showsInCorner(.cardsToCheck, subject: ["a"]))
+        }
+    }
+
+    @Test("A mark is what the notice says now, so it never outgrows it")
+    func markIsReplaced() {
+        let tray = CornerNoticeTray()
+        tray.markRead(.cardsToCheck, subject: ["a", "b"])
+        tray.markRead(.cardsToCheck, subject: ["c"])
+        #expect(tray.read[.cardsToCheck] == ["c"])
+        #expect(!tray.isRead(.cardsToCheck, subject: ["a"]))
+    }
+
+    @Test("Requests and plugins to reconnect are the bell's alone, each about its own ids")
+    func bellOnlyKinds() {
+        #expect(CornerNoticeKind.allCases.filter { !$0.isCornerCard } == [.shareRequests, .pluginReconnect])
+        let subjects = InboxSubjects(planDay: nil, cardsToCheck: nil, shareRequestIDs: ["req-1"], reconnectPlugins: ["x"])
+        #expect(subjects.subject(.shareRequests) == ["req-1"])
+        #expect(subjects.subject(.pluginReconnect) == ["x"])
+    }
+
+    @Test("The bell's dot: an unread chat, a notice only the bell holds, or a tucked card; never a card still in the corner")
+    func dot() {
+        let tray = CornerNoticeTray()
+        #expect(!tray.lightsBell(unread: [], hasUnreadChats: false))
+        #expect(tray.lightsBell(unread: [], hasUnreadChats: true))
+        #expect(tray.lightsBell(unread: [.shareRequests], hasUnreadChats: false))
+        #expect(!tray.lightsBell(unread: [.planTheDay], hasUnreadChats: false), "a card in the corner is in view already")
+        tray.tuck(.planTheDay)
+        #expect(tray.lightsBell(unread: [.planTheDay], hasUnreadChats: false))
+    }
+}

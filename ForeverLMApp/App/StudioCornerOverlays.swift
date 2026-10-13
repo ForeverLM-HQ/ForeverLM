@@ -292,7 +292,7 @@ struct PlanTheDayCard: View {
         /// Floating in the window's bottom-left corner, for a window whose
         /// rail is hidden.
         case floating
-        /// In flow inside the notifications center's popover: the rail's
+        /// In flow inside the bell's popover (the inbox): the rail's
         /// look, and the close glyph really dismisses.
         case tray
 
@@ -550,7 +550,7 @@ struct ActivationCard: View {
             .textSelection(.disabled)
             Spacer(minLength: 0)
             // It ends by itself, so there is nothing to dismiss: the glyph
-            // only tucks it into the notifications center.
+            // only tucks it into the bell.
             if style != .tray {
                 CornerCardClose(
                     style: style,
@@ -567,22 +567,47 @@ struct ActivationCard: View {
     }
 }
 
-// MARK: - Notifications center
+// MARK: - The inbox (Codex's Activity)
 
-/// What a corner card can be about, in the order the corner shows them: one
-/// card at a time, the first that is showing.
+/// What the strip's bell lists beside the chats: the corner cards, which also
+/// stand in the corner, and the notices only the bell holds. One inbox, as
+/// Codex's Activity is (docs/codex-shell-plan.md, Track 4): the Space's own
+/// bell for teammates' requests went into it on 2026-10-13.
 enum CornerNoticeKind: String, CaseIterable, Identifiable {
+    /// Corner cards, in the order the corner shows them: one card at a time,
+    /// the first that is showing.
     case libraryMove, storeUpgradeSpace, planTheDay, cardsToCheck
+    /// Teammates asking for sources this library holds (docs/teams-design.md,
+    /// decision 14), answered here with Share or Decline.
+    case shareRequests
+    /// Plugins whose connection is gone and must be signed in again.
+    case pluginReconnect
     var id: String { rawValue }
 
-    /// What a card of this kind is about right now, for its read mark: a
-    /// mark holds while the card says nothing it did not say when marked.
+    /// Whether this kind can stand in the corner; the others are the bell's
+    /// alone, so a notice of theirs is never "in view already".
+    var isCornerCard: Bool {
+        switch self {
+        case .libraryMove, .storeUpgradeSpace, .planTheDay, .cardsToCheck: return true
+        case .shareRequests, .pluginReconnect: return false
+        }
+    }
+
+    /// What a notice of this kind is about right now, for its read mark: a
+    /// mark holds while the notice says nothing it did not say when marked.
     /// A new day's "Plan your day?" is news, and so are cards from a source
     /// the pile did not hold then, or a new day for the pile, which the card
     /// itself asks about daily; a pile that shrinks is not, as for the
-    /// morning-after banner (`CardsToCheckBanner.Ledger`).
+    /// morning-after banner (`CardsToCheckBanner.Ledger`). A new teammate's
+    /// request is news, and so is another plugin losing its connection.
     @MainActor
-    func subject(planDay: String?, cardsToCheck pile: CardsToCheckNudge.Pile?, now: Date = Date()) -> Set<String> {
+    func subject(
+        planDay: String?,
+        cardsToCheck pile: CardsToCheckNudge.Pile?,
+        shareRequestIDs: Set<String> = [],
+        reconnectPlugins: Set<String> = [],
+        now: Date = Date()
+    ) -> Set<String> {
         switch self {
         case .libraryMove:
             if case .asking = ActivationNotice.shared.phase { return ["asking"] }
@@ -593,25 +618,64 @@ enum CornerNoticeKind: String, CaseIterable, Identifiable {
             return planDay.map { [$0] } ?? []
         case .cardsToCheck:
             return (pile?.sourceIDs ?? []).union(["day:" + MemoryReviewGoal.dayKey(for: now)])
+        case .shareRequests:
+            return shareRequestIDs
+        case .pluginReconnect:
+            return reconnectPlugins
         }
     }
 }
 
-/// Which corner cards the learner tucked away, and which they marked read. A
-/// tucked card leaves the corner and waits in the notifications center above
-/// the account (product owner, 2026-10-09), until what it is about is answered; the
-/// next launch shows it in the corner again. A tucked card lights the bell
-/// until it is marked read (product owner, 2026-10-10: "should be able to mark
-/// things as read"): read, it stays listed, quieter, and the bell goes dark,
-/// without the card's own answer (Not today, Later) being given for it.
+/// What each notice is about at one moment: the inputs of
+/// `CornerNoticeKind.subject`, read once per draw.
+struct InboxSubjects {
+    let planDay: String?
+    let cardsToCheck: CardsToCheckNudge.Pile?
+    let shareRequestIDs: Set<String>
+    let reconnectPlugins: Set<String>
+
+    @MainActor
+    func subject(_ kind: CornerNoticeKind) -> Set<String> {
+        kind.subject(
+            planDay: planDay,
+            cardsToCheck: cardsToCheck,
+            shareRequestIDs: shareRequestIDs,
+            reconnectPlugins: reconnectPlugins
+        )
+    }
+}
+
+/// Which corner cards the learner tucked away, and which notices they marked
+/// read. A tucked card leaves the corner and waits in the bell above the
+/// account (product owner, 2026-10-09), until what it is about is answered;
+/// the next launch shows it in the corner again. An unread notice in the bell
+/// lights it (product owner, 2026-10-10: "should be able to mark things as
+/// read"): read, it stays listed, quieter, and the bell goes dark, without
+/// the card's own answer (Not today, Later) being given for it. Read marks
+/// survive a relaunch in this Mac's defaults (Track 4), and a card read for
+/// what it says now stays out of the corner after one too.
 @MainActor
 @Observable
 final class CornerNoticeTray {
-    static let shared = CornerNoticeTray()
+    static let shared = CornerNoticeTray(defaults: .standard)
+
+    /// The read marks: each kind's raw value to what it was about when it
+    /// was marked. This Mac's alone (`SyncedPreferenceKeys.excluded`).
+    nonisolated static let readMarksKey = "notifications.readMarks.v1"
 
     private(set) var tucked: Set<CornerNoticeKind> = []
     /// What each kind was about when it was marked read (`CornerNoticeKind.subject`).
     private(set) var read: [CornerNoticeKind: Set<String>] = [:]
+    /// Where the marks are kept; nil keeps them for this run only (a test's tray).
+    @ObservationIgnored private let defaults: UserDefaults?
+
+    init(defaults: UserDefaults? = nil) {
+        self.defaults = defaults
+        let stored = defaults?.dictionary(forKey: Self.readMarksKey) as? [String: [String]] ?? [:]
+        for (raw, subject) in stored {
+            if let kind = CornerNoticeKind(rawValue: raw) { read[kind] = Set(subject) }
+        }
+    }
 
     func isTucked(_ kind: CornerNoticeKind) -> Bool { tucked.contains(kind) }
     func tuck(_ kind: CornerNoticeKind) { tucked.insert(kind) }
@@ -621,20 +685,66 @@ final class CornerNoticeTray {
         return subject.isSubset(of: marked)
     }
 
-    /// Read is seen: the card leaves the corner as well, as a tucked one does.
+    /// Whether a card stands in the corner: not tucked this launch, and not
+    /// read for what it says now.
+    func showsInCorner(_ kind: CornerNoticeKind, subject: Set<String>) -> Bool {
+        !tucked.contains(kind) && !isRead(kind, subject: subject)
+    }
+
+    /// Read is seen: the card leaves the corner as well, as a tucked one
+    /// does. The mark is what the notice says now, so the stored mark never
+    /// outgrows it.
     func markRead(_ kind: CornerNoticeKind, subject: Set<String>) {
-        read[kind, default: []].formUnion(subject)
+        read[kind] = subject
         tucked.insert(kind)
+        store()
+    }
+
+    /// Whether the bell wears its dot: an unread chat, or an unread notice
+    /// that is not in view already — one only the bell holds, or a card
+    /// tucked out of the corner. A dot, never a count.
+    func lightsBell(unread kinds: [CornerNoticeKind], hasUnreadChats: Bool) -> Bool {
+        hasUnreadChats || kinds.contains { !$0.isCornerCard || tucked.contains($0) }
     }
 
     /// Unread again: it lights the bell, and stays out of the corner.
     func markUnread(_ kind: CornerNoticeKind) {
         read[kind] = nil
+        store()
+    }
+
+    private func store() {
+        guard let defaults else { return }
+        let marks = Dictionary(uniqueKeysWithValues: read.map { ($0.key.rawValue, $0.value.sorted()) })
+        defaults.set(marks, forKey: Self.readMarksKey)
     }
 }
 
-/// A card's read mark, set only on the cards the notifications center lists:
-/// their tint and their Mark as Read / Mark as Unread item read it.
+extension StudioViewModel {
+    /// The plugins whose connection is gone and must be signed in again, for
+    /// the bell: X's session that cannot be refreshed, and YouTube's lost
+    /// grant (set by the sync that met it, cleared by the next that gets
+    /// through). The same states their pages call "Reconnect needed".
+    var pluginsNeedingReconnect: [PluginPage] {
+        var pages: [PluginPage] = []
+        if isXOAuthSignedIn, xPluginNeedsReauth { pages.append(.x) }
+        if youtubePluginNeedsReconnect { pages.append(.youtube) }
+        return pages
+    }
+
+    /// What every notice is about now (`InboxSubjects`).
+    func inboxSubjects(planDay: String?) -> InboxSubjects {
+        InboxSubjects(
+            planDay: planDay,
+            cardsToCheck: cardsToCheckPile,
+            shareRequestIDs: Set(fulfillableShareRequests.map(\.request.id)),
+            reconnectPlugins: Set(pluginsNeedingReconnect.map(\.rawValue))
+        )
+    }
+}
+
+/// A card's read mark, set only on the notices the bell lists: their tint and
+/// their Mark as Read / Mark as Unread item read it.
 struct CornerNoticeReadMark {
     let kind: CornerNoticeKind
     let subject: Set<String>
@@ -657,15 +767,15 @@ private struct CornerNoticeReadMarkKey: EnvironmentKey {
 }
 
 extension EnvironmentValues {
-    /// The read mark of the notifications center's card this view is in; nil
-    /// for a card in the corner or the rail's footer.
+    /// The read mark of the bell's notice this view is in; nil for a card in
+    /// the corner or the rail's footer.
     var cornerNoticeReadMark: CornerNoticeReadMark? {
         get { self[CornerNoticeReadMarkKey.self] }
         set { self[CornerNoticeReadMarkKey.self] = newValue }
     }
 }
 
-/// Mark as Read / Mark as Unread, in a card's menu in the notifications center.
+/// Mark as Read / Mark as Unread, in a notice's menu in the bell.
 private struct CornerNoticeReadMenuItem: View {
     let mark: CornerNoticeReadMark
 
@@ -696,8 +806,7 @@ private extension View {
 }
 
 /// A corner card's close glyph. In the corner it hides the card into the
-/// notifications center; inside the center it is the card's own answer
-/// ("Not today", "Later").
+/// bell; inside the bell it is the card's own answer ("Not today", "Later").
 private struct CornerCardClose: View {
     let style: PlanTheDayCard.Style
     let kind: CornerNoticeKind
@@ -706,7 +815,7 @@ private struct CornerCardClose: View {
     let dismiss: () -> Void
 
     var body: some View {
-        let help = style == .tray ? dismissHelp : "Hide to Notifications"
+        let help = style == .tray ? dismissHelp : "Hide to Activity"
         Button {
             if style == .tray {
                 dismiss()
@@ -729,10 +838,13 @@ private struct CornerCardClose: View {
     }
 }
 
-/// The bell above the account: every corner card that is waiting, tucked or
-/// not, in one popover. `kinds` is what the window's chain says is showing.
-/// Its dot is a tucked card not yet marked read: one still in the corner is
-/// in view already.
+/// The bell above the account: the one inbox, Codex's Activity. It lists the
+/// chats that need attention — unread ones (`ChatReadMarks`) and running
+/// ones — then teammates' requests, plugins to reconnect and every corner card
+/// that is waiting, tucked or not. `kinds` is what is waiting in this window.
+/// Its dot is anything unread that is not in view already (a card still in
+/// the corner is): an unread chat, a notice only the bell holds, a tucked
+/// card. A dot, never a count.
 struct NotificationCenterButton: View {
     let kinds: [CornerNoticeKind]
     let planDay: String?
@@ -744,10 +856,11 @@ struct NotificationCenterButton: View {
 
     var body: some View {
         let tray = CornerNoticeTray.shared
-        let unread = kinds.filter {
-            !tray.isRead($0, subject: $0.subject(planDay: planDay, cardsToCheck: vm.cardsToCheckPile))
-        }
-        let lightsDot = unread.contains { tray.isTucked($0) }
+        let subjects = vm.inboxSubjects(planDay: planDay)
+        let unread = kinds.filter { !tray.isRead($0, subject: subjects.subject($0)) }
+        let unreadChats = InboxChats.listed(vm: vm).unread
+        let lightsDot = tray.lightsBell(unread: unread, hasUnreadChats: !unreadChats.isEmpty)
+        let unreadCount = unread.count + unreadChats.count
         Button { isShown.toggle() } label: {
             Image(systemName: "bell")
                 .font(.system(size: 14, weight: .medium))
@@ -761,43 +874,77 @@ struct NotificationCenterButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.hoverWash(cornerRadius: 7, inset: 0))
-        .railTooltip("Notifications")
-        .accessibilityLabel("Notifications")
-        .accessibilityValue(unread.isEmpty ? "\(kinds.count)" : "\(kinds.count), \(unread.count) unread")
+        .railTooltip("Activity")
+        .accessibilityLabel("Activity")
+        .accessibilityValue(unreadCount == 0 ? "Nothing new" : "\(unreadCount) unread")
         .accessibilityIdentifier("rail.notifications")
         .popover(isPresented: $isShown, arrowEdge: .trailing) {
-            NotificationCenterList(kinds: kinds, planDay: planDay, cardsToCheckDetail: cardsToCheckDetail)
-                .environment(vm)
-                .environment(windowState)
+            NotificationCenterList(
+                kinds: kinds,
+                planDay: planDay,
+                cardsToCheckDetail: cardsToCheckDetail,
+                close: { isShown = false }
+            )
+            .environment(vm)
+            .environment(windowState)
         }
     }
 }
 
-/// The bell's popover: the cards, each with its read mark, and Mark All as
-/// Read while one is unread. Its own view, so a mark redraws it in place.
+/// The chats the bell lists: those this Mac marks unread and those running in
+/// any window (`ChatReadMarks`), the unread first, newest first in each, of
+/// the chats the open library lists.
+enum InboxChats {
+    @MainActor
+    static func listed(vm: StudioViewModel) -> (unread: [ReviewSessionRecord], running: [ReviewSessionRecord]) {
+        let marks = ChatReadMarks.shared
+        let unreadIDs = marks.unreadSessionIDs
+        let runningIDs = marks.runningSessionIDs
+        guard !unreadIDs.isEmpty || !runningIDs.isEmpty else { return ([], []) }
+        let sessions = vm.reviewSessionLinks
+            .filter { unreadIDs.contains($0.id) || runningIDs.contains($0.id) }
+            .sorted { $0.createdAt > $1.createdAt }
+        return (
+            sessions.filter { unreadIDs.contains($0.id) && !runningIDs.contains($0.id) },
+            sessions.filter { runningIDs.contains($0.id) }
+        )
+    }
+}
+
+/// The bell's popover, Codex's Activity: the chats that need attention, then
+/// the requests, the plugins to reconnect and the cards, each with its read
+/// mark, and Mark All as Read while anything is unread. Its own view, so a
+/// mark redraws it in place.
 private struct NotificationCenterList: View {
     let kinds: [CornerNoticeKind]
     let planDay: String?
     let cardsToCheckDetail: String?
+    let close: () -> Void
 
     @Environment(StudioViewModel.self) private var vm
+    @Environment(StudioWindowState.self) private var windowState
 
     var body: some View {
         let tray = CornerNoticeTray.shared
+        let subjects = vm.inboxSubjects(planDay: planDay)
         let marks = kinds.map { kind in
-            let subject = kind.subject(planDay: planDay, cardsToCheck: vm.cardsToCheckPile)
+            let subject = subjects.subject(kind)
             return CornerNoticeReadMark(kind: kind, subject: subject, isRead: tray.isRead(kind, subject: subject))
         }
         let unread = marks.filter { !$0.isRead }
+        let chats = InboxChats.listed(vm: vm)
+        let isEmpty = marks.isEmpty && chats.unread.isEmpty && chats.running.isEmpty
         VStack(alignment: .leading, spacing: StudioDesign.Spacing.small) {
             HStack(alignment: .firstTextBaseline, spacing: StudioDesign.Spacing.small) {
-                Text("Notifications")
+                Text("Activity")
                     .zoomedSystemFont(size: 12.5, weight: .semibold)
+                    .textSelection(.disabled)
                 Spacer(minLength: 0)
-                if !unread.isEmpty {
+                if !unread.isEmpty || !chats.unread.isEmpty {
                     Button {
                         withAnimation(.snappy(duration: 0.2)) {
                             for mark in unread { tray.markRead(mark.kind, subject: mark.subject) }
+                            ChatReadMarks.shared.markAllRead()
                         }
                     } label: {
                         Text("Mark All as Read")
@@ -810,14 +957,25 @@ private struct NotificationCenterList: View {
                     .accessibilityIdentifier("rail.notifications.markAllRead")
                 }
             }
-            if marks.isEmpty {
-                Text("You're all caught up.")
+            if isEmpty {
+                Text("Nothing needs attention")
                     .zoomedSystemFont(size: 12.5)
                     .foregroundStyle(.secondary)
+                    .textSelection(.disabled)
                     .padding(.vertical, StudioDesign.Spacing.small)
             }
+            if !chats.unread.isEmpty || !chats.running.isEmpty {
+                VStack(alignment: .leading, spacing: 1) {
+                    ForEach(chats.unread) { session in
+                        InboxChatRow(session: session, isRunning: false) { open(session) }
+                    }
+                    ForEach(chats.running) { session in
+                        InboxChatRow(session: session, isRunning: true) { open(session) }
+                    }
+                }
+            }
             ForEach(marks, id: \.kind) { mark in
-                card(mark.kind)
+                notice(mark.kind)
                     .environment(\.cornerNoticeReadMark, mark)
             }
         }
@@ -825,8 +983,14 @@ private struct NotificationCenterList: View {
         .frame(width: 320, alignment: .leading)
     }
 
+    /// Opens a chat in this window, as its row in the sidebar does.
+    private func open(_ session: ReviewSessionRecord) {
+        close()
+        vm.inWindow(windowState) { vm.requestResumeReviewSession(session.id) }
+    }
+
     @ViewBuilder
-    private func card(_ kind: CornerNoticeKind) -> some View {
+    private func notice(_ kind: CornerNoticeKind) -> some View {
         switch kind {
         case .libraryMove:
             if let card = ActivationNotice.shared.card {
@@ -844,13 +1008,189 @@ private struct NotificationCenterList: View {
             if let cardsToCheckDetail {
                 CardsToCheckCard(detail: cardsToCheckDetail, style: .tray)
             }
+        case .shareRequests:
+            let requests = vm.fulfillableShareRequests
+            if requests.count > 1 {
+                HStack {
+                    Spacer(minLength: 0)
+                    CornerCardAction(title: "Share All", identifier: "inbox.shareRequests.shareAll") {
+                        if SharingRightsRow.needsAsking { close() }
+                        SharingRightsPrompt.shared.askIfNeeded {
+                            Task { await vm.fulfilAllShareRequests() }
+                        }
+                    }
+                    .help("Copy every requested source you hold into the team that asked, files included")
+                }
+            }
+            ForEach(requests, id: \.request.id) { item in
+                ShareRequestNoticeCard(item: item, close: close)
+            }
+        case .pluginReconnect:
+            ForEach(vm.pluginsNeedingReconnect, id: \.self) { page in
+                PluginReconnectNoticeCard(page: page, close: close)
+            }
         }
     }
 }
 
+/// One chat in the bell, as its sidebar row draws it: Codex's dot while it
+/// is unread, a spinner while it runs. A click opens it in this window; its
+/// menu marks it read or unread.
+private struct InboxChatRow: View {
+    let session: ReviewSessionRecord
+    let isRunning: Bool
+    let open: () -> Void
+
+    @State private var hovering = false
+
+    private var title: String {
+        session.title.isEmpty
+            ? "Untitled chat"
+            : MemoryReviewSession.displayTitle(storedTitle: session.title, sessionID: session.id)
+    }
+
+    var body: some View {
+        let isUnread = ChatReadMarks.shared.isUnread(session.id)
+        Button(action: open) {
+            HStack(spacing: 8) {
+                Group {
+                    if isRunning {
+                        ProgressView()
+                            .controlSize(.mini)
+                    } else if isUnread {
+                        RailUnreadDot()
+                    }
+                }
+                .frame(width: 14)
+                Text(title)
+                    .zoomedSystemFont(size: 12.5)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .textSelection(.disabled)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 5)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.hoverWash(cornerRadius: 7, inset: 0, opacity: 0.08))
+        .contextMenu {
+            Button {
+                if isUnread {
+                    ChatReadMarks.shared.markRead(session.id)
+                } else {
+                    ChatReadMarks.shared.markUnread(session.id)
+                }
+            } label: {
+                Label(isUnread ? "Mark as Read" : "Mark as Unread", systemImage: isUnread ? "checkmark.circle" : "circle")
+            }
+        }
+        .accessibilityLabel(title)
+        .accessibilityValue(isRunning ? "Running" : isUnread ? "Unread" : "")
+        .accessibilityHint("Opens the chat in this window")
+    }
+}
+
+/// A teammate's request for a source this library holds (docs/teams-design.md,
+/// decision 14): what was asked for, who asked and in which team, with
+/// Decline, which closes the request for everyone, and Share, which copies
+/// this Mac's source into the team. The bell is where a request is answered
+/// since 2026-10-13; the Space's own bell and the Docs home's banner went.
+private struct ShareRequestNoticeCard: View {
+    let item: StorageService.FulfillableShareRequest
+    let close: () -> Void
+
+    @Environment(StudioViewModel.self) private var vm
+    @Environment(\.cornerNoticeReadMark) private var readMark
+
+    var body: some View {
+        let request = item.request
+        VStack(alignment: .leading, spacing: StudioDesign.Spacing.small) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("\(request.requestedByDisplayName ?? "A teammate") asked for a source you hold")
+                    .zoomedSystemFont(size: 12.5, weight: .semibold)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("\(request.title ?? Self.host(of: request.url)) · \(vm.team(id: request.teamID)?.name ?? "Team")")
+                    .zoomedSystemFont(size: 11.5)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+            .textSelection(.disabled)
+            HStack(spacing: StudioDesign.Spacing.small) {
+                Spacer(minLength: 0)
+                CornerCardAction(title: "Decline", identifier: "inbox.shareRequest.decline") {
+                    Task { await vm.declineShareRequest(request.id) }
+                }
+                CornerCardAction(title: "Share", identifier: "inbox.shareRequest.share", prominent: true) {
+                    // Answering copies a source into the team: the first
+                    // time, the learner affirms they may share it, in the
+                    // window's sheet, which the bell's popover makes way for.
+                    if SharingRightsRow.needsAsking { close() }
+                    SharingRightsPrompt.shared.askIfNeeded {
+                        Task { await vm.fulfilShareRequest(request.id) }
+                    }
+                }
+                .help("Copy the source into the team that asked, file included")
+            }
+        }
+        .cornerCardChrome(.tray)
+        .cornerNoticeReadMenu(readMark)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("inbox.shareRequest")
+    }
+
+    static func host(of url: String) -> String {
+        URL(string: url)?.host?.replacingOccurrences(of: "www.", with: "") ?? url
+    }
+}
+
+/// A plugin whose connection is gone: what stopped, and Reconnect, which opens
+/// its page in the Plugins place, where it signs in again.
+private struct PluginReconnectNoticeCard: View {
+    let page: PluginPage
+    let close: () -> Void
+
+    @Environment(StudioViewModel.self) private var vm
+    @Environment(StudioWindowState.self) private var windowState
+    @Environment(\.cornerNoticeReadMark) private var readMark
+
+    private var detail: String {
+        switch page {
+        case .x: return "Its session ended; bookmarks have stopped syncing."
+        case .youtube: return "Its connection is gone; YouTube import has stopped."
+        default: return "Its connection is gone."
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: StudioDesign.Spacing.small) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Reconnect \(page.title)")
+                    .zoomedSystemFont(size: 12.5, weight: .semibold)
+                Text(detail)
+                    .zoomedSystemFont(size: 11.5)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .textSelection(.disabled)
+            HStack(spacing: StudioDesign.Spacing.small) {
+                Spacer(minLength: 0)
+                CornerCardAction(title: "Reconnect", identifier: "inbox.plugin.reconnect", prominent: true) {
+                    close()
+                    vm.openPluginsPlace(page, in: windowState)
+                }
+            }
+        }
+        .cornerCardChrome(.tray)
+        .cornerNoticeReadMenu(readMark)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("inbox.plugin.\(page.rawValue)")
+    }
+}
+
 /// A corner card's padding, width and surface: tinted in flow in the rail's
-/// footer, glass floating in the window's corner. In the notifications
-/// center a card marked read loses the tint, so the unread ones stand out.
+/// footer, glass floating in the window's corner. In the bell a card marked
+/// read loses the tint, so the unread ones stand out.
 private struct CornerCardChrome: ViewModifier {
     let style: PlanTheDayCard.Style
 

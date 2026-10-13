@@ -800,8 +800,9 @@ struct StudioNavigationRail: View {
         }
     }
 
-    /// The corner cards with something to say right now, tucked or not: what
-    /// the notifications center lists.
+    /// The notices with something to say right now: the corner cards, tucked
+    /// or not, and what only the bell holds. What the bell lists beside the
+    /// chats that need attention.
     private var activeNoticeKinds: [CornerNoticeKind] {
         var kinds: [CornerNoticeKind] = []
         if ActivationNotice.shared.card != nil { kinds.append(.libraryMove) }
@@ -816,6 +817,10 @@ struct StudioNavigationRail: View {
            ) {
             kinds.append(.cardsToCheck)
         }
+        // What only the bell holds: teammates' requests, and plugins to
+        // reconnect.
+        if !vm.fulfillableShareRequests.isEmpty { kinds.append(.shareRequests) }
+        if !vm.pluginsNeedingReconnect.isEmpty { kinds.append(.pluginReconnect) }
         return kinds
     }
 
@@ -1086,23 +1091,28 @@ struct StudioNavigationRail: View {
             // (product owner, 2026-09-28: "maybe in the bottom left? maybe better
             // than popups"). A library update waiting for disk space comes
             // first: one corner card at a time.
+            // A card tucked this launch, or read for what it says now, waits
+            // in the bell instead.
             let tray = CornerNoticeTray.shared
-            if let card = ActivationNotice.shared.card, !tray.isTucked(.libraryMove) {
+            let subjects = vm.inboxSubjects(planDay: DayModel.shared.planTheDayAsk)
+            if let card = ActivationNotice.shared.card, tray.showsInCorner(.libraryMove, subject: subjects.subject(.libraryMove)) {
                 ActivationCard(title: card.title, detail: card.detail, style: .rail)
                     .padding(.horizontal, 10)
                     .padding(.top, 10)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
-            } else if let message = StoreUpgradeSpaceNotice.shared.visibleMessage, !tray.isTucked(.storeUpgradeSpace) {
+            } else if let message = StoreUpgradeSpaceNotice.shared.visibleMessage,
+                      tray.showsInCorner(.storeUpgradeSpace, subject: subjects.subject(.storeUpgradeSpace)) {
                 StoreUpgradeSpaceCard(message: message, style: .rail)
                     .padding(.horizontal, 10)
                     .padding(.top, 10)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
-            } else if asksToPlanTheDay, !tray.isTucked(.planTheDay), let day = DayModel.shared.planTheDayAsk {
+            } else if asksToPlanTheDay, let day = DayModel.shared.planTheDayAsk,
+                      tray.showsInCorner(.planTheDay, subject: subjects.subject(.planTheDay)) {
                 PlanTheDayCard(day: day, style: .rail)
                     .padding(.horizontal, 10)
                     .padding(.top, 10)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
-            } else if !tray.isTucked(.cardsToCheck), vm.showsCardsToCheckCard(
+            } else if tray.showsInCorner(.cardsToCheck, subject: subjects.subject(.cardsToCheck)), vm.showsCardsToCheckCard(
                 in: windowState,
                 isGettingStarted: isGettingStarted,
                 asksToPlanTheDay: false,
@@ -3542,8 +3552,9 @@ struct RailUnreadDot: View {
 }
 
 /// Tells `ChatReadMarks` what this window's chats are doing: the ones on
-/// screen, which a window showing them reads, and the ones running, whose
-/// reply leaves them unread when it finishes with no window showing them. Its
+/// screen, which a window showing them reads, and the ones running, which the
+/// bell lists and whose reply leaves them unread when it finishes with no
+/// window showing them. Its
 /// own view, mounted once per window by the icon strip, so a turn's flags
 /// flipping redraw this and not the strip.
 private struct ChatActivityReporter: View {
@@ -3571,10 +3582,11 @@ private struct ChatActivityReporter: View {
             .onChange(of: shown, initial: true) { _, ids in
                 ChatReadMarks.shared.showing(ids, inWindow: windowState.id.uuidString)
             }
-            .onChange(of: running) { before, now in
+            .onChange(of: running, initial: true) { before, now in
                 for sessionID in before.subtracting(now) {
                     ChatReadMarks.shared.replyFinished(sessionID)
                 }
+                ChatReadMarks.shared.running(now, inWindow: windowState.id.uuidString)
             }
             .onDisappear {
                 ChatReadMarks.shared.closingWindow(windowState.id.uuidString)

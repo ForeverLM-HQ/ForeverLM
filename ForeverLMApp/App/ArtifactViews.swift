@@ -2304,17 +2304,14 @@ struct ArtifactCanvas: View {
 
     /// The Space's head (`SpacePlaceHeader`): the name, the search and the one
     /// prominent way in, then the filters as the Space's scope pills.
-    /// Teammates' requests for sources this library holds sit between the
-    /// two: they are the one thing on this home that waits on you.
+    /// Teammates' requests for sources this library holds are answered in the
+    /// strip's bell, the one inbox (2026-10-13), not here.
     private var homeControls: some View {
         VStack(alignment: .leading, spacing: 14) {
             SpacePlaceHeader(searchText: $searchText, searchIdentifier: "artifacts.home.search") {
                 SpacePlaceTitle(title: notebookID.flatMap { vm.notebook(id: $0)?.title } ?? section.title)
             } actions: {
                 homeNewDocButton
-            }
-            if !vm.fulfillableShareRequests.isEmpty {
-                ShareRequestsBanner()
             }
             homeFilterChips
         }

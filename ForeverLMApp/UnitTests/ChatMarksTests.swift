@@ -195,6 +195,21 @@ struct ChatUnreadStateTests {
         #expect(!blank)
     }
 
+    @Test("The bell's running chats are every window's, and a closed window's leave")
+    @MainActor
+    func running() throws {
+        try withChatDefaults { defaults in
+            let marks = ChatReadMarks(defaults: defaults)
+            marks.running(["chat-a"], inWindow: "w1")
+            marks.running(["chat-b"], inWindow: "w2")
+            #expect(marks.runningSessionIDs == ["chat-a", "chat-b"])
+            marks.closingWindow("w1")
+            #expect(marks.runningSessionIDs == ["chat-b"])
+            marks.running([], inWindow: "w2")
+            #expect(marks.runningSessionIDs.isEmpty)
+        }
+    }
+
     @Test("The marks survive a relaunch in this Mac's defaults, and a deleted chat's running turn marks nothing")
     @MainActor
     func persistsAndForgets() throws {

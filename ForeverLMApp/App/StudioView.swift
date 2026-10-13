@@ -502,23 +502,28 @@ struct StudioView: View {
         // A notebook window's rail is its icon strip, with no room for the
         // cards: they wait in the corner as they do with the rail hidden.
         if !windowState.showsHomeSidebar, !isMemoryReviewFocused, !showGettingStarted {
+            // A card tucked this launch, or read for what it says now, waits
+            // in the bell instead.
             let tray = CornerNoticeTray.shared
-            if let card = ActivationNotice.shared.card, !tray.isTucked(.libraryMove) {
+            let subjects = vm.inboxSubjects(planDay: DayModel.shared.planTheDayAsk)
+            if let card = ActivationNotice.shared.card, tray.showsInCorner(.libraryMove, subject: subjects.subject(.libraryMove)) {
                 ActivationCard(title: card.title, detail: card.detail, style: .floating)
                     .padding(.leading, cornerCardLeadingInset)
                     .padding(.bottom, StudioDesign.Spacing.large)
                     .transition(.move(edge: .leading).combined(with: .opacity))
-            } else if let message = StoreUpgradeSpaceNotice.shared.visibleMessage, !tray.isTucked(.storeUpgradeSpace) {
+            } else if let message = StoreUpgradeSpaceNotice.shared.visibleMessage,
+                      tray.showsInCorner(.storeUpgradeSpace, subject: subjects.subject(.storeUpgradeSpace)) {
                 StoreUpgradeSpaceCard(message: message, style: .floating)
                     .padding(.leading, cornerCardLeadingInset)
                     .padding(.bottom, StudioDesign.Spacing.large)
                     .transition(.move(edge: .leading).combined(with: .opacity))
-            } else if asksToPlanTheDay, !tray.isTucked(.planTheDay), let day = DayModel.shared.planTheDayAsk {
+            } else if asksToPlanTheDay, let day = DayModel.shared.planTheDayAsk,
+                      tray.showsInCorner(.planTheDay, subject: subjects.subject(.planTheDay)) {
                 PlanTheDayCard(day: day, style: .floating)
                     .padding(.leading, cornerCardLeadingInset)
                     .padding(.bottom, StudioDesign.Spacing.large)
                     .transition(.move(edge: .leading).combined(with: .opacity))
-            } else if !tray.isTucked(.cardsToCheck), vm.showsCardsToCheckCard(
+            } else if tray.showsInCorner(.cardsToCheck, subject: subjects.subject(.cardsToCheck)), vm.showsCardsToCheckCard(
                 in: windowState,
                 isGettingStarted: showGettingStarted,
                 asksToPlanTheDay: false,

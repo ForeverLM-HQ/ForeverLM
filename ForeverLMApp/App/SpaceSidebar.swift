@@ -258,8 +258,9 @@ enum SpaceSidebarMetrics {
     static let hoverFill = Color.primary.opacity(0.02)
 }
 
-/// The sidebar's top line, its first row: the Space's name, the bell and the
-/// search, as ChatGPT draws them. It sits under the window's chrome, not on
+/// The sidebar's top line, its first row: the Space's name and the search,
+/// as ChatGPT draws them; the Space's bell went into the strip's, the one
+/// inbox (2026-10-13). It sits under the window's chrome, not on
 /// it, as Codex's sidebar title does, so the band over the sidebar holds only
 /// the traffic lights, ‹ › and the sidebar toggle in every state (product
 /// owner, 2026-10-12: "make sure the top left looks clean at all times"). It
@@ -277,7 +278,6 @@ struct SpaceSidebarHeader: View {
                 .truncationMode(.tail)
                 .textSelection(.disabled)
             Spacer(minLength: 4)
-            SpaceActivityButton()
             SpaceHeaderIconButton(systemImage: "magnifyingglass", help: "Search the Space", action: onSearch)
                 .accessibilityIdentifier("space.sidebar.search")
         }
@@ -331,67 +331,6 @@ struct SpaceHeaderIconButton: View {
         .buttonStyle(.hoverWash(cornerRadius: 7, inset: 0, opacity: 0.09))
         .help(help)
         .accessibilityLabel(help)
-    }
-}
-
-/// The bell: what in the Space waits on the learner. Today that is a
-/// teammate's request for a source this library holds (docs/teams-design.md,
-/// decision 14), answered here with Share or Decline; a dot on the bell says
-/// one is waiting.
-struct SpaceActivityButton: View {
-    @Environment(StudioViewModel.self) private var vm
-    @State private var isPresented = false
-
-    var body: some View {
-        let waiting = vm.fulfillableShareRequests.count
-        Button {
-            isPresented = true
-        } label: {
-            Image(systemName: "bell")
-                .zoomedSystemFont(size: 12.5, weight: .medium)
-                .foregroundStyle(.secondary)
-                .frame(width: 26, height: 26)
-                .overlay(alignment: .topTrailing) {
-                    if waiting > 0 {
-                        Circle()
-                            .fill(Color.accentColor)
-                            .frame(width: 6, height: 6)
-                            .offset(x: -6, y: 6)
-                    }
-                }
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.hoverWash(cornerRadius: 7, inset: 0, opacity: 0.09))
-        .help(waiting > 0 ? "Activity: \(waiting) waiting" : "Activity")
-        .accessibilityLabel("Activity")
-        .accessibilityValue(waiting > 0 ? "\(waiting) waiting" : "Nothing new")
-        .accessibilityIdentifier("space.sidebar.activity")
-        .popover(isPresented: $isPresented, arrowEdge: .bottom) {
-            SpaceActivityPopover { isPresented = false }
-        }
-    }
-}
-
-private struct SpaceActivityPopover: View {
-    @Environment(StudioViewModel.self) private var vm
-    let close: () -> Void
-
-    var body: some View {
-        let items = vm.fulfillableShareRequests
-        if items.isEmpty {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Activity")
-                    .zoomedSystemFont(size: 13, weight: .semibold)
-                Text("Nothing new")
-                    .zoomedSystemFont(size: 12)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(14)
-            .frame(width: 260, alignment: .leading)
-        } else {
-            ShareRequestsReviewList(items: items, dismiss: close)
-                .frame(width: 420)
-        }
     }
 }
 

@@ -236,20 +236,25 @@ struct ChatUnreadState: Equatable, Sendable {
 /// This Mac's unread chats (`ChatUnreadState`), kept in this Mac's defaults
 /// so the dots survive a relaunch. Each window's icon strip reports the chats
 /// it shows and the ones running in it (`StudioNavigationRail`); the rail's
-/// rows, its notebook rows and the strip's bell read the marks.
+/// rows, its notebook rows and the strip's bell read the marks, and the bell
+/// lists the running chats of every window.
 @MainActor @Observable
 final class ChatReadMarks {
     static let shared = ChatReadMarks()
 
     /// The unread chats' ids, as a String array. This Mac's alone
     /// (`SyncedPreferenceKeys.excluded`).
-    static let defaultsKey = "chat.unread.v1"
+    nonisolated static let defaultsKey = "chat.unread.v1"
 
     /// The unread chats' ids: the one part the rows observe, so a window
     /// switching chats redraws nothing unless a mark changed.
     private(set) var unreadSessionIDs: Set<String>
+    /// The chats running in some window, for the bell.
+    private(set) var runningSessionIDs: Set<String> = []
     /// The marks and what each window shows.
     @ObservationIgnored private var state: ChatUnreadState
+    /// What each window runs.
+    @ObservationIgnored private var runningByWindow: [String: Set<String>] = [:]
     /// Chats deleted while this Mac ran: a running turn a delete ends is not
     /// a reply that finished.
     @ObservationIgnored private var forgotten: Set<String> = []
@@ -271,8 +276,21 @@ final class ChatReadMarks {
         apply { $0.showing(sessionIDs, inWindow: window) }
     }
 
+    /// A window now runs `sessionIDs`.
+    func running(_ sessionIDs: Set<String>, inWindow window: String) {
+        runningByWindow[window] = sessionIDs.isEmpty ? nil : sessionIDs
+        publishRunning()
+    }
+
     func closingWindow(_ window: String) {
         state.closingWindow(window)
+        runningByWindow[window] = nil
+        publishRunning()
+    }
+
+    private func publishRunning() {
+        let all = runningByWindow.values.reduce(into: Set<String>()) { $0.formUnion($1) }
+        if all != runningSessionIDs { runningSessionIDs = all }
     }
 
     func replyFinished(_ sessionID: String) {

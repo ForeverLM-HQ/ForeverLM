@@ -580,6 +580,9 @@ enum SyncedPreferenceKeys {
         // Codex's unread dot is that app's view; ForeverLM's is this Mac's,
         // as a notebook's outputs' seen marks are (`ChatReadMarks`).
         ChatReadMarks.defaultsKey: "device-local: the chats this Mac shows as unread",
+        // What the learner marked read in the strip's bell, which holds this
+        // Mac's corner cards and notices (`CornerNoticeTray`).
+        CornerNoticeTray.readMarksKey: "device-local: what this Mac's bell shows as read",
 
         // Which of this Mac's preference writes knowledge.db has not confirmed.
         PreferenceWriteJournal.defaultsKey: "bookkeeping for this Mac's own unfinished writes",
