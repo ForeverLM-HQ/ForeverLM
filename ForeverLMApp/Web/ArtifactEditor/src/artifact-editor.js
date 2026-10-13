@@ -29,13 +29,13 @@ import { trailingConfig } from '@milkdown/kit/plugin/trailing'
 import { nodeRule } from '@milkdown/kit/prose'
 import { lift, setBlockType } from '@milkdown/kit/prose/commands'
 import { closeHistory } from '@milkdown/kit/prose/history'
-import { inputRules } from '@milkdown/kit/prose/inputrules'
+import { inputRules, wrappingInputRule } from '@milkdown/kit/prose/inputrules'
 import { liftListItem } from '@milkdown/kit/prose/schema-list'
 import { DOMSerializer, Fragment, Slice } from '@milkdown/kit/prose/model'
 import { Plugin, PluginKey, Selection, TextSelection } from '@milkdown/kit/prose/state'
 import { Mapping, Transform } from '@milkdown/kit/prose/transform'
 import { Decoration, DecorationSet } from '@milkdown/kit/prose/view'
-import { $prose, $remark, replaceAll } from '@milkdown/kit/utils'
+import { $inputRule, $prose, $remark, replaceAll } from '@milkdown/kit/utils'
 import '@milkdown/crepe/theme/common/style.css'
 import '@milkdown/crepe/theme/frame.css'
 import './artifact-editor.css'
@@ -3702,6 +3702,52 @@ function unwrapAtStart(state, dispatch) {
   return false
 }
 
+/// `[ ] ` (or `[] `, `[x] `) at the start of a line makes a checklist item,
+/// as the slash menu's Checklist row says. GFM's own rule only turns an item
+/// already in a list into a task, so typed on a plain line the brackets stayed
+/// as text.
+/// One of Milkdown's own rules (`inputRulesCtx`), because the dollar-math
+/// change rebuilds the input rules plugin from that list.
+const checklistShortcut = $inputRule((ctx) => wrappingInputRule(
+  /^\[( |x|X)?\]\s$/,
+  listItemSchema.type(ctx),
+  (match) => ({ checked: (match[1] ?? '').toLowerCase() === 'x' }),
+))
+
+/// Return on a line that is only a code fence or the math one makes the block
+/// it names, as in a Markdown editor: "```" (with a language, "```swift")
+/// makes code and "$$" an equation. Milkdown's rules wait for a space after
+/// the fence, which nobody types, so Return left the backticks as text.
+function withBlockShortcutsOnEnter(ctx) {
+  ctx.update(editorViewOptionsCtx, (previous) => ({
+    ...previous,
+    handleKeyDown: (view, event) => {
+      if (event.key === 'Enter' && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey && !event.isComposing
+        && blockFromFence(view.state, view.dispatch)) {
+        event.preventDefault()
+        return true
+      }
+      return previous.handleKeyDown?.(view, event) ?? false
+    },
+  }))
+}
+
+function blockFromFence(state, dispatch) {
+  const { $from, empty } = state.selection
+  if (!empty || $from.parent.type.name !== 'paragraph' || $from.parentOffset !== $from.parent.content.size) return false
+  const text = $from.parent.textContent
+  const code = /^```([\w+#.-]*)$/.exec(text)
+  const language = code ? code[1] : text === '$$' ? 'LaTeX' : null
+  if (language == null) return false
+  const codeBlock = state.schema.nodes.code_block
+  const start = $from.start()
+  const tr = state.tr.delete(start, $from.end())
+  tr.setBlockType(start, start, codeBlock, { language })
+  tr.setSelection(TextSelection.create(tr.doc, start))
+  dispatch(tr.scrollIntoView())
+  return true
+}
+
 function tabActsHere(state) {
   const { $from, $to } = state.selection
   for (const $pos of [$from, $to]) {
@@ -6715,6 +6761,8 @@ async function create(markdown, fontSize) {
     editor.editor.config(withBlockPastesOnTheirOwnLine)
     editor.editor.config(withQuietTab)
     editor.editor.config(withBackspaceUnwrapping)
+    editor.editor.config(withBlockShortcutsOnEnter)
+    editor.editor.use(checklistShortcut)
     editor.editor.config(withDoubleDollarMath)
     // After Crepe's remark-math, whose `$` reading and writing it changes.
     editor.editor.use(dollarMathRemark)
