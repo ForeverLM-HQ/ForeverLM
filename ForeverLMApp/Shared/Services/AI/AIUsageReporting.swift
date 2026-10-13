@@ -490,6 +490,10 @@ enum AIUsageAttribution {
     /// One invocation of a user-visible workflow. A formatting run can make
     /// many chunk calls for one episode; all of those calls share this ID.
     @TaskLocal static var activityID: String?
+    /// The learner asked for this work themselves (pressed Listen), so a step
+    /// they stopped in the background-work list still runs for it: the stop
+    /// was meant for the work running on its own (`AIInFlightCalls.stop`).
+    @TaskLocal static var learnerAsked = false
 
     /// Resolves the ledger's mandatory activity identity without inventing
     /// meaning: explicit workflow identity wins, then chat/review session
@@ -1691,6 +1695,16 @@ enum OpenRouterSlugNormalization {
 /// (paper metadata, text cleanup, formatting, titles), so recording there lists
 /// them all without each caller reporting its own progress. Mac only: both
 /// callers are, and `AIProvider` (Models.swift) is not in the iPhone target.
+///
+/// Every call here can be stopped (product owner, 2026-10-12: "any time a
+/// process gets started … something that might actually cost money; we MUST
+/// have a way to turn it off"). A stop is by step, not by source: a queue that
+/// prepares a book's chapters for Listen moves to the next chapter the moment
+/// one is stopped, so stopping one source would only move the spend along.
+/// The step's calls in flight are cancelled, and new calls for it are refused
+/// with `AIStepStoppedError` until the learner resumes it or the app quits.
+/// Work the learner asks for themselves (`AIUsageAttribution.learnerAsked`)
+/// still runs.
 final class AIInFlightCalls: @unchecked Sendable {
     static let shared = AIInFlightCalls()
 
@@ -1704,12 +1718,37 @@ final class AIInFlightCalls: @unchecked Sendable {
         /// model has failed it.
         var provider: AIProvider?
         var model: String?
+        /// The learner stopped this call's step while it ran.
+        var wasStopped = false
+
+        /// The step a stop applies to: the task label, or "" for a call
+        /// that names none.
+        var step: String { taskLabel ?? "" }
+    }
+
+    /// A step the learner stopped, until they resume it.
+    struct StoppedStep: Sendable, Equatable, Identifiable {
+        let step: String
+        let stoppedAt: Date
+        var id: String { step }
+        var name: String { AIInFlightCalls.stepName(step) }
     }
 
     private let lock = NSLock()
     private var entries: [UUID: Entry] = [:]
+    private var cancels: [UUID: @Sendable () -> Void] = [:]
+    private var stopped: [String: Date] = [:]
 
-    func begin(taskLabel: String?, sourceTitle: String?, subjectID: String?) -> UUID {
+    /// The step's name as Settings shows it.
+    static func stepName(_ step: String?) -> String {
+        guard let step, !step.isEmpty else { return "Model call" }
+        return AITask(rawValue: step)?.displayName
+            ?? step.replacingOccurrences(of: "_", with: " ").capitalized
+    }
+
+    /// Lists a call about to start. Throws `AIStepStoppedError` when the
+    /// learner stopped its step, unless they asked for this work themselves.
+    func begin(taskLabel: String?, sourceTitle: String?, subjectID: String?) throws -> UUID {
         let entry = Entry(
             id: UUID(),
             taskLabel: taskLabel,
@@ -1717,29 +1756,78 @@ final class AIInFlightCalls: @unchecked Sendable {
             subjectID: subjectID,
             startedAt: Date()
         )
-        lock.lock()
-        entries[entry.id] = entry
-        lock.unlock()
+        let refused: Bool = lock.withLock {
+            if stopped[entry.step] != nil, !AIUsageAttribution.learnerAsked { return true }
+            entries[entry.id] = entry
+            return false
+        }
+        if refused { throw AIStepStoppedError(step: Self.stepName(taskLabel)) }
         return entry.id
     }
 
-    func setModel(_ id: UUID, provider: AIProvider, model: String) {
-        lock.lock()
-        entries[id]?.provider = provider
-        entries[id]?.model = model
-        lock.unlock()
+    /// How Stop reaches the call. A stop that landed between `begin` and
+    /// here cancels it at once.
+    func attach(_ id: UUID, cancel: @escaping @Sendable () -> Void) {
+        let cancelNow: Bool = lock.withLock {
+            guard let entry = entries[id] else { return false }
+            if entry.wasStopped { return true }
+            cancels[id] = cancel
+            return false
+        }
+        if cancelNow { cancel() }
     }
 
-    func end(_ id: UUID) {
-        lock.lock()
-        entries.removeValue(forKey: id)
-        lock.unlock()
+    func setModel(_ id: UUID, provider: AIProvider, model: String) {
+        lock.withLock {
+            entries[id]?.provider = provider
+            entries[id]?.model = model
+        }
+    }
+
+    /// Ends the call's listing. True when the learner stopped it, so the
+    /// caller can say so rather than report a bare cancellation.
+    @discardableResult
+    func end(_ id: UUID) -> Bool {
+        lock.withLock {
+            cancels.removeValue(forKey: id)
+            return entries.removeValue(forKey: id)?.wasStopped ?? false
+        }
+    }
+
+    /// Stops a step: cancels its calls in flight (the request on the wire is
+    /// aborted, and nothing is billed past what the provider already ran) and
+    /// refuses new ones until `resume`. Returns how many calls were cancelled.
+    @discardableResult
+    func stop(step: String) -> Int {
+        let toCancel: [@Sendable () -> Void] = lock.withLock {
+            if stopped[step] == nil { stopped[step] = Date() }
+            var handles: [@Sendable () -> Void] = []
+            for (id, entry) in entries where entry.step == step {
+                entries[id]?.wasStopped = true
+                if let cancel = cancels[id] { handles.append(cancel) }
+            }
+            return handles
+        }
+        // Outside the lock: cancelling runs the call's cancellation handlers
+        // on this thread.
+        toCancel.forEach { $0() }
+        return toCancel.count
+    }
+
+    func resume(step: String) {
+        lock.withLock { _ = stopped.removeValue(forKey: step) }
+    }
+
+    /// Steps the learner stopped, oldest first.
+    var stoppedSteps: [StoppedStep] {
+        lock.withLock {
+            stopped.map { StoppedStep(step: $0.key, stoppedAt: $0.value) }
+                .sorted { ($0.stoppedAt, $0.step) < ($1.stoppedAt, $1.step) }
+        }
     }
 
     var snapshot: [Entry] {
-        lock.lock()
-        defer { lock.unlock() }
-        return Array(entries.values)
+        lock.withLock { Array(entries.values) }
     }
 }
 #endif

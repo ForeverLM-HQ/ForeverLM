@@ -676,12 +676,76 @@ extension AIService {
             sessionID: AIUsageAttribution.sessionID,
             fallback: UUID().uuidString
         )
-        let inFlightID = AIInFlightCalls.shared.begin(
+        let inFlightID = try AIInFlightCalls.shared.begin(
             taskLabel: config.taskLabel,
             sourceTitle: sourceTitle,
             subjectID: subjectID
         )
-        defer { AIInFlightCalls.shared.end(inFlightID) }
+        // The call runs as a task of its own so a Stop in the background-work
+        // list can cancel it: the request on the wire is aborted, and the
+        // backup chain does not go on after a cancellation. It inherits this
+        // task's priority and task-locals, the ledger's attribution among them.
+        let work = Task {
+            try await self.runWithBackups(
+                inFlightID: inFlightID,
+                config: config,
+                system: system,
+                user: user,
+                maxTokens: maxTokens,
+                temperature: temperature,
+                imageJPEGData: imageJPEGData,
+                allowsReasoningInflation: allowsReasoningInflation,
+                disablesReasoning: disablesReasoning,
+                allowsResponseCache: allowsResponseCache,
+                jsonMode: jsonMode,
+                webSearch: webSearch,
+                validateResponse: validateResponse,
+                sourceTitle: sourceTitle,
+                subjectID: subjectID,
+                subjectType: subjectType,
+                activityID: resolvedActivityID
+            )
+        }
+        AIInFlightCalls.shared.attach(inFlightID) { work.cancel() }
+        // Nothing after the wait touches the actor's state: at -O the hop
+        // back after a wait inside withTaskCancellationHandler can be lost
+        // (the pacer crash of 2026-10-12), so only the locked registry and
+        // locals are used past it.
+        do {
+            let answer = try await withTaskCancellationHandler {
+                try await work.value
+            } onCancel: {
+                work.cancel()
+            }
+            AIInFlightCalls.shared.end(inFlightID)
+            return answer
+        } catch {
+            if AIInFlightCalls.shared.end(inFlightID), AITransientErrorClassifier.isCancellation(error) {
+                throw AIStepStoppedError(step: AIInFlightCalls.stepName(config.taskLabel))
+            }
+            throw error
+        }
+    }
+
+    private func runWithBackups(
+        inFlightID: UUID,
+        config: AITaskConfig,
+        system: String,
+        user: String,
+        maxTokens: Int,
+        temperature: Double?,
+        imageJPEGData: Data?,
+        allowsReasoningInflation: Bool,
+        disablesReasoning: Bool,
+        allowsResponseCache: Bool,
+        jsonMode: Bool,
+        webSearch: Bool,
+        validateResponse: (@Sendable (String) throws -> Void)?,
+        sourceTitle: String?,
+        subjectID: String?,
+        subjectType: String?,
+        activityID resolvedActivityID: String
+    ) async throws -> String {
         // A background task's backup models answer when its own cannot.
         return try await AIBackupModels.run(primary: config) { candidate in
             let config = KeychainService.routedTextConfig(candidate)

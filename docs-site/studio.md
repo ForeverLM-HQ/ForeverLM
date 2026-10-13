@@ -214,6 +214,15 @@ The navigation rail is a narrow strip of icons: **Spaces**, **Memory** and
 (see [Layout](#layout)) and your account. Each icon can be hidden from its own
 menu and brought back with **Show in Sidebar**.
 
+While anything that costs money runs in the background, a grey OpenRouter
+logo shows in the strip; click it for **Running in the background**: each
+narration, explainer video, mnemonic reading, scheduled task run, assistant
+job and model step (such as Text-to-Speech Preparation or Paper Metadata),
+each with **✕** to stop it. Stopping a model step stops it for every source,
+since its queue would otherwise move on to the next one. It waits under
+**Stopped** until you press **Resume** or ForeverLM next opens, and what you
+ask for yourself, such as Listen, still runs.
+
 Beside a chat or the Reader, outside a notebook, a sidebar joins the strip:
 **New chat** and **Browser** at the top, then **Notebooks**, which opens the
 Space's All list, where every notebook is (its right-click menu also opens

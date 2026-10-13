@@ -257,11 +257,14 @@ struct PaperTextToSpeechPreparationService: Sendable {
         // UI executor even when preparation is initiated by a Listen click.
         let sessionID = AIUsageAttribution.sessionID
         let taskLabel = AIUsageAttribution.task
+        let learnerAsked = AIUsageAttribution.learnerAsked
         let task = Task.detached(priority: .utility) {
             try await AIUsageAttribution.$sessionID.withValue(sessionID) {
                 try await AIUsageAttribution.$task.withValue(taskLabel) {
-                    try await AIUsageAttribution.withSource(source) {
-                        try await self.prepareAttributed(source: source, canonicalText: canonicalText)
+                    try await AIUsageAttribution.$learnerAsked.withValue(learnerAsked) {
+                        try await AIUsageAttribution.withSource(source) {
+                            try await self.prepareAttributed(source: source, canonicalText: canonicalText)
+                        }
                     }
                 }
             }

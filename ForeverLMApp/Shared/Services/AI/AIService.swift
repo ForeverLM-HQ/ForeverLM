@@ -98,6 +98,24 @@ enum AIError: LocalizedError {
     }
 }
 
+/// A model step the learner stopped in the background-work list
+/// (`AIInFlightCalls.stop`). Not a failure of the source, the model or the
+/// request, so it counts as a cancellation: a queue leaves the item waiting
+/// rather than recording an error or spending an attempt, and the backup chain
+/// does not go on to the next model.
+struct AIStepStoppedError: LocalizedError, Equatable {
+    /// The step's name as Settings shows it.
+    let step: String
+
+    /// The fixed tail of the message, by which a failure already reduced to
+    /// text is still recognised as this one.
+    static let messageTail = "Resume it under Running in the background, or it runs again when ForeverLM next opens."
+
+    var errorDescription: String? {
+        "You stopped \(step). \(Self.messageTail)"
+    }
+}
+
 /// Classifies provider/request failures that are worth an automatic retry with
 /// backoff — network blips, rate limits, and overloaded/5xx provider states —
 /// as opposed to permanent failures (bad key, invalid request) that retrying
@@ -115,8 +133,10 @@ enum AITransientErrorClassifier {
     /// stored message, only the text of those two remains. All three are
     /// written by Swift and Foundation, so this recognizes fixed strings the
     /// app itself produced rather than interpreting provider or learner prose.
+    /// A step the learner stopped (`AIStepStoppedError`) is one more face.
     static func isCancellation(_ error: Error) -> Bool {
         if error is CancellationError { return true }
+        if error is AIStepStoppedError { return true }
         if let urlError = error as? URLError { return urlError.code == .cancelled }
         let nsError = error as NSError
         if nsError.domain == NSURLErrorDomain, nsError.code == NSURLErrorCancelled { return true }
@@ -140,6 +160,7 @@ enum AITransientErrorClassifier {
         // precisely enough to be matched anywhere inside a wrapping sentence.
         if trimmed.contains(CancellationError().localizedDescription) { return true }
         if trimmed.contains("NSURLErrorDomain error \(NSURLErrorCancelled).") { return true }
+        if trimmed.contains(AIStepStoppedError.messageTail) { return true }
         // A cancelled URLSession task describes itself with the single word.
         // Match that only where a wrapped message keeps its detail -- at the
         // end, after the app's own prefix -- so a provider sentence that merely

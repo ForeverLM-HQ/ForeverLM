@@ -284,12 +284,12 @@ extension MCPToolRegistry {
         [
             MCPToolDef(
                 name: "list_running_ai_work",
-                description: "List the ForeverLM work running right now, above all what is spending money, so the learner can stop what they no longer want: tool calls still running on this Mac (a course's quizzes being written, a course, a walkthrough, a transcription — including a call whose assistant timed out waiting for it), explainer videos being filmed, mnemonic readings whose questions are being written, the text-to-speech audio queue, Teachable transcripts made in the background, scheduled task runs generating on this Mac, and bulk re-queues released with decide_background_ai_job that the background drains are still working through. Each registered entry has its work_id for cancel_ai_work, its kind, the tool that started it, what it is about, when it started, spends_money, current recorded spend and approved ceiling, and progress when the tool reports a current stage or count. Answers at once, even while a long call is still writing to the library.",
+                description: "List the ForeverLM work running right now, above all what is spending money, so the learner can stop what they no longer want: tool calls still running on this Mac (a course's quizzes being written, a course, a walkthrough, a transcription — including a call whose assistant timed out waiting for it), explainer videos being filmed, mnemonic readings whose questions are being written, the text-to-speech audio queue, Teachable transcripts made in the background, scheduled task runs generating on this Mac, bulk re-queues released with decide_background_ai_job that the background drains are still working through, and the app's own model steps on the library (Text-to-Speech Preparation, Paper Metadata, a transcript's formatting: kind model_step, one entry a step with its requests and the sources it is on). stopped_steps lists the steps stopped until the learner resumes them in ForeverLM. Each registered entry has its work_id for cancel_ai_work, its kind, the tool that started it, what it is about, when it started, spends_money, current recorded spend and approved ceiling, and progress when the tool reports a current stage or count. Answers at once, even while a long call is still writing to the library.",
                 inputSchema: ["type": "object", "properties": [:] as [String: Any], "required": [] as [String]]
             ),
             MCPToolDef(
                 name: "cancel_ai_work",
-                description: "Stop work listed by list_running_ai_work: pass its work_ids, or all: true to stop everything it marks spends_money. The job_id generate_explainer_video returned is accepted as it is. A tool call aborts the model request in flight and starts nothing further; what it already saved stays, so generate_course_quizzes keeps the quizzes written so far and calling it again writes only the rest. An explainer video is discarded, though scenes already filmed were billed; a mnemonic reading keeps the questions of the sources already written, the rest waiting in it as pending; text-to-speech audio keeps its finished chunks; a scheduled task's chat keeps the reply so far and the run is recorded as stopped; a released bulk re-queue puts the sources the drain has not reached back on hold in get_background_ai_jobs, where skip drops them. Work running on another device is not reached. Returns what was stopped and what had already finished.",
+                description: "Stop work listed by list_running_ai_work: pass its work_ids, or all: true to stop everything it marks spends_money. The job_id generate_explainer_video returned is accepted as it is. A tool call aborts the model request in flight and starts nothing further; what it already saved stays, so generate_course_quizzes keeps the quizzes written so far and calling it again writes only the rest. An explainer video is discarded, though scenes already filmed were billed; a mnemonic reading keeps the questions of the sources already written, the rest waiting in it as pending; text-to-speech audio keeps its finished chunks; a scheduled task's chat keeps the reply so far and the run is recorded as stopped; a released bulk re-queue puts the sources the drain has not reached back on hold in get_background_ai_jobs, where skip drops them; a model step is stopped for every source, its requests aborted, and does not run again until the learner resumes it under Running in the background in ForeverLM or ForeverLM restarts, though what the learner asks for themselves still runs. Work running on another device is not reached. Returns what was stopped and what had already finished.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -368,6 +368,8 @@ extension MCPDataStore {
             case textToSpeechAudio
             case scheduledTask(taskID: String)
             case backgroundQueue(jobID: String)
+            /// A step of the app's own processing, for every source it runs on.
+            case modelStep(step: String)
         }
 
         let workID: String
@@ -483,6 +485,36 @@ extension MCPDataStore {
             return RunningAIWork(workID: entry.id, home: .registry, spendsMoney: spends, payload: payload)
         }
 
+        // The app's own model steps (Text-to-Speech Preparation, Paper
+        // Metadata, a transcript's formatting), one entry a step as the
+        // background-work list shows them. A stop is by step: a queue would
+        // only move a stopped source's spend on to the next source.
+        let calls = AIInFlightCalls.shared.snapshot
+        for step in Set(calls.map(\.step)).sorted() {
+            let entries = calls.filter { $0.step == step }
+            let startedAt = entries.map(\.startedAt).min() ?? now
+            let subjects = Set(entries.map { $0.subjectID ?? $0.sourceTitle ?? "" })
+            var titles: [String] = []
+            for title in entries.compactMap(\.sourceTitle) where !titles.contains(title) { titles.append(title) }
+            let workID = "model-\(step)"
+            var payload: [String: Any] = [
+                "work_id": workID,
+                "kind": "model_step",
+                "step": AIInFlightCalls.stepName(step),
+                "requests": entries.count,
+                "started_at": formatter.string(from: startedAt),
+                "running_seconds": seconds(since: startedAt),
+                "spends_money": true,
+            ]
+            if !step.isEmpty { payload["task"] = step }
+            if !titles.isEmpty {
+                payload["about"] = subjects.count > 1
+                    ? "\(subjects.count) sources: \(titles.prefix(3).joined(separator: "; "))"
+                    : titles[0]
+            }
+            work.append(RunningAIWork(workID: workID, home: .modelStep(step: step), spendsMoney: true, payload: payload))
+        }
+
         let homes = await MainActor.run { MainActorHomes.current() }
 
         for job in homes.videos {
@@ -569,6 +601,18 @@ extension MCPDataStore {
             "work": work.map(\.payload),
             "spending_count": work.filter(\.spendsMoney).count,
         ]
+        let stopped = AIInFlightCalls.shared.stoppedSteps
+        if !stopped.isEmpty {
+            let formatter = ISO8601DateFormatter()
+            payload["stopped_steps"] = stopped.map { step -> [String: Any] in
+                var row: [String: Any] = [
+                    "step": step.name,
+                    "stopped_at": formatter.string(from: step.stoppedAt),
+                ]
+                if !step.step.isEmpty { row["task"] = step.step }
+                return row
+            }
+        }
         if work.isEmpty { payload["message"] = "Nothing is running." }
         return try jsonString(payload)
     }
@@ -639,6 +683,11 @@ extension MCPDataStore {
                     result["status"] = "already_finished"
                     result["message"] = message
                 }
+            case .modelStep(let step):
+                let cancelled = AIInFlightCalls.shared.stop(step: step)
+                result["status"] = "stopped"
+                result["cancelled_requests"] = cancelled
+                result["message"] = "\(AIInFlightCalls.stepName(step)) is stopped for every source: its requests in flight are aborted, and it does not run again until the learner resumes it under Running in the background in ForeverLM, or ForeverLM restarts. What the learner asks for themselves still runs."
             }
             results.append(result)
         }

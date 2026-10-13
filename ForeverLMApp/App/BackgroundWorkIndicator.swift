@@ -40,8 +40,9 @@ struct BackgroundWorkItem: Identifiable, Equatable {
         case reading(id: String)
         case scheduledTask(id: String)
         case registry(id: String)
-        /// A model call inside the app's own processing; it ends by itself.
-        case none
+        /// A step of the app's own processing (Text-to-Speech Preparation,
+        /// Paper Metadata), for every source it is running on.
+        case modelStep(step: String)
     }
 
     let id: String
@@ -76,6 +77,8 @@ final class BackgroundWorkMonitor: ObservableObject {
 
     @Published private(set) var items: [BackgroundWorkItem] = []
     @Published private(set) var finished: [FinishedNarration] = []
+    /// Steps the learner stopped, until they resume them or the app quits.
+    @Published private(set) var stopped: [AIInFlightCalls.StoppedStep] = []
 
     private var timer: Timer?
     /// When each narration was first seen running, for how long it has taken
@@ -104,6 +107,13 @@ final class BackgroundWorkMonitor: ObservableObject {
         if current != items { items = current }
         let ended = Self.collectFinished()
         if ended != finished { finished = ended }
+        let held = AIInFlightCalls.shared.stoppedSteps
+        if held != stopped { stopped = held }
+    }
+
+    func resume(_ step: AIInFlightCalls.StoppedStep) {
+        AIInFlightCalls.shared.resume(step: step.step)
+        refresh()
     }
 
     func dismissFinished() {
@@ -153,8 +163,8 @@ final class BackgroundWorkMonitor: ObservableObject {
             _ = ScheduledTaskRunner.shared.stop(taskID: id)
         case .registry(let id):
             _ = MCPRunningWork.shared.stop(id, by: .learner)
-        case .none:
-            break
+        case .modelStep(let step):
+            AIInFlightCalls.shared.stop(step: step)
         }
         refresh()
     }
@@ -300,44 +310,44 @@ final class BackgroundWorkMonitor: ObservableObject {
         // Model calls the app makes for the library on its own: reading a
         // paper's first page, cleaning its text for Listen, formatting a
         // transcript. A call must have run a second before it is listed, so a
-        // quick one does not flash the spinner; calls for one source and step
-        // are one row.
+        // quick one does not flash the spinner. One row per step, since Stop
+        // stops the step wherever it runs: a queue would only move a stopped
+        // source's spend on to the next source.
         let now = Date()
-        var groups: [String: (entry: AIInFlightCalls.Entry, count: Int, models: [String])] = [:]
+        var steps: [String: [AIInFlightCalls.Entry]] = [:]
         for entry in AIInFlightCalls.shared.snapshot where now.timeIntervalSince(entry.startedAt) >= 1 {
-            let key = "\(entry.taskLabel ?? "")|\(entry.subjectID ?? entry.sourceTitle ?? "")"
-            // The model each request is with, as the model picker names it.
-            var model: String?
-            if let provider = entry.provider, let id = entry.model {
-                model = AIModelCatalog.pickerName(provider: provider, modelID: id)
-            }
-            if let existing = groups[key] {
-                let earliest = existing.entry.startedAt <= entry.startedAt ? existing.entry : entry
-                var models = existing.models
-                if let model, !models.contains(model) { models.append(model) }
-                groups[key] = (earliest, existing.count + 1, models)
-            } else {
-                groups[key] = (entry, 1, model.map { [$0] } ?? [])
-            }
+            steps[entry.step, default: []].append(entry)
         }
-        for (key, group) in groups.sorted(by: { $0.value.entry.startedAt < $1.value.entry.startedAt }) {
-            let label = group.entry.taskLabel
-            let step = label.flatMap { AITask(rawValue: $0)?.displayName }
-                ?? label?.replacingOccurrences(of: "_", with: " ").capitalized
-                ?? "Model call"
-            var detail = [step]
-            if !group.models.isEmpty { detail.append(group.models.sorted().joined(separator: ", ")) }
-            if group.count > 1 { detail.append("\(group.count) requests") }
+        let earliest = steps.mapValues { $0.map(\.startedAt).min() ?? now }
+        for step in steps.keys.sorted(by: { (earliest[$0]!, $0) < (earliest[$1]!, $1) }) {
+            let entries = steps[step]!
+            // What it is working on: the source, or how many.
+            let subjects = Set(entries.map { $0.subjectID ?? $0.sourceTitle ?? "" })
+            var detail: [String] = []
+            if subjects.count > 1 {
+                detail.append("\(subjects.count) sources")
+            } else if let title = entries.lazy.compactMap(\.sourceTitle).first {
+                detail.append(title)
+            }
+            // The model each request is with, as the model picker names it.
+            var models: [String] = []
+            for entry in entries {
+                guard let provider = entry.provider, let id = entry.model else { continue }
+                let name = AIModelCatalog.pickerName(provider: provider, modelID: id)
+                if !models.contains(name) { models.append(name) }
+            }
+            if !models.isEmpty { detail.append(models.sorted().joined(separator: ", ")) }
+            if entries.count > 1 { detail.append("\(entries.count) requests") }
             items.append(BackgroundWorkItem(
-                id: "model-\(key)",
+                id: "model-\(step)",
                 kind: .modelCall,
-                title: group.entry.sourceTitle,
-                sourceID: group.entry.subjectID,
+                title: AIInFlightCalls.stepName(step),
+                sourceID: nil,
                 detail: detail.joined(separator: " · "),
                 fraction: nil,
-                startedAt: group.entry.startedAt,
+                startedAt: earliest[step],
                 spend: nil,
-                stop: .none
+                stop: .modelStep(step: step)
             ))
         }
         return items
@@ -352,7 +362,7 @@ struct BackgroundWorkButton: View {
     @State private var isShown = false
 
     var body: some View {
-        if !monitor.items.isEmpty || !monitor.finished.isEmpty {
+        if !monitor.items.isEmpty || !monitor.finished.isEmpty || !monitor.stopped.isEmpty {
             Button { isShown.toggle() } label: {
                 indicator
                     .frame(width: 36, height: 30)
@@ -361,7 +371,7 @@ struct BackgroundWorkButton: View {
             .buttonStyle(.hoverWash(cornerRadius: 7, inset: 0))
             .railTooltip(helpText)
             .accessibilityLabel("Background work")
-            .accessibilityValue(monitor.items.isEmpty ? "Finished" : "\(monitor.items.count) running")
+            .accessibilityValue(monitor.items.isEmpty ? (monitor.finished.isEmpty ? "Stopped" : "Finished") : "\(monitor.items.count) running")
             .accessibilityIdentifier("rail.backgroundWork")
             .popover(isPresented: $isShown, arrowEdge: .trailing) {
                 BackgroundWorkList(monitor: monitor, title: title(for:))
@@ -372,6 +382,7 @@ struct BackgroundWorkButton: View {
 
     private var helpText: String {
         switch monitor.items.count {
+        case 0 where monitor.finished.isEmpty: return "Stopped work — click to resume it"
         case 0: return "Audio finished — click to see how it went"
         case 1: return "1 thing is running in the background — click to see it"
         default: return "\(monitor.items.count) things are running in the background — click to see them"
@@ -380,7 +391,12 @@ struct BackgroundWorkButton: View {
 
     @ViewBuilder
     private var indicator: some View {
-        if monitor.items.isEmpty {
+        if monitor.items.isEmpty && monitor.finished.isEmpty {
+            // Only stopped steps are left: a pause, until they are resumed.
+            Image(systemName: "pause.circle")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(Color.secondary)
+        } else if monitor.items.isEmpty {
             let hasProblem = monitor.finished.contains { $0.isProblem }
             Image(systemName: hasProblem ? "exclamationmark.circle" : "checkmark.circle")
                 .font(.system(size: 14, weight: .medium))
@@ -413,7 +429,7 @@ struct BackgroundWorkButton: View {
            let title = vm.articles.first(where: { $0.id == sourceID })?.title {
             return title
         }
-        return item.kind == .modelCall ? "Library" : "Narration"
+        return "Narration"
     }
 }
 
@@ -423,9 +439,9 @@ private struct BackgroundWorkList: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(monitor.items.isEmpty ? "Finished" : "Running in the background")
+            Text(heading)
                 .font(.system(size: 12.5, weight: .semibold))
-            if monitor.items.isEmpty && monitor.finished.isEmpty {
+            if monitor.items.isEmpty && monitor.finished.isEmpty && monitor.stopped.isEmpty {
                 Text("Nothing is running.")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
@@ -446,9 +462,50 @@ private struct BackgroundWorkList: View {
                     .controlSize(.small)
                     .accessibilityIdentifier("rail.backgroundWork.dismiss")
             }
+            if !monitor.stopped.isEmpty {
+                if !monitor.items.isEmpty || !monitor.finished.isEmpty {
+                    Divider()
+                    Text("Stopped")
+                        .font(.system(size: 12.5, weight: .semibold))
+                }
+                ForEach(monitor.stopped) { step in
+                    stoppedRow(step)
+                }
+            }
         }
         .padding(14)
         .frame(width: 320)
+    }
+
+    private var heading: String {
+        if !monitor.items.isEmpty { return "Running in the background" }
+        return monitor.finished.isEmpty && !monitor.stopped.isEmpty ? "Stopped" : "Finished"
+    }
+
+    /// A step the learner stopped: it waits until they resume it here, or
+    /// until ForeverLM next opens.
+    private func stoppedRow(_ step: AIInFlightCalls.StoppedStep) -> some View {
+        HStack(alignment: .center, spacing: 8) {
+            Image(systemName: "pause.circle")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .frame(width: 16)
+            Text(step.name)
+                .font(.system(size: 12.5, weight: .medium))
+                .lineLimit(2)
+            Spacer(minLength: 0)
+            Button { monitor.resume(step) } label: {
+                Text("Resume")
+                    .font(.system(size: 11.5, weight: .medium))
+                    .padding(.horizontal, 6)
+                    .frame(height: 20)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.hoverWash(cornerRadius: 5, inset: 0))
+            .help("Let \(step.name) run again")
+            .accessibilityLabel("Resume \(step.name)")
+            .accessibilityIdentifier("rail.backgroundWork.resume")
+        }
     }
 
     private func finishedRow(_ done: FinishedNarration) -> some View {
@@ -500,18 +557,16 @@ private struct BackgroundWorkList: View {
                 .foregroundStyle(.tertiary)
             }
             Spacer(minLength: 0)
-            if item.stop != .none {
-                Button { monitor.stop(item) } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 20, height: 20)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.hoverWash(cornerRadius: 5, inset: 0))
-                .help("Stop")
-                .accessibilityLabel("Stop \(title(item))")
+            Button { monitor.stop(item) } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 20, height: 20)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.hoverWash(cornerRadius: 5, inset: 0))
+            .help(item.kind == .modelCall ? "Stop \(title(item)) for every source until you resume it" : "Stop")
+            .accessibilityLabel("Stop \(title(item))")
         }
     }
 }

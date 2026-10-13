@@ -604,7 +604,8 @@ final class ArticleSpeechService: NSObject, ObservableObject {
         do {
             listenablePlayback = try await prepareListenablePlayback(
                 for: article,
-                initialContent: content
+                initialContent: content,
+                learnerAsked: true
             )
         } catch {
             guard preparationRequestID == requestID,
@@ -813,7 +814,8 @@ final class ArticleSpeechService: NSObject, ObservableObject {
         do {
             listenablePlayback = try await prepareListenablePlayback(
                 for: article,
-                initialContent: content
+                initialContent: content,
+                learnerAsked: interaction == .interactive
             )
         } catch {
             return .failed("Could not prepare this source for audio: \(error.localizedDescription)")
@@ -1043,9 +1045,14 @@ final class ArticleSpeechService: NSObject, ObservableObject {
     /// refresh once and prepare the new snapshot instead of surfacing that race
     /// as a text-to-speech error. A second change still fails loudly and remains
     /// queued for the durable background preparer.
+    ///
+    /// `learnerAsked` is true for Listen and the sidebar's Generate Audio: a
+    /// Text-to-Speech Preparation the learner stopped in the background-work
+    /// list still runs for a source they asked to hear.
     private func prepareListenablePlayback(
         for article: StudioArticle,
-        initialContent: String
+        initialContent: String,
+        learnerAsked: Bool
     ) async throws -> PreparedListenablePlayback {
         var content = initialContent
 
@@ -1053,7 +1060,8 @@ final class ArticleSpeechService: NSObject, ObservableObject {
             do {
                 return try await prepareListenablePlaybackSnapshot(
                     for: article,
-                    content: content
+                    content: content,
+                    learnerAsked: learnerAsked
                 )
             } catch KnowledgeStoreError.sourceContentChanged where attempt == 0 {
                 guard let refreshed = await ArticleSpeechContent.persistedText(sourceID: article.id) else {
@@ -1068,7 +1076,8 @@ final class ArticleSpeechService: NSObject, ObservableObject {
 
     private func prepareListenablePlaybackSnapshot(
         for article: StudioArticle,
-        content: String
+        content: String,
+        learnerAsked: Bool
     ) async throws -> PreparedListenablePlayback {
         let usesAITextToSpeechPreparation = TextToSpeechPreparationPolicy.usesAIPreparation(
             sourceType: article.sourceType.rawValue,
@@ -1116,10 +1125,12 @@ final class ArticleSpeechService: NSObject, ObservableObject {
                 title: article.title
             )
             let preparedSource = try await Task.detached(priority: .userInitiated) {
-                try await PaperTextToSpeechPreparationService().prepare(
-                    source: source,
-                    canonicalText: content
-                )
+                try await AIUsageAttribution.$learnerAsked.withValue(learnerAsked) {
+                    try await PaperTextToSpeechPreparationService().prepare(
+                        source: source,
+                        canonicalText: content
+                    )
+                }
             }.value
             try await ArticleSpeechContent.saveListenableContent(
                 candidate: candidate,
