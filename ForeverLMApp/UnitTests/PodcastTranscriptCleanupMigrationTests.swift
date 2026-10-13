@@ -422,3 +422,340 @@ struct PodcastTranscriptAdRemovalTests {
         #expect(chunks.allSatisfy { $0.count <= 20_000 })
     }
 }
+
+/// A podcast transcript reads the moment it is fetched (schema 172): hydration
+/// saves it laid out but unformatted, ready, and the formatting pass waits in
+/// `podcast_transcript_cleanup_queue`, which a quit does not lose. These pin
+/// the queue's side: what is owed, in what order, what a Stop or the daily cap
+/// leaves, and that nobody's text is formatted or written over.
+@Suite("Podcast transcript formatting queue", .serialized)
+struct PodcastTranscriptFormattingQueueTests {
+
+    private static func episode(id: String, show: String = "Visible Show") -> StudioArticle {
+        var article = StudioArticle(
+            url: "apple-podcast://episode/\(id)",
+            title: "An Episode",
+            sourceType: .podcast,
+            id: id
+        )
+        article.domain = show
+        return article
+    }
+
+    /// Apple's transcript as extraction gives it: one long turn, then a short one.
+    private static let raw: String = {
+        let host = (0..<12)
+            .map { "Replay during slow-wave sleep is what moves a memory from fragile to durable. Here is point \($0)." }
+            .joined(separator: " ")
+        return "[SPEAKER_1]\n\(host)\n\n[SPEAKER_2]\nThanks for having me, Zara."
+    }()
+
+    private static let readable = StudioViewModel.readablePodcastTranscriptLayout(raw)
+
+    /// What the injected formatter returns: the raw text with its speakers
+    /// named and one break, as the model's pass would leave it.
+    private static let formatted = raw
+        .replacingOccurrences(of: "[SPEAKER_1]", with: "[Zara Holt]")
+        .replacingOccurrences(of: "[SPEAKER_2]", with: "[Robin Vale]")
+        .replacingOccurrences(of: "Here is point 5. ", with: "Here is point 5.\n\n")
+
+    private static let config = AITaskConfig(provider: .anthropic, apiKey: "test-key", model: "example/formatter")
+
+    private actor Recorded {
+        var inputs: [String] = []
+        func add(_ input: String) { inputs.append(input) }
+    }
+
+    private static func temporaryRoot(_ name: String) throws -> URL {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("foreverlm-\(name)-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        return root
+    }
+
+    private static func queueRow(_ store: KnowledgeStore, _ id: String) throws -> (formatSHA: String?, learnerAsked: Int, attempts: Int, lastError: String?)? {
+        var row: (String?, Int, Int, String?)?
+        try store.queryBind("""
+            SELECT format_input_sha256, learner_asked, attempt_count, last_error
+            FROM podcast_transcript_cleanup_queue WHERE source_id = ?
+        """, bind: { stmt in store.bind(stmt, 1, id) }) { stmt in
+            row = (store.string(stmt, 0), Int(sqlite3_column_int(stmt, 1)), Int(sqlite3_column_int(stmt, 2)), store.string(stmt, 3))
+        }
+        return row
+    }
+
+    @Test("Schema 172 adds the formatting columns to a 171 queue and keeps every row as an ad pass")
+    func migrationFrom171() throws {
+        let root = try Schema154Fixture.temporaryRoot("podcast-formatting-171")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        try store.saveSource(Self.episode(id: "queued-before"))
+        try store.saveTranscript("queued-before", Self.raw)
+        try store.clearAllPendingSyncChanges()
+        // A store as schema 171 left it: the queue without its two columns.
+        try store.execForTesting("""
+            ALTER TABLE podcast_transcript_cleanup_queue DROP COLUMN learner_asked;
+            ALTER TABLE podcast_transcript_cleanup_queue DROP COLUMN format_input_sha256;
+            PRAGMA user_version = 171;
+        """)
+        #expect(try !store.holdsPodcastTranscriptFormattingColumns())
+
+        Schema154Fixture.newLaunch(root)
+        let migrated = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+
+        #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
+        #expect(KnowledgeStore.schemaVersion == 172)
+        #expect(try migrated.holdsPodcastTranscriptFormattingColumns())
+        let row = try #require(try Self.queueRow(migrated, "queued-before"))
+        #expect(row.formatSHA == nil && row.learnerAsked == 0)
+        let candidate = try #require(try migrated.podcastTranscriptCleanupCandidates(limit: 5).first)
+        #expect(candidate.sourceID == "queued-before" && !candidate.formatsTranscript)
+        #expect(try migrated.pendingSyncChanges().isEmpty)
+    }
+
+    @Test("A raw transcript is ready at once and owes the formatting pass for exactly that text")
+    func rawTranscriptWaitsForFormatting() throws {
+        let root = try Self.temporaryRoot("podcast-formatting-raw")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try KnowledgeStore(storeDirectory: root)
+        try store.saveSource(Self.episode(id: "raw-first"))
+
+        try store.saveTranscript("raw-first", Self.readable, podcastFormatting: .automatic)
+
+        #expect(try store.loadSourceContent("raw-first") == Self.readable)
+        #expect(try store.loadActiveSources().first { $0.id == "raw-first" }?.state == .ready)
+        #expect(try Self.queueRow(store, "raw-first")?.formatSHA == PaperContentPreparationService.sha256(Self.readable))
+        let candidate = try #require(try store.podcastTranscriptCleanupCandidates(limit: 5).first)
+        #expect(candidate.formatsTranscript)
+        #expect(candidate.input == Self.readable)
+        // A formatted transcript is owed nothing; asking for both is a caller's bug.
+        #expect(throws: (any Error).self) {
+            try store.saveTranscript("raw-first", Self.formatted, podcastCleanupInput: Self.raw, podcastFormatting: .automatic)
+        }
+    }
+
+    @Test("The drain formats the raw transcript in place, from the text without its layout, and records the raw as its input")
+    func drainFormatsInPlace() async throws {
+        let root = try Self.temporaryRoot("podcast-formatting-drain")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let storage = StorageService(storeRoot: root)
+        try await storage.saveSource(Self.episode(id: "formats"))
+        try await storage.saveTranscript("formats", Self.readable, podcastFormatting: .automatic)
+        let recorded = Recorded()
+        let service = PodcastTranscriptCleanupService(
+            storage: storage,
+            aiService: AIService(),
+            explicitlyAuthorizedConfig: Self.config,
+            formatTranscript: { raw, candidate, _ in
+                await recorded.add(raw)
+                #expect(candidate.sourceID == "formats")
+                return Self.formatted
+            }
+        )
+
+        let result = await service.drain()
+
+        #expect(result.processedSourceIDs == ["formats"])
+        #expect(result.remainingCount == 0)
+        #expect(result.errorMessage == nil)
+        #expect(await recorded.inputs == [Self.raw], "the model is given Apple's text, not the reading layout")
+        #expect(await storage.loadSourceContent("formats") == Self.formatted)
+        let preparation = try #require(try KnowledgeStore(storeDirectory: root).loadPodcastTranscriptPreparation("formats"))
+        #expect(preparation.input == Self.readable)
+        #expect(preparation.metadata.cleanerVersion == PodcastTranscriptCleanupMetadata.currentVersion)
+        #expect(try await storage.podcastTranscriptCleanupQueueCount() == 0, "formatting did the ad pass too")
+    }
+
+    @Test("A learner's Stop leaves the transcript readable and waiting, with no attempt spent")
+    func stopLeavesWorkWaiting() async throws {
+        let root = try Self.temporaryRoot("podcast-formatting-stop")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let storage = StorageService(storeRoot: root)
+        try await storage.saveSource(Self.episode(id: "stopped"))
+        try await storage.saveTranscript("stopped", Self.readable, podcastFormatting: .learnerAsked)
+        let service = PodcastTranscriptCleanupService(
+            storage: storage,
+            aiService: AIService(),
+            explicitlyAuthorizedConfig: Self.config,
+            formatTranscript: { _, _, _ in
+                throw AIStepStoppedError(step: "Transcript Formatting", staysStopped: true)
+            }
+        )
+
+        let result = await service.drain()
+
+        #expect(result.processedCount == 0)
+        #expect(result.errorMessage == nil)
+        #expect(result.remainingCount == 1)
+        #expect(await storage.loadSourceContent("stopped") == Self.readable)
+        let store = try KnowledgeStore(storeDirectory: root)
+        let row = try #require(try Self.queueRow(store, "stopped"))
+        #expect(row.attempts == 0 && row.lastError == nil)
+        #expect(row.formatSHA == PaperContentPreparationService.sha256(Self.readable) && row.learnerAsked == 1)
+    }
+
+    @Test("Past the daily background cap a new transcript is still formatted; the ad backlog waits")
+    func capLeavesTheAdBacklog() async throws {
+        let root = try Self.temporaryRoot("podcast-formatting-cap")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let storage = StorageService(storeRoot: root)
+        try await storage.saveSource(Self.episode(id: "old-ad-pass"))
+        try await storage.saveTranscript("old-ad-pass", Self.raw)
+        try await storage.saveSource(Self.episode(id: "just-fetched"))
+        try await storage.saveTranscript("just-fetched", Self.readable, podcastFormatting: .automatic)
+        let service = PodcastTranscriptCleanupService(
+            storage: storage,
+            aiService: AIService(),
+            explicitlyAuthorizedConfig: Self.config,
+            formatTranscript: { _, _, _ in Self.formatted }
+        )
+
+        let result = await service.drain(backgroundSpendAllowed: false)
+
+        #expect(result.processedSourceIDs == ["just-fetched"])
+        #expect(await storage.loadSourceContent("just-fetched") == Self.formatted)
+        #expect(await storage.loadSourceContent("old-ad-pass") == Self.raw)
+        #expect(try await storage.podcastTranscriptCleanupCandidates(limit: 5).map(\.sourceID) == ["old-ad-pass"])
+    }
+
+    @Test("The learner's ask goes first, then transcripts owed formatting, then the ad backlog")
+    func queueOrder() throws {
+        let root = try Self.temporaryRoot("podcast-formatting-order")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try KnowledgeStore(storeDirectory: root)
+        try store.saveSource(Self.episode(id: "ad-backlog"))
+        try store.saveTranscript("ad-backlog", Self.raw)
+        try store.saveSource(Self.episode(id: "bulk-import"))
+        try store.saveTranscript("bulk-import", Self.readable, podcastFormatting: .automatic)
+        try store.saveSource(Self.episode(id: "asked-for", show: "Hidden Show"))
+        try store.setPodcastShowHidden("Hidden Show", hidden: true)
+        try store.saveTranscript("asked-for", Self.readable, podcastFormatting: .learnerAsked)
+        try store.saveSource(Self.episode(id: "hidden-bulk", show: "Hidden Show"))
+        try store.saveTranscript("hidden-bulk", Self.readable, podcastFormatting: .automatic)
+
+        let candidates = try store.podcastTranscriptCleanupCandidates(limit: 10)
+        // A hidden episode is formatted only when the learner asked for it.
+        #expect(candidates.map(\.sourceID) == ["asked-for", "bulk-import", "ad-backlog"])
+        #expect(candidates.map(\.formatsTranscript) == [true, true, false])
+        #expect(try store.podcastTranscriptCleanupQueueCount() == 3)
+    }
+
+    @Test("A save of the same text keeps the formatting owed; text someone changed falls back to the ad pass")
+    func replacedTextIsNeverFormattedOver() throws {
+        let root = try Self.temporaryRoot("podcast-formatting-replaced")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try KnowledgeStore(storeDirectory: root)
+        var episode = Self.episode(id: "edited")
+        try store.saveSource(episode)
+        try store.saveTranscript("edited", Self.readable, podcastFormatting: .learnerAsked)
+
+        // A rename or a hide saves the loaded row, transcript and all.
+        episode.content = Self.readable
+        episode.state = .ready
+        episode.title = "Renamed Episode"
+        try store.saveSource(episode)
+        #expect(try store.podcastTranscriptCleanupCandidates(limit: 5).first?.formatsTranscript == true)
+
+        // The learner names the speakers before the pass runs.
+        let named = Self.readable.replacingOccurrences(of: "[SPEAKER_2]", with: "[Robin Vale]")
+        try store.saveTranscript("edited", named)
+        let candidate = try #require(try store.podcastTranscriptCleanupCandidates(limit: 5).first)
+        #expect(!candidate.formatsTranscript)
+        #expect(candidate.input == named)
+        let row = try #require(try Self.queueRow(store, "edited"))
+        #expect(row.formatSHA == nil && row.learnerAsked == 0)
+    }
+
+    @Test("A loaded copy still holding the raw transcript never writes it back over the formatted one")
+    func staleLoadedCopyKeepsTheFormatting() throws {
+        let root = try Self.temporaryRoot("podcast-formatting-stale-copy")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try KnowledgeStore(storeDirectory: root)
+        var episode = Self.episode(id: "stale-copy")
+        try store.saveSource(episode)
+        try store.saveTranscript("stale-copy", Self.readable, podcastFormatting: .automatic)
+        let candidate = try #require(try store.podcastTranscriptCleanupCandidates(limit: 1).first)
+        try store.applyPodcastTranscriptCleanup(
+            candidate: candidate,
+            prepared: PreparedPodcastTranscriptCleanup(
+                input: Self.readable,
+                clean: Self.formatted,
+                metadata: PodcastTranscriptCleanupMetadata(
+                    cleanerVersion: PodcastTranscriptCleanupMetadata.currentVersion,
+                    inputSHA256: candidate.inputSHA256,
+                    cleanSHA256: PaperContentPreparationService.sha256(Self.formatted),
+                    preparedAt: Date()
+                )
+            )
+        )
+
+        // The window between the drain's write and the refresh of loaded rows.
+        episode.content = Self.readable
+        episode.state = .ready
+        episode.title = "Renamed Meanwhile"
+        try store.saveSource(episode)
+
+        #expect(try store.loadSourceContent("stale-copy") == Self.formatted)
+        #expect(try store.loadActiveSources().first { $0.id == "stale-copy" }?.title == "Renamed Meanwhile")
+        #expect(try store.podcastTranscriptCleanupQueueCount() == 0)
+        // Text that is not the clean-up's input is still saved as given.
+        episode.content = Self.formatted + "\n\nA correction."
+        try store.saveSource(episode)
+        #expect(try store.loadSourceContent("stale-copy") == Self.formatted + "\n\nA correction.")
+    }
+}
+
+/// The layout a raw transcript is read in until it is formatted: deterministic,
+/// no model, and undone exactly before the formatting pass.
+@Suite("Podcast transcript reading layout")
+struct PodcastTranscriptReadingLayoutTests {
+
+    private static let longTurn = (0..<12)
+        .map { "Replay during slow-wave sleep is what moves a memory from fragile to durable. Here is point \($0)." }
+        .joined(separator: " ")
+
+    @Test("A long turn is cut at sentence ends under its label, and the layout comes off exactly")
+    func longTurnRoundTrips() {
+        let raw = "[SPEAKER_1]\n\(Self.longTurn)\n\n[SPEAKER_2]\nThanks for having me, Zara. It is good to be here."
+        let readable = StudioViewModel.readablePodcastTranscriptLayout(raw)
+
+        #expect(readable != raw)
+        #expect(readable.hasPrefix("[SPEAKER_1]\nReplay during slow-wave sleep"))
+        #expect(readable.hasSuffix("\n\n[SPEAKER_2]\nThanks for having me, Zara. It is good to be here."))
+        let paragraphs = readable.components(separatedBy: "\n\n")
+        // Four sentences a paragraph: 24 sentences in the long turn make six, then the short turn.
+        #expect(paragraphs.count == 7)
+        #expect(paragraphs.dropFirst().dropLast().allSatisfy { $0.hasPrefix("Replay during") })
+        #expect(readable.split(whereSeparator: \.isWhitespace) == raw.split(whereSeparator: \.isWhitespace))
+        #expect(StudioViewModel.podcastTranscriptWithoutLayout(readable) == raw)
+    }
+
+    @Test("A short transcript, and one that already breaks into lines, are left as they are")
+    func shortAndShapedTextUnchanged() {
+        let short = "[SPEAKER_1]\nDom, welcome to the show.\n\n[SPEAKER_2]\nThanks for having me, Peter."
+        #expect(StudioViewModel.readablePodcastTranscriptLayout(short) == short)
+        #expect(StudioViewModel.podcastTranscriptWithoutLayout(short) == short)
+
+        let shaped = "[SPEAKER_1]\n\(Self.longTurn)\nA second line of its own."
+        #expect(StudioViewModel.readablePodcastTranscriptLayout(shaped) == shaped)
+    }
+
+    @Test("Speech-to-text with no speakers gets paragraphs, and runs together again for the model")
+    func unlabeledSpeech() {
+        let chunkOne = Self.longTurn
+        let chunkTwo = "The second stretch of audio says one more thing."
+        let raw = "\(chunkOne)\n\n\(chunkTwo)"
+        let readable = StudioViewModel.readablePodcastTranscriptLayout(raw)
+
+        #expect(readable.components(separatedBy: "\n\n").count == 7)
+        #expect(readable.hasSuffix("\n\n\(chunkTwo)"))
+        #expect(StudioViewModel.podcastTranscriptWithoutLayout(readable) == "\(chunkOne) \(chunkTwo)")
+    }
+
+    @Test("A run with no sentence ends is cut every 95 words")
+    func noSentenceEnds() {
+        let words = (0..<200).map { "word\($0)" }.joined(separator: " ")
+        let paragraphs = StudioViewModel.readableTranscriptParagraphs(words).components(separatedBy: "\n\n")
+        #expect(paragraphs.map { $0.split(separator: " ").count } == [95, 95, 10])
+    }
+}

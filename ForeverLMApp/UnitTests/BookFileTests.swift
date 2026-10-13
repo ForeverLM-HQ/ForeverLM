@@ -431,7 +431,7 @@ struct BookFileMigrationTests {
         let migrated = try reopen(root)
 
         #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
-        #expect(KnowledgeStore.schemaVersion == 171)
+        #expect(KnowledgeStore.schemaVersion == 172)
         #expect(try migrated.holdsBookFileSchema())
         #expect(
             Set(try migrated.dueBookFileMerges(limit: 10)) == ["split", "epub"],
@@ -614,7 +614,7 @@ struct BookImportFinishQueueTests {
         let migrated = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
 
         #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
-        #expect(KnowledgeStore.schemaVersion == KnowledgeStore.bookImportFinishSchemaVersion)
+        #expect(KnowledgeStore.schemaVersion == 172)
         #expect(try migrated.holdsBookImportFinishQueue())
         #expect(try migrated.dueBookImportFinishes(limit: 10).isEmpty)
         #expect(try migrated.pendingSyncChanges().isEmpty)

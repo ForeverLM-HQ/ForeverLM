@@ -506,7 +506,7 @@ struct EPUBBookFileMigrationTests {
         let migrated = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
 
         #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
-        #expect(KnowledgeStore.schemaVersion == 171)
+        #expect(KnowledgeStore.schemaVersion == 172)
         #expect(Set(try migrated.dueBookFileMerges(limit: 10)) == ["epub", "team-epub"])
         #expect(try migrated.bookChapterPaths(bookID: "epub") == [
             "Books/Epub/Chapters/OEBPS/one.xhtml", "Books/Epub/Chapters/OEBPS/two.html",

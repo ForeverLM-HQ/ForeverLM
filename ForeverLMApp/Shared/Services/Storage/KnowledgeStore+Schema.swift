@@ -701,7 +701,18 @@ extension KnowledgeStore {
     // a local-only queue, `book_import_finish_queue`, keeps across a quit.
     // DDL only: the table is created empty and proved before the stamp. Never
     // synced, so no CloudKit schema change.
-    static let schemaVersion: Int32 = 171
+    // 172: a podcast transcript reads the moment it is fetched. Hydration
+    // saves Apple's transcript (or an opted-in speech-to-text one) laid out
+    // but unformatted, ready, and the speaker names and paragraph formatting
+    // come after, in the local-only `podcast_transcript_cleanup_queue` that
+    // already held the ad pass. It gains `format_input_sha256` (the raw text
+    // the row owes the whole formatting pass for; NULL is the ad pass alone,
+    // which every existing row is) and `learner_asked` (an episode the learner
+    // asked for goes first, hidden or not; 0 on every existing row is the
+    // truth). DDL only: two ALTER TABLE ADD COLUMN, nothing read or rewritten.
+    // Not held with 154: this build's transcript saves write them. Never
+    // synced, so no CloudKit schema change.
+    static let schemaVersion: Int32 = 172
     static let minimumMigratableSchemaVersion: Int32 = 1
 
     /// The day Goals shipped — schema 120, build 114, 2026-09-19 — as midnight
@@ -791,6 +802,18 @@ extension KnowledgeStore {
             // build's Add Book writes.
             if try !holdsBookImportFinishQueue() {
                 try createBookImportFinishQueue()
+            }
+            // Nor are schema 172's formatting columns on the podcast clean-up
+            // queue, which this build's transcript saves write.
+            if try !holdsPodcastTranscriptFormattingColumns() {
+                try exec("BEGIN IMMEDIATE")
+                do {
+                    try addPodcastTranscriptFormattingColumns()
+                    try exec("COMMIT")
+                } catch {
+                    try? exec("ROLLBACK")
+                    throw error
+                }
             }
             try reconcileSourceProjectionView()
             return
@@ -996,6 +1019,9 @@ extension KnowledgeStore {
                 prepared_at REAL
             )
         """)
+        // A row owes the ad pass, or (schema 172) the whole formatting pass
+        // for a transcript saved raw: `format_input_sha256` names that raw
+        // text and `learner_asked` puts an episode the learner asked for first.
         try exec("""
             CREATE TABLE IF NOT EXISTS podcast_transcript_cleanup_queue (
                 source_id TEXT PRIMARY KEY REFERENCES sources(id) ON DELETE CASCADE,
@@ -1003,7 +1029,9 @@ extension KnowledgeStore {
                 source_sha256 TEXT,
                 enqueued_at REAL NOT NULL,
                 attempt_count INTEGER NOT NULL DEFAULT 0,
-                last_error TEXT
+                last_error TEXT,
+                format_input_sha256 TEXT,
+                learner_asked INTEGER NOT NULL DEFAULT 0
             )
         """)
         try exec("""
@@ -6366,7 +6394,7 @@ extension KnowledgeStore {
             // its own. Not held with 154: this build's book writes name them.
             ("book_sources", "page_start", "INTEGER"),
             ("book_sources", "page_count", "INTEGER"),
-        ]
+        ] + Self.podcastTranscriptFormattingColumns
         if includingSchema154 {
             columns += [
                 // Schema 154: the schema-v2 logical id, NULL on every row until

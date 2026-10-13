@@ -717,7 +717,8 @@ extension StudioViewModel {
             webPageURL: article.podcastWebPageURL ?? article.publicURL,
             prefersYouTube: honorYouTubePreference
                 && prefersYouTubeTranscript(forPodcastShow: article.domain),
-            allowsFormatting: allowsTranscriptFormatting(for: article, userInitiated: userInitiated)
+            allowsFormatting: allowsTranscriptFormatting(for: article, userInitiated: userInitiated),
+            userInitiated: userInitiated
         )
     }
 
@@ -725,7 +726,6 @@ extension StudioViewModel {
         guard !candidates.isEmpty else { return }
 
         let storage = self.storage
-        let aiService = self.aiService
         let homeDir = realHomeDirectory
         let config = KeychainService.resolveConfig(for: .transcriptFormatting)
         var nextIndex = 0
@@ -743,7 +743,6 @@ extension StudioViewModel {
                     await Self.hydratePodcastTranscript(
                         candidate,
                         storage: storage,
-                        aiService: aiService,
                         homeDir: homeDir,
                         config: config
                     )
@@ -762,7 +761,6 @@ extension StudioViewModel {
                     await Self.hydratePodcastTranscript(
                         candidate,
                         storage: storage,
-                        aiService: aiService,
                         homeDir: homeDir,
                         config: config
                     )
@@ -791,7 +789,8 @@ extension StudioViewModel {
             podcastName: candidate.podcastName,
             webPageURL: candidate.webPageURL,
             prefersYouTube: candidate.prefersYouTube,
-            allowsFormatting: false
+            allowsFormatting: false,
+            userInitiated: candidate.userInitiated
         )
     }
 

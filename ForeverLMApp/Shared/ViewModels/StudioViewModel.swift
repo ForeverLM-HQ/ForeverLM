@@ -175,6 +175,9 @@ class StudioViewModel {
         /// transcript downloaded so search keeps working, but they skip the
         /// billed formatting pass — nobody is reading them.
         let allowsFormatting: Bool
+        /// The learner asked for this episode's transcript, so its formatting
+        /// goes ahead of the queue (`PodcastTranscriptFormattingRequest`).
+        var userInitiated = false
     }
 
     /// The public Apple Podcasts identity hydration gave a row that had none:
@@ -4359,7 +4362,7 @@ class StudioViewModel {
         }
 
         if let error = podcastResult.errorMessage {
-            logger.error("Podcast transcript ad cleanup failed: \(error)")
+            logger.error("Podcast transcript clean-up failed: \(error)")
         }
 
         if let error = listenableResult.errorMessage {

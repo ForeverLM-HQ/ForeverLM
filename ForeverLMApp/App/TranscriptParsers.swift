@@ -118,16 +118,10 @@ enum PodcastTranscriptParser {
         }
     }
 
+    /// The same paragraphs a podcast transcript saved before formatting is
+    /// stored with, so an episode reads alike here and on every other device.
     private static func readableParagraphText(_ text: String) -> String {
-        let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard wordCount(cleaned) > 140 else { return cleaned }
-
-        let sentences = sentenceChunks(from: cleaned)
-        guard sentences.count > 1 else {
-            return wordChunks(from: cleaned).joined(separator: "\n\n")
-        }
-
-        return sentences.joined(separator: "\n\n")
+        StudioViewModel.readableTranscriptParagraphs(text)
     }
 
     private static func mergedTranscriptText(_ existing: String, appending next: String) -> String {
@@ -146,61 +140,6 @@ enum PodcastTranscriptParser {
         }
 
         return existing + " " + trimmedNext
-    }
-
-    private static func sentenceChunks(from text: String) -> [String] {
-        let separated = text
-            .replacingOccurrences(of: #"(?<=[.!?])\s+"#, with: "\u{0}", options: .regularExpression)
-        let sentences = separated
-            .components(separatedBy: "\u{0}")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-
-        guard sentences.count > 1 else { return [] }
-
-        var chunks: [String] = []
-        var current: [String] = []
-        var currentWordCount = 0
-
-        for sentence in sentences {
-            current.append(sentence)
-            currentWordCount += wordCount(sentence)
-            if current.count >= 4 || currentWordCount >= 95 {
-                chunks.append(current.joined(separator: " "))
-                current = []
-                currentWordCount = 0
-            }
-        }
-
-        if !current.isEmpty {
-            let remainder = current.joined(separator: " ")
-            if wordCount(remainder) < 35, let last = chunks.popLast() {
-                chunks.append(last + " " + remainder)
-            } else {
-                chunks.append(remainder)
-            }
-        }
-
-        return chunks
-    }
-
-    private static func wordChunks(from text: String) -> [String] {
-        let words = text.split(separator: " ").map(String.init)
-        guard words.count > 140 else { return [text] }
-
-        var chunks: [String] = []
-        var current: [String] = []
-        for word in words {
-            current.append(word)
-            if current.count >= 95 {
-                chunks.append(current.joined(separator: " "))
-                current = []
-            }
-        }
-        if !current.isEmpty {
-            chunks.append(current.joined(separator: " "))
-        }
-        return chunks
     }
 
     private static func lastParagraph(in text: String) -> String {

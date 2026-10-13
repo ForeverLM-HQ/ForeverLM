@@ -1240,7 +1240,6 @@ extension KnowledgeStore {
         return sourceIDs.count
     }
 
-    /// Save content for a source and update its state to 'ready'.
     /// The fraction of an existing transcript a replacement must keep before it
     /// is treated as data loss rather than an edit.
     ///
@@ -1253,13 +1252,27 @@ extension KnowledgeStore {
     /// costs a correct write nothing.
     static let podcastTranscriptDowngradeFloor = 0.5
 
+    /// Save content for a source and update its state to 'ready'.
+    ///
+    /// - Parameters:
+    ///   - podcastCleanupInput: the raw transcript `text` was formatted from;
+    ///     the episode is then owed nothing more.
+    ///   - podcastFormatting: set when `text` is the raw transcript, laid out
+    ///     but unformatted: it reads at once and the episode is queued for its
+    ///     formatting pass. Never together with `podcastCleanupInput`.
     func saveTranscript(
         _ sourceId: String,
         _ text: String,
         rawTTML: String? = nil,
         podcastCleanupInput: String? = nil,
+        podcastFormatting: PodcastTranscriptFormattingRequest? = nil,
         allowsShorterTranscript: Bool = false
     ) throws {
+        guard podcastCleanupInput == nil || podcastFormatting == nil else {
+            throw KnowledgeStoreError.invalidData(
+                "A transcript saved with the raw text it was formatted from is owed no formatting."
+            )
+        }
         try exec("BEGIN IMMEDIATE")
         do {
             // A transcript that is being replaced by a fresh full extraction
@@ -1336,7 +1349,10 @@ extension KnowledgeStore {
                 try execBind("DELETE FROM podcast_transcript_preparations WHERE source_id = ?") { stmt in
                     self.bind(stmt, 1, sourceId)
                 }
-                try enqueuePodcastTranscriptCleanupIfNeeded(sourceID: sourceId)
+                try enqueuePodcastTranscriptCleanupIfNeeded(
+                    sourceID: sourceId,
+                    formatting: podcastFormatting.map { ($0, PaperContentPreparationService.sha256(text)) }
+                )
             }
             try enqueueSourceListenableContentPreparation(sourceID: sourceId, content: text)
             try retireSourceReviewGuidePreparation(sourceID: sourceId)

@@ -859,7 +859,8 @@ extension KnowledgeStore {
                 try invalidateCanonicalContentIndexes(sourceID: article.id)
                 return
             }
-            if let content = article.content {
+            if let content = article.content,
+               try !(article.sourceType == .podcast && isPodcastTranscriptCleanupInput(content, sourceID: article.id)) {
                 try execBind("INSERT OR REPLACE INTO source_content (source_id, content) VALUES (?,?)") { stmt in
                     bind(stmt, 1, article.id)
                     bind(stmt, 2, content)
@@ -1018,43 +1019,75 @@ extension KnowledgeStore {
         }
     }
 
-    func enqueuePodcastTranscriptCleanupIfNeeded(sourceID: String) throws {
+    /// Queues the clean-up an episode's stored transcript is owed.
+    ///
+    /// - Parameter formatting: set when the transcript just saved is the raw
+    ///   one, laid out but never formatted, whose hash is `inputSHA256`. The
+    ///   row then owes the whole formatting pass for that text (schema 172),
+    ///   and one the learner asked for is queued even while hidden. Any other
+    ///   enqueue (a rename, a hide, a synced copy) leaves a pass the row
+    ///   already owes as it is: the drain formats only while the stored text
+    ///   still hashes to `format_input_sha256`.
+    func enqueuePodcastTranscriptCleanupIfNeeded(
+        sourceID: String,
+        formatting: (request: PodcastTranscriptFormattingRequest, inputSHA256: String)? = nil
+    ) throws {
         let now = Date().timeIntervalSinceReferenceDate
         try execBind("""
             INSERT INTO podcast_transcript_cleanup_queue
-                (source_id, target_version, source_sha256, enqueued_at, attempt_count, last_error)
-            SELECT s.id, ?, NULL, ?, 0, NULL
+                (source_id, target_version, source_sha256, enqueued_at, attempt_count, last_error,
+                 format_input_sha256, learner_asked)
+            SELECT s.id, ?1, NULL, ?2, 0, NULL, ?4, ?5
             FROM sources s
             JOIN podcasts p ON p.source_id = s.id
             JOIN source_content sc ON sc.source_id = s.id
             LEFT JOIN podcast_transcript_preparations prep ON prep.source_id = s.id
-            WHERE s.id = ?
+            WHERE s.id = ?3
               AND s.source_type = 'podcast'
               AND s.state = 'ready'
               AND s.status = 'active'
               AND TRIM(sc.content) != ''
-              AND COALESCE(prep.cleaner_version, 0) < ?
-              AND NOT EXISTS (SELECT 1 FROM hidden_sources h WHERE h.source_id IN (s.id, s.wire_key))
-              AND NOT EXISTS (SELECT 1 FROM hidden_podcast_episodes h WHERE h.source_id IN (s.id, s.wire_key))
-              AND (
-                    EXISTS (SELECT 1 FROM visible_podcast_episode_overrides v WHERE v.source_id IN (s.id, s.wire_key))
-                 OR NOT EXISTS (
-                        SELECT 1 FROM hidden_podcast_shows h
-                        WHERE h.show_name = p.domain OR h.show_name = p.show_name
-                    )
-              )
+              AND COALESCE(prep.cleaner_version, 0) < ?1
+              AND (?5 = 1 OR (\(Self.podcastEpisodeVisibleSQL(source: "s", podcast: "p"))))
             ON CONFLICT(source_id) DO UPDATE SET
                 target_version = MAX(target_version, excluded.target_version),
                 source_sha256 = NULL,
                 enqueued_at = excluded.enqueued_at,
                 attempt_count = 0,
-                last_error = NULL
+                last_error = NULL,
+                format_input_sha256 = COALESCE(excluded.format_input_sha256, format_input_sha256),
+                learner_asked = CASE
+                    WHEN excluded.format_input_sha256 IS NULL THEN learner_asked
+                    ELSE MAX(learner_asked, excluded.learner_asked)
+                END
         """) { stmt in
             sqlite3_bind_int(stmt, 1, Int32(PodcastTranscriptCleanupMetadata.currentVersion))
             sqlite3_bind_double(stmt, 2, now)
             bind(stmt, 3, sourceID)
-            sqlite3_bind_int(stmt, 4, Int32(PodcastTranscriptCleanupMetadata.currentVersion))
+            if let formatting {
+                bind(stmt, 4, formatting.inputSHA256)
+            } else {
+                sqlite3_bind_null(stmt, 4)
+            }
+            sqlite3_bind_int(stmt, 5, formatting?.request == .learnerAsked ? 1 : 0)
         }
+    }
+
+    /// True for an episode the learner sees: not hidden itself, and not on a
+    /// hidden show unless the learner made it visible. `source` and `podcast`
+    /// are the aliases of its `sources` and `podcasts` rows.
+    static func podcastEpisodeVisibleSQL(source: String, podcast: String) -> String {
+        """
+        NOT EXISTS (SELECT 1 FROM hidden_sources h WHERE h.source_id IN (\(source).id, \(source).wire_key))
+        AND NOT EXISTS (SELECT 1 FROM hidden_podcast_episodes h WHERE h.source_id IN (\(source).id, \(source).wire_key))
+        AND (
+              EXISTS (SELECT 1 FROM visible_podcast_episode_overrides v WHERE v.source_id IN (\(source).id, \(source).wire_key))
+           OR NOT EXISTS (
+                  SELECT 1 FROM hidden_podcast_shows h
+                  WHERE h.show_name = \(podcast).domain OR h.show_name = \(podcast).show_name
+              )
+        )
+        """
     }
 
     /// A preparation row is an attestation: `raw_sha256` names the exact
@@ -2280,66 +2313,93 @@ extension KnowledgeStore {
 
     static let maximumPodcastTranscriptCleanupAttempts = 3
 
-    func podcastTranscriptCleanupCandidates(limit: Int) throws -> [PodcastTranscriptCleanupCandidate] {
+    /// The next episodes the clean-up drain works on: one the learner asked to
+    /// be formatted first, then rows that have not failed, transcripts owed
+    /// their formatting ahead of the ad backlog, oldest first.
+    ///
+    /// A row owed the formatting pass is offered for it only while its stored
+    /// text is still the raw text it was queued for. A transcript replaced
+    /// since (YouTube captions, the learner's own speaker names, a synced
+    /// copy) is someone's text and is not formatted over: the row falls back
+    /// to the ad pass, and loses its place and its exemption from hiding, here.
+    ///
+    /// - Parameter formattingOnly: only rows owed the formatting pass, as past
+    ///   the daily background cap, where the ad backlog waits for the next day
+    ///   but a transcript just fetched is still formatted.
+    func podcastTranscriptCleanupCandidates(
+        limit: Int,
+        formattingOnly: Bool = false
+    ) throws -> [PodcastTranscriptCleanupCandidate] {
         guard limit > 0 else { return [] }
         try reviveReasoningRejectedPodcastTranscriptCleanups()
-        var results: [PodcastTranscriptCleanupCandidate] = []
-        try queryBind("""
-            SELECT s.id,
-                   COALESCE(p.title, 'Untitled episode'),
-                   COALESCE(NULLIF(p.show_name, ''), NULLIF(p.domain, ''), 'Podcast'),
-                   sc.content
-            FROM podcast_transcript_cleanup_queue q
-            JOIN sources s ON s.id = q.source_id
-            JOIN podcasts p ON p.source_id = s.id
-            JOIN source_content sc ON sc.source_id = s.id
-            LEFT JOIN podcast_transcript_preparations prep ON prep.source_id = s.id
-            WHERE s.source_type = 'podcast'
-              AND s.state = 'ready'
-              AND s.status = 'active'
-              AND TRIM(sc.content) != ''
-              AND q.target_version <= \(PodcastTranscriptCleanupMetadata.currentVersion)
-              AND q.attempt_count < \(Self.maximumPodcastTranscriptCleanupAttempts)
-              AND COALESCE(prep.cleaner_version, 0) < q.target_version
-              -- A bulk re-queue waits for the learner (schema 135).
-              AND \(Self.bulkHoldExclusion(.podcastTranscriptCleanup))
-              AND NOT EXISTS (
-                  SELECT 1 FROM hidden_sources hs WHERE hs.source_id IN (s.id, s.wire_key)
-              )
-              AND NOT EXISTS (
-                  SELECT 1 FROM hidden_podcast_episodes hpe WHERE hpe.source_id IN (s.id, s.wire_key)
-              )
-              AND (
-                    EXISTS (
-                        SELECT 1 FROM visible_podcast_episode_overrides vpeo
-                        WHERE vpeo.source_id IN (s.id, s.wire_key)
-                    )
-                 OR NOT EXISTS (
-                        SELECT 1 FROM hidden_podcast_shows hps
-                        WHERE hps.show_name = p.domain
-                           OR hps.show_name = p.show_name
-                    )
-              )
-            ORDER BY CASE WHEN q.last_error IS NULL THEN 0 ELSE 1 END,
-                     q.enqueued_at,
-                     s.id
-            LIMIT ?
-        """, bind: { stmt in
-            sqlite3_bind_int(stmt, 1, Int32(limit))
-        }) { stmt in
-            guard let sourceID = string(stmt, 0),
-                  let title = string(stmt, 1),
-                  let podcastName = string(stmt, 2),
-                  let input = string(stmt, 3) else { return }
-            results.append(PodcastTranscriptCleanupCandidate(
-                sourceID: sourceID,
-                title: title,
-                podcastName: podcastName,
-                input: input,
-                inputSHA256: PaperContentPreparationService.sha256(input)
-            ))
+        while true {
+            var results: [PodcastTranscriptCleanupCandidate] = []
+            var replaced: [(sourceID: String, formatInputSHA256: String)] = []
+            try queryBind("""
+                SELECT s.id,
+                       COALESCE(p.title, 'Untitled episode'),
+                       COALESCE(NULLIF(p.show_name, ''), NULLIF(p.domain, ''), 'Podcast'),
+                       sc.content,
+                       q.format_input_sha256
+                FROM podcast_transcript_cleanup_queue q
+                JOIN sources s ON s.id = q.source_id
+                JOIN podcasts p ON p.source_id = s.id
+                JOIN source_content sc ON sc.source_id = s.id
+                LEFT JOIN podcast_transcript_preparations prep ON prep.source_id = s.id
+                WHERE s.source_type = 'podcast'
+                  AND s.state = 'ready'
+                  AND s.status = 'active'
+                  AND TRIM(sc.content) != ''
+                  AND q.target_version <= \(PodcastTranscriptCleanupMetadata.currentVersion)
+                  AND q.attempt_count < \(Self.maximumPodcastTranscriptCleanupAttempts)
+                  AND COALESCE(prep.cleaner_version, 0) < q.target_version
+                  AND (? = 0 OR q.format_input_sha256 IS NOT NULL)
+                  -- A bulk re-queue waits for the learner (schema 135).
+                  AND \(Self.bulkHoldExclusion(.podcastTranscriptCleanup))
+                  AND (q.learner_asked = 1 OR (\(Self.podcastEpisodeVisibleSQL(source: "s", podcast: "p"))))
+                ORDER BY q.learner_asked DESC,
+                         CASE WHEN q.last_error IS NULL THEN 0 ELSE 1 END,
+                         CASE WHEN q.format_input_sha256 IS NULL THEN 1 ELSE 0 END,
+                         q.enqueued_at,
+                         s.id
+                LIMIT ?
+            """, bind: { stmt in
+                sqlite3_bind_int(stmt, 1, formattingOnly ? 1 : 0)
+                sqlite3_bind_int(stmt, 2, Int32(limit))
+            }) { stmt in
+                guard let sourceID = string(stmt, 0),
+                      let title = string(stmt, 1),
+                      let podcastName = string(stmt, 2),
+                      let input = string(stmt, 3) else { return }
+                let inputSHA256 = PaperContentPreparationService.sha256(input)
+                let formatInputSHA256 = string(stmt, 4)
+                if let formatInputSHA256, formatInputSHA256 != inputSHA256 {
+                    replaced.append((sourceID, formatInputSHA256))
+                    return
+                }
+                results.append(PodcastTranscriptCleanupCandidate(
+                    sourceID: sourceID,
+                    title: title,
+                    podcastName: podcastName,
+                    input: input,
+                    inputSHA256: inputSHA256,
+                    formatsTranscript: formatInputSHA256 != nil
+                ))
+            }
+            guard !replaced.isEmpty else { return results }
+            // Each pass takes at least one row out of the formatting pass, so
+            // this ends; the next selects what the batch should hold now.
+            for row in replaced {
+                try execBind("""
+                    UPDATE podcast_transcript_cleanup_queue
+                    SET format_input_sha256 = NULL, learner_asked = 0
+                    WHERE source_id = ? AND format_input_sha256 = ?
+                """) { stmt in
+                    bind(stmt, 1, row.sourceID)
+                    bind(stmt, 2, row.formatInputSHA256)
+                }
+            }
         }
-        return results
     }
 
     func podcastTranscriptCleanupQueueCount() throws -> Int {
@@ -2359,19 +2419,32 @@ extension KnowledgeStore {
               AND COALESCE(prep.cleaner_version, 0) < q.target_version
               -- A bulk re-queue waits for the learner (schema 135).
               AND \(Self.bulkHoldExclusion(.podcastTranscriptCleanup))
-              AND NOT EXISTS (SELECT 1 FROM hidden_sources hs WHERE hs.source_id IN (s.id, s.wire_key))
-              AND NOT EXISTS (SELECT 1 FROM hidden_podcast_episodes hpe WHERE hpe.source_id IN (s.id, s.wire_key))
-              AND (
-                    EXISTS (SELECT 1 FROM visible_podcast_episode_overrides v WHERE v.source_id IN (s.id, s.wire_key))
-                 OR NOT EXISTS (
-                        SELECT 1 FROM hidden_podcast_shows h
-                        WHERE h.show_name = p.domain OR h.show_name = p.show_name
-                    )
-              )
+              AND (q.learner_asked = 1 OR (\(Self.podcastEpisodeVisibleSQL(source: "s", podcast: "p"))))
         """) { stmt in
             count = Int(sqlite3_column_int64(stmt, 0))
         }
         return count
+    }
+
+    /// Schema 172's columns on `podcast_transcript_cleanup_queue`.
+    static let podcastTranscriptFormattingColumns: [(table: String, name: String, definition: String)] = [
+        // NULL on every existing row is the truth: each owes the ad pass alone.
+        ("podcast_transcript_cleanup_queue", "format_input_sha256", "TEXT"),
+        // 0 on every existing row is the truth: no row was the learner's ask.
+        ("podcast_transcript_cleanup_queue", "learner_asked", "INTEGER NOT NULL DEFAULT 0"),
+    ]
+
+    func holdsPodcastTranscriptFormattingColumns() throws -> Bool {
+        let existing = try tableColumnNames("podcast_transcript_cleanup_queue")
+        return Self.podcastTranscriptFormattingColumns.allSatisfy { existing.contains($0.name) }
+    }
+
+    /// Inside the caller's transaction.
+    func addPodcastTranscriptFormattingColumns() throws {
+        let existing = try tableColumnNames("podcast_transcript_cleanup_queue")
+        for column in Self.podcastTranscriptFormattingColumns where !existing.contains(column.name) {
+            try exec("ALTER TABLE \(column.table) ADD COLUMN \(column.name) \(column.definition)")
+        }
     }
 
     /// Until 2026-09-03 the cleanup request asked OpenRouter to turn reasoning
@@ -2439,6 +2512,27 @@ extension KnowledgeStore {
             ))
         }
         return result
+    }
+
+    /// Whether `text` is what an episode's stored clean-up was made from, while
+    /// storage holds what it became. A loaded row keeps the transcript it was
+    /// given until the drain's refresh reaches it, and a `saveSource` of that
+    /// row in between (a rename, a hide) would write the raw or ad-laden text
+    /// back over the formatted one and leave the record saying the pass ran.
+    func isPodcastTranscriptCleanupInput(_ text: String, sourceID: String) throws -> Bool {
+        var hashes: (input: String, clean: String)?
+        try queryBind("""
+            SELECT input_sha256, clean_sha256
+            FROM podcast_transcript_preparations
+            WHERE source_id = ?
+        """, bind: { stmt in
+            bind(stmt, 1, sourceID)
+        }) { stmt in
+            guard let input = string(stmt, 0), let clean = string(stmt, 1) else { return }
+            hashes = (input, clean)
+        }
+        guard let hashes, hashes.input != hashes.clean else { return false }
+        return PaperContentPreparationService.sha256(text) == hashes.input
     }
 
     func upsertPodcastTranscriptPreparation(

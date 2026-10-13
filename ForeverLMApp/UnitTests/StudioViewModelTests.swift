@@ -6939,7 +6939,6 @@ struct PodcastTranscriptHydrationCandidateTests {
         let result = await StudioViewModel.hydratePodcastTranscript(
             candidate,
             storage: storage,
-            aiService: vm.aiService,
             homeDir: "/tmp",
             config: nil,
             fetchAppleTranscript: { _, _ in .unavailable },
@@ -6977,7 +6976,6 @@ struct PodcastTranscriptHydrationCandidateTests {
         let result = await StudioViewModel.hydratePodcastTranscript(
             candidate,
             storage: storage,
-            aiService: vm.aiService,
             homeDir: "/tmp",
             config: nil,
             allowAudioTranscription: true,
@@ -7011,7 +7009,6 @@ struct PodcastTranscriptHydrationCandidateTests {
         let result = await StudioViewModel.hydratePodcastTranscript(
             candidate,
             storage: storage,
-            aiService: vm.aiService,
             homeDir: "/tmp",
             config: nil,
             allowAudioTranscription: true,
@@ -7058,7 +7055,6 @@ struct PodcastTranscriptHydrationCandidateTests {
         let result = await StudioViewModel.hydratePodcastTranscript(
             candidate,
             storage: storage,
-            aiService: vm.aiService,
             homeDir: "/tmp",
             config: nil,
             fetchAppleTranscript: { _, _ in
@@ -7143,7 +7139,6 @@ struct PodcastTranscriptHydrationCandidateTests {
         let result = await StudioViewModel.hydratePodcastTranscript(
             candidate,
             storage: storage,
-            aiService: vm.aiService,
             homeDir: "/tmp",
             config: nil,
             fetchAppleTranscript: { trackID, _ in
@@ -7201,7 +7196,6 @@ struct PodcastTranscriptHydrationCandidateTests {
         let result = await StudioViewModel.hydratePodcastTranscript(
             candidate,
             storage: storage,
-            aiService: vm.aiService,
             homeDir: "/tmp",
             config: nil,
             fetchAppleTranscript: { _, _ in
@@ -7244,7 +7238,6 @@ struct PodcastTranscriptHydrationCandidateTests {
         let automatic = await StudioViewModel.hydratePodcastTranscript(
             candidate,
             storage: storage,
-            aiService: vm.aiService,
             homeDir: "/tmp",
             config: nil,
             fetchAppleTranscript: { _, _ in
@@ -7264,7 +7257,6 @@ struct PodcastTranscriptHydrationCandidateTests {
         let optedIn = await StudioViewModel.hydratePodcastTranscript(
             candidate,
             storage: storage,
-            aiService: vm.aiService,
             homeDir: "/tmp",
             config: nil,
             allowAudioTranscription: true,
@@ -7296,7 +7288,6 @@ struct PodcastTranscriptHydrationCandidateTests {
         let result = await StudioViewModel.hydratePodcastTranscript(
             candidate,
             storage: storage,
-            aiService: vm.aiService,
             homeDir: "/tmp",
             config: nil,
             fetchAppleTranscript: { _, _ in .available(Self.appleTTML) },
@@ -7342,7 +7333,6 @@ struct PodcastTranscriptHydrationCandidateTests {
         let result = await StudioViewModel.hydratePodcastTranscript(
             candidate,
             storage: storage,
-            aiService: vm.aiService,
             homeDir: "/tmp",
             config: nil,
             fetchAppleTranscript: { _, _ in
@@ -7360,6 +7350,151 @@ struct PodcastTranscriptHydrationCandidateTests {
         let active = try await storage.loadActiveSources().map(\.id)
         #expect(active == [existing.id])
         #expect(await storage.loadSourceContent(existing.id) == "Peter Attia: Dom, welcome.")
+    }
+
+    // MARK: - Readable before formatting
+
+    /// A long run of speech from SPEAKER_1 across twelve of Apple's paragraphs,
+    /// then a short answer from SPEAKER_2.
+    nonisolated private static let longEpisodeTTML: String = {
+        let host = (0..<12).map {
+            "<p begin='\($0).0' end='\($0 + 1).0' ttm:agent='SPEAKER_1'>Replay during slow-wave sleep is what moves a memory from fragile to durable. Here is point \($0).</p>"
+        }.joined(separator: "\n")
+        return """
+        <tt xmlns:podcasts="http://podcasts.apple.com/transcript-ttml-internal" xmlns:ttm="http://www.w3.org/ns/ttml#metadata">
+          <body><div>
+        \(host)
+            <p begin='20.0' end='21.0' ttm:agent='SPEAKER_2'>Thanks for having me, Zara.</p>
+          </div></body>
+        </tt>
+        """
+    }()
+
+    private static let formattingConfig = AITaskConfig(provider: .anthropic, apiKey: "test-key", model: "example/formatter")
+
+    @Test("an Apple transcript is saved ready at once, in paragraphs, and its formatting waits in the queue")
+    func appleTranscriptReadsBeforeFormatting() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("PodcastReadsAtOnceTests_\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let storage = StorageService(storeRoot: root)
+        let vm = StudioViewModel(storageService: storage)
+        let episode = makeEpisode(id: "reads-at-once", show: "Example Podcast")
+        try await storage.saveSource(episode)
+        vm.articles = [episode]
+        let candidate = try #require(vm.podcastHydrationCandidate(for: episode.id))
+        let extracted = try SourceService.extractTextFromTTMLContent(Self.longEpisodeTTML)
+
+        let result = await StudioViewModel.hydratePodcastTranscript(
+            candidate,
+            storage: storage,
+            homeDir: "/tmp",
+            config: Self.formattingConfig,
+            fetchAppleTranscript: { _, _ in .available(Self.longEpisodeTTML) }
+        )
+
+        guard case .ready(let content, let persistedReadyState) = result.outcome else {
+            Issue.record("Expected the transcript to be ready at once, got \(result.outcome)")
+            return
+        }
+        #expect(persistedReadyState)
+        // No model ran: the speakers are still Apple's, and the long turn is cut
+        // into paragraphs by code alone.
+        #expect(content == StudioViewModel.readablePodcastTranscriptLayout(extracted))
+        #expect(content.hasPrefix("[SPEAKER_1]\nReplay during slow-wave sleep"))
+        #expect(content.components(separatedBy: "\n\n").count > 2)
+        #expect(content.hasSuffix("\n\n[SPEAKER_2]\nThanks for having me, Zara."))
+        #expect(StudioViewModel.podcastTranscriptWithoutLayout(content) == extracted)
+        #expect(await storage.loadSourceContent(episode.id) == content)
+        #expect(try await storage.loadPodcastRawTTML(episode.id) == Self.longEpisodeTTML)
+
+        let queued = try await storage.podcastTranscriptCleanupCandidates(limit: 5)
+        #expect(queued.map(\.sourceID) == [episode.id])
+        #expect(queued.first?.formatsTranscript == true)
+        #expect(queued.first?.input == content)
+
+        await vm.applyPodcastHydrationResult(result)
+        let loaded = try #require(vm.articles.first { $0.id == episode.id })
+        #expect(loaded.state == .ready)
+        #expect(loaded.content == content)
+    }
+
+    @Test("an episode that may not pay for formatting is saved readable and never queued for it")
+    func unformattableEpisodeIsNotQueued() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("PodcastHiddenReadableTests_\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let storage = StorageService(storeRoot: root)
+        let vm = StudioViewModel(storageService: storage)
+        let episode = makeEpisode(id: "hidden-readable", show: "Example Podcast")
+        try await storage.saveSource(episode)
+        vm.articles = [episode]
+        let base = try #require(vm.podcastHydrationCandidate(for: episode.id))
+        let hidden = StudioViewModel.PodcastTranscriptHydrationCandidate(
+            id: base.id,
+            url: base.url,
+            title: base.title,
+            podcastName: base.podcastName,
+            webPageURL: base.webPageURL,
+            prefersYouTube: false,
+            allowsFormatting: false
+        )
+
+        for (candidate, config) in [(hidden, Self.formattingConfig), (base, nil)] as [(StudioViewModel.PodcastTranscriptHydrationCandidate, AITaskConfig?)] {
+            let result = await StudioViewModel.hydratePodcastTranscript(
+                candidate,
+                storage: storage,
+                homeDir: "/tmp",
+                config: config,
+                forceRefresh: true,
+                fetchAppleTranscript: { _, _ in .available(Self.longEpisodeTTML) }
+            )
+            guard case .ready(let content, _) = result.outcome else {
+                Issue.record("Expected a readable transcript, got \(result.outcome)")
+                continue
+            }
+            #expect(content.hasPrefix("[SPEAKER_1]\n"))
+            #expect(await storage.loadSourceContent(episode.id) == content)
+            #expect(try await storage.podcastTranscriptCleanupCandidates(limit: 5).allSatisfy { !$0.formatsTranscript })
+        }
+    }
+
+    @Test("an episode the learner asked for is queued ahead of the rest")
+    func learnerAskedEpisodeGoesFirst() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("PodcastLearnerAskedTests_\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let storage = StorageService(storeRoot: root)
+        let vm = StudioViewModel(storageService: storage)
+        var bulk = makeArticle(
+            url: "apple-podcast://episode/1000751939406",
+            title: "Episode bulk-episode",
+            sourceType: .podcast,
+            discoveryOrigin: .applePodcasts,
+            id: "bulk-episode"
+        )
+        bulk.domain = "Example Podcast"
+        let asked = makeEpisode(id: "asked-episode", show: "Example Podcast")
+        try await storage.saveSource(bulk)
+        try await storage.saveSource(asked)
+        vm.articles = [bulk, asked]
+        let bulkCandidate = try #require(vm.podcastHydrationCandidate(for: bulk.id))
+        let askedCandidate = try #require(vm.podcastHydrationCandidate(for: asked.id, userInitiated: true))
+        #expect(!bulkCandidate.userInitiated && askedCandidate.userInitiated)
+
+        for candidate in [bulkCandidate, askedCandidate] {
+            _ = await StudioViewModel.hydratePodcastTranscript(
+                candidate,
+                storage: storage,
+                homeDir: "/tmp",
+                config: Self.formattingConfig,
+                fetchAppleTranscript: { _, _ in .available(Self.longEpisodeTTML) }
+            )
+        }
+
+        let queued = try await storage.podcastTranscriptCleanupCandidates(limit: 5)
+        #expect(queued.map(\.sourceID) == [asked.id, bulk.id])
+        #expect(queued.allSatisfy { $0.formatsTranscript })
     }
 
     @Test("podcast YouTube fallback show keys ignore case and whitespace")

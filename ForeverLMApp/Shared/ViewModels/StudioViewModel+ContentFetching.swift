@@ -366,7 +366,6 @@ extension StudioViewModel {
 
             if let candidate = podcastHydrationCandidate(for: articleId) {
                 let storage = self.storage
-                let aiService = self.aiService
                 let homeDir = realHomeDirectory
                 // Resolved once from Settings and threaded down, so every
                 // transcript call uses the model the user picked.
@@ -375,7 +374,6 @@ extension StudioViewModel {
                     await Self.hydratePodcastTranscript(
                         candidate,
                         storage: storage,
-                        aiService: aiService,
                         homeDir: homeDir,
                         config: config
                     )

@@ -2009,10 +2009,14 @@ actor StorageService {
     }
 
     func podcastTranscriptCleanupCandidates(
-        limit: Int
+        limit: Int,
+        formattingOnly: Bool = false
     ) throws -> [PodcastTranscriptCleanupCandidate] {
         try ensureStoreExists()
-        return try knowledgeStore().podcastTranscriptCleanupCandidates(limit: limit)
+        return try knowledgeStore().podcastTranscriptCleanupCandidates(
+            limit: limit,
+            formattingOnly: formattingOnly
+        )
     }
 
     func podcastTranscriptCleanupQueueCount() throws -> Int {
@@ -5127,12 +5131,14 @@ actor StorageService {
         return archivedCount
     }
 
-    /// Save content for a source and update its state to 'ready'.
+    /// Save content for a source and update its state to 'ready'. See
+    /// `KnowledgeStore.saveTranscript` for the podcast clean-up parameters.
     func saveTranscript(
         _ sourceId: String,
         _ text: String,
         rawTTML: String? = nil,
         podcastCleanupInput: String? = nil,
+        podcastFormatting: PodcastTranscriptFormattingRequest? = nil,
         allowsShorterTranscript: Bool = false
     ) throws {
         try knowledgeStore().saveTranscript(
@@ -5140,6 +5146,7 @@ actor StorageService {
             text,
             rawTTML: rawTTML,
             podcastCleanupInput: podcastCleanupInput,
+            podcastFormatting: podcastFormatting,
             allowsShorterTranscript: allowsShorterTranscript
         )
         scheduleCloudKitSync()

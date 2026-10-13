@@ -85,12 +85,25 @@ private struct PodcastTranscriptAnnotation: Decodable {
     }
 }
 
-/// Drains the versioned historical podcast backlog in small, resumable batches.
-/// It reuses the learner-selected Transcript Formatting task, but runs the
-/// ad-only prompt so an old readable transcript does not pay for speaker
+/// Drains `podcast_transcript_cleanup_queue` in small, resumable batches, on
+/// the learner-selected Transcript Formatting task. A transcript hydration
+/// saved raw gets the whole formatting pass here, after it is already readable
+/// (schema 172): speaker names, paragraphs and ad reads. The historical
+/// backlog of transcripts that were formatted before the ad-read contract runs
+/// the ad-only prompt, so an old readable transcript does not pay for speaker
 /// research or paragraph formatting a second time.
 actor PodcastTranscriptCleanupService {
     static let maxCandidatesPerDrain = 2
+
+    /// The formatting pass over one raw transcript, given with the blank lines
+    /// of its readable layout taken out: the formatted transcript, or nil when
+    /// the transcript is too short to be worth one. Throws when the pass could
+    /// not run, a learner's Stop among them.
+    typealias TranscriptFormatter = @Sendable (
+        _ raw: String,
+        _ candidate: PodcastTranscriptCleanupCandidate,
+        _ config: AITaskConfig
+    ) async throws -> String?
 
     private struct VerificationItem: Encodable {
         let id: Int
@@ -120,6 +133,7 @@ actor PodcastTranscriptCleanupService {
 
     private let storage: StorageService
     private let aiService: AIService
+    private let formatTranscript: TranscriptFormatter
     private let explicitlyAuthorizedConfig: AITaskConfig?
     /// `false` in a Dev build that has not opted in (`PaidSourceCleanupPolicy`).
     /// The ad pass only ever touches episodes that are already readable, so
@@ -132,18 +146,31 @@ actor PodcastTranscriptCleanupService {
         storage: StorageService,
         aiService: AIService,
         explicitlyAuthorizedConfig: AITaskConfig? = nil,
-        runsPaidCleanup: Bool = PaidSourceCleanupPolicy.runsPaidCleanup
+        runsPaidCleanup: Bool = PaidSourceCleanupPolicy.runsPaidCleanup,
+        formatTranscript: TranscriptFormatter? = nil
     ) {
         self.storage = storage
         self.aiService = aiService
+        self.formatTranscript = formatTranscript ?? { raw, candidate, config in
+            try await StudioViewModel.formatPodcastTranscript(
+                raw,
+                sourceID: candidate.sourceID,
+                episodeTitle: candidate.title,
+                podcastName: candidate.podcastName,
+                aiService: aiService,
+                config: config,
+                log: Logger(subsystem: "com.foreverlm", category: "PodcastTranscriptCleanup")
+            )
+        }
         self.explicitlyAuthorizedConfig = explicitlyAuthorizedConfig
         self.runsPaidCleanup = runsPaidCleanup || explicitlyAuthorizedConfig != nil
     }
 
     /// - Parameter backgroundSpendAllowed: false once the learner's daily
-    ///   background cap is reached; the ad pass waits for the next day.
+    ///   background cap is reached. The ad backlog waits for the next day; a
+    ///   transcript just fetched is still formatted, as a source the learner
+    ///   added is still cleaned.
     func drain(backgroundSpendAllowed: Bool = true) async -> PodcastTranscriptCleanupDrainResult {
-        guard backgroundSpendAllowed else { return await result(processed: [], error: nil) }
         guard !isDraining else { return await result(processed: [], error: nil) }
         isDraining = true
         defer { isDraining = false }
@@ -153,7 +180,8 @@ actor PodcastTranscriptCleanupService {
         let candidates: [PodcastTranscriptCleanupCandidate]
         do {
             candidates = try await storage.podcastTranscriptCleanupCandidates(
-                limit: Self.maxCandidatesPerDrain
+                limit: Self.maxCandidatesPerDrain,
+                formattingOnly: !backgroundSpendAllowed
             )
         } catch {
             return await result(processed: [], error: error.localizedDescription)
@@ -177,6 +205,7 @@ actor PodcastTranscriptCleanupService {
         }
 
         let aiService = aiService
+        let formatTranscript = formatTranscript
         var processed: [String] = []
         var firstError: String?
         var failedTransiently = false
@@ -188,7 +217,8 @@ actor PodcastTranscriptCleanupService {
                         let prepared = try await Self.prepare(
                             candidate,
                             config: config,
-                            aiService: aiService
+                            aiService: aiService,
+                            formatTranscript: formatTranscript
                         )
                         return .prepared(candidate, prepared)
                     } catch {
@@ -270,8 +300,31 @@ actor PodcastTranscriptCleanupService {
     private static func prepare(
         _ candidate: PodcastTranscriptCleanupCandidate,
         config: AITaskConfig,
-        aiService: AIService
+        aiService: AIService,
+        formatTranscript: TranscriptFormatter
     ) async throws -> PreparedPodcastTranscriptCleanup {
+        if candidate.formatsTranscript {
+            // The model is given the transcript as Apple or speech-to-text
+            // gave it, not the paragraphs it was laid out in to be read
+            // meanwhile, and places every break itself. The ad reads it marks
+            // come out with its breaks, so the ad pass is done with it.
+            let formatted = try await formatTranscript(
+                StudioViewModel.podcastTranscriptWithoutLayout(candidate.input),
+                candidate,
+                config
+            )
+            let clean = formatted ?? candidate.input
+            return PreparedPodcastTranscriptCleanup(
+                input: candidate.input,
+                clean: clean,
+                metadata: PodcastTranscriptCleanupMetadata(
+                    cleanerVersion: PodcastTranscriptCleanupMetadata.currentVersion,
+                    inputSHA256: candidate.inputSHA256,
+                    cleanSHA256: PaperContentPreparationService.sha256(clean),
+                    preparedAt: Date()
+                )
+            )
+        }
         let chunks = StudioViewModel.podcastTranscriptAdCleanupChunks(candidate.input)
         let activityID = UUID().uuidString
         let indexed = Array(chunks.enumerated())
@@ -499,11 +552,12 @@ extension StudioViewModel {
     /// the stored one: `refetch_source_content`'s route for a podcast. It is
     /// hydration with nothing taken from storage: a row filed under the
     /// episode's web page is resolved to its public episode first, and the
-    /// whole TTML is extracted, formatted when the episode allows it, and
-    /// saved with the TTML. A fetch that fails keeps the transcript the
-    /// episode has and its state; only an identity the fetch moved the row to
-    /// is taken into the loaded copy, so a later save cannot write the old
-    /// address back. Returns the outcome, or nil when nothing was fetched.
+    /// whole TTML is extracted and saved readable with the TTML, its
+    /// formatting queued when the episode allows it. A fetch that fails keeps
+    /// the transcript the episode has and its state; only an identity the
+    /// fetch moved the row to is taken into the loaded copy, so a later save
+    /// cannot write the old address back. Returns the outcome, or nil when
+    /// nothing was fetched.
     @discardableResult
     func refetchPodcastTranscript(
         for articleId: String,
@@ -518,13 +572,11 @@ extension StudioViewModel {
         defer { contentFetchInFlight.remove(articleId) }
 
         let storage = self.storage
-        let aiService = self.aiService
         let homeDir = realHomeDirectory
         let result = await Task.detached(priority: .utility) {
             await Self.hydratePodcastTranscript(
                 candidate,
                 storage: storage,
-                aiService: aiService,
                 homeDir: homeDir,
                 config: config,
                 forceRefresh: true,
@@ -570,7 +622,6 @@ extension StudioViewModel {
         try? await storage.saveSource(articles[index])
 
         let storage = self.storage
-        let aiService = self.aiService
         let homeDir = realHomeDirectory
         let config = KeychainService.resolveConfig(for: .transcriptFormatting)
         let result = await Task.detached(priority: .utility) {
@@ -580,7 +631,6 @@ extension StudioViewModel {
                 await Self.hydratePodcastTranscript(
                     candidate,
                     storage: storage,
-                    aiService: aiService,
                     homeDir: homeDir,
                     config: config,
                     forceRefresh: true,
@@ -1023,10 +1073,12 @@ extension StudioViewModel {
         return transcript
     }
 
+    /// Fetches an episode's transcript and saves it readable. Its formatting
+    /// is queued, not run: `config` is the Transcript Formatting model, and
+    /// nil (none chosen) queues nothing.
     nonisolated static func hydratePodcastTranscript(
         _ candidate: PodcastTranscriptHydrationCandidate,
         storage: StorageService,
-        aiService: AIService,
         homeDir: String,
         config: AITaskConfig?,
         forceRefresh: Bool = false,
@@ -1196,31 +1248,32 @@ extension StudioViewModel {
             }
         }
 
-        // A learner-initiated request can still hydrate a hidden episode. Keep
-        // that raw transcript ready for a future unhide, but never pay for the
-        // speaker-inference and paragraph-break calls while it is hidden.
+        // The transcript reads the moment it is here (product owner,
+        // 2026-10-13: "for all sources if we upload it, we should IMMEDIATELY
+        // be able to already read it"). It is saved ready, laid out in
+        // paragraphs with no model, and the speaker names and formatting come
+        // after, from the clean-up queue, which lasts a quit and runs two
+        // episodes at a time however many a first import fetches. An episode
+        // that may not pay for formatting (hidden, and nobody asked for it)
+        // keeps its readable transcript for a future unhide and is not queued.
+        let transcript = readablePodcastTranscriptLayout(extractedText)
+        let formatting: PodcastTranscriptFormattingRequest?
         if !candidate.allowsFormatting {
             log.info("Skipping transcript formatting for hidden podcast episode \(candidate.title)")
+            formatting = nil
+        } else if config == nil || extractedText.count <= minimumFormattableTranscriptLength {
+            // No model chosen for Transcript Formatting, or nothing to format.
+            formatting = nil
+        } else {
+            formatting = candidate.userInitiated ? .learnerAsked : .automatic
         }
-        let formattingConfig = candidate.allowsFormatting ? config : nil
-
-        let formattedTranscript = await formatPodcastTranscriptOffMain(
-            extractedText,
-            sourceID: candidate.id,
-            episodeTitle: candidate.title,
-            podcastName: candidate.podcastName,
-            aiService: aiService,
-            config: formattingConfig,
-            log: log
-        )
-        let transcript = formattedTranscript ?? extractedText
 
         do {
             try await storage.saveTranscript(
                 candidate.id,
                 transcript,
                 rawTTML: rawTTML,
-                podcastCleanupInput: formattedTranscript == nil ? nil : extractedText
+                podcastFormatting: formatting
             )
             log.info("Hydrated podcast transcript for \(candidate.title)")
             return result(.ready(content: transcript, persistedReadyState: true))
@@ -1242,6 +1295,9 @@ extension StudioViewModel {
         return lowered.hasPrefix("http://") || lowered.hasPrefix("https://")
     }
 
+    /// `formatPodcastTranscript`, with a failure logged and taken for nil:
+    /// for the completeness audit, which restores a cut transcript whether or
+    /// not it can be formatted.
     nonisolated static func formatPodcastTranscriptOffMain(
         _ raw: String,
         sourceID: String,
@@ -1254,10 +1310,41 @@ extension StudioViewModel {
         // No settings-resolved model means no call: substituting a literal
         // would bill a model the user never selected.
         guard let config else { return nil }
-        guard raw.count > 500 else { return nil }
+        do {
+            return try await formatPodcastTranscript(
+                raw,
+                sourceID: sourceID,
+                episodeTitle: episodeTitle,
+                podcastName: podcastName,
+                aiService: aiService,
+                config: config,
+                log: log
+            )
+        } catch {
+            log.warning("Podcast transcript formatting failed: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    /// The formatting pass over a raw podcast transcript: speaker names where
+    /// the episode makes them clear, then the model's paragraph breaks and ad
+    /// reads applied by code. Nil for a transcript too short to be worth it.
+    /// Throws when a paragraph request fails or the work is stopped; a speaker
+    /// lookup that fails for any other reason only leaves the labels as they
+    /// are.
+    nonisolated static func formatPodcastTranscript(
+        _ raw: String,
+        sourceID: String,
+        episodeTitle: String?,
+        podcastName: String?,
+        aiService: AIService,
+        config: AITaskConfig,
+        log: Logger
+    ) async throws -> String? {
+        guard raw.count > minimumFormattableTranscriptLength else { return nil }
         let activityID = UUID().uuidString
 
-        let speakerNamedRaw = await replaceInferredPodcastSpeakerLabelsOffMain(
+        let speakerNamedRaw = try await replaceInferredPodcastSpeakerLabelsOffMain(
             in: raw,
             config: config,
             sourceID: sourceID,
@@ -1288,70 +1375,65 @@ extension StudioViewModel {
             chunks = result
         }
 
-        do {
-            let indexed = Array(chunks.enumerated())
-            // Long episodes bill one charge per chunk, so without this the
-            // ledger shows a run of identical "Transcript Formatting" rows with
-            // nothing saying which episode they came from.
-            let ledgerTitle = StudioViewModel.transcriptLedgerTitle(episodeTitle, podcastName)
-            // Sliding window: episode hydration already runs several episodes at
-            // once, so an unbounded fan-out here multiplies against that limit
-            // rather than respecting it.
-            let chunkResults = try await withThrowingTaskGroup(of: (Int, String, String).self) { group in
-                var nextPosition = 0
-                while nextPosition < min(StudioViewModel.transcriptChunkFormatConcurrency, indexed.count) {
-                    let (index, chunk) = indexed[nextPosition]
-                    group.addTask {
-                        try await StudioViewModel.breakPointsForChunk(
-                            index: index,
-                            chunk: chunk,
-                            config: config,
-                            aiService: aiService,
-                            ledgerTitle: ledgerTitle,
-                            subjectID: sourceID,
-                            activityID: activityID
-                        )
-                    }
-                    nextPosition += 1
-                }
-
-                var results: [(Int, String, String)] = []
-                while let result = try await group.next() {
-                    results.append(result)
-                    guard nextPosition < indexed.count else { continue }
-                    let (index, chunk) = indexed[nextPosition]
-                    group.addTask {
-                        try await StudioViewModel.breakPointsForChunk(
-                            index: index,
-                            chunk: chunk,
-                            config: config,
-                            aiService: aiService,
-                            ledgerTitle: ledgerTitle,
-                            subjectID: sourceID,
-                            activityID: activityID
-                        )
-                    }
-                    nextPosition += 1
-                }
-                return results.sorted { $0.0 < $1.0 }
-            }
-
-            // Decided on the whole transcript: a chunk can fall inside one
-            // speaker's long turn and hold no label line of its own.
-            let diarized = isDiarizedPodcastTranscriptOffMain(speakerNamedRaw)
-            return chunkResults
-                .map { _, chunk, response in
-                    applyPodcastTranscriptBreakPointsOffMain(
-                        to: chunk,
-                        from: response,
-                        transcriptIsDiarized: diarized
+        let indexed = Array(chunks.enumerated())
+        // Long episodes bill one charge per chunk, so without this the
+        // ledger shows a run of identical "Transcript Formatting" rows with
+        // nothing saying which episode they came from.
+        let ledgerTitle = StudioViewModel.transcriptLedgerTitle(episodeTitle, podcastName)
+        // Sliding window: episode hydration already runs several episodes at
+        // once, so an unbounded fan-out here multiplies against that limit
+        // rather than respecting it.
+        let chunkResults = try await withThrowingTaskGroup(of: (Int, String, String).self) { group in
+            var nextPosition = 0
+            while nextPosition < min(StudioViewModel.transcriptChunkFormatConcurrency, indexed.count) {
+                let (index, chunk) = indexed[nextPosition]
+                group.addTask {
+                    try await StudioViewModel.breakPointsForChunk(
+                        index: index,
+                        chunk: chunk,
+                        config: config,
+                        aiService: aiService,
+                        ledgerTitle: ledgerTitle,
+                        subjectID: sourceID,
+                        activityID: activityID
                     )
                 }
-                .joined(separator: "\n\n")
-        } catch {
-            log.warning("Podcast transcript formatting failed: \(error.localizedDescription)")
-            return nil
+                nextPosition += 1
+            }
+
+            var results: [(Int, String, String)] = []
+            while let result = try await group.next() {
+                results.append(result)
+                guard nextPosition < indexed.count else { continue }
+                let (index, chunk) = indexed[nextPosition]
+                group.addTask {
+                    try await StudioViewModel.breakPointsForChunk(
+                        index: index,
+                        chunk: chunk,
+                        config: config,
+                        aiService: aiService,
+                        ledgerTitle: ledgerTitle,
+                        subjectID: sourceID,
+                        activityID: activityID
+                    )
+                }
+                nextPosition += 1
+            }
+            return results.sorted { $0.0 < $1.0 }
         }
+
+        // Decided on the whole transcript: a chunk can fall inside one
+        // speaker's long turn and hold no label line of its own.
+        let diarized = isDiarizedPodcastTranscriptOffMain(speakerNamedRaw)
+        return chunkResults
+            .map { _, chunk, response in
+                applyPodcastTranscriptBreakPointsOffMain(
+                    to: chunk,
+                    from: response,
+                    transcriptIsDiarized: diarized
+                )
+            }
+            .joined(separator: "\n\n")
     }
 
     nonisolated static func podcastTranscriptAdCleanupChunks(
@@ -1426,8 +1508,8 @@ extension StudioViewModel {
         podcastName: String?,
         aiService: AIService,
         log: Logger
-    ) async -> String {
-        let mapping = await inferPodcastSpeakerNameMappingOffMain(
+    ) async throws -> String {
+        let mapping = try await inferPodcastSpeakerNameMappingOffMain(
             raw,
             config: config,
             sourceID: sourceID,
@@ -1450,7 +1532,7 @@ extension StudioViewModel {
         podcastName: String?,
         aiService: AIService,
         log: Logger
-    ) async -> [String: String] {
+    ) async throws -> [String: String] {
         let speakerIDs = PodcastSpeakerNameInference.speakerIDs(in: raw)
         guard !speakerIDs.isEmpty else { return [:] }
         let system = """
@@ -1496,6 +1578,10 @@ extension StudioViewModel {
                 activityID: activityID
             )
             return parsePodcastSpeakerNameMappingOffMain(response, validSpeakerIDs: speakerIDs, log: log)
+        } catch where AITransientErrorClassifier.isCancellation(error) {
+            // Stopped, not failed: the transcript waits to be formatted whole,
+            // names and all, rather than going on without them.
+            throw error
         } catch {
             log.warning("Podcast speaker-name inference failed: \(error.localizedDescription)")
             return [:]
@@ -1717,6 +1803,125 @@ extension StudioViewModel {
               trimmed.hasPrefix("["), trimmed.hasSuffix("]") else { return false }
         let inner = trimmed.dropFirst().dropLast()
         return !inner.contains("[") && !inner.contains("]")
+    }
+
+    // MARK: - Readable before any model
+
+    /// A podcast transcript as it reads before any model has touched it. Each
+    /// stretch of speech (one speaker's turn under its `[SPEAKER_1]` line, or
+    /// a stretch speech-to-text returned with no speakers at all) is cut into
+    /// paragraphs at sentence ends by `readableTranscriptParagraphs`. Words,
+    /// their order and the label lines stay as they were; only blank lines
+    /// are added, and `podcastTranscriptWithoutLayout` takes them out again.
+    nonisolated static func readablePodcastTranscriptLayout(_ transcript: String) -> String {
+        transcript
+            .components(separatedBy: "\n\n")
+            .map { block in
+                var lines = block.split(separator: "\n", omittingEmptySubsequences: false)
+                let label = lines.first.flatMap { isPodcastSpeakerLabelLine($0) ? String($0) : nil }
+                if label != nil { lines.removeFirst() }
+                // A stretch that already breaks into lines keeps its own shape.
+                guard lines.count == 1 else { return block }
+                let paragraphs = readableTranscriptParagraphs(String(lines[0]))
+                return label.map { "\($0)\n\(paragraphs)" } ?? paragraphs
+            }
+            .joined(separator: "\n\n")
+    }
+
+    /// The transcript `readablePodcastTranscriptLayout` was given: the
+    /// paragraphs of each stretch of speech run back together into one, the
+    /// shape the formatting pass places its own breaks in. A blank line before
+    /// a speaker's label stays. For Apple's transcript this is exactly the
+    /// text extracted from the TTML; for speech-to-text, whose stretches have
+    /// no labels between them, the whole transcript becomes one run.
+    nonisolated static func podcastTranscriptWithoutLayout(_ transcript: String) -> String {
+        var blocks: [String] = []
+        for block in transcript.components(separatedBy: "\n\n") {
+            if let last = blocks.last, !last.isEmpty, !block.isEmpty,
+               !isPodcastSpeakerLabelLine(block.prefix(while: { $0 != "\n" })) {
+                blocks[blocks.count - 1] = last + " " + block
+            } else {
+                blocks.append(block)
+            }
+        }
+        return blocks.joined(separator: "\n\n")
+    }
+
+    /// A run of speech cut into paragraphs at sentence ends: four sentences or
+    /// about 95 words a paragraph, a short tail kept with the paragraph before
+    /// it, and a run of 140 words or fewer left whole. Speech with no sentence
+    /// ends is cut every 95 words. The Mac reader draws an episode's TTML with
+    /// the same rule (`PodcastTranscriptParser`), so an episode reads alike
+    /// there and wherever its stored text is shown.
+    nonisolated static func readableTranscriptParagraphs(_ text: String) -> String {
+        let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard transcriptWordCount(cleaned) > 140 else { return cleaned }
+
+        let sentences = transcriptSentenceParagraphs(cleaned)
+        guard sentences.count > 1 else {
+            return transcriptWordParagraphs(cleaned).joined(separator: "\n\n")
+        }
+
+        return sentences.joined(separator: "\n\n")
+    }
+
+    nonisolated private static func transcriptSentenceParagraphs(_ text: String) -> [String] {
+        let separated = text
+            .replacingOccurrences(of: #"(?<=[.!?])\s+"#, with: "\u{0}", options: .regularExpression)
+        let sentences = separated
+            .components(separatedBy: "\u{0}")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard sentences.count > 1 else { return [] }
+
+        var chunks: [String] = []
+        var current: [String] = []
+        var currentWordCount = 0
+
+        for sentence in sentences {
+            current.append(sentence)
+            currentWordCount += transcriptWordCount(sentence)
+            if current.count >= 4 || currentWordCount >= 95 {
+                chunks.append(current.joined(separator: " "))
+                current = []
+                currentWordCount = 0
+            }
+        }
+
+        if !current.isEmpty {
+            let remainder = current.joined(separator: " ")
+            if transcriptWordCount(remainder) < 35, let last = chunks.popLast() {
+                chunks.append(last + " " + remainder)
+            } else {
+                chunks.append(remainder)
+            }
+        }
+
+        return chunks
+    }
+
+    nonisolated private static func transcriptWordParagraphs(_ text: String) -> [String] {
+        let words = text.split(separator: " ").map(String.init)
+        guard words.count > 140 else { return [text] }
+
+        var chunks: [String] = []
+        var current: [String] = []
+        for word in words {
+            current.append(word)
+            if current.count >= 95 {
+                chunks.append(current.joined(separator: " "))
+                current = []
+            }
+        }
+        if !current.isEmpty {
+            chunks.append(current.joined(separator: " "))
+        }
+        return chunks
+    }
+
+    nonisolated private static func transcriptWordCount(_ text: String) -> Int {
+        text.split { $0.isWhitespace }.count
     }
 
     /// Whether a paragraph break at `index` would add only blank lines: the

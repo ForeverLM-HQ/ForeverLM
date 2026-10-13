@@ -64,13 +64,15 @@ If Apple says an episode has no accessible transcript, ForeverLM automatically s
 
 ## Transcript Cleanup
 
-During ingestion, ForeverLM uses the model selected for **Transcript Formatting** to make podcast transcripts easier to study:
+An episode's transcript reads the moment it is fetched, Apple's or one from **Transcribe Audio**: each speaker's turn under its label, cut into paragraphs at sentence ends, with no AI involved. Then, in the background, ForeverLM uses the model selected for **Transcript Formatting** to make it easier to study, and the formatted transcript takes the plain one's place:
 
 - Adds paragraph breaks at natural topic transitions
 - Replaces diarized speaker IDs with real names when the episode evidence is clear
 - Removes confidently identified sponsor messages and ad reads, including their promotional transition lines
 
 The model identifies exact spans rather than rewriting Apple Podcast transcripts. ForeverLM deletes a proposed ad only when both boundaries match one unambiguous, bounded passage; uncertain passages remain. Editorial discussion of a company or product, guest affiliations, disclosures, credits, and substantive content are preserved.
+
+Formatting runs two episodes at a time and picks up where it left off after you quit, so a first import of hundreds of episodes is readable at once and formatted in turn. An episode you asked for (confirming a match, **Transcribe Audio**, fetching a transcript again) goes first. A hidden episode is not formatted unless you asked for it, and a transcript you changed meanwhile, such as by naming its speakers, is never formatted over. **Stop** under Running in the background leaves the rest waiting until you resume it. Past your daily background AI limit a newly fetched transcript is still formatted, while the clean-up of older transcripts waits for the next day.
 
 When a confirmed YouTube video supplies a missing podcast transcript, the same podcast-specific ad cleanup runs while the captions are formatted for readability.
 

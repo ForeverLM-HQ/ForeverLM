@@ -11,6 +11,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **An ebook PDF is never treated as a scan**, so a picture cover no longer sends pages to OCR proofreading.
 - **A text file or dropped text is in your library at once**, under its own name; its title follows.
 - **A Reader window shows a web page while it is fetched**, as the Reader beside the library does, instead of a spinner.
+- **A podcast transcript reads the moment it is fetched**, laid out in paragraphs; speaker names and formatting follow in the background, two episodes at a time, and survive a quit.
 
 ## 0.146.1 (build 226) — 2026-10-13
 

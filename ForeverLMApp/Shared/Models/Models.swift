@@ -2085,6 +2085,22 @@ struct PodcastTranscriptCleanupCandidate: Sendable {
     let podcastName: String
     let input: String
     let inputSHA256: String
+    /// The input is a transcript saved raw, laid out but never formatted, and
+    /// is owed the whole formatting pass (speaker names, paragraphs, ad reads)
+    /// rather than the ad pass alone (schema 172).
+    var formatsTranscript = false
+}
+
+/// Who asked for a podcast transcript's formatting pass. A transcript is saved
+/// readable first and waits for the pass in `podcast_transcript_cleanup_queue`
+/// (schema 172).
+enum PodcastTranscriptFormattingRequest: Sendable, Equatable {
+    /// Hydration found the transcript on its own: formatted in turn, and not
+    /// while the episode is hidden.
+    case automatic
+    /// The learner asked for this episode: formatted ahead of the rest, hidden
+    /// or not.
+    case learnerAsked
 }
 
 struct PreparedPodcastTranscriptCleanup: Sendable {
