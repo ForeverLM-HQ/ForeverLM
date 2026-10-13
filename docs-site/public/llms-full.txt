@@ -6065,6 +6065,13 @@ All notable changes to ForeverLM are documented here. Dates are in YYYY-MM-DD fo
 
 ForeverLM follows [semantic versioning](https://semver.org) against its public surface: the MCP tool contracts, the knowledge-base/sync format, and licensing compatibility. While the version is 0.x, minor releases may include breaking changes to that surface; patch releases never do.
 
+## 0.146.0 (build 225) — 2026-10-13
+
+**Highlights:**
+- **Writing in a Page is smoother**: the Mac's own caret, nothing typed is ever taken back, ⌘Z stays in the page, and the caret stays put when a teammate's edit or a picture arrives.
+- **Edit with AI shows its proposal as the page will**, with the changes marked and a passage's sources kept out of sight.
+- **Pasting behaves**: pictures are kept, a PDF quotation becomes paragraphs, an article's citation numbers become footnotes.
+
 ## 0.145.0 (build 224) — 2026-10-12
 
 **Highlights:**
