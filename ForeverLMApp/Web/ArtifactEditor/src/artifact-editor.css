@@ -249,7 +249,9 @@ body.ready #editor {
      and is drawn clipped on both edges. The native title above the page mirrors
      this same expression so the two share one left edge. */
   --artifact-page-padding: clamp(20px, 6vw, 48px);
-  padding: 18px var(--artifact-page-padding) 108px;
+  /* Room under the last line, so it can be written in clear of the window's
+     foot (`caretRoom`). */
+  padding: 18px var(--artifact-page-padding) max(108px, 30vh);
   color: CanvasText;
   caret-color: AccentColor;
   font-family: var(--artifact-prose-font);

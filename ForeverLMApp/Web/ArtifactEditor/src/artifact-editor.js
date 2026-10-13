@@ -3672,6 +3672,26 @@ function withQuietTab(ctx) {
   }))
 }
 
+/// Writing at the foot of the window keeps room under the caret: a fifth of
+/// the window, between 64 and 200 points. ProseMirror scrolled only as far as
+/// the caret, so each new line at the end of a page sat against the window's
+/// bottom edge, under the page's side chat card. Read on every scroll, so a
+/// resized window gets its own room.
+const caretRoom = {
+  top: 24,
+  get bottom() { return Math.round(Math.min(200, Math.max(64, window.innerHeight * 0.2))) },
+  left: 0,
+  right: 0,
+}
+
+function withRoomAroundTheCaret(ctx) {
+  ctx.update(editorViewOptionsCtx, (previous) => ({
+    ...previous,
+    scrollThreshold: caretRoom,
+    scrollMargin: caretRoom,
+  }))
+}
+
 /// Backspace at the start of a heading, a quote or a list item takes the
 /// block's kind away first, as writing apps do: the heading becomes a
 /// paragraph, the quote's line leaves the quote, the item leaves its list one
@@ -6857,6 +6877,7 @@ async function create(markdown, fontSize) {
     editor.editor.config(withBlockPastesOnTheirOwnLine)
     editor.editor.config(withQuietTab)
     editor.editor.config(withBackspaceUnwrapping)
+    editor.editor.config(withRoomAroundTheCaret)
     editor.editor.config(withBlockShortcutsOnEnter)
     editor.editor.use(checklistShortcut)
     editor.editor.config(withDoubleDollarMath)
