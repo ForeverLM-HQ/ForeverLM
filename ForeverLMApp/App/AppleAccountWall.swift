@@ -160,10 +160,12 @@ struct AppleAccountWall: View {
 /// The pay screen (product owner, 2026-10-10; docs/pricing-pro-design.md → Day 8:
 /// locked): once the free days are over and nothing is paid, it is the
 /// only thing the Mac shows, after the sign-in wall and ahead of everything
-/// else. The Early user deal, $19 once and nothing beside it, I've Paid to
-/// ask the proxy again, Sign Out, and where the library lives, so "your
-/// files, no lock-in" stays true. Nothing is deleted; paying restores the app
-/// exactly as it was. While it is up, background AI, sync and the MCP
+/// else. The Early user deal, $19 once and nothing beside it, Sign Out, and
+/// where the library lives, so "your files, no lock-in" stays true. There is
+/// no "I've Paid" (product owner, 2026-10-13): the account is read again when
+/// the app becomes active and every few seconds after checkout opens, so
+/// paying opens the app by itself. Nothing is deleted; paying restores the
+/// app exactly as it was. While it is up, background AI, sync and the MCP
 /// connection are stopped (`ManagedAI.isAppLocked`).
 ///
 /// The price is the proxy's (`AppAccess.prices`), and the deal is offered
@@ -179,7 +181,7 @@ struct AppLockWall: View {
 
     private var prices: ManagedAI.AppAccess.Prices { account.planPrices }
     private var onSale: [ManagedAI.AppPlan] { account.appAccess?.plansOnSale ?? ManagedAI.AppAccess.paidAppPlans }
-    private var busy: Bool { account.planCheckoutInFlight != nil || account.paymentCheckInFlight }
+    private var busy: Bool { account.planCheckoutInFlight != nil }
 
     var body: some View {
         VStack(spacing: 24) {
@@ -219,33 +221,10 @@ struct AppLockWall: View {
                 }
             }
 
-            HStack(spacing: 12) {
-                Button {
-                    Task { await account.checkPayment() }
-                } label: {
-                    HStack(spacing: 6) {
-                        if account.paymentCheckInFlight {
-                            ProgressView().controlSize(.mini)
-                        }
-                        Text("I've Paid")
-                    }
-                }
+            Button("Sign Out") { account.signOut() }
+                .controlSize(.large)
                 .disabled(busy)
-                .accessibilityIdentifier("appLock.paid")
-
-                Button("Sign Out") { account.signOut() }
-                    .disabled(busy)
-                    .accessibilityIdentifier("appLock.signOut")
-            }
-            .controlSize(.large)
-
-            if account.paymentNotSeenYet {
-                Text("Your payment hasn't reached ForeverLM yet. It can take a minute after checkout; try again shortly.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+                .accessibilityIdentifier("appLock.signOut")
 
             if let message = account.errorMessage ?? account.balanceErrorMessage {
                 Label(message, systemImage: "exclamationmark.triangle.fill")

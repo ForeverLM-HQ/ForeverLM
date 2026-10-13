@@ -47,11 +47,10 @@ final class ManagedAIAccountModel {
     private(set) var planCheckoutInFlight: ManagedAI.AppPlan?
     /// A cancel or keep-plan call on its way to the proxy.
     private(set) var planChangeInFlight = false
-    /// "I've Paid" asking the proxy again, from the pay screen.
-    private(set) var paymentCheckInFlight = false
-    /// Set when "I've Paid" found the account still locked: Stripe's webhook
-    /// can take a moment after Checkout closes.
-    private(set) var paymentNotSeenYet = false
+    /// Reads the account again every few seconds after checkout opens, while
+    /// the app is locked, so the pay screen opens the app by itself once
+    /// Stripe's webhook lands (product owner, 2026-10-13: no "I've Paid").
+    @ObservationIgnored private var paymentWatch: Task<Void, Never>?
 
     /// Moves when the free days cross a day, or end, while the app is open,
     /// so the account menu's count and the lock are read again.
@@ -584,8 +583,7 @@ final class ManagedAIAccountModel {
 
     /// Opens Stripe Checkout in the browser: the Early user deal (`.once`),
     /// the one plan the paid app sells. It takes effect when Stripe's webhook
-    /// lands; the next refresh (the app becoming active again, or I've Paid)
-    /// picks it up.
+    /// lands; the app becoming active again, or the payment watch, picks it up.
     func choosePlan(_ plan: ManagedAI.AppPlan) async {
         guard planCheckoutInFlight == nil else { return }
         planCheckoutInFlight = plan
@@ -595,6 +593,7 @@ final class ManagedAIAccountModel {
         do {
             let url = try await ManagedAI.planCheckoutURL(plan)
             open(url)
+            watchForPayment()
         } catch let error as ManagedAI.ServiceError {
             errorMessage = error.message
         } catch {
@@ -603,15 +602,19 @@ final class ManagedAIAccountModel {
         }
     }
 
-    /// The pay screen's I've Paid: asks the proxy again. Still locked means
-    /// the payment has not arrived yet, and the screen says so.
-    func checkPayment() async {
-        guard !paymentCheckInFlight else { return }
-        paymentCheckInFlight = true
-        defer { paymentCheckInFlight = false }
-        paymentNotSeenYet = false
-        await refresh()
-        paymentNotSeenYet = isAppLocked && balanceErrorMessage == nil && errorMessage == nil
+    /// While the app is locked, reads the account every five seconds for ten
+    /// minutes after checkout opens, and stops as soon as it is unlocked.
+    private func watchForPayment() {
+        paymentWatch?.cancel()
+        guard isAppLocked else { return }
+        let deadline = Date().addingTimeInterval(600)
+        paymentWatch = Task { [weak self] in
+            while Date() < deadline {
+                try? await Task.sleep(for: .seconds(5))
+                guard !Task.isCancelled, let self, self.isAppLocked else { return }
+                await self.refresh(minimumInterval: 2, silently: true)
+            }
+        }
     }
 
     /// Re-reads the lock and the account menu's count when the free days
