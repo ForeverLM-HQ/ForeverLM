@@ -22,6 +22,17 @@ struct ArtifactMarkdownEditorViewTests {
         #expect(ArtifactPageLinkTarget(link: .doc("d"), title: "T").detail.isEmpty)
     }
 
+    @Test("A page link's anchor names a block only when it is a block id")
+    func pageLinkBlockAnchor() {
+        let anchor = { (text: String) in ArtifactMarkdownEditorView.Coordinator.blockAnchor(of: URL(string: text)) }
+        #expect(anchor("foreverlm://doc/doc-2#a1b2c3d4e") == "a1b2c3d4e")
+        #expect(anchor("https://foreverlm.invalid/doc/doc-2#a1b2c3d4e") == "a1b2c3d4e")
+        #expect(anchor("foreverlm://doc/doc-2") == nil)
+        #expect(anchor("foreverlm://doc/doc-2#Results") == nil)
+        #expect(anchor("foreverlm://doc/doc-2#a1b2c3d4") == nil)
+        #expect(StudioEntityLink.parse(destination: "foreverlm://doc/doc-2#a1b2c3d4e") == .doc("doc-2"))
+    }
+
     @Test("A doc's folds are kept by its id, and unfolding it drops the entry")
     func outlineFoldsAreKeptPerDoc() throws {
         let suite = "ArtifactOutlineFoldsTests-\(UUID().uuidString)"

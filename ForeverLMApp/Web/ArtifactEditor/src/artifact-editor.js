@@ -277,8 +277,10 @@ function graphParsableMarkdown(markdown) {
   return outsideCode(markdown, (text) => text.replace(referenceAfterBracket, '\\(($1))'))
 }
 
-/// The doc or notebook an editor href points at — `{ kind, id, href }` with the
-/// stored `foreverlm://` form of the address — or null for any other link.
+/// The doc or notebook an editor href points at — `{ kind, id, href, blockID }`
+/// with the stored `foreverlm://` form of the address — or null for any other
+/// link. `blockID` is a page link's block anchor (`#<block id>`, what a
+/// block's Copy link writes), else empty; `href` never carries it.
 function inAppLink(href) {
   try {
     const url = new URL(String(href ?? ''))
@@ -294,7 +296,9 @@ function inAppLink(href) {
     }
     if (!kind || !inAppLinkKinds.has(kind) || !id) return null
     if (kind === 'project') kind = 'notebook'
-    return { kind, id: decodeURIComponent(id), href: `${markdownSchemePrefix}${kind}/${id}` }
+    const anchor = url.hash.replace(/^#/, '')
+    const blockID = kind === 'doc' && isBlockID(anchor) ? anchor : ''
+    return { kind, id: decodeURIComponent(id), href: `${markdownSchemePrefix}${kind}/${id}`, blockID }
   } catch {
     return null
   }
@@ -1294,7 +1298,7 @@ function ensureInAppLinkTooltip() {
     hideInAppLinkTooltip(true)
     if (token) post('openAttachmentRequested', { token, name })
     else if (title) post('openTitleRequested', { title })
-    else if (href) post('openLinkRequested', { href })
+    else if (href) openInAppHref(href)
   })
   inAppLinkTooltip.append(open)
   inAppLinkTooltip.addEventListener('mouseenter', () => { inAppLinkTooltipHovered = true })
@@ -1304,6 +1308,19 @@ function ensureInAppLinkTooltip() {
   })
   document.body.append(inAppLinkTooltip)
   return inAppLinkTooltip
+}
+
+/// Follow a link to one of the app's things. A link to a block of this very
+/// page is followed here: the block is shown and flashed (`revealBlock`). Any
+/// other goes to the host with its anchor, which opens the page and shows the
+/// block the anchor names.
+function openInAppHref(href) {
+  const link = inAppLink(href)
+  if (link?.kind === 'doc' && link.blockID && link.id === currentPageID()) {
+    revealBlock({ blockID: link.blockID })
+    return
+  }
+  post('openLinkRequested', { href })
 }
 
 /// A link to one of the page's own attached files, `[name.pdf](foreverlm://
@@ -1336,7 +1353,7 @@ function showFileLinkTooltip(file, rect) {
 
 function showInAppLinkTooltip(link, rect) {
   const tooltip = ensureInAppLinkTooltip()
-  tooltip.dataset.href = link.href
+  tooltip.dataset.href = link.blockID ? `${link.href}#${link.blockID}` : link.href
   tooltip.dataset.kind = link.kind
   delete tooltip.dataset.title
   delete tooltip.dataset.token
@@ -6296,8 +6313,12 @@ function ensureBlockMenu() {
 }
 
 function closeBlockMenu() {
+  // Opened from the keyboard, the menu held the focus: it goes back to the
+  // caret, where the writer was.
+  const hadFocus = Boolean(blockMenu && blockMenu.contains(document.activeElement))
   if (blockMenu) blockMenu.hidden = true
   blockHandleGrip?.setAttribute('aria-expanded', 'false')
+  if (hadFocus) activeEditorView()?.focus()
 }
 
 function blockMenuRow(icon, title, action, { check = false } = {}) {
@@ -6460,7 +6481,7 @@ function turnBlockInto(view, target, id) {
   setSelectionBlockKind(id)
 }
 
-function openBlockMenu(target) {
+function openBlockMenu(target, { focus = false } = {}) {
   const view = activeEditorView()
   if (!view || !editor) return
   const menu = ensureBlockMenu()
@@ -6473,31 +6494,128 @@ function openBlockMenu(target) {
   }
   rows.push(...blockPropertyRows(view, target, menu))
   if (first === 'table') rows.push(blockMenuRow('rowBelow', 'Insert row below', () => insertTableRowBelow(view, target)))
+  // The block's first paragraph or heading: what an id, and so a link or a
+  // reference, belongs to.
+  let textblockPos = -1
+  view.state.doc.nodesBetween(target.from, target.to, (node, pos) => {
+    if (textblockPos >= 0) return false
+    if (node.isTextblock && canTakeBlockID(view.state.doc, pos)) textblockPos = pos
+    return textblockPos < 0
+  })
+  rows.push(blockMenuRow('plus', 'Insert below', () => insertBelowBlock(view, target)))
+  // Codex's Copy link: the page's address with the block's id as its anchor.
+  const pageID = currentPageID()
+  if (pageID && textblockPos >= 0) {
+    rows.push(blockMenuRow('link', 'Copy link', () => {
+      const id = ensureBlockID(activeEditorView(), textblockPos)
+      if (id) copyPlainText(blockLink(pageID, id))
+    }))
+  }
   rows.push(
-    blockMenuRow('plus', 'Insert below', () => insertBelowBlock(view, target)),
-    blockMenuRow('copy', 'Duplicate', () => duplicateBlock(view, target)),
     blockMenuRow('markdown', 'Copy as Markdown', () => { copyPlainText(blockMarkdown(view, target)) }),
+    blockMenuRow('copy', 'Duplicate', () => duplicateBlock(view, target)),
   )
-  if (graph.active) {
-    let textblockPos = -1
-    view.state.doc.nodesBetween(target.from, target.to, (node, pos) => {
-      if (textblockPos >= 0) return false
-      if (node.isTextblock && canTakeBlockID(view.state.doc, pos)) textblockPos = pos
-      return textblockPos < 0
-    })
-    if (textblockPos >= 0) {
-      rows.push(blockMenuRow('reference', 'Copy block reference', () => {
-        const id = ensureBlockID(activeEditorView(), textblockPos)
-        if (id) copyPlainText(`((${id}))`)
-      }))
-    }
+  if (graph.active && textblockPos >= 0) {
+    rows.push(blockMenuRow('reference', 'Copy block reference', () => {
+      const id = ensureBlockID(activeEditorView(), textblockPos)
+      if (id) copyPlainText(`((${id}))`)
+    }))
   }
   rows.push(blockMenuSeparator(), blockMenuRow('trash', 'Delete', () => deleteBlock(view, target)))
   menu.replaceChildren(...rows)
   menu.hidden = false
   blockHandleGrip?.setAttribute('aria-expanded', 'true')
   placeBlockMenu(target)
+  if (focus) menu.querySelector('button:not(:disabled)')?.focus({ preventScroll: true })
 }
+
+/// The page the editor holds, by its id: the notes graph's, else the key the
+/// host opened it with (every host opens a page with its id as the key).
+function currentPageID() {
+  return graph.docID || (typeof foldDocumentKey === 'string' ? foldDocumentKey : '')
+}
+
+/// A link to one block of a page, `foreverlm://doc/<id>#<block id>`: the
+/// page's own address, which opens the page anywhere a page link opens, with
+/// the block's id (the ` ^id` the block's Markdown ends with) as its anchor, so
+/// a host that reads the anchor shows that block and flashes it.
+function blockLink(pageID, blockID) {
+  return `${markdownSchemePrefix}doc/${encodeURIComponent(pageID)}#${blockID}`
+}
+
+// ── Focus content controls ──────────────────────────────────────────────────
+// Codex's "Focus content controls" moves the keyboard from the writing to the
+// controls of the block the caret is in. Here ⌥⌘/ (⌥Ctrl/ off the Mac) opens
+// the block handle's menu for that block with its first row focused: ↑↓ move,
+// Return chooses, Escape goes back to the caret. ⌘/ is left for the shortcut
+// list the app will have, as Codex has it.
+
+/// The block the caret is in, as the handle names a block: a top-level
+/// block, or the deepest item of a list at the top level; a heading takes
+/// its section. Null where the handle has nothing to offer (a footnote's note).
+function blockAtCaret(view) {
+  const { selection, doc } = view.state
+  const $from = selection.$from
+  let target
+  if ($from.depth === 0) {
+    // A picked block (a picture, a divider) is the block.
+    if (!selection.node) return null
+    target = { from: selection.from, to: selection.to, node: selection.node, item: false }
+  } else {
+    target = { from: $from.before(1), to: $from.after(1), node: $from.node(1), item: false }
+    let depth = 1
+    while (depth + 1 <= $from.depth) {
+      const list = $from.node(depth)
+      const item = $from.node(depth + 1)
+      if ((list.type.name !== 'bullet_list' && list.type.name !== 'ordered_list') || item.type.name !== 'list_item') break
+      target = { from: $from.before(depth + 1), to: $from.after(depth + 1), node: item, item: true }
+      depth += 2
+    }
+  }
+  if (isFootnoteDefinition(target.node)) return null
+  return { ...target, to: headingSectionEnd(doc, target) }
+}
+
+function focusBlockControls() {
+  const view = activeEditorView()
+  if (!view || !isEditable || !editor) return false
+  const target = blockAtCaret(view)
+  if (!target) return false
+  hideLinkPicker()
+  hideSelectionBar()
+  blockHandleTarget = target
+  ensureBlockHandle()
+  positionBlockHandle()
+  if (!blockHandle || blockHandle.hidden) return false
+  openBlockMenu(target, { focus: true })
+  return true
+}
+
+document.addEventListener('keydown', (event) => {
+  if (event.code !== 'Slash' || !event.altKey || event.shiftKey || !(event.metaKey || event.ctrlKey)) return
+  const view = activeEditorView()
+  if (!view || !(event.target instanceof Element) || !event.target.closest('.ProseMirror')) return
+  if (!focusBlockControls()) return
+  event.preventDefault()
+  event.stopPropagation()
+}, true)
+
+/// ↑↓ (Home, End) move through the menu's rows, the rows a group has
+/// unfolded included.
+document.addEventListener('keydown', (event) => {
+  if (!blockMenu || blockMenu.hidden || !blockMenu.contains(document.activeElement)) return
+  if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
+  const rows = [...blockMenu.querySelectorAll('button:not(:disabled)')].filter((row) => row.offsetParent !== null)
+  if (rows.length === 0) return
+  event.preventDefault()
+  event.stopPropagation()
+  const at = rows.indexOf(document.activeElement)
+  const next = event.key === 'Home' ? 0
+    : event.key === 'End' ? rows.length - 1
+      : event.key === 'ArrowDown' ? (at + 1) % rows.length
+        : (at - 1 + rows.length) % rows.length
+  rows[next].focus({ preventScroll: true })
+}, true)
 
 function placeBlockMenu(target) {
   const menu = blockMenu

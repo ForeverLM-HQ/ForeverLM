@@ -1613,7 +1613,7 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
             case "openLinkRequested":
                 guard let href = payload["href"] as? String else { return }
                 if let link = StudioEntityLink.parse(destination: href) {
-                    onOpenLink(link)
+                    openEntityLink(link, address: URL(string: href.trimmingCharacters(in: .whitespacesAndNewlines)))
                 } else if let source = NotesGraphSourceLink.parse(href) {
                     // A source the page foot names — something read that day,
                     // or a passage highlighted — opens beside the doc; a
@@ -1722,11 +1722,30 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
             // link to another doc or a Notebook is the one private address
             // that goes somewhere, and the host takes it there.
             if let link = StudioEntityLink.parse(url) {
-                onOpenLink(link)
+                openEntityLink(link, address: url)
             } else if !Self.isPrivateSourceAddress(url) {
                 NSWorkspace.shared.open(url)
             }
             decisionHandler(.cancel)
+        }
+
+        /// A page link whose anchor names a block (`foreverlm://doc/<id>#<block
+        /// id>`, what a block's Copy link writes) opens the page with that block
+        /// shown and flashed, the way a block reference opens one
+        /// (`openReferenceRequested`). Any other link, or a pane without the
+        /// notes graph, opens the thing itself.
+        private func openEntityLink(_ link: StudioEntityLink, address: URL?) {
+            if case .doc(let id) = link, let notesGraph, let blockID = Self.blockAnchor(of: address) {
+                notesGraph.receive(.openReferenceRequested(kind: "doc", id: id, blockID: blockID, plainText: nil))
+            } else {
+                onOpenLink(link)
+            }
+        }
+
+        /// The block id a page link's anchor names, or nil.
+        static func blockAnchor(of address: URL?) -> String? {
+            guard let fragment = address?.fragment, DocGraphSyntax.isBlockID(fragment) else { return nil }
+            return fragment
         }
 
         /// An empty page has nothing to read, only to write: the caret goes into
