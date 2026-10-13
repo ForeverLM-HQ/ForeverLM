@@ -3922,6 +3922,9 @@ function makeRoomForPastedBlock(view, event, slice) {
   // the line like a paragraph does.
   const first = firstPastedBlock(event, slice)
   if (!first || !first.isBlock || first.type.name === 'paragraph') return
+  // In a list item a split gives the item a second paragraph (a loose list);
+  // there the paste goes in as it always did.
+  if ($from.depth > 1 && $from.node(-1).type.name === 'list_item') return
   const tr = view.state.tr.split($from.pos)
   // At the start, the empty line the split leaves is the one before the words.
   if (atStart) tr.setSelection(TextSelection.create(tr.doc, $from.pos))
@@ -6875,8 +6878,12 @@ async function create(markdown, fontSize) {
     editor.editor.use(footnotePlugin)
 
     editor.on((listener) => {
-      listener.markdownUpdated((_ctx, markdownValue) => {
-        const storageMarkdown = markdownForStorage(markdownValue)
+      listener.markdownUpdated(() => {
+        // The document as it is now, not the one Milkdown's pause began on:
+        // its listener passes over transactions kept out of the history (a
+        // body replaced from outside), so its text could be the page before
+        // that replacement, and reporting it would save the replacement away.
+        const storageMarkdown = markdownForStorage(editor.getMarkdown())
         if (!applyingExternalMarkdown && userHasInteracted) {
           lastMarkdown = storageMarkdown
           hasUserChanges = true
@@ -6918,8 +6925,8 @@ async function create(markdown, fontSize) {
 /// of its own (`fresh`): before, ⌘Z after typing on it went back past the
 /// writer's words to the page shown before, and autosave then wrote that page
 /// over this one. A body replaced from outside the same page (a teammate's
-/// edit, a merge, its pictures arriving) stays out of the history, so ⌘Z
-/// undoes only what was done here; the writer's own steps are carried
+/// edit, a merge) replaces only what differs, out of the history, so ⌘Z
+/// undoes only what was done here and the writer's earlier steps still map
 /// through it.
 function replaceDocument(markdown, { fresh = false } = {}) {
   if (!editor) return
@@ -6932,10 +6939,52 @@ function replaceDocument(markdown, { fresh = false } = {}) {
     const doc = ctx.get(parserCtx)(markdown)
     if (!doc || typeof doc === 'string') return
     const { state } = view
+    // Only the blocks that differ: a whole-document step left nothing for
+    // the writer's earlier steps to map onto, so ⌘Z after it undid nothing
+    // and the caret went to the end of the page. Blocks are compared by what
+    // they say, not by the attributes the editor derives after reading (a
+    // heading's id), which a fresh read has not yet.
+    const before = state.doc.content
+    const after = doc.content
+    let first = 0
+    while (first < before.childCount && first < after.childCount && sameBlock(before.child(first), after.child(first))) first += 1
+    let endBefore = before.childCount
+    let endAfter = after.childCount
+    while (endBefore > first && endAfter > first && sameBlock(before.child(endBefore - 1), after.child(endAfter - 1))) {
+      endBefore -= 1
+      endAfter -= 1
+    }
+    if (first === endBefore && first === endAfter) return
+    let from = 0
+    for (let index = 0; index < first; index += 1) from += before.child(index).nodeSize
+    let to = from
+    for (let index = first; index < endBefore; index += 1) to += before.child(index).nodeSize
+    const blocks = []
+    for (let index = first; index < endAfter; index += 1) blocks.push(after.child(index))
     view.dispatch(state.tr
-      .replace(0, state.doc.content.size, new Slice(doc.content, 0, 0))
+      .replaceWith(from, to, Fragment.fromArray(blocks))
       .setMeta('addToHistory', false))
   })
+}
+
+/// Two blocks say the same thing: same kind, attributes (a heading's derived
+/// id aside), marks and content, all the way down.
+function sameBlock(left, right) {
+  if (left === right) return true
+  if (left.type !== right.type || left.marks.length !== right.marks.length) return false
+  if (!left.marks.every((mark, index) => mark.eq(right.marks[index]))) return false
+  if (left.isText) return left.text === right.text
+  const { id: _leftID, ...leftAttrs } = left.attrs ?? {}
+  const { id: _rightID, ...rightAttrs } = right.attrs ?? {}
+  const keys = new Set([...Object.keys(leftAttrs), ...Object.keys(rightAttrs)])
+  for (const key of keys) {
+    if (JSON.stringify(leftAttrs[key]) !== JSON.stringify(rightAttrs[key])) return false
+  }
+  if (left.childCount !== right.childCount) return false
+  for (let index = 0; index < left.childCount; index += 1) {
+    if (!sameBlock(left.child(index), right.child(index))) return false
+  }
+  return true
 }
 
 /// `foldState` is `{ key, folds }` from a host that keeps folds: the doc's id
@@ -6950,8 +6999,9 @@ function replaceDocument(markdown, { fresh = false } = {}) {
 // and taking them deleted everything typed since and threw the caret. So text
 // this editor reported in the last few seconds is never taken back over newer
 // typing in the same page; the host is told the page as it stands instead.
-// Another page opening, or text the editor never reported (a teammate's edit, a
-// version restored), is taken as always.
+// The guard holds only while the editor has words it has not reported yet;
+// with everything reported, text handed back is taken (a version restored, an
+// AI edit undone), as is another page or text the editor never reported.
 
 const reportedMarkdown = []
 const reportedMarkdownWindow = 10_000
@@ -6973,9 +7023,15 @@ function setMarkdown(markdown, foldState = null) {
   const value = String(markdown ?? '')
   if (!editor) return
   const opensAnotherDoc = foldState != null && foldState.key !== foldDocumentKey
-  if (!opensAnotherDoc && hasUserChanges && value !== currentMarkdown() && isReportedBefore(value)) {
-    post('markdownChanged', { markdown: currentMarkdown() })
-    return
+  if (!opensAnotherDoc && hasUserChanges && isReportedBefore(value)) {
+    // Only over words the host has not heard yet: a restore, Use theirs or an
+    // Undo of a kept edit hands back text it was told before, on purpose,
+    // and is taken.
+    const live = markdownForStorage(editor.getMarkdown())
+    if (live !== value && live !== reportedMarkdown[reportedMarkdown.length - 1]?.markdown) {
+      post('markdownChanged', { markdown: live })
+      return
+    }
   }
   if (value === currentMarkdown()) {
     if (opensAnotherDoc) applyFolds(foldState.key, foldState.folds)
@@ -7786,7 +7842,8 @@ function groundedSourceIDs(from, to) {
 function groundableRanges(state, from, to) {
   const ranges = []
   state.doc.nodesBetween(from, to, (node, position) => {
-    if (!node.isText) return
+    // A line break belongs to the passage it stands in (as in `groundingRuns`).
+    if (!node.isText && !isHardBreak(node)) return
     const start = Math.max(from, position)
     const end = Math.min(to, position + node.nodeSize)
     if (end <= start) return
@@ -7831,7 +7888,15 @@ function groundSelection(sourceIDs) {
   const tr = view.state.tr
   for (const range of ranges) {
     tr.removeMark(range.from, range.to, link)
-    if (href) tr.addMark(range.from, range.to, link.create({ href }))
+    if (!href) continue
+    const mark = link.create({ href })
+    // Line breaks take the mark node by node and first, as in `addGrounding`:
+    // Milkdown's hard-break plugin strips the breaks of a transaction that
+    // begins by adding a mark.
+    view.state.doc.nodesBetween(range.from, range.to, (node, position) => {
+      if (isHardBreak(node)) tr.addNodeMark(position, mark)
+    })
+    tr.addMark(range.from, range.to, mark)
   }
   if (!tr.docChanged) return
   userHasInteracted = true
@@ -8706,7 +8771,10 @@ function completeAIEdit(requestID, result) {
   instruction.value = ''
   instruction.placeholder = aiEdit.mode === 'visualize' ? 'Ask for a change to it…' : 'Ask for a change to this…'
   showAIEditQuickInstructions()
-  instruction.focus()
+  // Back to the field only when the writer was waiting at the panel; one who
+  // went back to the page while the model worked keeps typing there.
+  const active = document.activeElement
+  if (!active || active === document.body || aiEditPanel?.contains(active)) instruction.focus()
   scheduleAIEditPanelReposition()
 }
 

@@ -1726,8 +1726,12 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
         private func focusIfEmpty(in webView: WKWebView) {
             guard isEditable,
                   latestSwiftMarkdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-            // Never from a field being typed in (the title, a search).
-            if let field = webView.window?.firstResponder as? NSTextView, field.isFieldEditor { return }
+            // Never from a field being typed in (the title, a search), nor from
+            // a list being arrowed through, which would lose its place at the
+            // first empty page or daily note it passed.
+            let responder = webView.window?.firstResponder
+            if let field = responder as? NSTextView, field.isFieldEditor { return }
+            if responder is NSTableView || responder is NSCollectionView { return }
             webView.window?.makeFirstResponder(webView)
             webView.evaluateJavaScript("window.foreverLMArtifactEditor.focus();")
         }
