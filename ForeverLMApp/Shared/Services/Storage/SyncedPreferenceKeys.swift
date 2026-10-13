@@ -362,6 +362,9 @@ enum SyncedPreferenceKeys {
         // both keep theirs, and per member, never on the Artifact record.
         PageSpaces.namePreferenceKeyPrefix,
         PageSpaces.membershipPreferenceKeyPrefix,
+        // `pageSpaceTrash.<spaceID>`: when one of those spaces went to Trash
+        // (Codex's Trash holds spaces); one row per space, per member.
+        PageSpaces.trashPreferenceKeyPrefix,
         // `page.pinned.<artifactID>`: when the learner pinned a page
         // (`PagePins`), ChatGPT's Pin. One row per page, per member.
         PagePins.preferenceKeyPrefix,

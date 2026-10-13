@@ -47,7 +47,9 @@ on Windows) or Shift-click rows to choose several, and the bar at the foot of
 the list moves them to a space, pins them or puts them in Trash (in Trash,
 restores or deletes them). The search in All, Pages and a space finds a page
 by what it says as well as by its name; a page this browser has not read yet
-is fetched for the search in the background. The
+is fetched for the search in the background. A space's **⋯** moves it to
+**Trash**, where **Restore** brings it back with its pages; Trash keeps
+everything until you empty it. The
 rail's **Notebooks** comes back to All, and under it are your pinned notebooks
 and the six you worked in last, rather than every notebook. A chat's right-click
 has **Pin Chat**, **Rename**, **Mark as Unread**, Move to Notebook and **Delete**

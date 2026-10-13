@@ -5,10 +5,11 @@ import SwiftUI
 /// One thing the Space lists: a page, a linked Google Doc, a site, a mnemonic
 /// reading in no notebook, a canvas, a list, a picture, or since 2026-10-09 a
 /// notebook or a course, listed under All (docs/docs-design.md, "The Space");
-/// or a chat, which the Chats place alone lists.
+/// or a chat, which the Chats place alone lists; or one of the learner's spaces
+/// while it is in Trash, which Trash alone lists.
 struct SpaceItem: Identifiable {
     enum Kind: Equatable {
-        case page, googleDoc, site, reading, canvas, goalList, ideaList, image, notebook, course, chat
+        case page, googleDoc, site, reading, canvas, goalList, ideaList, image, notebook, course, chat, space
     }
 
     /// The record's id, or `image:<image id>` for a picture.
@@ -31,6 +32,8 @@ struct SpaceItem: Identifiable {
     var courseID: String?
     /// The chat, for a chat.
     var chat: ReviewSessionRecord?
+    /// The space, for one of the learner's spaces in Trash.
+    var pageSpace: PageSpace?
     /// Where it lives, for the list's second column: its notebooks, or for a
     /// team's record the team.
     var location: String?
@@ -53,7 +56,7 @@ struct SpaceItem: Identifiable {
     /// its Archived view went, 2026-10-09).
     var isArchived: Bool {
         artifact?.isArchived == true || canvas?.isTrashed == true || spaceList?.isTrashed == true
-            || notebook?.isArchived == true
+            || notebook?.isArchived == true || pageSpace != nil
     }
     var isHidden: Bool { artifact?.isHidden == true || chat?.isHidden == true }
     /// What Trash lists: everything archived or trashed. A picture is deleted
@@ -282,6 +285,19 @@ enum SpaceCatalog {
                 createdAt: began,
                 updatedAt: began,
                 courseID: courseID
+            ))
+        }
+        // The learner's spaces in Trash (Codex's Trash holds spaces as
+        // pages), dated by when they went there.
+        for space in vm.trashedPageSpaces {
+            let trashed = vm.pageSpaces.trashedDate(space.id) ?? Date()
+            items.append(SpaceItem(
+                id: space.id,
+                kind: .space,
+                title: NotebookTitle(space.name).text,
+                createdAt: trashed,
+                updatedAt: trashed,
+                pageSpace: space
             ))
         }
         for group in images {
@@ -577,9 +593,11 @@ struct SpaceBrowseView: View {
                 // own route.
                 let canvasIDs = ids.filter { vm.canvases.canvas($0) != nil }
                 let listIDs = ids.filter { vm.spaceLists.list($0) != nil }
-                let artifactIDs = ids.filter { !canvasIDs.contains($0) && !listIDs.contains($0) }
+                let spaceIDs = ids.filter { vm.pageSpaces.isTrashed($0) }
+                let artifactIDs = ids.filter { !canvasIDs.contains($0) && !listIDs.contains($0) && !spaceIDs.contains($0) }
                 if !canvasIDs.isEmpty { vm.deleteCanvasesForever(canvasIDs) }
                 if !listIDs.isEmpty { vm.deleteSpaceListsForever(listIDs) }
+                for spaceID in spaceIDs { vm.deletePageSpace(spaceID) }
                 guard !artifactIDs.isEmpty else { return }
                 Task {
                     await vm.deleteArtifactsForever(artifactIDs)
@@ -587,7 +605,7 @@ struct SpaceBrowseView: View {
                 }
             }
         } message: {
-            Text("This can’t be undone. A linked Google Doc or site is only unlinked; the page itself is not touched. A list’s goals and ideas are kept.")
+            Text("This can’t be undone. A linked Google Doc or site is only unlinked; the page itself is not touched. A list’s goals and ideas are kept, and a space’s pages stay in All.")
         }
     }
 
@@ -620,7 +638,7 @@ struct SpaceBrowseView: View {
     /// name the header would say: the list shows All instead.
     private var isMissingPlace: Bool {
         if let id = destination.pageSpaceID {
-            if vm.activeTeamID != nil || vm.pageSpaces.space(id) == nil { return true }
+            if vm.activeTeamID != nil || vm.pageSpaces.space(id) == nil || vm.pageSpaces.isTrashed(id) { return true }
             return vm.isScreenRecordModeActive && !vm.orderedPageSpaces.contains { $0.id == id }
         }
         guard vm.isScreenRecordModeActive else { return false }
@@ -836,7 +854,7 @@ struct SpaceBrowseView: View {
             if destination == .trash {
                 guard item.isOwnedHere else { continue }
                 if restoreAction(for: item) != nil { targets.restorable.append(item) }
-                if let id = item.artifact?.id ?? item.canvas?.id ?? item.spaceList?.id { targets.deletableIDs.append(id) }
+                if let id = item.artifact?.id ?? item.canvas?.id ?? item.spaceList?.id ?? item.pageSpace?.id { targets.deletableIDs.append(id) }
                 continue
             }
             if let artifact = item.artifact {
@@ -916,8 +934,10 @@ struct SpaceBrowseView: View {
         let listIDs = items.compactMap { $0.spaceList?.id }
         let artifactIDs = items.compactMap { $0.artifact?.id }
         let notebookIDs = items.compactMap { $0.notebook?.id }
+        let spaceIDs = items.compactMap { $0.pageSpace?.id }
         if !canvasIDs.isEmpty { vm.restoreCanvases(canvasIDs) }
         if !listIDs.isEmpty { vm.restoreSpaceLists(listIDs) }
+        if !spaceIDs.isEmpty { vm.restorePageSpaces(spaceIDs) }
         Task {
             if !artifactIDs.isEmpty { await vm.restoreArtifactsFromTrash(artifactIDs) }
             for id in notebookIDs { await vm.setGoalStatus(goalID: id, status: .active) }
@@ -1029,6 +1049,15 @@ struct SpaceBrowseView: View {
                     viewControls
                 }
             }
+            // How long Trash keeps things: until it is emptied, since Trash
+            // is the archive (docs/docs-design.md, "The Space as Codex's").
+            if destination == .trash {
+                Text(SpaceTrashWording.retention)
+                    .zoomedSystemFont(size: 12)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.disabled)
+                    .accessibilityIdentifier("space.trash.retention")
+            }
         }
     }
 
@@ -1107,7 +1136,7 @@ struct SpaceBrowseView: View {
     private func primaryActions(shown: [SpaceItem]) -> some View {
         switch destination {
         case .trash:
-            let deletable = shown.filter(\.isOwnedHere).compactMap { $0.artifact?.id ?? $0.canvas?.id ?? $0.spaceList?.id }
+            let deletable = shown.filter(\.isOwnedHere).compactMap { $0.artifact?.id ?? $0.canvas?.id ?? $0.spaceList?.id ?? $0.pageSpace?.id }
             if !deletable.isEmpty {
                 Button("Empty Trash", role: .destructive) { deletingForever = deletable }
                     .buttonStyle(.bordered)
@@ -1499,6 +1528,9 @@ struct SpaceBrowseView: View {
     /// Trash's Restore, on a row the open library owns.
     private func restoreAction(for item: SpaceItem) -> (() -> Void)? {
         guard destination == .trash, item.isOwnedHere else { return nil }
+        if let space = item.pageSpace {
+            return { vm.restorePageSpaces([space.id]) }
+        }
         if let canvas = item.canvas {
             return { vm.restoreCanvases([canvas.id]) }
         }
@@ -1518,7 +1550,7 @@ struct SpaceBrowseView: View {
     private func date(for item: SpaceItem) -> Date {
         if destination == .trash,
            let archivedAt = item.artifact?.archivedAt ?? item.canvas?.trashedAt ?? item.spaceList?.trashedAt
-            ?? item.notebook?.updatedAt {
+            ?? item.notebook?.updatedAt ?? (item.pageSpace == nil ? nil : item.updatedAt) {
             return archivedAt
         }
         return effectiveSort == .activity ? item.updatedAt : item.createdAt
@@ -1639,7 +1671,9 @@ struct SpaceBrowseView: View {
     private func dragProvider(for item: SpaceItem) -> NSItemProvider {
         // A canvas or a list is no record a pane or a space row takes by
         // dragging.
-        if item.canvas != nil || item.spaceList != nil || item.notebook != nil || item.courseID != nil { return NSItemProvider() }
+        if item.canvas != nil || item.spaceList != nil || item.notebook != nil || item.courseID != nil || item.pageSpace != nil {
+            return NSItemProvider()
+        }
         // A chat drags as the rail's row does: to a pane's edge, or onto a notebook.
         if let chat = item.chat {
             StudioDragVisibility.shared.begin(sessionID: chat.id)
@@ -1666,6 +1700,13 @@ struct SpaceBrowseView: View {
                 onNewCollection: { collectionNameRequest = .create(adding: [goal.id]) },
                 dialog: $notebookDialog
             )
+        } else if let space = item.pageSpace {
+            // A space in Trash: back to the sidebar, or gone for good.
+            Button("Restore", systemImage: "arrow.uturn.backward") { vm.restorePageSpaces([space.id]) }
+            Divider()
+            Button("Delete Forever…", systemImage: "trash", role: .destructive) {
+                deletingForever = [space.id]
+            }
         } else if item.courseID != nil {
             Button("Open") { open(item) }
             if let destination = item.otherWindowDestination {
@@ -1903,7 +1944,8 @@ struct SpaceBrowseView: View {
     }
 
     private func title(ofArtifact id: String) -> String {
-        vm.artifacts.first { $0.id == id }?.title ?? vm.canvases.canvas(id)?.name ?? vm.spaceLists.list(id)?.name ?? "this item"
+        vm.artifacts.first { $0.id == id }?.title ?? vm.canvases.canvas(id)?.name ?? vm.spaceLists.list(id)?.name
+            ?? vm.pageSpaces.space(id).map { NotebookTitle($0.name).text } ?? "this item"
     }
 
     // MARK: Empty
@@ -2370,7 +2412,7 @@ enum SpaceKindStyle {
         case .image: return Color(red: 0.81, green: 0.25, blue: 0.58)
         case .notebook: return .indigo
         case .course: return .cyan
-        case .chat: return .gray
+        case .chat, .space: return .gray
         }
     }
 
@@ -2387,8 +2429,15 @@ enum SpaceKindStyle {
         case .notebook: return NotebookGlyph.systemImage
         case .course: return "graduationcap.fill"
         case .chat: return "bubble.left.and.bubble.right.fill"
+        case .space: return "square.stack.fill"
         }
     }
+}
+
+/// What Trash says about how long it keeps things. Codex's Trash deletes after
+/// 30 days; ForeverLM's Trash is the archive, so nothing leaves it on its own.
+enum SpaceTrashWording {
+    static let retention = "Items stay in Trash until you empty it."
 }
 
 /// ChatGPT's short dates: "now", "8m", "8h", "2d", then the day.

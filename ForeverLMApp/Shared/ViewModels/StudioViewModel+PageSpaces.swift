@@ -32,8 +32,15 @@ enum PageSpaceRows {
         let rows = defaults.dictionaryRepresentation().filter { key, _ in
             key.hasPrefix(PageSpaces.namePreferenceKeyPrefix)
                 || key.hasPrefix(PageSpaces.membershipPreferenceKeyPrefix)
+                || key.hasPrefix(PageSpaces.trashPreferenceKeyPrefix)
         }
         return PageSpaces(rows: rows)
+    }
+
+    /// Writes a space's trash row; nil removes it, as no row means a space in
+    /// use.
+    static func writeTrash(_ value: String?, spaceID: String) {
+        write(value, forKey: PageSpaces.trashKey(spaceID: spaceID))
     }
 
     /// Writes a space's name row; nil removes it.
@@ -415,8 +422,9 @@ extension StudioViewModel {
         pageSpaces = pageSpaces.settingName(cleaned, for: spaceID)
     }
 
-    /// Deletes a space: its name row, and every page row this Mac holds that
-    /// names it. The pages stay, in All.
+    /// Deletes a space for good (Trash's Delete Forever): its name row, its
+    /// trash row, and every page row this Mac holds that names it. The pages
+    /// stay, in All.
     func deletePageSpace(_ spaceID: String) {
         refreshPageSpacesFromRows()
         let rows = pageSpaces.membershipRowsAfterDeleting(spaceID)
@@ -424,7 +432,41 @@ extension StudioViewModel {
             PageSpaceRows.writeMembership(row.spaceID, pageID: row.pageID)
         }
         PageSpaceRows.writeName(nil, spaceID: spaceID)
-        pageSpaces = pageSpaces.applying(rows).settingName(nil, for: spaceID)
+        if pageSpaces.trashedAt[spaceID] != nil { PageSpaceRows.writeTrash(nil, spaceID: spaceID) }
+        pageSpaces = pageSpaces.applying(rows).settingName(nil, for: spaceID).settingTrash(nil, for: spaceID)
+    }
+
+    /// **Move to Trash** on a space (Codex's Trash holds spaces as pages):
+    /// it leaves the sidebar and lists nothing, its pages stay in All with
+    /// their rows, and Trash lists it with Restore and Delete Forever. A
+    /// toast says so, its Undo bringing it back.
+    func movePageSpaceToTrash(_ spaceID: String, now: Date = Date()) {
+        refreshPageSpacesFromRows()
+        guard let space = pageSpaces.space(spaceID), !pageSpaces.isTrashed(spaceID) else { return }
+        let value = PageSpaces.trashRowValue(at: now)
+        PageSpaceRows.writeTrash(value, spaceID: spaceID)
+        pageSpaces = pageSpaces.settingTrash(Int(value), for: spaceID)
+        showToast("Moved “\(NotebookTitle(space.name).text)” to Trash", undo: { [weak self] in
+            self?.restorePageSpaces([spaceID])
+        })
+    }
+
+    /// **Restore** on a space in Trash: back in the sidebar with its pages.
+    func restorePageSpaces(_ spaceIDs: [String]) {
+        refreshPageSpacesFromRows()
+        let restoring = spaceIDs.filter { pageSpaces.isTrashed($0) }
+        guard !restoring.isEmpty else { return }
+        for spaceID in restoring {
+            PageSpaceRows.writeTrash(nil, spaceID: spaceID)
+            pageSpaces = pageSpaces.settingTrash(nil, for: spaceID)
+        }
+        showToast("Restored")
+    }
+
+    /// The spaces in Trash, for Trash's list: none in a team's library.
+    var trashedPageSpaces: [PageSpace] {
+        guard activeTeamID == nil else { return [] }
+        return pageSpaces.trashed
     }
 
     /// Puts pages in a space (nil: in none), each page in that one space
@@ -433,7 +475,7 @@ extension StudioViewModel {
     @discardableResult
     func filePages(_ artifactIDs: [String], inPageSpace spaceID: String?) -> Int {
         refreshPageSpacesFromRows()
-        if let spaceID, activeTeamID != nil || pageSpaces.space(spaceID) == nil { return 0 }
+        if let spaceID, activeTeamID != nil || pageSpaces.space(spaceID) == nil || pageSpaces.isTrashed(spaceID) { return 0 }
         let rows = pageSpaces.membershipRowsAfterMoving(artifactIDs, to: spaceID)
         for row in rows {
             PageSpaceRows.writeMembership(row.spaceID, pageID: row.pageID)
@@ -483,6 +525,7 @@ extension StudioViewModel {
         let prefixes = [
             PageSpaces.namePreferenceKeyPrefix,
             PageSpaces.membershipPreferenceKeyPrefix,
+            PageSpaces.trashPreferenceKeyPrefix,
             PagePins.preferenceKeyPrefix,
             ChatPins.preferenceKeyPrefix,
             PageParents.preferenceKeyPrefix,

@@ -26,9 +26,19 @@ extension MCPDataStore {
             if screenScope != nil, members.isEmpty { return nil }
             return pageSpaceRow(space, docs: members)
         }
+        // The spaces in the Space's Trash: their pages are in no space until
+        // update_space restore brings them back. Left out in Screen record mode.
+        let trashed: [[String: Any]] = screenScope != nil ? [] : spaces.trashed.map { space in
+            [
+                "id": space.id,
+                "name": space.name,
+                "trashed_at": spaces.trashedDate(space.id).map { ISO8601DateFormatter().string(from: $0) } ?? "",
+            ] as [String: Any]
+        }
         return try jsonString([
             "spaces": rows,
-            "guidance": "A space is the learner's own grouping of pages in the Space sidebar, as ChatGPT's spaces are. A page, linked Google Doc, site or reading is in one space at most, or in none, and a space changes nothing about the pages in it; a team's record, an animation and an audio overview cannot join one. update_space makes, renames and deletes spaces and moves pages in or out; list_docs names each Doc's space in space_id.",
+            "in_trash": trashed,
+            "guidance": "A space is the learner's own grouping of pages in the Space sidebar, as ChatGPT's spaces are. A page, linked Google Doc, site or reading is in one space at most, or in none, and a space changes nothing about the pages in it; a team's record, an animation and an audio overview cannot join one. update_space makes, renames, trashes, restores and deletes spaces and moves pages in or out; in_trash lists the spaces in the Space's Trash, whose pages are in no space until restored; list_docs names each Doc's space in space_id.",
         ] as [String: Any])
     }
 
@@ -42,9 +52,9 @@ extension MCPDataStore {
         docIDs rawDocIDs: [String]?
     ) async throws -> String {
         let action = rawAction.trimmingCharacters(in: .whitespacesAndNewlines)
-        let actions = ["create", "rename", "delete", "move_docs", "remove_docs"]
+        let actions = ["create", "rename", "trash", "restore", "delete", "move_docs", "remove_docs"]
         guard actions.contains(action) else {
-            throw MCPError.invalidInput("action must be create, rename, delete, move_docs, or remove_docs.")
+            throw MCPError.invalidInput("action must be create, rename, trash, restore, delete, move_docs, or remove_docs.")
         }
         var state = PageSpaceRows.read()
         let docs = try await validatedPageSpaceDocs(rawDocIDs ?? [], joining: action == "create" || action == "move_docs")
@@ -56,6 +66,14 @@ extension MCPDataStore {
             }
             guard let space = state.space(id) else {
                 throw MCPError.invalidInput("Space not found: \(id). Use list_spaces to see the learner's spaces.")
+            }
+            // A space in Trash takes no pages and keeps its name until it is
+            // restored; delete still removes it.
+            if state.isTrashed(id), action != "delete", action != "restore" {
+                throw MCPError.invalidInput("Space \(space.name) is in the Space's Trash. update_space restore brings it back first.")
+            }
+            if action == "restore", !state.isTrashed(id) {
+                throw MCPError.invalidInput("Space \(space.name) is not in the Space's Trash.")
             }
             return space
         }
@@ -92,6 +110,24 @@ extension MCPDataStore {
             PageSpaceRows.writeName(cleaned, spaceID: current.id)
             state = state.settingName(cleaned, for: current.id)
             space = PageSpace(id: current.id, name: cleaned)
+        case "trash", "restore":
+            // Codex's Trash holds spaces as pages: in Trash a space leaves
+            // the sidebar and its pages are in no space, keeping their rows,
+            // so restore brings it back as it was.
+            let current = try existing()
+            let trashing = action == "trash"
+            let value = trashing ? PageSpaces.trashRowValue(at: Date()) : nil
+            PageSpaceRows.writeTrash(value, spaceID: current.id)
+            state = state.settingTrash(value.flatMap { Int($0) }, for: current.id)
+            await PreferenceStore.flushPendingWrites()
+            return try jsonString([
+                "space_id": current.id,
+                "name": current.name,
+                "in_trash": trashing,
+                "guidance": trashing
+                    ? "The space is in the Space's Trash; its pages stay in All, in no space, until update_space restore brings it back with them. delete removes it for good."
+                    : "The space is back in the Space's sidebar with its pages.",
+            ] as [String: Any])
         case "delete":
             let current = try existing()
             let rows = state.membershipRowsAfterDeleting(current.id)
@@ -99,7 +135,8 @@ extension MCPDataStore {
                 PageSpaceRows.writeMembership(row.spaceID, pageID: row.pageID)
             }
             PageSpaceRows.writeName(nil, spaceID: current.id)
-            state = state.applying(rows).settingName(nil, for: current.id)
+            if state.trashedAt[current.id] != nil { PageSpaceRows.writeTrash(nil, spaceID: current.id) }
+            state = state.applying(rows).settingName(nil, for: current.id).settingTrash(nil, for: current.id)
             await PreferenceStore.flushPendingWrites()
             return try jsonString([
                 "deleted": true,

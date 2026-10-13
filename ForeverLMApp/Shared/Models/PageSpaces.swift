@@ -32,6 +32,12 @@ struct PageSpace: Identifiable, Equatable, Hashable, Sendable {
 ///   id; no row when it is in none. A page is in at most one space, as a file
 ///   is in one folder. One row per page, so moving two pages on two devices
 ///   at once keeps both moves.
+/// - `pageSpaceTrash.<spaceID>`: when the space went to Trash, whole seconds
+///   since 1970 as a String; no row while it is in use (Codex's Trash holds
+///   spaces as pages). A space in Trash leaves `ordered` and holds no pages
+///   (`spaceID(ofPage:)` reads past it), while its pages keep their rows, so
+///   Restore brings it back as it was. A trash row whose name is gone is read
+///   past.
 ///
 /// Per member, keyed by the record's id and never on the Artifact record
 /// (teams-design rule 7), so no schema changes. A row naming a space whose
@@ -42,6 +48,7 @@ struct PageSpace: Identifiable, Equatable, Hashable, Sendable {
 struct PageSpaces: Equatable, Sendable {
     static let namePreferenceKeyPrefix = "pageSpace."
     static let membershipPreferenceKeyPrefix = "page.space."
+    static let trashPreferenceKeyPrefix = "pageSpaceTrash."
     /// What every space id starts with: `psp-` and a lowercased UUID.
     static let idPrefix = "psp-"
     /// The longest name kept; a longer one is cut there.
@@ -59,10 +66,13 @@ struct PageSpaces: Equatable, Sendable {
     /// The space each page's row names, by Artifact id, a deleted space's id
     /// included until the row is written again.
     private(set) var memberships: [String: String]
+    /// When each space in Trash went there, by space id, in seconds since 1970.
+    private(set) var trashedAt: [String: Int]
 
-    init(names: [String: String] = [:], memberships: [String: String] = [:]) {
+    init(names: [String: String] = [:], memberships: [String: String] = [:], trashedAt: [String: Int] = [:]) {
         self.names = names.filter { !$0.key.isEmpty && !$0.value.isEmpty }
         self.memberships = memberships.filter { !$0.key.isEmpty && !$0.value.isEmpty }
+        self.trashedAt = trashedAt.filter { !$0.key.isEmpty }
     }
 
     /// The spaces in a set of preference rows: every row under the two
@@ -72,8 +82,15 @@ struct PageSpaces: Equatable, Sendable {
     init(rows: [String: Any]) {
         var names: [String: String] = [:]
         var memberships: [String: String] = [:]
+        var trashedAt: [String: Int] = [:]
         for (key, value) in rows {
-            if let id = Self.spaceID(fromNameKey: key) {
+            if let id = Self.spaceID(fromTrashKey: key) {
+                if let text = value as? String, let seconds = Int(text.trimmingCharacters(in: .whitespaces)) {
+                    trashedAt[id] = seconds
+                } else if let number = value as? NSNumber {
+                    trashedAt[id] = number.intValue
+                }
+            } else if let id = Self.spaceID(fromNameKey: key) {
                 guard let name = value as? String else { continue }
                 let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !trimmed.isEmpty { names[id] = trimmed }
@@ -83,7 +100,7 @@ struct PageSpaces: Equatable, Sendable {
                 if !trimmed.isEmpty { memberships[pageID] = trimmed }
             }
         }
-        self.init(names: names, memberships: memberships)
+        self.init(names: names, memberships: memberships, trashedAt: trashedAt)
     }
 
     // MARK: Keys
@@ -108,6 +125,21 @@ struct PageSpaces: Equatable, Sendable {
         return id.isEmpty ? nil : id
     }
 
+    static func trashKey(spaceID: String) -> String {
+        trashPreferenceKeyPrefix + spaceID
+    }
+
+    static func spaceID(fromTrashKey key: String) -> String? {
+        guard key.hasPrefix(trashPreferenceKeyPrefix) else { return nil }
+        let id = String(key.dropFirst(trashPreferenceKeyPrefix.count))
+        return id.isEmpty ? nil : id
+    }
+
+    /// The value a trash row holds for a moment.
+    static func trashRowValue(at date: Date) -> String {
+        String(Int(date.timeIntervalSince1970))
+    }
+
     /// A new space's id.
     static func newSpaceID() -> String {
         idPrefix + UUID().uuidString.lowercased()
@@ -126,12 +158,33 @@ struct PageSpaces: Equatable, Sendable {
 
     // MARK: Reading
 
-    /// Every space, by name (a leading emoji aside), then by id, so two
-    /// spaces never trade places between two reads.
+    /// Every space in use, by name (a leading emoji aside), then by id, so
+    /// two spaces never trade places between two reads. A space in Trash is
+    /// not one.
     var ordered: [PageSpace] {
         names
+            .filter { trashedAt[$0.key] == nil }
             .map { PageSpace(id: $0.key, name: $0.value) }
             .sorted(by: Self.nameOrder)
+    }
+
+    /// The spaces in Trash, the last one put there first, then by id.
+    var trashed: [PageSpace] {
+        names
+            .compactMap { id, name in trashedAt[id].map { (PageSpace(id: id, name: name), $0) } }
+            .sorted { $0.1 != $1.1 ? $0.1 > $1.1 : $0.0.id < $1.0.id }
+            .map { $0.0 }
+    }
+
+    /// Whether a space is in Trash.
+    func isTrashed(_ spaceID: String) -> Bool {
+        names[spaceID] != nil && trashedAt[spaceID] != nil
+    }
+
+    /// When a space in Trash went there; nil for one in use.
+    func trashedDate(_ spaceID: String) -> Date? {
+        guard isTrashed(spaceID), let seconds = trashedAt[spaceID] else { return nil }
+        return Date(timeIntervalSince1970: TimeInterval(seconds))
     }
 
     var isEmpty: Bool { names.isEmpty }
@@ -141,9 +194,9 @@ struct PageSpaces: Equatable, Sendable {
     }
 
     /// The space a page is in; nil when it is in none, or its row names a
-    /// deleted space (read past).
+    /// deleted space or one in Trash (read past).
     func spaceID(ofPage pageID: String) -> String? {
-        guard let spaceID = memberships[pageID], names[spaceID] != nil else { return nil }
+        guard let spaceID = memberships[pageID], names[spaceID] != nil, trashedAt[spaceID] == nil else { return nil }
         return spaceID
     }
 
@@ -151,9 +204,10 @@ struct PageSpaces: Equatable, Sendable {
         spaceID(ofPage: pageID).flatMap { space($0) }
     }
 
-    /// The pages of `pageIDs` in the space, in the order given.
+    /// The pages of `pageIDs` in the space, in the order given; none for a
+    /// space in Trash.
     func pageIDs(_ pageIDs: [String], in spaceID: String) -> [String] {
-        guard names[spaceID] != nil else { return [] }
+        guard names[spaceID] != nil, trashedAt[spaceID] == nil else { return [] }
         return pageIDs.filter { memberships[$0] == spaceID }
     }
 
@@ -197,6 +251,13 @@ struct PageSpaces: Equatable, Sendable {
     func settingName(_ name: String?, for spaceID: String) -> PageSpaces {
         var copy = self
         copy.names[spaceID] = name.flatMap { $0.isEmpty ? nil : $0 }
+        return copy
+    }
+
+    /// This state after a space's trash row is written (nil: removed).
+    func settingTrash(_ seconds: Int?, for spaceID: String) -> PageSpaces {
+        var copy = self
+        copy.trashedAt[spaceID] = seconds
         return copy
     }
 

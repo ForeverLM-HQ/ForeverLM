@@ -362,10 +362,9 @@ struct SpaceSidebar: View {
     /// "make sure the top left looks clean at all times"). Nil for a sidebar
     /// drawn without its line.
     var onSearch: (() -> Void)? = nil
-    /// The space whose Rename… or Delete Space… is asking.
+    /// The space whose Rename… is asking.
     @State private var renamingSpace: PageSpace?
     @State private var spaceNameDraft = ""
-    @State private var deletingSpace: PageSpace?
     /// The space row a dragged page is over.
     @State private var dropTargetSpaceID: String?
     /// The Pinned row a dragged pin is over, and the pin dragged.
@@ -452,22 +451,6 @@ struct SpaceSidebar: View {
             Button("Cancel", role: .cancel) {}
             Button("Rename") { vm.renamePageSpace(space.id, to: spaceNameDraft) }
                 .disabled(PageSpaces.cleanedName(spaceNameDraft) == nil)
-        }
-        .confirmationDialog(
-            "Delete “\(NotebookTitle(deletingSpace?.name ?? "").text)”?",
-            isPresented: Binding(
-                get: { deletingSpace != nil },
-                set: { if !$0 { deletingSpace = nil } }
-            ),
-            titleVisibility: .visible,
-            presenting: deletingSpace
-        ) { space in
-            // A list showing the space shows All once it is gone
-            // (`SpaceBrowseView`); a page open beside the sidebar stays.
-            Button("Delete Space", role: .destructive) { vm.deletePageSpace(space.id) }
-            Button("Cancel", role: .cancel) {}
-        } message: { _ in
-            Text("Its pages stay in All.")
         }
     }
 
@@ -1087,15 +1070,18 @@ struct SpaceSidebar: View {
     }
 
     /// A space's ⋯ (under the pointer, as Codex's space rows have one) and
-    /// right-click.
+    /// right-click. Move to Trash asks nothing, as a page's does: Trash
+    /// holds the space until Restore or Delete Forever, and its pages stay in
+    /// All meanwhile. A list showing the space shows All once it is in Trash
+    /// (`SpaceBrowseView`); a page open beside the sidebar stays.
     @ViewBuilder
     private func pageSpaceMenuItems(_ space: PageSpace) -> some View {
         Button("Rename…", systemImage: "pencil") {
             spaceNameDraft = space.name
             renamingSpace = space
         }
-        Button("Delete Space…", systemImage: "trash", role: .destructive) {
-            deletingSpace = space
+        Button("Move to Trash", systemImage: "trash", role: .destructive) {
+            vm.movePageSpaceToTrash(space.id)
         }
     }
 

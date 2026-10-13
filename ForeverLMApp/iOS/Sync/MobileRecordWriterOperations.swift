@@ -33,6 +33,9 @@ enum MobileSettingCatalog {
         LeftOut(prefix: PageSpaces.membershipPreferenceKeyPrefix, type: "string", scopes: ["account"]),
         LeftOut(prefix: PagePins.preferenceKeyPrefix, type: "string", scopes: ["account"]),
         LeftOut(prefix: PageParents.preferenceKeyPrefix, type: "string", scopes: ["account"]),
+        // A space in Trash (`PageSpaces`): the Mac's and the web's Space write it; the phone reads it,
+        // leaving that space out of its sidebar.
+        LeftOut(prefix: PageSpaces.trashPreferenceKeyPrefix, type: "string", scopes: ["account"]),
         // The learner's lists of goals and of ideas in the Space (`SpaceLists` on the Mac): a list's row and
         // the list a goal or an idea is in. Only the Mac's Space writes them so far.
         LeftOut(prefix: "spaceList.", type: "string", scopes: ["account"]),

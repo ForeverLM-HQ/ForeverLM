@@ -73,7 +73,8 @@ struct MobileSpacePage: Identifiable, Equatable, Sendable {
 /// it sits under. Each map holds the rows as stored, a row naming a deleted space or a gone page
 /// included: the readers below read past those, as the Mac does.
 struct MobileSpaceOrganization: Equatable, Sendable {
-    /// Every space, in `PageSpaces.ordered`'s order (by name, a leading emoji aside, then id).
+    /// Every space in use, in `PageSpaces.ordered`'s order (by name, a leading emoji aside, then id): a
+    /// space in Trash (`pageSpaceTrash.<spaceID>`) is left out, and so are the pages' rows naming it.
     var spaces: [PageSpace] = []
     var spaceIDByPage: [String: String] = [:]
     /// Seconds since 1970.
@@ -100,8 +101,8 @@ struct MobileSpaceOrganization: Equatable, Sendable {
 
     /// The Setting key prefixes the grouping is read from.
     static let preferenceKeyPrefixes = [
-        PageSpaces.namePreferenceKeyPrefix, PageSpaces.membershipPreferenceKeyPrefix, PagePins.preferenceKeyPrefix,
-        PageParents.preferenceKeyPrefix,
+        PageSpaces.namePreferenceKeyPrefix, PageSpaces.membershipPreferenceKeyPrefix, PageSpaces.trashPreferenceKeyPrefix,
+        PagePins.preferenceKeyPrefix, PageParents.preferenceKeyPrefix,
     ]
 
     var pageSpaces: PageSpaces {

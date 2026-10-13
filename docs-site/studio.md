@@ -395,6 +395,12 @@ Space ▸**, **Pin** and **Move to Trash** (in Trash, **Restore** and **Delete
 Forever…**), with **Select All**, and **×** lets them all go; the right-click
 of a chosen row offers the same. Chats and Images are chosen one at a time.
 
+A space's **⋯** has **Move to Trash**: the space leaves the sidebar, its pages
+stay in **All**, and **Trash** lists it with **Restore** (the space comes back
+with its pages) and **Delete Forever…**. Things stay in Trash until you empty
+it, as Trash says at its head; select several there to restore or delete them
+together.
+
 The search at the head of **All**, **Pages**, a space or a team's space finds
 a page by what it says as well as by its name: every word you type, anywhere
 in the page, in any case and with or without accents. The magnifier at the

@@ -237,6 +237,63 @@ struct PageSpacesMacTests {
         }
     }
 
+    @Test("A space goes to Trash and back with its pages; Delete Forever removes its rows; the trash row syncs")
+    func trashLifecycle() throws {
+        let trashKey = PageSpaces.trashKey(spaceID: "psp-1")
+        for generation in [SyncGeneration.one, .two] {
+            #expect(SyncedPreferenceKeys.isSynced(trashKey, for: generation))
+        }
+        #expect(SyncedPreferenceKeys.isSetting(trashKey))
+        #expect(PageSpaces.spaceID(fromNameKey: trashKey) == nil, "a trash row is never read as a space's name")
+        try withSpaceDefaults { defaults in
+            let vm = makeViewModel()
+            vm.artifacts = [page("doc-1"), page("doc-2")]
+            let lab = try #require(vm.createPageSpace(named: "Lab notes", moving: ["doc-1"]))
+            let other = try #require(vm.createPageSpace(named: "Reading"))
+
+            vm.movePageSpaceToTrash(lab.id, now: Date(timeIntervalSince1970: 1_790_000_500))
+            #expect(defaults.string(forKey: PageSpaces.trashKey(spaceID: lab.id)) == "1790000500")
+            #expect(vm.orderedPageSpaces == [other], "a space in Trash leaves the sidebar")
+            #expect(vm.trashedPageSpaces == [lab])
+            #expect(vm.pageSpace(ofPage: "doc-1") == nil, "and holds no pages")
+            #expect(defaults.string(forKey: "page.space.doc-1") == lab.id, "while its pages keep their rows")
+            #expect(vm.filePages(["doc-2"], inPageSpace: lab.id) == 0, "a space in Trash takes nothing")
+            #expect(vm.pageSpaces.trashedDate(lab.id) == Date(timeIntervalSince1970: 1_790_000_500))
+
+            vm.restorePageSpaces([lab.id])
+            #expect(defaults.object(forKey: PageSpaces.trashKey(spaceID: lab.id)) == nil)
+            #expect(vm.pageSpace(ofPage: "doc-1") == lab, "Restore brings it back as it was")
+            #expect(vm.trashedPageSpaces.isEmpty)
+
+            vm.movePageSpaceToTrash(lab.id)
+            vm.deletePageSpace(lab.id)
+            #expect(defaults.object(forKey: PageSpaces.trashKey(spaceID: lab.id)) == nil)
+            #expect(defaults.object(forKey: PageSpaces.nameKey(spaceID: lab.id)) == nil)
+            #expect(defaults.object(forKey: "page.space.doc-1") == nil)
+            #expect(vm.trashedPageSpaces.isEmpty)
+            #expect(PageSpaceRows.read() == vm.pageSpaces)
+        }
+    }
+
+    @Test("Trash rows are read beside the names; one whose space is gone is read past")
+    func trashRows() {
+        let spaces = PageSpaces(rows: [
+            "pageSpace.psp-a": "Aging",
+            "pageSpace.psp-b": "Biology",
+            "pageSpaceTrash.psp-a": "1790000100",
+            "pageSpaceTrash.psp-gone": "1790000200",
+            "pageSpaceTrash.psp-b": "not a time",
+            "page.space.doc-1": "psp-a",
+        ])
+        #expect(spaces.ordered.map(\.id) == ["psp-b"])
+        #expect(spaces.trashed.map(\.id) == ["psp-a"])
+        #expect(spaces.isTrashed("psp-a"))
+        #expect(!spaces.isTrashed("psp-gone"), "no name, no space")
+        #expect(spaces.spaceID(ofPage: "doc-1") == nil)
+        #expect(spaces.pageIDs(["doc-1"], in: "psp-a").isEmpty)
+        #expect(spaces.memberships["doc-1"] == "psp-a")
+    }
+
     @Test("A page deleted for good leaves its space; rows another device wrote are read on reload")
     func forgetAndReload() throws {
         try withSpaceDefaults { defaults in

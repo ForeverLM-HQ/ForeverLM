@@ -13626,6 +13626,44 @@ struct MCPDataStoreTests {
         }
     }
 
+    @Test("update_space trash and restore: a space in Trash leaves list_spaces for in_trash, takes no pages, and comes back with them")
+    func mcpPageSpaceTrash() async throws {
+        let (store, tmpPath) = try makeStore()
+        defer { cleanup(tmpPath) }
+        let page = try await createdDocID(store, title: "Field notes", markdown: "# Field notes")
+
+        try await withPageSpaceDefaults { defaults in
+            let created = try parseJSON(try await store.updatePageSpace(action: "create", spaceID: nil, name: "Lab", docIDs: [page]))
+            let id = try #require((created["space"] as? [String: Any])?["id"] as? String)
+
+            let trashed = try parseJSON(try await store.updatePageSpace(action: "trash", spaceID: id, name: nil, docIDs: nil))
+            #expect(trashed["in_trash"] as? Bool == true)
+            #expect(defaults.string(forKey: PageSpaces.trashKey(spaceID: id)) != nil)
+            #expect(defaults.string(forKey: PageSpaces.membershipKey(pageID: page)) == id, "its pages keep their rows")
+            let listed = try parseJSON(try await store.listPageSpaces())
+            #expect((listed["spaces"] as? [[String: Any]])?.isEmpty == true)
+            #expect((listed["in_trash"] as? [[String: Any]])?.map { $0["id"] as? String } == [id])
+            do {
+                _ = try await store.updatePageSpace(action: "move_docs", spaceID: id, name: nil, docIDs: [page])
+                Issue.record("a space in Trash took a page")
+            } catch let error as MCPError {
+                #expect(error.localizedDescription.contains("Trash"))
+            }
+
+            let restored = try parseJSON(try await store.updatePageSpace(action: "restore", spaceID: id, name: nil, docIDs: nil))
+            #expect(restored["in_trash"] as? Bool == false)
+            #expect(defaults.object(forKey: PageSpaces.trashKey(spaceID: id)) == nil)
+            let back = try parseJSON(try await store.listPageSpaces())
+            #expect(((back["spaces"] as? [[String: Any]])?.first?["docs"] as? [[String: Any]])?.map { $0["id"] as? String } == [page])
+            do {
+                _ = try await store.updatePageSpace(action: "restore", spaceID: id, name: nil, docIDs: nil)
+                Issue.record("a space in use was restored")
+            } catch let error as MCPError {
+                #expect(error.localizedDescription.contains("not in the Space's Trash"))
+            }
+        }
+    }
+
     @Test("update_space refuses an unknown action, a blank name, a missing space, an unknown Doc and a team's page, writing nothing")
     func mcpPageSpaceRefusals() async throws {
         let (store, tmpPath) = try makeStore()
