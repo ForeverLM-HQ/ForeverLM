@@ -469,6 +469,9 @@ export const DESKTOP_ONLY_TOOL_NAMES: ReadonlySet<string> = new Set([
   "get_due_cards",
   "record_card_result",
   "update_card",
+  // The chosen cards are dealt by that scheduler into the app's own card
+  // review, which opens in the Mac's window.
+  "practice_cards",
   // Study practices are Practice records the Mac keeps on the new iCloud sync,
   // and adopting one applies its setting through the Mac's own setters
   // (docs/cloudkit-schema-design.md §8c).

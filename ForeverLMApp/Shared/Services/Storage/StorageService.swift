@@ -3855,6 +3855,11 @@ actor StorageService {
         )
     }
 
+    /// What the cards a chat chose deal (`KnowledgeStore.memoryCardChosenPractice`).
+    func memoryCardChosenPractice(cardIDs: [String], now: Date) throws -> MemoryCardChosenPractice {
+        try knowledgeStore().memoryCardChosenPractice(cardIDs: cardIDs, now: now)
+    }
+
     /// Today's cards, in the order they are asked (`MemoryCardQueue.today` over
     /// every item the library may ask).
     func memoryCardQueueToday(

@@ -202,12 +202,39 @@ enum MemoryCardDeal {
         now: Date,
         calendar: Calendar = .current
     ) -> NotebookPractice {
+        wholePractice(items: items, attempts: attempts, now: now, calendar: calendar, including: scope.contains)
+    }
+
+    /// Practice of the kept cards a chat chose for the learner
+    /// (`practice_cards`: "show me my cards on mitochondria"), dealt in a
+    /// notebook's Practice's order: the chosen cards whose answer is written,
+    /// then those not due yet. `itemIDs` are the chosen cards' items; an id
+    /// no card among `items` has is dealt nothing.
+    static func chosenPractice(
+        items: [MemoryItem],
+        attempts: [MemoryAttempt],
+        itemIDs: Set<String>,
+        now: Date,
+        calendar: Calendar = .current
+    ) -> NotebookPractice {
+        wholePractice(items: items, attempts: attempts, now: now, calendar: calendar) { itemIDs.contains($0.id) }
+    }
+
+    /// Every active card `including` takes, not only today's, in Practice's
+    /// order (`NotebookPractice`).
+    private static func wholePractice(
+        items: [MemoryItem],
+        attempts: [MemoryAttempt],
+        now: Date,
+        calendar: Calendar,
+        including: (MemoryItem) -> Bool
+    ) -> NotebookPractice {
         let attemptsByItemID = Dictionary(grouping: attempts, by: \.memoryItemID)
         var seen = Set<String>()
         var due: [MemoryCardQueue.Entry] = []
         var new: [MemoryCardQueue.Entry] = []
         var later: [MemoryCardQueue.Entry] = []
-        for item in items where item.status == .active && scope.contains(item) {
+        for item in items where item.status == .active && including(item) {
             guard seen.insert(item.id).inserted else { continue }
             let schedule = MemoryTutorScheduler.schedule(
                 item: item,

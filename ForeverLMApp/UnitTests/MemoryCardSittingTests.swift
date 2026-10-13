@@ -564,6 +564,69 @@ struct MemoryCardSittingTests {
         #expect(elsewhere.notebookCounts == NotebookCardCounts(kept: 1, due: 0, toCheck: 1))
     }
 
+    // MARK: The cards a chat chose
+
+    @Test("A chat's chosen cards are dealt as a notebook's Practice is: only those cards, due first, then new, then the rest, soonest due first")
+    func chosenPracticeDeal() throws {
+        let calendar = try losAngeles()
+        let now = try local(calendar, 10, 13, 15)
+        let (overdue, overdueReview) = dueCard("mito-overdue", dueAt: now.addingTimeInterval(-2 * day))
+        let (sooner, soonerReview) = dueCard("mito-sooner", dueAt: now.addingTimeInterval(day))
+        let (later, laterReview) = dueCard("mito-later", dueAt: now.addingTimeInterval(4 * day))
+        let new = card("mito-new", keptAt: now.addingTimeInterval(-3 * day))
+        let (sleep, sleepReview) = dueCard("sleep-overdue", dueAt: now.addingTimeInterval(-3 * day))
+        let retired = card("mito-retired", keptAt: now.addingTimeInterval(-6 * day), status: .retired)
+
+        let dealt = MemoryCardDeal.chosenPractice(
+            items: [later, sleep, new, retired, sooner, overdue],
+            attempts: [overdueReview, soonerReview, laterReview, sleepReview],
+            itemIDs: ["mito-overdue", "mito-sooner", "mito-later", "mito-new", "mito-retired", "not-a-card"],
+            now: now,
+            calendar: calendar
+        )
+        #expect(dealt.answerable.map(\.id) == ["mito-overdue", "mito-new"])
+        #expect(dealt.notDueYet.map(\.id) == ["mito-sooner", "mito-later"])
+        #expect(!dealt.all.contains { $0.id == "sleep-overdue" }, "a card not chosen is not dealt, due or not")
+        #expect(!dealt.all.contains { $0.id == "mito-retired" }, "a retired card is never asked")
+        #expect(!dealt.notDueYet.contains { MemoryCardQueue.answerCounts(status: .active, schedule: $0.schedule, now: now, practice: true) }, "practice never stretches an interval")
+    }
+
+    @Test("The store finds a chat's chosen cards by card id or item id, and names the ids no kept card answers to")
+    func chosenPracticeRead() throws {
+        let store = try KnowledgeStore(inMemory: true)
+        for (id, text) in [
+            ("src-mito", "Mitochondria couple respiration to ATP synthesis through a proton gradient."),
+            ("src-sleep", "Sleep consolidates what was learned during the day."),
+        ] {
+            var source = StudioArticle(url: "https://example.com/\(id)", title: id, sourceType: .article, discoveryOrigin: .manual, id: id)
+            source.normalizedURL = URLNormalizer.normalize(source.url)
+            source.content = text
+            source.state = .ready
+            try store.saveSource(source)
+        }
+        let now = Date()
+        func drafted(_ id: String, on sourceID: String) -> MemoryCard {
+            MemoryCard(cardID: id, front: "Front \(id)", back: "Back \(id)", origin: .drafted, deckID: MemoryCard.draftDeckID(sourceID: sourceID))
+        }
+        let gradient = try store.keepMemoryCard(drafted("gradient", on: "src-mito"), sourceID: "src-mito", quote: "a proton gradient", at: now.addingTimeInterval(-2 * day))
+        let atp = try store.keepMemoryCard(drafted("atp", on: "src-mito"), sourceID: "src-mito", quote: "couple respiration to ATP synthesis", at: now.addingTimeInterval(-3 * day))
+        let sleep = try store.keepMemoryCard(drafted("sleep", on: "src-sleep"), sourceID: "src-sleep", quote: "Sleep consolidates", at: now.addingTimeInterval(-3 * day))
+        let retired = try store.keepMemoryCard(drafted("retired", on: "src-mito"), sourceID: "src-mito", quote: "Mitochondria couple respiration", at: now.addingTimeInterval(-4 * day))
+        try store.retireMemoryCard(memoryItemID: retired.id, at: now)
+
+        // A drafted card is named by its card id, whose item a store before
+        // the new sync keeps under `MemoryTutorIdentity.cardItemID`; an item
+        // id works too.
+        let deal = try store.memoryCardChosenPractice(
+            cardIDs: ["gradient", atp.id, "retired", "no-such-card"],
+            now: now
+        )
+        #expect(Set(deal.kept.all.map(\.id)) == [gradient.id, atp.id])
+        #expect(!deal.kept.all.contains { $0.id == sleep.id }, "a card not chosen is not dealt")
+        #expect(deal.unknownCardIDs == ["retired", "no-such-card"], "a retired card answers to nothing")
+        #expect(Set(deal.attemptsByItemID.keys).isSubset(of: [gradient.id, atp.id]))
+    }
+
     @Test("A notebook's Cards line says kept, due and to check, any part that is zero left out")
     func notebookCardsLine() {
         #expect(NotebookCardCounts(kept: 42, due: 6, toCheck: 9).line == "42 kept · 6 due · 9 to check")

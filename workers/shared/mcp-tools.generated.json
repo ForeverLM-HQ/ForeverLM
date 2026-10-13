@@ -7086,6 +7086,31 @@
     "readOnlyHint" : false
   },
   {
+    "description" : "Open ForeverLM's own card review on the learner's Mac over kept cards you chose: the way to review some of the cards — a topic (“show me my cards on mitochondria”), a source, a set — rather than today's review. Read list_cards status kept and choose the cards by what each one asks, not by a word in it; pass their card_ids and a title saying what they are about. The review takes the window the learner last used and brings ForeverLM to the front, as practice they asked for: the due and new cards among them first, whose answers count, then the ones not due yet, whose answers never move their schedule. The learner answers each card there, typed or said, and the app checks it; nothing is asked in this chat. Returns how many cards were dealt (due_or_new, not_due_yet) and not_found for any card_id no kept card answers to. Refused while a card review already has that window. Needs a Studio window open.",
+    "inputSchema" : {
+      "properties" : {
+        "card_ids" : {
+          "description" : "The card_id of each kept card to practise, from list_cards status kept (at most 500).",
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        },
+        "title" : {
+          "description" : "What the cards are about, in a few words (Mitochondria).",
+          "type" : "string"
+        }
+      },
+      "required" : [
+        "card_ids",
+        "title"
+      ],
+      "type" : "object"
+    },
+    "name" : "practice_cards",
+    "readOnlyHint" : false
+  },
+  {
     "description" : "Save the directions a search kept for one Goal, Notebook or Idea, as proposals waiting for the learner's answer — they appear on its Directions list in the app. Call it once per search with the three to seven that survived, after find_directions. Every direction needs its sentence, why it is worth a look now, its angle, and at least one piece of evidence with a DOI or address; a direction missing any of them refuses the whole call and nothing is saved. One the home already has, reworded or not, is skipped and named. Never add papers to the library from here.",
     "inputSchema" : {
       "properties" : {

@@ -3014,6 +3014,22 @@ final class MCPToolRegistry: @unchecked Sendable {
                 ]
             ),
             MCPToolDef(
+                name: "practice_cards",
+                description: "Open ForeverLM's own card review on the learner's Mac over kept cards you chose: the way to review some of the cards \u{2014} a topic (\u{201C}show me my cards on mitochondria\u{201D}), a source, a set \u{2014} rather than today's review. Read list_cards status kept and choose the cards by what each one asks, not by a word in it; pass their card_ids and a title saying what they are about. The review takes the window the learner last used and brings ForeverLM to the front, as practice they asked for: the due and new cards among them first, whose answers count, then the ones not due yet, whose answers never move their schedule. The learner answers each card there, typed or said, and the app checks it; nothing is asked in this chat. Returns how many cards were dealt (due_or_new, not_due_yet) and not_found for any card_id no kept card answers to. Refused while a card review already has that window. Needs a Studio window open.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "card_ids": [
+                            "type": "array",
+                            "items": ["type": "string"],
+                            "description": "The card_id of each kept card to practise, from list_cards status kept (at most 500).",
+                        ],
+                        "title": ["type": "string", "description": "What the cards are about, in a few words (Mitochondria)."],
+                    ],
+                    "required": ["card_ids", "title"],
+                ]
+            ),
+            MCPToolDef(
                 name: "update_card",
                 description: "Change one of the learner's kept cards, as Memory's All Cards does, and only on the learner's word. front alone rewords the card: it is asked in the new words from then on, its schedule untouched (the words it was kept with clear the rewording). A new back, why, front_images or back_images, or start_over true, starts the card over: the old card is retired with its answers and a new card is kept on the same passages, first asked the next day, returned as card_id beside previous_card_id. Image arrays replace that face's pictures and [] removes them. always_ask true asks the card in its own words every time, never a rewording; false lets its wording vary again. retire true retires the card, never asked again, its answers kept; it takes no other change. Pass card_id (or item_id) as get_due_cards or list_cards status kept returns it; a card still to check is changed with triage_cards. New words are checked first, as save_card_drafts checks a draft: words that point at the source unnamed (\u{201C}this lecture\u{201D}, \u{201C}the paper\u{201D}) are reworded once (the message says so), or the change is refused with the reason. Returns the card's card_id, item_id, ask and always_ask after the change.",
                 inputSchema: [
@@ -5147,6 +5163,10 @@ final class MCPToolRegistry: @unchecked Sendable {
         // and writes the note, through the storage actor alone
         // (MCPTools+NotesGraph.swift).
         "get_linked_references", "get_block", "get_daily_note", "append_to_daily_note",
+        // The card review is the Studio view model's: the chosen cards are
+        // read through the storage actor and dealt on the main actor, as
+        // open_in_app waits on the window (MCPTools+Cards.swift).
+        "practice_cards",
     ]
 
     /// Tools that wait on the network or a model — most of them long paid ones —
@@ -6560,6 +6580,11 @@ final class MCPToolRegistry: @unchecked Sendable {
                     asked: arguments["asked"] as? String,
                     sittingID: arguments["sitting_id"] as? String,
                     practice: arguments["practice"]
+                )
+            case "practice_cards":
+                return try await store.practiceCards(
+                    cardIDs: arguments["card_ids"],
+                    title: arguments["title"] as? String
                 )
             case "update_card":
                 return try await store.updateCard(

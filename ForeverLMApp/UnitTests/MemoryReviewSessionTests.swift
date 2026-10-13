@@ -355,36 +355,4 @@ struct MemoryReviewConfirmationSheetTests {
         #expect(MemoryPane.showsPromise(state: .done(streak: 3), counts: waiting), "beside Keep Going")
         #expect(!MemoryPane.showsPromise(state: .done(streak: 3), counts: .zero), "the deck already says done")
     }
-
-    @Test("The notebook menu shows while the pane is narrowed or two notebooks hold cards, kept or to check")
-    func scopeMenu() {
-        #expect(MemoryPane.offersScopeMenu(scope: .notebook("a"), notebooksWithCards: 0), "the way back to every notebook")
-        #expect(!MemoryPane.offersScopeMenu(scope: .allNotebooks, notebooksWithCards: 1))
-        #expect(MemoryPane.offersScopeMenu(scope: .allNotebooks, notebooksWithCards: 2))
-
-        let kept = MemoryCardListing(
-            itemID: "c1",
-            face: MemoryCard(cardID: "c1", front: "Q", back: "A", origin: .drafted),
-            sourceIDs: ["s1"],
-            schedule: MemorySchedule(memoryItemID: "c1", dueAt: Date(), repetitionCount: 1)
-        )
-        let waiting = MemoryCardToCheck(
-            kind: .draft,
-            face: MemoryCard(cardID: "d1", front: "Q", back: "A", origin: .drafted),
-            deckID: MemoryCard.draftDeckID(sourceID: "s2"),
-            sourceID: "s2",
-            quote: nil,
-            seed: nil,
-            ideaID: nil,
-            draftedAt: Date(),
-            isRequested: false,
-            memoryItemID: nil
-        )
-        let a = MemoryCardScope(notebookID: "a", memberSourceIDs: ["s1"])
-        let b = MemoryCardScope(notebookID: "b", memberSourceIDs: ["s2"])
-        let c = MemoryCardScope(notebookID: "c", memberSourceIDs: ["s9"])
-        #expect(MemoryPane.notebooksHoldingCards(cards: [kept], toCheck: [], in: [a, b, c]) == 1)
-        #expect(MemoryPane.notebooksHoldingCards(cards: [kept], toCheck: [waiting], in: [a, b, c]) == 2)
-        #expect(MemoryPane.notebooksHoldingCards(cards: [], toCheck: [], in: [a, b, c]) == 0)
-    }
 }

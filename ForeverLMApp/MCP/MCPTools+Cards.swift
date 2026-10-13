@@ -1,7 +1,7 @@
 import Foundation
 
 // MARK: - save_card_drafts, list_cards, triage_cards, get_due_cards,
-// record_card_result, update_card
+// record_card_result, practice_cards, update_card
 //
 // Memory as cards over MCP (docs/memory-design.md, "Cards to check" and
 // "MCP"). An assistant drafts cards from a source and saves them, free, into
@@ -10,8 +10,9 @@ import Foundation
 // or skips each one. Only a kept card is ever reviewed: `get_due_cards` deals
 // today's, as the app's card review does (`MemoryCardQueue`), with the wording
 // to ask, `record_card_result` records each answer by the card review's rules,
-// and `update_card` rewords, holds, starts over or retires a kept card as All
-// Cards does.
+// `practice_cards` opens the app's own card review on the cards an assistant
+// chose (a topic, a source), and `update_card` rewords, holds, starts over or
+// retires a kept card as All Cards does.
 
 extension MCPDataStore {
     /// The most cards one `save_card_drafts` call takes.
@@ -716,6 +717,65 @@ extension MCPDataStore {
             throw MCPError.notFound("\(face.cardID) stands on a source the library no longer shows, so it is not asked.")
         }
         return (item, attempts, face)
+    }
+
+    // MARK: practice_cards
+
+    /// The most cards one `practice_cards` call deals: `list_cards`' most.
+    static let maxPracticeCardsPerCall = 500
+
+    /// The longest `title` `practice_cards` takes.
+    static let maxPracticeTitleCharacters = 120
+
+    /// The app's card review over the kept cards an assistant chose
+    /// (`StudioViewModel.startChosenCardPractice`), in the window the learner
+    /// last used, brought to the front. The cards are dealt there and
+    /// answered there; this returns only what was dealt.
+    func practiceCards(cardIDs rawCardIDs: Any?, title rawTitle: String?) async throws -> String {
+        guard let rawIDs = rawCardIDs as? [Any] else {
+            throw MCPError.invalidInput("card_ids is required: the card_id of each kept card to practise, from list_cards status kept.")
+        }
+        var cardIDs: [String] = []
+        var seen = Set<String>()
+        for raw in rawIDs {
+            guard let id = Self.trimmedOrNil(raw as? String) else {
+                throw MCPError.invalidInput("Each card_ids entry is a card_id string from list_cards status kept.")
+            }
+            if seen.insert(id).inserted { cardIDs.append(id) }
+        }
+        guard !cardIDs.isEmpty else {
+            throw MCPError.invalidInput("card_ids is empty. Choose the kept cards to practise from list_cards status kept.")
+        }
+        guard cardIDs.count <= Self.maxPracticeCardsPerCall else {
+            throw MCPError.invalidInput("One practice takes at most \(Self.maxPracticeCardsPerCall) cards; \(cardIDs.count) were passed.")
+        }
+        guard let title = Self.trimmedOrNil(rawTitle) else {
+            throw MCPError.invalidInput("title is required: what the cards are about, in a few words (Mitochondria).")
+        }
+        guard title.count <= Self.maxPracticeTitleCharacters else {
+            throw MCPError.invalidInput("title is a few words, at most \(Self.maxPracticeTitleCharacters) characters.")
+        }
+        await MemoryCardStateStore.loaded(defaults: cardStateDefaults)
+        let studio = try await MainActor.run { try AppModelBridge.requireStudio() }
+        await MainActor.run { Self.bringActiveStudioWindowForward() }
+        let started: StudioViewModel.ChosenCardPracticeStart
+        do {
+            started = try await studio.startChosenCardPractice(cardIDs: cardIDs, title: title)
+        } catch let refusal as StudioViewModel.ChosenCardPracticeRefusal {
+            throw MCPError.invalidInput(refusal.message)
+        }
+        var payload: [String: Any] = [
+            "opened": "card_review",
+            "title": title,
+            "cards": started.answerable + started.notDueYet,
+            "due_or_new": started.answerable,
+            "not_due_yet": started.notDueYet,
+            "message": "The card review is open in ForeverLM's window with these cards, as practice: the learner answers each there, the due and new cards first, whose answers count, then the ones not due yet, whose answers never move their schedule.",
+        ]
+        if !started.unknownCardIDs.isEmpty {
+            payload["not_found"] = started.unknownCardIDs
+        }
+        return try jsonString(payload)
     }
 
     // MARK: update_card

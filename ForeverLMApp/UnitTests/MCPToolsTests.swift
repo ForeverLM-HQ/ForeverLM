@@ -6154,6 +6154,34 @@ struct MCPDataStoreTests {
         #expect(MCPDataStore.dueCardsInstructions.contains("exactly as written"))
     }
 
+    @Test("practice_cards opens the app's card review on chosen cards: never read-only, free, off the store gate, and refused without cards or a title")
+    func practiceCardsIsRegistered() async throws {
+        let registry = MCPToolRegistry(store: MCPDataStore())
+        let tool = try #require(registry.tools.first { $0.name == "practice_cards" })
+        #expect(tool.inputSchema["required"] as? [String] == ["card_ids", "title"])
+        #expect(tool.inputSchema["anyOf"] == nil && tool.inputSchema["oneOf"] == nil)
+        // It changes the learner's window, so it never falls back to the
+        // hosted mirror, and it takes nothing back.
+        #expect(MCPToolRegistry.annotations(for: "practice_cards")["readOnlyHint"] as? Bool == false)
+        #expect(MCPToolRegistry.annotations(for: "practice_cards")["destructiveHint"] as? Bool == false)
+        #expect(!MCPToolRegistry.paidWorkToolNames.contains("practice_cards"), "opening the review costs nothing")
+        #expect(MCPToolRegistry.storeGateExemptToolNames.contains("practice_cards"), "it waits on the window, as open_in_app does")
+        #expect(Prompts.mcpServerInstructions.contains("practice_cards"))
+        #expect(ReviewSessionManager.studySurfaceToolNames.isSuperset(of: ["list_cards", "practice_cards"]), "said in the chat about a paper too")
+        #expect(ReviewSessionManager.chatExcludedToolNames.isDisjoint(with: ["list_cards", "practice_cards"]))
+
+        // Refused before anything opens.
+        let store = MCPDataStore()
+        let refused: [(ids: Any?, title: String?)] = [
+            (nil, "Mitochondria"), ([] as [Any], "Mitochondria"), ([42], "Mitochondria"),
+            (["card-a"], nil), (["card-a"], "   "),
+            ((0...MCPDataStore.maxPracticeCardsPerCall).map { "card-\($0)" }, "Mitochondria"),
+        ]
+        for call in refused {
+            await #expect(throws: MCPError.self) { try await store.practiceCards(cardIDs: call.ids, title: call.title) }
+        }
+    }
+
     @Test("get_due_cards deals today's cards in the card review's order with the wording to ask, and narrows to a Notebook")
     func getDueCardsDealsToday() async throws {
         let (store, dbPath, defaults, cleanup) = try makeCardStore()

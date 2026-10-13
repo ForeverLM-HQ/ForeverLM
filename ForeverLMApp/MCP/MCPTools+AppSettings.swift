@@ -1173,13 +1173,7 @@ extension MCPDataStore {
                 return nil
             }
         }
-        await MainActor.run {
-            NSApp.activate(ignoringOtherApps: true)
-            if let state = StudioWindowRegistry.shared.activeState,
-               let window = StudioWorkspaceWindowCoordinator.shared.window(for: state) {
-                window.makeKeyAndOrderFront(nil)
-            }
-        }
+        await MainActor.run { Self.bringActiveStudioWindowForward() }
         switch kind {
         case "space":
             await MainActor.run { studio.showSpaceAll() }
@@ -1195,6 +1189,17 @@ extension MCPDataStore {
         if kind != "space" { payload["id"] = id }
         if let title { payload["title"] = title }
         return try jsonString(payload)
+    }
+
+    /// ForeverLM in front, with the window the learner last used, where
+    /// `open_in_app` and `practice_cards` show what they open.
+    @MainActor
+    static func bringActiveStudioWindowForward() {
+        NSApp.activate(ignoringOtherApps: true)
+        if let state = StudioWindowRegistry.shared.activeState,
+           let window = StudioWorkspaceWindowCoordinator.shared.window(for: state) {
+            window.makeKeyAndOrderFront(nil)
+        }
     }
 }
 

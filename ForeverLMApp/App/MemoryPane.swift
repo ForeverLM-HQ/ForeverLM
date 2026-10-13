@@ -16,12 +16,13 @@ import SwiftUI
 ///   notebook; a click edits the card, and its menu starts it over or
 ///   retires it.
 ///
-/// The scope is every notebook, or one — its menu on the top line while the
-/// pane is narrowed or two notebooks hold cards (`offersScopeMenu`) — and
-/// the section and scope are the
+/// The scope is every notebook, or one, and the section and scope are the
 /// window's (`StudioWindowState.memoryPaneScope`, `.memoryPaneSection`): the
 /// rail's Memory row opens the pane on every notebook, a notebook's Studio
-/// Cards tile on that notebook (`StudioViewModel.requestCardReview(scope:)`).
+/// Cards tile on that notebook (`StudioViewModel.requestCardReview(scope:)`),
+/// whose name then sits on the top line with the × back to every notebook.
+/// The pane has no notebook menu: a review of some of the cards — a topic, a
+/// source — is asked for in chat, which opens it (`practice_cards`).
 /// Opening the pane writes nothing; its read runs off the main actor. It
 /// claims no key: inside a notebook it sits beside the notebook's chat,
 /// whose Return is the chat's.
@@ -35,9 +36,6 @@ struct MemoryPane: View {
     /// The kept cards "Always ask in its own words" holds to, by item id.
     @State private var alwaysAsked: Set<String> = []
     @State private var hasLoaded = false
-    /// How many notebooks hold one of every notebook's cards, counted up to
-    /// two (`notebooksHoldingCards`): the scope menu is drawn from two.
-    @State private var notebooksWithCards = 0
     @State private var loadError: String?
     @State private var query = ""
     @State private var grouping: MemoryCardCatalog.Grouping = .source
@@ -115,14 +113,6 @@ struct MemoryPane: View {
             snapshot = read
             wordings = Self.wordings(of: read.cards)
             alwaysAsked = Self.alwaysAsked(read.cards)
-            // Narrowed, the menu shows anyway: it is the way back.
-            if scope == .allNotebooks {
-                notebooksWithCards = Self.notebooksHoldingCards(
-                    cards: read.cards,
-                    toCheck: read.toCheck,
-                    in: vm.memoryCardScopes(for: vm.notebooks).map(\.scope)
-                )
-            }
             loadError = nil
         } catch {
             loadError = "The cards could not be read. \(error.localizedDescription)"
@@ -133,7 +123,8 @@ struct MemoryPane: View {
     // MARK: Toolbar
 
     /// The sections as the Space's pills — To Check with how many cards wait
-    /// there, the state that asks for something — and the scope menu.
+    /// there, the state that asks for something — and, while the pane is
+    /// narrowed to a notebook, that notebook.
     private var toolbar: some View {
         HStack(spacing: 4) {
             HStack(spacing: 2) {
@@ -153,70 +144,30 @@ struct MemoryPane: View {
 
             Spacer(minLength: 8)
 
-            if Self.offersScopeMenu(scope: scope, notebooksWithCards: notebooksWithCards) {
-                scopeMenu
+            if case .notebook = scope {
+                narrowedNotebook
             }
         }
     }
 
-    /// Whether the top line draws the notebook menu: while the pane is
-    /// narrowed to one notebook (the way back to every notebook), or while
-    /// two notebooks or more hold cards. With one or none, All notebooks is
-    /// all there is to choose (2026-10-06, the product owner: "cleaner and fewer
-    /// buttons and bells and whistles").
-    static func offersScopeMenu(scope: MemoryReviewScope, notebooksWithCards: Int) -> Bool {
-        if case .notebook = scope { return true }
-        return notebooksWithCards >= 2
-    }
-
-    /// How many of `notebooks` hold a kept card or a card to check, counted
-    /// no further than `limit`.
-    static func notebooksHoldingCards(
-        cards: [MemoryCardListing],
-        toCheck: [MemoryCardToCheck],
-        in notebooks: [MemoryCardScope],
-        limit: Int = 2
-    ) -> Int {
-        var count = 0
-        for notebook in notebooks {
-            let holds = cards.contains { $0.belongs(to: notebook) }
-                || toCheck.contains { notebook.contains(anchorSourceIDs: [$0.sourceID], goalID: nil) }
-            guard holds else { continue }
-            count += 1
-            if count >= limit { break }
-        }
-        return count
-    }
-
-    /// The notebooks the pane is over, as a quiet word and a chevron — the
-    /// way All Cards' grouping reads — not a bordered pop-up.
-    private var scopeMenu: some View {
-        Menu {
-            Picker("Notebooks", selection: Binding(
-                get: { scopeTag },
-                set: { tag in
-                    let chosen = Self.scope(fromTag: tag)
-                    if windowState.memoryPaneScope != chosen { windowState.memoryPaneScope = chosen }
-                }
-            )) {
-                Text("All notebooks").tag(Self.allNotebooksTag)
-                let notebooks = scopeNotebooks
-                if !notebooks.isEmpty {
-                    Divider()
-                    ForEach(notebooks) { notebook in
-                        Text(notebook.title).tag(notebook.id)
-                    }
-                }
-            }
-            .pickerStyle(.inline)
-            .labelsHidden()
+    /// The notebook the pane was opened on — by its Cards tile, its Cards
+    /// row, or the Reader's Cards count inside it — as a quiet word, and the
+    /// × that widens the pane to every notebook. Over every notebook the top
+    /// line holds nothing more: the notebook menu it once had is gone
+    /// (product owner, 2026-10-13: "why even have this 'all notebooks' button
+    /// for cards?"), and some of the cards are reviewed by asking in chat
+    /// (`practice_cards`).
+    private var narrowedNotebook: some View {
+        let title = vm.memoryReviewScopeTitle(scope)
+        return Button {
+            if windowState.memoryPaneScope != .allNotebooks { windowState.memoryPaneScope = .allNotebooks }
         } label: {
-            HStack(spacing: 4) {
-                Text(scopeTitle)
+            HStack(spacing: 5) {
+                Text(title)
                     .lineLimit(1)
                     .truncationMode(.tail)
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 9, weight: .semibold))
+                Image(systemName: "xmark")
+                    .font(.system(size: 8.5, weight: .bold))
             }
             .zoomedSystemFont(size: 12.5, weight: .medium)
             .foregroundStyle(.secondary)
@@ -224,23 +175,12 @@ struct MemoryPane: View {
             .padding(.vertical, 5)
             .contentShape(Capsule())
         }
-        .menuStyle(.button)
-        .buttonStyle(.plain)
-        .menuIndicator(.hidden)
-        .hoverHighlight(in: Capsule(), inset: 0, opacity: 0.06)
+        .buttonStyle(.hoverWash(in: Capsule(), inset: 0, opacity: 0.06))
         .frame(maxWidth: 240, alignment: .trailing)
-        .help("Review the cards of every notebook, or of one")
-        .accessibilityLabel("Notebooks")
-        .accessibilityValue(scopeTitle)
+        .help("Show every notebook's cards")
+        .accessibilityLabel("Show every notebook's cards")
+        .accessibilityValue(title)
         .accessibilityIdentifier("memory.pane.scope")
-    }
-
-    /// "All notebooks", or the notebook the pane is narrowed to.
-    private var scopeTitle: String {
-        switch scope {
-        case .allNotebooks: return "All notebooks"
-        case .notebook(let id): return scopeNotebooks.first { $0.id == id }?.title ?? "Notebook"
-        }
     }
 
     private static let allNotebooksTag = "memory.scope.all"
@@ -250,23 +190,6 @@ struct MemoryPane: View {
         case .allNotebooks: return Self.allNotebooksTag
         case .notebook(let id): return id
         }
-    }
-
-    private static func scope(fromTag tag: String) -> MemoryReviewScope {
-        tag == allNotebooksTag ? .allNotebooks : .notebook(tag)
-    }
-
-    /// The notebooks the scope menu offers: the open library's active ones,
-    /// and the one the pane is narrowed to when that one is archived — its
-    /// Studio's Cards tile still opens the pane on its cards. Both lists are
-    /// screen record mode's (`allNotebooks`).
-    private var scopeNotebooks: [LearningGoalRecord] {
-        var notebooks = vm.notebooks
-        if case .notebook(let id) = scope, !notebooks.contains(where: { $0.id == id }),
-           let notebook = vm.allNotebooks.first(where: { $0.id == id }) {
-            notebooks.append(notebook)
-        }
-        return notebooks
     }
 
     // MARK: Content

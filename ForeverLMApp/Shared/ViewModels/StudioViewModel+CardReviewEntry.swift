@@ -299,6 +299,80 @@ extension StudioViewModel {
         }
     }
 
+    /// What `startChosenCardPractice` dealt.
+    struct ChosenCardPracticeStart: Sendable {
+        /// The due and new cards, whose answers count.
+        let answerable: Int
+        /// The cards not due yet, whose answers are shown and not written.
+        let notDueYet: Int
+        /// The ids no kept card answers to, in the order they were asked for.
+        let unknownCardIDs: [String]
+    }
+
+    /// Why `startChosenCardPractice` started nothing, in words a chat can
+    /// pass on.
+    struct ChosenCardPracticeRefusal: LocalizedError {
+        let message: String
+        var errorDescription: String? { message }
+    }
+
+    /// Practice of the kept cards a chat chose (`practice_cards`): some of
+    /// the cards, chosen by what they ask rather than by notebook, which the
+    /// Memory pane's notebook menu never could (product owner, 2026-10-13:
+    /// "should be able via chat to be like 'please show me flashcards but
+    /// only for mitochondria related topics'"). Dealt as
+    /// a notebook's Practice is (`MemoryCardDeal.chosenPractice`), in the
+    /// window-filling focus of the window in scope. The learner asked for
+    /// it, so it makes no commitment, and storage writes an answer only for
+    /// a card due or new. `title` says what the cards are about, for a card
+    /// whose source the library no longer names. Refused while that window
+    /// holds a card review, or when no id names a kept card.
+    func startChosenCardPractice(cardIDs: [String], title: String) async throws -> ChosenCardPracticeStart {
+        let window = activeWindowState
+        guard window.memoryCardSession == nil, !startingCardSittingWindowIDs.contains(window.id) else {
+            throw ChosenCardPracticeRefusal(message: "A card review already has the learner's window. It starts once that one is done.")
+        }
+        startingCardSittingWindowIDs.insert(window.id)
+        defer { startingCardSittingWindowIDs.remove(window.id) }
+        let now = Date()
+        let deal = try await storage.memoryCardChosenPractice(cardIDs: cardIDs, now: now)
+        let cards = memorySittingCards(deal.kept.answerable, attemptsByItemID: deal.attemptsByItemID)
+            + memorySittingCards(deal.kept.notDueYet, attemptsByItemID: deal.attemptsByItemID)
+        guard !cards.isEmpty else {
+            throw ChosenCardPracticeRefusal(
+                message: "None of these ids names a kept card the review can ask. Pass card_id values list_cards status kept returned; a card still to check is kept first."
+            )
+        }
+        // The window may have started a review of its own while the cards
+        // were read.
+        guard window.memoryCardSession == nil else {
+            throw ChosenCardPracticeRefusal(message: "A card review already has the learner's window. It starts once that one is done.")
+        }
+        let sitting = MemoryCardSitting(
+            key: MemoryCardSitting.newKey(day: MemoryReviewGoal.dayKey(for: now)),
+            kind: .practice,
+            cards: cards
+        )
+        let session = MemoryCardSessionModel(
+            sitting: sitting,
+            scope: .allNotebooks,
+            scopeTitle: title,
+            isCommitted: false,
+            sourceTitles: memorySourceTitles(for: cards),
+            storage: storage,
+            // The chosen cards are the whole deal: nothing follows them.
+            followup: { MemoryCardSessionModel.Followup(cards: [], dayHasCardsLeft: true) },
+            deeper: memoryCardDeeperSteps(),
+            answerCheck: memoryCardAnswerCheck()
+        )
+        enterMemoryCardFocus(session, in: window)
+        return ChosenCardPracticeStart(
+            answerable: deal.kept.answerable.count,
+            notDueYet: deal.kept.notDueYet.count,
+            unknownCardIDs: deal.unknownCardIDs
+        )
+    }
+
     /// The sitting behind both: read the scope's cards off the main actor,
     /// then give the window to the review. `kind` nil is today's cards, or
     /// practice when today holds none in the scope. `commitment` is where

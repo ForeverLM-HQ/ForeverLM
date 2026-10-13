@@ -59,6 +59,17 @@ struct MemoryCardNotebookPractice: Sendable {
     )
 }
 
+/// What a chat's chosen cards deal (`KnowledgeStore.memoryCardChosenPractice`):
+/// the kept cards among them in Practice's order
+/// (`MemoryCardDeal.chosenPractice`), each one's whole attempt history, and
+/// the ids asked for that no kept card answers to.
+struct MemoryCardChosenPractice: Sendable {
+    let kept: MemoryCardDeal.NotebookPractice
+    let attemptsByItemID: [String: [MemoryAttempt]]
+    /// In the order they were asked for.
+    let unknownCardIDs: [String]
+}
+
 extension KnowledgeStore {
     /// The card review's read. Only items with a face are cards
     /// (`MemoryCard.face`): an item the review cannot show is neither dealt
@@ -173,6 +184,47 @@ extension KnowledgeStore {
             kept: kept,
             drafts: toCheck.filter { $0.kind == .draft },
             attemptsByItemID: attemptsByItemID.filter { dealt.contains($0.key) }
+        )
+    }
+
+    /// Practice of the kept cards a chat chose (`practice_cards`), named as
+    /// an assistant was given them (`list_cards`): a card's item id, or its
+    /// card id, whose item is `MemoryTutorIdentity.cardItemID` for a drafted
+    /// card. Only cards the review may deal are dealt — active, with a face,
+    /// on sources the library shows (`reviewableMemoryItems`); any other id
+    /// comes back unknown. Reading writes nothing.
+    func memoryCardChosenPractice(
+        cardIDs: [String],
+        now: Date,
+        calendar: Calendar = .current
+    ) throws -> MemoryCardChosenPractice {
+        let reviewable = try reviewableMemoryItems()
+        let attemptsByItemID = Dictionary(grouping: reviewable.attempts, by: \.memoryItemID)
+        let cards = reviewable.items.filter {
+            MemoryCard.face(of: $0, attempts: attemptsByItemID[$0.id] ?? []) != nil
+        }
+        let cardItemIDs = Set(cards.map(\.id))
+        var chosen = Set<String>()
+        var unknown: [String] = []
+        for cardID in cardIDs {
+            let itemID = cardItemIDs.contains(cardID) ? cardID : MemoryTutorIdentity.cardItemID(cardID: cardID)
+            if cardItemIDs.contains(itemID) {
+                chosen.insert(itemID)
+            } else {
+                unknown.append(cardID)
+            }
+        }
+        let kept = MemoryCardDeal.chosenPractice(
+            items: cards,
+            attempts: reviewable.attempts,
+            itemIDs: chosen,
+            now: now,
+            calendar: calendar
+        )
+        return MemoryCardChosenPractice(
+            kept: kept,
+            attemptsByItemID: attemptsByItemID.filter { chosen.contains($0.key) },
+            unknownCardIDs: unknown
         )
     }
 

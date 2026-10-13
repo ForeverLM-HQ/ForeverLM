@@ -6010,6 +6010,11 @@ final class ReviewSessionManager {
         // learner's Card Drafting model, priced first like every paid maker.
         "save_card_drafts",
         "draft_cards",
+        // "Quiz me on this paper's cards" is said in the chat about it too
+        // (2026-10-13): the chat chooses the kept cards and the app's card
+        // review opens on them.
+        "list_cards",
+        "practice_cards",
         // "Make a mnemonic reading of this book" is said in the chat about
         // the book (2026-10-03): ForeverLM writes the questions, priced first
         // like draft_cards, or the chat saves its own, free. Going through a
@@ -10825,7 +10830,14 @@ final class ReviewSessionManager {
         let opensThings = tools.contains(where: { $0.name == "open_in_app" })
             ? " Putting something on the learner's screen is an action too: when they ask to open, show, go to or switch to a Notebook, a Page (kind doc), a chat, a source, a quiz or an idea, call open_in_app with its id (list_notebooks finds a Notebook by its title). Naming it, linking it or reading it with get_notebook puts nothing on their screen."
             : ""
-        let actionClaimRule = "- Say that you did something in the app — opened, made, added, filed, scheduled, changed or removed it — only when a tool call in this turn did it and its result says so. Otherwise call the tool now, or say plainly that you could not.\(opensThings)"
+        // "Show me my flashcards on mitochondria" asks for the card review on
+        // screen over some of the cards: the Memory pane has no notebook menu,
+        // so a chat narrows the review, by what the cards ask (product owner,
+        // 2026-10-13).
+        let practisesCards = tools.contains(where: { $0.name == "practice_cards" })
+            ? " Asked to show, quiz or practise their cards or flashcards on a topic, a source or a notebook, they want the card review on screen: read list_cards status kept, choose the cards by what each asks, and call practice_cards with their card_ids."
+            : ""
+        let actionClaimRule = "- Say that you did something in the app — opened, made, added, filed, scheduled, changed or removed it — only when a tool call in this turn did it and its result says so. Otherwise call the tool now, or say plainly that you could not.\(opensThings)\(practisesCards)"
 
         // Native mode: the tool schemas travel in the request's tool definitions,
         // so the prompt carries only the behavioral rules — no catalog, no
