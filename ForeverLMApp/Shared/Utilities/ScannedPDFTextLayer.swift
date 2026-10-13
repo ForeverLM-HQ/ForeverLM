@@ -49,11 +49,28 @@ enum ScannedPDFTextLayer {
     /// The long side of the picture the proofreading model reads.
     static let pictureMaxDimension: CGFloat = 1_600
 
-    /// Pages with fewer embedded words than `PDFTextExtractor`'s OCR threshold.
+    /// The share of a book's pages that carry no text of their own when the
+    /// book is a scan. A scan is pictures of pages, so nearly every page is
+    /// textless; a book made as a PDF (an ebook, a publisher's file) has text
+    /// on nearly every page, and its few pages without any are pictures — a
+    /// cover, a photograph, a sponsor's page — whose words are not the book's
+    /// text. Read page by page, a 156-page abstract book sent its cover and
+    /// four picture pages to Scanned Page Proofreading (2026-10-13).
+    static let scannedPageShare = 0.5
+
+    /// The pages OCR reads: in a scanned book, those with fewer embedded words
+    /// than `PDFTextExtractor`'s OCR threshold; in a book made as a PDF, none.
     static func pageIndicesNeedingOCR(in document: PDFDocument) -> [Int] {
-        (0..<document.pageCount).filter { index in
+        let textless = (0..<document.pageCount).filter { index in
             PDFTextExtractor.shouldOCR(document.page(at: index)?.string ?? "")
         }
+        return isScan(pageCount: document.pageCount, textlessPageCount: textless.count) ? textless : []
+    }
+
+    /// Whether a book of `pageCount` pages, `textlessPageCount` of them with
+    /// no text of their own, is a scan.
+    static func isScan(pageCount: Int, textlessPageCount: Int) -> Bool {
+        pageCount > 0 && Double(textlessPageCount) >= Double(pageCount) * scannedPageShare
     }
 
     /// Reads every page that needs it, keeping a JPEG of each page that has

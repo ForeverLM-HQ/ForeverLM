@@ -127,6 +127,54 @@ struct ScannedBookTextLayerTests {
         }
     }
 
+    @Test("A book made as a PDF is not a scan, whatever its picture pages print")
+    func bookMadeAsPDFIsNotRead() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ScannedBookTextLayerTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        // A cover that is a picture of print, then four typeset pages.
+        let book = directory.appendingPathComponent("ebook.pdf")
+        var mediaBox = CGRect(x: 0, y: 0, width: 432, height: 648)
+        let context = try #require(CGContext(book as CFURL, mediaBox: &mediaBox, nil))
+        context.beginPDFPage(nil)
+        context.draw(try Self.picture(of: Self.scannedLines, size: CGSize(width: 1296, height: 1944)), in: mediaBox)
+        context.endPDFPage()
+        let font = CTFontCreateWithName("Helvetica" as CFString, 12, nil)
+        for _ in 0..<4 {
+            context.beginPDFPage(nil)
+            let frame = CTFramesetterCreateFrame(
+                CTFramesetterCreateWithAttributedString(NSAttributedString(
+                    string: Self.typesetText,
+                    attributes: [NSAttributedString.Key(kCTFontAttributeName as String): font]
+                )),
+                CFRange(location: 0, length: 0),
+                CGPath(rect: mediaBox.insetBy(dx: 40, dy: 40), transform: nil),
+                nil
+            )
+            CTFrameDraw(frame, context)
+            context.endPDFPage()
+        }
+        context.closePDF()
+
+        let document = try #require(PDFDocument(url: book))
+        #expect(ScannedPDFTextLayer.pageIndicesNeedingOCR(in: document).isEmpty)
+        var reported = 0
+        let pages = try ScannedPDFTextLayer.recognizeUnreadablePages(pdfPath: book.path) { _, _ in reported += 1 }
+        defer { pages.discardPictures() }
+        #expect(pages.lines.isEmpty)
+        #expect(reported == 0)
+        #expect(!FileManager.default.fileExists(atPath: pages.pictureDirectory.path))
+    }
+
+    @Test("A book is a scan when at least half its pages carry no text of their own")
+    func scanIsDecidedForTheWholeBook() {
+        #expect(ScannedPDFTextLayer.isScan(pageCount: 2, textlessPageCount: 1))
+        #expect(ScannedPDFTextLayer.isScan(pageCount: 400, textlessPageCount: 396))
+        #expect(!ScannedPDFTextLayer.isScan(pageCount: 156, textlessPageCount: 7))
+        #expect(!ScannedPDFTextLayer.isScan(pageCount: 0, textlessPageCount: 0))
+    }
+
     @Test("A typeset page with few words is not given a second copy of its text")
     func sparseTypesetPageIsLeftAlone() throws {
         let directory = FileManager.default.temporaryDirectory
