@@ -155,6 +155,7 @@ Pick the narrowest check that can catch the bug, and say which you ran.
 | `schema/` or `scripts/schema/` | `node scripts/schema/generate.mjs`, then `npm run schema:check` in `docs-site/`. |
 | `docs-site/` | `npm run audit` (regenerates `llms-full.txt`, checks the docs index and screenshot manifest) and `npm run build`, both in `docs-site/`. |
 | iPhone code | An iOS Simulator build and runtime check; a macOS build alone proves nothing for `ForeverLMApp/iOS`. |
+| The page editor (`ForeverLMApp/Web/ArtifactEditor`) | `npm test` and `npm run e2e` there (once: `npx playwright install webkit`). The browser tests type into the editor in WebKit, the app's engine, with a host that records every message; `e2e:corpus` opens and saves every page stored on this Mac (read only), `e2e:budget` times keys on a long page. No Xcode build. |
 
 - **The scheme is `ForeverLM (macOS)`** (and `ForeverLM (iOS)`), shared and tracked; `Package.resolved` is tracked so a fresh clone resolves the same pins. Run `build-for-testing` once, then `test-without-building` per iteration; the build step is the cost.
 - **`-only-testing:ForeverLMMacUnitTests/<Name>` takes the Swift type name**, not the `@Suite("…")` display string.
