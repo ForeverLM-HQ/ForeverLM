@@ -129,7 +129,7 @@ extension MCPDataStore {
     }
 
     /// Why the page's versions are read but never restored here, as the
-    /// app's Version History offers no Restore, or write_doc writes no body;
+    /// app's Page activity offers no Restore, or write_doc writes no body;
     /// nil when they can be.
     private static func docVersionRestoreRefusal(_ snapshot: ArtifactMarkdownSnapshot) -> String? {
         if AudioOverviewScript.isOverview(snapshot.artifact, markdown: snapshot.markdown) {
@@ -144,7 +144,7 @@ extension MCPDataStore {
             return "‘\(snapshot.artifact.title)’ is a \(label): its text here is a read-only copy of the page at \(snapshot.artifact.linkedURL ?? ""), and an earlier version of it is restored in \(owner)."
         }
         if snapshot.artifact.teamID != nil {
-            return "‘\(snapshot.artifact.title)’ is a team's page: as in ForeverLM's Version History, its versions on this Mac are read and copied, never restored over the team's copy."
+            return "‘\(snapshot.artifact.title)’ is a team's page: as in ForeverLM's Page activity, its versions on this Mac are read and copied, never restored over the team's copy."
         }
         return nil
     }

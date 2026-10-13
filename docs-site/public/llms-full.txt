@@ -975,7 +975,7 @@ The page menu, the ▾ beside an open Page's mark, starts as Codex's does, in it
 order: **Show pages** (⇧⌘E), **Rename…**, **Pin**, **Move to Trash**, then
 **Share…**, **Copy ▸** (as Markdown, or the Page's link) and **Download as
 Markdown**, then **Open in Other Window**. Everything else is under **More**: New
-Page, Duplicate, the subpage items, Version History…, Edit with AI…, Format, View
+Page, Duplicate, the subpage items, Page Activity, Edit with AI…, Format, View
 as Page, Page Width, Comments, Add to Chat, the notebooks, canvases, spaces and
 teams the Page is in, publishing, Convert to Google Doc…, Export and Show in
 Finder. **Move to Trash** takes a Page's subpages with it: from the page menu, a
@@ -1161,6 +1161,22 @@ conversations the Page's passages started. Open the panel from the speech
 bubble on the Page's top line (it shows how many threads are open) or
 **Comments** in the page menu's **More**. Web Studio's **Comments** has the same
 threads, replies, edits, deletes and filter, and marks the words the same way.
+
+### Page activity
+
+The clock on a Page's top line (or **Page Activity** in the page menu's
+**More**) opens **Page activity** beside the Page, in the same place as
+Comments: the Page's earlier versions, newest first under **Current version**,
+each with when it was replaced and by what ("You", "Before an AI edit",
+"Before a change from another device", "Before restoring an earlier version").
+Choose one and it is shown over the Page as reading text, with **Copy**,
+**Restore This Version** and **Back to Current** (or Escape); the Page and the
+panel stay open. Restoring keeps what the Page said just before as a version
+of its own, so a restore is undone from the same list. A version is kept when an
+assistant or a restore changes the Page, every ten minutes of writing, and when
+the Page loses more than half its text at once, up to 100 versions a Page.
+Versions are kept on the Mac that made them; another Mac keeps its own, and a
+team's Page lists and copies its versions but does not restore them.
 
 ### Footnotes
 
@@ -3621,7 +3637,7 @@ refused with an explanation rather than answered.
 | `edit_doc` | `doc_id`, `edits?`, `append?`, `expected_revision`, `publish?` | Change parts of a Page in place: each edit gives the exact text to find and its replacement (one match, or `replace_all`), and `append` adds Markdown at the end. All-or-nothing, any Page length; the body never travels in the call. When the Page changed after `read_doc` (the learner typing in it), the edits apply to the newer text as long as every `find` still matches once, and the result says `doc_changed_meanwhile`. A published Page's web page is not re-rendered until `publish_doc`. `publish: true` updates the Page's published web page in the same call. |
 | `update_doc` | `doc_id`, `title?`, `home_notebook_id?`, `notebook_ids?`, `is_draft?`, `is_archived?`, `is_hidden?` | Rename, change Draft status, archive or restore, hide or show (the learner's own view, synced across their Macs, never a teammate's), or replace the Notebook links without touching the body. |
 | `delete_doc` | `doc_id` | Move a Page to the Trash, or remove a linked page from Pages or Sites without touching the page itself. Not undoable; confirm the title first. |
-| `list_doc_versions` | `doc_id`, `version_id?`, `start?`, `length?` | The Page's earlier versions that the Mac keeps, the page menu's **Version History…**, newest first: each one's `version_id`, `saved_at`, `reason` (what replaced that body: `learner_edit`, `assistant_edit`, `another_device` or `restore`), the app's `summary` and its size in `bytes`, with the current body's revision and size. A version is kept when an assistant or a restore replaces the body, every ten minutes of typing, and when the page loses more than half its text at once. `version_id` returns that version's Markdown too, whole or by range as `read_doc` reads. Versions are the Mac's alone, so this needs that Mac open and connected. |
+| `list_doc_versions` | `doc_id`, `version_id?`, `start?`, `length?` | The Page's earlier versions that the Mac keeps, the Page's **Page activity**, newest first: each one's `version_id`, `saved_at`, `reason` (what replaced that body: `learner_edit`, `assistant_edit`, `another_device` or `restore`), the app's `summary` and its size in `bytes`, with the current body's revision and size. A version is kept when an assistant or a restore replaces the body, every ten minutes of typing, and when the page loses more than half its text at once. `version_id` returns that version's Markdown too, whole or by range as `read_doc` reads. Versions are the Mac's alone, so this needs that Mac open and connected. |
 | `restore_doc_version` | `doc_id`, `version_id`, `expected_revision?`, `publish?` | **Restore This Version**: the version becomes the Page's body through the ordinary save, and the body it replaces is kept as a version first, named in `replaced_body_version_id`, so restoring that id undoes it. `expected_revision` refuses the restore when the Page changed since you read it. Refused for a team's page and a linked page, as in the app, and for an audio overview or a mnemonic reading. `publish: true` updates a published Page's web page in the same call. Needs the Mac that kept the version. |
 | `list_doc_chats` | `doc_id` | The chats a Page's passages started, each with the quote it was opened on, so a passage already discussed is not started on again. |
 | `link_doc_passage_to_chat` | `doc_id`, `session_id`, `quote`, `section_title?` | Record that a chat is about a passage of a Page, as highlighting the passage and opening Chat on it does, for a chat that reached the Page another way. |

@@ -576,7 +576,7 @@ The page menu, the ▾ beside an open Page's mark, starts as Codex's does, in it
 order: **Show pages** (⇧⌘E), **Rename…**, **Pin**, **Move to Trash**, then
 **Share…**, **Copy ▸** (as Markdown, or the Page's link) and **Download as
 Markdown**, then **Open in Other Window**. Everything else is under **More**: New
-Page, Duplicate, the subpage items, Version History…, Edit with AI…, Format, View
+Page, Duplicate, the subpage items, Page Activity, Edit with AI…, Format, View
 as Page, Page Width, Comments, Add to Chat, the notebooks, canvases, spaces and
 teams the Page is in, publishing, Convert to Google Doc…, Export and Show in
 Finder. **Move to Trash** takes a Page's subpages with it: from the page menu, a
@@ -762,6 +762,22 @@ conversations the Page's passages started. Open the panel from the speech
 bubble on the Page's top line (it shows how many threads are open) or
 **Comments** in the page menu's **More**. Web Studio's **Comments** has the same
 threads, replies, edits, deletes and filter, and marks the words the same way.
+
+### Page activity
+
+The clock on a Page's top line (or **Page Activity** in the page menu's
+**More**) opens **Page activity** beside the Page, in the same place as
+Comments: the Page's earlier versions, newest first under **Current version**,
+each with when it was replaced and by what ("You", "Before an AI edit",
+"Before a change from another device", "Before restoring an earlier version").
+Choose one and it is shown over the Page as reading text, with **Copy**,
+**Restore This Version** and **Back to Current** (or Escape); the Page and the
+panel stay open. Restoring keeps what the Page said just before as a version
+of its own, so a restore is undone from the same list. A version is kept when an
+assistant or a restore changes the Page, every ten minutes of writing, and when
+the Page loses more than half its text at once, up to 100 versions a Page.
+Versions are kept on the Mac that made them; another Mac keeps its own, and a
+team's Page lists and copies its versions but does not restore them.
 
 ### Footnotes
 

@@ -43,7 +43,19 @@ final class ArtifactDocChromeBridge {
     /// Only View as Page turns it on: every page opens in the editor, published
     /// or not, as a page opens in Codex (docs/codex-parity-audit.md, F1).
     var showsPage = false
-    var isCommentsVisible = false
+    /// The panel beside the page, Comments or Page activity: one at a time,
+    /// as Codex's page holds one.
+    var sidePanel: PageSidePanel?
+    var isCommentsVisible: Bool {
+        get { sidePanel == .comments }
+        set { setSidePanel(.comments, shown: newValue) }
+    }
+    /// The page's **Page activity**: its versions on this Mac
+    /// (`PageActivityPanel`), opened by the clock and the page menu.
+    var isActivityVisible: Bool {
+        get { sidePanel == .activity }
+        set { setSidePanel(.activity, shown: newValue) }
+    }
     var isPublishSheetPresented = false
     var showUnpublishConfirmation = false
     var isConvertingToGoogleDoc = false
@@ -63,9 +75,6 @@ final class ArtifactDocChromeBridge {
     /// The page menu's **Edit with AI**; each bump opens the editor's Edit with
     /// AI panel on the selection, or on the section at the caret.
     var aiEditOpenRequestID = 0
-    /// The page menu's **Version History…**: the editor presents the page's
-    /// versions on this Mac (`PageVersionHistorySheet`).
-    var isVersionHistoryPresented = false
     /// The page menu's **Export ▸** item last pressed; the editor writes the
     /// file, since it holds the text and draws the page.
     var exportRequest: PageExportRequest?
@@ -93,11 +102,19 @@ final class ArtifactDocChromeBridge {
         showsPage.toggle()
     }
 
+    private func setSidePanel(_ panel: PageSidePanel, shown: Bool) {
+        if shown {
+            sidePanel = panel
+        } else if sidePanel == panel {
+            sidePanel = nil
+        }
+    }
+
     /// A doc's editor appearing takes the header over. Every page opens in the
     /// editor; nothing of the previous doc's carries across.
     func reset() {
         showsPage = false
-        isCommentsVisible = false
+        sidePanel = nil
         isPublishSheetPresented = false
         showUnpublishConfirmation = false
         isConvertingToGoogleDoc = false
@@ -107,12 +124,17 @@ final class ArtifactDocChromeBridge {
         publishDraftRequest = nil
         showDraftPublishConflict = false
         showDiscardDraftConfirmation = false
-        isVersionHistoryPresented = false
         exportRequest = nil
         flushDraft = nil
         sideChatRequest = nil
         wholePageChatRequest = nil
     }
+}
+
+/// The panel beside an open page (`ArtifactDocChromeBridge.sidePanel`).
+enum PageSidePanel: Equatable {
+    case comments
+    case activity
 }
 
 /// One press of Publish on a draft. A fresh value each time, so a second press
@@ -1199,13 +1221,13 @@ struct ArtifactCanvas: View {
         // the version history (product owner, 2026-10-07: "essentially an end to end
         // clone"; this overrules "Quiet chrome" for these four).
         Button {
-            docChrome.isVersionHistoryPresented = true
+            docChrome.isActivityVisible.toggle()
         } label: {
-            chromeIconLabel("clock.arrow.circlepath")
+            chromeIconLabel("clock.arrow.circlepath", prominent: docChrome.isActivityVisible)
         }
         .buttonStyle(.hoverWash)
-        .help("Version history")
-        .accessibilityLabel("Version history")
+        .help(docChrome.isActivityVisible ? "Close page activity" : "Page activity")
+        .accessibilityLabel("Page activity")
         .accessibilityIdentifier("page.versionHistory")
         Button {
             docChrome.isCommentsVisible.toggle()
@@ -1654,9 +1676,9 @@ struct ArtifactCanvas: View {
             }
         }
         Button {
-            docChrome.isVersionHistoryPresented = true
+            docChrome.isActivityVisible.toggle()
         } label: {
-            Label("Version History…", systemImage: "clock.arrow.circlepath")
+            Label(docChrome.isActivityVisible ? "Hide Page Activity" : "Page Activity", systemImage: "clock.arrow.circlepath")
         }
         .help("Earlier versions of this page on this Mac")
         Divider()
@@ -2987,6 +3009,9 @@ private struct ArtifactEditor: View {
     @State private var selectedCommentThreadID: String?
     /// Threads whose words the editor no longer finds in the page.
     @State private var detachedCommentThreadIDs: Set<String> = []
+    /// The version chosen in Page activity, read over the page; nil shows the
+    /// page as it is.
+    @State private var previewedPageVersion: PageVersion?
     @State private var paneWidth: CGFloat = 0
     @State private var findState = ReaderFindState()
     @FocusState private var titleFocused: Bool
@@ -3016,10 +3041,25 @@ private struct ArtifactEditor: View {
         )
     }
 
-    /// Whether the pane can hold the page and the comments drawer at once.
-    private var commentsFitBesidePage: Bool { paneWidth <= 0 || paneWidth >= 620 }
+    /// Whether the pane can hold the page and the side panel at once.
+    private var sidePanelFitsBesidePage: Bool { paneWidth <= 0 || paneWidth >= 620 }
 
-    private var commentsWidth: CGFloat { min(300, max(240, paneWidth * 0.4)) }
+    private var sidePanelWidth: CGFloat { min(300, max(240, paneWidth * 0.4)) }
+
+    @ViewBuilder
+    private func sidePanelView(_ panel: PageSidePanel) -> some View {
+        switch panel {
+        case .comments:
+            commentsSidebar
+        case .activity:
+            PageActivityPanel(
+                loadVersions: { await vm.pageVersions(artifact.id) },
+                reloadToken: snapshot?.revision ?? "",
+                previewedVersion: $previewedPageVersion,
+                onClose: { chrome.isActivityVisible = false }
+            )
+        }
+    }
 
     /// The page's text as it stands (`ArtifactEditorDraft`).
     private var draft: String { editorDraft.text }
@@ -3074,7 +3114,7 @@ private struct ArtifactEditor: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            if !chrome.isCommentsVisible || commentsFitBesidePage {
+            if chrome.sidePanel == nil || sidePanelFitsBesidePage {
                 // The column's width is read in layout, so it reaches the rows
                 // in the resize's own transaction: when the pane's width
                 // animates, the title moves with the prose instead of jumping
@@ -3110,6 +3150,18 @@ private struct ArtifactEditor: View {
                         }
                     }
                 }
+                // A version chosen in Page activity is read over the page; the
+                // editor stays alive beneath it, caret and undo kept.
+                .overlay {
+                    if let version = previewedPageVersion, chrome.isActivityVisible {
+                        PageVersionOverlay(
+                            version: version,
+                            loadMarkdown: { try await vm.pageVersionMarkdown(artifact.id, version: $0) },
+                            restore: isReadOnly ? nil : { try await restoreVersion($0) },
+                            onDone: { previewedPageVersion = nil }
+                        )
+                    }
+                }
                 // Cmd+F reaches the doc while focus is anywhere in its column —
                 // the page, its title, or the find bar itself — and from the
                 // rest of the window when no reader holds focus: the same claim
@@ -3119,18 +3171,21 @@ private struct ArtifactEditor: View {
                     ReaderShortcutTarget(find: { findState.show() })
                 }
             }
-            if chrome.isCommentsVisible {
-                if commentsFitBesidePage {
+            if let panel = chrome.sidePanel {
+                if sidePanelFitsBesidePage {
                     Divider()
-                    commentsSidebar
-                        .frame(width: commentsWidth)
+                    sidePanelView(panel)
+                        .frame(width: sidePanelWidth)
                 } else {
-                    // Too narrow to stand beside the page: the drawer takes the
+                    // Too narrow to stand beside the page: the panel takes the
                     // pane rather than pushing the document off it.
-                    commentsSidebar
+                    sidePanelView(panel)
                         .frame(maxWidth: .infinity)
                 }
             }
+        }
+        .onChange(of: chrome.sidePanel) { _, panel in
+            if panel != .activity { previewedPageVersion = nil }
         }
         .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width in
             paneWidth = width
@@ -3292,17 +3347,8 @@ private struct ArtifactEditor: View {
         } message: {
             Text("The team's page stays as it is.")
         }
-        // The page menu's Version History…, Export ▸ and Rename…, answered
-        // here, where the text is (docs/docs-design.md, "Version history").
-        .sheet(isPresented: $chrome.isVersionHistoryPresented) {
-            PageVersionHistorySheet(
-                pageTitle: titleDraft.isEmpty ? artifact.title : titleDraft,
-                currentMarkdown: draft,
-                loadVersions: { await vm.pageVersions(artifact.id) },
-                loadMarkdown: { try await vm.pageVersionMarkdown(artifact.id, version: $0) },
-                restore: isReadOnly ? nil : { try await restoreVersion($0) }
-            )
-        }
+        // The page menu's Export ▸ and Rename…, answered here, where the
+        // text is (docs/docs-design.md).
         .onChange(of: chrome.exportRequest) { _, request in
             guard let request else { return }
             chrome.exportRequest = nil

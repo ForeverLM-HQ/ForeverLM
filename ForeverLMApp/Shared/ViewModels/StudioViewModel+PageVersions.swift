@@ -1,6 +1,6 @@
 import Foundation
 
-/// The page menu's Version History… and Duplicate (docs/docs-design.md,
+/// The page's Page activity (its versions) and Duplicate (docs/docs-design.md,
 /// "Version history" and "The page"). Versions are this Mac's
 /// (`PageVersionHistory`); every read and write here runs on the storage
 /// actor, off the main thread.
