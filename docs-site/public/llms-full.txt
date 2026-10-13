@@ -833,8 +833,11 @@ A published Page opens as the web page its readers see. **Edit** in the pane hea
 opens the editor; changes are saved to the Page as you type, and **Update Page**
 publishes them to the web page when you are ready. To have the AI make a change,
 select a passage and choose **Edit with AI**, or press **AI** in the header with
-the caret in a section, and say what should change: the proposal appears under
-the passage and **Replace** or **Insert below** writes it (⌘Z undoes). The
+the caret in a section (or in a footnote, which edits that note), and say what
+should change: the proposal appears under the passage drawn as the page will
+show it, with the words it adds washed green and the words it takes out struck
+through. Type another instruction to change the proposal ("shorter", "keep the
+first sentence"); **Replace** (⌘↩) or **Insert below** writes it (⌘Z undoes). The
 ForeverLM logo at the top of that panel chooses the model Pages use: the
 Default Model until you pick another, and your pick applies to every Page, on
 the rendered page too, on each of your Macs.

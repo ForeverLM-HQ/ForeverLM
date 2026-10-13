@@ -412,7 +412,7 @@ body.ready #editor {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  width: min(460px, calc(100vw - 24px));
+  width: min(520px, calc(100vw - 24px));
   padding: 10px 12px 12px;
   border: 1px solid color-mix(in srgb, AccentColor 24%, transparent);
   border-radius: 12px;
@@ -541,6 +541,14 @@ body.ready #editor {
 
 .artifact-ai-edit-status[hidden] { display: none; }
 
+/* The instruction a proposal answers, quoted above it. */
+.artifact-ai-edit-status[data-quiet="true"] {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: color-mix(in srgb, CanvasText 48%, transparent);
+}
+
 .artifact-ai-edit-status[data-error="true"] {
   color: color-mix(in srgb, red 70%, CanvasText);
 }
@@ -560,10 +568,11 @@ body.ready #editor {
 
 @keyframes artifact-ai-edit-spin { to { transform: rotate(360deg); } }
 
-/* The proposal is shown as the Markdown it is — what Replace will write — in
-   the doc's own type, so a heading or a list reads as such before it lands. */
+/* The proposal as the page will draw it — what Replace will write — so a
+   heading or a list reads as one before it lands, with what it changes in the
+   passage marked. Only an answer that is not Markdown shows as its text. */
 .artifact-ai-edit-proposal {
-  max-height: min(40vh, 320px);
+  max-height: min(46vh, 380px);
   overflow: auto;
   padding: 8px 10px;
   border-radius: 8px;
@@ -575,6 +584,55 @@ body.ready #editor {
 }
 
 .artifact-ai-edit-proposal[hidden] { display: none; }
+
+.artifact-ai-edit-proposal.is-drawn {
+  padding: 10px 12px;
+  white-space: normal;
+  overflow-wrap: break-word;
+  font: 13.5px/1.55 var(--artifact-prose-font, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif);
+}
+
+.artifact-ai-edit-drawn > :first-child { margin-top: 0; }
+.artifact-ai-edit-drawn > :last-child { margin-bottom: 0; }
+.artifact-ai-edit-drawn :is(p, ul, ol, blockquote, pre, table) { margin: 0 0 0.6em; }
+.artifact-ai-edit-drawn :is(ul, ol) { padding-left: 1.4em; }
+.artifact-ai-edit-drawn li > p { margin: 0; }
+.artifact-ai-edit-drawn :is(h1, h2, h3, h4, h5, h6) { margin: 0.4em 0 0.3em; line-height: 1.25; }
+.artifact-ai-edit-drawn h1 { font-size: 1.35em; }
+.artifact-ai-edit-drawn h2 { font-size: 1.2em; }
+.artifact-ai-edit-drawn :is(h3, h4, h5, h6) { font-size: 1.05em; }
+.artifact-ai-edit-drawn blockquote {
+  padding-left: 0.8em;
+  border-left: 3px solid color-mix(in srgb, CanvasText 22%, transparent);
+  color: color-mix(in srgb, CanvasText 78%, transparent);
+}
+.artifact-ai-edit-drawn :is(code, pre) {
+  font: 0.9em ui-monospace, "SF Mono", Menlo, monospace;
+}
+.artifact-ai-edit-drawn pre { white-space: pre-wrap; }
+.artifact-ai-edit-drawn img { display: block; max-width: 100%; max-height: 160px; margin: 0.4em 0; }
+.artifact-ai-edit-drawn table { border-collapse: collapse; }
+.artifact-ai-edit-drawn :is(th, td) { padding: 2px 6px; border: 1px solid color-mix(in srgb, CanvasText 14%, transparent); }
+.artifact-ai-edit-drawn a { color: AccentColor; text-decoration: none; cursor: default; }
+/* A passage's sources and the page's own addresses are no link to the eye. */
+.artifact-ai-edit-drawn a:is([href^="https://foreverlm.invalid/grounding/"], [href^="foreverlm://grounding/"]) {
+  color: inherit;
+}
+.artifact-ai-edit-drawn sup { font-size: 0.72em; line-height: 0; }
+.artifact-ai-edit-drawn sup a { color: AccentColor; }
+
+/* What the proposal changes: new words washed green, words taken out struck
+   through in red, as a tracked change reads. */
+.artifact-ai-edit-drawn ins {
+  border-radius: 2px;
+  background: color-mix(in srgb, #34c759 24%, transparent);
+  text-decoration: none;
+}
+.artifact-ai-edit-drawn del {
+  color: color-mix(in srgb, CanvasText 52%, transparent);
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, #ff3b30 75%, CanvasText);
+}
 
 .artifact-ai-edit-actions {
   display: flex;
