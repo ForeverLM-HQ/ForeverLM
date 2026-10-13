@@ -490,7 +490,7 @@ focus is inside the reader.
 A page can link to another page or to a notebook. Type `[[` and start the page's
 title: a short list of your pages and notebooks appears at the caret, narrowing as
 you type; Return writes the one you pick as a link with its title. The **Link**
-field (⌘K, or the Link button in the header) takes a title as readily as a web
+field (the link button on the bar over selected words) takes a title as readily as a web
 address, so selecting a few words and typing a page's name there links them to
 that page. Pasting a web address over selected words links them to it. On the Mac you can also drag a page from the Pages list, or a notebook's row
 from the navigation rail, onto the page: a caret follows the pointer and the
@@ -558,6 +558,14 @@ little between the Mac app and Web Studio.
 | **Prompt** | Adds a request that readers can open in Chat. It is stored as a quote that starts with the bold word **Prompt** |
 | **Text**, **Heading 1** to **Heading 3**, **Bulleted list**, **Numbered list**, **Checklist**, **Quote**, **Code**, **Divider**, **Table**, **Equation** | The basic blocks: each changes the block at the caret into that kind |
 | **Footnote** | Puts a numbered note at the caret, as below |
+
+The basic blocks have Markdown shortcuts at the start of a line: `#`, `##` or
+`###` and a space for a heading, `-` or `1.` for a list, `[ ]` for a checklist
+item, `>` for a quote and `---` for a divider; a line of just ```` ``` ```` (a
+language after it if you like) or `$$` makes code or an equation when you press
+Return. Backspace at the start of a heading, a quote or a list item turns it
+back into plain text before it joins the line above, and Tab in a list item
+nests it.
 
 ### Footnotes
 
