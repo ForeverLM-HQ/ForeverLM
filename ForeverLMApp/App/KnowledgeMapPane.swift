@@ -10,15 +10,16 @@ import WebKit
 /// sidebar on the leading edge, the canvas beside it, and the canvas's name
 /// at the top as its menu ("Canvases in the Space").
 ///
-/// The plane is `KnowledgeMapCanvasView`. Around it: the tools (select, hand,
-/// circle, region, arrow, note) with a + that opens the add box, a find field
-/// that also adds, and the Library button above; undo, zoom and the shortcuts
-/// below; the lens banner while a chat's lens shows; the Library, a sidebar on
-/// the trailing edge with what is not on the canvas yet (closed until asked for,
-/// and the plane narrows for it); and, over the plane's trailing edge, what is
-/// selected — cards with Ask in Chat, an Idea's evidence, a region's name and
-/// colour, an arrow's label. An empty map says what to do first.
-/// docs/knowledge-map-design.md, "Adding to the canvas".
+/// The plane is `KnowledgeMapCanvasView`. Around it, kept quiet
+/// (docs/knowledge-map-design.md, "A quiet canvas"): three tools (select,
+/// region, arrow), a find field that also adds, and the Library button above;
+/// zoom below, and the view switches that are on; the lens banner while a
+/// chat's lens shows; the Library, a sidebar on the trailing edge with what is
+/// not on the canvas yet (closed until asked for, and the plane narrows for
+/// it); and, over the plane's trailing edge, what is selected — its name or
+/// cards, Ask in Chat, Ask, and a ⋯ for the rest. Everything else is a key, the
+/// canvas's menu (Show ▸), the View menu or a right-click. An empty map says
+/// what to do first. docs/knowledge-map-design.md, "Adding to the canvas".
 struct KnowledgeMapPane: View {
     @Environment(StudioViewModel.self) private var vm
     @Environment(StudioWindowState.self) private var windowState
@@ -179,9 +180,7 @@ struct KnowledgeMapPane: View {
                             }
                         }
                         Spacer(minLength: 12)
-                        KnowledgeMapMemoryToggle() // Memory (WP-B2)
-                        KnowledgeMapFacesToggle().padding(4).mapFloatingChrome(cornerRadius: 12) // Faces (WP-B1)
-                        viewSwitches
+                        switchesOn
                     }
                 }
                 .padding(14)
@@ -276,6 +275,11 @@ struct KnowledgeMapPane: View {
             .onChange(of: map.layoutRevision) {
                 Task { await vm.refreshKnowledgeMapSummaries() }
                 Task { await vm.refreshKnowledgeMapFaces() } // Faces (WP-B1)
+            }
+            // Written Faces turned on, from the canvas's menu or anywhere:
+            // what each source says is written now.
+            .onChange(of: map.showsWrittenFaces) { _, isOn in
+                if isOn { Task { await vm.refreshKnowledgeMapFaces() } }
             }
             .onChange(of: map.selectedRegionID) { _, id in
                 regionName = id.flatMap { map.layout.regions[$0]?.name } ?? ""
@@ -406,6 +410,7 @@ struct KnowledgeMapPane: View {
             Button("New Canvas", systemImage: KnowledgeMap.symbolName) {
                 vm.makeAndOpenCanvas(inPageSpace: spaceSelection.pageSpaceID, in: windowState)
             }
+            showMenuSection
             regionsMenuSection
         } label: {
             HStack(spacing: 5) {
@@ -431,6 +436,28 @@ struct KnowledgeMapPane: View {
         .help("Canvas options")
         .accessibilityLabel("\(vm.openCanvasName), canvas options")
         .accessibilityIdentifier("knowledgeMap.canvasMenu")
+    }
+
+    /// **Show**, in the canvas's menu: how the plane is drawn, and the keys.
+    /// A switch that is on shows bottom right as well (`switchesOn`), so it is
+    /// turned off where it shows.
+    private var showMenuSection: some View {
+        @Bindable var map = map
+        let memory = map.memory
+        return Section("Show") {
+            Toggle("Minimap", isOn: $map.showsMinimap)
+                .accessibilityIdentifier("knowledgeMap.show.minimap")
+            Toggle("Focus on the Selection", isOn: $map.focusMode)
+                .accessibilityIdentifier("knowledgeMap.show.focus")
+            Toggle("Written Faces", isOn: $map.showsWrittenFaces)
+                .accessibilityIdentifier("knowledgeMap.show.writtenFaces")
+            Toggle("Memory", isOn: Binding(get: { memory.isShown }, set: { memory.isShown = $0 }))
+                .accessibilityIdentifier("knowledgeMap.show.memory")
+            Toggle("Describe the View", isOn: $map.describesView)
+                .accessibilityIdentifier("knowledgeMap.show.describeView")
+            Button("Keyboard Shortcuts") { map.showsShortcuts = true }
+                .accessibilityIdentifier("knowledgeMap.show.shortcuts")
+        }
     }
 
     /// The most regions the canvas menu lists.
@@ -526,13 +553,14 @@ struct KnowledgeMapPane: View {
 
     // MARK: Toolbar
 
+    /// The tools on the bar. The rest are keys the shortcuts list: H or Space
+    /// for the hand, C to circle cards, N for a note (a double-click writes an
+    /// Idea), and / or a right-click's Add Here for the add box, which Find or
+    /// add… does too.
     private static let tools: [(id: String, title: String, symbol: String)] = [
         ("select", "Select and move (V)", "cursorarrow"),
-        ("hand", "Move around the canvas (H, or hold Space)", "hand.raised"),
-        ("circle", "Circle cards to select them (C)", "lasso"),
         ("region", "Draw a region (R)", "rectangle.dashed"),
         ("connect", "Draw an arrow from one card to another (A)", "arrow.right"),
-        ("note", "Write a note on the canvas (N)", "note.text.badge.plus"),
     ]
 
     private var toolsPill: some View {
@@ -555,21 +583,6 @@ struct KnowledgeMapPane: View {
                 .accessibilityLabel(tool.title)
                 .accessibilityIdentifier("knowledgeMap.tool.\(tool.id)")
             }
-            Divider().frame(height: 16).padding(.horizontal, 3)
-            // An action, not a tool: the add box opens under the pill and nothing
-            // stays selected.
-            Button {
-                map.addBox = KnowledgeMapAddBoxRequest(view: nil, worldX: nil, worldY: nil, windowID: windowState.id)
-            } label: {
-                Image(systemName: "plus")
-                    .zoomedSystemFont(size: 14)
-                    .frame(width: 32, height: 28)
-                    .foregroundStyle(Color.primary.opacity(0.8))
-            }
-            .buttonStyle(.hoverWash(cornerRadius: 8, inset: 0, opacity: 0.10))
-            .help("Add to the canvas (/)")
-            .accessibilityLabel("Add to the canvas (/)")
-            .accessibilityIdentifier("knowledgeMap.add")
         }
         .padding(4)
         .mapFloatingChrome(cornerRadius: 12)
@@ -742,24 +755,22 @@ struct KnowledgeMapPane: View {
         }
     }
 
+    /// Zoom and nothing else: − and + around the percentage, which shows the
+    /// whole canvas (as 0 does). Undo is ⌘Z, Extend Canvas to Other Display is
+    /// in the View menu, and the shortcuts (?, or Show ▸ Keyboard Shortcuts in
+    /// the canvas's menu) hang from here.
     private var zoomPill: some View {
-        HStack(spacing: 2) {
-            toolbarButton("arrow.uturn.backward", help: "Undo (⌘Z)") { map.undo() }
-                .disabled(!map.canUndo)
-            toolbarButton("arrow.uturn.forward", help: "Redo (⇧⌘Z)") { map.redo() }
-                .disabled(!map.canRedo)
-            Divider().frame(height: 16).padding(.horizontal, 3)
+        @Bindable var map = map
+        return HStack(spacing: 2) {
             toolbarButton("minus", help: "Zoom out") { map.send(.zoom(1 / 1.4)) }
             zoomReadout
             toolbarButton("plus", help: "Zoom in") { map.send(.zoom(1.4)) }
-            Divider().frame(height: 16).padding(.horizontal, 3)
-            toolbarButton("arrow.up.left.and.arrow.down.right", help: "Show the whole canvas (0)") { map.send(.fit) }
-            Divider().frame(height: 16).padding(.horizontal, 3)
-            displayExtensionButton
-            shortcutsButton
         }
         .padding(4)
         .mapFloatingChrome(cornerRadius: 12)
+        .popover(isPresented: $map.showsShortcuts, arrowEdge: .top) {
+            KnowledgeMapShortcutsView()
+        }
     }
 
     /// The camera's zoom as a percentage between − and +; a click shows the
@@ -784,36 +795,8 @@ struct KnowledgeMapPane: View {
         }
     }
 
-    /// The shortcuts and gestures, in a popover over the whole pane; ? on the
-    /// plane opens it too.
-    private var shortcutsButton: some View {
-        @Bindable var map = map
-        return toolbarButton("keyboard", help: "Keyboard shortcuts and gestures (?)") { map.showsShortcuts.toggle() }
-            .popover(isPresented: $map.showsShortcuts, arrowEdge: .top) {
-                KnowledgeMapShortcutsView()
-            }
-            .accessibilityIdentifier("knowledgeMap.shortcuts")
-    }
-
-    /// Extend to Other Display: the plane goes on in a second Map window on
-    /// the other screen, and the button stops it again.
-    private var displayExtensionButton: some View {
-        let displays = KnowledgeMapDisplayExtension.shared
-        let extending = displays.isExtending(from: canvasHandle.coordinator)
-        let title = extending ? "Stop Extending" : "Extend to Other Display"
-        return Button(action: toggleDisplayExtension) {
-            Image(systemName: "display.2")
-                .zoomedSystemFont(size: 13)
-                .frame(width: 30, height: 28)
-                .foregroundStyle(extending ? Color.accentColor : Color.primary)
-        }
-        .buttonStyle(.hoverWash(cornerRadius: 8, inset: 0, opacity: 0.10))
-        .disabled(!extending && displays.displayCount < 2)
-        .help(displays.displayCount < 2 && !extending ? "Extend to Other Display (connect a second display)" : title)
-        .accessibilityLabel(title)
-        .accessibilityIdentifier("knowledgeMap.extendToOtherDisplay")
-    }
-
+    /// View ▸ Extend Canvas to Other Display: the plane goes on in a second
+    /// window on the other screen, or stops.
     private func toggleDisplayExtension() {
         let displays = KnowledgeMapDisplayExtension.shared
         if displays.isExtending(from: canvasHandle.coordinator) {
@@ -856,36 +839,52 @@ struct KnowledgeMapPane: View {
         .transition(.opacity)
     }
 
-    /// The switches for how the plane is shown: the minimap, Focus (everything
-    /// but the selection and its arrows fades) and the caption. The renderer
-    /// draws the first two (`showsMinimap`, `focusMode`).
-    private var viewSwitches: some View {
+    /// The switches for how the plane is shown, bottom right, only while they
+    /// are on: state happening now, turned off where it shows. Off, they wait
+    /// in the canvas's menu under Show. The Memory layer brings its legend; the
+    /// renderer draws the minimap and Focus (`showsMinimap`, `focusMode`).
+    @ViewBuilder
+    private var switchesOn: some View {
         @Bindable var map = map
-        return HStack(spacing: 2) {
-            viewSwitch(
-                isOn: $map.showsMinimap,
-                symbol: "map",
-                label: "Minimap",
-                help: map.showsMinimap ? "Hide the minimap" : "Show a minimap of the whole canvas",
-                identifier: "knowledgeMap.minimap"
-            )
-            viewSwitch(
-                isOn: $map.focusMode,
-                symbol: "viewfinder.circle",
-                label: "Focus",
-                help: map.focusMode ? "Stop focusing (⇧F)" : "Fade everything but the selection and its arrows (⇧F)",
-                identifier: "knowledgeMap.focus"
-            )
-            viewSwitch(
-                isOn: $map.describesView,
-                symbol: "text.viewfinder",
-                label: "Describe the view",
-                help: map.describesView ? "Stop describing what is in view" : "Describe what is in view as you explore",
-                identifier: "knowledgeMap.describeView"
-            )
+        if map.memory.isShown {
+            KnowledgeMapMemoryToggle() // Memory (WP-B2)
         }
-        .padding(4)
-        .mapFloatingChrome(cornerRadius: 12)
+        if map.showsWrittenFaces || map.showsMinimap || map.focusMode || map.describesView {
+            HStack(spacing: 2) {
+                if map.showsWrittenFaces {
+                    KnowledgeMapFacesToggle() // Faces (WP-B1)
+                }
+                if map.showsMinimap {
+                    viewSwitch(
+                        isOn: $map.showsMinimap,
+                        symbol: "map",
+                        label: "Minimap",
+                        help: "Hide the minimap",
+                        identifier: "knowledgeMap.minimap"
+                    )
+                }
+                if map.focusMode {
+                    viewSwitch(
+                        isOn: $map.focusMode,
+                        symbol: "viewfinder.circle",
+                        label: "Focus",
+                        help: "Stop focusing (⇧F)",
+                        identifier: "knowledgeMap.focus"
+                    )
+                }
+                if map.describesView {
+                    viewSwitch(
+                        isOn: $map.describesView,
+                        symbol: "text.viewfinder",
+                        label: "Describe the view",
+                        help: "Stop describing what is in view",
+                        identifier: "knowledgeMap.describeView"
+                    )
+                }
+            }
+            .padding(4)
+            .mapFloatingChrome(cornerRadius: 12)
+        }
     }
 
     private func viewSwitch(isOn: Binding<Bool>, symbol: String, label: String, help: String, identifier: String) -> some View {
@@ -1080,43 +1079,49 @@ struct KnowledgeMapPane: View {
                     }
                 }
             }
-            HStack(spacing: 8) {
-                ForEach(KnowledgeMapModel.regionColors, id: \.self) { hex in
-                    Button {
-                        map.recolorRegion(id, to: hex)
-                    } label: {
-                        Circle()
-                            .fill(Color(mapHex: hex))
-                            .frame(width: 16, height: 16)
-                            .overlay(Circle().strokeBorder(Color.primary.opacity(region.color == hex ? 0.7 : 0), lineWidth: 2))
-                    }
-                    .buttonStyle(.hoverWash(in: Circle()))
-                    .accessibilityLabel("Colour \(hex)")
+            // The ways in, as a card's are: Ask in Chat and Ask, the rest
+            // under the ⋯ in the trailing corner.
+            let cards = cardsInRegion(id)
+            FlowLayout(spacing: 10) {
+                Button("Ask in Chat") { vm.requestChatAboutKnowledgeMapSelection(cards) }
+                    .buttonStyle(.hoverWash(cornerRadius: 6, inset: -4, opacity: 0.10))
+                    .disabled(cards.isEmpty)
+                    .accessibilityIdentifier("knowledgeMap.region.askInChat")
+                // MARK: Ask (WP-B1)
+                if !cards.isEmpty {
+                    KnowledgeMapAskSection(refs: cards, notebookID: map.notebook(ofRegion: id)?.id)
                 }
             }
-            Text(regionCountsLine(id))
-                .zoomedSystemFont(size: 12)
-                .foregroundStyle(.secondary)
-                .textSelection(.disabled)
-            // A region drawn inside another: where it sits, and the way out.
-            if let parentID = map.layout.parentRegionID(of: id), let parent = map.layout.regions[parentID] {
-                Button {
-                    map.send(.focus(refs: [], regionID: parentID))
-                } label: {
-                    Label("Inside \(map.notebook(ofRegion: parentID)?.title ?? (parent.name.isEmpty ? "Untitled region" : parent.name))", systemImage: "arrow.up.left")
-                        .zoomedSystemFont(size: 12)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+            .padding(.trailing, 28)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .overlay(alignment: .topTrailing) {
+                regionMenu(id: id, region: region, cards: cards)
+            }
+        }
+    }
+
+    /// A region's ⋯, as its right-click menu: Colour ▸, Layout ▸ (Free or a
+    /// mind map laid out from its branches; a notebook's frame keeps its rows),
+    /// a paper's Show ▸ (its pages, or its figures only), Fold Up, Lock or
+    /// Unlock, Fit to Content, for a mind map Turn into Cards and Arrows, and
+    /// Delete Region.
+    private func regionMenu(id: String, region: KnowledgeMapLayout.Region, cards: [String]) -> some View {
+        Menu {
+            KnowledgeMapColourMenu(selected: region.color, offersDefault: false) { hex in
+                if let hex { map.recolorRegion(id, to: hex) }
+            }
+            if map.notebook(ofRegion: id) == nil {
+                Picker("Layout", selection: Binding(
+                    get: { region.layout == KnowledgeMapInspectorChoices.treeLayout ? KnowledgeMapInspectorChoices.treeLayout : "free" },
+                    set: { vm.setKnowledgeMapRegionLayout(id, $0 == "free" ? nil : $0) }
+                )) {
+                    Text("Free").tag("free")
+                    Text("Mind Map").tag(KnowledgeMapInspectorChoices.treeLayout)
                 }
-                .buttonStyle(.hoverWash(cornerRadius: 6, inset: -4, opacity: 0.10))
-                .help("Zoom out to the region around this one (⌘↑)")
-                .accessibilityIdentifier("knowledgeMap.region.parent")
+                .pickerStyle(.menu)
+                .help("Lay the region's cards out freely, or as a mind map from their branches")
+                .accessibilityIdentifier("knowledgeMap.region.layout")
             }
-            // MARK: Ask (WP-B1)
-            if !cardsInRegion(id).isEmpty {
-                KnowledgeMapAskSection(refs: cardsInRegion(id), notebookID: map.notebook(ofRegion: id)?.id)
-            }
-            // A paper's region: shown as its pages, or as its figures only.
             if let paper = vm.knowledgeMapPaperLayout(ofRegion: id) {
                 Picker("Show", selection: Binding(
                     get: { paper.layout },
@@ -1126,63 +1131,23 @@ struct KnowledgeMapPane: View {
                         Text(layout.title).tag(layout)
                     }
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
+                .pickerStyle(.menu)
                 .help("Show this paper as its pages, its figures, or its figures with the extended and supplementary ones")
                 .accessibilityIdentifier("knowledgeMap.region.paperLayout")
             }
-            // Free, or a mind map laid out from its branches. A notebook's
-            // frame is the notebook's own, and keeps its rows.
-            if map.notebook(ofRegion: id) == nil {
-                Picker("Layout", selection: Binding(
-                    get: { region.layout == KnowledgeMapInspectorChoices.treeLayout ? KnowledgeMapInspectorChoices.treeLayout : "free" },
-                    set: { vm.setKnowledgeMapRegionLayout(id, $0 == "free" ? nil : $0) }
-                )) {
-                    Text("Free").tag("free")
-                    Text("Mind Map").tag(KnowledgeMapInspectorChoices.treeLayout)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .help("Lay the region's cards out freely, or as a mind map from their branches")
-                .accessibilityLabel("Layout")
-                .accessibilityIdentifier("knowledgeMap.region.layout")
-            }
-            // Fold the region up to its name and count, or open it again: its
-            // cards stay placed where they are, only not drawn.
-            Button {
-                map.setRegionCollapsed(id, !region.isCollapsed)
-            } label: {
-                Label(region.isCollapsed ? "Open Region" : "Fold Region Up", systemImage: region.isCollapsed ? "chevron.down.circle" : "chevron.up.circle")
-                    .zoomedSystemFont(size: 12)
-            }
-            .buttonStyle(.hoverWash(cornerRadius: 6, inset: -4, opacity: 0.10))
-            .disabled(cardsInRegion(id).isEmpty && !region.isCollapsed)
-            .help(region.isCollapsed ? "Draw the cards in this region again" : "Draw only this region's name and count; its cards stay where they are")
-            .accessibilityIdentifier("knowledgeMap.region.collapse")
-            HStack {
-                Button("Ask in Chat") { vm.requestChatAboutKnowledgeMapSelection(cardsInRegion(id)) }
-                    .buttonStyle(.hoverWash(cornerRadius: 6, inset: -4, opacity: 0.10))
-                    .disabled(cardsInRegion(id).isEmpty)
-                Spacer()
-                regionMenu(id: id, region: region)
-                Button("Delete Region", role: .destructive) { map.deleteRegion(id, takingCardsOff: true) }
-                    .buttonStyle(.hoverWash(cornerRadius: 6, inset: -4, opacity: 0.10))
-                    .help("The region goes, with its cards and the regions inside it")
-            }
-        }
-    }
-
-    /// A region's ⋯: Lock or Unlock, Fit to Content, and for a mind map Turn
-    /// into Cards and Arrows.
-    private func regionMenu(id: String, region: KnowledgeMapLayout.Region) -> some View {
-        Menu {
+            Divider()
+            // Folded, the region draws only its name and count; its cards stay
+            // placed where they are.
+            Button(region.isCollapsed ? "Open" : "Fold Up") { map.setRegionCollapsed(id, !region.isCollapsed) }
+                .disabled(cards.isEmpty && !region.isCollapsed)
+                .accessibilityIdentifier("knowledgeMap.region.collapse")
             Button(region.locked == true ? "Unlock" : "Lock", systemImage: region.locked == true ? "lock.open" : "lock") {
                 vm.setKnowledgeMapRegionLocked(id, region.locked != true)
             }
             .help(region.locked == true ? "Let its cards and the region be moved again" : "Keep its cards and the region where they are")
             .accessibilityIdentifier("knowledgeMap.region.lock")
             Button("Fit to Content") { vm.fitKnowledgeMapRegionToContent(id) }
-                .disabled(cardsInRegion(id).isEmpty)
+                .disabled(cards.isEmpty)
                 .help("Shrink or grow the region to just hold its cards")
                 .accessibilityIdentifier("knowledgeMap.region.fit")
             if region.layout == KnowledgeMapInspectorChoices.treeLayout {
@@ -1190,6 +1155,13 @@ struct KnowledgeMapPane: View {
                     .help("Keep the cards where the mind map put them, joined by arrows, and lay the region out freely")
                     .accessibilityIdentifier("knowledgeMap.region.turnIntoArrows")
             }
+            Divider()
+            Button("Delete Region", role: .destructive) { map.deleteRegion(id, takingCardsOff: true) }
+                .help("The region goes, with its cards and the regions inside it")
+                .accessibilityIdentifier("knowledgeMap.region.delete")
+            Button("Delete Region, Keep Cards") { map.deleteRegion(id) }
+                .help("Only the frame goes; its cards stay where they are")
+                .accessibilityIdentifier("knowledgeMap.region.deleteKeepingCards")
         } label: {
             Image(systemName: "ellipsis")
                 .zoomedSystemFont(size: 12)
@@ -1202,16 +1174,6 @@ struct KnowledgeMapPane: View {
         .fixedSize()
         .accessibilityLabel("More")
         .accessibilityIdentifier("knowledgeMap.region.more")
-    }
-
-    /// "12 cards · 2 regions inside": the cards in the region, the regions
-    /// inside it counted too.
-    private func regionCountsLine(_ id: String) -> String {
-        let cards = cardsInRegion(id).count
-        let nested = map.layout.nestedRegionIDs(in: id).count
-        var parts = ["\(cards) \(cards == 1 ? "card" : "cards")"]
-        if nested > 0 { parts.append("\(nested) \(nested == 1 ? "region" : "regions") inside") }
-        return parts.joined(separator: " · ")
     }
 
     /// A region's cards: those placed in it (a card in a region inside it is
@@ -1290,13 +1252,18 @@ struct KnowledgeMapPane: View {
         return only
     }
 
-    /// The cards' ⋯: how one opens, laying a paper out, a paper's page or an
+    /// The cards' ⋯: Add to Chat, how one opens, laying a paper out, the
+    /// cards' colour (one of eight, or the kind's own), a paper's page or an
     /// Idea's words, fold, size, tidying, moving to another canvas, copying
     /// and taking off. The plane's own
     /// right-click menu offers the same through the same calls
     /// (`StudioViewModel+CanvasInspector.swift`).
     private func cardsMenu(refs: [String], placed: [String], pagedSource: String?) -> some View {
         Menu {
+            Button("Add to Chat") { vm.addKnowledgeMapCardsToChat(refs, in: windowState) }
+                .help("Give the chat beside the canvas these cards to work from, or open one with them")
+                .accessibilityIdentifier("knowledgeMap.selection.addToChat")
+            Divider()
             if refs.count == 1 {
                 Button("Open Beside", systemImage: "rectangle.righthalf.inset.filled") {
                     Task { await vm.openKnowledgeMapItemBeside(refs[0], in: windowState) }
@@ -1317,6 +1284,14 @@ struct KnowledgeMapPane: View {
                         .accessibilityIdentifier("knowledgeMap.selection.layOutFigures")
                     Button("Figures + Extended Data") { layOutFigures(of: sourceID, extended: true) }
                         .accessibilityIdentifier("knowledgeMap.selection.layOutFiguresExtended")
+                }
+            }
+            if !placed.isEmpty {
+                KnowledgeMapColourMenu(
+                    selected: sharedCardColor(of: placed),
+                    defaultIsSelected: placed.allSatisfy { map.layout.placements[$0]?.color == nil }
+                ) { hex in
+                    vm.setKnowledgeMapCardColor(placed, to: hex)
                 }
             }
             KnowledgeMapCardActionItems(refs: refs)
@@ -1383,10 +1358,6 @@ struct KnowledgeMapPane: View {
                 Button("Ask in Chat") { vm.requestChatAboutKnowledgeMapSelection(refs) }
                     .buttonStyle(.hoverWash(cornerRadius: 6, inset: -4, opacity: 0.10))
                     .accessibilityIdentifier("knowledgeMap.selection.ask")
-                Button("Add to Chat") { vm.addKnowledgeMapCardsToChat(refs, in: windowState) }
-                    .buttonStyle(.hoverWash(cornerRadius: 6, inset: -4, opacity: 0.10))
-                    .help("Give the chat beside the canvas these cards to work from, or open one with them")
-                    .accessibilityIdentifier("knowledgeMap.selection.addToChat")
                 if refs.count == 1 {
                     Button("Open") { Task { await vm.openKnowledgeMapItem(refs[0], in: windowState) } }
                         .buttonStyle(.hoverWash(cornerRadius: 6, inset: -4, opacity: 0.10))
@@ -1397,15 +1368,6 @@ struct KnowledgeMapPane: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .overlay(alignment: .topTrailing) {
                 cardsMenu(refs: refs, placed: placed, pagedSource: pagedSource)
-            }
-            // The cards' colour: one of eight, or the kind's own.
-            if !placed.isEmpty {
-                KnowledgeMapColorRow(
-                    selected: sharedCardColor(of: placed),
-                    defaultIsSelected: placed.allSatisfy { map.layout.placements[$0]?.color == nil }
-                ) { hex in
-                    vm.setKnowledgeMapCardColor(placed, to: hex)
-                }
             }
             if refs.count == 1, let idea = KnowledgeMap.ItemRef(refs[0]), idea.kind == .idea {
                 ideaEvidence(ideaRef: refs[0], ideaID: idea.id)

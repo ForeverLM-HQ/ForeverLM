@@ -55,6 +55,39 @@ struct KnowledgeMapColorRow: View {
     }
 }
 
+/// **Colour ▸** in a ⋯: the eight tints, a swatch each and the one in use
+/// ticked, then Default where the thing can give its colour up. The plane's
+/// right-click menu offers the same (`KnowledgeMapCanvasMenu`).
+struct KnowledgeMapColourMenu: View {
+    /// The colour everything selected shares; nil when none is coloured or
+    /// they differ.
+    let selected: String?
+    /// Whether nothing selected has a colour set: Default is the ticked one.
+    var defaultIsSelected = false
+    var offersDefault = true
+    let pick: (String?) -> Void
+
+    var body: some View {
+        Menu("Colour") {
+            ForEach(KnowledgeMapInspectorChoices.tints, id: \.hex) { tint in
+                Toggle(isOn: Binding(get: { selected == tint.hex }, set: { _ in pick(tint.hex) })) {
+                    Label {
+                        Text(tint.name)
+                    } icon: {
+                        Image(nsImage: KnowledgeMapCanvasMenu.swatch(tint.hex))
+                    }
+                }
+                .accessibilityIdentifier("knowledgeMap.colour.\(tint.hex)")
+            }
+            if offersDefault {
+                Divider()
+                Toggle("Default", isOn: Binding(get: { defaultIsSelected }, set: { _ in pick(nil) }))
+                    .accessibilityIdentifier("knowledgeMap.colour.default")
+            }
+        }
+    }
+}
+
 /// What a placed card's ⋯ offers besides opening it: Fold / Unfold, Fit to
 /// Content, Tidy Up ▸ and Align ▸ (two cards or more), Move to Canvas ▸ and
 /// Copy as Markdown. Shared by the selection inspector and a clip's, so the two

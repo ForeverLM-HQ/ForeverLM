@@ -126,19 +126,12 @@ struct KnowledgeMapLibrarySidebar: View {
     @ViewBuilder
     private var sections: some View {
         let held = contents
-        header("related", held.relatedTitle, placeAll: held.related.count > 1 ? held.related : nil)
-        if !folded.contains("related") {
-            if held.related.isEmpty {
-                Text("Nothing in your library links to what is on this canvas yet.")
-                    .zoomedSystemFont(size: 11)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 6)
-                    .padding(.bottom, 8)
-                    .textSelection(.disabled)
-            }
-            ForEach(held.related, id: \.self) { ref in
-                row(ref)
+        if !held.related.isEmpty {
+            header("related", held.relatedTitle, placeAll: held.related.count > 1 ? held.related : nil)
+            if !folded.contains("related") {
+                ForEach(held.related, id: \.self) { ref in
+                    row(ref)
+                }
             }
         }
         if let title = held.notebookTitle, !held.notebookRefs.isEmpty {
@@ -186,6 +179,14 @@ struct KnowledgeMapLibrarySidebar: View {
                     KnowledgeMapLibraryNotebookRow(notebook: notebook, popoverRef: $popoverRef)
                 }
             }
+        }
+        if held.related.isEmpty, held.notebookRefs.isEmpty, held.clips.isEmpty, held.ideas.isEmpty, held.notebooks.isEmpty {
+            Text("Nothing to place yet.")
+                .zoomedSystemFont(size: 11.5)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 8)
+                .textSelection(.disabled)
         }
     }
 

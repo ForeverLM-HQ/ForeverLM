@@ -188,7 +188,9 @@ struct KnowledgeMapProposalBanner: View {
 }
 
 /// Written Faces, beside the caption's switch: what each source says, written
-/// for every zoom, in place of its cut title. Remembered on this Mac.
+/// for every zoom, in place of its cut title. Remembered on this Mac. It shows
+/// while on; the canvas's Show ▸ turns it on, and the pane writes the faces
+/// when it does.
 struct KnowledgeMapFacesToggle: View {
     @Environment(StudioViewModel.self) private var vm
 
@@ -205,8 +207,5 @@ struct KnowledgeMapFacesToggle: View {
         .help(map.showsWrittenFaces ? "Show sources by their titles" : "Show what each source says, written for every zoom")
         .accessibilityLabel("Written Faces")
         .accessibilityIdentifier("knowledgeMap.writtenFaces")
-        .onChange(of: map.showsWrittenFaces) { _, isOn in
-            if isOn { Task { await vm.refreshKnowledgeMapFaces() } }
-        }
     }
 }

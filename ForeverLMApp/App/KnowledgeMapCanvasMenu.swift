@@ -50,9 +50,6 @@ struct KnowledgeMapCanvasMenu {
     /// Where the click was, in world units.
     let world: (Double, Double)
 
-    /// The eight tints, in `KnowledgeMapModel.regionColors` order, and what they are called.
-    private static let colourNames = ["Purple", "Green", "Orange", "Pink", "Gold", "Blue", "Lime", "Gray"]
-
     func menu(kind: String, refs: [String], id: String?) -> NSMenu? {
         switch kind {
         case "plane": return planeMenu()
@@ -335,15 +332,15 @@ struct KnowledgeMapCanvasMenu {
         return parent
     }
 
-    /// The eight tints as a menu's items (a swatch each, the one in use ticked),
-    /// and Default after them when the thing has a colour of its own to give up.
-    /// `apply` gets the tint, or nil for Default.
+    /// The eight tints as a menu's items (a swatch each, named as the inspector
+    /// names them, the one in use ticked), and Default after them when the
+    /// thing has a colour of its own to give up. `apply` gets the tint, or nil
+    /// for Default.
     private func colourItems(current: Set<String?>, enabled: Bool, hasDefault: Bool = true, apply: @escaping (String?) -> Void) -> [NSMenuItem] {
         var items: [NSMenuItem] = []
-        for (index, hex) in KnowledgeMapModel.regionColors.enumerated() {
-            let name = index < Self.colourNames.count ? Self.colourNames[index] : hex
-            let entry = item(name, enabled: enabled, checked: current.count == 1 && current.contains(hex)) { apply(hex) }
-            entry.image = Self.swatch(hex)
+        for tint in KnowledgeMapInspectorChoices.tints {
+            let entry = item(tint.name, enabled: enabled, checked: current.count == 1 && current.contains(tint.hex)) { apply(tint.hex) }
+            entry.image = Self.swatch(tint.hex)
             items.append(entry)
         }
         if hasDefault {
@@ -353,8 +350,8 @@ struct KnowledgeMapCanvasMenu {
         return items
     }
 
-    /// A small round swatch of `#rrggbb`.
-    private static func swatch(_ hex: String) -> NSImage {
+    /// A small round swatch of `#rrggbb`; the inspector's Colour ▸ draws it too.
+    static func swatch(_ hex: String) -> NSImage {
         var digits = hex
         if digits.hasPrefix("#") { digits.removeFirst() }
         let value = UInt32(digits, radix: 16) ?? 0x888780
