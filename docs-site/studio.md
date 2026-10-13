@@ -524,8 +524,9 @@ A link cited inside a sentence gets the same treatment in the margin. Every
 paragraph that links to the web carries a stack of small cards beside it, one
 per source, drawn like a row in the Library: the picture, the title, a
 quieter line — author · venue · year for a paper, the site for a page — and a
-check that opens the source or a plus that adds it. Hover a card to see which
-words cite it. The prose is untouched; in a pane too narrow to hold the page
+check that opens the source or a plus that adds it. Two links into one page (an
+article's Fig. 3 and Fig. 4) are one card. Hover a card to see which words cite
+it. The prose is untouched; in a pane too narrow to hold the page
 and a margin column together, the same rows sit below the paragraph instead.
 
 The page is a readable column by default, centred in the pane. On a wide pane
@@ -571,6 +572,10 @@ cited, and adding, moving or deleting one renumbers the rest.
   gets a note of its own; cut and paste moves the footnote.
 - Footnotes pasted from a Substack post, a GitHub page or another published
   Page arrive as footnotes.
+- A passage pasted from a paper or an article keeps its citation numbers as
+  footnotes: each note holds the reference the article gave that number (a
+  Nature paper names the whole reference), or a link to where the number
+  pointed when the article named none.
 - The Page stores them as ordinary Markdown footnotes, `[^1]` in the text and
   `[^1]: The note.` at the end, so Chat, assistants over MCP and Download as
   Markdown read them as they are. A published Page draws the notes at the end of

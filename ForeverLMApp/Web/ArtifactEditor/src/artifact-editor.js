@@ -56,7 +56,7 @@ import {
 } from './notes-graph-syntax.js'
 import { attachBlockProperties, defaultProperties, highlightHex, properties as blockPropertyValues, propertyComment } from './block-properties.js'
 import { remarkMoneyIsNotMath } from './dollar-math.js'
-import { footnoteKey, freshNumericLabel, planFootnotes } from './footnotes.js'
+import { citationFootnote, footnoteKey, freshNumericLabel, planFootnotes } from './footnotes.js'
 import { renderInline, renderMarkdown } from './notes-markdown.js'
 import {
   closeNotesPanels,
@@ -2282,6 +2282,19 @@ function webReferenceHref(href) {
   }
 }
 
+/// The page an address names: the address without its fragment, which is how
+/// the library knows a source (`URLNormalizer` drops it too). An article's
+/// `#ref-CR32` and `#Fig3` are two places in one page, and one source.
+function referencePage(href) {
+  try {
+    const url = new URL(String(href ?? '').trim())
+    url.hash = ''
+    return url.href
+  } catch {
+    return String(href ?? '').trim()
+  }
+}
+
 /// The address a reference card stands for: a web URL, or the stored form of a
 /// library source's address for a line that is only a source link. The stored
 /// form is what the host is asked about and what its answer is keyed by.
@@ -2624,41 +2637,44 @@ function referenceAction(href, status, compact = false) {
 // hold the prose and the column together the cards are not drawn; the links are
 // still in the prose, where they always were.
 
-/// The distinct web addresses a paragraph cites in sentences, in reading order,
-/// each with the words it is cited by: `[{ href, text }]`. A reference line is
-/// not a citation — it has its own card — and a table cell has no margin to
-/// carry one, so both answer with nothing.
+/// The distinct web pages a paragraph cites in sentences, in reading order,
+/// each with the first address it is cited by and that link's words:
+/// `[{ href, page, text }]`. A card is a source, so two links into one page
+/// (`#Fig3` and `#Fig4` of one article) are one card. A reference line is not
+/// a citation — it has its own card — and a table cell has no margin to carry
+/// one, so both answer with nothing.
 function citedLinksInBlock(state, block) {
   if (block.node.type.name !== 'paragraph') return []
   const $position = state.doc.resolve(block.position)
   for (let depth = $position.depth; depth > 0; depth -= 1) {
     if (/table/i.test($position.node(depth).type.name)) return []
   }
-  const byHref = new Map()
+  const byPage = new Map()
   let previousHref = null
   block.node.forEach((child) => {
     if (!child.isText) { previousHref = null; return }
     const mark = child.marks.find((candidate) => candidate.type.name === 'link')
     const href = mark ? webReferenceHref(mark.attrs?.href) : null
     if (!href) { previousHref = null; return }
-    const cited = byHref.get(href)
-    if (!cited) byHref.set(href, { href, text: child.text })
+    const page = referencePage(href)
+    const cited = byPage.get(page)
+    if (!cited) byPage.set(page, { href, page, text: child.text })
     // One link split into two text nodes by a second mark — a bold word inside
-    // the title — is one run of words; the same address cited again later in
-    // the paragraph is a repeat, and its words are not appended.
-    else if (previousHref === href) cited.text += child.text
+    // the title — is one run of words; the same page cited again later in the
+    // paragraph is a repeat, and its words are not appended.
+    else if (previousHref === href && cited.href === href) cited.text += child.text
     previousHref = href
   })
-  return [...byHref.values()].map((cited) => ({ href: cited.href, text: cited.text.trim() }))
+  return [...byPage.values()].map((cited) => ({ href: cited.href, page: cited.page, text: cited.text.trim() }))
 }
 
-/// Which web addresses each section already lists as reference cards, keyed by
+/// Which web pages each section already lists as reference cards, keyed by
 /// the index of the heading that opens the section (0 before the first
 /// heading). A source that has its own card a few lines under the paragraph
 /// that cites it — the shape a report's per-company reference list takes — is
 /// not repeated in the margin; a References list at the end of the doc is
 /// another section, and leaves every margin card standing.
-function referenceHrefsBySection(state, blocks) {
+function referencePagesBySection(state, blocks) {
   const bySection = new Map()
   let section = 0
   for (const block of blocks) {
@@ -2666,7 +2682,7 @@ function referenceHrefsBySection(state, blocks) {
     const reference = referenceInBlock(state, block)
     if (!reference) continue
     if (!bySection.has(section)) bySection.set(section, new Set())
-    bySection.get(section).add(reference.href)
+    bySection.get(section).add(referencePage(reference.href))
   }
   return bySection
 }
@@ -2723,7 +2739,7 @@ function marginCard(cited, status) {
   const citedAnchors = () => {
     const paragraph = card.closest('.artifact-cited')
     if (!paragraph) return []
-    return [...paragraph.querySelectorAll('a[href]')].filter((anchor) => anchor.getAttribute('href') === cited.href)
+    return [...paragraph.querySelectorAll('a[href]')].filter((anchor) => referencePage(anchor.getAttribute('href')) === cited.page)
   }
   card.addEventListener('mouseenter', () => {
     for (const anchor of citedAnchors()) anchor.classList.add('artifact-cited-active')
@@ -2888,7 +2904,7 @@ function referenceDecorations(state) {
   const hrefs = []
   let citedBlocks = 0
   const blocks = textBlocks(state)
-  const listedBySection = referenceHrefsBySection(state, blocks)
+  const listedBySection = referencePagesBySection(state, blocks)
   let section = 0
   for (const block of blocks) {
     if (block.node.type.name === 'heading') { section += 1; continue }
@@ -2911,7 +2927,7 @@ function referenceDecorations(state) {
         continue
       }
       const listed = listedBySection.get(section)
-      const cited = listed ? citedAll.filter(({ href }) => !listed.has(href)) : citedAll
+      const cited = listed ? citedAll.filter(({ page }) => !listed.has(page)) : citedAll
       for (const { href } of citedAll) hrefs.push(href)
       if (cited.length === 0) {
         decorations.push(Decoration.node(block.position, block.position + block.node.nodeSize, {
@@ -4356,7 +4372,8 @@ function insertCalloutBlock(kind, from, to) {
 //   makes a note of its own and a cut and paste moves one; labels a paste
 //   brings that the page already uses are renamed; a note pasted without its
 //   number becomes the words it held. Substack's, GitHub's and pandoc's
-//   footnotes, and a published ForeverLM page's, are read as footnotes.
+//   footnotes, and a published ForeverLM page's, are read as footnotes, and
+//   so are an article's citation numbers, each with its reference as the note.
 
 const footnoteReferenceName = 'footnote_reference'
 const footnoteDefinitionName = 'footnote_definition'
@@ -4384,6 +4401,21 @@ function pastedFootnoteLabel(...candidates) {
   return null
 }
 
+/// A citation number pasted from an article (`citationFootnote`), as the
+/// footnote's attributes, or false when the link is not one.
+function pastedCitation(dom) {
+  if (!(dom instanceof HTMLElement)) return false
+  const href = dom.getAttribute('href')
+  const footnote = citationFootnote({
+    words: dom.textContent,
+    href,
+    address: webReferenceHref(href),
+    title: dom.getAttribute('title'),
+    ariaLabel: dom.getAttribute('aria-label'),
+  })
+  return footnote ? { label: footnote.label, note: JSON.stringify(footnote.note) } : false
+}
+
 /// The two footnote nodes, as this page draws and reads them. The number is
 /// drawn from the label the stylesheet hides (`data-n`, set by the plugin
 /// below): what a copy carries to another app is the label, readable there.
@@ -4408,6 +4440,13 @@ function withFootnotes(ctx) {
           getAttrs: (dom) => (dom instanceof HTMLElement
             ? reference(pastedFootnoteLabel(dom.getAttribute('href'), dom.textContent))
             : false),
+        },
+        // A citation number pasted from an article (`pastedCitation`): after
+        // the footnote writers above, ahead of the link it would otherwise be.
+        {
+          tag: 'sup a[href], a[href][role~="doc-biblioref"], a[href][role~="doc-noteref"]',
+          priority: 55,
+          getAttrs: pastedCitation,
         },
       ],
       toDOM: (node) => [

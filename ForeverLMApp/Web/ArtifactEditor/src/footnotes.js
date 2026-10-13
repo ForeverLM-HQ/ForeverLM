@@ -81,3 +81,37 @@ export function planFootnotes(references, definitions) {
   }
   return { notes, labels }
 }
+
+/// A citation number pasted from an article, as a footnote: `{ label, note }`,
+/// or null when the link is not one. An article's page sets a citation as a
+/// superscript link into its own reference list (Nature's
+/// `transcription<sup><a href="#ref-CR32">32</a></sup>`, Wikipedia's `[3]`),
+/// and the browser hands the link over pointing at the article itself; read
+/// as a link it was the number glued to the word ("transcription32") and a
+/// card of the quoted article per number. A number is the call for a note, so
+/// it becomes one, and the note holds what the page said the number names:
+/// the reference the link carries as its title (Springer Nature's pages carry
+/// the whole reference there), or, when the page gave none, the place the
+/// number pointed to. The page's number is the label, so a reference cited
+/// twice in the passage is one note.
+///
+/// `words` are the link's words, `href` its address as pasted, `address` that
+/// address when it is a page on the web (null otherwise), and `title` and
+/// `ariaLabel` its attributes. `note` is the note's blocks as ProseMirror JSON.
+export function citationFootnote({ words, href, address, title, ariaLabel }) {
+  const number = /^\[?(\d{1,4})\]?$/.exec(String(words ?? '').replace(/\s+/g, ''))
+  if (!number) return null
+  // A number linking anywhere but the web or its own page (a library source,
+  // mail) is not a citation from an article.
+  if (!address && !String(href ?? '').trim().startsWith('#')) return null
+  const plain = (value) => String(value ?? '').replace(/\s+/g, ' ').trim()
+  const reference = plain(title)
+  let note = { type: 'paragraph' }
+  if (reference && reference !== number[1]) {
+    note = { type: 'paragraph', content: [{ type: 'text', text: reference }] }
+  } else if (address) {
+    const text = plain(ariaLabel) || address
+    note = { type: 'paragraph', content: [{ type: 'text', text, marks: [{ type: 'link', attrs: { href: address } }] }] }
+  }
+  return { label: number[1], note: [note] }
+}
