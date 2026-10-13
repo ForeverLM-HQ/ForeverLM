@@ -117,7 +117,7 @@ struct BookPageMap: Equatable {
     func navigation(
         currentPage: Int?,
         sections: [String: [BookChapterSection]] = [:]
-    ) -> EPUBKitBookNavigation? {
+    ) -> BookNavigation? {
         guard chapters.count > 1 else { return nil }
         let items = chapters.map { chapter in
             let chapterSections = (sections[chapter.sourceID] ?? [])
@@ -130,7 +130,7 @@ struct BookPageMap: Equatable {
                         pageIndex: chapter.pageRange.lowerBound + section.pageInChapter
                     )
                 }
-            return EPUBKitBookNavigationItem(
+            return BookNavigationItem(
                 id: chapter.sourceID,
                 title: chapter.title,
                 path: chapter.path,
@@ -142,7 +142,7 @@ struct BookPageMap: Equatable {
             guard let currentPage else { return nil }
             return items[index].sections.last { $0.pageIndex <= currentPage }?.id
         }
-        return EPUBKitBookNavigation(
+        return BookNavigation(
             items: items,
             currentIndex: currentIndex,
             currentSectionID: currentSectionID

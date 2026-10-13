@@ -1,5 +1,4 @@
 #if os(macOS)
-import EPUBKit
 import Foundation
 import SwiftUI
 import WebKit
@@ -309,7 +308,7 @@ actor ArticleArchiveCache {
     }
 }
 
-struct EPUBKitBookNavigationItem: Identifiable, Equatable {
+struct BookNavigationItem: Identifiable, Equatable {
     let id: String
     let title: String
     let path: String
@@ -329,24 +328,24 @@ struct BookNavigationSection: Identifiable, Equatable {
     let pageIndex: Int
 }
 
-struct EPUBKitBookNavigation: Equatable {
-    let items: [EPUBKitBookNavigationItem]
+struct BookNavigation: Equatable {
+    let items: [BookNavigationItem]
     let currentIndex: Int?
     /// The section of the current chapter the reader is in, when the chapter
     /// has sections and the reader has reached the first of them.
     var currentSectionID: String? = nil
 
-    var currentItem: EPUBKitBookNavigationItem? {
+    var currentItem: BookNavigationItem? {
         guard let currentIndex, items.indices.contains(currentIndex) else { return nil }
         return items[currentIndex]
     }
 
-    var previousItem: EPUBKitBookNavigationItem? {
+    var previousItem: BookNavigationItem? {
         guard let currentIndex, items.indices.contains(currentIndex - 1) else { return nil }
         return items[currentIndex - 1]
     }
 
-    var nextItem: EPUBKitBookNavigationItem? {
+    var nextItem: BookNavigationItem? {
         guard let currentIndex, items.indices.contains(currentIndex + 1) else { return nil }
         return items[currentIndex + 1]
     }
@@ -388,16 +387,16 @@ struct ReaderPageNavigation: Equatable {
 
 @MainActor
 final class ReaderBookNavigationBridge: ObservableObject {
-    @Published private(set) var navigation: EPUBKitBookNavigation?
+    @Published private(set) var navigation: BookNavigation?
     /// Set by a reader whose document is one run of pages; an EPUB has
     /// chapters but no page count and leaves this `nil`.
     @Published private(set) var pageNavigation: ReaderPageNavigation?
-    private var navigateHandler: ((EPUBKitBookNavigationItem) -> Void)?
+    private var navigateHandler: ((BookNavigationItem) -> Void)?
     private var goToPageHandler: ((Int) -> Void)?
 
     func update(
-        navigation: EPUBKitBookNavigation?,
-        navigate: @escaping (EPUBKitBookNavigationItem) -> Void
+        navigation: BookNavigation?,
+        navigate: @escaping (BookNavigationItem) -> Void
     ) {
         self.navigation = navigation
         self.navigateHandler = navigate
@@ -421,7 +420,7 @@ final class ReaderBookNavigationBridge: ObservableObject {
         goToPageHandler = nil
     }
 
-    func navigate(to item: EPUBKitBookNavigationItem) {
+    func navigate(to item: BookNavigationItem) {
         navigateHandler?(item)
     }
 
@@ -435,121 +434,6 @@ final class ReaderBookNavigationBridge: ObservableObject {
 // encodings of `sources.reading_position_locator`.
 
 enum EPUBKitReaderSupport {
-    /// Builds the reader's chapter navigation.
-    ///
-    /// When `sourceChapterPaths` is provided (path relative to the extracted
-    /// `Chapters` directory → isArchived), navigation is filtered down to files that
-    /// exist as ingested chapter sources, so the Contents menu matches the app's
-    /// study model: never-ingested front/back matter (cover, copyright, ads) is
-    /// dropped and archived chapters are flagged. When it is nil, the full EPUB spine
-    /// or extracted file list is used unchanged so navigation is never lost.
-    static func navigation(
-        containing chapterPath: String,
-        sourceChapterPaths: [String: Bool]? = nil
-    ) -> EPUBKitBookNavigation? {
-        let standardizedChapterPath = URL(fileURLWithPath: chapterPath).standardizedFileURL.path
-        guard let chaptersURL = chaptersDirectory(containing: standardizedChapterPath) else { return nil }
-
-        let sourceChapterPaths = sourceChapterPaths?.isEmpty == false ? sourceChapterPaths : nil
-        if let sourceChapterPaths {
-            if let navigation = navigationFromEPUBKit(chaptersURL: chaptersURL, currentPath: standardizedChapterPath, sourceChapterPaths: sourceChapterPaths) {
-                return navigation
-            }
-
-            if let navigation = navigationFromExtractedChapterFiles(chaptersURL: chaptersURL, currentPath: standardizedChapterPath, sourceChapterPaths: sourceChapterPaths) {
-                return navigation
-            }
-        }
-
-        return navigationFromEPUBKit(chaptersURL: chaptersURL, currentPath: standardizedChapterPath, sourceChapterPaths: nil)
-            ?? navigationFromExtractedChapterFiles(chaptersURL: chaptersURL, currentPath: standardizedChapterPath, sourceChapterPaths: nil)
-    }
-
-    /// Restricts spine-derived items to ingested chapter sources and marks archived
-    /// ones. If a source map was provided but nothing matches, returns nil so callers
-    /// can try another navigation source before falling back to unfiltered navigation.
-    private static func applySourceFilter(
-        _ items: [EPUBKitBookNavigationItem],
-        sourceChapterPaths: [String: Bool]?
-    ) -> [EPUBKitBookNavigationItem]? {
-        guard let sourceChapterPaths, !sourceChapterPaths.isEmpty else { return items }
-        let filtered = items.compactMap { item -> EPUBKitBookNavigationItem? in
-            guard let relativePath = relativeChapterPath(for: item.path),
-                  let isArchived = sourceChapterPaths[relativePath]
-                    ?? sourceChapterPaths[URL(fileURLWithPath: item.path).lastPathComponent] else { return nil }
-            return EPUBKitBookNavigationItem(id: item.id, title: item.title, path: item.path, isArchived: isArchived)
-        }
-        return filtered.isEmpty ? nil : filtered
-    }
-
-    private static func navigationFromEPUBKit(chaptersURL: URL, currentPath: String, sourceChapterPaths: [String: Bool]?) -> EPUBKitBookNavigation? {
-        guard let document = EPUBDocument(url: chaptersURL) else { return nil }
-
-        let tocTitles = flattenedTOCTitles(document.tableOfContents)
-        var items: [EPUBKitBookNavigationItem] = []
-        var seenPaths = Set<String>()
-
-        for spineItem in document.spine.items where spineItem.linear {
-            guard let manifestItem = document.manifest.items[spineItem.idref],
-                  isReadableContent(manifestItem.mediaType) else { continue }
-
-            let fileURL = document.contentDirectory
-                .appendingPathComponent(manifestItem.path)
-                .standardizedFileURL
-            guard FileManager.default.fileExists(atPath: fileURL.path),
-                  seenPaths.insert(fileURL.path).inserted else { continue }
-
-            let key = normalizedEPUBResourceKey(manifestItem.path)
-            let title = readerChapterTitle(at: fileURL.path, tocTitle: tocTitles[key])
-            items.append(EPUBKitBookNavigationItem(
-                id: fileURL.path,
-                title: title,
-                path: fileURL.path
-            ))
-        }
-
-        guard let resolvedItems = applySourceFilter(items, sourceChapterPaths: sourceChapterPaths) else { return nil }
-        guard resolvedItems.count > 1 else { return nil }
-        let currentIndex = bestCurrentIndex(in: resolvedItems, currentPath: currentPath)
-        return EPUBKitBookNavigation(items: resolvedItems, currentIndex: currentIndex)
-    }
-
-    private static func navigationFromExtractedChapterFiles(chaptersURL: URL, currentPath: String, sourceChapterPaths: [String: Bool]?) -> EPUBKitBookNavigation? {
-        guard let enumerator = FileManager.default.enumerator(
-            at: chaptersURL,
-            includingPropertiesForKeys: [.isRegularFileKey],
-            options: [.skipsHiddenFiles]
-        ) else { return nil }
-
-        var urls: [URL] = []
-        for case let url as URL in enumerator {
-            guard isReadableContentExtension(url.pathExtension),
-                  (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else { continue }
-            let components = Set(url.standardizedFileURL.pathComponents.map { $0.lowercased() })
-            if components.contains("meta-inf") { continue }
-            let name = url.lastPathComponent.lowercased()
-            if name.contains("nav") || name.contains("toc") || name.hasSuffix(".opf") || name.hasSuffix(".ncx") { continue }
-            urls.append(url.standardizedFileURL)
-        }
-
-        let sorted = urls.sorted {
-            $0.path.localizedStandardCompare($1.path) == .orderedAscending
-        }
-        guard sorted.count > 1 else { return nil }
-
-        let items = sorted.map { url in
-            EPUBKitBookNavigationItem(
-                id: url.path,
-                title: readerChapterTitle(at: url.path, tocTitle: nil),
-                path: url.path
-            )
-        }
-        guard let resolvedItems = applySourceFilter(items, sourceChapterPaths: sourceChapterPaths) else { return nil }
-        guard resolvedItems.count > 1 else { return nil }
-        let currentIndex = bestCurrentIndex(in: resolvedItems, currentPath: currentPath)
-        return EPUBKitBookNavigation(items: resolvedItems, currentIndex: currentIndex)
-    }
-
     static func chaptersDirectory(containing path: String) -> URL? {
         var current = URL(fileURLWithPath: path).deletingLastPathComponent()
         while current.path != "/" {
@@ -568,13 +452,6 @@ enum EPUBKitReaderSupport {
         let chaptersPath = chaptersURL.path
         guard fileURL.path.hasPrefix(chaptersPath + "/") else { return nil }
         return String(fileURL.path.dropFirst(chaptersPath.count + 1))
-    }
-
-    static func resolvedChapterPath(relativePath: String, fallbackPath: String) -> String? {
-        guard !relativePath.isEmpty,
-              let chaptersURL = chaptersDirectory(containing: fallbackPath) else { return nil }
-        let resolved = chaptersURL.appendingPathComponent(relativePath).standardizedFileURL
-        return resolved.path
     }
 
     /// Base URL for `loadHTMLString` when opening legacy combined chapter files.
@@ -624,93 +501,6 @@ enum EPUBKitReaderSupport {
             )
         }
         return html
-    }
-
-    private static func bestCurrentIndex(in items: [EPUBKitBookNavigationItem], currentPath: String) -> Int? {
-        let currentURL = URL(fileURLWithPath: currentPath).standardizedFileURL
-        if let exact = items.firstIndex(where: { $0.path == currentURL.path }) {
-            return exact
-        }
-
-        let currentName = currentURL.lastPathComponent.lowercased()
-        return items.firstIndex {
-            URL(fileURLWithPath: $0.path).lastPathComponent.lowercased() == currentName
-        }
-    }
-
-    private static func flattenedTOCTitles(_ toc: EPUBTableOfContents) -> [String: String] {
-        var titles: [String: String] = [:]
-
-        func walk(_ entries: [EPUBTableOfContents]?) {
-            for entry in entries ?? [] {
-                if let item = entry.item {
-                    let key = normalizedEPUBResourceKey(item)
-                    let title = entry.label.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !key.isEmpty, !title.isEmpty, titles[key] == nil {
-                        titles[key] = title
-                    }
-                }
-                walk(entry.subTable)
-            }
-        }
-
-        walk(toc.subTable)
-        return titles
-    }
-
-    private static func normalizedEPUBResourceKey(_ value: String) -> String {
-        var path = value.removingPercentEncoding ?? value
-        if let hash = path.firstIndex(of: "#") { path = String(path[..<hash]) }
-        if let query = path.firstIndex(of: "?") { path = String(path[..<query]) }
-        return URL(fileURLWithPath: path).lastPathComponent.lowercased()
-    }
-
-    private static func isReadableContent(_ mediaType: EPUBMediaType) -> Bool {
-        switch mediaType {
-        case .xHTML, .svg:
-            return true
-        default:
-            return false
-        }
-    }
-
-    private static func isReadableContentExtension(_ ext: String) -> Bool {
-        switch ext.lowercased() {
-        case "xhtml", "html", "htm":
-            return true
-        default:
-            return false
-        }
-    }
-
-    private static func readerChapterTitle(at path: String, tocTitle: String?) -> String {
-        if let tocTitle {
-            let normalized = normalizeReaderChapterTitle(tocTitle)
-            if !normalized.isEmpty, !EPUBParser.isGenericChapterLabel(tocTitle) { return normalized }
-        }
-        if let raw = try? String(contentsOfFile: path, encoding: .utf8),
-           let heading = EPUBParser.extractHeadingFromHTML(raw) {
-            let normalized = normalizeReaderChapterTitle(heading)
-            if !normalized.isEmpty { return normalized }
-        }
-        return normalizeReaderChapterTitle(
-            (URL(fileURLWithPath: path).lastPathComponent as NSString).deletingPathExtension
-        )
-    }
-
-    /// Strips ForeverLM combined-chapter sort prefixes (`02 1) Title` → `1) Title`)
-    /// and normalizes numbered labels to match imported source titles.
-    private static func normalizeReaderChapterTitle(_ raw: String) -> String {
-        var name = raw
-            .replacingOccurrences(of: "_", with: " ")
-            .replacingOccurrences(of: "-", with: " ")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        if name.range(of: #"^\d{2}\s+"#, options: .regularExpression) != nil {
-            name = name.replacingOccurrences(of: #"^\d{2}\s+"#, with: "", options: .regularExpression)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        let normalized = EPUBParser.normalizeChapterTitle(name)
-        return normalized.isEmpty ? "Chapter" : normalized
     }
 }
 #endif

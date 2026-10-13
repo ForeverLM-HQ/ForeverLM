@@ -572,11 +572,11 @@ struct SourceReaderWindow: View {
         return next
     }
 
-    private func readerChapterSource(for item: EPUBKitBookNavigationItem) -> StudioArticle? {
+    private func readerChapterSource(for item: BookNavigationItem) -> StudioArticle? {
         vm.articles.first { $0.id == item.id } ?? vm.sourceMatchingLocalPath(item.path)
     }
 
-    private func logBookItemsAsListened(_ items: [EPUBKitBookNavigationItem]) {
+    private func logBookItemsAsListened(_ items: [BookNavigationItem]) {
         let sources = items.compactMap(readerChapterSource(for:))
         guard sources.count == items.count else {
             vm.errorMessage = "Could not match every selected chapter to this book."

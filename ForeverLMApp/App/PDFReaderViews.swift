@@ -879,7 +879,7 @@ struct PDFBookReaderView: View {
     }
 
     /// The Contents menu and the chapter chevrons: a chapter's first page.
-    private func navigate(to item: EPUBKitBookNavigationItem) {
+    private func navigate(to item: BookNavigationItem) {
         guard let map = assembly?.map, let chapter = map.chapter(forSourceID: item.id) else { return }
         jump(to: chapter.pageRange.lowerBound)
         selectedText = ""

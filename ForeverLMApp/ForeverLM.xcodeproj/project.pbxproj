@@ -281,7 +281,7 @@
 		238C2641587EC60A550A8E34 /* String+ReadableMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62B5AD22C124CEE6E00131EB /* String+ReadableMath.swift */; };
 		23957C5A5FB67AE323AD56DC /* journal-feed-nature-rdf.xml in Resources */ = {isa = PBXBuildFile; fileRef = 334251770880E0C58EE8A2D3 /* journal-feed-nature-rdf.xml */; };
 		23F8BD3DD2EFD8528C7561F9 /* KnowledgeStore+SoftHyphenRepair.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3A5F3FE7EB178C8BFAD0FB5 /* KnowledgeStore+SoftHyphenRepair.swift */; };
-		24207EFF6BF8B1B06EA112F4 /* EPUBKit in Frameworks */ = {isa = PBXBuildFile; productRef = EB1421F4A506A8F7009704C4 /* EPUBKit */; };
+		24207EFF6BF8B1B06EA112F4 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 6DC27E5B0C5BFDA8AB89E056 /* Sparkle */; };
 		244C7443B06A85EA2533C743 /* PDFReaderViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E50818D784BD1AF11821999 /* PDFReaderViews.swift */; };
 		24D10580F2D16089040280AB /* LinkedGoogleDoc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1024AD31C2DCE759C1684252 /* LinkedGoogleDoc.swift */; };
 		24FA857BDEF6B25A288837A3 /* ReviewDictationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF965E3B014F54AAB8D76D8E /* ReviewDictationService.swift */; };
@@ -1130,7 +1130,6 @@
 		91AF787005A151913434F8A5 /* SyncVectorRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76601FE23B9D84E93EE7C6C9 /* SyncVectorRunner.swift */; };
 		91C6442EB99A243DF032B71B /* ForeverLMRuntimeIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF70ADDD992C64F26067F03A /* ForeverLMRuntimeIdentity.swift */; };
 		91F77FDA413F735D83A4C11B /* LegacyV2Mapping+Notebooks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BE72F0101C83AC266E5FF7B /* LegacyV2Mapping+Notebooks.swift */; };
-		921A464520073423218755B4 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 6DC27E5B0C5BFDA8AB89E056 /* Sparkle */; };
 		921F8A0BB1443EE5AD773895 /* MobileCloudRecordPayloadTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AA607BA8C42BFD67C7DBE5A /* MobileCloudRecordPayloadTests.swift */; };
 		92240A3EE5EB91A924F1A4E1 /* ReadingStateProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBEFA27644EE1622CAC0DA95 /* ReadingStateProjection.swift */; };
 		9227DB1E64C9760FD05C9F3A /* ImageCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EC52D3CA2D308F01BC90664 /* ImageCache.swift */; };
@@ -3753,8 +3752,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				512A61D070086F8F6CA017D3 /* ZIPFoundation in Frameworks */,
-				24207EFF6BF8B1B06EA112F4 /* EPUBKit in Frameworks */,
-				921A464520073423218755B4 /* Sparkle in Frameworks */,
+				24207EFF6BF8B1B06EA112F4 /* Sparkle in Frameworks */,
 				1A980BE41DB5A01F872B566D /* MediaPlayer.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -5870,7 +5868,6 @@
 			name = ForeverLM_macOS;
 			packageProductDependencies = (
 				4C35382A2709C73B54178B47 /* ZIPFoundation */,
-				EB1421F4A506A8F7009704C4 /* EPUBKit */,
 				6DC27E5B0C5BFDA8AB89E056 /* Sparkle */,
 			);
 			productName = ForeverLM_macOS;
@@ -6071,7 +6068,6 @@
 			mainGroup = 0202391995E7E6AC1E0AB388;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				06915EF5C63AA6AF0B8E0628 /* XCRemoteSwiftPackageReference "EPUBKit" */,
 				E0A0EB05FBBD2C733A359D2A /* XCRemoteSwiftPackageReference "Sparkle" */,
 				FC144DE27998CD01350DA6C3 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
 			);
@@ -9191,14 +9187,6 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		06915EF5C63AA6AF0B8E0628 /* XCRemoteSwiftPackageReference "EPUBKit" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/witekbobrowski/EPUBKit";
-			requirement = {
-				branch = main;
-				kind = branch;
-			};
-		};
 		E0A0EB05FBBD2C733A359D2A /* XCRemoteSwiftPackageReference "Sparkle" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/sparkle-project/Sparkle";
@@ -9227,11 +9215,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = E0A0EB05FBBD2C733A359D2A /* XCRemoteSwiftPackageReference "Sparkle" */;
 			productName = Sparkle;
-		};
-		EB1421F4A506A8F7009704C4 /* EPUBKit */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 06915EF5C63AA6AF0B8E0628 /* XCRemoteSwiftPackageReference "EPUBKit" */;
-			productName = EPUBKit;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

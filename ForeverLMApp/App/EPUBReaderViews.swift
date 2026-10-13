@@ -927,7 +927,7 @@ struct EPUBBookReaderView: View {
     }
 
     /// The Contents menu and the chapter chevrons: a chapter's top.
-    private func navigate(to item: EPUBKitBookNavigationItem) {
+    private func navigate(to item: BookNavigationItem) {
         guard let document, document.contains(sourceID: item.id) else { return }
         progress.flush()
         jump = nextJump(to: item.id, fraction: 0, mode: .start)
@@ -946,10 +946,10 @@ struct EPUBBookReaderView: View {
             return
         }
         let items = document.chapters.map { chapter in
-            EPUBKitBookNavigationItem(id: chapter.sourceID, title: chapter.title, path: chapter.path)
+            BookNavigationItem(id: chapter.sourceID, title: chapter.title, path: chapter.path)
         }
         bookNavigationBridge?.update(
-            navigation: EPUBKitBookNavigation(items: items, currentIndex: document.index(ofSourceID: currentArticle.id)),
+            navigation: BookNavigation(items: items, currentIndex: document.index(ofSourceID: currentArticle.id)),
             navigate: navigate(to:)
         )
     }
@@ -997,9 +997,9 @@ final class EPUBBookProgressWriter {
 extension View {
     func bookContentsPopover(
         isPresented: Binding<Bool>,
-        navigation: EPUBKitBookNavigation?,
-        navigate: @escaping (EPUBKitBookNavigationItem) -> Void,
-        logListened: (([EPUBKitBookNavigationItem]) -> Void)? = nil,
+        navigation: BookNavigation?,
+        navigate: @escaping (BookNavigationItem) -> Void,
+        logListened: (([BookNavigationItem]) -> Void)? = nil,
         goToPage: ((Int) -> Void)? = nil
     ) -> some View {
         popover(isPresented: isPresented, arrowEdge: .bottom) {
@@ -1031,10 +1031,10 @@ extension View {
 }
 
 private struct BookContentsPopover: View {
-    let navigation: EPUBKitBookNavigation
-    let navigate: (EPUBKitBookNavigationItem) -> Void
+    let navigation: BookNavigation
+    let navigate: (BookNavigationItem) -> Void
     let goToSection: ((BookNavigationSection) -> Void)?
-    let logListened: (([EPUBKitBookNavigationItem]) -> Void)?
+    let logListened: (([BookNavigationItem]) -> Void)?
     @State private var isSelecting = false
     @State private var selectedItemIDs: Set<String> = []
     /// Chapters whose sections are listed. The chapter being read opens
@@ -1042,10 +1042,10 @@ private struct BookContentsPopover: View {
     @State private var expandedItemIDs: Set<String>
 
     init(
-        navigation: EPUBKitBookNavigation,
-        navigate: @escaping (EPUBKitBookNavigationItem) -> Void,
+        navigation: BookNavigation,
+        navigate: @escaping (BookNavigationItem) -> Void,
         goToSection: ((BookNavigationSection) -> Void)?,
-        logListened: (([EPUBKitBookNavigationItem]) -> Void)?
+        logListened: (([BookNavigationItem]) -> Void)?
     ) {
         self.navigation = navigation
         self.navigate = navigate
@@ -1057,7 +1057,7 @@ private struct BookContentsPopover: View {
 
     private var showsSections: Bool { goToSection != nil && !isSelecting }
 
-    private func visibleSections(of item: EPUBKitBookNavigationItem) -> [BookNavigationSection] {
+    private func visibleSections(of item: BookNavigationItem) -> [BookNavigationSection] {
         showsSections && expandedItemIDs.contains(item.id) ? item.sections : []
     }
 
@@ -1069,13 +1069,13 @@ private struct BookContentsPopover: View {
 
     /// The row the check mark goes on: the current section when it is listed,
     /// otherwise its chapter.
-    private func isMarked(_ item: EPUBKitBookNavigationItem) -> Bool {
+    private func isMarked(_ item: BookNavigationItem) -> Bool {
         guard item.id == navigation.currentItem?.id else { return false }
         guard let currentSectionID = navigation.currentSectionID else { return true }
         return !visibleSections(of: item).contains { $0.id == currentSectionID }
     }
 
-    private var selectedItems: [EPUBKitBookNavigationItem] {
+    private var selectedItems: [BookNavigationItem] {
         navigation.items.filter { selectedItemIDs.contains($0.id) }
     }
 
@@ -1200,7 +1200,7 @@ private struct BookContentsPopover: View {
         .frame(width: 340, height: max(44, popoverHeight))
     }
 
-    private func disclosureButton(for item: EPUBKitBookNavigationItem) -> some View {
+    private func disclosureButton(for item: BookNavigationItem) -> some View {
         let isExpanded = expandedItemIDs.contains(item.id)
         return Button {
             if isExpanded {
