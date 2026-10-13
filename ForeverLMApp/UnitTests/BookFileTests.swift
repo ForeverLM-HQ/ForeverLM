@@ -328,6 +328,8 @@ struct BookFileStorageTests {
             url: StudioArticle.bookChapterURL(bookFilePath: "Books/Foo/Foo.pdf", pages: 12..<40),
             title: "Water", sourceType: .book, localFilePath: "Books/Foo/Foo.pdf"
         )
+        // A ready source holds its text.
+        article.content = "Water is a polar molecule."
         article.state = .ready
         article.bookPages = 12..<40
         try store.saveSource(article)
@@ -346,6 +348,7 @@ struct BookFileStorageTests {
                 url: StudioArticle.bookChapterURL(bookFilePath: book.path, pages: pages),
                 title: "Chapter \(pages.lowerBound)", sourceType: .book, localFilePath: book.path
             )
+            article.content = "Chapter text."
             article.state = .ready
             article.bookPages = pages
             #expect(try store.insertSourceIfNew(&article))
@@ -451,7 +454,9 @@ struct BookFileMigrationTests {
         let elapsed = started.duration(to: .now)
 
         #expect(elapsed < .seconds(1))
-        #expect(try migrated.scalarInteger("SELECT COUNT(*) FROM book_file_merge_queue") == 402)
+        // 400 × 25 chapters fall in 401 books (book-0 … book-400), with "split" and, by schema 170,
+        // the unpacked "epub".
+        #expect(try migrated.scalarInteger("SELECT COUNT(*) FROM book_file_merge_queue") == 401 + 2)
     }
 
     @Test("A failed step rolls back and leaves the released library as it was")
@@ -479,9 +484,13 @@ struct BookChapterSyncTests {
     private typealias Fixture = SourceSyncFixture
     private static let bookID = "BOOK-SYNC-0001"
 
+    private static let bookBytes = Data("%PDF-book".utf8)
+
+    /// The book's file as its record names it: the hash and size of `bookBytes`, which the reader checks
+    /// before it installs anything.
     private static func bookFile(owner: String = bookID) -> FileRef {
-        FileRef(owner: owner, role: "pdf", hash: String(repeating: "b", count: 64), size: 1_000, mime: "application/pdf",
-                encoding: "identity", storedParts: [Data("%PDF-book".utf8)])
+        FileRef(owner: owner, role: "pdf", hash: SyncIdentity.sha256Hex(bookBytes), size: Int64(bookBytes.count),
+                mime: "application/pdf", encoding: "identity", storedParts: [bookBytes])
     }
 
     private static func chapter(_ pages: Range<Int>?, url: String = "Books/Foo/Foo.pdf#page=13") -> [String: SyncJSON] {
@@ -549,7 +558,7 @@ struct BookChapterSyncTests {
         #expect(try InboundSourceFiles.waiting(sourceID: "src-water", connection: store)[InboundSourceFiles.pdfRole] != nil)
         try store.replica.apply { _ in
             _ = try InboundSourceFiles.receivedPDF(
-                Data("%PDF-book".utf8), installedPath: "Books/synced-book.pdf", sourceID: "src-water", connection: store
+                Self.bookBytes, installedPath: "Books/synced-book.pdf", sourceID: "src-water", connection: store
             )
         }
         #expect(try Fixture.text(store, "SELECT local_file_path FROM book_sources WHERE source_id = 'src-water'") == "Books/synced-book.pdf")
