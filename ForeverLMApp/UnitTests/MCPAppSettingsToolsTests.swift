@@ -249,8 +249,8 @@ struct MCPAppSettingsToolsTests {
         let paneIDs = MCPDataStore.settingsPaneIDs.map { $0.id }
         #expect(Set(paneIDs).count == paneIDs.count)
         // The plan and the AI spend are two panes since 2026-09-28.
-        #expect(MCPDataStore.settingsPaneIDs.first { $0.id == "billing" }?.pane == .aiBilling)
-        #expect(MCPDataStore.settingsPaneIDs.first { $0.id == "ai_usage" }?.pane == .aiUsage)
+        #expect(MCPDataStore.settingsPaneIDs.first { $0.id == "billing" }?.target == .pane(.aiBilling))
+        #expect(MCPDataStore.settingsPaneIDs.first { $0.id == "ai_usage" }?.target == .pane(.aiUsage))
         for row in MCPDataStore.settingsOnlyInTheWindow {
             #expect(paneIDs.contains(row["open_settings"] ?? ""), "\(row["control"] ?? "?") points at an unknown pane")
         }

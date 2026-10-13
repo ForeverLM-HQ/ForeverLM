@@ -364,6 +364,8 @@ struct StudioView: View {
             KnowledgeMapPane()
         case .atlas:
             AtlasPane()
+        case .plugins:
+            PluginsPane()
         }
     }
 
@@ -1121,6 +1123,13 @@ struct StudioView: View {
                 guard !creditsAreEmpty else { return }
                 handledCreditsEmptyEpisode = false
                 showCreditsEmptyAlert = false
+            }
+            // Plugins are a place, not a Settings pane: a link to one from
+            // Settings, a banner or a chat closes Settings and opens the place.
+            .onReceive(NotificationCenter.default.publisher(for: .requestOpenPluginsPlace)) { note in
+                guard StudioWindowRegistry.shared.activeState === windowState else { return }
+                if showSettings { dismissSettings() }
+                vm.openPluginsPlace(note.object as? PluginPage, in: windowState)
             }
     }
 

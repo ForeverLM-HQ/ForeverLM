@@ -9,22 +9,27 @@ import Testing
 
 @Suite("The shell's place registry")
 struct ShellPlacesTests {
-    /// The titles `StudioCenterTab.title` returned from its own switch.
+    /// The titles `StudioCenterTab.title` returned from its own switch, and
+    /// Plugins, the place added after it (Track 2).
     private static let titles: [StudioCenterTab: String] = [
         .chat: "Chat", .secondaryChat: "Chat", .reader: "Reader", .tasks: "Tasks", .activity: "Day",
         .goals: "Goals", .courses: "Courses", .ideas: "Ideas", .notepad: "Pages", .sites: "Sites",
         .browser: "Browser", .videos: "Videos", .animations: "Animations", .artifacts: "Space",
         .memory: "Memory", .library: "Library", .knowledgeMap: "Canvas", .atlas: "Atlas",
+        .plugins: "Plugins",
     ]
 
-    /// The glyphs the tab strip's private `systemImage` returned.
+    /// The glyphs the tab strip's private `systemImage` returned. The Space's
+    /// was Codex's grid until Plugins took it (2026-10-13); it is the strip's
+    /// Spaces glyph since, so one glyph names one place.
     private static let glyphs: [StudioCenterTab: String] = [
         .chat: "bubble.left.and.bubble.right", .secondaryChat: "bubble.left.and.bubble.right",
         .reader: "doc.text", .tasks: "clock.arrow.circlepath", .activity: "chart.bar.doc.horizontal",
         .goals: "target", .courses: "graduationcap", .ideas: "lightbulb", .notepad: "note.text",
         .sites: "globe", .browser: "safari", .videos: "film", .animations: "sparkles.tv",
-        .artifacts: "square.grid.2x2", .memory: "brain", .library: "books.vertical",
+        .artifacts: "square.on.square", .memory: "brain", .library: "books.vertical",
         .knowledgeMap: "rectangle.3.group", .atlas: "point.3.connected.trianglepath.dotted",
+        .plugins: "square.grid.2x2",
     ]
 
     @Test("Every center tab has a descriptor, and it names its own tab")
@@ -54,6 +59,16 @@ struct ShellPlacesTests {
         #expect(ShellPlaces.descriptor(for: .library).glyph == StudioRailItem.library.systemImage)
         #expect(ShellPlaces.descriptor(for: .knowledgeMap).glyph == KnowledgeMap.symbolName)
         #expect(ShellPlaces.descriptor(for: .atlas).glyph == AtlasPane.systemImage)
+        // The strip's rows draw their place's glyph.
+        #expect(ShellPlaces.descriptor(for: .artifacts).glyph == StudioRailItem.space.systemImage)
+        #expect(ShellPlaces.descriptor(for: .plugins).glyph == StudioRailItem.plugins.systemImage)
+        #expect(StudioRailItem.plugins.title == StudioCenterTab.plugins.title)
+    }
+
+    @Test("A glyph names one place")
+    func glyphsAreDistinct() {
+        let glyphs = ShellPlaces.all.filter { $0.tab != .secondaryChat }.map(\.glyph)
+        #expect(Set(glyphs).count == glyphs.count)
     }
 
     @Test("The shell is Codex's parts; the modules are ForeverLM's")
@@ -62,6 +77,9 @@ struct ShellPlacesTests {
         #expect(ShellPlaces.tabs(of: .chat) == [.chat, .secondaryChat])
         #expect(ShellPlaces.tabs(of: .canvas) == [.knowledgeMap, .atlas])
         #expect(ShellPlaces.tabs(of: .space) == [.artifacts, .notepad, .sites, .goals, .ideas])
+        #expect(ShellPlaces.tabs(of: .plugins) == [.plugins])
+        #expect(ShellPlaces.descriptor(for: .plugins).sidebar == nil, "Plugins has the card to itself, as the Library does")
+        #expect(ShellPlaces.descriptor(for: .plugins).role == .list)
         // Only the chats are threads: the chat's minimum width follows it.
         #expect(Set(ShellPlaces.all.filter { $0.role == .thread }.map(\.tab)) == [.chat, .secondaryChat])
     }
@@ -112,8 +130,8 @@ struct ShellPlacesWindowTests {
     /// The rules `showsSpace` and `isOnHome` spelled out by hand before the
     /// registry, for one pane in front: the Space, Sites, the global Pages and
     /// the Courses list draw the Space's sidebar; the Library, the Canvas, the
-    /// Atlas and Memory have the window to themselves; everything else is
-    /// Home's.
+    /// Atlas and Memory have the window to themselves, and so does Plugins,
+    /// the place added after; everything else is Home's.
     private static func expected(
         _ tab: StudioCenterTab,
         notebookPages: Bool,
@@ -126,7 +144,7 @@ struct ShellPlacesWindowTests {
         case .courses: showsSpace = !coursePage
         default: showsSpace = false
         }
-        let ownWindow: Set<StudioCenterTab> = [.library, .knowledgeMap, .atlas, .memory]
+        let ownWindow: Set<StudioCenterTab> = [.library, .knowledgeMap, .atlas, .memory, .plugins]
         return (showsSpace, !showsSpace && !ownWindow.contains(tab))
     }
 

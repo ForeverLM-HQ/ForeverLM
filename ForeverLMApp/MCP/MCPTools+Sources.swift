@@ -1586,7 +1586,7 @@ extension MCPDataStore {
         automaticallyFormatTranscripts: Bool = false
     ) async throws -> String {
         guard YouTubeService.shared.isSignedIn else {
-            throw MCPError.invalidInput("YouTube is not connected. Connect YouTube in Settings → Plugins → YouTube first.")
+            throw MCPError.invalidInput("YouTube is not connected. Connect YouTube in Plugins → YouTube first.")
         }
         let policy: YouTubeLikedImportPolicy = importExisting ? .importExisting : .futureOnly
         PreferenceStore.set(
@@ -1618,7 +1618,7 @@ extension MCPDataStore {
     /// the MCP counterpart of the source choice in Settings.
     func followYouTubeForeverLMPlaylistMCP() async throws -> String {
         guard YouTubeService.shared.isSignedIn else {
-            throw MCPError.invalidInput("YouTube is not connected. Connect YouTube in Settings → Plugins → YouTube first.")
+            throw MCPError.invalidInput("YouTube is not connected. Connect YouTube in Plugins → YouTube first.")
         }
         let feed = try await YouTubeService.shared.listForeverLMPlaylistFeed()
         StudioViewModel.setYouTubeAutoImportEnabled(true)
@@ -1648,10 +1648,10 @@ extension MCPDataStore {
                         || $0.value.connectorKind == YouTubeImportSource.foreverLMPlaylist.connectorKind)
             }
         guard !followed.isEmpty else {
-            return try jsonString(["refreshed": 0, "message": "No YouTube import source is selected. Choose one in Settings → Plugins → YouTube."] as [String: Any])
+            return try jsonString(["refreshed": 0, "message": "No YouTube import source is selected. Choose one in Plugins → YouTube."] as [String: Any])
         }
         guard YouTubeService.shared.isSignedIn else {
-            throw MCPError.invalidInput("YouTube is not connected. Connect YouTube in Settings → Plugins → YouTube first.")
+            throw MCPError.invalidInput("YouTube is not connected. Connect YouTube in Plugins → YouTube first.")
         }
         var summaries: [[String: Any]] = []
         for (_, metadata) in followed {

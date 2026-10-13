@@ -882,10 +882,7 @@ extension StudioSidebar {
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer()
                 Button("Reconnect") {
-                    NotificationCenter.default.post(
-                        name: .requestOpenStudioSettings,
-                        object: SettingsPane.youtubePlugin
-                    )
+                    PluginsPlace.requestOpen(.youtube)
                 }
                 .buttonStyle(.hoverWash)
                 .font(.caption.weight(.medium))
@@ -3933,7 +3930,7 @@ extension StudioSidebar {
 
     /// The one thing the notice offers. Copying hands over the guide's recipe
     /// with the user's MCP address and the provider filled in — the same
-    /// contract Settings → Plugins → Build Your Own copies, opening with a
+    /// contract Plugins › Build Your Own copies, opening with a
     /// request to find and reconnect the plugin that used to run before
     /// building another — and the toast says where it goes next, since a copy
     /// is invisible on its own.
@@ -3955,11 +3952,8 @@ extension StudioSidebar {
                 try? await Task.sleep(for: .seconds(2))
                 didCopyMeetingPluginSetupPrompt = false
             }
-        case .openPluginSettings, .showPluginStatus:
-            NotificationCenter.default.post(
-                name: .requestOpenStudioSettings,
-                object: SettingsPane.userPlugins
-            )
+        case .openBuildYourOwn, .showPluginStatus:
+            PluginsPlace.requestOpen(.yourPlugins)
         }
     }
 }

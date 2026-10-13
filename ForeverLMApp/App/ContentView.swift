@@ -205,16 +205,27 @@ struct ContentView: View {
 
         if url.host?.lowercased() == "settings",
            let destination = url.pathComponents.dropFirst().first?.lowercased() {
+            // The web library's links into the Mac still say settings/ for
+            // the plugins, which are a place of their own since 2026-10-13.
+            switch destination {
+            case "plugins":
+                PluginsPlace.requestOpen()
+                return
+            case "google-drive":
+                PluginsPlace.requestOpen(.googleDrive)
+                return
+            case "calendar":
+                PluginsPlace.requestOpen(.appleCalendar)
+                return
+            default:
+                break
+            }
             let pane: SettingsPane?
             switch destination {
             case "mcp":
                 let showsPairingCode =
                     url.pathComponents.dropFirst(2).first?.lowercased() == "pairing"
                 pane = showsPairingCode ? .mcpPairing : .mcp
-            case "google-drive":
-                pane = .googleDrivePlugin
-            case "calendar":
-                pane = .appleCalendarPlugin
             case "general", "appearance", "memory":
                 pane = .general
             default:

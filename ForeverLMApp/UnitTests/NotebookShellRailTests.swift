@@ -169,15 +169,15 @@ struct HomeSidebarTests {
         // The Canvas left the rail on 2026-10-07: canvases open from the Space.
         // The Notebooks home, which led it, went on 2026-10-09. New chat's +
         // went on top on 2026-10-13.
-        #expect(nothingHidden.railItems() == [.newChat, .space, .memory, .library])
+        #expect(nothingHidden.railItems() == [.newChat, .space, .memory, .library, .plugins])
         #expect(nothingHidden.sidebarItems() == [.newChat, .browser])
         let hidden = StudioRailHiddenItems([.memory, .browser])
-        #expect(hidden.railItems() == [.newChat, .space, .library])
+        #expect(hidden.railItems() == [.newChat, .space, .library, .plugins])
         #expect(hidden.sidebarItems() == [.newChat])
         // One New chat row in Show in Sidebar: hiding it takes the + off the
         // strip and the row off Home's sidebar.
         let newChatHidden = StudioRailHiddenItems([.newChat])
-        #expect(newChatHidden.railItems() == [.space, .memory, .library])
+        #expect(newChatHidden.railItems() == [.space, .memory, .library, .plugins])
         #expect(newChatHidden.sidebarItems() == [.browser])
     }
 

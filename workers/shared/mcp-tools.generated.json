@@ -1306,7 +1306,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Add an event to the Mac's Calendar — how a day is planned: each block of work, reading, review, admin or a break is an event on the learner's clock, titled in the learner's words. It lands on the calendar new events go to (new_events_calendar in get_calendar_events; the learner chooses it in Settings › Plugins › Calendar) unless calendar_id names another that takes events, shows at once in the Calendar app and in ForeverLM's Now chip, and reaches the learner's phone through their calendar account. Pass date and start, and end or duration_minutes (an event past midnight takes duration_minutes); all_day true makes an all-day event on date. Blocks of work are best 90–120 minutes and never under 30. Put what the hour is for in notes — the next step, and the foreverlm:// link of a source or Doc it reads — so it opens from the event. A block on one topic may also carry its notebook's [Title](foreverlm://notebook/<id>) link in its notes, so ForeverLM's Now chip opens that notebook from the block and a bout started there is filed under it. Plan into the free stretches get_calendar_events gives, and never over a meeting with other people: the calendar itself allows overlapping events, so read the day first. Returns the event with its event_id.",
+    "description" : "Add an event to the Mac's Calendar — how a day is planned: each block of work, reading, review, admin or a break is an event on the learner's clock, titled in the learner's words. It lands on the calendar new events go to (new_events_calendar in get_calendar_events; the learner chooses it in Plugins › Calendar) unless calendar_id names another that takes events, shows at once in the Calendar app and in ForeverLM's Now chip, and reaches the learner's phone through their calendar account. Pass date and start, and end or duration_minutes (an event past midnight takes duration_minutes); all_day true makes an all-day event on date. Blocks of work are best 90–120 minutes and never under 30. Put what the hour is for in notes — the next step, and the foreverlm:// link of a source or Doc it reads — so it opens from the event. A block on one topic may also carry its notebook's [Title](foreverlm://notebook/<id>) link in its notes, so ForeverLM's Now chip opens that notebook from the block and a bout started there is filed under it. Plan into the free stretches get_calendar_events gives, and never over a meeting with other people: the calendar itself allows overlapping events, so read the day first. Returns the event with its event_id.",
     "inputSchema" : {
       "properties" : {
         "all_day" : {
@@ -1965,7 +1965,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Publish a post on X (Twitter) as the connected ForeverLM user, optionally as a reply to another post. This posts publicly and immediately — always show the user the exact text and get their explicit confirmation before calling. Requires the X plugin to be signed in with posting permission (Settings → Plugins → X); read-only sessions from before posting support must reconnect once. Returns the new post's id and URL.",
+    "description" : "Publish a post on X (Twitter) as the connected ForeverLM user, optionally as a reply to another post. This posts publicly and immediately — always show the user the exact text and get their explicit confirmation before calling. Requires the X plugin to be signed in with posting permission (Plugins → X); read-only sessions from before posting support must reconnect once. Returns the new post's id and URL.",
     "inputSchema" : {
       "properties" : {
         "reply_to_post_id" : {
@@ -3225,7 +3225,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Find the YouTube upload of a podcast episode whose transcript Apple Podcasts does not give: the Reader's Find on YouTube. ForeverLM reads the episode's own web page for the video it links, the show's YouTube channel (known from earlier episodes whose transcript came from YouTube) for uploads near the episode's release, and YouTube search, then ranks what it found with the learner's model, best match first; each candidate says where it was found (found_by). Nothing is attached. An upload is often titled differently from the episode, so show the learner the best match and, once they confirm it is this episode, call import_podcast_youtube_transcript with its url. always_for_show ticks the Reader's \"Always find <show> on YouTube\" for the episode's show, so its later episodes with no Apple transcript go straight to YouTube; false unticks it. Needs YouTube connected in Settings › Plugins › YouTube. Paid assistant work has a $3 per-operation ceiling by default. To continue beyond it, show the learner the estimate, obtain explicit approval, and pass that total as approved_spend_usd.",
+    "description" : "Find the YouTube upload of a podcast episode whose transcript Apple Podcasts does not give: the Reader's Find on YouTube. ForeverLM reads the episode's own web page for the video it links, the show's YouTube channel (known from earlier episodes whose transcript came from YouTube) for uploads near the episode's release, and YouTube search, then ranks what it found with the learner's model, best match first; each candidate says where it was found (found_by). Nothing is attached. An upload is often titled differently from the episode, so show the learner the best match and, once they confirm it is this episode, call import_podcast_youtube_transcript with its url. always_for_show ticks the Reader's \"Always find <show> on YouTube\" for the episode's show, so its later episodes with no Apple transcript go straight to YouTube; false unticks it. Needs YouTube connected in Plugins › YouTube. Paid assistant work has a $3 per-operation ceiling by default. To continue beyond it, show the learner the estimate, obtain explicit approval, and pass that total as approved_spend_usd.",
     "inputSchema" : {
       "properties" : {
         "always_for_show" : {
@@ -3279,7 +3279,7 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "Settings › Plugins › YouTube › Followed channels › Follow: resolve a channel from its address or @handle, import its newest 50 uploads into a Videos group named after it, and keep importing every new upload in the background (this turns YouTube's automatic import on). Needs YouTube connected. The group follows the learner's library on every device. For a channel's older back catalog, add its playlist as a course instead. Returns the group_id (unfollow_youtube_channel takes it) and how many videos the group now holds.",
+    "description" : "Plugins › YouTube › Followed channels › Follow: resolve a channel from its address or @handle, import its newest 50 uploads into a Videos group named after it, and keep importing every new upload in the background (this turns YouTube's automatic import on). Needs YouTube connected. The group follows the learner's library on every device. For a channel's older back catalog, add its playlist as a course instead. Returns the group_id (unfollow_youtube_channel takes it) and how many videos the group now holds.",
     "inputSchema" : {
       "properties" : {
         "channel" : {
@@ -3296,7 +3296,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Follow the signed-in user's YouTube playlist named \"ForeverLM\" and import all of its videos. The playlist may be public, unlisted, or private. Metadata only; transcripts fetch on demand. Requires connecting YouTube in Settings → Plugins → YouTube.",
+    "description" : "Follow the signed-in user's YouTube playlist named \"ForeverLM\" and import all of its videos. The playlist may be public, unlisted, or private. Metadata only; transcripts fetch on demand. Requires connecting YouTube in Plugins → YouTube.",
     "inputSchema" : {
       "properties" : {
 
@@ -3307,7 +3307,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Follow the signed-in user's YouTube \"Liked videos\" and keep them fresh in the background. Choose whether to import existing likes or only likes added from now on. Automatic AI transcript formatting is off unless explicitly enabled because a large history can run up a substantial bill on the learner's OpenRouter key. Requires connecting YouTube in Settings → Plugins → YouTube.",
+    "description" : "Follow the signed-in user's YouTube \"Liked videos\" and keep them fresh in the background. Choose whether to import existing likes or only likes added from now on. Automatic AI transcript formatting is off unless explicitly enabled because a large history can run up a substantial bill on the learner's OpenRouter key. Requires connecting YouTube in Plugins → YouTube.",
     "inputSchema" : {
       "properties" : {
         "format_transcripts_automatically" : {
@@ -3935,7 +3935,7 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "Read the ForeverLM Settings window as chat can change it: every switch, picker and slider in Appearance, Voice (speech-to-text models, text-to-speech voice and speed), Images, Videos, Sources › Reading Lists and Zoom Transcripts, and Plugins (Google Drive, YouTube), each with its id, current value, type, whether it follows the learner's account or stays on this Mac, and the options its picker offers. Also lists the panes that have tools of their own (dedicated_tools), the one-shot buttons run_settings_action performs (actions), and the few controls that stay in the window because they need the learner's own hand (only_in_the_settings_window). Pass pane to narrow by pane name, or setting for one entry.",
+    "description" : "Read the ForeverLM Settings window as chat can change it: every switch, picker and slider in Appearance, Voice (speech-to-text models, text-to-speech voice and speed), Images, Videos, Sources › Reading Lists and Zoom Transcripts, and the Plugins place (Google Drive, YouTube), each with its id, current value, type, whether it follows the learner's account or stays on this Mac, and the options its picker offers. Also lists the panes that have tools of their own (dedicated_tools), the one-shot buttons run_settings_action performs (actions), and the few controls that stay in the window because they need the learner's own hand (only_in_the_settings_window). Pass pane to narrow by pane name, or setting for one entry.",
     "inputSchema" : {
       "properties" : {
         "pane" : {
@@ -4066,7 +4066,7 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "Read the learner's day from the Mac's Calendar — the day is the calendar, and there is no separate plan: every event on the calendars ForeverLM shows (Settings › Plugins › Calendar; get_calendar_settings), for one day or up to 14 from date. Each event has event_id (with occurrence_date for one occurrence of a recurring event — pass both to change it), title, calendar and calendar_id, start and end on the learner's clock (HH:MM) and start_at and end_at in ISO 8601 with the offset, all_day, when (ended, now with minutes_left, or ahead), location, join_link (the Teams, Zoom or Meet link, when there is one), notes, attendees, has_other_people (a meeting: it stays at its time and only the Calendar app may change it), and editable (whether update_calendar_event and delete_calendar_event may touch it). Each day also says its weekday, where it sits against today (relative_day), the hours the learner's day runs (day_starts, day_ends; get_day_settings), and the free stretches inside those hours — free_from_now on today, free on a day ahead — which is where a plan goes. new_events_calendar is where create_calendar_event puts an event unless told otherwise. Needs the Mac's Calendar on; the error says how to turn it on. To plan a day: read it (and get_day_activity for how recent days actually went), ask the learner the one thing only they can say — what is fixed and what the day is for — then add each block of the day as an event with create_calendar_event.",
+    "description" : "Read the learner's day from the Mac's Calendar — the day is the calendar, and there is no separate plan: every event on the calendars ForeverLM shows (Plugins › Calendar; get_calendar_settings), for one day or up to 14 from date. Each event has event_id (with occurrence_date for one occurrence of a recurring event — pass both to change it), title, calendar and calendar_id, start and end on the learner's clock (HH:MM) and start_at and end_at in ISO 8601 with the offset, all_day, when (ended, now with minutes_left, or ahead), location, join_link (the Teams, Zoom or Meet link, when there is one), notes, attendees, has_other_people (a meeting: it stays at its time and only the Calendar app may change it), and editable (whether update_calendar_event and delete_calendar_event may touch it). Each day also says its weekday, where it sits against today (relative_day), the hours the learner's day runs (day_starts, day_ends; get_day_settings), and the free stretches inside those hours — free_from_now on today, free on a day ahead — which is where a plan goes. new_events_calendar is where create_calendar_event puts an event unless told otherwise. Needs the Mac's Calendar on; the error says how to turn it on. To plan a day: read it (and get_day_activity for how recent days actually went), ask the learner the one thing only they can say — what is fixed and what the day is for — then add each block of the day as an event with create_calendar_event.",
     "inputSchema" : {
       "properties" : {
         "date" : {
@@ -4089,7 +4089,7 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "Read Settings › Plugins › Calendar — the Mac's Calendar app, which is the learner's day: whether it is on for ForeverLM, whether macOS granted access or refused it, every calendar the Mac holds (iCloud, Google, Exchange, subscriptions) with its id, title, account, whether it takes new events (writable) and whether it is shown (on_day: its events are what get_calendar_events reads and the Now chip shows), and new_events_calendar — the calendar create_calendar_event writes into unless told otherwise (the learner's choice, or the Calendar app's own default). selection_is_default true means the learner never narrowed the shown list, so every calendar but Birthdays is shown. The choice is this Mac's. Change with set_calendar_settings.",
+    "description" : "Read Plugins › Calendar — the Mac's Calendar app, which is the learner's day: whether it is on for ForeverLM, whether macOS granted access or refused it, every calendar the Mac holds (iCloud, Google, Exchange, subscriptions) with its id, title, account, whether it takes new events (writable) and whether it is shown (on_day: its events are what get_calendar_events reads and the Now chip shows), and new_events_calendar — the calendar create_calendar_event writes into unless told otherwise (the learner's choice, or the Calendar app's own default). selection_is_default true means the learner never narrowed the shown list, so every calendar but Birthdays is shown. The choice is this Mac's. Change with set_calendar_settings.",
     "inputSchema" : {
       "properties" : {
 
@@ -4666,7 +4666,7 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "Read Settings › Plugins as the learner sees it: for each plugin whether it is connected, which account(s), and what connecting would take. X (connected, @username, needs reconnect, last sync); YouTube (connected, automatic import on/off, which import source is followed — liked videos or the ForeverLM playlist — the channels followed with their group_id, hidden channels); Google Drive (connected accounts with id and email, the meeting folders each reads); Calendar, the Mac's own (on/off, macOS permission) — the learner's day; Slack (workspaces with team_id, and each workspace's channels with id, name and whether ForeverLM may read it); GitHub (the account and the organisations the App is installed on); Linear and Notion (connected workspace); and the learner's own Build Your Own plugins (id, name, health, sources added). Every entry names its open_settings pane and the tool that disconnects it. Connecting any plugin needs the provider's consent page, so it cannot be done from a chat: offer open_settings with the pane named here. The Slack channel lists cost one Slack call per workspace; pass include_slack_channels false to skip them.",
+    "description" : "Read the Plugins place as the learner sees it: for each plugin whether it is connected, which account(s), and what connecting would take. X (connected, @username, needs reconnect, last sync); YouTube (connected, automatic import on/off, which import source is followed — liked videos or the ForeverLM playlist — the channels followed with their group_id, hidden channels); Google Drive (connected accounts with id and email, the meeting folders each reads); Calendar, the Mac's own (on/off, macOS permission) — the learner's day; Slack (workspaces with team_id, and each workspace's channels with id, name and whether ForeverLM may read it); GitHub (the account and the organisations the App is installed on); Linear and Notion (connected workspace); and the learner's own Build Your Own plugins (id, name, health, sources added). Every entry names its open_settings pane and the tool that disconnects it. Connecting any plugin needs the provider's consent page, so it cannot be done from a chat: offer open_settings with the pane named here. The Slack channel lists cost one Slack call per workspace; pass include_slack_channels false to skip them.",
     "inputSchema" : {
       "properties" : {
         "include_slack_channels" : {
@@ -6931,11 +6931,11 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Show one of the learner's things in the ForeverLM window on this Mac, as a click on it would: a notebook opens in its workspace, a doc comes forward in Docs, a chat resumes in the chat panel, a source opens in the Reader, a course quiz is taken, an idea opens, and space shows the Space's All list, where every notebook and course is listed. Use it whenever the learner asks to open, show, go to or switch to something (\"open this notebook\") — listing or loading it for yourself (list_notebooks, get_notebook) changes nothing on screen. id is the thing's own id from the list tools or the call that created it; space takes none. Opens in the window the learner last used and brings ForeverLM to the front. Writes nothing synced. Needs a Studio window open.",
+    "description" : "Show one of the learner's things in the ForeverLM window on this Mac, as a click on it would: a notebook opens in its workspace, a doc comes forward in Docs, a chat resumes in the chat panel, a source opens in the Reader, a course quiz is taken, an idea opens, space shows the Space's All list, where every notebook and course is listed, and plugins shows the Plugins place, at one plugin's page when id names it (x, youtube, google_drive, apple_calendar, slack, linear, github, notion, build_your_own_plugin). Use it whenever the learner asks to open, show, go to or switch to something (\"open this notebook\") — listing or loading it for yourself (list_notebooks, get_notebook) changes nothing on screen. id is the thing's own id from the list tools or the call that created it; space takes none, and plugins none for every plugin. Opens in the window the learner last used and brings ForeverLM to the front. Writes nothing synced. Needs a Studio window open.",
     "inputSchema" : {
       "properties" : {
         "id" : {
-          "description" : "The notebook, doc, chat (review session), source, quiz or idea id. Omit for space.",
+          "description" : "The notebook, doc, chat (review session), source, quiz or idea id, or a plugin's id for plugins. Omit for space, and for plugins to show every plugin.",
           "type" : "string"
         },
         "kind" : {
@@ -6947,7 +6947,8 @@
             "source",
             "quiz",
             "idea",
-            "space"
+            "space",
+            "plugins"
           ],
           "type" : "string"
         }
@@ -6961,11 +6962,11 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Open ForeverLM's Settings window on the learner's Mac at one pane, for what a chat must leave to the learner — signing in, connecting a plugin through the provider's consent page, paying for ForeverLM, managing team members in Apple's sharing sheet. team_general and team_members open the open team's own Settings, a separate window from the learner's, and need a team library open. Brings ForeverLM to the front.",
+    "description" : "Open ForeverLM's Settings window on the learner's Mac at one pane, for what a chat must leave to the learner — signing in, paying for ForeverLM, managing team members in Apple's sharing sheet. team_general and team_members open the open team's own Settings, a separate window from the learner's, and need a team library open. Plugins are not in Settings: plugins, and a plugin's id (x, youtube, google_drive, apple_calendar, slack, linear, github, notion, build_your_own_plugin), open the Plugins place on the icon strip at every plugin or at that plugin's page, where the learner connects it through the provider's consent page. Brings ForeverLM to the front.",
     "inputSchema" : {
       "properties" : {
         "pane" : {
-          "description" : "The pane to show. Omit for Billing, paying for ForeverLM; ai_usage is the key, spending and activity.",
+          "description" : "The pane to show. Omit for Billing, paying for ForeverLM; ai_usage is the key, spending and activity; plugins and a plugin's id open the Plugins place.",
           "enum" : [
             "general",
             "chat",
@@ -9817,7 +9818,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Change Settings › Plugins › Calendar as its controls do, then return get_calendar_settings. apple_calendar_enabled: the pane's Turn On / Turn Off. Turning it on the first time makes macOS show its Calendar permission prompt on the learner's Mac, which only they can answer — tell them to look for it; if they refused before, it fails and they allow ForeverLM in System Settings › Privacy & Security › Calendars. Turning it off forgets the calendar choice; the macOS grant and every event stay. apple_calendar_ids: the whole list of calendars the day is read from (ids or titles from get_calendar_settings); every other calendar the Mac holds now is left off, and an account signed in afterwards (say Exchange, added in System Settings › Internet Accounts) has its calendars shown until a later list leaves them out. new_events_calendar_id: the calendar new events go to (an id or title of a writable calendar), or \"\" for the Calendar app's own default. Ask before removing calendars the learner did not mention.",
+    "description" : "Change Plugins › Calendar as its controls do, then return get_calendar_settings. apple_calendar_enabled: the pane's Turn On / Turn Off. Turning it on the first time makes macOS show its Calendar permission prompt on the learner's Mac, which only they can answer — tell them to look for it; if they refused before, it fails and they allow ForeverLM in System Settings › Privacy & Security › Calendars. Turning it off forgets the calendar choice; the macOS grant and every event stay. apple_calendar_ids: the whole list of calendars the day is read from (ids or titles from get_calendar_settings); every other calendar the Mac holds now is left off, and an account signed in afterwards (say Exchange, added in System Settings › Internet Accounts) has its calendars shown until a later list leaves them out. new_events_calendar_id: the calendar new events go to (an id or title of a writable calendar), or \"\" for the Calendar app's own default. Ask before removing calendars the learner did not mention.",
     "inputSchema" : {
       "properties" : {
         "apple_calendar_enabled" : {
@@ -10497,7 +10498,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Settings › Plugins › Slack: flip one channel's switch — whether ForeverLM may read that channel (read_slack_channel, search_slack_messages). Stored on the gateway against the learner's account, so it holds on every device. In a workspace read through the ForeverLM bot, a channel can only be switched on after the learner invites @ForeverLM to it (visible to everyone in the channel); such a channel is refused with that explanation. Get team_id and channel ids from get_plugin_connections. Letting ForeverLM read a channel the learner did not name is their call: ask before switching one on.",
+    "description" : "Plugins › Slack: flip one channel's switch — whether ForeverLM may read that channel (read_slack_channel, search_slack_messages). Stored on the gateway against the learner's account, so it holds on every device. In a workspace read through the ForeverLM bot, a channel can only be switched on after the learner invites @ForeverLM to it (visible to everyone in the channel); such a channel is refused with that explanation. Get team_id and channel ids from get_plugin_connections. Letting ForeverLM read a channel the learner did not name is their call: ask before switching one on.",
     "inputSchema" : {
       "properties" : {
         "channel_id" : {
@@ -11156,7 +11157,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Settings › Plugins › YouTube › Followed channels › Stop Following: stop importing a followed channel's new uploads. The videos already imported, and the group holding them, stay. group_id comes from get_plugin_connections (youtube.followed_channels); the channel's name works too. The liked-videos / ForeverLM-playlist import source is not a channel: switch it with follow_youtube_liked_videos or follow_youtube_foreverlm_playlist.",
+    "description" : "Plugins › YouTube › Followed channels › Stop Following: stop importing a followed channel's new uploads. The videos already imported, and the group holding them, stay. group_id comes from get_plugin_connections (youtube.followed_channels); the channel's name works too. The liked-videos / ForeverLM-playlist import source is not a channel: switch it with follow_youtube_liked_videos or follow_youtube_foreverlm_playlist.",
     "inputSchema" : {
       "properties" : {
         "group_id" : {

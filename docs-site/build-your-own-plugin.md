@@ -31,7 +31,7 @@ rate-limits every client, so a runaway script runs out of rope quickly.
 
 ## The recipe (give this to your assistant)
 
-The fastest path: **ForeverLM → Settings → Plugins → Build Your Own →
+The fastest path: **ForeverLM → Plugins → Build Your Own →
 Copy Setup Prompt** — that button copies this exact recipe with your personal
 MCP URL already filled in. The same pane lists every plugin you've
 approved, with its logo, how many sources it has added, and buttons to remove
@@ -152,7 +152,7 @@ assistant's context.
 
 ## Removing a plugin
 
-Two independent switches, both in **Settings → Plugins → Build Your
+Two independent switches, both in **Plugins → Build Your
 Own**, next to the plugin's name:
 
 - **Remove Access**: the plugin's tokens stop working immediately; it would

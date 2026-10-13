@@ -5682,8 +5682,12 @@ private struct InternalReviewPanelContent: View {
             vm.showToast("Chat model set to \(argument).")
 
         case .settings:
-            let pane = argument.flatMap(ReviewSlashCommandParser.parseSettingsPane)
-            NotificationCenter.default.post(name: .requestOpenStudioSettings, object: pane)
+            if let argument, ReviewSlashCommandParser.namesPlugins(argument) {
+                PluginsPlace.requestOpen()
+            } else {
+                let pane = argument.flatMap(ReviewSlashCommandParser.parseSettingsPane)
+                NotificationCenter.default.post(name: .requestOpenStudioSettings, object: pane)
+            }
 
         case .end:
             await manager.completeSession()

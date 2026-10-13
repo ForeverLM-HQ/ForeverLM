@@ -815,6 +815,13 @@ struct ForeverLMApp: App {
                     .keyboardShortcut(command.key, modifiers: command.modifiers)
                 }
 
+                // Plugins, the strip's row under the Library, in the key
+                // window (docs/codex-shell-plan.md, Track 2).
+                Button("Plugins") {
+                    guard let state = activeWindowState else { return }
+                    studioViewModel.openPluginsPlace(nil, in: state)
+                }
+
                 // The Atlas (docs/atlas-design.md): a topic laid out as
                 // concepts at levels of abstraction, in the key window. A beta
                 // feature with the Canvas (`BetaFeatures`).
@@ -1004,7 +1011,7 @@ struct ForeverLMApp: App {
                 // or refused by macOS: the Calendar pane, which says which.
                 if !day.isCalendarOn {
                     Button("Turn On Calendar…") {
-                        NotificationCenter.default.post(name: .requestOpenStudioSettings, object: SettingsPane.appleCalendarPlugin)
+                        PluginsPlace.requestOpen(.appleCalendar)
                     }
                 }
 

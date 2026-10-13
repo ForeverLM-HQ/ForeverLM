@@ -2812,7 +2812,7 @@ struct MeetingPluginNoticeTests {
             plugins: [],
             hasMCPAddress: false
         )
-        #expect(withoutMCP?.action == .openPluginSettings)
+        #expect(withoutMCP?.action == .openBuildYourOwn)
         #expect(withoutMCP?.actionTitle == "Set Up…")
     }
 

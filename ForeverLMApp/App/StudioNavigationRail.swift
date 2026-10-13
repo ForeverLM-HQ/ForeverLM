@@ -49,6 +49,9 @@ enum StudioRailItem: String, CaseIterable, Identifiable {
     /// The full-window Library (2026-10-01, decisions v5, 2): the whole
     /// library, every kind, laid out for managing it.
     case library
+    /// Plugins (2026-10-13), Codex's grid: every plugin and its state, and
+    /// each plugin's page (docs/codex-shell-plan.md, Track 2).
+    case plugins
     var id: String { rawValue }
 
     var title: String {
@@ -58,6 +61,7 @@ enum StudioRailItem: String, CaseIterable, Identifiable {
         case .space: return "Spaces"
         case .browser: return "Browser"
         case .library: return "Library"
+        case .plugins: return ShellPlaces.descriptor(for: .plugins).title
         }
     }
 
@@ -68,6 +72,7 @@ enum StudioRailItem: String, CaseIterable, Identifiable {
         case .space: return "square.on.square"
         case .browser: return "safari"
         case .library: return "books.vertical"
+        case .plugins: return ShellPlaces.descriptor(for: .plugins).glyph
         }
     }
 }
@@ -121,16 +126,17 @@ struct StudioRailHiddenItems: Equatable {
 
     /// The rows still shown at the top of the rail, in rail order.
     var visibleTopItems: [StudioRailItem] {
-        [.newChat, .memory, .space, .browser, .library].filter { !items.contains($0) }
+        [.newChat, .memory, .space, .browser, .library, .plugins].filter { !items.contains($0) }
     }
 
     /// The icon rail's rows, Codex's: a + for a new chat, then Spaces,
-    /// Memory and Library, in that order, less any the learner hid. The
-    /// Space led the places since the Notebooks home, which led until
-    /// 2026-10-09, went; the + went above it on 2026-10-13. New chat is one
+    /// Memory, Library and Plugins, in that order, less any the learner hid.
+    /// The Space led the places since the Notebooks home, which led until
+    /// 2026-10-09, went; the + went above it on 2026-10-13, and Plugins
+    /// came out of Settings under the Library the same day. New chat is one
     /// row in Show in Sidebar, so hiding it takes it off the strip and Home's
     /// sidebar together.
-    static let railOrder: [StudioRailItem] = [.newChat, .space, .memory, .library]
+    static let railOrder: [StudioRailItem] = [.newChat, .space, .memory, .library, .plugins]
 
     /// The rows at the top of Home's sidebar: New chat and the Browser.
     static let sidebarOrder: [StudioRailItem] = [.newChat, .browser]
@@ -642,8 +648,8 @@ struct StudioNavigationRail: View {
         .newNotebookFromChat($notebookFromChatRequest, vm: vm, window: windowState)
     }
 
-    /// The window's rail, Codex's: a + for a new chat, Spaces, Memory and
-    /// Library as icons, the ⋯ with every other place, and under a short
+    /// The window's rail, Codex's: a + for a new chat, Spaces, Memory,
+    /// Library and Plugins as icons, the ⋯ with every other place, and under a short
     /// line the places the learner kept there (`StudioRailShortcuts`), from
     /// the ⋯ or by dragging a Space sidebar row onto the strip; then
     /// the day's calendar glyph, whose popover is the schedule, and the
@@ -668,6 +674,7 @@ struct StudioNavigationRail: View {
                 case .space: spaceButton(compact: true, yieldsTo: litShortcut != nil)
                 case .memory: memoryButton(compact: true)
                 case .library: libraryButton(compact: true)
+                case .plugins: pluginsButton(compact: true)
                 case .newChat: newChatButton(compact: true)
                 case .browser: EmptyView()
                 }
@@ -804,7 +811,7 @@ struct StudioNavigationRail: View {
                         switch item {
                         case .newChat: newChatButton()
                         case .browser: browserButton()
-                        case .space, .memory, .library: EmptyView()
+                        case .space, .memory, .library, .plugins: EmptyView()
                         }
                     }
                 }
@@ -1380,6 +1387,34 @@ struct StudioNavigationRail: View {
         .onDrag {
             StudioDragVisibility.shared.begin(centerTab: .library)
             return studioCenterTabDragProvider(for: .library)
+        }
+    }
+
+    /// Plugins (2026-10-13), Codex's grid: every plugin and its state, and a
+    /// plugin's page a click away. A place like the Library: a pane with its
+    /// ×, Open Beside, Open in Other Window and a drag; a click shows the
+    /// list, as Codex's Plugins does, and in a window holding a notebook it
+    /// leaves the notebook the way the Library does.
+    private func pluginsButton(compact: Bool = false) -> some View {
+        RailButtonRow(
+            title: StudioRailItem.plugins.title,
+            systemImage: StudioRailItem.plugins.systemImage,
+            railItem: .plugins,
+            isSelected: vm.visibleCenterTabs(in: windowState).contains(.plugins)
+                && !windowState.isVoiceWorkspacePresented,
+            openBeside: {
+                vm.inWindow(windowState) { vm.openCenterTabBeside(.plugins) }
+            },
+            otherWindowDestination: .plugins(nil),
+            help: "Open Plugins",
+            identifier: "studio.navigation.plugins",
+            isCompact: compact
+        ) {
+            vm.openPluginsPlace(nil, in: windowState)
+        }
+        .onDrag {
+            StudioDragVisibility.shared.begin(centerTab: .plugins)
+            return studioCenterTabDragProvider(for: .plugins)
         }
     }
 

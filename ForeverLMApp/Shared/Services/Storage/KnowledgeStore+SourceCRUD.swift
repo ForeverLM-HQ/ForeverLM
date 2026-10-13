@@ -159,7 +159,7 @@ extension KnowledgeStore {
         return result
     }
 
-    /// Active source counts per plugin label, for the Settings → Plugins
+    /// Active source counts per plugin label, for the Plugins place's
     /// "Build Your Own" list.
     func activePluginSourceCounts() throws -> [String: Int] {
         var counts: [String: Int] = [:]

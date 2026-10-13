@@ -329,7 +329,7 @@ extension MCPDataStore {
         var installationNames: [String] { installations.map(\.account) }
     }
 
-    /// Whether this Mac can read GitHub right now, as the Settings plugins
+    /// Whether this Mac can read GitHub right now, as the Plugins place's
     /// list reports it beside Slack and Linear.
     ///
     /// GitHub is connected on the web, not in the app, so there is no local

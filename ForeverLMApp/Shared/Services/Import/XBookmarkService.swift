@@ -1061,7 +1061,7 @@ enum XBookmarkError: LocalizedError, Equatable {
         case .sessionExpired: return "Your X session has expired and could not be renewed. Reconnect to X to continue syncing bookmarks."
         case .bearerTokenInsufficient: return "Bearer token cannot access bookmarks. Please sign in with X using OAuth."
         case .appAccessUnavailable: return "ForeverLM's X bookmark access is temporarily unavailable. Please try again later or contact support."
-        case .postingNotAuthorized: return "This X session cannot post. Reconnect to X (Settings → Plugins → X) to refresh its permission. If the problem continues, contact support."
+        case .postingNotAuthorized: return "This X session cannot post. Reconnect to X (Plugins → X) to refresh its permission. If the problem continues, contact support."
         case .authFailed(let msg): return "X authentication failed: \(msg)"
         case .apiFailed(let msg): return "X API error: \(msg)"
         case .rateLimited(let resetAt):

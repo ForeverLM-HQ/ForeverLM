@@ -39,13 +39,13 @@ extension ChatPluginRequest.Plugin: Identifiable {
     /// The mention as it reads in the composer and the popup.
     var mentionToken: String { "\(ChatPluginRequest.Mention.sigil)\(mentionName)" }
 
-    /// The Settings plugin page, for a mark's context menu.
-    var settingsPane: SettingsPane {
+    /// The plugin's page in the Plugins place.
+    var pluginPage: PluginPage {
         switch self {
-        case .slack: return .slackPlugin
-        case .linear: return .linearPlugin
-        case .github: return .githubPlugin
-        case .notion: return .notionPlugin
+        case .slack: return .slack
+        case .linear: return .linear
+        case .github: return .github
+        case .notion: return .notion
         }
     }
 
@@ -240,7 +240,7 @@ final class ChatPluginPresence {
 
 /// What a chat draws under a step that failed because its plugin was not
 /// there to read with: the plugin's mark, one line on what is missing, and
-/// the button that opens Settings → Plugins → that plugin, where connecting,
+/// the button that opens that plugin's page in Plugins, where connecting,
 /// reconnecting and adding an organisation live. The chat never sends the
 /// learner to sign in to the service in the Browser — the plugin reads it as
 /// them once it is connected (product owner, 2026-09-14: "it should ask to set up
@@ -262,7 +262,12 @@ struct ChatPluginSetupCard: View {
             }
             Spacer(minLength: 8)
             Button(need.actionTitle) {
-                NotificationCenter.default.post(name: .requestOpenStudioSettings, object: need.settingsPane)
+                switch need.destination {
+                case .settings(let pane):
+                    NotificationCenter.default.post(name: .requestOpenStudioSettings, object: pane)
+                case .plugin(let page):
+                    PluginsPlace.requestOpen(page)
+                }
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
@@ -282,10 +287,16 @@ struct ChatPluginSetupCard: View {
 }
 
 extension ChatPluginRequest.SetupNeed {
-    /// Where the button goes: the plugin's own Settings page, or the account
-    /// page when the Mac is not signed in at all.
-    var settingsPane: SettingsPane {
-        kind == .signIn ? .aiBilling : plugin.settingsPane
+    /// Where the button goes.
+    enum Destination: Equatable {
+        /// Settings, at the account page, when the Mac is not signed in at all.
+        case settings(SettingsPane)
+        /// The plugin's own page in the Plugins place.
+        case plugin(PluginPage)
+    }
+
+    var destination: Destination {
+        kind == .signIn ? .settings(.aiBilling) : .plugin(plugin.pluginPage)
     }
 
     var title: String {
@@ -300,11 +311,11 @@ extension ChatPluginRequest.SetupNeed {
     var body: String {
         switch kind {
         case .connect:
-            return "ForeverLM reads \(plugin.title) as you, through a read-only connection. Connect it in Settings → Plugins → \(plugin.title)."
+            return "ForeverLM reads \(plugin.title) as you, through a read-only connection. Connect it in Plugins › \(plugin.title)."
         case .installOrganisation:
             return "GitHub is connected, but ForeverLM reads only the organisations and accounts where its App is installed. Add the one that owns this repository."
         case .reconnect:
-            return "\(plugin.title) no longer honours ForeverLM's connection. Reconnect it in Settings → Plugins → \(plugin.title)."
+            return "\(plugin.title) no longer honours ForeverLM's connection. Reconnect it in Plugins › \(plugin.title)."
         case .signIn:
             return "ForeverLM reads \(plugin.title) through your ForeverLM account, so this Mac has to be signed in with Apple."
         }
@@ -322,7 +333,7 @@ extension ChatPluginRequest.SetupNeed {
     var actionHelp: String {
         kind == .signIn
             ? "Open Settings to sign in with Apple"
-            : "Open Settings → Plugins → \(plugin.title)"
+            : "Open Plugins › \(plugin.title)"
     }
 }
 

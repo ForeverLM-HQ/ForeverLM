@@ -83,19 +83,19 @@ enum ChatPluginRequest {
         switch plugin {
         case .slack:
             return """
-            The learner addressed this message to @slack: it is a question about Slack. Answer it from Slack itself, read live in this turn — search_slack_messages for something specific, list_slack_channels and then read_slack_channel for what a channel has been discussing, read_slack_thread for a whole thread — not from the library and not from memory. If Slack is not connected or a channel is not enabled, say so and point at Settings → Plugins → Slack.
+            The learner addressed this message to @slack: it is a question about Slack. Answer it from Slack itself, read live in this turn — search_slack_messages for something specific, list_slack_channels and then read_slack_channel for what a channel has been discussing, read_slack_thread for a whole thread — not from the library and not from memory. If Slack is not connected or a channel is not enabled, say so and point at Plugins → Slack.
             """
         case .linear:
             return """
-            The learner addressed this message to @linear: it is a question about Linear. Answer it from Linear itself, read live in this turn with the Linear tools — search_linear_issues, list_linear_issues, get_linear_issue, list_linear_teams, list_linear_projects, get_linear_project — not from the library and not from memory. The connection is read-only: report what you find and never offer to change an issue. If Linear is not connected, say so and point at Settings → Plugins → Linear.
+            The learner addressed this message to @linear: it is a question about Linear. Answer it from Linear itself, read live in this turn with the Linear tools — search_linear_issues, list_linear_issues, get_linear_issue, list_linear_teams, list_linear_projects, get_linear_project — not from the library and not from memory. The connection is read-only: report what you find and never offer to change an issue. If Linear is not connected, say so and point at Plugins → Linear.
             """
         case .github:
             return """
-            The learner addressed this message to @github: it is a question about GitHub. Answer it from GitHub itself, read live in this turn with the GitHub tools — list_github_repositories, get_github_repository, list_github_files, read_github_file, search_github_code, list_github_issues, get_github_issue, list_github_pull_requests, get_github_pull_request, list_github_commits — not from the library and not from memory. When this Notebook names a repository, use it unless the learner names another. The connection is read-only. If GitHub is not connected, say so and point at Settings → Plugins → GitHub.
+            The learner addressed this message to @github: it is a question about GitHub. Answer it from GitHub itself, read live in this turn with the GitHub tools — list_github_repositories, get_github_repository, list_github_files, read_github_file, search_github_code, list_github_issues, get_github_issue, list_github_pull_requests, get_github_pull_request, list_github_commits — not from the library and not from memory. When this Notebook names a repository, use it unless the learner names another. The connection is read-only. If GitHub is not connected, say so and point at Plugins → GitHub.
             """
         case .notion:
             return """
-            The learner addressed this message to @notion: it is a question about Notion. Answer it from Notion itself, read live in this turn with the Notion tools — search_notion, get_notion_page, list_notion_databases, get_notion_database, query_notion_database — not from the library and not from memory. Only pages and databases the learner shared with the ForeverLM connection are visible; if what they ask about is not found, say so and tell them a page is shared from its ••• → Connections menu in Notion. The connection is read-only: report what you find and never offer to change a page. If Notion is not connected, say so and point at Settings → Plugins → Notion.
+            The learner addressed this message to @notion: it is a question about Notion. Answer it from Notion itself, read live in this turn with the Notion tools — search_notion, get_notion_page, list_notion_databases, get_notion_database, query_notion_database — not from the library and not from memory. Only pages and databases the learner shared with the ForeverLM connection are visible; if what they ask about is not found, say so and tell them a page is shared from its ••• → Connections menu in Notion. The connection is read-only: report what you find and never offer to change a page. If Notion is not connected, say so and point at Plugins → Notion.
             """
         }
     }
@@ -114,7 +114,7 @@ enum ChatPluginRequest {
     /// GitHub's sign-in page and asked him to sign in there: "it should ask to
     /// set up the github connector … make sure you have those kinds of cards
     /// in the chat". The plugin already reads GitHub as the learner; a
-    /// connection that is missing is made in Settings → Plugins, and the card
+    /// connection that is missing is made in Plugins, and the card
     /// is the chat's way of saying so.
     struct SetupNeed: Equatable, Hashable, Sendable {
         enum Kind: Equatable, Hashable, Sendable {

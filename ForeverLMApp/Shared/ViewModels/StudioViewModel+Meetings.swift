@@ -84,7 +84,7 @@ enum MeetingTranscriptError: LocalizedError {
         case .noRecording: return "This meeting has no recording."
         case .ownTranscriptionDisabled:
             return "Google has no transcript for this recording, and ForeverLM is set not to make one itself. "
-                + "Turn on \"Transcribe recordings Google didn't\" in Settings › Plugins › Google Drive."
+                + "Turn on \"Transcribe recordings Google didn't\" in Plugins › Google Drive."
         }
     }
 }

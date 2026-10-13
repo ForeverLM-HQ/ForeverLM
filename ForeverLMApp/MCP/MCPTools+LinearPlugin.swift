@@ -179,7 +179,7 @@ extension MCPDataStore {
 
     // MARK: Connection state
 
-    /// Whether this Mac can read Linear right now, as the Settings plugins
+    /// Whether this Mac can read Linear right now, as the Plugins place's
     /// list reports it beside Slack.
     ///
     /// Linear is connected on the web, not in the app, so there is no local

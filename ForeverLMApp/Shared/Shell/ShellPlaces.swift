@@ -133,7 +133,8 @@ enum ShellPlaces {
         case .animations:
             return ShellPlace(tab: tab, title: "Animations", glyph: "sparkles.tv", module: .media, sidebar: .home, role: .viewer)
         case .artifacts:
-            return ShellPlace(tab: tab, title: "Space", glyph: "square.grid.2x2", module: .space, sidebar: .space, role: .list)
+            // The strip's Spaces row's glyph since Plugins took Codex's grid.
+            return ShellPlace(tab: tab, title: "Space", glyph: "square.on.square", module: .space, sidebar: .space, role: .list)
         case .memory:
             return ShellPlace(tab: tab, title: "Memory", glyph: "brain", module: .memory, sidebar: nil, role: .list)
         case .library:
@@ -142,6 +143,8 @@ enum ShellPlaces {
             return ShellPlace(tab: tab, title: "Canvas", glyph: "rectangle.3.group", module: .canvas, sidebar: nil, role: .viewer)
         case .atlas:
             return ShellPlace(tab: tab, title: "Atlas", glyph: "point.3.connected.trianglepath.dotted", module: .canvas, sidebar: nil, role: .viewer)
+        case .plugins:
+            return ShellPlace(tab: tab, title: "Plugins", glyph: "square.grid.2x2", module: .plugins, sidebar: nil, role: .list)
         }
     }
 

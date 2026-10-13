@@ -427,7 +427,7 @@ class StudioViewModel {
     @ObservationIgnored var reviewGuidePrebuildTask: Task<Void, Never>?
     /// Set when the selected YouTube source fails because the connection is
     /// gone (signed out, or Google revoked the grant). Observed, so the Videos
-    /// sidebar and the Settings plugin card can say so — a plugin that
+    /// sidebar and the Plugins place can say so — a plugin that
     /// quietly stops syncing for days is indistinguishable from "I haven't
     /// added anything lately", which is exactly how a week of missed videos
     /// went unnoticed. Cleared by the next sync that gets through.

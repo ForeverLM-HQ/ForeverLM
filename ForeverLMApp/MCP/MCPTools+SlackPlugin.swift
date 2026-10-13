@@ -184,7 +184,7 @@ extension MCPDataStore {
 
     // MARK: Connection state
 
-    /// Whether this Mac can read Slack right now, as the Settings plugins
+    /// Whether this Mac can read Slack right now, as the Plugins place's
     /// list reports it beside X, YouTube and Google Drive.
     ///
     /// Slack is connected on the web, not in the app, so there is no local

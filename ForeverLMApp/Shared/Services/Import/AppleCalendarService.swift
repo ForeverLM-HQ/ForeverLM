@@ -22,7 +22,7 @@ enum AppleCalendarServiceError: LocalizedError {
         case .accessRestricted:
             return "Calendar access is restricted on this Mac, so ForeverLM cannot use the Calendar app."
         case .notConnected:
-            return "The Mac's Calendar is not turned on for ForeverLM. Turn it on in Settings › Plugins › Calendar."
+            return "The Mac's Calendar is not turned on for ForeverLM. Turn it on in Plugins › Calendar."
         case .readFailed(let message):
             return message
         case .eventNotFound:
@@ -32,7 +32,7 @@ enum AppleCalendarServiceError: LocalizedError {
         case .invalidEvent(let reason):
             return reason
         case .noCalendarForNewEvents:
-            return "The Mac's Calendar has no calendar that takes new events. Add one in the Calendar app, or choose one in Settings › Plugins › Calendar."
+            return "The Mac's Calendar has no calendar that takes new events. Add one in the Calendar app, or choose one in Plugins › Calendar."
         case .writeFailed(let message):
             return "The Calendar app refused the change: \(message)"
         }
@@ -359,7 +359,7 @@ actor AppleCalendarService {
 
     /// Drops the Planner's choice of Mac calendars (`retiredPlannerSelectionKeys`),
     /// so every Mac starts the day from every calendar but Birthdays and the
-    /// learner narrows it again in Settings › Plugins › Calendar. Nothing
+    /// learner narrows it again in Plugins › Calendar. Nothing
     /// reads those keys any more; removing absent keys is a no-op.
     nonisolated static func retirePlannerCalendarChoice() {
         for key in retiredPlannerSelectionKeys {

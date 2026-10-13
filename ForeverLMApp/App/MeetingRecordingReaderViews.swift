@@ -528,7 +528,7 @@ struct MeetingRecordingReaderView: View {
                     // set to use the transcript Google wrote and not to make one
                     // of its own. Say where that is decided instead of leaving a
                     // control that would only refuse.
-                    Text("ForeverLM imports the transcript Google writes and doesn't make its own. Turn on \"Transcribe recordings Google didn't\" in Settings › Plugins › Google Drive to transcribe this recording.")
+                    Text("ForeverLM imports the transcript Google writes and doesn't make its own. Turn on \"Transcribe recordings Google didn't\" in Plugins › Google Drive to transcribe this recording.")
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                         .multilineTextAlignment(.center)

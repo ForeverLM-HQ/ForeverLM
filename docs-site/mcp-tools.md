@@ -103,14 +103,14 @@ three from report to approved change. These need an active Mac:
 | `get_app_settings` | `pane?`, `setting?` | Every catalog setting with its `id`, `value`, `type` (`boolean`, `number`, `choice`, `text`, `string_list`), `reach` (`account` or `this_mac`) and the `options` its picker offers, plus `dedicated_tools` (the panes with a pair of their own), `actions` and `only_in_the_settings_window`. |
 | `set_app_setting` | `setting`, `value` | Change one catalog setting exactly as the pane does. A choice outside the pane's options is refused with them. Returns the setting and `changed`. Model and voice pickers change what work is billed at; ask first. |
 | `run_settings_action` | `action`, `approved_spend_usd?` | One of the buttons that act once, whether or not a pane still shows it: `sync_icloud_now`, `prepare_memory_review_now`, `draw_missing_meeting_icons`, `sync_x_bookmarks`, `clear_usage_ledger_warning`, and the iCloud pane's `confirm_this_mac_holds_my_library`, `upload_library_to_icloud_again`, `apply_old_library_removals` and `keep_old_library_removals`, and `replace_icloud_library`, which only an assistant presses when you ask: it deletes iCloud's copy of your library and uploads this Mac's from the start. |
-| `open_settings` | `pane?` | Open the Settings window on the Mac at one pane, for a sign-in, a consent page, a payment or the sharing sheet. |
-| `open_in_app` | `kind`, `id?` | Show a notebook, doc, chat, source, quiz or idea in the Mac's window as a click would, or `space` (the Space's All list). Listing or loading a notebook changes nothing on screen; this does. |
-| `get_plugin_connections` | `include_slack_channels?` | Settings › Plugins: which of X, YouTube, Google Drive, Calendar (the Mac's), Slack, GitHub, Linear, Notion and the learner's own plugins are connected, their accounts, Slack channels, followed and hidden YouTube channels, and what connecting each takes. |
+| `open_settings` | `pane?` | Open the Settings window on the Mac at one pane, for a sign-in, a payment or the sharing sheet. `plugins` and a plugin's id (`x`, `youtube`, `google_drive`, `apple_calendar`, `slack`, `linear`, `github`, `notion`, `build_your_own_plugin`) open the Plugins place on the icon strip instead, at that plugin's page, where its consent page is opened. |
+| `open_in_app` | `kind`, `id?` | Show a notebook, doc, chat, source, quiz or idea in the Mac's window as a click would, `space` (the Space's All list), or `plugins` (the Plugins place, at a plugin's page when `id` names one). Listing or loading a notebook changes nothing on screen; this does. |
+| `get_plugin_connections` | `include_slack_channels?` | Plugins: which of X, YouTube, Google Drive, Calendar (the Mac's), Slack, GitHub, Linear, Notion and the learner's own plugins are connected, their accounts, Slack channels, followed and hidden YouTube channels, and what connecting each takes. |
 | `disconnect_plugin` | `plugin`, `account_id?` | The pane's Disconnect, Turn Off or Remove Access for `x`, `youtube`, `google_drive`, `apple_calendar`, `slack`, `github` or `user_plugin`. `apple_calendar` turns the Mac's Calendar off for ForeverLM; every event stays in the calendar. Ask first. |
-| `set_slack_channel_enabled` | `channel_id`, `enabled`, `team_id?` | A Slack channel's switch in Settings › Plugins › Slack. |
-| `get_calendar_settings` | — | Settings › Plugins › Calendar: whether the Mac's Calendar is on for ForeverLM and macOS granted access, every calendar the Mac holds (iCloud, Google, Exchange, subscriptions) with whether it takes new events (`writable`) and whether it is part of the day (`on_day`), and `new_events_calendar`, where new events go. |
+| `set_slack_channel_enabled` | `channel_id`, `enabled`, `team_id?` | A Slack channel's switch in Plugins › Slack. |
+| `get_calendar_settings` | — | Plugins › Calendar: whether the Mac's Calendar is on for ForeverLM and macOS granted access, every calendar the Mac holds (iCloud, Google, Exchange, subscriptions) with whether it takes new events (`writable`) and whether it is part of the day (`on_day`), and `new_events_calendar`, where new events go. |
 | `set_calendar_settings` | `apple_calendar_enabled?`, `apple_calendar_ids?`, `new_events_calendar_id?` | Turn the Mac's Calendar on (may show the macOS permission prompt) or off, set the whole list of calendars that make up the day, or choose the calendar new events go to (`""` for the Calendar app's default). |
-| `follow_youtube_channel` | `channel` | Follow a channel by address or @handle, as Settings › Plugins › YouTube does. |
+| `follow_youtube_channel` | `channel` | Follow a channel by address or @handle, as Plugins › YouTube does. |
 | `unfollow_youtube_channel` | `group_id` | Stop following a channel. |
 | `rename_team` | `team_id`, `name` | Rename a team the learner owns. |
 | `delete_team` | `team_id` | Delete a team the learner owns, for every member. Ask first. |
@@ -622,7 +622,7 @@ chapter source IDs under the matched title.
 | `import_gemini_notebook` | `url`, `notebook_id?` | Import a Gemini Notebook (NotebookLM until July 2026) from its `notebook.google.com` address, as pasting the link does: each source through its ordinary route, each chat as a chat under the notebook, each note and report as a Page. Audio and video overviews, flashcards, quizzes, mind maps and apps stay in Gemini (`left_in_notebook`). Importing again adds only what is new. Needs the learner signed in to Google in ForeverLM's own browser. |
 | `import_video_overview` | `file_path`, `notebook_id?` | Bring a video overview (a Gemini Notebook MP4, or any MP4, M4V or MOV on the Mac) into a notebook as a video source its Studio lists as a Video overview. The file must be in the ForeverLM library or the Desktop, Documents or Downloads folder. Nothing is spent, and the video has no transcript. |
 | `fetch_video_transcript` | `source_id`, `passcode?`, `approved_spend_usd?` | Fetch and store the transcript of a YouTube video, a one-off Zoom cloud recording link, or a Teachable lecture. A passcode-protected Zoom recording asks for its `passcode`, which is then kept in the Keychain; a Teachable lecture is transcribed from its audio in the background and needs the learner signed in to the school inside ForeverLM. |
-| `follow_youtube_foreverlm_playlist` | — | Follow the learner's YouTube playlist named "ForeverLM" and import its videos (their details; transcripts come when needed). Needs YouTube connected in Settings › Plugins › YouTube. |
+| `follow_youtube_foreverlm_playlist` | — | Follow the learner's YouTube playlist named "ForeverLM" and import its videos (their details; transcripts come when needed). Needs YouTube connected in Plugins › YouTube. |
 | `follow_youtube_liked_videos` | `import_existing?`, `format_transcripts_automatically?` | Follow the learner's Liked videos and keep them fresh in the background, with or without the likes already there. AI formatting of the transcripts is off unless asked for, because a large history can run up a bill on the learner's OpenRouter key. |
 | `refresh_youtube_sources` | — | Check the followed YouTube playlist or likes now and import new videos (their details only). |
 | `set_connector_auto_import` | `connector`, `enabled` | Turn the YouTube plugin's automatic import on or off. |
@@ -669,7 +669,7 @@ video shown on its own.
 |---|---|---|
 | `find_podcast_match` | `source_id` | Look for the Apple Podcasts episode that matches a source, by its YouTube link or title, and stage the match for confirmation. |
 | `resolve_podcast_match` | `source_id`, `confirm` | Confirm a staged match, which makes the source that podcast episode, or reject it. |
-| `find_podcast_on_youtube` | `source_id`, `always_for_show?`, `approved_spend_usd?` | The Reader's **Find on YouTube**, for an episode whose transcript Apple does not give: candidates from the episode's own page, the show's YouTube channel and YouTube search, best first, with nothing attached. `always_for_show` ticks "Always find … on YouTube" for the show. Needs YouTube connected in Settings › Plugins › YouTube. |
+| `find_podcast_on_youtube` | `source_id`, `always_for_show?`, `approved_spend_usd?` | The Reader's **Find on YouTube**, for an episode whose transcript Apple does not give: candidates from the episode's own page, the show's YouTube channel and YouTube search, best first, with nothing attached. `always_for_show` ticks "Always find … on YouTube" for the show. Needs YouTube connected in Plugins › YouTube. |
 | `import_podcast_youtube_transcript` | `source_id`, `video`, `replace?`, `approved_spend_usd?` | The Reader's **Use Transcript**: the captions of a video the learner confirmed is this episode become its transcript, then are formatted and cleared of ad reads in the background. Refused for an episode that has a transcript unless `replace`. |
 | `remove_all_from_podcast` | `show_name` | **Remove All from …**: dismiss and archive every episode of the show. |
 | `set_podcast_show_import_blocked` | `show_name`, `blocked` | **Never Import …**: its episodes are never imported again, however often they are played. Episodes already in the library stay. |
@@ -709,7 +709,7 @@ for a full-access assistant.
 |---|---|---|
 | `get_connector_inbox` | — | The plugin's own staging folder on the Mac for paper PDFs: write a downloaded PDF there, then pass its path to `import_connector_paper`. It is the only local path an ingest-only plugin may hand over. |
 | `import_connector_paper` | `url?`, `source_url?`, `file_path?`, `title?`, `approved_spend_usd?` | Import one paper through the whole paper pipeline, from a public paper URL or DOI, or a PDF staged in the inbox. Deduplicated by canonical URL and DOI, run through Paper Metadata and Source Content Cleanup, and labelled with the plugin's name. |
-| `report_connector_status` | `state`, `detail?` | The plugin's sync health (`healthy`, `syncing`, `needs_reconnect` or `error`), shown with it in Settings › Plugins: call it at the start and end of every run, and say `needs_reconnect` when the service's authorization is no longer valid. |
+| `report_connector_status` | `state`, `detail?` | The plugin's sync health (`healthy`, `syncing`, `needs_reconnect` or `error`), shown with it in Plugins: call it at the start and end of every run, and say `needs_reconnect` when the service's authorization is no longer valid. |
 | `update_source_content` | `content`, `source_id?`, `url?`, `title?`, `author?` | Replace a source's stored text (and optionally its title and author), found by `source_id` or canonical `url`. Reviews and Schedule placements are untouched. An ingest-only plugin may change only the sources it added. |
 | `remove_connector_sources` | `connector_label` | Remove every active source one plugin added, by its label, as `remove_source` removes one: each address is dismissed so nothing adds it again, then the source is archived. Full-access connections only. |
 
@@ -842,7 +842,7 @@ carries twins of the same five reads for the in-app chat.
 ## Posting to X
 
 ForeverLM can post to X as the learner, through the X plugin with posting
-permission (Settings › Plugins › X). A post is public at once, so the assistant
+permission (Plugins › X). A post is public at once, so the assistant
 shows the exact text and waits for the learner's yes.
 
 | Tool | Parameters | Description |
@@ -854,7 +854,7 @@ shows the exact text and waits for the learner's yes.
 The learner's day is their Mac's Calendar; there is no separate plan. An
 assistant reads the day's events and plans it by adding each block — a stretch
 of work, a reading, a review, email and admin, a break — as an event. It lands
-on the calendar new events go to (Settings › Plugins › Calendar), and shows at
+on the calendar new events go to (Plugins › Calendar), and shows at
 once in the Calendar app, in the bottom-left **Now** chip, and on the learner's
 phone through their calendar account. A Google, Exchange or subscribed calendar
 the Mac's Calendar holds is part of the day like any other. An event with other

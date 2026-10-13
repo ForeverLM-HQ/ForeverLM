@@ -4765,11 +4765,11 @@ struct ScheduleChatNavigationTests {
         let value = StudioCenterTabGroups.reconciled(raw)
         #expect(value.groups.count == 2)
         #expect(value.groups[0].tabs == [.chat])
-        #expect(value.groups[1].tabs == [.reader, .tasks, .activity, .goals, .courses, .ideas, .notepad, .sites, .browser, .videos, .animations, .artifacts, .memory, .knowledgeMap, .atlas, .library])
+        #expect(value.groups[1].tabs == [.reader, .tasks, .activity, .goals, .courses, .ideas, .notepad, .sites, .browser, .videos, .animations, .artifacts, .memory, .knowledgeMap, .atlas, .library, .plugins])
         #expect(value.groups[1].activeTab == .reader)
 
         let persisted = value.persistedRepresentation
-        #expect(persisted == ["chat*", "reader*|tasks|activity|goals|courses|ideas|notepad|sites|browser|videos|animations|artifacts|memory|knowledgeMap|atlas|library"])
+        #expect(persisted == ["chat*", "reader*|tasks|activity|goals|courses|ideas|notepad|sites|browser|videos|animations|artifacts|memory|knowledgeMap|atlas|library|plugins"])
         let decoded = StudioCenterTabGroups.fromPersisted(persisted)
         #expect(decoded?.groups.count == 2)
         #expect(decoded?.groups[1].activeTab == .reader)

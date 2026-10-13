@@ -1,6 +1,6 @@
 import Foundation
 
-// MARK: - Settings › Plugins, calendars and feeds, from a chat
+// MARK: - Plugins, calendars and feeds, from a chat
 //
 // The plugin rows, the Mac's Calendar pane and Settings › Feeds, each
 // tool doing exactly what the pane's own button, toggle or checkbox does —
@@ -32,7 +32,7 @@ extension MCPToolRegistry {
         [
             MCPToolDef(
                 name: "get_plugin_connections",
-                description: "Read Settings › Plugins as the learner sees it: for each plugin whether it is connected, which account(s), and what connecting would take. X (connected, @username, needs reconnect, last sync); YouTube (connected, automatic import on/off, which import source is followed — liked videos or the ForeverLM playlist — the channels followed with their group_id, hidden channels); Google Drive (connected accounts with id and email, the meeting folders each reads); Calendar, the Mac's own (on/off, macOS permission) — the learner's day; Slack (workspaces with team_id, and each workspace's channels with id, name and whether ForeverLM may read it); GitHub (the account and the organisations the App is installed on); Linear and Notion (connected workspace); and the learner's own Build Your Own plugins (id, name, health, sources added). Every entry names its open_settings pane and the tool that disconnects it. Connecting any plugin needs the provider's consent page, so it cannot be done from a chat: offer open_settings with the pane named here. The Slack channel lists cost one Slack call per workspace; pass include_slack_channels false to skip them.",
+                description: "Read the Plugins place as the learner sees it: for each plugin whether it is connected, which account(s), and what connecting would take. X (connected, @username, needs reconnect, last sync); YouTube (connected, automatic import on/off, which import source is followed — liked videos or the ForeverLM playlist — the channels followed with their group_id, hidden channels); Google Drive (connected accounts with id and email, the meeting folders each reads); Calendar, the Mac's own (on/off, macOS permission) — the learner's day; Slack (workspaces with team_id, and each workspace's channels with id, name and whether ForeverLM may read it); GitHub (the account and the organisations the App is installed on); Linear and Notion (connected workspace); and the learner's own Build Your Own plugins (id, name, health, sources added). Every entry names its open_settings pane and the tool that disconnects it. Connecting any plugin needs the provider's consent page, so it cannot be done from a chat: offer open_settings with the pane named here. The Slack channel lists cost one Slack call per workspace; pass include_slack_channels false to skip them.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -59,7 +59,7 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "set_slack_channel_enabled",
-                description: "Settings › Plugins › Slack: flip one channel's switch — whether ForeverLM may read that channel (read_slack_channel, search_slack_messages). Stored on the gateway against the learner's account, so it holds on every device. In a workspace read through the ForeverLM bot, a channel can only be switched on after the learner invites @ForeverLM to it (visible to everyone in the channel); such a channel is refused with that explanation. Get team_id and channel ids from get_plugin_connections. Letting ForeverLM read a channel the learner did not name is their call: ask before switching one on.",
+                description: "Plugins › Slack: flip one channel's switch — whether ForeverLM may read that channel (read_slack_channel, search_slack_messages). Stored on the gateway against the learner's account, so it holds on every device. In a workspace read through the ForeverLM bot, a channel can only be switched on after the learner invites @ForeverLM to it (visible to everyone in the channel); such a channel is refused with that explanation. Get team_id and channel ids from get_plugin_connections. Letting ForeverLM read a channel the learner did not name is their call: ask before switching one on.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -72,7 +72,7 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "get_calendar_settings",
-                description: "Read Settings › Plugins › Calendar — the Mac's Calendar app, which is the learner's day: whether it is on for ForeverLM, whether macOS granted access or refused it, every calendar the Mac holds (iCloud, Google, Exchange, subscriptions) with its id, title, account, whether it takes new events (writable) and whether it is shown (on_day: its events are what get_calendar_events reads and the Now chip shows), and new_events_calendar — the calendar create_calendar_event writes into unless told otherwise (the learner's choice, or the Calendar app's own default). selection_is_default true means the learner never narrowed the shown list, so every calendar but Birthdays is shown. The choice is this Mac's. Change with set_calendar_settings.",
+                description: "Read Plugins › Calendar — the Mac's Calendar app, which is the learner's day: whether it is on for ForeverLM, whether macOS granted access or refused it, every calendar the Mac holds (iCloud, Google, Exchange, subscriptions) with its id, title, account, whether it takes new events (writable) and whether it is shown (on_day: its events are what get_calendar_events reads and the Now chip shows), and new_events_calendar — the calendar create_calendar_event writes into unless told otherwise (the learner's choice, or the Calendar app's own default). selection_is_default true means the learner never narrowed the shown list, so every calendar but Birthdays is shown. The choice is this Mac's. Change with set_calendar_settings.",
                 inputSchema: [
                     "type": "object",
                     "properties": [:] as [String: Any],
@@ -81,7 +81,7 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "set_calendar_settings",
-                description: "Change Settings › Plugins › Calendar as its controls do, then return get_calendar_settings. apple_calendar_enabled: the pane's Turn On / Turn Off. Turning it on the first time makes macOS show its Calendar permission prompt on the learner's Mac, which only they can answer — tell them to look for it; if they refused before, it fails and they allow ForeverLM in System Settings › Privacy & Security › Calendars. Turning it off forgets the calendar choice; the macOS grant and every event stay. apple_calendar_ids: the whole list of calendars the day is read from (ids or titles from get_calendar_settings); every other calendar the Mac holds now is left off, and an account signed in afterwards (say Exchange, added in System Settings › Internet Accounts) has its calendars shown until a later list leaves them out. new_events_calendar_id: the calendar new events go to (an id or title of a writable calendar), or \"\" for the Calendar app's own default. Ask before removing calendars the learner did not mention.",
+                description: "Change Plugins › Calendar as its controls do, then return get_calendar_settings. apple_calendar_enabled: the pane's Turn On / Turn Off. Turning it on the first time makes macOS show its Calendar permission prompt on the learner's Mac, which only they can answer — tell them to look for it; if they refused before, it fails and they allow ForeverLM in System Settings › Privacy & Security › Calendars. Turning it off forgets the calendar choice; the macOS grant and every event stay. apple_calendar_ids: the whole list of calendars the day is read from (ids or titles from get_calendar_settings); every other calendar the Mac holds now is left off, and an account signed in afterwards (say Exchange, added in System Settings › Internet Accounts) has its calendars shown until a later list leaves them out. new_events_calendar_id: the calendar new events go to (an id or title of a writable calendar), or \"\" for the Calendar app's own default. Ask before removing calendars the learner did not mention.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -94,7 +94,7 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "follow_youtube_channel",
-                description: "Settings › Plugins › YouTube › Followed channels › Follow: resolve a channel from its address or @handle, import its newest \(StudioViewModel.youtubeChannelFollowImportCount) uploads into a Videos group named after it, and keep importing every new upload in the background (this turns YouTube's automatic import on). Needs YouTube connected. The group follows the learner's library on every device. For a channel's older back catalog, add its playlist as a course instead. Returns the group_id (unfollow_youtube_channel takes it) and how many videos the group now holds.",
+                description: "Plugins › YouTube › Followed channels › Follow: resolve a channel from its address or @handle, import its newest \(StudioViewModel.youtubeChannelFollowImportCount) uploads into a Videos group named after it, and keep importing every new upload in the background (this turns YouTube's automatic import on). Needs YouTube connected. The group follows the learner's library on every device. For a channel's older back catalog, add its playlist as a course instead. Returns the group_id (unfollow_youtube_channel takes it) and how many videos the group now holds.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -105,7 +105,7 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "unfollow_youtube_channel",
-                description: "Settings › Plugins › YouTube › Followed channels › Stop Following: stop importing a followed channel's new uploads. The videos already imported, and the group holding them, stay. group_id comes from get_plugin_connections (youtube.followed_channels); the channel's name works too. The liked-videos / ForeverLM-playlist import source is not a channel: switch it with follow_youtube_liked_videos or follow_youtube_foreverlm_playlist.",
+                description: "Plugins › YouTube › Followed channels › Stop Following: stop importing a followed channel's new uploads. The videos already imported, and the group holding them, stay. group_id comes from get_plugin_connections (youtube.followed_channels); the channel's name works too. The liked-videos / ForeverLM-playlist import source is not a channel: switch it with follow_youtube_liked_videos or follow_youtube_foreverlm_playlist.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -285,7 +285,7 @@ extension MCPDataStore {
             "needs_reconnect": service.needsReauthentication,
             "reach": "this_mac",
             "open_settings": "x",
-            "connect_requires": "Signing in to X in the sheet ForeverLM opens from Settings › Plugins › X › Connect.",
+            "connect_requires": "Signing in to X in the sheet ForeverLM opens from Plugins › X › Connect.",
             "imports": "The learner's X bookmarks. run_settings_action sync_x_bookmarks syncs now.",
             "disconnect": "disconnect_plugin with plugin x",
         ]
@@ -303,7 +303,7 @@ extension MCPDataStore {
             "automatic_import": StudioViewModel.isYouTubeAutoImportEnabled,
             "reach": "this_mac",
             "open_settings": "youtube",
-            "connect_requires": "Google's consent page for youtube.readonly, opened from Settings › Plugins › YouTube › Connect.",
+            "connect_requires": "Google's consent page for youtube.readonly, opened from Plugins › YouTube › Connect.",
             "disconnect": "disconnect_plugin with plugin youtube",
             "tools": "set_connector_auto_import (automatic import), follow_youtube_liked_videos / follow_youtube_foreverlm_playlist (import source), follow_youtube_channel / unfollow_youtube_channel, set_youtube_channel_hidden, refresh_youtube_sources",
         ]
@@ -366,7 +366,7 @@ extension MCPDataStore {
             "can_connect": service.canConnect,
             "reach": "account",
             "open_settings": "google_drive",
-            "connect_requires": "Google's consent page and Drive's folder picker, from Settings › Plugins › Google Drive › Connect and Choose Folder (also how a folder is added).",
+            "connect_requires": "Google's consent page and Drive's folder picker, from Plugins › Google Drive › Connect and Choose Folder (also how a folder is added).",
             "disconnect": "disconnect_plugin with plugin google_drive and account_id",
             "accounts": accounts.map { account -> [String: Any] in
                 [
@@ -426,7 +426,7 @@ extension MCPDataStore {
                 ? "macOS refused Calendar access; the learner allows ForeverLM in System Settings › Privacy & Security › Calendars, then turns it on."
                 : "Nothing but the learner's answer to macOS's Calendar prompt: set_calendar_settings with apple_calendar_enabled true turns it on.",
             "disconnect": "disconnect_plugin with plugin apple_calendar (or set_calendar_settings apple_calendar_enabled false)",
-            "add_account": "macOS signs in to Microsoft Exchange (and Microsoft 365) and every other calendar account itself: the learner presses Add Exchange Account… in Settings › Plugins › Calendar (open_settings apple_calendar), which opens System Settings › Internet Accounts. The new account's calendars are shown as the day until the learner unticks them.",
+            "add_account": "macOS signs in to Microsoft Exchange (and Microsoft 365) and every other calendar account itself: the learner presses Add Exchange Account… in Plugins › Calendar (open_settings apple_calendar), which opens System Settings › Internet Accounts. The new account's calendars are shown as the day until the learner unticks them.",
             "calendars": "get_calendar_settings / set_calendar_settings",
             "day": "get_calendar_events, create_calendar_event, update_calendar_event, delete_calendar_event",
         ]
@@ -438,7 +438,7 @@ extension MCPDataStore {
             "name": "Slack",
             "reach": "account",
             "open_settings": "slack",
-            "connect_requires": "Sign in with Apple in ForeverLM, then Slack's consent page from Settings › Plugins › Slack › Connect Slack… (more than one workspace can be connected).",
+            "connect_requires": "Sign in with Apple in ForeverLM, then Slack's consent page from Plugins › Slack › Connect Slack… (more than one workspace can be connected).",
             "disconnect": "disconnect_plugin with plugin slack and account_id (the team_id)",
         ]
         switch answer {
@@ -586,7 +586,7 @@ extension MCPDataStore {
             "name": "Build Your Own",
             "reach": "this_mac",
             "open_settings": "build_your_own_plugin",
-            "connect_requires": "The learner pastes the setup prompt from Settings › Plugins › Build Your Own into a coding assistant and approves the plugin once in ForeverLM.",
+            "connect_requires": "The learner pastes the setup prompt from Plugins › Build Your Own into a coding assistant and approves the plugin once in ForeverLM.",
             "disconnect": "disconnect_plugin with plugin user_plugin and account_id (Remove Access); remove_connector_sources with connector_label removes its sources",
             "plugins": summaries.map { plugin -> [String: Any] in
                 var row: [String: Any] = [
@@ -719,7 +719,7 @@ extension MCPDataStore {
         return try jsonString(result)
     }
 
-    /// Settings › Plugins › X › Disconnect. Nil when X was not connected;
+    /// Plugins › X › Disconnect. Nil when X was not connected;
     /// otherwise the username it was connected as (empty when unknown).
     @MainActor
     private static func signOutOfXLikeThePane() throws -> String? {
@@ -737,7 +737,7 @@ extension MCPDataStore {
             throw MCPError.invalidInput("Pass channel_id, the Slack channel's id (or #name) from get_plugin_connections.")
         }
         guard case .connected(let workspaces)? = await Self.slackWorkspaceConnection() else {
-            throw MCPError.invalidInput("No Slack workspace is connected (or the ForeverLM gateway did not answer). Connect one in Settings › Plugins › Slack (open_settings slack).")
+            throw MCPError.invalidInput("No Slack workspace is connected (or the ForeverLM gateway did not answer). Connect one in Plugins › Slack (open_settings slack).")
         }
         let workspace = try Self.pluginPick(
             workspaces.filter { $0.teamID != nil },
@@ -787,7 +787,7 @@ extension MCPDataStore {
         let apple = AppleCalendarService.shared
         let appleSelection = apple.selectedIDs
         var applePayload: [String: Any] = [
-            "pane": "Settings › Plugins › Calendar",
+            "pane": "Plugins › Calendar",
             "open_settings": "apple_calendar",
             "reach": "this_mac",
             "enabled": apple.isEnabled,
@@ -939,7 +939,7 @@ extension MCPDataStore {
             throw MCPError.invalidInput("Pass channel: the channel's address (youtube.com/@handle) or its @handle.")
         }
         guard YouTubeService.shared.isSignedIn else {
-            throw MCPError.invalidInput("YouTube is not connected. The learner connects it in Settings › Plugins › YouTube (open_settings youtube).")
+            throw MCPError.invalidInput("YouTube is not connected. The learner connects it in Plugins › YouTube (open_settings youtube).")
         }
         return try jsonString(try await Self.followYouTubeChannelLikeThePane(channel))
     }

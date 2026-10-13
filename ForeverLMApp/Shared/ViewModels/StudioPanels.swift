@@ -84,10 +84,15 @@ enum StudioCenterTab: String, Codable, CaseIterable, Identifiable {
     /// grounded in the library (docs/atlas-design.md). A place like the
     /// Canvas; it leaves a notebook the way the Canvas does. Added 2026-10-05.
     case atlas
+    /// Plugins, Codex's (2026-10-13): every plugin and its state, and each
+    /// plugin's own page, which were Settings' Plugins pane until then
+    /// (docs/codex-shell-plan.md, Track 2). The strip's Plugins row opens it;
+    /// it leaves a notebook the way the Library does.
+    case plugins
 
     var id: String { rawValue }
 
-    static let permanentTabs: [StudioCenterTab] = [.chat, .reader, .tasks, .activity, .goals, .courses, .ideas, .notepad, .sites, .browser, .videos, .animations, .artifacts, .memory, .knowledgeMap, .atlas, .library]
+    static let permanentTabs: [StudioCenterTab] = [.chat, .reader, .tasks, .activity, .goals, .courses, .ideas, .notepad, .sites, .browser, .videos, .animations, .artifacts, .memory, .knowledgeMap, .atlas, .library, .plugins]
 
     /// The panes of the Space's kinds, which open beside one another: the
     /// Pages and Sites the sidebar's rows open (`ArtifactsHomeKind`), and
@@ -698,6 +703,10 @@ final class StudioWindowState: Identifiable {
     /// tab: two windows can be on two courses. Presentation, so not in
     /// `Snapshot`.
     var coursePageID: String?
+    /// The plugin whose page this window's Plugins place shows; nil shows
+    /// every plugin. The window's, like the course page: two windows can be
+    /// on two plugins. Presentation, so not in `Snapshot`.
+    var pluginPage: PluginPage?
     /// The notebook this window holds; nil while it holds none. It belongs
     /// to the window: two windows can hold two notebooks, and opening one
     /// here leaves the other window's alone. While it holds one, the notebook
@@ -842,7 +851,8 @@ final class StudioWindowState: Identifiable {
             coursePageID: coursePageID,
             readerArticleID: readerArticleID,
             chatSessionID: chatSessionID,
-            openArtifactID: openArtifactID
+            openArtifactID: openArtifactID,
+            pluginPage: pluginPage
         )
     }
 
@@ -888,6 +898,7 @@ final class StudioWindowState: Identifiable {
         if notebook != place.notebook { notebook = place.notebook }
         if spaceDestinationKey != place.spaceDestinationKey { spaceDestinationKey = place.spaceDestinationKey }
         if coursePageID != place.coursePageID { coursePageID = place.coursePageID }
+        if pluginPage != place.pluginPage { pluginPage = place.pluginPage }
         if centerTabGroups != place.centerTabGroups { centerTabGroups = place.centerTabGroups }
         if let artifactID = place.openArtifactID, openArtifactID != artifactID {
             // Both, as a resume does: the request switches a canvas already
@@ -1127,6 +1138,7 @@ struct StudioWindowPlace: Equatable {
     var readerArticleID: String?
     var chatSessionID: String?
     var openArtifactID: String?
+    var pluginPage: PluginPage? = nil
 
     /// What makes two places two to the learner: which panes are in front
     /// and what they show. A fold, a pin or what waits behind another pane
@@ -1142,6 +1154,7 @@ struct StudioWindowPlace: Equatable {
         var readerArticleID: String?
         var chatSessionID: String?
         var openArtifactID: String?
+        var pluginPage: PluginPage?
     }
 
     var identity: Identity {
@@ -1158,7 +1171,8 @@ struct StudioWindowPlace: Equatable {
             coursePageID: shows(.courses) ? coursePageID : nil,
             readerArticleID: shows(.reader) || documents.contains(.reader) ? readerArticleID : nil,
             chatSessionID: shows(.chat) || notebook?.showsChat == true ? chatSessionID : nil,
-            openArtifactID: shows(.notepad) || documents.contains(.docs) ? openArtifactID : nil
+            openArtifactID: shows(.notepad) || documents.contains(.docs) ? openArtifactID : nil,
+            pluginPage: shows(.plugins) ? pluginPage : nil
         )
     }
 }
@@ -1931,8 +1945,9 @@ struct MeetingPluginNotice: Equatable {
         /// No plugin exists and MCP isn't set up either, so there is no
         /// address to put in a prompt. The Build Your Own page explains the
         /// model and offers Set Up MCP.
-        case openPluginSettings
-        /// A plugin exists and reported trouble; Settings lists what it said.
+        case openBuildYourOwn
+        /// A plugin exists and reported trouble; the Plugins place lists
+        /// what it said.
         case showPluginStatus
     }
 
@@ -1961,7 +1976,7 @@ struct MeetingPluginNotice: Equatable {
                     provider: provider,
                     message: "\(provider.displayName) meetings aren't syncing — get the plugin going again for the latest",
                     actionTitle: hasMCPAddress ? "Copy Setup Prompt" : "Set Up…",
-                    action: hasMCPAddress ? .copySetupPrompt : .openPluginSettings
+                    action: hasMCPAddress ? .copySetupPrompt : .openBuildYourOwn
                 )
             }
             // One healthy plugin for the provider is enough; an abandoned

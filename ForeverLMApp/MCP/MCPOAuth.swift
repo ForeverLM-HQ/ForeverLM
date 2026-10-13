@@ -83,7 +83,7 @@ actor MCPOAuthProvider {
         /// and sanitized only where displayed or stamped.
         let clientName: String?
         /// RFC 7591 `logo_uri`, https-only (validated at registration).
-        /// Rendered ONLY in the app's Settings plugin list — never on the
+        /// Rendered ONLY in the app's Plugins list — never on the
         /// consent surfaces, where a look-alike logo could dress a malicious
         /// authorization request up as a trusted product.
         let logoURI: String?
@@ -1260,7 +1260,7 @@ actor MCPOAuthProvider {
     ///
     /// A plugin asking for `mcp:ingest` is refused instead. It is known by the
     /// `client_name` it registered: that name labels every source it adds
-    /// (`sources.connector_label`) and its row in Settings › Plugins, and an
+    /// (`sources.connector_label`) and its row in Plugins, and an
     /// authorization request does not carry it. Recreated, the client would
     /// have no name, so its sources would file under the raw `dyn_…` id and the
     /// list would show the id. Refused with `invalid_client`, the plugin
@@ -1668,7 +1668,7 @@ actor MCPOAuthProvider {
         /// Sanitized label — exactly what this plugin's sources carry in
         /// `connector_label`, so counts and bulk-removal key off it directly.
         let name: String
-        /// https-only registration logo, rendered in Settings (never consent).
+        /// https-only registration logo, rendered in the Plugins place (never consent).
         let logoURI: String?
         let lastSeenAt: Date?
         let lastSuccessfulSyncAt: Date?
@@ -1711,7 +1711,7 @@ actor MCPOAuthProvider {
     }
 
     /// Every client that currently holds an ingest-scoped access or refresh
-    /// token, for the Settings → Plugins → Build Your Own list.
+    /// token, for the Plugins place: its Your Plugins rows and Build Your Own.
     func userPluginSummaries() -> [UserPluginSummary] {
         cleanExpired()
         var clientIDs = Set<String>()

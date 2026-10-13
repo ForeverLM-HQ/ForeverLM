@@ -245,8 +245,9 @@ extension NotebookWorkspace {
         // The Space and the full-window Library are the library's places:
         // they leave the notebook, which its rail row and its row in the
         // Space bring back as it was (`notebookLeft`). Inside
-        // the notebook the library is its Sources column's search.
-        case .library, .knowledgeMap, .atlas: return .leave
+        // the notebook the library is its Sources column's search. Plugins
+        // are the app's, as the Library is.
+        case .library, .knowledgeMap, .atlas, .plugins: return .leave
         case .activity, .tasks, .goals, .ideas, .videos, .artifacts: return .leave
         }
     }

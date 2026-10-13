@@ -1481,8 +1481,11 @@ struct GettingStartedGuide: View {
             if let meeting = newestSource(of: .meeting) {
                 detectedSourceCard(meeting, label: "Last meeting in")
             }
-            secondaryAction("Using Google Meet, Slack or Notion? Connect them in Settings › Plugins") {
-                openSettings(.plugins)
+            secondaryAction("Using Google Meet, Slack or Notion? Connect them in Plugins") {
+                // Plugins is a place in the window, under the guide, so the
+                // guide steps aside for it; setup picks up here next time.
+                isPresented = false
+                PluginsPlace.requestOpen()
             }
         }
     }
@@ -2470,11 +2473,6 @@ struct GettingStartedGuide: View {
             zoomFolder = StudioViewModel.zoomLocalTranscriptCustomFolder
             vm.zoomLocalTranscriptFolderDidChange()
         }
-    }
-
-    /// Settings draws over the guide, so closing it comes back to this step.
-    private func openSettings(_ pane: SettingsPane) {
-        NotificationCenter.default.post(name: .requestOpenStudioSettings, object: pane)
     }
 
 }

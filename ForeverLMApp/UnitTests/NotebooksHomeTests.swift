@@ -251,7 +251,7 @@ struct NotebooksHomeTests {
         #expect(StudioRailItem.library.title == StudioShellCommand.library.title)
         #expect(StudioCenterTab.library.title == StudioShellCommand.library.title)
         #expect(StudioWindowDestination.library.noun == StudioShellCommand.library.title)
-        #expect(StudioCenterTab.permanentTabs.last == .library)
+        #expect(StudioCenterTab.permanentTabs.last == .plugins, "the newest place is appended, so stored layouts keep their order")
     }
 
     @Test("A first launch leads with the Space, everything else behind it in one pane")

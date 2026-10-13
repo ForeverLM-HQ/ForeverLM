@@ -614,7 +614,7 @@ enum ManagedAI {
     /// How far ahead of expiry a live session is renewed: half its 30-day life.
     ///
     /// The session is the only credential this Mac holds, and everything that
-    /// reads as "connected" in Settings hangs off it — Slack most visibly, since
+    /// reads as "connected" in Plugins hangs off it — Slack most visibly, since
     /// the workspace token lives on the gateway and the Mac reaches it only with
     /// this session. Without renewal a Mac that was signed in on day 1 found a
     /// dead session at its first launch after day 30, and Slack read as

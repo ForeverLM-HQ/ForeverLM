@@ -25,6 +25,17 @@ struct ReviewSlashCommandTests {
         #expect(ReviewSlashCommandParser.parseSettingsPane("key") == .aiUsage)
     }
 
+    /// Plugins left Settings for a place of their own on 2026-10-13: /settings
+    /// plugins opens that place, and names no Settings pane.
+    @Test("/settings plugins names the Plugins place, not a Settings pane")
+    func settingsCommandSendsPluginsToTheirPlace() {
+        for token in ["plugins", "Plugin", "connectors", "external"] {
+            #expect(ReviewSlashCommandParser.namesPlugins(token))
+            #expect(ReviewSlashCommandParser.parseSettingsPane(token) == nil)
+        }
+        #expect(!ReviewSlashCommandParser.namesPlugins("billing"))
+    }
+
     @Test("Commands preserve a multiword argument")
     func parsesMultiwordArgument() throws {
         let parsed = try #require(ReviewSlashCommandParser.parse("/goal quantum field theory"))

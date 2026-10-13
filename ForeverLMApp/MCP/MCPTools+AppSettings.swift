@@ -207,10 +207,12 @@ extension MCPDataStore {
     ].filter { JournalWatch.isEnabled || $0["pane"]?.hasPrefix("Feeds") != true }
 
     /// What stays in the window on purpose: each needs the learner's own
-    /// hand — a browser consent, a payment, a macOS permission sheet.
+    /// hand — a browser consent, a payment, a macOS permission sheet. A
+    /// plugin is connected in the Plugins place, which `open_settings`
+    /// opens for its id as it does a pane.
     static let settingsOnlyInTheWindow: [[String: String]] = [
         ["control": "Sign in with Apple", "why": "An Apple sign-in sheet only the learner can answer.", "open_settings": "billing"],
-        ["control": "Connect a plugin (X, YouTube, Google Drive, Slack, GitHub)", "why": "The provider's consent page in a browser.", "open_settings": "plugins"],
+        ["control": "Connect a plugin (X, YouTube, Google Drive, Slack, GitHub), in the Plugins place on the icon strip", "why": "The provider's consent page in a browser.", "open_settings": "plugins"],
         ["control": "Pay for ForeverLM, or change or cancel a monthly plan", "why": "Stripe Checkout or the Stripe billing portal.", "open_settings": "billing"],
         ["control": "Manage team members", "why": "Apple's iCloud sharing sheet.", "open_settings": "data_privacy"],
         ["control": "Remove old iCloud data", "why": "It deletes the old iCloud library for good, so the learner confirms in its dialog after reading what remains; get_sync_status says when it is available.", "open_settings": "data_privacy"],
@@ -1104,45 +1106,64 @@ extension MCPDataStore {
     private static func syncXBookmarksNow() async throws -> Int {
         let studio = try AppModelBridge.requireStudio()
         guard XBookmarkService.shared.isSignedIn else {
-            throw MCPError.invalidInput("X is not connected. Connect it in Settings › Plugins › X (open_settings x).")
+            throw MCPError.invalidInput("X is not connected. Connect it in Plugins › X (open_settings x).")
         }
         return await studio.syncXBookmarks(showResult: false)
     }
 
     // MARK: - Showing a pane
 
-    /// The panes `open_settings` names, as the Settings sidebar titles them.
-    static let settingsPaneIDs: [(id: String, pane: SettingsPane)] = [
-        ("general", .general), ("chat", .aiChatModels), ("voice", .aiTextToSpeech),
-        ("images", .aiImages), ("videos", .aiVideos), ("background", .aiBackgroundModels),
-        ("billing", .aiBilling), ("ai_usage", .aiUsage), ("data_privacy", .dataPrivacy),
-        ("team_general", .teamGeneral), ("team_members", .teamMembers),
-        ("sources", .sources), ("plugins", .plugins),
-        ("mcp", .mcp), ("mcp_pairing", .mcpPairing), ("x", .xPlugin),
-        ("youtube", .youtubePlugin), ("google_drive", .googleDrivePlugin),
-        ("apple_calendar", .appleCalendarPlugin),
-        ("slack", .slackPlugin), ("linear", .linearPlugin), ("github", .githubPlugin),
-        ("notion", .notionPlugin), ("build_your_own_plugin", .userPlugins),
+    /// What `open_settings` shows for an id: a Settings pane, or — since the
+    /// plugins left Settings for a place of their own (2026-10-13) — the
+    /// Plugins place, at a plugin's page or, for nil, at its list.
+    enum SettingsPaneTarget: Equatable {
+        case pane(SettingsPane)
+        case plugins(PluginPage?)
+    }
+
+    /// The ids `open_settings` takes, as the Settings sidebar titles its
+    /// panes. The plugins' ids are the ones they had as Settings panes, so the
+    /// tool's contract is unchanged; they open the Plugins place.
+    static let settingsPaneIDs: [(id: String, target: SettingsPaneTarget)] = [
+        ("general", .pane(.general)), ("chat", .pane(.aiChatModels)), ("voice", .pane(.aiTextToSpeech)),
+        ("images", .pane(.aiImages)), ("videos", .pane(.aiVideos)), ("background", .pane(.aiBackgroundModels)),
+        ("billing", .pane(.aiBilling)), ("ai_usage", .pane(.aiUsage)), ("data_privacy", .pane(.dataPrivacy)),
+        ("team_general", .pane(.teamGeneral)), ("team_members", .pane(.teamMembers)),
+        ("sources", .pane(.sources)), ("plugins", .plugins(nil)),
+        ("mcp", .pane(.mcp)), ("mcp_pairing", .pane(.mcpPairing)), (PluginPage.x.rawValue, .plugins(.x)),
+        (PluginPage.youtube.rawValue, .plugins(.youtube)), (PluginPage.googleDrive.rawValue, .plugins(.googleDrive)),
+        (PluginPage.appleCalendar.rawValue, .plugins(.appleCalendar)),
+        (PluginPage.slack.rawValue, .plugins(.slack)), (PluginPage.linear.rawValue, .plugins(.linear)),
+        (PluginPage.github.rawValue, .plugins(.github)),
+        (PluginPage.notion.rawValue, .plugins(.notion)), (PluginPage.yourPlugins.rawValue, .plugins(.yourPlugins)),
     ]
 
     func openSettings(pane: String?) async throws -> String {
         let id = pane?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
-        let match: SettingsPane
+        let match: SettingsPaneTarget
         if id.isEmpty {
-            match = .aiBilling
+            match = .pane(.aiBilling)
         } else if let found = Self.settingsPaneIDs.first(where: { $0.id == id }) {
-            match = found.pane
+            match = found.target
         } else {
             throw MCPError.invalidInput("pane takes one of: \(Self.settingsPaneIDs.map { $0.id }.joined(separator: ", ")).")
         }
         await MainActor.run {
             NSApp.activate(ignoringOtherApps: true)
-            NotificationCenter.default.post(name: .requestOpenStudioSettings, object: match)
+            switch match {
+            case .pane(let pane):
+                NotificationCenter.default.post(name: .requestOpenStudioSettings, object: pane)
+            case .plugins(let page):
+                Self.bringActiveStudioWindowForward()
+                PluginsPlace.requestOpen(page)
+            }
         }
-        return try jsonString(["opened": id.isEmpty ? "billing" : id])
+        var payload: [String: Any] = ["opened": id.isEmpty ? "billing" : id]
+        if case .plugins = match { payload["in"] = "plugins" }
+        return try jsonString(payload)
     }
 
-    static let openInAppKinds = ["notebook", "doc", "chat", "source", "quiz", "idea", "space"]
+    static let openInAppKinds = ["notebook", "doc", "chat", "source", "quiz", "idea", "space", "plugins"]
 
     /// What a click on the thing does, so a chat can drive the window: the
     /// notebook, doc, chat, quiz and idea go through `StudioViewModel.open`
@@ -1156,8 +1177,17 @@ extension MCPDataStore {
             throw MCPError.invalidInput("kind takes one of: \(Self.openInAppKinds.joined(separator: ", ")).")
         }
         let id = rawID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if kind != "space", id.isEmpty {
+        if kind != "space", kind != "plugins", id.isEmpty {
             throw MCPError.invalidInput("Pass id: the \(kind)'s id from its list tool.")
+        }
+        let pluginPage: PluginPage?
+        if kind == "plugins", !id.isEmpty {
+            guard let page = PluginPage(rawValue: id.lowercased()) else {
+                throw MCPError.invalidInput("For plugins, id is omitted for the list or one of: \(PluginPage.allCases.map(\.rawValue).joined(separator: ", ")).")
+            }
+            pluginPage = page
+        } else {
+            pluginPage = nil
         }
         let studio = try await MainActor.run { try AppModelBridge.requireStudio() }
         let title: String? = try await MainActor.run {
@@ -1169,6 +1199,8 @@ extension MCPDataStore {
                 return notebook.title
             case "doc":
                 return studio.artifacts.first { $0.id == id }?.title
+            case "plugins":
+                return pluginPage?.title
             default:
                 return nil
             }
@@ -1177,6 +1209,8 @@ extension MCPDataStore {
         switch kind {
         case "space":
             await MainActor.run { studio.showSpaceAll() }
+        case "plugins":
+            await MainActor.run { studio.openPluginsPlace(pluginPage) }
         case "source":
             await studio.openLinkedSourceInReader(id)
         case "notebook": await studio.open(.notebook(id))
@@ -1186,7 +1220,7 @@ extension MCPDataStore {
         default: await studio.open(.idea(id))
         }
         var payload: [String: Any] = ["opened": kind]
-        if kind != "space" { payload["id"] = id }
+        if kind != "space", !id.isEmpty { payload["id"] = kind == "plugins" ? id.lowercased() : id }
         if let title { payload["title"] = title }
         return try jsonString(payload)
     }
@@ -1231,7 +1265,7 @@ extension MCPToolRegistry {
         [
             MCPToolDef(
                 name: "get_app_settings",
-                description: "Read the ForeverLM Settings window as chat can change it: every switch, picker and slider in Appearance, Voice (speech-to-text models, text-to-speech voice and speed), Images, Videos, Sources › Reading Lists and Zoom Transcripts, and Plugins (Google Drive, YouTube), each with its id, current value, type, whether it follows the learner's account or stays on this Mac, and the options its picker offers. Also lists the panes that have tools of their own (dedicated_tools), the one-shot buttons run_settings_action performs (actions), and the few controls that stay in the window because they need the learner's own hand (only_in_the_settings_window). Pass pane to narrow by pane name, or setting for one entry.",
+                description: "Read the ForeverLM Settings window as chat can change it: every switch, picker and slider in Appearance, Voice (speech-to-text models, text-to-speech voice and speed), Images, Videos, Sources › Reading Lists and Zoom Transcripts, and the Plugins place (Google Drive, YouTube), each with its id, current value, type, whether it follows the learner's account or stays on this Mac, and the options its picker offers. Also lists the panes that have tools of their own (dedicated_tools), the one-shot buttons run_settings_action performs (actions), and the few controls that stay in the window because they need the learner's own hand (only_in_the_settings_window). Pass pane to narrow by pane name, or setting for one entry.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -1266,23 +1300,23 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "open_settings",
-                description: "Open ForeverLM's Settings window on the learner's Mac at one pane, for what a chat must leave to the learner — signing in, connecting a plugin through the provider's consent page, paying for ForeverLM, managing team members in Apple's sharing sheet. team_general and team_members open the open team's own Settings, a separate window from the learner's, and need a team library open. Brings ForeverLM to the front.",
+                description: "Open ForeverLM's Settings window on the learner's Mac at one pane, for what a chat must leave to the learner — signing in, paying for ForeverLM, managing team members in Apple's sharing sheet. team_general and team_members open the open team's own Settings, a separate window from the learner's, and need a team library open. Plugins are not in Settings: plugins, and a plugin's id (x, youtube, google_drive, apple_calendar, slack, linear, github, notion, build_your_own_plugin), open the Plugins place on the icon strip at every plugin or at that plugin's page, where the learner connects it through the provider's consent page. Brings ForeverLM to the front.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
-                        "pane": ["type": "string", "enum": MCPDataStore.settingsPaneIDs.map { $0.id }, "description": "The pane to show. Omit for Billing, paying for ForeverLM; ai_usage is the key, spending and activity."],
+                        "pane": ["type": "string", "enum": MCPDataStore.settingsPaneIDs.map { $0.id }, "description": "The pane to show. Omit for Billing, paying for ForeverLM; ai_usage is the key, spending and activity; plugins and a plugin's id open the Plugins place."],
                     ],
                     "required": [] as [String],
                 ]
             ),
             MCPToolDef(
                 name: "open_in_app",
-                description: "Show one of the learner's things in the ForeverLM window on this Mac, as a click on it would: a notebook opens in its workspace, a doc comes forward in Docs, a chat resumes in the chat panel, a source opens in the Reader, a course quiz is taken, an idea opens, and space shows the Space's All list, where every notebook and course is listed. Use it whenever the learner asks to open, show, go to or switch to something (\"open this notebook\") — listing or loading it for yourself (list_notebooks, get_notebook) changes nothing on screen. id is the thing's own id from the list tools or the call that created it; space takes none. Opens in the window the learner last used and brings ForeverLM to the front. Writes nothing synced. Needs a Studio window open.",
+                description: "Show one of the learner's things in the ForeverLM window on this Mac, as a click on it would: a notebook opens in its workspace, a doc comes forward in Docs, a chat resumes in the chat panel, a source opens in the Reader, a course quiz is taken, an idea opens, space shows the Space's All list, where every notebook and course is listed, and plugins shows the Plugins place, at one plugin's page when id names it (x, youtube, google_drive, apple_calendar, slack, linear, github, notion, build_your_own_plugin). Use it whenever the learner asks to open, show, go to or switch to something (\"open this notebook\") — listing or loading it for yourself (list_notebooks, get_notebook) changes nothing on screen. id is the thing's own id from the list tools or the call that created it; space takes none, and plugins none for every plugin. Opens in the window the learner last used and brings ForeverLM to the front. Writes nothing synced. Needs a Studio window open.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
                         "kind": ["type": "string", "enum": MCPDataStore.openInAppKinds, "description": "What to open."],
-                        "id": ["type": "string", "description": "The notebook, doc, chat (review session), source, quiz or idea id. Omit for space."],
+                        "id": ["type": "string", "description": "The notebook, doc, chat (review session), source, quiz or idea id, or a plugin's id for plugins. Omit for space, and for plugins to show every plugin."],
                     ],
                     "required": ["kind"],
                 ]

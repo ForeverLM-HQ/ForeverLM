@@ -238,7 +238,7 @@ struct DayActivityReaderPane: View {
                     if model.isCalendarBlocked {
                         AppleCalendarService.openPrivacySettings()
                     } else {
-                        NotificationCenter.default.post(name: .requestOpenStudioSettings, object: SettingsPane.appleCalendarPlugin)
+                        PluginsPlace.requestOpen(.appleCalendar)
                     }
                 }
                 .buttonStyle(.plain)

@@ -187,7 +187,7 @@ extension MCPDataStore {
         guard service.isConnected else {
             let hint = service.isBlockedBySystem
                 ? "macOS refused ForeverLM's Calendar access; the learner allows it in System Settings › Privacy & Security › Calendars, then turns Calendar on."
-                : "Turn it on with set_calendar_settings apple_calendar_enabled true (macOS asks the learner once), or the learner turns it on in Settings › Plugins › Calendar."
+                : "Turn it on with set_calendar_settings apple_calendar_enabled true (macOS asks the learner once), or the learner turns it on in Plugins › Calendar."
             throw MCPError.invalidInput("The Mac's Calendar is off for ForeverLM. \(hint)")
         }
         return service

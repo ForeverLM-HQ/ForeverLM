@@ -4761,7 +4761,7 @@ extension MCPDataStore {
         let studio = try AppModelBridge.requireStudio()
         let episode = try requirePodcastEpisode(sourceID, in: studio)
         guard YouTubeService.shared.isSignedIn else {
-            throw MCPError.invalidInput("YouTube is not connected. The learner connects it in Settings › Plugins › YouTube (open_settings youtube); then call find_podcast_on_youtube again.")
+            throw MCPError.invalidInput("YouTube is not connected. The learner connects it in Plugins › YouTube (open_settings youtube); then call find_podcast_on_youtube again.")
         }
         // The Reader's checkbox names the show by the episode's domain.
         let show = episode.domain.trimmingCharacters(in: .whitespacesAndNewlines)

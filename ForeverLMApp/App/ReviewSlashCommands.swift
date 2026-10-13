@@ -639,9 +639,14 @@ enum ReviewSlashCommandParser {
         case "usage", "credits", "key": return .aiUsage
         case "mcp": return .mcp
         case "sources", "source": return .sources
-        case "plugins", "plugin", "connectors", "connector", "external": return .plugins
         default: return nil
         }
+    }
+
+    /// Whether `/settings <token>` asks for the plugins, which are a place of
+    /// their own rather than a Settings pane since 2026-10-13.
+    static func namesPlugins(_ token: String) -> Bool {
+        ["plugins", "plugin", "connectors", "connector", "external"].contains(token.lowercased())
     }
 }
 

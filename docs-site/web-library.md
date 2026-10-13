@@ -35,7 +35,11 @@ renames or deletes it; this browser remembers the choice. **Courses**, in the
 Space's sidebar, shows every course, and a course opens its lessons there. The
 rail's **Notebooks** comes back to All, and under it are your pinned notebooks
 and the six you worked in last, rather than every notebook; **Memory** starts a
-review of what is due in a chat. A notebook opens as one
+review of what is due in a chat; **Plugins** lists the plugins a browser can
+reach (Google Drive, Slack, Linear, GitHub and Notion) with whether each is
+connected, and a plugin's page has its one action: **Manage** for the four read
+on the web, **Open Mac App** for Google Drive, whose folders are chosen on the
+Mac. Settings has no Plugins, as on the Mac. A notebook opens as one
 page with three columns: **Sources** (tick the ones its chats read; a new chat
 reads the ticked sources, and a source you add arrives ticked, even one you
 unticked before removing it; each notebook it uses context from is a group

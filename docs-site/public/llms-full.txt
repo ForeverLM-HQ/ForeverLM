@@ -204,7 +204,11 @@ renames or deletes it; this browser remembers the choice. **Courses**, in the
 Space's sidebar, shows every course, and a course opens its lessons there. The
 rail's **Notebooks** comes back to All, and under it are your pinned notebooks
 and the six you worked in last, rather than every notebook; **Memory** starts a
-review of what is due in a chat. A notebook opens as one
+review of what is due in a chat; **Plugins** lists the plugins a browser can
+reach (Google Drive, Slack, Linear, GitHub and Notion) with whether each is
+connected, and a plugin's page has its one action: **Manage** for the four read
+on the web, **Open Mac App** for Google Drive, whose folders are chosen on the
+Mac. Settings has no Plugins, as on the Mac. A notebook opens as one
 page with three columns: **Sources** (tick the ones its chats read; a new chat
 reads the ticked sources, and a source you add arrives ticked, even one you
 unticked before removing it; each notebook it uses context from is a group
@@ -583,7 +587,7 @@ The web and PubMed are searched from the Sources column's own field (see
 
 The navigation rail is a narrow strip of icons: **+**, which starts a new
 chat (in a notebook window, a chat in that notebook), then **Spaces**,
-**Memory** and **Library**, and at its foot the calendar glyph that opens
+**Memory**, **Library** and **Plugins**, and at its foot the calendar glyph that opens
 today's schedule (see [Layout](#layout)) and your account. Each icon can be
 hidden from its own menu and brought back with **Show in Sidebar**; hiding
 **New chat** also takes it out of the sidebar beside a chat.
@@ -626,6 +630,19 @@ not showing.
 
 Inside a notebook only the strip stays, so the notebook's three columns have
 the window. A rail you hid stays hidden.
+
+### Plugins
+
+**Plugins** — the rail's grid icon under Library, or View → Plugins — is
+where every plugin lives, as in Codex: the built-in ones (X, YouTube, Google
+Drive, Calendar, Slack, Linear, GitHub, Notion) and then yours (the meeting
+plugins and the ones you built), each with what it reads and **Connected**,
+**Not connected** or **Reconnect needed**. Search narrows the list by name.
+Click a plugin to open its page in the same place, where you connect it,
+choose what it may read and disconnect it; **‹ Plugins** (or ⌘[) goes back.
+Like the Library it is a pane with its **×**, **Open Beside** and **Open in
+Other Window**, and in a notebook window it leaves the notebook. Settings
+has no Plugins. See [Plugins](/external-plugins).
 
 ### The Library
 
@@ -810,7 +827,7 @@ window and a banner in the window you clicked in reads **Opened in the other
 ForeverLM window** (or "another" when more than one other is open). A
 selection's confirmation says the same in one line.
 
-Your day is the Mac's Calendar. At the foot of the navigation rail, over your account, a calendar glyph is always there, with a dot on its corner while something is happening: the event the clock is in, an event starting within 15 minutes, or the bout you are in. In the toolbar of a pop-out Reader the **Now** chip says the same in words, with how long the event has left and a hairline along its foot showing how far through it the clock is; in a quiet hour the chip is not there. The **Today** menu in the menu bar has the day's commands at any hour. Click the glyph (or the chip) for today's events: the one you are in highlighted, a line at the time between events, what is behind in grey, and the day's all-day events on one line. A row opens its event in the Calendar app. The event you are in offers its call link when it has one (**Join Zoom**, **Join Teams**, **Join Google Meet**, …), **Start Pomodoro Timer…**, which asks what the session is for and how many minutes it runs (what is left of the event to begin with, or 15, 25, 45, 60 or 90 in a click) before the clock starts, and **Open in Calendar**; a block an assistant planned for a notebook adds **Open Notebook**, and a block that names only sources adds **Make Notebook from This Block**, a notebook titled as the block with those sources. It reads the calendars you choose in **Settings → Plugins → Calendar**, which turns the Mac's Calendar on and picks which calendar new events go to. A Google, Exchange or subscribed calendar is part of your day once the Mac's Calendar holds it; see [Plugins](/external-plugins#calendar).
+Your day is the Mac's Calendar. At the foot of the navigation rail, over your account, a calendar glyph is always there, with a dot on its corner while something is happening: the event the clock is in, an event starting within 15 minutes, or the bout you are in. In the toolbar of a pop-out Reader the **Now** chip says the same in words, with how long the event has left and a hairline along its foot showing how far through it the clock is; in a quiet hour the chip is not there. The **Today** menu in the menu bar has the day's commands at any hour. Click the glyph (or the chip) for today's events: the one you are in highlighted, a line at the time between events, what is behind in grey, and the day's all-day events on one line. A row opens its event in the Calendar app. The event you are in offers its call link when it has one (**Join Zoom**, **Join Teams**, **Join Google Meet**, …), **Start Pomodoro Timer…**, which asks what the session is for and how many minutes it runs (what is left of the event to begin with, or 15, 25, 45, 60 or 90 in a click) before the clock starts, and **Open in Calendar**; a block an assistant planned for a notebook adds **Open Notebook**, and a block that names only sources adds **Make Notebook from This Block**, a notebook titled as the block with those sources. It reads the calendars you choose in **Plugins → Calendar**, which turns the Mac's Calendar on and picks which calendar new events go to. A Google, Exchange or subscribed calendar is part of your day once the Mac's Calendar holds it; see [Plugins](/external-plugins#calendar).
 
 An assistant plans the day by adding events to your calendar. Type `/plan` in a chat (`/plan tomorrow` for the next day; from 2 PM on, `/plan` plans tomorrow), choose **Plan the Day in Chat** from the **Today** menu (⌘D) or the calendar glyph, or ask Claude or ChatGPT with the ForeverLM plugin. The assistant reads the day and how your last few days went, asks one question — what is fixed, and what the day is for — and proposes the blocks. When you agree, it adds each one as an event in the free time the calendar leaves, with what the hour is for in its notes. Meetings with other people stay where they are: ForeverLM never changes an event with other people on it. `/today` says what is on the calendar right now. Each morning whose calendar holds nothing you planned (meetings with other people and recurring events do not count), a **Plan your day?** card waits at the bottom left of the window, with a notification once if ForeverLM is not in front. Switch it off in **Settings → General → Day**, where **Day starts at** and **and ends at** set the hours of your day.
 
@@ -2494,7 +2511,7 @@ X setup also appears in the [Plugins](/external-plugins#x-bookmarks) guide.
 
 You do not need an X Developer account, API subscription, or client ID.
 
-1. Open **Settings -> Plugins -> X**, or select the **X** tab in the Library.
+1. Open **Plugins -> X** on the icon strip, or select the **X** tab in the Library.
 2. Click **Connect**.
 3. Sign in to X and approve ForeverLM's access.
 
@@ -2515,7 +2532,7 @@ Tap **Sync Bookmarks** in the X sidebar tab. New bookmarks are fetched and added
 
 # Plugins
 
-Plugins are optional. Open **Settings -> Plugins** to see each plugin and its connection status, then select one to set it up. Every built-in plugin, Slack included, shows **Connected** or **Not connected** in the list.
+Plugins are optional. On the Mac, **Plugins** is a place of its own on the icon strip, under Library, as in Codex: it lists each plugin with its connection status, and selecting one opens its page there, with **‹ Plugins** to go back. Every built-in plugin, Slack included, shows **Connected** or **Not connected** in the list. Settings has no Plugins. The web library has the same place on its rail for the plugins the browser can reach: Google Drive, Slack, Linear, GitHub and Notion.
 
 Plugins run only after you explicitly connect them. ForeverLM never scans X or YouTube on app startup. A selected Google Drive folder refreshes on app activation, when its tab opens, or when you refresh Studio.
 
@@ -2527,7 +2544,7 @@ Don't see your service here? You can [build your own plugin](/build-your-own-plu
 
 Use the Google Drive plugin to import meeting recordings, transcripts, and notes from folders you choose. Drive shortcuts are followed to their underlying files, so shared Meet recordings and transcript Docs import the same way as files owned directly in the selected folder.
 
-1. In ForeverLM, open **Settings -> Plugins -> Google Drive**.
+1. In ForeverLM, open **Plugins -> Google Drive**.
 2. Select **Connect Google Drive** and approve read-only Drive access in your browser, once.
 3. Back in ForeverLM, choose your meeting folder from My Drive, Shared with me or a shared drive, or search for it by name.
 
@@ -2543,7 +2560,7 @@ Opening a Drive meeting plays the recording in ForeverLM through the plugin's au
 
 The Calendar plugin makes the Mac's Calendar app your day. The **Now** chip at the bottom left of the Studio window shows today's events, and an assistant plans your day by adding events to the calendar, in a chat with `/plan` or from Claude or ChatGPT with the ForeverLM plugin.
 
-1. In ForeverLM, open **Settings -> Plugins -> Calendar** and click **Turn On**. macOS asks once whether ForeverLM may use your calendars.
+1. In ForeverLM, open **Plugins -> Calendar** and click **Turn On**. macOS asks once whether ForeverLM may use your calendars.
 2. Under **Calendars in your day**, tick the calendars that make up your day. Until you change the list, every calendar but Birthdays is shown.
 3. Under **New events go to**, pick the calendar new events are added to, or leave it on the Calendar app's default.
 
@@ -2562,7 +2579,7 @@ A subscribed calendar is read-only, so it cannot be where new events go.
 
 Use the X plugin to sync saved X bookmarks into Studio as sources.
 
-1. In ForeverLM, open **Settings -> Plugins -> X**, or select the **X** tab in the Library.
+1. In ForeverLM, open **Plugins -> X**, or select the **X** tab in the Library.
 2. Click **Connect**.
 3. Sign in to X and approve ForeverLM's access.
 
@@ -2580,7 +2597,7 @@ Connecting YouTube is read-only. ForeverLM reads only the source you select.
 
 ### Set Up YouTube
 
-1. In ForeverLM, open **Settings -> Plugins**.
+1. In ForeverLM, open **Plugins** on the icon strip.
 2. Select **YouTube** and click **Connect**. Google asks you to grant read-only access to your YouTube account.
 
 There is no Google Cloud setup: YouTube signs in against ForeverLM's own OAuth client.
@@ -2616,21 +2633,21 @@ Google's YouTube Data API does not expose the Watch Later playlist, so it can't 
 
 ## Slack
 
-Slack is managed in the app. The **Slack** row in **Settings -> Plugins** shows **Connected** or **Not connected**, and its pane lists every connected workspace with a switch per channel for what ForeverLM may read; a switch takes effect the moment it is flipped. **Connect Slack…** (or **Connect Another Workspace…**) opens Slack's own consent screen in a sheet over the window and finishes the connection without leaving the app, and each workspace card has **Disconnect…**, which revokes its tokens at Slack. The same page is still available at app.foreverlm.com/slack-connect for a browser you are already signed in to, and it is where a workspace connected before a newer read scope existed is asked to grant it again. ForeverLM reads Slack as you and never posts. The connection lives on your ForeverLM account, not on the Mac, so it survives restarts, updates and reinstalls; the Mac reaches it with its own Sign in with Apple session, which the app renews on its own while you keep using it. It also follows the account if Apple ever re-issues your Sign in with Apple identity, as a change to the app's Sign in with Apple grouping or developer team does: the first request from the new identity moves the workspace connections and their channel choices across, so nothing has to be connected again. The tools an assistant gets from it are listed in the [MCP Tools Reference](/mcp-tools#slack).
+Slack is managed in the app. The **Slack** row in **Plugins** shows **Connected** or **Not connected**, and its pane lists every connected workspace with a switch per channel for what ForeverLM may read; a switch takes effect the moment it is flipped. **Connect Slack…** (or **Connect Another Workspace…**) opens Slack's own consent screen in a sheet over the window and finishes the connection without leaving the app, and each workspace card has **Disconnect…**, which revokes its tokens at Slack. The same page is still available at app.foreverlm.com/slack-connect for a browser you are already signed in to, and it is where a workspace connected before a newer read scope existed is asked to grant it again. ForeverLM reads Slack as you and never posts. The connection lives on your ForeverLM account, not on the Mac, so it survives restarts, updates and reinstalls; the Mac reaches it with its own Sign in with Apple session, which the app renews on its own while you keep using it. It also follows the account if Apple ever re-issues your Sign in with Apple identity, as a change to the app's Sign in with Apple grouping or developer team does: the first request from the new identity moves the workspace connections and their channel choices across, so nothing has to be connected again. The tools an assistant gets from it are listed in the [MCP Tools Reference](/mcp-tools#slack).
 
 You can connect more than one workspace. The Slack page lists every workspace on your account; choose one to pick its channels, and **Connect another workspace…** takes you back to Slack, which asks which workspace to add. Each workspace has its own channel choices and its own permissions, so a workspace connected before a permission existed is asked to grant it on its own. A chat reads and searches across all of them at once: every channel, message and file an assistant is shown says which workspace it came from. **Disconnect this workspace** revokes that workspace's tokens at Slack and leaves the others as they are; its channel choices are kept, so connecting it again brings them back.
 
 ## Linear
 
-Linear is connected the same way, on the web: the **Linear** row in **Settings -> Plugins** links to the Linear page of your ForeverLM account, where you authorize one workspace. The connection is read-only by construction. ForeverLM asks Linear for the single `read` permission, reads issues, comments, teams and projects as you when a chat asks, and never creates, edits, comments on or assigns anything; there is no code path that writes to Linear. The row shows **Connected** or **Not connected** because the Mac asks the ForeverLM gateway that holds the grant, and the Linear pane says the same in a sentence with a button that reads **Connect Linear…** or **Manage Linear…**. Nothing read from Linear is kept between reads. The connection lives on your ForeverLM account, not on the Mac, and follows it if Apple re-issues your Sign in with Apple identity, as the Slack connection does. Linear's access tokens expire after a day; the gateway renews them on its own, and a grant Linear no longer honours is reported as a reconnect at the same page. **Disconnect Linear** on that page revokes the grant at Linear and forgets it. The tools an assistant gets from it are listed in the [MCP Tools Reference](/mcp-tools#linear).
+Linear is connected the same way, on the web: the **Linear** row in **Plugins** links to the Linear page of your ForeverLM account, where you authorize one workspace. The connection is read-only by construction. ForeverLM asks Linear for the single `read` permission, reads issues, comments, teams and projects as you when a chat asks, and never creates, edits, comments on or assigns anything; there is no code path that writes to Linear. The row shows **Connected** or **Not connected** because the Mac asks the ForeverLM gateway that holds the grant, and the Linear pane says the same in a sentence with a button that reads **Connect Linear…** or **Manage Linear…**. Nothing read from Linear is kept between reads. The connection lives on your ForeverLM account, not on the Mac, and follows it if Apple re-issues your Sign in with Apple identity, as the Slack connection does. Linear's access tokens expire after a day; the gateway renews them on its own, and a grant Linear no longer honours is reported as a reconnect at the same page. **Disconnect Linear** on that page revokes the grant at Linear and forgets it. The tools an assistant gets from it are listed in the [MCP Tools Reference](/mcp-tools#linear).
 
 ## GitHub
 
-GitHub is connected on the web too: the **GitHub** row in **Settings -> Plugins** links to the GitHub page of your ForeverLM account, where you authorize the ForeverLM GitHub App and choose where it is installed. Where ForeverLM can read is exactly where the App is installed: an organisation you administer, or your own account; **Add an organisation** on that page opens GitHub's install chooser, and `list_github_repositories` in a chat names the same link. The connection is read-only by construction. The App's permissions are Contents, Issues, Pull requests and Metadata, all read, and there is no code path that pushes, comments, merges or changes anything on GitHub; a chat that wants to act points you at the page. The row shows **Connected** or **Not connected** because the Mac asks the ForeverLM gateway that holds the grant, and the GitHub pane says the same in a sentence with a button that reads **Connect GitHub…** or **Manage GitHub…**. Nothing read from GitHub is kept between reads. The connection lives on your ForeverLM account, not on the Mac, and follows it if Apple re-issues your Sign in with Apple identity, as the Slack and Linear connections do. GitHub's user tokens expire after eight hours; the gateway renews them on its own, and a grant GitHub no longer honours is reported as a reconnect at the same page. **Disconnect GitHub** on that page revokes the grant at GitHub and forgets it. A notebook can be linked to the repository it is about, from the **Repository** section of its About on the Mac and in Web Studio or through the Project tools (`create_project`, `update_project`), so a chat in that notebook reads the right repository without being told. The tools an assistant gets from it are listed in the [MCP Tools Reference](/mcp-tools#github).
+GitHub is connected on the web too: the **GitHub** row in **Plugins** links to the GitHub page of your ForeverLM account, where you authorize the ForeverLM GitHub App and choose where it is installed. Where ForeverLM can read is exactly where the App is installed: an organisation you administer, or your own account; **Add an organisation** on that page opens GitHub's install chooser, and `list_github_repositories` in a chat names the same link. The connection is read-only by construction. The App's permissions are Contents, Issues, Pull requests and Metadata, all read, and there is no code path that pushes, comments, merges or changes anything on GitHub; a chat that wants to act points you at the page. The row shows **Connected** or **Not connected** because the Mac asks the ForeverLM gateway that holds the grant, and the GitHub pane says the same in a sentence with a button that reads **Connect GitHub…** or **Manage GitHub…**. Nothing read from GitHub is kept between reads. The connection lives on your ForeverLM account, not on the Mac, and follows it if Apple re-issues your Sign in with Apple identity, as the Slack and Linear connections do. GitHub's user tokens expire after eight hours; the gateway renews them on its own, and a grant GitHub no longer honours is reported as a reconnect at the same page. **Disconnect GitHub** on that page revokes the grant at GitHub and forgets it. A notebook can be linked to the repository it is about, from the **Repository** section of its About on the Mac and in Web Studio or through the Project tools (`create_project`, `update_project`), so a chat in that notebook reads the right repository without being told. The tools an assistant gets from it are listed in the [MCP Tools Reference](/mcp-tools#github).
 
 ## Notion
 
-Notion is connected on the web as well: the **Notion** row in **Settings -> Plugins** links to the Notion page of your ForeverLM account, where you authorize the ForeverLM connection in one workspace and tick the pages and databases it may read. What ForeverLM can read is exactly what you shared: to add a page later, open it in Notion and choose **Connections** in its **•••** menu. The connection is read-only by construction. Its capabilities are read content and read user information without email, and there is no code path that creates, edits, moves or comments on anything in Notion; a chat that wants to act points you at the page. The row shows **Connected** or **Not connected** because the Mac asks the ForeverLM gateway that holds the grant, and the Notion pane says the same in a sentence with a button that reads **Connect Notion…** or **Manage Notion…**. Nothing read from Notion is kept between reads. The connection lives on your ForeverLM account, not on the Mac, and follows it if Apple re-issues your Sign in with Apple identity, as the Slack, Linear and GitHub connections do. A grant Notion stops honouring is renewed by the gateway on its own, and one it will not renew is reported as a reconnect at the same page. **Disconnect Notion** on that page revokes the grant at Notion and forgets it. The tools an assistant gets from it are listed in the [MCP Tools Reference](/mcp-tools#notion).
+Notion is connected on the web as well: the **Notion** row in **Plugins** links to the Notion page of your ForeverLM account, where you authorize the ForeverLM connection in one workspace and tick the pages and databases it may read. What ForeverLM can read is exactly what you shared: to add a page later, open it in Notion and choose **Connections** in its **•••** menu. The connection is read-only by construction. Its capabilities are read content and read user information without email, and there is no code path that creates, edits, moves or comments on anything in Notion; a chat that wants to act points you at the page. The row shows **Connected** or **Not connected** because the Mac asks the ForeverLM gateway that holds the grant, and the Notion pane says the same in a sentence with a button that reads **Connect Notion…** or **Manage Notion…**. Nothing read from Notion is kept between reads. The connection lives on your ForeverLM account, not on the Mac, and follows it if Apple re-issues your Sign in with Apple identity, as the Slack, Linear and GitHub connections do. A grant Notion stops honouring is renewed by the gateway on its own, and one it will not renew is reported as a reconnect at the same page. **Disconnect Notion** on that page revokes the grant at Notion and forgets it. The tools an assistant gets from it are listed in the [MCP Tools Reference](/mcp-tools#notion).
 
 ---
 
@@ -2669,7 +2686,7 @@ rate-limits every client, so a runaway script runs out of rope quickly.
 
 ## The recipe (give this to your assistant)
 
-The fastest path: **ForeverLM → Settings → Plugins → Build Your Own →
+The fastest path: **ForeverLM → Plugins → Build Your Own →
 Copy Setup Prompt** — that button copies this exact recipe with your personal
 MCP URL already filled in. The same pane lists every plugin you've
 approved, with its logo, how many sources it has added, and buttons to remove
@@ -2790,7 +2807,7 @@ assistant's context.
 
 ## Removing a plugin
 
-Two independent switches, both in **Settings → Plugins → Build Your
+Two independent switches, both in **Plugins → Build Your
 Own**, next to the plugin's name:
 
 - **Remove Access**: the plugin's tokens stop working immediately; it would
@@ -3174,14 +3191,14 @@ three from report to approved change. These need an active Mac:
 | `get_app_settings` | `pane?`, `setting?` | Every catalog setting with its `id`, `value`, `type` (`boolean`, `number`, `choice`, `text`, `string_list`), `reach` (`account` or `this_mac`) and the `options` its picker offers, plus `dedicated_tools` (the panes with a pair of their own), `actions` and `only_in_the_settings_window`. |
 | `set_app_setting` | `setting`, `value` | Change one catalog setting exactly as the pane does. A choice outside the pane's options is refused with them. Returns the setting and `changed`. Model and voice pickers change what work is billed at; ask first. |
 | `run_settings_action` | `action`, `approved_spend_usd?` | One of the buttons that act once, whether or not a pane still shows it: `sync_icloud_now`, `prepare_memory_review_now`, `draw_missing_meeting_icons`, `sync_x_bookmarks`, `clear_usage_ledger_warning`, and the iCloud pane's `confirm_this_mac_holds_my_library`, `upload_library_to_icloud_again`, `apply_old_library_removals` and `keep_old_library_removals`, and `replace_icloud_library`, which only an assistant presses when you ask: it deletes iCloud's copy of your library and uploads this Mac's from the start. |
-| `open_settings` | `pane?` | Open the Settings window on the Mac at one pane, for a sign-in, a consent page, a payment or the sharing sheet. |
-| `open_in_app` | `kind`, `id?` | Show a notebook, doc, chat, source, quiz or idea in the Mac's window as a click would, or `space` (the Space's All list). Listing or loading a notebook changes nothing on screen; this does. |
-| `get_plugin_connections` | `include_slack_channels?` | Settings › Plugins: which of X, YouTube, Google Drive, Calendar (the Mac's), Slack, GitHub, Linear, Notion and the learner's own plugins are connected, their accounts, Slack channels, followed and hidden YouTube channels, and what connecting each takes. |
+| `open_settings` | `pane?` | Open the Settings window on the Mac at one pane, for a sign-in, a payment or the sharing sheet. `plugins` and a plugin's id (`x`, `youtube`, `google_drive`, `apple_calendar`, `slack`, `linear`, `github`, `notion`, `build_your_own_plugin`) open the Plugins place on the icon strip instead, at that plugin's page, where its consent page is opened. |
+| `open_in_app` | `kind`, `id?` | Show a notebook, doc, chat, source, quiz or idea in the Mac's window as a click would, `space` (the Space's All list), or `plugins` (the Plugins place, at a plugin's page when `id` names one). Listing or loading a notebook changes nothing on screen; this does. |
+| `get_plugin_connections` | `include_slack_channels?` | Plugins: which of X, YouTube, Google Drive, Calendar (the Mac's), Slack, GitHub, Linear, Notion and the learner's own plugins are connected, their accounts, Slack channels, followed and hidden YouTube channels, and what connecting each takes. |
 | `disconnect_plugin` | `plugin`, `account_id?` | The pane's Disconnect, Turn Off or Remove Access for `x`, `youtube`, `google_drive`, `apple_calendar`, `slack`, `github` or `user_plugin`. `apple_calendar` turns the Mac's Calendar off for ForeverLM; every event stays in the calendar. Ask first. |
-| `set_slack_channel_enabled` | `channel_id`, `enabled`, `team_id?` | A Slack channel's switch in Settings › Plugins › Slack. |
-| `get_calendar_settings` | — | Settings › Plugins › Calendar: whether the Mac's Calendar is on for ForeverLM and macOS granted access, every calendar the Mac holds (iCloud, Google, Exchange, subscriptions) with whether it takes new events (`writable`) and whether it is part of the day (`on_day`), and `new_events_calendar`, where new events go. |
+| `set_slack_channel_enabled` | `channel_id`, `enabled`, `team_id?` | A Slack channel's switch in Plugins › Slack. |
+| `get_calendar_settings` | — | Plugins › Calendar: whether the Mac's Calendar is on for ForeverLM and macOS granted access, every calendar the Mac holds (iCloud, Google, Exchange, subscriptions) with whether it takes new events (`writable`) and whether it is part of the day (`on_day`), and `new_events_calendar`, where new events go. |
 | `set_calendar_settings` | `apple_calendar_enabled?`, `apple_calendar_ids?`, `new_events_calendar_id?` | Turn the Mac's Calendar on (may show the macOS permission prompt) or off, set the whole list of calendars that make up the day, or choose the calendar new events go to (`""` for the Calendar app's default). |
-| `follow_youtube_channel` | `channel` | Follow a channel by address or @handle, as Settings › Plugins › YouTube does. |
+| `follow_youtube_channel` | `channel` | Follow a channel by address or @handle, as Plugins › YouTube does. |
 | `unfollow_youtube_channel` | `group_id` | Stop following a channel. |
 | `rename_team` | `team_id`, `name` | Rename a team the learner owns. |
 | `delete_team` | `team_id` | Delete a team the learner owns, for every member. Ask first. |
@@ -3693,7 +3710,7 @@ chapter source IDs under the matched title.
 | `import_gemini_notebook` | `url`, `notebook_id?` | Import a Gemini Notebook (NotebookLM until July 2026) from its `notebook.google.com` address, as pasting the link does: each source through its ordinary route, each chat as a chat under the notebook, each note and report as a Page. Audio and video overviews, flashcards, quizzes, mind maps and apps stay in Gemini (`left_in_notebook`). Importing again adds only what is new. Needs the learner signed in to Google in ForeverLM's own browser. |
 | `import_video_overview` | `file_path`, `notebook_id?` | Bring a video overview (a Gemini Notebook MP4, or any MP4, M4V or MOV on the Mac) into a notebook as a video source its Studio lists as a Video overview. The file must be in the ForeverLM library or the Desktop, Documents or Downloads folder. Nothing is spent, and the video has no transcript. |
 | `fetch_video_transcript` | `source_id`, `passcode?`, `approved_spend_usd?` | Fetch and store the transcript of a YouTube video, a one-off Zoom cloud recording link, or a Teachable lecture. A passcode-protected Zoom recording asks for its `passcode`, which is then kept in the Keychain; a Teachable lecture is transcribed from its audio in the background and needs the learner signed in to the school inside ForeverLM. |
-| `follow_youtube_foreverlm_playlist` | — | Follow the learner's YouTube playlist named "ForeverLM" and import its videos (their details; transcripts come when needed). Needs YouTube connected in Settings › Plugins › YouTube. |
+| `follow_youtube_foreverlm_playlist` | — | Follow the learner's YouTube playlist named "ForeverLM" and import its videos (their details; transcripts come when needed). Needs YouTube connected in Plugins › YouTube. |
 | `follow_youtube_liked_videos` | `import_existing?`, `format_transcripts_automatically?` | Follow the learner's Liked videos and keep them fresh in the background, with or without the likes already there. AI formatting of the transcripts is off unless asked for, because a large history can run up a bill on the learner's OpenRouter key. |
 | `refresh_youtube_sources` | — | Check the followed YouTube playlist or likes now and import new videos (their details only). |
 | `set_connector_auto_import` | `connector`, `enabled` | Turn the YouTube plugin's automatic import on or off. |
@@ -3740,7 +3757,7 @@ video shown on its own.
 |---|---|---|
 | `find_podcast_match` | `source_id` | Look for the Apple Podcasts episode that matches a source, by its YouTube link or title, and stage the match for confirmation. |
 | `resolve_podcast_match` | `source_id`, `confirm` | Confirm a staged match, which makes the source that podcast episode, or reject it. |
-| `find_podcast_on_youtube` | `source_id`, `always_for_show?`, `approved_spend_usd?` | The Reader's **Find on YouTube**, for an episode whose transcript Apple does not give: candidates from the episode's own page, the show's YouTube channel and YouTube search, best first, with nothing attached. `always_for_show` ticks "Always find … on YouTube" for the show. Needs YouTube connected in Settings › Plugins › YouTube. |
+| `find_podcast_on_youtube` | `source_id`, `always_for_show?`, `approved_spend_usd?` | The Reader's **Find on YouTube**, for an episode whose transcript Apple does not give: candidates from the episode's own page, the show's YouTube channel and YouTube search, best first, with nothing attached. `always_for_show` ticks "Always find … on YouTube" for the show. Needs YouTube connected in Plugins › YouTube. |
 | `import_podcast_youtube_transcript` | `source_id`, `video`, `replace?`, `approved_spend_usd?` | The Reader's **Use Transcript**: the captions of a video the learner confirmed is this episode become its transcript, then are formatted and cleared of ad reads in the background. Refused for an episode that has a transcript unless `replace`. |
 | `remove_all_from_podcast` | `show_name` | **Remove All from …**: dismiss and archive every episode of the show. |
 | `set_podcast_show_import_blocked` | `show_name`, `blocked` | **Never Import …**: its episodes are never imported again, however often they are played. Episodes already in the library stay. |
@@ -3780,7 +3797,7 @@ for a full-access assistant.
 |---|---|---|
 | `get_connector_inbox` | — | The plugin's own staging folder on the Mac for paper PDFs: write a downloaded PDF there, then pass its path to `import_connector_paper`. It is the only local path an ingest-only plugin may hand over. |
 | `import_connector_paper` | `url?`, `source_url?`, `file_path?`, `title?`, `approved_spend_usd?` | Import one paper through the whole paper pipeline, from a public paper URL or DOI, or a PDF staged in the inbox. Deduplicated by canonical URL and DOI, run through Paper Metadata and Source Content Cleanup, and labelled with the plugin's name. |
-| `report_connector_status` | `state`, `detail?` | The plugin's sync health (`healthy`, `syncing`, `needs_reconnect` or `error`), shown with it in Settings › Plugins: call it at the start and end of every run, and say `needs_reconnect` when the service's authorization is no longer valid. |
+| `report_connector_status` | `state`, `detail?` | The plugin's sync health (`healthy`, `syncing`, `needs_reconnect` or `error`), shown with it in Plugins: call it at the start and end of every run, and say `needs_reconnect` when the service's authorization is no longer valid. |
 | `update_source_content` | `content`, `source_id?`, `url?`, `title?`, `author?` | Replace a source's stored text (and optionally its title and author), found by `source_id` or canonical `url`. Reviews and Schedule placements are untouched. An ingest-only plugin may change only the sources it added. |
 | `remove_connector_sources` | `connector_label` | Remove every active source one plugin added, by its label, as `remove_source` removes one: each address is dismissed so nothing adds it again, then the source is archived. Full-access connections only. |
 
@@ -3913,7 +3930,7 @@ carries twins of the same five reads for the in-app chat.
 ## Posting to X
 
 ForeverLM can post to X as the learner, through the X plugin with posting
-permission (Settings › Plugins › X). A post is public at once, so the assistant
+permission (Plugins › X). A post is public at once, so the assistant
 shows the exact text and waits for the learner's yes.
 
 | Tool | Parameters | Description |
@@ -3925,7 +3942,7 @@ shows the exact text and waits for the learner's yes.
 The learner's day is their Mac's Calendar; there is no separate plan. An
 assistant reads the day's events and plans it by adding each block — a stretch
 of work, a reading, a review, email and admin, a break — as an event. It lands
-on the calendar new events go to (Settings › Plugins › Calendar), and shows at
+on the calendar new events go to (Plugins › Calendar), and shows at
 once in the Calendar app, in the bottom-left **Now** chip, and on the learner's
 phone through their calendar account. A Google, Exchange or subscribed calendar
 the Mac's Calendar holds is part of the day like any other. An event with other

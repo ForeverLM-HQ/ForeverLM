@@ -547,7 +547,7 @@ private struct DayNowPopover: View {
             }
         case .turnOnCalendar:
             menuRow("Turn On Calendar…", systemImage: "calendar.badge.checkmark", identifier: "studio.now.turnOnCalendar") {
-                NotificationCenter.default.post(name: .requestOpenStudioSettings, object: SettingsPane.appleCalendarPlugin)
+                PluginsPlace.requestOpen(.appleCalendar)
                 dismiss()
             }
         case .activity:
