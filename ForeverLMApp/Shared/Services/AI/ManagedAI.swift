@@ -1082,6 +1082,10 @@ enum ManagedAI {
 
         var isCreditsEmpty: Bool { code == "credits_empty" }
         var isInvalidSession: Bool { code == "invalid_session" }
+        /// The proxy closed the account (an operator, a Stripe dispute, or
+        /// three metering failures in a row). The balance's `disabled` is the
+        /// same flag, so a later balance read can say it no longer holds.
+        var isAccountDisabled: Bool { code == "account_disabled" }
         /// The router refused the learner's own key, or the key was malformed.
         var isOwnKeyProblem: Bool { code == "own_key_rejected" || code == "own_key_invalid" }
         /// The proxy refused the transport this client named. It means the

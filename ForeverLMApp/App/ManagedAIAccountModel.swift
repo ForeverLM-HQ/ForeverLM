@@ -31,6 +31,12 @@ final class ManagedAIAccountModel {
             // network blip mid-take does not drop the scope; sign-out and a
             // rejected session clear it below.
             if let balance { ScreenRecordMode.recordAdminStatus(balance.isAdmin) }
+            // A refusal because the account was closed is the one action error
+            // the balance can disprove. Once it reads the account open again the
+            // sentence is stale: on 2026-10-13 a metering failure closed an
+            // account for twelve minutes and Settings still said "disabled"
+            // after it reopened.
+            if errorIsAccountDisabled, balance?.disabled == false { errorMessage = nil }
         }
     }
 
@@ -119,7 +125,13 @@ final class ManagedAIAccountModel {
     var refreshInFlight = false
     var spendCapInFlight = false
     var grantInFlight = false
-    var errorMessage: String?
+    var errorMessage: String? {
+        didSet { errorIsAccountDisabled = false }
+    }
+    /// Whether `errorMessage` is the proxy's `account_disabled` refusal, which
+    /// the next balance read clears once the account is open again. Set only by
+    /// `show(_:)`; any other write to `errorMessage` resets it.
+    @ObservationIgnored private var errorIsAccountDisabled = false
     /// A balance load failure is owned separately from sign-in and billing
     /// actions. A later successful refresh can clear this without erasing a
     /// checkout, portal, or account error the learner still needs to see.
@@ -156,6 +168,12 @@ final class ManagedAIAccountModel {
     static let grantAmounts = [25, 100, 250, 500, 1_000]
 
     private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "ManagedAI")
+
+    /// Shows the proxy's refusal, noting whether it is the closed-account one.
+    private func show(_ error: ManagedAI.ServiceError) {
+        errorMessage = error.message
+        errorIsAccountDisabled = error.isAccountDisabled
+    }
 
     // MARK: - Sign in
 
@@ -307,7 +325,7 @@ final class ManagedAIAccountModel {
             lastValidationAt = Date()
             await refresh()
         } catch let error as ManagedAI.ServiceError {
-            errorMessage = error.message
+            show(error)
         } catch {
             logger.warning("Managed AI sign-in failed: \(error.localizedDescription, privacy: .public)")
             errorMessage = "Couldn't reach ForeverLM AI. Check your connection and try again."
@@ -530,7 +548,7 @@ final class ManagedAIAccountModel {
                 balance = nil
                 ScreenRecordMode.clearAdminStatus()
                 balanceErrorMessage = nil
-                if !silently { errorMessage = error.message }
+                if !silently { show(error) }
             } else if !silently {
                 balanceErrorMessage = error.message
             }
@@ -595,7 +613,7 @@ final class ManagedAIAccountModel {
             open(url)
             watchForPayment()
         } catch let error as ManagedAI.ServiceError {
-            errorMessage = error.message
+            show(error)
         } catch {
             logger.warning("Plan checkout failed: \(error.localizedDescription, privacy: .public)")
             errorMessage = "Couldn't start checkout. Check your connection and try again."
@@ -656,7 +674,7 @@ final class ManagedAIAccountModel {
             await refresh()
             return true
         } catch let error as ManagedAI.ServiceError {
-            errorMessage = error.message
+            show(error)
         } catch {
             logger.warning("Plan cancel failed: \(error.localizedDescription, privacy: .public)")
             errorMessage = "Couldn't cancel your plan. Check your connection and try again."
@@ -675,7 +693,7 @@ final class ManagedAIAccountModel {
             try await ManagedAI.resumePlan()
             await refresh()
         } catch let error as ManagedAI.ServiceError {
-            errorMessage = error.message
+            show(error)
         } catch {
             logger.warning("Plan resume failed: \(error.localizedDescription, privacy: .public)")
             errorMessage = "Couldn't keep your plan. Check your connection and try again."
@@ -689,7 +707,7 @@ final class ManagedAIAccountModel {
             let url = try await ManagedAI.billingPortalURL()
             open(url)
         } catch let error as ManagedAI.ServiceError {
-            errorMessage = error.message
+            show(error)
         } catch {
             logger.warning("Managed AI portal failed: \(error.localizedDescription, privacy: .public)")
             errorMessage = "Couldn't open your billing history. Check your connection and try again."
@@ -714,7 +732,7 @@ final class ManagedAIAccountModel {
             try await ManagedAI.setSpendCap(monthlyLimitUSD: monthlyLimitUSD)
             await refresh()
         } catch let error as ManagedAI.ServiceError {
-            errorMessage = error.message
+            show(error)
         } catch {
             logger.warning("Managed AI spend cap update failed: \(error.localizedDescription, privacy: .public)")
             errorMessage = monthlyLimitUSD == nil
@@ -757,7 +775,7 @@ final class ManagedAIAccountModel {
             // for the same reason; only a transport failure is worth retrying
             // under the same key.
             pendingGrant = nil
-            errorMessage = error.message
+            show(error)
         } catch {
             logger.warning("Managed AI balance grant failed: \(error.localizedDescription, privacy: .public)")
             errorMessage = "Couldn't add balance. Check your connection and try again."
