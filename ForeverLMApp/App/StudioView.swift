@@ -1671,8 +1671,6 @@ extension View {
 
 private struct StudioToastOverlay: ViewModifier {
     let vm: StudioViewModel
-    @ObservedObject private var explainers = ExplainerGenerationCoordinator.shared
-    @ObservedObject private var assistantWork = MCPToolActivityCenter.shared
     @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -1681,41 +1679,20 @@ private struct StudioToastOverlay: ViewModifier {
         return (action.title, { Task { await vm.runToastAction(in: windowState) } })
     }
 
-    /// Everything running in the background, for the one work chip: the calls
-    /// an AI app made on ForeverLM's models, explainers being written, and a
-    /// course import the learner has not hidden.
-    private var workItems: [StudioWorkItem] {
-        assistantWork.shown.map { StudioWorkItem(kind: .assistant($0)) }
-            + explainers.writings.map { StudioWorkItem(kind: .explainer($0)) }
-            + (vm.visiblePlaylistImportStatus.map { [StudioWorkItem(kind: .courseImport($0))] } ?? [])
-    }
-
     /// With Reduce Motion on, a card fades in and out rather than sliding.
     private var cardTransition: AnyTransition {
         reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity)
     }
 
-    private func performWork(_ action: StudioWorkChip.Action) {
-        switch action {
-        case .stop(let id): assistantWork.stop(id)
-        case .dismiss(let id): assistantWork.dismiss(id)
-        case .cancelExplainer(let sourceID): explainers.cancel(sourceID)
-        case .hideImport: vm.playlistImportBannerHidden = true
-        }
-    }
-
     func body(content: Content) -> some View {
-        let work = workItems
-        return content
+        content
             .overlay(alignment: .bottom) {
                 VStack(spacing: 8) {
-                    // Background work is one quiet chip, never a stack of
-                    // banners (2026-10-06; StudioWorkChip). What follows asks
-                    // the learner for something, so keeps its own card.
-                    if !work.isEmpty {
-                        StudioWorkChip(items: work, perform: performWork)
-                            .transition(cardTransition)
-                    }
+                    // Background work is an icon in the strip, never a stack
+                    // of banners here (2026-10-06, 2026-10-13;
+                    // StudioWorkButton). What follows asks the learner for
+                    // something, so keeps its own card.
+
                     // A warning label is never filmed: screen record mode keeps
                     // the publisher check waiting off screen (Settings › Data & Privacy
                     // or the app menu turns the mode off to answer it).
@@ -1747,7 +1724,6 @@ private struct StudioToastOverlay: ViewModifier {
                 .padding(.bottom, 20)
             }
             .animation(.easeInOut(duration: 0.3), value: vm.toastMessage)
-            .animation(.easeInOut(duration: 0.3), value: work)
             .animation(.easeInOut(duration: 0.3), value: vm.pendingDeletionNotices.last?.id)
             .animation(.easeInOut(duration: 0.3), value: WebVerificationRequests.shared.latest?.id)
     }

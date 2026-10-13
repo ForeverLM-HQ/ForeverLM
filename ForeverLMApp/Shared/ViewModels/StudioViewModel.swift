@@ -3553,8 +3553,8 @@ class StudioViewModel {
     @ObservationIgnored var deletionGracePeriod: Duration = .seconds(10)
 
     /// Non-nil while a YouTube playlist/course import is in flight, driving the
-    /// import's line in the Mac window's work chip (a banner of its own until
-    /// 2026-10-06, `StudioWorkChip`). The import (playlist scrape → AI title
+    /// import's line in the Mac strip's work icon (a banner of its own until
+    /// 2026-10-06, `StudioWorkButton`). The import (playlist scrape → AI title
     /// cleanup → per-lecture insert) can run ~a minute before the course first
     /// appears in the sidebar, and used to give the user no feedback at all.
     var playlistImportStatus: String?

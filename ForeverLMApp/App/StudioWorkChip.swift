@@ -16,6 +16,13 @@ import SwiftUI
 // something keeps its own card in the stack: the publisher check, a deletion's
 // Undo, the toast. The record is docs/ui-design.md, "Background work is one
 // chip", and docs/mcp-gateway.md, "What the learner sees while a call runs".
+//
+// Since 2026-10-13 the chip is an icon in the strip's bottom left, above the
+// OpenRouter one for paid work (product owner, 2026-10-13, of "2 things running"
+// over the Reader: "should instead be in the bottom left as an icon", "perhaps
+// with the chatgpt icon if it's codex; and with the claude icon if it's
+// claude"). It draws the logo of the AI app that asked, and its line is the
+// icon's tooltip.
 
 /// One thing the work chip stands for.
 struct StudioWorkItem: Identifiable, Equatable {
@@ -79,6 +86,37 @@ struct StudioWorkItem: Identifiable, Equatable {
         case .explainer(let writing): return "Writing an explainer of \(writing.title)…"
         case .courseImport(let message): return message
         }
+    }
+
+    /// What the strip's icon draws for it: the logo of the AI app that
+    /// asked, as Getting Started tells them apart (Codex's is ChatGPT's,
+    /// Claude Code's is Claude's), or a symbol for the app's own work and
+    /// an app it does not know.
+    enum Mark: Equatable {
+        case logo(asset: String, isTemplate: Bool)
+        case symbol(String)
+    }
+
+    var mark: Mark {
+        switch kind {
+        case .assistant(let activity):
+            if let name = activity.assistant,
+               let app = AISubscription.matching(clientName: name),
+               let asset = app.logoAssetName {
+                return .logo(asset: asset, isTemplate: app.usesTemplateLogo)
+            }
+            return .symbol("sparkles")
+        case .explainer:
+            return .symbol("lightbulb")
+        case .courseImport:
+            return .symbol("square.and.arrow.down")
+        }
+    }
+
+    /// The item whose mark the icon draws: the first still running, or the
+    /// first listed once they have all ended.
+    static func lead(of items: [StudioWorkItem]) -> StudioWorkItem? {
+        items.first(where: \.isRunning) ?? items.first
     }
 
     /// How far it has got, or how it ended; nil when there is nothing to say.
@@ -148,9 +186,11 @@ struct StudioWorkSummary: Equatable {
     }
 }
 
-/// The chip at the bottom of a Studio window while anything runs in the
-/// background, and the list it opens.
-struct StudioWorkChip: View {
+/// The strip's icon while anything runs in the background, above the
+/// OpenRouter one (`BackgroundWorkButton`), and the list it opens: the logo
+/// of the app behind what runs, still as the strip's other glyphs, with a
+/// count when several run and a small badge for how they ended.
+struct StudioWorkButton: View {
     enum Action: Equatable {
         /// Stop an assistant's running call.
         case stop(UUID)
@@ -162,58 +202,129 @@ struct StudioWorkChip: View {
         case hideImport
     }
 
-    let items: [StudioWorkItem]
-    let perform: (Action) -> Void
-
+    @ObservedObject private var assistantWork = MCPToolActivityCenter.shared
+    @ObservedObject private var explainers = ExplainerGenerationCoordinator.shared
+    @Environment(StudioViewModel.self) private var vm
     @State private var isShowingList = false
 
+    /// Everything running in the background: the calls an AI app made on
+    /// ForeverLM's models, explainers being written, and a course import
+    /// the learner has not hidden.
+    private var items: [StudioWorkItem] {
+        assistantWork.shown.map { StudioWorkItem(kind: .assistant($0)) }
+            + explainers.writings.map { StudioWorkItem(kind: .explainer($0)) }
+            + (vm.visiblePlaylistImportStatus.map { [StudioWorkItem(kind: .courseImport($0))] } ?? [])
+    }
+
     var body: some View {
-        if let summary = StudioWorkSummary(items) {
+        let items = items
+        if let summary = StudioWorkSummary(items), let lead = StudioWorkItem.lead(of: items) {
+            let line = [summary.title, summary.status].compactMap { $0 }.joined(separator: " · ")
             Button {
                 isShowingList.toggle()
             } label: {
-                StudioWorkChipWidthCap(maxWidth: 440).callAsFunction {
-                    HStack(spacing: 7) {
-                        StudioWorkGlyph(glyph: summary.glyph, isCompact: true)
-                        line(summary)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                        Image(systemName: "chevron.right")
-                            .zoomedSystemFont(size: 9, weight: .semibold)
-                            .foregroundStyle(.secondary)
+                StudioWorkMark(mark: lead.mark)
+                    .overlay(alignment: .bottomTrailing) {
+                        StudioWorkBadge(
+                            glyph: summary.glyph,
+                            running: items.filter(\.isRunning).count
+                        )
+                        .offset(x: 6, y: 5)
                     }
-                    .padding(.leading, 10)
-                    .padding(.trailing, 11)
-                    .padding(.vertical, 6)
-                }
+                    .frame(width: 36, height: 30)
+                    .contentShape(Rectangle())
             }
-            .buttonStyle(.hoverWash(in: Capsule(), inset: 0, opacity: 0.12))
-            .background(.ultraThinMaterial, in: Capsule())
-            .shadow(radius: 3)
-            .help(items.map { [$0.chipTitle, $0.status].compactMap { $0 }.joined(separator: " · ") }
-                .joined(separator: "\n"))
-            .accessibilityLabel([summary.title, summary.status].compactMap { $0 }.joined(separator: ", "))
+            .buttonStyle(.hoverWash(cornerRadius: 7, inset: 0))
+            .railTooltip(line)
+            .accessibilityLabel(line)
             .accessibilityHint("Shows what is running")
-            .accessibilityIdentifier("studio.work.chip")
-            .popover(isPresented: $isShowingList, arrowEdge: .top) {
+            .accessibilityIdentifier("rail.work")
+            .popover(isPresented: $isShowingList, arrowEdge: .trailing) {
                 StudioWorkList(items: items, perform: perform)
             }
+            .transition(.opacity)
         }
     }
 
-    /// One line, so a long title trims the progress after it before itself.
-    private func line(_ summary: StudioWorkSummary) -> Text {
-        let title = Text(summary.title).font(.caption.weight(.medium))
-        guard let status = summary.status else { return title }
-        let rest = Text("· \(status)").foregroundStyle(.secondary)
-        return Text("\(title) \(rest)").font(.caption)
+    private func perform(_ action: Action) {
+        switch action {
+        case .stop(let id): assistantWork.stop(id)
+        case .dismiss(let id): assistantWork.dismiss(id)
+        case .cancelExplainer(let sourceID): explainers.cancel(sourceID)
+        case .hideImport: vm.playlistImportBannerHidden = true
+        }
     }
 }
 
-/// The chip's list: each thing running, with the action its banner had.
+/// The app's logo in the strip's grey, or its own colours where Getting
+/// Started draws them (Claude's, Gemini's).
+private struct StudioWorkMark: View {
+    let mark: StudioWorkItem.Mark
+
+    var body: some View {
+        switch mark {
+        case .logo(let asset, let isTemplate):
+            if isTemplate {
+                Image(asset)
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 16, height: 16)
+                    .foregroundStyle(Color.secondary)
+            } else {
+                Image(asset)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 16, height: 16)
+            }
+        case .symbol(let name):
+            Image(systemName: name)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(Color.secondary)
+        }
+    }
+}
+
+/// The corner of the icon: how many run when it is more than one, and once
+/// everything has ended, how. One thing running carries nothing, as the
+/// strip's glyphs never spin (product owner, 2026-10-11).
+private struct StudioWorkBadge: View {
+    let glyph: StudioWorkItem.Glyph
+    let running: Int
+
+    var body: some View {
+        switch glyph {
+        case .spinner:
+            if running > 1 {
+                Text("\(running)")
+                    .font(.system(size: 8.5, weight: .bold).monospacedDigit())
+                    .foregroundStyle(StudioInsetCardStyle.chrome)
+                    .padding(.horizontal, 3)
+                    .frame(minWidth: 12, minHeight: 12)
+                    .background(Capsule().fill(Color(nsColor: .secondaryLabelColor)))
+                    .overlay(Capsule().stroke(StudioInsetCardStyle.chrome, lineWidth: 1.5))
+            }
+        case .finished:
+            symbol("checkmark.circle.fill", color: .secondary)
+        case .stopped:
+            symbol("stop.circle.fill", color: .secondary)
+        case .failed:
+            symbol("exclamationmark.circle.fill", color: .orange)
+        }
+    }
+
+    private func symbol(_ name: String, color: Color) -> some View {
+        Image(systemName: name)
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(color)
+            .background(Circle().fill(StudioInsetCardStyle.chrome).padding(-1.5))
+    }
+}
+
+/// The icon's list: each thing running, with the action its banner had.
 private struct StudioWorkList: View {
     let items: [StudioWorkItem]
-    let perform: (StudioWorkChip.Action) -> Void
+    let perform: (StudioWorkButton.Action) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -228,11 +339,11 @@ private struct StudioWorkList: View {
 
 private struct StudioWorkRow: View {
     let item: StudioWorkItem
-    let perform: (StudioWorkChip.Action) -> Void
+    let perform: (StudioWorkButton.Action) -> Void
 
     var body: some View {
         HStack(spacing: 10) {
-            StudioWorkGlyph(glyph: item.glyph, isCompact: false)
+            StudioWorkGlyph(glyph: item.glyph)
                 .frame(width: 16)
 
             VStack(alignment: .leading, spacing: 2) {
@@ -321,42 +432,26 @@ private struct StudioWorkRow: View {
 /// docs/ui-design.md).
 private struct StudioWorkGlyph: View {
     let glyph: StudioWorkItem.Glyph
-    /// The chip's size rather than a list row's.
-    let isCompact: Bool
 
     var body: some View {
         switch glyph {
         case .spinner:
             ProgressView()
-                .controlSize(isCompact ? .mini : .small)
+                .controlSize(.small)
         case .finished:
             Image(systemName: "checkmark")
-                .zoomedSystemFont(size: isCompact ? 10 : 12, weight: .semibold)
+                .zoomedSystemFont(size: 12, weight: .semibold)
                 .foregroundStyle(.secondary)
         case .stopped:
             Image(systemName: "stop.fill")
-                .zoomedSystemFont(size: isCompact ? 8 : 10, weight: .semibold)
+                .zoomedSystemFont(size: 10, weight: .semibold)
                 .foregroundStyle(.secondary)
         case .failed:
             Image(systemName: "exclamationmark.triangle.fill")
-                .zoomedSystemFont(size: isCompact ? 10 : 12, weight: .semibold)
+                .zoomedSystemFont(size: 12, weight: .semibold)
                 .foregroundStyle(.orange)
         }
     }
 }
 
-/// Lets the chip be as wide as its line up to `maxWidth`, where the line
-/// truncates. A `frame(maxWidth:)` would make every chip that wide.
-private struct StudioWorkChipWidthCap: Layout {
-    let maxWidth: CGFloat
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let width = min(proposal.width ?? maxWidth, maxWidth)
-        return subviews.first?.sizeThatFits(ProposedViewSize(width: width, height: proposal.height)) ?? .zero
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        subviews.first?.place(at: bounds.origin, proposal: ProposedViewSize(bounds.size))
-    }
-}
 #endif

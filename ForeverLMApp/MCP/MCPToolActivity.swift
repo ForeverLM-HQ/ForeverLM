@@ -10,10 +10,11 @@ import Foundation
 // the work itself and only uploads what it came up with: `save_course_quiz`,
 // `save_walkthrough` and the like spend nothing here and show nothing.
 //
-// Since 2026-10-06 the popup is a line of the Studio window's one work chip
-// (`StudioWorkChip`, in `StudioToastOverlay`), which every background job
-// shares: "Codex is writing quizzes for Bioenergetics · 3 of 12" while it
-// is the only thing running, and a row of the chip's list with how far it
+// Since 2026-10-06 the popup is a line of the Studio window's one work chip,
+// which every background job shares, and since 2026-10-13 that chip is an
+// icon in the strip with the asking app's logo (`StudioWorkButton`): "Codex
+// is writing quizzes for Bioenergetics · 3 of 12" is its tooltip while it
+// is the only thing running, and a row of the icon's list with how far it
 // has got and Stop — which stops the call through `MCPRunningWork`, exactly
 // as `cancel_ai_work` would, so the assistant is told the learner stopped
 // it. A running call is never hidden: the chip is the tucked form the

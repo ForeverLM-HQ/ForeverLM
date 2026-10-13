@@ -189,6 +189,29 @@ struct MCPToolActivityTests {
         #expect(StudioWorkSummary([]) == nil)
     }
 
+    @Test("The strip's work icon draws the logo of the app that asked, led by what still runs")
+    func workIconDrawsTheAskingAppsLogo() {
+        func call(_ assistant: String?, state: MCPToolActivityCenter.Activity.State = .running) -> StudioWorkItem {
+            StudioWorkItem(kind: .assistant(MCPToolActivityCenter.Activity(
+                id: UUID(), assistant: assistant, title: "Finding the papers cited in a lecture", state: state, canStop: true
+            )))
+        }
+        #expect(call("Codex").mark == .logo(asset: "OpenAIIcon", isTemplate: true))
+        #expect(call("ChatGPT").mark == .logo(asset: "OpenAIIcon", isTemplate: true))
+        #expect(call("Claude").mark == .logo(asset: "ClaudeIcon", isTemplate: false))
+        #expect(call("Claude Code (foreverlm)").mark == .logo(asset: "ClaudeIcon", isTemplate: false))
+        #expect(call("Gemini CLI").mark == .logo(asset: "GeminiIcon", isTemplate: false))
+        #expect(call("Some Editor").mark == .symbol("sparkles"))
+        #expect(call(nil).mark == .symbol("sparkles"))
+        #expect(StudioWorkItem(kind: .explainer(.init(id: "source-1", title: "Mitochondria"))).mark == .symbol("lightbulb"))
+
+        let ended = call("Claude", state: .finished)
+        let running = call("Codex")
+        #expect(StudioWorkItem.lead(of: [ended, running])?.mark == running.mark)
+        #expect(StudioWorkItem.lead(of: [ended])?.mark == ended.mark)
+        #expect(StudioWorkItem.lead(of: []) == nil)
+    }
+
     @Test("A failed call shows the first line of its error, without the Error: prefix")
     func failureShowsItsFirstLine() {
         let center = makeCenter()

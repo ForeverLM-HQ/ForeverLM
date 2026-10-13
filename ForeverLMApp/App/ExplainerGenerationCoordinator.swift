@@ -9,7 +9,7 @@ import SwiftUI
 /// already knows.
 ///
 /// The write is the coordinator's own task, not the caller's, so Cancel — in
-/// the window's work chip (`StudioWorkChip`), the toolbar and the context
+/// the strip's work icon (`StudioWorkButton`), the toolbar and the context
 /// menu — can end it from anywhere while the request is still out to the
 /// model. The pipeline checks for cancellation before it saves, so a stopped
 /// write leaves nothing behind.

@@ -618,6 +618,9 @@ struct StudioNavigationRail: View {
                 RailUpdateButton(updateController: appUpdates, isCompact: true)
                     .transition(.scale(scale: 0.8).combined(with: .opacity))
             }
+            // What an AI app set the app's models to do, an explainer, an
+            // import: the app's logo, over the paid work (product owner, 2026-10-13).
+            StudioWorkButton()
             // Paid work running in the background, one click from its
             // progress and a Stop (product owner, 2026-10-08).
             BackgroundWorkButton(monitor: BackgroundWorkMonitor.shared)
