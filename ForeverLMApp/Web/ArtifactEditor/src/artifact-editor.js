@@ -3682,11 +3682,32 @@ function withBlockPastesOnTheirOwnLine(ctx) {
     // A view prop runs before every plugin's, Milkdown's paste among them:
     // this only makes room, and the paste then lands in it.
     handlePaste: (view, event, slice) => {
+      if (linkSelectionToPastedAddress(view, event)) return true
       if (pastePlainWords(view, event) || pastePhraseWithItsSpaces(view, event, slice)) return true
       makeRoomForPastedBlock(view, event, slice)
       return previous.handlePaste?.(view, event, slice) ?? false
     },
   }))
+}
+
+/// A web address pasted over selected words links them, as ChatGPT's, Notion's
+/// and Google's pages do, rather than putting the address in their place.
+/// Words that stand on sources are left to the ordinary paste: a passage's
+/// sources are a link over its words, and a second link would replace them.
+function linkSelectionToPastedAddress(view, event) {
+  const address = (event.clipboardData?.getData('text/plain') ?? '').trim()
+  if (!/^https?:\/\/\S+$/i.test(address)) return false
+  try {
+    new URL(address)
+  } catch {
+    return false
+  }
+  const { from, to, empty, $from, $to } = view.state.selection
+  if (empty || !$from.sameParent($to) || !$from.parent.isTextblock || $from.parent.type.spec.code) return false
+  if (rangeHasGrounding(view.state, from, to)) return false
+  const link = view.state.schema.marks.link
+  view.dispatch(view.state.tr.addMark(from, to, link.create({ href: address })))
+  return true
 }
 
 /// One line copied as plain text goes into the line at the caret with the

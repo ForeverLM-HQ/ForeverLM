@@ -492,7 +492,7 @@ title: a short list of your pages and notebooks appears at the caret, narrowing 
 you type; Return writes the one you pick as a link with its title. The **Link**
 field (⌘K, or the Link button in the header) takes a title as readily as a web
 address, so selecting a few words and typing a page's name there links them to
-that page. On the Mac you can also drag a page from the Pages list, or a notebook's row
+that page. Pasting a web address over selected words links them to it. On the Mac you can also drag a page from the Pages list, or a notebook's row
 from the navigation rail, onto the page: a caret follows the pointer and the
 drop writes the link where the caret was. Hover a link to open the page or the
 notebook it points at. In Markdown the link is `[Title](foreverlm://doc/<id>)` or
