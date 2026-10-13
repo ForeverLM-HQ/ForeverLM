@@ -71,7 +71,7 @@ struct SourceReaderWindow: View {
                     Group {
                     if article.statusFlag == .confirmPodcast, let match = vm.heldPodcastMatch(for: article.id)?.info {
                         podcastConfirmationView(article: article, match: match)
-                    } else if article.state == .fetching {
+                    } else if article.readerWaitsForFetch {
                         fetchingSourceView(for: article)
                     } else if shouldFetchPodcastTranscriptOnOpen(article) {
                         fetchingSourceView(for: article)

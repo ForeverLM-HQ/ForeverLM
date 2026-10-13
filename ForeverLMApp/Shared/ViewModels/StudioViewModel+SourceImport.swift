@@ -2324,16 +2324,6 @@ extension StudioViewModel {
             discoveryOrigin: .manual,
             localFilePath: sourcePath
         )
-        if let config = KeychainService.resolveConfig(for: .articleMetadata),
-           let resolved = await aiService.fixArticleTitle(
-               source: AIUsageSource(source: article),
-               currentTitle: originalTitle,
-               url: sourcePath,
-               content: trimmed,
-               config: config
-           )?.title {
-            article.title = resolved
-        }
         article.domain = "Local File"
         article.state = .ready
         article.content = trimmed
@@ -2341,6 +2331,30 @@ extension StudioViewModel {
 
         _ = try await storage.insertSourceIfNew(&article)
         articles.insert(article, at: 0)
+        // It reads at once under its file name; Article Metadata names it after.
+        retitleAddedText(article.id, provisionalTitle: originalTitle, url: sourcePath)
+    }
+
+    /// Titles text the learner just added from its words, once it is already
+    /// in the library and readable under the name it came with. A title the
+    /// learner gave it in the meantime stays.
+    func retitleAddedText(_ sourceID: String, provisionalTitle: String, url: String) {
+        guard let config = KeychainService.resolveConfig(for: .articleMetadata),
+              let article = articles.first(where: { $0.id == sourceID }) else { return }
+        Task { [weak self] in
+            guard let self,
+                  let resolved = await self.aiService.fixArticleTitle(
+                      source: AIUsageSource(source: article),
+                      currentTitle: provisionalTitle,
+                      url: url,
+                      content: article.content,
+                      config: config
+                  )?.title?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !resolved.isEmpty,
+                  self.articles.first(where: { $0.id == sourceID })?.title == provisionalTitle
+            else { return }
+            await self.renameArticle(id: sourceID, newTitle: resolved)
+        }
     }
 
     /// Import a plain text string dragged from another app.
@@ -2355,16 +2369,6 @@ extension StudioViewModel {
             title: "Pasted Text",
             sourceType: .article
         )
-        if let config = KeychainService.resolveConfig(for: .articleMetadata),
-           let resolved = await aiService.fixArticleTitle(
-               source: AIUsageSource(source: article),
-               currentTitle: "Pasted Text",
-               url: "",
-               content: trimmed,
-               config: config
-           )?.title {
-            article.title = resolved
-        }
         article.domain = "Dropped Text"
         article.state = .ready
         article.content = trimmed
@@ -2373,6 +2377,7 @@ extension StudioViewModel {
         _ = try? await storage.insertSourceIfNew(&article)
         articles.insert(article, at: 0)
         addSourceToContext(article.id)
+        retitleAddedText(article.id, provisionalTitle: "Pasted Text", url: "")
     }
 
     /// Import any dropped file URL (PDF, text, or audio) and auto-add to KB context.

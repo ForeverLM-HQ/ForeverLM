@@ -1566,7 +1566,7 @@ struct SourceReaderPanel: View {
     private func readerContent(for article: StudioArticle) -> some View {
         if article.statusFlag == .confirmPodcast, let match = vm.heldPodcastMatch(for: article.id)?.info {
             podcastConfirmationView(article: article, match: match)
-        } else if shouldShowFetchingState(for: article) {
+        } else if article.readerWaitsForFetch {
             fetchingSourceView(for: article)
         } else if shouldFetchPodcastTranscriptOnOpen(article) {
             fetchingSourceView(for: article)
@@ -1854,23 +1854,6 @@ struct SourceReaderPanel: View {
         }
     }
 
-    private func shouldShowFetchingState(for article: StudioArticle) -> Bool {
-        guard article.state == .fetching else { return false }
-        switch article.sourceType {
-        case .podcast:
-            return true
-        case .meeting, .video, .course:
-            guard article.content?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false else {
-                return false
-            }
-            // These render as plain transcripts, so show the loading view while
-            // content streams in instead of the empty "No content" fallback.
-            // YouTube videos keep their own embedded player + transcript-loading UI.
-            return !article.isYouTubeURL
-        default:
-            return false
-        }
-    }
 
     private func fetchingTitle(for article: StudioArticle) -> String {
         switch article.sourceType {
@@ -2967,3 +2950,27 @@ private struct ReaderIdleStateView: View {
 }
 
 // MARK: - Remote PDF Reader
+
+extension StudioArticle {
+    /// Whether a reader shows the loading view rather than the source: only
+    /// while a transcript that is the whole source is still arriving. A web
+    /// page, a PDF or a YouTube video being fetched or cleaned up shows
+    /// itself meanwhile, since a source reads the moment it is added.
+    var readerWaitsForFetch: Bool {
+        guard state == .fetching else { return false }
+        switch sourceType {
+        case .podcast:
+            return true
+        case .meeting, .video, .course:
+            guard content?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false else {
+                return false
+            }
+            // These render as plain transcripts, so show the loading view while
+            // content streams in instead of the empty "No content" fallback.
+            // YouTube videos keep their own embedded player + transcript-loading UI.
+            return !isYouTubeURL
+        default:
+            return false
+        }
+    }
+}
