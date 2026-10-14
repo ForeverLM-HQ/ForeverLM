@@ -196,7 +196,7 @@
       // with its cards once (the first ones do not fade in).
       moves: new Map(), last: new Map(), born: new Map(), regionMoves: new Map(), regionLast: new Map(), regionWMoves: new Map(), regionWLast: new Map(), settled: false,
       // Space held: the pointer pans. The camera a zoom is flying to.
-      spaceHeld: false, voiceHeld: false, camTarget: null, nudge: null,
+      edgeLabels: [], spaceHeld: false, voiceHeld: false, camTarget: null, nudge: null,
       // ForeverLM's proposals: the set showing ({id, tool, title, anchor,
       // proposals}); each ghost as laid out, by proposal id; the ghost (and
       // its button) under the pointer and the one picked; the ones kept or
@@ -1107,6 +1107,7 @@
         state.lifting = false
         ctx.restore()
       }
+      drawEdgeLabels()
       ctx.globalAlpha = state.review ? 0.3 : 1
       drawOpenHeads(L)
       ctx.globalAlpha = 1
@@ -3116,13 +3117,31 @@
           if (heads === 'both') drawHead(pts[0][0], pts[0][1], startAng, 10)
         }
         if (e.label && L >= 2) {
-          const mid = toScreen(path.mid[0], path.mid[1])
-          const box = pill(e.label, mid[0], mid[1], selected)
-          state.edgePills.push({ id: e.id, x: box.x, y: box.y, w: box.w, h: box.h })
+          let [lx, ly] = toScreen(path.mid[0], path.mid[1])
+          // An arrow across a gap too short for its words (two cards side by
+          // side) carries them just above the gap, where they can be read.
+          ctx.font = '500 11.5px ' + state.font
+          const span = Math.hypot(pts[pts.length - 1][0] - pts[0][0], pts[pts.length - 1][1] - pts[0][1])
+          if (span < ctx.measureText(e.label).width + 30) {
+            const a = endRect(e.from), b = endRect(e.to)
+            if (a && b) ly = toScreen(0, Math.min(a.y, b.y))[1] - 16
+          }
+          state.edgeLabels.push({ e, x: lx, y: ly, selected, alpha: ctx.globalAlpha })
         }
       }
       drawStems(base)
       ctx.globalAlpha = base
+    }
+    // The arrows' words, drawn over the cards so a card never hides them.
+    function drawEdgeLabels() {
+      const labels = state.edgeLabels
+      for (const it of labels) {
+        ctx.globalAlpha = it.alpha
+        const box = pill(it.e.label, it.x, it.y, it.selected)
+        state.edgePills.push({ id: it.e.id, x: box.x, y: box.y, w: box.w, h: box.h })
+      }
+      labels.length = 0
+      ctx.globalAlpha = 1
     }
     // One stem from each bundle's junction to its card, with the one head, as
     // visible as the most visible of its arrows.
