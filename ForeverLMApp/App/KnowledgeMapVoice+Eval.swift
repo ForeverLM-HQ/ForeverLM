@@ -229,6 +229,7 @@ extension KnowledgeMapVoice {
             "failures": report.failures,
             "unreadable": report.unreadable,
             "hedged": report.hedged,
+            "listing": report.listing,
         ]
         let numbers: [(String, Int?)] = [
             ("transcribe_ms", report.transcribeMS), ("context_ms", report.contextMS),

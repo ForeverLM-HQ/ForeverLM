@@ -37,6 +37,42 @@ struct CanvasVoiceTests {
         #expect(context.message.hasSuffix("THE LEARNER SAID: \"group these\""))
     }
 
+    @Test("The kind the learner says wins: the PINK1 note, not the PINK1 paper the model chose; and the other way round")
+    func matchingKinds() {
+        let note = CanvasVoice.Card(ref: "idea:n", type: "idea", title: "PINK1 builds up when the potential drops", x: 0, y: 300, w: 240, h: 120, inView: true)
+        let context = CanvasVoice.context(snapshot(cards: [
+            card("source:p", "PINK1 stabilization recruits Parkin", x: 0, y: 0, inView: true),
+            card("source:k", "Parkin is activated by phospho-ubiquitin", x: 300, y: 0, inView: true),
+            note,
+        ]), said: "put the PINK1 note and the Parkin paper together")
+        let wrong = CanvasVoice.Edit(tool: "place_on_canvas", arguments: ["item_ids": ["source:p", "source:k"], "new_region": "Upstream"])
+        let fixed = CanvasVoice.matchingKinds(wrong, said: "put the PINK1 note and the Parkin paper together", context: context)
+        #expect(fixed.arguments["item_ids"] as? [String] == ["idea:n", "source:k"])
+        let paper = CanvasVoice.matchingKinds(
+            CanvasVoice.Edit(tool: "take_off_canvas", arguments: ["item_ids": ["idea:n"]]), said: "take the PINK1 paper off", context: context
+        )
+        #expect(paper.arguments["item_ids"] as? [String] == ["source:p"])
+        let right = CanvasVoice.matchingKinds(
+            CanvasVoice.Edit(tool: "take_off_canvas", arguments: ["item_ids": ["source:k"]]), said: "take the Parkin paper off", context: context
+        )
+        #expect(right.arguments["item_ids"] as? [String] == ["source:k"], "already the kind said: left alone")
+
+        // The eval's canvas: the model chose right, and nothing may be swapped.
+        let eval = CanvasVoice.context(snapshot(cards: [
+            card("source:p_pink1", "PINK1 stabilization on depolarized mitochondria recruits Parkin", x: 30, y: 60, inView: true),
+            card("source:p_parkin", "Parkin is activated by PINK1-dependent phosphorylation of ubiquitin", x: 300, y: 60, inView: true),
+            card("source:p_mptp", "MPTP toxicity models of parkinsonism", x: 1030, y: 760),
+            CanvasVoice.Card(ref: "idea:i_pink1note", type: "idea", title: "PINK1 builds up only when the membrane potential drops", x: 30, y: 230, w: 240, h: 120, inView: true),
+            CanvasVoice.Card(ref: "idea:i_q1", type: "idea", title: "Does Parkin act without PINK1?", x: 300, y: 230, w: 240, h: 120, inView: true),
+        ]), said: "x")
+        let said = "take the review papers off, then put the PINK1 note and the Parkin paper together under a new group called upstream signals, and connect that group to the question about fission"
+        let kept = CanvasVoice.matchingKinds(
+            CanvasVoice.Edit(tool: "place_on_canvas", arguments: ["item_ids": ["idea:i_pink1note", "source:p_parkin"], "new_region": "upstream signals"]), said: said, context: eval
+        )
+        #expect(kept.arguments["item_ids"] as? [String] == ["idea:i_pink1note", "source:p_parkin"],
+                "a note that also says PINK1 never displaces the Parkin paper when the PINK1 note is already chosen")
+    }
+
     @Test("Regions are r1 and on in reading order; arrows and a card's region use the short ids; waiting cards follow the placed ones")
     func regionsArrowsWaiting() {
         let context = CanvasVoice.context(snapshot(
@@ -188,6 +224,9 @@ struct CanvasVoiceTests {
         #expect(nudge?.arguments["left_of"] == nil && nudge?.arguments["dx"] as? Double == -300, "no card named: a nudge to the left")
         let named = CanvasVoice.meant(E(tool: "move", arguments: ["item_ids": ["idea:n"], "left_of": "source:p"]), said: "move the note to the left of the Parkin paper", regionNames: [])
         #expect(named?.arguments["left_of"] as? String == "source:p", "a card named: that side of it")
+        let into = CanvasVoice.meant(E(tool: "move", arguments: ["item_ids": ["source:p"], "region": "rdyn"]), said: "move the pink one paper into the fission group", regionNames: [])
+        #expect(into?.tool == "place_on_canvas" && into?.arguments["region"] as? String == "rdyn", "cards and a region, no distance: into the region")
+        #expect(CanvasVoice.meant(E(tool: "align_on_canvas", arguments: ["item_ids": ["c1", "c2"], "align": "top"]), said: "", regionNames: [])?.tool == "arrange_on_canvas")
         let shorthand = CanvasVoice.meant(E(tool: "align", arguments: ["item_ids": ["c1", "c2"], "align": "top"]), said: "align these to the top", regionNames: [])
         #expect(shorthand?.tool == "arrange_on_canvas" && shorthand?.arguments["align"] as? String == "top", "an edit written by what it does is the edit")
         let beside = CanvasVoice.meant(E(tool: "move", arguments: ["item_ids": ["source:a"], "beside": "idea:b"]), said: "", regionNames: [])

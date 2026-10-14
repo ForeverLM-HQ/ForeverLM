@@ -101,6 +101,9 @@ enum CanvasVoice {
         var regionCards: [String: [String]] = [:]
         /// The regions' names, as the canvas listed them.
         var regionNames: [String] = []
+        /// Each listed card's kind (as listed: "note", "paper" …) and title,
+        /// by its ref, for `matchingKinds`.
+        var listedCards: [String: (kind: String, title: String)] = [:]
     }
 
     /// The most cards listed: the selected and in-view ones first, then the
@@ -221,9 +224,11 @@ enum CanvasVoice {
         lines.append("THE LEARNER SAID: \(quoted(said.trimmingCharacters(in: .whitespacesAndNewlines), cut: false))")
         var regionCards: [String: [String]] = [:]
         for card in snapshot.cards { if let id = card.regionID { regionCards[id, default: []].append(card.ref) } }
+        var listedCards: [String: (kind: String, title: String)] = [:]
+        for card in listed + waiting { listedCards[card.ref] = (kind(card.type), card.title) }
         return Context(
             message: lines.joined(separator: "\n"), cards: cardIDs, regions: regionIDs, regionCards: regionCards,
-            regionNames: snapshot.regions.map(\.name)
+            regionNames: snapshot.regions.map(\.name), listedCards: listedCards
         )
     }
 
@@ -500,6 +505,36 @@ enum CanvasVoice {
 
     // MARK: What the learner meant, over what the model wrote
 
+    /// "The PINK1 note" when the model chose the PINK1 paper (or "the Drp1
+    /// paper" when it chose a note): a card of the kind the learner said, with
+    /// the word they said it with in its title, is put in place of the one of
+    /// the other kind that shares that word, when it is listed and not chosen
+    /// already. Measured: one model took the paper for the note in one run in
+    /// three on the same request.
+    static func matchingKinds(_ edit: Edit, said: String, context: Context) -> Edit {
+        guard var cards = edit.arguments["item_ids"] as? [String], !cards.isEmpty else { return edit }
+        let words = said.lowercased().split { !$0.isLetter && !$0.isNumber && $0 != "-" }.map(String.init)
+        let noteWords: Set<String> = ["note", "notes", "idea", "ideas", "question", "questions"]
+        let sourceWords: Set<String> = ["paper", "papers", "article", "articles", "podcast", "episode", "book", "video", "source"]
+        for (index, word) in words.enumerated() where index > 0 {
+            let wantsNote = noteWords.contains(word), wantsSource = sourceWords.contains(word)
+            guard wantsNote || wantsSource else { continue }
+            let key = words[index - 1]
+            guard key.count >= 3, !["the", "this", "that", "my", "a", "and"].contains(key) else { continue }
+            func isNote(_ ref: String) -> Bool { context.listedCards[ref]?.kind == "note" }
+            func hasKey(_ ref: String) -> Bool { context.listedCards[ref]?.title.lowercased().contains(key) == true }
+            // Already chosen as said: nothing to mend (another chosen card may
+            // carry the word for another reason, "PINK1-dependent").
+            guard !cards.contains(where: { hasKey($0) && isNote($0) == wantsNote }) else { continue }
+            guard let wrong = cards.firstIndex(where: { hasKey($0) && isNote($0) != wantsNote }) else { continue }
+            let right = context.listedCards.keys.sorted().first { hasKey($0) && isNote($0) == wantsNote && !cards.contains($0) }
+            if let right { cards[wrong] = right }
+        }
+        var out = edit
+        out.arguments["item_ids"] = cards
+        return out
+    }
+
     /// An edit (its ids already resolved) brought back to what the learner
     /// asked for where a model, now and then, writes otherwise (measured in
     /// whole spoken sessions, 2026-10-14):
@@ -518,8 +553,15 @@ enum CanvasVoice {
         var edit = edit
         // A shorthand for an edit by what it does ("align", "tidy", "row"):
         // the arrangement it names.
-        if ["align", "tidy", "tidy_up", "arrange"].contains(edit.tool) {
+        if edit.tool != "arrange_on_canvas", ["align", "arrange", "tidy"].contains(where: { edit.tool.contains($0) }) {
             edit = Edit(tool: "arrange_on_canvas", arguments: edit.arguments)
+        }
+        // "Move the PINK1 paper into the fission group" written as move with
+        // cards and a region and no distance: the cards go into that region.
+        if edit.tool == "move", edit.arguments["dx"] == nil, edit.arguments["dy"] == nil,
+           let cards = edit.arguments["item_ids"] as? [String], !cards.isEmpty, let region = edit.arguments["region"] as? String,
+           !["below", "above", "left_of", "right_of"].contains(where: { edit.arguments[$0] != nil }) {
+            edit = Edit(tool: "place_on_canvas", arguments: ["item_ids": cards, "region": region])
         }
         if edit.tool == "arrange_on_canvas", edit.arguments["arrangement"] != nil {
             let words = Set(said.lowercased().split { !$0.isLetter }.map(String.init))

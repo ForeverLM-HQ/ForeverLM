@@ -399,6 +399,8 @@ final class KnowledgeMapVoice {
         var refused: String?
         /// The first request was slow to answer, so a second went out.
         var hedged = false
+        /// The canvas as the model was told it (the eval writes it out).
+        var listing = ""
     }
 
     /// Asks the Canvas Voice model for the edits `said` asks of the open
@@ -467,6 +469,7 @@ final class KnowledgeMapVoice {
         // one prompt-cache session and keeps to the host that cached the head.
         let system = (AITask.canvasVoice.effectivePrompt ?? Prompts.canvasVoice) + "\n\n" + Self.operationsReference
         let volatile = "\n\n" + context.message
+        report.listing = context.message
         let ai = studio.aiService
         let activityID = UUID().uuidString
         let sent = Date()
@@ -560,7 +563,9 @@ final class KnowledgeMapVoice {
             case .edit(let edit):
                 guard applying else {
                     firstEdit = firstEdit ?? Date()
-                    let resolved = CanvasVoice.Edit(tool: edit.tool, arguments: CanvasVoice.resolved(edit.arguments, in: context))
+                    let resolved = CanvasVoice.matchingKinds(
+                        CanvasVoice.Edit(tool: edit.tool, arguments: CanvasVoice.resolved(edit.arguments, in: context)), said: said, context: context
+                    )
                     // As it would be carried out, against the regions the canvas listed.
                     if let meant = CanvasVoice.meant(resolved, said: said, regionNames: context.regionNames) { report.edits.append(meant) }
                     continue
@@ -655,7 +660,9 @@ final class KnowledgeMapVoice {
         map: KnowledgeMapModel,
         id: Int
     ) async throws -> String? {
-        let resolved = CanvasVoice.Edit(tool: written.tool, arguments: CanvasVoice.resolved(written.arguments, in: context))
+        let resolved = CanvasVoice.matchingKinds(
+            CanvasVoice.Edit(tool: written.tool, arguments: CanvasVoice.resolved(written.arguments, in: context)), said: said, context: context
+        )
         guard let edit = CanvasVoice.meant(resolved, said: said, regionNames: map.layout.regions.values.map(\.name)) else { return nil }
         let arguments = edit.arguments
         let refs = arguments["item_ids"] as? [String] ?? []
