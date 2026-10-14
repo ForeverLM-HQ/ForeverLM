@@ -3130,7 +3130,9 @@
           // side) carries them just above the gap, where they can be read.
           ctx.font = '500 11.5px ' + state.font
           const span = Math.hypot(pts[pts.length - 1][0] - pts[0][0], pts[pts.length - 1][1] - pts[0][1])
-          if (span < ctx.measureText(e.label).width + 30) {
+          // Not between regions: above a region's frame is where its name is.
+          const regionEnd = String(e.from).startsWith('region:') || String(e.to).startsWith('region:')
+          if (!regionEnd && span < ctx.measureText(e.label).width + 30) {
             const a = endRect(e.from), b = endRect(e.to)
             if (a && b) ly = toScreen(0, Math.min(a.y, b.y))[1] - 16
           }

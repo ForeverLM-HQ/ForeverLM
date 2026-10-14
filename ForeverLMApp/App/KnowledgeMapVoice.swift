@@ -596,6 +596,13 @@ final class KnowledgeMapVoice {
             "Canvas voice model=\(logged.model, privacy: .public) transcribe_ms=\(logged.transcribeMS ?? -1, privacy: .public) context_ms=\(logged.contextMS ?? -1, privacy: .public) first_token_ms=\(logged.firstTokenMS ?? -1, privacy: .public) first_edit_ms=\(logged.firstEditMS ?? -1, privacy: .public) total_ms=\(logged.totalMS ?? -1, privacy: .public) edits=\(logged.edits.count, privacy: .public) failed=\(logged.failures.count, privacy: .public) unreadable=\(logged.unreadable, privacy: .public) hedged=\(logged.hedged, privacy: .public)"
         )
 
+        // A say line beside a library search guesses what it would find (seen:
+        // "No papers about NAD were found" beside six added); the search says
+        // what it found, so the guess is neither shown nor remembered.
+        if applying, report.edits.contains(where: { $0.tool == "find_and_place" }), report.failures.isEmpty, !report.done.isEmpty {
+            report.remark = nil
+            if owns(id) { remark = nil }
+        }
         if applying {
             earlier.append(CanvasVoice.Turn(said: said, done: report.done + [report.remark].compactMap { $0 }))
             if earlier.count > CanvasVoice.maximumTurns { earlier.removeFirst(earlier.count - CanvasVoice.maximumTurns) }
