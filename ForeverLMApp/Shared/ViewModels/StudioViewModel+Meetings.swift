@@ -3867,10 +3867,40 @@ extension StudioViewModel {
             return true
         }
 
-        // Cleanup is a full-document model pass, so it runs once. A paper that
-        // already carries canonical text is re-entering this method only for its
-        // metadata — a retry, or a row an earlier build failed over a blank field
-        // — and re-cleaning it would charge the learner twice for the same text.
+        // Cleanup is a full-document model pass that takes minutes on a free
+        // model. The paper is readable (its PDF or page) once its metadata is
+        // in, so the pass goes to the durable cleanup queue instead of holding
+        // the row in Processing — and every paper queued behind it — until it
+        // returns (product owner, 2026-10-13: "should be ingested instantly
+        // basically; and cleanup happens in the background"). The queue's
+        // drain moves the row from `.queued` to `.ready` when it lands.
+        if !article.hasCompletedPaperContentCleanup,
+           let raw = await rawPaperTextForCleanup(article),
+           !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let rawSHA256 = await Self.contentSHA256OffMain(raw)
+            article.stagePaperContentCleanup(raw: raw, rawSHA256: rawSHA256)
+            article.state = .queued
+            article.errorMessage = nil
+            guard await persistSource(
+                article,
+                context: "Queue paper content cleanup",
+                showErrorToast: false,
+                syncImmediately: true
+            ) else { return false }
+            article.discardPersistedPaperContentFromMemory()
+            if let latestIdx = articles.firstIndex(where: { $0.id == id }) {
+                articles[latestIdx] = article
+            }
+            NotificationCenter.default.post(name: .derivedSourceWorkNeeded, object: nil)
+            if showToasts { showToast("Metadata saved") }
+            return true
+        }
+
+        // Only a paper with no text to stage reaches the inline pass, which
+        // records why cleanup could not run. A paper that already carries
+        // canonical text is re-entering this method only for its metadata — a
+        // retry, or a row an earlier build failed over a blank field — and
+        // re-cleaning it would charge the learner twice for the same text.
         if !article.hasCompletedPaperContentCleanup,
            let cleanupError = await installCanonicalPaperContent(
                on: &article,
@@ -4091,6 +4121,14 @@ extension StudioViewModel {
         paperDownloadStep = prefix.isEmpty ? phase : "\(prefix) \(phase)"
     }
 
+    /// The text Source Content Cleanup reads: the stored raw extraction, else
+    /// the row's loaded text, else the PDF's full text.
+    private func rawPaperTextForCleanup(_ article: StudioArticle) async -> String? {
+        if let storedRaw = await storage.loadRawPaperContent(article.id) { return storedRaw }
+        if let inMemoryRaw = article.content { return inMemoryRaw }
+        return await Self.fullPaperTextOffMain(for: article)
+    }
+
     /// Run Source Content Cleanup and install the canonical derivative on
     /// `article`, leaving it for the caller to persist. Returns the failure when
     /// cleanup could not produce canonical text, so the caller decides which
@@ -4103,15 +4141,7 @@ extension StudioViewModel {
         on article: inout StudioArticle,
         progressPrefix: String?
     ) async -> Error? {
-        let storedRaw = await storage.loadRawPaperContent(article.id)
-        let rawText: String
-        if let storedRaw {
-            rawText = storedRaw
-        } else if let inMemoryRaw = article.content {
-            rawText = inMemoryRaw
-        } else {
-            rawText = await Self.fullPaperTextOffMain(for: article)
-        }
+        let rawText = await rawPaperTextForCleanup(article) ?? ""
         reportPaperIngestionStep(article.id, progressPrefix, "Cleaning up paper text…")
         do {
             let prepared = try await PaperContentPreparationService(aiService: aiService).prepare(

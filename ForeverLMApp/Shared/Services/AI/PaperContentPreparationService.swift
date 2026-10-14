@@ -313,7 +313,8 @@ struct PaperContentPreparationService: Sendable {
 
         // The model must see every extracted source character. Use one request
         // whenever the complete serialized prompt fits the selected model's
-        // context budget; only a genuinely oversized source is split.
+        // context budget and `maximumRequestCharacters`; only a longer source
+        // is split.
         let blocks = Self.semanticBlocks(normalizedRaw)
         let routedConfig = KeychainService.routedTextConfig(config)
         let cleanupPrompt = AITask.paperNarrationPreparation.effectivePrompt
@@ -761,6 +762,14 @@ struct PaperContentPreparationService: Sendable {
         return result
     }
 
+    /// The largest cleanup request, in characters (about 50k tokens). On
+    /// 2026-10-13 a free model given a 265k-token bioRxiv paper in one request
+    /// ran nine minutes a try, stopped at the 32,768-token output cap every
+    /// time, and was retried for four hours; a 29k-token paper's plan came
+    /// back at 5k tokens. Requests this size keep the plan well inside the
+    /// cap and each call to a few minutes at most.
+    static let maximumRequestCharacters = 200_000
+
     static func cleanupRequestChunks(
         system: String,
         sourceTitle: String,
@@ -770,15 +779,17 @@ struct PaperContentPreparationService: Sendable {
         model: String
     ) throws -> [[AIService.PaperContentBlock]] {
         guard !blocks.isEmpty else { return [] }
-        // Without a published window there is no limit to split against;
-        // the whole paper goes in one request.
-        guard let inputBudget = AIService.inputCharacterBudget(
+        // The model's window, capped at `maximumRequestCharacters`: a window
+        // that fits a whole long paper does not make one request of it finish.
+        let windowBudget = AIService.inputCharacterBudget(
             provider: provider,
             model: model,
             requestedMaxTokens: AIService.paperContentDeletionMaxTokens
-        ) else {
-            return [blocks]
-        }
+        )
+        let inputBudget = min(
+            windowBudget ?? Self.maximumRequestCharacters,
+            Self.maximumRequestCharacters
+        )
         let completeRequest = AIService.paperContentDeletionRequest(
             system: system,
             sourceTitle: sourceTitle,
