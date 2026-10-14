@@ -738,7 +738,7 @@ struct SourceWordCountTests {
         **Ada Moss:** And the pattern
         holds across tissues.
         """
-    static let transcriptWords = 13
+    static let transcriptWords = 14
 
     static func wordCount(_ store: KnowledgeStore, _ table: String, _ id: String) throws -> Int64? {
         try store.scalarInteger("SELECT word_count FROM \(table) WHERE source_id = ?", [.text(id)])
@@ -870,9 +870,11 @@ struct SourceWordCountTests {
         let storage = StorageService(storeRoot: root, syncGeneration: .two)
         let vm = StudioViewModel(storageService: storage, observeCloudKitChanges: false)
         var episode = makeArticle(url: "apple-podcast://episode/42", title: "Loaded", sourceType: .podcast)
-        episode.state = .ready
         try await storage.saveSource(episode)
         try await storage.saveTranscript(episode.id, Self.transcript)
+        // Ready once its text is stored: the store refuses it before.
+        episode.state = .ready
+        try await storage.saveSource(episode)
         let id = episode.id
         try await storage.performStoreWork { store in
             try store.execute("UPDATE podcasts SET word_count = NULL WHERE source_id = ?", [.text(id)])
