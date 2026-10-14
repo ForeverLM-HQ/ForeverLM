@@ -33,9 +33,12 @@ extension KnowledgeMapVoice {
             /// Dictation model.
             var onDevice: Bool?
             var snapshot: CanvasVoice.Snapshot?
+            /// The requests before this one and what they did (EARLIER), for
+            /// follow-ups such as "open it again".
+            var earlier: [CanvasVoice.Turn]?
 
             enum CodingKeys: String, CodingKey {
-                case id, said, audio, snapshot
+                case id, said, audio, snapshot, earlier
                 case onDevice = "on_device"
             }
         }
@@ -203,7 +206,8 @@ extension KnowledgeMapVoice {
                     let report = await change(
                         said, id: id, began: began, transcribed: transcribed,
                         applying: request.apply == true, model: model, snapshot: item.snapshot,
-                        reasoning: request.reasoning == true
+                        reasoning: request.reasoning == true,
+                        earlierTurns: item.earlier
                     )
                     row.merge(Self.json(report)) { _, new in new }
                     results.append(row)

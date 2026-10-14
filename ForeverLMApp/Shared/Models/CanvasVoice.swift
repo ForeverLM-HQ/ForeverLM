@@ -81,7 +81,7 @@ enum CanvasVoice {
 
     /// A request spoken earlier in this sitting and what it did, so the next
     /// can say "again", "undo that" or "the same for the others".
-    struct Turn: Equatable, Sendable {
+    struct Turn: Codable, Equatable, Sendable {
         var said: String
         var done: [String]
     }

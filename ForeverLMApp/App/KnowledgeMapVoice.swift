@@ -415,7 +415,8 @@ final class KnowledgeMapVoice {
         applying: Bool = true,
         model: String? = nil,
         snapshot: CanvasVoice.Snapshot? = nil,
-        reasoning: Bool = false
+        reasoning: Bool = false,
+        earlierTurns: [CanvasVoice.Turn]? = nil
     ) async -> Report {
         var report = Report(said: said)
         func ms(_ from: Date, _ to: Date?) -> Int? { to.map { Int(($0.timeIntervalSince(from) * 1000).rounded()) } }
@@ -457,7 +458,7 @@ final class KnowledgeMapVoice {
         let context = CanvasVoice.context(
             snapshot ?? Self.snapshot(of: map, named: studio.openCanvasName),
             said: said,
-            earlier: snapshot == nil ? earlier : []
+            earlier: earlierTurns ?? (snapshot == nil ? earlier : [])
         )
         let placedBefore = map.layout.placements
         // The instructions and the edits are the same every time, so they are
