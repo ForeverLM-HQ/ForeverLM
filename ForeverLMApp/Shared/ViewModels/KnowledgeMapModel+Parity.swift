@@ -582,12 +582,70 @@ extension KnowledgeMapModel {
             return abs(original.x - spot.x) > 0.01 || abs(original.y - spot.y) > 0.01
         }
         guard !spots.isEmpty else { return 0 }
-        let moved = spots
+        let room = roomUnder(cards)
+        // Cards that all sat in one region keep to it: it grows to hold them
+        // where they land (a row laid out from a region's cards ran out of
+        // it, 2026-10-14). Cards from several regions, or none, do not.
+        // When they are all of its cards (and it holds no region), it fits
+        // them, as Fit to Content does: a row left a grid's empty frame.
+        let homes = Set(refs.map { innermostRegionID(holding: $0) })
+        let home = homes.count == 1 ? homes.first ?? nil : nil
+        let fits = home.map { id in
+            layout.nestedRegionIDs(in: id).isEmpty && Set(refsInRegion(id)).isSubset(of: Set(refs))
+        } ?? false
+        let moved = spots, landed = cards
         updateLayout { row, at in
             for (ref, spot) in moved { row.place(ref, x: spot.x, y: spot.y, at: at) }
-            growRegions(toHold: Array(moved.keys).sorted(), in: &row, at: at)
+            for (ref, spot) in room { row.place(ref, x: spot.x, y: spot.y, at: at) }
+            if let home, var region = row.regions[home], !region.isLocked {
+                var frame = Rect(x: region.x, y: region.y, w: region.w, h: region.h)
+                if fits, let first = landed.first?.rect {
+                    let content = landed.dropFirst().reduce(first) { $0.union($1.rect) }
+                    let minimum = KnowledgeMapArranging.minimumRegionSize
+                    frame = Rect(
+                        x: content.x - KnowledgeMapArranging.insetX,
+                        y: content.y - KnowledgeMapArranging.insetY,
+                        w: max(content.w + KnowledgeMapArranging.insetX * 2, minimum.w),
+                        h: max(content.h + KnowledgeMapArranging.insetY + KnowledgeMapArranging.insetX, minimum.h)
+                    )
+                }
+                for card in landed { frame = frame.union(card.rect.inset(by: -KnowledgeMapArranging.growMargin)) }
+                if frame != Rect(x: region.x, y: region.y, w: region.w, h: region.h) {
+                    region.x = frame.x; region.y = frame.y; region.w = frame.w; region.h = frame.h
+                    region.at = at
+                    row.setRegion(home, region)
+                }
+            }
+            growRegions(toHold: (Array(moved.keys) + Array(room.keys)).sorted(), in: &row, at: at)
         }
         return moved.count
+    }
+
+    /// The smallest region holding the card by its middle, as the renderer
+    /// counts a card in a region; nil for a card on the open plane.
+    private func innermostRegionID(holding ref: String) -> String? {
+        guard let placement = layout.placements[ref] else { return nil }
+        let middle = Self.regionMiddle(of: placement)
+        return layout.regions
+            .filter { Rect(x: $0.value.x, y: $0.value.y, w: $0.value.w, h: $0.value.h).holds(x: middle.x, y: middle.y) }
+            .min { $0.value.w * $0.value.h < $1.value.w * $1.value.h }?.key
+    }
+
+    /// The cards an arrangement now covers, moved down out from under it,
+    /// keeping their places to one another: a row laid out across the
+    /// canvas hid the cards in its way (2026-10-14, a canvas built by
+    /// speaking). A card in a folded region (not drawn) or a locked one stays.
+    private func roomUnder(_ arranged: [KnowledgeMapArranging.PlacedRect]) -> [String: Spot] {
+        let refs = Set(arranged.map(\.ref))
+        let folded = layout.regions.values.filter(\.isCollapsed).map { Rect(x: $0.x, y: $0.y, w: $0.w, h: $0.h) }
+        let covered = layout.placements.keys.sorted().compactMap { ref -> KnowledgeMapArranging.PlacedRect? in
+            guard !refs.contains(ref), lockedRegionID(holding: ref) == nil, let card = drawnRect(of: ref) else { return nil }
+            guard !folded.contains(where: { $0.holds(x: card.rect.midX, y: card.rect.midY) }) else { return nil }
+            return arranged.contains { $0.rect.inset(by: 2).intersects(card.rect) } ? card : nil
+        }
+        guard let top = covered.map(\.rect.y).min(), let bottom = arranged.map(\.rect.maxY).max() else { return [:] }
+        let shift = bottom + KnowledgeMapArranging.gap - top
+        return Dictionary(uniqueKeysWithValues: covered.map { ($0.ref, Spot(x: $0.rect.x, y: ($0.rect.y + shift).rounded())) })
     }
 
     // MARK: Checking the layout

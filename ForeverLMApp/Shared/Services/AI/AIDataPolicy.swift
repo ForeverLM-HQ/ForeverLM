@@ -218,6 +218,9 @@ enum AIDataPolicy {
 /// generation record, so the ledgers stay exact.
 enum OpenRouterRoutePreference {
     static let sort = "throughput"
+    /// For a request the learner waits on to its first word (speaking to the
+    /// canvas): the endpoint quickest to answer.
+    static let interactiveSort = "latency"
 
     /// Adds `provider.sort`, and `provider.only` when `cachingEndpointTags`
     /// names the endpoints that cache. A Speed pick is left alone: it names

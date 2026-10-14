@@ -150,6 +150,35 @@ struct CanvasVoiceTests {
         #expect(CanvasVoice.resolved(["name": "orange"], in: context)["name"] as? String == "orange", "a name is words, not a colour")
     }
 
+    @Test("What the learner meant wins: cards gathered into a new region unless they said around, an existing region never made twice, a move of nothing skipped")
+    func meant() throws {
+        typealias E = CanvasVoice.Edit
+        let gather = try #require(CanvasVoice.meant(
+            E(tool: "create_canvas_region", arguments: ["name": "Fission", "item_ids": ["source:a", "source:b"]]),
+            said: "put the fission papers in a region called Fission", regionNames: []
+        ))
+        #expect(gather.tool == "place_on_canvas" && gather.arguments["new_region"] as? String == "Fission")
+        #expect(gather.arguments["item_ids"] as? [String] == ["source:a", "source:b"])
+        let around = try #require(CanvasVoice.meant(
+            E(tool: "create_canvas_region", arguments: ["name": "Open questions", "item_ids": ["idea:q"]]),
+            said: "draw a region called open questions around my question", regionNames: []
+        ))
+        #expect(around.tool == "create_canvas_region", "around: the frame is drawn where the cards are")
+        let existing = try #require(CanvasVoice.meant(
+            E(tool: "write_note", arguments: ["text": "fission first", "new_region": "fission"]),
+            said: "write a note in fission", regionNames: ["Mitophagy", "Fission"]
+        ))
+        #expect(existing.arguments["new_region"] == nil && existing.arguments["region"] as? String == "Fission")
+        #expect(CanvasVoice.meant(E(tool: "move", arguments: ["region": "", "dx": 0, "dy": 0]), said: "", regionNames: []) == nil)
+        #expect(CanvasVoice.meant(E(tool: "move", arguments: ["item_ids": ["c1"], "dx": -120, "dy": 0]), said: "", regionNames: []) != nil)
+        let row = CanvasVoice.meant(E(tool: "arrange_on_canvas", arguments: ["item_ids": ["c1", "c2"], "arrangement": "grid"]),
+                                    said: "line up the mitophagy papers in a row", regionNames: [])
+        #expect(row?.arguments["arrangement"] as? String == "row", "the arrangement the learner named")
+        let tidy = CanvasVoice.meant(E(tool: "arrange_on_canvas", arguments: ["item_ids": ["c1", "c2"], "arrangement": "grid"]),
+                                     said: "tidy these up", regionNames: [])
+        #expect(tidy?.arguments["arrangement"] as? String == "grid", "none named: the model's")
+    }
+
     @Test("The request asks for the model's lowest effort, and for none when it offers none")
     func quickestEffort() {
         #expect(CanvasVoice.quickestEffort([.high, .low, .medium]) == .low)

@@ -747,6 +747,16 @@ extension AIService {
             applyOpenRouterSpeedTier(to: &payload, speed: speed)
         }
         hostPreference?.apply(to: &payload)
+        // Speaking to the canvas is waited on with the learner watching: its
+        // route is the host quickest to answer, not the one that streams most
+        // once it starts (a few lines of edits are all it writes).
+        if AIUsageAttribution.task == AITask.canvasVoice.rawValue {
+            var routing = payload["provider"] as? [String: Any] ?? [:]
+            if routing["sort"] == nil {
+                routing["sort"] = OpenRouterRoutePreference.interactiveSort
+                payload["provider"] = routing
+            }
+        }
         if let model = payload["model"] as? String {
             let cachingTags = OpenRouterEndpointTierCatalog.cachedTiers(slug: model).flatMap {
                 OpenRouterSpeedTier.promptCachingEndpointTags(

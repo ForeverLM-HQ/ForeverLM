@@ -99,6 +99,8 @@ enum CanvasVoice {
         /// Each region's cards (refs), by region id: a region named where
         /// cards are meant ("take the misc group off") stands for them.
         var regionCards: [String: [String]] = [:]
+        /// The regions' names, as the canvas listed them.
+        var regionNames: [String] = []
     }
 
     /// The most cards listed: the selected and in-view ones first, then the
@@ -151,7 +153,8 @@ enum CanvasVoice {
         }
 
         var lines: [String] = []
-        lines.append("CANVAS \(quoted(snapshot.canvasName))")
+        // The canvas's own name, said so the model never takes it for a region's.
+        lines.append("CANVAS NAME (the whole canvas, not a region) \(quoted(snapshot.canvasName))")
         lines.append("VIEW middle \(number(middleX)),\(number(middleY)), \(number(snapshot.viewWidth)) wide and \(number(snapshot.viewHeight)) high")
         let selected = listed.filter(\.selected).compactMap { aliasOfRef[$0.ref] }
         var selection = selected.isEmpty ? "none" : selected.joined(separator: " ")
@@ -218,7 +221,10 @@ enum CanvasVoice {
         lines.append("THE LEARNER SAID: \(quoted(said.trimmingCharacters(in: .whitespacesAndNewlines), cut: false))")
         var regionCards: [String: [String]] = [:]
         for card in snapshot.cards { if let id = card.regionID { regionCards[id, default: []].append(card.ref) } }
-        return Context(message: lines.joined(separator: "\n"), cards: cardIDs, regions: regionIDs, regionCards: regionCards)
+        return Context(
+            message: lines.joined(separator: "\n"), cards: cardIDs, regions: regionIDs, regionCards: regionCards,
+            regionNames: snapshot.regions.map(\.name)
+        )
     }
 
     private static func end(_ ref: String, cards: [String: String], regions: [String: String]) -> String? {
@@ -407,4 +413,45 @@ enum CanvasVoice {
     /// How long a press of S may last and still be a tap: a tap listens until
     /// the learner stops speaking, a hold until they let go.
     static let tapLimit: TimeInterval = 0.35
+
+    // MARK: What the learner meant, over what the model wrote
+
+    /// An edit (its ids already resolved) brought back to what the learner
+    /// asked for where a model, now and then, writes otherwise (measured in
+    /// whole spoken sessions, 2026-10-14):
+    /// - "put these in a region called Fission" written as create_canvas_region
+    ///   draws a frame round cards wherever they lie, one region ending up
+    ///   inside another; unless the learner said "around", the cards are
+    ///   gathered into the new region (place_on_canvas new_region).
+    /// - a new_region named as a region that is already there means that
+    ///   region; a second "Fission" is never made.
+    /// - a move of no distance is nothing to do (nil), not a failure.
+    /// - "in a row", "a column", "a grid": the arrangement the learner named,
+    ///   whichever the model wrote ("line them up in a row" came back a grid).
+    static func meant(_ edit: Edit, said: String, regionNames: [String]) -> Edit? {
+        var edit = edit
+        if edit.tool == "arrange_on_canvas" {
+            let words = Set(said.lowercased().split { !$0.isLetter }.map(String.init))
+            let named = ["row", "column", "grid"].filter { words.contains($0) || words.contains($0 + "s") }
+            if named.count == 1 { edit.arguments["arrangement"] = named[0] }
+        }
+        if edit.tool == "move" {
+            let dx = (edit.arguments["dx"] as? NSNumber)?.doubleValue ?? 0
+            let dy = (edit.arguments["dy"] as? NSNumber)?.doubleValue ?? 0
+            if dx == 0, dy == 0 { return nil }
+        }
+        if edit.tool == "create_canvas_region",
+           let cards = edit.arguments["item_ids"] as? [String], !cards.isEmpty,
+           !["x", "y", "w", "h"].contains(where: { edit.arguments[$0] != nil }),
+           said.range(of: "around", options: .caseInsensitive) == nil,
+           let name = edit.arguments["name"] as? String {
+            edit = Edit(tool: "place_on_canvas", arguments: ["item_ids": cards, "new_region": name])
+        }
+        if let name = (edit.arguments["new_region"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+           let existing = regionNames.first(where: { $0.compare(name, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame }) {
+            edit.arguments["new_region"] = nil
+            edit.arguments["region"] = existing
+        }
+        return edit
+    }
 }

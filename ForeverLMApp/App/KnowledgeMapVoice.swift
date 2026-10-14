@@ -484,11 +484,13 @@ final class KnowledgeMapVoice {
             case .edit(let edit):
                 guard applying else {
                     firstEdit = firstEdit ?? Date()
-                    report.edits.append(CanvasVoice.Edit(tool: edit.tool, arguments: CanvasVoice.resolved(edit.arguments, in: context)))
+                    let resolved = CanvasVoice.Edit(tool: edit.tool, arguments: CanvasVoice.resolved(edit.arguments, in: context))
+                    // As it would be carried out, against the regions the canvas listed.
+                    if let meant = CanvasVoice.meant(resolved, said: said, regionNames: context.regionNames) { report.edits.append(meant) }
                     continue
                 }
                 do {
-                    if let done = try await perform(edit, context: context, studio: studio, map: map, id: id) {
+                    if let done = try await perform(edit, said: said, context: context, studio: studio, map: map, id: id) {
                         firstEdit = firstEdit ?? Date()
                         report.done.append(done)
                         if owns(id) { changes.append(done) }
@@ -562,13 +564,16 @@ final class KnowledgeMapVoice {
 
     /// Carries out one edit; what it did in a few words, or nil for a `say`.
     private func perform(
-        _ edit: CanvasVoice.Edit,
+        _ written: CanvasVoice.Edit,
+        said: String,
         context: CanvasVoice.Context,
         studio: StudioViewModel,
         map: KnowledgeMapModel,
         id: Int
     ) async throws -> String? {
-        let arguments = CanvasVoice.resolved(edit.arguments, in: context)
+        let resolved = CanvasVoice.Edit(tool: written.tool, arguments: CanvasVoice.resolved(written.arguments, in: context))
+        guard let edit = CanvasVoice.meant(resolved, said: said, regionNames: map.layout.regions.values.map(\.name)) else { return nil }
+        let arguments = edit.arguments
         let refs = arguments["item_ids"] as? [String] ?? []
         switch edit.tool {
         case "say":
@@ -604,6 +609,19 @@ final class KnowledgeMapVoice {
             )
             return "Showed \(Self.naming(refs, map: map))"
         case _ where Self.canvasTools.contains(edit.tool):
+            var arguments = arguments
+            if edit.tool.hasSuffix("_canvas_arrow") {
+                // An arrow's end written as a bare region name (one made
+                // earlier in the same answer, which the listing could not
+                // give an id) is that region.
+                for key in ["from", "to"] {
+                    guard let end = arguments[key] as? String, map.layout.placements[end] == nil, !end.hasPrefix("region:"),
+                          let id = map.layout.regions.first(where: {
+                              $0.value.name.compare(end, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+                          })?.key else { continue }
+                    arguments[key] = "region:\(id)"
+                }
+            }
             _ = try await MCPDataStore.editCanvas(edit.tool, arguments: arguments)
             return Self.done(edit.tool, arguments: arguments, map: map)
         default:
@@ -651,7 +669,7 @@ final class KnowledgeMapVoice {
         guard let ref = await studio.createCanvasIdea(title: text) else {
             throw MCPError.database("The note could not be saved.")
         }
-        var place = Self.whereTo(arguments)
+        var place = Self.whereTo(arguments, map: studio.knowledgeMap)
         place["item_ids"] = [ref]
         _ = try await MCPDataStore.editCanvas("place_on_canvas", arguments: place)
         return "Wrote “\(Self.short(text))”"
@@ -672,7 +690,14 @@ final class KnowledgeMapVoice {
         let split = searches.count > 1 && searches.allSatisfy { !$0.trimmingCharacters(in: .whitespaces).contains(" ") }
         let phrases = split ? [searches.joined(separator: " ")] : searches
         var found: [String] = []
-        func add(_ ref: String) { if !found.contains(ref), map.nodesByRef[ref] != nil { found.append(ref) } }
+        var titles: Set<String> = []
+        // A card whose title is one already found (the same note written
+        // twice, a paper saved twice) is left out: three alike read as a bug.
+        func add(_ ref: String) {
+            guard !found.contains(ref), let node = map.nodesByRef[ref] else { return }
+            guard titles.insert(node.title.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)).inserted else { return }
+            found.append(ref)
+        }
         for phrase in phrases {
             let matches = KnowledgeMapAddSearch.matches(phrase, content: map.content, placed: placed, onPlane: [], index: map.addSearchIndex)
             for ref in matches.library + matches.onCanvas { add(ref) }
@@ -689,7 +714,7 @@ final class KnowledgeMapVoice {
         guard !found.isEmpty else {
             throw MCPError.notFound("Nothing in your library matches “\(phrases.joined(separator: "”, “"))”.")
         }
-        var place = Self.whereTo(arguments)
+        var place = Self.whereTo(arguments, map: map)
         place["item_ids"] = found
         _ = try await MCPDataStore.editCanvas("place_on_canvas", arguments: place)
         return "Added \(Self.naming(found, map: map))"
@@ -854,8 +879,30 @@ final class KnowledgeMapVoice {
 
     /// Where a note or a find is set down: the arguments of place_on_canvas
     /// that say where.
-    private static func whereTo(_ arguments: [String: Any]) -> [String: Any] {
-        arguments.filter { ["region", "beside", "new_region"].contains($0.key) }
+    /// Where a local edit sets its cards down: one of a new region, beside a
+    /// card, or a region, in that order. The model now and then names two
+    /// ("below them" as beside, and the canvas's own name as region), which
+    /// place_on_canvas refuses.
+    /// A region or card the canvas does not hold (the canvas's own name, a
+    /// region the request meant to make) is passed over, and the cards go
+    /// to the middle of the view rather than nowhere.
+    private static func whereTo(_ arguments: [String: Any], map: KnowledgeMapModel) -> [String: Any] {
+        for key in ["new_region", "beside", "region"] {
+            guard let value = (arguments[key] as? String)?.trimmingCharacters(in: .whitespaces), !value.isEmpty else { continue }
+            switch key {
+            case "beside":
+                guard map.layout.placements[value] != nil else { continue }
+            case "region":
+                let bare = value.hasPrefix("region:") ? String(value.dropFirst("region:".count)) : value
+                guard map.layout.regions[bare] != nil || map.layout.regions.values.contains(where: {
+                    $0.name.compare(bare, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+                }) else { continue }
+            default:
+                break
+            }
+            return [key: value]
+        }
+        return [:]
     }
 
     private static func done(_ tool: String, arguments: [String: Any], map: KnowledgeMapModel) -> String {

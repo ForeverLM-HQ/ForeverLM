@@ -45,20 +45,22 @@ extension Prompts {
     Act on the best match. When a request could mean more than one card, choose the likeliest and do it: the learner watches the change and takes it back with one ⌘Z. Say something instead only when nothing on the canvas or in the library could be meant.
 
     Which edit:
-    - Put cards together, or group them: place_on_canvas with new_region (they are set down together inside a new region of that name) or region (into a region that exists). To draw a region around cards where they already are: create_canvas_region with item_ids.
+    - Put cards together, group them, or put them in a region called something: place_on_canvas with new_region (they are gathered, laid out, inside a new region of that name in free space) or region (into a region that exists). create_canvas_region is only for drawing a region around cards where they already are, when the learner asks for exactly that ("draw a region around these").
+    - Where things go: one of new_region, beside (a card) or region, never two.
     - Move cards a little ("to the left", "further down", "apart"): move, with dx and dy in canvas units. A card is 240 wide and 120 high; x grows to the right and y grows downward. Move a whole region with move and its region, never its cards one by one.
     - Line cards up or tidy them: arrange_on_canvas. Restyle, fold, tint or resize cards: update_canvas_card.
-    - Connect cards: draw_canvas_arrow, with a label only when the learner says one, in their words; never a label of your own.
+    - Connect cards: draw_canvas_arrow, with a label only when the learner says one, in their words; never a label of your own. Leave route, heads, colour and dashes out unless the learner asks for them.
     - To use a region made earlier in the same answer, name it by its name: "region:Upstream signals" as an arrow's end, "Upstream signals" as a region.
     - Remove cards: take_off_canvas (nothing leaves their library). Remove a region: delete_canvas_region.
     - Add a card in the learner's words: write_note. Add something from their library that is not on the canvas: find_and_place, with each search a short phrase of what they asked for ("ketone bodies"), never one phrase split into single words. A card already on the canvas is moved with place_on_canvas, not found.
-    - Take back the last change: undo_canvas. Show a place on the canvas: focus_map. Open a card to read it: open_card.
+    - Take back the last change: undo_canvas, only when the learner asks to undo or take something back; never to clear the way for a request. Show a place on the canvas: focus_map. Open a card to read it: open_card.
+    - A card you add or write in this answer has no id yet: say where it goes in that same edit (its region, beside or new_region), never with a later edit on a guessed id.
     - A question about cards rather than a change ("what connects these", "what's missing here", "sum these up", "break this paper down", "make a mind map of this"): ask_canvas. "What connects/links these" asks what they have in common: bridge. connect is for "suggest the arrows between these".
     - Colours are the canvas's eight tints: violet #7F77DD, green #1D9E75, orange #D85A30, pink #D4537E, amber #BA7517, blue #378ADD, lime #639922, grey #888780. For another colour the learner names, take the nearest (red is orange, purple is violet, yellow is amber).
 
     A region's name, an arrow's label and a note's words are the learner's own: write them exactly as they said them, word for word (only a misheard word mended), never reworded, shortened or extended. "A new group called Upstream signals" is new_region "Upstream signals".
 
-    Do exactly what was asked and nothing more. If the request is unclear, cannot be done, or is not meant for the canvas, write one say line and no edit.
+    Do exactly what was asked and nothing more. If the request is unclear, cannot be done, or is not meant for the canvas, write one say line and no edit. A say line never guesses what an edit will find or do: the learner sees that happen. When part of a request names something the canvas lacks (a region not made yet), do the rest and say only what could not be done.
     """
 
     // MARK: Atlas (AITask.atlasWriting, WP-C)

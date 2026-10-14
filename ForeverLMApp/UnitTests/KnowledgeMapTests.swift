@@ -1431,6 +1431,46 @@ struct KnowledgeMapParityModelTests {
         }
     }
 
+    @Test("A row laid across a card moves that card down out from under it, in the same Undo step")
+    func arrangeMakesRoom() {
+        withModel { model in
+            model.place([(ref: "idea:a", x: 0, y: 0), (ref: "idea:b", x: 0, y: 400), (ref: "idea:c", x: 300, y: 0), (ref: "idea:d", x: 300, y: 900)])
+            apart()
+            #expect(model.arrange(["idea:a", "idea:b"], as: .row, align: nil) == 1)
+            let b = model.layout.placements["idea:b"]!, c = model.layout.placements["idea:c"]!
+            #expect(b.x == 270 && b.y == 0, "b joins a's row, over where c was")
+            #expect(c.x == 300 && c.y == model.cardHeight(of: "idea:b") + 30, "c goes under the row, a gap below it")
+            #expect(model.layout.placements["idea:d"]?.y == 900, "a card the row does not cover stays")
+            #expect(!model.lint().contains { $0.kind == .overlap })
+            apart()
+            model.undo()
+            #expect(model.layout.placements["idea:c"]?.y == 0 && model.layout.placements["idea:b"]?.y == 400, "one Undo puts both back")
+        }
+    }
+
+    @Test("A row of a region's cards keeps to the region, which grows to hold it; cards from two regions leave them be")
+    func arrangeKeepsToItsRegion() {
+        withModel { model in
+            model.saveRegion(id: "r", name: "Home", x: 0, y: 0, w: 600, h: 700, color: "#7F77DD")
+            model.saveRegion(id: "s", name: "Other", x: 2000, y: 0, w: 600, h: 400, color: "#1D9E75")
+            model.place([(ref: "idea:a", x: 50, y: 60), (ref: "idea:b", x: 50, y: 260), (ref: "idea:c", x: 50, y: 460), (ref: "idea:d", x: 2050, y: 60)])
+            apart()
+            #expect(model.arrange(["idea:a", "idea:b", "idea:c"], as: .row, align: nil) == 2)
+            let home = model.layout.regions["r"]!
+            let right = model.layout.placements["idea:c"]!.x + model.cardWidth(of: "idea:c")
+            #expect(home.x + home.w >= right, "Home grows to hold the row's last card")
+            let bottom = model.layout.placements["idea:a"]!.y + model.cardHeight(of: "idea:a")
+            #expect(home.y + home.h <= bottom + 60, "the row is all of Home's cards, so Home fits it rather than keeping the column's height")
+            #expect(model.layout.regions["s"]?.w == 600, "a region the row never touched is left alone")
+            apart()
+            model.undo()
+            #expect(model.layout.regions["r"]?.w == 600)
+            let before = model.layout.regions
+            #expect(model.arrange(["idea:a", "idea:d"], as: .row, align: nil) == 1)
+            #expect(model.layout.regions["s"] == before["s"], "cards from two regions grow neither for the other's card")
+        }
+    }
+
     @Test("arrange does a tidy and an alignment as one write")
     func arrangeBoth() {
         withModel { model in
