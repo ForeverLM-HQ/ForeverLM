@@ -196,7 +196,7 @@
       // with its cards once (the first ones do not fade in).
       moves: new Map(), last: new Map(), born: new Map(), regionMoves: new Map(), regionLast: new Map(), regionWMoves: new Map(), regionWLast: new Map(), settled: false,
       // Space held: the pointer pans. The camera a zoom is flying to.
-      edgeLabels: [], spaceHeld: false, voiceHeld: false, camTarget: null, nudge: null,
+      edgeLabels: [], spaceHeld: false, voiceHeld: false, voiceShowing: false, camTarget: null, nudge: null,
       // ForeverLM's proposals: the set showing ({id, tool, title, anchor,
       // proposals}); each ghost as laid out, by proposal id; the ghost (and
       // its button) under the pointer and the one picked; the ones kept or
@@ -6201,8 +6201,9 @@
         return
       }
       if (e.key === 'Escape') {
-        // Esc also stops speaking to the canvas, when the host is listening.
-        host.post('voiceEscape', {})
+        // While the bar of a spoken request shows, Esc closes it and keeps
+        // the selection the request made ("these" in the next one).
+        if (state.voiceShowing) { e.preventDefault(); host.post('voiceEscape', {}); return }
         if (state.ghostSelected) { state.ghostSelected = null; redraw() }
         else if (state.tool !== 'select') setTool('select')
         else { setSelection([]); selectRegion(null); selectEdge(null) }
@@ -6968,6 +6969,8 @@
       startReview(review) { beginReview(review) },
       reviewFocus(review) { beginReview(review) },
       endReview() { finishReview() },
+      // Whether the host's bar for a spoken request shows (Esc closes it first).
+      setVoiceShowing(on) { state.voiceShowing = !!on },
     }
 
     // ---- Boot

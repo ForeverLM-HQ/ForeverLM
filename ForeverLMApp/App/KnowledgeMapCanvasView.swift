@@ -389,6 +389,8 @@ struct KnowledgeMapCanvasView: NSViewRepresentable {
                 call("dropAt", String(x), String(y), json(refs), regionName.map { json($0) } ?? "null", notebookID.map { json($0) } ?? "null")
             case .dropAtCenter(let refs, let regionName, let notebookID):
                 call("dropAtCenter", json(refs), regionName.map { json($0) } ?? "null", notebookID.map { json($0) } ?? "null")
+            case .voiceShowing(let on):
+                call("setVoiceShowing", on ? "true" : "false")
             }
         }
 

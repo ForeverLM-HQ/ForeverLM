@@ -84,6 +84,9 @@ struct KnowledgeMapCommand: Identifiable, Equatable {
         /// down when they were not asked for at a point. The renderer reveals
         /// the block and rings it.
         case dropAtCenter(refs: [String], regionName: String?, notebookID: String? = nil)
+        /// Whether the bar of a request spoken to the canvas shows: Esc then
+        /// closes it and leaves the selection the request made.
+        case voiceShowing(Bool)
     }
 
     let id = UUID()

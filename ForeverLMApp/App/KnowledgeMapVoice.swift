@@ -41,7 +41,14 @@ final class KnowledgeMapVoice {
         case failed(String)
     }
 
-    private(set) var phase: Phase = .idle
+    private(set) var phase: Phase = .idle {
+        didSet {
+            // The plane's Esc closes the bar first while it shows.
+            if (oldValue == .idle) != (phase == .idle) {
+                AppModelBridge.studio?.knowledgeMap.send(.voiceShowing(phase != .idle))
+            }
+        }
+    }
     /// What the learner said: as they say it when this Mac hears them
     /// (`KnowledgeMapVoiceListener`), else once it is transcribed.
     private(set) var heard = ""
