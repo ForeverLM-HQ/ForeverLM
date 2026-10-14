@@ -599,7 +599,9 @@ actor MacSyncSession {
         let store = store
         let task = Task { () -> Int in
             let laid = await SyncBackfillDrain.run(store: store)
-            return laid + (await self.publishSourceFiles())
+            let published = await self.publishSourceFiles()
+            await self.restoreMissingSatellites()
+            return laid + published
         }
         drain = task
         await task.value
@@ -619,6 +621,20 @@ actor MacSyncSession {
             pendingCount: { await coordinator.engine.pendingCount }, wrote: { await coordinator.sendSoon() }
         )
         return await publisher.run()
+    }
+
+    /// Once per library, uploads the satellites its pointers name and the server lacks, where this Mac holds the
+    /// bytes (`CutoverSatellites.restoreMissing`). Under the same hold as the publisher.
+    private func restoreMissingSatellites() async {
+        guard let coordinator else { return }
+        let held = (try? await store.perform { try $0.replica.engineState(ReplicaStore.EngineScope.holdSendsForSeed) != nil }) ?? true
+        guard !held else { return }
+        let satellites = CutoverSatellites(store: store, blobs: coordinator.blobs, pendingCount: { await coordinator.engine.pendingCount })
+        do {
+            try await satellites.restoreMissing()
+        } catch {
+            Self.logger.notice("Restoring missing satellites stopped for now: \(String(describing: error), privacy: .public)")
+        }
     }
 
     /// Runs when a round ends up to date: the account the replica belongs to, the teams as spaces and the

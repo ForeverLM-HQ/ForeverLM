@@ -975,6 +975,8 @@ struct SatellitePlan: Sendable {
     static func isAvailable(_ item: SeedSatellite, paths: RehearsalPaths) -> Bool {
         switch item.origin {
         case .none: return false
+        // Built from the copy's own rows (a file the row names is looked for through the override, inside the copy).
+        case .table: return true
         // The working folder is this Mac's, not the copy's: the rehearsal never reads it.
         case .narration: return false
         case .docBody: return true

@@ -470,6 +470,24 @@ actor BlobStore {
         return ids.filter { gone.contains($0.id) }.map(\.contentID)
     }
 
+    /// The indices of `files` the server lacks a part of, its own or a child's: names-only lookups, as many to a
+    /// request as a batch holds, so a whole library's pointers are checked in a few dozen requests. A file held
+    /// only by a named Mac (`heldBy`) has nothing on the server to look for.
+    func filesMissingParts(_ files: [FileRef], in zone: BlobZone) async throws -> Set<Int> {
+        var owners: [CloudRecordID: [Int]] = [:]
+        var ids: [CloudRecordID] = []
+        func add(_ file: FileRef, index: Int) {
+            guard file.heldBy == nil else { return }
+            for child in file.children { add(child, index: index) }
+            for part in partIDs(file, in: zone) {
+                if owners[part.id] == nil { ids.append(part.id) }
+                owners[part.id, default: []].append(index)
+            }
+        }
+        for (index, file) in files.enumerated() { add(file, index: index) }
+        return Set(try await absent(ids, in: zone).flatMap { owners[$0] ?? [] })
+    }
+
     private struct PartID {
         let id: CloudRecordID
         let contentID: String

@@ -31,10 +31,11 @@ struct SourceLocalSatellite: Equatable, Sendable {
 
 /// Where each role comes from today, and which this package builds (§3.5.30). Built here: `pdf` and
 /// `epub` (the source's own file), `text`, `listenText` and `raw` (the canonical text, the Listen text
-/// and a podcast's TTML, gzip), `reviewGuide` and `walkthrough` (gzip). Left to later packages, which
-/// own their makers: `timing` (built from the TTML), `thumbnail`, `cover`, `icon`, `slides`,
-/// `readerHTML`, `audio.*` (narration in iCloud Drive), `attachment.*` (meeting files), `vectors.*`
-/// (WP18), `figures`, `ideas` (packed from `source_ideas`), `citedPapers` and `explainer`.
+/// and a podcast's TTML, gzip), `reviewGuide`, `walkthrough` and `figures` (gzip). Left to later packages,
+/// which own their makers: `timing` (built from the TTML), `thumbnail`, `cover`, `icon`, `slides`,
+/// `readerHTML`, `audio.*` (narration, `NarrationSatellites`), `attachment.*` (meeting files), `vectors.*`
+/// (WP18), `ideas` (packed from `source_ideas`), `citedPapers` and `explainer`. A pointer the publisher
+/// wrote keeps no path; the seed builds its body here again (`SeedSatellite.Origin.table`).
 enum SourceSatelliteRoles {
     static func localSatellites(sourceID: String, connection: SQLiteConnection, resolve: (String) -> URL) throws -> [SourceLocalSatellite] {
         var satellites: [SourceLocalSatellite] = []

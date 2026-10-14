@@ -14,7 +14,13 @@ struct SeedSatellite: Sendable {
         /// FileRef's children name by key. Its pointer was written once the bytes were up in the zones of the
         /// time; a library uploaded again (a new salt) needs them in its own.
         case narration(sourceID: String)
-        /// A source's text or review guide laid out in a table (staged as gzip under `ck-staging/`).
+        /// A source's body whose pointer keeps no path: what `SourceFilePublisher` points at (text, Listen text,
+        /// TTML, review guide, walkthrough, figures, or the source's own file). Built again from the source's rows
+        /// (`SourceSatelliteRoles.localSatellites`) and used when it is the body the pointer names. Until
+        /// 2026-10-13 the seed had no body for these and skipped them, so a library uploaded again (a new salt)
+        /// carried their pointers without their bytes.
+        case table(sourceID: String)
+        /// Nothing on this Mac to read it from.
         case none
     }
 
@@ -62,8 +68,8 @@ struct CutoverSatellites: Sendable {
                 let origin: SeedSatellite.Origin
                 if let path = row.text(1) {
                     origin = .file(path)
-                } else if NarrationSatellites.isNarrationRole(ref.role), let sourceID = row.text(2) {
-                    origin = .narration(sourceID: sourceID)
+                } else if let sourceID = row.text(2) {
+                    origin = NarrationSatellites.isNarrationRole(ref.role) ? .narration(sourceID: sourceID) : .table(sourceID: sourceID)
                 } else {
                     origin = .none
                 }
@@ -90,6 +96,8 @@ struct CutoverSatellites: Sendable {
         switch item.origin {
         case .none:
             return nil
+        case .table(let sourceID):
+            return try Self.tableBodies(sourceID: sourceID, role: item.ref.role, in: store).first { SyncIdentity.sha256Hex($0) == item.ref.hash }
         case .docBody(let artifactID, _):
             return try SeedDocBodies.package(for: item.ref, artifactID: artifactID, store: store)
         case .narration(let sourceID):
@@ -111,12 +119,26 @@ struct CutoverSatellites: Sendable {
         return SyncIdentity.sha256Hex(decoded) == item.ref.hash ? decoded : nil
     }
 
+    /// The bodies of `role` this Mac makes for a source from its rows today (a file is read mapped, so it is paged
+    /// in only where it is hashed).
+    static func tableBodies(sourceID: String, role: String, in store: KnowledgeStore) throws -> [Data] {
+        try SourceSatelliteRoles.localSatellites(sourceID: sourceID, connection: store, resolve: {
+            KnowledgeStore.sourceFileLocationOverride?($0) ?? URL(fileURLWithPath: StorageService.absoluteSourcePath($0))
+        }).filter { $0.role == role }.map(\.body)
+    }
+
     func upload() async throws -> CutoverSatelliteTotals {
         let items = try await store.onStore { try self.satellites(in: $0) }
         guard let zone = try await store.perform({ try BlobZone.resolve(zoneKey: PrivateSyncZones.key(PrivateSyncZones.content), in: $0) }) else {
             throw BlobStoreError.failed(CloudError(.zoneNotFound, message: "the library's root is not held yet"))
         }
+        return try await upload(items, into: zone).totals
+    }
+
+    /// Uploads `items` in order; `failed` counts the ones whose upload was refused (logged, the rest go on).
+    private func upload(_ items: [SeedSatellite], into zone: BlobZone) async throws -> (totals: CutoverSatelliteTotals, failed: Int) {
         var totals = CutoverSatelliteTotals()
+        var failed = 0
         for item in items {
             for _ in 0..<60 where await pendingCount() >= backlogLimit { await sleep(1) }
             guard let bytes = try await store.onStore({ try self.body(of: item, in: $0) }) else { continue }
@@ -145,8 +167,57 @@ struct CutoverSatellites: Sendable {
                 }
             } catch let error as BlobStoreError {
                 if case .failed(let cloud) = error, cloud.code == .quotaExceeded { throw CutoverSeedError.quotaExceeded }
+                failed += 1
                 Self.logger.error("A satellite of \(item.ref.role, privacy: .public) was not uploaded: \(String(describing: error), privacy: .public)")
             }
+        }
+        return (totals, failed)
+    }
+
+    /// `ck_engine_state` scope: the `saltID` of the library whose pointers `restoreMissing` last found whole.
+    static let restoredScope = "satellites.restoredForSalt"
+
+    /// Puts back the satellites the library's pointers name and the server lacks, from what this Mac holds: once
+    /// per library (its root's salt), after its seed is complete, on a Mac whose sends are not held. Every
+    /// pointer's parts are looked up by name in batches (`BlobStore.filesMissingParts`), and only the missing are
+    /// read and uploaded under the pointer as it stands. A source whose body of that role changed here since it was
+    /// published is queued for the publisher, which points it at what this Mac holds now; a body this Mac does not
+    /// hold at all (another Mac's, or an archived source's) is left to the Mac that holds it. Repairs the library
+    /// uploaded again on 2026-10-11, whose seed skipped every pointer with no path (`Origin.table`), so a
+    /// client reading `Source.derived.figures` or a published `files.text` met `missingParts`. Returns nil when
+    /// there is nothing to do; a refused upload leaves the pass to run again after a later round.
+    @discardableResult
+    func restoreMissing() async throws -> CutoverSatelliteTotals? {
+        let found = try await store.perform { state -> (zone: BlobZone, saltID: String)? in
+            guard let root = try state.replica.personalRoot()?.envelope, CutoverRootState(root: root).state == "complete",
+                  let zone = try BlobZone.resolve(zoneKey: PrivateSyncZones.key(PrivateSyncZones.content), in: state)
+            else { return nil }
+            let saltID = RecordNaming.saltID(zone.salt)
+            let done = try state.replica.engineState(Self.restoredScope).map { String(decoding: $0, as: UTF8.self) }
+            return done == saltID ? nil : (zone, saltID)
+        }
+        guard let (zone, saltID) = found else { return nil }
+        let items = try await store.onStore { try self.satellites(in: $0) }
+        let missing = try await blobs.filesMissingParts(items.map(\.ref), in: zone)
+        let lost = items.indices.filter(missing.contains).map { items[$0] }
+        // A body this Mac holds under the role but no longer as the pointer names it (made again here since and
+        // never published): the publisher uploads what it holds now and points the source at it.
+        let republished = try await store.onStore { store -> Int in
+            var sources = Set<String>()
+            for item in lost {
+                guard case .table(let sourceID) = item.origin else { continue }
+                let bodies = try Self.tableBodies(sourceID: sourceID, role: item.ref.role, in: store)
+                if !bodies.isEmpty, !bodies.contains(where: { SyncIdentity.sha256Hex($0) == item.ref.hash }) { sources.insert(sourceID) }
+            }
+            for sourceID in sources { try store.queueSourceFilesRefresh(sourceID: sourceID) }
+            return sources.count
+        }
+        let (totals, failed) = try await upload(lost, into: zone)
+        if !lost.isEmpty {
+            Self.logger.notice("Satellites restored: \(totals.satellites) parts for \(lost.count) missing, \(republished) sources to publish again, \(failed) refused")
+        }
+        if failed == 0 {
+            try await store.perform { try $0.replica.setEngineState(Self.restoredScope, Data(saltID.utf8)) }
         }
         return totals
     }

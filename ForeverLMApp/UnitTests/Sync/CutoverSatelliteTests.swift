@@ -32,6 +32,74 @@ struct CutoverSatelliteTests {
         return try #require(ArtifactBody.fileRef(json))
     }
 
+    /// A pointer as `pointPublishedSourceFiles` leaves it: the FileRef of `body`, no path, nothing staged.
+    private static func pathlessPointer(_ mac: EngineTestDevice, _ id: String, map: SourceLocalSatellite.Map, role: String, body: Data) throws -> FileRef {
+        let satellite = SourceLocalSatellite(map: map, role: role, mime: "application/json", encoding: .gzip, body: body, localPath: nil, input: nil)
+        let (file, _) = try SourceSatelliteLayout.layout(satellite, owner: id)
+        let table = map == .files ? "source_files" : "source_derived"
+        let element = map == .files ? "role" : "kind"
+        try C.quietly(mac.store) {
+            try mac.store.execute("""
+                INSERT INTO \(table) (source_id, \(element), file_ref, local_path) VALUES (?, ?, ?, NULL)
+                ON CONFLICT(source_id, \(element)) DO UPDATE SET file_ref = excluded.file_ref, local_path = NULL
+            """, [.text(id), .text(role), .text(ArtifactBody.text(file))])
+        }
+        return file
+    }
+
+    /// A paper's figure index and its `derived.figures` pointer as the publisher writes them.
+    private static func pathlessFigures(_ mac: EngineTestDevice, _ id: String) throws -> FileRef {
+        try C.quietly(mac.store) {
+            try mac.store.execute("""
+                INSERT INTO paper_figures (figure_id, source_id, figure_label, page_index, caption, analysis_json)
+                VALUES (?, ?, 'Figure 1', 2, 'Plasma metabolites by age.', NULL)
+            """, [.text("fig-\(id)"), .text(id)])
+        }
+        let body = try #require(try SourceSatelliteRoles.figuresBody(sourceID: id, connection: mac.store))
+        return try pathlessPointer(mac, id, map: .derived, role: InboundSourceFiles.figuresRole, body: body)
+    }
+
+    @Test("A pointer the publisher wrote, with no path, is uploaded from the rows: a text and a figure index")
+    func pathlessPointersAreUploaded() async throws {
+        let server = EngineTestDriver.server()
+        let mac = try await C.seeder(server, name: "sat-pathless")
+        try Self.libraryWithText(mac)
+        try mac.store.execute("UPDATE source_files SET local_path = NULL WHERE source_id = 's1' AND role = 'text'")
+        let figures = try Self.pathlessFigures(mac, "s2")
+        let totals = try await Self.satellites(mac).upload()
+        // Before 2026-10-13 the seed had no body for either and skipped both (a re-uploaded library's figures).
+        #expect(totals.satellites == 4)
+        #expect(try MaintenanceFixture.onServer(mac, try Self.textRef(mac, "s1")))
+        #expect(try MaintenanceFixture.onServer(mac, figures))
+    }
+
+    @Test("Bytes a pointer names and the server lacks are put back once a library, and a body changed since is published again")
+    func restoreMissingPutsBytesBack() async throws {
+        let server = EngineTestDriver.server()
+        let mac = try await C.seeder(server, name: "sat-restore")
+        try Self.libraryWithText(mac)
+        let sat = Self.satellites(mac)
+        var environment = C.environment(mac)
+        environment.uploadSatellites = { try await sat.upload() }
+        guard case .complete = try await CutoverSeeder(environment).run() else { Issue.record("the seed did not finish"); return }
+        // After the seed: a figure index whose bytes never went up, and s3's text pointer naming an earlier text
+        // this Mac no longer holds (its text changed here and was never published again).
+        let figures = try Self.pathlessFigures(mac, "s2")
+        let earlier = try Self.pathlessPointer(mac, "s3", map: .files, role: "text", body: Data("Earlier text of s3.".utf8))
+        #expect(try !MaintenanceFixture.onServer(mac, figures))
+
+        mac.transport.server.resetCalls()
+        let totals = try await sat.restoreMissing()
+        #expect(totals?.satellites == 1)
+        #expect(try MaintenanceFixture.onServer(mac, figures))
+        #expect(try !MaintenanceFixture.onServer(mac, earlier), "no bytes are made up for a pointer this Mac cannot serve")
+        let content = CloudZoneID("Content")
+        let saves = mac.transport.calls.filter { $0.operation == .modifyRecords && $0.zones.contains(content.zoneName) }
+        #expect(saves.count == 1, "only the missing satellite was saved; the rest were looked up by name")
+        #expect(try mac.text("SELECT target FROM ck_backfill_queue WHERE kind = ?", [.text(KnowledgeStore.sourcePublishKind)]) == "s3")
+        #expect(try await sat.restoreMissing() == nil, "once a library")
+    }
+
     @Test("A source's record carries its text pointer before the bytes exist, and the bytes follow the canary")
     func pointersBeforeBytes() async throws {
         let server = EngineTestDriver.server()
