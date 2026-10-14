@@ -2300,6 +2300,27 @@ struct CanvasTalkStoryboardTests {
         }
     }
 
+    @Test("A paper hung under one slide alone, with the talk's rows below it, lands under that slide, not at the foot of the column")
+    func hangUnderOneSlide() throws {
+        try withModel { model in
+            let papers = (1...2).map { StudioArticle(url: "https://example.com/p\($0)", title: "Paper \($0)", sourceType: .paper, id: "p\($0)") }
+            model.rebuildContent(articles: papers, ideas: [], notebooks: [], chats: [], artifacts: [], firstHighlights: [:])
+            let slides = (1...9).map { "clip:s\($0)" }
+            _ = try #require(model.layOutStoryboard(slides.map { (slide: $0, papers: $0 == "clip:s6" ? ["source:p1"] : [String]()) }, regionName: "A talk", near: .init(x: 0, y: 0)))
+            Thread.sleep(forTimeInterval: KnowledgeMapModel.editBurst + 0.05)
+            // The inspector's Place names only the slide.
+            _ = try #require(model.layOutStoryboard([(slide: "clip:s2", papers: ["source:p2"])], regionName: ""))
+            let s2 = try #require(model.layout.placements["clip:s2"])
+            let p2 = try #require(model.layout.placements["source:p2"])
+            #expect(p2.x == s2.x)
+            #expect(p2.y == s2.y + model.cardHeight(of: "clip:s2") + KnowledgeMapArranging.gap, "straight under its slide")
+            let all = rects(slides + ["source:p1", "source:p2"], in: model)
+            for (i, a) in all.enumerated() {
+                for b in all[(i + 1)...] { #expect(!a.intersects(b)) }
+            }
+        }
+    }
+
     @Test("A slide the canvas set down and nobody wrote on is no annotation of the learner's")
     func bareSlideMarks() {
         let bare = ReaderClip.slideHighlight(sourceID: "talk", slide: 3, title: "Slide 3", pixelWidth: 16, pixelHeight: 9)

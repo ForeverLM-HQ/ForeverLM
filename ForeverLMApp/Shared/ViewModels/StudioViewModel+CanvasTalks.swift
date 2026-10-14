@@ -238,7 +238,15 @@ extension StudioViewModel {
         await refreshKnowledgeMapContent()
         guard knowledgeMap === canvas else { return }
         let paperRef = KnowledgeMap.ItemRef(kind: .source, id: sourceID).description
-        guard canvas.layOutStoryboard([(slide: slideRef, papers: [paperRef])], regionName: "") != nil
+        // The talk's other slides on the canvas, in the order shown, so the
+        // paper hangs in this slide's column above the next row of slides.
+        let talkSlides = canvas.clips.values
+            .filter { $0.sourceID == canvas.clips[clipID]?.sourceID && ReaderClip.slide(of: $0) != nil }
+            .sorted { (ReaderClip.slide(of: $0) ?? 0) < (ReaderClip.slide(of: $1) ?? 0) }
+            .map { KnowledgeMap.ItemRef(kind: .clip, id: $0.id).description }
+            .filter { canvas.layout.placements[$0] != nil }
+        let talk = talkSlides.map { ref in (slide: ref, papers: ref == slideRef ? [paperRef] : [String]()) }
+        guard canvas.layOutStoryboard(talk.isEmpty ? [(slide: slideRef, papers: [paperRef])] : talk, regionName: "") != nil
                 || canvas.layout.placements[paperRef] != nil else {
             showToast("\(paper.title) could not be set on this canvas")
             return

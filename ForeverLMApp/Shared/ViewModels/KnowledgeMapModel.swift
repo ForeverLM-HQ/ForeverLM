@@ -1103,10 +1103,19 @@ final class KnowledgeMapModel {
             }?.key
             if let regionID, holds[regionID] == nil { holds[regionID] = Set(refsInRegion(regionID)) }
             let nextTop = talkSlides.compactMap { spots[$0]?.y }.filter { $0 > slide.y + 1 }.min()
+            // The column's foot: down the cards stacked straight under the slide,
+            // one gap apart (the next row of slides sits three gaps down).
             var y = slide.y + height(entry.slide) + gap
-            for (ref, spot) in spots where ref != entry.slide && abs(spot.x - slide.x) < 1 && spot.y > slide.y && (nextTop.map { spot.y < $0 } ?? true) {
-                y = max(y, spot.y + height(ref) + gap)
+            while let below = spots.first(where: { ref, spot in
+                ref != entry.slide && abs(spot.x - slide.x) < 1 && spot.y >= y - gap - 1 && spot.y <= y + 1
+                    && (nextTop.map { spot.y < $0 - 1 } ?? true)
+            }) {
+                y = below.value.y + height(below.key) + gap
             }
+            // Not told the talk's other slides, the next row is the first card further down this column.
+            let rowBelow = nextTop ?? spots.filter { ref, spot in
+                ref != entry.slide && abs(spot.x - slide.x) < 1 && spot.y >= y - gap - 1
+            }.map(\.value.y).min()
             for paper in papers {
                 spots[paper] = Spot(x: slide.x, y: y)
                 later.append(paper)
@@ -1116,7 +1125,7 @@ final class KnowledgeMapModel {
             let foot = y - gap
             // A locked region's cards stay put.
             let pushes = regionID.map { layout.regions[$0]?.isLocked != true } ?? true
-            if pushes, let nextTop, foot + gap * 3 > nextTop {
+            if pushes, let nextTop = rowBelow, foot + gap * 3 > nextTop {
                 let delta = foot + gap * 3 - nextTop
                 let below: [String] = spots.compactMap { ref, spot in
                     guard spot.y >= nextTop - 1, !later.contains(ref) else { return nil }
