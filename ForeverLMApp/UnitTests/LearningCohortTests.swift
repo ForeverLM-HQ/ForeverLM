@@ -860,6 +860,21 @@ struct CohortCandidateTests {
         #expect(candidate.engagement.annotationCount == 1)
     }
 
+    @Test("A talk's slides the canvas set down are no annotations: not counted, not in the day's highlights")
+    func bareSlideMarksAreNoAnnotations() throws {
+        let store = try KnowledgeStore(inMemory: true)
+        let now = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        let talk = try makeSource(store, url: "https://example.com/c18b", title: "A talk")
+        for slide in 1...3 {
+            try store.saveSourceHighlight(ReaderClip.slideHighlight(sourceID: talk.id, slide: slide, title: "Slide \(slide)", pixelWidth: 16, pixelHeight: 9, at: now))
+        }
+        try store.saveSourceHighlight(ReaderClip.slideHighlight(sourceID: talk.id, slide: 4, title: "Slide 4", pixelWidth: 16, pixelHeight: 9, note: "The key result", at: now))
+        #expect(try store.sourceHighlightCount(sourceID: talk.id) == 1)
+        let day = try store.sourceHighlights(createdFrom: now.addingTimeInterval(-60), to: now.addingTimeInterval(60), limit: 50)
+        #expect(day.count == 1 && day.first?.hasNote == true)
+        #expect(try store.sourceHighlights(sourceID: talk.id).count == 4, "the marks are all still kept")
+    }
+
     @Test("The day's ledger counts what was opened, for how long, and what was talked through")
     func ledgerAndTouched() throws {
         let store = try KnowledgeStore(inMemory: true)

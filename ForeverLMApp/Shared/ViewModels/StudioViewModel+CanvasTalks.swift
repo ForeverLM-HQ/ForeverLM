@@ -15,32 +15,48 @@ struct KnowledgeMapTalkOutcome: Sendable {
     var papers: [String]
     /// Whether anything was set down or joined.
     var changed: Bool
-    /// Papers the slides cite that are not in the library (found and
+    /// How many papers are recorded as cited on the talk's slides (dismissed
+    /// ones left out). Zero when the slides were never read for citations,
+    /// or cited nothing.
+    var citedCount: Int
+    /// Papers its slides cite that are not in the library (found and
     /// waiting, or not found).
     var citedElsewhere: Int
-    /// Whether the slides were ever read for the papers they cite.
-    var citationsRead: Bool
 }
 
 enum KnowledgeMapTalkError: LocalizedError {
     case unknownSource(String)
     case notATalk(String)
     case noSlides(String)
+    case notShown(String)
+    case busy(String)
+    case canvasChanged
 
     var errorDescription: String? {
         switch self {
         case .unknownSource(let id): return "No source \(id) is in the library."
         case .notATalk(let title): return "\(title) is not a video or a recording, so it has no slides to lay out."
         case .noSlides(let title): return "No slides could be read from \(title)."
+        case .notShown(let title): return "\(title) is hidden or archived, so its slides cannot go on a canvas."
+        case .busy(let title): return "\(title) is being laid out already."
+        case .canvasChanged: return "Another canvas was opened while the talk was being laid out, so nothing was set down."
         }
     }
 }
 
+/// The talks being laid out now, by source id, so a second click (or call)
+/// makes no second set of slides.
+@MainActor
+private enum TalksBeingLaidOut {
+    static var ids: Set<String> = []
+}
+
 /// Lay Out the Talk: a video's or a recording's slides as a storyboard on the
 /// Canvas, with the papers each slide cites hung under it, one arrow from the
-/// slide to each (docs/knowledge-map-design.md, "Clips"). A slide is a clip
-/// (`ReaderClip.slideHighlight`), drawn from the frame captured beside the
-/// video, so it opens the video at its moment and takes a note like any clip.
+/// slide to each (docs/knowledge-map-design.md, "A talk's slides"). A slide is
+/// a clip (`ReaderClip.slideHighlight`), drawn from the frame captured beside
+/// the video, so it opens the video at its moment and takes a note like any
+/// clip.
 @MainActor
 extension StudioViewModel {
     /// Whether **Lay Out the Talk** is offered for `sourceID`: a source frames
@@ -72,9 +88,10 @@ extension StudioViewModel {
             let slides = "\(outcome.slides.count) \(outcome.slides.count == 1 ? "slide" : "slides")"
             let papers = outcome.papers.isEmpty ? "" : " with \(outcome.papers.count) \(outcome.papers.count == 1 ? "paper" : "papers") they cite"
             let id = canonicalSourceID(sourceID)
-            if !outcome.citationsRead {
+            if outcome.citedCount == 0 {
+                // Reading the slides for citations is a vision call per slide: only on the learner's click.
                 showToast(
-                    "Laid out \(slides) of \(outcome.sourceTitle)",
+                    "Laid out \(slides) of \(outcome.sourceTitle) · no cited papers are recorded for them",
                     action: StudioToastAction(title: "Find Cited Papers") { [weak self] _ in
                         await self?.extractPapersFromSlides(for: id)
                     }
@@ -91,6 +108,8 @@ extension StudioViewModel {
             } else {
                 showToast("Laid out \(slides)\(papers)")
             }
+        } catch KnowledgeMapTalkError.canvasChanged {
+            // The learner moved on to another canvas; nothing to say on it.
         } catch {
             showToast(error.localizedDescription)
         }
@@ -106,6 +125,9 @@ extension StudioViewModel {
             throw KnowledgeMapTalkError.unknownSource(sourceID)
         }
         guard Self.supportsSlideExtraction(article) else { throw KnowledgeMapTalkError.notATalk(article.title) }
+        guard article.status == .active, !article.isHidden else { throw KnowledgeMapTalkError.notShown(article.title) }
+        guard TalksBeingLaidOut.ids.insert(article.id).inserted else { throw KnowledgeMapTalkError.busy(article.title) }
+        defer { TalksBeingLaidOut.ids.remove(article.id) }
         let canvas = knowledgeMap
 
         var content = await storage.loadSourceContent(article.id) ?? ""
@@ -116,15 +138,16 @@ extension StudioViewModel {
         let frames = YouTubeSlideContentParser.parse(content).displaySlides
         guard !frames.isEmpty else { throw KnowledgeMapTalkError.noSlides(article.title) }
 
-        // Each slide's clip: the one saved before, else a new one.
+        // Each slide's clip: the one saved before, else a new one. A slide
+        // whose clip could not be saved is left out, with its papers.
         await loadReaderHighlightsIfNeeded(for: article.id)
         let existing = readerHighlights[article.id] ?? []
-        var slideRefs: [String] = []
+        var slideRefs: [(index: Int, ref: String)] = []
         var made = false
         for frame in frames {
             let reference = SourceImageReference(sourceID: article.id, location: .slide(frame.index)).urlString
             if let saved = existing.first(where: { ReaderClip.reference(of: $0)?.urlString == reference }) {
-                slideRefs.append(KnowledgeMap.ItemRef(kind: .clip, id: saved.id).description)
+                slideRefs.append((frame.index, KnowledgeMap.ItemRef(kind: .clip, id: saved.id).description))
                 continue
             }
             let size = await Self.slideFrameSize(frame.imagePath)
@@ -140,31 +163,33 @@ extension StudioViewModel {
                 continue
             }
             made = true
-            slideRefs.append(KnowledgeMap.ItemRef(kind: .clip, id: clip.id).description)
+            slideRefs.append((frame.index, KnowledgeMap.ItemRef(kind: .clip, id: clip.id).description))
         }
         if made { knowledgeMapClipRevision &+= 1 }
 
-        // The papers each slide cites that the library holds.
-        let cited = await loadCitedPapers(forSourceID: article.id)
+        // The papers each slide cites that the library holds and shows: under
+        // the slide each was read from (a paper that matches no slide shown
+        // has nothing to hang under).
+        let cited = await loadCitedPapers(forSourceID: article.id).filter { $0.status != .dismissed }
         var papersBySlide: [Int: [String]] = [:]
         var elsewhere = 0
-        for paper in cited.sorted(by: { ($0.slideTimeSeconds ?? 0) < ($1.slideTimeSeconds ?? 0) }) where paper.status != .dismissed {
-            guard let id = librarySourceID(citedBy: paper),
-                  let source = articlesById[canonicalSourceID(id)] ?? articlesById[id],
-                  source.status == .active, !source.isHidden else {
-                elsewhere += 1
-                continue
+        for (index, papers) in VideoCitedPaperWindow.bySlide(papers: cited, slides: frames) {
+            for paper in papers {
+                guard let id = librarySourceID(citedBy: paper) else {
+                    elsewhere += 1
+                    continue
+                }
+                let ref = KnowledgeMap.ItemRef(kind: .source, id: id).description
+                if papersBySlide[index]?.contains(ref) != true { papersBySlide[index, default: []].append(ref) }
             }
-            guard let slide = Self.slideIndex(citing: paper, among: frames) else { continue }
-            let ref = KnowledgeMap.ItemRef(kind: .source, id: source.id).description
-            if papersBySlide[slide]?.contains(ref) != true { papersBySlide[slide, default: []].append(ref) }
         }
 
         await refreshKnowledgeMapContent()
-        guard knowledgeMap === canvas else { throw CancellationError() }
-        let talk = zip(frames, slideRefs).compactMap { frame, ref -> (slide: String, papers: [String])? in
-            canvas.nodesByRef[ref] == nil ? nil : (ref, papersBySlide[frame.index] ?? [])
+        guard knowledgeMap === canvas else { throw KnowledgeMapTalkError.canvasChanged }
+        let talk = slideRefs.compactMap { slide -> (slide: String, papers: [String])? in
+            canvas.nodesByRef[slide.ref] == nil ? nil : (slide.ref, papersBySlide[slide.index] ?? [])
         }
+        guard !talk.isEmpty else { throw KnowledgeMapTalkError.noSlides(article.title) }
         let placed = canvas.layOutStoryboard(talk, regionName: article.title, near: center)
         let slides = placed?.slides ?? []
         return KnowledgeMapTalkOutcome(
@@ -173,21 +198,21 @@ extension StudioViewModel {
             slides: slides.isEmpty ? talk.map(\.slide) : slides,
             papers: placed?.papers ?? [],
             changed: placed != nil,
-            citedElsewhere: elsewhere,
-            citationsRead: !cited.isEmpty
+            citedCount: cited.count,
+            citedElsewhere: elsewhere
         )
     }
 
-    /// The papers read off the slide a slide clip shows, in the order the
-    /// slide's scan found them; the dismissed ones left out. Empty for any
+    /// The papers read off the slide a slide clip shows, as the transcript
+    /// lists them under the slide; the dismissed ones left out. Empty for any
     /// other clip, and for a talk whose slides were never read for citations.
     func knowledgeMapSlideCitations(clipID: String) async -> [VideoCitedPaper] {
         guard let clip = knowledgeMap.clips[clipID], let slide = ReaderClip.slide(of: clip) else { return [] }
-        let cited = await loadCitedPapers(forSourceID: clip.sourceID).filter { $0.status != .dismissed }
-        guard !cited.isEmpty else { return [] }
+        let cited = await loadCitedPapers(forSourceID: clip.sourceID)
+        guard cited.contains(where: { $0.status != .dismissed }) else { return [] }
         let content = await storage.loadSourceContent(clip.sourceID) ?? ""
         let frames = YouTubeSlideContentParser.parse(content).displaySlides
-        return cited.filter { Self.slideIndex(citing: $0, among: frames) == slide }
+        return VideoCitedPaperWindow.bySlide(papers: cited, slides: frames)[slide] ?? []
     }
 
     /// A paper cited on a slide, hung under the slide on the canvas with an
@@ -206,42 +231,38 @@ extension StudioViewModel {
             let updated = await importCitedPaper(paper)
             sourceID = updated.first { $0.id == paper.id }.flatMap { librarySourceID(citedBy: $0) }
         }
-        guard let sourceID, let source = articlesById[canonicalSourceID(sourceID)] ?? articlesById[sourceID] else {
+        guard let sourceID else {
             showToast("Could not add \(paper.title)")
             return
         }
         await refreshKnowledgeMapContent()
         guard knowledgeMap === canvas else { return }
-        let paperRef = KnowledgeMap.ItemRef(kind: .source, id: source.id).description
-        _ = canvas.layOutStoryboard([(slide: slideRef, papers: [paperRef])], regionName: "")
+        let paperRef = KnowledgeMap.ItemRef(kind: .source, id: sourceID).description
+        guard canvas.layOutStoryboard([(slide: slideRef, papers: [paperRef])], regionName: "") != nil
+                || canvas.layout.placements[paperRef] != nil else {
+            showToast("\(paper.title) could not be set on this canvas")
+            return
+        }
         canvas.send(.focus(refs: [slideRef, paperRef], regionID: nil))
     }
 
-    /// The library source a cited paper is: the one it was imported as, else
-    /// the one with its DOI or address (a talk in a field the learner reads
-    /// cites papers they hold already, though never marked as imported).
+    /// The library source a cited paper is, when the library holds it and
+    /// shows it: the one it was imported as, else the one with its DOI or
+    /// address (a talk in a field the learner reads cites papers they hold
+    /// already, though never marked as imported).
     func librarySourceID(citedBy paper: VideoCitedPaper) -> String? {
-        if let imported = paper.importedSourceID, articlesById[canonicalSourceID(imported)] ?? articlesById[imported] != nil {
-            return imported
+        func shown(_ id: String) -> String? {
+            guard let source = articlesById[canonicalSourceID(id)] ?? articlesById[id],
+                  source.status == .active, !source.isHidden else { return nil }
+            return source.id
         }
-        if let doi = paper.doi.map(Self.normalizeDOI), !doi.isEmpty, let id = librarySourceID(forURL: "https://doi.org/\(doi)") {
+        if let imported = paper.importedSourceID, let id = shown(imported) { return id }
+        if let doi = paper.doi?.trimmingCharacters(in: .whitespacesAndNewlines), !doi.isEmpty,
+           let id = librarySourceID(forURL: "https://doi.org/\(Self.normalizeDOI(doi))").flatMap(shown) {
             return id
         }
-        if let url = paper.url, !url.isEmpty, let id = librarySourceID(forURL: url) { return id }
+        if let url = paper.url, !url.isEmpty, let id = librarySourceID(forURL: url).flatMap(shown) { return id }
         return nil
-    }
-
-    /// The slide a cited paper was read from: the frame it names, else the
-    /// slide on screen at its moment, else the last slide shown before it.
-    nonisolated static func slideIndex(citing paper: VideoCitedPaper, among frames: [YouTubeSlideFrameContext]) -> Int? {
-        if let path = paper.slideImagePath, let frame = frames.first(where: { $0.imagePath == path }) {
-            return frame.index
-        }
-        guard let time = paper.slideTimeSeconds else { return frames.first?.index }
-        if let frame = frames.first(where: { $0.windows.contains { $0.start <= time && time < ($0.end ?? .infinity) } }) {
-            return frame.index
-        }
-        return frames.last { ($0.timeSeconds ?? 0) <= time }?.index ?? frames.first?.index
     }
 
     /// A captured frame's pixel size, which carries the slide card's shape;

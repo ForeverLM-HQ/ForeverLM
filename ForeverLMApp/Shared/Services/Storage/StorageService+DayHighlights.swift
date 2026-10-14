@@ -16,7 +16,7 @@ extension KnowledgeStore {
         try queryBind("""
             SELECT highlight_id
             FROM source_highlights
-            WHERE created_at >= ? AND created_at < ?
+            WHERE created_at >= ? AND created_at < ? AND \(Self.notBareSlideMark)
             ORDER BY created_at, highlight_id
             LIMIT ?
         """, bind: { stmt in

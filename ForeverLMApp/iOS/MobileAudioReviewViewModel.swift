@@ -982,6 +982,8 @@ actor MobileCloudSourceCatalog {
         // Highlights are the ledger's annotation evidence; the phone syncs them
         // and counts them here the way the Mac counts `source_highlights`.
         let annotationCounts = highlights.reduce(into: [String: Int]()) { counts, highlight in
+            // A talk's slide the canvas set down, unwritten on, is no annotation.
+            guard !highlight.isBareSlideMark else { return }
             counts[highlight.sourceID, default: 0] += 1
         }
         return sources.map { source in

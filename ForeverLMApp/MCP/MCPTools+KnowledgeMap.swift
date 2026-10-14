@@ -549,7 +549,7 @@ extension MCPToolRegistry {
                         ] as [String: Any],
                         "talks": [
                             "type": "array",
-                            "description": "Videos or meeting recordings to lay out as their slides, at most 5: each is a storyboard of slide cards (clip:<id>, four to a row in the order shown, captured first if they never were), each slide with the papers it cites that are in the library hung under it and an arrow from the slide to each, in a region named for the talk, before the groups. Papers its slides cite that are not in the library are counted, not added (list_video_cited_papers, import_video_cited_paper); a talk laid out before keeps its slides where they are and hangs the papers added since under theirs.",
+                            "description": "Videos or meeting recordings to lay out as their slides, at most 5: each is a storyboard of slide cards (clip:<id>, four to a row in the order shown, captured first if they never were), each slide with the papers it cites that are in the library hung under it and an arrow from the slide to each, in a region named for the talk, before the groups. Papers its slides cite that are not in the library are counted, not added (list_video_cited_papers, import_video_cited_paper); cited_papers_recorded 0 means the slides were never read for citations (scan_video_for_cited_papers) or cite nothing; a talk laid out before keeps its slides where they are and hangs the papers added since under theirs.",
                             "items": [
                                 "type": "object",
                                 "properties": [
@@ -1176,8 +1176,8 @@ extension MCPDataStore {
                     "title": outcome.sourceTitle,
                     "slide_item_ids": outcome.slides,
                     "paper_item_ids": outcome.papers,
+                    "cited_papers_recorded": outcome.citedCount,
                     "cited_not_in_library": outcome.citedElsewhere,
-                    "citations_read": outcome.citationsRead,
                 ]
                 if let regionID = outcome.regionID {
                     done["region"] = regionEntry(regionID, in: map)

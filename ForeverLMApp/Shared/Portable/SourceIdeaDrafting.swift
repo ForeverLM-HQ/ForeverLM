@@ -210,6 +210,7 @@ enum SourceIdeaDrafting {
     /// the learner's note when they wrote one.
     static func highlightLines(_ highlights: [SourceHighlight]) -> [String] {
         highlights
+            .filter { !$0.isBareSlideMark }
             .sorted { lhs, rhs in
                 if lhs.hasNote != rhs.hasNote { return lhs.hasNote }
                 return lhs.createdAt > rhs.createdAt

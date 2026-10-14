@@ -309,11 +309,20 @@ extension KnowledgeStore {
         return ids
     }
 
+    /// SQL that holds for every mark but a bare slide of a talk
+    /// (`SourceHighlight.isBareSlideMark`): the canvas made those, so they are
+    /// no annotation of the learner's. Anchors are stored with escaped
+    /// slashes (`\/`), so both spellings are matched.
+    static let notBareSlideMark = """
+        NOT (TRIM(COALESCE(text, '')) = '' AND TRIM(COALESCE(note, '')) = '' \
+        AND (quads_json LIKE '%/slide/%' OR quads_json LIKE '%\\/slide\\/%'))
+        """
+
     func sourceHighlightCount(sourceID: String) throws -> Int {
         var count = 0
         let keys = try personalStateSourceKeys(sourceID)
         try queryBind(
-            "SELECT COUNT(*) FROM source_highlights WHERE source_id IN (\(Array(repeating: "?", count: keys.count).joined(separator: ", ")))",
+            "SELECT COUNT(*) FROM source_highlights WHERE source_id IN (\(Array(repeating: "?", count: keys.count).joined(separator: ", "))) AND \(Self.notBareSlideMark)",
             bind: { stmt in for (offset, key) in keys.enumerated() { bind(stmt, offset + 1, key) } }
         ) { stmt in
             count = Int(sqlite3_column_int64(stmt, 0))

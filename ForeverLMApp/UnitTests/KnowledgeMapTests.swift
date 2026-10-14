@@ -2240,19 +2240,74 @@ struct CanvasTalkStoryboardTests {
         }
     }
 
-    @Test("A cited paper hangs under the slide it was read from, else the one on screen at its moment, else the last one before it")
-    func citedPaperFindsItsSlide() {
-        let frames = [
-            YouTubeSlideFrameContext(index: 1, timeSeconds: 0, windows: [.init(start: 0, end: 60)], imagePath: "f1.jpg", recognizedText: ""),
-            YouTubeSlideFrameContext(index: 2, timeSeconds: 60, windows: [.init(start: 60, end: 120), .init(start: 300, end: 330)], imagePath: "f2.jpg", recognizedText: ""),
-            YouTubeSlideFrameContext(index: 3, timeSeconds: 120, windows: [.init(start: 120, end: 200)], imagePath: "f3.jpg", recognizedText: ""),
-        ]
-        func paper(path: String? = nil, at time: Double?) -> VideoCitedPaper {
-            VideoCitedPaper(sourceID: "talk", title: "A paper", slideTimeSeconds: time, slideImagePath: path)
+    /// Rects of the placed `refs` as the model draws them.
+    private func rects(_ refs: [String], in model: KnowledgeMapModel) -> [KnowledgeMapArranging.Rect] {
+        refs.compactMap { ref in
+            model.layout.placements[ref].map { .init(x: $0.x, y: $0.y, w: model.cardWidth(of: ref), h: model.cardHeight(of: ref)) }
         }
-        #expect(StudioViewModel.slideIndex(citing: paper(path: "f3.jpg", at: 10), among: frames) == 3)
-        #expect(StudioViewModel.slideIndex(citing: paper(at: 310), among: frames) == 2)
-        #expect(StudioViewModel.slideIndex(citing: paper(at: 250), among: frames) == 3)
-        #expect(StudioViewModel.slideIndex(citing: paper(at: nil), among: frames) == 1)
+    }
+
+    @Test("Papers whose PDF is here are drawn as their page, and the storyboard is laid out at that height: nothing overlaps")
+    func storyboardMeasuresPagedPapers() throws {
+        try withModel { model in
+            let papers = (1...3).map { StudioArticle(url: "https://example.com/p\($0)", title: "Paper \($0)", sourceType: .paper, id: "p\($0)") }
+            model.rebuildContent(articles: papers, ideas: [], notebooks: [], chats: [], artifacts: [], firstHighlights: [:])
+            model.pageFaceDefault = { _ in true }
+            for id in ["p1", "p2", "p3"] { model.pageFaces[id] = KnowledgeMapPageFace(pageCount: 12, aspect: 8.5 / 11) }
+            let slides = (1...5).map { "clip:s\($0)" }
+            _ = try #require(model.layOutStoryboard(
+                [(slide: slides[0], papers: ["source:p1", "source:p2"]), (slide: slides[1], papers: []), (slide: slides[2], papers: []),
+                 (slide: slides[3], papers: []), (slide: slides[4], papers: ["source:p3"])],
+                regionName: "A talk", near: .init(x: 0, y: 0)
+            ))
+            #expect(model.cardHeight(of: "source:p1") > KnowledgeMap.cardHeight, "the paper shows its page")
+            let all = rects(slides + ["source:p1", "source:p2", "source:p3"], in: model)
+            for (i, a) in all.enumerated() {
+                for b in all[(i + 1)...] { #expect(!a.intersects(b)) }
+            }
+        }
+    }
+
+    @Test("A paper hung on a second run that runs a column into the next row pushes that row down, under the column")
+    func secondRunPushesTheNextRowDown() throws {
+        try withModel { model in
+            let papers = (1...4).map { StudioArticle(url: "https://example.com/p\($0)", title: "Paper \($0)", sourceType: .paper, id: "p\($0)") }
+            model.rebuildContent(articles: papers, ideas: [], notebooks: [], chats: [], artifacts: [], firstHighlights: [:])
+            let slides = (1...6).map { "clip:s\($0)" }
+            let first = try #require(model.layOutStoryboard(slides.map { (slide: $0, papers: [String]()) }, regionName: "A talk", near: .init(x: 0, y: 0)))
+            let regionID = try #require(first.regionID)
+            Thread.sleep(forTimeInterval: KnowledgeMapModel.editBurst + 0.05)
+            let fifthBefore = try #require(model.layout.placements["clip:s5"]).y
+            _ = try #require(model.layOutStoryboard(
+                [(slide: slides[0], papers: ["source:p1", "source:p2", "source:p3", "source:p4"])] + slides.dropFirst().map { (slide: $0, papers: [String]()) },
+                regionName: "A talk"
+            ))
+            let s1 = try #require(model.layout.placements["clip:s1"])
+            let p4 = try #require(model.layout.placements["source:p4"])
+            #expect(p4.x == s1.x)
+            let fifth = try #require(model.layout.placements["clip:s5"])
+            #expect(fifth.y > fifthBefore)
+            #expect(fifth.y >= p4.y + model.cardHeight(of: "source:p4") + KnowledgeMapArranging.gap)
+            #expect(model.layout.placements["clip:s6"]?.y == fifth.y, "the whole row moves")
+            let all = rects(slides + ["source:p1", "source:p2", "source:p3", "source:p4"], in: model)
+            for (i, a) in all.enumerated() {
+                for b in all[(i + 1)...] { #expect(!a.intersects(b)) }
+            }
+            let region = try #require(model.layout.regions[regionID])
+            #expect(region.y + region.h >= fifth.y + model.cardHeight(of: "clip:s5"))
+            model.undo()
+            #expect(model.layout.placements["clip:s5"]?.y == fifthBefore, "one Undo step puts the row back")
+        }
+    }
+
+    @Test("A slide the canvas set down and nobody wrote on is no annotation of the learner's")
+    func bareSlideMarks() {
+        let bare = ReaderClip.slideHighlight(sourceID: "talk", slide: 3, title: "Slide 3", pixelWidth: 16, pixelHeight: 9)
+        #expect(bare.isBareSlideMark)
+        let noted = ReaderClip.slideHighlight(sourceID: "talk", slide: 3, title: "Slide 3", pixelWidth: 16, pixelHeight: 9, note: "The key result")
+        #expect(!noted.isBareSlideMark)
+        let figure = ReaderClip.highlight(sourceID: "p", page: 2, crop: PaperFigureRect(x: 0, y: 0, width: 0.5, height: 0.5), title: "Figure 1", pixelWidth: 10, pixelHeight: 10)
+        #expect(!figure.isBareSlideMark)
+        #expect(SourceIdeaDrafting.highlightLines([bare, noted]).count == 1)
     }
 }

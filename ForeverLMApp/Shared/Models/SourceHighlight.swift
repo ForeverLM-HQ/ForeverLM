@@ -77,6 +77,15 @@ struct SourceHighlight: Identifiable, Equatable, Sendable {
         !imageAnchors.isEmpty && !Self.hasWords(quote)
     }
 
+    /// A talk's slide set on a canvas by Lay Out the Talk (a picture-only
+    /// mark of `foreverlm://image/<source>/slide/<n>`) that nobody wrote on:
+    /// the canvas made it, so it is no annotation of the learner's and is
+    /// left out of what counts or lists their highlights.
+    var isBareSlideMark: Bool {
+        isPictureOnly && !hasNote && imageAnchors.count == 1
+            && imageAnchors[0].src.hasPrefix("foreverlm://image/") && imageAnchors[0].src.contains("/slide/")
+    }
+
     /// Whether a passage says anything once whitespace and the characters
     /// that only shape text are set aside. Web pages put zero-width spaces
     /// and joiners between a figure and its caption, and a drag over the

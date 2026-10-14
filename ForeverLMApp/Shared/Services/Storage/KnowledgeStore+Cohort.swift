@@ -62,6 +62,7 @@ extension KnowledgeStore {
             LEFT JOIN (
                 SELECT source_id, COUNT(*) AS annotation_count
                 FROM source_highlights
+                WHERE \(Self.notBareSlideMark)
                 GROUP BY source_id
             ) marks ON marks.source_id = sp.id
             WHERE sp.status = 'active'
