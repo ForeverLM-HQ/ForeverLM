@@ -166,7 +166,8 @@ struct MobileSpaceModelsTests {
         #expect(organization.pins == PagePins(rows: rows))
         #expect(organization.parents == PageParents(rows: rows))
         #expect(Set(MobileSpaceOrganization.preferenceKeyPrefixes) == [
-            PageSpaces.namePreferenceKeyPrefix, PageSpaces.membershipPreferenceKeyPrefix, PagePins.preferenceKeyPrefix, PageParents.preferenceKeyPrefix,
+            PageSpaces.namePreferenceKeyPrefix, PageSpaces.membershipPreferenceKeyPrefix, PageSpaces.trashPreferenceKeyPrefix,
+            PagePins.preferenceKeyPrefix, PageParents.preferenceKeyPrefix,
         ])
         let renamed = organization.settingName("Lab", for: "psp-b").settingSpace(nil, for: "p1").settingPin(nil, for: "p1").settingParent(nil, for: "p2")
         #expect(renamed.space("psp-b")?.name == "Lab")
