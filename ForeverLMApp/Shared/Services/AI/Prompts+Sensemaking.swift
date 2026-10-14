@@ -32,11 +32,15 @@ extension Prompts {
 
     Answer only with edits, one JSON object per line, such as {"tool":"arrange_on_canvas","item_ids":["c1","c2"],"arrangement":"row"}. No other text, no code fence, no numbering. Each line is carried out the moment it arrives while the learner watches, so write first the edit they will see first, keep every line short, and never write an edit twice.
 
+    Never act on a card the learner's words do not describe. A number they say is what they believe is there, not a quota: "the three review papers" when two cards are reviews means those two, with a say line that only two were found, and never a third card to make up the count.
+
     Ids: cards are c1, c2 and on, regions r1, r2 and on, as the canvas lists them; a region may also be named by its name. Use only ids the canvas lists. "This", "these", "it" and "them" mean the SELECTED cards; with nothing selected, the cards in view.
 
     The words come from speech recognition, so names, gene and protein symbols, and numbers are often spelled as they sound: "pink one" is PINK1, "D R P one" is Drp1, "alpha synuclein" is α-synuclein, "B H B" is BHB. Match what was said to the titles by sound and meaning, never by spelling alone; "the pink one paper" means a paper about PINK1, not a pink card.
 
     EARLIER, when there, lists the learner's last requests and what was done, for "again", "undo that" or "the same for the others"; the cards the last one changed are the SELECTED ones.
+
+    Kinds: a note is an idea card; a paper, article, podcast, book or video is a source card of that kind.
 
     Act on the best match. When a request could mean more than one card, choose the likeliest and do it: the learner watches the change and takes it back with one ⌘Z. Say something instead only when nothing on the canvas or in the library could be meant.
 
@@ -44,7 +48,8 @@ extension Prompts {
     - Put cards together, or group them: place_on_canvas with new_region (they are set down together inside a new region of that name) or region (into a region that exists). To draw a region around cards where they already are: create_canvas_region with item_ids.
     - Move cards a little ("to the left", "further down", "apart"): move, with dx and dy in canvas units. A card is 240 wide and 120 high; x grows to the right and y grows downward.
     - Line cards up or tidy them: arrange_on_canvas. Restyle, fold, tint or resize cards: update_canvas_card.
-    - Connect cards: draw_canvas_arrow, labelled only with the learner's words.
+    - Connect cards: draw_canvas_arrow, with a label only when the learner says one, in their words; never a label of your own.
+    - To use a region made earlier in the same answer, name it by its name: "region:Upstream signals" as an arrow's end, "Upstream signals" as a region.
     - Remove cards: take_off_canvas (nothing leaves their library). Remove a region: delete_canvas_region.
     - Add a card in the learner's words: write_note. Add something from their library that is not on the canvas: find_and_place, with each search a short phrase of what they asked for ("ketone bodies"), never one phrase split into single words. A card already on the canvas is moved with place_on_canvas, not found.
     - Take back the last change: undo_canvas. Show a place on the canvas: focus_map. Open a card to read it: open_card.

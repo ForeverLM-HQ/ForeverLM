@@ -425,11 +425,27 @@ enum KnowledgeMapLint {
             }
         }
 
-        // An arrow across a card it does not join.
+        // An arrow across a card it does not join, judged by the route the
+        // Canvas draws: a default arrow bends round the cards in its way
+        // (`curveRoute`, the renderer's `curveAround`), so it crosses only
+        // what no bend clears; a straight or elbow arrow, and one drawn into
+        // a brace with others, by the straight line between its ends' middles.
         let visibleRects = Dictionary(visible.map { ($0.key, $0.value) }, uniquingKeysWith: { first, _ in first })
+        let braced = bracedEdgeIDs(layout: layout, cards: visibleRects)
         for (id, edge) in layout.edges.sorted(by: { $0.key < $1.key }) where !edge.isTree {
             guard let fromRect = endRect(edge.from, cards: visibleRects, layout: layout),
                   let toRect = endRect(edge.to, cards: visibleRects, layout: layout) else { continue }
+            if edge.route == nil || edge.route == KnowledgeMapEdgeRoute.curve.rawValue, !braced.contains(id) {
+                let others = visible.filter { $0.key != edge.from && $0.key != edge.to }.map { (ref: $0.key, rect: $0.value) }
+                let route = curveRoute(from: fromRect, to: toRect, others: others)
+                for ref in crossed(by: route, others: others) {
+                    issues.append(.init(
+                        kind: .arrowOverCard, refs: [ref], edgeID: id,
+                        message: "The arrow from “\(endName(edge.from, layout: layout, title: title))” to “\(endName(edge.to, layout: layout, title: title))” crosses “\(title(ref))”."
+                    ))
+                }
+                continue
+            }
             let start = (x: fromRect.midX, y: fromRect.midY), end = (x: toRect.midX, y: toRect.midY)
             // The part of the line outside both ends.
             let leaves = clip(start, end, to: fromRect)?.exit ?? 0
@@ -460,6 +476,109 @@ enum KnowledgeMapLint {
             ))
         }
         return issues
+    }
+
+    // MARK: The default arrow's route, as the renderer draws it
+
+    typealias Point = (x: Double, y: Double)
+    /// A quadratic curve: start, control point, end.
+    typealias Curve = (p: Point, m: Point, q: Point)
+
+    /// The bends the renderer tries, either way, when the gentle one runs
+    /// across cards (`CURVE_BENDS` in knowledge-map.js).
+    static let curveBends: [Double] = [120, 200, 300, 420]
+
+    /// Where the line from a box's middle toward `toward` leaves the box, 8
+    /// off it (`boxEdge`).
+    static func boxEdge(_ c: Point, toward o: Point, of b: KnowledgeMapArranging.Rect) -> Point {
+        let dx = o.x - c.x, dy = o.y - c.y
+        let k = min(abs((b.w / 2 + 8) / (dx == 0 ? 1e-6 : dx)), abs((b.h / 2 + 8) / (dy == 0 ? 1e-6 : dy)), 1)
+        return (c.x + dx * k, c.y + dy * k)
+    }
+
+    static func point(on curve: Curve, at t: Double) -> Point {
+        let u = 1 - t
+        return (u * u * curve.p.x + 2 * u * t * curve.m.x + t * t * curve.q.x,
+                u * u * curve.p.y + 2 * u * t * curve.m.y + t * t * curve.q.y)
+    }
+
+    /// The curve the renderer draws for a default arrow between two boxes
+    /// (`curveAround`): a gentle bend unless it runs across `others`, then
+    /// the least bend either way that clears them, leaving and meeting its
+    /// ends on that side, or, when none clears them, the one crossing fewest.
+    static func curveRoute(
+        from a: KnowledgeMapArranging.Rect,
+        to b: KnowledgeMapArranging.Rect,
+        others: [(ref: String, rect: KnowledgeMapArranging.Rect)]
+    ) -> Curve {
+        let ca: Point = (a.midX, a.midY), cb: Point = (b.midX, b.midY)
+        let p = boxEdge(ca, toward: cb, of: a), q = boxEdge(cb, toward: ca, of: b)
+        let mx = (p.x + q.x) / 2, my = (p.y + q.y) / 2
+        let dx = q.x - p.x, dy = q.y - p.y
+        let length = max(hypot(dx, dy), 1)
+        func curve(_ bend: Double, outward: Bool) -> Curve {
+            let m: Point = (x: mx - dy / length * bend, y: my + dx / length * bend)
+            guard outward else { return (p: p, m: m, q: q) }
+            let start = boxEdge(ca, toward: m, of: a)
+            let end = boxEdge(cb, toward: m, of: b)
+            return (p: start, m: m, q: end)
+        }
+        let steps = Int(min(max(length / 60, 16), 80).rounded())
+        let reach = (curveBends.last ?? 0) / 2 + 20
+        let near = others.filter {
+            $0.rect.x < max(p.x, q.x) + reach && $0.rect.maxX > min(p.x, q.x) - reach
+                && $0.rect.y < max(p.y, q.y) + reach && $0.rect.maxY > min(p.y, q.y) - reach
+        }
+        let first = curve(min(60, length * 0.12), outward: false)
+        guard !near.isEmpty else { return first }
+        func crossings(_ route: Curve) -> Int {
+            (1..<steps).reduce(0) { count, i in
+                let at = point(on: route, at: Double(i) / Double(steps))
+                return near.contains { at.x > $0.rect.x - 6 && at.x < $0.rect.maxX + 6 && at.y > $0.rect.y - 6 && at.y < $0.rect.maxY + 6 } ? count + 1 : count
+            }
+        }
+        var best = first, fewest = crossings(first)
+        if fewest == 0 { return first }
+        for size in curveBends {
+            for bend in [size, -size] {
+                let route = curve(bend, outward: true)
+                let n = crossings(route)
+                if n == 0 { return route }
+                if n < fewest { best = route; fewest = n }
+            }
+        }
+        return best
+    }
+
+    /// The cards a drawn curve runs across, a graze aside: sampled every 10
+    /// points against each card drawn 2 smaller, as the straight check is.
+    private static func crossed(by route: Curve, others: [(ref: String, rect: KnowledgeMapArranging.Rect)]) -> [String] {
+        let length = hypot(route.m.x - route.p.x, route.m.y - route.p.y) + hypot(route.q.x - route.m.x, route.q.y - route.m.y)
+        let steps = max(16, Int(length / 10))
+        var hit: Set<String> = []
+        for i in 1..<steps {
+            let at = point(on: route, at: Double(i) / Double(steps))
+            for other in others where !hit.contains(other.ref) {
+                let r = other.rect.inset(by: 2)
+                if at.x > r.x && at.x < r.maxX && at.y > r.y && at.y < r.maxY { hit.insert(other.ref) }
+            }
+        }
+        return hit.sorted()
+    }
+
+    /// Default arrows the renderer draws into a brace: two or more into one
+    /// card from the same side (`bundles`), whose drawn route is the brace's,
+    /// not a curve of their own.
+    private static func bracedEdgeIDs(layout: KnowledgeMapLayout, cards: [String: KnowledgeMapArranging.Rect]) -> Set<String> {
+        var groups: [String: [String]] = [:]
+        for (id, edge) in layout.edges where !edge.isTree && (edge.route == nil || edge.route == KnowledgeMapEdgeRoute.curve.rawValue) {
+            guard KnowledgeMap.regionID(fromRef: edge.from) == nil, KnowledgeMap.regionID(fromRef: edge.to) == nil,
+                  let a = cards[edge.from], let b = cards[edge.to] else { continue }
+            let dx = a.midX - b.midX, dy = a.midY - b.midY
+            let side = abs(dx) * b.h >= abs(dy) * b.w ? (dx < 0 ? "left" : "right") : (dy < 0 ? "top" : "bottom")
+            groups[edge.to + "|" + side, default: []].append(id)
+        }
+        return Set(groups.values.filter { $0.count > 1 }.flatMap { $0 })
     }
 
     private static func endRect(_ ref: String, cards: [String: KnowledgeMapArranging.Rect], layout: KnowledgeMapLayout) -> KnowledgeMapArranging.Rect? {

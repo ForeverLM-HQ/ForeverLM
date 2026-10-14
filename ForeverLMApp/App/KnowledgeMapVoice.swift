@@ -444,10 +444,13 @@ final class KnowledgeMapVoice {
         }
 
         var firstEdit: Date?
+        var seen: Set<String> = []
         if applying { map.beginEditGroup() }
         for await raw in lines {
             guard isLive(id), !Task.isCancelled else { break }
             report.lines.append(raw)
+            // A model now and then writes an edit twice; it is carried out once.
+            guard seen.insert(raw.trimmingCharacters(in: .whitespacesAndNewlines)).inserted else { continue }
             switch CanvasVoice.line(raw) {
             case .blank:
                 continue

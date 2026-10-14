@@ -1458,22 +1458,42 @@ struct KnowledgeMapParityModelTests {
                 (ref: "source:x", x: 250, y: 100),
                 (ref: "source:p", x: 50, y: 60), (ref: "source:q", x: 100, y: 100),
                 (ref: "source:l", x: 0, y: 1000), (ref: "source:m", x: 300, y: 1000), (ref: "source:n", x: 600, y: 1000),
+                (ref: "source:o", x: 0, y: 1600), (ref: "source:mid", x: 300, y: 1600), (ref: "source:r", x: 600, y: 1600),
                 (ref: "source:k", x: 4150, y: 140),
             ])
-            model.addEdge(from: "source:l", to: "source:n", label: "")
+            model.addEdge(from: "source:l", to: "source:n", label: "", route: "straight")
             model.addEdge(from: "source:l", to: "source:m", label: "")
+            // A default arrow is drawn bent round the card between its ends.
+            model.addEdge(from: "source:o", to: "source:r", label: "")
             let issues = model.lint()
             func of(_ kind: KnowledgeMapLintIssue.Kind) -> [KnowledgeMapLintIssue] { issues.filter { $0.kind == kind } }
             #expect(of(.overlap).map(\.refs) == [["source:p", "source:q"], ["source:p", "source:x"], ["source:q", "source:x"]], "p, q and x are all over one another")
-            #expect(!of(.overlap).contains { $0.refs.contains("source:l") || $0.refs.contains("source:m") || $0.refs.contains("source:n") })
+            #expect(!of(.overlap).contains { $0.refs.contains("source:l") || $0.refs.contains("source:m") || $0.refs.contains("source:n") || $0.refs.contains("source:mid") })
             #expect(of(.cardOutsideRegion).contains { $0.refs == ["source:x"] && $0.regionID == "r" }, "x's middle is in Frame but its edge is not")
             #expect(!of(.cardOutsideRegion).contains { $0.refs == ["source:p"] })
             let across = of(.arrowOverCard)
-            #expect(across.map(\.refs) == [["source:m"]] && across[0].edgeID != nil, "the arrow from l to n crosses m; l to m crosses nothing")
+            #expect(across.map(\.refs) == [["source:m"]] && across[0].edgeID != nil, "the straight arrow from l to n crosses m; l to m crosses nothing; o to r bends round mid")
             #expect(of(.emptyRegion).map(\.regionID) == ["gap"], "a notebook's frame and a region holding a region are not empty")
             #expect(of(.emptyRegion)[0].message.contains("Nothing here"))
             #expect(issues.allSatisfy { !$0.message.isEmpty && !$0.message.contains("\n") })
         }
+    }
+
+    @Test("A default arrow is judged by the curve the Canvas draws: clear of the card it bends round, across one no bend clears")
+    func lintJudgesTheDrawnCurve() {
+        typealias Rect = KnowledgeMapArranging.Rect
+        let a = Rect(x: 0, y: 0, w: 240, h: 120), b = Rect(x: 600, y: 0, w: 240, h: 120)
+        let between = (ref: "m", rect: Rect(x: 300, y: 0, w: 240, h: 120))
+        let route = KnowledgeMapLint.curveRoute(from: a, to: b, others: [between])
+        let apex = KnowledgeMapLint.point(on: route, at: 0.5)
+        #expect(apex.y < 0 - 6 || apex.y > 120 + 6, "the curve passes above or below m")
+        let clear = KnowledgeMapLint.curveRoute(from: a, to: b, others: [])
+        #expect(abs(KnowledgeMapLint.point(on: clear, at: 0.5).y - 60) < 40, "with nothing between, the gentle bend")
+        // A wall no bend clears: the route crossing the fewest is drawn, and reported.
+        let wall = (ref: "wall", rect: Rect(x: 300, y: -3000, w: 240, h: 6000))
+        let blocked = KnowledgeMapLint.curveRoute(from: a, to: b, others: [wall])
+        let samples = (1..<40).map { KnowledgeMapLint.point(on: blocked, at: Double($0) / 40) }
+        #expect(samples.contains { $0.x > 300 && $0.x < 540 }, "it still runs across the wall")
     }
 
     @Test("A card in a region folded up is not drawn, so it overlaps nothing; an arrow's own ends are never crossed")
