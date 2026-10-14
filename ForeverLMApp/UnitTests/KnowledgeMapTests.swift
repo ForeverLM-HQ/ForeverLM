@@ -1114,7 +1114,7 @@ struct KnowledgeMapParityModelTests {
             ])
             #expect(changed == 2)
             let a = model.layout.placements["idea:a"]!
-            #expect(a.w == 720 && a.h == 40, "held to what a card may be")
+            #expect(a.w == 720 && a.h == KnowledgeMap.smallestCardHeight, "held to what a card may be (56, the least the page draws)")
             #expect(a.folded == true && a.color == "#D4537E")
             #expect(model.layout.placements["idea:b"]?.w == 360)
             #expect(model.cardWidth(of: "idea:a") == 720 && model.cardHeight(of: "idea:a") == KnowledgeMap.foldedCardHeight)
@@ -1771,7 +1771,7 @@ struct KnowledgeMapMCPParityTests {
             #expect(ask([:])?.contains("needs color, folded, w, h or fit_to_content") == true)
             #expect(ask(["fit_to_content": true, "w": 300])?.contains("do not pass w or h") == true)
             #expect(ask(["w": 5000])?.contains("160 to 720") == true)
-            #expect(ask(["h": 10])?.contains("40 to 2000") == true)
+            #expect(ask(["h": 10])?.contains("56 to 2000") == true)
             #expect(ask(["w": true])?.contains("160 to 720") == true, "a boolean is not a number")
             #expect(ask(["color": "red"])?.contains("#RRGGBB") == true)
             #expect(refusal { try Store.updateCanvasCard(["item_ids": ["idea:c"], "color": "#D4537E"], map: map) }?.contains("place_on_canvas") == true)
@@ -1793,7 +1793,7 @@ struct KnowledgeMapMCPParityTests {
             let left = two.compactMap { ($0["rect"] as? [String: Double]) }
             #expect(left.count == 2)
             #expect(abs(left[1]["x"]! - left[0]["x"]!) == 430, "set down by their own width, 30 apart")
-            #expect(refusal { try Store.placeOnCanvas(["item_ids": ["idea:d"], "h": 20], map: map) }?.contains("40 to 2000") == true)
+            #expect(refusal { try Store.placeOnCanvas(["item_ids": ["idea:d"], "h": 20], map: map) }?.contains("56 to 2000") == true)
         }
     }
 
@@ -2034,3 +2034,88 @@ struct KnowledgeMapMCPParityTests {
     }
 }
 
+
+/// What the canvas review of 2026-10-14 found and fixed, kept fixed.
+@Suite("Canvas: the 2026-10-14 review's fixes")
+@MainActor
+struct CanvasReviewFixesTests {
+    private func withModel(_ body: (KnowledgeMapModel) throws -> Void) rethrows {
+        let suite = UserDefaults(suiteName: "CanvasReviewFixesTests.\(UUID().uuidString)")!
+        try KnowledgeMapRows.$overrideDefaults.withValue(.init(defaults: suite)) {
+            try body(KnowledgeMapModel(mapID: KnowledgeMap.firstCanvasID))
+        }
+    }
+
+    @Test("A write that lands between two of the learner's quick edits is not folded into their Undo step")
+    func undoBurstLeavesAWriteBetween() {
+        withModel { model in
+            model.place([(ref: "idea:a", x: 0, y: 0)])
+            // Another Mac's region arrives in the row before the learner's next edit.
+            let now = Date()
+            _ = KnowledgeMapRows.update(mapID: model.mapID, now: now) { row in
+                row.setRegion("r-theirs", .init(name: "Theirs", x: 600, y: 0, w: 300, h: 200, color: "#7F77DD", at: now.timeIntervalSince1970))
+            }
+            model.place([(ref: "idea:b", x: 300, y: 0)])
+            model.undo()
+            #expect(model.layout.regions["r-theirs"] != nil, "the other Mac's region is not undone")
+            #expect(model.layout.placements["idea:b"] == nil, "the learner's last edit is")
+            #expect(model.layout.placements["idea:a"] != nil, "the edit before the other write is a step of its own")
+        }
+    }
+
+    @Test("Quick edits with nothing written between them are still one Undo step")
+    func undoBurstStillJoins() {
+        withModel { model in
+            model.place([(ref: "idea:a", x: 0, y: 0)])
+            model.place([(ref: "idea:b", x: 300, y: 0)])
+            model.undo()
+            #expect(model.layout.placements.isEmpty)
+        }
+    }
+
+    @Test("Undo that takes away the selected region or arrow leaves nothing selected, so no empty inspector stays up")
+    func undoForgetsWhatIsGone() {
+        withModel { model in
+            model.saveRegion(id: "r1", name: "Mine", x: 0, y: 0, w: 400, h: 300, color: KnowledgeMapModel.regionColors[0], notebookID: nil)
+            model.selectedRegionID = "r1"
+            model.undo()
+            #expect(model.layout.regions["r1"] == nil)
+            #expect(model.selectedRegionID == nil)
+        }
+    }
+
+    @Test("A command goes to the window it was made in; one for a window showing no canvas is run by the first pane to look")
+    func commandsGoToTheirWindow() {
+        withModel { model in
+            let first = UUID(), second = UUID()
+            model.showingWindowIDs = [first, second]
+            model.send(.fit, in: first)
+            model.send(.zoom(2), in: second)
+            model.send(.tool("select"))
+            #expect(model.takeCommands(for: second).map(\.action) == [.zoom(2), .tool("select")])
+            #expect(model.takeCommands(for: first).map(\.action) == [.fit])
+            model.send(.fit, in: UUID())
+            #expect(model.takeCommands(for: first).map(\.action) == [.fit])
+            #expect(model.commands.isEmpty)
+        }
+    }
+
+    @Test("An Idea is laid out at the height the page measured for its words, and a sized card never under the page's 56")
+    func heightsAsThePageDrawsThem() {
+        withModel { model in
+            model.measuredIdeaHeights["idea:wordy"] = 214
+            #expect(model.naturalCardHeight(of: "idea:wordy") == 214)
+            #expect(model.naturalCardHeight(of: "idea:plain") == KnowledgeMap.cardHeight)
+            let now = Date()
+            _ = KnowledgeMapRows.update(mapID: model.mapID, now: now) { row in
+                var placement = KnowledgeMapLayout.Placement(x: 0, y: 0, at: now.timeIntervalSince1970)
+                placement.h = 40
+                row.setPlacement("source:short", placement)
+            }
+            model.reloadLayout()
+            #expect(model.cardHeight(of: "source:short") == KnowledgeMap.smallestCardHeight)
+            let held = model.layout.placements["source:short"]!
+            #expect(KnowledgeMapModel.regionMiddle(of: held).y == KnowledgeMap.smallestCardHeight / 2)
+        }
+    }
+}

@@ -32,7 +32,6 @@ struct KnowledgeMapPane: View {
     @State private var inspectorHeight: CGFloat = 200
     @State private var noteText = ""
     @State private var regionName = ""
-    @State private var edgeLabel = ""
     @FocusState private var noteFocused: Bool
     @FocusState private var regionNameFocused: Bool
     /// This pane's canvas, for Extend to Other Display.
@@ -135,7 +134,8 @@ struct KnowledgeMapPane: View {
                             // Clips are saved and files, pictures and addresses imported
                             // as they land (`knowledgeMapCards`), so the page knows each card.
                             guard let placed = await vm.knowledgeMapCards(for: drop, on: map) else { return }
-                            map.send(.drop(x: drop.point.x, y: drop.point.y, refs: placed.refs, regionName: placed.regionName, notebookID: placed.notebookID))
+                            map.send(.drop(x: drop.point.x, y: drop.point.y, refs: placed.refs, regionName: placed.regionName, notebookID: placed.notebookID),
+                                     in: windowState.id)
                         }
                     },
                     onLinkEvidence: { idea, refs in
@@ -307,9 +307,6 @@ struct KnowledgeMapPane: View {
             .onChange(of: map.selectedRegionID) { _, id in
                 regionName = id.flatMap { map.layout.regions[$0]?.name } ?? ""
                 if let id, map.layout.regions[id]?.name.isEmpty == true { regionNameFocused = true }
-            }
-            .onChange(of: map.selectedEdgeID) { _, id in
-                edgeLabel = id.flatMap { map.layout.edges[$0]?.label } ?? ""
             }
             // ⌘F on the plane: the cursor goes to the find field, in the window
             // the learner is working in.
@@ -1202,11 +1199,13 @@ struct KnowledgeMapPane: View {
         .accessibilityIdentifier("knowledgeMap.region.more")
     }
 
-    /// A region's cards: those placed in it (a card in a region inside it is
-    /// that region's), and for a notebook's frame the notebook's cards not
-    /// placed anywhere, which it draws too.
+    /// A region's cards: every card placed inside it, those in regions inside
+    /// it too (as its right-click menu, Delete Region and the renderer count
+    /// them, so a region of regions can be folded, fitted and asked about),
+    /// and for a notebook's frame the notebook's cards not placed anywhere,
+    /// which it draws too.
     private func cardsInRegion(_ id: String) -> [String] {
-        let placed = map.layout.placements.keys.filter { map.regionID(containing: $0) == id }.sorted()
+        let placed = map.refsInRegion(id)
         guard let notebook = map.notebook(ofRegion: id) else { return placed }
         return placed + notebook.refs.filter { map.layout.placements[$0] == nil }
     }
@@ -1257,10 +1256,10 @@ struct KnowledgeMapPane: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(3)
                 .textSelection(.disabled)
-            TextField("Label", text: $edgeLabel)
-                .textFieldStyle(.roundedBorder)
-                .onSubmit { map.relabelEdge(id, to: edgeLabel) }
-                .accessibilityIdentifier("knowledgeMap.edge.label")
+            // Its own view per arrow (`.id`): a label typed into one arrow's
+            // field is written to that arrow when another is clicked.
+            KnowledgeMapEdgeLabelField(edgeID: id)
+                .id(id)
             KnowledgeMapEdgeStyleControls(id: id, edge: edge)
             HStack {
                 Spacer()
@@ -1268,7 +1267,6 @@ struct KnowledgeMapPane: View {
                     .buttonStyle(.hoverWash(cornerRadius: 6, inset: -4, opacity: 0.10))
             }
         }
-        .onDisappear { map.relabelEdge(id, to: edgeLabel) }
     }
 
     /// The colour every one of `refs` has, nil when none has one or they differ.

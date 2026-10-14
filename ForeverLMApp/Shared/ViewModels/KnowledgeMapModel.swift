@@ -91,6 +91,10 @@ struct KnowledgeMapCommand: Identifiable, Equatable {
 
     let id = UUID()
     let action: Action
+    /// The window whose canvas runs it: the one the learner acted in. With
+    /// the canvas showing in two windows, a drop or a zoom is carried out in
+    /// the window it was made in, at that window's camera.
+    var windowID: UUID? = nil
 }
 
 /// What the renderer last reported about the view, for the chat's context.
@@ -145,7 +149,12 @@ final class KnowledgeMapModel {
     /// The canvas this model shows: its layout row is `map.layout.<mapID>`.
     let mapID: String
 
-    private(set) var layout = KnowledgeMapLayout()
+    private(set) var layout = KnowledgeMapLayout() {
+        // An Undo, another Mac or an assistant can take away the region or
+        // arrow the inspector shows; the renderer drops its own selection
+        // without saying so, so the inspector would stay up empty.
+        didSet { forgetSelectionOfWhatIsGone() }
+    }
     private(set) var content = KnowledgeMapContent(nodes: [], links: [])
     /// Bumped whenever `layout` changes, so the canvas pushes it once.
     private(set) var layoutRevision = 0
@@ -282,7 +291,36 @@ final class KnowledgeMapModel {
     /// just those cards' bounds. Installed by the pane's canvas while it is
     /// ready and cleared when it goes; nil while no Canvas pane shows. Export
     /// as Image and `screenshot_canvas` use it.
-    @ObservationIgnored var imageExporter: (@MainActor (_ scale: Double, _ refs: [String]?) async throws -> Data)?
+    /// The height each Idea draws at when it has none of its own, as the page
+    /// measured its words (its `ideaHeights` message): a wordy Idea grows past
+    /// the usual 120 to show them, and what the Mac lays out leaves it the room.
+    @ObservationIgnored var measuredIdeaHeights: [String: Double] = [:]
+
+    typealias ImageExporter = @MainActor (_ scale: Double, _ refs: [String]?) async throws -> Data
+
+    /// What draws the plane as a picture (Export as Image, `screenshot_canvas`):
+    /// the newest canvas pane still open. Each pane puts its own here and takes
+    /// only its own away, so closing one of two windows showing the canvas
+    /// leaves the other's.
+    var imageExporter: ImageExporter? {
+        get { imageExporters.last?.export }
+        // Set directly (a test), it is one more exporter, the newest.
+        set {
+            imageExporters.removeAll { $0.owner == Self.directExporter }
+            if let newValue { imageExporters.append((Self.directExporter, newValue)) }
+        }
+    }
+    private static let directExporter = UUID()
+    @ObservationIgnored private var imageExporters: [(owner: UUID, export: ImageExporter)] = []
+
+    func installImageExporter(_ owner: UUID, _ export: @escaping ImageExporter) {
+        imageExporters.removeAll { $0.owner == owner }
+        imageExporters.append((owner, export))
+    }
+
+    func removeImageExporter(_ owner: UUID) {
+        imageExporters.removeAll { $0.owner == owner }
+    }
 
     /// Each picture card's width over its height by ref (`picture:<id>`), read
     /// from the file when the cards are rebuilt; 0 once looked for and not found.
@@ -422,6 +460,11 @@ final class KnowledgeMapModel {
 
     // MARK: Layout
 
+    private func forgetSelectionOfWhatIsGone() {
+        if let id = selectedRegionID, layout.regions[id] == nil { selectedRegionID = nil }
+        if let id = selectedEdgeID, layout.edges[id] == nil { selectedEdgeID = nil }
+    }
+
     func reloadLayout() {
         let stored = KnowledgeMapRows.layout(mapID: mapID)
         guard stored != layout else { return }
@@ -482,7 +525,18 @@ final class KnowledgeMapModel {
     private func remember(_ edit: KnowledgeMapEdit) {
         guard edit.changes else { return }
         defer { if editGroup.isOpen { editGroup.hasStep = true } }
-        let joins = editGroup.isOpen ? editGroup.hasStep : undoEdits.last.map { edit.at.timeIntervalSince($0.at) < Self.editBurst } ?? false
+        // A burst joins only edits written one straight after the other: a
+        // write in between (another Mac's, or the app's own, which Undo does
+        // not take back) would otherwise be folded into the step and undone
+        // with it.
+        let joins = editGroup.isOpen
+            ? editGroup.hasStep
+            : undoEdits.last.map { last in
+                edit.at.timeIntervalSince(last.at) < Self.editBurst
+                    && edit.before.placements == last.after.placements
+                    && edit.before.regions == last.after.regions
+                    && edit.before.edges == last.after.edges
+            } ?? false
         // A sealed edit (a Restore) is a step of its own, whatever came
         // within the burst before or after it.
         if let last = undoEdits.last, !edit.sealed, !last.sealed, joins, redoEdits.isEmpty {
@@ -722,7 +776,8 @@ final class KnowledgeMapModel {
     func cardHeight(of ref: String) -> Double {
         if let placement = layout.placements[ref] {
             if placement.isFolded { return KnowledgeMap.foldedCardHeight }
-            if let height = placement.h { return height }
+            // A height written before the floor was the renderer's is drawn at it.
+            if let height = placement.h { return max(KnowledgeMap.smallestCardHeight, height) }
         }
         return naturalCardHeight(of: ref)
     }
@@ -741,7 +796,7 @@ final class KnowledgeMapModel {
     /// mind-map node as tall as its words, every other card the one size;
     /// and, for any card but an Idea, the room for its annotation under that.
     func naturalCardHeight(of ref: String) -> Double {
-        if ref.hasPrefix("idea:") { return mindMapNodeSize(of: ref)?.h ?? KnowledgeMap.cardHeight }
+        if ref.hasPrefix("idea:") { return mindMapNodeSize(of: ref)?.h ?? measuredIdeaHeights[ref] ?? KnowledgeMap.cardHeight }
         let width = cardWidth(of: ref)
         return kindCardHeight(of: ref, width: width) + KnowledgeMap.annotationHeight(layout.placements[ref]?.annotation, width: width)
     }
@@ -996,7 +1051,9 @@ final class KnowledgeMapModel {
     /// other card by the usual 240 by 120, as the renderer reads it.
     nonisolated static func regionMiddle(of placement: KnowledgeMapLayout.Placement) -> (x: Double, y: Double) {
         let width = placement.w ?? KnowledgeMap.cardWidth
-        let height = placement.isFolded ? KnowledgeMap.foldedCardHeight : (placement.h ?? KnowledgeMap.cardHeight)
+        let height = placement.isFolded
+            ? KnowledgeMap.foldedCardHeight
+            : (placement.h.map { max(KnowledgeMap.smallestCardHeight, $0) } ?? KnowledgeMap.cardHeight)
         return (placement.x + width / 2, placement.y + height / 2)
     }
 
@@ -1056,14 +1113,27 @@ final class KnowledgeMapModel {
 
     // MARK: Renderer commands
 
-    func send(_ action: KnowledgeMapCommand.Action) {
-        commands.append(KnowledgeMapCommand(action: action))
+    /// The window a command goes to when its sender names none: the window
+    /// the learner works in (set by the app, `wireCanvasModel`).
+    @ObservationIgnored var activeWindowID: () -> UUID? = { nil }
+    /// The windows whose panes show this canvas now.
+    @ObservationIgnored var showingWindowIDs: Set<UUID> = []
+
+    func send(_ action: KnowledgeMapCommand.Action, in windowID: UUID? = nil) {
+        commands.append(KnowledgeMapCommand(action: action, windowID: windowID ?? activeWindowID()))
     }
 
-    /// The canvas takes the queued commands once it has run them.
-    func takeCommands() -> [KnowledgeMapCommand] {
-        let taken = commands
-        commands.removeAll()
+    /// A pane takes the queued commands it runs: those meant for its window,
+    /// those meant for none, and those meant for a window that shows no
+    /// canvas (the first pane to look runs them).
+    func takeCommands(for windowID: UUID?) -> [KnowledgeMapCommand] {
+        let taken = commands.filter { command in
+            guard let target = command.windowID else { return true }
+            return target == windowID || !showingWindowIDs.contains(target)
+        }
+        guard !taken.isEmpty else { return [] }
+        let ids = Set(taken.map(\.id))
+        commands.removeAll { ids.contains($0.id) }
         return taken
     }
 
@@ -1193,7 +1263,8 @@ final class KnowledgeMapModel {
             captions: captions,
             canvases: otherCanvases,
             pictures: pictures,
-            pageFaces: pageFaces
+            pageFaces: pageFaces,
+            facesWhenPlaced: facesWhenPlaced(articles)
         )
         self.clips = Dictionary(clips.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         notebookContexts = Dictionary(
@@ -1232,6 +1303,18 @@ final class KnowledgeMapModel {
         return parts.joined(separator: "\n\n")
     }
 
+    /// The papers not on this canvas yet that show their page once set down
+    /// (`pageFaceDefault`), so the page lays a drop out for the page each
+    /// becomes (`KnowledgeMapNode.faces`).
+    private func facesWhenPlaced(_ articles: [StudioArticle]) -> Set<String> {
+        guard let showsPage = pageFaceDefault else { return [] }
+        return Set(articles.lazy.filter { article in
+            article.sourceType == .paper
+                && self.layout.placements[KnowledgeMap.ItemRef(kind: .source, id: article.id).description] == nil
+                && showsPage(article.id)
+        }.map(\.id))
+    }
+
     /// Kept apart from the model so a test builds it from plain records.
     /// `unticked` is each notebook's unticked sources by Notebook id
     /// (`NotebookChatSelection`): a notebook's frame holds only what the
@@ -1251,7 +1334,8 @@ final class KnowledgeMapModel {
         captions: [String: String] = [:],
         canvases: [KnowledgeMapCanvas] = [],
         pictures: [KnowledgeMapPictureCard] = [],
-        pageFaces: [String: KnowledgeMapPageFace] = [:]
+        pageFaces: [String: KnowledgeMapPageFace] = [:],
+        facesWhenPlaced: Set<String> = []
     ) -> KnowledgeMapContent {
         let sources = articles.filter { $0.status == .active && !$0.isHidden }
         let sourceIDs = Set(sources.map(\.id))
@@ -1297,6 +1381,7 @@ final class KnowledgeMapModel {
                 groupTitle: source.parentGroup.flatMap { groupTitles[$0] },
                 pages: face?.pageCount,
                 aspect: face?.aspect,
+                faces: facesWhenPlaced.contains(source.id) && pageFaces[source.id]?.pageCount != 0 ? true : nil,
                 read: source.isRead ? true : nil
             ))
         }
@@ -1602,7 +1687,14 @@ final class KnowledgeMapModel {
     var summariesPayload: SummariesPayload {
         var clusters: [String: SummariesPayload.Lines] = [:]
         var regions: [String: SummariesPayload.Lines] = [:]
+        // A region cut below `minimumCards`, or gone, is never summarised
+        // again, so its last summary would stay under its name describing
+        // cards it no longer holds. Only a region that still has a summary
+        // coming is drawn with one (a stale one stands until its new one is
+        // written).
+        let summarised = Set(self.clusters().map(\.key))
         for (key, summary) in summaries {
+            if key.hasPrefix("r:"), !summarised.contains(key) { continue }
             let lines = SummariesPayload.Lines(short: summary.short, long: summary.long, takeaways: summary.takeaways ?? [])
             if key.hasPrefix("nb:") { clusters[String(key.dropFirst(3))] = lines }
             if key.hasPrefix("r:") { regions[String(key.dropFirst(2))] = lines }

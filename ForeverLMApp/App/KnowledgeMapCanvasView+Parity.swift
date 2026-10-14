@@ -58,6 +58,11 @@ extension KnowledgeMapCanvasView.Coordinator {
     /// Answers a message the page posts for the parity build. Anything else is ignored.
     func handleParityMessage(_ type: String, _ body: [String: Any]) {
         switch type {
+        case "ideaHeights":
+            // The heights the page draws Ideas at on their own, measured with its fonts.
+            if let heights = body["heights"] as? [String: Any] {
+                for (ref, raw) in heights { if let h = Self.number(raw), h > 0 { model.measuredIdeaHeights[ref] = h } }
+            }
         case "placementChanged":
             let items = (body["items"] as? [[String: Any]] ?? []).compactMap(Self.placementStyle(from:))
             if !items.isEmpty { model.setPlacementStyle(items) }
@@ -143,6 +148,11 @@ extension KnowledgeMapCanvasView.Coordinator {
                 call("editIdea", Self.jsString(made.ref), made.fresh ? "{fresh:true}" : "null")
             } else {
                 callRenderer("mirror", jsonObject: ["selection": [made.ref]])
+                // `mirror` selects on the page without the page saying so: the
+                // inspector follows from here.
+                model.selection = [made.ref]
+                model.selectedRegionID = nil
+                model.selectedEdgeID = nil
             }
         }
     }
@@ -227,7 +237,7 @@ extension KnowledgeMapCanvasView.Coordinator {
     /// as Image, `screenshot_canvas`) and the display switches, kept in step.
     func installRendererHooks() {
         guard role == .pane else { return }
-        model.imageExporter = { [weak self] scale, refs in
+        model.installImageExporter(exporterID) { [weak self] scale, refs in
             guard let self else { throw KnowledgeMapExportError.notReady }
             return try await self.exportImage(scale: scale, refs: refs)
         }
@@ -243,7 +253,7 @@ extension KnowledgeMapCanvasView.Coordinator {
     func removeRendererHooks() {
         guard installedExporter else { return }
         installedExporter = false
-        model.imageExporter = nil
+        model.removeImageExporter(exporterID)
     }
 
     /// The plane drawn once by the page: a PNG of everything, or of the bounds

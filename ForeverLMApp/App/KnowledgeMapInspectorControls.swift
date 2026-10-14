@@ -218,6 +218,10 @@ struct KnowledgeMapAnnotationField: View {
     let ref: String
 
     @State private var text = ""
+    /// The canvas the words were read from. Switching canvases closes the
+    /// field; its last commit must not land on the canvas switched to, where
+    /// the same card may hold other words.
+    @State private var canvasID: String?
     @FocusState private var focused: Bool
 
     private var stored: String { vm.knowledgeMap.layout.placements[ref]?.annotation ?? "" }
@@ -228,14 +232,17 @@ struct KnowledgeMapAnnotationField: View {
             .lineLimit(2...8)
             .zoomedSystemFont(size: 12)
             .focused($focused)
-            .onAppear { text = stored }
+            .onAppear {
+                canvasID = vm.knowledgeMap.mapID
+                text = stored
+            }
             .onChange(of: focused) { _, isFocused in
                 if !isFocused { commit() }
             }
             // The words written elsewhere (the plane's editor, an assistant)
             // show here, unless they are being typed over.
             .onChange(of: stored) { _, words in
-                if !focused { text = words }
+                if !focused, vm.knowledgeMap.mapID == canvasID { text = words }
             }
             .onDisappear(perform: commit)
             .help("Why this card is on this canvas: written under it, for this canvas only")
@@ -243,7 +250,8 @@ struct KnowledgeMapAnnotationField: View {
     }
 
     private func commit() {
-        guard text.trimmingCharacters(in: .whitespacesAndNewlines) != stored else { return }
+        guard vm.knowledgeMap.mapID == canvasID,
+              text.trimmingCharacters(in: .whitespacesAndNewlines) != stored else { return }
         vm.setKnowledgeMapAnnotation(ref, text)
         // What the canvas kept: trimmed, and cut to the room a card has.
         text = stored
@@ -359,5 +367,46 @@ struct KnowledgeMapEdgeStyleControls: View {
                 vm.updateKnowledgeMapArrow(id, color: hex ?? "")
             }
         }
+    }
+}
+
+/// An arrow's words, in its inspector: the learner's own. Written on Return,
+/// when the field loses focus, and when the inspector closes or turns to
+/// another arrow, always to the arrow and the canvas it was opened on (a
+/// field shared by every arrow and reset on each selection could write ""
+/// over the label just left, or drop words typed and not yet sent).
+struct KnowledgeMapEdgeLabelField: View {
+    @Environment(StudioViewModel.self) private var vm
+
+    let edgeID: String
+
+    @State private var text = ""
+    @State private var canvasID: String?
+    @FocusState private var focused: Bool
+
+    private var stored: String { vm.knowledgeMap.layout.edges[edgeID]?.label ?? "" }
+
+    var body: some View {
+        TextField("Label", text: $text)
+            .textFieldStyle(.roundedBorder)
+            .focused($focused)
+            .onAppear {
+                canvasID = vm.knowledgeMap.mapID
+                text = stored
+            }
+            .onSubmit(commit)
+            .onChange(of: focused) { _, isFocused in
+                if !isFocused { commit() }
+            }
+            .onChange(of: stored) { _, words in
+                if !focused, vm.knowledgeMap.mapID == canvasID { text = words }
+            }
+            .onDisappear(perform: commit)
+            .accessibilityIdentifier("knowledgeMap.edge.label")
+    }
+
+    private func commit() {
+        guard vm.knowledgeMap.mapID == canvasID, vm.knowledgeMap.layout.edges[edgeID] != nil, text != stored else { return }
+        vm.knowledgeMap.relabelEdge(edgeID, to: text)
     }
 }

@@ -43,7 +43,10 @@ enum KnowledgeMap {
 
     /// How wide a card may be made (`Placement.w`), and how tall (`Placement.h`).
     static let cardWidthRange: ClosedRange<Double> = 160...720
-    static let cardHeightRange: ClosedRange<Double> = foldedCardHeight...2000
+    static let cardHeightRange: ClosedRange<Double> = smallestCardHeight...2000
+    /// The least a card is drawn when the learner sized it (the renderer's
+    /// `MIN_CARD_H`); only a folded card is shorter.
+    static let smallestCardHeight: Double = 56
 
     /// A picture card's height: the picture whole at the card's width, as a
     /// clip's is, within reason, with no foot under it. 160 until the
@@ -1128,6 +1131,11 @@ struct KnowledgeMapNode: Encodable, Equatable, Sendable {
     /// what a page face needs to be drawn. Nil until then.
     var pages: Int? = nil
     var aspect: Double? = nil
+    /// True for a paper not on the canvas yet that will show its page once
+    /// set down (`KnowledgeMapModel.showPapersAsPages`), so the page lays the
+    /// cells of a drop out for the page it becomes, as the Mac's
+    /// `heightWhenSetDown` does, not the usual card. Nil for any other.
+    var faces: Bool? = nil
     /// True for a source the learner has read (`StudioArticle.isRead`): the
     /// page draws a small tick on its corner. Nil for any other.
     var read: Bool? = nil

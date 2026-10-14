@@ -136,6 +136,12 @@ extension StudioViewModel {
 
         if isOpenCanvas, knowledgeMapIsOnScreen {
             await refreshKnowledgeMapContent()
+            // Another canvas opened while the cards were read: they go to the
+            // one asked for, written to its row as for a canvas not showing.
+            guard knowledgeMap.mapID == canvasID else {
+                await addToCanvas(refs: wanted, canvasID: canvasID)
+                return
+            }
             let drawable = fresh.filter { knowledgeMap.nodesByRef[$0] != nil }
             guard !drawable.isEmpty else {
                 showToast("That cannot be placed on \(name)")
@@ -429,9 +435,10 @@ extension StudioViewModel {
             await createKnowledgeMapNote(title, at: (spot.x, spot.y))
             return
         }
+        let canvas = knowledgeMap
         guard let idea = await createIdea(title: title, notes: notes) else { return }
         await refreshKnowledgeMapContent()
-        knowledgeMap.place([(ref: KnowledgeMap.ItemRef(kind: .idea, id: idea.id).description, x: spot.x, y: spot.y)])
+        canvas.place([(ref: KnowledgeMap.ItemRef(kind: .idea, id: idea.id).description, x: spot.x, y: spot.y)])
     }
 
     private enum TextImport {

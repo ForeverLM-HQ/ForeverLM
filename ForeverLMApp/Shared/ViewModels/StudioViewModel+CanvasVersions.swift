@@ -56,7 +56,16 @@ extension StudioViewModel {
             showToast("The canvas already is “\(version.name)”")
             return false
         }
-        showToast("Restored “\(version.name)”", undo: { model.undo() })
+        // The toast's Undo takes back the restore, and only while it is the
+        // newest step: an edit made since would otherwise be what it undid.
+        let restored = model.newestUndoStep
+        showToast("Restored “\(version.name)”", undo: { [weak self] in
+            if model.newestUndoStep == restored {
+                model.undo()
+            } else {
+                self?.showToast("Edits were made since the restore: ⌘Z takes them back first")
+            }
+        })
         return true
     }
 

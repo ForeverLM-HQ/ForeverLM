@@ -109,6 +109,9 @@ struct KnowledgeMapCanvasView: NSViewRepresentable {
     }
 
     static func dismantleNSView(_ webView: WKWebView, coordinator: Coordinator) {
+        if coordinator.role == .pane, let window = coordinator.actions?.windowState.id {
+            coordinator.model.showingWindowIDs.remove(window)
+        }
         webView.configuration.userContentController.removeScriptMessageHandler(forName: messageHandlerName)
         coordinator.removeRendererHooks()
         coordinator.webView = nil
@@ -142,6 +145,8 @@ struct KnowledgeMapCanvasView: NSViewRepresentable {
         /// whether this canvas put its image exporter on the model.
         var displayPush: String?
         var installedExporter = false
+        /// Whose exporter on the model is this pane's (`installImageExporter`).
+        let exporterID = UUID()
         var observingDisplay = false
         private(set) var isReady = false
         private var pushedLayout = -1
@@ -181,6 +186,10 @@ struct KnowledgeMapCanvasView: NSViewRepresentable {
             if pushedLayout != model.layoutRevision {
                 pushedLayout = model.layoutRevision
                 call("setLayout", json(model.layout))
+                // A region's cards change with the layout, and with them
+                // whether it still has a summary to show (`summariesPayload`).
+                call("setSummaries", json(model.summariesPayload))
+                pushedSummaries = model.summariesRevision
                 // A page turned asks for the next page's picture, and a
                 // picture just placed for its own.
                 sendPagePictures()
@@ -210,6 +219,13 @@ struct KnowledgeMapCanvasView: NSViewRepresentable {
             // A kept question's Idea, selected without flying to it.
             if role == .pane, let refs = model.askState.takePendingSelection() {
                 call("mirror", json(["selection": refs]))
+                // The page selects without saying so; the inspector follows,
+                // a turn later (this runs while the view updates).
+                DispatchQueue.main.async { [model] in
+                    model.selection = refs
+                    model.selectedRegionID = nil
+                    model.selectedEdgeID = nil
+                }
                 KnowledgeMapDisplayExtension.shared.relay(from: self, method: "mirror", ["selection": refs])
             }
             // MARK: Memory (WP-B2)
@@ -217,7 +233,9 @@ struct KnowledgeMapCanvasView: NSViewRepresentable {
             // The queue is the pane's: the window extended to follows the
             // pane's camera and selection instead.
             guard role == .pane else { return }
-            for command in model.takeCommands() {
+            let window = actions?.windowState.id
+            if let window { model.showingWindowIDs.insert(window) }
+            for command in model.takeCommands(for: window) {
                 perform(command.action)
             }
         }

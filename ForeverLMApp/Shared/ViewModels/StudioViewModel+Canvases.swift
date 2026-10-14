@@ -83,6 +83,9 @@ extension StudioViewModel {
     /// Keeps `canvases` following the open canvas's own writes: its last
     /// activity moves as the learner places things.
     func wireCanvasModel(_ model: KnowledgeMapModel) {
+        // A command from a toolbar, the add box or an assistant runs in the
+        // window the learner is working in.
+        model.activeWindowID = { StudioWindowRegistry.shared.activeState?.id }
         // A paper placed for the first time shows its page, on a canvas made a
         // moment ago as on any other.
         model.pageFaceDefault = { [weak self] sourceID in self?.knowledgeMapSourceShowsPage(sourceID) == true }
@@ -187,6 +190,16 @@ extension StudioViewModel {
         refreshCanvasesFromRows()
         let deleting = canvasIDs.filter { canvases.canvas($0)?.isTrashed == true }
         guard !deleting.isEmpty else { return }
+        // The canvas open on this Mac may be one of them (its Trash banner is
+        // showing). Left open, its next edit would write its row back, empty
+        // and unnamed: the newest canvas still in use opens instead, or a new
+        // one when none is left.
+        if deleting.contains(knowledgeMap.mapID) {
+            let next = canvases.all
+                .filter { !$0.isTrashed && !deleting.contains($0.id) }
+                .max { $0.updatedAt < $1.updatedAt }
+            showCanvas(next?.id ?? createCanvas().id)
+        }
         for id in deleting {
             KnowledgeMapRows.remove(mapID: id)
             canvases = canvases.setting(nil, for: id)

@@ -439,9 +439,12 @@ extension StudioViewModel {
     /// Writes a note where the learner clicked: an Idea (the learner's own
     /// thought, listed in Ideas too) placed on the Map at that spot.
     func createKnowledgeMapNote(_ text: String, at spot: (x: Double, y: Double)) async {
+        // The canvas written on: another may be opened while the Idea is made,
+        // and the note belongs where it was written.
+        let canvas = knowledgeMap
         guard let idea = await createIdea(title: text) else { return }
         await refreshKnowledgeMapContent()
-        knowledgeMap.place([(ref: KnowledgeMap.ItemRef(kind: .idea, id: idea.id).description, x: spot.x, y: spot.y)])
+        canvas.place([(ref: KnowledgeMap.ItemRef(kind: .idea, id: idea.id).description, x: spot.x, y: spot.y)])
     }
 
     /// What `createKnowledgeMapIdea` made: the card's ref, and whether it was made

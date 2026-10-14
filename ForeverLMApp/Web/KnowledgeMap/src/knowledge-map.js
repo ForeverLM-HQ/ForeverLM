@@ -475,11 +475,16 @@
     function flowed(node) { return stackLayout().fixedW.has(node.ref) }
     function sizeOf(node) { return isFanned(node) ? [EV_W, EV_H] : [flowed(node) ? CARD_W : cardW(node), cardH(node)] }
     // A placed card as a box, for what hangs off it (an Idea's evidence).
+    // A placed card's box as it is drawn: in a frame laid out in rows or in a
+    // mind map the layout's spot, not the one stored; none for a card a fold
+    // hides. An Idea's evidence hangs from it and its threads start there.
     function placedBox(ref) {
-      const p = state.placements[ref]
-      if (!p) return null
+      const stored = state.placements[ref]
+      if (!stored || hiddenByFold(ref)) return null
       const n = state.byRef.get(ref)
-      return { x: p.x, y: p.y, w: n ? cardW(n) : CARD_W, h: n ? cardH(n) : CARD_H }
+      const p = n ? planePos(n) : [stored.x, stored.y]
+      if (!p) return null
+      return { x: p[0], y: p[1], w: n ? cardW(n) : CARD_W, h: n ? cardH(n) : CARD_H }
     }
     // The middle of a card placed at `p`, the point that decides which region
     // holds it: its true middle once the learner sized it, else the usual
@@ -696,7 +701,30 @@
     // A change to what is drawn where (a placement, a region, the cards): the
     // layout is worked out again on the next frame, and with it where the
     // ghosts go and what each region's kept cards add up to.
+    // The heights Ideas draw at on their own (`ideaAutoH`), told to the Mac
+    // when they change, so what it lays out (Arrange, a card set down in a
+    // region, a region grown to hold an Idea) leaves a wordy Idea its room.
+    // The page measures the words with the fonts it draws them in; the Mac
+    // reads these instead of guessing (`KnowledgeMapModel.measuredIdeaHeights`).
+    let ideaHeightsTimer = null
+    const ideaHeightsSent = new Map()
+    function scheduleIdeaHeights() {
+      if (ideaHeightsTimer) return
+      ideaHeightsTimer = setTimeout(() => {
+        ideaHeightsTimer = null
+        const changed = {}
+        let any = false
+        for (const node of state.nodes) {
+          if (node.kind !== 'idea' || String(node.ref).startsWith('proposal:')) continue
+          const h = ideaAutoH(node)
+          if (ideaHeightsSent.get(node.ref) !== h) { ideaHeightsSent.set(node.ref, h); changed[node.ref] = h; any = true }
+        }
+        if (any) host.post('ideaHeights', { heights: changed })
+      }, 400)
+    }
     function invalidate() {
+      scheduleIdeaHeights()
+      state.regionRefs = null
       state.stackCache = null
       state.ghostsDirty = true
       state.regionMemo = null
@@ -3189,13 +3217,17 @@
       if (!node || !isPlaced(node)) return null
       const [x, y] = basePos(node)
       const [cx, cy] = midOf(ref, { x, y })
+      // Only regions that are drawn (not hidden in a folded one): a card a
+      // fold hides belongs to the folded region. Held by the frame stored,
+      // given back as drawn, so a folded region's arrows meet its header.
       let best = null
-      for (const r of Object.values(state.regions)) {
+      for (const shownRegion of shownRegions()) {
+        const r = state.regions[shownRegion.id] || shownRegion
         if (cx >= r.x && cx <= r.x + r.w && cy >= r.y && cy <= r.y + r.h) {
-          if (!best || r.w * r.h < best.w * best.h) best = r
+          if (!best || r.w * r.h < best.area) best = { region: shownRegion, area: r.w * r.h }
         }
       }
-      return best
+      return best ? best.region : null
     }
     // ---- Notebook frames
     //
@@ -3360,9 +3392,26 @@
     // window's drag) has their middle inside its stored frame. What is drawn
     // can differ (a folded series closes the region up), so membership is
     // never read from the drawn spot: a card drawn at the edge stays in.
+    // Which cards a region holds is read many times a frame (its label, its
+    // header, its face, its memory); kept until the layout changes
+    // (`invalidate`), and worked out afresh while anything moves.
     function refsInRegion(r) {
       const stored = state.regions[r.id]
       const h = stored ? Math.max(r.h, stored.h) : r.h
+      const steady = !state.preview && !state.drag && state.moves.size === 0
+      const key = r.id + '|' + r.x + '|' + r.y + '|' + r.w + '|' + h + '|' + (state.lens ? 1 : 0)
+      if (steady && state.regionRefs) {
+        const held = state.regionRefs.get(key)
+        if (held) return held.slice()
+      }
+      const out = regionRefsNow(r, h)
+      if (steady) {
+        if (!state.regionRefs) state.regionRefs = new Map()
+        state.regionRefs.set(key, out.slice())
+      }
+      return out
+    }
+    function regionRefsNow(r, h) {
       const out = []
       const prev = state.preview
       // The placed cards only (a fifth of a big library): read where each one's middle is.
@@ -4895,7 +4944,9 @@
       for (const r of shownRegions()) {
         // A region shrunk away into its parent's face takes no press.
         if (tileK(r) >= 1) continue
-        const onLabel = x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + Math.max(40, 40 / state.scale)
+        // The strip that takes the region is 40 points on screen at every zoom,
+        // as its name is drawn: zoomed in it would otherwise swallow the plane.
+        const onLabel = x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + 40 / state.scale
         const inside = x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h
         // A folded region's face is its handle, as a notebook's frame's is.
         if (onLabel || (inside && (level() === 0 || foldK() > 0.5))) {
@@ -4904,13 +4955,21 @@
       }
       return best
     }
+    // The height a card will have once it is set down: a paper the Mac turns
+    // into its page when it is placed (`faces`) is that page (a US Letter's
+    // until its PDF is read), as the Mac's `heightWhenSetDown` plans it; any
+    // other card is as tall as it is drawn now.
+    function setDownH(node) {
+      if (node && node.faces && !placementOf(node)) return pageFaceHeight(node.pages > 0 ? node.aspect : 0, CARD_W)
+      return cardH(node)
+    }
     // Cards set down together: a grid about 3:2 wide with its top-left at
     // (x, y), and the region that would hold them with room for its name.
     function gridFrom(refs, x, y) {
       const cols = Math.max(1, Math.ceil(Math.sqrt(refs.length * 1.5)))
       // Each row as tall as its tallest card (a clip is as tall as its picture).
       const rowH = []
-      refs.forEach((ref, i) => { const row = Math.floor(i / cols); rowH[row] = Math.max(rowH[row] || 0, cardH(state.byRef.get(ref))) })
+      refs.forEach((ref, i) => { const row = Math.floor(i / cols); rowH[row] = Math.max(rowH[row] || 0, setDownH(state.byRef.get(ref))) })
       const rowY = []
       for (let row = 0, ry = y; row < rowH.length; row++) { rowY[row] = ry; ry += rowH[row] + GAP }
       const spots = refs.map((ref, i) => ({ ref, x: round(x + (i % cols) * (CARD_W + GAP)), y: round(rowY[Math.floor(i / cols)]) }))
@@ -5362,7 +5421,6 @@
     }
     function commitIdeaEditor(ed) {
       const { title, note } = ideaWords(ed)
-      const h = Math.max(CARD_H, Math.ceil(ed.el.offsetHeight))
       if (!ed.ref) {
         // A new Idea: nothing written, nothing made.
         if (!title && !note) return
@@ -5387,11 +5445,22 @@
         node.title = title; node.sub = note || 'Idea'; node._auto = null
         host.post('ideaEdited', { ref: ed.ref, title, note })
       }
-      // Its words are all shown: the card keeps the height they needed (a mind
-      // map's node is as big as its words, and keeps none of its own).
-      if (p && !mindInfo(node) && Math.abs(h - ed.h0) > 1) {
-        p.h = round(h)
-        host.post('placementChanged', { items: [{ ref: ed.ref, h: round(h) }] })
+      // Its words are all shown: words longer than the card draws on its own
+      // keep the height they need; shorter ones give the card back its own
+      // height (a mind map's node is as big as its words, and keeps none of its
+      // own). Measured without the editor's floor, which is the height the card
+      // had, so a card can shrink; and only when the words changed, so opening
+      // and closing the editor leaves the card as it was.
+      if (p && !mindInfo(node) && changed) {
+        ed.el.style.minHeight = '0'
+        // An empty note field takes room in the editor the card does not give it.
+        const emptyNote = note ? 0 : ed.noteEl.offsetHeight + 4
+        const need = Math.max(CARD_H, Math.ceil(ed.el.offsetHeight - emptyNote))
+        const own = need > ideaAutoH(node) + 1 ? round(need) : null
+        if ((p.h || null) !== own) {
+          if (own) p.h = own; else delete p.h
+          host.post('placementChanged', { items: [{ ref: ed.ref, h: own }] })
+        }
       }
       if (ed.then && p) {
         const w = cardW(node)
@@ -5606,8 +5675,16 @@
     // the host is told what and where: `contextMenu {kind: plane | cards |
     // region | edge, refs?, id?, x, y, wx, wy}`, the point in screen points
     // from the plane's top left and in world units.
+    // A press the system takes away (a menu, the window losing the pointer)
+    // ends what it started, so nothing keeps following the pointer.
+    function dropStrandedPan() {
+      if (state.drag && state.drag.kind === 'pan') { state.drag = null; canvas.style.cursor = '' }
+    }
+    canvas.addEventListener('pointercancel', dropStrandedPan)
+    canvas.addEventListener('lostpointercapture', dropStrandedPan)
     canvas.addEventListener('contextmenu', (e) => {
       e.preventDefault()
+      dropStrandedPan()
       if (state.editor) closeEditor(true)
       if (state.review) return
       hidePeek()
@@ -5637,6 +5714,9 @@
 
     canvas.addEventListener('pointerdown', (e) => {
       if (e.ctrlKey && e.button === 0) return
+      // The view at the press: a drag is measured on the plane from there, so a
+      // scroll or a zoom while it goes on keeps what is carried under the pointer.
+      state.pressCamera = { ox: state.ox, oy: state.oy, scale: state.scale }
       if (state.editor) closeEditor(true)
       canvas.focus()
       clearPreview()
@@ -5645,7 +5725,9 @@
       canvas.setPointerCapture(e.pointerId)
       stopCamera()
       // In a review in place a press only pans.
-      if (e.button === 1 || state.spaceHeld || state.tool === 'hand' || (state.review && e.button === 0)) {
+      // A right-click never pans, Hand tool or Space held: its menu takes the
+      // release, so the pan would follow the pointer with no button down.
+      if (e.button !== 2 && (e.button === 1 || state.spaceHeld || state.tool === 'hand' || (state.review && e.button === 0))) {
         state.drag = { kind: 'pan', px, py, ox: state.ox, oy: state.oy }
         canvas.style.cursor = 'grabbing'
         return
@@ -5737,7 +5819,9 @@
         if (st) setSelection(e.shiftKey ? [...state.selection, ...st.refs] : st.refs)
         else if (e.shiftKey) toggleSelection(node.ref)
         else if (!state.selection.has(node.ref)) setSelection([node.ref])
-        const moving = [...state.selection].map(ref => state.byRef.get(ref)).filter(n => n && before.has(n.ref))
+        // Only cards drawn somewhere are carried: one with no position (hidden
+        // by a fold, or not on the plane) would throw on the first move.
+        const moving = [...state.selection].map(ref => state.byRef.get(ref)).filter(n => n && before.get(n.ref))
         // The plane holds still under the press (the layout at the press);
         // once the pointer moves the carried cards follow it and the rest
         // make room as they would on a drop.
@@ -5778,7 +5862,7 @@
       }
       // The empty plane: a selection rectangle.
       if (!e.shiftKey) { state.ghostSelected = null; setSelection([]); selectRegion(null); selectEdge(null) }
-      state.drag = { kind: 'marquee', sx: px, sy: py, px, py, keep: new Set(state.selection), moved: false }
+      state.drag = { kind: 'marquee', sx: px, sy: py, px, py, start: toWorld(px, py), keep: new Set(state.selection), moved: false }
     })
 
     canvas.addEventListener('pointermove', (e) => {
@@ -5794,7 +5878,11 @@
       if (!d) { hoverAt(px, py); return }
       const carried = d.kind === 'cards' || d.kind === 'moveRegion'
       const [lx, ly] = carried ? linkedPoint(px, py) : [px, py]
-      let dx = (lx - d.px) / state.scale, dy = (ly - d.py) / state.scale
+      // How far the pointer has gone on the plane since the press, read in the
+      // view of the press for where it began and the view now for where it is.
+      if (!d.cam) d.cam = state.pressCamera || { ox: state.ox, oy: state.oy, scale: state.scale }
+      const [wx, wy] = toWorld(lx, ly)
+      let dx = wx - (d.px - d.cam.ox) / d.cam.scale, dy = wy - (d.py - d.cam.oy) / d.cam.scale
       if (d.kind === 'pan') {
         state.ox = d.ox + px - d.px; state.oy = d.oy + py - d.py
         scheduleViewReport(); redraw(); return
@@ -5887,6 +5975,9 @@
     // The selection rectangle: every card it touches is selected as it grows
     // (a stack with its whole series), added to what ⇧ kept.
     function sweep(d, px, py) {
+      // Its first corner stays where it was pressed on the plane, the view
+      // scrolled or zoomed since or not.
+      if (d.start) { d.sx = d.start[0] * state.scale + state.ox; d.sy = d.start[1] * state.scale + state.oy }
       if (!d.moved && Math.abs(px - d.sx) + Math.abs(py - d.sy) > 3) d.moved = true
       d.px = px; d.py = py
       if (!d.moved) return
@@ -6107,6 +6198,16 @@
       }
       if (d.previewed && state.link) host.post('dragPreview', { done: true })
       invalidate()
+      // A layout that came while the drag went on (another Mac, an assistant)
+      // goes in now, unless the drop's own write has brought a newer one.
+      if (state.pendingLayout) {
+        setTimeout(() => {
+          if (!state.pendingLayout || state.drag) return
+          const held = state.pendingLayout
+          state.pendingLayout = null
+          api.setLayout(held)
+        }, 400)
+      }
     })
 
     canvas.addEventListener('pointerleave', () => {
@@ -6334,7 +6435,10 @@
 
     // ⌘A: every card on the plane (or in the lens).
     function selectAll() {
-      const refs = state.nodes.filter(n => shown(n) && inLens(n) && (state.lens || isPlaced(n) || stackLayout().pos.has(n.ref))).map(n => n.ref)
+      // Cards a folded region or a folded branch hides are not drawn, so ⌘A
+      // leaves them: selected, a drag would carry cards with no position and
+      // ⌫ would take off cards the learner cannot see.
+      const refs = state.nodes.filter(n => shown(n) && inLens(n) && !hiddenByFold(n.ref) && (state.lens || isPlaced(n) || stackLayout().pos.has(n.ref))).map(n => n.ref)
       selectRegion(null); selectEdge(null)
       setSelection(refs)
     }
@@ -6555,6 +6659,15 @@
         tryPendingEdit()
       },
       setLayout(layout) {
+        // While cards, a region or a size are being carried, the layout under
+        // them is not replaced (the drop would write to what is gone): it waits
+        // for the release (pointerup).
+        const d = state.drag
+        if (d && d.moved && ['cards', 'moveRegion', 'resizeRegion', 'resizeCard'].includes(d.kind)) {
+          state.pendingLayout = layout
+          return
+        }
+        state.pendingLayout = null
         clearTimeout(state.previewTimer)
         state.preview = null
         state.previewRegion = null

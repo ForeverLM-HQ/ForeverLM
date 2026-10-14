@@ -190,8 +190,9 @@ extension StudioViewModel {
     /// tool writes one (`createKnowledgeMapNote`); its ref, or nil when the
     /// Idea could not be saved (the toast says so).
     func keepCanvasQuestion(_ text: String, note: String? = nil, at spot: (x: Double, y: Double)) async -> String? {
+        let canvas = knowledgeMap
         guard let ref = await createCanvasIdea(title: text, note: note) else { return nil }
-        knowledgeMap.place([(ref: ref, x: spot.x.rounded(), y: spot.y.rounded())])
+        canvas.place([(ref: ref, x: spot.x.rounded(), y: spot.y.rounded())])
         return ref
     }
 

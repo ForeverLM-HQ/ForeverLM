@@ -183,7 +183,7 @@ extension MCPToolRegistry {
                         ],
                         "h": [
                             "type": "number",
-                            "description": "Give the cards this height, 40 to 2000 (a card is as tall as its kind is unless asked).",
+                            "description": "Give the cards this height, 56 to 2000 (a card is as tall as its kind is unless asked).",
                         ],
                         "annotations": [
                             "type": "object",
