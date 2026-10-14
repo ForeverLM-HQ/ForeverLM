@@ -186,7 +186,13 @@ extension KnowledgeMapVoice {
                                 try await listener.start(locale: locale, recording: URL(fileURLWithPath: audio))
                                 // Played to its end: this is the learner letting go.
                                 began = Date()
-                                said = await listener.finish()
+                                let (words, recording) = await listener.finish()
+                                said = words
+                                if let recording {
+                                    // As a learner's request is: the chat's transcription model's words.
+                                    said = (try? await dictation.transcribeRecording(at: recording)) ?? words
+                                    try? FileManager.default.removeItem(at: recording)
+                                }
                                 heardOnDevice = true
                             } else {
                                 said = try await dictation.transcribeProbe(fileURL: URL(fileURLWithPath: audio))

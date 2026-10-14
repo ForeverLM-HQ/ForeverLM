@@ -57,6 +57,13 @@ final class KnowledgeMapVoiceListener {
     /// opened asks for the microphone, which hung `finish` behind the lock
     /// screen on 2026-10-13.
     private var microphoneOpen = false
+    /// What the microphone heard, kept as it is heard, for the transcription
+    /// model the chat uses: the on-device words show as the learner speaks,
+    /// the model's are what the request runs on (product owner, 2026-10-14,
+    /// of a request the on-device recognizer misheard: "use better model for
+    /// this STT … same as we use in chat … but it needs to be able to show
+    /// realtime what to do").
+    private var recording: VoiceRecordingSink?
 
     /// The locale this Mac can recognize the learner's speech in, if any.
     static func locale() async -> Locale? {
@@ -135,7 +142,9 @@ final class KnowledgeMapVoiceListener {
         let level = VoiceLevelMeter { [weak self] value in
             Task { @MainActor in self?.onLevel?(value) }
         }
-        let tap = Self.tap(hardware: hardware, wanted: wanted, converter: converter, input: continuation, level: level)
+        let sink = VoiceRecordingSink(format: wanted)
+        self.recording = sink
+        let tap = Self.tap(hardware: hardware, wanted: wanted, converter: converter, input: continuation, level: level, recording: sink)
         if let file {
             try await analyzer.start(inputSequence: stream)
             running = true
@@ -150,9 +159,12 @@ final class KnowledgeMapVoiceListener {
         running = true
     }
 
-    /// Stops the microphone and gives back every word, finalized.
-    func finish() async -> String {
-        guard running else { return words }
+    /// Stops the microphone and gives back every word, finalized, and the
+    /// recording of them (a WAV file the caller removes), when one was kept.
+    func finish() async -> (words: String, recording: URL?) {
+        let file = recording?.close()
+        recording = nil
+        guard running else { return (words, file) }
         running = false
         stopMicrophone()
         input?.finish()
@@ -167,11 +179,13 @@ final class KnowledgeMapVoiceListener {
         transcriber = nil
         input = nil
         results = nil
-        return heard.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (heard.trimmingCharacters(in: .whitespacesAndNewlines), file)
     }
 
     /// Stops hearing and drops what was heard.
     func cancel() {
+        if let file = recording?.close() { try? FileManager.default.removeItem(at: file) }
+        recording = nil
         running = false
         stopMicrophone()
         input?.finish()
@@ -194,11 +208,13 @@ final class KnowledgeMapVoiceListener {
         wanted: AVAudioFormat,
         converter: AVAudioConverter?,
         input: AsyncStream<AnalyzerInput>.Continuation,
-        level: VoiceLevelMeter
+        level: VoiceLevelMeter,
+        recording: VoiceRecordingSink
     ) -> AVAudioNodeTapBlock {
         { buffer, _ in
             level.take(buffer)
             guard let converter else {
+                recording.write(buffer)
                 input.yield(AnalyzerInput(buffer: buffer))
                 return
             }
@@ -216,7 +232,10 @@ final class KnowledgeMapVoiceListener {
                 status.pointee = .haveData
                 return buffer
             }
-            if error == nil, out.frameLength > 0 { input.yield(AnalyzerInput(buffer: out)) }
+            if error == nil, out.frameLength > 0 {
+                recording.write(out)
+                input.yield(AnalyzerInput(buffer: out))
+            }
         }
     }
 
@@ -241,6 +260,53 @@ final class KnowledgeMapVoiceListener {
         microphoneOpen = false
         engine.inputNode.removeTap(onBus: 0)
         if engine.isRunning { engine.stop() }
+    }
+}
+
+/// The microphone's buffers written to a WAV file as they come, from the
+/// audio thread: 16-bit PCM at the recognizer's rate (16 kHz mono, a few tens
+/// of kilobytes a second), which the transcription model takes as it is.
+final class VoiceRecordingSink: @unchecked Sendable {
+    private let lock = NSLock()
+    private var file: AVAudioFile?
+    private let url: URL
+
+    init(format: AVAudioFormat) {
+        url = FileManager.default.temporaryDirectory.appendingPathComponent("canvas-voice-\(UUID().uuidString).wav")
+        let settings: [String: Any] = [
+            AVFormatIDKey: kAudioFormatLinearPCM,
+            AVSampleRateKey: format.sampleRate,
+            AVNumberOfChannelsKey: format.channelCount,
+            AVLinearPCMBitDepthKey: 16,
+            AVLinearPCMIsFloatKey: false,
+            AVLinearPCMIsBigEndianKey: false,
+        ]
+        do {
+            file = try AVAudioFile(forWriting: url, settings: settings, commonFormat: format.commonFormat, interleaved: format.isInterleaved)
+        } catch {
+            listenerLogger.error("The canvas could not keep a recording: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    func write(_ buffer: AVAudioPCMBuffer) {
+        lock.lock()
+        defer { lock.unlock() }
+        do {
+            try file?.write(from: buffer)
+        } catch {
+            file = nil
+            listenerLogger.error("The canvas stopped keeping its recording: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// Closes the file and gives its URL, when anything was written.
+    func close() -> URL? {
+        lock.lock()
+        let wrote = (file?.length ?? 0) > 0
+        file = nil
+        lock.unlock()
+        if !wrote { try? FileManager.default.removeItem(at: url) }
+        return wrote ? url : nil
     }
 }
 

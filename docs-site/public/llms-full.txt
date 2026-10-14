@@ -840,10 +840,11 @@ these?", "what's missing in this group?" or "break this paper down" start
 **Ask** on those cards (or on a region's: "what's missing in the NAD region?"), and
 when its suggestions come back, "keep the first two" or "get rid of those" keeps or
 sets them aside. "Open the Parkin note" opens it beside the canvas.
-Your Mac hears you as you speak, so your words show in the bar while you say
-them (macOS 26 or later, in a language it has a speech model for; it
-downloads one the first time). Otherwise your words are transcribed by your
-**Dictation** model (**Settings → Speech-to-Text**) once you let go. The
+Your words show in the bar while you say them (heard on your Mac, macOS 26 or
+later); when you let go, your **Dictation** model (**Settings → Speech-to-Text**,
+the one chat uses) writes them out properly, and the canvas acts on those. The
+bar then lists each step as it happens: what it is doing, what it did, and why a
+step could not be done. The
 changes are made by the **Canvas Voice** model under **Settings → Background
 → Tasks**, which starts on DeepSeek V4.1 Flash, the fastest model in
 ForeverLM's tests (about half a second to the first change); choose another

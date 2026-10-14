@@ -344,6 +344,11 @@ struct CanvasVoiceCapsuleTests {
             ("hearing-words", { voice.debugShow(.listening, heard: long) }),
             ("changing", { voice.debugShow(.changing, heard: long) }),
             ("done-undo", { voice.debugShow(.done, heard: long, changes: ["Grouped 3 cards as “Upstream signals”", "Drew an arrow"], offersUndo: true) }),
+            ("changing-steps", { voice.debugShow(.changing, heard: long, steps: [
+                .init(id: 1, text: "Grouped 3 cards as “Upstream signals”", state: .done),
+                .init(id: 2, text: "No region “Misc” on the canvas.", state: .failed),
+                .init(id: 3, text: "Finding “ketone bodies” in your library…", state: .doing),
+            ]) }),
             ("failed-mic", { voice.debugShow(.failed("Microphone access is required to speak to the canvas."), needsMicrophone: true) }),
         ]
         let folder = ProcessInfo.processInfo.environment["FOREVERLM_RENDER_DIR"].map { URL(fileURLWithPath: $0) }
@@ -352,7 +357,8 @@ struct CanvasVoiceCapsuleTests {
             show()
             let size = try #require(ImageRenderer(content: KnowledgeMapVoiceCapsule()).nsImage, "\(name)").size
             widths[name] = size.width
-            #expect(size.width <= 560 && size.height <= 60, "\(name) is \(size.width) by \(size.height)")
+            // One bar, and a line a step under it when the plan shows.
+            #expect(size.width <= 560 && size.height <= 60 + 22 * CGFloat(voice.steps.count), "\(name) is \(size.width) by \(size.height)")
             guard let folder else { continue }
             let renderer = ImageRenderer(content: KnowledgeMapVoiceCapsule().padding(20).background(Color(white: 0.92)).frame(width: 700))
             renderer.scale = 2

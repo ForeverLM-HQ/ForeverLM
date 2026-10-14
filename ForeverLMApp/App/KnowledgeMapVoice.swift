@@ -59,6 +59,18 @@ final class KnowledgeMapVoice {
     private(set) var hearsOnDevice = false
     /// What was done, a few words an edit.
     private(set) var changes: [String] = []
+    /// The request's plan as the model writes it, an edit at a time: each
+    /// shows the moment its line arrives ("Finding “sleep” in your
+    /// library…"), then what it did, or why it could not. With hidden
+    /// thinking off for speed, this is how the learner sees what it is doing.
+    private(set) var steps: [Step] = []
+
+    struct Step: Identifiable, Equatable {
+        enum State: Equatable { case doing, done, failed }
+        let id: Int
+        var text: String
+        var state: State
+    }
     /// A line the model said instead of an edit, or the first edit that failed.
     private(set) var remark: String?
     /// The failure showing is the microphone refused: the capsule offers the
@@ -117,6 +129,7 @@ final class KnowledgeMapVoice {
             fading?.cancel()
             heard = said
             changes = []
+            steps = []
             remark = nil
             phase = .changing
         }
@@ -128,11 +141,12 @@ final class KnowledgeMapVoice {
 
     #if DEBUG
     /// Puts the capsule in a state, for a test that draws it.
-    func debugShow(_ phase: Phase, heard: String = "", changes: [String] = [], remark: String? = nil, offersUndo: Bool = false, needsMicrophone: Bool = false) {
+    func debugShow(_ phase: Phase, heard: String = "", changes: [String] = [], steps: [Step] = [], remark: String? = nil, offersUndo: Bool = false, needsMicrophone: Bool = false) {
         fading?.cancel()
         self.phase = phase
         self.heard = heard
         self.changes = changes
+        self.steps = steps
         self.remark = remark
         canUndoRequest = offersUndo
         self.needsMicrophone = needsMicrophone
@@ -206,6 +220,7 @@ final class KnowledgeMapVoice {
         earlier.append(CanvasVoice.Turn(said: "undo that", done: ["Undid it"]))
         if earlier.count > CanvasVoice.maximumTurns { earlier.removeFirst(earlier.count - CanvasVoice.maximumTurns) }
         changes = ["Undone"]
+        steps = []
         remark = nil
         phase = .done
         fade(after: 2.5)
@@ -224,6 +239,7 @@ final class KnowledgeMapVoice {
         let id = request
         heard = ""
         changes = []
+        steps = []
         remark = nil
         isHandsFree = false
         hearsOnDevice = false
@@ -308,11 +324,23 @@ final class KnowledgeMapVoice {
         listener = nil
     }
 
-    /// The words, finalized, from whichever way the request was heard.
+    /// The words, finalized, from whichever way the request was heard. Heard
+    /// on this Mac, the words showed as they were said; the recording kept of
+    /// them then goes to the transcription model the chat uses, whose words
+    /// the request runs on (the on-device ones when that call fails).
     private func finishHearing() async -> String? {
         if #available(macOS 26.0, *), let listener = listener as? KnowledgeMapVoiceListener {
             self.listener = nil
-            let words = await listener.finish()
+            let (words, recording) = await listener.finish()
+            guard let recording else { return words.isEmpty ? nil : words }
+            defer { try? FileManager.default.removeItem(at: recording) }
+            do {
+                let transcribed = try await dictation.transcribeRecording(at: recording)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if !transcribed.isEmpty { return transcribed }
+            } catch {
+                voiceLogger.error("Transcribing the canvas request failed, using the words heard on this Mac: \(error.localizedDescription, privacy: .public)")
+            }
             return words.isEmpty ? nil : words
         }
         return await dictation.stopAndTranscribe()
@@ -570,17 +598,23 @@ final class KnowledgeMapVoice {
                     if let meant = CanvasVoice.meant(resolved, said: said, regionNames: context.regionNames) { report.edits.append(meant) }
                     continue
                 }
+                // Shown before it is carried out, so a slow step (a library
+                // search) says what it is doing while it does it.
+                let step = edit.tool == "say" || !owns(id) ? nil : beginStep(Self.intent(of: edit))
                 do {
                     if let done = try await perform(edit, said: said, context: context, studio: studio, map: map, id: id) {
                         firstEdit = firstEdit ?? Date()
                         report.done.append(done)
                         if owns(id) { changes.append(done) }
-                    } else if edit.tool == "say" {
-                        report.remark = (edit.arguments["text"] as? String) ?? report.remark
+                        if let step { endStep(step, done, .done) }
+                    } else {
+                        if edit.tool == "say" { report.remark = (edit.arguments["text"] as? String) ?? report.remark }
+                        if let step { steps.removeAll { $0.id == step } }
                     }
                     report.edits.append(edit)
                 } catch {
                     report.failures.append(error.localizedDescription)
+                    if let step { endStep(step, error.localizedDescription, .failed) }
                 }
             }
         }
@@ -642,6 +676,53 @@ final class KnowledgeMapVoice {
         return report
     }
 
+    private func beginStep(_ text: String) -> Int {
+        let id = (steps.map(\.id).max() ?? 0) + 1
+        steps.append(Step(id: id, text: text, state: .doing))
+        return id
+    }
+
+    private func endStep(_ id: Int, _ text: String, _ state: Step.State) {
+        guard let index = steps.firstIndex(where: { $0.id == id }) else { return }
+        steps[index].text = text
+        steps[index].state = state
+    }
+
+    /// What an edit is about to do, in a few words, from what the model
+    /// wrote (the cards it names are counted, not yet looked up).
+    static func intent(of edit: CanvasVoice.Edit) -> String {
+        let a = edit.arguments
+        let cards = (a["item_ids"] as? [Any])?.count ?? 0
+        let some = cards == 1 ? "a card" : cards > 1 ? "\(cards) cards" : "cards"
+        func quoted(_ key: String) -> String? { (a[key] as? String).map { "“\(short($0))”" } }
+        switch edit.tool {
+        case "find_and_place":
+            let words = (a["words"] as? [Any])?.compactMap { $0 as? String }.joined(separator: ", ") ?? (a["words"] as? String) ?? ""
+            return "Finding “\(short(words))” in your library…"
+        case "place_on_canvas":
+            if let name = quoted("new_region") { return "Grouping \(some) as \(name)…" }
+            return "Placing \(some)…"
+        case "move": return a["region"] != nil && cards == 0 ? "Moving a region…" : "Moving \(some)…"
+        case "write_note": return "Writing \(quoted("text") ?? "a note")…"
+        case "create_canvas_region": return "Drawing \(quoted("name") ?? "a region")…"
+        case "update_canvas_region": return "Changing a region…"
+        case "delete_canvas_region": return "Deleting a region…"
+        case "draw_canvas_arrow": return "Drawing an arrow…"
+        case "update_canvas_arrow": return "Changing an arrow…"
+        case "delete_canvas_arrow": return "Deleting an arrow…"
+        case "take_off_canvas": return "Taking \(some) off…"
+        case "update_canvas_card": return "Changing \(some)…"
+        case "arrange_on_canvas": return "Arranging \(some)…"
+        case "undo_canvas": return "Undoing…"
+        case "focus_map": return "Showing it…"
+        case "ask_canvas": return "Asking the canvas…"
+        case "open_card": return "Opening it…"
+        case "keep_proposals": return "Keeping proposals…"
+        case "dismiss_proposals": return "Setting proposals aside…"
+        default: return "\(edit.tool.replacingOccurrences(of: "_", with: " "))…"
+        }
+    }
+
     /// The Canvas Voice task's config; in a DEBUG eval, a named model's.
     static func config(model: String? = nil) -> AITaskConfig? {
         #if DEBUG
@@ -676,11 +757,7 @@ final class KnowledgeMapVoice {
         case "write_note":
             return try await writeNote(arguments, studio: studio)
         case "find_and_place":
-            // The library search takes a second or two: the bar says what it
-            // is looking for meanwhile.
-            let words = (arguments["words"] as? [Any])?.compactMap { $0 as? String } ?? [arguments["words"] as? String].compactMap { $0 }
-            if owns(id), !words.isEmpty { remark = "Finding “\(Self.short(words.joined(separator: " ")))” in your library…" }
-            defer { if owns(id), remark?.hasPrefix("Finding “") == true { remark = nil } }
+            // Its step says what it is looking for while the search runs.
             return try await findAndPlace(arguments, map: map)
         case "ask_canvas":
             // Ask the Canvas, as its inspector asks: the answer comes later
@@ -1242,6 +1319,43 @@ struct KnowledgeMapVoiceCapsule: View {
     private var voice: KnowledgeMapVoice { .shared }
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            topRow
+            // The plan, a line an edit, as the model writes it.
+            if (voice.phase == .changing || voice.phase == .done), !voice.steps.isEmpty {
+                ForEach(voice.steps) { step in
+                    HStack(spacing: 7) {
+                        switch step.state {
+                        case .doing: ProgressView().controlSize(.mini).frame(width: 12, height: 12)
+                        case .done: Image(systemName: "checkmark").zoomedSystemFont(size: 9.5, weight: .semibold).foregroundStyle(.secondary).frame(width: 12)
+                        case .failed: Image(systemName: "xmark").zoomedSystemFont(size: 9.5, weight: .semibold).foregroundStyle(.red).frame(width: 12)
+                        }
+                        Text(step.text)
+                            .foregroundStyle(step.state == .done ? .secondary : .primary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                    .padding(.leading, 2)
+                }
+                if let remark = voice.remark {
+                    Text(remark).italic().foregroundStyle(.secondary).lineLimit(2)
+                }
+            }
+        }
+        .zoomedSystemFont(size: 12.5)
+        .textSelection(.disabled)
+        .padding(.leading, 14)
+        .padding(.trailing, 8)
+        .padding(.vertical, 7)
+        .mapFloatingChrome(cornerRadius: 16)
+        // As wide as what it says, up to 560: a short line is a short bar.
+        .modifier(CappedWidth(maximum: 560))
+        .accessibilityIdentifier("knowledgeMap.voice")
+    }
+
+    private var listsSteps: Bool { !voice.steps.isEmpty }
+
+    private var topRow: some View {
         HStack(spacing: 10) {
             switch voice.phase {
             case .listening:
@@ -1259,19 +1373,25 @@ struct KnowledgeMapVoiceCapsule: View {
                         .truncationMode(.head)
                 }
             case .hearing:
+                // The words heard on this Mac stay while the transcription
+                // model writes them out properly.
                 ProgressView().controlSize(.small)
-                Text("Hearing…")
-                    .foregroundStyle(.secondary)
+                if voice.heard.isEmpty {
+                    Text("Hearing…").foregroundStyle(.secondary)
+                } else {
+                    said
+                }
             case .changing:
                 ProgressView().controlSize(.small)
                 said
-                changed
+                if !listsSteps { changed }
             case .done:
                 Image(systemName: "checkmark")
                     .foregroundStyle(.secondary)
-                // What it did says enough; the words heard give way to it.
-                if voice.changes.isEmpty { said }
-                changed
+                // Listed, the steps say what it did; else one line does, and
+                // the words heard give way to it.
+                if listsSteps || voice.changes.isEmpty { said }
+                if !listsSteps { changed }
                 if voice.canUndoRequest {
                     Button("Undo") { voice.undoRequest() }
                         .fixedSize()
@@ -1313,15 +1433,6 @@ struct KnowledgeMapVoiceCapsule: View {
             .accessibilityLabel("Stop")
             .accessibilityIdentifier("knowledgeMap.voice.stop")
         }
-        .zoomedSystemFont(size: 12.5)
-        .textSelection(.disabled)
-        .padding(.leading, 14)
-        .padding(.trailing, 8)
-        .padding(.vertical, 7)
-        .mapFloatingChrome(cornerRadius: 16)
-        // As wide as what it says, up to 560: a short line is a short bar.
-        .modifier(CappedWidth(maximum: 560))
-        .accessibilityIdentifier("knowledgeMap.voice")
     }
 
     @ViewBuilder

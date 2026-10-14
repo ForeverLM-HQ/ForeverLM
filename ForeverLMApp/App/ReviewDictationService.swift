@@ -275,6 +275,13 @@ final class ReviewDictationService: NSObject, ObservableObject, AVAudioRecorderD
         return result.text
     }
 
+    /// A recording made elsewhere (the canvas keeps its own while the Mac
+    /// shows the words live), transcribed by the same model and path as
+    /// dictation, and counted under this recorder's usage label.
+    func transcribeRecording(at fileURL: URL) async throws -> String {
+        try await transcribe(fileURL: fileURL)
+    }
+
     #if DEBUG
     /// Runs the exact production upload, response validation, and usage-write
     /// path against an existing audio fixture. The opt-in live API suite uses
