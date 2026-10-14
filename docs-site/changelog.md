@@ -6,6 +6,13 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.154.0 (build 234) — 2026-10-14
+
+**Highlights:**
+- **Lay Out the Talk:** a video's slides on a canvas as a storyboard, with the papers each slide cites hung under it.
+- **Cited on this slide:** a slide's inspector places or adds the papers read off it.
+- **Canvas fixes:** notes land where you typed them, Undo stays yours, and assistants no longer move what you placed.
+
 ## 0.153.0 (build 233) — 2026-10-14
 
 **Highlights:**
