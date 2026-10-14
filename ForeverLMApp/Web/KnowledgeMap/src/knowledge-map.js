@@ -2956,6 +2956,14 @@
       // arrows take the plain curve and find their way round once it settles.
       if (state.moves.size > 0 || (state.drag && state.drag.moved)) return first
       const grid = cardGrid()
+      // A region's name is no obstacle to an arrow with an end inside that
+      // region: leaving upward it has to pass it.
+      const homes = new Set()
+      for (const end of [ca, cb]) {
+        for (const r of shownRegions()) {
+          if (end[0] >= r.x && end[0] <= r.x + r.w && end[1] >= r.y && end[1] <= r.y + r.h) homes.add('region:' + r.id)
+        }
+      }
       // How many of the route's points fall on a card it does not join,
       // giving up once it is past `limit`.
       const crossings = (route, limit) => {
@@ -2965,7 +2973,7 @@
           const cell = grid.cells.get(cellKey(Math.floor(x / grid.size), Math.floor(y / grid.size)))
           if (!cell) continue
           for (const r of cell) {
-            if (r.ref === e.from || r.ref === e.to) continue
+            if (r.ref === e.from || r.ref === e.to || homes.has(r.ref)) continue
             if (x > r.x - 6 && x < r.x + r.w + 6 && y > r.y - 6 && y < r.y + r.h + 6) { n++; break }
           }
           if (n > limit) return n

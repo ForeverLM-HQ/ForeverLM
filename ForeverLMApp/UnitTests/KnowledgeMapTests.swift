@@ -1448,6 +1448,21 @@ struct KnowledgeMapParityModelTests {
         }
     }
 
+    @Test("Cards moved out from under a row never land on another card, and keep to the region they were in")
+    func arrangeRoomIsClear() {
+        withModel { model in
+            model.saveRegion(id: "r", name: "Home", x: 250, y: -60, w: 400, h: 300, color: "#7F77DD")
+            // c sits where b will land; d sits right under c, where c would be pushed.
+            model.place([(ref: "idea:a", x: 0, y: 0), (ref: "idea:b", x: 0, y: 1000), (ref: "idea:c", x: 300, y: 0), (ref: "idea:d", x: 300, y: 160)])
+            apart()
+            #expect(model.arrange(["idea:a", "idea:b"], as: .row, align: nil) == 1)
+            #expect(!model.lint().contains { $0.kind == .overlap }, "c is pushed past d as well, onto nothing")
+            let c = model.layout.placements["idea:c"]!, home = model.layout.regions["r"]!
+            #expect(c.y > 160, "below d")
+            #expect(home.y + home.h >= c.y + model.cardHeight(of: "idea:c"), "Home grows to keep c")
+        }
+    }
+
     @Test("A row of a region's cards keeps to the region, which grows to hold it; cards from two regions leave them be")
     func arrangeKeepsToItsRegion() {
         withModel { model in

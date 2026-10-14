@@ -181,6 +181,9 @@ struct CanvasVoiceTests {
         let tidy = CanvasVoice.meant(E(tool: "arrange_on_canvas", arguments: ["item_ids": ["c1", "c2"], "arrangement": "grid"]),
                                      said: "tidy these up", regionNames: [])
         #expect(tidy?.arguments["arrangement"] as? String == "grid", "none named: the model's")
+        let align = CanvasVoice.meant(E(tool: "arrange_on_canvas", arguments: ["item_ids": ["c1", "c2"], "align": "top"]),
+                                      said: "align the cards in the left column to the top", regionNames: [])
+        #expect(align?.arguments["arrangement"] == nil, "an alignment alone stays an alignment")
     }
 
     @Test("Of two requests, the first to say a word is carried out and the other is stopped")

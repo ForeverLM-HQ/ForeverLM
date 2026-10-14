@@ -468,7 +468,7 @@ final class KnowledgeMapVoice {
                                 config: requestConfig,
                                 system: system,
                                 volatileSystem: volatile,
-                                messages: [(role: "user", content: CanvasVoice.userTurn)],
+                                messages: [(role: "user", content: n == 1 ? CanvasVoice.userTurn : CanvasVoice.retryTurn)],
                                 maxTokens: 1200,
                                 // An edit of the canvas is a choice, not a puzzle:
                                 // hidden thinking cost the fastest models a second
@@ -664,8 +664,7 @@ final class KnowledgeMapVoice {
             // cards are set down, then put on that side.
             guard let (side, target) = Self.side(arguments, map: map) else { return nil }
             _ = try await MCPDataStore.editCanvas("place_on_canvas", arguments: ["item_ids": refs])
-            let placed = refs.filter { map.layout.placements[$0] != nil && map.lockedRegionID(holding: $0) == nil }
-            Self.setDown(placed, side, of: target, map: map)
+            Self.setDown(Self.movable(refs, map: map), side, of: target, map: map)
             return "Placed \(Self.naming(refs, map: map))"
         case _ where Self.canvasTools.contains(edit.tool):
             var arguments = arguments
@@ -694,8 +693,24 @@ final class KnowledgeMapVoice {
     /// with its cards, as dragging its frame does.
     private func move(_ arguments: [String: Any], map: KnowledgeMapModel) async throws -> String {
         if let (side, target) = Self.side(arguments, map: map) {
-            let placed = (arguments["item_ids"] as? [String] ?? []).filter { map.layout.placements[$0] != nil && map.lockedRegionID(holding: $0) == nil }
-            guard !placed.isEmpty else { throw MCPError.invalidInput("Those cards are not on the canvas, or are in a locked region.") }
+            // A region to a side of something moves with its cards.
+            if let named = arguments["region"] as? String, let id = Self.regionID(named, map: map), let region = map.layout.regions[id] {
+                let others = map.layout.regions.compactMap { other, r -> KnowledgeMapArranging.Rect? in
+                    other == id ? nil : .init(x: r.x, y: r.y, w: r.w, h: r.h)
+                }
+                var wanted = KnowledgeMapArranging.origin(size: (region.w, region.h), side: side, of: target)
+                // A region's name sits above its frame: room for it below the
+                // one above, as the canvas leaves between regions.
+                if side == .below { wanted.y += KnowledgeMapArranging.insetY }
+                if side == .above { wanted.y -= KnowledgeMapArranging.insetY }
+                let spot = KnowledgeMapArranging.nearestFreeOrigin(
+                    size: (region.w, region.h), near: .init(x: wanted.x + region.w / 2, y: wanted.y + region.h / 2), occupied: others
+                )
+                _ = try await MCPDataStore.editCanvas("update_canvas_region", arguments: ["region": id, "x": spot.x, "y": spot.y])
+                return "Moved “\(Self.short(region.name.isEmpty ? "Untitled region" : region.name))”"
+            }
+            let placed = Self.movable(arguments["item_ids"] as? [String] ?? [], map: map)
+            guard !placed.isEmpty else { throw MCPError.invalidInput("Those cards are not on the canvas, or are in a locked or folded region.") }
             Self.setDown(placed, side, of: target, map: map)
             return "Moved \(Self.naming(placed, map: map))"
         }
@@ -736,7 +751,8 @@ final class KnowledgeMapVoice {
         }
         let map = studio.knowledgeMap
         let between = (arguments["between"] as? [Any])?.compactMap { Self.rect(of: $0 as? String, map: map) } ?? []
-        let side = Self.side(arguments, map: map)
+        // Between two things wins over a side of one.
+        let side = between.count == 2 ? nil : Self.side(arguments, map: map)
         var place = between.count == 2 || side != nil ? [:] : Self.whereTo(arguments, map: map)
         place["item_ids"] = [ref]
         _ = try await MCPDataStore.editCanvas("place_on_canvas", arguments: place)
@@ -770,6 +786,24 @@ final class KnowledgeMapVoice {
             if let first = rects.first { return (side, rects.dropFirst().reduce(first) { $0.union($1) }) }
         }
         return nil
+    }
+
+    /// The cards of `refs` a spoken edit may move: placed, and in no locked
+    /// region (kept where it is) nor folded one (not drawn).
+    private static func movable(_ refs: [String], map: KnowledgeMapModel) -> [String] {
+        let folded = map.layout.regions.values.filter(\.isCollapsed).map { KnowledgeMapArranging.Rect(x: $0.x, y: $0.y, w: $0.w, h: $0.h) }
+        return refs.filter { ref in
+            guard let at = map.layout.placements[ref], map.lockedRegionID(holding: ref) == nil else { return false }
+            let middle = (x: at.x + map.cardWidth(of: ref) / 2, y: at.y + map.cardHeight(of: ref) / 2)
+            return !folded.contains { $0.holds(x: middle.x, y: middle.y) }
+        }
+    }
+
+    /// A region's id, by its id or its name.
+    private static func regionID(_ value: String, map: KnowledgeMapModel) -> String? {
+        let bare = value.hasPrefix("region:") ? String(value.dropFirst("region:".count)) : value
+        if map.layout.regions[bare] != nil { return bare }
+        return map.layout.regions.first { $0.value.name.compare(bare, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame }?.key
     }
 
     /// Sets placed cards down together on `side` of `target`, keeping their
@@ -854,7 +888,8 @@ final class KnowledgeMapVoice {
         var place = side != nil ? [:] : Self.whereTo(arguments, map: map)
         place["item_ids"] = found
         _ = try await MCPDataStore.editCanvas("place_on_canvas", arguments: place)
-        if let (side, target) = side { Self.setDown(found, side, of: target, map: map) }
+        // Cards already in a locked or folded region stay there.
+        if let (side, target) = side { Self.setDown(Self.movable(found, map: map), side, of: target, map: map) }
         return "Added \(Self.naming(found, map: map))"
     }
 

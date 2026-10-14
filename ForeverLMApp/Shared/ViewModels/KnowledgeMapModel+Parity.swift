@@ -588,7 +588,9 @@ extension KnowledgeMapModel {
         // it, 2026-10-14). Cards from several regions, or none, do not.
         // When they are all of its cards (and it holds no region), it fits
         // them, as Fit to Content does: a row left a grid's empty frame.
-        let homes = Set(refs.map { innermostRegionID(holding: $0) })
+        let homes = Set(refs.filter { layout.placements[$0] != nil }.map { innermostRegionID(holding: $0) })
+        // A card moved out from under it keeps to the region it was in.
+        let roomHomes = room.keys.reduce(into: [String: String]()) { homes, ref in homes[ref] = innermostRegionID(holding: ref) }
         let home = homes.count == 1 ? homes.first ?? nil : nil
         let fits = home.map { id in
             layout.nestedRegionIDs(in: id).isEmpty && Set(refsInRegion(id)).isSubset(of: Set(refs))
@@ -615,6 +617,16 @@ extension KnowledgeMapModel {
                     region.at = at
                     row.setRegion(home, region)
                 }
+            }
+            for (ref, id) in roomHomes.sorted(by: { $0.key < $1.key }) {
+                guard var region = row.regions[id], !region.isLocked, let placed = row.placements[ref] else { continue }
+                let card = Rect(x: placed.x, y: placed.y, w: cardWidth(of: ref), h: cardHeight(of: ref))
+                let was = Rect(x: region.x, y: region.y, w: region.w, h: region.h)
+                let frame = was.union(card.inset(by: -KnowledgeMapArranging.growMargin))
+                guard frame != was else { continue }
+                region.x = frame.x; region.y = frame.y; region.w = frame.w; region.h = frame.h
+                region.at = at
+                row.setRegion(id, region)
             }
             growRegions(toHold: (Array(moved.keys) + Array(room.keys)).sorted(), in: &row, at: at)
         }
@@ -644,7 +656,20 @@ extension KnowledgeMapModel {
             return arranged.contains { $0.rect.inset(by: 2).intersects(card.rect) } ? card : nil
         }
         guard let top = covered.map(\.rect.y).min(), let bottom = arranged.map(\.rect.maxY).max() else { return [:] }
-        let shift = bottom + KnowledgeMapArranging.gap - top
+        // Down below the arrangement, and further down while that lands them
+        // on another card, so they never cover one in turn.
+        let pushed = Set(covered.map(\.ref))
+        let staying = layout.placements.keys.compactMap { ref -> Rect? in
+            refs.contains(ref) || pushed.contains(ref) ? nil : drawnRect(of: ref)?.rect
+        } + arranged.map(\.rect)
+        var shift = bottom + KnowledgeMapArranging.gap - top
+        for _ in 0..<40 {
+            let landed = covered.map { Rect(x: $0.rect.x, y: $0.rect.y + shift, w: $0.rect.w, h: $0.rect.h) }
+            guard let blocker = staying.filter({ other in landed.contains { $0.intersects(other.inset(by: -KnowledgeMapArranging.gap / 2)) } })
+                .map(\.maxY).max() else { break }
+            let lowestTop = landed.map(\.y).min() ?? 0
+            shift += blocker + KnowledgeMapArranging.gap - lowestTop
+        }
         return Dictionary(uniqueKeysWithValues: covered.map { ($0.ref, Spot(x: $0.rect.x, y: ($0.rect.y + shift).rounded())) })
     }
 

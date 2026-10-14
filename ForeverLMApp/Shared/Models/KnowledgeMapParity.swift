@@ -432,13 +432,17 @@ enum KnowledgeMapLint {
         // a brace with others, by the straight line between its ends' middles.
         let visibleRects = Dictionary(visible.map { ($0.key, $0.value) }, uniquingKeysWith: { first, _ in first })
         let braced = bracedEdgeIDs(layout: layout, cards: visibleRects)
-        let headers = regions.map { (ref: "region:\($0.key)", rect: headerRect($0.value)) }
+        let headers = regions.map { (ref: "region:\($0.key)", rect: headerRect($0.value), frame: rect($0.value)) }
         for (id, edge) in layout.edges.sorted(by: { $0.key < $1.key }) where !edge.isTree {
             guard let fromRect = endRect(edge.from, cards: visibleRects, layout: layout),
                   let toRect = endRect(edge.to, cards: visibleRects, layout: layout) else { continue }
             if edge.route == nil || edge.route == KnowledgeMapEdgeRoute.curve.rawValue, !braced.contains(id) {
                 let others = visible.filter { $0.key != edge.from && $0.key != edge.to }.map { (ref: $0.key, rect: $0.value) }
-                let names = headers.filter { $0.ref != edge.from && $0.ref != edge.to }
+                // Not the name of a region an end is inside: leaving upward, the arrow has to pass it.
+                let names = headers.filter { header in
+                    header.ref != edge.from && header.ref != edge.to
+                        && !header.frame.holds(x: fromRect.midX, y: fromRect.midY) && !header.frame.holds(x: toRect.midX, y: toRect.midY)
+                }.map { (ref: $0.ref, rect: $0.rect) }
                 let route = curveRoute(from: fromRect, to: toRect, others: others + names)
                 for ref in crossed(by: route, others: others) {
                     issues.append(.init(

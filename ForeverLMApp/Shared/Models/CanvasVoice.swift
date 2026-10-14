@@ -249,6 +249,11 @@ enum CanvasVoice {
     /// system message's volatile tail, so this turn, and with it the
     /// prompt-cache session the request is routed by, never changes.
     static let userTurn = "Write the edits for what the learner said, one JSON object per line."
+    /// The hedged second request's turn: the same ask in other words, so its
+    /// prompt-cache session (which hashes the opening turn) is its own and
+    /// OpenRouter's sticky routing does not send it to the host the first is
+    /// still waiting on.
+    static let retryTurn = "Write the edits for what the learner said, one JSON object per line, starting now."
 
     /// When something first happened, set once from wherever it happens and
     /// read after the work is done.
@@ -490,13 +495,14 @@ enum CanvasVoice {
     ///   inside another; unless the learner said "around", the cards are
     ///   gathered into the new region (place_on_canvas new_region).
     /// - a new_region named as a region that is already there means that
-    ///   region; a second "Fission" is never made.
+    ///   region, so gathering cards never makes a second "Fission".
     /// - a move of no distance is nothing to do (nil), not a failure.
     /// - "in a row", "a column", "a grid": the arrangement the learner named,
-    ///   whichever the model wrote ("line them up in a row" came back a grid).
+    ///   whichever the model wrote ("line them up in a row" came back a grid);
+    ///   an alignment alone is left an alignment.
     static func meant(_ edit: Edit, said: String, regionNames: [String]) -> Edit? {
         var edit = edit
-        if edit.tool == "arrange_on_canvas" {
+        if edit.tool == "arrange_on_canvas", edit.arguments["arrangement"] != nil {
             let words = Set(said.lowercased().split { !$0.isLetter }.map(String.init))
             let named = ["row", "column", "grid"].filter { words.contains($0) || words.contains($0 + "s") }
             if named.count == 1 { edit.arguments["arrangement"] = named[0] }
