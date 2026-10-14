@@ -1635,7 +1635,7 @@ struct KnowledgeMapShortcutsView: View {
         .init("Add to the canvas", "/ at the pointer; right-click ▸ Add Here…"),
         .init("Find on the canvas, or add", "⌘F"),
         .init("Show or hide the Library", "L"),
-        .init("Change the canvas by speaking", "Hold S and speak; or tap S, speak and pause"),
+        .init("Change the canvas by speaking", "Hold S and speak; or tap S, speak and pause; Esc stops"),
         .init("Open a card", "Double-click it"),
         .init("Open it beside the canvas", "⌥-click it, or Return (an idea edits instead)"),
         .init("Float it as a popup", "⌘-click it; Esc or a click elsewhere closes it"),

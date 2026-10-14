@@ -1494,6 +1494,13 @@ struct KnowledgeMapParityModelTests {
         let blocked = KnowledgeMapLint.curveRoute(from: a, to: b, others: [wall])
         let samples = (1..<40).map { KnowledgeMapLint.point(on: blocked, at: Double($0) / 40) }
         #expect(samples.contains { $0.x > 300 && $0.x < 540 }, "it still runs across the wall")
+        // A region's name is gone round as a card is.
+        let region = KnowledgeMapLayout.Region(name: "Between", x: 280, y: 90, w: 300, h: 400, color: "#7F77DD", at: 0)
+        let name = (ref: "region:between", rect: KnowledgeMapLint.headerRect(region))
+        #expect(name.rect.maxY <= region.y && name.rect.y < 60 && name.rect.maxY > 60, "the name sits above the frame, across the cards' middles")
+        let round = KnowledgeMapLint.curveRoute(from: a, to: b, others: [name])
+        let mid = KnowledgeMapLint.point(on: round, at: 0.5)
+        #expect(mid.y < name.rect.y - 6 || mid.y > name.rect.maxY + 6, "the arrow bends clear of the region's name")
     }
 
     @Test("A card in a region folded up is not drawn, so it overlaps nothing; an arrow's own ends are never crossed")

@@ -470,6 +470,10 @@ final class KnowledgeMapModel {
 
     func beginEditGroup() { editGroup = (true, false) }
 
+    /// When the newest step Undo takes back was last written: a request
+    /// spoken to the Canvas offers its own Undo while it is still that step.
+    var newestUndoStep: Date? { undoEdits.last?.at }
+
     func endEditGroup() { editGroup = (false, false) }
 
     private func remember(_ edit: KnowledgeMapEdit) {

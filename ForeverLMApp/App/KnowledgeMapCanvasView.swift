@@ -561,6 +561,10 @@ struct KnowledgeMapCanvasView: NSViewRepresentable {
                 // S held or tapped: speaking to the canvas (`KnowledgeMapVoice`).
                 guard role == .pane else { return }
                 if body["down"] as? Bool == true { KnowledgeMapVoice.shared.keyDown() } else { KnowledgeMapVoice.shared.keyUp() }
+            case "voiceEscape":
+                // Esc on the plane stops speaking to the canvas, if it is.
+                guard role == .pane, KnowledgeMapVoice.shared.isShowing else { return }
+                KnowledgeMapVoice.shared.stop()
             case "findRequested":
                 // ⌘F: the cursor goes to the find field.
                 if role == .pane { model.findFocusRequests += 1 }

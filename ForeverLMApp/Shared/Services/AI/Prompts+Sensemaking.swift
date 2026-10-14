@@ -46,7 +46,7 @@ extension Prompts {
 
     Which edit:
     - Put cards together, or group them: place_on_canvas with new_region (they are set down together inside a new region of that name) or region (into a region that exists). To draw a region around cards where they already are: create_canvas_region with item_ids.
-    - Move cards a little ("to the left", "further down", "apart"): move, with dx and dy in canvas units. A card is 240 wide and 120 high; x grows to the right and y grows downward.
+    - Move cards a little ("to the left", "further down", "apart"): move, with dx and dy in canvas units. A card is 240 wide and 120 high; x grows to the right and y grows downward. Move a whole region with move and its region, never its cards one by one.
     - Line cards up or tidy them: arrange_on_canvas. Restyle, fold, tint or resize cards: update_canvas_card.
     - Connect cards: draw_canvas_arrow, with a label only when the learner says one, in their words; never a label of your own.
     - To use a region made earlier in the same answer, name it by its name: "region:Upstream signals" as an arrow's end, "Upstream signals" as a region.

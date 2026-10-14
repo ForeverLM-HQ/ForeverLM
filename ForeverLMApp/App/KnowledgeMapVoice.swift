@@ -60,6 +60,11 @@ final class KnowledgeMapVoice {
     /// Listening until the learner pauses (a tap of S, or the menu) rather
     /// than until they let go of S.
     private(set) var isHandsFree = false
+    /// The request showing changed the canvas and is still the newest Undo
+    /// step: the capsule offers to take it back.
+    private(set) var canUndoRequest = false
+    @ObservationIgnored private weak var undoMap: KnowledgeMapModel?
+    @ObservationIgnored private var undoStep: Date?
 
     /// The recorder and its level meter, which the capsule draws, when the
     /// words go to the Dictation model.
@@ -160,7 +165,25 @@ final class KnowledgeMapVoice {
         starting?.cancel()
         running?.cancel()
         fading?.cancel()
+        canUndoRequest = false
         phase = .idle
+    }
+
+    /// The capsule's Undo: the request just carried out, taken back in one
+    /// step, as ⌘Z would, while nothing has been changed since.
+    func undoRequest() {
+        guard canUndoRequest, let map = undoMap, let step = undoStep, map.newestUndoStep == step else {
+            canUndoRequest = false
+            return
+        }
+        map.undo()
+        canUndoRequest = false
+        earlier.append(CanvasVoice.Turn(said: "undo that", done: ["Undid it"]))
+        if earlier.count > CanvasVoice.maximumTurns { earlier.removeFirst(earlier.count - CanvasVoice.maximumTurns) }
+        changes = ["Undone"]
+        remark = nil
+        phase = .done
+        fade(after: 2.5)
     }
 
     private func owns(_ id: Int) -> Bool { id == request }
@@ -171,6 +194,7 @@ final class KnowledgeMapVoice {
     private func startListening() {
         fading?.cancel()
         needsMicrophone = false
+        canUndoRequest = false
         request &+= 1
         let id = request
         heard = ""
@@ -445,6 +469,7 @@ final class KnowledgeMapVoice {
 
         var firstEdit: Date?
         var seen: Set<String> = []
+        let stepBefore = map.newestUndoStep
         if applying { map.beginEditGroup() }
         for await raw in lines {
             guard isLive(id), !Task.isCancelled else { break }
@@ -513,8 +538,16 @@ final class KnowledgeMapVoice {
             return report
         }
         if remark == nil, let first = report.failures.first { remark = first }
+        // A request that made a step of its own (not an undo) can be taken
+        // back from the capsule.
+        let step = map.newestUndoStep
+        if step != stepBefore, step != nil, !report.edits.contains(where: { $0.tool == "undo_canvas" }) {
+            undoMap = map
+            undoStep = step
+            canUndoRequest = true
+        }
         phase = .done
-        fade(after: 4)
+        fade(after: canUndoRequest ? 6 : 4)
         return report
     }
 
@@ -543,7 +576,7 @@ final class KnowledgeMapVoice {
             if !text.isEmpty, owns(id) { remark = text }
             return nil
         case "move":
-            return try move(arguments, map: map)
+            return try await move(arguments, map: map)
         case "write_note":
             return try await writeNote(arguments, studio: studio)
         case "find_and_place":
@@ -580,13 +613,20 @@ final class KnowledgeMapVoice {
 
     /// `move`: the cards shifted by dx and dy, keeping their places relative
     /// to each other. A region that held one grows to hold it where it lands,
-    /// as after a drag; a card in a locked region stays.
-    private func move(_ arguments: [String: Any], map: KnowledgeMapModel) throws -> String {
-        let placed = (arguments["item_ids"] as? [String] ?? []).filter { map.layout.placements[$0] != nil }
-        guard !placed.isEmpty else { throw MCPError.invalidInput("Those cards are not on the canvas.") }
+    /// as after a drag; a card in a locked region stays. A region named moves
+    /// with its cards, as dragging its frame does.
+    private func move(_ arguments: [String: Any], map: KnowledgeMapModel) async throws -> String {
         let dx = MCPDataStore.canvasNumber(arguments["dx"]) ?? 0
         let dy = MCPDataStore.canvasNumber(arguments["dy"]) ?? 0
         guard dx.isFinite, dy.isFinite, dx != 0 || dy != 0 else { throw MCPError.invalidInput("A move needs a distance.") }
+        if let id = arguments["region"] as? String, let region = map.layout.regions[id] {
+            _ = try await MCPDataStore.editCanvas("update_canvas_region", arguments: [
+                "region": id, "x": (region.x + dx).rounded(), "y": (region.y + dy).rounded(),
+            ])
+            return "Moved “\(Self.short(region.name.isEmpty ? "Untitled region" : region.name))”"
+        }
+        let placed = (arguments["item_ids"] as? [String] ?? []).filter { map.layout.placements[$0] != nil }
+        guard !placed.isEmpty else { throw MCPError.invalidInput("Those cards are not on the canvas.") }
         let free = placed.filter { map.lockedRegionID(holding: $0) == nil }
         guard !free.isEmpty else { throw MCPError.invalidInput("Those cards are in a locked region.") }
         map.place(free.compactMap { ref in
@@ -663,7 +703,9 @@ final class KnowledgeMapVoice {
             try? await Task.sleep(for: .seconds(seconds))
             guard !Task.isCancelled, let self, self.owns(id) else { return }
             switch self.phase {
-            case .done, .failed: self.phase = .idle
+            case .done, .failed:
+                self.canUndoRequest = false
+                self.phase = .idle
             default: break
             }
         }
@@ -765,7 +807,7 @@ final class KnowledgeMapVoice {
             lines.append("- \(name)(\(signature(of: definition.inputSchema))): \(use)")
         }
         lines.append(contentsOf: [
-            "- move(item_ids: [string], dx: number, dy: number): Shift placed cards by dx and dy, keeping them where they are to each other.",
+            "- move(item_ids?: [string], region?: string, dx: number, dy: number): Shift placed cards by dx and dy, keeping them where they are to each other; or a region, its cards going with it.",
             "- write_note(text: string, region?: string, beside?: string, new_region?: string): A new note card of the learner's words, set down there, else in the middle of the view.",
             "- find_and_place(words: [string], limit?: integer, region?: string, beside?: string, new_region?: string): Find what the learner asked for in their library (each entry of words is one search, a short phrase of what they said, such as \"ketone bodies\"; titles first, then by meaning), and set the best (6 unless limit says) down there.",
             "- ask_canvas(question: \"bridge\"|\"connect\"|\"gaps\"|\"summarize\"|\"break_down\"|\"mind_map\"|\"question_map\", item_ids?: [string]): Ask the Canvas about cards (the SELECTED ones when none are named): bridge (what links them), connect (arrows between them), gaps (what they leave open), summarize (one Idea of them), break_down (one source into its concepts), mind_map, question_map. Its answer comes later as proposals the learner keeps or dismisses.",
@@ -880,6 +922,12 @@ struct KnowledgeMapVoiceCapsule: View {
                     .foregroundStyle(.secondary)
                 said
                 changed
+                if voice.canUndoRequest {
+                    Button("Undo") { voice.undoRequest() }
+                        .buttonStyle(.hoverWash(cornerRadius: 6, inset: 0, opacity: 0.12))
+                        .help("Take back what this request changed (⌘Z)")
+                        .accessibilityIdentifier("knowledgeMap.voice.undo")
+                }
             case .failed(let message):
                 Image(systemName: "exclamationmark.circle")
                     .foregroundStyle(.secondary)

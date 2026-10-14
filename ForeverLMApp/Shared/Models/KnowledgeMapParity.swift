@@ -432,12 +432,14 @@ enum KnowledgeMapLint {
         // a brace with others, by the straight line between its ends' middles.
         let visibleRects = Dictionary(visible.map { ($0.key, $0.value) }, uniquingKeysWith: { first, _ in first })
         let braced = bracedEdgeIDs(layout: layout, cards: visibleRects)
+        let headers = regions.map { (ref: "region:\($0.key)", rect: headerRect($0.value)) }
         for (id, edge) in layout.edges.sorted(by: { $0.key < $1.key }) where !edge.isTree {
             guard let fromRect = endRect(edge.from, cards: visibleRects, layout: layout),
                   let toRect = endRect(edge.to, cards: visibleRects, layout: layout) else { continue }
             if edge.route == nil || edge.route == KnowledgeMapEdgeRoute.curve.rawValue, !braced.contains(id) {
                 let others = visible.filter { $0.key != edge.from && $0.key != edge.to }.map { (ref: $0.key, rect: $0.value) }
-                let route = curveRoute(from: fromRect, to: toRect, others: others)
+                let names = headers.filter { $0.ref != edge.from && $0.ref != edge.to }
+                let route = curveRoute(from: fromRect, to: toRect, others: others + names)
                 for ref in crossed(by: route, others: others) {
                     issues.append(.init(
                         kind: .arrowOverCard, refs: [ref], edgeID: id,
@@ -500,6 +502,13 @@ enum KnowledgeMapLint {
         let u = 1 - t
         return (u * u * curve.p.x + 2 * u * t * curve.m.x + t * t * curve.q.x,
                 u * u * curve.p.y + 2 * u * t * curve.m.y + t * t * curve.q.y)
+    }
+
+    /// Where a region's name and summary are drawn, just above its frame, as
+    /// they read at full size with a two-line summary: a default arrow bends
+    /// round them as round a card (the renderer's `cardGrid`).
+    static func headerRect(_ region: KnowledgeMapLayout.Region) -> KnowledgeMapArranging.Rect {
+        KnowledgeMapArranging.Rect(x: region.x, y: region.y - 60, w: min(region.w, 560), h: 56)
     }
 
     /// The curve the renderer draws for a default arrow between two boxes

@@ -191,12 +191,16 @@ struct CanvasVoiceUndoTests {
                 ideas: [], notebooks: [], chats: [], artifacts: [], firstHighlights: [:]
             )
             model.place([(ref: "source:a", x: 0, y: 0)])
+            let before = model.newestUndoStep
             model.beginEditGroup()
             model.place([(ref: "source:b", x: 300, y: 0)])
             Thread.sleep(forTimeInterval: KnowledgeMapModel.editBurst + 0.05)
             model.place([(ref: "source:c", x: 600, y: 0)])
             model.endEditGroup()
+            let step = model.newestUndoStep
+            #expect(step != nil && step != before, "the request is a step of its own, which the capsule's Undo looks for")
             model.undo()
+            #expect(model.newestUndoStep == before, "once undone, the newest step is the learner's own again")
             #expect(model.layout.placements["source:b"] == nil && model.layout.placements["source:c"] == nil, "the request goes in one Undo")
             #expect(model.layout.placements["source:a"] != nil, "the learner's own edit just before stays")
             model.undo()

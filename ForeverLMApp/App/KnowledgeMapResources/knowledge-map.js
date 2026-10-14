@@ -2883,7 +2883,13 @@
       }
       const p = boxEdge(ca, cb, a), q = boxEdge(cb, ca, b)
       if (e.route === 'straight') return { kind: 'poly', pts: [p, q], mid: [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2] }
-      const cache = bundles().routes
+      const all = bundles()
+      // The region names an arrow bends round are drawn at one size on the
+      // screen, so they are larger on the plane the further out the camera
+      // is: routes are found again when the zoom crosses a step (`headerZoom`).
+      const z = headerZoom()
+      if (all.grid && all.grid.z !== z) { all.grid = null; all.routes.clear() }
+      const cache = all.routes
       const known = cache.get(e.id)
       if (known) return known
       const route = curveAround(e, a, b, ca, cb, p, q)
@@ -2944,6 +2950,10 @@
       }
       return best
     }
+    // The zoom a region's name is measured at, in three steps: full size
+    // close in, then larger on the plane as the camera draws back, until the
+    // regions fold into their faces (`foldK`).
+    function headerZoom() { return state.scale >= 0.85 ? 1 : state.scale >= 0.65 ? 0.75 : 0.55 }
     function cellKey(cx, cy) { return cx * 1048576 + cy }
     // The placed cards as drawn, in cells of the plane, once per layout: a
     // point of a route looks only at the cards of its own cell.
@@ -2952,12 +2962,7 @@
       if (cache.grid) return cache.grid
       const size = 300
       const cells = new Map()
-      for (const node of state.nodes) {
-        if (!shown(node) || hiddenInStack(node)) continue
-        const at = pos(node)
-        if (!at) continue
-        const [w, h] = sizeOf(node)
-        const r = { ref: node.ref, x: at[0], y: at[1], w, h }
+      const add = r => {
         for (let cx = Math.floor((r.x - 6) / size); cx <= Math.floor((r.x + r.w + 6) / size); cx++) {
           for (let cy = Math.floor((r.y - 6) / size); cy <= Math.floor((r.y + r.h + 6) / size); cy++) {
             const key = cellKey(cx, cy)
@@ -2966,7 +2971,21 @@
           }
         }
       }
-      return (cache.grid = { size, cells })
+      for (const node of state.nodes) {
+        if (!shown(node) || hiddenInStack(node)) continue
+        const at = pos(node)
+        if (!at) continue
+        const [w, h] = sizeOf(node)
+        add({ ref: node.ref, x: at[0], y: at[1], w, h })
+      }
+      // A region's name and summary sit just above its frame (`regionHeader`);
+      // an arrow bends round them as round a card, taken with a two-line
+      // summary at the zoom step the camera is at. An arrow to the region
+      // itself may meet them. The check of a canvas routes the same way at
+      // full size (`KnowledgeMapLint.headerRect`).
+      const z = headerZoom()
+      for (const r of shownRegions()) add({ ref: 'region:' + r.id, x: r.x, y: r.y - 60 / z, w: Math.min(r.w, 560 / z), h: 56 / z })
+      return (cache.grid = { size, cells, z })
     }
     // The route as a polyline in world points, for hit tests.
     function pathSamples(path) {
@@ -6122,6 +6141,8 @@
         return
       }
       if (e.key === 'Escape') {
+        // Esc also stops speaking to the canvas, when the host is listening.
+        host.post('voiceEscape', {})
         if (state.ghostSelected) { state.ghostSelected = null; redraw() }
         else if (state.tool !== 'select') setTool('select')
         else { setSelection([]); selectRegion(null); selectEdge(null) }
