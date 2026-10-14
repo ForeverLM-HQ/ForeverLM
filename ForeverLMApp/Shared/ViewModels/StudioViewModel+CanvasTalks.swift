@@ -178,6 +178,45 @@ extension StudioViewModel {
         )
     }
 
+    /// The papers read off the slide a slide clip shows, in the order the
+    /// slide's scan found them; the dismissed ones left out. Empty for any
+    /// other clip, and for a talk whose slides were never read for citations.
+    func knowledgeMapSlideCitations(clipID: String) async -> [VideoCitedPaper] {
+        guard let clip = knowledgeMap.clips[clipID], let slide = ReaderClip.slide(of: clip) else { return [] }
+        let cited = await loadCitedPapers(forSourceID: clip.sourceID).filter { $0.status != .dismissed }
+        guard !cited.isEmpty else { return [] }
+        let content = await storage.loadSourceContent(clip.sourceID) ?? ""
+        let frames = YouTubeSlideContentParser.parse(content).displaySlides
+        return cited.filter { Self.slideIndex(citing: $0, among: frames) == slide }
+    }
+
+    /// A paper cited on a slide, hung under the slide on the canvas with an
+    /// arrow from it: the library's copy, else the paper added to the library
+    /// first (`importCitedPaper`). One step of Undo for the canvas.
+    func hangCitedPaper(_ paper: VideoCitedPaper, underSlideClip clipID: String) async {
+        let canvas = knowledgeMap
+        let slideRef = KnowledgeMap.ItemRef(kind: .clip, id: clipID).description
+        guard canvas.layout.placements[slideRef] != nil else { return }
+        var sourceID = librarySourceID(citedBy: paper)
+        if sourceID == nil {
+            guard paper.url?.isEmpty == false else {
+                showToast("That paper was not found in any catalog, so it cannot be added")
+                return
+            }
+            let updated = await importCitedPaper(paper)
+            sourceID = updated.first { $0.id == paper.id }.flatMap { librarySourceID(citedBy: $0) }
+        }
+        guard let sourceID, let source = articlesById[canonicalSourceID(sourceID)] ?? articlesById[sourceID] else {
+            showToast("Could not add \(paper.title)")
+            return
+        }
+        await refreshKnowledgeMapContent()
+        guard knowledgeMap === canvas else { return }
+        let paperRef = KnowledgeMap.ItemRef(kind: .source, id: source.id).description
+        _ = canvas.layOutStoryboard([(slide: slideRef, papers: [paperRef])], regionName: "")
+        canvas.send(.focus(refs: [slideRef, paperRef], regionID: nil))
+    }
+
     /// The library source a cited paper is: the one it was imported as, else
     /// the one with its DOI or address (a talk in a field the learner reads
     /// cites papers they hold already, though never marked as imported).
