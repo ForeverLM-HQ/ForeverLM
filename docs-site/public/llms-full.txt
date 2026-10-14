@@ -6412,6 +6412,12 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.151.0 (build 231) — 2026-10-14
+
+**Highlights:**
+- **Speaking to a canvas is steadier:** it waits for your library at launch, retries a failed request at once, and its bar says what it did.
+- **Tidy Up makes room** without piling cards onto others.
+
 ## 0.150.0 (build 230) — 2026-10-14
 
 **Highlights:**
