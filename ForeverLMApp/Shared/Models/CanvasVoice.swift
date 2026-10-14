@@ -445,6 +445,12 @@ enum CanvasVoice {
         return out
     }
 
+    /// Each tint by the one name the bar says it with.
+    static let tintTitles: [String: String] = [
+        "#7F77DD": "violet", "#1D9E75": "green", "#D85A30": "orange", "#D4537E": "pink",
+        "#BA7517": "amber", "#378ADD": "blue", "#639922": "lime", "#888780": "grey",
+    ]
+
     /// The canvas's eight tints by the names the inspector gives them
     /// (`KnowledgeMapInspectorChoices.tints`), and the colours people say for
     /// them: a model told to write `#RRGGBB` still writes "orange" now and then.

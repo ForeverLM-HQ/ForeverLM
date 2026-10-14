@@ -1145,7 +1145,18 @@ final class KnowledgeMapVoice {
         case "draw_canvas_arrow": return "Drew an arrow"
         case "update_canvas_arrow": return "Changed an arrow"
         case "delete_canvas_arrow": return "Deleted an arrow"
-        case "update_canvas_card": return "Restyled \(named)"
+        case "update_canvas_card":
+            // What became of the cards, as the bar and EARLIER say it.
+            if let folded = arguments["folded"] as? Bool { return (folded ? "Folded " : "Unfolded ") + named }
+            if let colour = arguments["color"] as? String {
+                let name = CanvasVoice.tintTitles[colour.uppercased()].map { " " + $0 } ?? ""
+                return colour.isEmpty ? "Took the colour off \(named)" : "Coloured \(named)\(name)"
+            }
+            if arguments["annotation"] != nil { return "Wrote under \(named)" }
+            if let answered = arguments["answered"] as? Bool { return (answered ? "Marked answered: " : "Marked open: ") + named }
+            if arguments["page"] != nil { return "Turned the page of \(named)" }
+            if arguments["w"] != nil || arguments["h"] != nil || arguments["fit_to_content"] != nil { return "Resized \(named)" }
+            return "Restyled \(named)"
         case "arrange_on_canvas":
             switch arguments["arrangement"] as? String {
             case "column": return "Stacked \(named) in a column"
