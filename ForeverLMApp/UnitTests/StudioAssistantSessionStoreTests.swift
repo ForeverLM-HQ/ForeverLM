@@ -637,6 +637,20 @@ struct PageSideChatTests {
         #expect(PageSideChatLayout.transcriptHeight(paneHeight: 1_000, zoom: 1.2) == 420)
     }
 
+    @Test("The card's grip docks it on the side a drag points to past a third of the page, and only there")
+    func dockAfterDrag() {
+        #expect(PageSideChatDock.right.afterDrag(translation: -400, paneWidth: 900) == .left)
+        #expect(PageSideChatDock.right.afterDrag(translation: -200, paneWidth: 900) == .right)
+        #expect(PageSideChatDock.right.afterDrag(translation: 400, paneWidth: 900) == .right)
+        #expect(PageSideChatDock.left.afterDrag(translation: 301, paneWidth: 900) == .right)
+        #expect(PageSideChatDock.left.afterDrag(translation: -500, paneWidth: 900) == .left)
+        // A narrow or unmeasured pane still needs a real drag, never a twitch.
+        #expect(PageSideChatDock.right.afterDrag(translation: -60, paneWidth: 0) == .right)
+        #expect(PageSideChatDock.right.afterDrag(translation: -81, paneWidth: 0) == .left)
+        #expect(PageSideChatDock.left.alignment == .bottomLeading)
+        #expect(PageSideChatDock.key.hasPrefix("studio.movableOverlay."), "where the card sits is this Mac's, never synced")
+    }
+
     @Test("A chat's header says New chat until it has a title of its own")
     func headerTitle() {
         #expect(ChatHeaderTitle.title(sessionTitle: nil, topic: "What is X?", isProvisional: true) == "New chat")

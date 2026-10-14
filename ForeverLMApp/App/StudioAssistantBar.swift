@@ -749,10 +749,36 @@ extension EnvironmentValues {
     }
 }
 
+/// Which side of the page the side chat's card stands at: Codex's Dock Chat
+/// (`quickChat.dock.left` / `.right`). Where this Mac's screen has it, so the
+/// value is device-local (`studio.movableOverlay.` keys are never synced).
+enum PageSideChatDock: String {
+    case left
+    case right
+
+    static let key = "studio.movableOverlay.pageSideChat.dock"
+
+    var alignment: Alignment { self == .left ? .bottomLeading : .bottomTrailing }
+    var anchor: UnitPoint { self == .left ? .bottomLeading : .bottomTrailing }
+
+    /// The side a drag that moved the card `translation` points across the pane
+    /// ends on: past a third of the pane's width toward the other side.
+    func afterDrag(translation: CGFloat, paneWidth: CGFloat) -> PageSideChatDock {
+        let threshold = max(80, paneWidth / 3)
+        switch self {
+        case .right: return translation < -threshold ? .left : .right
+        case .left: return translation > threshold ? .right : .left
+        }
+    }
+}
+
 /// The page's side chat, drawn over its pane: a compact card at the bottom
-/// right, or the pill it minimizes to. It belongs to the open page of its
-/// window and goes at its ×, when the page closes or when another opens; the
-/// chat stays saved, and the title's menu lists it under its page.
+/// right (or left, docked there), or the pill it minimizes to. It belongs to
+/// the open page of its window and goes at its ×, when the page closes or when
+/// another opens; the chat stays saved, and the title's menu lists it under its
+/// page. A grip above the card, as Codex's ("Drag to move · Click for
+/// options"), drags it to the other side of the page or opens Dock Left, Dock
+/// Right, Open in Full View (the docked Chat pane) and Minimize to Corner.
 ///
 /// The editor asks for it through the page's chrome (`sideChatRequest`),
 /// because only the editor holds the page's text and sources; the card hands
@@ -773,36 +799,46 @@ struct PageSideChatLayer: View {
     @State private var isMinimized = false
     @State private var chats: [ReviewSessionRecord] = []
     @State private var paneSize: CGSize = .zero
+    @AppStorage(PageSideChatDock.key) private var dockRaw = PageSideChatDock.right.rawValue
+    /// How far the grip has dragged the card, until it lets go.
+    @State private var dockDrag: CGFloat = 0
+
+    private var dock: PageSideChatDock { PageSideChatDock(rawValue: dockRaw) ?? .right }
 
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
+        ZStack(alignment: dock.alignment) {
             // The layer fills the pane to measure it; only the card takes
             // clicks, so the page underneath keeps every one it had.
             Color.clear.allowsHitTesting(false)
             if let hosting, let page, openPageID == artifact.id {
-                ZStack(alignment: .bottomTrailing) {
+                ZStack(alignment: dock.alignment) {
                     // Minimizing keeps the panel mounted, so a passage waiting
                     // under its composer and a turn's streaming survive it:
                     // it takes no room and draws nothing. Not clipped, which
                     // would cut the composer's popups off at the card's edge.
-                    card(hosting: hosting, page: page)
-                        .frame(
-                            width: isMinimized ? 0 : nil,
-                            height: isMinimized ? 0 : nil,
-                            alignment: .bottomTrailing
-                        )
-                        .opacity(isMinimized ? 0 : 1)
-                        .allowsHitTesting(!isMinimized)
-                        .accessibilityHidden(isMinimized)
+                    VStack(spacing: 4) {
+                        dockGrip(hosting: hosting)
+                        card(hosting: hosting, page: page)
+                    }
+                    .offset(x: dockDrag)
+                    .frame(
+                        width: isMinimized ? 0 : nil,
+                        height: isMinimized ? 0 : nil,
+                        alignment: dock.alignment
+                    )
+                    .opacity(isMinimized ? 0 : 1)
+                    .allowsHitTesting(!isMinimized)
+                    .accessibilityHidden(isMinimized)
                     if isMinimized { pill(hosting: hosting) }
                 }
                 .padding(PageSideChatLayout.edgeInset)
-                .transition(.scale(scale: 0.96, anchor: .bottomTrailing).combined(with: .opacity))
+                .transition(.scale(scale: 0.96, anchor: dock.anchor).combined(with: .opacity))
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .animation(.easeInOut(duration: 0.18), value: isMinimized)
         .animation(.easeInOut(duration: 0.18), value: openPageID)
+        .animation(.easeInOut(duration: 0.2), value: dockRaw)
         .onGeometryChange(for: CGSize.self, of: { $0.size }) { size in
             paneSize = size
         }
@@ -817,7 +853,7 @@ struct PageSideChatLayer: View {
             guard openPageID == old else { return }
             close()
         }
-        // The page's chats come from the table the page's Discussion reads,
+        // The page's chats come from the table the page's Comments panel reads,
         // again whenever a send writes a link or the chat on screen changes.
         .task(id: [artifact.id, vm.artifactChatLinksRevision.uuidString, hosting?.store.activeSessionID ?? ""]) {
             chats = PageSideChatChats.sessions(from: await vm.artifactChatLinks(artifact.id))
@@ -877,6 +913,49 @@ struct PageSideChatLayer: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Page chat")
         .accessibilityIdentifier("mac.pageSideChat")
+    }
+
+    /// Codex's grip over the floating chat ("Drag to move · Click for
+    /// options"): a drag past a third of the page moves the card to the other
+    /// side, and a click opens Dock Left, Dock Right, Open in Full View and
+    /// Minimize to Corner.
+    private func dockGrip(hosting: PageSideChatHosting) -> some View {
+        Menu {
+            Button {
+                dockRaw = PageSideChatDock.left.rawValue
+            } label: {
+                if dock == .left { Label("Dock Left", systemImage: "checkmark") } else { Text("Dock Left") }
+            }
+            Button {
+                dockRaw = PageSideChatDock.right.rawValue
+            } label: {
+                if dock == .right { Label("Dock Right", systemImage: "checkmark") } else { Text("Dock Right") }
+            }
+            Divider()
+            Button("Open in Full View") { openInChat(hosting: hosting) }
+                .disabled(hosting.store.activeSessionID == nil || hosting.store.activeManager.hasGenerationWorkInFlight)
+            Button("Minimize to Corner") { isMinimized = true }
+        } label: {
+            Capsule()
+                .fill(Color.secondary.opacity(0.4))
+                .frame(width: 36, height: 4)
+                .frame(width: 64, height: 14)
+                .contentShape(Rectangle())
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 6)
+                .onChanged { value in dockDrag = value.translation.width }
+                .onEnded { value in
+                    dockRaw = dock.afterDrag(translation: value.translation.width, paneWidth: paneSize.width).rawValue
+                    dockDrag = 0
+                }
+        )
+        .help("Drag to move · Click for options")
+        .accessibilityLabel("Dock chat")
+        .accessibilityIdentifier("mac.pageSideChatDock")
     }
 
     private func pill(hosting: PageSideChatHosting) -> some View {

@@ -1194,6 +1194,17 @@ bubble on the Page's top line (it shows how many threads are open) or
 **Comments** in the page menu's **More**. Web Studio's **Comments** has the same
 threads, replies, edits, deletes and filter, and marks the words the same way.
 
+### Chat beside the page
+
+**Add to Chat** in the page menu, **Chat** on selected words and a Prompt's
+**Chat about this** open a chat as a card floating over the Page, at its bottom
+right, with the Page and its sources in context; its title lists the Page's
+chats. The grip above the card works as Codex's: drag it across the Page to
+dock the card on the other side, or click it for **Dock Left**, **Dock Right**,
+**Open in Full View** (the chat moves into the Chat pane beside the Page) and
+**Minimize to Corner** (a pill that brings it back). The side it stands on is
+kept on this Mac. The card's × closes it; the chat stays saved under the Page.
+
 ### Page activity
 
 The clock on a Page's top line (or **Page Activity** in the page menu's
