@@ -77,7 +77,7 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "arrange_on_canvas",
-                description: "Tidy or align cards already on the learner's Canvas, as Tidy Up and Align in its right-click menu do. arrangement lays the cards out as a row (left to right), a column (top to bottom) or a grid (about half again as wide as tall), taking them in reading order of where they sit now, each by its own width and height, 30 apart, with the selection's top left staying where it is. align then moves every card to the selection's left, center (the middle of its width), right, top, middle (the middle of its height) or bottom, by its own size; with both, the arrangement comes first. A region that held a card grows to hold it where it lands. Pass arrangement, align or both, and at least two cards that are on the Canvas; a card in a locked region is not moved (unlock the region with update_canvas_region first). \(onTheirWord) Returns how many cards moved and the cards as they now are, each with its rect.",
+                description: "Tidy or align cards already on the learner's Canvas, as Tidy Up and Align in its right-click menu do. arrangement lays the cards out as a row (left to right), a column (top to bottom) or a grid (about half again as wide as tall), taking them in reading order of where they sit now, each by its own width and height, 30 apart, with the selection's top left staying where it is. align then moves every card to the selection's left, center (the middle of its width), right, top, middle (the middle of its height) or bottom, by its own size; with both, the arrangement comes first. A region that held a card grows to hold it where it lands. Pass arrangement, align or both, and at least two cards that are on the Canvas; a card in a locked region is not moved: a call naming one is refused whole (unlock the region with update_canvas_region first). \(onTheirWord) Returns how many cards moved and the cards as they now are, each with its rect.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -566,7 +566,8 @@ extension MCPDataStore {
             ), style: style, annotations: annotations)
             // The card the cards are set down beside is on the Canvas already.
             if let words = annotations[anchor] { map.setCardAnnotation(anchor, words) }
-            regionID = map.regionID(containing: anchor)
+            // The block lands in free space, so only a region that holds what was set down is named.
+            regionID = setDown.first.flatMap { map.regionID(containing: $0) }
         case "new_region":
             let title = (arguments["new_region"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             regionID = map.placeBlock(refs, near: map.arrivalCenter(), regionName: title, style: style, annotations: annotations)
@@ -614,8 +615,13 @@ extension MCPDataStore {
         let (refs, unknown) = cardRefs(arguments["item_ids"] as? [String] ?? [], in: map)
         let id: String?
         if !refs.isEmpty, refs.allSatisfy({ map.layout.placements[$0] != nil }) {
+            // Drawn round cards where they are, moving none of them.
             id = map.makeRegion(around: refs, name: title, notebookID: notebook?.id, color: color, locked: locked)
+            map.joinFrames(refs)
         } else {
+            // The cards move into a new block: a locked region keeps its cards where they are.
+            let held = refs.filter { map.layout.placements[$0] != nil && map.lockedRegionID(holding: $0) != nil }
+            guard held.isEmpty else { throw lockedRefusal(held, in: map) }
             id = map.placeBlock(refs, near: map.arrivalCenter(), regionName: title, notebookID: notebook?.id, color: color, locked: locked)
         }
         guard let id else { throw MCPError.invalidInput("The region could not be drawn.") }
@@ -629,6 +635,7 @@ extension MCPDataStore {
     static func updateCanvasRegion(_ arguments: [String: Any], map: KnowledgeMapModel, notebook lookup: NotebookLookup) throws -> [String: Any] {
         let id = try regionID(arguments["region"], in: map)
         let name = (arguments["name"] as? String).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        if name?.isEmpty == true { throw MCPError.invalidInput("A region's name cannot be empty.") }
         if name != nil, map.notebook(ofRegion: id) != nil {
             throw MCPError.invalidInput("This region is a notebook's frame and takes the notebook's name; rename the notebook with update_notebook, or unlink the frame (notebook_id \"\") first.")
         }
@@ -692,7 +699,7 @@ extension MCPDataStore {
         if let reason = map.edgeRefusal(from: from, to: to, tree: tree) { throw MCPError.invalidInput(reason) }
         guard let edgeID = map.addEdge(
             from: from, to: to,
-            label: arguments["label"] as? String ?? "",
+            label: arguments["label"] as? String,
             tree: tree,
             route: try edgeRoute(arguments["route"]),
             dashed: arguments["dashed"] as? Bool,

@@ -2311,3 +2311,93 @@ struct CanvasTalkStoryboardTests {
         #expect(SourceIdeaDrafting.highlightLines([bare, noted]).count == 1)
     }
 }
+
+/// The MCP canvas tools after their review (2026-10-14): arrows keep their
+/// labels, locked regions keep their cards, a notebook's frame takes its
+/// sources however they are set down, and results name what really happened.
+@MainActor
+@Suite(.serialized)
+struct CanvasMCPReviewFixesTests {
+    typealias Store = MCPDataStore
+
+    private func withMap(_ body: (KnowledgeMapModel) async throws -> Void) async rethrows {
+        let suite = UserDefaults(suiteName: "CanvasMCPReviewFixesTests.\(UUID().uuidString)")!
+        try await KnowledgeMapRows.$overrideDefaults.withValue(.init(defaults: suite)) {
+            let map = KnowledgeMapModel(mapID: KnowledgeMap.firstCanvasID)
+            map.rebuildContent(
+                articles: [StudioArticle(url: "https://example.com/s", title: "A source", sourceType: .article, id: "s")],
+                ideas: ["a", "b", "c"].map { IdeaRecord(id: $0, title: "Idea \($0)") },
+                notebooks: [], chats: [], artifacts: [], firstHighlights: [:]
+            )
+            try await body(map)
+        }
+    }
+
+    private func apart() { Thread.sleep(forTimeInterval: KnowledgeMapModel.editBurst + 0.05) }
+
+    @Test("Drawing an arrow again without a label keeps the label it has")
+    func arrowKeepsItsLabel() async throws {
+        try await withMap { map in
+            map.place([(ref: "idea:a", x: 0, y: 0), (ref: "idea:b", x: 400, y: 0)])
+            _ = try Store.drawCanvasArrow(["from": "idea:a", "to": "idea:b", "label": "measured by"], map: map)
+            _ = try Store.drawCanvasArrow(["from": "idea:a", "to": "idea:b", "stance": "supports"], map: map)
+            let edge = try #require(map.layout.edges.values.first)
+            #expect(edge.label == "measured by")
+            #expect(edge.stance == "supports")
+            _ = try Store.drawCanvasArrow(["from": "idea:a", "to": "idea:b", "label": ""], map: map)
+            #expect(map.layout.edges.values.first?.label == "", "an empty label given is a label cleared")
+        }
+    }
+
+    @Test("A region drawn round placed cards in a locked region moves none and is drawn; one that would move them is refused")
+    func createRegionRespectsLocks() async throws {
+        try await withMap { map in
+            map.place([(ref: "idea:a", x: 0, y: 0)])
+            map.saveRegion(id: "r1", name: "Locked", x: -60, y: -60, w: 400, h: 300, color: KnowledgeMapModel.regionColors[0])
+            _ = map.setRegionLocked("r1", true)
+            apart()
+            let around = try Store.createCanvasRegion(["name": "Around", "item_ids": ["idea:a"]], map: map, notebook: { _ in nil })
+            #expect(around["created"] as? Bool == true)
+            #expect(map.layout.placements["idea:a"]?.x == 0)
+            #expect(throws: MCPError.self) {
+                try Store.createCanvasRegion(["name": "Moved", "item_ids": ["idea:a", "idea:b"]], map: map, notebook: { _ in nil })
+            }
+            #expect(map.layout.placements["idea:a"]?.x == 0)
+        }
+    }
+
+    @Test("A source placed into a notebook's frame by a call joins the notebook, as a drop does")
+    func frameTakesSourcesPlacedByACall() async throws {
+        try await withMap { map in
+            var joined: [(String, [String])] = []
+            map.onSourcesSetDownInFrame = { notebookID, ids in joined.append((notebookID, ids)) }
+            map.saveRegion(id: "frame", name: "Notebook", x: 0, y: 0, w: 900, h: 400, color: KnowledgeMapModel.regionColors[0], notebookID: "nb")
+            apart()
+            _ = try Store.placeOnCanvas(["item_ids": ["source:s"], "region": "frame"], map: map)
+            #expect(joined.count == 1 && joined.first?.0 == "nb" && joined.first?.1 == ["s"])
+        }
+    }
+
+    @Test("Placed beside a card in a region, the block lands outside it, and no region is reported")
+    func besideReportsWhereTheCardsWent() async throws {
+        try await withMap { map in
+            map.place([(ref: "idea:a", x: 0, y: 0)])
+            map.saveRegion(id: "r1", name: "Snug", x: -50, y: -60, w: 340, h: 260, color: KnowledgeMapModel.regionColors[0])
+            apart()
+            let result = try Store.placeOnCanvas(["item_ids": ["idea:b"], "beside": "idea:a"], map: map)
+            let regionID = map.regionID(containing: "idea:b")
+            #expect((result["region"] == nil) == (regionID == nil))
+        }
+    }
+
+    @Test("A region's name cannot be set to nothing")
+    func regionNameNotEmpty() async throws {
+        try await withMap { map in
+            map.saveRegion(id: "r1", name: "Named", x: 0, y: 0, w: 400, h: 300, color: KnowledgeMapModel.regionColors[0])
+            #expect(throws: MCPError.self) {
+                try Store.updateCanvasRegion(["region": "r1", "name": "  "], map: map, notebook: { _ in nil })
+            }
+            #expect(map.layout.regions["r1"]?.name == "Named")
+        }
+    }
+}

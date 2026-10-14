@@ -522,6 +522,10 @@ final class KnowledgeMapModel {
 
     func endEditGroup() { editGroup = (false, false) }
 
+    /// Whether a group is open: a call nested in one (a spoken request's
+    /// edits) joins it rather than opening its own.
+    var isEditGroupOpen: Bool { editGroup.isOpen }
+
     private func remember(_ edit: KnowledgeMapEdit) {
         guard edit.changes else { return }
         defer { if editGroup.isOpen { editGroup.hasStep = true } }
@@ -589,11 +593,17 @@ final class KnowledgeMapModel {
         updateLayout { layout, at in
             for item in items { layout.place(item.ref, x: item.x, y: item.y, at: at) }
         }
+        joinFrames(items.map(\.ref))
+    }
+
+    /// Sources and Docs set down inside a notebook's frame join that
+    /// notebook, however they were set down: dragged, or placed by a call.
+    func joinFrames(_ refs: [String]) {
         var sourcesByNotebook: [String: [String]] = [:]
         var docsByNotebook: [String: [String]] = [:]
-        for item in items {
-            guard let ref = KnowledgeMap.ItemRef(item.ref), ref.kind == .source || ref.kind == .doc,
-                  let frame = regionID(containing: item.ref),
+        for item in refs {
+            guard let ref = KnowledgeMap.ItemRef(item), ref.kind == .source || ref.kind == .doc,
+                  let frame = regionID(containing: item),
                   let notebookID = layout.regions[frame]?.notebookID else { continue }
             if ref.kind == .source {
                 sourcesByNotebook[notebookID, default: []].append(ref.id)
@@ -872,6 +882,7 @@ final class KnowledgeMapModel {
                 layout.setRegion(id, region)
             }
         }
+        joinFrames(refs)
         return true
     }
 
@@ -916,6 +927,7 @@ final class KnowledgeMapModel {
                 ))
             }
         }
+        joinFrames(refs)
         return id
     }
 

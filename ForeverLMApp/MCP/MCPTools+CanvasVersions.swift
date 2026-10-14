@@ -149,6 +149,10 @@ extension MCPDataStore {
     static func restoreCanvasVersion(canvasID: String?, versionID: String) async throws -> [String: Any] {
         let studio = try AppModelBridge.requireStudio()
         let canvas = try versionedCanvas(canvasID, in: studio)
+        // A lens on the open canvas waits for the learner, as every other edit does.
+        if canvas.id == studio.knowledgeMap.mapID, studio.knowledgeMap.lens != nil {
+            throw MCPError.invalidInput("A lens shows on the Canvas: keep it (keep_map_lens) or clear it (clear_map_lens) first, as the learner's own edits wait for it.")
+        }
         let before = try await studio.canvasVersions(of: canvas.id)
         guard let version = before.first(where: { $0.id == versionID }) else {
             throw MCPError.notFound("Version not found: \(versionID). list_canvas_versions lists the versions of ‘\(canvas.name)’ this Mac keeps.")

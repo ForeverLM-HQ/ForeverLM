@@ -75,7 +75,7 @@ extension KnowledgeMapModel {
     /// Draws an arrow between two ends, each a placed card or a region
     /// (`region:<regionID>`), with its label and look (its `stance` is
     /// `supports` or `contradicts`). An arrow already drawn between them keeps
-    /// what it has and takes what is given. Nil when it cannot be drawn: an end
+    /// what it has and takes what is given (a nil label keeps its label). Nil when it cannot be drawn: an end
     /// is missing or off the map, a card is joined to the region that holds it
     /// (or a region to one it is inside), a tree branch would join a region,
     /// give a card a second parent or close a loop, or the look is not one of
@@ -84,7 +84,7 @@ extension KnowledgeMapModel {
     func addEdge(
         from: String,
         to: String,
-        label: String,
+        label: String?,
         tree: Bool = false,
         route: String? = nil,
         dashed: Bool? = nil,
@@ -96,11 +96,12 @@ extension KnowledgeMapModel {
         guard route == nil || KnowledgeMapEdgeRoute(rawValue: route ?? "") != nil,
               heads == nil || KnowledgeMapEdgeHeads(rawValue: heads ?? "") != nil,
               Self.isStanceChoice(stance) else { return nil }
-        let trimmed = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        // No label given keeps the one an arrow already drawn has.
+        let trimmed = label?.trimmingCharacters(in: .whitespacesAndNewlines)
         let existing = layout.edges.first { $0.value.from == from && $0.value.to == to }
         let id = existing?.key ?? "e" + UUID().uuidString.prefix(8).lowercased()
-        var edge: KnowledgeMapLayout.Edge = existing?.value ?? .init(from: from, to: to, label: trimmed, at: 0)
-        edge.label = trimmed
+        var edge: KnowledgeMapLayout.Edge = existing?.value ?? .init(from: from, to: to, label: trimmed ?? "", at: 0)
+        if let trimmed { edge.label = trimmed }
         if tree { edge.tree = true }
         Self.apply(route: route, dashed: dashed, heads: heads, color: color, stance: stance, to: &edge)
         updateLayout { row, at in

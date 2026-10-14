@@ -170,9 +170,13 @@ enum KnowledgeMapPagesError: LocalizedError {
     case noPDF(String)
     case noSuchPages(String, Int)
     case noFigures(String)
+    /// Another canvas was opened while the PDF was read.
+    case canvasChanged
 
     var errorDescription: String? {
         switch self {
+        case .canvasChanged:
+            return "Another canvas was opened while the PDF was read, so nothing was set down."
         case .unknownSource(let id):
             return "No source in the library has the id \(id)."
         case .noPDF(let title):
@@ -267,14 +271,16 @@ extension StudioViewModel {
         guard let article = articlesById[canonical] ?? articlesById[sourceID] else {
             throw KnowledgeMapPagesError.unknownSource(sourceID)
         }
+        // The canvas the pages were asked for, which must still be the open one once the PDF is read.
+        let map = knowledgeMap
         guard let shape = await knowledgeMapPDFShape(of: article, pages: nil) else {
             throw KnowledgeMapPagesError.noPDF(article.title)
         }
+        guard knowledgeMap === map else { throw KnowledgeMapPagesError.canvasChanged }
         guard let wanted = KnowledgeMap.pageRange(spec, pageCount: shape.pageCount) else {
             throw KnowledgeMapPagesError.noSuchPages(article.title, shape.pageCount)
         }
         let capped = Array(wanted.prefix(KnowledgeMap.maximumPagesPerExpansion))
-        let map = knowledgeMap
         let alreadyOn = capped.filter { map.layout.placements[KnowledgeMap.pageRef(sourceID: article.id, page: $0)] != nil }
         let placed = map.layOutPages(
             sourceID: article.id,
@@ -319,6 +325,7 @@ extension StudioViewModel {
         guard let article = articlesById[canonical] ?? articlesById[sourceID] else {
             throw KnowledgeMapPagesError.unknownSource(sourceID)
         }
+        let canvas = knowledgeMap
         guard article.sourceType == .paper, let shape = await knowledgeMapPDFShape(of: article, pages: nil) else {
             throw KnowledgeMapPagesError.noPDF(article.title)
         }
@@ -364,8 +371,10 @@ extension StudioViewModel {
             transfers.append(transfer)
             labels.append(figure.figureLabel)
         }
+        guard knowledgeMap === canvas else { throw KnowledgeMapPagesError.canvasChanged }
         let refs = await knowledgeMapClipRefs(transfers)
-        let map = knowledgeMap
+        guard knowledgeMap === canvas else { throw KnowledgeMapPagesError.canvasChanged }
+        let map = canvas
         let alreadyOn = zip(refs, labels).filter { map.layout.placements[$0.0] != nil }.map(\.1)
         let placed = map.layOutRow(refs, regionName: article.title, near: center, color: color, collapsed: collapsed)
         await refreshKnowledgeMapContent()

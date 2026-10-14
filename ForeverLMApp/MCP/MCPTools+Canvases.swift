@@ -174,6 +174,9 @@ extension MCPDataStore {
     @MainActor
     static func createCanvas(name: String?, spaceID: String?, open: Bool, notebookID: String?, frameNotebook: Bool) async throws -> [String: Any] {
         let studio = try AppModelBridge.requireStudio()
+        if frameNotebook, notebookID == nil {
+            throw MCPError.invalidInput("frame_notebook draws a notebook's sources in a frame, so it needs the notebook_id.")
+        }
         if let notebookID {
             guard let notebook = studio.notebook(id: notebookID), notebook.isNotebook else {
                 throw MCPError.notFound("No Notebook has the id \(notebookID); list_notebooks gives them.")
@@ -234,19 +237,22 @@ extension MCPDataStore {
                 throw MCPError.notFound("No space has space_id \(spaceID); list_spaces lists them.")
             }
         }
-        if let inTrash = arguments["in_trash"] as? Bool {
-            if inTrash { studio.moveCanvasesToTrash([id]) } else { studio.restoreCanvases([id]) }
-        }
+        // Everything named is looked up before anything changes.
+        var notebookID: String??
         if let raw = (arguments["notebook_id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) {
             if raw.isEmpty {
-                studio.setCanvasNotebook(id, to: nil)
+                notebookID = .some(nil)
             } else {
                 guard let notebook = studio.notebook(id: raw), notebook.isNotebook else {
                     throw MCPError.notFound("No Notebook has the id \(raw); list_notebooks gives them.")
                 }
-                studio.setCanvasNotebook(id, to: notebook.id)
+                notebookID = .some(notebook.id)
             }
         }
+        if let inTrash = arguments["in_trash"] as? Bool {
+            if inTrash { studio.moveCanvasesToTrash([id]) } else { studio.restoreCanvases([id]) }
+        }
+        if let notebookID { studio.setCanvasNotebook(id, to: notebookID) }
         if let name { studio.renameCanvas(id, to: name) }
         if let spaceID { studio.filePages([id], inPageSpace: spaceID.isEmpty ? nil : spaceID) }
         if let pinned = arguments["pinned"] as? Bool { studio.setPagePinned(id, pinned: pinned) }

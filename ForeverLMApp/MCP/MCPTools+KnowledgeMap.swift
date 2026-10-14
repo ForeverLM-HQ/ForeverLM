@@ -458,7 +458,7 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "build_canvas",
-                description: "Lay a whole picture out on one of the learner's canvases in one call, on their word (\"lay this paper out visually on a canvas\", \"mock up how these ideas connect\"): write note cards, set them and cards from the library down in labelled groups, and draw arrows between them. Each note is an Idea of the learner's (a card with a title and a few lines of text; it is also linked to the canvas's notebook when the canvas belongs to one) that you author: a claim, a step, a question, a caveat. A note with source_id and quote is instead a passage card: the words are marked as a highlight in that source (the one the learner already has on them is reused), the card shows them, and clicking it opens the paper at those words, so quote the paper wherever a claim rests on it. Each group becomes a region of that name around its cards, set down in the order given, left to right; a card in no group is set down in free space. Cards from the library are named by item_id (source:<id>, doc:<id>, idea:<id>, canvas:<id> for a shortcut to another canvas, chat:<session_id>, picture:<image_id>), notes by the key you gave them. Arrows join two cards, each a note key or an item_id, with an optional short label. Keep what is observed apart from what is interpreted by putting them in different groups, and give each region a colour with the same meaning. A mind map is a tree: each trees entry names a region and a root note with nested children notes (all Ideas of the learner's, written the same way), set down left to right inside that region (the root at the left, each child to the right of its parent, a parent centred on its children), joined by tree branches, and the region's layout is a mind map so the Canvas keeps it one; a note in a tree may be named by its key in arrows. A paper can be laid out as its own pages too: each pdf_pages entry names a source with a PDF (a paper, or a book or hand-out kept as one), and its pages are set down as cards drawn from the PDF itself, one per page, left to right in a region named for the source, a row below the last, before the groups; name them page:<source_id>:<n> in groups and arrows, limit them to a range such as \"1-8\" (at most 60 at a time), and set collapsed to fold the region up to its name and count until the learner opens it. A talk can be laid out as its slides: each talks entry names a YouTube video or a meeting recording, and its slides are set down as a storyboard, the papers each slide cites that are in the library hung under it with an arrow from the slide. A paper whose PDF is on the Mac is set down as its first page, its title and authors under it, rather than as a card. Pass annotations (a note key or item_id to the words) to write the learner's reason for a card being on the canvas under it: any card but a note, whose own text holds its words; and give an arrow a stance (supports draws it green, contradicts red) to argue a claim. Nothing the learner already placed moves. Pass canvas_id (list_canvases) to build on a canvas other than the open one; it is opened. Returns the notes and passages made with their item_ids, the regions drawn, the mind maps laid out (trees: the region, the root and each note with its item_id), the pages laid out (pdf_pages: the region, the page count and each page's item_id), the talks laid out (talks: the region, the slides' and papers' item_ids and how many cited papers are not in the library) and the arrows drawn, and anything it could not resolve. Undo takes it back card by card, but the Ideas it made stay in the learner's Ideas.",
+                description: "Lay a whole picture out on one of the learner's canvases in one call, on their word (\"lay this paper out visually on a canvas\", \"mock up how these ideas connect\"): write note cards, set them and cards from the library down in labelled groups, and draw arrows between them. Each note is an Idea of the learner's (a card with a title and a few lines of text; it is also linked to the canvas's notebook when the canvas belongs to one) that you author: a claim, a step, a question, a caveat. A note with source_id and quote is instead a passage card: the words are marked as a highlight in that source (the one the learner already has on them is reused), the card shows them, and clicking it opens the paper at those words, so quote the paper wherever a claim rests on it. Each group becomes a region of that name around its cards, set down in the order given, left to right; a card in no group is set down in free space. Cards from the library are named by item_id (source:<id>, doc:<id>, idea:<id>, canvas:<id> for a shortcut to another canvas, chat:<session_id>, picture:<image_id>), notes by the key you gave them. Arrows join two cards, each a note key or an item_id, with an optional short label. Keep what is observed apart from what is interpreted by putting them in different groups, and give each region a colour with the same meaning. A mind map is a tree: each trees entry names a region and a root note with nested children notes (all Ideas of the learner's, written the same way), set down left to right inside that region (the root at the left, each child to the right of its parent, a parent centred on its children), joined by tree branches, and the region's layout is a mind map so the Canvas keeps it one; a note in a tree may be named by its key in arrows. A paper can be laid out as its own pages too: each pdf_pages entry names a source with a PDF (a paper, or a book or hand-out kept as one), and its pages are set down as cards drawn from the PDF itself, one per page, left to right in a region named for the source, a row below the last, before the groups; name them page:<source_id>:<n> in groups and arrows, limit them to a range such as \"1-8\" (at most 60 at a time), and set collapsed to fold the region up to its name and count until the learner opens it. A talk can be laid out as its slides: each talks entry names a YouTube video or a meeting recording, and its slides are set down as a storyboard, the papers each slide cites that are in the library hung under it with an arrow from the slide. A paper whose PDF is on the Mac is set down as its first page, its title and authors under it, rather than as a card. Pass annotations (a note key or item_id to the words) to write the learner's reason for a card being on the canvas under it: any card but a note, whose own text holds its words; and give an arrow a stance (supports draws it green, contradicts red) to argue a claim. Nothing the learner already placed moves. Pass canvas_id (list_canvases) to build on a canvas other than the open one; it is opened. Returns the notes and passages made with their item_ids, the regions drawn, the mind maps laid out (trees: the region, the root and each note with its item_id), the pages laid out (pdf_pages: the region, the page count and each page's item_id), the talks laid out (talks: the region, the slides' and papers' item_ids and how many cited papers are not in the library) and the arrows drawn, and anything it could not resolve. One Undo step takes back everything it set down and drew, but the Ideas it made stay in the learner's Ideas. A card named in a group that is on the canvas already stays where it is (listed as already_on_canvas) and still takes its annotation and arrows.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -679,6 +679,9 @@ extension MCPDataStore {
             let picture = await screenshotCanvas(arguments: arguments)
             return picture.text
         case "build_canvas":
+            // Everything a call gets wrong is refused before anything is written:
+            // no passage marked, no Idea made, nothing laid out.
+            try await Self.validateBuildCanvas(arguments)
             // A note quoting a passage of a source is a highlight in that
             // source, made here, and a card that opens the paper at it.
             var plain: [[String: Any]] = []
@@ -921,19 +924,17 @@ extension MCPDataStore {
 
     @MainActor
     static func focusKnowledgeMap(itemIDs: [String], region: String?, select: Bool) async throws -> [String: Any] {
-        let (_, map) = try await preparedMap(opening: true)
+        let (studio, map) = try await preparedMap(opening: true)
+        await refreshUnknownKinds(itemIDs, in: studio)
+        // Only cards on the canvas can be shown or selected there.
         let refs = itemIDs
             .map { KnowledgeMap.ItemRef($0) ?? KnowledgeMap.ItemRef(kind: .source, id: $0.trimmingCharacters(in: .whitespacesAndNewlines)) }
             .map { resolved($0, in: map).description }
-            .filter { map.nodesByRef[$0] != nil }
+            .filter { map.nodesByRef[$0] != nil && map.layout.placements[$0] != nil }
+        // A region by its id, its name, or the title of the notebook it frames, as get_knowledge_map lists it.
         var regionID: String?
-        if let region, !region.isEmpty {
-            if map.layout.regions[region] != nil {
-                regionID = region
-            } else {
-                regionID = map.layout.regions.first { $0.value.name.caseInsensitiveCompare(region) == .orderedSame }?.key
-            }
-            guard regionID != nil else { throw MCPError.notFound("No region on the canvas is called \(region).") }
+        if let region, !region.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            regionID = try Self.regionID(region, in: map)
         }
         guard !refs.isEmpty || regionID != nil else {
             throw MCPError.invalidInput("focus_map needs item_ids that are on the canvas, or a region.")
@@ -948,6 +949,86 @@ extension MCPDataStore {
     }
 
     // MARK: Editing the Canvas on the learner's word
+
+    /// Everything build_canvas can refuse, checked before it writes anything:
+    /// the canvas, the limits, each note's key and title (unique across notes,
+    /// passages and tree notes), each group's name and colour, the trees, the
+    /// arrows' looks, the annotations, and a lens standing on the canvas.
+    @MainActor
+    static func validateBuildCanvas(_ arguments: [String: Any]) async throws {
+        let studio = try AppModelBridge.requireStudio()
+        var target: String?
+        if let id = (arguments["canvas_id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !id.isEmpty {
+            studio.refreshCanvasesFromRows()
+            guard studio.canvases.canvas(id) != nil else {
+                throw MCPError.notFound("No canvas has canvas_id \(id); list_canvases lists them.")
+            }
+            target = id
+        }
+        let notes = arguments["notes"] as? [[String: Any]] ?? []
+        let groups = arguments["groups"] as? [[String: Any]] ?? []
+        let ungrouped = arguments["ungrouped"] as? [String] ?? []
+        let arrows = arguments["arrows"] as? [[String: Any]] ?? []
+        let pdfPages = arguments["pdf_pages"] as? [[String: Any]] ?? []
+        let trees = arguments["trees"] as? [[String: Any]] ?? []
+        let talks = arguments["talks"] as? [[String: Any]] ?? []
+        guard notes.count <= 60, groups.count <= 20, arrows.count <= 100, pdfPages.count <= 10, trees.count <= 10, talks.count <= 5 else {
+            throw MCPError.invalidInput("At most 60 notes, 20 groups, 100 arrows, 10 pdf_pages, 10 trees and 5 talks in one call.")
+        }
+        guard !(notes.isEmpty && groups.isEmpty && ungrouped.isEmpty && pdfPages.isEmpty && trees.isEmpty && talks.isEmpty) else {
+            throw MCPError.invalidInput("build_canvas needs notes, groups, trees, pdf_pages, talks or ungrouped cards to set down.")
+        }
+        var keys = Set<String>()
+        for note in notes {
+            let key = (note["key"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !key.isEmpty else { throw MCPError.invalidInput("Every note needs a key.") }
+            let quote = (note["quote"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let title = (note["title"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if quote.isEmpty, title.isEmpty { throw MCPError.invalidInput("Every note needs a title (or a quote, with its source_id).") }
+            guard keys.insert(key).inserted else { throw MCPError.invalidInput("Two notes share the key \(key).") }
+        }
+        let specs = try treeSpecs(from: trees)
+        for (index, spec) in specs.enumerated() {
+            for (position, note) in spec.notes.enumerated() {
+                let key = note.key ?? "tree\(index + 1).\(position + 1)"
+                guard keys.insert(key).inserted else { throw MCPError.invalidInput("Two notes share the key \(key).") }
+            }
+        }
+        for group in groups {
+            let name = (group["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !name.isEmpty else { throw MCPError.invalidInput("Every group needs a name.") }
+            _ = try regionColor(group["color"])
+        }
+        for entry in pdfPages {
+            _ = try regionColor(entry["color"])
+            let show = (entry["show"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "pages"
+            guard KnowledgeMapPaperLayout(rawValue: show) != nil else {
+                throw MCPError.invalidInput("pdf_pages show must be pages, figures or figures_extended, not \"\(show)\".")
+            }
+        }
+        for arrow in arrows {
+            _ = try edgeRoute(arrow["route"])
+            _ = try edgeHeads(arrow["heads"])
+            _ = try edgeColor(arrow["color"])
+            _ = try edgeStance(arrow["stance"])
+        }
+        if let given = arguments["annotations"], !(given is NSNull) {
+            guard let object = given as? [String: Any] else { throw MCPError.invalidInput("annotations is an object of note key or item_id to words.") }
+            for (key, raw) in object {
+                let name = key.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard let text = raw as? String else { throw MCPError.invalidInput("The annotation for \(name) is text.") }
+                let quoted = notes.contains { ($0["key"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) == name && !(($0["quote"] as? String) ?? "").isEmpty }
+                if (keys.contains(name) && !quoted) || name.hasPrefix("idea:") {
+                    throw MCPError.invalidInput("An Idea's own note holds its words, so \(name) takes no annotation; give annotations to the library's cards and the passages quoted.")
+                }
+                _ = try cardAnnotation(text)
+            }
+        }
+        // A lens on the canvas being built on waits for the learner.
+        if target == nil || target == studio.knowledgeMap.mapID, studio.knowledgeMap.lens != nil {
+            throw MCPError.invalidInput("A lens shows on the Canvas: keep it (keep_map_lens) or clear it (clear_map_lens) first, as the learner's own edits wait for it.")
+        }
+    }
 
     /// build_canvas: notes, groups and arrows laid out on a canvas in one call.
     @MainActor
@@ -997,11 +1078,21 @@ extension MCPDataStore {
                 if let cleaned = try cardAnnotation(text) { annotationWords[name] = cleaned }
             }
         }
-        var (_, map) = try await preparedMap(opening: true)
+        let (_, map) = try await preparedMap(opening: true)
         if map.lens != nil {
             throw MCPError.invalidInput("A lens shows on the Canvas: keep it (keep_map_lens) or clear it (clear_map_lens) first, as the learner's own edits wait for it.")
         }
         let notebookID = studio.openCanvas?.notebookID
+        // The whole call is one step of Undo (unless a spoken request's group holds it already).
+        let groupsEdits = !map.isEditGroupOpen
+        if groupsEdits { map.beginEditGroup() }
+        defer { if groupsEdits { map.endEditGroup() } }
+        // Every await below may let the learner open another canvas: nothing more is written then.
+        func stillOpen() throws {
+            guard studio.knowledgeMap === map else {
+                throw MCPError.invalidInput("Another canvas was opened while build_canvas was working, so it stopped; the Ideas it had made stay in the learner's Ideas.")
+            }
+        }
 
         // Write the notes as Ideas first, so the map knows them as cards.
         var keyed: [String: String] = [:]
@@ -1063,14 +1154,15 @@ extension MCPDataStore {
             map.pendingPassageIDs.insert(highlightID)
             made.append(["key": key, "item_id": ref, "kind": "passage"])
         }
-        // Chats, canvases and pictures named by item_id may be ones made a moment ago.
+        // Cards named by item_id may be ones made a moment ago.
         let named = groups.flatMap { $0["items"] as? [String] ?? [] } + ungrouped
-            + arrows.flatMap { [$0["from"], $0["to"]].compactMap { $0 as? String } }
-        await refreshUnknownKinds(named, in: studio)
+            + arrows.flatMap { [$0["from"], $0["to"]].compactMap { $0 as? String } } + Array(annotationWords.keys)
         if !keyed.isEmpty {
             await studio.refreshKnowledgeMapContent()
-            map = studio.knowledgeMap
+        } else {
+            await refreshUnknownKinds(named, in: studio)
         }
+        try stillOpen()
 
         var unresolved: [String] = []
         func resolve(_ raw: String) -> String? {
@@ -1080,14 +1172,18 @@ extension MCPDataStore {
             unresolved.append(trimmed)
             return nil
         }
-        // The words for the cards named, by ref: an Idea named by item_id is refused as a note is.
+        // The words for the cards named, by ref: an Idea named by item_id is
+        // refused as a note is. Read once the PDFs' pages and the talks' slides
+        // are laid out, so their cards can be named too.
         var annotated: [String: String] = [:]
-        for (name, words) in annotationWords.sorted(by: { $0.key < $1.key }) {
-            guard let ref = resolve(name) else { continue }
-            if ref.hasPrefix("idea:") {
-                unresolved.append("annotation for \(name): an Idea's own note holds its words")
-            } else {
-                annotated[ref] = words
+        func resolveAnnotations() {
+            for (name, words) in annotationWords.sorted(by: { $0.key < $1.key }) {
+                guard let ref = resolve(name) else { continue }
+                if ref.hasPrefix("idea:") {
+                    unresolved.append("annotation for \(name): an Idea's own note holds its words")
+                } else {
+                    annotated[ref] = words
+                }
             }
         }
         var annotationsWritten = 0
@@ -1154,7 +1250,7 @@ extension MCPDataStore {
                     refs = outcome.refs
                     regionID = outcome.regionID
                 }
-                map = studio.knowledgeMap
+                try stillOpen()
                 done["item_ids"] = refs
                 if let regionID { done["region"] = regionEntry(regionID, in: map) }
                 pdfResults.append(done)
@@ -1170,7 +1266,7 @@ extension MCPDataStore {
             guard !raw.isEmpty else { unresolved.append("talks entry without a source_id"); continue }
             do {
                 let outcome = try await studio.layOutKnowledgeMapTalk(sourceID: raw)
-                map = studio.knowledgeMap
+                try stillOpen()
                 var done: [String: Any] = [
                     "source_id": raw,
                     "title": outcome.sourceTitle,
@@ -1191,15 +1287,30 @@ extension MCPDataStore {
                 unresolved.append("talks \(raw): \(error.localizedDescription)")
             }
         }
+        try stillOpen()
+        resolveAnnotations()
+        // Nothing the learner placed already moves: a card on the canvas stays
+        // where it is (and still takes its annotation and arrows).
+        var alreadyOn: [String] = []
+        func toSetDown(_ refs: [String]) -> [String] {
+            refs.filter { ref in
+                guard placedRefs.insert(ref).inserted else { return false }
+                guard map.layout.placements[ref] == nil else {
+                    alreadyOn.append(ref)
+                    return false
+                }
+                return true
+            }
+        }
         for group in groups {
             let name = (group["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             guard !name.isEmpty else { throw MCPError.invalidInput("Every group needs a name.") }
             let color = try regionColor(group["color"])
-            let refs = (group["items"] as? [String] ?? []).compactMap(resolve).filter { placedRefs.insert($0).inserted }
+            let refs = toSetDown((group["items"] as? [String] ?? []).compactMap(resolve))
             guard !refs.isEmpty else { continue }
             if let id = place(refs, regionName: name, color: color) { regions.append(regionEntry(id, in: map)) }
         }
-        let loose = ungrouped.compactMap(resolve).filter { placedRefs.insert($0).inserted }
+        let loose = toSetDown(ungrouped.compactMap(resolve))
         if !loose.isEmpty { _ = place(loose, regionName: nil, color: nil) }
         // Notes in no group or list still land on the canvas.
         let strays = made.compactMap { $0["item_id"] as? String }.filter { placedRefs.insert($0).inserted }
@@ -1243,7 +1354,7 @@ extension MCPDataStore {
             guard let from = end(arrow["from"]), let to = end(arrow["to"]), from != to,
                   map.edgeRefusal(from: from, to: to) == nil,
                   let edgeID = map.addEdge(
-                      from: from, to: to, label: arrow["label"] as? String ?? "",
+                      from: from, to: to, label: arrow["label"] as? String,
                       route: try edgeRoute(arrow["route"]), dashed: arrow["dashed"] as? Bool,
                       heads: try edgeHeads(arrow["heads"]), color: try edgeColor(arrow["color"]),
                       stance: try edgeStance(arrow["stance"])
@@ -1254,15 +1365,17 @@ extension MCPDataStore {
             drawn.append(["edge_id": edgeID, "from": from, "to": to, "label": map.layout.edges[edgeID]?.label ?? ""])
         }
         // Words for a card set down another way (a page of a PDF's row, a card on the Canvas already).
-        let late = annotated.filter { ref, _ in !placedRefs.contains(ref) && map.layout.placements[ref] != nil }
+        let late = annotated.filter { ref, _ in (!placedRefs.contains(ref) || alreadyOn.contains(ref)) && map.layout.placements[ref] != nil }
         if !late.isEmpty {
             annotationsWritten += map.setPlacementStyle(late.map { KnowledgeMapPlacementStyle(ref: $0.key, annotation: .set($0.value)) })
             map.growRegions(toHold: Array(late.keys).sorted())
         }
         // Pages run far to the right, so a view of everything would shrink them
         // away: when there are other cards the view fits those.
-        map.send(.focus(refs: placedRefs.isEmpty ? pageFocus : Array(placedRefs), regionID: nil))
-        var result: [String: Any] = ["notes": made, "regions": regions, "arrows": drawn, "cards_placed": placedRefs.count]
+        let setDown = placedRefs.subtracting(alreadyOn)
+        map.send(.focus(refs: setDown.isEmpty ? pageFocus : Array(setDown), regionID: nil))
+        var result: [String: Any] = ["notes": made, "regions": regions, "arrows": drawn, "cards_placed": setDown.count]
+        if !alreadyOn.isEmpty { result["already_on_canvas"] = alreadyOn.map { card($0, in: map) } }
         if annotationsWritten > 0 { result["annotated"] = annotationsWritten }
         if !pdfResults.isEmpty { result["pdf_pages"] = pdfResults }
         if !talkResults.isEmpty { result["talks"] = talkResults }
@@ -1271,13 +1384,15 @@ extension MCPDataStore {
         return result
     }
 
-    /// Fetches the library again when a call names a chat, a canvas or a
-    /// picture the Canvas has not read yet (one just made).
+    /// Fetches the library again when a call names a card the Canvas has not
+    /// read yet: an Idea, a source, a Doc, a chat, a canvas or a picture made
+    /// a moment ago (the Canvas pane refreshes only while it is on screen). A
+    /// page is a card only once placed, so it never asks.
     @MainActor
     static func refreshUnknownKinds(_ raw: [String], in studio: StudioViewModel) async {
         let wanted = raw.contains { id in
             guard let ref = KnowledgeMap.ItemRef(id.trimmingCharacters(in: .whitespacesAndNewlines)),
-                  [KnowledgeMap.ItemKind.canvas, .chat, .picture].contains(ref.kind) else { return false }
+                  ref.kind != .page else { return false }
             return studio.knowledgeMap.nodesByRef[ref.description] == nil
         }
         if wanted { await studio.refreshKnowledgeMapContent() }
@@ -1316,8 +1431,21 @@ extension MCPDataStore {
     @MainActor
     static func editCanvas(_ name: String, arguments: [String: Any]) async throws -> [String: Any] {
         let (studio, map) = try await preparedMap(opening: name != "set_canvas_display")
-        // A chat, a canvas or a picture made a moment ago is a card once the library is read again.
-        await refreshUnknownKinds((arguments["item_ids"] as? [String] ?? []) + ["from", "to"].compactMap { arguments[$0] as? String }, in: studio)
+        // A card made a moment ago is a card once the library is read again.
+        let annotationKeys = (arguments["annotations"] as? [String: Any]).map { Array($0.keys) } ?? []
+        await refreshUnknownKinds(
+            (arguments["item_ids"] as? [String] ?? []) + (arguments["grow_to_hold"] as? [String] ?? []) + annotationKeys
+                + ["from", "to", "beside"].compactMap { arguments[$0] as? String },
+            in: studio
+        )
+        guard studio.knowledgeMap === map else {
+            throw MCPError.invalidInput("Another canvas was opened while \(name) was reading the library; nothing was changed.")
+        }
+        // One call is one step of Undo, however many writes it makes (a
+        // spoken request's group, when one is open, holds it instead).
+        let groupsEdits = name != "undo_canvas" && !map.isEditGroupOpen
+        if groupsEdits { map.beginEditGroup() }
+        defer { if groupsEdits { map.endEditGroup() } }
         // A notebook a call names, when the library has it (and it is a notebook, not a course).
         let notebookLookup: NotebookLookup = { id in
             studio.notebook(id: id).flatMap { $0.isNotebook ? ($0.id, NotebookTitle($0.title).text) : nil }
