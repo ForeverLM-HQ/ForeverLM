@@ -830,6 +830,10 @@ paper on Drp1 next to it". Tap **S** instead, or choose **Speak to the
 Canvas** in the canvas's menu, to talk until you pause. The canvas changes
 as the answer arrives, and a small bar at its foot says what it heard and
 what it did; its **×** stops it. One **⌘Z** takes the whole request back.
+What a request changed is selected afterwards, so the next can say "now put
+these in a row" or "colour them blue". Ask it questions too: "what connects
+these?", "what's missing in this group?" or "break this paper down" start
+**Ask** on those cards, and "open the Parkin note" opens it beside the canvas.
 Your Mac hears you as you speak, so your words show in the bar while you say
 them (macOS 26 or later, in a language it has a speech model for; it
 downloads one the first time). Otherwise your words are transcribed by your
