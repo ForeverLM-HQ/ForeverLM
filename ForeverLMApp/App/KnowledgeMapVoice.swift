@@ -914,16 +914,41 @@ final class KnowledgeMapVoice {
             return "Placed \(named)"
         case "take_off_canvas": return "Took \(named) off"
         case "create_canvas_region": return "Drew “\(short(arguments["name"] as? String ?? "a region"))”"
-        case "update_canvas_region": return "Changed a region"
+        case "update_canvas_region":
+            // Which region, and what became of it: the capsule says so, and so
+            // does EARLIER, where "open it again" needs to know what "it" was.
+            let region = "“\(short(regionName(arguments["region"], map: map)))”"
+            if let collapsed = arguments["collapsed"] as? Bool { return (collapsed ? "Folded up " : "Opened ") + region }
+            if let name = arguments["name"] as? String { return "Renamed it “\(short(name))”" }
+            if let locked = arguments["locked"] as? Bool { return (locked ? "Locked " : "Unlocked ") + region }
+            if arguments["color"] != nil { return "Recoloured \(region)" }
+            if arguments["x"] != nil || arguments["y"] != nil { return "Moved \(region)" }
+            if arguments["w"] != nil || arguments["h"] != nil || arguments["fit_to_content"] != nil || arguments["grow_to_hold"] != nil {
+                return "Resized \(region)"
+            }
+            return "Changed \(region)"
         case "delete_canvas_region": return "Deleted a region"
         case "draw_canvas_arrow": return "Drew an arrow"
         case "update_canvas_arrow": return "Changed an arrow"
         case "delete_canvas_arrow": return "Deleted an arrow"
         case "update_canvas_card": return "Restyled \(named)"
-        case "arrange_on_canvas": return "Lined up \(named)"
+        case "arrange_on_canvas":
+            switch arguments["arrangement"] as? String {
+            case "column": return "Stacked \(named) in a column"
+            case "grid": return "Laid \(named) out in a grid"
+            default: return "Lined up \(named)"
+            }
         case "undo_canvas": return (arguments["redo"] as? Bool ?? false) ? "Redid" : "Undid"
         default: return tool
         }
+    }
+
+    /// A region's name, by its id or the name the edit gave it.
+    private static func regionName(_ value: Any?, map: KnowledgeMapModel) -> String {
+        guard let text = value as? String, !text.isEmpty else { return "the region" }
+        let bare = text.hasPrefix("region:") ? String(text.dropFirst("region:".count)) : text
+        let name = map.layout.regions[bare]?.name ?? bare
+        return name.isEmpty ? "Untitled region" : name
     }
 
     /// One card by its title, else how many.

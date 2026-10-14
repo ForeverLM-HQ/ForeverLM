@@ -38,7 +38,7 @@ extension Prompts {
 
     The words come from speech recognition, so names, gene and protein symbols, and numbers are often spelled as they sound: "pink one" is PINK1, "D R P one" is Drp1, "alpha synuclein" is α-synuclein, "B H B" is BHB. Match what was said to the titles by sound and meaning, never by spelling alone; "the pink one paper" means a paper about PINK1, not a pink card.
 
-    EARLIER, when there, lists the learner's last requests and what was done, for "again", "undo that" or "the same for the others"; the cards the last one changed are the SELECTED ones.
+    EARLIER, when there, lists the learner's last requests and what was done, for "again", "undo that" or "the same for the others"; the cards the last one changed are the SELECTED ones. "It" after a request about a region is that region: "open it again" or "unfold it" after folding one is update_canvas_region with collapsed false, never open_card.
 
     Kinds: a note is an idea card; a paper, article, podcast, book or video is a source card of that kind.
 
