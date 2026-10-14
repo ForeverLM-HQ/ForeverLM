@@ -184,6 +184,8 @@ struct CanvasVoiceTests {
         let align = CanvasVoice.meant(E(tool: "arrange_on_canvas", arguments: ["item_ids": ["c1", "c2"], "align": "top"]),
                                       said: "align the cards in the left column to the top", regionNames: [])
         #expect(align?.arguments["arrangement"] == nil, "an alignment alone stays an alignment")
+        let beside = CanvasVoice.meant(E(tool: "move", arguments: ["item_ids": ["source:a"], "beside": "idea:b"]), said: "", regionNames: [])
+        #expect(beside?.tool == "place_on_canvas" && beside?.arguments["beside"] as? String == "idea:b", "a move beside a card is the placement beside it")
     }
 
     @Test("Of two requests, the first to say a word is carried out and the other is stopped")

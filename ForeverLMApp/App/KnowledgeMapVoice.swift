@@ -97,6 +97,10 @@ final class KnowledgeMapVoice {
     @ObservationIgnored private var request = 0
     /// Requests up to this one were stopped with the ×.
     @ObservationIgnored private var stoppedThrough = 0
+    /// The arrows the request being carried out has drawn, by their ends: a
+    /// model that writes one, then corrects itself and writes it again (a
+    /// label the learner never said, taken back), changes the first.
+    @ObservationIgnored private var arrowsDrawn: Set<String> = []
 
     private init() {
         #if DEBUG
@@ -429,6 +433,19 @@ final class KnowledgeMapVoice {
         }
         let (studio, map) = prepared
         if applying, map.lens != nil { return refuse("Back to My Canvas first") }
+        // Just after launch the library may not have reached the canvas yet:
+        // its cards are placed but none has content, and the model would be
+        // told the canvas is empty (seen in Dev, 2026-10-14). Wait for it, a
+        // few seconds at most.
+        if snapshot == nil {
+            var tries = 0
+            while tries < 10, !map.layout.placements.isEmpty,
+                  !map.layout.placements.keys.contains(where: { map.nodesByRef[$0] != nil }) {
+                try? await Task.sleep(for: .milliseconds(500))
+                tries += 1
+                await studio.refreshKnowledgeMapContent()
+            }
+        }
         guard var config = Self.config(model: model) else {
             return refuse(KeychainService.backgroundAIUnavailableMessage(for: .canvasVoice) ?? "Set up AI in Settings to speak to the canvas")
         }
@@ -527,6 +544,7 @@ final class KnowledgeMapVoice {
         var firstEdit: Date?
         var seen: Set<String> = []
         let stepBefore = map.newestUndoStep
+        arrowsDrawn = []
         if applying { map.beginEditGroup() }
         for await raw in lines {
             guard isLive(id), !Task.isCancelled else { break }
@@ -685,6 +703,15 @@ final class KnowledgeMapVoice {
                               $0.value.name.compare(end, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
                           })?.key else { continue }
                     arguments[key] = "region:\(id)"
+                }
+            }
+            if edit.tool == "draw_canvas_arrow", let from = arguments["from"] as? String, let to = arguments["to"] as? String {
+                guard arrowsDrawn.insert(from + "\u{1}" + to).inserted else {
+                    // Drawn already in this answer: the second says how it should be.
+                    var again = arguments
+                    again["label"] = arguments["label"] as? String ?? ""
+                    _ = try await MCPDataStore.editCanvas("update_canvas_arrow", arguments: again)
+                    return nil
                 }
             }
             _ = try await MCPDataStore.editCanvas(edit.tool, arguments: arguments)

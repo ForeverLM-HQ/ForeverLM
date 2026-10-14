@@ -496,7 +496,8 @@ enum CanvasVoice {
     ///   gathered into the new region (place_on_canvas new_region).
     /// - a new_region named as a region that is already there means that
     ///   region, so gathering cards never makes a second "Fission".
-    /// - a move of no distance is nothing to do (nil), not a failure.
+    /// - a move of no distance is nothing to do (nil), not a failure; a move
+    ///   beside a card is the placement beside it.
     /// - "in a row", "a column", "a grid": the arrangement the learner named,
     ///   whichever the model wrote ("line them up in a row" came back a grid);
     ///   an alignment alone is left an alignment.
@@ -506,6 +507,12 @@ enum CanvasVoice {
             let words = Set(said.lowercased().split { !$0.isLetter }.map(String.init))
             let named = ["row", "column", "grid"].filter { words.contains($0) || words.contains($0 + "s") }
             if named.count == 1 { edit.arguments["arrangement"] = named[0] }
+        }
+        // "Move it next to the Drp1 note" written as move with beside: a
+        // move takes a distance or a side, so it is the placement beside.
+        if edit.tool == "move", let beside = edit.arguments["beside"], edit.arguments["dx"] == nil, edit.arguments["dy"] == nil,
+           let cards = edit.arguments["item_ids"] as? [String], !cards.isEmpty {
+            edit = Edit(tool: "place_on_canvas", arguments: ["item_ids": cards, "beside": beside])
         }
         if edit.tool == "move", !["below", "above", "left_of", "right_of"].contains(where: { edit.arguments[$0] != nil }) {
             let dx = (edit.arguments["dx"] as? NSNumber)?.doubleValue ?? 0
