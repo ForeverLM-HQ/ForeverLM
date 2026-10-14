@@ -668,6 +668,11 @@ final class KnowledgeMapVoice {
         case "write_note":
             return try await writeNote(arguments, studio: studio)
         case "find_and_place":
+            // The library search takes a second or two: the bar says what it
+            // is looking for meanwhile.
+            let words = (arguments["words"] as? [Any])?.compactMap { $0 as? String } ?? [arguments["words"] as? String].compactMap { $0 }
+            if owns(id), !words.isEmpty { remark = "Finding “\(Self.short(words.joined(separator: " ")))” in your library…" }
+            defer { if owns(id), remark?.hasPrefix("Finding “") == true { remark = nil } }
             return try await findAndPlace(arguments, map: map)
         case "ask_canvas":
             // Ask the Canvas, as its inspector asks: the answer comes later
