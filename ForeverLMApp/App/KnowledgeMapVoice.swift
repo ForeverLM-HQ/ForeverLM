@@ -545,6 +545,21 @@ final class KnowledgeMapVoice {
             return try await writeNote(arguments, studio: studio)
         case "find_and_place":
             return try await findAndPlace(arguments, map: map)
+        case "ask_canvas":
+            // Ask the Canvas, as its inspector asks: the answer comes later
+            // as proposals the learner keeps or dismisses.
+            let raw = (arguments["question"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+            guard let tool = CanvasAskTool(rawValue: raw) else {
+                throw MCPError.invalidInput("Ask the Canvas has no “\(raw)”.")
+            }
+            try studio.beginCanvasAsk(tool, refs: refs.isEmpty ? map.selection : refs)
+            return "Asking: \(tool.title)"
+        case "open_card":
+            guard let ref = (arguments["item_id"] as? String).flatMap({ map.nodesByRef[$0] != nil ? $0 : nil }) else {
+                throw MCPError.invalidInput("That card is not on the canvas or in the library.")
+            }
+            await studio.openKnowledgeMapItemBeside(ref, in: studio.activeWindowState)
+            return "Opened \(Self.naming([ref], map: map))"
         case "focus_map":
             _ = try await MCPDataStore.focusKnowledgeMap(
                 itemIDs: refs,
@@ -750,6 +765,8 @@ final class KnowledgeMapVoice {
             "- move(item_ids: [string], dx: number, dy: number): Shift placed cards by dx and dy, keeping them where they are to each other.",
             "- write_note(text: string, region?: string, beside?: string, new_region?: string): A new note card of the learner's words, set down there, else in the middle of the view.",
             "- find_and_place(words: [string], limit?: integer, region?: string, beside?: string, new_region?: string): Find what the learner asked for in their library (each entry of words is one search, a short phrase of what they said, such as \"ketone bodies\"; titles first, then by meaning), and set the best (6 unless limit says) down there.",
+            "- ask_canvas(question: \"bridge\"|\"connect\"|\"gaps\"|\"summarize\"|\"break_down\"|\"mind_map\"|\"question_map\", item_ids?: [string]): Ask the Canvas about cards (the SELECTED ones when none are named): bridge (what links them), connect (arrows between them), gaps (what they leave open), summarize (one Idea of them), break_down (one source into its concepts), mind_map, question_map. Its answer comes later as proposals the learner keeps or dismisses.",
+            "- open_card(item_id: string): Open a card beside the canvas to read it.",
             "- say(text: string): One short sentence to the learner, when you change nothing or must say why.",
         ])
         return lines.joined(separator: "\n")

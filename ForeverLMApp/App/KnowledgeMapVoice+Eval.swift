@@ -116,6 +116,16 @@ extension KnowledgeMapVoice {
         var out: [[String: Any]] = []
         let registry = MCPToolRegistry(store: MCPDataStore())
         for call in calls ?? [] {
+            // Timings the eval takes of the Canvas itself, not tools.
+            if call.name == "debug.refresh_canvas_content", let studio = AppModelBridge.studio {
+                let started = Date()
+                await studio.refreshKnowledgeMapContent()
+                out.append(["name": call.name, "result": [
+                    "ms": Int(Date().timeIntervalSince(started) * 1000),
+                    "nodes": studio.knowledgeMap.content.nodes.count,
+                ]])
+                continue
+            }
             let text = await registry.callTool(name: call.name, arguments: call.arguments, access: .internalFullAccess)
             let parsed = text.data(using: .utf8).flatMap { try? JSONSerialization.jsonObject(with: $0) }
             out.append(["name": call.name, "result": parsed ?? text])

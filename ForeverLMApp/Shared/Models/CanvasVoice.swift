@@ -96,6 +96,9 @@ enum CanvasVoice {
         var cards: [String: String]
         /// `r1` and on, to the region's id.
         var regions: [String: String]
+        /// Each region's cards (refs), by region id: a region named where
+        /// cards are meant ("take the misc group off") stands for them.
+        var regionCards: [String: [String]] = [:]
     }
 
     /// The most cards listed: the selected and in-view ones first, then the
@@ -210,7 +213,9 @@ enum CanvasVoice {
         }
         lines.append("")
         lines.append("THE LEARNER SAID: \(quoted(said.trimmingCharacters(in: .whitespacesAndNewlines)))")
-        return Context(message: lines.joined(separator: "\n"), cards: cardIDs, regions: regionIDs)
+        var regionCards: [String: [String]] = [:]
+        for card in snapshot.cards { if let id = card.regionID { regionCards[id, default: []].append(card.ref) } }
+        return Context(message: lines.joined(separator: "\n"), cards: cardIDs, regions: regionIDs, regionCards: regionCards)
     }
 
     private static func end(_ ref: String, cards: [String: String], regions: [String: String]) -> String? {
@@ -334,6 +339,16 @@ enum CanvasVoice {
             switch value {
             case let text as String:
                 out[key] = resolved(text, key: key, in: context)
+            case let list as [Any] where ["item_ids", "grow_to_hold"].contains(key):
+                // Cards: a region among them stands for the cards in it.
+                var refs: [String] = []
+                for item in list {
+                    guard let text = item as? String else { continue }
+                    let id = resolved(text, key: key, in: context)
+                    let named = context.regions.values.contains(id) ? context.regionCards[id] ?? [] : [id]
+                    for ref in named where !refs.contains(ref) { refs.append(ref) }
+                }
+                out[key] = refs
             case let list as [Any]:
                 out[key] = list.map { item -> Any in
                     guard let text = item as? String else { return item }

@@ -134,6 +134,9 @@ struct CanvasVoiceTests {
         #expect(arrow["label"] as? String == "r1")
         #expect(CanvasVoice.resolved(["from": "region:r1"], in: context)["from"] as? String == "region:rab12")
         #expect(CanvasVoice.resolved(["region": "Biology"], in: context)["region"] as? String == "Biology", "a region by its name")
+        let grouped = CanvasVoice.Context(message: "", cards: ["c1": "source:a"], regions: ["r1": "rab12"], regionCards: ["rab12": ["source:a", "idea:b"]])
+        #expect(CanvasVoice.resolved(["item_ids": ["r1", "c1"]], in: grouped)["item_ids"] as? [String] == ["source:a", "idea:b"], "a region where cards are meant is its cards, each once")
+        #expect(CanvasVoice.resolved(["region": "r1"], in: grouped)["region"] as? String == "rab12", "a region where a region is meant stays one")
         let notes = CanvasVoice.resolved(["annotations": ["c1": "why"]], in: context)["annotations"] as? [String: Any]
         #expect(notes?["source:a"] as? String == "why")
         #expect(CanvasVoice.resolved(["dx": 40], in: context)["dx"] as? Int == 40)
@@ -164,7 +167,7 @@ struct CanvasVoiceReferenceTests {
         #expect(reference.contains("face?: \"page\"|\"card\""))
         #expect(reference.contains("arrangement?: \"row\"|\"column\"|\"grid\""))
         #expect(!reference.contains("notebook_id") && !reference.contains("edge_id"))
-        for local in ["move", "write_note", "find_and_place", "say"] {
+        for local in ["move", "write_note", "find_and_place", "ask_canvas", "open_card", "say"] {
             #expect(reference.contains("- \(local)("))
         }
         #expect(KnowledgeMapVoice.operationsReference == reference, "built once, the same every time")
