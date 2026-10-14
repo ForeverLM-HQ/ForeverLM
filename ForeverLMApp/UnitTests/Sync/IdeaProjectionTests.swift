@@ -67,6 +67,9 @@ struct IdeaProjectionTests {
     func inboundIdea() throws {
         let (root, store) = try Self.store("inbound")
         defer { try? FileManager.default.removeItem(at: root) }
+        // The notebook and source the store was made with go out first, so
+        // what is left pending is the apply's alone.
+        try F.sendAll(store)
         // As the Vision Pro writes one (`VisionLibrary.createIdea`), with a link as the hosted MCP keys one.
         try F.apply(store, [try F.record(.idea, "vp-1", [
             "kind": .string("idea"), "title": .string("Mitophagy fails first"), "body": .string("In aged neurons"),

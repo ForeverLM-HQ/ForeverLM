@@ -471,11 +471,12 @@ struct ExplainerVideoTests {
     func refusals() async throws {
         let (storage, root) = makeTemporaryStorage()
         defer { try? FileManager.default.removeItem(at: root) }
-        var podcast = StudioArticle(url: "https://example.org/episode", title: "An Episode", sourceType: .podcast, discoveryOrigin: .manual)
-        podcast.content = "Words."
-        podcast.wordCount = 1
-        podcast.state = .ready
-        try await storage.saveSource(podcast)
+        // Episodes ground explainers now; a book still does not.
+        var book = StudioArticle(url: "file:///book.pdf", title: "A Book", sourceType: .book, discoveryOrigin: .manual)
+        book.content = "Words."
+        book.wordCount = 1
+        book.state = .ready
+        try await storage.saveSource(book)
         let clips = CannedClipBackend()
         let service = ExplainerVideoGeneratorService(
             storage: storage,
@@ -492,8 +493,8 @@ struct ExplainerVideoTests {
         await #expect(throws: ExplainerVideoGenerationError.sourceNotFound("missing")) {
             try await service.run(request: ExplainerVideoRequest(concept: "x", sourceID: "missing"))
         }
-        await #expect(throws: ExplainerVideoGenerationError.unsupportedSource("An Episode")) {
-            try await service.run(request: ExplainerVideoRequest(concept: "x", sourceID: podcast.id))
+        await #expect(throws: ExplainerVideoGenerationError.unsupportedSource("A Book")) {
+            try await service.run(request: ExplainerVideoRequest(concept: "x", sourceID: book.id))
         }
         #expect(clips.prompts.isEmpty)
     }

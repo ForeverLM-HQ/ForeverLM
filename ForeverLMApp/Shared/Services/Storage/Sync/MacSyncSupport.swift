@@ -134,7 +134,14 @@ enum MacSyncDeviceID {
         ]
     }
 
+    /// A unit-test host keeps the id in memory and never touches the Keychain: each build signs its
+    /// host anew, so the Keychain asks whether that host may read the item, and the question waited
+    /// forever behind a locked screen (2026-10-14, `get_mcp_status` in the full suite).
+    private static let isTestHost = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    private static let testHeld = OSAllocatedUnfairLock<String?>(initialState: nil)
+
     private static func read() -> String? {
+        if isTestHost { return testHeld.withLock { $0 } }
         var lookup = query
         lookup[kSecReturnData as String] = true
         lookup[kSecMatchLimit as String] = kSecMatchLimitOne
@@ -144,6 +151,10 @@ enum MacSyncDeviceID {
     }
 
     private static func save(_ id: String) {
+        if isTestHost {
+            testHeld.withLock { $0 = id }
+            return
+        }
         SecItemDelete(query as CFDictionary)
         var item = query
         item[kSecValueData as String] = Data(id.utf8)
