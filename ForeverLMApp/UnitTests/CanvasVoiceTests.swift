@@ -71,6 +71,10 @@ struct CanvasVoiceTests {
         #expect(line?.contains("…") == true)
         #expect(context.cards.count == CanvasVoice.maximumCards)
         #expect(context.message.contains("(1 more cards, far from the view, are not listed)"))
+        let request = "take the three review papers off the canvas, then put the PINK1 note and the Parkin paper together under a new group called upstream signals"
+        #expect(CanvasVoice.context(snapshot(cards: []), said: request).message.hasSuffix("THE LEARNER SAID: \"\(request)\""), "the learner's words are never cut")
+        let earlier = CanvasVoice.context(snapshot(cards: []), said: "x", earlier: [CanvasVoice.Turn(said: request, done: [])]).message
+        #expect(earlier.contains("\"\(request)\" → nothing changed"))
     }
 
     @Test("Earlier requests are listed oldest first, at most three, before what the learner said now")

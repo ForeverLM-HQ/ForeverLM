@@ -208,11 +208,14 @@ enum CanvasVoice {
             lines.append("EARLIER (oldest first; the cards they changed are SELECTED now):")
             for turn in turns {
                 let done = turn.done.isEmpty ? "nothing changed" : turn.done.joined(separator: "; ")
-                lines.append("\(quoted(turn.said)) → \(done)")
+                lines.append("\(quoted(turn.said, cut: false)) → \(done)")
             }
         }
         lines.append("")
-        lines.append("THE LEARNER SAID: \(quoted(said.trimmingCharacters(in: .whitespacesAndNewlines)))")
+        // The learner's words whole: a title is cut to fit the listing, a
+        // request never (a ten-second request cut at 80 characters lost its
+        // second half, and the model guessed at it).
+        lines.append("THE LEARNER SAID: \(quoted(said.trimmingCharacters(in: .whitespacesAndNewlines), cut: false))")
         var regionCards: [String: [String]] = [:]
         for card in snapshot.cards { if let id = card.regionID { regionCards[id, default: []].append(card.ref) } }
         return Context(message: lines.joined(separator: "\n"), cards: cardIDs, regions: regionIDs, regionCards: regionCards)
@@ -223,12 +226,12 @@ enum CanvasVoice {
         return cards[ref]
     }
 
-    private static func quoted(_ text: String) -> String {
+    private static func quoted(_ text: String, cut: Bool = true) -> String {
         var line = text
             .replacingOccurrences(of: "\n", with: " ")
             .replacingOccurrences(of: "\"", with: "'")
             .trimmingCharacters(in: .whitespaces)
-        if line.count > titleLimit { line = String(line.prefix(titleLimit - 1)) + "…" }
+        if cut, line.count > titleLimit { line = String(line.prefix(titleLimit - 1)) + "…" }
         return "\"\(line)\""
     }
 
