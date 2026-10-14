@@ -1625,7 +1625,10 @@
           if (hit) state.labelHits.push(Object.assign({ id: r.id }, hit))
           if (fold >= 1) continue
         }
-        ctx.save(); ctx.globalAlpha = (1 - fold) * dim
+        // The name above the frame stays whole while the cards fade, and
+        // hands over to the face's own words as they come in (the second
+        // half of the fold), so the region is never named only faintly.
+        ctx.save(); ctx.globalAlpha = (1 - clamp(fold * 2 - 1, 0, 1)) * dim
         if (L === 0) {
           const count = mem && mem.cards ? { text: memoryText(mem), pip: memoryTone(mem) } : { text: countWord(refs) }
           const hit = label(x + 14, y + 12, w - 14, h - 12, regionName(r), r.color || REGION_TINTS[0], count, gist ? gist.short : null)
