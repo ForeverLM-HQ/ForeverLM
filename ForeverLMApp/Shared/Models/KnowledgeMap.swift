@@ -1470,6 +1470,34 @@ enum KnowledgeMapArranging {
         return Spot(x: left, y: (occupied.map { $0.y + $0.h }.max() ?? top) + margin)
     }
 
+    /// The top left of the free spot `size` big nearest `center`, `gap` clear
+    /// of everything in `occupied`: rings of candidates 40 apart, nearest
+    /// first, out to 1200; the centred spot itself when none is free.
+    static func nearestFreeOrigin(size: (w: Double, h: Double), near center: Spot, occupied: [Rect]) -> Spot {
+        let start = Spot(x: (center.x - size.w / 2).rounded(), y: (center.y - size.h / 2).rounded())
+        func free(_ spot: Spot) -> Bool {
+            let rect = Rect(x: spot.x - gap, y: spot.y - gap, w: size.w + gap * 2, h: size.h + gap * 2)
+            return !occupied.contains { $0.intersects(rect) }
+        }
+        if free(start) { return start }
+        let step = 40.0
+        for ring in 1...30 {
+            var best: Spot?
+            var bestDistance = Double.infinity
+            let r = Double(ring)
+            for i in -ring...ring {
+                let d = Double(i)
+                for (dx, dy) in [(d, -r), (d, r), (-r, d), (r, d)] {
+                    let spot = Spot(x: start.x + dx * step, y: start.y + dy * step)
+                    let distance = hypot(dx, dy)
+                    if distance < bestDistance, free(spot) { best = spot; bestDistance = distance }
+                }
+            }
+            if let best { return best }
+        }
+        return start
+    }
+
     /// The top left of a free stretch of the plane `size` big, as near
     /// `center` as it can be: the spot centred there, else the first one
     /// to its right or below (in steps of the size) that overlaps nothing

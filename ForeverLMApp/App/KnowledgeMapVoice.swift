@@ -702,10 +702,41 @@ final class KnowledgeMapVoice {
         guard let ref = await studio.createCanvasIdea(title: text) else {
             throw MCPError.database("The note could not be saved.")
         }
-        var place = Self.whereTo(arguments, map: studio.knowledgeMap)
+        let map = studio.knowledgeMap
+        let between = (arguments["between"] as? [Any])?.compactMap { Self.rect(of: $0 as? String, map: map) } ?? []
+        var place = between.count == 2 ? [:] : Self.whereTo(arguments, map: map)
         place["item_ids"] = [ref]
         _ = try await MCPDataStore.editCanvas("place_on_canvas", arguments: place)
+        if between.count == 2 {
+            // Halfway between the two, as the learner said: set down first,
+            // then moved there in the same Undo step.
+            // The nearest spot there clear of the cards, so it never lands on one.
+            let a = between[0], b = between[1]
+            let w = map.cardWidth(of: ref), h = map.cardHeight(of: ref)
+            let cards = map.layout.placements.compactMap { other, at -> KnowledgeMapArranging.Rect? in
+                other == ref ? nil : .init(x: at.x, y: at.y, w: map.cardWidth(of: other), h: map.cardHeight(of: other))
+            }
+            let spot = KnowledgeMapArranging.nearestFreeOrigin(
+                size: (w, h), near: .init(x: (a.midX + b.midX) / 2, y: (a.midY + b.midY) / 2), occupied: cards
+            )
+            map.place([(ref: ref, x: spot.x, y: spot.y)])
+            map.growRegions(toHold: [ref])
+        }
         return "Wrote “\(Self.short(text))”"
+    }
+
+    /// Where a card or a region is on the plane, by its ref, its region id
+    /// or its name.
+    private static func rect(of value: String?, map: KnowledgeMapModel) -> KnowledgeMapArranging.Rect? {
+        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
+        if let placement = map.layout.placements[value] {
+            return .init(x: placement.x, y: placement.y, w: map.cardWidth(of: value), h: map.cardHeight(of: value))
+        }
+        let bare = value.hasPrefix("region:") ? String(value.dropFirst("region:".count)) : value
+        let region = map.layout.regions[bare] ?? map.layout.regions.values.first {
+            $0.name.compare(bare, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+        }
+        return region.map { .init(x: $0.x, y: $0.y, w: $0.w, h: $0.h) }
     }
 
     /// `find_and_place`: the library's cards for each search, best first, set
@@ -872,7 +903,7 @@ final class KnowledgeMapVoice {
         }
         lines.append(contentsOf: [
             "- move(item_ids?: [string], region?: string, dx: number, dy: number): Shift placed cards by dx and dy, keeping them where they are to each other; or a region, its cards going with it.",
-            "- write_note(text: string, region?: string, beside?: string, new_region?: string): A new note card of the learner's words, set down there, else in the middle of the view.",
+            "- write_note(text: string, region?: string, beside?: string, new_region?: string, between?: [string, string]): A new note card of the learner's words, set down there (between: halfway between two cards or regions), else in the middle of the view.",
             "- find_and_place(words: [string], limit?: integer, region?: string, beside?: string, new_region?: string): Find what the learner asked for in their library (each entry of words is one search, a short phrase of what they said, such as \"ketone bodies\"; titles first, then by meaning), and set the best (6 unless limit says) down there.",
             "- ask_canvas(question: \"bridge\"|\"connect\"|\"gaps\"|\"summarize\"|\"break_down\"|\"mind_map\"|\"question_map\", item_ids?: [string]): Ask the Canvas about cards (the SELECTED ones when none are named): bridge (what links them), connect (arrows between them), gaps (what they leave open), summarize (one Idea of them), break_down (one source into its concepts), mind_map, question_map. Its answer comes later as proposals the learner keeps or dismisses.",
             "- open_card(item_id: string): Open a card beside the canvas to read it.",

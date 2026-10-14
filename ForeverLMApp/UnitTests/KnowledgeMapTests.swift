@@ -1471,6 +1471,18 @@ struct KnowledgeMapParityModelTests {
         }
     }
 
+    @Test("The nearest free spot is the asked-for one when it is clear, else the closest clear one, never on a card")
+    func nearestFreeOrigin() {
+        typealias A = KnowledgeMapArranging
+        let clear = A.nearestFreeOrigin(size: (240, 120), near: .init(x: 500, y: 500), occupied: [])
+        #expect(clear == .init(x: 380, y: 440))
+        let card = A.Rect(x: 380, y: 440, w: 240, h: 120)
+        let moved = A.nearestFreeOrigin(size: (240, 120), near: .init(x: 500, y: 500), occupied: [card])
+        let landed = A.Rect(x: moved.x, y: moved.y, w: 240, h: 120)
+        #expect(!landed.intersects(card) && moved != .init(x: 380, y: 440))
+        #expect(hypot(moved.x - 380, moved.y - 440) <= 200, "close by: \(moved)")
+    }
+
     @Test("arrange does a tidy and an alignment as one write")
     func arrangeBoth() {
         withModel { model in
