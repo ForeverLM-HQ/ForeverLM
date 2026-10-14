@@ -1858,12 +1858,35 @@ extension KnowledgeStore {
         "COALESCE(\(column), '') NOT LIKE '\(TextToSpeechPreparationPolicy.audioOverviewURLPrefix)%'"
     }
 
+    /// SQL that is true for a queue row `q` whose attempts are not spent and
+    /// whose retry delay has passed at `:now` (`CanonicalContentCleanupRetry`).
+    static var canonicalContentCleanupRetryGate: String {
+        let retry = CanonicalContentCleanupRetry.self
+        return """
+            q.attempt_count < \(retry.maximumAttempts)
+            AND (
+                q.attempt_count = 0
+                OR q.enqueued_at + \(canonicalContentCleanupRetryDelaySQL) <= :now
+            )
+            """
+    }
+
+    /// `CanonicalContentCleanupRetry.delay(afterAttempts: q.attempt_count)` for
+    /// a row that has failed at least once.
+    private static var canonicalContentCleanupRetryDelaySQL: String {
+        let retry = CanonicalContentCleanupRetry.self
+        return "MIN(\(Int(retry.maximumDelay)), \(Int(retry.baseDelay)) * (1 << MIN(q.attempt_count - 1, 20)))"
+    }
+
     /// - Parameter pendingIngestionOnly: restrict the batch to sources whose
     ///   ingestion is waiting on this pass (`queued`), leaving the historical
     ///   re-clean rows for a drain that is allowed to spend a model on them.
+    /// - Parameter now: rows still waiting out a failed attempt's retry delay
+    ///   at this time are left for a later drain.
     func canonicalContentCleanupCandidates(
         limit: Int,
-        pendingIngestionOnly: Bool = false
+        pendingIngestionOnly: Bool = false,
+        now: Date = Date()
     ) throws -> [CanonicalContentCleanupCandidate] {
         guard limit > 0 else { return [] }
         var results: [CanonicalContentCleanupCandidate] = []
@@ -1891,6 +1914,7 @@ extension KnowledgeStore {
               AND s.status = 'active'
               AND NOT \(Self.spokenScriptURLMatch("a.url"))
               AND q.target_version <= \(PaperContentPreparationMetadata.currentVersion)
+              AND \(Self.canonicalContentCleanupRetryGate)
               -- A bulk re-queue waits for the learner (schema 135).
               AND \(Self.bulkHoldExclusion(.canonicalCleanup))
             -- Untouched work goes first so one provider-sensitive paper cannot
@@ -1900,9 +1924,14 @@ extension KnowledgeStore {
                      s.date_added DESC,
                      q.enqueued_at,
                      s.id
-            LIMIT ?
+            LIMIT :limit
         """, bind: { stmt in
-            sqlite3_bind_int(stmt, 1, Int32(limit))
+            sqlite3_bind_double(
+                stmt,
+                sqlite3_bind_parameter_index(stmt, ":now"),
+                now.timeIntervalSinceReferenceDate
+            )
+            sqlite3_bind_int(stmt, sqlite3_bind_parameter_index(stmt, ":limit"), Int32(limit))
         }) { stmt in
             guard let sourceID = string(stmt, 0),
                   let title = string(stmt, 1),
@@ -1923,14 +1952,38 @@ extension KnowledgeStore {
         return results
     }
 
+    /// Rows still to clean: those waiting out a retry delay included, those
+    /// whose attempts are spent not (`CanonicalContentCleanupRetry`).
     func canonicalContentCleanupQueueCount() throws -> Int {
         var count = 0
         try query("""
             SELECT COUNT(*) FROM canonical_content_cleanup_queue
+            WHERE attempt_count < \(CanonicalContentCleanupRetry.maximumAttempts)
         """) { stmt in
             count = Int(sqlite3_column_int64(stmt, 0))
         }
         return count
+    }
+
+    /// When the earliest row waiting out a failed attempt's retry delay is
+    /// due. Nil when no row waits (a row due already counts as waiting until
+    /// a drain picks it).
+    func nextCanonicalContentCleanupRetryDate() throws -> Date? {
+        var due: Double?
+        try query("""
+            SELECT MIN(q.enqueued_at + \(Self.canonicalContentCleanupRetryDelaySQL))
+            FROM canonical_content_cleanup_queue q
+            JOIN sources s ON s.id = q.source_id
+            WHERE q.attempt_count > 0
+              AND q.attempt_count < \(CanonicalContentCleanupRetry.maximumAttempts)
+              AND s.status = 'active'
+              AND s.state IN ('ready', 'queued')
+        """) { stmt in
+            if sqlite3_column_type(stmt, 0) != SQLITE_NULL {
+                due = sqlite3_column_double(stmt, 0)
+            }
+        }
+        return due.map { Date(timeIntervalSinceReferenceDate: $0) }
     }
 
     /// One bounded batch of the schema-134 integrity audit.
@@ -2018,16 +2071,20 @@ extension KnowledgeStore {
         return count
     }
 
-    /// - Parameter consumesAttempt: `false` for provider, network, or
-    ///   configuration failures. Those say nothing about whether this source can
-    ///   ever be cleaned, so they record the error and move the source to the
-    ///   back of the queue without spending its budget.
+    /// Records a failed cleanup round and moves the source to the back of the
+    /// queue. Returns the row's attempt count afterwards (0 when no row).
+    ///
+    /// - Parameter consumesAttempt: `false` only where no model was asked (the
+    ///   Dev build's raw publish). A model round spends an attempt even when it
+    ///   failed transiently, so the row then waits out its retry delay
+    ///   (`CanonicalContentCleanupRetry`).
+    @discardableResult
     func recordCanonicalContentCleanupFailure(
         sourceID: String,
         message: String,
         sourceSHA256: String? = nil,
         consumesAttempt: Bool = true
-    ) throws {
+    ) throws -> Int {
         try execBind("""
             UPDATE canonical_content_cleanup_queue
             SET attempt_count = attempt_count + ?,
@@ -2042,6 +2099,12 @@ extension KnowledgeStore {
             bind(stmt, 4, sourceSHA256)
             bind(stmt, 5, sourceID)
         }
+        var attempts = 0
+        try queryBind(
+            "SELECT attempt_count FROM canonical_content_cleanup_queue WHERE source_id = ?",
+            bind: { stmt in self.bind(stmt, 1, sourceID) }
+        ) { stmt in attempts = Int(sqlite3_column_int(stmt, 0)) }
+        return attempts
     }
 
     /// A queued source is a new ingestion, not a historical re-clean. When its

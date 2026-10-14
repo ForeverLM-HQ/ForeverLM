@@ -72,8 +72,8 @@ struct CanonicalContentCleanupCandidate: Sendable {
 
 /// Thrown only when a model response is not a valid deletion diff against the
 /// authoritative extraction. The queue remains intact so a later configured
-/// model call can retry; no deterministic quality score or attempt budget is
-/// used to approve, reject, or retire source content.
+/// model call can retry (within `CanonicalContentCleanupRetry`'s budget); no
+/// deterministic quality score is used to approve or reject source content.
 enum CanonicalContentCleanupContractError: LocalizedError, Equatable {
     case unknownBlockReference
     case nonVerbatimDeletionHunk
@@ -102,6 +102,48 @@ struct CanonicalContentCleanupDrainResult: Sendable {
     /// The longest wait a provider named for this batch's failures (Retry-After,
     /// or when a rate-limit quota refills), so the next drain is not tried sooner.
     var retryAfterSeconds: Double? = nil
+    /// When the earliest source waiting out its retry delay
+    /// (`CanonicalContentCleanupRetry`) is due, so a drain runs then even if
+    /// nothing else asks for one.
+    var nextRetryInSeconds: Double? = nil
+}
+
+/// How the cleanup queue retries a source whose cleanup failed.
+///
+/// Every failed round spends one of the source's attempts, a transient one
+/// (a rate limit, a timeout) included, and the source then waits before it is
+/// picked again: 15 minutes, doubling each time, never more than 12 hours.
+/// Until 2026-10-13 a transient failure spent nothing and waited for nothing,
+/// so a paper whose free model hit its 32,768-token output cap, and whose
+/// backup then answered 429, was cleaned 32 times in four hours, once per
+/// drain: the backup's 429 was what the chain reported
+/// (`AIBackupModels.chainFailure`). The eight attempts span about 28 hours,
+/// long enough to outlast a free model's daily quota.
+///
+/// When the attempts run out, a source the learner just added is parked with
+/// `exhaustedMessage` (Retry gives it a fresh budget), and a historical
+/// re-clean keeps its last good text and stays in the queue, not picked, until
+/// its text or the cleaner contract changes (`enqueueCanonicalContentCleanupIfNeeded`).
+enum CanonicalContentCleanupRetry {
+    static let maximumAttempts = 8
+    static let baseDelay: TimeInterval = 15 * 60
+    static let maximumDelay: TimeInterval = 12 * 60 * 60
+
+    /// How long a source that has failed `attempts` times waits before its
+    /// next try. `KnowledgeStore.canonicalContentCleanupRetryGate` is the same
+    /// rule in SQL.
+    static func delay(afterAttempts attempts: Int) -> TimeInterval {
+        guard attempts > 0 else { return 0 }
+        return min(maximumDelay, baseDelay * pow(2, Double(min(attempts - 1, 20))))
+    }
+
+    /// Code-owned words of `exhaustedMessage`, so a parked source is not
+    /// re-staged as a transient failure (`isTransientIngestionFailure`).
+    static let exhaustedMarker = "Stopped retrying after"
+
+    static func exhaustedMessage(attempts: Int, lastError: String) -> String {
+        "\(exhaustedMarker) \(attempts) tries over about a day. Last error: \(lastError)"
+    }
 }
 
 /// A cleanup attempt that produced no content. `wasCancelled` is decided where
@@ -222,6 +264,8 @@ struct PaperContentPreparationService: Sendable {
         ) || storedMessage.hasPrefix(StudioArticle.paperContentCleanupFailurePrefix)
             || storedMessage.contains(StudioArticle.legacyPaperContentCleanupFailureMarker)
         guard isCleanupFailure else { return false }
+        // The queue already retried it for about a day; only Retry restarts it.
+        if storedMessage.contains(CanonicalContentCleanupRetry.exhaustedMarker) { return false }
         if AITransientErrorClassifier.isCancellationMessage(storedMessage) { return true }
         // A refused reasoning opt-out is not transient, but the request now
         // retries with reasoning on, so a source parked behind it resumes
@@ -1189,12 +1233,10 @@ actor CanonicalContentCleanupService {
                     if firstError == nil {
                         firstError = "\(candidate.title): \(error.localizedDescription)"
                     }
-                    try? await storage.recordCanonicalContentCleanupFailure(
-                        sourceID: candidate.sourceID,
-                        message: error.localizedDescription,
-                        sourceSHA256: candidate.storedTextSHA256,
-                        consumesAttempt: false
-                    )
+                    if await recordFailedAttempt(candidate, message: error.localizedDescription) {
+                        processed += 1
+                        processedSourceIDs.append(candidate.sourceID)
+                    }
                     continue
                 }
 
@@ -1226,13 +1268,9 @@ actor CanonicalContentCleanupService {
                         // bounded batch to continue with later work.
                         processed += 1
                         processedSourceIDs.append(candidate.sourceID)
-                    } else {
-                        try? await storage.recordCanonicalContentCleanupFailure(
-                            sourceID: candidate.sourceID,
-                            message: failure.message,
-                            sourceSHA256: candidate.storedTextSHA256,
-                            consumesAttempt: false
-                        )
+                    } else if await recordFailedAttempt(candidate, message: failure.message) {
+                        processed += 1
+                        processedSourceIDs.append(candidate.sourceID)
                     }
                     if firstError == nil {
                         firstError = "\(candidate.title): \(failure.message)"
@@ -1255,7 +1293,41 @@ actor CanonicalContentCleanupService {
         )
         drained.failedTransiently = failedTransiently
         drained.retryAfterSeconds = longestRetryAfter
+        drained.nextRetryInSeconds = await nextRetryInSeconds()
         return drained
+    }
+
+    /// Spend one of `candidate`'s attempts (`CanonicalContentCleanupRetry`).
+    /// Returns true when that was its last and a pending import was parked,
+    /// which, like any terminal park, frees the batch for later work.
+    private func recordFailedAttempt(
+        _ candidate: CanonicalContentCleanupCandidate,
+        message: String
+    ) async -> Bool {
+        guard let attempts = try? await storage.recordCanonicalContentCleanupFailure(
+            sourceID: candidate.sourceID,
+            message: message,
+            sourceSHA256: candidate.storedTextSHA256
+        ), attempts >= CanonicalContentCleanupRetry.maximumAttempts else { return false }
+        guard candidate.isPendingIngestion else {
+            logger.notice(
+                """
+                Stopped re-cleaning \(candidate.sourceID, privacy: .public) after \(attempts, privacy: .public) \
+                failed attempts; it keeps its current text until its text or the cleaner changes
+                """
+            )
+            return false
+        }
+        try? await storage.failPendingCanonicalContentCleanup(
+            candidate: candidate,
+            message: CanonicalContentCleanupRetry.exhaustedMessage(attempts: attempts, lastError: message)
+        )
+        return true
+    }
+
+    private func nextRetryInSeconds() async -> Double? {
+        guard let due = try? await storage.nextCanonicalContentCleanupRetryDate() else { return nil }
+        return max(0, due.timeIntervalSinceNow)
     }
 
     /// Rows per storage call of the schema-134 integrity audit. Each batch

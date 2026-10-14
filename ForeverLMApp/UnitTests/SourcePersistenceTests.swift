@@ -3670,6 +3670,76 @@ struct SourcePersistenceTests {
         #expect(revived.sourceID == article.id)
     }
 
+    @Test("A failed cleanup waits out its retry delay, and its attempts run out")
+    func canonicalCleanupRetriesAreBounded() throws {
+        let store = try makeInMemoryStore()
+        var article = StudioArticle(
+            url: "https://example.com/rate-limited-paper",
+            title: "Rate Limited Paper",
+            sourceType: .article
+        )
+        article.content = "Rate Limited Paper\n\nA body the free model never finishes."
+        article.state = .ready
+        try store.saveSource(article)
+
+        // A transient round (a 429 from the backup) spends an attempt too.
+        let before = Date()
+        #expect(try store.recordCanonicalContentCleanupFailure(
+            sourceID: article.id,
+            message: "Rate limited (429)"
+        ) == 1)
+        #expect(try store.canonicalContentCleanupCandidates(limit: 10).isEmpty)
+        let due = try #require(try store.nextCanonicalContentCleanupRetryDate())
+        #expect(abs(due.timeIntervalSince(before) - CanonicalContentCleanupRetry.baseDelay) < 60)
+        #expect(try store.canonicalContentCleanupQueueCount() == 1)
+        #expect(try store.canonicalContentCleanupCandidates(
+            limit: 10,
+            now: due.addingTimeInterval(1)
+        ).map(\.sourceID) == [article.id])
+
+        var attempts = 1
+        while attempts < CanonicalContentCleanupRetry.maximumAttempts {
+            attempts = try store.recordCanonicalContentCleanupFailure(
+                sourceID: article.id,
+                message: "Rate limited (429)"
+            )
+        }
+        // Spent: never picked again, not counted, no retry to wake for.
+        #expect(try store.canonicalContentCleanupCandidates(
+            limit: 10,
+            now: Date().addingTimeInterval(30 * 24 * 60 * 60)
+        ).isEmpty)
+        #expect(try store.canonicalContentCleanupQueueCount() == 0)
+        #expect(try store.nextCanonicalContentCleanupRetryDate() == nil)
+
+        // New text is new work with a fresh budget.
+        article.content = "Rate Limited Paper\n\nThe full text, extracted again."
+        try store.saveSource(article)
+        #expect(try store.nextCanonicalContentCleanupCandidate()?.sourceID == article.id)
+    }
+
+    @Test("Cleanup retry delays double from 15 minutes to 12 hours over about a day")
+    func canonicalCleanupRetryDelays() {
+        let retry = CanonicalContentCleanupRetry.self
+        #expect(retry.delay(afterAttempts: 0) == 0)
+        #expect(retry.delay(afterAttempts: 1) == 15 * 60)
+        #expect(retry.delay(afterAttempts: 2) == 30 * 60)
+        #expect(retry.delay(afterAttempts: 7) == 12 * 60 * 60)
+        #expect(retry.delay(afterAttempts: 60) == 12 * 60 * 60)
+        let span = (1..<retry.maximumAttempts).map { retry.delay(afterAttempts: $0) }.reduce(0, +)
+        #expect(span > 24 * 60 * 60 && span < 30 * 60 * 60)
+
+        // A parked source is not re-staged as transient, though its last
+        // error was a 429.
+        let parked = StudioArticle.paperContentCleanupFailureMessage(
+            retry.exhaustedMessage(attempts: 8, lastError: "Rate limited (429)")
+        )
+        #expect(!PaperContentPreparationService.isTransientIngestionFailure(parked))
+        #expect(PaperContentPreparationService.isTransientIngestionFailure(
+            StudioArticle.paperContentCleanupFailureMessage("Rate limited (429)")
+        ))
+    }
+
     @Test("Canonical cleanup commits before listenable-content preparation is queued, for an automatic-audio kind")
     func canonicalCleanupQueuesSecondListenableSave() throws {
         let store = try makeInMemoryStore()

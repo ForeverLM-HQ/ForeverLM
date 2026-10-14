@@ -4432,6 +4432,17 @@ class StudioViewModel {
                     guard !Task.isCancelled, self != nil else { return }
                     NotificationCenter.default.post(name: .derivedSourceWorkNeeded, object: nil)
                 }
+            } else if let wait = result.nextRetryInSeconds {
+                // A source waiting out its cleanup retry delay
+                // (`CanonicalContentCleanupRetry`) is due then; nothing else
+                // may ask for a drain before it is.
+                logger.notice("Source cleanup's next retry is due in \(Int(wait), privacy: .public)s")
+                derivedSourceWorkRetryTask?.cancel()
+                derivedSourceWorkRetryTask = Task { [weak self] in
+                    try? await Task.sleep(for: .seconds(max(1, wait)))
+                    guard !Task.isCancelled, self != nil else { return }
+                    NotificationCenter.default.post(name: .derivedSourceWorkNeeded, object: nil)
+                }
             }
         }
     }

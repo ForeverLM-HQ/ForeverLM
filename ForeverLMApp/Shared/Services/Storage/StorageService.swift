@@ -1921,12 +1921,14 @@ actor StorageService {
 
     func canonicalContentCleanupCandidates(
         limit: Int,
-        pendingIngestionOnly: Bool = false
+        pendingIngestionOnly: Bool = false,
+        now: Date = Date()
     ) throws -> [CanonicalContentCleanupCandidate] {
         try ensureStoreExists()
         return try knowledgeStore().canonicalContentCleanupCandidates(
             limit: limit,
-            pendingIngestionOnly: pendingIngestionOnly
+            pendingIngestionOnly: pendingIngestionOnly,
+            now: now
         )
     }
 
@@ -1935,19 +1937,25 @@ actor StorageService {
         return try knowledgeStore().canonicalContentCleanupQueueCount()
     }
 
+    func nextCanonicalContentCleanupRetryDate() throws -> Date? {
+        try ensureStoreExists()
+        return try knowledgeStore().nextCanonicalContentCleanupRetryDate()
+    }
+
     func pruneIneligibleCanonicalContentCleanupQueue() throws -> Int {
         try ensureStoreExists()
         return try knowledgeStore().pruneIneligibleCanonicalContentCleanupQueue()
     }
 
+    @discardableResult
     func recordCanonicalContentCleanupFailure(
         sourceID: String,
         message: String,
         sourceSHA256: String? = nil,
         consumesAttempt: Bool = true
-    ) throws {
+    ) throws -> Int {
         try ensureStoreExists()
-        try knowledgeStore().recordCanonicalContentCleanupFailure(
+        return try knowledgeStore().recordCanonicalContentCleanupFailure(
             sourceID: sourceID,
             message: message,
             sourceSHA256: sourceSHA256,
