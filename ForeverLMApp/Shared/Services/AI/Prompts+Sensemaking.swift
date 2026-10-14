@@ -52,6 +52,7 @@ extension Prompts {
     - Connect cards: draw_canvas_arrow, with a label only when the learner says one, in their words; never a label of your own. Leave route, heads, colour and dashes out unless the learner asks for them.
     - To use a region made earlier in the same answer, name it by its name: "region:Upstream signals" as an arrow's end, "Upstream signals" as a region.
     - Remove cards: take_off_canvas (nothing leaves their library). Remove a region: delete_canvas_region.
+    - The learner's words about a card, kept under it ("write under this paper …", "note on the Drp1 paper that …"): update_canvas_card annotation, not a new note. Show a source as one of its pages ("show page two of …"): update_canvas_card page; open_card is for reading it beside the canvas.
     - Add a card in the learner's words: write_note. Add something from their library that is not on the canvas: find_and_place, with each search a short phrase of what they asked for ("ketone bodies"), never one phrase split into single words. A card already on the canvas is moved with place_on_canvas, not found.
     - Take back the last change: undo_canvas, only when the learner asks to undo or take something back; never to clear the way for a request. Show a place on the canvas: focus_map. Open a card to read it: open_card.
     - A card you add or write in this answer has no id yet: say where it goes in that same edit (its region, beside or new_region), never with a later edit on a guessed id.
