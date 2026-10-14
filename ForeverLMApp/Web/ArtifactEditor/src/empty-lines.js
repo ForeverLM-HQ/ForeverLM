@@ -66,13 +66,19 @@ function outsideCode(lines) {
   return (index) => !inside[index]
 }
 
-/// `<br />` paragraphs at the top level become blank lines.
+const tableRow = /^[ \t]*\|.*\|[ \t]*$/
+const emptyCell = /(?<!\\)\|[ \t]*<br\s*\/?>[ \t]*(?=\|)/gi
+
+/// `<br />` paragraphs at the top level become blank lines, and a table cell
+/// holding nothing but one (an empty cell, as Milkdown writes it: a row added
+/// with Add row, a cell cleared) is written empty, `| |`.
 export function emptyLinesAsBlankLines(markdown) {
   const lines = String(markdown ?? '').split('\n')
   const free = outsideCode(lines)
   const kept = []
   for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index]
+    let line = lines[index]
+    if (free(index) && tableRow.test(line)) line = line.replace(emptyCell, '| ')
     const empty = free(index) && breakLine.test(line)
       && (index === 0 || isBlank(lines[index - 1]))
       && (index === lines.length - 1 || isBlank(lines[index + 1]))

@@ -771,6 +771,36 @@ body.ready #editor {
   border-radius: 2px;
 }
 
+/* Add row under a table and Add column at its right edge, while the pointer
+   is over it (Codex's table appenders). Quiet bars that darken under the
+   pointer. */
+.artifact-table-appender {
+  position: fixed;
+  z-index: 24;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: color-mix(in srgb, CanvasText 5%, transparent);
+  color: color-mix(in srgb, CanvasText 45%, transparent);
+  cursor: pointer;
+}
+
+.artifact-table-appender[hidden] { display: none; }
+.artifact-table-appender[data-axis="row"] { height: 14px; }
+.artifact-table-appender[data-axis="column"] { width: 14px; }
+
+.artifact-table-appender:hover {
+  background: color-mix(in srgb, CanvasText 11%, transparent);
+  color: CanvasText;
+}
+
+@media (hover: none), print {
+  .artifact-table-appender { display: none; }
+}
+
 /* A comment's passage, as Codex marks it: the words washed in yellow with a
    line under them; the thread open in the Comments panel more strongly. An
    inline decoration, so it follows the words through any edit. */

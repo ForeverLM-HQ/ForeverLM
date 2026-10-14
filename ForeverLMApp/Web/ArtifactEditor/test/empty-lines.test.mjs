@@ -70,3 +70,11 @@ test('pages stored with <br /> read the same as before', () => {
   const old = milkdown('A', '<br />', 'B')
   assert.equal(blankLinesAsEmptyLines(old), old)
 })
+
+test('an empty table cell is stored empty, not as <br />', () => {
+  assert.equal(emptyLinesAsBlankLines('| A | B |\n| - | - |\n| x | <br /> |\n| <br/> | y |\n'), '| A | B |\n| - | - |\n| x | |\n| | y |\n')
+  // A cell that says something around a break, an escaped pipe, and code keep theirs.
+  assert.equal(emptyLinesAsBlankLines('| a <br /> b | c |\n'), '| a <br /> b | c |\n')
+  assert.equal(emptyLinesAsBlankLines('| a \\| <br /> | c |\n'), '| a \\| <br /> | c |\n')
+  assert.equal(emptyLinesAsBlankLines('```\n| x | <br /> |\n```\n'), '```\n| x | <br /> |\n```\n')
+})

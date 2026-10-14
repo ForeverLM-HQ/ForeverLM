@@ -748,6 +748,15 @@ flashes for a moment; anywhere else it opens the Page. To reach the menu from
 the keyboard, press **⌥⌘/**: it opens for the block the caret is in, the arrow
 keys move through it, Return chooses, and Escape goes back to the caret.
 
+### Tables
+
+Rest the pointer on a table and, as in Codex, a thin bar appears under it
+(**Add row**) and one at its right edge (**Add column**): a press adds an empty
+row at the bottom, keeping each column's alignment, or an empty column at the
+right, and puts the caret in its first cell. The handles on a row and a column
+move them, and the + on the line between two inserts one there. An empty cell is
+stored empty (`| |`).
+
 ### Page contents
 
 A Page with two or more headings lists them at its right edge, as Codex's

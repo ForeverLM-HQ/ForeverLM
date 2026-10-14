@@ -10525,6 +10525,149 @@ window.addEventListener('resize', () => {
   scheduleAIEditPanelReposition()
 })
 
+// MARK: - Table appenders
+//
+// Codex's tables carry Add row and Add column at their edges
+// (`codex.space.page.table.*`): a thin bar under the table and one at its
+// right edge, shown while the pointer is over the table. A press adds a row at
+// the bottom or a column at the right, empty, with the alignment of the line
+// beside it, and puts the caret in its first cell. Crepe's own handles (a
+// row's and a column's drag handle, the + on a line between two) stay for
+// moving and inserting inside the table. Nothing runs on a keystroke: the bars
+// follow the pointer, once a frame at most.
+let tableAppenders = null
+let tableAppenderBlock = null
+let tableAppenderFrame = 0
+let tableAppenderPointer = null
+
+function ensureTableAppenders() {
+  if (tableAppenders) return tableAppenders
+  const make = (axis, label) => {
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = 'artifact-table-appender'
+    button.dataset.axis = axis
+    button.title = label
+    button.setAttribute('aria-label', label)
+    button.append(slashIcon('plus', 12))
+    button.hidden = true
+    // The press must not take the caret out of the page or start a drag.
+    button.addEventListener('pointerdown', (event) => {
+      event.preventDefault()
+      event.stopPropagation()
+    })
+    button.addEventListener('click', () => appendTableLine(axis))
+    document.body.append(button)
+    return button
+  }
+  tableAppenders = { row: make('row', 'Add row'), column: make('column', 'Add column') }
+  return tableAppenders
+}
+
+function hideTableAppenders() {
+  tableAppenderBlock = null
+  if (!tableAppenders) return
+  tableAppenders.row.hidden = true
+  tableAppenders.column.hidden = true
+}
+
+/// The table under the pointer, or the one whose bars the pointer is on.
+function updateTableAppendersFromPointer() {
+  tableAppenderFrame = 0
+  const pointer = tableAppenderPointer
+  const view = activeEditorView()
+  if (!pointer || !view || !isEditable) return hideTableAppenders()
+  const element = pointer.element instanceof Element ? pointer.element : null
+  if (element?.closest('.artifact-table-appender')) return
+  const block = element?.closest('.milkdown-table-block')
+  if (!block || !view.dom.contains(block)) {
+    // A little room around the table, so the pointer can reach the bars.
+    if (tableAppenderBlock && nearTable(tableAppenderBlock, pointer)) return positionTableAppenders()
+    return hideTableAppenders()
+  }
+  tableAppenderBlock = block
+  positionTableAppenders()
+}
+
+function nearTable(block, pointer) {
+  const rect = block.querySelector('table.children')?.getBoundingClientRect() ?? block.getBoundingClientRect()
+  return pointer.x >= rect.left - 4 && pointer.x <= rect.right + 28 && pointer.y >= rect.top - 4 && pointer.y <= rect.bottom + 28
+}
+
+function positionTableAppenders() {
+  const block = tableAppenderBlock
+  if (!block || !block.isConnected) return hideTableAppenders()
+  const table = block.querySelector('table.children') ?? block
+  const rect = table.getBoundingClientRect()
+  const { row, column } = ensureTableAppenders()
+  row.hidden = false
+  column.hidden = false
+  Object.assign(row.style, { left: `${Math.round(rect.left)}px`, top: `${Math.round(rect.bottom + 4)}px`, width: `${Math.round(rect.width)}px` })
+  Object.assign(column.style, { left: `${Math.round(rect.right + 4)}px`, top: `${Math.round(rect.top)}px`, height: `${Math.round(rect.height)}px` })
+}
+
+document.addEventListener('pointermove', (event) => {
+  if (!isEditable || event.pointerType === 'touch') return
+  tableAppenderPointer = { x: event.clientX, y: event.clientY, element: event.target }
+  if (!tableAppenderFrame) tableAppenderFrame = requestAnimationFrame(updateTableAppendersFromPointer)
+}, { passive: true })
+
+document.addEventListener('scroll', () => {
+  if (tableAppenderBlock) positionTableAppenders()
+}, { passive: true, capture: true })
+
+/// Add an empty row at the bottom of the table the bars are on, or an empty
+/// column at its right, and put the caret in the new line's first cell.
+function appendTableLine(axis) {
+  const view = activeEditorView()
+  const block = tableAppenderBlock
+  if (!view || !block || !isEditable) return
+  const inner = block.querySelector('table.children') ?? block
+  let $inside
+  try {
+    $inside = view.state.doc.resolve(view.posAtDOM(inner, 0))
+  } catch {
+    return
+  }
+  let depth = $inside.depth
+  while (depth > 0 && $inside.node(depth).type.name !== 'table') depth -= 1
+  if (depth === 0) return
+  const table = $inside.node(depth)
+  const tablePos = $inside.before(depth)
+  const { schema } = view.state
+  const tr = view.state.tr
+  let caret
+  if (axis === 'row') {
+    const last = table.lastChild
+    const cells = []
+    last.forEach((cell) => {
+      const fresh = schema.nodes.table_cell.createAndFill({ alignment: cell.attrs.alignment ?? null })
+      if (fresh) cells.push(fresh)
+    })
+    const row = schema.nodes.table_row.create(null, cells)
+    const at = tablePos + table.nodeSize - 1
+    tr.insert(at, row)
+    caret = at + 2
+  } else {
+    // From the last row up, so the places of the rows above stay put.
+    const rows = []
+    table.forEach((row, offset) => rows.push({ row, pos: tablePos + 1 + offset }))
+    for (const { row, pos } of rows.reverse()) {
+      const type = row.type.name === 'table_header_row' ? schema.nodes.table_header : schema.nodes.table_cell
+      const cell = type.createAndFill({ alignment: null })
+      if (cell) tr.insert(pos + row.nodeSize - 1, cell)
+    }
+    const header = table.firstChild
+    caret = tablePos + 1 + header.nodeSize - 1 + 2
+  }
+  tr.setSelection(TextSelection.near(tr.doc.resolve(Math.min(caret, tr.doc.content.size))))
+  userHasInteracted = true
+  hasUserChanges = true
+  view.dispatch(tr.scrollIntoView())
+  view.focus()
+  requestAnimationFrame(positionTableAppenders)
+}
+
 // MARK: - Comment anchors
 //
 // A comment sits on the passage it was made on, as Codex's do: its words are
