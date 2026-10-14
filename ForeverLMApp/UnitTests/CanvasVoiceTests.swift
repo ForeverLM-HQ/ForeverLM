@@ -1,4 +1,6 @@
+import AppKit
 import Foundation
+import SwiftUI
 import Testing
 @testable import ForeverLM
 
@@ -261,3 +263,37 @@ struct CanvasVoiceUndoTests {
         }
     }
 }
+
+@Suite("Canvas voice: the capsule as it draws")
+@MainActor
+struct CanvasVoiceCapsuleTests {
+    @Test("In every state the capsule stays one bar: no taller than two lines, no wider than its 560")
+    func capsuleSizes() throws {
+        let voice = KnowledgeMapVoice.shared
+        defer { voice.stop() }
+        let long = "put the three papers about PINK1 and Parkin together under a new group called Upstream signals and connect it to the question about fission"
+        let states: [(String, () -> Void)] = [
+            ("listening", { voice.debugShow(.listening) }),
+            ("hearing-words", { voice.debugShow(.listening, heard: long) }),
+            ("changing", { voice.debugShow(.changing, heard: long) }),
+            ("done-undo", { voice.debugShow(.done, heard: long, changes: ["Grouped 3 cards as “Upstream signals”", "Drew an arrow"], offersUndo: true) }),
+            ("failed-mic", { voice.debugShow(.failed("Microphone access is required to speak to the canvas."), needsMicrophone: true) }),
+        ]
+        let folder = ProcessInfo.processInfo.environment["FOREVERLM_RENDER_DIR"].map { URL(fileURLWithPath: $0) }
+        var widths: [String: CGFloat] = [:]
+        for (name, show) in states {
+            show()
+            let size = try #require(ImageRenderer(content: KnowledgeMapVoiceCapsule()).nsImage, "\(name)").size
+            widths[name] = size.width
+            #expect(size.width <= 560 && size.height <= 60, "\(name) is \(size.width) by \(size.height)")
+            guard let folder else { continue }
+            let renderer = ImageRenderer(content: KnowledgeMapVoiceCapsule().padding(20).background(Color(white: 0.92)).frame(width: 700))
+            renderer.scale = 2
+            if let tiff = renderer.nsImage?.tiffRepresentation, let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) {
+                try png.write(to: folder.appendingPathComponent("capsule-\(name).png"))
+            }
+        }
+        #expect((widths["listening"] ?? 560) < 400, "a short line is a short bar, not one spread to the cap")
+    }
+}
+

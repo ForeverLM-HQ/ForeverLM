@@ -115,6 +115,20 @@ final class KnowledgeMapVoice {
 
     var isShowing: Bool { phase != .idle }
 
+    #if DEBUG
+    /// Puts the capsule in a state, for a test that draws it.
+    func debugShow(_ phase: Phase, heard: String = "", changes: [String] = [], remark: String? = nil, offersUndo: Bool = false, needsMicrophone: Bool = false) {
+        fading?.cancel()
+        self.phase = phase
+        self.heard = heard
+        self.changes = changes
+        self.remark = remark
+        canUndoRequest = offersUndo
+        self.needsMicrophone = needsMicrophone
+        hearsOnDevice = true
+    }
+    #endif
+
     // MARK: Keys, the menu and the ×
 
     /// S went down on the plane.
@@ -1118,10 +1132,12 @@ struct KnowledgeMapVoiceCapsule: View {
             case .done:
                 Image(systemName: "checkmark")
                     .foregroundStyle(.secondary)
-                said
+                // What it did says enough; the words heard give way to it.
+                if voice.changes.isEmpty { said }
                 changed
                 if voice.canUndoRequest {
                     Button("Undo") { voice.undoRequest() }
+                        .fixedSize()
                         .buttonStyle(.hoverWash(cornerRadius: 6, inset: 0, opacity: 0.12))
                         .help("Take back what this request changed (⌘Z)")
                         .accessibilityIdentifier("knowledgeMap.voice.undo")
@@ -1141,6 +1157,7 @@ struct KnowledgeMapVoiceCapsule: View {
                             if let url = URL(string: raw), NSWorkspace.shared.open(url) { break }
                         }
                     }
+                    .fixedSize()
                     .buttonStyle(.hoverWash(cornerRadius: 6, inset: 0, opacity: 0.12))
                     .accessibilityIdentifier("knowledgeMap.voice.microphoneSettings")
                 }
@@ -1164,8 +1181,9 @@ struct KnowledgeMapVoiceCapsule: View {
         .padding(.leading, 14)
         .padding(.trailing, 8)
         .padding(.vertical, 7)
-        .frame(maxWidth: 560)
         .mapFloatingChrome(cornerRadius: 16)
+        // As wide as what it says, up to 560: a short line is a short bar.
+        .modifier(CappedWidth(maximum: 560))
         .accessibilityIdentifier("knowledgeMap.voice")
     }
 
@@ -1187,6 +1205,29 @@ struct KnowledgeMapVoiceCapsule: View {
                 .lineLimit(2)
                 .layoutPriority(1)
         }
+    }
+}
+
+/// Offers its content at most `maximum` wide and takes the width the content
+/// wants, so the capsule hugs a short line rather than spreading to its cap.
+private struct CappedWidth: ViewModifier {
+    let maximum: CGFloat
+
+    func body(content: Content) -> some View {
+        CappedWidthLayout(maximum: maximum) { content }
+    }
+}
+
+private struct CappedWidthLayout: Layout {
+    let maximum: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard let child = subviews.first else { return .zero }
+        return child.sizeThatFits(ProposedViewSize(width: min(proposal.width ?? maximum, maximum), height: proposal.height))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        subviews.first?.place(at: bounds.origin, proposal: ProposedViewSize(bounds.size))
     }
 }
 
