@@ -429,9 +429,13 @@ struct SpaceBrowseView: View {
 
     private var query: String { searchText.trimmingCharacters(in: .whitespacesAndNewlines) }
 
-    /// Pictures are this Mac's files, read only where they are listed.
+    /// Pictures are this Mac's files, read only where they are listed: in
+    /// Images alone. All leaves them out, as a space does, since a talk's
+    /// slides saved for a canvas are dozens of pictures that buried the
+    /// learner's pages (product owner, 2026-10-13: "why do all these things
+    /// show up like this?", then "yes please do that").
     private var listsImages: Bool {
-        vm.activeTeamID == nil && (destination == .all || destination == .images)
+        vm.activeTeamID == nil && destination == .images
     }
 
     var body: some View {
@@ -616,7 +620,7 @@ struct SpaceBrowseView: View {
         if destination == .trash { return item.isInTrash }
         guard !item.isArchived else { return false }
         switch destination {
-        case .all: return true
+        case .all: return item.kind != .image
         case .notebooks: return item.kind == .notebook
         case .chats: return item.kind == .chat
         case .pages: return item.kind == .page || item.kind == .reading

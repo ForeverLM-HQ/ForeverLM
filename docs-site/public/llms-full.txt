@@ -431,7 +431,7 @@ rail's **Notebooks** heading, ⌘P (View → Space), **Close Notebook** and **�
 the top of an open notebook take you there too.
 
 **All** lists every notebook and course beside your pages, sites and
-canvases. A notebook shows its cover, or its emoji on its own soft colour (an
+canvases. Pictures are listed under **Images**, not in **All**. A notebook shows its cover, or its emoji on its own soft colour (an
 emoji at the start of the title is its icon; without one, ForeverLM picks one
 that fits the title, the same on every device), dated by when you last worked
 in it. Click a notebook to open it; drag a source or a course onto it to add
