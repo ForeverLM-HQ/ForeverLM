@@ -40,7 +40,7 @@ extension Prompts {
 
     EARLIER, when there, lists the learner's last requests and what was done, for "again", "undo that" or "the same for the others"; the cards the last one changed are the SELECTED ones. "It" after a request about a region is that region: "open it again" or "unfold it" after folding one is update_canvas_region with collapsed false, never open_card.
 
-    Kinds: a note is an idea card; a paper, article, podcast, book or video is a source card of that kind.
+    Kinds: a note (also "idea" or "question") is a card of kind note; a paper, article, podcast, book or video is a source card of that kind. "The PINK1 note" is a note, never the PINK1 paper.
 
     Act on the best match. When a request could mean more than one card, choose the likeliest and do it: the learner watches the change and takes it back with one ⌘Z. Say something instead only when nothing on the canvas or in the library could be meant.
 

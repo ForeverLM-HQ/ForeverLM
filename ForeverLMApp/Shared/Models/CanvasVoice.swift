@@ -167,7 +167,7 @@ enum CanvasVoice {
         if listed.isEmpty { lines.append("none") }
         for card in listed {
             guard let alias = aliasOfRef[card.ref] else { continue }
-            var line = "\(alias) \(card.type) \(quoted(card.title))"
+            var line = "\(alias) \(kind(card.type)) \(quoted(card.title))"
             if let x = card.x, let y = card.y {
                 line += " \(number(x)),\(number(y)) \(number(card.w ?? 0))×\(number(card.h ?? 0))"
             }
@@ -202,7 +202,7 @@ enum CanvasVoice {
             lines.append("WAITING IN THE CANVAS'S LIBRARY (not placed):")
             for card in waiting {
                 guard let alias = aliasOfRef[card.ref] else { continue }
-                lines.append("\(alias) \(card.type) \(quoted(card.title))")
+                lines.append("\(alias) \(kind(card.type)) \(quoted(card.title))")
             }
         }
         let turns = earlier.suffix(maximumTurns)
@@ -225,6 +225,13 @@ enum CanvasVoice {
             message: lines.joined(separator: "\n"), cards: cardIDs, regions: regionIDs, regionCards: regionCards,
             regionNames: snapshot.regions.map(\.name)
         )
+    }
+
+    /// A card's kind in the learner's word: an Idea is a "note", as they
+    /// say it ("the PINK1 note" was taken for the PINK1 paper when the
+    /// listing said "idea").
+    private static func kind(_ type: String) -> String {
+        type == "idea" ? "note" : type
     }
 
     private static func end(_ ref: String, cards: [String: String], regions: [String: String]) -> String? {
@@ -509,6 +516,11 @@ enum CanvasVoice {
     ///   an alignment alone is left an alignment.
     static func meant(_ edit: Edit, said: String, regionNames: [String]) -> Edit? {
         var edit = edit
+        // A shorthand for an edit by what it does ("align", "tidy", "row"):
+        // the arrangement it names.
+        if ["align", "tidy", "tidy_up", "arrange"].contains(edit.tool) {
+            edit = Edit(tool: "arrange_on_canvas", arguments: edit.arguments)
+        }
         if edit.tool == "arrange_on_canvas", edit.arguments["arrangement"] != nil {
             let words = Set(said.lowercased().split { !$0.isLetter }.map(String.init))
             let named = ["row", "column", "grid"].filter { words.contains($0) || words.contains($0 + "s") }

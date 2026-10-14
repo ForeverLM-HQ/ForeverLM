@@ -59,7 +59,7 @@ struct CanvasVoiceTests {
         #expect(context.message.contains("r1 → "))
         #expect(!context.message.contains("dropped"))
         #expect(context.cards["c3"] == "idea:w")
-        #expect(context.message.contains("c3 idea \"Waiting\""))
+        #expect(context.message.contains("c3 note \"Waiting\""), "an Idea is listed as the learner says it, a note")
     }
 
     @Test("A long title is cut, quotes and line breaks are tamed, and a canvas past the limit says how many it left out")
@@ -184,6 +184,8 @@ struct CanvasVoiceTests {
         let align = CanvasVoice.meant(E(tool: "arrange_on_canvas", arguments: ["item_ids": ["c1", "c2"], "align": "top"]),
                                       said: "align the cards in the left column to the top", regionNames: [])
         #expect(align?.arguments["arrangement"] == nil, "an alignment alone stays an alignment")
+        let shorthand = CanvasVoice.meant(E(tool: "align", arguments: ["item_ids": ["c1", "c2"], "align": "top"]), said: "align these to the top", regionNames: [])
+        #expect(shorthand?.tool == "arrange_on_canvas" && shorthand?.arguments["align"] as? String == "top", "an edit written by what it does is the edit")
         let beside = CanvasVoice.meant(E(tool: "move", arguments: ["item_ids": ["source:a"], "beside": "idea:b"]), said: "", regionNames: [])
         #expect(beside?.tool == "place_on_canvas" && beside?.arguments["beside"] as? String == "idea:b", "a move beside a card is the placement beside it")
     }
