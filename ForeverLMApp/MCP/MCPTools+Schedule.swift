@@ -989,6 +989,26 @@ extension MCPDataStore {
         return trimmed
     }
 
+    /// The library's sources for `query`, best first, ranked as
+    /// search_sources_semantic and the in-app search rank them (by meaning
+    /// and by words): their ids only. Speaking to the Canvas finds what to
+    /// set down with it. Runs the search where it is called, so call it off
+    /// the main actor.
+    func rankedSourceIDs(query: String, limit: Int) async throws -> [String] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        let store = try knowledgeStore()
+        let embeddingProvider = sourceEmbeddingProvider ?? liveSourceEmbeddingProvider
+        let queryVector = try await embeddingProvider(trimmed)
+        return StorageService.searchSources(
+            queryText: trimmed,
+            queryVector: queryVector,
+            limit: max(1, min(limit, 25)),
+            threshold: EmbeddingSettings.similarityThreshold,
+            using: store
+        ).map(\.sourceId)
+    }
+
     func searchSourcesSemantic(
         queryText: String,
         limit: Int = 8,

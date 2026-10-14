@@ -574,31 +574,37 @@ final class KnowledgeMapVoice {
         return "Wrote “\(Self.short(text))”"
     }
 
-    /// `find_and_place`: the library's cards whose titles hold each set of
-    /// words, as the canvas's Find or add… finds them, best first, set down
-    /// together. A card already on the canvas moves there.
+    /// `find_and_place`: the library's cards for each search, best first, set
+    /// down together. A card whose title holds every word of the search comes
+    /// first, as the canvas's Find or add… finds it; then the library's own
+    /// search by meaning fills the rest (so "ketone bodies" finds the paper on
+    /// beta-hydroxybutyrate), run off the main actor. A card already on the
+    /// canvas moves there.
     private func findAndPlace(_ arguments: [String: Any], map: KnowledgeMapModel) async throws -> String {
         let searches = (arguments["words"] as? [Any])?.compactMap { $0 as? String } ?? (arguments["words"] as? String).map { [$0] } ?? []
         let limit = min(max(Int(MCPDataStore.canvasNumber(arguments["limit"]) ?? 6), 1), 24)
         let placed = Set(map.layout.placements.keys)
-        var found: [String] = []
         // One phrase split into single words ("ketone", "bodies") is searched
         // as the phrase it was; alone, "bodies" would find every Lewy body.
         let split = searches.count > 1 && searches.allSatisfy { !$0.trimmingCharacters(in: .whitespaces).contains(" ") }
-        if split {
-            let joined = searches.joined(separator: " ")
-            let matches = KnowledgeMapAddSearch.matches(joined, content: map.content, placed: placed, onPlane: [], index: map.addSearchIndex)
-            found = matches.library + matches.onCanvas
+        let phrases = split ? [searches.joined(separator: " ")] : searches
+        var found: [String] = []
+        func add(_ ref: String) { if !found.contains(ref), map.nodesByRef[ref] != nil { found.append(ref) } }
+        for phrase in phrases {
+            let matches = KnowledgeMapAddSearch.matches(phrase, content: map.content, placed: placed, onPlane: [], index: map.addSearchIndex)
+            for ref in matches.library + matches.onCanvas { add(ref) }
         }
-        for words in (split && !found.isEmpty) ? [] : searches {
-            let matches = KnowledgeMapAddSearch.matches(words, content: map.content, placed: placed, onPlane: [], index: map.addSearchIndex)
-            for ref in matches.library + matches.onCanvas where !found.contains(ref) {
-                found.append(ref)
+        if found.count < limit {
+            for phrase in phrases {
+                let ids = try await Task.detached(priority: .userInitiated) {
+                    try await MCPDataStore().rankedSourceIDs(query: phrase, limit: limit)
+                }.value
+                for id in ids { add(KnowledgeMap.ItemRef(kind: .source, id: id).description) }
             }
         }
         found = Array(found.prefix(limit))
         guard !found.isEmpty else {
-            throw MCPError.notFound("Nothing in your library has “\(searches.joined(separator: "”, “"))” in its title.")
+            throw MCPError.notFound("Nothing in your library matches “\(phrases.joined(separator: "”, “"))”.")
         }
         var place = Self.whereTo(arguments)
         place["item_ids"] = found
@@ -724,7 +730,7 @@ final class KnowledgeMapVoice {
         lines.append(contentsOf: [
             "- move(item_ids: [string], dx: number, dy: number): Shift placed cards by dx and dy, keeping them where they are to each other.",
             "- write_note(text: string, region?: string, beside?: string, new_region?: string): A new note card of the learner's words, set down there, else in the middle of the view.",
-            "- find_and_place(words: [string], limit?: integer, region?: string, beside?: string, new_region?: string): Find cards in the learner's library whose titles hold every word of one search (each entry of words is one search: a short phrase such as \"ketone bodies\"), and set the best (6 unless limit says) down there.",
+            "- find_and_place(words: [string], limit?: integer, region?: string, beside?: string, new_region?: string): Find what the learner asked for in their library (each entry of words is one search, a short phrase of what they said, such as \"ketone bodies\"; titles first, then by meaning), and set the best (6 unless limit says) down there.",
             "- say(text: string): One short sentence to the learner, when you change nothing or must say why.",
         ])
         return lines.joined(separator: "\n")

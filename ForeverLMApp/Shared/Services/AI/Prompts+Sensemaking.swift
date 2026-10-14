@@ -46,7 +46,7 @@ extension Prompts {
     - Line cards up or tidy them: arrange_on_canvas. Restyle, fold, tint or resize cards: update_canvas_card.
     - Connect cards: draw_canvas_arrow, labelled only with the learner's words.
     - Remove cards: take_off_canvas (nothing leaves their library). Remove a region: delete_canvas_region.
-    - Add a card in the learner's words: write_note. Add something from their library that is not on the canvas: find_and_place, with each search a short phrase of title words ("ketone bodies"), never one phrase split into single words. A card already on the canvas is moved with place_on_canvas, not found.
+    - Add a card in the learner's words: write_note. Add something from their library that is not on the canvas: find_and_place, with each search a short phrase of what they asked for ("ketone bodies"), never one phrase split into single words. A card already on the canvas is moved with place_on_canvas, not found.
     - Take back the last change: undo_canvas. Show a place on the canvas: focus_map.
     - Colours are the canvas's eight tints: violet #7F77DD, green #1D9E75, orange #D85A30, pink #D4537E, amber #BA7517, blue #378ADD, lime #639922, grey #888780. For another colour the learner names, take the nearest (red is orange, purple is violet, yellow is amber).
 
