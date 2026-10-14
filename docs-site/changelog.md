@@ -6,6 +6,12 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.150.0 (build 230) — 2026-10-14
+
+**Highlights:**
+- **Speaking to a canvas puts things where you say** ("below the Mitophagy region", "between the two regions") and keeps the canvas tidy.
+- **Tidy Up makes room** instead of covering cards.
+
 ## 0.149.0 (build 229) — 2026-10-14
 
 **Highlights:**
