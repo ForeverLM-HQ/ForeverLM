@@ -1036,6 +1036,118 @@ final class KnowledgeMapModel {
         return (id, refs)
     }
 
+    /// Lays a talk out as a storyboard (Lay Out the Talk): each slide of
+    /// `talk`, in order, with the papers it cites hung under it and an arrow
+    /// from the slide to each, in one region named `regionName` where there is
+    /// room near `center`. One Undo step.
+    ///
+    /// Laid out again (once more of the papers are in the library), the
+    /// slides on the canvas keep their spots and a paper new to the canvas
+    /// hangs under its slide, in the first free spot down its column, the
+    /// slide's region growing to hold it. A paper already on the canvas keeps
+    /// its spot and still gets its arrows; a paper cited by several slides
+    /// hangs under the first and gets an arrow from each. Nil when there was
+    /// nothing to set down or join.
+    func layOutStoryboard(
+        _ talk: [(slide: String, papers: [String])],
+        regionName: String,
+        near center: KnowledgeMapArranging.Spot? = nil,
+        color: String? = nil
+    ) -> (regionID: String?, slides: [String], papers: [String])? {
+        let fresh = talk.filter { layout.placements[$0.slide] == nil }
+        let standing = talk.filter { layout.placements[$0.slide] != nil }
+        // Each paper hangs once, under the first slide that cites it.
+        var hanging = Set<String>()
+        func hangable(_ papers: [String]) -> [String] {
+            papers.filter { paper in
+                guard layout.placements[paper] == nil, nodesByRef[paper] != nil, !hanging.contains(paper) else { return false }
+                hanging.insert(paper)
+                return true
+            }
+        }
+        let hung = fresh.map { hangable($0.papers) }
+        let underStanding = standing.map { hangable($0.papers) }
+
+        // The papers under slides on the canvas already: down the slide's column to the first free spot.
+        var taken = placedCards(excluding: [])
+        var later: [(ref: String, spot: Spot)] = []
+        for (entry, papers) in zip(standing, underStanding) {
+            guard let slide = layout.placements[entry.slide] else { continue }
+            for paper in papers {
+                let height = cardHeight(of: paper)
+                var y = slide.y + cardHeight(of: entry.slide) + KnowledgeMapArranging.gap
+                for _ in 0..<400 {
+                    let card = Rect(x: slide.x, y: y, w: KnowledgeMap.cardWidth, h: height)
+                    guard let blocking = taken.filter({ $0.intersects(card) }).max(by: { $0.y + $0.h < $1.y + $1.h }) else { break }
+                    y = blocking.y + blocking.h + KnowledgeMapArranging.gap
+                }
+                later.append((paper, Spot(x: slide.x, y: y)))
+                taken.append(Rect(x: slide.x, y: y, w: KnowledgeMap.cardWidth, h: height))
+            }
+        }
+
+        // Every arrow a slide gives, to the papers placed now and those on the canvas already.
+        let joins: [(String, String)] = talk.flatMap { entry in
+            entry.papers.filter { layout.placements[$0] != nil || hanging.contains($0) }.map { (entry.slide, $0) }
+        }
+        let newJoins = joins.filter { join in !layout.edges.values.contains { $0.from == join.0 && $0.to == join.1 } }
+        guard !fresh.isEmpty || !later.isEmpty || !newJoins.isEmpty else { return nil }
+
+        var board: (slides: [Spot], hung: [[Spot]], frame: Rect)?
+        if !fresh.isEmpty {
+            let slideHeights = fresh.map { cardHeight(of: $0.slide) }
+            let hungHeights = hung.map { $0.map(cardHeight(of:)) }
+            let size = KnowledgeMapArranging.storyboard(slideHeights: slideHeights, hung: hungHeights, origin: Spot(x: 0, y: 0)).frame
+            let middle = center ?? arrivalCenter()
+            let origin = KnowledgeMapArranging.freeRowOrigin(
+                size: (size.w, size.h),
+                left: (middle.x - size.w / 2).rounded(),
+                top: (middle.y - min(size.h, viewport.span.h > 0 ? viewport.span.h - 160 : size.h) / 2).rounded(),
+                occupied: occupied(excluding: []) + later.map { Rect(x: $0.spot.x, y: $0.spot.y, w: KnowledgeMap.cardWidth, h: cardHeight(of: $0.ref)) }
+            )
+            board = KnowledgeMapArranging.storyboard(
+                slideHeights: slideHeights,
+                hung: hungHeights,
+                origin: Spot(x: origin.x + KnowledgeMapArranging.insetX, y: origin.y + KnowledgeMapArranging.insetY)
+            )
+        }
+        let id = board == nil ? nil : Self.newRegionID()
+        let tint = color ?? nextRegionColor()
+        updateLayout { layout, at in
+            if let board, let id {
+                for (entry, spot) in zip(fresh, board.slides) { layout.place(entry.slide, x: spot.x, y: spot.y, at: at) }
+                for (papers, spots) in zip(hung, board.hung) {
+                    for (paper, spot) in zip(papers, spots) { layout.place(paper, x: spot.x, y: spot.y, at: at) }
+                }
+                layout.setRegion(id, .init(
+                    name: regionName,
+                    x: board.frame.x, y: board.frame.y, w: board.frame.w, h: board.frame.h,
+                    color: tint,
+                    at: at
+                ))
+            }
+            for (paper, spot) in later { layout.place(paper, x: spot.x, y: spot.y, at: at) }
+            for (from, to) in newJoins {
+                layout.setEdge("e" + UUID().uuidString.prefix(8).lowercased(), .init(from: from, to: to, label: "", at: at))
+            }
+            // A paper hung under a slide on the canvas is held by that slide's region.
+            for (paper, spot) in later {
+                guard let slide = standing.first(where: { $0.papers.contains(paper) }),
+                      let held = layout.placements[slide.slide] else { continue }
+                let middle = Self.regionMiddle(of: held)
+                for (regionID, var region) in layout.regions where !region.isLocked
+                    && middle.x >= region.x && middle.x <= region.x + region.w && middle.y >= region.y && middle.y <= region.y + region.h {
+                    let bottom = spot.y + cardHeight(of: paper) + KnowledgeMapArranging.insetX
+                    guard bottom > region.y + region.h else { continue }
+                    region.h = bottom - region.y
+                    region.at = at
+                    layout.setRegion(regionID, region)
+                }
+            }
+        }
+        return (id, fresh.map(\.slide), hung.flatMap { $0 } + later.map(\.ref))
+    }
+
     /// The cards a region carries when it moves: those whose middle its
     /// frame holds, as the renderer's move takes them.
     func refsInRegion(_ id: String) -> [String] {
@@ -1452,13 +1564,21 @@ final class KnowledgeMapModel {
                 clipLinks.append((ref, KnowledgeMap.ItemRef(kind: .source, id: source.id).description))
                 continue
             }
-            guard let page = ReaderClip.page(of: clip) else { continue }
+            // A figure names its page; a talk's slide names its moment in its title.
+            let place: String
+            if let page = ReaderClip.page(of: clip) {
+                place = "\(source.title) · p. \(page)"
+            } else if ReaderClip.slide(of: clip) != nil {
+                place = source.title
+            } else {
+                continue
+            }
             nodes.append(KnowledgeMapNode(
                 ref: ref,
                 kind: "clip",
                 type: "clip",
                 title: ReaderClip.title(of: clip),
-                sub: "\(source.title) · p. \(page)",
+                sub: place,
                 detail: note.isEmpty ? [] : [note],
                 shore: notebooksBySource[source.id]?.first ?? "Clips",
                 h: KnowledgeMap.clipHeight(aspect: ReaderClip.aspect(of: clip), captioned: captions[clip.id] != nil),

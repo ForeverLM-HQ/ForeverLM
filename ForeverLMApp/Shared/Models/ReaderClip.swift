@@ -15,11 +15,52 @@ import Foundation
 enum ReaderClip {
     /// The page region a mark clips, or nil for every other mark: a passage,
     /// a web page's picture, a mark with more than one picture.
+    /// A talk's slide is a clip too (`slideHighlight`): the whole captured
+    /// frame of a video or recording, laid out with the papers it cites
+    /// (Lay Out the Talk).
     static func reference(of highlight: SourceHighlight) -> SourceImageReference? {
         guard highlight.isPictureOnly, highlight.imageAnchors.count == 1,
-              let reference = SourceImageReference(urlString: highlight.imageAnchors[0].src),
-              case .page = reference.location, reference.crop != nil else { return nil }
-        return reference
+              let reference = SourceImageReference(urlString: highlight.imageAnchors[0].src) else { return nil }
+        switch reference.location {
+        case .page: return reference.crop != nil ? reference : nil
+        case .slide: return reference
+        default: return nil
+        }
+    }
+
+    /// The slide of a talk a clip is, when it is one.
+    static func slide(of highlight: SourceHighlight) -> Int? {
+        guard let reference = reference(of: highlight), case .slide(let index) = reference.location else { return nil }
+        return index
+    }
+
+    /// A slide of a talk as a clip: a mark on the video or recording whose one
+    /// picture is the captured frame (`foreverlm://image/<sourceID>/slide/<n>`),
+    /// drawn again from the frame this Mac holds. Its pixel size only carries
+    /// its shape.
+    static func slideHighlight(
+        id: String = SourceHighlight.newID(),
+        sourceID: String,
+        slide: Int,
+        title: String,
+        pixelWidth: Int,
+        pixelHeight: Int,
+        note: String = "",
+        at date: Date = Date()
+    ) -> SourceHighlight {
+        let reference = SourceImageReference(sourceID: sourceID, location: .slide(slide), crop: nil)
+        return SourceHighlight(
+            id: id,
+            sourceID: sourceID,
+            quote: "",
+            note: note.trimmingCharacters(in: .whitespacesAndNewlines),
+            color: .default,
+            anchor: ReaderTextAnchor(exact: ""),
+            pdfAnchor: nil,
+            imageAnchors: [ReaderImageAnchor(src: reference.urlString, alt: title, width: pixelWidth, height: pixelHeight)],
+            createdAt: date,
+            updatedAt: date
+        )
     }
 
     static func isClip(_ highlight: SourceHighlight) -> Bool {

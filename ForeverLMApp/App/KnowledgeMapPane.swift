@@ -1310,6 +1310,16 @@ struct KnowledgeMapPane: View {
                         .accessibilityIdentifier("knowledgeMap.selection.layOutFiguresExtended")
                 }
             }
+            // A video or a recording can be laid out as its slides, with the
+            // papers each cites hung under it.
+            if refs.count == 1, let item = KnowledgeMap.ItemRef(refs[0]), item.kind == .source,
+               vm.canLayOutKnowledgeMapTalk(item.id) {
+                Button("Lay Out the Talk") {
+                    Task { await vm.layOutKnowledgeMapTalkFromMenu(sourceID: item.id, in: windowState) }
+                }
+                .help("Its slides as a storyboard, each with the papers it cites from your library hung under it")
+                .accessibilityIdentifier("knowledgeMap.selection.layOutTalk")
+            }
             if !placed.isEmpty {
                 KnowledgeMapColourMenu(
                     selected: sharedCardColor(of: placed),

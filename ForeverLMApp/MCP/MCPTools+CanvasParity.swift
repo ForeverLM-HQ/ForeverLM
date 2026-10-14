@@ -369,10 +369,15 @@ extension MCPDataStore {
             card["source_id"] = parts.sourceID
             card["page"] = parts.page
         }
+        // A talk's slide (Lay Out the Talk) says which slide of which video.
         if let item = KnowledgeMap.ItemRef(ref), item.kind == .clip, let clip = map.clips[item.id],
-           let reference = ReaderClip.reference(of: clip), case .page(let page) = reference.location {
+           let reference = ReaderClip.reference(of: clip) {
             card["source_id"] = clip.sourceID
-            card["page"] = page
+            switch reference.location {
+            case .page(let page): card["page"] = page
+            case .slide(let slide): card["slide"] = slide
+            default: break
+            }
             card["picture"] = reference.markdown(alt: ReaderClip.title(of: clip))
             if clip.hasNote { card["note"] = clip.note }
         }

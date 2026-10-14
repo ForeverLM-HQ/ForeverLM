@@ -94,14 +94,16 @@ extension StudioViewModel {
     }
 
     /// A clip's picture as the Canvas draws it: its page region, rendered from
-    /// the PDF this Mac holds, the way the chat draws a figure it shows.
+    /// the PDF this Mac holds, the way the chat draws a figure it shows; a
+    /// talk's slide from the frame captured beside its video.
     func knowledgeMapClipPicture(_ clip: SourceHighlight) async -> String? {
         guard let reference = ReaderClip.reference(of: clip) else { return nil }
         let sourceID = clip.sourceID
         let token = SourceImageReference(sourceID: sourceID, location: reference.location, crop: reference.crop).urlString
         let image = await ChatSourceImage.resolved(
             token: token,
-            articleForSourceID: { [weak self] id in await self?.persistedArticle(forLinkToken: id) }
+            articleForSourceID: { [weak self] id in await self?.persistedArticle(forLinkToken: id) },
+            contentForSourceID: { [weak self] id in await self?.storage.loadSourceContent(id) }
         )
         return image.map { "data:\($0.mediaType);base64,\($0.data.base64EncodedString())" }
     }
@@ -118,6 +120,18 @@ extension StudioViewModel {
                 return
             }
             requestReaderPassage(clip.quote, page: ReaderClip.passagePage(of: clip) ?? knowledgeMap.passagePage(clip.id), for: clip.sourceID)
+            return
+        }
+        // A talk's slide opens its video beside the Canvas, at the moment the
+        // slide comes on screen.
+        if let clip = knowledgeMap.clips[clipID], let slide = ReaderClip.slide(of: clip) {
+            guard await openSourceBesideChat(clip.sourceID, beside: .knowledgeMap, in: windowState) else {
+                showToast("That slide's video is not in the library")
+                return
+            }
+            let content = await storage.loadSourceContent(clip.sourceID) ?? ""
+            let frame = YouTubeSlideContentParser.parse(content).slides.first { $0.index == slide }
+            requestReaderTime(frame?.timeSeconds, for: clip.sourceID, plays: false)
             return
         }
         guard let clip = knowledgeMap.clips[clipID], let reference = ReaderClip.reference(of: clip),
@@ -385,7 +399,7 @@ extension StudioViewModel {
                 sources.insert(parts.sourceID)
                 pages += 1
             case .clip:
-                guard let clip = map.clips[item.id], ReaderClip.isClip(clip) else { return nil }
+                guard let clip = map.clips[item.id], ReaderClip.page(of: clip) != nil else { return nil }
                 sources.insert(clip.sourceID)
                 figures += 1
                 if PaperFigureSelection.isExtended(ReaderClip.title(of: clip)) { extended += 1 }

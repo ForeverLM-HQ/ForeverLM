@@ -23,18 +23,19 @@ struct KnowledgeMapClipInspector: View {
     var body: some View {
         if let clip {
             let isPassage = ReaderClip.isPassage(clip)
+            let slide = ReaderClip.slide(of: clip)
             VStack(alignment: .leading, spacing: 10) {
                 // Where it was cut from; the line is the way to the page.
                 if let source = vm.articlesById[clip.sourceID] {
                     Button { Task { await vm.openKnowledgeMapClip(clipID, in: windowState) } } label: {
-                        Text(source.title + ((ReaderClip.page(of: clip) ?? ReaderClip.passagePage(of: clip) ?? vm.knowledgeMap.passagePage(clip.id)).map { ", page \($0)" } ?? ""))
+                        Text(source.title + (slide.map { ", slide \($0)" } ?? (ReaderClip.page(of: clip) ?? ReaderClip.passagePage(of: clip) ?? vm.knowledgeMap.passagePage(clip.id)).map { ", page \($0)" } ?? ""))
                             .zoomedSystemFont(size: 12)
                             .foregroundStyle(.secondary)
                             .lineLimit(3)
                             .multilineTextAlignment(.leading)
                     }
                     .buttonStyle(.hoverWash(cornerRadius: 6, inset: -4, opacity: 0.10))
-                    .help(isPassage ? "Open the paper beside the Canvas at this passage" : "Open the paper beside the Canvas at this clip, outlined")
+                    .help(slide != nil ? "Open the video beside the Canvas at this slide" : isPassage ? "Open the paper beside the Canvas at this passage" : "Open the paper beside the Canvas at this clip, outlined")
                     .accessibilityIdentifier("knowledgeMap.clip.open")
                 }
                 TextField("Your note on this clip", text: $note, axis: .vertical)

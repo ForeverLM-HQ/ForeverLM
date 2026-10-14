@@ -2119,3 +2119,140 @@ struct CanvasReviewFixesTests {
         }
     }
 }
+
+/// Lay Out the Talk: a video's slides as clips in a storyboard, the papers
+/// each slide cites hung under it.
+@MainActor
+@Suite(.serialized)
+struct CanvasTalkStoryboardTests {
+    private func withModel(_ body: (KnowledgeMapModel) throws -> Void) rethrows {
+        let suite = UserDefaults(suiteName: "CanvasTalkStoryboardTests.\(UUID().uuidString)")!
+        try KnowledgeMapRows.$overrideDefaults.withValue(.init(defaults: suite)) {
+            try body(KnowledgeMapModel(mapID: KnowledgeMap.firstCanvasID))
+        }
+    }
+
+    @Test("A slide of a talk is a clip, addressed by its slide, and its shape comes from its frame")
+    func slideIsAClip() {
+        let clip = ReaderClip.slideHighlight(sourceID: "talk", slide: 7, title: "Slide 7 · 3:12", pixelWidth: 1280, pixelHeight: 720)
+        #expect(ReaderClip.isClip(clip))
+        #expect(ReaderClip.slide(of: clip) == 7)
+        #expect(ReaderClip.page(of: clip) == nil)
+        #expect(ReaderClip.title(of: clip) == "Slide 7 · 3:12")
+        #expect(ReaderClip.aspect(of: clip) == 1280.0 / 720.0)
+        #expect(ReaderClip.reference(of: clip)?.urlString == "foreverlm://image/talk/slide/7")
+        // A page of a PDF with no crop is still no clip.
+        let whole = SourceHighlight(
+            id: "w", sourceID: "p", quote: "", note: "", color: .default, anchor: ReaderTextAnchor(exact: ""), pdfAnchor: nil,
+            imageAnchors: [ReaderImageAnchor(src: "foreverlm://image/p/page/2", alt: "", width: 10, height: 10)],
+            createdAt: Date(), updatedAt: Date()
+        )
+        #expect(!ReaderClip.isClip(whole))
+    }
+
+    @Test("A storyboard sets four slides to a row with each slide's papers stacked under it, and the next row under the longest column")
+    func storyboardArrangement() {
+        let laid = KnowledgeMapArranging.storyboard(
+            slideHeights: [150, 150, 150, 150, 150],
+            hung: [[100, 100], [], [100], [], []],
+            origin: .init(x: 0, y: 0)
+        )
+        let gap = KnowledgeMapArranging.gap
+        let stepX = KnowledgeMap.cardWidth + gap
+        #expect(laid.slides.map(\.x) == [0, stepX, stepX * 2, stepX * 3, 0])
+        #expect(laid.hung[0] == [.init(x: 0, y: 150 + gap), .init(x: 0, y: 150 + gap + 100 + gap)])
+        #expect(laid.hung[2] == [.init(x: stepX * 2, y: 150 + gap)])
+        let firstRowBottom = 150 + gap + 100 + gap + 100
+        #expect(laid.slides[4].y == firstRowBottom + gap * 3)
+        #expect(laid.frame.w == KnowledgeMap.cardWidth * 4 + gap * 3 + KnowledgeMapArranging.insetX * 2)
+        #expect(laid.frame.y + laid.frame.h >= laid.slides[4].y + 150)
+    }
+
+    @Test("Laying out a talk places its slides and the papers they cite with an arrow from each slide, in one region, one Undo step")
+    func layOutStoryboard() throws {
+        try withModel { model in
+            model.rebuildContent(
+                articles: [
+                    StudioArticle(url: "https://example.com/p1", title: "Paper one", sourceType: .paper, id: "p1"),
+                    StudioArticle(url: "https://example.com/p2", title: "Paper two", sourceType: .paper, id: "p2"),
+                ],
+                ideas: [], notebooks: [], chats: [], artifacts: [], firstHighlights: [:]
+            )
+            // Paper two is on the canvas already, far away; it stays and still gets its arrow.
+            model.place([(ref: "source:p2", x: 5_000, y: 5_000)])
+            Thread.sleep(forTimeInterval: KnowledgeMapModel.editBurst + 0.05)
+            let placed = try #require(model.layOutStoryboard(
+                [
+                    (slide: "clip:s1", papers: ["source:p1"]),
+                    (slide: "clip:s2", papers: ["source:p1", "source:p2", "source:missing"]),
+                ],
+                regionName: "A talk",
+                near: .init(x: 0, y: 0)
+            ))
+            #expect(placed.slides == ["clip:s1", "clip:s2"])
+            #expect(placed.papers == ["source:p1"], "a paper hangs once, under the first slide citing it; one not in the library not at all")
+            let s1 = try #require(model.layout.placements["clip:s1"])
+            let p1 = try #require(model.layout.placements["source:p1"])
+            #expect(p1.x == s1.x && p1.y > s1.y)
+            #expect(model.layout.placements["source:p2"]?.x == 5_000)
+            let joins = Set(model.layout.edges.values.map { $0.from + ">" + $0.to })
+            #expect(joins == ["clip:s1>source:p1", "clip:s2>source:p1", "clip:s2>source:p2"])
+            let regionID = try #require(placed.regionID)
+            let region = try #require(model.layout.regions[regionID])
+            #expect(region.name == "A talk")
+            #expect(Set(model.refsInRegion(regionID)) == ["clip:s1", "clip:s2", "source:p1"])
+            // Again: every slide is on the canvas and joined, so nothing is laid out twice.
+            #expect(model.layOutStoryboard([(slide: "clip:s1", papers: ["source:p1"])], regionName: "A talk") == nil)
+            model.undo()
+            #expect(model.layout.placements["clip:s1"] == nil && model.layout.placements["source:p1"] == nil)
+            #expect(model.layout.regions.isEmpty && model.layout.edges.isEmpty)
+            #expect(model.layout.placements["source:p2"] != nil)
+        }
+    }
+
+    @Test("Laid out again once more papers are in the library, a talk keeps its slides and hangs the new paper under its slide, below what is there")
+    func layOutStoryboardAgain() throws {
+        try withModel { model in
+            let papers = (1...3).map { StudioArticle(url: "https://example.com/p\($0)", title: "Paper \($0)", sourceType: .paper, id: "p\($0)") }
+            model.rebuildContent(articles: papers, ideas: [], notebooks: [], chats: [], artifacts: [], firstHighlights: [:])
+            let first = try #require(model.layOutStoryboard(
+                [(slide: "clip:s1", papers: ["source:p1"]), (slide: "clip:s2", papers: [])],
+                regionName: "A talk", near: .init(x: 0, y: 0)
+            ))
+            let regionID = try #require(first.regionID)
+            Thread.sleep(forTimeInterval: KnowledgeMapModel.editBurst + 0.05)
+            let s1 = try #require(model.layout.placements["clip:s1"])
+            let p1 = try #require(model.layout.placements["source:p1"])
+            let again = try #require(model.layOutStoryboard(
+                [(slide: "clip:s1", papers: ["source:p1", "source:p2"]), (slide: "clip:s2", papers: ["source:p3"])],
+                regionName: "A talk"
+            ))
+            #expect(again.regionID == nil && again.slides.isEmpty)
+            #expect(Set(again.papers) == ["source:p2", "source:p3"])
+            #expect(model.layout.placements["clip:s1"]?.x == s1.x && model.layout.placements["clip:s1"]?.y == s1.y)
+            let p2 = try #require(model.layout.placements["source:p2"])
+            #expect(p2.x == s1.x && p2.y >= p1.y + model.cardHeight(of: "source:p1"))
+            #expect(model.layout.regions.count == 1)
+            #expect(Set(model.refsInRegion(regionID)).isSuperset(of: ["source:p2", "source:p3"]))
+            let region = try #require(model.layout.regions[regionID])
+            #expect(region.y + region.h >= p2.y + model.cardHeight(of: "source:p2"))
+            #expect(model.layout.edges.values.contains { $0.from == "clip:s2" && $0.to == "source:p3" })
+        }
+    }
+
+    @Test("A cited paper hangs under the slide it was read from, else the one on screen at its moment, else the last one before it")
+    func citedPaperFindsItsSlide() {
+        let frames = [
+            YouTubeSlideFrameContext(index: 1, timeSeconds: 0, windows: [.init(start: 0, end: 60)], imagePath: "f1.jpg", recognizedText: ""),
+            YouTubeSlideFrameContext(index: 2, timeSeconds: 60, windows: [.init(start: 60, end: 120), .init(start: 300, end: 330)], imagePath: "f2.jpg", recognizedText: ""),
+            YouTubeSlideFrameContext(index: 3, timeSeconds: 120, windows: [.init(start: 120, end: 200)], imagePath: "f3.jpg", recognizedText: ""),
+        ]
+        func paper(path: String? = nil, at time: Double?) -> VideoCitedPaper {
+            VideoCitedPaper(sourceID: "talk", title: "A paper", slideTimeSeconds: time, slideImagePath: path)
+        }
+        #expect(StudioViewModel.slideIndex(citing: paper(path: "f3.jpg", at: 10), among: frames) == 3)
+        #expect(StudioViewModel.slideIndex(citing: paper(at: 310), among: frames) == 2)
+        #expect(StudioViewModel.slideIndex(citing: paper(at: 250), among: frames) == 3)
+        #expect(StudioViewModel.slideIndex(citing: paper(at: nil), among: frames) == 1)
+    }
+}

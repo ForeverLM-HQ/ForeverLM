@@ -458,7 +458,7 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "build_canvas",
-                description: "Lay a whole picture out on one of the learner's canvases in one call, on their word (\"lay this paper out visually on a canvas\", \"mock up how these ideas connect\"): write note cards, set them and cards from the library down in labelled groups, and draw arrows between them. Each note is an Idea of the learner's (a card with a title and a few lines of text; it is also linked to the canvas's notebook when the canvas belongs to one) that you author: a claim, a step, a question, a caveat. A note with source_id and quote is instead a passage card: the words are marked as a highlight in that source (the one the learner already has on them is reused), the card shows them, and clicking it opens the paper at those words, so quote the paper wherever a claim rests on it. Each group becomes a region of that name around its cards, set down in the order given, left to right; a card in no group is set down in free space. Cards from the library are named by item_id (source:<id>, doc:<id>, idea:<id>, canvas:<id> for a shortcut to another canvas, chat:<session_id>, picture:<image_id>), notes by the key you gave them. Arrows join two cards, each a note key or an item_id, with an optional short label. Keep what is observed apart from what is interpreted by putting them in different groups, and give each region a colour with the same meaning. A mind map is a tree: each trees entry names a region and a root note with nested children notes (all Ideas of the learner's, written the same way), set down left to right inside that region (the root at the left, each child to the right of its parent, a parent centred on its children), joined by tree branches, and the region's layout is a mind map so the Canvas keeps it one; a note in a tree may be named by its key in arrows. A paper can be laid out as its own pages too: each pdf_pages entry names a source with a PDF (a paper, or a book or hand-out kept as one), and its pages are set down as cards drawn from the PDF itself, one per page, left to right in a region named for the source, a row below the last, before the groups; name them page:<source_id>:<n> in groups and arrows, limit them to a range such as \"1-8\" (at most 60 at a time), and set collapsed to fold the region up to its name and count until the learner opens it. A paper whose PDF is on the Mac is set down as its first page, its title and authors under it, rather than as a card. Pass annotations (a note key or item_id to the words) to write the learner's reason for a card being on the canvas under it: any card but a note, whose own text holds its words; and give an arrow a stance (supports draws it green, contradicts red) to argue a claim. Nothing the learner already placed moves. Pass canvas_id (list_canvases) to build on a canvas other than the open one; it is opened. Returns the notes and passages made with their item_ids, the regions drawn, the mind maps laid out (trees: the region, the root and each note with its item_id), the pages laid out (pdf_pages: the region, the page count and each page's item_id) and the arrows drawn, and anything it could not resolve. Undo takes it back card by card, but the Ideas it made stay in the learner's Ideas.",
+                description: "Lay a whole picture out on one of the learner's canvases in one call, on their word (\"lay this paper out visually on a canvas\", \"mock up how these ideas connect\"): write note cards, set them and cards from the library down in labelled groups, and draw arrows between them. Each note is an Idea of the learner's (a card with a title and a few lines of text; it is also linked to the canvas's notebook when the canvas belongs to one) that you author: a claim, a step, a question, a caveat. A note with source_id and quote is instead a passage card: the words are marked as a highlight in that source (the one the learner already has on them is reused), the card shows them, and clicking it opens the paper at those words, so quote the paper wherever a claim rests on it. Each group becomes a region of that name around its cards, set down in the order given, left to right; a card in no group is set down in free space. Cards from the library are named by item_id (source:<id>, doc:<id>, idea:<id>, canvas:<id> for a shortcut to another canvas, chat:<session_id>, picture:<image_id>), notes by the key you gave them. Arrows join two cards, each a note key or an item_id, with an optional short label. Keep what is observed apart from what is interpreted by putting them in different groups, and give each region a colour with the same meaning. A mind map is a tree: each trees entry names a region and a root note with nested children notes (all Ideas of the learner's, written the same way), set down left to right inside that region (the root at the left, each child to the right of its parent, a parent centred on its children), joined by tree branches, and the region's layout is a mind map so the Canvas keeps it one; a note in a tree may be named by its key in arrows. A paper can be laid out as its own pages too: each pdf_pages entry names a source with a PDF (a paper, or a book or hand-out kept as one), and its pages are set down as cards drawn from the PDF itself, one per page, left to right in a region named for the source, a row below the last, before the groups; name them page:<source_id>:<n> in groups and arrows, limit them to a range such as \"1-8\" (at most 60 at a time), and set collapsed to fold the region up to its name and count until the learner opens it. A talk can be laid out as its slides: each talks entry names a YouTube video or a meeting recording, and its slides are set down as a storyboard, the papers each slide cites that are in the library hung under it with an arrow from the slide. A paper whose PDF is on the Mac is set down as its first page, its title and authors under it, rather than as a card. Pass annotations (a note key or item_id to the words) to write the learner's reason for a card being on the canvas under it: any card but a note, whose own text holds its words; and give an arrow a stance (supports draws it green, contradicts red) to argue a claim. Nothing the learner already placed moves. Pass canvas_id (list_canvases) to build on a canvas other than the open one; it is opened. Returns the notes and passages made with their item_ids, the regions drawn, the mind maps laid out (trees: the region, the root and each note with its item_id), the pages laid out (pdf_pages: the region, the page count and each page's item_id), the talks laid out (talks: the region, the slides' and papers' item_ids and how many cited papers are not in the library) and the arrows drawn, and anything it could not resolve. Undo takes it back card by card, but the Ideas it made stay in the learner's Ideas.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -543,6 +543,17 @@ extension MCPToolRegistry {
                                     "show": ["type": "string", "enum": ["pages", "figures", "figures_extended"], "description": "What the row holds: pages (default), figures (one clip card per main figure, cut from its page by the paper's printed captions and named by its label, as the Reader's Clip tool cuts one; the extended and supplementary figures left out), or figures_extended (the extended and supplementary figures too, after the main ones). Figures need a paper with printed figure captions; the cards are item_ids of the kind clip:<id>."],
                                     "collapsed": ["type": "boolean", "description": "Fold the region up so only its name and count show until the learner opens it. Defaults to false."],
                                     "color": ["type": "string", "description": "Optional region colour as #RRGGBB."],
+                                ],
+                                "required": ["source_id"],
+                            ],
+                        ] as [String: Any],
+                        "talks": [
+                            "type": "array",
+                            "description": "Videos or meeting recordings to lay out as their slides, at most 5: each is a storyboard of slide cards (clip:<id>, four to a row in the order shown, captured first if they never were), each slide with the papers it cites that are in the library hung under it and an arrow from the slide to each, in a region named for the talk, before the groups. Papers its slides cite that are not in the library are counted, not added (list_video_cited_papers, import_video_cited_paper); a talk laid out before keeps its slides where they are and hangs the papers added since under theirs.",
+                            "items": [
+                                "type": "object",
+                                "properties": [
+                                    "source_id": ["type": "string", "description": "A YouTube video or a meeting with a recording (list_sources)."],
                                 ],
                                 "required": ["source_id"],
                             ],
@@ -955,11 +966,12 @@ extension MCPDataStore {
         let arrows = arguments["arrows"] as? [[String: Any]] ?? []
         let pdfPages = arguments["pdf_pages"] as? [[String: Any]] ?? []
         let trees = arguments["trees"] as? [[String: Any]] ?? []
-        guard notes.count <= 60, groups.count <= 20, arrows.count <= 100, pdfPages.count <= 10, trees.count <= 10 else {
-            throw MCPError.invalidInput("At most 60 notes, 20 groups, 100 arrows, 10 pdf_pages and 10 trees in one call.")
+        let talks = arguments["talks"] as? [[String: Any]] ?? []
+        guard notes.count <= 60, groups.count <= 20, arrows.count <= 100, pdfPages.count <= 10, trees.count <= 10, talks.count <= 5 else {
+            throw MCPError.invalidInput("At most 60 notes, 20 groups, 100 arrows, 10 pdf_pages, 10 trees and 5 talks in one call.")
         }
-        guard !(notes.isEmpty && passages.isEmpty && groups.isEmpty && ungrouped.isEmpty && pdfPages.isEmpty && trees.isEmpty) else {
-            throw MCPError.invalidInput("build_canvas needs notes, groups, trees, pdf_pages or ungrouped cards to set down.")
+        guard !(notes.isEmpty && passages.isEmpty && groups.isEmpty && ungrouped.isEmpty && pdfPages.isEmpty && trees.isEmpty && talks.isEmpty) else {
+            throw MCPError.invalidInput("build_canvas needs notes, groups, trees, pdf_pages, talks or ungrouped cards to set down.")
         }
         // What a call gets wrong is refused before anything is written.
         for arrow in arrows {
@@ -1151,6 +1163,34 @@ extension MCPDataStore {
                 unresolved.append("pdf_pages \(raw): \(error.localizedDescription)")
             }
         }
+        // A talk's slides, as a storyboard with the papers each cites under it.
+        var talkResults: [[String: Any]] = []
+        for entry in talks {
+            let raw = (entry["source_id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !raw.isEmpty else { unresolved.append("talks entry without a source_id"); continue }
+            do {
+                let outcome = try await studio.layOutKnowledgeMapTalk(sourceID: raw)
+                map = studio.knowledgeMap
+                var done: [String: Any] = [
+                    "source_id": raw,
+                    "title": outcome.sourceTitle,
+                    "slide_item_ids": outcome.slides,
+                    "paper_item_ids": outcome.papers,
+                    "cited_not_in_library": outcome.citedElsewhere,
+                    "citations_read": outcome.citationsRead,
+                ]
+                if let regionID = outcome.regionID {
+                    done["region"] = regionEntry(regionID, in: map)
+                } else {
+                    // Laid out before: only papers new to the library were hung under their slides.
+                    done["already_on_canvas"] = true
+                }
+                talkResults.append(done)
+                pageFocus += outcome.slides.prefix(4)
+            } catch {
+                unresolved.append("talks \(raw): \(error.localizedDescription)")
+            }
+        }
         for group in groups {
             let name = (group["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             guard !name.isEmpty else { throw MCPError.invalidInput("Every group needs a name.") }
@@ -1225,6 +1265,7 @@ extension MCPDataStore {
         var result: [String: Any] = ["notes": made, "regions": regions, "arrows": drawn, "cards_placed": placedRefs.count]
         if annotationsWritten > 0 { result["annotated"] = annotationsWritten }
         if !pdfResults.isEmpty { result["pdf_pages"] = pdfResults }
+        if !talkResults.isEmpty { result["talks"] = talkResults }
         if !treeResults.isEmpty { result["trees"] = treeResults }
         if !unresolved.isEmpty { result["could_not_resolve"] = Array(unresolved.prefix(50)) }
         return result

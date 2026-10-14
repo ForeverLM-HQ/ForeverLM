@@ -26,8 +26,11 @@ struct ReaderNotesList: View {
 
     let sourceID: String
 
+    /// The marks on the source. A talk's slide laid out on a canvas is a mark
+    /// too (`ReaderClip.slideHighlight`), but the slides are already in the
+    /// reader; one is listed only once the learner has written on it.
     private var highlights: [SourceHighlight] {
-        vm.highlights(for: sourceID)
+        vm.highlights(for: sourceID).filter { ReaderClip.slide(of: $0) == nil || $0.hasNote }
     }
 
     var body: some View {

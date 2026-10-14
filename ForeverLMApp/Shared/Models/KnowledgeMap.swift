@@ -1464,6 +1464,45 @@ enum KnowledgeMapArranging {
         return (tops, tops.isEmpty ? 0 : y - gap)
     }
 
+    /// A talk as a storyboard (Lay Out the Talk): its slides `cols` to a row,
+    /// in the order they were shown, each with the cards hung under it (the
+    /// papers it cites) stacked down its column, `gap` apart. A row of slides
+    /// is as tall as its longest column, and the next row starts two gaps
+    /// under it. `origin` is the first slide's top left; `hung[i]` are the
+    /// heights of the cards under slide `i`. Returns each slide's spot, each
+    /// hung card's spot, and the region that frames them all.
+    static func storyboard(slideHeights: [Double], hung: [[Double]], cols: Int = 4, origin: Spot) -> (slides: [Spot], hung: [[Spot]], frame: Rect) {
+        let cols = max(1, cols)
+        let count = slideHeights.count
+        let stepX = KnowledgeMap.cardWidth + gap
+        var slides: [Spot] = []
+        var under: [[Spot]] = []
+        var top = origin.y
+        var start = 0
+        while start < count {
+            let end = min(count, start + cols)
+            var bottom = top
+            for i in start..<end {
+                let x = origin.x + Double(i - start) * stepX
+                slides.append(Spot(x: x, y: top))
+                var y = top + slideHeights[i] + gap
+                var spots: [Spot] = []
+                for height in i < hung.count ? hung[i] : [] {
+                    spots.append(Spot(x: x, y: y))
+                    y += height + gap
+                }
+                under.append(spots)
+                bottom = max(bottom, y - gap)
+            }
+            top = bottom + gap * 3
+            start = end
+        }
+        let used = min(cols, max(count, 1))
+        let w = Double(used) * KnowledgeMap.cardWidth + Double(used - 1) * gap
+        let h = count == 0 ? KnowledgeMap.cardHeight : top - gap * 3 - origin.y
+        return (slides, under, Rect(x: origin.x - insetX, y: origin.y - insetY, w: w + insetX * 2, h: h + insetY + insetX))
+    }
+
     /// The top left of a free stretch `size` big for a long row of cards: the
     /// row's left edge sits at `left` (so its first card is in view), and
     /// the row goes down, a row's height and a margin at a time, until it
