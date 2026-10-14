@@ -184,6 +184,10 @@ struct CanvasVoiceTests {
         let align = CanvasVoice.meant(E(tool: "arrange_on_canvas", arguments: ["item_ids": ["c1", "c2"], "align": "top"]),
                                       said: "align the cards in the left column to the top", regionNames: [])
         #expect(align?.arguments["arrangement"] == nil, "an alignment alone stays an alignment")
+        let nudge = CanvasVoice.meant(E(tool: "move", arguments: ["item_ids": ["idea:n"], "left_of": "source:p"]), said: "move the PINK1 note to the left", regionNames: [])
+        #expect(nudge?.arguments["left_of"] == nil && nudge?.arguments["dx"] as? Double == -300, "no card named: a nudge to the left")
+        let named = CanvasVoice.meant(E(tool: "move", arguments: ["item_ids": ["idea:n"], "left_of": "source:p"]), said: "move the note to the left of the Parkin paper", regionNames: [])
+        #expect(named?.arguments["left_of"] as? String == "source:p", "a card named: that side of it")
         let shorthand = CanvasVoice.meant(E(tool: "align", arguments: ["item_ids": ["c1", "c2"], "align": "top"]), said: "align these to the top", regionNames: [])
         #expect(shorthand?.tool == "arrange_on_canvas" && shorthand?.arguments["align"] as? String == "top", "an edit written by what it does is the edit")
         let beside = CanvasVoice.meant(E(tool: "move", arguments: ["item_ids": ["source:a"], "beside": "idea:b"]), said: "", regionNames: [])

@@ -526,6 +526,19 @@ enum CanvasVoice {
             let named = ["row", "column", "grid"].filter { words.contains($0) || words.contains($0 + "s") }
             if named.count == 1 { edit.arguments["arrangement"] = named[0] }
         }
+        // "Move the note to the left" written as left of a card the learner
+        // never named: with no "of", "below", "above" or the like in what
+        // they said, a side is a nudge that way.
+        if edit.tool == "move", edit.arguments["region"] == nil {
+            let words = " " + said.lowercased() + " "
+            let named = [" of ", " below ", " above ", " under ", " underneath ", " over ", " beneath ", " next to ", " beside "].contains { words.contains($0) }
+            let nudges: [(String, Double, Double)] = [("left_of", -300, 0), ("right_of", 300, 0), ("above", 0, -200), ("below", 0, 200)]
+            if !named, let nudge = nudges.first(where: { edit.arguments[$0.0] != nil }) {
+                for (key, _, _) in nudges { edit.arguments[key] = nil }
+                edit.arguments["dx"] = nudge.1
+                edit.arguments["dy"] = nudge.2
+            }
+        }
         // "Move it next to the Drp1 note" written as move with beside: a
         // move takes a distance or a side, so it is the placement beside.
         if edit.tool == "move", let beside = edit.arguments["beside"], edit.arguments["dx"] == nil, edit.arguments["dy"] == nil,
