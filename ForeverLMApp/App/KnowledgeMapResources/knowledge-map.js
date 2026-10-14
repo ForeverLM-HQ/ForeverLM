@@ -1734,7 +1734,7 @@
       const takeaways = nb && gist && gist.takeaways && gist.takeaways.length ? gist.takeaways : null
       const ideas = nb ? [] : faceLines(r)
       const bullets = takeaways || (ideas.length ? ideas : null)
-      if (bodyK > 0) ctx.globalAlpha = k * bodyK
+      if (bodyK > 0) ctx.globalAlpha = wordsK * bodyK
       if (bullets && bodyK > 0) {
         if (takeaways) {
           ctx.font = '600 10.5px ' + state.font; ctx.fillStyle = c.ai
@@ -2819,7 +2819,7 @@
     }
     function bundles() {
       if (state.bundleCache) return state.bundleCache
-      const out = { byEdge: new Map(), list: [], routes: new Map(), obstacles: null }
+      const out = { byEdge: new Map(), list: [], routes: new Map(), grid: null }
       const groups = new Map()
       for (const e of Object.values(state.edges)) {
         if (e.tree || (e.route && e.route !== 'curve') || (e.heads && e.heads !== 'end')) continue
@@ -2909,47 +2909,64 @@
         const from = outward ? boxEdge(ca, m, a) : p, to = outward ? boxEdge(cb, m, b) : q
         return { kind: 'quad', pts: [from, m, to], mid: curvePoint(from, m, to, 0.5) }
       }
-      const steps = Math.round(clamp(len / 30, 24, 160))
-      const reach = CURVE_BENDS[CURVE_BENDS.length - 1] / 2 + 20
-      const left = Math.min(p[0], q[0]) - reach, right = Math.max(p[0], q[0]) + reach
-      const top = Math.min(p[1], q[1]) - reach, bottom = Math.max(p[1], q[1]) + reach
-      const near = cardRects().filter(r => r.ref !== e.from && r.ref !== e.to
-        && r.x < right && r.x + r.w > left && r.y < bottom && r.y + r.h > top)
+      // A point every 60 units: a card is at least 120 across, so none is stepped over.
+      const steps = Math.round(clamp(len / 60, 16, 80))
       const first = curve(base, false)
-      if (!near.length) return first
-      const crossings = (route) => {
+      // While cards slide or are dragged the cache is rebuilt every frame, so
+      // arrows take the plain curve and find their way round once it settles.
+      if (state.moves.size > 0 || (state.drag && state.drag.moved)) return first
+      const grid = cardGrid()
+      // How many of the route's points fall on a card it does not join,
+      // giving up once it is past `limit`.
+      const crossings = (route, limit) => {
         let n = 0
         for (let i = 1; i < steps; i++) {
           const [x, y] = curvePoint(route.pts[0], route.pts[1], route.pts[2], i / steps)
-          for (const r of near) if (x > r.x - 6 && x < r.x + r.w + 6 && y > r.y - 6 && y < r.y + r.h + 6) n++
+          const cell = grid.cells.get(cellKey(Math.floor(x / grid.size), Math.floor(y / grid.size)))
+          if (!cell) continue
+          for (const r of cell) {
+            if (r.ref === e.from || r.ref === e.to) continue
+            if (x > r.x - 6 && x < r.x + r.w + 6 && y > r.y - 6 && y < r.y + r.h + 6) { n++; break }
+          }
+          if (n > limit) return n
         }
         return n
       }
-      let best = first, fewest = crossings(first)
+      let best = first, fewest = crossings(first, Infinity)
       if (!fewest) return first
       for (const size of CURVE_BENDS) {
         for (const bend of [size, -size]) {
           const route = curve(bend, true)
-          const n = crossings(route)
+          const n = crossings(route, fewest - 1)
           if (!n) return route
           if (n < fewest) { best = route; fewest = n }
         }
       }
       return best
     }
-    // The placed cards as drawn, world rects with their refs, once per layout.
-    function cardRects() {
+    function cellKey(cx, cy) { return cx * 1048576 + cy }
+    // The placed cards as drawn, in cells of the plane, once per layout: a
+    // point of a route looks only at the cards of its own cell.
+    function cardGrid() {
       const cache = bundles()
-      if (cache.obstacles) return cache.obstacles
-      const out = []
+      if (cache.grid) return cache.grid
+      const size = 300
+      const cells = new Map()
       for (const node of state.nodes) {
         if (!shown(node) || hiddenInStack(node)) continue
         const at = pos(node)
         if (!at) continue
         const [w, h] = sizeOf(node)
-        out.push({ ref: node.ref, x: at[0], y: at[1], w, h })
+        const r = { ref: node.ref, x: at[0], y: at[1], w, h }
+        for (let cx = Math.floor((r.x - 6) / size); cx <= Math.floor((r.x + r.w + 6) / size); cx++) {
+          for (let cy = Math.floor((r.y - 6) / size); cy <= Math.floor((r.y + r.h + 6) / size); cy++) {
+            const key = cellKey(cx, cy)
+            if (!cells.has(key)) cells.set(key, [])
+            cells.get(key).push(r)
+          }
+        }
       }
-      return (cache.obstacles = out)
+      return (cache.grid = { size, cells })
     }
     // The route as a polyline in world points, for hit tests.
     function pathSamples(path) {
