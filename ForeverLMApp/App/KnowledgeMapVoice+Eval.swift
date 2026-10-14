@@ -126,6 +126,16 @@ extension KnowledgeMapVoice {
                 ]])
                 continue
             }
+            // The capsule as it stands, and its Undo pressed.
+            if call.name == "debug.voice_state" || call.name == "debug.voice_undo" {
+                let offered = canUndoRequest
+                if call.name == "debug.voice_undo" { undoRequest() }
+                out.append(["name": call.name, "result": [
+                    "phase": "\(phase)", "offered_undo": offered, "offers_undo": canUndoRequest,
+                    "changes": changes, "placed": AppModelBridge.studio?.knowledgeMap.layout.placements.count ?? -1,
+                ] as [String: Any]])
+                continue
+            }
             let text = await registry.callTool(name: call.name, arguments: call.arguments, access: .internalFullAccess)
             let parsed = text.data(using: .utf8).flatMap { try? JSONSerialization.jsonObject(with: $0) }
             out.append(["name": call.name, "result": parsed ?? text])

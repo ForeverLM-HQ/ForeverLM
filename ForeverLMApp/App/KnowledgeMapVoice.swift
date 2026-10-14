@@ -619,7 +619,13 @@ final class KnowledgeMapVoice {
         let dx = MCPDataStore.canvasNumber(arguments["dx"]) ?? 0
         let dy = MCPDataStore.canvasNumber(arguments["dy"]) ?? 0
         guard dx.isFinite, dy.isFinite, dx != 0 || dy != 0 else { throw MCPError.invalidInput("A move needs a distance.") }
-        if let id = arguments["region"] as? String, let region = map.layout.regions[id] {
+        if let named = (arguments["region"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !named.isEmpty {
+            // Its id, or the name the model wrote for it instead.
+            let bare = named.hasPrefix("region:") ? String(named.dropFirst("region:".count)) : named
+            let byName = map.layout.regions.first { $0.value.name.compare(bare, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame }
+            guard let id = map.layout.regions[bare] != nil ? bare : byName?.key, let region = map.layout.regions[id] else {
+                throw MCPError.invalidInput("No region “\(named)” on the canvas.")
+            }
             _ = try await MCPDataStore.editCanvas("update_canvas_region", arguments: [
                 "region": id, "x": (region.x + dx).rounded(), "y": (region.y + dy).rounded(),
             ])
