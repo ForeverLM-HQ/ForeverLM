@@ -294,7 +294,10 @@ struct NotebookFilePersistenceTests {
         try FileManager.default.createDirectory(at: backgroundDirectory, withIntermediateDirectories: true)
         let referenceURL = backgroundDirectory.appendingPathComponent("Sarkisyan 2016.pdf")
         let evidence = "Local fitness landscapes constrain the accessible paths between fluorescent protein variants."
-        try writeSearchablePDF(evidence, to: referenceURL)
+        // Long enough that the PDF's own text is read: a page of a dozen words
+        // is taken for a scan and read by OCR, which now and then drops a line.
+        let filler = String(repeating: "Further measurements of each variant follow in the supplementary tables. ", count: 4)
+        try writeSearchablePDF(evidence + " " + filler, to: referenceURL)
         let inputsDirectory = importRoot.appendingPathComponent("Inputs", isDirectory: true)
         try FileManager.default.createDirectory(at: inputsDirectory, withIntermediateDirectories: true)
         let dataURL = inputsDirectory.appendingPathComponent("raw observations.tsv")
