@@ -54,6 +54,9 @@ final class KnowledgeMapVoice {
     private(set) var changes: [String] = []
     /// A line the model said instead of an edit, or the first edit that failed.
     private(set) var remark: String?
+    /// The failure showing is the microphone refused: the capsule offers the
+    /// privacy pane that allows it.
+    private(set) var needsMicrophone = false
     /// Listening until the learner pauses (a tap of S, or the menu) rather
     /// than until they let go of S.
     private(set) var isHandsFree = false
@@ -75,6 +78,7 @@ final class KnowledgeMapVoice {
     @ObservationIgnored private var starting: Task<Void, Never>?
     @ObservationIgnored private var running: Task<Void, Never>?
     @ObservationIgnored private var fading: Task<Void, Never>?
+    @ObservationIgnored private var embeddingWarmed = false
     /// The requests spoken in this sitting and what they did, newest last.
     @ObservationIgnored private var earlier: [CanvasVoice.Turn] = []
     /// The newest request, which the capsule shows.
@@ -166,6 +170,7 @@ final class KnowledgeMapVoice {
 
     private func startListening() {
         fading?.cancel()
+        needsMicrophone = false
         request &+= 1
         let id = request
         heard = ""
@@ -215,10 +220,19 @@ final class KnowledgeMapVoice {
         hearsOnDevice = true
         do {
             try await listener.start(locale: locale)
-        } catch {
+        } catch KnowledgeMapVoiceListener.Failure.microphoneDenied {
             cancelListener()
-            fail(error.localizedDescription, id: id)
+            fail(KnowledgeMapVoiceListener.Failure.microphoneDenied.localizedDescription, id: id)
+            needsMicrophone = owns(id)
             return true
+        } catch {
+            // This Mac cannot hear it after all (a speech model mid-update, a
+            // permission the recognizer wants): the request is recorded for
+            // the Dictation model, as on a Mac with no speech model.
+            voiceLogger.error("On-device listening did not start, recording for the Dictation model: \(error.localizedDescription, privacy: .public)")
+            cancelListener()
+            hearsOnDevice = false
+            return false
         }
         if !owns(id) || !isLive(id) || phase != .listening && phase != .hearing { cancelListener() }
         return true
@@ -262,6 +276,11 @@ final class KnowledgeMapVoice {
         guard let config = Self.config() else { return }
         let ai = AppModelBridge.studio?.aiService
         Task.detached(priority: .userInitiated) { await ai?.warmTextRoute(config) }
+        // The on-device embedding model a library search loads (find_and_place),
+        // once a launch: loaded cold it added two seconds to the first search.
+        guard !embeddingWarmed else { return }
+        embeddingWarmed = true
+        Task.detached(priority: .utility) { _ = try? await AIService().embedText("canvas") }
     }
 
     /// The recorder heard speech and then a pause. Held, S decides when to
@@ -846,6 +865,19 @@ struct KnowledgeMapVoiceCapsule: View {
                     .foregroundStyle(.secondary)
                 Text(message)
                     .lineLimit(2)
+                if voice.needsMicrophone {
+                    Button("Open Settings") {
+                        // The Ventura+ anchor first, then the older ones.
+                        for raw in [
+                            "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_Microphone",
+                            "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone",
+                        ] {
+                            if let url = URL(string: raw), NSWorkspace.shared.open(url) { break }
+                        }
+                    }
+                    .buttonStyle(.hoverWash(cornerRadius: 6, inset: 0, opacity: 0.12))
+                    .accessibilityIdentifier("knowledgeMap.voice.microphoneSettings")
+                }
             case .idle:
                 EmptyView()
             }
