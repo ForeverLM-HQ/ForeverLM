@@ -6,6 +6,12 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.149.0 (build 229) — 2026-10-14
+
+**Highlights:**
+- **Speak to a canvas (beta):** hold S, say what to change, and it changes about a second after you let go.
+- **A paper reads the moment it is added**, its cleanup running in the background.
+
 ## 0.148.0 (build 228) — 2026-10-13
 
 **Highlights:**
