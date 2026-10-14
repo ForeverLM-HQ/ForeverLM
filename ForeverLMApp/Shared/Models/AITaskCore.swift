@@ -116,6 +116,11 @@ enum AITask: String, CaseIterable, Codable, Identifiable, Sendable {
     /// these cards, how they relate, what they leave open) as proposals the
     /// learner keeps or dismisses (docs/sensemaking-design.md, "Ask the Canvas").
     case canvasAsk = "canvas_ask"
+    /// Changes the Canvas as the learner says, from one spoken request: the
+    /// cards set down, moved, grouped, joined or taken off and the regions
+    /// drawn, as edits the Canvas applies the moment each arrives
+    /// (`KnowledgeMapVoice`, `CanvasVoice`).
+    case canvasVoice = "canvas_voice"
     /// Writes an Atlas: a topic laid out as concepts at several levels of
     /// abstraction, each grounded in passages from the library, and deepens
     /// one concept when the learner focuses it (docs/sensemaking-design.md,

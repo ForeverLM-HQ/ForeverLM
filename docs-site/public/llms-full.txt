@@ -821,6 +821,20 @@ the chat ("what are my goals?", "what are my ideas?") and it lists them, and
 `/goal` sets a goal. A list of goals or of ideas you want to keep in view is a
 Space item of its own (**New ▸ Goals List** or **Ideas List**).
 
+#### Speaking to a canvas
+
+On a canvas (beta, Mac), hold **S** and say what to change, then let go: "put
+these three papers together under Mitophagy", "move the PINK1 note to the
+left", "connect this to the Parkin paper", "take the reviews off", "add my
+paper on Drp1 next to it". Tap **S** instead, or choose **Speak to the
+Canvas** in the canvas's menu, to talk until you pause. The canvas changes
+as the answer arrives, and a small bar at its foot says what it heard and
+what it did; its **×** stops it. One **⌘Z** takes the whole request back.
+Your words are transcribed by your **Dictation** model (**Settings →
+Speech-to-Text**), and the changes
+are made by the **Canvas Voice** model under **Settings → Background →
+Tasks**: choose a fast model there, since you wait on it.
+
 ### Courses and notebooks
 
 A course lives in no notebook: it is listed in the Space's **All** and under its **Courses**.

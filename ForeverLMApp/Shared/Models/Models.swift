@@ -616,6 +616,8 @@ extension AITask {
              // Asking the Canvas, an Atlas and a source's reading levels read
              // every kind of source the library holds.
              .canvasAsk, .atlasWriting, .sourceLevels,
+             // Speaking to the Canvas moves whatever kind of card is on it.
+             .canvasVoice,
              // An explainer is written about a paper or an article alike.
              .explainerWriting,
              // An audio overview reads every kind of source a notebook holds,
@@ -705,6 +707,7 @@ extension AITask {
         case .pastedLineJoining: return Prompts.pastedLineJoining
         case .mapSummaries: return Prompts.mapSummaries
         case .canvasAsk: return Prompts.canvasAsk
+        case .canvasVoice: return Prompts.canvasVoice
         case .atlasWriting: return Prompts.atlasWriter
         case .sourceLevels: return Prompts.sourceLevels
         case .courseCurriculumPlan: return Prompts.courseCurriculumPlanner

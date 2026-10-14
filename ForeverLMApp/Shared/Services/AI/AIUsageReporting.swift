@@ -910,6 +910,8 @@ enum AIUsageTaskLabel {
         case "course_quiz_icon": return "Draw Quiz Icon"
         case "map_summaries": return "Summarize Canvas"
         case "canvas_ask": return "Ask the Canvas"
+        case "canvas_voice": return "Change Canvas by Voice"
+        case "canvas_voice_dictation": return "Transcribe Canvas Voice"
         case "card_go_deeper": return "Go Deeper on a Card"
         case "card_answer_check": return "Check a Card Answer"
         case "card_wording_check": return "Check Card Wording"

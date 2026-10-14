@@ -2036,7 +2036,7 @@ private struct AIActivitySettingsSection: View {
             return .slot(.chat)
         case "meeting_transcription", "podcast_transcription", "course_video_transcription":
             return .transcription(.media)
-        case "composer_dictation", "review_dictation":
+        case "composer_dictation", "review_dictation", "canvas_voice_dictation":
             return .transcription(.dictation)
         case "read_aloud", "review_speech":
             return .pane(.aiTextToSpeech)

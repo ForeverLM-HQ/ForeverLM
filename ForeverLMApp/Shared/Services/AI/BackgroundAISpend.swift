@@ -62,6 +62,8 @@ extension AITask {
              // Asked of the Canvas, an Atlas opened, the Reader's Levels
              // opened: each one the learner's own press.
              .canvasAsk, .atlasWriting, .sourceLevels,
+             // Spoken to the Canvas: each request the learner's own words.
+             .canvasVoice,
              // Go Deeper on a card in the review, and Check on one.
              .cardGoDeeper,
              .cardAnswerCheck:
@@ -181,7 +183,7 @@ extension AITask {
              .cohortSessionClose, .courseCurriculumPlan, .courseLessonWriting, .explainerWriting,
              .audioOverviewWriting, .reportWriting, .mnemonicReadingWriting, .walkthroughWriting,
              .walkthroughAnimation, .lectureQuizWriting, .courseQuizWriting,
-             .courseTextbookReadings, .canvasAsk, .atlasWriting, .sourceLevels, .cardGoDeeper,
+             .courseTextbookReadings, .canvasAsk, .canvasVoice, .atlasWriting, .sourceLevels, .cardGoDeeper,
              .cardAnswerCheck,
              // Asked for from a source's menu or an MCP tool.
              .paperFigureUnderstanding, .lecturePaperDiscovery, .meetingPaperDiscovery,

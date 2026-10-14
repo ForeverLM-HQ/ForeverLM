@@ -462,11 +462,23 @@ final class KnowledgeMapModel {
     /// reflows, a region moved with its cards, a burst of arrow-key nudges.
     static let editBurst: TimeInterval = 0.6
 
+    /// While a group is open, every edit after its first joins that first one:
+    /// a request spoken to the Canvas is one Undo step however long its edits
+    /// take to arrive (`KnowledgeMapVoice`). The group's first edit is a step
+    /// of its own, never joined to one the learner made just before.
+    @ObservationIgnored private var editGroup: (isOpen: Bool, hasStep: Bool) = (false, false)
+
+    func beginEditGroup() { editGroup = (true, false) }
+
+    func endEditGroup() { editGroup = (false, false) }
+
     private func remember(_ edit: KnowledgeMapEdit) {
         guard edit.changes else { return }
+        defer { if editGroup.isOpen { editGroup.hasStep = true } }
+        let joins = editGroup.isOpen ? editGroup.hasStep : undoEdits.last.map { edit.at.timeIntervalSince($0.at) < Self.editBurst } ?? false
         // A sealed edit (a Restore) is a step of its own, whatever came
         // within the burst before or after it.
-        if let last = undoEdits.last, !edit.sealed, !last.sealed, edit.at.timeIntervalSince(last.at) < Self.editBurst, redoEdits.isEmpty {
+        if let last = undoEdits.last, !edit.sealed, !last.sealed, joins, redoEdits.isEmpty {
             undoEdits[undoEdits.count - 1] = KnowledgeMapEdit(before: last.before, after: edit.after, at: edit.at)
         } else {
             undoEdits.append(edit)

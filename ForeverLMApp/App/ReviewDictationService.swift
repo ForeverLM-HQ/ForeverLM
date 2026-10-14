@@ -38,10 +38,18 @@ final class ReviewDictationService: NSObject, ObservableObject, AVAudioRecorderD
     private let silenceStopDuration: TimeInterval = 1.45
     private let minimumAutoStopRecordingDuration: TimeInterval = 0.9
 
-    override init() {
+    /// The usage ledger's label for what this recorder transcribes for.
+    private let usageTask: String
+
+    override convenience init() {
+        self.init(usageTask: "review_dictation")
+    }
+
+    init(usageTask: String) {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 120
         self.session = URLSession(configuration: config)
+        self.usageTask = usageTask
         super.init()
     }
 
@@ -230,7 +238,7 @@ final class ReviewDictationService: NSObject, ObservableObject, AVAudioRecorderD
         let activityID = UUID().uuidString
         let startedAt = Date()
         let result = try await AIUsageAttribution.$activityID.withValue(activityID) {
-            try await AIUsageAttribution.$task.withValue("review_dictation") {
+            try await AIUsageAttribution.$task.withValue(usageTask) {
                 try await ManagedTranscriptionClient.transcribe(
                     fileURL: fileURL,
                     session: session
@@ -247,6 +255,7 @@ final class ReviewDictationService: NSObject, ObservableObject, AVAudioRecorderD
         // the transcript arriving and the composer showing it. It is written
         // while the words go into the composer instead, and a failure is
         // logged and counted by the ledger health the same way it always was.
+        let usageTask = usageTask
         Task.detached(priority: .utility) {
             do {
                 try await AIUsageTracker.shared.record(
@@ -254,7 +263,7 @@ final class ReviewDictationService: NSObject, ObservableObject, AVAudioRecorderD
                     model: result.model,
                     operation: "speech_to_text",
                     report: result.report,
-                    task: "review_dictation",
+                    task: usageTask,
                     activityID: activityID
                 )
             } catch {
@@ -286,7 +295,7 @@ private enum DictationError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .microphoneDenied:
-            return "Microphone access is required for review dictation."
+            return "Microphone access is required for dictation."
         case .recordingFailed:
             return "Could not start audio recording."
         case .missingRecording:

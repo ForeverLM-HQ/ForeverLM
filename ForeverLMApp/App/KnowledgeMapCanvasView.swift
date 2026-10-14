@@ -557,6 +557,10 @@ struct KnowledgeMapCanvasView: NSViewRepresentable {
             case "libraryToggled":
                 // L: the Library sidebar, shown or hidden on this Mac.
                 if role == .pane { model.showsLibrary.toggle() }
+            case "voiceKey":
+                // S held or tapped: speaking to the canvas (`KnowledgeMapVoice`).
+                guard role == .pane else { return }
+                if body["down"] as? Bool == true { KnowledgeMapVoice.shared.keyDown() } else { KnowledgeMapVoice.shared.keyUp() }
             case "findRequested":
                 // ⌘F: the cursor goes to the find field.
                 if role == .pane { model.findFocusRequests += 1 }

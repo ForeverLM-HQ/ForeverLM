@@ -196,7 +196,7 @@
       // with its cards once (the first ones do not fade in).
       moves: new Map(), last: new Map(), born: new Map(), regionMoves: new Map(), regionLast: new Map(), regionWMoves: new Map(), regionWLast: new Map(), settled: false,
       // Space held: the pointer pans. The camera a zoom is flying to.
-      spaceHeld: false, camTarget: null, nudge: null,
+      spaceHeld: false, voiceHeld: false, camTarget: null, nudge: null,
       // ForeverLM's proposals: the set showing ({id, tool, title, anchor,
       // proposals}); each ghost as laid out, by proposal id; the ghost (and
       // its button) under the pointer and the one picked; the ones kept or
@@ -6079,11 +6079,21 @@
       // the case where one does get here.
       else if (e.key === '/' && !e.altKey && !e.repeat && !state.editor) host.post('addRequested', pointerSpot())
       else if ((e.key === 'l' || e.key === 'L') && !e.altKey && !cmd && !e.repeat && !state.editor) host.post('libraryToggled', {})
+      // S: held, the host listens until it comes up; tapped, until the
+      // learner pauses. What they say changes the canvas (KnowledgeMapVoice).
+      else if ((e.key === 's' || e.key === 'S') && !e.altKey && !state.editor) {
+        if (!e.repeat && !state.voiceHeld) { state.voiceHeld = true; host.post('voiceKey', { down: true }) }
+      }
       else if (!e.altKey && TOOL_KEYS[e.key]) setTool(TOOL_KEYS[e.key])
       else return
       e.preventDefault()
     })
     canvas.addEventListener('keyup', (e) => {
+      if ((e.key === 's' || e.key === 'S') && state.voiceHeld) {
+        state.voiceHeld = false
+        host.post('voiceKey', { down: false })
+        return
+      }
       if (e.key !== ' ') return
       state.spaceHeld = false
       if (!state.drag) canvas.style.cursor = cursorFor(null, false)
@@ -6095,7 +6105,12 @@
       const node = state.byRef.get([...state.selection][0])
       if (node && pos(node)) showPeek(node, true)
     })
-    window.addEventListener('blur', () => { state.spaceHeld = false; hidePeek() })
+    window.addEventListener('blur', () => {
+      state.spaceHeld = false
+      hidePeek()
+      // S held as the window lost the keyboard: its keyup never comes.
+      if (state.voiceHeld) { state.voiceHeld = false; host.post('voiceKey', { down: false }) }
+    })
 
     // The arrow keys alone: the nearest card in that direction from the
     // selection's middle (the smallest distance with the largest share of it

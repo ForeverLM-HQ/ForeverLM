@@ -1,0 +1,328 @@
+import Foundation
+
+// MARK: - Speaking to the Canvas (2026-10-13)
+//
+// The learner holds S on the Canvas (or taps it, or picks Speak to the Canvas
+// in its menu) and says what to change; the canvas changes as they said:
+// cards set down, moved, grouped, joined or taken off, regions drawn. (product
+// owner, 2026-10-13: "in the mac app; i should also be able to speak and it
+// should super quickly be able to modify the visual space", and "i cannot be
+// waiting 30 seconds for the agent to move some things around".)
+//
+// Speed is the design:
+// - The words are transcribed once the learner stops, through OpenRouter on
+//   the synced Dictation model, on a connection opened while they speak.
+// - One call to the Canvas Voice model (`AITask.canvasVoice`, a model of its
+//   own so the learner can pick a fast one), at its lowest effort, with no
+//   tool round trips: the model writes its edits as JSON, one a line, and each
+//   line is carried out the moment it arrives, while the rest still streams.
+// - The canvas goes to the model as a short listing with short ids (c1, r1)
+//   in place of the library's long ones, so both the request and the answer
+//   are small; the layout itself (where a group lands, how a row lines up) is
+//   worked out here by the Canvas's own edits, never by the model.
+//
+// The edits are the ones the MCP canvas tools make (`MCPDataStore.editCanvas`),
+// so each is the learner's own write, syncs, and the whole request is one
+// Undo step (`KnowledgeMapModel.beginEditGroup`). The Mac side is
+// `KnowledgeMapVoice` (App/KnowledgeMapVoice.swift); this file is the part
+// with no app state, so it can be tested on its own.
+
+enum CanvasVoice {
+    /// A card on the plane, or waiting in the canvas's Library, as the model
+    /// is told of it.
+    struct Card: Equatable, Sendable {
+        var ref: String
+        /// The card's kind as its dot shows it: `paper`, `article`, `idea`…
+        var type: String
+        var title: String
+        /// Its rect on the plane; nil for a card not placed.
+        var x: Double?
+        var y: Double?
+        var w: Double?
+        var h: Double?
+        var regionID: String?
+        var inView = false
+        var selected = false
+    }
+
+    struct Region: Equatable, Sendable {
+        var id: String
+        var name: String
+        var x: Double
+        var y: Double
+        var w: Double
+        var h: Double
+        var cardCount: Int
+    }
+
+    struct Arrow: Equatable, Sendable {
+        var from: String
+        var to: String
+        var label: String
+    }
+
+    /// The canvas as it is when the learner stops speaking, read in one cheap
+    /// pass on the main actor.
+    struct Snapshot: Equatable, Sendable {
+        var canvasName: String
+        var viewCenterX: Double
+        var viewCenterY: Double
+        var viewWidth: Double
+        var viewHeight: Double
+        var selectedRegionID: String?
+        /// The placed cards.
+        var cards: [Card]
+        var regions: [Region]
+        var arrows: [Arrow]
+        /// Cards waiting in the canvas's Library (its unplaced Ideas), which a
+        /// request may name to set down.
+        var waiting: [Card]
+    }
+
+    /// What the model reads, and the short ids it may answer with.
+    struct Context: Sendable {
+        var message: String
+        /// `c1` and on, to the card's ref.
+        var cards: [String: String]
+        /// `r1` and on, to the region's id.
+        var regions: [String: String]
+    }
+
+    /// The most cards listed: the selected and in-view ones first, then the
+    /// rest by how near the view's middle they are. A canvas with more says
+    /// how many it left out.
+    static let maximumCards = 240
+    static let maximumWaiting = 30
+    static let maximumRegions = 60
+    static let maximumArrows = 80
+    /// A title longer than this is cut, with an ellipsis: enough to tell
+    /// cards apart by.
+    static let titleLimit = 80
+
+    // MARK: The model's message
+
+    static func context(_ snapshot: Snapshot, said: String) -> Context {
+        let middleX = snapshot.viewCenterX, middleY = snapshot.viewCenterY
+        func distance(_ card: Card) -> Double {
+            let dx = (card.x ?? 0) + (card.w ?? 0) / 2 - middleX
+            let dy = (card.y ?? 0) + (card.h ?? 0) / 2 - middleY
+            return dx * dx + dy * dy
+        }
+        let ordered = snapshot.cards.enumerated().sorted { a, b in
+            let ra = a.element.selected ? 0 : a.element.inView ? 1 : 2
+            let rb = b.element.selected ? 0 : b.element.inView ? 1 : 2
+            if ra != rb { return ra < rb }
+            let da = distance(a.element), db = distance(b.element)
+            if da != db { return da < db }
+            return a.offset < b.offset
+        }.map(\.element)
+        let listed = Array(ordered.prefix(maximumCards))
+        let waiting = Array(snapshot.waiting.prefix(maximumWaiting))
+
+        var cardIDs: [String: String] = [:]
+        var aliasOfRef: [String: String] = [:]
+        for (index, card) in (listed + waiting).enumerated() {
+            let alias = "c\(index + 1)"
+            cardIDs[alias] = card.ref
+            aliasOfRef[card.ref] = alias
+        }
+        let regions = snapshot.regions
+            .sorted { ($0.y, $0.x, $0.id) < ($1.y, $1.x, $1.id) }
+            .prefix(maximumRegions)
+        var regionIDs: [String: String] = [:]
+        var aliasOfRegion: [String: String] = [:]
+        for (index, region) in regions.enumerated() {
+            let alias = "r\(index + 1)"
+            regionIDs[alias] = region.id
+            aliasOfRegion[region.id] = alias
+        }
+
+        var lines: [String] = []
+        lines.append("CANVAS \(quoted(snapshot.canvasName))")
+        lines.append("VIEW middle \(number(middleX)),\(number(middleY)), \(number(snapshot.viewWidth)) wide and \(number(snapshot.viewHeight)) high")
+        let selected = listed.filter(\.selected).compactMap { aliasOfRef[$0.ref] }
+        var selection = selected.isEmpty ? "none" : selected.joined(separator: " ")
+        if let id = snapshot.selectedRegionID, let alias = aliasOfRegion[id] {
+            selection = selected.isEmpty ? "region \(alias)" : selection + ", region \(alias)"
+        }
+        lines.append("SELECTED: \(selection)")
+        lines.append("")
+        lines.append("CARDS (id kind \"title\" x,y w×h, region; the first ones are in view):")
+        if listed.isEmpty { lines.append("none") }
+        for card in listed {
+            guard let alias = aliasOfRef[card.ref] else { continue }
+            var line = "\(alias) \(card.type) \(quoted(card.title))"
+            if let x = card.x, let y = card.y {
+                line += " \(number(x)),\(number(y)) \(number(card.w ?? 0))×\(number(card.h ?? 0))"
+            }
+            if let region = card.regionID.flatMap({ aliasOfRegion[$0] }) { line += " \(region)" }
+            if card.inView { line += " in view" }
+            lines.append(line)
+        }
+        if snapshot.cards.count > listed.count {
+            lines.append("(\(snapshot.cards.count - listed.count) more cards, far from the view, are not listed)")
+        }
+        if !regions.isEmpty {
+            lines.append("")
+            lines.append("REGIONS (id \"name\" x,y w×h, cards in it):")
+            for region in regions {
+                guard let alias = aliasOfRegion[region.id] else { continue }
+                let name = region.name.isEmpty ? "Untitled region" : region.name
+                lines.append("\(alias) \(quoted(name)) \(number(region.x)),\(number(region.y)) \(number(region.w))×\(number(region.h)) \(region.cardCount)")
+            }
+        }
+        let arrows = snapshot.arrows.compactMap { arrow -> String? in
+            guard let from = end(arrow.from, cards: aliasOfRef, regions: aliasOfRegion),
+                  let to = end(arrow.to, cards: aliasOfRef, regions: aliasOfRegion) else { return nil }
+            return arrow.label.isEmpty ? "\(from) → \(to)" : "\(from) → \(to) \(quoted(arrow.label))"
+        }.prefix(maximumArrows)
+        if !arrows.isEmpty {
+            lines.append("")
+            lines.append("ARROWS:")
+            lines.append(contentsOf: arrows)
+        }
+        if !waiting.isEmpty {
+            lines.append("")
+            lines.append("WAITING IN THE CANVAS'S LIBRARY (not placed):")
+            for card in waiting {
+                guard let alias = aliasOfRef[card.ref] else { continue }
+                lines.append("\(alias) \(card.type) \(quoted(card.title))")
+            }
+        }
+        lines.append("")
+        lines.append("THE LEARNER SAID: \(quoted(said.trimmingCharacters(in: .whitespacesAndNewlines)))")
+        return Context(message: lines.joined(separator: "\n"), cards: cardIDs, regions: regionIDs)
+    }
+
+    private static func end(_ ref: String, cards: [String: String], regions: [String: String]) -> String? {
+        if ref.hasPrefix("region:") { return regions[String(ref.dropFirst("region:".count))] }
+        return cards[ref]
+    }
+
+    private static func quoted(_ text: String) -> String {
+        var line = text
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\"", with: "'")
+            .trimmingCharacters(in: .whitespaces)
+        if line.count > titleLimit { line = String(line.prefix(titleLimit - 1)) + "…" }
+        return "\"\(line)\""
+    }
+
+    private static func number(_ value: Double) -> String {
+        String(Int(value.rounded()))
+    }
+
+    // MARK: Reading the answer as it streams
+
+    /// Cuts the streamed answer into lines as they complete. Fed from the
+    /// stream's callback, one delta at a time, in order.
+    final class LineReader: @unchecked Sendable {
+        private var buffer = ""
+
+        /// The lines this delta completed.
+        func feed(_ delta: String) -> [String] {
+            buffer += delta
+            var lines: [String] = []
+            while let newline = buffer.firstIndex(of: "\n") {
+                lines.append(String(buffer[..<newline]))
+                buffer = String(buffer[buffer.index(after: newline)...])
+            }
+            return lines
+        }
+
+        /// The last line, which no newline ended.
+        func finish() -> [String] {
+            defer { buffer = "" }
+            return buffer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? [] : [buffer]
+        }
+    }
+
+    /// One edit the model wrote: the tool and its arguments, as the line had them.
+    struct Edit {
+        var tool: String
+        var arguments: [String: Any]
+    }
+
+    enum Line {
+        /// Nothing to do: blank, or a code fence a model wrote despite being told not to.
+        case blank
+        case edit(Edit)
+        case unreadable(String)
+    }
+
+    /// A line of the answer: an object with a `tool`, or a line that is no
+    /// edit (counted, so an answer of nothing but those surfaces as a failure).
+    static func line(_ raw: String) -> Line {
+        var text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if text.isEmpty || text.hasPrefix("```") { return .blank }
+        // A list marker or a trailing comma, as a model writing an array might.
+        if text.hasPrefix("- ") { text = String(text.dropFirst(2)) }
+        if text.hasSuffix(",") { text = String(text.dropLast()) }
+        guard text.hasPrefix("{"),
+              let data = text.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let tool = (object["tool"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !tool.isEmpty else { return .unreadable(text) }
+        var arguments = object
+        arguments.removeValue(forKey: "tool")
+        // A model that nests the arguments, as a tool call would.
+        if arguments.count == 1, let nested = arguments["arguments"] as? [String: Any] ?? arguments["args"] as? [String: Any] {
+            arguments = nested
+        }
+        return .edit(Edit(tool: tool, arguments: arguments))
+    }
+
+    // MARK: Short ids back to the canvas's own
+
+    /// The arguments with every short id the context gave turned back into
+    /// the canvas's own: a card's `c3` into its ref, a region's `r2` into its
+    /// id (or `region:<id>` where an arrow's end is meant). Anything else,
+    /// such as a region named by its name, is left as it is for the edit to
+    /// read.
+    static func resolved(_ arguments: [String: Any], in context: Context) -> [String: Any] {
+        var out: [String: Any] = [:]
+        for (key, value) in arguments {
+            switch value {
+            case let text as String:
+                out[key] = resolved(text, key: key, in: context)
+            case let list as [Any]:
+                out[key] = list.map { item -> Any in
+                    guard let text = item as? String else { return item }
+                    return resolved(text, key: key, in: context)
+                }
+            case let object as [String: Any] where key == "annotations":
+                var words: [String: Any] = [:]
+                for (card, text) in object { words[context.cards[card] ?? card] = text }
+                out[key] = words
+            default:
+                out[key] = value
+            }
+        }
+        return out
+    }
+
+    private static func resolved(_ text: String, key: String, in context: Context) -> String {
+        let id = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Free words are never ids: a note's text, a region's new name, a label.
+        guard !["text", "name", "new_region", "label", "words"].contains(key) else { return text }
+        if let ref = context.cards[id] { return ref }
+        let region = id.hasPrefix("region:") ? String(id.dropFirst("region:".count)) : id
+        if let regionID = context.regions[region] {
+            return ["from", "to"].contains(key) ? "region:\(regionID)" : regionID
+        }
+        return text
+    }
+
+    // MARK: The request
+
+    /// The lowest effort the model offers: a canvas edit needs no long
+    /// deliberation, and the learner is watching. Nil when it offers none.
+    static func quickestEffort(_ offered: [AIEffort]) -> AIEffort? {
+        let order = AIEffort.allCases
+        return offered.min { (order.firstIndex(of: $0) ?? 0) < (order.firstIndex(of: $1) ?? 0) }
+    }
+
+    /// How long a press of S may last and still be a tap: a tap listens until
+    /// the learner stops speaking, a hold until they let go.
+    static let tapLimit: TimeInterval = 0.35
+}

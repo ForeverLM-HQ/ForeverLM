@@ -36,7 +36,7 @@ public struct AITaskSettingsDescriptor: Codable, Equatable, Sendable {
 /// IDs are durable `AITask` raw values. The array order is presentation order,
 /// so clients should filter this list rather than sorting their own copies.
 public enum AITaskSettingsCatalog {
-    public static let version = 39
+    public static let version = 40
 
     public static let tasks: [AITaskSettingsDescriptor] = [
         task(
@@ -349,6 +349,16 @@ public enum AITaskSettingsCatalog {
             "Ask the Canvas",
             "Answer a question asked of cards on the Canvas (what connects them, how they relate, what they leave open) as proposals you keep or dismiss",
             modelDefault: .chat
+        ),
+        // Spoken to the Canvas and watched, but on a model of its own rather
+        // than the chat's: the learner waits on every request, so it wants the
+        // fastest model they will pick, which is rarely the one they chat with
+        // (product owner, 2026-10-13: "i cannot be waiting 30 seconds for the
+        // agent to move some things around"). Background › Tasks sets it.
+        task(
+            "canvas_voice",
+            "Canvas Voice",
+            "Change the Canvas as you speak: add, move, group, connect and take off cards, and draw regions"
         ),
         task(
             "atlas_writing",
