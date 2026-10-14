@@ -829,7 +829,9 @@ left", "connect this to the Parkin paper", "take the reviews off", "add my
 paper on Drp1 next to it". Tap **S** instead, or choose **Speak to the
 Canvas** in the canvas's menu, to talk until you pause. The canvas changes
 as the answer arrives, and a small bar at its foot says what it heard and
-what it did; its **×** stops it. One **⌘Z** takes the whole request back.
+what it did; its **×** or **Esc** stops it. Its **Undo**, or one **⌘Z**, takes
+the whole request back. "Move the Methods region down" moves the region with
+its cards.
 What a request changed is selected afterwards, so the next can say "now put
 these in a row" or "colour them blue". Ask it questions too: "what connects
 these?", "what's missing in this group?" or "break this paper down" start
