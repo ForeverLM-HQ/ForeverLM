@@ -38,6 +38,16 @@ enum AIModelDefaults {
     /// bare id an earlier build stored is read as this one
     /// (`ManagedTranscriptionClient.canonicalModel`).
     static let batchTranscription = "openai/gpt-4o-mini-transcribe"
+
+    /// The model Canvas Voice starts on (`KeychainService.seedCanvasVoiceRoute`):
+    /// a spoken canvas edit is waited on, and the Background model it would
+    /// otherwise follow can take many seconds (DeepSeek V4 Pro took 18 s). The
+    /// eval of 2026-10-13 (KnowledgeMapVoice+Eval.swift: 16 spoken requests,
+    /// three runs, reasoning off) put DeepSeek V4.1 Flash first: 48 of 48
+    /// right, 0.62 s to the first edit (p90 0.79 s), the cheapest. Claude
+    /// Haiku 5.5 was 48 of 48 at 0.94 s, Gemini 3.8 Flash 48 of 48 at 1.9 s,
+    /// gpt-oss-120b 45 of 48 at 0.66 s; Apple's on-device model 9 of 16 at 2.8 s.
+    static let canvasVoice = "deepseek/deepseek-v4.1-flash"
 }
 
 extension AIModelDefaults {

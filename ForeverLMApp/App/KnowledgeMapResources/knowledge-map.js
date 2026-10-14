@@ -1082,7 +1082,10 @@
       const order = state.nodes.filter(shown).sort((a, b) => rank(a) - rank(b))
       const allowShadow = order.length < 500
       for (const node of order) {
-        const fold = folded(node)
+        // A card's words are gone by the middle of the fold, before its
+        // region's face writes its own (`drawRegionFace`): the two never
+        // show at once, which read as text drawn over text.
+        const fold = Math.min(1, folded(node) * 2)
         if (fold >= 1) continue
         ctx.save()
         ctx.globalAlpha = (1 - fold) * appear(node, now) * reviewDim(node) * focusDim(node)
@@ -1618,7 +1621,7 @@
         // Every region folds into its face once its cards are too small to read.
         const fold = foldK()
         if (fold > 0) {
-          const hit = drawRegionFace(r, nb, refs, gist, x, y, w, h, fold * dim * (1 - tile), mem)
+          const hit = drawRegionFace(r, nb, refs, gist, x, y, w, h, fold * dim * (1 - tile), mem, clamp(fold * 2 - 1, 0, 1) * dim * (1 - tile))
           if (hit) state.labelHits.push(Object.assign({ id: r.id }, hit))
           if (fold >= 1) continue
         }
@@ -1658,7 +1661,7 @@
     // shrink away, its own lines take their place. With the Memory layer on
     // it says how the kept cards about it stand, and gathers dust when they
     // are being forgotten.
-    function drawRegionFace(r, nb, refs, gist, x, y, w, h, k, mem) {
+    function drawRegionFace(r, nb, refs, gist, x, y, w, h, k, mem, wordsK = k) {
       const c = state.colors
       const tint = r.color || REGION_TINTS[0]
       if (w < 40 || h < 18) return null
@@ -1677,6 +1680,9 @@
       ctx.stroke()
       if (mem && mem.dusty) drawHatch(x, y, w, h, radius)
       ctx.save(); roundRect(x, y, w, h, radius); ctx.clip()
+      // The face's words come in once its cards' are gone (the second half
+      // of the fold); its plate fades in all the way.
+      ctx.globalAlpha = wordsK
       const pad = Math.max(10, Math.min(18, h * 0.12))
       const maxW = w - pad * 2
       const big = w >= 260 ? 17 : w >= 140 ? 14 : 12
@@ -2813,7 +2819,7 @@
     }
     function bundles() {
       if (state.bundleCache) return state.bundleCache
-      const out = { byEdge: new Map(), list: [] }
+      const out = { byEdge: new Map(), list: [], routes: new Map(), obstacles: null }
       const groups = new Map()
       for (const e of Object.values(state.edges)) {
         if (e.tree || (e.route && e.route !== 'curve') || (e.heads && e.heads !== 'end')) continue
@@ -2877,12 +2883,73 @@
       }
       const p = boxEdge(ca, cb, a), q = boxEdge(cb, ca, b)
       if (e.route === 'straight') return { kind: 'poly', pts: [p, q], mid: [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2] }
+      const cache = bundles().routes
+      const known = cache.get(e.id)
+      if (known) return known
+      const route = curveAround(e, a, b, ca, cb, p, q)
+      cache.set(e.id, route)
+      return route
+    }
+
+    // The default curve: a gentle bend to one side, unless that runs across
+    // cards the arrow does not join; then the least bend either way that
+    // clears them (or, when none does, crosses the fewest), so an arrow goes
+    // round the cards between its ends instead of under them. Only the cards
+    // near the arrow are looked at, once per layout (`bundles`).
+    const CURVE_BENDS = [120, 200, 300, 420]
+    function curveAround(e, a, b, ca, cb, p, q) {
       const mx = (p[0] + q[0]) / 2, my = (p[1] + q[1]) / 2
       const dx = q[0] - p[0], dy = q[1] - p[1]
       const len = Math.hypot(dx, dy) || 1
-      const bend = Math.min(60, len * 0.12)
-      const m = [mx - (dy / len) * bend, my + (dx / len) * bend]
-      return { kind: 'quad', pts: [p, m, q], mid: curvePoint(p, m, q, 0.5) }
+      const base = Math.min(60, len * 0.12)
+      // A curve bent round cards leaves and meets its ends on the side it
+      // bends to, so it climbs clear of a neighbour instead of grazing it.
+      const curve = (bend, outward) => {
+        const m = [mx - (dy / len) * bend, my + (dx / len) * bend]
+        const from = outward ? boxEdge(ca, m, a) : p, to = outward ? boxEdge(cb, m, b) : q
+        return { kind: 'quad', pts: [from, m, to], mid: curvePoint(from, m, to, 0.5) }
+      }
+      const steps = Math.round(clamp(len / 30, 24, 160))
+      const reach = CURVE_BENDS[CURVE_BENDS.length - 1] / 2 + 20
+      const left = Math.min(p[0], q[0]) - reach, right = Math.max(p[0], q[0]) + reach
+      const top = Math.min(p[1], q[1]) - reach, bottom = Math.max(p[1], q[1]) + reach
+      const near = cardRects().filter(r => r.ref !== e.from && r.ref !== e.to
+        && r.x < right && r.x + r.w > left && r.y < bottom && r.y + r.h > top)
+      const first = curve(base, false)
+      if (!near.length) return first
+      const crossings = (route) => {
+        let n = 0
+        for (let i = 1; i < steps; i++) {
+          const [x, y] = curvePoint(route.pts[0], route.pts[1], route.pts[2], i / steps)
+          for (const r of near) if (x > r.x - 6 && x < r.x + r.w + 6 && y > r.y - 6 && y < r.y + r.h + 6) n++
+        }
+        return n
+      }
+      let best = first, fewest = crossings(first)
+      if (!fewest) return first
+      for (const size of CURVE_BENDS) {
+        for (const bend of [size, -size]) {
+          const route = curve(bend, true)
+          const n = crossings(route)
+          if (!n) return route
+          if (n < fewest) { best = route; fewest = n }
+        }
+      }
+      return best
+    }
+    // The placed cards as drawn, world rects with their refs, once per layout.
+    function cardRects() {
+      const cache = bundles()
+      if (cache.obstacles) return cache.obstacles
+      const out = []
+      for (const node of state.nodes) {
+        if (!shown(node) || hiddenInStack(node)) continue
+        const at = pos(node)
+        if (!at) continue
+        const [w, h] = sizeOf(node)
+        out.push({ ref: node.ref, x: at[0], y: at[1], w, h })
+      }
+      return (cache.obstacles = out)
     }
     // The route as a polyline in world points, for hit tests.
     function pathSamples(path) {

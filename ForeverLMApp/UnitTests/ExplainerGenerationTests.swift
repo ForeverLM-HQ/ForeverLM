@@ -282,8 +282,9 @@ struct ExplainerGenerationTests {
         let textless = try await seedSource(
             storage, url: "https://journal.example/none", title: "None", type: .article, content: nil
         )
-        let podcast = try await seedSource(
-            storage, url: "https://pod.example/ep", title: "Ep", type: .podcast, content: "Transcript."
+        // A book's chapters are not explained (podcast episodes are, since 8f34972).
+        let book = try await seedSource(
+            storage, url: "https://books.example/ch", title: "Ch", type: .book, content: "Chapter."
         )
         let article = try await seedSource(
             storage, url: "https://journal.example/ok", title: "OK", type: .article, content: "Text."
@@ -297,8 +298,8 @@ struct ExplainerGenerationTests {
         await #expect(throws: ExplainerGenerationError.noText("None")) {
             try await service.run(request: ExplainerRequest(sourceID: textless.id))
         }
-        await #expect(throws: ExplainerGenerationError.unsupportedSource("Ep")) {
-            try await service.run(request: ExplainerRequest(sourceID: podcast.id))
+        await #expect(throws: ExplainerGenerationError.unsupportedSource("Ch")) {
+            try await service.run(request: ExplainerRequest(sourceID: book.id))
         }
 
         let explainer = try await service.run(request: ExplainerRequest(sourceID: article.id)).explainer

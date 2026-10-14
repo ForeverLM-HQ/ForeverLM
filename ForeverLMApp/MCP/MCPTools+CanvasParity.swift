@@ -984,9 +984,16 @@ extension MCPDataStore {
         let stamp = DateFormatter()
         stamp.locale = Locale(identifier: "en_US_POSIX")
         stamp.dateFormat = "yyyyMMdd-HHmmss"
-        let name = "Canvas-\(slug.isEmpty ? "untitled" : String(slug.prefix(40)))-\(stamp.string(from: Date())).png"
+        let base = "Canvas-\(slug.isEmpty ? "untitled" : String(slug.prefix(40)))-\(stamp.string(from: Date()))"
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let file = folder.appendingPathComponent(name)
+        // Two pictures in one second (two scales asked at once) each keep
+        // their own file rather than the second writing over the first.
+        var file = folder.appendingPathComponent(base + ".png")
+        var copy = 2
+        while FileManager.default.fileExists(atPath: file.path) {
+            file = folder.appendingPathComponent("\(base)-\(copy).png")
+            copy += 1
+        }
         try data.write(to: file, options: .atomic)
         return file.path
     }

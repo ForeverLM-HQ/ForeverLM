@@ -375,6 +375,11 @@ enum SyncedPreferenceKeys {
         // place there (`ChatPins`), Codex's Pin chat. One row per chat, per
         // member, never on the chat's record.
         ChatPins.preferenceKeyPrefix,
+        // `aiSeeded.task.<task>` — that ForeverLM gave a task its starting
+        // model of its own (`KeychainService.seedCanvasVoiceRoute`), once for
+        // the account, so a learner who sends it back to Background is not
+        // given it again on another Mac.
+        "aiSeeded.task.",
         // `notebook.naming.<notebookID>` — the name and description ForeverLM
         // last put on a notebook made without one, which it may replace while
         // the notebook still carries them (`NotebookNaming`). Follows the

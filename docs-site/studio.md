@@ -427,10 +427,14 @@ paper on Drp1 next to it". Tap **S** instead, or choose **Speak to the
 Canvas** in the canvas's menu, to talk until you pause. The canvas changes
 as the answer arrives, and a small bar at its foot says what it heard and
 what it did; its **×** stops it. One **⌘Z** takes the whole request back.
-Your words are transcribed by your **Dictation** model (**Settings →
-Speech-to-Text**), and the changes
-are made by the **Canvas Voice** model under **Settings → Background →
-Tasks**: choose a fast model there, since you wait on it.
+Your Mac hears you as you speak, so your words show in the bar while you say
+them (macOS 26 or later, in a language it has a speech model for; it
+downloads one the first time). Otherwise your words are transcribed by your
+**Dictation** model (**Settings → Speech-to-Text**) once you let go. The
+changes are made by the **Canvas Voice** model under **Settings → Background
+→ Tasks**, which starts on DeepSeek V4.1 Flash, the fastest model in
+ForeverLM's tests (about half a second to the first change); choose another
+there.
 
 ### Courses and notebooks
 

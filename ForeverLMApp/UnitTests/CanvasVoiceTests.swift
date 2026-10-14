@@ -100,6 +100,12 @@ struct CanvasVoiceTests {
         if case .blank = CanvasVoice.line("   ") {} else { Issue.record("spaces are blank") }
         if case .unreadable = CanvasVoice.line("Sure, here are the edits:") {} else { Issue.record("prose is unreadable") }
         if case .unreadable = CanvasVoice.line(#"{"item_ids":["c1"]}"#) {} else { Issue.record("no tool is unreadable") }
+        guard case .edit(let said) = CanvasVoice.line(#"{"say":"Which one?"}"#), said.tool == "say", said.arguments["text"] as? String == "Which one?" else {
+            Issue.record("{\"say\": …} is a say"); return
+        }
+        guard case .edit(let keyed) = CanvasVoice.line(#"{"move":{"item_ids":["c2"],"dx":40}}"#), keyed.tool == "move", keyed.arguments["item_ids"] as? [String] == ["c2"] else {
+            Issue.record("an edit named by its one key is read"); return
+        }
     }
 
     @Test("Short ids become the canvas's own: cards, a region by id (region:<id> for an arrow's end); names, labels and words stay as written")
@@ -119,6 +125,10 @@ struct CanvasVoiceTests {
         let notes = CanvasVoice.resolved(["annotations": ["c1": "why"]], in: context)["annotations"] as? [String: Any]
         #expect(notes?["source:a"] as? String == "why")
         #expect(CanvasVoice.resolved(["dx": 40], in: context)["dx"] as? Int == 40)
+        #expect(CanvasVoice.resolved(["color": "Orange"], in: context)["color"] as? String == "#D85A30", "a tint by its name")
+        #expect(CanvasVoice.resolved(["color": "red"], in: context)["color"] as? String == "#D85A30", "a colour the canvas lacks, by its nearest")
+        #expect(CanvasVoice.resolved(["color": "#378ADD"], in: context)["color"] as? String == "#378ADD")
+        #expect(CanvasVoice.resolved(["name": "orange"], in: context)["name"] as? String == "orange", "a name is words, not a colour")
     }
 
     @Test("The request asks for the model's lowest effort, and for none when it offers none")

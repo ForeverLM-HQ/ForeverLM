@@ -1254,6 +1254,7 @@ extension AIService {
         messages: [(role: String, content: String)],
         maxTokens: Int,
         webSearch: Bool = false,
+        disablesReasoning: Bool = false,
         onDelta: @escaping (String) -> Void
     ) async throws {
         let config = KeychainService.routedTextConfig(config)
@@ -1266,6 +1267,7 @@ extension AIService {
             messages: messages,
             maxTokens: maxTokens,
             webSearch: webSearch,
+            disablesReasoning: disablesReasoning,
             onDelta: onDelta
         )
     }
@@ -1307,6 +1309,7 @@ extension AIService {
         messages: [(role: String, content: String)],
         maxTokens: Int,
         webSearch: Bool,
+        disablesReasoning: Bool = false,
         onDelta: @escaping (String) -> Void
     ) async throws {
         // Trim the request for the configured model.
@@ -1351,6 +1354,7 @@ extension AIService {
                 system: stableSystem, volatileSystem: tailSystem,
                 messages: messages, maxTokens: maxTokens, model: route.model,
                 effort: effort, speed: speed, webSearch: webSearch,
+                disablesReasoning: disablesReasoning,
                 onDelta: onDelta)
         }
     }

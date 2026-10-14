@@ -42,8 +42,14 @@ final class KnowledgeMapVoice {
     }
 
     private(set) var phase: Phase = .idle
-    /// What the learner said, once transcribed.
+    /// What the learner said: as they say it when this Mac hears them
+    /// (`KnowledgeMapVoiceListener`), else once it is transcribed.
     private(set) var heard = ""
+    /// The microphone's last levels, 0…1, newest last, while this Mac hears.
+    private(set) var levels: [Double] = Array(repeating: 0.08, count: 9)
+    /// Whether this Mac is hearing the request itself, rather than recording
+    /// it for the Dictation model.
+    private(set) var hearsOnDevice = false
     /// What was done, a few words an edit.
     private(set) var changes: [String] = []
     /// A line the model said instead of an edit, or the first edit that failed.
@@ -52,8 +58,19 @@ final class KnowledgeMapVoice {
     /// than until they let go of S.
     private(set) var isHandsFree = false
 
-    /// The recorder and its level meter, which the capsule draws.
+    /// The recorder and its level meter, which the capsule draws, when the
+    /// words go to the Dictation model.
     @ObservationIgnored let dictation = ReviewDictationService(usageTask: "canvas_voice_dictation")
+    /// The on-device listener while it hears (a `KnowledgeMapVoiceListener`,
+    /// which needs macOS 26).
+    @ObservationIgnored private var listener: AnyObject?
+    /// Hands-free listening ends on a pause: speech heard, then this long
+    /// below the quiet level.
+    @ObservationIgnored private var spokeAt: Date?
+    @ObservationIgnored private var quietSince: Date?
+    private static let speechLevel = 0.16
+    private static let quietLevel = 0.12
+    private static let pauseLength: TimeInterval = 1.2
     @ObservationIgnored private var heldSince: Date?
     @ObservationIgnored private var starting: Task<Void, Never>?
     @ObservationIgnored private var running: Task<Void, Never>?
@@ -63,7 +80,27 @@ final class KnowledgeMapVoice {
     /// Requests up to this one were stopped with the ×.
     @ObservationIgnored private var stoppedThrough = 0
 
-    private init() {}
+    private init() {
+        #if DEBUG
+        listenForEvals()
+        #endif
+    }
+
+    #if DEBUG
+    /// The eval's request (KnowledgeMapVoice+Eval.swift): a new id, shown in
+    /// the capsule when its edits are carried out.
+    func beginEvalRequest(said: String, showing: Bool) -> Int {
+        request &+= 1
+        if showing {
+            fading?.cancel()
+            heard = said
+            changes = []
+            remark = nil
+            phase = .changing
+        }
+        return request
+    }
+    #endif
 
     var isShowing: Bool { phase != .idle }
 
@@ -113,6 +150,7 @@ final class KnowledgeMapVoice {
         stoppedThrough = request
         heldSince = nil
         if dictation.isRecording { dictation.cancelRecording() }
+        cancelListener()
         starting?.cancel()
         running?.cancel()
         fading?.cancel()
@@ -132,9 +170,15 @@ final class KnowledgeMapVoice {
         changes = []
         remark = nil
         isHandsFree = false
+        hearsOnDevice = false
+        levels = Array(repeating: 0.08, count: levels.count)
+        spokeAt = nil
+        quietSince = nil
         phase = .listening
+        warm()
         starting = Task { [weak self] in
             guard let self else { return }
+            if await self.startHearingOnDevice(id: id) { return }
             await self.dictation.startRecording(automaticallyStopsAfterSilence: true) { [weak self] in
                 self?.heardPause()
             }
@@ -146,6 +190,76 @@ final class KnowledgeMapVoice {
                 self.fail(self.dictation.errorMessage ?? "Could not start listening", id: id)
             }
         }
+    }
+
+    /// Hears the request on this Mac, the words showing as they are said,
+    /// when it has a speech model for the learner's language. False when it
+    /// has none (yet): the request is recorded for the Dictation model.
+    private func startHearingOnDevice(id: Int) async -> Bool {
+        guard #available(macOS 26.0, *),
+              let locale = await KnowledgeMapVoiceListener.locale(),
+              await KnowledgeMapVoiceListener.isReady(for: locale),
+              owns(id), isLive(id), phase == .listening || phase == .hearing else { return false }
+        let listener = KnowledgeMapVoiceListener()
+        listener.onWords = { [weak self] words in
+            guard let self, self.owns(id), self.phase == .listening else { return }
+            self.heard = words
+        }
+        listener.onLevel = { [weak self] level in
+            guard let self, self.owns(id) else { return }
+            self.hear(level: level)
+        }
+        self.listener = listener
+        hearsOnDevice = true
+        do {
+            try await listener.start(locale: locale)
+        } catch {
+            cancelListener()
+            fail(error.localizedDescription, id: id)
+            return true
+        }
+        if !owns(id) || !isLive(id) || phase != .listening && phase != .hearing { cancelListener() }
+        return true
+    }
+
+    /// The level while this Mac hears: the capsule's bars, and the pause that
+    /// ends hands-free listening.
+    private func hear(level: Double) {
+        guard phase == .listening else { return }
+        levels.removeFirst()
+        levels.append(level)
+        let now = Date()
+        if level >= Self.speechLevel {
+            spokeAt = now
+            quietSince = nil
+        } else if level <= Self.quietLevel, spokeAt != nil {
+            if quietSince == nil { quietSince = now }
+            if let quiet = quietSince, now.timeIntervalSince(quiet) >= Self.pauseLength { heardPause() }
+        }
+    }
+
+    private func cancelListener() {
+        if #available(macOS 26.0, *), let listener = listener as? KnowledgeMapVoiceListener { listener.cancel() }
+        listener = nil
+    }
+
+    /// The words, finalized, from whichever way the request was heard.
+    private func finishHearing() async -> String? {
+        if #available(macOS 26.0, *), let listener = listener as? KnowledgeMapVoiceListener {
+            self.listener = nil
+            let words = await listener.finish()
+            return words.isEmpty ? nil : words
+        }
+        return await dictation.stopAndTranscribe()
+    }
+
+    /// Readies the request while the learner is still speaking: the
+    /// connection to the model's host, its endpoints and tiers, so letting go
+    /// of S starts the request at once.
+    private func warm() {
+        guard let config = Self.config() else { return }
+        let ai = AppModelBridge.studio?.aiService
+        Task.detached(priority: .userInitiated) { await ai?.warmTextRoute(config) }
     }
 
     /// The recorder heard speech and then a pause. Held, S decides when to
@@ -169,10 +283,11 @@ final class KnowledgeMapVoice {
             await starting?.value
             guard let self, self.isLive(id) else { return }
             let began = Date()
-            let said = await self.dictation.stopAndTranscribe()
+            let onDevice = self.hearsOnDevice
+            let said = await self.finishHearing()
             guard self.isLive(id) else { return }
             guard let said, !said.isEmpty else {
-                self.fail(self.dictation.errorMessage ?? "Nothing was heard", id: id)
+                self.fail((onDevice ? nil : self.dictation.errorMessage) ?? "Nothing was heard", id: id)
                 return
             }
             let transcribed = Date()
@@ -188,34 +303,88 @@ final class KnowledgeMapVoice {
 
     // MARK: Changing the canvas
 
-    private func change(_ said: String, id: Int, began: Date, transcribed: Date) async {
+    /// What one request did and where its time went: logged, and what the
+    /// DEBUG eval writes out (KnowledgeMapVoice+Eval.swift).
+    struct Report {
+        var model = ""
+        var said = ""
+        /// From letting go to the words.
+        var transcribeMS: Int?
+        /// Reading the canvas and writing the request.
+        var contextMS: Int?
+        /// From sending the request to the model's first token, and to its last line.
+        var firstTokenMS: Int?
+        var modelMS: Int?
+        /// From the words to the first edit carried out (or, not applying, read).
+        var firstEditMS: Int?
+        /// From letting go to the last edit.
+        var totalMS: Int?
+        var lines: [String] = []
+        var edits: [CanvasVoice.Edit] = []
+        var done: [String] = []
+        var failures: [String] = []
+        var unreadable = 0
+        var remark: String?
+        /// Why the request was never sent.
+        var refused: String?
+    }
+
+    /// Asks the Canvas Voice model for the edits `said` asks of the open
+    /// canvas and carries each out as its line arrives. `applying` false
+    /// reads the edits without carrying them out, `model` asks another
+    /// OpenRouter model than the task's own and `snapshot` stands in for the
+    /// open canvas: the DEBUG eval's ways in. The learner's path passes none.
+    @discardableResult
+    func change(
+        _ said: String,
+        id: Int,
+        began: Date,
+        transcribed: Date,
+        applying: Bool = true,
+        model: String? = nil,
+        snapshot: CanvasVoice.Snapshot? = nil,
+        reasoning: Bool = false
+    ) async -> Report {
+        var report = Report(said: said)
+        func ms(_ from: Date, _ to: Date?) -> Int? { to.map { Int(($0.timeIntervalSince(from) * 1000).rounded()) } }
+        report.transcribeMS = ms(began, transcribed)
+        func refuse(_ message: String) -> Report {
+            report.refused = message
+            if applying { fail(message, id: id) }
+            return report
+        }
         let prepared: (StudioViewModel, KnowledgeMapModel)
         do {
             prepared = try await MCPDataStore.preparedMap(opening: false)
         } catch {
-            fail(error.localizedDescription, id: id)
-            return
+            return refuse(error.localizedDescription)
         }
         let (studio, map) = prepared
-        guard map.lens == nil else {
-            fail("Back to My Canvas first", id: id)
-            return
+        if applying, map.lens != nil { return refuse("Back to My Canvas first") }
+        guard var config = Self.config(model: model) else {
+            return refuse(KeychainService.backgroundAIUnavailableMessage(for: .canvasVoice) ?? "Set up AI in Settings to speak to the canvas")
         }
-        guard var config = KeychainService.resolveConfig(for: .canvasVoice) else {
-            fail(KeychainService.backgroundAIUnavailableMessage(for: .canvasVoice) ?? "Set up AI in Settings to speak to the canvas", id: id)
-            return
-        }
+        report.model = config.model
         config.effort = CanvasVoice.quickestEffort(
             AIRequestOptionSupport.supportedEfforts(provider: config.provider, model: config.model)
         )
-        let context = CanvasVoice.context(Self.snapshot(of: map, named: studio.openCanvasName), said: said)
+        let contextStarted = Date()
+        let context = CanvasVoice.context(snapshot ?? Self.snapshot(of: map, named: studio.openCanvasName), said: said)
+        // The instructions and the edits are the same every time, so they are
+        // the request's stable, cached head; the canvas and the words are its
+        // volatile tail, and the user's turn is fixed, so every request shares
+        // one prompt-cache session and keeps to the host that cached the head.
         let system = (AITask.canvasVoice.effectivePrompt ?? Prompts.canvasVoice) + "\n\n" + Self.operationsReference
+        let volatile = "\n\n" + context.message
         let ai = studio.aiService
         let activityID = UUID().uuidString
+        let sent = Date()
+        report.contextMS = ms(contextStarted, sent)
 
         // The model is called off the main actor; its answer comes back a line
         // at a time, and each line is carried out here as soon as it is whole.
         let (lines, sink) = AsyncStream<String>.makeStream()
+        let firstToken = CanvasVoice.Stamp()
         let producer = Task.detached(priority: .userInitiated) { () -> Error? in
             let reader = CanvasVoice.LineReader()
             do {
@@ -224,9 +393,17 @@ final class KnowledgeMapVoice {
                         try await ai.streamChat(
                             config: config,
                             system: system,
-                            messages: [(role: "user", content: context.message)],
-                            maxTokens: 1200
+                            volatileSystem: volatile,
+                            messages: [(role: "user", content: CanvasVoice.userTurn)],
+                            maxTokens: 1200,
+                            // An edit of the canvas is a choice, not a puzzle:
+                            // hidden thinking cost the fastest models a second
+                            // or more before their first edit (the eval,
+                            // KnowledgeMapVoice+Eval.swift). `reasoning` keeps
+                            // it, at the lowest effort, for the eval to compare.
+                            disablesReasoning: !reasoning
                         ) { delta in
+                            if !delta.isEmpty { firstToken.mark() }
                             for line in reader.feed(delta) { sink.yield(line) }
                         }
                     }
@@ -240,53 +417,72 @@ final class KnowledgeMapVoice {
             }
         }
 
-        var applied = 0
-        var unreadable = 0
-        var failures: [String] = []
         var firstEdit: Date?
-        map.beginEditGroup()
+        if applying { map.beginEditGroup() }
         for await raw in lines {
             guard isLive(id), !Task.isCancelled else { break }
+            report.lines.append(raw)
             switch CanvasVoice.line(raw) {
             case .blank:
                 continue
             case .unreadable:
-                unreadable += 1
+                report.unreadable += 1
             case .edit(let edit):
+                guard applying else {
+                    firstEdit = firstEdit ?? Date()
+                    report.edits.append(CanvasVoice.Edit(tool: edit.tool, arguments: CanvasVoice.resolved(edit.arguments, in: context)))
+                    continue
+                }
                 do {
                     if let done = try await perform(edit, context: context, studio: studio, map: map, id: id) {
                         firstEdit = firstEdit ?? Date()
-                        applied += 1
+                        report.done.append(done)
                         if owns(id) { changes.append(done) }
+                    } else if edit.tool == "say" {
+                        report.remark = (edit.arguments["text"] as? String) ?? report.remark
                     }
+                    report.edits.append(edit)
                 } catch {
-                    failures.append(error.localizedDescription)
+                    report.failures.append(error.localizedDescription)
                 }
             }
         }
-        map.endEditGroup()
+        if applying { map.endEditGroup() }
         if !isLive(id) || Task.isCancelled { producer.cancel() }
         let streamError = await producer.value
+        let finished = Date()
+        report.firstTokenMS = ms(sent, firstToken.at)
+        report.modelMS = ms(sent, finished)
+        report.firstEditMS = ms(transcribed, firstEdit)
+        report.totalMS = ms(began, finished)
+        if let streamError, !(streamError is CancellationError) {
+            report.failures.insert(streamError.localizedDescription, at: 0)
+        }
 
-        func ms(_ from: Date, _ to: Date?) -> Int { to.map { Int(($0.timeIntervalSince(from) * 1000).rounded()) } ?? -1 }
-        let model = config.model
-        let transcribeMS = ms(began, transcribed), firstEditMS = ms(transcribed, firstEdit), totalMS = ms(began, Date())
-        let edits = applied, failed = failures.count, unread = unreadable
+        let logged = report
         voiceLogger.notice(
-            "Canvas voice model=\(model, privacy: .public) transcribe_ms=\(transcribeMS, privacy: .public) first_edit_ms=\(firstEditMS, privacy: .public) total_ms=\(totalMS, privacy: .public) edits=\(edits, privacy: .public) failed=\(failed, privacy: .public) unreadable=\(unread, privacy: .public)"
+            "Canvas voice model=\(logged.model, privacy: .public) transcribe_ms=\(logged.transcribeMS ?? -1, privacy: .public) context_ms=\(logged.contextMS ?? -1, privacy: .public) first_token_ms=\(logged.firstTokenMS ?? -1, privacy: .public) first_edit_ms=\(logged.firstEditMS ?? -1, privacy: .public) total_ms=\(logged.totalMS ?? -1, privacy: .public) edits=\(logged.edits.count, privacy: .public) failed=\(logged.failures.count, privacy: .public) unreadable=\(logged.unreadable, privacy: .public)"
         )
 
-        guard owns(id), isLive(id) else { return }
-        if let streamError, !(streamError is CancellationError) {
-            failures.insert(streamError.localizedDescription, at: 0)
-        }
+        guard applying, owns(id), isLive(id) else { return report }
+        let applied = report.done.count
         if applied == 0, remark == nil {
-            fail(failures.first ?? (unreadable > 0 ? "The answer held no canvas edit" : "Nothing to change"), id: id)
-            return
+            fail(report.failures.first ?? (report.unreadable > 0 ? "The answer held no canvas edit" : "Nothing to change"), id: id)
+            return report
         }
-        if remark == nil, let first = failures.first { remark = first }
+        if remark == nil, let first = report.failures.first { remark = first }
         phase = .done
         fade(after: 4)
+        return report
+    }
+
+    /// The Canvas Voice task's config; in a DEBUG eval, a named model's.
+    static func config(model: String? = nil) -> AITaskConfig? {
+        #if DEBUG
+        if let model { return AIModelQualification.evalConfig(model: model, task: .canvasVoice) }
+        #endif
+        KeychainService.seedCanvasVoiceRoute()
+        return KeychainService.resolveConfig(for: .canvasVoice)
     }
 
     /// Carries out one edit; what it did in a few words, or nil for a `say`.
@@ -366,7 +562,15 @@ final class KnowledgeMapVoice {
         let limit = min(max(Int(MCPDataStore.canvasNumber(arguments["limit"]) ?? 6), 1), 24)
         let placed = Set(map.layout.placements.keys)
         var found: [String] = []
-        for words in searches {
+        // One phrase split into single words ("ketone", "bodies") is searched
+        // as the phrase it was; alone, "bodies" would find every Lewy body.
+        let split = searches.count > 1 && searches.allSatisfy { !$0.trimmingCharacters(in: .whitespaces).contains(" ") }
+        if split {
+            let joined = searches.joined(separator: " ")
+            let matches = KnowledgeMapAddSearch.matches(joined, content: map.content, placed: placed, onPlane: [], index: map.addSearchIndex)
+            found = matches.library + matches.onCanvas
+        }
+        for words in (split && !found.isEmpty) ? [] : searches {
             let matches = KnowledgeMapAddSearch.matches(words, content: map.content, placed: placed, onPlane: [], index: map.addSearchIndex)
             for ref in matches.library + matches.onCanvas where !found.contains(ref) {
                 found.append(ref)
@@ -500,7 +704,7 @@ final class KnowledgeMapVoice {
         lines.append(contentsOf: [
             "- move(item_ids: [string], dx: number, dy: number): Shift placed cards by dx and dy, keeping them where they are to each other.",
             "- write_note(text: string, region?: string, beside?: string, new_region?: string): A new note card of the learner's words, set down there, else in the middle of the view.",
-            "- find_and_place(words: [string], limit?: integer, region?: string, beside?: string, new_region?: string): Find cards in the learner's library whose titles hold all of one entry's words (each entry is its own search, a few title words), and set the best (6 unless limit says) down there.",
+            "- find_and_place(words: [string], limit?: integer, region?: string, beside?: string, new_region?: string): Find cards in the learner's library whose titles hold every word of one search (each entry of words is one search: a short phrase such as \"ketone bodies\"), and set the best (6 unless limit says) down there.",
             "- say(text: string): One short sentence to the learner, when you change nothing or must say why.",
         ])
         return lines.joined(separator: "\n")
@@ -585,9 +789,19 @@ struct KnowledgeMapVoiceCapsule: View {
         HStack(spacing: 10) {
             switch voice.phase {
             case .listening:
-                KnowledgeMapVoiceLevels(dictation: voice.dictation)
-                Text(voice.isHandsFree ? "Listening" : "Listening… let go of S when done")
-                    .foregroundStyle(.secondary)
+                if voice.hearsOnDevice {
+                    KnowledgeMapVoiceBars(levels: voice.levels)
+                } else {
+                    KnowledgeMapVoiceLevels(dictation: voice.dictation)
+                }
+                if voice.heard.isEmpty {
+                    Text(voice.isHandsFree ? "Listening" : "Listening… let go of S when done")
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text(voice.heard)
+                        .lineLimit(1)
+                        .truncationMode(.head)
+                }
             case .hearing:
                 ProgressView().controlSize(.small)
                 Text("Hearing…")
@@ -652,13 +866,22 @@ struct KnowledgeMapVoiceCapsule: View {
     }
 }
 
-/// The microphone's level while the canvas listens: a few bars.
+/// The recorder's level while the canvas records for the Dictation model.
 private struct KnowledgeMapVoiceLevels: View {
     @ObservedObject var dictation: ReviewDictationService
 
     var body: some View {
+        KnowledgeMapVoiceBars(levels: Array(dictation.audioLevels.suffix(9)))
+    }
+}
+
+/// The microphone's level while the canvas listens: a few bars.
+private struct KnowledgeMapVoiceBars: View {
+    let levels: [Double]
+
+    var body: some View {
         HStack(alignment: .center, spacing: 2) {
-            ForEach(Array(dictation.audioLevels.suffix(9).enumerated()), id: \.offset) { _, level in
+            ForEach(Array(levels.enumerated()), id: \.offset) { _, level in
                 Capsule()
                     .fill(Color.accentColor)
                     .frame(width: 2.5, height: max(3, 16 * level))

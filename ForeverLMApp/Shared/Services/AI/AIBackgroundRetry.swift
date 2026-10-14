@@ -541,7 +541,7 @@ actor AIRequestPacer {
 ///
 /// A rule rather than a setting: until 2026-09-28 Setup kept meetings paid
 /// by giving each meeting task a model of its own, and those went with the
-/// Specific tasks menu (`KeychainService.purgeRetiredTaskModels`).
+/// Specific tasks menu.
 enum MeetingModels {
     /// Synced, with the rest of `aiBackground.`: Setup's answer. False, the
     /// recommendation, keeps meetings on a paid model.

@@ -65,6 +65,18 @@ extension AIModelQualification {
             && ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil
     }
 
+    #if DEBUG
+    /// A config for a named OpenRouter model on this Mac's key, labelled for
+    /// `task`, for a DEBUG eval that measures candidate models on that task's
+    /// real request (`KnowledgeMapVoice+Eval.swift`). It picks no model.
+    static func evalConfig(model: String, task: AITask) -> AITaskConfig? {
+        guard let apiKey = KeychainService.apiKey(for: .openRouter) else { return nil }
+        var config = AITaskConfig(provider: .openRouter, apiKey: apiKey, model: model)
+        config.taskLabel = task.rawValue
+        return config
+    }
+    #endif
+
     /// One small request of the role's shape. Throws what the request threw.
     static func probe(provider: AIProvider, model: String, role: Role) async throws {
         guard let apiKey = KeychainService.apiKey(for: provider) ?? KeychainService.apiKey(for: .openRouter) else {

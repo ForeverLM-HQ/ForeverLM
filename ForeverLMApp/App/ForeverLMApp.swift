@@ -547,6 +547,11 @@ struct ForeverLMApp: App {
                     // that are view-model methods through this.
                     AppModelBridge.studio = studioViewModel
                     AppModelBridge.account = managedAIAccount
+                    #if DEBUG
+                    // Speaking to the Canvas listens for its eval from launch
+                    // (KnowledgeMapVoice+Eval.swift), canvas open or not.
+                    _ = KnowledgeMapVoice.shared
+                    #endif
                     #endif
                     StorageService.scheduleLegacyContentConsolidationAfterLaunch()
                     // Same shape, one level down: book folders that still carry a
@@ -608,8 +613,6 @@ struct ForeverLMApp: App {
                     // Router key. Keychain I/O stays off-main.
                     await Task.detached(priority: .utility) {
                         KeychainService.purgeRetiredProviderData()
-                        // And the models background tasks had of their own.
-                        KeychainService.purgeRetiredTaskModels()
                         // And the retired Google Calendar plugin's grants.
                         KeychainService.purgeRetiredGoogleCalendarGrants()
                         // And the Planner's choice of Mac calendars, made

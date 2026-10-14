@@ -16,8 +16,12 @@ extension StudioViewModel {
 
     /// Whether any window shows the Map.
     var knowledgeMapIsOnScreen: Bool {
+        // What each window shows: a window holding a notebook shows the
+        // notebook, whatever its panes underneath hold (2026-10-13: a canvas
+        // opened over MCP stayed hidden behind a restored notebook, its pane
+        // counted as showing).
         StudioWindowRegistry.shared.states.contains { state in
-            state.centerTabGroups.groups.contains { $0.activeTab == .knowledgeMap }
+            visibleCenterTabs(in: state).contains(.knowledgeMap)
         }
     }
 

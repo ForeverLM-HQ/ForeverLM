@@ -49,10 +49,20 @@ struct KnowledgeMapPane: View {
 
     private var map: KnowledgeMapModel { vm.knowledgeMap }
 
+    /// The narrowest the plane is drawn beside its sidebars: room for its
+    /// tools, the find field and the Library button. Below it the sidebars
+    /// step aside (the Space's first, then the Library) rather than push the
+    /// pane wider than its frame: on 2026-10-13 a canvas opened beside the
+    /// home in a 1,300-point window drew its Space sidebar under the home and
+    /// cut the Library off at the window's edge.
+    private static let minimumPlaneWidth: CGFloat = 440
+    private static let librarySidebarWidth: CGFloat = 300
+
     /// The Library sits beside the plane while the learner has it open, and
-    /// steps aside for a review in place.
+    /// steps aside for a review in place, or while the pane has no room for it.
     private var showsLibrarySidebar: Bool {
         map.showsLibrary && map.memory.review == nil
+            && (paneWidth <= 0 || paneWidth >= Self.minimumPlaneWidth + Self.librarySidebarWidth + 1)
     }
 
     /// Nothing placed yet on a canvas with a library to place from.
@@ -61,9 +71,12 @@ struct KnowledgeMapPane: View {
     }
 
     /// The sidebar shows unless the learner hid it or the pane is too narrow
-    /// for it beside the canvas.
+    /// for it beside the canvas (and the Library, when that shows).
     private var showsSpaceSidebar: Bool {
-        !spaceSidebarHiddenByLearner && (paneWidth <= 0 || paneWidth >= SpaceSidebarMetrics.minimumPaneWidth)
+        guard !spaceSidebarHiddenByLearner else { return false }
+        guard paneWidth > 0 else { return true }
+        let beside = SpaceSidebarMetrics.width + 1 + (showsLibrarySidebar ? Self.librarySidebarWidth + 1 : 0)
+        return paneWidth >= SpaceSidebarMetrics.minimumPaneWidth && paneWidth - beside >= Self.minimumPlaneWidth
     }
 
     /// The sidebar's lit place: where the open canvas is listed, its space
@@ -219,15 +232,20 @@ struct KnowledgeMapPane: View {
             if showsLibrarySidebar {
                 Divider()
                 KnowledgeMapLibrarySidebar(onClose: { map.showsLibrary = false })
-                    .frame(width: 300)
+                    .frame(width: Self.librarySidebarWidth)
                     .background(Color(nsColor: .windowBackgroundColor))
                     .transition(.move(edge: .trailing).combined(with: .opacity))
             }
         }
         .animation(.easeInOut(duration: 0.18), value: showsSpaceSidebar)
         .animation(.easeInOut(duration: 0.18), value: showsLibrarySidebar)
-        .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { paneWidth = $0 }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // The width the pane is given, not what its row asks for: measured on
+        // the row, a row too wide for its pane reports its own width and the
+        // sidebars never step aside.
+        .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { paneWidth = $0 }
+        // Nothing of the pane is drawn over the pane beside it.
+        .clipped()
         .background(Color(nsColor: .windowBackgroundColor))
     }
 

@@ -2294,6 +2294,26 @@ enum KeychainService {
         )
     }
 
+    /// The synced mark that Canvas Voice was given its starting model, so a
+    /// learner who sends it back to Background is not given it again, here
+    /// or on another Mac (`aiSeeded.task.<task>`).
+    static let canvasVoiceSeededKey = "aiSeeded.task." + AITask.canvasVoice.rawValue
+
+    /// Gives Canvas Voice its starting model (`AIModelDefaults.canvasVoice`)
+    /// as a model of its own, once for the account, when it has none: speaking
+    /// to the canvas is waited on, and Background's model is chosen for work
+    /// nobody waits on. Run when the learner first speaks to a canvas rather
+    /// than at launch, so a new Mac has read the account's settings first.
+    /// It then shows, and is changed, in Settings › Background › Tasks like
+    /// any model the learner set.
+    static func seedCanvasVoiceRoute() {
+        guard canHaveOwnRoute(.canvasVoice),
+              !UserDefaults.standard.bool(forKey: canvasVoiceSeededKey),
+              storedRoute(forKey: AIModelPreferenceKey.taskRoute(.canvasVoice)) == nil else { return }
+        PreferenceStore.set(true, forKey: canvasVoiceSeededKey)
+        setOwnRoute(AITaskModelRoute(provider: .openRouter, model: AIModelDefaults.canvasVoice), for: .canvasVoice)
+    }
+
     // MARK: - Docs Model
 
     /// The model a Doc's Edit with AI runs on, when the learner gave Docs one
@@ -2823,41 +2843,6 @@ enum KeychainService {
         }
         let provider = taskProvider(task) ?? fallbackProvider(for: task)
         return (provider, taskModel(task) ?? model(for: provider))
-    }
-
-    /// Until 2026-09-28 a background task could be given a model of its own
-    /// in Settings › Background's Specific tasks menu, and Setup gave each
-    /// meeting task one to keep it off a free model. The product owner: "I don't think
-    /// anybody will actually want to set the model for all these specific
-    /// tasks … let's just set a default text only model and a default
-    /// multimodal model". Nothing reads those picks any more; this drops them,
-    /// with their backup models and host choices, once per installation.
-    /// Where a meeting task ran on a free model the learner had let meetings
-    /// go free, and that answer is kept (`MeetingModels.mayUseFreeKey`).
-    static func purgeRetiredTaskModels() {
-        let completionKey = "retiredTaskModelsPurged.v1"
-        guard !UserDefaults.standard.bool(forKey: completionKey) else { return }
-        let defaults = UserDefaults.standard
-        if MeetingModels.tasks.contains(where: { task in
-            let pinned = storedRoute(forKey: AIModelPreferenceKey.taskRoute(task)).flatMap { route in
-                AIProvider(rawValue: route.provider).map { AITaskModelRoute(provider: $0, model: route.model) }
-            }
-            return MeetingModels.isFree(pinned ?? displayedBackgroundTaskRoute(for: task))
-        }) {
-            PreferenceStore.set(true, forKey: MeetingModels.mayUseFreeKey)
-        }
-        for task in AITask.allCases where task != .chat {
-            PreferenceStore.remove(forKey: AIModelPreferenceKey.taskRoute(task))
-            for suffix in ["provider", "model", "effort", "speed"] {
-                PreferenceStore.remove(forKey: "aiTask.\(task.rawValue).\(suffix)")
-            }
-            PreferenceStore.remove(forKey: AIBackupModels.key(slot: "task.\(task.rawValue)"))
-        }
-        for key in defaults.dictionaryRepresentation().keys
-        where key.hasPrefix(OpenRouterHostPreference.keyPrefix + "task.") {
-            PreferenceStore.remove(forKey: key)
-        }
-        defaults.set(true, forKey: completionKey)
     }
 
     /// Resolve the full config (provider + credential + model) for an AI task.

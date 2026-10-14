@@ -30,7 +30,7 @@ import Foundation
 enum CanvasVoice {
     /// A card on the plane, or waiting in the canvas's Library, as the model
     /// is told of it.
-    struct Card: Equatable, Sendable {
+    struct Card: Codable, Equatable, Sendable {
         var ref: String
         /// The card's kind as its dot shows it: `paper`, `article`, `idea`…
         var type: String
@@ -45,7 +45,7 @@ enum CanvasVoice {
         var selected = false
     }
 
-    struct Region: Equatable, Sendable {
+    struct Region: Codable, Equatable, Sendable {
         var id: String
         var name: String
         var x: Double
@@ -55,7 +55,7 @@ enum CanvasVoice {
         var cardCount: Int
     }
 
-    struct Arrow: Equatable, Sendable {
+    struct Arrow: Codable, Equatable, Sendable {
         var from: String
         var to: String
         var label: String
@@ -63,7 +63,7 @@ enum CanvasVoice {
 
     /// The canvas as it is when the learner stops speaking, read in one cheap
     /// pass on the main actor.
-    struct Snapshot: Equatable, Sendable {
+    struct Snapshot: Codable, Equatable, Sendable {
         var canvasName: String
         var viewCenterX: Double
         var viewCenterY: Double
@@ -212,6 +212,30 @@ enum CanvasVoice {
         String(Int(value.rounded()))
     }
 
+    /// The user's turn of every request. The canvas and the words ride in the
+    /// system message's volatile tail, so this turn, and with it the
+    /// prompt-cache session the request is routed by, never changes.
+    static let userTurn = "Write the edits for what the learner said, one JSON object per line."
+
+    /// When something first happened, set once from wherever it happens and
+    /// read after the work is done.
+    final class Stamp: @unchecked Sendable {
+        private let lock = NSLock()
+        private var time: Date?
+
+        func mark() {
+            lock.lock()
+            if time == nil { time = Date() }
+            lock.unlock()
+        }
+
+        var at: Date? {
+            lock.lock()
+            defer { lock.unlock() }
+            return time
+        }
+    }
+
     // MARK: Reading the answer as it streams
 
     /// Cuts the streamed answer into lines as they complete. Fed from the
@@ -260,9 +284,15 @@ enum CanvasVoice {
         if text.hasSuffix(",") { text = String(text.dropLast()) }
         guard text.hasPrefix("{"),
               let data = text.data(using: .utf8),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let tool = (object["tool"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !tool.isEmpty else { return .unreadable(text) }
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return .unreadable(text) }
+        guard let tool = (object["tool"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !tool.isEmpty else {
+            // The edit named by its one key, as some models write it:
+            // {"say": "…"} or {"move": {…}}.
+            guard object.count == 1, let only = object.first else { return .unreadable(text) }
+            if only.key == "say", let words = only.value as? String { return .edit(Edit(tool: "say", arguments: ["text": words])) }
+            if let arguments = only.value as? [String: Any] { return .edit(Edit(tool: only.key, arguments: arguments)) }
+            return .unreadable(text)
+        }
         var arguments = object
         arguments.removeValue(forKey: "tool")
         // A model that nests the arguments, as a tool call would.
@@ -301,8 +331,23 @@ enum CanvasVoice {
         return out
     }
 
+    /// The canvas's eight tints by the names the inspector gives them
+    /// (`KnowledgeMapInspectorChoices.tints`), and the colours people say for
+    /// them: a model told to write `#RRGGBB` still writes "orange" now and then.
+    static let tintNames: [String: String] = [
+        "violet": "#7F77DD", "purple": "#7F77DD", "lavender": "#7F77DD",
+        "green": "#1D9E75", "teal": "#1D9E75",
+        "orange": "#D85A30", "red": "#D85A30",
+        "pink": "#D4537E", "magenta": "#D4537E",
+        "amber": "#BA7517", "yellow": "#BA7517", "brown": "#BA7517", "gold": "#BA7517",
+        "blue": "#378ADD",
+        "lime": "#639922",
+        "grey": "#888780", "gray": "#888780",
+    ]
+
     private static func resolved(_ text: String, key: String, in context: Context) -> String {
         let id = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if key == "color", let hex = tintNames[id.lowercased()] { return hex }
         // Free words are never ids: a note's text, a region's new name, a label.
         guard !["text", "name", "new_region", "label", "words"].contains(key) else { return text }
         if let ref = context.cards[id] { return ref }

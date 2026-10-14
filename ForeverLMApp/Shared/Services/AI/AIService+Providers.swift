@@ -139,11 +139,24 @@ extension AIService {
     static func lowestReasoningEffort(model: String) -> String {
         let normalized = model.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let bare = normalized.split(separator: "/").last.map(String.init) ?? normalized
-        if MandatoryReasoningModels.contains(normalized) { return "low" }
+        if MandatoryReasoningModels.contains(normalized) { return reasoningFloor(model: normalized) }
         if (AIModelDefaults.openAIGeneration(of: bare) ?? 0) >= 6 { return "low" }
         let mandatoryReasoning = bare == "gpt-5"
             || (bare.hasPrefix("gpt-5-") && !bare.hasPrefix("gpt-5-chat"))
         return mandatoryReasoning ? "minimal" : "none"
+    }
+
+    /// The least thinking a model whose thinking cannot be turned off accepts:
+    /// the lowest level OpenRouter's catalog lists for it (Gemini 3.8 Flash
+    /// takes `minimal`), else `low`, which every reasoning model accepts. A
+    /// request the learner waits on pays for every level above the floor
+    /// (2026-10-13: `low` in place of `minimal` doubled Gemini 3.8 Flash's
+    /// wait for a canvas edit).
+    static func reasoningFloor(model: String) -> String {
+        let order = AIEffort.allCases
+        let listed = AIRequestOptionSupport.supportedEfforts(provider: .openRouter, model: model)
+            .filter { $0 != .noReasoning }
+        return listed.min { (order.firstIndex(of: $0) ?? 0) < (order.firstIndex(of: $1) ?? 0) }?.rawValue ?? "low"
     }
 
     /// Whether a 400 is OpenRouter refusing a reasoning opt-out. Other makers
@@ -591,6 +604,37 @@ extension AIService {
     }
 
     /// Managed requests are rewritten to the authenticated proxy.
+    /// Readies a text route ahead of a request the learner will wait on the
+    /// moment they finish asking (speaking to the Canvas): opens this
+    /// session's connection to the host the request will go to (the managed
+    /// proxy, or OpenRouter on the learner's own key), and reads the model's
+    /// region endpoints and speed tiers into their caches, so the request
+    /// itself starts warm. The GET carries no credential and nothing reads its
+    /// answer; HTTP/2 keeps the connection for the request that follows.
+    func warmTextRoute(_ config: AITaskConfig) async {
+        let config = KeychainService.routedTextConfig(config)
+        guard let endpoint = Self.openAICompatibleChatEndpoint(for: config.provider),
+              let url = URL(string: endpoint) else { return }
+        var routed = URLRequest(url: url)
+        try? Self.prepareOpenAICompatibleRequestForTransport(&routed, provider: config.provider)
+        if let host = routed.url, var components = URLComponents(url: host, resolvingAgainstBaseURL: false) {
+            components.path = "/health"
+            components.query = nil
+            if let health = components.url {
+                var ping = URLRequest(url: health)
+                ping.httpMethod = "GET"
+                ping.timeoutInterval = 10
+                let task = session.dataTask(with: ping)
+                task.priority = URLSessionTask.lowPriority
+                task.resume()
+            }
+        }
+        await Self.primeOpenRouterRegion(provider: config.provider, model: config.model)
+        if Self.routesThroughOpenRouter(config.provider) {
+            _ = try? await OpenRouterEndpointTierCatalog.shared.tiers(for: config.model)
+        }
+    }
+
     static func prepareOpenAICompatibleRequestForTransport(
         _ request: inout URLRequest,
         provider: AIProvider
@@ -955,7 +999,7 @@ extension AIService {
             // every reasoning model accepts, and it keeps the thinking from
             // eating the completion budget the caller asked for.
             MandatoryReasoningModels.insert(slug)
-            payload["reasoning"] = ["effort": "low"]
+            payload["reasoning"] = ["effort": Self.reasoningFloor(model: slug)]
             let retry = try openAICompatibleRequest(provider: provider, apiKey: apiKey, payload: payload)
             (data, response) = try await session.foreverLMData(for: retry)
         }
@@ -1039,6 +1083,7 @@ extension AIService {
         effort: AIEffort? = nil,
         speed: AISpeed? = nil,
         webSearch: Bool = false,
+        disablesReasoning: Bool = false,
         onDelta: @escaping (String) -> Void
     ) async throws {
         await Self.primeOpenRouterRegion(provider: provider, model: model)
@@ -1074,21 +1119,46 @@ extension AIService {
         // matching the native-tool path. Guarded by the app's own support table
         // so a model that never accepted an effort does not start receiving one
         // just because every provider now shares this adapter.
-        if let effort,
+        if disablesReasoning {
+            // The same opt-out the one-shot path makes (`callOpenAICompatible`):
+            // work the learner is watching for, whose answer needs no hidden
+            // thinking, asks for none, or the lowest a model accepts.
+            payload["reasoning"] = ["effort": Self.lowestReasoningEffort(model: slug)]
+        } else if let effort,
            AIRequestOptionSupport.supportedEfforts(provider: provider, model: model).contains(effort) {
             payload["reasoning_effort"] = effort.rawValue
         }
         let request = try openAICompatibleRequest(
             provider: provider, apiKey: apiKey, payload: payload, speed: speed)
-        try await streamSSE(
-            request: request,
-            usageProvider: provider.shortName,
-            usageModel: model,
-            onEvent: { json in
-                AIStreamDeltaExtractor.text(from: json)
-            },
-            onDelta: onDelta
-        )
+        do {
+            try await streamSSE(
+                request: request,
+                usageProvider: provider.shortName,
+                usageModel: model,
+                onEvent: { json in
+                    AIStreamDeltaExtractor.text(from: json)
+                },
+                onDelta: onDelta
+            )
+        } catch AIError.httpError(let status, let message, _)
+            where disablesReasoning && Self.isMandatoryReasoningRefusal(status: status, body: Data(message.utf8)) {
+            // The model's thinking cannot be turned off: ask for the least it
+            // takes, now and from then on. The refusal came before any token,
+            // so nothing was streamed twice.
+            MandatoryReasoningModels.insert(slug)
+            payload["reasoning"] = ["effort": Self.reasoningFloor(model: slug)]
+            let retry = try openAICompatibleRequest(
+                provider: provider, apiKey: apiKey, payload: payload, speed: speed)
+            try await streamSSE(
+                request: retry,
+                usageProvider: provider.shortName,
+                usageModel: model,
+                onEvent: { json in
+                    AIStreamDeltaExtractor.text(from: json)
+                },
+                onDelta: onDelta
+            )
+        }
     }
 
 }
