@@ -77,6 +77,19 @@ enum CanvasVoice {
         /// Cards waiting in the canvas's Library (its unplaced Ideas), which a
         /// request may name to set down.
         var waiting: [Card]
+        /// What an Ask came back with and still shows, to keep or set aside,
+        /// and the Ask's title.
+        var proposals: [Proposal]? = nil
+        var proposalsTitle: String? = nil
+    }
+
+    /// One of an Ask's proposals as the model reads it.
+    struct Proposal: Codable, Equatable, Sendable {
+        var id: String
+        /// "source", "question" or "arrow".
+        var kind: String
+        var text: String
+        var why: String?
     }
 
     /// A request spoken earlier in this sitting and what it did, so the next
@@ -104,6 +117,8 @@ enum CanvasVoice {
         /// Each listed card's kind (as listed: "note", "paper" …) and title,
         /// by its ref, for `matchingKinds`.
         var listedCards: [String: (kind: String, title: String)] = [:]
+        /// `p1` and on, to the Ask's proposal id.
+        var proposals: [String: String] = [:]
     }
 
     /// The most cards listed: the selected and in-view ones first, then the
@@ -112,6 +127,7 @@ enum CanvasVoice {
     static let maximumCards = 240
     static let maximumWaiting = 30
     static let maximumRegions = 60
+    static let maximumProposals = 30
     static let maximumArrows = 80
     /// A title longer than this is cut, with an ellipsis: enough to tell
     /// cards apart by.
@@ -217,6 +233,16 @@ enum CanvasVoice {
                 lines.append("\(quoted(turn.said, cut: false)) → \(done)")
             }
         }
+        var proposalIDs: [String: String] = [:]
+        if let proposals = snapshot.proposals, !proposals.isEmpty {
+            lines.append("")
+            lines.append("PROPOSALS showing from Ask \(quoted(snapshot.proposalsTitle ?? "Ask")) (keep_proposals or dismiss_proposals; all of them when none is named):")
+            for (index, proposal) in proposals.prefix(maximumProposals).enumerated() {
+                let alias = "p\(index + 1)"
+                proposalIDs[alias] = proposal.id
+                lines.append("\(alias) \(proposal.kind) \(quoted(proposal.text))" + (proposal.why.map { " — \(quoted($0))" } ?? ""))
+            }
+        }
         lines.append("")
         // The learner's words whole: a title is cut to fit the listing, a
         // request never (a ten-second request cut at 80 characters lost its
@@ -228,7 +254,7 @@ enum CanvasVoice {
         for card in listed + waiting { listedCards[card.ref] = (kind(card.type), card.title) }
         return Context(
             message: lines.joined(separator: "\n"), cards: cardIDs, regions: regionIDs, regionCards: regionCards,
-            regionNames: snapshot.regions.map(\.name), listedCards: listedCards
+            regionNames: snapshot.regions.map(\.name), listedCards: listedCards, proposals: proposalIDs
         )
     }
 
@@ -483,6 +509,7 @@ enum CanvasVoice {
         // Free words are never ids: a note's text, a region's new name, a label.
         guard !["text", "name", "new_region", "label", "words"].contains(key) else { return text }
         if let ref = context.cards[id] { return ref }
+        if let proposal = context.proposals[id] { return proposal }
         let region = id.hasPrefix("region:") ? String(id.dropFirst("region:".count)) : id
         if let regionID = context.regions[region] {
             return ["from", "to"].contains(key) ? "region:\(regionID)" : regionID

@@ -689,8 +689,27 @@ final class KnowledgeMapVoice {
             guard let tool = CanvasAskTool(rawValue: raw) else {
                 throw MCPError.invalidInput("Ask the Canvas has no “\(raw)”.")
             }
-            try studio.beginCanvasAsk(tool, refs: refs.isEmpty ? map.selection : refs)
+            // The cards named, else a region's ("what's missing in the NAD
+            // region"), else the selection.
+            let regionCards = (arguments["region"] as? String).flatMap { Self.regionID($0, map: map) }.map { map.refsInRegion($0) } ?? []
+            try studio.beginCanvasAsk(tool, refs: !refs.isEmpty ? refs : !regionCards.isEmpty ? regionCards : map.selection)
             return "Asking: \(tool.title)"
+        case "keep_proposals", "dismiss_proposals":
+            // What an Ask came back with: kept (sources placed, questions
+            // written as notes, arrows drawn) or set aside, as its banner does.
+            guard let set = map.proposals else { throw MCPError.invalidInput("No proposals are showing.") }
+            let named = (arguments["proposal_ids"] as? [Any])?.compactMap { $0 as? String }.filter { id in set.proposals.contains { $0.id == id } } ?? []
+            let keeping = edit.tool == "keep_proposals"
+            if named.isEmpty {
+                if keeping { map.keepAllProposals() } else { map.dismissAllProposals() }
+            } else {
+                for proposalID in named {
+                    if keeping { map.keepProposal(proposalID, selectsIdea: false) } else { map.dismissProposal(proposalID) }
+                }
+            }
+            let count = named.isEmpty ? set.proposals.count : named.count
+            let what = count == 1 ? "a proposal" : "\(count) proposals"
+            return keeping ? "Kept \(what)" : "Set aside \(what)"
         case "open_card":
             guard let ref = (arguments["item_id"] as? String).flatMap({ map.nodesByRef[$0] != nil ? $0 : nil }) else {
                 throw MCPError.invalidInput("That card is not on the canvas or in the library.")
@@ -1018,7 +1037,19 @@ final class KnowledgeMapVoice {
             cards: cards,
             regions: regions,
             arrows: arrows,
-            waiting: waiting
+            waiting: waiting,
+            proposals: map.proposals?.proposals.map { proposal in
+                let text: String
+                switch proposal.kind {
+                case .source: text = proposal.ref.map { map.title(of: $0) } ?? proposal.text ?? ""
+                case .question: text = proposal.text ?? ""
+                case .edge:
+                    let ends = [proposal.from, proposal.to].map { $0.map { map.title(of: $0) } ?? "?" }.joined(separator: " → ")
+                    text = ends + ((proposal.label ?? "").isEmpty ? "" : ": \(proposal.label ?? "")")
+                }
+                return CanvasVoice.Proposal(id: proposal.id, kind: proposal.kind == .edge ? "arrow" : proposal.kind.rawValue, text: text, why: proposal.why)
+            },
+            proposalsTitle: map.proposals?.title
         )
     }
 
@@ -1068,8 +1099,10 @@ final class KnowledgeMapVoice {
             "- move(item_ids?: [string], region?: string, dx?: number, dy?: number, below?|above?|left_of?|right_of?: string or [string]): Shift placed cards by dx and dy, keeping them where they are to each other; or a region, its cards going with it; or put the cards together below, above, left of or right of a card or region.",
             "- write_note(text: string, region?: string, beside?: string, new_region?: string, between?: [string, string], below?|above?|left_of?|right_of?: string or [string]): A new note card of the learner's words, set down there (between: halfway between two cards or regions; below and the rest: on that side of a card or region), else in the middle of the view.",
             "- find_and_place(words: [string], limit?: integer, region?: string, beside?: string, new_region?: string, below?|above?|left_of?|right_of?: string or [string]): Find what the learner asked for in their library (each entry of words is one search, a short phrase of what they said, such as \"ketone bodies\"; titles first, then by meaning), and set the best (6 unless limit says) down there.",
-            "- ask_canvas(question: \"bridge\"|\"connect\"|\"gaps\"|\"summarize\"|\"break_down\"|\"mind_map\"|\"question_map\", item_ids?: [string]): Ask the Canvas about cards (the SELECTED ones when none are named): bridge (what links them), connect (arrows between them), gaps (what they leave open), summarize (one Idea of them), break_down (one source into its concepts), mind_map, question_map. Its answer comes later as proposals the learner keeps or dismisses.",
+            "- ask_canvas(question: \"bridge\"|\"connect\"|\"gaps\"|\"summarize\"|\"break_down\"|\"mind_map\"|\"question_map\", item_ids?: [string], region?: string): Ask the Canvas about cards (a region's when a region is named, the SELECTED ones when nothing is): bridge (what links them), connect (arrows between them), gaps (what they leave open), summarize (one Idea of them), break_down (one source into its concepts), mind_map, question_map. Its answer comes later as proposals the learner keeps or dismisses.",
             "- open_card(item_id: string): Open a card beside the canvas to read it.",
+            "- keep_proposals(proposal_ids?: [string]): Keep the PROPOSALS the learner wants (all showing when none are named): sources are placed, questions become notes, arrows are drawn.",
+            "- dismiss_proposals(proposal_ids?: [string]): Set PROPOSALS aside (all showing when none are named); the next Ask does not offer them again.",
             "- say(text: string): One short sentence to the learner, when you change nothing or must say why.",
         ])
         return lines.joined(separator: "\n")

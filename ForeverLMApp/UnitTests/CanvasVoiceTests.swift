@@ -37,6 +37,23 @@ struct CanvasVoiceTests {
         #expect(context.message.hasSuffix("THE LEARNER SAID: \"group these\""))
     }
 
+    @Test("An Ask's proposals are listed p1 and on, with why, and their short ids resolve to the proposals")
+    func proposalsListed() {
+        var snap = snapshot(cards: [card("source:a", "A", x: 0, y: 0, inView: true)])
+        snap.proposalsTitle = "Gaps"
+        snap.proposals = [
+            CanvasVoice.Proposal(id: "prop-a", kind: "source", text: "NAD+ precursors", why: "Nothing on NAD+"),
+            CanvasVoice.Proposal(id: "prop-b", kind: "question", text: "Does it decline with age?", why: nil),
+        ]
+        let context = CanvasVoice.context(snap, said: "keep the first one")
+        #expect(context.message.contains("PROPOSALS showing from Ask \"Gaps\""))
+        #expect(context.message.contains("p1 source \"NAD+ precursors\" — \"Nothing on NAD+\""))
+        #expect(context.message.contains("p2 question \"Does it decline with age?\""))
+        let kept = CanvasVoice.resolved(["proposal_ids": ["p1", "p2"]], in: context)
+        #expect(kept["proposal_ids"] as? [String] == ["prop-a", "prop-b"])
+        #expect(!CanvasVoice.context(snapshot(cards: []), said: "x").message.contains("PROPOSALS"), "none showing: none listed")
+    }
+
     @Test("The kind the learner says wins: the PINK1 note, not the PINK1 paper the model chose; and the other way round")
     func matchingKinds() {
         let note = CanvasVoice.Card(ref: "idea:n", type: "idea", title: "PINK1 builds up when the potential drops", x: 0, y: 300, w: 240, h: 120, inView: true)

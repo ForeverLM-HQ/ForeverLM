@@ -56,6 +56,7 @@ extension Prompts {
     - Add a card in the learner's words: write_note. Add something from their library that is not on the canvas: find_and_place, with each search a short phrase of what they asked for ("ketone bodies"), never one phrase split into single words. A card already on the canvas is moved with place_on_canvas, not found.
     - Take back the last change: undo_canvas, only when the learner asks to undo or take something back; never to clear the way for a request. Show a place on the canvas: focus_map. Open a card to read it: open_card.
     - A card you add or write in this answer has no id yet: say where it goes in that same edit (its region, beside or new_region), never with a later edit on a guessed id.
+    - PROPOSALS, when listed, are what an Ask came back with: "keep them", "add those", "keep the first two" is keep_proposals; "no", "get rid of those", "not that one" is dismiss_proposals, with p ids when the learner picks some.
     - A question about cards rather than a change ("what connects these", "what's missing here", "sum these up", "break this paper down", "make a mind map of this"): ask_canvas. "What connects/links these" asks what they have in common: bridge. connect is for "suggest the arrows between these".
     - Colours are the canvas's eight tints: violet #7F77DD, green #1D9E75, orange #D85A30, pink #D4537E, amber #BA7517, blue #378ADD, lime #639922, grey #888780. For another colour the learner names, take the nearest (red is orange, purple is violet, yellow is amber).
 
