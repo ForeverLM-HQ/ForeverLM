@@ -177,7 +177,46 @@ struct MobileHighlightRecordTests {
             "sourceID": "srcA", "locator": .object(["t": "text", "quote": "Q."]), "text": "Q.", "createdAt": 1, "editedAt": 1,
         ]))])
         try await writer.transaction { try $0.deleteHighlight("hl_2") }
-        #expect(try await Fixture.changes(replica).filter { $0.action == .delete }.map(\.wireID) == ["hl_2"])
+        // hl_1's create may be on its way (sent, not acknowledged): its delete follows it by name.
+        #expect(try await Fixture.changes(replica).filter { $0.action == .delete }.map(\.wireID).sorted() == ["hl_1", "hl_2"])
+    }
+
+    @Test("A highlight deleted while its create is on its way is deleted on the server once the create is acknowledged")
+    func deleteWhileTheCreateIsOnItsWay() async throws {
+        let (server, phone, writer) = try await MobileRecordWriterTests.syncedPhone()
+        try await writer.transaction { try $0.saveHighlight(Self.mark()) }
+        let name = RecordNaming.recordName(type: .highlight, id: "hl_1", salt: MobileSyncFixture.librarySalt)
+
+        // The round sends the create; the learner deletes the highlight before its acknowledgement is back.
+        try await phone.engine.feed()
+        let batch = try await phone.engine.nextBatch(limit: 100)
+        #expect(batch.saves.map(\.id.recordName).contains(name))
+        let sentAt = Date()
+        let results = try await phone.transport.modifyRecords(saving: batch.saves, deleting: batch.deletes, in: .private)
+        try await writer.transaction { try $0.deleteHighlight("hl_1") }
+        #expect(try await Fixture.patchCount(phone.replica) == 0)
+        #expect(try await phone.count("SELECT COUNT(*) FROM ck_pending_deletes WHERE record_name = ?", [.text(name)]) == 1,
+                "the delete is queued by the name the create went out under")
+        try await phone.engine.handleSent(batch.changes, results: results, sentAt: sentAt)
+        #expect(try MobileRecordWriterTests.stored(server, .highlight, "hl_1", zone: "Library") != nil, "the create landed")
+        #expect(try await Fixture.held(phone.replica, .highlight, "hl_1", in: Fixture.library) == nil, "the acknowledgement does not bring it back")
+        #expect(try await Self.snapshot(phone.replica).highlights.isEmpty)
+
+        try await phone.sync()
+        #expect(try MobileRecordWriterTests.stored(server, .highlight, "hl_1", zone: "Library") == nil, "the delete followed the create")
+        #expect(try await phone.count("SELECT COUNT(*) FROM ck_pending_deletes") == 0)
+        #expect(try await phone.count("SELECT COUNT(*) FROM ck_records WHERE record_name = ?", [.text(name)]) == 0)
+    }
+
+    @Test("A highlight made and deleted before any round sends a delete the server answers as done")
+    func deleteBeforeTheCreateWasSent() async throws {
+        let (server, phone, writer) = try await MobileRecordWriterTests.syncedPhone()
+        try await writer.transaction { try $0.saveHighlight(Self.mark()) }
+        try await writer.transaction { try $0.deleteHighlight("hl_1") }
+        try await phone.sync()
+        #expect(try MobileRecordWriterTests.stored(server, .highlight, "hl_1", zone: "Library") == nil)
+        #expect(try await phone.count("SELECT COUNT(*) FROM ck_pending_deletes") == 0)
+        #expect(try await Fixture.patchCount(phone.replica) == 0)
     }
 
 }

@@ -268,7 +268,10 @@ struct MobileWrite {
     }
 
     /// Queues the deletion of a record: the replica's copy goes out as a delete once due, the pending
-    /// patch goes now, and the index forgets the record at once. In a space only the owner or the
+    /// patch goes now, and the index forgets the record at once. A record made here and not acknowledged
+    /// yet is deleted by the name its save goes out under: that save may be on its way (sent, its
+    /// acknowledgement not back), which the phone cannot tell, so the delete follows it, and a delete of
+    /// one the server never had is acknowledged as done (`unknownItem`). In a space only the owner or the
     /// record's maker deletes a notebook, Doc, course or chat (§9.2).
     mutating func delete(_ type: SyncRecordType, _ id: String, in zoneKey: String) throws {
         let record = try store.record(zoneKey: zoneKey, recordType: type.rawValue, wireID: id)
@@ -280,15 +283,27 @@ struct MobileWrite {
                 throw MobileRecordWriterError.refused(refusal.description)
             }
         }
+        let patched = try PendingPatch.load(zoneKey: zoneKey, type: type.rawValue, wireID: id, in: connection) != nil
         try PendingPatch.delete(zoneKey: zoneKey, type: type.rawValue, wireID: id, in: connection)
-        if let record {
+        var recordName = record?.recordName
+        if recordName == nil, patched { recordName = try madeRecordName(type, id, in: zoneKey) }
+        if let recordName {
             try connection.execute("""
                 INSERT INTO ck_pending_deletes (zone_key, record_name, record_type, wire_id, deleted_at) VALUES (?, ?, ?, ?, ?)
                 ON CONFLICT(zone_key, record_name) DO UPDATE SET deleted_at = excluded.deleted_at
-            """, [.text(zoneKey), .text(record.recordName), .text(type.rawValue), .text(id), .real(now.timeIntervalSinceReferenceDate)])
+            """, [.text(zoneKey), .text(recordName), .text(type.rawValue), .text(id), .real(now.timeIntervalSinceReferenceDate)])
             queued(type, changing: [])
         }
-        try replica.projectDeletion(zoneKey: zoneKey, recordName: record?.recordName ?? "", type: type, wireID: id)
+        try replica.projectDeletion(zoneKey: zoneKey, recordName: recordName ?? "", type: type, wireID: id)
+    }
+
+    /// The name a record made here goes out under (`MobilePatchOutbox`); nil while the zone's salt is not
+    /// held, when no save of it can have gone out.
+    private func madeRecordName(_ type: SyncRecordType, _ id: String, in zoneKey: String) throws -> String? {
+        guard let zone = ProjectionZones.zone(ofKey: zoneKey),
+              let salt = try MobilePatchOutbox(replica: replica, moveMaps: nil).salt(zoneKey: zoneKey, zone: zone)
+        else { return nil }
+        return RecordNaming.recordName(type: type, id: id, salt: salt)
     }
 
     mutating func saveClock() throws {
@@ -494,7 +509,7 @@ struct MobilePatchOutbox {
     }
 
     /// The salt names are made with: the personal root's for the private zones, a space's own root's.
-    private func salt(zoneKey: String, zone: SyncZoneName) throws -> Data? {
+    func salt(zoneKey: String, zone: SyncZoneName) throws -> Data? {
         let rootKey = zone.isSpace ? zoneKey : MobileProjection.libraryKey
         guard let root = try store.record(zoneKey: rootKey, recordName: SyncSchema.rootRecordName) else { return nil }
         return replica.decode(root.payload)?.fields["salt"]?.stringValue.flatMap(RecordNaming.salt(base64:))
