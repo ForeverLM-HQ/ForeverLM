@@ -1720,6 +1720,57 @@ final class MCPToolRegistry: @unchecked Sendable {
                 ]
             ),
             MCPToolDef(
+                name: "list_doc_comments",
+                description: "List the comment threads on a Doc — the page's Comments panel in ForeverLM — in the order of their passages: each thread's comment_id, the quote (the words of the page it is about), whether it is resolved, and its messages oldest first (comment_id, author, by_assistant, body, created_at, updated_at). The page marks each open thread's words; a resolved thread is listed under Resolved and no longer marked. Pass include_resolved false to list only open threads.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "doc_id": ["type": "string", "description": "Doc ID from list_docs."],
+                        "include_resolved": ["type": "boolean", "description": "Include resolved threads. Defaults to true."],
+                    ],
+                    "required": ["doc_id"],
+                ]
+            ),
+            MCPToolDef(
+                name: "comment_on_doc",
+                description: "Comment on a Doc as its Comments panel does, signed Assistant (never as the learner). With doc_id and quote, start a thread on those words of the page: quote them exactly as they read, a phrase or a sentence or two (at most 1,000 characters); the page marks the first place they occur, and a thread whose words are not in the page says Original text unavailable. With reply_to (a comment_id from list_doc_comments), reply in that comment's thread instead; doc_id and quote are then not needed. A team's page is refused: the learner comments there in the app. Use it when the learner asks for comments on a page, or to answer a thread they started.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "doc_id": ["type": "string", "description": "Doc ID from list_docs, for a new thread."],
+                        "quote": ["type": "string", "description": "The exact words of the page the new thread is about."],
+                        "body": ["type": "string", "description": "The comment's words."],
+                        "reply_to": ["type": "string", "description": "Optional comment_id from list_doc_comments: reply in that comment's thread instead of starting one."],
+                    ],
+                    "required": ["body"],
+                ]
+            ),
+            MCPToolDef(
+                name: "update_doc_comment",
+                description: "Change one comment on a Doc: body rewrites its words (only when the learner asks, for a comment that is not the assistant's own), resolved true resolves its thread and false reopens it (a resolved thread is no longer marked in the page and moves under Resolved in Comments). Pass body, resolved, or both. A team's page is refused.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "comment_id": ["type": "string", "description": "comment_id from list_doc_comments."],
+                        "body": ["type": "string", "description": "Optional new words for the comment."],
+                        "resolved": ["type": "boolean", "description": "Optional: true resolves the comment's thread, false reopens it."],
+                    ],
+                    "required": ["comment_id"],
+                ]
+            ),
+            MCPToolDef(
+                name: "delete_doc_comment",
+                description: "Delete a comment on a Doc, as the Comments panel's Delete comment does: its replies remain, and when it was the comment that opened its thread, the first reply opens the thread from then on with the same passage. whole_thread true deletes the thread the comment is in and every message in it (Delete thread). Cannot be undone. A team's page is refused. Confirm with the learner first unless the comment is the assistant's own.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "comment_id": ["type": "string", "description": "comment_id from list_doc_comments."],
+                        "whole_thread": ["type": "boolean", "description": "Delete the comment's whole thread instead of the one comment. Defaults to false."],
+                    ],
+                    "required": ["comment_id"],
+                ]
+            ),
+            MCPToolDef(
                 name: "unlink_doc_chat",
                 description: "Forget one passage-to-chat link from list_doc_chats. The Doc and the conversation both survive; only the claim that they are related is removed.",
                 inputSchema: [
@@ -1801,7 +1852,7 @@ final class MCPToolRegistry: @unchecked Sendable {
             ),
             MCPToolDef(
                 name: "list_doc_versions",
-                description: "List the earlier versions of a Doc that this Mac keeps — the page menu's Version History… in ForeverLM — newest first: each one's version_id, saved_at, reason (what replaced that body: learner_edit, assistant_edit, another_device or restore), the app's summary of it and its size in bytes, with the current body's revision and size. A version is kept when an assistant or a restore replaces the body, after every ten minutes of the learner's typing, and when the page loses more than half its text at once; a page keeps at most 100 versions and 50 MB. Versions are this Mac's alone: another Mac, the iPhone and the web keep none of these. Pass version_id to read that version's Markdown, whole or by character range with start and length as read_doc pages a body. restore_doc_version makes one the page again.",
+                description: "List the earlier versions of a Doc that this Mac keeps — the page's Page activity in ForeverLM — newest first: each one's version_id, saved_at, reason (what replaced that body: learner_edit, assistant_edit, another_device or restore), the app's summary of it and its size in bytes, with the current body's revision and size. A version is kept when an assistant or a restore replaces the body, after every ten minutes of the learner's typing, and when the page loses more than half its text at once; a page keeps at most 100 versions and 50 MB. Versions are this Mac's alone: another Mac, the iPhone and the web keep none of these. Pass version_id to read that version's Markdown, whole or by character range with start and length as read_doc pages a body. restore_doc_version makes one the page again.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -1815,7 +1866,7 @@ final class MCPToolRegistry: @unchecked Sendable {
             ),
             MCPToolDef(
                 name: "restore_doc_version",
-                description: "Make an earlier version of a Doc its body again — Restore This Version in the page's Version History… on this Mac. The version (from list_doc_versions) is written through the ordinary save over the page's current body, which is kept as a version first: the answer names it as replaced_body_version_id, and restoring that id undoes the restore. Pass expected_revision from read_doc or list_doc_versions to refuse the restore when the page changed since you looked; without it the restore goes over whatever the page holds now. Refused for a team's page and for a linked page (kind google_doc, claude_artifact, codex_site or foreverlm_site), as in the app, and for an audio overview or a mnemonic reading, whose Markdown write_doc does not change either. A published Doc's page is not re-rendered unless publish is true. Versions are this Mac's, so only the Mac that kept them can restore one. Confirm with the learner before restoring over their page.",
+                description: "Make an earlier version of a Doc its body again — Restore This Version in the page's Page activity on this Mac. The version (from list_doc_versions) is written through the ordinary save over the page's current body, which is kept as a version first: the answer names it as replaced_body_version_id, and restoring that id undoes the restore. Pass expected_revision from read_doc or list_doc_versions to refuse the restore when the page changed since you looked; without it the restore goes over whatever the page holds now. Refused for a team's page and for a linked page (kind google_doc, claude_artifact, codex_site or foreverlm_site), as in the app, and for an audio overview or a mnemonic reading, whose Markdown write_doc does not change either. A published Doc's page is not re-rendered unless publish is true. Versions are this Mac's, so only the Mac that kept them can restore one. Confirm with the learner before restoring over their page.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -5079,7 +5130,7 @@ final class MCPToolRegistry: @unchecked Sendable {
         "list_share_requests",
         "list_assignments", "get_family_plan",
         "get_calendar_events", "get_day_activity",
-        "list_doc_chats",
+        "list_doc_chats", "list_doc_comments",
         "list_open_questions",
         "get_schedule", "get_today_sources", "list_learning_goals", "list_goals",
         "get_goal",
@@ -6164,6 +6215,29 @@ final class MCPToolRegistry: @unchecked Sendable {
             case "unlink_doc_chat":
                 return try await store.unlinkArtifactChat(
                     linkID: arguments["link_id"] as? String ?? ""
+                )
+            case "list_doc_comments":
+                return try await store.listDocComments(
+                    artifactID: arguments["doc_id"] as? String ?? "",
+                    includeResolved: arguments["include_resolved"] as? Bool ?? true
+                )
+            case "comment_on_doc":
+                return try await store.commentOnDoc(
+                    artifactID: arguments["doc_id"] as? String,
+                    quote: arguments["quote"] as? String,
+                    body: arguments["body"] as? String ?? "",
+                    replyTo: arguments["reply_to"] as? String
+                )
+            case "update_doc_comment":
+                return try await store.updateDocComment(
+                    commentID: arguments["comment_id"] as? String ?? "",
+                    body: arguments["body"] as? String,
+                    resolved: arguments["resolved"] as? Bool
+                )
+            case "delete_doc_comment":
+                return try await store.deleteDocComment(
+                    commentID: arguments["comment_id"] as? String ?? "",
+                    wholeThread: arguments["whole_thread"] as? Bool ?? false
                 )
             case "write_doc":
                 return try await store.writeArtifact(

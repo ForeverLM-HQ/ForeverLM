@@ -1284,6 +1284,35 @@
     "readOnlyHint" : false
   },
   {
+    "description" : "Comment on a Doc as its Comments panel does, signed Assistant (never as the learner). With doc_id and quote, start a thread on those words of the page: quote them exactly as they read, a phrase or a sentence or two (at most 1,000 characters); the page marks the first place they occur, and a thread whose words are not in the page says Original text unavailable. With reply_to (a comment_id from list_doc_comments), reply in that comment's thread instead; doc_id and quote are then not needed. A team's page is refused: the learner comments there in the app. Use it when the learner asks for comments on a page, or to answer a thread they started.",
+    "inputSchema" : {
+      "properties" : {
+        "body" : {
+          "description" : "The comment's words.",
+          "type" : "string"
+        },
+        "doc_id" : {
+          "description" : "Doc ID from list_docs, for a new thread.",
+          "type" : "string"
+        },
+        "quote" : {
+          "description" : "The exact words of the page the new thread is about.",
+          "type" : "string"
+        },
+        "reply_to" : {
+          "description" : "Optional comment_id from list_doc_comments: reply in that comment's thread instead of starting one.",
+          "type" : "string"
+        }
+      },
+      "required" : [
+        "body"
+      ],
+      "type" : "object"
+    },
+    "name" : "comment_on_doc",
+    "readOnlyHint" : false
+  },
+  {
     "description" : "Make an OpenRouter key for one member of a family team and hand it to their Mac. Opens OpenRouter's sign-in in the browser on this Mac; the learner finishes it there and this call waits for it (up to five minutes). The key is sealed to the member's device, so only their Mac can open it, and it bills this account's OpenRouter account. The member must have joined the family plan first (get_family_plan).",
     "inputSchema" : {
       "properties" : {
@@ -2311,6 +2340,27 @@
       "type" : "object"
     },
     "name" : "delete_doc",
+    "readOnlyHint" : false
+  },
+  {
+    "description" : "Delete a comment on a Doc, as the Comments panel's Delete comment does: its replies remain, and when it was the comment that opened its thread, the first reply opens the thread from then on with the same passage. whole_thread true deletes the thread the comment is in and every message in it (Delete thread). Cannot be undone. A team's page is refused. Confirm with the learner first unless the comment is the assistant's own.",
+    "inputSchema" : {
+      "properties" : {
+        "comment_id" : {
+          "description" : "comment_id from list_doc_comments.",
+          "type" : "string"
+        },
+        "whole_thread" : {
+          "description" : "Delete the comment's whole thread instead of the one comment. Defaults to false.",
+          "type" : "boolean"
+        }
+      },
+      "required" : [
+        "comment_id"
+      ],
+      "type" : "object"
+    },
+    "name" : "delete_doc_comment",
     "readOnlyHint" : false
   },
   {
@@ -5769,7 +5819,28 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "List the earlier versions of a Doc that this Mac keeps — the page menu's Version History… in ForeverLM — newest first: each one's version_id, saved_at, reason (what replaced that body: learner_edit, assistant_edit, another_device or restore), the app's summary of it and its size in bytes, with the current body's revision and size. A version is kept when an assistant or a restore replaces the body, after every ten minutes of the learner's typing, and when the page loses more than half its text at once; a page keeps at most 100 versions and 50 MB. Versions are this Mac's alone: another Mac, the iPhone and the web keep none of these. Pass version_id to read that version's Markdown, whole or by character range with start and length as read_doc pages a body. restore_doc_version makes one the page again.",
+    "description" : "List the comment threads on a Doc — the page's Comments panel in ForeverLM — in the order of their passages: each thread's comment_id, the quote (the words of the page it is about), whether it is resolved, and its messages oldest first (comment_id, author, by_assistant, body, created_at, updated_at). The page marks each open thread's words; a resolved thread is listed under Resolved and no longer marked. Pass include_resolved false to list only open threads.",
+    "inputSchema" : {
+      "properties" : {
+        "doc_id" : {
+          "description" : "Doc ID from list_docs.",
+          "type" : "string"
+        },
+        "include_resolved" : {
+          "description" : "Include resolved threads. Defaults to true.",
+          "type" : "boolean"
+        }
+      },
+      "required" : [
+        "doc_id"
+      ],
+      "type" : "object"
+    },
+    "name" : "list_doc_comments",
+    "readOnlyHint" : true
+  },
+  {
+    "description" : "List the earlier versions of a Doc that this Mac keeps — the page's Page activity in ForeverLM — newest first: each one's version_id, saved_at, reason (what replaced that body: learner_edit, assistant_edit, another_device or restore), the app's summary of it and its size in bytes, with the current body's revision and size. A version is kept when an assistant or a restore replaces the body, after every ten minutes of the learner's typing, and when the page loses more than half its text at once; a page keeps at most 100 versions and 50 MB. Versions are this Mac's alone: another Mac, the iPhone and the web keep none of these. Pass version_id to read that version's Markdown, whole or by character range with start and length as read_doc pages a body. restore_doc_version makes one the page again.",
     "inputSchema" : {
       "properties" : {
         "doc_id" : {
@@ -8012,7 +8083,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Make an earlier version of a Doc its body again — Restore This Version in the page's Version History… on this Mac. The version (from list_doc_versions) is written through the ordinary save over the page's current body, which is kept as a version first: the answer names it as replaced_body_version_id, and restoring that id undoes the restore. Pass expected_revision from read_doc or list_doc_versions to refuse the restore when the page changed since you looked; without it the restore goes over whatever the page holds now. Refused for a team's page and for a linked page (kind google_doc, claude_artifact, codex_site or foreverlm_site), as in the app, and for an audio overview or a mnemonic reading, whose Markdown write_doc does not change either. A published Doc's page is not re-rendered unless publish is true. Versions are this Mac's, so only the Mac that kept them can restore one. Confirm with the learner before restoring over their page.",
+    "description" : "Make an earlier version of a Doc its body again — Restore This Version in the page's Page activity on this Mac. The version (from list_doc_versions) is written through the ordinary save over the page's current body, which is kept as a version first: the answer names it as replaced_body_version_id, and restoring that id undoes the restore. Pass expected_revision from read_doc or list_doc_versions to refuse the restore when the page changed since you looked; without it the restore goes over whatever the page holds now. Refused for a team's page and for a linked page (kind google_doc, claude_artifact, codex_site or foreverlm_site), as in the app, and for an audio overview or a mnemonic reading, whose Markdown write_doc does not change either. A published Doc's page is not re-rendered unless publish is true. Versions are this Mac's, so only the Mac that kept them can restore one. Confirm with the learner before restoring over their page.",
     "inputSchema" : {
       "properties" : {
         "doc_id" : {
@@ -11846,6 +11917,31 @@
       "type" : "object"
     },
     "name" : "update_doc",
+    "readOnlyHint" : false
+  },
+  {
+    "description" : "Change one comment on a Doc: body rewrites its words (only when the learner asks, for a comment that is not the assistant's own), resolved true resolves its thread and false reopens it (a resolved thread is no longer marked in the page and moves under Resolved in Comments). Pass body, resolved, or both. A team's page is refused.",
+    "inputSchema" : {
+      "properties" : {
+        "body" : {
+          "description" : "Optional new words for the comment.",
+          "type" : "string"
+        },
+        "comment_id" : {
+          "description" : "comment_id from list_doc_comments.",
+          "type" : "string"
+        },
+        "resolved" : {
+          "description" : "Optional: true resolves the comment's thread, false reopens it.",
+          "type" : "boolean"
+        }
+      },
+      "required" : [
+        "comment_id"
+      ],
+      "type" : "object"
+    },
+    "name" : "update_doc_comment",
     "readOnlyHint" : false
   },
   {

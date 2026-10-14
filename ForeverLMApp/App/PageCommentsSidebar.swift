@@ -285,7 +285,7 @@ struct PageCommentsSidebar: View {
                     .zoomedSystemFont(size: 9)
                     .foregroundStyle(.tertiary)
                 Spacer(minLength: 4)
-                if isMine(comment) || comment.id == thread.id {
+                if isMine(comment) || comment.isByAssistant || comment.id == thread.id {
                     messageMenu(comment, in: thread)
                 }
             }
@@ -327,6 +327,8 @@ struct PageCommentsSidebar: View {
                     editingCommentID = comment.id
                     focusedField = .edit(comment.id)
                 }
+            }
+            if isMine(comment) || comment.isByAssistant {
                 Button("Delete comment") {
                     pendingDeletion = .comment(comment.id, opensThread: comment.id == thread.id && !thread.replies.isEmpty)
                 }
@@ -335,7 +337,7 @@ struct PageCommentsSidebar: View {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(comment.body, forType: .string)
             }
-            if comment.id == thread.id, thread.root.authorRecordName == authorRecordName || authorRecordName == nil {
+            if comment.id == thread.id, isMine(thread.root) || thread.root.isByAssistant || authorRecordName == nil {
                 Divider()
                 Button("Delete thread", role: .destructive) {
                     pendingDeletion = .thread(thread.id)

@@ -17,6 +17,13 @@ struct ArtifactCommentRecord: Identifiable, Codable, Equatable, Sendable {
 
     var isResolved: Bool { resolvedAt != nil }
 
+    /// The author an assistant's comment is signed with (`comment_on_doc`):
+    /// never the learner, and the learner can delete it from the panel.
+    static let assistantAuthorRecordName = "assistant"
+    static let assistantAuthorDisplayName = "Assistant"
+
+    var isByAssistant: Bool { authorRecordName == Self.assistantAuthorRecordName }
+
     init(
         id: String,
         artifactID: String,

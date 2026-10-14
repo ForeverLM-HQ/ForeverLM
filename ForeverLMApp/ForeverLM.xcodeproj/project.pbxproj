@@ -779,6 +779,7 @@
 		65ECA195AAC859F77AE13659 /* MobileVoiceConversationRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09D3F97E305C18456AF0A188 /* MobileVoiceConversationRules.swift */; };
 		6601CF6962EC03D50D19BB85 /* StudioViewModel+KnowledgeMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = E131D33F52645E12364D70C1 /* StudioViewModel+KnowledgeMap.swift */; };
 		6602FCBD21C0C1D7328876BB /* StudioViewModel+Cohort.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0FD911C0C2479E32406F0F3 /* StudioViewModel+Cohort.swift */; };
+		660357FC529CD544B871FA15 /* MCPTools+DocComments.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCA75451064EC1C5C1E97DD7 /* MCPTools+DocComments.swift */; };
 		66096B63D1A7F01C89C0D3C8 /* SourceIdeaExtractionFailuresTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81EE47545C1ECCA8343CF39A /* SourceIdeaExtractionFailuresTests.swift */; };
 		660B7AA6AB4DD19FAEF8451E /* XPostThreadService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24E48185C3DF6754755BB6BA /* XPostThreadService.swift */; };
 		6615CFB36D4FE12902D21343 /* CardDraftingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C69B06B49B7DD6283DD49795 /* CardDraftingTests.swift */; };
@@ -3458,6 +3459,7 @@
 		CC397967DD62141B4EABB3BB /* StudioViewModel+Notebooks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StudioViewModel+Notebooks.swift"; sourceTree = "<group>"; };
 		CC421A305A7C8180DC1D544C /* StudioModelStores.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudioModelStores.swift; sourceTree = "<group>"; };
 		CC4408F611AEDA1B9FBC2089 /* KnowledgeStore+CourseEnrollments.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "KnowledgeStore+CourseEnrollments.swift"; sourceTree = "<group>"; };
+		CCA75451064EC1C5C1E97DD7 /* MCPTools+DocComments.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MCPTools+DocComments.swift"; sourceTree = "<group>"; };
 		CCD9E9EFB31E6A23AE6DBF68 /* KnowledgeStore+Artifacts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "KnowledgeStore+Artifacts.swift"; sourceTree = "<group>"; };
 		CD0B1855326015D54115EC06 /* CardWordingCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardWordingCheck.swift; sourceTree = "<group>"; };
 		CD46ABF871AFFE7BDA819C66 /* SSEByteLines.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSEByteLines.swift; sourceTree = "<group>"; };
@@ -5648,6 +5650,7 @@
 				911D395AD4B7DFB5C07D40D7 /* MCPTools+Courses.swift */,
 				049D0316C4F20238A6EB2B33 /* MCPTools+Directions.swift */,
 				9B0EFE35DB3773E09D8259CE /* MCPTools+DiscoverSources.swift */,
+				CCA75451064EC1C5C1E97DD7 /* MCPTools+DocComments.swift */,
 				3DD998E30DF0AA20009CB691 /* MCPTools+Explainer.swift */,
 				A57C0232F6BF654D55DF1A88 /* MCPTools+ExplainerVideo.swift */,
 				7A461189CEB872ECC907D183 /* MCPTools+Family.swift */,
@@ -7630,6 +7633,7 @@
 				697E75B57AA50CF055CB9885 /* MCPTools+Courses.swift in Sources */,
 				4C8D7A14D3321D0561E1412F /* MCPTools+Directions.swift in Sources */,
 				A37D0E50949E1F119052FD4E /* MCPTools+DiscoverSources.swift in Sources */,
+				660357FC529CD544B871FA15 /* MCPTools+DocComments.swift in Sources */,
 				CCA4C0D9EBDE73576D585629 /* MCPTools+Explainer.swift in Sources */,
 				A5E0C3067D4BEF7E077052EC /* MCPTools+ExplainerVideo.swift in Sources */,
 				2EBE2549F2536BA36C02580D /* MCPTools+Family.swift in Sources */,

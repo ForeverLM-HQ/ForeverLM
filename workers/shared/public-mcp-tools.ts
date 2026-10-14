@@ -189,6 +189,8 @@ const destructive = new Set([
   "merge_notebooks",
   // Forgets a link the learner made by highlighting a passage.
   "unlink_doc_chat",
+  // Deletes a comment, or a whole thread with whole_thread.
+  "delete_doc_comment",
   // Rewrites each source's understanding wholesale; the previous text is not kept.
   "record_understanding",
   // Replaces the synthesis notes. append_notebook_notes is the additive one.
