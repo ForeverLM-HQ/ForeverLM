@@ -1483,6 +1483,17 @@ struct KnowledgeMapParityModelTests {
         #expect(hypot(moved.x - 380, moved.y - 440) <= 200, "close by: \(moved)")
     }
 
+    @Test("A block set down below, above, left or right of a card lines up with it, a gap away")
+    func sideOrigins() {
+        typealias A = KnowledgeMapArranging
+        let target = A.Rect(x: 100, y: 200, w: 240, h: 120)
+        #expect(A.origin(size: (500, 300), side: .below, of: target) == .init(x: 100, y: 350))
+        #expect(A.origin(size: (500, 300), side: .above, of: target) == .init(x: 100, y: -130))
+        #expect(A.origin(size: (500, 300), side: .rightOf, of: target) == .init(x: 370, y: 200))
+        #expect(A.origin(size: (500, 300), side: .leftOf, of: target) == .init(x: -430, y: 200))
+        #expect(A.Side(rawValue: "left_of") == .leftOf && A.Side(rawValue: "right_of") == .rightOf)
+    }
+
     @Test("arrange does a tidy and an alignment as one write")
     func arrangeBoth() {
         withModel { model in

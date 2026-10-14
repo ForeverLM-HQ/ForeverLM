@@ -1470,6 +1470,25 @@ enum KnowledgeMapArranging {
         return Spot(x: left, y: (occupied.map { $0.y + $0.h }.max() ?? top) + margin)
     }
 
+    /// The sides a card or a block of them can be set down on, by the words
+    /// the learner says them in.
+    enum Side: String, CaseIterable, Sendable {
+        case below, above
+        case leftOf = "left_of"
+        case rightOf = "right_of"
+    }
+
+    /// Where a block `size` big goes on `side` of `target`, `gap` away and
+    /// lined up with its top (below and above: its left) edge.
+    static func origin(size: (w: Double, h: Double), side: Side, of target: Rect) -> Spot {
+        switch side {
+        case .below: return Spot(x: target.x, y: target.y + target.h + gap)
+        case .above: return Spot(x: target.x, y: target.y - gap - size.h)
+        case .rightOf: return Spot(x: target.x + target.w + gap, y: target.y)
+        case .leftOf: return Spot(x: target.x - gap - size.w, y: target.y)
+        }
+    }
+
     /// The top left of the free spot `size` big nearest `center`, `gap` clear
     /// of everything in `occupied`: rings of candidates 40 apart, nearest
     /// first, out to 1200; the centred spot itself when none is free.

@@ -171,6 +171,8 @@ struct CanvasVoiceTests {
         #expect(existing.arguments["new_region"] == nil && existing.arguments["region"] as? String == "Fission")
         #expect(CanvasVoice.meant(E(tool: "move", arguments: ["region": "", "dx": 0, "dy": 0]), said: "", regionNames: []) == nil)
         #expect(CanvasVoice.meant(E(tool: "move", arguments: ["item_ids": ["c1"], "dx": -120, "dy": 0]), said: "", regionNames: []) != nil)
+        #expect(CanvasVoice.meant(E(tool: "move", arguments: ["item_ids": ["c1"], "right_of": "c2"]), said: "", regionNames: []) != nil,
+                "a move to a side has no distance and is not nothing")
         let row = CanvasVoice.meant(E(tool: "arrange_on_canvas", arguments: ["item_ids": ["c1", "c2"], "arrangement": "grid"]),
                                     said: "line up the mitophagy papers in a row", regionNames: [])
         #expect(row?.arguments["arrangement"] as? String == "row", "the arrangement the learner named")

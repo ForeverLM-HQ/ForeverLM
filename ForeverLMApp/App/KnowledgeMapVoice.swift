@@ -641,6 +641,14 @@ final class KnowledgeMapVoice {
                 select: arguments["select"] as? Bool ?? false
             )
             return "Showed \(Self.naming(refs, map: map))"
+        case "place_on_canvas" where Self.side(arguments, map: map) != nil:
+            // A side is the voice's own word, not place_on_canvas's: the
+            // cards are set down, then put on that side.
+            guard let (side, target) = Self.side(arguments, map: map) else { return nil }
+            _ = try await MCPDataStore.editCanvas("place_on_canvas", arguments: ["item_ids": refs])
+            let placed = refs.filter { map.layout.placements[$0] != nil && map.lockedRegionID(holding: $0) == nil }
+            Self.setDown(placed, side, of: target, map: map)
+            return "Placed \(Self.naming(refs, map: map))"
         case _ where Self.canvasTools.contains(edit.tool):
             var arguments = arguments
             if edit.tool.hasSuffix("_canvas_arrow") {
@@ -667,6 +675,12 @@ final class KnowledgeMapVoice {
     /// as after a drag; a card in a locked region stays. A region named moves
     /// with its cards, as dragging its frame does.
     private func move(_ arguments: [String: Any], map: KnowledgeMapModel) async throws -> String {
+        if let (side, target) = Self.side(arguments, map: map) {
+            let placed = (arguments["item_ids"] as? [String] ?? []).filter { map.layout.placements[$0] != nil && map.lockedRegionID(holding: $0) == nil }
+            guard !placed.isEmpty else { throw MCPError.invalidInput("Those cards are not on the canvas, or are in a locked region.") }
+            Self.setDown(placed, side, of: target, map: map)
+            return "Moved \(Self.naming(placed, map: map))"
+        }
         let dx = MCPDataStore.canvasNumber(arguments["dx"]) ?? 0
         let dy = MCPDataStore.canvasNumber(arguments["dy"]) ?? 0
         guard dx.isFinite, dy.isFinite, dx != 0 || dy != 0 else { throw MCPError.invalidInput("A move needs a distance.") }
@@ -704,9 +718,11 @@ final class KnowledgeMapVoice {
         }
         let map = studio.knowledgeMap
         let between = (arguments["between"] as? [Any])?.compactMap { Self.rect(of: $0 as? String, map: map) } ?? []
-        var place = between.count == 2 ? [:] : Self.whereTo(arguments, map: map)
+        let side = Self.side(arguments, map: map)
+        var place = between.count == 2 || side != nil ? [:] : Self.whereTo(arguments, map: map)
         place["item_ids"] = [ref]
         _ = try await MCPDataStore.editCanvas("place_on_canvas", arguments: place)
+        if let (side, target) = side { Self.setDown([ref], side, of: target, map: map) }
         if between.count == 2 {
             // Halfway between the two, as the learner said: set down first,
             // then moved there in the same Undo step.
@@ -723,6 +739,44 @@ final class KnowledgeMapVoice {
             map.growRegions(toHold: [ref])
         }
         return "Wrote “\(Self.short(text))”"
+    }
+
+    /// The side the learner named ("below the Drp1 note"), and where that
+    /// card or region is; nil when none was named, or its target is not on
+    /// the canvas.
+    private static func side(_ arguments: [String: Any], map: KnowledgeMapModel) -> (KnowledgeMapArranging.Side, KnowledgeMapArranging.Rect)? {
+        for side in KnowledgeMapArranging.Side.allCases {
+            // One card or region, or several ("below them"): all of them together.
+            let named = (arguments[side.rawValue] as? [Any])?.compactMap { $0 as? String } ?? [arguments[side.rawValue] as? String].compactMap { $0 }
+            let rects = named.compactMap { rect(of: $0, map: map) }
+            if let first = rects.first { return (side, rects.dropFirst().reduce(first) { $0.union($1) }) }
+        }
+        return nil
+    }
+
+    /// Sets placed cards down together on `side` of `target`, keeping their
+    /// places to one another, at the nearest spot there clear of the other
+    /// cards; the regions they land in grow to hold them.
+    private static func setDown(_ refs: [String], _ side: KnowledgeMapArranging.Side, of target: KnowledgeMapArranging.Rect, map: KnowledgeMapModel) {
+        let moving = Set(refs)
+        let rects = refs.compactMap { ref in
+            map.layout.placements[ref].map { KnowledgeMapArranging.Rect(x: $0.x, y: $0.y, w: map.cardWidth(of: ref), h: map.cardHeight(of: ref)) }
+        }
+        guard let first = rects.first else { return }
+        let block = rects.dropFirst().reduce(first) { $0.union($1) }
+        let wanted = KnowledgeMapArranging.origin(size: (block.w, block.h), side: side, of: target)
+        let others = map.layout.placements.compactMap { ref, at -> KnowledgeMapArranging.Rect? in
+            moving.contains(ref) ? nil : .init(x: at.x, y: at.y, w: map.cardWidth(of: ref), h: map.cardHeight(of: ref))
+        }
+        let spot = KnowledgeMapArranging.nearestFreeOrigin(
+            size: (block.w, block.h), near: .init(x: wanted.x + block.w / 2, y: wanted.y + block.h / 2), occupied: others
+        )
+        let dx = spot.x - block.x, dy = spot.y - block.y
+        guard dx != 0 || dy != 0 else { return }
+        map.place(refs.compactMap { ref in
+            map.layout.placements[ref].map { (ref: ref, x: ($0.x + dx).rounded(), y: ($0.y + dy).rounded()) }
+        })
+        map.growRegions(toHold: refs)
     }
 
     /// Where a card or a region is on the plane, by its ref, its region id
@@ -778,9 +832,11 @@ final class KnowledgeMapVoice {
         guard !found.isEmpty else {
             throw MCPError.notFound("Nothing in your library matches “\(phrases.joined(separator: "”, “"))”.")
         }
-        var place = Self.whereTo(arguments, map: map)
+        let side = Self.side(arguments, map: map)
+        var place = side != nil ? [:] : Self.whereTo(arguments, map: map)
         place["item_ids"] = found
         _ = try await MCPDataStore.editCanvas("place_on_canvas", arguments: place)
+        if let (side, target) = side { Self.setDown(found, side, of: target, map: map) }
         return "Added \(Self.naming(found, map: map))"
     }
 
@@ -902,9 +958,9 @@ final class KnowledgeMapVoice {
             lines.append("- \(name)(\(signature(of: definition.inputSchema))): \(use)")
         }
         lines.append(contentsOf: [
-            "- move(item_ids?: [string], region?: string, dx: number, dy: number): Shift placed cards by dx and dy, keeping them where they are to each other; or a region, its cards going with it.",
-            "- write_note(text: string, region?: string, beside?: string, new_region?: string, between?: [string, string]): A new note card of the learner's words, set down there (between: halfway between two cards or regions), else in the middle of the view.",
-            "- find_and_place(words: [string], limit?: integer, region?: string, beside?: string, new_region?: string): Find what the learner asked for in their library (each entry of words is one search, a short phrase of what they said, such as \"ketone bodies\"; titles first, then by meaning), and set the best (6 unless limit says) down there.",
+            "- move(item_ids?: [string], region?: string, dx?: number, dy?: number, below?|above?|left_of?|right_of?: string or [string]): Shift placed cards by dx and dy, keeping them where they are to each other; or a region, its cards going with it; or put the cards together below, above, left of or right of a card or region.",
+            "- write_note(text: string, region?: string, beside?: string, new_region?: string, between?: [string, string], below?|above?|left_of?|right_of?: string or [string]): A new note card of the learner's words, set down there (between: halfway between two cards or regions; below and the rest: on that side of a card or region), else in the middle of the view.",
+            "- find_and_place(words: [string], limit?: integer, region?: string, beside?: string, new_region?: string, below?|above?|left_of?|right_of?: string or [string]): Find what the learner asked for in their library (each entry of words is one search, a short phrase of what they said, such as \"ketone bodies\"; titles first, then by meaning), and set the best (6 unless limit says) down there.",
             "- ask_canvas(question: \"bridge\"|\"connect\"|\"gaps\"|\"summarize\"|\"break_down\"|\"mind_map\"|\"question_map\", item_ids?: [string]): Ask the Canvas about cards (the SELECTED ones when none are named): bridge (what links them), connect (arrows between them), gaps (what they leave open), summarize (one Idea of them), break_down (one source into its concepts), mind_map, question_map. Its answer comes later as proposals the learner keeps or dismisses.",
             "- open_card(item_id: string): Open a card beside the canvas to read it.",
             "- say(text: string): One short sentence to the learner, when you change nothing or must say why.",

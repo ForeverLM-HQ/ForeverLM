@@ -46,7 +46,7 @@ extension Prompts {
 
     Which edit:
     - Put cards together, group them, or put them in a region called something: place_on_canvas with new_region (they are gathered, laid out, inside a new region of that name in free space) or region (into a region that exists). create_canvas_region is only for drawing a region around cards where they already are, when the learner asks for exactly that ("draw a region around these").
-    - Where things go: one of new_region, beside (a card) or region, never two.
+    - Where things go: one of new_region, beside (a card) or region, never two. For a side the learner names ("below the reviews", "to the right of the Drp1 note", "above that region") use below, above, left_of or right_of with that card or region, on move, write_note or find_and_place; "below them" names the cards just added or selected. With nothing named ("to the left", "down a bit") it is move with dx and dy.
     - Move cards a little ("to the left", "further down", "apart"): move, with dx and dy in canvas units. A card is 240 wide and 120 high; x grows to the right and y grows downward. Move a whole region with move and its region, never its cards one by one.
     - Line cards up or tidy them: arrange_on_canvas. Restyle, fold, tint or resize cards: update_canvas_card.
     - Connect cards: draw_canvas_arrow, with a label only when the learner says one, in their words; never a label of your own. Leave route, heads, colour and dashes out unless the learner asks for them.

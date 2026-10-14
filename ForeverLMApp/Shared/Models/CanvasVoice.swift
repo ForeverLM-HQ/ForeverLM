@@ -501,7 +501,7 @@ enum CanvasVoice {
             let named = ["row", "column", "grid"].filter { words.contains($0) || words.contains($0 + "s") }
             if named.count == 1 { edit.arguments["arrangement"] = named[0] }
         }
-        if edit.tool == "move" {
+        if edit.tool == "move", !["below", "above", "left_of", "right_of"].contains(where: { edit.arguments[$0] != nil }) {
             let dx = (edit.arguments["dx"] as? NSNumber)?.doubleValue ?? 0
             let dy = (edit.arguments["dy"] as? NSNumber)?.doubleValue ?? 0
             if dx == 0, dy == 0 { return nil }
