@@ -2960,7 +2960,7 @@
       // region: leaving upward it has to pass it.
       const homes = new Set()
       for (const end of [ca, cb]) {
-        for (const r of shownRegions()) {
+        for (const r of grid.regions) {
           if (end[0] >= r.x && end[0] <= r.x + r.w && end[1] >= r.y && end[1] <= r.y + r.h) homes.add('region:' + r.id)
         }
       }
@@ -3026,8 +3026,9 @@
       // itself may meet them. The check of a canvas routes the same way at
       // full size (`KnowledgeMapLint.headerRect`).
       const z = headerZoom()
-      for (const r of shownRegions()) add({ ref: 'region:' + r.id, x: r.x, y: r.y - 60 / z, w: Math.min(r.w, 560 / z), h: 56 / z })
-      return (cache.grid = { size, cells, z })
+      const regions = shownRegions()
+      for (const r of regions) add({ ref: 'region:' + r.id, x: r.x, y: r.y - 60 / z, w: Math.min(r.w, 560 / z), h: 56 / z })
+      return (cache.grid = { size, cells, z, regions })
     }
     // The route as a polyline in world points, for hit tests.
     function pathSamples(path) {
