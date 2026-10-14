@@ -372,6 +372,8 @@ final class KnowledgeMapVoice {
         var remark: String?
         /// Why the request was never sent.
         var refused: String?
+        /// The first request was slow to answer, so a second went out.
+        var hedged = false
     }
 
     /// Asks the Canvas Voice model for the edits `said` asks of the open
@@ -435,35 +437,65 @@ final class KnowledgeMapVoice {
         // at a time, and each line is carried out here as soon as it is whole.
         let (lines, sink) = AsyncStream<String>.makeStream()
         let firstToken = CanvasVoice.Stamp()
-        let producer = Task.detached(priority: .userInitiated) { () -> Error? in
-            let reader = CanvasVoice.LineReader()
-            do {
-                try await AIUsageAttribution.$activityID.withValue(activityID) {
-                    try await AIUsageAttribution.$learnerAsked.withValue(true) {
-                        try await ai.streamChat(
-                            config: config,
-                            system: system,
-                            volatileSystem: volatile,
-                            messages: [(role: "user", content: CanvasVoice.userTurn)],
-                            maxTokens: 1200,
-                            // An edit of the canvas is a choice, not a puzzle:
-                            // hidden thinking cost the fastest models a second
-                            // or more before their first edit (the eval,
-                            // KnowledgeMapVoice+Eval.swift). `reasoning` keeps
-                            // it, at the lowest effort, for the eval to compare.
-                            disablesReasoning: !reasoning
-                        ) { delta in
-                            if !delta.isEmpty { firstToken.mark() }
-                            for line in reader.feed(delta) { sink.yield(line) }
+        // A request that has not begun to answer by `hedgeAfter` is sent
+        // again; whichever answers first is carried out and the other stopped,
+        // so a slow host costs the learner a fraction of a second, not two.
+        let race = CanvasVoice.Race()
+        let requestConfig = config
+        @Sendable func attempt(_ n: Int) -> Task<Error?, Never> {
+            Task.detached(priority: .userInitiated) { () -> Error? in
+                defer { race.finish(n) }
+                let reader = CanvasVoice.LineReader()
+                do {
+                    try await AIUsageAttribution.$activityID.withValue(activityID) {
+                        try await AIUsageAttribution.$learnerAsked.withValue(true) {
+                            try await ai.streamChat(
+                                config: requestConfig,
+                                system: system,
+                                volatileSystem: volatile,
+                                messages: [(role: "user", content: CanvasVoice.userTurn)],
+                                maxTokens: 1200,
+                                // An edit of the canvas is a choice, not a puzzle:
+                                // hidden thinking cost the fastest models a second
+                                // or more before their first edit (the eval,
+                                // KnowledgeMapVoice+Eval.swift). `reasoning` keeps
+                                // it, at the lowest effort, for the eval to compare.
+                                disablesReasoning: !reasoning
+                            ) { delta in
+                                guard !delta.isEmpty, race.claim(n) else { return }
+                                firstToken.mark()
+                                for line in reader.feed(delta) { sink.yield(line) }
+                            }
                         }
                     }
+                    // An answer of nothing at all still ends the request.
+                    if race.claim(n) { for line in reader.finish() { sink.yield(line) } }
+                    return nil
+                } catch {
+                    return error
                 }
-                for line in reader.finish() { sink.yield(line) }
-                sink.finish()
-                return nil
-            } catch {
-                sink.finish()
-                return error
+            }
+        }
+        let producer = Task.detached(priority: .userInitiated) { () -> Error? in
+            let first = attempt(1)
+            race.add(first, as: 1)
+            let hedgeAt = Date().addingTimeInterval(CanvasVoice.hedgeAfter)
+            while Date() < hedgeAt, race.won == nil, !race.isDone(1), !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(20))
+            }
+            let second: Task<Error?, Never>? = race.won == nil && !race.isDone(1) && !Task.isCancelled ? attempt(2) : nil
+            if let second { race.add(second, as: 2) }
+            let errors = await withTaskCancellationHandler {
+                (await first.value, await second?.value ?? nil)
+            } onCancel: {
+                first.cancel()
+                second?.cancel()
+            }
+            sink.finish()
+            switch race.won {
+            case 1: return errors.0
+            case 2: return errors.1
+            default: return errors.0 ?? errors.1
             }
         }
 
@@ -508,6 +540,7 @@ final class KnowledgeMapVoice {
         let streamError = await producer.value
         let finished = Date()
         report.firstTokenMS = ms(sent, firstToken.at)
+        report.hedged = race.attempts > 1
         report.modelMS = ms(sent, finished)
         report.firstEditMS = ms(transcribed, firstEdit)
         report.totalMS = ms(began, finished)
@@ -517,7 +550,7 @@ final class KnowledgeMapVoice {
 
         let logged = report
         voiceLogger.notice(
-            "Canvas voice model=\(logged.model, privacy: .public) transcribe_ms=\(logged.transcribeMS ?? -1, privacy: .public) context_ms=\(logged.contextMS ?? -1, privacy: .public) first_token_ms=\(logged.firstTokenMS ?? -1, privacy: .public) first_edit_ms=\(logged.firstEditMS ?? -1, privacy: .public) total_ms=\(logged.totalMS ?? -1, privacy: .public) edits=\(logged.edits.count, privacy: .public) failed=\(logged.failures.count, privacy: .public) unreadable=\(logged.unreadable, privacy: .public)"
+            "Canvas voice model=\(logged.model, privacy: .public) transcribe_ms=\(logged.transcribeMS ?? -1, privacy: .public) context_ms=\(logged.contextMS ?? -1, privacy: .public) first_token_ms=\(logged.firstTokenMS ?? -1, privacy: .public) first_edit_ms=\(logged.firstEditMS ?? -1, privacy: .public) total_ms=\(logged.totalMS ?? -1, privacy: .public) edits=\(logged.edits.count, privacy: .public) failed=\(logged.failures.count, privacy: .public) unreadable=\(logged.unreadable, privacy: .public) hedged=\(logged.hedged, privacy: .public)"
         )
 
         if applying {

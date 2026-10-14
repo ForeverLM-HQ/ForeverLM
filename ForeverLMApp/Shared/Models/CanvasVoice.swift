@@ -269,6 +269,72 @@ enum CanvasVoice {
         }
     }
 
+    // MARK: A second request when the first is slow to answer
+
+    /// How long the first request may go without a word before an identical
+    /// second one goes out (a hedged request). Measured 2026-10-14: the same
+    /// request's first token came in 0.44 to 1.9 s on one host, 4.4 s at
+    /// worst, and in under 0.8 s nine times in ten.
+    static let hedgeAfter: TimeInterval = 0.8
+
+    /// Which of the requests answered first: its words are carried out, and
+    /// the others are stopped the moment it starts.
+    final class Race: @unchecked Sendable {
+        private let lock = NSLock()
+        private var winner: Int?
+        private var tasks: [Int: Task<Error?, Never>] = [:]
+        private var done: Set<Int> = []
+
+        /// The request `n` has a word: true when it is the one being carried
+        /// out (it is first, or was already).
+        func claim(_ n: Int) -> Bool {
+            lock.lock()
+            if winner == nil {
+                winner = n
+                let others = tasks.filter { $0.key != n }.map(\.value)
+                lock.unlock()
+                for task in others { task.cancel() }
+                return true
+            }
+            let won = winner == n
+            lock.unlock()
+            return won
+        }
+
+        func add(_ task: Task<Error?, Never>, as n: Int) {
+            lock.lock()
+            tasks[n] = task
+            let lost = winner != nil && winner != n
+            lock.unlock()
+            if lost { task.cancel() }
+        }
+
+        func finish(_ n: Int) {
+            lock.lock()
+            done.insert(n)
+            lock.unlock()
+        }
+
+        var won: Int? {
+            lock.lock()
+            defer { lock.unlock() }
+            return winner
+        }
+
+        /// How many requests went out: 2 when the second was sent.
+        var attempts: Int {
+            lock.lock()
+            defer { lock.unlock() }
+            return tasks.count
+        }
+
+        func isDone(_ n: Int) -> Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            return done.contains(n)
+        }
+    }
+
     // MARK: Reading the answer as it streams
 
     /// Cuts the streamed answer into lines as they complete. Fed from the

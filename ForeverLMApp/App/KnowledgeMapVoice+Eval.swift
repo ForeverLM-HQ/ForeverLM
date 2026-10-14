@@ -224,6 +224,7 @@ extension KnowledgeMapVoice {
             "done": report.done,
             "failures": report.failures,
             "unreadable": report.unreadable,
+            "hedged": report.hedged,
         ]
         let numbers: [(String, Int?)] = [
             ("transcribe_ms", report.transcribeMS), ("context_ms", report.contextMS),

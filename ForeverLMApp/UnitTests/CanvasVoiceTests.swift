@@ -179,6 +179,28 @@ struct CanvasVoiceTests {
         #expect(tidy?.arguments["arrangement"] as? String == "grid", "none named: the model's")
     }
 
+    @Test("Of two requests, the first to say a word is carried out and the other is stopped")
+    func race() async {
+        let race = CanvasVoice.Race()
+        let slow = Task<Error?, Never> {
+            do { try await Task.sleep(for: .seconds(30)); return nil } catch { return error }
+        }
+        race.add(slow, as: 1)
+        let quick = Task<Error?, Never> { nil }
+        race.add(quick, as: 2)
+        #expect(race.attempts == 2)
+        #expect(race.claim(2), "the first word wins")
+        #expect(race.claim(2), "and keeps winning")
+        #expect(!race.claim(1), "the slow one's words are dropped")
+        #expect(await slow.value is CancellationError, "and it is stopped")
+        let late = Task<Error?, Never> {
+            do { try await Task.sleep(for: .seconds(30)); return nil } catch { return error }
+        }
+        race.add(late, as: 3)
+        #expect(await late.value is CancellationError, "a request added after the race is won is stopped at once")
+        #expect(race.won == 2)
+    }
+
     @Test("The request asks for the model's lowest effort, and for none when it offers none")
     func quickestEffort() {
         #expect(CanvasVoice.quickestEffort([.high, .low, .medium]) == .low)
