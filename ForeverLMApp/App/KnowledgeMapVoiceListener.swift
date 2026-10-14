@@ -52,6 +52,11 @@ final class KnowledgeMapVoiceListener {
     private var finished = ""
     private var volatile = ""
     private var running = false
+    /// Whether the microphone's tap is installed. A recording (the eval)
+    /// never opens it, and touching `engine.inputNode` when it was never
+    /// opened asks for the microphone, which hung `finish` behind the lock
+    /// screen on 2026-10-13.
+    private var microphoneOpen = false
 
     /// The locale this Mac can recognize the learner's speech in, if any.
     static func locale() async -> Locale? {
@@ -82,9 +87,15 @@ final class KnowledgeMapVoiceListener {
         }
     }
 
-    /// Opens the microphone and starts hearing.
-    func start(locale: Locale) async throws {
-        guard await AVCaptureDevice.requestAccess(for: .audio) else { throw Failure.microphoneDenied }
+    /// Opens the microphone and starts hearing. `recording` (the DEBUG eval's)
+    /// stands in for the microphone: it is played through the same tap, in
+    /// real time, and this returns once it has all been heard, as when the
+    /// learner lets go.
+    func start(locale: Locale, recording: URL? = nil) async throws {
+        let file = try recording.map { try AVAudioFile(forReading: $0) }
+        if file == nil {
+            guard await AVCaptureDevice.requestAccess(for: .audio) else { throw Failure.microphoneDenied }
+        }
         let transcriber = SpeechTranscriber(
             locale: locale,
             transcriptionOptions: [],
@@ -92,7 +103,7 @@ final class KnowledgeMapVoiceListener {
             attributeOptions: []
         )
         let analyzer = SpeechAnalyzer(modules: [transcriber])
-        let hardware = engine.inputNode.outputFormat(forBus: 0)
+        let hardware = file?.processingFormat ?? engine.inputNode.outputFormat(forBus: 0)
         guard hardware.sampleRate > 0, hardware.channelCount > 0 else { throw Failure.noMicrophone }
         let wanted = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber]) ?? hardware
         let converter = AVAudioConverter(from: hardware, to: wanted)
@@ -124,10 +135,15 @@ final class KnowledgeMapVoiceListener {
         let level = VoiceLevelMeter { [weak self] value in
             Task { @MainActor in self?.onLevel?(value) }
         }
-        engine.inputNode.installTap(
-            onBus: 0, bufferSize: 1024, format: hardware,
-            block: Self.tap(hardware: hardware, wanted: wanted, converter: converter, input: continuation, level: level)
-        )
+        let tap = Self.tap(hardware: hardware, wanted: wanted, converter: converter, input: continuation, level: level)
+        if let file {
+            try await analyzer.start(inputSequence: stream)
+            running = true
+            try await Self.play(file, into: tap)
+            return
+        }
+        engine.inputNode.installTap(onBus: 0, bufferSize: 1024, format: hardware, block: tap)
+        microphoneOpen = true
         engine.prepare()
         try engine.start()
         try await analyzer.start(inputSequence: stream)
@@ -204,9 +220,25 @@ final class KnowledgeMapVoiceListener {
         }
     }
 
+    /// A recording handed to the tap a microphone's buffer at a time, at the
+    /// pace it was spoken.
+    nonisolated private static func play(_ file: AVAudioFile, into tap: AVAudioNodeTapBlock) async throws {
+        let format = file.processingFormat
+        let frames: AVAudioFrameCount = 1024
+        while file.framePosition < file.length {
+            guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames) else { return }
+            try file.read(into: buffer, frameCount: frames)
+            guard buffer.frameLength > 0 else { return }
+            tap(buffer, AVAudioTime(sampleTime: file.framePosition, atRate: format.sampleRate))
+            try await Task.sleep(for: .seconds(Double(buffer.frameLength) / format.sampleRate))
+        }
+    }
+
     private var words: String { (finished + volatile).trimmingCharacters(in: .whitespacesAndNewlines) }
 
     private func stopMicrophone() {
+        guard microphoneOpen else { return }
+        microphoneOpen = false
         engine.inputNode.removeTap(onBus: 0)
         if engine.isRunning { engine.stop() }
     }

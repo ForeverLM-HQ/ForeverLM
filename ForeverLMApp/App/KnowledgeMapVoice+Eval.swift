@@ -28,7 +28,16 @@ extension KnowledgeMapVoice {
             var id: String
             var said: String?
             var audio: String?
+            /// Hear `audio` on this Mac (`KnowledgeMapVoiceListener`), played
+            /// at the pace it was spoken, rather than send it to the
+            /// Dictation model.
+            var onDevice: Bool?
             var snapshot: CanvasVoice.Snapshot?
+
+            enum CodingKeys: String, CodingKey {
+                case id, said, audio, snapshot
+                case onDevice = "on_device"
+            }
         }
 
         var out: String
@@ -139,18 +148,32 @@ extension KnowledgeMapVoice {
         for model in models {
             for item in request.cases {
                 for attempt in 0..<max(request.repeats ?? 1, 1) {
-                    let began = Date()
+                    var began = Date()
                     var said = item.said ?? ""
                     var transcriptionError: String?
+                    var heardOnDevice = false
                     if let audio = item.audio {
                         do {
-                            said = try await dictation.transcribeProbe(fileURL: URL(fileURLWithPath: audio))
+                            if item.onDevice == true {
+                                guard #available(macOS 26.0, *), let locale = await KnowledgeMapVoiceListener.locale(),
+                                      await KnowledgeMapVoiceListener.isReady(for: locale) else {
+                                    throw MCPError.invalidInput("This Mac has no speech model for its language (yet).")
+                                }
+                                let listener = KnowledgeMapVoiceListener()
+                                try await listener.start(locale: locale, recording: URL(fileURLWithPath: audio))
+                                // Played to its end: this is the learner letting go.
+                                began = Date()
+                                said = await listener.finish()
+                                heardOnDevice = true
+                            } else {
+                                said = try await dictation.transcribeProbe(fileURL: URL(fileURLWithPath: audio))
+                            }
                         } catch {
                             transcriptionError = error.localizedDescription
                         }
                     }
                     let transcribed = Date()
-                    var row: [String: Any] = ["case": item.id, "attempt": attempt, "requested_model": model ?? NSNull()]
+                    var row: [String: Any] = ["case": item.id, "attempt": attempt, "requested_model": model ?? NSNull(), "heard_on_device": heardOnDevice]
                     if let transcriptionError {
                         row["error"] = transcriptionError
                         results.append(row)
