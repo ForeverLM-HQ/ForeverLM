@@ -835,7 +835,7 @@ struct KnowledgeMapPane: View {
     /// What an empty canvas says, in a line under everything: the plane is
     /// the drop target, so nothing here takes a click or a drag.
     private var blankCanvasHint: some View {
-        Text("Drag sources, Pages, clips or files here. Double-click to write an idea.")
+        Text("Drag sources, Pages, clips or files here. Double-click to write an idea, or hold S and say what to add.")
             .zoomedSystemFont(size: 13)
             .foregroundStyle(.tertiary)
             .multilineTextAlignment(.center)
