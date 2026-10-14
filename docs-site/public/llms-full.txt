@@ -831,7 +831,9 @@ Canvas** in the canvas's menu, to talk until you pause. The canvas changes
 as the answer arrives, and a small bar at its foot says what it heard and
 what it did; its **×** or **Esc** stops it. Its **Undo**, or one **⌘Z**, takes
 the whole request back. "Move the Methods region down" moves the region with
-its cards.
+its cards, and "add my papers on NAD below the Mitophagy region" or "write a
+note saying fission comes first between the two regions" sets things down
+exactly there.
 What a request changed is selected afterwards, so the next can say "now put
 these in a row" or "colour them blue". Ask it questions too: "what connects
 these?", "what's missing in this group?" or "break this paper down" start
