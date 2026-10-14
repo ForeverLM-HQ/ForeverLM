@@ -6,6 +6,12 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.153.0 (build 233) — 2026-10-14
+
+**Highlights:**
+- **Speaking to a canvas uses your Dictation model,** the one chat uses, so it hears you better.
+- **The bar shows each step** as the canvas carries out your request.
+
 ## 0.152.0 (build 232) — 2026-10-14
 
 **Highlights:**
