@@ -289,7 +289,20 @@ extension KnowledgeStore {
         if seedsReadingState {
             try seedReadingState(sourceID: article.id, page: article.readingPositionPage, macLocator: persistedLocator, readAt: persistedReadAt)
         }
+        // A save that rewrites the text (an MCP client's `update_source_content`, an edit, a fetch over an
+        // older text) owes what every writer of a source's text owes: the index goes and the text is
+        // published again. Some branches below do it themselves; the plain ones (a book chapter, a course
+        // source, a podcast or video, an article or paper with no preparation) did not, so a text replaced
+        // after its satellite went up stayed behind its pointer on every other device. Checked after the
+        // write too: a branch that keeps the stored text (a podcast's clean-up input) replaced nothing.
+        let replacesText = try article.content.map { try replacesStoredText(sourceID: article.id, with: $0) } ?? false
         try persistCanonicalContent(for: article)
+        if replacesText, let content = article.content, try scalarInteger(
+            "SELECT EXISTS (SELECT 1 FROM source_content WHERE source_id = ? AND content IS ?)",
+            [.text(article.id), .text(content)]
+        ) == 1 {
+            try invalidateReplacedText(sourceID: article.id)
+        }
         if let content = article.content {
             try enqueueSourceListenableContentPreparation(sourceID: article.id, content: content)
         } else if !article.supportsListenableContentPreparation {
@@ -3026,6 +3039,7 @@ extension KnowledgeStore {
             try execBind("DELETE FROM source_listenable_content_queue WHERE source_id = ?") { stmt in
                 bind(stmt, 1, candidate.sourceID)
             }
+            try queuePublishedSourceFilesRefresh(sourceID: candidate.sourceID)
             try markRecordChanged(entity: .source, logicalKey: candidate.sourceID)
             try exec("COMMIT")
         } catch {
@@ -3471,6 +3485,7 @@ extension KnowledgeStore {
             try execBind("DELETE FROM source_review_guide_queue WHERE source_id = ?") { stmt in
                 bind(stmt, 1, candidate.sourceID)
             }
+            try queuePublishedSourceFilesRefresh(sourceID: candidate.sourceID)
             try markRecordChanged(entity: .source, logicalKey: candidate.sourceID)
             try exec("COMMIT")
         } catch {

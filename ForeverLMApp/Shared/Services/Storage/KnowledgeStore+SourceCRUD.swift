@@ -1322,7 +1322,7 @@ extension KnowledgeStore {
                 self.bind(stmt, 2, text)
             }
             if replacesText {
-                try invalidateReplacedTranscript(sourceID: sourceId)
+                try invalidateReplacedText(sourceID: sourceId)
             }
             try writeStoredWordCount(sourceID: sourceId, text: text)
             if let rawTTML {
@@ -1384,7 +1384,7 @@ extension KnowledgeStore {
     /// source. Read before the write. A first text needs nothing more: the
     /// indexer finds a source it has not indexed, and the publisher finds
     /// text that no pointer names (`queueUnpublishedSourceFiles`).
-    private func replacesStoredText(sourceID: String, with text: String) throws -> Bool {
+    func replacesStoredText(sourceID: String, with text: String) throws -> Bool {
         try scalarInteger("""
             SELECT EXISTS (
                 SELECT 1 FROM source_content
@@ -1393,18 +1393,19 @@ extension KnowledgeStore {
         """, [.text(sourceID), .text(text)]) == 1
     }
 
-    /// A transcript that replaced another (fetched again, formatted again,
-    /// speakers named again, or YouTube captions taken instead) is new text
-    /// for this Mac's search index and for the copy other devices read, as
-    /// every other writer of a source's text treats it: the index goes and
-    /// the text is queued to be published again. Without this a replaced
-    /// transcript kept its old words searchable when the length matched, and
-    /// under generation 2 reached the iPhone or another Mac only if an ad pass
-    /// wrote it again afterwards, since the publisher's sweep looks only for
-    /// text no pointer names. A text still owed its clean-up is left to the
-    /// clean-up's own write, which does the same, so another Mac never
+    /// A text that replaced another (a transcript fetched again, formatted
+    /// again, speakers named again, or YouTube captions taken instead; any
+    /// source's text a save rewrote, such as a book chapter an MCP client
+    /// edited) is new text for this Mac's search index and for the copy other
+    /// devices read, as every other writer of a source's text treats it: the
+    /// index goes and the text is queued to be published again. Without this
+    /// a replaced text kept its old words searchable when the length matched,
+    /// and under generation 2 reached the iPhone or another Mac only if
+    /// something wrote it again afterwards, since the publisher's sweep looks
+    /// only for text no pointer names. A text still owed its clean-up is left
+    /// to the clean-up's own write, which does the same, so another Mac never
     /// records the raw text as cleaned.
-    private func invalidateReplacedTranscript(sourceID: String) throws {
+    func invalidateReplacedText(sourceID: String) throws {
         guard try scalarInteger(
             "SELECT EXISTS (SELECT 1 FROM canonical_content_cleanup_queue WHERE source_id = ?)",
             [.text(sourceID)]
@@ -1431,7 +1432,7 @@ extension KnowledgeStore {
                 self.bind(stmt, 2, text)
             }
             if replacesText {
-                try invalidateReplacedTranscript(sourceID: sourceId)
+                try invalidateReplacedText(sourceID: sourceId)
             }
             try execBind("UPDATE podcasts SET raw_ttml = NULL, word_count = ? WHERE source_id = ?") { stmt in
                 self.bind(stmt, 1, wordCount)

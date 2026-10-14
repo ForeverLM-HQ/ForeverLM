@@ -177,6 +177,7 @@ extension KnowledgeStore {
         try exec("BEGIN IMMEDIATE")
         do {
             try upsertPaperWalkthrough(walkthrough, json: json)
+            try queuePublishedSourceFilesRefresh(sourceID: walkthrough.sourceID)
             try markRecordChanged(entity: .source, logicalKey: walkthrough.sourceID)
             try exec("COMMIT")
         } catch {

@@ -622,6 +622,8 @@ extension KnowledgeStore {
                         bind(stmt, 2, candidate.sourceID)
                     }
                     try upsertSyncSave(entity: .source, logicalKey: candidate.sourceID, at: now)
+                    // The text other devices read is published again (generation 2).
+                    try queueSourceFilesRefresh(sourceID: candidate.sourceID)
                     repairedIDs.append(candidate.sourceID)
                 }
                 try execBind(

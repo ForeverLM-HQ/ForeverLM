@@ -678,6 +678,9 @@ struct SourcePublishPlan: Sendable {
 
     let sourceID: String
     let items: [Item]
+    /// When the source was queued, as read before its rows: a change after that stamps the row again, and
+    /// the pointing leaves a row stamped since on the queue (`pointPublishedSourceFiles`).
+    var queuedAt: Double? = nil
 }
 
 extension KnowledgeStore {
@@ -722,13 +725,29 @@ extension KnowledgeStore {
     }
 
     /// Queues one source for publishing again: its text, PDF or a derived output changed. A source already
-    /// queued stays as it is.
+    /// queued is stamped again with its tries cleared, since what it holds is new: a publish whose upload
+    /// was under way read the rows before this change, and the new stamp keeps the source on the queue when
+    /// that publish points it (`pointPublishedSourceFiles`). Until 2026-10-13 a source already queued was
+    /// left as it was, so a change made while its publish was in flight was dropped with the row, and its
+    /// pointer named the text from before the change on every other device.
     func queueSourceFilesRefresh(sourceID: String) throws {
         guard syncGeneration == .two else { return }
         try execute("""
             INSERT INTO ck_backfill_queue (kind, target, enqueued_at) VALUES (?, ?, ?)
-            ON CONFLICT(kind, target) DO NOTHING
+            ON CONFLICT(kind, target) DO UPDATE SET enqueued_at = excluded.enqueued_at, attempts = 0, last_error = NULL
         """, [.text(Self.sourcePublishKind), .text(sourceID), .real(Date().timeIntervalSinceReferenceDate)])
+    }
+
+    /// Queues a source whose satellites are already up to be published again, after a body made from its
+    /// text (its Listen text, review guide or walkthrough) was made again here. A source with no pointer yet
+    /// is left to the sweep (`queueUnpublishedSourceFiles`), which publishes every body at once, and a text
+    /// still owed its clean-up waits for the clean-up's write, which queues it.
+    func queuePublishedSourceFilesRefresh(sourceID: String) throws {
+        guard syncGeneration == .two, try scalarInteger("""
+            SELECT EXISTS (SELECT 1 FROM source_files WHERE source_id = ?)
+               AND NOT EXISTS (SELECT 1 FROM canonical_content_cleanup_queue WHERE source_id = ?)
+        """, [.text(sourceID), .text(sourceID)]) == 1 else { return }
+        try queueSourceFilesRefresh(sourceID: sourceID)
     }
 
     /// The queued sources still worth trying, oldest first; one that failed five times waits for a later build.
@@ -749,6 +768,11 @@ extension KnowledgeStore {
         guard try scalarInteger("""
             SELECT EXISTS(SELECT 1 FROM sources s WHERE s.id = ? AND s.team_id IS NULL AND s.wire_key = s.id AND s.state = 'ready')
         """, [.text(sourceID)]) == 1 else { return nil }
+        // Read before the rows, so a change made from here on stamps the row after it.
+        var queuedAt: Double?
+        try query(
+            "SELECT enqueued_at FROM ck_backfill_queue WHERE kind = ? AND target = ?", [.text(Self.sourcePublishKind), .text(sourceID)]
+        ) { queuedAt = $0.real(0) }
         let satellites = try SourceSatelliteRoles.localSatellites(sourceID: sourceID, connection: self, resolve: {
             Self.sourceFileLocationOverride?($0) ?? URL(fileURLWithPath: StorageService.absoluteSourcePath($0))
         })
@@ -770,13 +794,17 @@ extension KnowledgeStore {
                 input: satellite.input, localPath: satellite.localPath, keeping: held, owner: satellite.owner
             ))
         }
-        return SourcePublishPlan(sourceID: sourceID, items: items)
+        return SourcePublishPlan(sourceID: sourceID, items: items, queuedAt: queuedAt)
     }
 
     /// Points the source at the satellites that are now on the server, as ordinary writes the outbox sends
     /// (bytes before pointer: this runs after every upload was acknowledged), records the text's hash as
-    /// `contentHash`, gives a PDF its `file:` work key, and takes the source off the queue.
-    func pointPublishedSourceFiles(sourceID: String, files: [(map: SourceLocalSatellite.Map, file: FileRef, localPath: String?)]) throws {
+    /// `contentHash`, gives a PDF its `file:` work key, and takes the source off the queue, unless it was queued
+    /// again after `queuedAt` (the plan's stamp): then what it points at is already behind the rows, and the
+    /// source stays queued to be published again. Nil takes it off whatever its stamp.
+    func pointPublishedSourceFiles(
+        sourceID: String, files: [(map: SourceLocalSatellite.Map, file: FileRef, localPath: String?)], queuedAt: Double? = nil
+    ) throws {
         try exec("BEGIN IMMEDIATE")
         do {
             for item in files {
@@ -801,7 +829,10 @@ extension KnowledgeStore {
                     )
                 }
             }
-            try execute("DELETE FROM ck_backfill_queue WHERE kind = ? AND target = ?", [.text(Self.sourcePublishKind), .text(sourceID)])
+            try execute(
+                "DELETE FROM ck_backfill_queue WHERE kind = ? AND target = ? AND (? IS NULL OR enqueued_at = ?)",
+                [.text(Self.sourcePublishKind), .text(sourceID), .real(queuedAt), .real(queuedAt)]
+            )
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -876,7 +907,8 @@ struct SourceFilePublisher: Sendable {
                 uploaded.append((satellite.map, file, satellite.localPath))
             }
             let finished = uploaded
-            try await store.onStore { try $0.pointPublishedSourceFiles(sourceID: source, files: finished) }
+            let queuedAt = plan.queuedAt
+            try await store.onStore { try $0.pointPublishedSourceFiles(sourceID: source, files: finished, queuedAt: queuedAt) }
             return true
         } catch {
             if Self.isTransient(error) { throw error }

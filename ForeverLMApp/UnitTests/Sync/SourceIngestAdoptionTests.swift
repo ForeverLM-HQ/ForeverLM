@@ -410,6 +410,75 @@ struct SourceIngestAdoptionTests {
                 "new canonical text queues the source's satellites again")
     }
 
+    /// Points a source at every body its plan names, as the publisher does once they are up.
+    private static func point(_ store: KnowledgeStore, _ plan: SourcePublishPlan) throws {
+        let files = try plan.items.map { item in
+            let satellite = SourceLocalSatellite(
+                map: item.map, role: item.role, mime: item.mime, encoding: item.encoding, body: item.body, localPath: nil, input: item.input
+            )
+            return (map: item.map, file: try SourceSatelliteLayout.layout(satellite, owner: plan.sourceID).file, localPath: String?.none)
+        }
+        try store.pointPublishedSourceFiles(sourceID: plan.sourceID, files: files, queuedAt: plan.queuedAt)
+    }
+
+    private static func queuedForPublish(_ store: KnowledgeStore, _ id: String) throws -> Int64 {
+        try F.count(store, "SELECT COUNT(*) FROM ck_backfill_queue WHERE kind = ? AND target = ?", [.text(KnowledgeStore.sourcePublishKind), .text(id)])
+    }
+
+    /// The 44 book chapters and 4 course sources of 2026-10-13: their text was rewritten through `saveSource`
+    /// (MCP `update_source_content` takes this path) after the publisher had pointed them, and nothing queued them.
+    @Test("A save that rewrites a published book chapter's text queues it to be published again; an unchanged save does not")
+    func savedTextChangeIsPublishedAgain() throws {
+        let (root, store) = try Self.makeStore("ingest-publish-saved-text")
+        defer { try? FileManager.default.removeItem(at: root) }
+        var chapter = F.article("https://example.org/books/primer/chapter-1", title: "Primer, chapter 1", type: .book, state: .ready)
+        chapter.content = Self.text
+        try F.save(store, chapter)
+        try store.execute("DELETE FROM ck_backfill_queue")
+        #expect(try store.queueUnpublishedSourceFiles() == 1)
+        try Self.point(store, try #require(try store.sourcePublishPlan(sourceID: chapter.id)))
+        #expect(try Self.queuedForPublish(store, chapter.id) == 0)
+
+        try store.saveSource(chapter)
+        #expect(try Self.queuedForPublish(store, chapter.id) == 0, "a save that keeps the text owes no upload")
+        try store.queuePublishedSourceFilesRefresh(sourceID: "never-published")
+        #expect(try Self.queuedForPublish(store, "never-published") == 0, "a source with no pointer is the sweep's")
+
+        // As `update_source_content` does it: the stored copy, its text replaced, saved.
+        var edited = try #require(try store.loadSourceForSync(chapter.id))
+        edited.content = Self.text + " A closing line the edit added."
+        try store.saveSource(edited)
+        #expect(try Self.queuedForPublish(store, chapter.id) == 1, "the new text is published again")
+        let plan = try #require(try store.sourcePublishPlan(sourceID: chapter.id))
+        #expect(plan.items.first { $0.role == "text" }?.body == Data(edited.content!.utf8))
+    }
+
+    @Test("A text that changes while its publish is uploading keeps the source queued for the new text")
+    func changeDuringPublishStaysQueued() throws {
+        let (root, store) = try Self.makeStore("ingest-publish-in-flight")
+        defer { try? FileManager.default.removeItem(at: root) }
+        var article = F.article("https://example.org/in-flight", title: "In flight", type: .book, state: .ready)
+        article.content = Self.text
+        try F.save(store, article)
+        try store.execute("DELETE FROM ck_backfill_queue")
+        #expect(try store.queueUnpublishedSourceFiles() == 1)
+        let first = try #require(try store.sourcePublishPlan(sourceID: article.id))
+
+        // While the first plan's bodies are uploading, the text changes and the source is queued again.
+        let changed = Self.text + " Written while the upload was under way."
+        try store.execute("UPDATE source_content SET content = ? WHERE source_id = ?", [.text(changed), .text(article.id)])
+        try store.invalidateCanonicalContentIndexes(sourceID: article.id)
+
+        try Self.point(store, first)
+        #expect(try Self.queuedForPublish(store, article.id) == 1, "the pointer names the old text, so the source stays queued")
+        let second = try #require(try store.sourcePublishPlan(sourceID: article.id))
+        #expect(second.items.first { $0.role == "text" }?.body == Data(changed.utf8))
+        try Self.point(store, second)
+        #expect(try Self.queuedForPublish(store, article.id) == 0)
+        #expect(try F.text(store, "SELECT json_extract(file_ref, '$.hash') FROM source_files WHERE source_id = ? AND role = 'text'", [.text(article.id)])
+                == Self.hash(changed))
+    }
+
     // MARK: Two Macs
 
     /// Two Macs on one FakeCloudKit: A ingests, B only ever receives.
