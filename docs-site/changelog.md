@@ -6,6 +6,16 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.148.0 (build 228) — 2026-10-13
+
+**Highlights:**
+- **ForeverLM works like Codex where the two share a surface.** Pages, the chat, the Space, Plugins and the keyboard now follow Codex first, with ForeverLM's own features on top.
+- **Pages:** Codex's slash menu and selection bar, Copy link on a block, the page's headings at its edge, comments on the words in threads, page activity beside the page, and Ask for change written into the page with Accept and Undo.
+- **Chat:** `@` finds sources, Pages, chats and notebooks; Try Again, Edit, Find in chat, a queue you can manage, drafts kept across a quit, and Codex's thread commands.
+- **A command menu (⌘K or ⇧⌘P)** and Codex's keyboard shortcuts, listed with ⌘/.
+- **The Space:** choose several things at once, search inside pages, sort by last activity, and spaces go to Trash.
+- **Plugins** reads as Codex's, with your skills in a Skills tab beside it.
+
 ## 0.147.0 (build 227) — 2026-10-13
 
 **Highlights:**
