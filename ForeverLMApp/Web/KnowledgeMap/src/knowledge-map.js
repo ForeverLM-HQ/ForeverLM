@@ -1759,6 +1759,36 @@
           const font = (own ? '' : 'italic ') + '12.5px ' + state.font
           ctx.font = font; ctx.fillStyle = own ? c.sub : c.ai
           drawLines(wrapLines(text, font, maxW, Math.min(4, room)), x + pad, cy, lineH)
+        } else if (room > 0) {
+          // Nothing written about it yet: what it holds, by name, quietly,
+          // so a folded region is never an empty box.
+          const font = '12.5px ' + state.font
+          ctx.font = font
+          // A paper's pages are one line: the paper, and how many.
+          const names = [], from = new Map()
+          for (const ref of refs) {
+            const n = state.byRef.get(ref)
+            if (!n || !n.title) continue
+            if (n.kind !== 'page' || !n.sub) { names.push({ text: n.title, n: 1 }); continue }
+            const key = n.src || n.sub
+            if (!from.has(key)) { from.set(key, { text: n.sub, n: 0, page: n.title }); names.push(from.get(key)) }
+            from.get(key).n += 1
+          }
+          let left = room
+          for (let i = 0; i < names.length && left >= 1; i++) {
+            ctx.fillStyle = c.faint
+            // The last line says how many more there are, rather than one more name.
+            if (left === 1 && i < names.length - 1) {
+              ctx.fillText((names.length - i) + ' more', x + pad + 12, cy)
+              break
+            }
+            const it = names[i]
+            const text = it.page ? it.text + ' · ' + (it.n > 1 ? it.n + ' pages' : it.page) : it.text
+            ctx.fillText('·', x + pad + 2, cy)
+            ctx.fillStyle = c.sub
+            drawLines(wrapLines(text, font, maxW - 12, 1), x + pad + 12, cy, lineH)
+            cy += lineH; left -= 1
+          }
         }
       }
       ctx.restore()
