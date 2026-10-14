@@ -451,9 +451,10 @@ final class KnowledgeMapVoice {
         // at a time, and each line is carried out here as soon as it is whole.
         let (lines, sink) = AsyncStream<String>.makeStream()
         let firstToken = CanvasVoice.Stamp()
-        // A request that has not begun to answer by `hedgeAfter` is sent
-        // again; whichever answers first is carried out and the other stopped,
-        // so a slow host costs the learner a fraction of a second, not two.
+        // A request that has not begun to answer by `hedgeAfter`, or failed
+        // before it did, is sent again; whichever answers first is carried out
+        // and the other stopped, so a slow host costs the learner a fraction
+        // of a second, not two, and one failed call is not the end of it.
         let race = CanvasVoice.Race()
         let requestConfig = config
         @Sendable func attempt(_ n: Int) -> Task<Error?, Never> {
@@ -497,7 +498,10 @@ final class KnowledgeMapVoice {
             while Date() < hedgeAt, race.won == nil, !race.isDone(1), !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(20))
             }
-            let second: Task<Error?, Never>? = race.won == nil && !race.isDone(1) && !Task.isCancelled ? attempt(2) : nil
+            // Also when the first failed before saying a word (a refusal, a
+            // dropped connection): the second is then a retry, at once. An
+            // answer of nothing still claims the race, so it is not repeated.
+            let second: Task<Error?, Never>? = race.won == nil && !Task.isCancelled ? attempt(2) : nil
             if let second { race.add(second, as: 2) }
             let errors = await withTaskCancellationHandler {
                 (await first.value, await second?.value ?? nil)
