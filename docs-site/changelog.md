@@ -6,6 +6,12 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.152.0 (build 232) — 2026-10-14
+
+**Highlights:**
+- **Keep or set aside what Ask suggests, by speaking** ("keep the first two").
+- **Speaking to a canvas understands more:** words under a card, a page turned, a note told from a paper.
+
 ## 0.151.0 (build 231) — 2026-10-14
 
 **Highlights:**
