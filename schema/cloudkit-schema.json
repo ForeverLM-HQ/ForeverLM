@@ -931,7 +931,7 @@
         "status": {"json": "string", "enum": "IdeaStatus", "kind": "scalar", "policy": "L", "required": true, "doc": ""},
         "notebookID": {"json": "id", "ref": "Notebook", "kind": "scalar", "policy": "L", "required": false, "doc": ""},
         "goalID": {"json": "id", "ref": "Goal", "kind": "scalar", "policy": "L", "required": false, "doc": ""},
-        "links": {"json": "object", "kind": "map", "policy": "L", "required": false, "keys": "link id", "doc": "linkID → {kind, target: ItemRef} (was idea_links)."},
+        "links": {"json": "object", "kind": "map", "policy": "L", "required": false, "keys": "the target's ItemRef", "doc": "Target ItemRef → {kind, target: ItemRef, addedAt}, kind the Mac's IdeaLinkKind word (was idea_links)."},
         "objection": {"json": "string", "kind": "scalar", "policy": "L", "required": false, "doc": ""},
         "nextStep": {"json": "string", "kind": "scalar", "policy": "L", "required": false, "doc": ""},
         "verdictReason": {"json": "string", "kind": "scalar", "policy": "L", "required": false, "doc": ""},

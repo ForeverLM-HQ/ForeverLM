@@ -278,6 +278,9 @@ protocol LegacyMappingContext {
 
     func hasLocalSite(_ artifactID: String) throws -> Bool
     func heldCardState(_ cardID: String) throws -> CardRows.State?
+    /// The fields the replica holds for an Idea: its first-writer `kind`, `madeBy` and `createdAt`, and a
+    /// status the Mac reads as one of its two (`IdeaProjection`).
+    func heldIdeaFields(_ ideaID: String) throws -> [String: SyncJSON]
 
     /// The fingerprint of a Memory item's immutable curriculum, as an attempt recorded against it
     /// carries (an older attempt's payload names none); nil when this Mac holds no such item.
@@ -470,6 +473,10 @@ struct StoreLegacyMappingContext: LegacyMappingContext {
         try CardProjection.loadRows(id: cardID, connection: connection)?.state
     }
 
+    func heldIdeaFields(_ ideaID: String) throws -> [String: SyncJSON] {
+        try HeldRecord.envelope(.idea, ideaID, preferring: Self.libraryZoneKey, connection: connection)?.fields ?? [:]
+    }
+
     func curriculumFingerprint(itemID: String) throws -> String? {
         try CardProjection.loadRows(id: itemID, connection: connection)?.item.map(MemoryTutorIdentity.immutableCurriculumFingerprint)
     }
@@ -601,9 +608,11 @@ enum LegacyV2Mapping {
             mapping.records.append(try memoryItem(payload, context: context))
         case .preference(let payload):
             try mapPreference(payload, context: context, into: &mapping)
-        case .idea, .researchDirection, .skill:
-            // No Mac projection holds an Idea or a skill Artifact yet, so the activation derives none and
-            // neither does the mapping (Corrections, WP15c).
+        case .idea(let payload):
+            mapping.records.append(try idea(payload, context: context))
+        case .researchDirection, .skill:
+            // No Mac projection holds a Direction or a skill Artifact yet, so the activation derives none
+            // and neither does the mapping (Corrections, WP15c).
             break
         case .sourceHighlight(let payload):
             mapping.records.append(try highlight(payload, context: context))

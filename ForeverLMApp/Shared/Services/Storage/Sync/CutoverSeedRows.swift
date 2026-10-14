@@ -271,6 +271,26 @@ struct SeedRowReader {
             ON CONFLICT(source_table, local_key, column) DO NOTHING
         """, [.text(table.name), .text(row.localKey), .real(row.time)])
     }
+
+    /// Hands every row of a table to the outbox in one set-based statement, each as `enqueue` hands it: a
+    /// table an activated store's trigger refresh watches for the first time (`installOutboxTriggers`),
+    /// whose rows no trigger saw and no seed walked. Bounded by the table, which only a projection
+    /// registered after the activation makes new (the Ideas, 2026-10-13). Returns how many rows it queued.
+    @discardableResult
+    func enqueueAll(of table: SeedTable) throws -> Int {
+        let merged = try merged(table)
+        let before = try connection.scalarInteger("SELECT COUNT(*) FROM ck_outbox_fields WHERE source_table = ?", [.text(table.name)]) ?? 0
+        // The parameters follow the statement's order: the time's fallback in the SELECT list. `WHERE true`
+        // keeps SQLite from reading the upsert's ON as a join's.
+        try connection.execute("""
+            INSERT INTO ck_outbox_fields (source_table, local_key, column, dirty_at)
+            SELECT \(OutboxTriggerSQL.literal(table.name)), \(OutboxTriggerSQL.localKey(merged.localKey, "t")), '__row', \(try timeSQL(for: table))
+            FROM \(OutboxTriggerSQL.quoted(table.name)) AS t WHERE true
+            ON CONFLICT(source_table, local_key, column) DO NOTHING
+        """, [.real(fallbackTime)])
+        let after = try connection.scalarInteger("SELECT COUNT(*) FROM ck_outbox_fields WHERE source_table = ?", [.text(table.name)]) ?? 0
+        return Int(after - before)
+    }
 }
 
 enum SeedRowError: Error, Equatable {

@@ -17,6 +17,7 @@ enum LegacyParityFixture {
     static let quizChatID = CourseQuizSitting.sessionIDPrefix + "quiz-1-" + "8F2D1C3B-1E4A-4B5C-9D7E-0A1B2C3D4E5F"
     static let walkChatID = "chat-walk"
     static let docID = "doc-legacy"
+    static let ideaID = "idea-legacy"
     /// 2100-01-01: the deadline a notebook is stored with (`LearningGoalShape`).
     static let openEnd = Date(timeIntervalSinceReferenceDate: 3_124_137_600)
 
@@ -245,9 +246,20 @@ enum LegacyParityFixture {
     }
 
     /// The learner's own state and history: hides, a dismissal, a highlight, answers and review time, an
-    /// idea, a cited paper and a walk (each an old record type with no owner of its v2 record).
+    /// idea, a cited paper and a walk (each an old record type with no owner of its v2 record), and an
+    /// Idea the learner jotted down, linked to a source, the notebook and a chat (its owner gives it).
     static func memberRecords(in folder: URL) throws -> [CKRecord] {
         var records: [CKRecord] = []
+        let jotted = IdeaRecord(
+            id: ideaID, title: "Complex IV may set the pace", notes: "Check the kinetics paper", status: .archived,
+            links: [
+                IdeaLink(kind: .source, targetID: "src-article", addedAt: date(30)),
+                IdeaLink(kind: .notebook, targetID: notebookID, addedAt: date(31)),
+                IdeaLink(kind: .chat, targetID: "chat-plain", addedAt: date(32)),
+            ],
+            createdAt: date(29), updatedAt: date(32)
+        )
+        records.append(try record(.idea, ideaID, json(CloudKitIdeaPayload(idea: jotted)), in: folder))
         records.append(try record(.hiddenSource, "src-chapter", json(CloudKitHiddenSourcePayload(sourceID: "src-chapter", hiddenAt: date(33))), in: folder))
         records.append(try record(.hiddenPodcastShow, "Hidden Show", json(CloudKitHiddenPodcastShowPayload(showName: "Hidden Show", hiddenAt: date(34))), in: folder))
         records.append(try record(.hiddenYouTubeChannel, "Old Channel", json(CloudKitHiddenYouTubeChannelPayload(channelName: "Old Channel", hiddenAt: date(34))), in: folder))

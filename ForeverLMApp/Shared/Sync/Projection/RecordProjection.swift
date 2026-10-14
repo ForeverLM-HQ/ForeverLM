@@ -69,6 +69,10 @@ struct ProjectedTable: Sendable {
     /// For a table whose rows are the elements of a set or map field of their record (a chat's context
     /// sources): the column that holds the element's key.
     let elementColumn: String?
+    /// The element's key from its row's routing values when no one column holds it: an Idea's link is
+    /// keyed by the ItemRef its `kind` and `target_id` make (§3.5.26). Nil keys an element by
+    /// `elementColumn`.
+    let elementKeyFromColumns: ElementKey?
     /// The record types a row can feed.
     let recordTypes: [SyncRecordType]
     /// The record a row feeds, from its routing values; nil when they name none.
@@ -85,6 +89,7 @@ struct ProjectedTable: Sendable {
         syncedColumns: [String],
         parents: [LocalParent] = [],
         elementColumn: String? = nil,
+        elementKey: ElementKey? = nil,
         recordTypes: [SyncRecordType],
         record: @escaping @Sendable ([String: SQLiteValue]) -> RowRecord?,
         localIDSQL: @escaping @Sendable (String) -> String,
@@ -96,6 +101,7 @@ struct ProjectedTable: Sendable {
         self.syncedColumns = syncedColumns
         self.parents = parents
         self.elementColumn = elementColumn
+        self.elementKeyFromColumns = elementKey
         self.recordTypes = recordTypes
         self.record = record
         self.localIDSQL = localIDSQL
@@ -125,10 +131,31 @@ struct ProjectedTable: Sendable {
     /// still routed to its record and its parents still checked: key, parent and element columns.
     var routingColumns: [String] {
         var columns: [String] = []
-        for column in keyColumns + parents.map(\.column) + [elementColumn].compactMap({ $0 }) where !columns.contains(column) {
+        for column in keyColumns + parents.map(\.column) + elementColumns where !columns.contains(column) {
             columns.append(column)
         }
         return columns
+    }
+
+    /// Whether the table's rows are the elements of a set or map field.
+    var holdsElements: Bool { !elementColumns.isEmpty }
+
+    /// The columns that name a row's element.
+    var elementColumns: [String] {
+        elementKeyFromColumns?.columns ?? [elementColumn].compactMap { $0 }
+    }
+
+    /// The key of the element a row is, from its routing values; nil for a table whose rows are no
+    /// elements, or a row that names none.
+    func elementKey(_ values: [String: SQLiteValue]) -> String? {
+        if let elementKeyFromColumns { return elementKeyFromColumns.key(values) }
+        return elementColumn.flatMap { values[$0]?.textValue }
+    }
+
+    /// An element key read from more than one column.
+    struct ElementKey: Sendable {
+        let columns: [String]
+        let key: @Sendable ([String: SQLiteValue]) -> String?
     }
 }
 

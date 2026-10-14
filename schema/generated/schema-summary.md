@@ -664,7 +664,7 @@ Home: `library` (always the personal Library).
 | `status` | string (IdeaStatus) | scalar | L | ✓ |  |
 | `notebookID` | id → Notebook | scalar | L |  |  |
 | `goalID` | id → Goal | scalar | L |  |  |
-| `links` | object | map | L |  | linkID → {kind, target: ItemRef} (was idea_links). Keys: link id. |
+| `links` | object | map | L |  | Target ItemRef → {kind, target: ItemRef, addedAt}, kind the Mac's IdeaLinkKind word (was idea_links). Keys: the target's ItemRef. |
 | `objection` | string | scalar | L |  |  |
 | `nextStep` | string | scalar | L |  |  |
 | `verdictReason` | string | scalar | L |  |  |

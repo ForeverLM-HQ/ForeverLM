@@ -114,6 +114,17 @@ struct GenerationActivationRunner: Sendable {
             // the generation-1 one, which stays only until then (F30).
             let folder = try await access.perform { URL(fileURLWithPath: $0.dbPath).deletingLastPathComponent() }
             GenerationActivation.removeStalePre154Copy(in: folder)
+            // The triggers this build's registry generates (§6.6 step 1): nothing when they match, else
+            // replaced, and the rows of a table watched for the first time queued (the Ideas, 2026-10-13).
+            // Until then only the activation installed them, so a projection a later build registered
+            // never saw a write. A failure rolls back to the triggers the store had, which keep working for
+            // everything they watched, so it is logged and the launch goes on.
+            let registry = environment.registry ?? KnowledgeStore.projectionRegistry
+            do {
+                _ = try await access.perform { try $0.installOutboxTriggers(registry) }
+            } catch {
+                Self.logger.error("The outbox triggers could not be refreshed: \(error.localizedDescription, privacy: .public)")
+            }
             if let question = try await access.perform({ try ActivationQuestion.load($0) }), question.answer == nil {
                 // The 5% question is still unanswered: the window asks again (F30).
                 status.update(.asking(question.question))

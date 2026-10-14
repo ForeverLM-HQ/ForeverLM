@@ -506,9 +506,9 @@ final class OutboxFeeder {
     /// only when this device removed the element's row and none of its items is gone.
     private func elementRemoved(field: String, element: String, projection: any RecordProjection, units: [Unit]) -> Bool {
         guard case .elementRows(let table)? = projection.feeds[field] else { return true }
-        guard let declaration = projection.table(named: table), let column = declaration.elementColumn else { return false }
+        guard let declaration = projection.table(named: table), declaration.holdsElements else { return false }
         return units.contains { unit in
-            guard unit.key.table == table, unit.isRemoval, unit.values[column]?.textValue == element else { return false }
+            guard unit.key.table == table, unit.isRemoval, declaration.elementKey(unit.values) == element else { return false }
             return declaration.parents.filter { $0.role == .item }.allSatisfy { parent in
                 (try? parentExists(parent, value: unit.values[parent.column])) ?? true
             }
@@ -594,7 +594,7 @@ final class OutboxFeeder {
         var touched: [String: ReplicaRecord] = [:]
         for (unitKey, unit) in try loadUnits(tables) where unit.latest < limit {
             for reader in registry.readers(of: unitKey.table) {
-                guard let column = reader.table.elementColumn, let element = unit.values[column]?.textValue,
+                guard let element = reader.table.elementKey(unit.values),
                       let field = reader.projection.feeds.first(where: { $0.value == .elementRows(table: unitKey.table) })?.key,
                       let rowRecord = reader.table.record(unit.values)
                 else { continue }
@@ -632,8 +632,8 @@ final class OutboxFeeder {
         case .rowExistence(let table)?:
             return units.filter { $0.key.table == table }.compactMap { $0.columns[Self.rowColumn] }.max()
         case .elementRows(let table)?:
-            guard let element = path.element, let column = projection.table(named: table)?.elementColumn else { return nil }
-            return units.filter { $0.key.table == table && $0.values[column]?.textValue == element }
+            guard let element = path.element, let declaration = projection.table(named: table), declaration.holdsElements else { return nil }
+            return units.filter { $0.key.table == table && declaration.elementKey($0.values) == element }
                 .compactMap { $0.columns.values.max() }.max()
         case nil:
             return units.compactMap { $0.columns.values.max() }.max()

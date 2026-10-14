@@ -5,7 +5,7 @@ import Testing
 
 /// `LegacyV2Mapping` against the activation's derivations (docs/cloudkit-schema-design.md §10, §13.6, R17,
 /// WP15c): the same old records give the same v2 records either way, chat kinds and `marksReviewed`
-/// included; two Macs hash alike; every record a mapping gives is classified as owned or not; what an
+/// included, and an Idea with its links; two Macs hash alike; every record a mapping gives is classified as owned or not; what an
 /// old payload omits gives nothing; and the revision-9, R5-2, R6-2, R7-m1, R7-m5 and R8-m7 cases.
 @Suite("Legacy mapping parity")
 struct LegacyMappingParityTests {
@@ -66,6 +66,13 @@ struct LegacyMappingParityTests {
         #expect(chat("chat-plain")?["marksReviewed"] == .bool(true), "a chat with no kind marks reviewed, as today's appends do")
         #expect(chat("memory-1")?["marksReviewed"] == .bool(false))
         #expect(chat("chat-review")?["overallScore"] == .number(0.8), "a review keeps its score")
+
+        // An Idea: archived reads as `dismissed`, its links keyed by target (§3.5.26, WP25a).
+        let idea = try #require(merged["Idea:\(F.ideaID)"]?.fields)
+        #expect(idea["kind"] == .string("idea") && idea["status"] == .string("dismissed"))
+        #expect(idea["body"] == .string("Check the kinetics paper"))
+        #expect(Set(idea["links"]?.objectValue?.keys.map { $0 } ?? []) == ["src:src-article", "nb:\(F.notebookID)", "cht:chat-plain"])
+        #expect(idea["links"]?["src:src-article"]?["kind"] == .string("source"))
     }
 
     @Test("Every source, notebook, Entry, chat, course and Doc the activation derives, the mapping gives")
@@ -102,6 +109,7 @@ struct LegacyMappingParityTests {
         try collect(.sitting, "SELECT id FROM memory_sittings")
         try collect(.activityLog, "SELECT 'al:' || day || ':' || device_id FROM activity_logs")
         try collect(.card, "SELECT card_id FROM memory_card_states")
+        try collect(.idea, "SELECT id FROM ideas")
         try collect(.mark, "SELECT 'mk:hidden:src:' || source_id FROM hidden_sources UNION SELECT 'mk:hidden:art:' || artifact_id FROM hidden_artifacts "
                     + "UNION SELECT 'mk:hidden:cht:' || session_id FROM hidden_review_sessions UNION SELECT 'mk:liked:src:' || source_id FROM videos WHERE liked_at IS NOT NULL "
                     + "UNION SELECT 'mk:rated:exc:' || id FROM review_exchanges WHERE rating IS NOT NULL UNION SELECT 'mk:wantIdea:src:' || source_id || '#' || id FROM source_ideas WHERE wanted = 1")

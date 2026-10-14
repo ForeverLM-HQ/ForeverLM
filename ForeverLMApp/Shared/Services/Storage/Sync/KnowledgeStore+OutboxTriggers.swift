@@ -113,10 +113,13 @@ enum OutboxTriggerSQL {
         """
     }
 
+    /// The name of the trigger that records a table's inserts: every watched table has one.
+    static func insertTriggerName(_ table: String) -> String { "ck_outbox_insert_\(table)" }
+
     static func outboxTriggers(_ table: MergedProjectedTable) -> [Trigger] {
         let name = table.name
         var triggers = [
-            Trigger(name: "ck_outbox_insert_\(name)", sql: """
+            Trigger(name: insertTriggerName(name), sql: """
                 CREATE TRIGGER ck_outbox_insert_\(name) AFTER INSERT ON \(quoted(name))
                 WHEN \(outsideApply)
                 BEGIN
@@ -249,6 +252,9 @@ extension KnowledgeStore {
         SittingProjection(),
         ActivityLogProjection(),
         PracticeProjection(),
+        // The member's Ideas and their links (§3.5.26; registered after the activation, so an activated
+        // store's existing rows are sent by the trigger refresh, `installOutboxTriggers`).
+        IdeaProjection(),
         // A notebook's tasks, a team's share requests and a meeting's action items, the member's
         // Jobs and Automations (WP14).
         TaskProjection(),
@@ -275,6 +281,12 @@ extension KnowledgeStore {
     /// transaction, and records `ck_activation.trigger_hash`. A store whose recorded hash and triggers
     /// already match is left alone, so a launch with an unchanged registry writes nothing. Generation 2
     /// only: no migration creates these, and generation 1 never runs this (D40).
+    ///
+    /// The activation installs them first; every later launch of an activated store refreshes them
+    /// (`GenerationActivationRunner`), so a build whose registry changed watches what it now reads. A
+    /// table the refresh watches for the first time (a projection registered after the activation, such
+    /// as the Idea's) has rows no trigger ever saw and no seed walked: each is handed to the outbox in the
+    /// same transaction, as the seed hands one, dated with its own time (`SeedRowReader.enqueueAll`).
     @discardableResult
     func installOutboxTriggers(_ registry: ProjectionRegistry = KnowledgeStore.projectionRegistry) throws -> String {
         guard syncGeneration == .two else { throw OutboxTriggerError.generation1 }
@@ -287,11 +299,21 @@ extension KnowledgeStore {
             let current = recorded == hash
                 && Set(installed.keys) == Set(triggers.map(\.name))
             if !current {
+                // Only a refresh has tables that were not watched before: the activation's first install
+                // leaves every existing row to the seed or the reconcile.
+                let unwatched = installed.isEmpty ? [] : SeedTable.tables(in: registry).filter {
+                    installed[OutboxTriggerSQL.insertTriggerName($0.name)] == nil
+                }
                 for name in installed.keys.sorted() {
                     try exec("DROP TRIGGER IF EXISTS \(OutboxTriggerSQL.quoted(name))")
                 }
                 for trigger in triggers {
                     try exec(trigger.sql)
+                }
+                let reader = SeedRowReader(connection: self, registry: registry, fallbackTime: Date().timeIntervalSinceReferenceDate)
+                for table in unwatched {
+                    let rows = try reader.enqueueAll(of: table)
+                    logger.notice("Outbox now watches \(table.name, privacy: .public): \(rows) existing rows queued")
                 }
                 try execute("""
                     INSERT INTO ck_activation (id, trigger_hash) VALUES (1, ?)
