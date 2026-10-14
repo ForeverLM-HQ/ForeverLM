@@ -149,8 +149,8 @@ extension StudioViewModel {
         var papersBySlide: [Int: [String]] = [:]
         var elsewhere = 0
         for paper in cited.sorted(by: { ($0.slideTimeSeconds ?? 0) < ($1.slideTimeSeconds ?? 0) }) where paper.status != .dismissed {
-            guard paper.status == .imported, let imported = paper.importedSourceID,
-                  let source = articlesById[canonicalSourceID(imported)] ?? articlesById[imported],
+            guard let id = librarySourceID(citedBy: paper),
+                  let source = articlesById[canonicalSourceID(id)] ?? articlesById[id],
                   source.status == .active, !source.isHidden else {
                 elsewhere += 1
                 continue
@@ -176,6 +176,20 @@ extension StudioViewModel {
             citedElsewhere: elsewhere,
             citationsRead: !cited.isEmpty
         )
+    }
+
+    /// The library source a cited paper is: the one it was imported as, else
+    /// the one with its DOI or address (a talk in a field the learner reads
+    /// cites papers they hold already, though never marked as imported).
+    func librarySourceID(citedBy paper: VideoCitedPaper) -> String? {
+        if let imported = paper.importedSourceID, articlesById[canonicalSourceID(imported)] ?? articlesById[imported] != nil {
+            return imported
+        }
+        if let doi = paper.doi.map(Self.normalizeDOI), !doi.isEmpty, let id = librarySourceID(forURL: "https://doi.org/\(doi)") {
+            return id
+        }
+        if let url = paper.url, !url.isEmpty, let id = librarySourceID(forURL: url) { return id }
+        return nil
     }
 
     /// The slide a cited paper was read from: the frame it names, else the
