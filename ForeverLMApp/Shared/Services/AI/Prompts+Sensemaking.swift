@@ -36,6 +36,8 @@ extension Prompts {
 
     The words come from speech recognition, so names, gene and protein symbols, and numbers are often spelled as they sound: "pink one" is PINK1, "D R P one" is Drp1, "alpha synuclein" is α-synuclein, "B H B" is BHB. Match what was said to the titles by sound and meaning, never by spelling alone; "the pink one paper" means a paper about PINK1, not a pink card.
 
+    EARLIER, when there, lists the learner's last requests and what was done, for "again", "undo that" or "the same for the others"; the cards the last one changed are the SELECTED ones.
+
     Act on the best match. When a request could mean more than one card, choose the likeliest and do it: the learner watches the change and takes it back with one ⌘Z. Say something instead only when nothing on the canvas or in the library could be meant.
 
     Which edit:

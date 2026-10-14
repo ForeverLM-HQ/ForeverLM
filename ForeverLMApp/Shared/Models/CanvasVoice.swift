@@ -79,6 +79,16 @@ enum CanvasVoice {
         var waiting: [Card]
     }
 
+    /// A request spoken earlier in this sitting and what it did, so the next
+    /// can say "again", "undo that" or "the same for the others".
+    struct Turn: Equatable, Sendable {
+        var said: String
+        var done: [String]
+    }
+
+    /// The most earlier requests the model is told of.
+    static let maximumTurns = 3
+
     /// What the model reads, and the short ids it may answer with.
     struct Context: Sendable {
         var message: String
@@ -101,7 +111,7 @@ enum CanvasVoice {
 
     // MARK: The model's message
 
-    static func context(_ snapshot: Snapshot, said: String) -> Context {
+    static func context(_ snapshot: Snapshot, said: String, earlier: [Turn] = []) -> Context {
         let middleX = snapshot.viewCenterX, middleY = snapshot.viewCenterY
         func distance(_ card: Card) -> Double {
             let dx = (card.x ?? 0) + (card.w ?? 0) / 2 - middleX
@@ -187,6 +197,15 @@ enum CanvasVoice {
             for card in waiting {
                 guard let alias = aliasOfRef[card.ref] else { continue }
                 lines.append("\(alias) \(card.type) \(quoted(card.title))")
+            }
+        }
+        let turns = earlier.suffix(maximumTurns)
+        if !turns.isEmpty {
+            lines.append("")
+            lines.append("EARLIER (oldest first; the cards they changed are SELECTED now):")
+            for turn in turns {
+                let done = turn.done.isEmpty ? "nothing changed" : turn.done.joined(separator: "; ")
+                lines.append("\(quoted(turn.said)) → \(done)")
             }
         }
         lines.append("")

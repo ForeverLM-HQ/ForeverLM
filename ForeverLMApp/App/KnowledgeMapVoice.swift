@@ -75,6 +75,8 @@ final class KnowledgeMapVoice {
     @ObservationIgnored private var starting: Task<Void, Never>?
     @ObservationIgnored private var running: Task<Void, Never>?
     @ObservationIgnored private var fading: Task<Void, Never>?
+    /// The requests spoken in this sitting and what they did, newest last.
+    @ObservationIgnored private var earlier: [CanvasVoice.Turn] = []
     /// The newest request, which the capsule shows.
     @ObservationIgnored private var request = 0
     /// Requests up to this one were stopped with the ×.
@@ -369,7 +371,12 @@ final class KnowledgeMapVoice {
             AIRequestOptionSupport.supportedEfforts(provider: config.provider, model: config.model)
         )
         let contextStarted = Date()
-        let context = CanvasVoice.context(snapshot ?? Self.snapshot(of: map, named: studio.openCanvasName), said: said)
+        let context = CanvasVoice.context(
+            snapshot ?? Self.snapshot(of: map, named: studio.openCanvasName),
+            said: said,
+            earlier: snapshot == nil ? earlier : []
+        )
+        let placedBefore = map.layout.placements
         // The instructions and the edits are the same every time, so they are
         // the request's stable, cached head; the canvas and the words are its
         // volatile tail, and the user's turn is fixed, so every request shares
@@ -464,6 +471,19 @@ final class KnowledgeMapVoice {
             "Canvas voice model=\(logged.model, privacy: .public) transcribe_ms=\(logged.transcribeMS ?? -1, privacy: .public) context_ms=\(logged.contextMS ?? -1, privacy: .public) first_token_ms=\(logged.firstTokenMS ?? -1, privacy: .public) first_edit_ms=\(logged.firstEditMS ?? -1, privacy: .public) total_ms=\(logged.totalMS ?? -1, privacy: .public) edits=\(logged.edits.count, privacy: .public) failed=\(logged.failures.count, privacy: .public) unreadable=\(logged.unreadable, privacy: .public)"
         )
 
+        if applying {
+            earlier.append(CanvasVoice.Turn(said: said, done: report.done + [report.remark].compactMap { $0 }))
+            if earlier.count > CanvasVoice.maximumTurns { earlier.removeFirst(earlier.count - CanvasVoice.maximumTurns) }
+            // The cards the request set down, moved or restyled are selected,
+            // so the learner sees what changed and "these" in the next
+            // request means them. Undo selects nothing: what it restored is
+            // not what was asked for.
+            let touched = map.layout.placements.filter { placedBefore[$0.key] != $0.value }.keys.sorted()
+            if !touched.isEmpty, !report.edits.contains(where: { $0.tool == "undo_canvas" }) {
+                map.selection = touched
+                map.send(.select(refs: touched))
+            }
+        }
         guard applying, owns(id), isLive(id) else { return report }
         let applied = report.done.count
         if applied == 0, remark == nil {

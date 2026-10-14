@@ -73,6 +73,18 @@ struct CanvasVoiceTests {
         #expect(context.message.contains("(1 more cards, far from the view, are not listed)"))
     }
 
+    @Test("Earlier requests are listed oldest first, at most three, before what the learner said now")
+    func earlierRequests() {
+        let turns = (1...4).map { CanvasVoice.Turn(said: "request \($0)", done: $0 == 2 ? [] : ["Moved \($0) cards"]) }
+        let message = CanvasVoice.context(snapshot(cards: [card("source:a", "A", x: 0, y: 0)]), said: "again", earlier: turns).message
+        #expect(!message.contains("\"request 1\""), "only the last three")
+        #expect(message.contains("\"request 2\" → nothing changed"))
+        #expect(message.contains("\"request 4\" → Moved 4 cards"))
+        let order = ["request 2", "request 3", "request 4", "THE LEARNER SAID"].map { message.range(of: $0)!.lowerBound }
+        #expect(order == order.sorted())
+        #expect(!CanvasVoice.context(snapshot(cards: []), said: "x").message.contains("EARLIER"))
+    }
+
     @Test("The stream is cut into whole lines across deltas, and the last line needs no newline")
     func lineReader() {
         let reader = CanvasVoice.LineReader()
