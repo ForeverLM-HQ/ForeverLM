@@ -211,8 +211,8 @@ struct ForeverLMCoreTests {
             "duplicate_detection", "topic_summarization",
             "book_chapter_splitting", "scanned_page_proofreading", "meeting_session_details", "meeting_action_items", "lecture_note_matching",
             "course_ordering", "course_metadata", "course_lecture_naming",
-            "cohort_session_plan", "cohort_session_close", "source_idea_extraction",
-            "card_drafting", "card_variation", "card_go_deeper", "card_answer_check", "card_wording_check", "mnemonic_reading_writing", "notebook_naming", "pasted_line_joining", "map_summaries", "canvas_ask", "canvas_voice", "atlas_writing", "source_levels",
+            "cohort_session_plan", "source_idea_extraction",
+            "card_drafting", "card_go_deeper", "card_answer_check", "card_wording_check", "mnemonic_reading_writing", "notebook_naming", "pasted_line_joining", "map_summaries", "canvas_ask", "canvas_voice", "atlas_writing", "source_levels",
             "course_curriculum_plan", "course_lesson_writing",
             "explainer_writing", "audio_overview_writing", "report_writing",
             "walkthrough_writing", "walkthrough_animation",
@@ -220,7 +220,7 @@ struct ForeverLMCoreTests {
         ]
         let tasks = AITaskSettingsCatalog.tasks
 
-        #expect(AITaskSettingsCatalog.version == 40)
+        #expect(AITaskSettingsCatalog.version == 41)
         #expect(AITaskSettingsCatalog.descriptor(forRawID: "video_quiz_grading") == nil)
         #expect(tasks.map(\.id) == expectedIDs)
         #expect(Set(tasks.map(\.id)).count == tasks.count)

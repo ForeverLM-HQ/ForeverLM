@@ -41,31 +41,6 @@ extension AIService {
         return validated
     }
 
-    /// Rewrite the learner's understanding of everything the session touched.
-    func closeCohortSession(
-        transcript: String,
-        briefs: [CohortSourceBrief],
-        config: AITaskConfig
-    ) async throws -> CohortCloseResult {
-        let system = AITask.cohortSessionClose.effectivePrompt ?? Prompts.cohortSessionCloser
-        let user = Self.cohortCloserUserMessage(transcript: transcript, briefs: briefs)
-
-        let response = try await call(
-            config: config,
-            system: system,
-            user: user,
-            maxTokens: 6_000,
-            temperature: 0.2
-        )
-        let result: CohortCloseResult = try Self.decodeCohortJSON(response)
-        return result.validated(
-            against: Set(briefs.map(\.source.sourceID)),
-            ideaIDsBySource: Dictionary(
-                uniqueKeysWithValues: briefs.map { ($0.source.sourceID, Set($0.ideas.map(\.id))) }
-            )
-        )
-    }
-
     // MARK: - Message construction
 
     /// The planner's user message, the tutor's briefing and the conduct text

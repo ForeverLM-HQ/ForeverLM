@@ -516,7 +516,7 @@ struct BackgroundAISpendTests {
     @Test("Chat, reviews and what the learner starts are exempt; clean-up and preparation count")
     func exemptTasks() {
         for task in [AITask.chat, .reviewGrading, .mobileReview, .mobileVoiceAgent, .deepResearch,
-                     .cohortSessionPlan, .cohortSessionClose, .explainerWriting, .walkthroughWriting,
+                     .cohortSessionPlan, .explainerWriting, .walkthroughWriting,
                      .walkthroughAnimation, .courseCurriculumPlan, .courseLessonWriting,
                      .lectureQuizWriting, .courseQuizWriting, .courseTextbookReadings] {
             #expect(!task.isBackgroundWork, "\(task.rawValue) is exempt")

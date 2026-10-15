@@ -7,10 +7,7 @@ import Foundation
 // drafting (Make Cards, background drafting, `draft_cards`), cards drafted
 // from what the learner made sense of, an assistant's `save_card_drafts` and
 // `update_card`, a mnemonic reading's questions (written here and saved over
-// MCP), and the day close's repair of the cards kept before the gate. The
-// variation pass's rewordings are held to the same rule by its own judge
-// (`Prompts.cardVariationJudge`'s `stands_alone`), which already reads every
-// rewording, so no second call is made for them.
+// MCP).
 //
 // One Card Wording Check call reads a whole batch; the cards that point at
 // their source unnamed are reworded once, together, with each source's title

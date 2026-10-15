@@ -1910,55 +1910,6 @@ enum Prompts {
     of source titles.
     """
 
-    /// Rewrites the learner's understanding after a session.
-    ///
-    /// A rewrite rather than an append: the document has to stay readable for
-    /// years, and compaction is the model's job. The transcript remains the
-    /// immutable record, so losing detail here is recoverable.
-    static let cohortSessionCloser = """
-    A review conversation has just finished. Rewrite what the learner understands about     each source that was actually discussed.
-
-    For each such source you will get its current understanding document, if one exists.     Return the COMPLETE replacement document, not a patch and not a diff.
-
-    What the document is for: when this learner next reviews this source, you will read     this document to decide what to ask. Write it for that purpose and no other.
-
-    Write it as prose under short headings. Record:
-    - what they can now explain unaided, and how confidently;
-    - where they were vague, wrong, or needed a hint, in enough detail to probe it again;
-    - connections they drew themselves, including to other sources — record the connection     in the documents of BOTH sources;
-    - questions they raised that were not resolved.
-
-    Rules:
-    - Compact as you go. Fold an old observation into a newer one rather than listing both.     A document that only grows is a failed document.
-    - Preserve anything the learner edited by hand unless this session directly     contradicted it. Their correction of your reading of them outranks your earlier note.
-    - Drop an item once they have demonstrated it twice without help.
-    - Do not restate what the source says. That is already recorded elsewhere; this     document is only about the learner.
-    - Attribute contested claims rather than recording them as fact. Write "Jones 2011 \
-    claims X", not "X". This document is read back for years, and an unqualified claim \
-    from a single paper hardens into a belief the learner never actually examined.
-    - No praise, no encouragement, no second person plural. Write plainly.
-    - `open_thread_count` is the number of genuinely unresolved threads you left in the     document. Count only things worth returning to; 0 is a normal answer.
-    - `discussed_idea_ids` is which of the source's listed ideas this conversation actually \
-    engaged with: the learner asked about it, worked through it, was told it, or got it wrong. \
-    Copy the ids exactly from the IDEAS list under that source; invent none. An idea the \
-    conversation never reached is left out however central it is to the source — this list \
-    decides what the learner is asked to recall next time, and including an idea they never met \
-    means grading them on something they have not read. A passing mention of the source's title \
-    engages nothing: return an empty list. Omit the field for a source whose ideas were not \
-    listed.
-    - Never invent an exchange that did not happen.
-    - When the learner said what they want brought back next time, record it in their \
-    own words and mark it as theirs. It outranks a thread you would have chosen, and it \
-    must survive future rewrites until it is genuinely resolved.
-    - A section headed "Before the summary (date)" is the learner's own take on the source, \
-    written before ForeverLM showed them its summary of it. Keep every such section exactly as \
-    it stands, heading and words, at the end of the document; never fold, rephrase or drop it. \
-    When this conversation shows how their understanding has moved since a take, say so in \
-    your own sections.
-
-    Also return a `session_summary` of at most three lines: what was covered, what moved,     and what to pick up next time. The next session's planner reads it.
-    """
-
     // MARK: - Idea extraction
 
     /// Extracts a source's ideas: the unit of memory review.
@@ -2073,46 +2024,6 @@ enum Prompts {
     {"cards": [{"front": "...", "back": "...", "why": "...", "quote": "...", "difficulty": "medium", "seed": "H1"}]}
     """
 
-    /// Rewords cards the learner has remembered twice, a source's at a time,
-    /// at the day close (docs/memory-design.md, "Variations"): the same back
-    /// asked from another angle. A separate call (`cardVariationJudge`)
-    /// checks each rewording, and the app checks its length and that it is
-    /// new before any joins a card's rotation.
-    static let cardVariation = """
-    You reword flashcards a learner has already remembered twice, so their next reviews ask for the same answer from another angle. Varied wording helps memory last, but only if the answer stays exactly the same.
-
-    You are given, for each card, its number, its question as it is asked now, its answer (the back), why the answer is right, and the passage of the source it stands on.
-
-    For each card write three rewordings of its question:
-    - Each asks for exactly the card's answer: the back must be a complete, correct answer to it, and no more. Never ask for more, for less, or for something else.
-    - Come at it from another angle: another cue, another order, the situation it applies in, what it explains, what would follow if it were not so. Not a synonym swapped in.
-    - Never give the answer away, in part or in passing.
-    - One line each, no longer than the question is now.
-    - \(cardStandsAloneRule)
-    - Plain text: no Markdown, no numbering, no quotation marks around it.
-
-    Return JSON only:
-    {"cards": [{"card": 1, "variants": ["...", "...", "..."]}]}
-    """
-
-    /// The judge of `cardVariation`'s rewordings: a call of its own, since a
-    /// model is a poor judge of what it has just written.
-    static let cardVariationJudge = """
-    You check rewordings of flashcard questions before a learner is asked them. A rewording passes only when the card's answer is a complete, correct answer to it, and no more, it does not give that answer away, and it stands on its own.
-
-    You are given, for each card, its number, its question as it is asked now, its answer (the back), and its rewordings, numbered.
-
-    For each rewording decide:
-    - "answers_it": true only when the back answers the rewording completely and correctly, and the rewording asks for nothing the back does not say. A rewording that asks for more, for less, or for something else is false.
-    - "leaks_answer": true when the rewording states or strongly hints at the answer.
-    - "stands_alone": false when the rewording points at its source without naming it ("this lecture", "this paper", "the talk", "the speaker", "the authors", "the study above", "in the passage"), so that read alone, weeks later and among cards from other sources, the learner cannot tell what it is about. A rewording that names its subject, or names its source, is true. It is also false when it never names what it is about and is built from vague phrases ("the information", "the process", "this approach") a learner could not place without the source. It is also false when it can be answered correctly in several ways while the card's back holds only one (what is "often" true of something broad, a view, an emphasis, a list) and it does not say whose claim it asks for.
-
-    Judge strictly: when in doubt, answers_it and stands_alone are false.
-
-    Return JSON only, one verdict for every rewording:
-    {"verdicts": [{"card": 1, "variant": 1, "answers_it": true, "leaks_answer": false, "stands_alone": true}]}
-    """
-
     /// Go Deeper's question in the card review (docs/memory-design.md, "Go
     /// Deeper on a card"): one understanding probe past a card the learner
     /// just remembered, of the first kind in the rotation that fits the card
@@ -2146,7 +2057,7 @@ enum Prompts {
     Write two or three plain sentences: first what the answer got, then what it missed or could add. Be specific to their words and to the card. No score or grade, no praise or flattery ("great answer"), and do not repeat the question. When the answer is empty or beside the point, say in one sentence what the question was after. Plain text only: no Markdown, no lists, no headings.
     """
 
-    /// The rule every card writer is given (`cardDrafter`, `cardVariation`,
+    /// The rule every card writer is given (`cardDrafter`,
     /// `situatedCards`), and the one `cardWordingCheck` holds every card to
     /// before it is saved (product owner, 2026-10-11, of a card that asked
     /// "In this lecture, …": "that should not be allowed to happen").

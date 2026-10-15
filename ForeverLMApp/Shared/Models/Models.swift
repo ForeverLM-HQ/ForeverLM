@@ -600,10 +600,10 @@ extension AITask {
              // Cohort reviews deliberately span source types — that is what a
              // cross-source question is — so they belong under "Other". Idea
              // extraction runs on every consumed source type for the same reason.
-             .cohortSessionPlan, .cohortSessionClose, .sourceIdeaExtraction,
-             // Cards are drafted from, and reworded for, every kind of source,
-             // and a mnemonic reading reads a book's chapters or any text.
-             .cardDrafting, .cardVariation, .cardGoDeeper, .mnemonicReadingWriting,
+             .cohortSessionPlan, .sourceIdeaExtraction,
+             // Cards are drafted from every kind of source, and a mnemonic
+             // reading reads a book's chapters or any text.
+             .cardDrafting, .cardGoDeeper, .mnemonicReadingWriting,
              // A card's answer is checked, and its wording, whatever kind of
              // source it stands on.
              .cardAnswerCheck, .cardWordingCheck,
@@ -698,7 +698,6 @@ extension AITask {
         case .citationResolution: return Prompts.citationResolution
         case .sourceIdeaExtraction: return Prompts.sourceIdeaExtraction
         case .cardDrafting: return Prompts.cardDrafter
-        case .cardVariation: return Prompts.cardVariation
         case .cardGoDeeper: return Prompts.goDeeperQuestion
         case .cardAnswerCheck: return Prompts.cardAnswerCheck
         case .cardWordingCheck: return Prompts.cardWordingCheck

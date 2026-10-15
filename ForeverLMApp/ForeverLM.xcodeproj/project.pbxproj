@@ -1300,7 +1300,6 @@
 		A7017798BB5F88CC93891280 /* ByteParityReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80A9D0A21B3F5D4E47266EE1 /* ByteParityReport.swift */; };
 		A71A299C77FBE83CD14B74D3 /* SettingsGeneral.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF27EA04823BDF86D2AE8151 /* SettingsGeneral.swift */; };
 		A748842CE2D9D98F349E6E19 /* URLNormalizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7CC645736D84CC01D23FCE7 /* URLNormalizer.swift */; };
-		A74E22AF8AD5051707F3EFE8 /* Prompts+WorkingNotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16E05BFDB3E7699748B5166D /* Prompts+WorkingNotes.swift */; };
 		A75949314B360E22F07A8498 /* NotebookShareTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 042625C3797FFC86612F2F47 /* NotebookShareTests.swift */; };
 		A7728B7E07019081959B52AA /* ExplainerVideoGenerationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23196A485732D162D96E079B /* ExplainerVideoGenerationCoordinator.swift */; };
 		A78576728D71F5BD1184E19B /* TextbookReadingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D854F0DBF6FCFF30B485213 /* TextbookReadingTests.swift */; };
@@ -1791,7 +1790,6 @@
 		E985C422F1CF3F53E9E1340C /* StudioViewModel+PublisherPagePDF.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7145E0F7389F024C7882A493 /* StudioViewModel+PublisherPagePDF.swift */; };
 		E9A683AD1466A0A57856521C /* ExplainerVideoGeneratorService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BF313990C8FA3534CF4D09C /* ExplainerVideoGeneratorService.swift */; };
 		EA157602E080982CD5315DD5 /* JournalWatchRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E2E1CE4EA6DC5AACFE11CC8 /* JournalWatchRunner.swift */; };
-		EA4EE1947AF613BB99EB14D3 /* AIService+WorkingNotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 959D541B85A590BB02336636 /* AIService+WorkingNotes.swift */; };
 		EA7B4D3949F84050CF357FAF /* KnowledgeStore+BlockedShows.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C090AB344898637457470D7 /* KnowledgeStore+BlockedShows.swift */; };
 		EABD39E9EE4E0D2AEBA8F4F9 /* LectureQuizPlanningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBDB8413DE9163358CC98006 /* LectureQuizPlanningTests.swift */; };
 		EACFD5B423C356E93E54EA56 /* RecordProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D38F2B6B90935057BE037EF /* RecordProjection.swift */; };
@@ -2167,7 +2165,6 @@
 		16C1B522D58A0C700952CD36 /* MigrationImportLists.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MigrationImportLists.swift; sourceTree = "<group>"; };
 		16CDD950D9AB1E7A90DC64E8 /* ChatSyncFixture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatSyncFixture.swift; sourceTree = "<group>"; };
 		16D4BA659AFF5D0ADC62246D /* NotebookCollectionsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotebookCollectionsTests.swift; sourceTree = "<group>"; };
-		16E05BFDB3E7699748B5166D /* Prompts+WorkingNotes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Prompts+WorkingNotes.swift"; sourceTree = "<group>"; };
 		16FF99B284BF96EA20960C80 /* MCPTools+ReviewSessions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MCPTools+ReviewSessions.swift"; sourceTree = "<group>"; };
 		1716D446EEEAE94B67751916 /* MCPTools+Skills.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MCPTools+Skills.swift"; sourceTree = "<group>"; };
 		173F4F1AA182327CF39FBFC1 /* CourseGenerationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseGenerationTests.swift; sourceTree = "<group>"; };
@@ -3053,7 +3050,6 @@
 		95473862465CE6E25BC4F372 /* ReviewSlashCommandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewSlashCommandTests.swift; sourceTree = "<group>"; };
 		9560EB5827C9FD7463F2065C /* PageSpacesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageSpacesTests.swift; sourceTree = "<group>"; };
 		959268B3966D562BD32D7F71 /* RecordNamingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordNamingTests.swift; sourceTree = "<group>"; };
-		959D541B85A590BB02336636 /* AIService+WorkingNotes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AIService+WorkingNotes.swift"; sourceTree = "<group>"; };
 		95D740D52711C1F7D25EAD3F /* FreeModelsSetup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeModelsSetup.swift; sourceTree = "<group>"; };
 		95E090CD1A7DBB44EC5E208E /* NotebookChatSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotebookChatSelection.swift; sourceTree = "<group>"; };
 		9604157E69874AB5927F2789 /* MobileNarrationRecordTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileNarrationRecordTests.swift; sourceTree = "<group>"; };
@@ -3962,7 +3958,6 @@
 				6E0CD9FD0628DA5072AB098C /* AIService+TextbookReadings.swift */,
 				70658C94B8A47BB07F0E676F /* AIService+VideoQuiz.swift */,
 				131688D61807A2037BF1924B /* AIService+Walkthrough.swift */,
-				959D541B85A590BB02336636 /* AIService+WorkingNotes.swift */,
 				7EC2E3407A71235DA49F9F47 /* AIUsageReporting.swift */,
 				38E51A95BF99E54A6FADB01F /* AIUsageTracking.swift */,
 				2A28ABE1A02F49BA0CB961BC /* AppleSignInSupport.swift */,
@@ -4018,7 +4013,6 @@
 				E38997B8BA432BD610BF3E27 /* Prompts+Directions.swift */,
 				4A3E5C86438733DCE2827950 /* Prompts+Sensemaking.swift */,
 				3D1C776BF9A5C58F64BFF2A9 /* Prompts+SituatedCards.swift */,
-				16E05BFDB3E7699748B5166D /* Prompts+WorkingNotes.swift */,
 				257AD8145E5353C13FEE729D /* ReportGeneratorService.swift */,
 				5A3A5538A28C64EFB116EC53 /* ReviewSessionManager.swift */,
 				A7E0A6052DE4732D4D00E555 /* ReviewSessionTitleHeuristics.swift */,
@@ -7244,7 +7238,6 @@
 				44406B3D8105687C46DE197A /* AIService+TextbookReadings.swift in Sources */,
 				6555EE747652955BD44131C1 /* AIService+VideoQuiz.swift in Sources */,
 				72F2F39EDC53DFF9133846DC /* AIService+Walkthrough.swift in Sources */,
-				EA4EE1947AF613BB99EB14D3 /* AIService+WorkingNotes.swift in Sources */,
 				DB3AB4349775ADEC6A4C3AF3 /* AIService.swift in Sources */,
 				62018B5857E66BB76DEECC1E /* AITaskCore.swift in Sources */,
 				49194FFE1499C94306EF03FE /* AITaskSettingsCatalog.swift in Sources */,
@@ -7905,7 +7898,6 @@
 				8B2156686B652733197D8B16 /* Prompts+Directions.swift in Sources */,
 				ED5260F904FDB0AE350D0D0B /* Prompts+Sensemaking.swift in Sources */,
 				9329CA68DB7BE8C3536D14D7 /* Prompts+SituatedCards.swift in Sources */,
-				A74E22AF8AD5051707F3EFE8 /* Prompts+WorkingNotes.swift in Sources */,
 				F384C151C5A96AA51B6B9682 /* Prompts.swift in Sources */,
 				793073AB1A9CF83F2B699803 /* PublishedPageRenderer.swift in Sources */,
 				CE8FEBDBCE82C85300D6E6B5 /* PublisherPagePDFRenderer.swift in Sources */,

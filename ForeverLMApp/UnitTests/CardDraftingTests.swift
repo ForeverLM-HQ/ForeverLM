@@ -647,13 +647,11 @@ struct CardDraftingTests {
 
     // MARK: The tasks
 
-    @Test("Card Drafting and Card Variation are Background tasks on the learner's route, counted as background spend, in catalog 30")
+    @Test("Card Drafting is a Background task on the learner's route, counted as background spend, in catalog 30")
     func tasks() {
         #expect(AITask.cardDrafting.rawValue == "card_drafting")
-        #expect(AITask.cardVariation.rawValue == "card_variation")
         #expect(AITask.cardDrafting.defaultPrompt == Prompts.cardDrafter)
-        #expect(AITask.cardVariation.defaultPrompt == Prompts.cardVariation)
-        for task in [AITask.cardDrafting, .cardVariation] {
+        for task in [AITask.cardDrafting] {
             #expect(task.isBackgroundWork, "\(task.rawValue) counts as background spend")
             #expect(AITask.backgroundWorkTaskIDs.contains(task.rawValue))
             #expect(task.sourceType == nil)
@@ -664,12 +662,10 @@ struct CardDraftingTests {
         }
         #expect(AITaskSettingsCatalog.version >= 30)
         #expect(AITaskSettingsCatalog.descriptor(forRawID: "card_drafting")?.displayName == "Card Drafting")
-        #expect(AITaskSettingsCatalog.descriptor(forRawID: "card_variation")?.displayName == "Card Variation")
+        #expect(AITaskSettingsCatalog.descriptor(forRawID: "card_variation") == nil, "removed 2026-10-15 with the day close")
         #expect(AIUsageTaskLabel.text(for: "card_drafting") == "Draft Cards")
-        #expect(AIUsageTaskLabel.text(for: "card_variation") == "Reword Cards")
         #expect(Prompts.cardDrafter.contains("\"seed\""))
         #expect(Prompts.cardDrafter.contains(CardDraftingSampling.marker))
-        #expect(Prompts.cardVariationJudge.contains("answers_it"))
         // v1's flashcard writer is gone for good.
         #expect(AITask(rawValue: "flashcard_writing") == nil)
         #expect(AITaskSettingsCatalog.descriptor(forRawID: "flashcard_writing") == nil)

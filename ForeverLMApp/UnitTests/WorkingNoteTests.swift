@@ -53,33 +53,6 @@ struct WorkingNoteTests {
 
     // MARK: Operations
 
-    @Test("A model's operations are applied only where they name something real")
-    func opsAreValidated() throws {
-        let kept = note("Reading NAD+ papers", id: "keep")
-        let json = """
-        {"add":[{"kind":"fact","text":"Berlin is on Oct 21","source_ids":["s1"]},
-                {"kind":"mood","text":"seems tired"},
-                {"kind":"thread","text":"   "}],
-         "update":[{"id":"keep","text":"Reading NAD+ papers, two left"},{"id":"ghost","text":"x"}],
-         "forget":["keep","ghost"],"right_now":"- NAD+","log":["Read one paper"]}
-        """
-        let extraction = try JSONDecoder().decode(WorkingNoteExtraction.self, from: Data(json.utf8))
-        let ops = extraction.ops.validated(against: [kept])
-        #expect(ops.add.map(\.text) == ["Berlin is on Oct 21"], "an unknown kind and a blank sentence are dropped")
-        #expect(ops.update.map(\.id) == ["keep"], "an invented id is dropped")
-        #expect(ops.forget == ["keep"])
-        #expect(extraction.rightNow == "- NAD+")
-        #expect(extraction.log == ["Read one paper"])
-    }
-
-    @Test("A response without add, update or forget is an empty set of operations")
-    func missingKeysAreEmpty() throws {
-        let extraction = try JSONDecoder().decode(WorkingNoteExtraction.self, from: Data("{}".utf8))
-        #expect(extraction.ops.isEmpty)
-        #expect(extraction.log.isEmpty)
-        #expect(extraction.rightNow == nil)
-    }
-
     // MARK: Consolidation
 
     @Test("The same sentence twice is one note, an ended thread goes, a fact stays")
@@ -117,65 +90,6 @@ struct WorkingNoteTests {
     /// A stand-in embedder: a note about Berlin points one way, anything else another.
     private static let embed: @Sendable (String) async throws -> [Float] = { text in
         text.lowercased().contains("berlin") ? [1, 0] : [0, 1]
-    }
-
-    @Test("Notes are written, recalled by embedding, and survive a reload")
-    func storeRoundTrip() async throws {
-        let directory = storeDirectory()
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let store = WorkingNoteStore(directory: directory, embed: Self.embed)
-
-        let added = await store.apply(WorkingNoteOps(
-            add: [
-                .init(kind: "fact", text: "Berlin conference on Oct 21"),
-                .init(kind: "thread", text: "Reading the sleep-pressure paper"),
-            ],
-            update: [], forget: []
-        ), now: now)
-        #expect(added.count == 2)
-
-        let recalled = await store.recall(query: "what do I need for Berlin?", topK: 1, now: now)
-        #expect(recalled.map(\.text) == ["Berlin conference on Oct 21"])
-        #expect(recalled.first?.recallCount == 1)
-
-        let reloaded = WorkingNoteStore(directory: directory, embed: Self.embed)
-        let all = await reloaded.allNotes()
-        #expect(all.count == 2)
-        #expect(all.first { $0.text.contains("Berlin") }?.recallCount == 1)
-        #expect(all.allSatisfy { $0.vector != nil && $0.embeddingModel == EmbeddingSettings.modelID })
-    }
-
-    @Test("A failing embedder never fails recall, and its notes are embedded later")
-    func embedderFailureIsSoft() async throws {
-        let directory = storeDirectory()
-        defer { try? FileManager.default.removeItem(at: directory) }
-        struct Down: Error {}
-        let store = WorkingNoteStore(directory: directory, embed: { _ in throw Down() })
-        await store.apply(WorkingNoteOps(add: [.init(kind: "fact", text: "Berlin on Oct 21")], update: [], forget: []), now: now)
-        let recalled = await store.recall(query: "Berlin", topK: 3, now: now)
-        #expect(recalled.count == 1)
-        #expect(await store.allNotes().first?.vector == nil)
-    }
-
-    @Test("Update rewrites a note in place and forget removes it")
-    func updateAndForget() async throws {
-        let directory = storeDirectory()
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let store = WorkingNoteStore(directory: directory, embed: Self.embed)
-        let added = await store.apply(WorkingNoteOps(add: [
-            .init(kind: "thread", text: "Reading NAD+ papers"),
-            .init(kind: "fact", text: "Berlin on Oct 21"),
-        ], update: [], forget: []), now: now)
-        let thread = try #require(added.first { $0.kind == .thread })
-        let fact = try #require(added.first { $0.kind == .fact })
-
-        await store.apply(WorkingNoteOps(
-            add: [], update: [.init(id: thread.id, text: "Finished the NAD+ papers")], forget: [fact.id]
-        ), now: now.addingTimeInterval(60))
-        let all = await store.allNotes()
-        #expect(all.map(\.text) == ["Finished the NAD+ papers"])
-        #expect(all.first?.id == thread.id)
-        #expect(all.first?.updatedAt == now.addingTimeInterval(60))
     }
 
     @Test("An unreadable file is moved aside, not overwritten")
@@ -261,54 +175,6 @@ struct WorkingNoteTests {
         let fresh = note("Wrote this on the other Mac's blind side", id: "new")
         let merged = WorkingNoteMirror.merge(local: [fresh], doc: [], exported: [], now: now)
         #expect(merged.map(\.id) == ["new"])
-    }
-
-    @Test("Syncing writes the notes out, then reads a deletion in the Doc back as forgetting")
-    func storeMirrorSync() async throws {
-        let directory = storeDirectory()
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let store = WorkingNoteStore(directory: directory, embed: Self.embed)
-        await store.apply(WorkingNoteOps(add: [
-            .init(kind: "fact", text: "Berlin on Oct 21"),
-            .init(kind: "thread", text: "Reading the sleep paper"),
-        ], update: [], forget: []), now: now)
-
-        // The Doc is empty: both notes are written out.
-        let first = await store.syncWithMirror(markdown: "", revision: "r0", now: now)
-        #expect(first.needsWrite)
-        #expect(first.markdown.contains("- fact: Berlin on Oct 21"))
-        await store.recordMirror(revision: "r1")
-
-        // The Doc at r1 is what was written: nothing more to do.
-        let steady = await store.syncWithMirror(markdown: first.markdown, revision: "r1", now: now)
-        #expect(!steady.needsWrite)
-
-        // The learner deleted the Berlin line in the editor: r2.
-        let after = await store.syncWithMirror(markdown: "- thread: Reading the sleep paper\n", revision: "r2", now: now)
-        #expect(!after.needsWrite)
-        #expect(await store.allNotes().map(\.text) == ["Reading the sleep paper"])
-    }
-
-    @Test("A note's edit and forget are the learner's, and the file keeps the mirror state across a reload")
-    func editForgetAndReload() async throws {
-        let directory = storeDirectory()
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let store = WorkingNoteStore(directory: directory, embed: Self.embed)
-        let added = await store.apply(WorkingNoteOps(add: [.init(kind: "fact", text: "Berlin on Oct 21")], update: [], forget: []), now: now)
-        let id = try #require(added.first?.id)
-        await store.edit(id: id, text: "Berlin on Oct 22", kind: .outcome, now: now.addingTimeInterval(5))
-        let edited = try #require(await store.allNotes().first)
-        #expect(edited.text == "Berlin on Oct 22")
-        #expect(edited.kind == .outcome)
-        #expect(edited.updatedAt == now.addingTimeInterval(5))
-        await store.recordMirror(revision: "r9")
-
-        let reloaded = WorkingNoteStore(directory: directory, embed: Self.embed)
-        let sync = await reloaded.syncWithMirror(markdown: WorkingNoteMirror.render(await reloaded.allNotes()), revision: "r9", now: now)
-        #expect(!sync.needsWrite, "the reloaded file remembers the revision it last saw")
-
-        #expect(await reloaded.forget(id: id))
-        #expect(await reloaded.allNotes().isEmpty)
     }
 
     // MARK: MCP

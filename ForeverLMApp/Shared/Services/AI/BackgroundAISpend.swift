@@ -42,7 +42,6 @@ extension AITask {
              .sourceDiscovery,
              .notebookNotesMerge,
              .cohortSessionPlan,
-             .cohortSessionClose,
              .courseCurriculumPlan,
              .courseLessonWriting,
              .explainerWriting,
@@ -114,10 +113,7 @@ extension AITask {
              // both, and only the background runs pause at the cap
              // (`CardDraftingSpendGate`).
              .cardDrafting,
-             // Rewords a card at the day close once it is remembered twice.
-             .cardVariation,
-             // Checks the wording of every card drafted or reworded, and of
-             // the cards kept before the check, at the day close.
+             // Checks the wording of every card drafted or saved.
              .cardWordingCheck,
              // Runs on its own when a notebook made without a name first
              // holds something, like a chat's title but outside the chat.
@@ -180,7 +176,7 @@ extension AITask {
         switch self {
         case .chat, .reviewGrading, .mobileReview, .mobileVoiceAgent,
              .deepResearch, .sourceDiscovery, .notebookNotesMerge, .cohortSessionPlan,
-             .cohortSessionClose, .courseCurriculumPlan, .courseLessonWriting, .explainerWriting,
+             .courseCurriculumPlan, .courseLessonWriting, .explainerWriting,
              .audioOverviewWriting, .reportWriting, .mnemonicReadingWriting, .walkthroughWriting,
              .walkthroughAnimation, .lectureQuizWriting, .courseQuizWriting,
              .courseTextbookReadings, .canvasAsk, .canvasVoice, .atlasWriting, .sourceLevels, .cardGoDeeper,
@@ -210,7 +206,7 @@ extension AITask {
              .transcriptFormatting, .podcastSpeakerIdentification, .podcastYouTubeMatching,
              .journalArticleMatching, .paperNarrationPreparation, .paperTextToSpeechPreparation,
              .automaticAudioFiltering, .meetingActionItems, .sourceIdeaExtraction, .cardDrafting,
-             .cardVariation, .notebookNaming, .mapSummaries:
+             .notebookNaming, .mapSummaries:
             return .optional
         }
     }

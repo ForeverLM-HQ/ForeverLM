@@ -70,16 +70,11 @@ enum AITask: String, CaseIterable, Codable, Identifiable, Sendable {
     /// says so.
     case courseLectureNaming = "course_lecture_naming"
     case cohortSessionPlan = "cohort_session_plan"
-    case cohortSessionClose = "cohort_session_close"
     case sourceIdeaExtraction = "source_idea_extraction"
     /// Drafts Memory cards from a source — its whole text, and the questions,
     /// highlights and ideas already made of it — for the learner to keep,
     /// edit or skip in Memory's To Check (docs/memory-design.md, "Drafting").
     case cardDrafting = "card_drafting"
-    /// Rewords a kept card that has been remembered twice, asking for the
-    /// same answer from another angle, and judges each rewording before it
-    /// joins the card's rotation (docs/memory-design.md, "Variations").
-    case cardVariation = "card_variation"
     /// Go Deeper in the card review: a question that goes past a card the
     /// learner just remembered — the principle behind it, where else it
     /// applies, what would prove it wrong, or what it is like — and a short

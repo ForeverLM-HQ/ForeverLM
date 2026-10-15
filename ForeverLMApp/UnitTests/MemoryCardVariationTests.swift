@@ -79,60 +79,6 @@ struct MemoryCardVariationTests {
 
     // MARK: The code's checks
 
-    @Test("A rewording is kept only on one line, no longer than 1.3 times the question, new, and without the answer in it; three at most")
-    func codeChecks() {
-        let limit = Int((Double(front.count) * 1.3).rounded(.down))
-        let tooLong = "Which gradient across which membrane links respiration with the making of ATP in the cell?"
-        #expect(tooLong.count > limit)
-        let kept = MemoryCardVariation.acceptable([
-            "  \(firstVariant)  ",
-            front,
-            "what COUPLES respiration, to ATP synthesis",
-            "A question on\ntwo lines?",
-            tooLong,
-            "What does a proton gradient across the inner membrane do?",
-            "",
-            firstVariant,
-            secondVariant,
-            "What is the link between respiration and ATP made?",
-            "One more that would make four?",
-        ], wording: front, back: back)
-        #expect(kept == [firstVariant, secondVariant, "What is the link between respiration and ATP made?"])
-
-        // A one-word answer may be named in a fair question: the judge rules.
-        let named = MemoryCardVariation.acceptable(
-            ["Is it four or two protons that complex I pumps per NADH?"],
-            wording: "How many protons does complex I pump for each NADH?",
-            back: "Four."
-        )
-        #expect(named.count == 1)
-        #expect(MemoryCardVariation.compared("What's  the ATP/ADP ratio?") == "what s the atp adp ratio")
-    }
-
-    @Test("A card is reworded once it has been remembered twice, never while it is asked as kept or has been reworded, and an item from before cards only once it is gone through")
-    func needsVariants() throws {
-        let (card, item) = try keptCard()
-        let twice = [graded("a", on: item.id, onDay: 1), graded("b", on: item.id, onDay: 3)]
-        let once = [graded("a", on: item.id, onDay: 1), graded("b", on: item.id, rating: .again, onDay: 3)]
-        #expect(MemoryCardVariation.successes(twice) == 2)
-        #expect(MemoryCardVariation.successes(once) == 1)
-        #expect(MemoryCardVariation.needsVariants(item: item, face: card, state: nil, attempts: twice))
-        #expect(MemoryCardVariation.needsVariants(item: item, face: card, state: row(), attempts: twice))
-        #expect(!MemoryCardVariation.needsVariants(item: item, face: card, state: row(), attempts: once))
-        #expect(!MemoryCardVariation.needsVariants(item: item, face: card, state: row(alwaysAsk: true), attempts: twice))
-        #expect(!MemoryCardVariation.needsVariants(item: item, face: card, state: row(variedAt: keptAt), attempts: twice), "reworded, and billed, once")
-        #expect(!MemoryCardVariation.needsVariants(item: item, face: card, state: row(variants: [firstVariant]), attempts: twice))
-        let retired = MemoryItem(
-            id: item.id, kind: item.kind, target: item.target, rubricJSON: item.rubricJSON,
-            status: .retired, sources: item.sources, createdAt: item.createdAt, updatedAt: item.updatedAt
-        )
-        #expect(!MemoryCardVariation.needsVariants(item: retired, face: card, state: row(), attempts: twice))
-
-        let legacy = MemoryCard(cardID: "legacy-1", front: "What is an uncoupler?", back: "A leak.", origin: .legacy)
-        #expect(!MemoryCardVariation.needsVariants(item: item, face: legacy, state: nil, attempts: twice), "it waits in To Check first")
-        #expect(MemoryCardVariation.needsVariants(item: item, face: legacy, state: MemoryCardState(status: .kept, updatedAt: keptAt), attempts: twice))
-    }
-
     // MARK: Retiring
 
     @Test("A rewording the learner said asks something else is retired, by its words or its place, and one missed more often than the card's own words over three uses retires itself")
@@ -215,28 +161,6 @@ struct MemoryCardVariationTests {
     }
 
     // MARK: The turns
-
-    @Test("The cards due their rewordings are read in the order they were kept, in the wording asked now")
-    func dueVariants() throws {
-        let (card, item) = try keptCard()
-        let (later, laterItem) = try keptCard("card-b", front: "What does complex IV reduce?", back: "Oxygen, to water.")
-        let laterKept = MemoryItem(
-            id: laterItem.id, kind: laterItem.kind, target: laterItem.target, rubricJSON: laterItem.rubricJSON,
-            sources: laterItem.sources, createdAt: keptAt.addingTimeInterval(60), updatedAt: keptAt.addingTimeInterval(60)
-        )
-        let attempts = [
-            graded("a1", on: item.id, onDay: 1), graded("a2", on: item.id, onDay: 3),
-            graded("b1", on: laterItem.id, prompt: later.front, onDay: 1), graded("b2", on: laterItem.id, prompt: later.front, onDay: 3),
-        ]
-        let due = CardVariationCandidate.dueVariants(items: [laterKept, item], attempts: attempts) { cardID, deckID in
-            #expect(deckID == "carddeck-src-1")
-            return cardID == card.cardID ? row(editedFront: "My own question?") : nil
-        }
-        #expect(due.map(\.cardID) == [card.cardID, later.cardID])
-        #expect(due.first?.wording == "My own question?")
-        #expect(due.first?.quote == quote)
-        #expect(due.first?.sourceID == "src-1")
-    }
 
     // MARK: The row
 

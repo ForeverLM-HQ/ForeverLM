@@ -36,7 +36,7 @@ public struct AITaskSettingsDescriptor: Codable, Equatable, Sendable {
 /// IDs are durable `AITask` raw values. The array order is presentation order,
 /// so clients should filter this list rather than sorting their own copies.
 public enum AITaskSettingsCatalog {
-    public static let version = 40
+    public static let version = 41
 
     public static let tasks: [AITaskSettingsDescriptor] = [
         task(
@@ -282,11 +282,6 @@ public enum AITaskSettingsCatalog {
             "Choose what today's review should cover across this week's sources and older material due again"
         ),
         task(
-            "cohort_session_close",
-            "Review Session Close",
-            "Rewrite what you understand about each source discussed, and summarize the session"
-        ),
-        task(
             "source_idea_extraction",
             "Idea Extraction",
             "Extract the handful of ideas a source asks to be remembered, once, when you have taken it in"
@@ -295,11 +290,6 @@ public enum AITaskSettingsCatalog {
             "card_drafting",
             "Card Drafting",
             "Draft Memory cards from a source's text and the questions, highlights and ideas made of it, for you to keep, edit or skip"
-        ),
-        task(
-            "card_variation",
-            "Card Variation",
-            "Reword a card you have remembered twice so it asks for the same answer from another angle, and check each rewording"
         ),
         // Asked by the learner's Go Deeper on a card, and waited for: the
         // chat's model, not background work.
