@@ -281,4 +281,12 @@ struct ChatOpenPanesLeftOutTests {
         #expect(parsed.onScreen.first?.moment?.said == "words")
         #expect(parsed.remainder == "quoted")
     }
+
+    @Test("The card chip's × leaves the card out of what the chat is told, by its id")
+    func cardCanBeLeftOut() {
+        let kept = Self.cardBesideChat.leavingOut([Self.card.id])
+        #expect(kept.cardOnScreenInChatsWindow == nil)
+        #expect(!kept.text.contains("card-1"))
+        #expect(Self.cardBesideChat.leavingOut(["src-other"]).cardOnScreenInChatsWindow == Self.card)
+    }
 }

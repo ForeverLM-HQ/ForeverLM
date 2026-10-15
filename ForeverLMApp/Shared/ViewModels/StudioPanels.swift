@@ -662,9 +662,9 @@ final class StudioWindowState: Identifiable {
     /// the learner, registered by the pane while it is mounted and cleared
     /// when it goes. Every message sent from a chat beside it carries the
     /// card (`ChatContextAdditions.cardFraming`) and `list_open_panes` says
-    /// it. Not observed: it follows every card dealt and no view renders
-    /// from it. Presentation, so not in `Snapshot`.
-    @ObservationIgnored var memoryCardOnScreen: ChatContextAdditions.CardOnScreen?
+    /// it. Observed, for the chip over the chat's composer that shows it;
+    /// it changes once per card dealt. Presentation, so not in `Snapshot`.
+    var memoryCardOnScreen: ChatContextAdditions.CardOnScreen?
     /// Where each video Reader on screen stands — the playhead, and whether
     /// the player is playing — keyed by source id, registered by the Reader
     /// while it is mounted. Every message sent beside it carries the moment

@@ -945,7 +945,7 @@ private struct InternalReviewPanelContent: View {
         // A source left out of this chat with its chip's × is left out while
         // it stays open; once it leaves the window, opening it again is
         // asking about it again, so the chat sees it and its chip is back.
-        .onChange(of: sourcesOnScreenBesideChat.map(\.id), initial: true) { _, ids in
+        .onChange(of: sourcesOnScreenBesideChat.map(\.id) + [cardOnScreenBesideChat?.id].compactMap { $0 }, initial: true) { _, ids in
             manager.keepOnScreenSourcesLeftOut(within: Set(ids))
         }
         // An empty chat in a window that holds a notebook is that notebook's:
@@ -4585,6 +4585,9 @@ private struct InternalReviewPanelContent: View {
                     notebookChip
                 }
                 onScreenChips(chips.onScreen)
+                if let card = chips.card {
+                    onScreenCardChip(card)
+                }
                 if chips.context {
                     attachedSourcesChip
                 }
@@ -4597,12 +4600,13 @@ private struct InternalReviewPanelContent: View {
     /// own window, the "in context" pill when something is (in the notebook's
     /// window only for an attached Page), the canvas's, and one for each
     /// source open beside the chat.
-    private var composerContextChips: (notebook: Bool, context: Bool, onScreen: [ChatContextAdditions.OnScreen], showsAny: Bool) {
+    private var composerContextChips: (notebook: Bool, context: Bool, onScreen: [ChatContextAdditions.OnScreen], card: ChatContextAdditions.CardOnScreen?, showsAny: Bool) {
         let inOwnNotebookWindow = notebookGuideNotebook != nil
         let notebook = linkedResearchNotebook != nil && !inOwnNotebookWindow
         let context = contextItemCount > 0 && (!inOwnNotebookWindow || !manager.contextDocs.isEmpty)
         let onScreen = onScreenChipSources
-        return (notebook, context, onScreen, notebook || context || !onScreen.isEmpty || manager.canvasContext != nil)
+        let card = onScreenCardChipCard
+        return (notebook, context, onScreen, card, notebook || context || !onScreen.isEmpty || card != nil || manager.canvasContext != nil)
     }
 
     /// The library sources on screen in this chat's window, read as a
@@ -4621,6 +4625,41 @@ private struct InternalReviewPanelContent: View {
         let leftOut = manager.onScreenSourcesLeftOut
         let loaded = manager.loadedSourceIDs
         return sourcesOnScreenBesideChat.filter { !leftOut.contains($0.id) && !loaded.contains($0.id) }
+    }
+
+    /// The flashcard the Memory pane beside the chat has in front of the
+    /// learner, read as a message sent now reads it.
+    private var cardOnScreenBesideChat: ChatContextAdditions.CardOnScreen? {
+        guard let windowState else { return nil }
+        return ChatOpenPanes.cardOnScreen(in: windowState, vm: vm)
+    }
+
+    /// The open card the tray gives a chip: less what the learner left out
+    /// with its ×.
+    private var onScreenCardChipCard: ChatContextAdditions.CardOnScreen? {
+        guard let card = cardOnScreenBesideChat,
+              !manager.onScreenSourcesLeftOut.contains(card.id) else { return nil }
+        return card
+    }
+
+    /// The card open in the Memory pane beside the chat as a chip, like an
+    /// open source's (product owner, 2026-10-15: "whatever is open on the
+    /// right is actually automatically in the chat context"): the chat is
+    /// told of the card with every message (`ChatContextAdditions.cardFraming`),
+    /// and the × leaves it out for as long as it stays in front.
+    @ViewBuilder
+    private func onScreenCardChip(_ card: ChatContextAdditions.CardOnScreen) -> some View {
+        ComposerRemovableChip(
+            symbol: "rectangle.on.rectangle",
+            title: card.question,
+            maxTitleWidth: 220,
+            help: "Open beside this chat, so the chat sees it",
+            removeHelp: "Leave this card out of this chat while it is open",
+            accessibilityLabel: "Open beside the chat: card \u{201C}\(card.question)\u{201D}",
+            open: nil,
+            remove: { manager.leaveOutOnScreenSource(card.id) }
+        )
+        .accessibilityIdentifier("chat.onScreenCardChip")
     }
 
     /// A chip for each source open beside the chat (product owner,

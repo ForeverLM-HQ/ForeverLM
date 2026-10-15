@@ -32,6 +32,15 @@ extension ChatOpenPanes {
             .sourcesOnScreenInChatsWindow
     }
 
+    /// The flashcard the Memory pane in `state` has in front of the learner,
+    /// read the way a message sent from a chat there reads it: what the chip
+    /// over that chat's composer shows.
+    @MainActor
+    static func cardOnScreen(in state: StudioWindowState, vm: StudioViewModel) -> ChatContextAdditions.CardOnScreen? {
+        ChatOpenPanes(windows: [window(state, isChatsWindow: true, chatSessionID: nil, vm: vm)])
+            .cardOnScreenInChatsWindow
+    }
+
     @MainActor
     private static func window(
         _ state: StudioWindowState,

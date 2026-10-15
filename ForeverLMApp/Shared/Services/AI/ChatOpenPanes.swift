@@ -156,17 +156,21 @@ struct ChatOpenPanes: Equatable {
         return nil
     }
 
-    /// The windows with these sources taken out, wherever they are shown:
-    /// what a chat is told once the learner has left them out of it with the
-    /// × on their chip over its composer. A Reader showing only a left-out
+    /// The windows with these sources (and the card, by its id) taken out,
+    /// wherever they are shown: what a chat is told once the learner has left
+    /// them out of it with the × on their chip over its composer. A Reader showing only a left-out
     /// source reads as an empty Reader, and a left-out video's playhead goes
     /// with it, so typing beside it no longer pauses it.
     func leavingOut(_ sourceIDs: Set<String>) -> ChatOpenPanes {
         guard !sourceIDs.isEmpty else { return self }
         func kept(_ contents: [Content]) -> [Content] {
             contents.filter { content in
-                guard case let .source(id, _, _, _) = content else { return true }
-                return !sourceIDs.contains(id)
+                switch content {
+                case let .source(id, _, _, _): return !sourceIDs.contains(id)
+                // The card chip's × is left out the same way, by the card's id.
+                case let .card(card): return !sourceIDs.contains(card.id)
+                default: return true
+                }
             }
         }
         return ChatOpenPanes(windows: windows.map { window in
