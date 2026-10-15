@@ -257,6 +257,26 @@ struct CardWordingGateTests {
         #expect(try await storage.loadMemoryItem(pointingItem.id)?.status == .active)
     }
 
+    @Test("A repair finished under version 1 is ignored: version 2 records a new cutoff and reads every kept card again")
+    func versionOneProgressIsIgnored() async throws {
+        let (storage, _, _, cleanup) = try await Self.storageWithCards()
+        defer { cleanup() }
+        let memory = Memory()
+        let old = try JSONDecoder().decode(CardWordingRepairProgress.self, from: Data(
+            #"{"version":1,"cutoff":0,"finishedAt":1}"#.utf8
+        ))
+        memory.setProgress(old)
+        let wording = CannedCardWording(pointing: []) { _ in nil }
+        let now = Self.keptAt.addingTimeInterval(10 * 86_400)
+
+        let report = await Self.repair(storage, wording, memory).run(now: now)
+        #expect(CardWordingRepairProgress.currentVersion == 2)
+        #expect(report.checked == 2, "every kept card is read again")
+        #expect(report.finished)
+        #expect(memory.progress?.version == 2)
+        #expect(memory.progress?.cutoff == now)
+    }
+
     @Test("The cursor covers the cards kept before the cutoff, after the last one checked")
     func cursor() {
         let cutoff = Self.keptAt.addingTimeInterval(100)
