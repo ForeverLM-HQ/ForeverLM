@@ -748,29 +748,20 @@ struct MemoryCardEditorSheet: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Edit Card")
-                .font(.title3.weight(.semibold))
-            field("Front", text: $front)
-            field("Back", text: $back)
-            field("Why", text: $why)
-            HStack {
-                Spacer()
-                Button("Cancel", action: cancel)
-                    .keyboardShortcut(.cancelAction)
-                Button("Save") {
-                    if startsOver {
-                        confirmingStartOver = true
-                    } else {
-                        save(edit)
-                    }
-                }
-                .keyboardShortcut(.defaultAction)
-                .disabled(edit.front.isEmpty || edit.back.isEmpty)
+        MemoryCardEditorForm(
+            front: $front,
+            back: $back,
+            why: $why,
+            primaryTitle: "Save",
+            canSave: !edit.front.isEmpty && !edit.back.isEmpty,
+            cancel: cancel
+        ) {
+            if startsOver {
+                confirmingStartOver = true
+            } else {
+                save(edit)
             }
         }
-        .padding(20)
-        .frame(width: 460)
         .alert("Start this card over?", isPresented: $confirmingStartOver) {
             Button("Start Over") { save(edit) }
             Button("Cancel", role: .cancel) {}
@@ -778,22 +769,6 @@ struct MemoryCardEditorSheet: View {
             Text("A new answer makes a new card, first asked tomorrow. Its answers so far stay with the old one.")
         }
         .accessibilityIdentifier("memory.pane.editor")
-    }
-
-    private func field(_ title: String, text: Binding<String>) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .textSelection(.disabled)
-            TextEditor(text: text)
-                .font(.body)
-                .frame(minHeight: 54, maxHeight: 120)
-                .scrollContentBackground(.hidden)
-                .padding(6)
-                .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
-                .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color.primary.opacity(0.12)))
-        }
     }
 }
 

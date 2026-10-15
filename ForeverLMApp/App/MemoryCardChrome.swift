@@ -108,3 +108,118 @@ struct MemoryReviewButton: View {
         .textSelection(.disabled)
     }
 }
+
+// MARK: - Editing a card
+
+/// A card being edited, drawn as the card it is: the question in the review's
+/// serif, the fold, the answer, WHY, each a quiet field you type straight into
+/// (a soft wash under the one with the keys), then Cancel and one dark pill.
+/// The triage sheet and a kept card's sheet share it, so both read as the card
+/// they change rather than a form about it.
+struct MemoryCardEditorForm: View {
+    @Binding var front: String
+    @Binding var back: String
+    @Binding var why: String
+    /// What the pill says: Keep for a draft, Save for a kept card.
+    let primaryTitle: String
+    let canSave: Bool
+    let cancel: () -> Void
+    let save: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            MemoryCardTagLine(tags: ["Edit card"])
+                .padding(.bottom, 12)
+            MemoryCardEditorField(
+                text: $front, prompt: "The question", font: MemoryCardMetrics.frontFont, label: "Front",
+                identifier: "memory.card.editor.front"
+            )
+            MemoryCardFold()
+                .padding(.vertical, 12)
+            MemoryCardEditorField(
+                text: $back, prompt: "The answer", font: MemoryCardMetrics.backFont, label: "Back",
+                identifier: "memory.card.editor.back"
+            )
+            HStack(alignment: .top, spacing: 8) {
+                Text("WHY")
+                    .font(MemoryCardMetrics.whyLabelFont)
+                    .tracking(0.8)
+                    .foregroundStyle(MemoryCardMetrics.smallWordsStyle)
+                    .padding(.top, 11)
+                    .accessibilityHidden(true)
+                MemoryCardEditorField(
+                    text: $why, prompt: "Why the answer holds", font: .callout, label: "Why",
+                    identifier: "memory.card.editor.why"
+                )
+                .foregroundStyle(.secondary)
+            }
+            .padding(.top, 4)
+            HStack(spacing: 8) {
+                Spacer()
+                MemoryReviewButton(title: "Cancel", kind: .quiet, shortcut: .cancelAction, action: cancel)
+                MemoryReviewButton(title: primaryTitle, kind: .primary, minWidth: 96, shortcut: .defaultAction, action: save)
+                    .disabled(!canSave)
+            }
+            .padding(.top, 24)
+        }
+        .textSelection(.disabled)
+        .padding(.horizontal, 34)
+        .padding(.top, 28)
+        .padding(.bottom, 24)
+        .frame(width: 560)
+    }
+}
+
+/// One of the card's lines to type into: no box, the text of the card in the
+/// card's own type. It grows with what is typed (a hidden copy of the text
+/// sets its height under the editor), and a wash appears under the pointer
+/// and under the line that has the keys.
+private struct MemoryCardEditorField: View {
+    @Binding var text: String
+    let prompt: String
+    let font: Font
+    let label: String
+    let identifier: String
+
+    @FocusState private var focused: Bool
+    @State private var hovering = false
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            // The height of the editor: the text, laid out the same way.
+            Text(text.isEmpty || text.hasSuffix("\n") ? text + " " : text)
+                .font(font)
+                .lineSpacing(2)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 6)
+                .opacity(0)
+                .accessibilityHidden(true)
+            TextEditor(text: $text)
+                .font(font)
+                .lineSpacing(2)
+                .scrollContentBackground(.hidden)
+                .scrollDisabled(true)
+                .focused($focused)
+                .accessibilityLabel(label)
+                .accessibilityIdentifier(identifier)
+            if text.isEmpty {
+                Text(prompt)
+                    .font(font)
+                    .foregroundStyle(.tertiary)
+                    .padding(.leading, 5)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.primary.opacity(focused ? 0.05 : hovering ? 0.03 : 0))
+        )
+        // The editor's own inset and the wash's reach come out of the margin,
+        // so the text stands where the card's text does.
+        .padding(.horizontal, -11)
+        .onHover { hovering = $0 }
+    }
+}
