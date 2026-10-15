@@ -88,6 +88,12 @@ enum ChatContextAdditions {
         /// Whether the learner had turned the card over, so the tutor does not
         /// give away an answer the card is still asking for.
         var answerShown: Bool
+        /// The pictures on the card's question and answer as Markdown image
+        /// lines, so a chat that adds one sends the whole list `update_card`
+        /// replaces. Nil when the card shows none, which leaves a stored
+        /// message's bytes as they were.
+        var frontImages: [String]?
+        var backImages: [String]?
 
         init(
             id: String,
@@ -97,7 +103,9 @@ enum ChatContextAdditions {
             sourceID: String? = nil,
             sourceTitle: String? = nil,
             place: String,
-            answerShown: Bool
+            answerShown: Bool,
+            frontImages: [String]? = nil,
+            backImages: [String]? = nil
         ) {
             self.id = id
             self.question = question
@@ -107,6 +115,8 @@ enum ChatContextAdditions {
             self.sourceTitle = sourceTitle
             self.place = place
             self.answerShown = answerShown
+            self.frontImages = frontImages?.isEmpty == false ? frontImages : nil
+            self.backImages = backImages?.isEmpty == false ? backImages : nil
         }
     }
 
@@ -346,6 +356,9 @@ enum ChatContextAdditions {
         if let title = card.sourceTitle.map(clean), !title.isEmpty {
             lines.append("From the source \u{201C}\(title)\u{201D}" + (card.sourceID.map { " (source_id: \($0))" } ?? "") + ".")
         }
+        if let images = card.frontImages { lines.append("Pictures on the question: " + images.joined(separator: " ")) }
+        if let images = card.backImages { lines.append("Pictures on the answer: " + images.joined(separator: " ")) }
+        lines.append("To put a picture on this card (\"add it to the card\"), call update_card with this card_id and back_images (or front_images), the whole list the face should show: the lines above that stay, then the Markdown image line show_source_image, inspect_paper_figure or generate_image returned for the new one. The card is still to check, so this decides nothing: the picture is held with the card, and the learner's Keep carries it.")
         lines.append(card.answerShown
             ? "The learner had turned the card over, so the answer was on screen."
             : "The learner had not turned the card over yet: the card was still asking its question, so do not hand over the answer unless they ask for it.")

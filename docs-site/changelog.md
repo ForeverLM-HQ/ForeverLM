@@ -6,6 +6,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **Add a picture to the card you are checking.** Ask the chat beside To Check to add a figure it showed ("can you add it to the card?") and the picture goes on the card in front of you. It waits with the card: Keep carries it, Skip drops it. Assistants do it with `update_card` and `back_images` (or `front_images`) on a card still to check.
 ## 0.155.0 (build 235) — 2026-10-15
 
 **Highlights:**

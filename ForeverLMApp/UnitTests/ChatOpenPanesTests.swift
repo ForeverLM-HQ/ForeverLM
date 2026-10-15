@@ -266,6 +266,20 @@ struct ChatOpenPanesLeftOutTests {
         #expect(ChatContextAdditions.cardFraming(nil) == nil)
     }
 
+    @Test("The card's pictures ride with it, and the framing says how to add one")
+    func cardCarriesItsPictures() throws {
+        var pictured = Self.card
+        pictured.backImages = ["![Figure 1](foreverlm://source-image/src-aging/p1)"]
+        let stored = try #require(ChatContextAdditions.contextContent(nil, onScreen: [], card: pictured))
+        #expect(ChatContextAdditions.parse(contextContent: stored).card == pictured)
+        let framing = try #require(ChatContextAdditions.cardFraming(pictured))
+        #expect(framing.contains("Pictures on the answer: ![Figure 1](foreverlm://source-image/src-aging/p1)"))
+        #expect(!framing.contains("Pictures on the question"))
+        #expect(framing.contains("update_card with this card_id and back_images"))
+        #expect(ChatContextAdditions.CardOnScreen(id: "c", question: "q", answer: "a", place: "p", answerShown: false, backImages: []).backImages == nil,
+                "no pictures is left out of the mark, so a stored message keeps its bytes")
+    }
+
     @Test("Filling in a video's moment keeps the card in the mark")
     func completingMomentsKeepsTheCard() throws {
         let video = ChatContextAdditions.OnScreen(

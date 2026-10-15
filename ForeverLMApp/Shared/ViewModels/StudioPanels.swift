@@ -665,6 +665,18 @@ final class StudioWindowState: Identifiable {
     /// it. Observed, for the chip over the chat's composer that shows it;
     /// it changes once per card dealt. Presentation, so not in `Snapshot`.
     var memoryCardOnScreen: ChatContextAdditions.CardOnScreen?
+    /// Pictures put on a card to check from outside the pane, by card id: the
+    /// chat beside it, through `update_card`, on the learner's word ("can you
+    /// add it to the card?"). Like a drawn picture they are held with the card
+    /// until it is decided: a Keep carries them, a Skip drops them, and nothing
+    /// is written before. Presentation, so not in `Snapshot`.
+    var memoryCardPictures: [String: MemoryCardPictures] = [:]
+
+    /// The pictures held for one card: a nil face keeps the card's own.
+    struct MemoryCardPictures: Equatable {
+        var front: [MemoryCardImage]?
+        var back: [MemoryCardImage]?
+    }
     /// Where each video Reader on screen stands — the playhead, and whether
     /// the player is playing — keyed by source id, registered by the Reader
     /// while it is mounted. Every message sent beside it carries the moment

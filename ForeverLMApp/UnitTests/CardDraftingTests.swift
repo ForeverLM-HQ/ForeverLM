@@ -1243,6 +1243,24 @@ struct ChatSavedCardsTests {
         ) == "3 cards · 1 to check · 1 kept · 1 skipped")
     }
 
+    @Test("A card to check takes pictures put on it, replaced per face, drawn one not twice")
+    func cardToCheckTakesHeldPictures() throws {
+        let figure = try #require(MemoryCardImage(reference: "![Figure 1](foreverlm://source-image/src-1/p1)"))
+        let drawn = try #require(MemoryCardImage(reference: "![Drawn](foreverlm://source-image/src-1/p2)"))
+        let card = MemoryCardToCheck(
+            kind: .draft, face: MemoryCard(cardID: "a", front: "Q?", back: "A.", origin: .assistant, backImages: [drawn]),
+            deckID: "carddeck-src-1", sourceID: "src-1", quote: "q", seed: nil, ideaID: nil,
+            draftedAt: Date(), isRequested: true, memoryItemID: nil
+        )
+        let held = card.replacingImages(back: [drawn, figure])
+        #expect(held.face.backImages == [drawn, figure])
+        #expect(held.face.frontImages.isEmpty, "a face left nil keeps its own pictures")
+        #expect(held.face.front == "Q?" && held.face.back == "A." && held.sourceID == "src-1" && held.quote == "q")
+        #expect(held.addingBackImage(drawn).face.backImages == [drawn, figure], "a picture the card shows is not added twice")
+        #expect(card.replacingImages(back: []).face.backImages.isEmpty, "[] takes the pictures off")
+        #expect(card.replacingImages(front: [figure]).face.backImages == [drawn])
+    }
+
     @Test("Storage reads each saved card's face and where it stands: to check, kept, skipped; a card no deck holds is left out")
     func storageReadsWhereEachStands() async throws {
         let (storage, defaults, cleanup) = try await makeStorage()

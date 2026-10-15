@@ -11,8 +11,8 @@ import SwiftUI
 /// process just shows cards that i go through … and then i can say keep /
 /// edit etc"): over the card, the source it is from, which opens it, its
 /// place ("3 of 15") and the strip of the cards gone through; the card drawn
-/// as Review draws one — the deck's paper, its difficulty, the front in the
-/// review's serif — with the edges of the cards still to come under it.
+/// as Review draws one — the deck's paper, the front in the review's
+/// serif — with the edges of the cards still to come under it.
 ///
 /// A card is asked before it is judged (product owner, 2026-10-15: "even for
 /// 'to check' cards i should still be quizzed on them; not just see the
@@ -91,9 +91,15 @@ struct MemoryCardsToCheckView: View {
     private static let columnMaxWidth: CGFloat = 600
     private static let dealAnimation = Animation.spring(response: 0.38, dampingFraction: 0.86)
 
+    /// The cards waiting, each with the pictures put on it since it was dealt:
+    /// those a chat beside the pane added (`update_card`), then the one drawn.
     private var visible: [MemoryCardToCheck] {
         cards.filter { !decided.contains($0.cardID) }.map { card in
-            drawn[card.cardID].map { card.addingBackImage($0) } ?? card
+            var card = card
+            if let held = windowState?.memoryCardPictures[card.cardID] {
+                card = card.replacingImages(front: held.front, back: held.back)
+            }
+            return drawn[card.cardID].map { card.addingBackImage($0) } ?? card
         }
     }
 
@@ -656,6 +662,9 @@ struct MemoryCardsToCheckView: View {
         Task {
             let result = await vm.triageCardsToCheck(decisions)
             let failed = Set(result.failed.map(\.cardID))
+            // What was held for a decided card goes with it; a card storage
+            // refused comes back with its pictures.
+            for id in ids.subtracting(failed) { windowState?.memoryCardPictures[id] = nil }
             guard !failed.isEmpty else { return }
             decided.subtract(failed)
             gone.removeAll { failed.contains($0.cardID) }
@@ -729,7 +738,9 @@ struct MemoryCardsToCheckView: View {
             sourceID: canonical,
             sourceTitle: title?.isEmpty == false ? title : nil,
             place: "\(MemoryPaneSection.toCheck.title), \(gone.count + 1) of \(gone.count + visible.count)",
-            answerShown: opened(card) != nil
+            answerShown: opened(card) != nil,
+            frontImages: card.face.frontImages.map(\.markdown),
+            backImages: card.face.backImages.map(\.markdown)
         )
     }
 
@@ -743,8 +754,8 @@ struct MemoryCardsToCheckView: View {
 
 // MARK: - A card to check
 
-/// One card to check, drawn as Review draws a card: the deck's paper, its
-/// difficulty (or that it is from before cards), the front in the review's
+/// One card to check, drawn as Review draws a card: the deck's paper, that
+/// it is from before cards when it is, the front in the review's
 /// serif and its pictures. Until the learner answers, the field for the
 /// answer is all that is under the front; once they have (or said they do
 /// not know), the learner's answer, the fold, the back, why it holds and
@@ -777,7 +788,7 @@ private struct MemoryCardToCheckFace: View {
     }
 
     private var tags: [String] {
-        [card.face.difficulty?.rawValue, card.kind == .legacy ? "From before cards" : nil].compactMap { $0 }
+        card.kind == .legacy ? ["From before cards"] : []
     }
 
     var body: some View {

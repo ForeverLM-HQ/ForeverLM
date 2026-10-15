@@ -990,7 +990,32 @@ extension MCPDataStore {
 
         await MemoryCardStateStore.loaded(defaults: cardStateDefaults)
         let store = try knowledgeStore()
-        let (item, attempts, face) = try keptCard(cardID: cardID, itemID: itemID, store: store)
+        let kept: (item: MemoryItem, attempts: [MemoryAttempt], face: MemoryCard)
+        do {
+            kept = try keptCard(cardID: cardID, itemID: itemID, store: store)
+        } catch MCPError.notFound(let message) {
+            // Not a kept card: the card to check in front of the learner may
+            // be the one meant, and pictures are all that can be put on it.
+            if hasFrontImages || hasBackImages, let cardID = Self.trimmedOrNil(cardID), itemID == nil {
+                guard front == nil, back == nil, why == nil, !startOverAsked, alwaysAsk == nil, !retire else {
+                    throw MCPError.invalidInput("Nothing was changed. \(cardID) is still to check, and only its pictures can be changed here: front_images or back_images. Its words are kept, edited or skipped with triage_cards, on the learner's word.")
+                }
+                let frontImages = hasFrontImages ? try Self.cardImages(rawFrontImages, cardIndex: 0, field: "front_images", store: store) : nil
+                let backImages = hasBackImages ? try Self.cardImages(rawBackImages, cardIndex: 0, field: "back_images", store: store) : nil
+                if await Self.holdPicturesOnCardToCheck(cardID: cardID, front: frontImages, back: backImages) {
+                    var faces: [String] = []
+                    if frontImages != nil { faces.append("the question") }
+                    if backImages != nil { faces.append("the answer") }
+                    return try jsonString([
+                        "card_id": cardID,
+                        "held": true,
+                        "message": "The card is still to check, so nothing was written: its pictures on \(faces.joined(separator: " and ")) are held with it in the pane, and the learner's Keep carries them (Skip drops them).",
+                    ] as [String: Any])
+                }
+            }
+            throw MCPError.notFound(message)
+        }
+        let (item, attempts, face) = kept
         let frontImages = hasFrontImages
             ? try Self.cardImages(rawFrontImages, cardIndex: 0, field: "front_images", store: store)
             : nil
@@ -1115,5 +1140,33 @@ extension MCPDataStore {
             payload["ask"] = newFace.front
         }
         return try jsonString(payload)
+    }
+}
+
+// MARK: - Pictures on the card to check in front of the learner
+
+extension MCPDataStore {
+    /// Puts pictures on the card to check that a Memory pane shows in front of
+    /// the learner, as the chat beside it was asked to ("can you add it to the
+    /// card?"). The card is not decided, so nothing is written: the pictures
+    /// are held with the card in the window (`StudioWindowState.memoryCardPictures`)
+    /// and a Keep carries them, as it carries a drawn one. False when no window
+    /// has that card in front.
+    @MainActor
+    static func holdPicturesOnCardToCheck(
+        cardID: String,
+        front: [MemoryCardImage]?,
+        back: [MemoryCardImage]?
+    ) -> Bool {
+        let shown = StudioWindowRegistry.shared.states.filter {
+            $0.memoryPaneSection == .toCheck && $0.memoryCardOnScreen?.id == cardID
+        }
+        for state in shown {
+            var held = state.memoryCardPictures[cardID] ?? StudioWindowState.MemoryCardPictures()
+            if let front { held.front = Array(front.prefix(MemoryCard.maximumImagesPerFace)) }
+            if let back { held.back = Array(back.prefix(MemoryCard.maximumImagesPerFace)) }
+            state.memoryCardPictures[cardID] = held
+        }
+        return !shown.isEmpty
     }
 }

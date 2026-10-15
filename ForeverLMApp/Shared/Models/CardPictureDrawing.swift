@@ -51,12 +51,18 @@ enum CardPictureDrawing {
 
 extension MemoryCardToCheck {
     /// The card with one more picture on its answer, as drawn for it. A card
-    /// whose answer holds the most pictures a face may keep is returned as it
-    /// is.
+    /// whose answer holds the most pictures a face may keep, or that picture
+    /// already, is returned as it is.
     func addingBackImage(_ image: MemoryCardImage) -> MemoryCardToCheck {
-        var images = face.backImages
-        guard images.count < MemoryCard.maximumImagesPerFace else { return self }
-        images.append(image)
+        guard face.backImages.count < MemoryCard.maximumImagesPerFace,
+              !face.backImages.contains(image) else { return self }
+        return replacingImages(back: face.backImages + [image])
+    }
+
+    /// The card with the pictures of a face replaced, as `update_card` replaces
+    /// them on a kept card: a nil side keeps the pictures it has, an empty one
+    /// takes them off. A face keeps at most `MemoryCard.maximumImagesPerFace`; the card cuts a longer list there.
+    func replacingImages(front: [MemoryCardImage]? = nil, back: [MemoryCardImage]? = nil) -> MemoryCardToCheck {
         var card = MemoryCardToCheck(
             kind: kind,
             face: MemoryCard(
@@ -65,10 +71,9 @@ extension MemoryCardToCheck {
                 back: face.back,
                 why: face.why,
                 origin: face.origin,
-                difficulty: face.difficulty,
                 deckID: face.deckID,
-                frontImages: face.frontImages,
-                backImages: images
+                frontImages: front ?? face.frontImages,
+                backImages: back ?? face.backImages
             ),
             deckID: deckID,
             sourceID: sourceID,
