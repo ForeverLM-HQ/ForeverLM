@@ -1385,41 +1385,25 @@ private struct AIUsageAccountSections: View {
         isReplacingOwnKey = false
     }
 
-    /// What the account has spent and the two limits on it, in one card. The
-    /// month's figure and its limit are the proxy's and need an account; the
-    /// daily background limit is this Mac's and does not.
+    /// Dollars are OpenRouter's to show (product owner, 2026-10-15: "we
+    /// shouldn't maintain our own spend stuff"), so the card links to its
+    /// monitor. The daily background limit is this Mac's guard and stays.
     private var spendingSection: some View {
         SettingsSection(title: "Spending") {
             billingCard {
                 VStack(alignment: .leading, spacing: 0) {
-                    if account.isSignedIn {
-                        spentThisMonthRow
-                        rowDivider
-                        monthlySpendLimitControls
-                        rowDivider
+                    billingRow(
+                        title: "Spend",
+                        detail: "What your key has cost, by model and day, is in OpenRouter"
+                    ) {
+                        Link("Open OpenRouter", destination: ManagedAI.openRouterActivityURL)
+                            .buttonStyle(.bordered)
+                            .accessibilityIdentifier("aiUsage.openRouterActivity")
                     }
+                    rowDivider
                     BackgroundAIDailyCapRow()
                 }
             }
-        }
-    }
-
-    private var spentThisMonthRow: some View {
-        billingRow(title: "Spent this month", detail: "Across all your devices") {
-            if account.refreshInFlight, account.balance == nil {
-                ProgressView()
-                    .controlSize(.small)
-                    .accessibilityLabel("Refreshing usage")
-            } else {
-                Text(Self.creditText(account.balance?.spendCap.spentThisMonthMicroUSD))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-                    .contentTransition(.numericText())
-            }
-            Link("Dashboard", destination: ManagedAI.billingDashboardURL)
-                .buttonStyle(.bordered)
-                .help("Opens the account-wide usage dashboard")
         }
     }
 
@@ -1451,56 +1435,6 @@ private struct AIUsageAccountSections: View {
         BillingRowDivider()
     }
 
-    @ViewBuilder
-    private var monthlySpendLimitControls: some View {
-        let cap = account.balance?.spendCap
-        let reached = cap?.isReached ?? false
-
-        billingRow(
-            title: reached ? "Monthly limit reached" : "Monthly limit",
-            detail: spendLimitDetail(cap)
-        ) {
-            Picker("Limit", selection: spendCapSelection) {
-                Text("No limit").tag(Int?.none)
-                ForEach(ManagedAIAccountModel.spendCaps, id: \.self) { amount in
-                    Text("$\(amount)")
-                        .tag(Int?.some(amount))
-                }
-            }
-            .labelsHidden()
-            .frame(width: 96)
-            .disabled(account.spendCapInFlight)
-        }
-
-        if let cap,
-           let limit = cap.limitUSD,
-           limit > 0 {
-            ProgressView(value: min(cap.spentThisMonthUSD / limit, 1))
-                .tint(reached ? .orange : .accentColor)
-                .accessibilityLabel("Monthly spend limit")
-                .accessibilityValue("\(Self.creditText(cap.spentThisMonthMicroUSD)) of \(Self.capLimitText(limit))")
-                .padding(.top, 12)
-        }
-    }
-
-    /// The cap lives on the server, so changing the picker writes through and a
-    /// later refresh cannot drift from a local copy.
-    private var spendCapSelection: Binding<Int?> {
-        Binding(
-            get: {
-                guard let limit = account.balance?.spendCap.limitUSD else { return nil }
-                return Int(limit.rounded())
-            },
-            set: { newValue in
-                Task { await account.setSpendCap(monthlyLimitUSD: newValue.map(Double.init)) }
-            }
-        )
-    }
-
-    private static func capLimitText(_ usd: Double) -> String {
-        creditText(Int((usd * 1_000_000).rounded()))
-    }
-
     private func billingRow<Controls: View>(
         title: String,
         detail: String,
@@ -1514,21 +1448,6 @@ private struct AIUsageAccountSections: View {
     ) -> some View {
         BillingCard(content: content)
     }
-
-    /// The month's spend is the row above, so this says only what the
-    /// limit does; the bar under the picker shows how close it is.
-    private func spendLimitDetail(_ cap: ManagedAI.SpendCap?) -> String {
-        guard let cap else { return "AI pauses when it's reached" }
-        if cap.isReached { return "AI is paused until next month" }
-        guard cap.limitUSD != nil else { return "No limit set" }
-        return "AI pauses when it's reached"
-    }
-
-    private static func creditText(_ microUSD: Int?) -> String {
-        guard let microUSD else { return "—" }
-        return ManagedAI.creditBalanceText(microUSD: microUSD)
-    }
-
 }
 
 /// A card asking the learner to sign in, for a pane whose account state
@@ -1699,9 +1618,10 @@ private struct AIUsageSettingsDetailView: View {
     }
 }
 
-/// AI Usage › Activity: what this Mac's usage ledger spent, grouped by
-/// task, for a range. The managed server remains authoritative for charges;
-/// `ai_usage_events` provides the detail. Was the Usage pane until 2026-09-24,
+/// AI Usage › Activity: which tasks used AI, grouped by task, for a range,
+/// read from this Mac's usage ledger (`ai_usage_events`). It shows what ran,
+/// never what it cost: dollars are OpenRouter's monitor (Spending card).
+/// Was the Usage pane until 2026-09-24,
 /// with a per-call log, facet filters, a prompt-cache line and a CSV export;
 /// those were diagnostics, and `get_ai_usage_report` reads the same ledger.
 private struct AIActivitySettingsSection: View {
@@ -1743,8 +1663,6 @@ private struct AIActivitySettingsSection: View {
     @State private var subjectOffsetsByActivityKey: [String: Int] = [:]
     @State private var loadingActivityKeys = Set<String>()
     @State private var totalEvents = 0
-    @State private var totalCost: Double?
-    @State private var unpricedEvents = 0
     /// `AIUsageLedgerHealth`'s counters, read once per reload. Two UserDefaults
     /// lookups, so they stay on the main actor with the rest of the pane state.
     @State private var ledgerFailures = 0
@@ -1796,12 +1714,12 @@ private struct AIActivitySettingsSection: View {
                 )
                 .font(.callout)
                 .foregroundStyle(.orange)
-                .help("Their spend is missing from everything below")
+                .help("They are missing from everything below")
 
                 Spacer(minLength: 0)
 
                 SettingsMoreInfoButton {
-                    Text("Their spend is missing from everything below.")
+                    Text("They are missing from everything below.")
                     if let detail = ledgerFailureDetail {
                         Text(detail)
                             .foregroundStyle(.secondary)
@@ -1853,21 +1771,11 @@ private struct AIActivitySettingsSection: View {
                     Text(
                         totalEvents == 0
                             ? "No AI used in this period."
-                            : "\(Self.exactCountText(totalEvents)) call\(totalEvents == 1 ? "" : "s") · \(Self.spendText(totalCost))"
+                            : "\(Self.exactCountText(totalEvents)) call\(totalEvents == 1 ? "" : "s")"
                     )
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .help("The model each task runs on is set under Settings › Background.")
-
-                    if unpricedEvents > 0 {
-                        Label(
-                            "\(Self.exactCountText(unpricedEvents)) call\(unpricedEvents == 1 ? "" : "s") without a recorded cost",
-                            systemImage: "exclamationmark.triangle.fill"
-                        )
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                        .help("Their spend is missing from the total above")
-                    }
 
                     if !activityGroups.isEmpty {
                         activityLog
@@ -1934,13 +1842,6 @@ private struct AIActivitySettingsSection: View {
 
             Spacer(minLength: 8)
 
-            if summary.unpricedCallCount > 0 {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-                    .help("Some calls in this activity have no recorded cost")
-            }
-
             if let task = summary.task {
                 switch AIUsageTaskNeed.of(taskKey: task) {
                 case .needed:
@@ -1964,11 +1865,6 @@ private struct AIActivitySettingsSection: View {
                     EmptyView()
                 }
             }
-
-            Text(Self.spendText(summary.cost))
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.secondary)
-                .frame(width: 90, alignment: .trailing)
         }
         .padding(.vertical, 3)
     }
@@ -2186,17 +2082,6 @@ private struct AIActivitySettingsSection: View {
 
             Spacer(minLength: 8)
 
-            if summary.unpricedCallCount > 0 {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.caption2)
-                    .foregroundStyle(.orange)
-                    .help("Some calls for this item have no recorded cost")
-            }
-
-            Text(Self.spendText(summary.cost))
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.secondary)
-                .frame(width: 90, alignment: .trailing)
         }
         .padding(.vertical, 7)
         .contentShape(Rectangle())
@@ -2361,14 +2246,6 @@ private struct AIActivitySettingsSection: View {
         AIUsageTaskLabel.text(for: task)
     }
 
-    /// Period spend. Sub-cent totals keep four decimals so a real amount never
-    /// rounds away to $0.00.
-    private static func spendText(_ usd: Double?) -> String {
-        guard let usd else { return "no cost recorded" }
-        if usd > 0 && usd < 0.01 { return String(format: "$%.4f", usd) }
-        return String(format: "$%.2f", usd)
-    }
-
     private func reload() async {
         isLoading = true
 
@@ -2394,7 +2271,7 @@ private struct AIActivitySettingsSection: View {
                 }
             } catch {
                 guard !Task.isCancelled else { return }
-                serverReconciliationError = "Server usage could not be reconciled, so the totals below may be incomplete: \(error.localizedDescription)"
+                serverReconciliationError = "Server usage could not be reconciled, so the list below may be incomplete: \(error.localizedDescription)"
             }
         } else {
             serverReconciliationError = nil
@@ -2405,8 +2282,8 @@ private struct AIActivitySettingsSection: View {
     /// server mirror is incremental and authoritative, but it is a refresh of
     /// this cache rather than a prerequisite for rendering it.
     private func reloadLocalUsage(from storage: StorageService) async {
-        // Price what can be priced before counting what cannot, so the
-        // unpriced warning names only calls whose price is really unknown.
+        // Price what can be priced first, so a line is only treated as free
+        // when its calls really cost nothing.
         await AIUsageTracker.repriceLedger(storage: storage)
         await reloadFilteredUsage(from: storage)
     }
@@ -2432,8 +2309,6 @@ private struct AIActivitySettingsSection: View {
         guard key == filterSelectionKey else { return }
 
         totalEvents = totals?.count ?? 0
-        totalCost = totals?.cost
-        unpricedEvents = totals?.unpriced ?? 0
         activityGroups = loadedActivityGroups
         expandedActivityKeys.removeAll()
         subjectsByActivityKey.removeAll()

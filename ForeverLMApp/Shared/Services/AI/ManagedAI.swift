@@ -44,8 +44,10 @@ enum ManagedAI {
 
     /// The metered proxy. Every managed request and account call goes here.
     static let baseURL = URL(string: "https://ai.foreverlm.com")!
-    /// Account-wide server ledger, charts, credit controls, and Stripe history.
-    static let billingDashboardURL = URL(string: "https://foreverlm.com/account/billing/")!
+    /// What the learner has spent, per model and day, in OpenRouter's own monitor.
+    /// ForeverLM keeps no spend figures of its own (product owner, 2026-10-15:
+    /// "we shouldn't maintain our own spend stuff").
+    static let openRouterActivityURL = URL(string: "https://openrouter.ai/activity")!
 
     // MARK: - Session
 
