@@ -2105,7 +2105,7 @@ enum Prompts {
     For each rewording decide:
     - "answers_it": true only when the back answers the rewording completely and correctly, and the rewording asks for nothing the back does not say. A rewording that asks for more, for less, or for something else is false.
     - "leaks_answer": true when the rewording states or strongly hints at the answer.
-    - "stands_alone": false when the rewording points at its source without naming it ("this lecture", "this paper", "the talk", "the speaker", "the authors", "the study above", "in the passage"), so that read alone, weeks later and among cards from other sources, the learner cannot tell what it is about. A rewording that names its subject, or names its source, is true.
+    - "stands_alone": false when the rewording points at its source without naming it ("this lecture", "this paper", "the talk", "the speaker", "the authors", "the study above", "in the passage"), so that read alone, weeks later and among cards from other sources, the learner cannot tell what it is about. A rewording that names its subject, or names its source, is true. It is also false when it never names what it is about and is built from vague phrases ("the information", "the process", "this approach") a learner could not place without the source.
 
     Judge strictly: when in doubt, answers_it and stands_alone are false.
 
@@ -2152,6 +2152,8 @@ enum Prompts {
     /// "In this lecture, …": "that should not be allowed to happen").
     static let cardStandsAloneRule = """
     Standalone: the card is asked weeks later, away from its source, among cards from every source the learner has. So the question and the answer never point at their source without naming it: never "this lecture", "this paper", "this talk", "this episode", "this chapter", "the study above", "the speaker", "the authors" or "in the passage". Make the question about the subject itself ("Which structural feature sets cardiolipin apart from most other phospholipids?"), and name the source only when the answer depends on it ("In Zara Holt's 2023 lecture on cardiolipin, …"). A card that points at its source unnamed is thrown away.
+
+    Standalone also means the question names what it is about. A learner who has never seen the source must be able to tell what is being asked from the question alone, so it names the specific subject (the system, the framework, the claim, the organism, the method) and never leaves it to a vague noun phrase. Not "What persists despite organ loss and can be reactivated for organ restoration via targeted regenerative information?", which gives no hint of the framework or claim it comes from, but "In the view of aging as a loss of goal-directedness, what persists in tissue after an organ is lost, so that regenerative signals can restore the organ?". A question made only of abstract phrases ("the information", "the process", "the mechanism", "this approach") that the learner cannot place without the source is not standalone.
     """
 
     /// Check in the card review (docs/memory-design.md, "The answer is
@@ -2188,6 +2190,7 @@ enum Prompts {
     For each card decide "stands_alone":
     - false when the question or the answer points at its source without naming it: "this lecture", "in this paper", "the talk", "this episode", "this chapter", "the study above", "the speaker", "the authors", "the passage", "here" — any wording whose meaning depends on knowing which source the card came from.
     - true when the card is about its subject itself, or names its source ("In Zara Holt's 2023 lecture on cardiolipin, …"). A card that names the subject but not the source stands alone.
+    - false also when the question never names what it is about: it is built from abstract or vague phrases ("the information", "the process", "the mechanism", "this approach", "targeted regenerative information") so that a learner who has not just read the source cannot tell which framework, system or claim it asks about, or what kind of answer is wanted. Judge it as that learner: if you would have to guess the context, it does not stand alone.
     For a card that does not stand alone, "problem" says in one short clause what it points at ("asks about \u{201C}this lecture\u{201D} without naming it"); otherwise "problem" is null.
 
     Judge only this. Do not judge whether the card is true, good or well written.
@@ -2207,6 +2210,7 @@ enum Prompts {
 
     For each card:
     - Make the question about the subject itself wherever you can ("Which structural feature sets cardiolipin apart from most other phospholipids?"). Name the source, from its title, only when the answer depends on that source ("In the lecture Mitochondrial Cell Biology 2, …").
+    - When the question is vague rather than pointing at its source, name the specific subject, framework or claim it is about, drawn from the answer and the source's title, so a learner who has never seen the source can tell what is asked.
     - Keep everything else: the same answer must be the complete, correct answer to the reworded question, and no more. Do not add facts, do not give the answer away, keep it one line.
     - When you are told the answer may change, reword the answer only where it points at the source unnamed, and keep what it says. Otherwise return only the question.
     - Plain text: no Markdown, no quotation marks around it.
