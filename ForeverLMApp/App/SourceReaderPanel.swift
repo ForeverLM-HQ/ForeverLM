@@ -280,8 +280,7 @@ struct SourceReaderPanel: View {
                     }
                 }
                 .animation(.easeInOut(duration: 0.18), value: isNarrating(article))
-                .overlay(alignment: .top) {
-                    if let band = titlebarBandHeight {
+                .studioBandOverlay {
                         // No row-wide drag blocker: mounted behind this row it
                         // took the mouse-down away from the controls on top of
                         // it — Reader's close hovered but never fired — while
@@ -294,12 +293,9 @@ struct SourceReaderPanel: View {
                         // whole row, so the Reader had no visible close above
                         // a video. Content that touches the top of the pane
                         // passes `ignoresSafeAreaEdges: []` to its background.
-                        // On the band's chrome (`StudioBandRow`), so a page
+                        // On the band's chrome (`studioBandOverlay`), so a page
                         // scrolled up under the band never shows there.
-                        StudioBandRow(band: band) {
-                            readerToolbar(for: article)
-                        }
-                    }
+                        readerToolbar(for: article)
                 }
                 .onChange(of: trackedId) { oldId, _ in
                     // A book is one document on screen, and reading on into

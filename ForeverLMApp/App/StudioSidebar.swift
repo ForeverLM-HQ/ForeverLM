@@ -393,20 +393,15 @@ struct StudioSidebar: View, Equatable {
         // icons while the source rows kept rendering. Verified in isolation:
         // the overlay+offset composition paints, the ignoresSafeArea one does
         // not.
-        .overlay(alignment: .top) {
-            if let band = titlebarBandHeight {
-                // On the band's chrome (`StudioBandRow`): when the search row
-                // is hidden the List sits flush against the top safe area, so
-                // its rows scroll up under the titlebar band and would
-                // otherwise bleed through the source-type icons.
-                StudioBandRow(band: band) {
-                    sidebarTabBar
-                        // In the band, AppKit's titlebar drag would otherwise win
-                        // over the tabs' .onDrag reorder gesture and move the
-                        // whole window.
-                        .background(WindowDragBlocker())
-                }
-            }
+        // On the band's chrome (`studioBandOverlay`): when the search row is
+        // hidden the List sits flush against the top safe area, so its rows
+        // scroll up under the titlebar band and would otherwise bleed through
+        // the source-type icons.
+        .studioBandOverlay {
+            sidebarTabBar
+                // In the band, AppKit's titlebar drag would otherwise win over
+                // the tabs' .onDrag reorder gesture and move the whole window.
+                .background(WindowDragBlocker())
         }
         .background {
             SourceSearchShortcutTarget {

@@ -1685,7 +1685,13 @@ struct StudioChromeLineDivider: View {
 /// hangs in the band covers both, so only the row shows there. Hit-testable,
 /// as the opaque backing was: a press on it falls to the titlebar's window
 /// drag, never to a row hidden underneath.
-struct StudioBandRow<Row: View>: View {
+///
+/// File-private on purpose: this is the one place that paints in the band, and
+/// the only way another file hangs a row there is `studioBandOverlay`, so no
+/// pane can paint its own backing across the band and show a different color
+/// from the pane beside it (the chat's white title row next to the Review's
+/// grey one, 2026-10-15).
+fileprivate struct StudioBandRow<Row: View>: View {
     let band: CGFloat
     @ViewBuilder let row: () -> Row
 
@@ -1696,6 +1702,36 @@ struct StudioBandRow<Row: View>: View {
             row()
         }
         .offset(y: -band)
+    }
+}
+
+/// Hangs one row in the titlebar band from the top of the view it modifies,
+/// on the band's chrome (`StudioBandRow`). Every pane that draws a row in the
+/// band without `studioChromeLineHeader` — a transcript's title, the Reader's
+/// toolbar, the sources' tab bar — goes through this, so the band's backing is
+/// decided in this file and nowhere else. `active` is for a pane that hangs
+/// its row only in some states; nothing is drawn while it is false or the
+/// window has no band (full screen).
+private struct StudioBandOverlay<Row: View>: ViewModifier {
+    @Environment(\.studioTitlebarBandHeight) private var titlebarBandHeight
+    let active: Bool
+    let row: Row
+
+    func body(content: Content) -> some View {
+        content.overlay(alignment: .top) {
+            if active, let band = titlebarBandHeight {
+                StudioBandRow(band: band) { row }
+            }
+        }
+    }
+}
+
+extension View {
+    func studioBandOverlay<Row: View>(
+        active: Bool = true,
+        @ViewBuilder _ row: () -> Row
+    ) -> some View {
+        modifier(StudioBandOverlay(active: active, row: row()))
     }
 }
 
