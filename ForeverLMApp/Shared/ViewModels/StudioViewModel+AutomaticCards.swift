@@ -159,9 +159,10 @@ extension StudioViewModel {
     // MARK: The morning-after banner
 
     /// Queues, replaces or takes down the next morning's "Cards from what you
-    /// finished" banner from what is true now: the drafts waiting in To Check
-    /// and, while background drafting is off, the finished sources no deck
-    /// covers (`CardsToCheckBanner.subject`). Called wherever that could have
+    /// finished" banner from what is true now: the drafts waiting in To Check,
+    /// while background drafting is off the finished sources no deck covers,
+    /// and what was added to the library today or yesterday with no card
+    /// (`CardsToCheckBanner.subject`). Called wherever that could have
     /// changed — the counts' read, activation, a settings change — at
     /// `.utility`, never on a timer.
     func refreshCardsToCheckBanner() async {
@@ -181,10 +182,20 @@ extension StudioViewModel {
                     return nil
                 }
             }
+            // What came into the library today or yesterday with no card: the
+            // day's suggestion to make cards, read or not.
+            var added = Set<String>()
+            do {
+                added = try await storage.sourcesAddedWithoutCards(now: now)
+            } catch {
+                logger.error("The cards banner could not read what was added: \(error.localizedDescription)")
+                return nil
+            }
             return CardsToCheckBanner.subject(
                 pile: cardsToCheckPile,
                 candidates: candidates,
                 autoDrafts: autoDrafts,
+                addedSourceIDs: added,
                 now: now
             )
         }

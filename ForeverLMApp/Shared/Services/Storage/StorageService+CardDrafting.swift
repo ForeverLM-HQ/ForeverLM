@@ -320,6 +320,41 @@ extension StorageService {
 }
 
 extension StorageService {
+    /// The sources added to the learner's library today or yesterday that no
+    /// card covers: the day's suggestion to make cards for everything that
+    /// came in, finished or not (`CardsToCheckBanner`). Covered means a draft
+    /// deck on the source or any Memory item anchored on it. Left out: a
+    /// team's copy, a source kept from AI or archived, a spoken script
+    /// ForeverLM wrote, one still fetching or failed, a paywalled one, and
+    /// one with no text.
+    func sourcesAddedWithoutCards(now: Date = Date(), calendar: Calendar = .current) throws -> Set<String> {
+        let store = try notebookFilesKnowledgeStore()
+        let recent = try store.loadSourcesWithoutContent().filter {
+            CardsToCheckBanner.isRecentlyAdded($0.dateAdded, now: now, calendar: calendar)
+        }
+        guard !recent.isEmpty else { return [] }
+        let deckSourceIDs: Set<String>
+        if try store.recordsMemoryForGeneration2() {
+            deckSourceIDs = Set(try store.cardRecordDeckFirstDrafts().keys)
+        } else {
+            let decks = try store.loadArtifacts(listing: .cardDecksOnly)
+            deckSourceIDs = Set(decks.compactMap { MemoryCard.sourceID(fromDraftDeckID: $0.id) ?? $0.sourceIDs.first })
+        }
+        let excluded = try store.knowledgeSearchExcludedSourceIDs(includeArchived: true)
+        var uncovered = Set<String>()
+        for source in recent {
+            guard source.teamID == nil, source.status == .active, source.state == .ready, !source.isPaywalled,
+                  source.wordCount.map({ $0 > 0 }) ?? true,
+                  !excluded.contains(source.id), !deckSourceIDs.contains(source.id),
+                  !TextToSpeechPreparationPolicy.isSpokenScript(url: source.url),
+                  try store.memoryItemIDs(anchoredOn: source.id).isEmpty else { continue }
+            uncovered.insert(source.id)
+        }
+        return uncovered
+    }
+}
+
+extension StorageService {
     /// The active cards the review can deal and their whole histories, for
     /// the day close's variation pass (`CardVariationPass`).
     func memoryCardVariationItems() throws -> (items: [MemoryItem], attempts: [MemoryAttempt]) {

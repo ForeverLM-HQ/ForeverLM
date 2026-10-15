@@ -21,7 +21,7 @@ final class CardsToCheckNotifications {
     static let identifier = "com.foreverlm.cardsToCheck.morning"
     static let categoryIdentifier = "com.foreverlm.cardsToCheck"
     static let stopAskingActionIdentifier = "com.foreverlm.cardsToCheck.stopAsking"
-    /// The sources with no cards yet, for the click that makes them.
+    /// The sources with no cards yet (finished or added), for the click that makes them.
     static let undraftedSourceIDsKey = "undraftedSourceIDs"
 
     private let logger = Logger(subsystem: "ForeverLM", category: "CardsToCheckBanner")
@@ -71,11 +71,11 @@ final class CardsToCheckNotifications {
             }
             await registerCategoryIfNeeded()
             let content = UNMutableNotificationContent()
-            content.title = CardsToCheckBanner.title
+            content.title = CardsToCheckBanner.heading(wanted)
             content.body = CardsToCheckBanner.body(wanted)
             content.sound = .default
             content.categoryIdentifier = Self.categoryIdentifier
-            content.userInfo = [Self.undraftedSourceIDsKey: wanted.hasDrafts ? [] : wanted.undraftedSourceIDs.sorted()]
+            content.userInfo = [Self.undraftedSourceIDsKey: wanted.makeCardsSourceIDs]
             let parts = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: fireAt)
             let request = UNNotificationRequest(
                 identifier: Self.identifier,

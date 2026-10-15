@@ -11,6 +11,13 @@ import Foundation
 // sources have none yet. Everything here is pure: what the banner is about,
 // what it says, and when it is told or left unsaid. `CardsToCheckNotifications`
 // schedules it.
+//
+// Since 2026-10-15 it is also the day's suggestion to make cards for what was
+// added to the library, finished or not (product owner, 2026-10-15: "every
+// day, there should also be a suggestion to make cards for all the content i
+// added to the library that day; even at the highest level perhaps"): a
+// source added today or yesterday that no card covers is named, and the click
+// opens the Make Cards sheet for all of them at once.
 
 extension Notification.Name {
     /// Asks Studio to take up the cards banner's click in its active window.
@@ -21,6 +28,8 @@ extension Notification.Name {
 
 enum CardsToCheckBanner {
     static let title = "Cards from what you finished"
+    /// The title when the library's additions are all it is about.
+    static let addedTitle = "Cards from what you added"
     static let goThroughTitle = "Go Through Them"
     static let makeCardsTitle = "Make Cards"
 
@@ -33,20 +42,48 @@ enum CardsToCheckBanner {
         /// Sources the learner finished that have no cards yet: background
         /// drafting is off, or its day's limit left them out.
         let undraftedSourceIDs: Set<String>
+        /// Sources added to the library today or yesterday that no card
+        /// covers, finished or not, and not among the two sets above.
+        var addedSourceIDs: Set<String> = []
 
-        var sourceIDs: Set<String> { draftedSourceIDs.union(undraftedSourceIDs) }
+        var sourceIDs: Set<String> { draftedSourceIDs.union(undraftedSourceIDs).union(addedSourceIDs) }
         var hasDrafts: Bool { cardCount > 0 }
+
+        /// The sources whose cards the click makes: what has none yet, added
+        /// or finished. Empty when only drafts wait, whose click opens To
+        /// Check; when added sources are named too, the click makes cards.
+        var makeCardsSourceIDs: [String] {
+            if hasDrafts && addedSourceIDs.isEmpty { return [] }
+            return undraftedSourceIDs.union(addedSourceIDs).sorted()
+        }
+    }
+
+    /// How far back an addition is still news: today and the day before, so a
+    /// source added after the last refresh of a day, or on a Mac that was
+    /// off, is still told the next morning.
+    static let addedWindowDays = 2
+
+    /// Whether a source added at `addedAt` is within the banner's reach.
+    static func isRecentlyAdded(_ addedAt: Date, now: Date, calendar: Calendar = .current) -> Bool {
+        guard addedAt <= now,
+              let from = calendar.date(byAdding: .day, value: -(addedWindowDays - 1), to: calendar.startOfDay(for: now))
+        else { return false }
+        return addedAt >= from
     }
 
     /// The subject of the banner: the pile that waits in To Check and, while
     /// background drafting is off, the finished sources no deck covers.
     /// With drafting on, those sources are drafted as they are finished and
     /// reach the pile, so they are not named twice. Nil when there
-    /// is nothing to process.
+    /// is nothing to process. `addedSourceIDs` are the recent additions no card
+    /// covers (`StorageService.sourcesAddedWithoutCards`): named whether or
+    /// not the learner finished them, since background drafting only drafts
+    /// what was read.
     static func subject(
         pile: CardsToCheckNudge.Pile?,
         candidates: [AutomaticCardDrafting.Candidate],
         autoDrafts: Bool,
+        addedSourceIDs: Set<String> = [],
         now: Date
     ) -> Subject? {
         let drafted = pile?.sourceIDs ?? []
@@ -57,22 +94,43 @@ enum CardsToCheckBanner {
             }
         }
         undrafted.subtract(drafted)
+        let added = addedSourceIDs.subtracting(drafted).subtracting(undrafted)
         let cardCount = pile?.cardCount ?? 0
-        guard cardCount > 0 || !undrafted.isEmpty else { return nil }
-        return Subject(cardCount: cardCount, draftedSourceIDs: drafted, undraftedSourceIDs: undrafted)
+        guard cardCount > 0 || !undrafted.isEmpty || !added.isEmpty else { return nil }
+        return Subject(
+            cardCount: cardCount,
+            draftedSourceIDs: drafted,
+            undraftedSourceIDs: undrafted,
+            addedSourceIDs: added
+        )
+    }
+
+    /// "Cards from what you added" when additions are all there is to say.
+    static func heading(_ subject: Subject) -> String {
+        subject.hasDrafts || !subject.undraftedSourceIDs.isEmpty ? title : addedTitle
     }
 
     /// "14 cards from 3 sources you finished wait to be checked." or "2
-    /// sources you finished have no cards yet."
+    /// sources you finished have no cards yet." Added sources follow in a
+    /// sentence of their own: "5 sources you added have no cards yet."
     static func body(_ subject: Subject) -> String {
+        var sentences: [String] = []
         if subject.hasDrafts {
             let cards = subject.cardCount == 1 ? "1 card" : "\(subject.cardCount) cards"
             let sources = subject.draftedSourceIDs.count
             let from = sources == 1 ? "a source" : "\(sources) sources"
-            return "\(cards) from \(from) you finished \(subject.cardCount == 1 ? "waits" : "wait") to be checked."
+            sentences.append("\(cards) from \(from) you finished \(subject.cardCount == 1 ? "waits" : "wait") to be checked.")
+        } else if !subject.undraftedSourceIDs.isEmpty {
+            sentences.append(noCards(subject.undraftedSourceIDs.count, verb: "finished"))
         }
-        let count = subject.undraftedSourceIDs.count
-        return count == 1 ? "A source you finished has no cards yet." : "\(count) sources you finished have no cards yet."
+        if !subject.addedSourceIDs.isEmpty {
+            sentences.append(noCards(subject.addedSourceIDs.count, verb: "added"))
+        }
+        return sentences.joined(separator: " ")
+    }
+
+    private static func noCards(_ count: Int, verb: String) -> String {
+        count == 1 ? "A source you \(verb) has no cards yet." : "\(count) sources you \(verb) have no cards yet."
     }
 
     // MARK: Telling once

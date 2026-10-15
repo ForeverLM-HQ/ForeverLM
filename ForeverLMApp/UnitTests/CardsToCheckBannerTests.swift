@@ -17,8 +17,13 @@ private func finished(_ id: String, now: Date, hasDeck: Bool = false, ideas: Int
     )
 }
 
-private func subject(cards: Int = 0, drafted: Set<String> = [], undrafted: Set<String> = []) -> CardsToCheckBanner.Subject {
-    CardsToCheckBanner.Subject(cardCount: cards, draftedSourceIDs: drafted, undraftedSourceIDs: undrafted)
+private func subject(
+    cards: Int = 0,
+    drafted: Set<String> = [],
+    undrafted: Set<String> = [],
+    added: Set<String> = []
+) -> CardsToCheckBanner.Subject {
+    CardsToCheckBanner.Subject(cardCount: cards, draftedSourceIDs: drafted, undraftedSourceIDs: undrafted, addedSourceIDs: added)
 }
 
 @Suite("Cards to check banner")
@@ -60,6 +65,72 @@ struct CardsToCheckBannerTests {
         #expect(CardsToCheckBanner.body(subject(cards: 1, drafted: ["a"])) == "1 card from a source you finished waits to be checked.")
         #expect(CardsToCheckBanner.body(subject(undrafted: ["a"])) == "A source you finished has no cards yet.")
         #expect(CardsToCheckBanner.body(subject(undrafted: ["a", "b"])) == "2 sources you finished have no cards yet.")
+    }
+
+    @Test("What was added with no card is a subject on its own, whether or not it was finished or drafting is on")
+    func addedSources() throws {
+        for autoDrafts in [true, false] {
+            let made = try #require(CardsToCheckBanner.subject(pile: nil, candidates: [], autoDrafts: autoDrafts, addedSourceIDs: ["x", "y"], now: now))
+            #expect(made.addedSourceIDs == ["x", "y"])
+            #expect(!made.hasDrafts)
+            #expect(made.makeCardsSourceIDs == ["x", "y"])
+        }
+        #expect(CardsToCheckBanner.subject(pile: nil, candidates: [], autoDrafts: true, addedSourceIDs: [], now: now) == nil)
+    }
+
+    @Test("An added source already in the pile or named as finished is named once")
+    func addedOverlap() throws {
+        let pile = CardsToCheckNudge.Pile(cardCount: 4, sourceIDs: ["a"])
+        let made = try #require(CardsToCheckBanner.subject(
+            pile: pile, candidates: [finished("b", now: now)], autoDrafts: false, addedSourceIDs: ["a", "b", "c"], now: now
+        ))
+        #expect(made.draftedSourceIDs == ["a"])
+        #expect(made.undraftedSourceIDs == ["b"])
+        #expect(made.addedSourceIDs == ["c"])
+        #expect(made.makeCardsSourceIDs == ["b", "c"], "the click makes cards for everything that has none")
+    }
+
+    @Test("Drafts alone still open To Check; added sources turn the click into Make Cards")
+    func clickTarget() {
+        #expect(subject(cards: 4, drafted: ["a"]).makeCardsSourceIDs.isEmpty)
+        #expect(subject(cards: 4, drafted: ["a"], added: ["c"]).makeCardsSourceIDs == ["c"])
+    }
+
+    @Test("What the banner says about additions")
+    func addedWording() {
+        #expect(CardsToCheckBanner.body(subject(added: ["a"])) == "A source you added has no cards yet.")
+        #expect(CardsToCheckBanner.body(subject(added: ["a", "b", "c"])) == "3 sources you added have no cards yet.")
+        #expect(CardsToCheckBanner.body(subject(cards: 2, drafted: ["a"], added: ["b", "c"]))
+            == "2 cards from a source you finished wait to be checked. 2 sources you added have no cards yet.")
+        #expect(CardsToCheckBanner.heading(subject(added: ["a"])) == CardsToCheckBanner.addedTitle)
+        #expect(CardsToCheckBanner.heading(subject(cards: 2, drafted: ["a"], added: ["b"])) == CardsToCheckBanner.title)
+        #expect(CardsToCheckBanner.heading(subject(undrafted: ["a"], added: ["b"])) == CardsToCheckBanner.title)
+    }
+
+    @Test("A source added today or yesterday is news; two days ago, or in the future, is not")
+    func additionWindow() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        let noon = try #require(calendar.date(from: DateComponents(year: 2026, month: 10, day: 15, hour: 12)))
+        func at(day: Int, hour: Int) throws -> Date {
+            try #require(calendar.date(from: DateComponents(year: 2026, month: 10, day: day, hour: hour)))
+        }
+        #expect(CardsToCheckBanner.isRecentlyAdded(try at(day: 15, hour: 1), now: noon, calendar: calendar))
+        #expect(CardsToCheckBanner.isRecentlyAdded(try at(day: 14, hour: 0), now: noon, calendar: calendar), "yesterday from midnight")
+        #expect(!CardsToCheckBanner.isRecentlyAdded(try at(day: 13, hour: 23), now: noon, calendar: calendar))
+        #expect(!CardsToCheckBanner.isRecentlyAdded(try at(day: 15, hour: 13), now: noon, calendar: calendar), "not yet added")
+    }
+
+    @Test("Added sources are told once like any other")
+    func addedToldOnce() {
+        let wait = subject(added: ["x"])
+        let queued = CardsToCheckBanner.decide(subject: wait, ledger: .init(), now: now, fireAt: morning)
+        #expect(queued.ledger.scheduled?.sourceIDs == ["x"])
+        let after = morning.addingTimeInterval(3_600)
+        let again = CardsToCheckBanner.decide(subject: wait, ledger: queued.ledger, now: after, fireAt: morning.addingTimeInterval(day))
+        #expect(again.decision == .cancel, "yesterday's additions are not asked about twice")
+        let fresh = CardsToCheckBanner.decide(subject: subject(added: ["x", "z"]), ledger: queued.ledger, now: after, fireAt: morning.addingTimeInterval(day))
+        #expect(fresh.decision == .schedule(fireAt: morning.addingTimeInterval(day)))
     }
 
     @Test("New sources queue the morning's banner, and nothing waiting takes it down")
@@ -119,5 +190,56 @@ struct CardsToCheckBannerTests {
         let ledger = CardsToCheckBanner.Ledger(told: ["a": now], scheduled: .init(fireAt: morning, sourceIDs: ["b"]))
         CardsToCheckBanner.save(ledger, defaults: defaults)
         #expect(CardsToCheckBanner.loadLedger(defaults: defaults) == ledger)
+    }
+}
+
+// MARK: - What was added, read from storage
+//
+// `StorageService.sourcesAddedWithoutCards`: which additions the banner may name.
+
+private func added(
+    _ id: String,
+    addedDaysAgo: Double = 0,
+    now: Date,
+    state: StudioArticleState = .ready,
+    words: Int? = 50,
+    paywalled: Bool = false
+) -> StudioArticle {
+    var article = StudioArticle(url: "https://example.com/\(id)", title: id, sourceType: .article, discoveryOrigin: .manual, id: id)
+    article.normalizedURL = URLNormalizer.normalize(article.url)
+    article.content = "Some text about \(id)."
+    article.wordCount = words
+    article.state = state
+    article.isPaywalled = paywalled
+    article.dateAdded = now.addingTimeInterval(-addedDaysAgo * day)
+    return article
+}
+
+@Suite("Sources added without cards")
+struct SourcesAddedWithoutCardsTests {
+    private func storage() throws -> (StorageService, URL) {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("AddedWithoutCards_\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        return (StorageService(storeRoot: root), root)
+    }
+
+    @Test("Recent, ready, uncovered sources are named; old, unfetched, empty and paywalled ones are not")
+    func namesWhatCanBeDrafted() async throws {
+        let (storage, root) = try storage()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let now = Date()
+        try await storage.saveSource(added("today", now: now))
+        try await storage.saveSource(added("long-ago", addedDaysAgo: 5, now: now))
+        try await storage.saveSource(added("fetching", now: now, state: .fetching))
+        try await storage.saveSource(added("empty", now: now, words: 0))
+        try await storage.saveSource(added("paywalled", now: now, paywalled: true))
+        #expect(try await storage.sourcesAddedWithoutCards(now: now) == ["today"])
+    }
+
+    @Test("A library with nothing added names nothing")
+    func nothingAdded() async throws {
+        let (storage, root) = try storage()
+        defer { try? FileManager.default.removeItem(at: root) }
+        #expect(try await storage.sourcesAddedWithoutCards(now: Date()).isEmpty)
     }
 }
