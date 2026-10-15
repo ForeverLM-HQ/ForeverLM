@@ -266,7 +266,7 @@ struct ChatOpenPanesLeftOutTests {
         #expect(ChatContextAdditions.cardFraming(nil) == nil)
         // "What does this say exactly? Open that in Reader", asked of a reply about a
         // paper, was read as the card beside the chat (product owner, 2026-10-15).
-        #expect(framing.contains("means whatever the conversation was last about"))
+        #expect(framing.contains("answered from the conversation and the card together"))
         #expect(!framing.contains("or \"it\" means this card"))
     }
 
