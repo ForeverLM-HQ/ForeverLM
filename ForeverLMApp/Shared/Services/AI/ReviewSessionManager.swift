@@ -1251,6 +1251,11 @@ final class ReviewSessionManager {
     private var sessionID: String?
     private var activeSourceIDs: [String] = []
     private var activeArticles: [StudioArticle] = []
+    /// The titles of the sources this chat has met in a tool's answer, so a
+    /// reply that cites one as `【Title】` can be repaired into its link
+    /// (`ChatSourceTitleIndex`). The attached and found sources join it when a
+    /// reply is repaired.
+    private var toolSourceTitles = ChatSourceTitleIndex()
     /// Slack channel names by id, learned from `list_slack_channels` results in
     /// this chat, so a `read_slack_channel` row can name its channel while it is
     /// still running. The read's own result carries the name too, which fills
@@ -4120,6 +4125,7 @@ final class ReviewSessionManager {
         chatMessages = []
         resetHistoryDigest()
         foundSources = []
+        toolSourceTitles = ChatSourceTitleIndex()
         contextDocs = []
         canvasContext = nil
         onScreenSourcesLeftOut = []
@@ -5384,7 +5390,9 @@ final class ReviewSessionManager {
                 recordWebSearchResults(result.webCitations, into: &turnWebCitations, before: streamedAssistantMessageID)
                 var visible = Self.appendingWebSourcesFooter(
                     to: await linkingLibrarySources(
-                        in: await rewritingSlideFramePaths(in: Self.visibleAssistantText(from: response) ?? response)
+                        in: await rewritingSlideFramePaths(
+                            in: repairingSourceTitleMarkers(in: Self.visibleAssistantText(from: response) ?? response)
+                        )
                     ),
                     citations: turnWebCitations
                 )
@@ -5840,11 +5848,11 @@ final class ReviewSessionManager {
                 guard showsTextWhileStreaming, let self, publishGuard.accept(sequence) else { return }
                 guard let index = self.chatMessages.firstIndex(where: { $0.id == messageID }) else { return }
                 let combined = prefix.isEmpty ? text : prefix + text
-                self.chatMessages[index].content = Self.visibleAssistantText(
+                self.chatMessages[index].content = self.repairingSourceTitleMarkers(in: Self.visibleAssistantText(
                     from: MemoryReviewSourceTurn.strippingTrailingPartialTag(
                         Self.strippingTrailingPartialToolCallTag(combined)
                     )
-                ) ?? ""
+                ) ?? "")
                 // The answer has begun, so the thinking before it is over: it
                 // leaves the status line and folds into a row above the answer.
                 if self.streamingThinkingRowID == nil, !self.chatMessages[index].content.isEmpty {
@@ -5919,7 +5927,7 @@ final class ReviewSessionManager {
                 if showsTextWhileStreaming, let index = chatMessages.firstIndex(where: { $0.id == messageID }) {
                     let visible = Self.visibleAssistantText(from: fullText)
                         .map { Self.strippingLeakedNativeToolPayloads($0, toolCalls: result.toolCalls) }
-                    chatMessages[index].content = visible ?? ""
+                    chatMessages[index].content = repairingSourceTitleMarkers(in: visible ?? "")
                 }
                 return AIToolStreamResult(
                     text: fullText,
@@ -11845,6 +11853,14 @@ final class ReviewSessionManager {
               var activity = chatMessages[index].toolActivity else { return }
         let trimmed = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
         activity.state = (result.isError || trimmed.isEmpty) ? .failed : .succeeded
+        if !result.isError {
+            toolSourceTitles.harvest(toolResult: trimmed)
+            if activity.toolName == "retrieve_sources" {
+                for block in Self.parsedRetrievalBlocks(from: trimmed) {
+                    toolSourceTitles.note(id: block.sourceID, title: block.title)
+                }
+            }
+        }
         // A successful source read is represented by its compact source card in
         // the transcript. Keep failures expandable so the tool error still
         // surfaces instead of being hidden behind the presentation treatment.
@@ -14061,6 +14077,17 @@ final class ReviewSessionManager {
             cleaned = cleaned.replacingOccurrences(of: arguments, with: "")
         }
         return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// A reply with each `【Title】` citation written as the source's link, or as
+    /// plain words when no source of this chat has that title. Some open models
+    /// cite that way whatever the prompt says (`ChatSourceTitleIndex`).
+    private func repairingSourceTitleMarkers(in text: String) -> String {
+        guard text.contains("\u{3010}") else { return text }
+        var index = toolSourceTitles
+        for article in activeArticles { index.note(id: article.id, title: article.title) }
+        for found in foundSources { index.note(id: found.id, title: found.title) }
+        return index.repairing(text)
     }
 
     private static func visibleAssistantText(from text: String) -> String? {

@@ -5132,6 +5132,38 @@ struct ChatRobustnessTests {
         #expect(ReviewSessionManager.linkingLibrarySources(in: reply) { _ in nil } == reply)
     }
 
+    @Test("A 【Title】 citation becomes the source's link; one that names nothing keeps its words")
+    func bracketMarkerCitationsBecomeSourceLinks() {
+        var index = ChatSourceTitleIndex()
+        index.note(id: "src_finbow", title: "Mitochondrial dynamics and in vivo sensing with Anthony Finbow")
+        index.harvest(toolResult: """
+        {"results": [{"source_id": "src_json", "title": "Redox Signalling [Review]"}]}
+        """)
+        index.harvest(toolResult: "- [paper] Cristae remodelling (id: src_list, 4,120 words)")
+        index.harvest(toolResult: "Best match: [Quiet Hearts](foreverlm://source/src%20link)")
+        index.note(id: "src_a", title: "Twin")
+        index.note(id: "src_b", title: "Twin")
+
+        let reply = "Fission is tuned by the cell【Mitochondrial dynamics and in vivo sensing with Anthony Finbow】. "
+            + "Also 【  cristae   REMODELLING 】, 【Redox Signalling [Review]】 and 【Quiet Hearts】; "
+            + "【Twin】 and 【Unknown Talk】 stay plain, as does [【Cristae remodelling】](foreverlm://source/src_list)."
+        let repaired = index.repairing(reply)
+
+        #expect(repaired.contains("cell[Mitochondrial dynamics and in vivo sensing with Anthony Finbow](foreverlm://source/src_finbow)."))
+        #expect(repaired.contains("[Cristae remodelling](foreverlm://source/src_list),"))
+        #expect(repaired.contains("[Redox Signalling \\[Review\\]](foreverlm://source/src_json)"))
+        #expect(repaired.contains("[Quiet Hearts](foreverlm://source/src%20link);"))
+        #expect(repaired.contains(" Twin and Unknown Talk stay plain"))
+        // Inside a link's own brackets the marker only loses its brackets.
+        #expect(repaired.contains("[Cristae remodelling](foreverlm://source/src_list)."))
+        #expect(!repaired.contains("\u{3010}") && !repaired.contains("\u{3011}"))
+        // The repaired citations are read as citations by the ledger.
+        #expect(ChatCitationLedger.citations(in: repaired).map(\.token)
+            == ["src_finbow", "src_list", "src_json", "src link", "src_list"])
+        // A reply with no marker is returned untouched.
+        #expect(index.repairing("Nothing to fix [here](foreverlm://source/src_a).") == "Nothing to fix [here](foreverlm://source/src_a).")
+    }
+
     @Test("Web sources footer is defensively capped")
     @MainActor
     func webSourcesFooterHasMaximum() {

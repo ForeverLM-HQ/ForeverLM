@@ -421,6 +421,138 @@ enum ChatSourceEvidence {
     }
 }
 
+/// The titles of the sources one chat has met, and the repair of a reply that
+/// cites one the way some open "thinking" models do: `【Source title】` instead of
+/// `[Source title](foreverlm://source/ID)`.
+///
+/// The prompts forbid that marker and those models write it anyway, which leaves
+/// the citation as dead text: no chip, no Sources card, no way into the Reader.
+/// So it is repaired in code, deterministically. A marker whose text is exactly
+/// the title of one source this chat has attached, loaded, retrieved or listed
+/// (case, spacing and width aside) becomes that source's link. A marker that
+/// names nothing, or names two sources alike, keeps its words and loses its
+/// brackets: the learner reads the title, and nothing points at a record that
+/// may not be the one meant.
+struct ChatSourceTitleIndex: Equatable {
+    private(set) var titleByID: [String: String] = [:]
+    private var idsByTitle: [String: Set<String>] = [:]
+
+    var isEmpty: Bool { titleByID.isEmpty }
+
+    /// Remembers a source the chat has met. The first title seen for an id is
+    /// the one a repaired link shows.
+    mutating func note(id: String, title: String) {
+        let id = id.trimmingCharacters(in: .whitespacesAndNewlines)
+        let shown = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let key = Self.normalized(shown)
+        guard !id.isEmpty, !key.isEmpty else { return }
+        if titleByID[id] == nil { titleByID[id] = shown }
+        idsByTitle[key, default: []].insert(id)
+    }
+
+    /// Remembers every source a tool's answer names, in the three shapes the
+    /// app's tools use: a ready-made `[Title](foreverlm://source/ID)` link, a
+    /// list line `- [type] Title (id: ID, …)`, and a JSON object carrying
+    /// `source_id` beside `title`.
+    mutating func harvest(toolResult text: String) {
+        guard !text.isEmpty else { return }
+        let whole = NSRange(text.startIndex..., in: text)
+        for match in Self.linkExpression.matches(in: text, range: whole) {
+            guard let titleRange = Range(match.range(at: 1), in: text),
+                  let tokenRange = Range(match.range(at: 2), in: text) else { continue }
+            let title = String(text[titleRange])
+                .replacingOccurrences(of: "\\[", with: "[")
+                .replacingOccurrences(of: "\\]", with: "]")
+                .replacingOccurrences(of: "\\\\", with: "\\")
+            let encoded = String(text[tokenRange])
+            note(id: encoded.removingPercentEncoding ?? encoded, title: title)
+        }
+        for match in Self.listLineExpression.matches(in: text, range: whole) {
+            guard let titleRange = Range(match.range(at: 1), in: text),
+                  let idRange = Range(match.range(at: 2), in: text) else { continue }
+            note(id: String(text[idRange]), title: String(text[titleRange]))
+        }
+        if let first = text.first(where: { !$0.isWhitespace }), first == "{" || first == "[",
+           let data = text.data(using: .utf8),
+           let object = try? JSONSerialization.jsonObject(with: data) {
+            harvest(json: object)
+        }
+    }
+
+    private mutating func harvest(json: Any) {
+        if let dictionary = json as? [String: Any] {
+            if let id = dictionary["source_id"] as? String, let title = dictionary["title"] as? String {
+                note(id: id, title: title)
+            }
+            for value in dictionary.values { harvest(json: value) }
+        } else if let array = json as? [Any] {
+            for value in array { harvest(json: value) }
+        }
+    }
+
+    /// `text` with each `【…】` marker repaired. Text without one comes back
+    /// untouched and unscanned.
+    func repairing(_ text: String) -> String {
+        guard text.contains("\u{3010}") else { return text }
+        let whole = NSRange(text.startIndex..., in: text)
+        let matches = Self.markerExpression.matches(in: text, range: whole)
+        guard !matches.isEmpty else { return text }
+        var result = text
+        for match in matches.reversed() {
+            guard let markerRange = Range(match.range, in: result),
+                  let innerRange = Range(match.range(at: 1), in: result) else { continue }
+            let inner = String(result[innerRange])
+            // `【Title†L12-L15】` carries a locator after the dagger.
+            let named = inner.split(separator: "\u{2020}", maxSplits: 1, omittingEmptySubsequences: false)
+                .first.map(String.init) ?? inner
+            let words = named.trimmingCharacters(in: .whitespacesAndNewlines)
+            // A marker already inside a link's brackets must not open a second link.
+            let insideBrackets = markerRange.lowerBound > result.startIndex
+                && result[result.index(before: markerRange.lowerBound)] == "["
+                && result[markerRange.upperBound...].hasPrefix("]")
+            if !insideBrackets,
+               let ids = idsByTitle[Self.normalized(words)], ids.count == 1, let id = ids.first,
+               let title = titleByID[id] {
+                result.replaceSubrange(markerRange, with: Self.link(title: title, id: id))
+            } else {
+                result.replaceSubrange(markerRange, with: words)
+            }
+        }
+        return result
+    }
+
+    /// `foreverlm://source/<id>` link text for a source, with a bracket in the
+    /// title escaped so it cannot close the link early.
+    static func link(title: String, id: String) -> String {
+        let text = title
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "[", with: "\\[")
+            .replacingOccurrences(of: "]", with: "\\]")
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        return "[\(text)](\(ChatSourceEvidence.sourceLinkMarker)\(encoded))"
+    }
+
+    /// A title as two spellings of it compare: case, accents, width and
+    /// runs of spaces set aside.
+    static func normalized(_ title: String) -> String {
+        title
+            .folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: nil)
+            .split(whereSeparator: { $0.isWhitespace })
+            .joined(separator: " ")
+    }
+
+    private static let markerExpression = try! NSRegularExpression(
+        pattern: "\u{3010}([^\u{3010}\u{3011}\\n]{1,300})\u{3011}"
+    )
+    private static let linkExpression = try! NSRegularExpression(
+        pattern: ##"\[((?:\\.|[^\]\\\n])+)\]\(foreverlm://source/([^\s)<>'"?#]+)"##
+    )
+    private static let listLineExpression = try! NSRegularExpression(
+        pattern: #"^\s*[-•*]\s*\[[^\]\n]*\]\s+(.+?)\s+\(id:\s*([^,)\s]+)"#,
+        options: [.anchorsMatchLines]
+    )
+}
+
 /// A chat the learner had, as material for the memory review.
 ///
 /// docs/memory-design.md, "Evidence": every chat is evidence, and something the
