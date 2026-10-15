@@ -438,6 +438,7 @@ targets:
       - iOS/MobileLoudnessAudioMix.swift
       # Old realtime rows' cached-charge reconstruction for usage history,
       # and the cost formatting; Foundation-only for the Mac unit tests.
+      - iOS/MobileRealtimeRates.swift
       - iOS/MobileSourceFileStore.swift
       # Durable, non-purgeable copies of saved sources + the Save Offline UI.
       - iOS/MobileOfflineLibrary.swift
@@ -901,6 +902,7 @@ targets:
       - iOS/MobileDrivingBenchmarks.swift
       - iOS/MobileVoiceReviewPromptContract.swift
       - iOS/MobileVoiceConversationRules.swift
+      - iOS/MobileRealtimeRates.swift
       - iOS/MobileSpeechLoudness.swift
       # The shared sync vectors (docs/cloudkit-schema-design.md §12.1), as one
       # folder in the bundle: SyncVectorRunner reads them from `vectors/`.
