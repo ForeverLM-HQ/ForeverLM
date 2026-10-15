@@ -182,4 +182,13 @@ struct InlineTitleMarkupTests {
         // Different words are still a different title.
         #expect(!SlideCitationService.titlesMatch("Respiratory chain linked H2O2 production", library))
     }
+
+    @Test("A card's math spans fold in place and its prose and line breaks stay as written")
+    func cardMathSpans() {
+        let back = "Reverse rates follow the forward rates: \\(k_{-1} = k_1 e^{FE/RT}\\), so the fit yields \\(E_m\\) and \\(\\Delta\\psi_m\\).\n\nSecond line, $5 and $10."
+        #expect(back.foldingMathSpans() == "Reverse rates follow the forward rates: k₋₁ = k₁ e^(FE/RT), so the fit yields Eₘ and Δψₘ.\n\nSecond line, $5 and $10.")
+        #expect("Plain text, 50% of it.".foldingMathSpans() == "Plain text, 50% of it.")
+        #expect("A \\(Δ never closes".foldingMathSpans() == "A \\(Δ never closes")
+        #expect("$$\\frac{a}{b}$$ then \\[x^2\\]".foldingMathSpans() == "a/b then x²")
+    }
 }

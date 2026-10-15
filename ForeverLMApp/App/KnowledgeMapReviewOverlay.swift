@@ -272,7 +272,7 @@ private struct KnowledgeMapReviewCard: View {
                 if card.isNew { tag("NEW", tint: .accentColor, help: "Your first answer to this card sets when it comes back") }
                 if sitting.isRepeat { tag("AGAIN", tint: .secondary, help: "Asked again; the first answer stands") }
             }
-            Text(card.prompt)
+            Text(card.prompt.foldingMathSpans())
                 .font(.system(size: 17, design: .serif))
                 .foregroundStyle(sitting.isAnswerShown ? Color.secondary : Color.primary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -307,7 +307,7 @@ private struct KnowledgeMapReviewCard: View {
                 if let check = sitting.answerCheck {
                     MemoryCardVerdictLine(check: check)
                 }
-                Text(card.back)
+                Text(card.back.foldingMathSpans())
                     .font(.system(size: 14.5))
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("knowledgeMap.review.back")

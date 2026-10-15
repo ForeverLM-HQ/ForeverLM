@@ -144,13 +144,13 @@ struct MemoryCardWhyLine: View {
     let why: [String]
 
     var body: some View {
-        Text(why.joined(separator: " "))
+        Text(why.joined(separator: " ").foldingMathSpans())
             .font(MemoryCardMetrics.whyFont)
             .lineSpacing(2)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
             .textSelection(.disabled)
-            .accessibilityLabel("Why: " + why.joined(separator: " "))
+            .accessibilityLabel("Why: " + why.joined(separator: " ").foldingMathSpans())
     }
 }
 

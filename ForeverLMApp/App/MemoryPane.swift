@@ -613,7 +613,7 @@ struct MemoryPane: View {
                         .lineLimit(3)
                         .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
-                    Text(card.face.back)
+                    Text(card.face.back.foldingMathSpans())
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)

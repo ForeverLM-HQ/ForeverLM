@@ -970,7 +970,7 @@ struct MobileCardReviewScreen: View {
         let showsWordingMenu = card.isVariant || card.alwaysAsk
         let hasTopRow = !tags.isEmpty || showsWordingMenu
         return VStack(alignment: .leading, spacing: 0) {
-            Text(card.prompt)
+            Text(card.prompt.foldingMathSpans())
                 .font(.system(size: frontSize, weight: .regular, design: .serif))
                 .foregroundStyle(shown ? Color.secondary : Color.primary)
                 .lineSpacing(2)
@@ -1051,7 +1051,7 @@ struct MobileCardReviewScreen: View {
                 MemoryCardVerdictLine(check: check)
                     .padding(.bottom, 14)
             }
-            Text(card.back)
+            Text(card.back.foldingMathSpans())
                 .font(.system(size: backSize))
                 .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)

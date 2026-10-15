@@ -797,7 +797,7 @@ private struct MemoryCardToCheckFace: View {
                 MemoryCardTagLine(tags: tags)
                     .padding(.bottom, 16)
             }
-            Text(card.face.front)
+            Text(card.face.front.foldingMathSpans())
                 .font(MemoryCardMetrics.frontFont)
                 .foregroundStyle(opened == nil ? Color.primary : Color.secondary)
                 .lineSpacing(2)
@@ -880,7 +880,7 @@ private struct MemoryCardToCheckFace: View {
         VStack(alignment: .leading, spacing: 0) {
             MemoryCardFold()
                 .padding(.vertical, 22)
-            Text(card.face.back)
+            Text(card.face.back.foldingMathSpans())
                 .font(MemoryCardMetrics.backFont)
                 .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)

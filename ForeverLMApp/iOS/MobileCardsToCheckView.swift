@@ -370,7 +370,7 @@ struct MobileCardsToCheckList<Header: View>: View {
                     .accessibilityLabel(tags.map(\.capitalized).joined(separator: ", "))
                     .padding(.bottom, MobileDesign.Spacing.medium)
             }
-            Text(card.face.front)
+            Text(card.face.front.foldingMathSpans())
                 .font(.system(size: frontSize, weight: .regular, design: .serif))
                 .foregroundStyle(shown ? Color.secondary : Color.primary)
                 .lineSpacing(2)
@@ -392,7 +392,7 @@ struct MobileCardsToCheckList<Header: View>: View {
                     MemoryCardVerdictLine(check: check)
                         .padding(.bottom, 14)
                 }
-                Text(card.face.back)
+                Text(card.face.back.foldingMathSpans())
                     .font(.system(size: backSize))
                     .lineSpacing(2)
                     .fixedSize(horizontal: false, vertical: true)

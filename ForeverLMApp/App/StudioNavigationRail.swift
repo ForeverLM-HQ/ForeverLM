@@ -2250,9 +2250,16 @@ struct StudioNavigationRail: View {
     @ViewBuilder
     private var compRowIcon: some View {
         if ownKeyPays {
-            Image(systemName: "key")
-                .font(.system(size: 13, weight: .medium))
+            // The router's own mark, not a key glyph (product owner,
+            // 2026-10-15: "you can get rid of this now that we have the open
+            // router logo").
+            Image("OpenRouterIcon")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 14, height: 14)
                 .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
         } else {
             compCrown
         }

@@ -17,6 +17,34 @@ extension String {
     }
 }
 
+extension String {
+    /// The receiver with each math span (`\(…\)`, `\[…\]`, `$$…$$`) folded
+    /// into readable text and everything around the spans untouched, line
+    /// breaks included. A card's front, back and why are prose with a formula
+    /// here and there, so unlike `foldingTeXForPreview` the prose is never
+    /// re-flowed. An unclosed opener is left as written.
+    func foldingMathSpans() -> String {
+        guard contains("$$") || contains("\\(") || contains("\\[") else { return self }
+        let openers: [(open: String, close: String)] = [("$$", "$$"), ("\\(", "\\)"), ("\\[", "\\]")]
+        var result = ""
+        var rest = self[...]
+        while true {
+            let next = openers
+                .compactMap { pair -> (range: Range<String.Index>, close: String)? in
+                    rest.range(of: pair.open).map { ($0, pair.close) }
+                }
+                .min { $0.range.lowerBound < $1.range.lowerBound }
+            guard let next, let close = rest.range(of: next.close, range: next.range.upperBound..<rest.endIndex) else {
+                result += rest
+                return result
+            }
+            result += rest[..<next.range.lowerBound]
+            result += ReadableMath.render(String(rest[next.range.lowerBound..<close.upperBound]))
+            rest = rest[close.upperBound...]
+        }
+    }
+}
+
 enum ReadableMath {
     /// Math delimiters or a backslash command: the two ways TeX shows up in a
     /// passage. A lone `$5` in prose is neither.
@@ -245,6 +273,9 @@ enum ReadableMath {
             guard !argument.isEmpty else { return "" }
             let converted = argument.compactMap { table[$0] }
             if converted.count == argument.count { return String(converted) }
+            // `e^{FE/RT}` must not read as `e^FE/RT`: a script that cannot be
+            // set small and carries an operator keeps its grouping.
+            if argument.contains(where: { "/+-−=".contains($0) }) { return "\(marker)(\(argument))" }
             return "\(marker)\(argument)"
         }
     }

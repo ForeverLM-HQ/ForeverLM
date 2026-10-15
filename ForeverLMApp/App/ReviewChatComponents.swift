@@ -4470,7 +4470,7 @@ struct ReviewChatSavedCardsView: View {
             }
             .frame(minHeight: 16)
             .padding(.bottom, 8)
-            Text(card.face.front)
+            Text(card.face.front.foldingMathSpans())
                 .font(.system(size: 15, design: .serif))
                 .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -4480,7 +4480,7 @@ struct ReviewChatSavedCardsView: View {
             }
             MemoryCardFold()
                 .padding(.vertical, 10)
-            Text(card.face.back)
+            Text(card.face.back.foldingMathSpans())
                 .font(.system(size: 13))
                 .foregroundStyle(Color.primary.opacity(0.85))
                 .fixedSize(horizontal: false, vertical: true)
