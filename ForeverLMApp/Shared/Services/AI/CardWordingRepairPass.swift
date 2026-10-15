@@ -23,10 +23,7 @@ struct CardWordingRepairReport: Equatable, Sendable {
 /// far it has come. Written before anything is spent (the enqueue), after
 /// every batch (resumable), and once more when it is done (never repeats).
 struct CardWordingRepairProgress: Codable, Equatable, Sendable {
-    /// 2 (2026-10-15): the check also fails a question that never names what
-    /// it is about, which the cards kept under version 1 were not held to, so
-    /// the repair reads every kept card once more.
-    static let currentVersion = 2
+    static let currentVersion = 1
 
     let version: Int
     /// The cards kept before this instant are the repair's: every card since
@@ -83,7 +80,7 @@ struct CardWordingRepairPass: Sendable {
     static let batchSize = 20
     /// Where this Mac keeps the repair's progress. Local: each Mac checks the
     /// cards once, and a card another Mac reworded passes here.
-    static let progressKey = "memory.cardWordingRepair.v2"
+    static let progressKey = "memory.cardWordingRepair.v1"
 
     let storage: StorageService
     let backend: any CardWordingBackend
