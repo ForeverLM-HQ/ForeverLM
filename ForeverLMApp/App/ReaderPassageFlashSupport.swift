@@ -362,13 +362,26 @@ enum ReaderPassageFlash {
     /// `scope` names the chapter section to search when the page is an EPUB
     /// book read as one document: the passage is that chapter's, and the
     /// whole book is far too much text to fold for one citation.
-    static func flash(_ passage: String, in webView: WKWebView, scope: String? = nil) {
+    /// `found` answers whether the page carried the passage: a live page behind
+    /// a paywall or a metered cut-off does not, and the caller can then show
+    /// the saved copy instead.
+    static func flash(
+        _ passage: String,
+        in webView: WKWebView,
+        scope: String? = nil,
+        found: ((Bool) -> Void)? = nil
+    ) {
         var payload = cssChannels()
         payload["passage"] = passage
         if let scope { payload["scope"] = scope }
         guard let data = try? JSONSerialization.data(withJSONObject: payload),
-              let json = String(data: data, encoding: .utf8) else { return }
-        webView.evaluateJavaScript("window.foreverLMFlashPassage && window.foreverLMFlashPassage(\(json));")
+              let json = String(data: data, encoding: .utf8) else {
+            found?(false)
+            return
+        }
+        webView.evaluateJavaScript("window.foreverLMFlashPassage && window.foreverLMFlashPassage(\(json));") { result, _ in
+            found?((result as? NSNumber)?.boolValue ?? false)
+        }
     }
 
     /// One-time installer for the web readers. Folds the page's text the way

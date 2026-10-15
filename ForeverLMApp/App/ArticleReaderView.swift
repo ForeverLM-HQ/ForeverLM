@@ -2703,14 +2703,40 @@ struct WebViewReader: NSViewRepresentable {
         /// has settled, scroll to the passage and flash it.
         @MainActor
         func applyPassageTargetIfNeeded(to webView: WKWebView) {
-            guard hasSettledPage, !webView.isLoading,
-                  let target = passageTracker.pending(for: parent.articleId, in: parent.vm) else { return }
+            guard hasSettledPage, !webView.isLoading else { return }
+            // The live page did not carry the passage, so the saved copy was
+            // put up in its place; it is that copy's turn to show it.
+            if let passage = passageAwaitingSavedCopy, webView.url?.isFileURL == true {
+                passageAwaitingSavedCopy = nil
+                flashPassage(passage, in: webView)
+                return
+            }
+            guard let target = passageTracker.pending(for: parent.articleId, in: parent.vm) else { return }
             passageTracker.finish(target, in: parent.vm)
             // A page names nothing on a web page; only the words can be found.
             guard let passage = target.passage else { return }
-            DispatchQueue.main.asyncAfter(deadline: .now() + ReaderPassageFlash.webSettleDelay) { [weak webView] in
+            flashPassage(passage, in: webView)
+        }
+
+        /// The passage a live page could not show, held until the saved copy
+        /// has loaded.
+        private var passageAwaitingSavedCopy: String?
+
+        /// Marks `passage` once the page has settled. A live page that does
+        /// not carry it — a paywall or a metered cut-off hides the paragraphs
+        /// a card or citation stands on, though the saved copy has them — is
+        /// swapped for the saved copy, which then shows it.
+        private func flashPassage(_ passage: String, in webView: WKWebView) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + ReaderPassageFlash.webSettleDelay) { [weak self, weak webView] in
                 guard let webView else { return }
-                ReaderPassageFlash.flash(passage, in: webView)
+                ReaderPassageFlash.flash(passage, in: webView) { found in
+                    Task { @MainActor [weak webView] in
+                        guard !found, let self, let webView, webView.url?.isFileURL != true,
+                              self.attemptCachedFallback(in: webView) else { return }
+                        self.passageAwaitingSavedCopy = passage
+                        self.parent.vm.showToast("The live page doesn’t show that passage — showing the saved copy")
+                    }
+                }
             }
         }
 
