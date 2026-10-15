@@ -6,10 +6,25 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.156.0 (build 236) — 2026-10-15
+
+**Highlights:**
+- **Make me plan:** an option that opens the planning chat by itself each morning and keeps the card until the day is planned.
+- **Cards:** a picture can be added to the card you are checking, no more easy/medium/hard label, and the Why reads as part of the answer.
+- **To Check:** the iPhone asks before it shows the answer.
+- **Show Passage** opens a recording at the words; **AI Usage** sits under the OpenRouter button.
+
 - **Add a picture to the card you are checking.** Ask the chat beside To Check to add a figure it showed ("can you add it to the card?") and the picture goes on the card in front of you. It waits with the card: Keep carries it, Skip drops it. Assistants do it with `update_card` and `back_images` (or `front_images`) on a card still to check.
 - **Cards no longer say easy, medium or hard.** A model used to guess a difficulty when it drafted a card and the card wore it, a small MEDIUM over the question, in To Check, in the review and in the deck a chat shows. That guess said nothing about how you find the card, so it is gone, on the Mac and the iPhone, and nothing asks for it any more (`save_card_drafts` and `save_mnemonic_reading` no longer take a `difficulty`). How hard a card is for you is something your answers will show over time.
 - **Why the answer holds reads as part of the answer.** On the back of a card it is now one plain sentence under the answer, without the small WHY label, on the Mac's review, To Check and All Cards, on the iPhone, and in Edit Card. Drafted cards are asked to give the cause or the evidence that makes the answer true, not the answer again or what the author did.
 - **Make me plan.** Settings → General → Day has a new switch. On a morning when your calendar holds nothing you planned, the planning chat opens by itself the first time you are at your Mac, and the "Plan your day" card cannot be closed or hidden until the calendar holds a plan of yours. Off by default; assistants read and set it as `force_planning_the_day`.
+
+- **AI Usage is under the OpenRouter button.** The sidebar's OpenRouter button opens AI Usage beside what is running now.
+- **Show Passage opens at the words.** From a video, podcast or meeting, Show Passage opens the recording at the passage, not at its start.
+- **To Check asks before it answers, on the iPhone too.** The iPhone's To Check shows the question and waits for your answer before the back; on the Mac the answer field keeps the keys until the back shows.
+- **The morning banner suggests cards for what you added.** It also offers cards for what you added to the library that day.
+- **Chat sources are links.** The chat cites a source only as a link, never as a bracketed number with an id; and a bare "this" or "that" beside a card is answered from the previous reply and the card together.
+- **Better card openers.** The walk and quiz writers stop opening cards with "In this paper", "In this lecture" or "In this course".
 
 ## 0.155.0 (build 235) — 2026-10-15
 
