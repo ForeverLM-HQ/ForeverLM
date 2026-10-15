@@ -14,8 +14,15 @@ import SwiftUI
 /// owner: "more intuitive if the review process just shows cards that i go through … and then i can
 /// say keep / edit etc"): over the card its source, which opens it, its place ("3 of 15") and the
 /// round's strip; under it Skip and Edit, pale, and Keep, dark. Swiping the card right keeps it and
-/// left skips it, and it goes off that way as an answered card does. Opening it reads only. A decided
-/// card leaves at once and comes back only if the phone could not write it, which an alert says.
+/// left skips it, and it goes off that way as an answered card does. A card is asked before it is
+/// judged (product owner, 2026-10-15: "even for 'to check' cards i should still be quizzed on them;
+/// not just see the answer"): its front waits for the learner's answer, typed or said, in the review's
+/// own field (`MobileCardAttemptComposer`), or for "I Don't Know"; only then does it turn to the fold,
+/// the back and why, with the answer's check (`MobileCardAnswerCheck`, the review's) over the back.
+/// Until then there is no Keep and no swipe: Skip and Edit stay, quiet, for a card wrong on its face.
+/// The answer and its verdict are shown, not stored, and decide nothing: Keep is the learner's call.
+/// A decided card leaves at once and comes back only if the phone could not write it, which an alert
+/// says.
 struct MobileCardsToCheckList<Header: View>: View {
     let scope: MemoryReviewScope
     /// Opens a card's source in the Reader.
@@ -43,6 +50,16 @@ struct MobileCardsToCheckList<Header: View>: View {
     @State private var exitEdge: HorizontalEdge = .trailing
     /// How far the card in front is dragged sideways.
     @State private var drag: CGFloat = 0
+    /// What the learner has typed or said for the card in front.
+    @State private var attemptDraft = ""
+    /// The card in front once its back shows, and what turned it.
+    @State private var opened: Opened?
+    /// The check of that answer, while it runs.
+    @State private var checkWork: Task<Void, Never>?
+    @State private var revealCount = 0
+    /// Tap-to-talk for the answer field, as the review's.
+    @StateObject private var dictation = MobileComposerDictation()
+    @FocusState private var isAttemptFocused: Bool
     @ScaledMetric(relativeTo: .title2) private var frontSize = MemoryCardMetrics.frontSize
     @ScaledMetric(relativeTo: .body) private var backSize = MemoryCardMetrics.backSize
 
@@ -50,6 +67,17 @@ struct MobileCardsToCheckList<Header: View>: View {
         let cardID: String
         let kept: Bool
     }
+
+    /// A card whose back shows: the answer that turned it (nil for "I Don't Know") and the check of
+    /// that answer (nil when there is nothing to check).
+    private struct Opened: Equatable {
+        let cardID: String
+        let attempt: String?
+        var check: MemoryCardSitting.AnswerCheck?
+    }
+
+    /// Whether the back of the card in front shows: only an answer or "I Don't Know" shows it.
+    private func isOpen(_ card: MemoryCardToCheck) -> Bool { opened?.cardID == card.cardID }
 
     private var visible: [MemoryCardToCheck] { cards.filter { !decided.contains($0.cardID) } }
 
@@ -77,7 +105,22 @@ struct MobileCardsToCheckList<Header: View>: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .task(id: "\(scope)#\(vm.memoryCardsRevision)") { await load() }
+        .task { await dictation.refreshAvailability() }
+        .onDisappear {
+            checkWork?.cancel()
+            Task { await dictation.cancel() }
+        }
+        .onChange(of: visible.first?.cardID) { _, _ in
+            // Another card in front starts with an empty answer and its back hidden.
+            checkWork?.cancel()
+            checkWork = nil
+            attemptDraft = ""
+            opened = nil
+            Task { await dictation.cancel() }
+        }
+        .scrollDismissesKeyboard(.interactively)
         .sensoryFeedback(.impact(weight: .light), trigger: gone.count)
+        .sensoryFeedback(.selection, trigger: revealCount)
         .sheet(item: $editing) { card in
             MobileCardEditorSheet(
                 title: "Edit Card",
@@ -151,10 +194,16 @@ struct MobileCardsToCheckList<Header: View>: View {
         VStack(alignment: .leading, spacing: MobileDesign.Spacing.large) {
             progress(card, waiting: waiting)
             deck(card, waiting: waiting)
-            actions(card)
+            if isOpen(card) {
+                actions(card)
+            } else {
+                asking(card)
+            }
             if gone.isEmpty {
                 // What the buttons do, to someone who has never seen them.
-                Text("Keep a card and Review will ask it. Skip it and it is gone. Swipe right to keep, left to skip.")
+                Text(isOpen(card)
+                    ? "Keep a card and Review will ask it. Skip it and it is gone. Swipe right to keep, left to skip."
+                    : "Answer the card first. Then keep it and Review will ask it, or skip it and it is gone.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -248,11 +297,13 @@ struct MobileCardsToCheckList<Header: View>: View {
             cardFace(card)
                 .modifier(MemoryCardToss(offset: drag, angle: Double(drag / 40), opacity: 1))
                 .overlay(alignment: drag > 0 ? .topLeading : .topTrailing) { swipeWord }
-                .simultaneousGesture(swipe(card))
+                // A card nobody has answered cannot be swiped to a decision: the swipe is
+                // there only once its back shows.
+                .simultaneousGesture(swipe(card), including: isOpen(card) ? .all : .none)
                 .id(card.cardID)
                 .transition(.memoryCard(leavingTo: exitEdge, reduceMotion: reduceMotion))
                 .contextMenu {
-                    Button("Keep", systemImage: "checkmark") { decide(card, .keep) }
+                    if isOpen(card) { Button("Keep", systemImage: "checkmark") { decide(card, .keep) } }
                     Button("Edit…", systemImage: "pencil") { editing = card }
                     Button("Skip", systemImage: "xmark") { decide(card, .skip) }
                     if vm.sourcesByID[card.sourceID] != nil {
@@ -260,7 +311,7 @@ struct MobileCardsToCheckList<Header: View>: View {
                         Button("Open Source", systemImage: "doc.text") { openSource(card.sourceID) }
                     }
                 }
-                .accessibilityAction(named: "Keep") { decide(card, .keep) }
+                .accessibilityAction(named: "Keep") { if isOpen(card) { decide(card, .keep) } }
                 .accessibilityAction(named: "Edit") { editing = card }
                 .accessibilityAction(named: "Skip") { decide(card, .skip) }
         }
@@ -292,12 +343,12 @@ struct MobileCardsToCheckList<Header: View>: View {
     private func swipe(_ card: MemoryCardToCheck) -> some Gesture {
         DragGesture(minimumDistance: 20)
             .onChanged { value in
-                guard abs(value.translation.width) > abs(value.translation.height) else { return }
+                guard isOpen(card), abs(value.translation.width) > abs(value.translation.height) else { return }
                 drag = value.translation.width
             }
             .onEnded { value in
                 let width = drag
-                guard abs(width) > MobileToCheckMetrics.swipeThreshold
+                guard isOpen(card), abs(width) > MobileToCheckMetrics.swipeThreshold
                     || abs(value.predictedEndTranslation.width) > MobileToCheckMetrics.swipeThreshold * 2,
                     width != 0
                 else {
@@ -312,6 +363,7 @@ struct MobileCardsToCheckList<Header: View>: View {
     private func cardFace(_ card: MemoryCardToCheck) -> some View {
         let tags = [card.face.difficulty?.rawValue, card.kind == .legacy ? "From before cards" : nil].compactMap { $0 }
         let inset: CGFloat = horizontalSizeClass == .regular ? 34 : 24
+        let shown = isOpen(card)
         return VStack(alignment: .leading, spacing: 0) {
             if !tags.isEmpty {
                 MemoryCardTagLine(tags: tags)
@@ -320,6 +372,7 @@ struct MobileCardsToCheckList<Header: View>: View {
             }
             Text(card.face.front)
                 .font(.system(size: frontSize, weight: .regular, design: .serif))
+                .foregroundStyle(shown ? Color.secondary : Color.primary)
                 .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
@@ -328,30 +381,42 @@ struct MobileCardsToCheckList<Header: View>: View {
                 MobileMemoryCardImageGrid(images: card.face.frontImages, sourceID: card.sourceID)
                     .padding(.top, MobileDesign.Spacing.large)
             }
-            MemoryCardFold()
-                .padding(.vertical, 20)
-            Text(card.face.back)
-                .font(.system(size: backSize))
-                .lineSpacing(2)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityLabel("Answer: \(card.face.back)")
-                .accessibilityIdentifier("memory.toCheck.back")
-            if !card.face.backImages.isEmpty {
-                MobileMemoryCardImageGrid(images: card.face.backImages, sourceID: card.sourceID)
-                    .padding(.top, MobileDesign.Spacing.large)
-            }
-            if !card.face.why.isEmpty {
-                MemoryCardWhyLine(why: card.face.why)
-                    .accessibilityElement(children: .combine)
-                    .padding(.top, 14)
+            if let opened = opened.flatMap({ $0.cardID == card.cardID ? $0 : nil }) {
+                if let given = opened.attempt {
+                    yourAnswer(given)
+                        .padding(.top, MobileDesign.Spacing.large)
+                }
+                MemoryCardFold()
+                    .padding(.vertical, 20)
+                if let check = opened.check {
+                    MemoryCardVerdictLine(check: check)
+                        .padding(.bottom, 14)
+                }
+                Text(card.face.back)
+                    .font(.system(size: backSize))
+                    .lineSpacing(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel("Answer: \(card.face.back)")
+                    .accessibilityIdentifier("memory.toCheck.back")
+                if !card.face.backImages.isEmpty {
+                    MobileMemoryCardImageGrid(images: card.face.backImages, sourceID: card.sourceID)
+                        .padding(.top, MobileDesign.Spacing.large)
+                }
+                if !card.face.why.isEmpty {
+                    MemoryCardWhyLine(why: card.face.why)
+                        .accessibilityElement(children: .combine)
+                        .padding(.top, 14)
+                }
             }
         }
         .padding(inset)
         .frame(
             maxWidth: .infinity,
             minHeight: verticalSizeClass == .compact ? MobileToCheckMetrics.compactHeightCardMinimum : MemoryCardMetrics.cardMinimumHeight,
-            alignment: .topLeading
+            // Until the answer opens, the question sits in the middle of the card, as the review's.
+            alignment: shown ? .topLeading : .leading
         )
+        .animation(.easeOut(duration: 0.22), value: shown)
         .memoryCardSurface()
         .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: MemoryCardMetrics.cornerRadius, style: .continuous))
         .accessibilityElement(children: .contain)
@@ -386,9 +451,101 @@ struct MobileCardsToCheckList<Header: View>: View {
         .frame(maxWidth: .infinity)
     }
 
+    /// Under the card, before its back shows: the review's answer field with its mic and Check, I Don't
+    /// Know under it, and Skip and Edit, quiet, for a card that is wrong on its face. No Keep yet.
+    private func asking(_ card: MemoryCardToCheck) -> some View {
+        VStack(spacing: MobileDesign.Spacing.xSmall) {
+            MobileCardAttemptComposer(
+                text: $attemptDraft,
+                dictation: dictation,
+                focus: $isAttemptFocused,
+                identifierPrefix: "memory.toCheck"
+            ) {
+                reveal(card, attempt: attemptDraft)
+            }
+            Button {
+                isAttemptFocused = false
+                Task { await dictation.cancel() }
+                reveal(card, attempt: nil)
+            } label: {
+                Text("I Don't Know")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(MobileMemoryPillStyle(kind: .secondary, height: MobileDesign.Metrics.minimumTouchTarget))
+            .disabled(dictation.state == .listening)
+            .accessibilityHint("Shows the answer")
+            .accessibilityIdentifier("memory.toCheck.notKnown")
+            HStack(spacing: MobileDesign.Spacing.xSmall) {
+                Button("Skip") { decide(card, .skip) }
+                    .buttonStyle(MobileMemoryPillStyle(kind: .quiet, height: MobileDesign.Metrics.minimumTouchTarget))
+                    .accessibilityHint("Drops this card for good")
+                    .accessibilityIdentifier("memory.toCheck.skip")
+                Button("Edit") { editing = card }
+                    .buttonStyle(MobileMemoryPillStyle(kind: .quiet, height: MobileDesign.Metrics.minimumTouchTarget))
+                    .accessibilityHint("Keeps this card in your own words")
+                    .accessibilityIdentifier("memory.toCheck.edit")
+            }
+        }
+        .frame(maxWidth: horizontalSizeClass == .regular ? MobileToCheckMetrics.regularBarWidth : .infinity)
+        .frame(maxWidth: .infinity)
+    }
+
+    /// What the learner answered, over the fold, to set against the back under it.
+    private func yourAnswer(_ given: String) -> some View {
+        VStack(alignment: .leading, spacing: MobileDesign.Spacing.xSmall) {
+            MemoryCardTagLine(tags: ["Your answer"])
+            Text(given)
+                .font(.system(size: backSize))
+                .lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Your answer: \(given)")
+        .accessibilityIdentifier("memory.toCheck.yourAnswer")
+    }
+
+    /// Turns the card to its back: on an answer (a blank one turns nothing, the back is never a free
+    /// flip) or, with nil, on "I Don't Know". An answer is sent to the check, which the card shows
+    /// over its back; a check that fails says so and the card still waits for the learner's decision.
+    private func reveal(_ card: MemoryCardToCheck, attempt: String?) {
+        guard !isOpen(card) else { return }
+        let answer = attempt?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let answer, answer.isEmpty { return }
+        withAnimation(.easeOut(duration: 0.22)) {
+            opened = Opened(cardID: card.cardID, attempt: answer, check: answer == nil ? nil : .checking)
+        }
+        revealCount += 1
+        guard let answer else { return }
+        let request = MemoryCardAnswerCheck.Request(
+            front: card.face.front,
+            back: card.face.back,
+            why: card.face.why,
+            quote: card.quote,
+            answer: answer
+        )
+        let title = sourceTitle(card.sourceID)
+        checkWork?.cancel()
+        checkWork = Task {
+            let outcome: MemoryCardSitting.AnswerCheck
+            do {
+                outcome = .judged(try await MobileCardAnswerCheck.check(request, cardID: card.cardID, sourceTitle: title))
+            } catch is CancellationError {
+                return
+            } catch {
+                outcome = .failed(MemoryCardAnswerCheck.failureLine(error.localizedDescription))
+            }
+            // A verdict that comes back after its card is gone is dropped.
+            guard !Task.isCancelled, opened?.cardID == card.cardID, opened?.check == .checking else { return }
+            opened?.check = outcome
+        }
+    }
+
     // MARK: Deciding
 
     private func decide(_ card: MemoryCardToCheck, _ action: MemoryCardTriageAction) {
+        // Keep needs the card's back to have shown (an answer or I Don't Know); Skip does not, and
+        // Edit keeps the card in the learner's own words, so its keep is the learner's rewriting.
+        if case .keep = action, !isOpen(card) { return }
         let kept: Bool
         if case .skip = action { kept = false } else { kept = true }
         exitEdge = kept ? .trailing : .leading

@@ -534,6 +534,73 @@ enum MobileCardAnswerCheck {
     }
 }
 
+/// The answer field of a card asked on the phone: the learner's answer, typed or dictated (the mic, on
+/// device, as a course quiz's), and Check, which hands the answer over once there is one. The review's
+/// own, and To Check's (product owner, 2026-10-15: even a card to check is asked before its back
+/// shows); `identifierPrefix` keeps each screen's accessibility identifiers its own
+/// (`<prefix>.attempt`, `.dictate`, `.check`).
+struct MobileCardAttemptComposer: View {
+    @Binding var text: String
+    @ObservedObject var dictation: MobileComposerDictation
+    var focus: FocusState<Bool>.Binding
+    let identifierPrefix: String
+    /// Check, pressed with an answer in the field.
+    let check: () -> Void
+
+    var body: some View {
+        let isListening = dictation.state == .listening
+        let canCheck = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        return MobileComposerSurface {
+            HStack(alignment: .bottom, spacing: MobileDesign.Spacing.xSmall) {
+                TextField("Type or say your answer", text: attemptText, axis: .vertical)
+                    .lineLimit(1...5)
+                    .focused(focus)
+                    .disabled(isListening)
+                    .padding(.vertical, 7)
+                    .accessibilityLabel("Your answer")
+                    .accessibilityIdentifier("\(identifierPrefix).attempt")
+                if dictation.isAvailable {
+                    Button {
+                        dictation.toggle { spoken in
+                            let typed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                            text = typed.isEmpty ? spoken : "\(typed) \(spoken)"
+                        }
+                    } label: {
+                        Image(systemName: isListening ? "stop.fill" : "mic.fill")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(isListening ? Color.red : Color.secondary)
+                            .frame(width: MobileDesign.Metrics.minimumTouchTarget, height: MobileDesign.Metrics.minimumTouchTarget)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(isListening ? "Stop dictation" : "Say your answer")
+                    .accessibilityIdentifier("\(identifierPrefix).dictate")
+                }
+                Button {
+                    focus.wrappedValue = false
+                    check()
+                } label: {
+                    MobileCircularActionLabel(systemImage: "arrow.up", isProminent: canCheck)
+                }
+                .buttonStyle(.plain)
+                .disabled(!canCheck || isListening)
+                .accessibilityLabel("Check your answer")
+                .accessibilityIdentifier("\(identifierPrefix).check")
+            }
+        }
+    }
+
+    /// The field shows the words as they are said, and takes no typing while the mic listens.
+    private var attemptText: Binding<String> {
+        Binding(
+            get: { dictation.state == .listening ? dictation.partialText : text },
+            set: { newValue in
+                guard dictation.state != .listening else { return }
+                text = newValue
+            }
+        )
+    }
+}
+
 /// Holds the app awake while one answer is written: the write is a fetch
 /// and a save, two round trips iOS could suspend the app between when it
 /// goes to the background.
@@ -1183,60 +1250,18 @@ struct MobileCardReviewScreen: View {
         }
     }
 
-    /// The learner's answer, typed or dictated (the mic, on device, as a
-    /// course quiz's), and Check, which turns the card once there is one.
+    /// The learner's answer, typed or dictated, and Check, which turns the
+    /// card once there is one (`MobileCardAttemptComposer`, which To Check
+    /// asks its cards with too).
     private var attemptComposer: some View {
-        let isListening = dictation.state == .listening
-        let canCheck = !session.attemptDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        return MobileComposerSurface {
-            HStack(alignment: .bottom, spacing: MobileDesign.Spacing.xSmall) {
-                TextField("Type or say your answer", text: attemptText, axis: .vertical)
-                    .lineLimit(1...5)
-                    .focused($isAttemptFocused)
-                    .disabled(isListening)
-                    .padding(.vertical, 7)
-                    .accessibilityLabel("Your answer")
-                    .accessibilityIdentifier("memory.cards.attempt")
-                if dictation.isAvailable {
-                    Button {
-                        dictation.toggle { text in
-                            let typed = session.attemptDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-                            session.attemptDraft = typed.isEmpty ? text : "\(typed) \(text)"
-                        }
-                    } label: {
-                        Image(systemName: isListening ? "stop.fill" : "mic.fill")
-                            .font(.body.weight(.semibold))
-                            .foregroundStyle(isListening ? Color.red : Color.secondary)
-                            .frame(width: MobileDesign.Metrics.minimumTouchTarget, height: MobileDesign.Metrics.minimumTouchTarget)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(isListening ? "Stop dictation" : "Say your answer")
-                    .accessibilityIdentifier("memory.cards.dictate")
-                }
-                Button {
-                    isAttemptFocused = false
-                    session.showAnswer(attempt: session.attemptDraft)
-                } label: {
-                    MobileCircularActionLabel(systemImage: "arrow.up", isProminent: canCheck)
-                }
-                .buttonStyle(.plain)
-                .disabled(!canCheck || isListening)
-                .accessibilityLabel("Check your answer")
-                .accessibilityIdentifier("memory.cards.check")
-            }
+        MobileCardAttemptComposer(
+            text: $session.attemptDraft,
+            dictation: dictation,
+            focus: $isAttemptFocused,
+            identifierPrefix: "memory.cards"
+        ) {
+            session.showAnswer(attempt: session.attemptDraft)
         }
-    }
-
-    /// The field shows the words as they are said, and takes no typing
-    /// while the mic listens.
-    private var attemptText: Binding<String> {
-        Binding(
-            get: { dictation.state == .listening ? dictation.partialText : session.attemptDraft },
-            set: { newValue in
-                guard dictation.state != .listening else { return }
-                session.attemptDraft = newValue
-            }
-        )
     }
 
     /// Answers the card in front, tossing it toward its answer's side. The
