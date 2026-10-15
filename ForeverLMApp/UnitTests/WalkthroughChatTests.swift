@@ -1286,6 +1286,32 @@ struct ChatReaderFocusTests {
         #expect(events.isEmpty)
     }
 
+    @Test("A meeting's notes are pointed at by a passage, and refuse a figure or a page they do not have")
+    func meetingNotesTakeAPassageOnly() async throws {
+        let storage = makeTemporaryStorage("focus-meeting")
+        var meeting = StudioArticle(url: "https://notes.example.org/d/standup", title: "Standup on mitochondria", sourceType: .meeting, discoveryOrigin: .manual)
+        meeting.content = text
+        meeting.wordCount = text.split(separator: " ").count
+        meeting.state = .ready
+        try await storage.saveSource(meeting)
+        let manager = ReviewSessionManager(storage: storage)
+        var events: [Event] = []
+        manager.walkthroughFocusHandler = { events.append(.focused($0)) }
+        manager.walkthroughReaderShowsSource = { $0 == meeting.id }
+
+        let passage = "Ageing flattens the valleys"
+        let shown = await manager.focusSourceAnchorForTesting(arguments: ["source_id": meeting.id, "passage": passage])
+        #expect(!shown.isError)
+        #expect(events == [.focused(.flash(passage: passage, sourceID: meeting.id))])
+
+        events = []
+        let figure = await manager.focusSourceAnchorForTesting(arguments: ["source_id": meeting.id, "figure_label": "Figure 1"])
+        #expect(figure.isError)
+        let page = await manager.focusSourceAnchorForTesting(arguments: ["source_id": meeting.id, "page_number": 2])
+        #expect(page.isError)
+        #expect(events.isEmpty)
+    }
+
     @Test("A figure whose reading failed is reported as a failure that says where it is outlined, and never reads the picture")
     func failedFigureReadingSaysWhereTheFigureIs() {
         let outlined = ReviewSessionManager.figureReadingUnavailableMessage(

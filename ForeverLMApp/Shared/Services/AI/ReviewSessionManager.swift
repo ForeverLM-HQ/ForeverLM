@@ -6813,7 +6813,7 @@ final class ReviewSessionManager {
         if walkthroughFocusHandler != nil {
             specs.append(AIToolSpec(
                 name: "focus_source_anchor",
-                description: "Open a paper, book chapter or article from the learner's library in the Reader beside this chat and point at one place in it while you explain: a figure (outlined on its PDF page), one panel of a figure (outlined alone; a chat with no Reader beside it gets a Markdown image line showing it enlarged instead), a passage copied from the source's text (outlined on the page, or scrolled to and flashed when the source is shown as text), or a page. The source need not be attached to this chat: take its source_id from the attached catalog, a search result or list_open_panes. Call it whenever your reply explains what a source says — its key points, a figure, a panel, a passage — pointing first and then explaining what is there, so the learner reads along in the source itself. The Reader shows one place at a time and is left on the last place a reply points at, so when the learner asks you to go through a source or walk through its figures, take one place per reply — point at it, explain it, and end by offering the next. A reply that covers several places, such as an overview of the key points, points at the one it starts with and cites the others with their excerpt links, which open the Reader there when clicked. To explain what a figure shows, inspect_paper_figure outlines it the same way and adds its vision reading; this tool only points, and costs nothing. Every anchor is checked against the source's figure index and text, so use the printed figure label exactly as the source prints it and copy a passage exactly, eight to thirty words in order; an anchor the source does not print is refused.",
+                description: "Open a paper, book chapter, article, meeting or podcast from the learner's library in the Reader beside this chat and point at one place in it while you explain: a figure (outlined on its PDF page), one panel of a figure (outlined alone; a chat with no Reader beside it gets a Markdown image line showing it enlarged instead), a passage copied from the source's text (outlined on the page, or scrolled to and flashed when the source is shown as text, as a meeting's notes or a podcast's transcript are), or a page. The source need not be attached to this chat: take its source_id from the attached catalog, a search result or list_open_panes. Call it whenever your reply explains what a source says — its key points, a figure, a panel, a passage — pointing first and then explaining what is there, so the learner reads along in the source itself. The Reader shows one place at a time and is left on the last place a reply points at, so when the learner asks you to go through a source or walk through its figures, take one place per reply — point at it, explain it, and end by offering the next. A reply that covers several places, such as an overview of the key points, points at the one it starts with and cites the others with their excerpt links, which open the Reader there when clicked. To explain what a figure shows, inspect_paper_figure outlines it the same way and adds its vision reading; this tool only points, and costs nothing. Every anchor is checked against the source's figure index and text, so use the printed figure label exactly as the source prints it and copy a passage exactly, eight to thirty words in order; an anchor the source does not print is refused.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -13190,9 +13190,15 @@ final class ReviewSessionManager {
         guard let article = await librarySourceArticle(forRequestedID: requestedID) else {
             return AppToolResult(text: Self.sourceNotInLibraryMessage(requestedID), isError: true)
         }
-        guard let subject = PaperWalkthroughSubject.of(article) else {
+        // A meeting's notes and a podcast's transcript are text the Reader
+        // shows, so a passage copied from them is flashed like an article's;
+        // they have no figures or pages to outline (a figure or page anchor
+        // below is refused as "shown as text").
+        let subject = PaperWalkthroughSubject.of(article)
+        let isTranscriptText = subject == nil && (article.sourceType == .meeting || article.sourceType == .podcast)
+        guard subject != nil || isTranscriptText else {
             return AppToolResult(
-                text: "Error: \"\(article.title)\" is not a paper, a book chapter or an article; only those have a page or text the Reader can point at.",
+                text: "Error: \"\(article.title)\" is not a paper, a book chapter, an article, a meeting or a podcast; only those have a page or text the Reader can point at.",
                 isError: true
             )
         }
