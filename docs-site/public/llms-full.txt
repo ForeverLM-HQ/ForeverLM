@@ -6413,6 +6413,8 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **Cards can carry math.** A formula or symbol written in LaTeX (`\(…\)` or `$$…$$`) on a card's question, answer or why now reads as math on the Mac and the iPhone (`k_{-1}` as k₋₁, `\frac{a}{b}` as a/b) instead of showing backslashes and braces, and the card writers use it when a card needs a formula.
+
 ## 0.156.0 (build 236) — 2026-10-15
 
 **Highlights:**
