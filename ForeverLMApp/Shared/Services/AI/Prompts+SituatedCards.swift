@@ -31,9 +31,10 @@ extension Prompts {
     Write each card:
     - "anchor": the handle of the anchor it serves ("A2").
     - "front": one question on one line, with exactly one right answer, that a learner who understood the anchor could answer in a sentence weeks later. Never "the arrow". Never yes or no, never multiple choice, never answerable from its own wording, never a sentence of a passage with a word blanked out.
-    - "back": the complete answer and no more: one or two short sentences, the number with its unit when the answer is a number.
+    - "back": the complete answer and no more: one short sentence, the number with its unit when the answer is a number.
     - \(cardStandsAloneRule)
     - \(cardAsksWhatIsTrueRule)
+    - \(cardAnswerIsMeaningRule)
     - Qualify a claim by its source when the passage reports it as a finding: "Kirkby and Matuschak report that …", "In the 2024 mouse study, …". Keep a passage's hedges: what it says is suggested or debated stays suggested or debated on the card.
     - \(cardWhyRule)
     - "passage": the handle of the passage the card stands on ("P3"), one of its anchor's passages.

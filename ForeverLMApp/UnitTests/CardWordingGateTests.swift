@@ -59,6 +59,11 @@ struct CardWordingGateTests {
         for writer in [Prompts.cardDrafter, Prompts.situatedCards, Prompts.mnemonicReadingWriter] {
             #expect(writer.contains(Prompts.cardAsksWhatIsTrueRule))
         }
+        // A card asks what an idea means and answers in a few words, never the recipe.
+        #expect(Prompts.cardAnswerIsMeaningRule.contains("what it means"))
+        for writer in [Prompts.cardDrafter, Prompts.situatedCards, Prompts.mnemonicReadingWriter] {
+            #expect(writer.contains(Prompts.cardAnswerIsMeaningRule))
+        }
         #expect(Prompts.mnemonicReadingWriter.contains("\"this lecture\" without naming it"))
         #expect(AITask.cardWordingCheck.rawValue == "card_wording_check")
         #expect(AITask.cardWordingCheck.isBackgroundWork)

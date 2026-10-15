@@ -2011,9 +2011,10 @@ enum Prompts {
 
     Write each card:
     - "front": one question on one line, that a learner who understood the source could answer in a sentence or two weeks later, with only one right answer. Never yes or no, never multiple choice, never answerable from its own wording, never a sentence of the source with a word blanked out.
-    - "back": the complete answer and no more: what a strong answer says, in a sentence or two, with the number and its unit when the answer is a number.
+    - "back": the complete answer and no more: what a strong answer says, in one short sentence, with the number and its unit when the answer is a number.
     - \(cardStandsAloneRule)
     - \(cardAsksWhatIsTrueRule)
+    - \(cardAnswerIsMeaningRule)
     - \(cardWhyRule)
     - "quote": eight to forty consecutive words copied exactly from the text, the passage the card stands on, with nothing changed: no ellipsis, no words added, no quotation marks of your own. A card whose quote the text does not print is thrown away. From a [Sampled] text, quote within one excerpt.
     - "seed": the handle of the seed the card was drafted from ("G2", "H1"), or null for a card drafted from the text.
@@ -2075,6 +2076,17 @@ enum Prompts {
     /// authors explicitly NOT claim?'").
     static let cardAsksWhatIsTrueRule = """
     Ask what is true, never what a source leaves out: never "what do the authors not claim", "what does the paper not say", "what does it ignore", "what is not covered", "what is excluded". Nobody can recall a list of things a source did not say, and an answer that is only the source's disclaimer teaches nothing about the subject. When a limit matters, ask for what the source does say about it ("What does the framework restrict its claims to?", "Under what condition does the result stop holding?"). One question asks one thing: "how is X defined, what does Y add, and what is not claimed" is three cards, or none.
+    """
+
+    /// The rule every card writer is given (`cardDrafter`, `situatedCards`,
+    /// `mnemonicReadingWriter`): a card is about what an
+    /// idea means, and its answer is short (product owner, 2026-10-15, of a
+    /// card on a paper's fitting procedure whose answer recited a chain count,
+    /// an iteration count and a convergence statistic: "especially for
+    /// mathematical concepts; it doesn't make sense to use so much language.
+    /// the question is; what does it MEAN").
+    static let cardAnswerIsMeaningRule = """
+    Ask what an idea means, and answer in a few words. A card helps the learner understand the idea, so for a term, a quantity, a formula or a method the question is what it means, what it measures, what it says about the world, or why it is built that way, never the recipe: no counts of runs, iterations or chains, no software settings, no list of steps or parameters, no named test statistics. The back is one short sentence, at most about twenty words, and a formula or a symbol gets its meaning in plain words ("How much the outcome moves when X moves by one unit"), not its derivation. When the source gives a method, ask what it is for or what it assumes ("What does fitting the curves with MCMC give that a single best-fit line does not?" → "A range of plausible values for each parameter, not just one"), and leave the settings out. When the answer is long, the question is too big: ask the one part that carries the meaning, or write no card.
     """
 
     /// The rule every card writer is given (`cardDrafter`,
@@ -2204,6 +2216,7 @@ enum Prompts {
     - Mostly facts and vocabulary the rest of the text keeps using, some mechanism (what causes what, and why), a little application ("If the author is right, what should happen to X in condition Y?"). Ask what a term means rather than what it is called. No trivia — a name, a date, an example or a list to recite only where the idea needs it.
     - Standalone: the question will be read again weeks later, away from the text, so it carries the context it needs ("In The Selfish Gene, …", "According to Kahneman, …") and never the answer. Never "this chapter", "this book", "the author", "the passage above" or "this lecture" without naming it: a question that points at its source unnamed is thrown away.
     - \(cardAsksWhatIsTrueRule)
+    - \(cardAnswerIsMeaningRule)
 
     Write each question:
     - "quote": the last sentence of the passage the question tests — or, when that sentence is long, its last eight to forty words — copied exactly from the text, in order, with nothing changed: no ellipsis, no words added, no quotation marks of your own. A question whose quote the text does not print is thrown away, so copy rather than recall.
