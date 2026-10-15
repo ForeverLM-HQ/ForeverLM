@@ -61,6 +61,31 @@ struct CardWordingGateTests {
         #expect(AITask.advancedTasks.contains(.cardWordingCheck))
     }
 
+    @Test("No prompt that writes or judges a question models a question that opens by pointing at its source")
+    func noPromptTeachesPointingOpeners() {
+        let questionPrompts: [(name: String, text: String)] = [
+            ("cardDrafter", Prompts.cardDrafter), ("situatedCards", Prompts.situatedCards),
+            ("cardStandsAloneRule", Prompts.cardStandsAloneRule), ("cardWordingCheck", Prompts.cardWordingCheck),
+            ("cardWordingRewrite", Prompts.cardWordingRewrite), ("mnemonicReadingWriter", Prompts.mnemonicReadingWriter),
+            ("walkthroughWriter", Prompts.walkthroughWriter), ("lectureQuizWriter", Prompts.lectureQuizWriter),
+            ("courseQuizWriter", Prompts.courseQuizWriter),
+        ]
+        let openers = ["paper", "lecture", "course", "video", "episode", "chapter", "talk", "article", "book", "reading"]
+            .flatMap { ["In this \($0),", "In this \($0) \u{2026}"] }
+        for prompt in questionPrompts {
+            for opener in openers {
+                #expect(!prompt.text.contains(opener), "\(prompt.name) still models a question that opens \"\(opener)\"")
+            }
+        }
+        // The walkthrough, lecture-quiz and course-quiz writers once did; now they name the subject, or whose claim it is.
+        #expect(Prompts.walkthroughWriter.contains("never \"this paper\""))
+        #expect(Prompts.lectureQuizWriter.contains("never \"this lecture\""))
+        #expect(Prompts.courseQuizWriter.contains("never \"this course\""))
+        #expect(Prompts.walkthroughWriter.contains("say whose claim it is"))
+        #expect(Prompts.lectureQuizWriter.contains("name the lecture or speaker"))
+        #expect(Prompts.courseQuizWriter.contains("name the lecture or speaker"))
+    }
+
     // MARK: The gate
 
     @Test("A face that stands alone passes in one call; one that points is reworded once with its title and checked again, or fails")
