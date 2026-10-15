@@ -274,8 +274,25 @@ extension StudioViewModel {
             revealSourceInSidebar(article)
         }
         await selectArticle(article.id, in: destination)
-        requestReaderTime(seconds, for: article.id)
+        var moment = seconds
+        if moment == nil { moment = await transcriptMoment(saying: passage, in: article) }
+        requestReaderTime(moment, for: article.id)
         requestReaderPassage(passage, page: page, for: article.id)
+    }
+
+    /// When a timed transcript says `passage`: a card's Show Passage and a
+    /// text citation of a video, podcast or meeting carry the words, not a
+    /// moment, and a transcript reader has no words to flash, only a time to
+    /// open at. The words are placed the way a quiz question's Rewatch link is,
+    /// a few seconds before they are said (`LectureQuizTimeline`). Nil for any
+    /// other source, an untimed transcript, or words the transcript lacks, and
+    /// the reader then opens the source at its start as before.
+    private func transcriptMoment(saying passage: String?, in article: StudioArticle) async -> Double? {
+        guard [.video, .podcast, .meeting].contains(article.sourceType),
+              let passage = passage?.trimmingCharacters(in: .whitespacesAndNewlines), !passage.isEmpty,
+              let content = await storage.loadSourceContent(article.id) else { return nil }
+        let timeline = LectureQuizTimeline(CourseQuizPlanning.lines(from: content))
+        return timeline.seconds(saying: passage)
     }
 
     /// Ask the reader showing `sourceID` to open at `seconds`. Set after the
