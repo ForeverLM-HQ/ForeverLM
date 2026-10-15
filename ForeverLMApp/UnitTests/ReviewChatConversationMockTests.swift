@@ -110,6 +110,48 @@ struct ReviewChatConversationMockTests {
         #expect(!transcript.contains("expanded payload"))
     }
 
+    @Test("Copy conversation from a saved chat reads every turn in order, once")
+    func copiedConversationFromSavedExchanges() {
+        func exchange(_ n: Int, _ question: String, _ answer: String?, _ evaluation: String?) -> ReviewExchangeRecord {
+            ReviewExchangeRecord(
+                id: "exchange-\(n)",
+                sessionID: "session-1",
+                sequenceNumber: n,
+                question: question,
+                userAnswer: answer,
+                evaluation: evaluation,
+                score: nil,
+                sourceRefs: [],
+                knowledgeNote: nil,
+                answeredAt: nil
+            )
+        }
+        // Stored out of order, and the second question is the first reply
+        // stored again, as a chat resumed from disk keeps it.
+        let transcript = ReviewSessionManager.copiedConversationText(fromStored: [
+            exchange(2, "It is a **kinase**.", "Why?", "Because it adds phosphate."),
+            exchange(1, "What is AMPK?", "An energy sensor.", "It is a **kinase**.")
+        ])
+
+        #expect(transcript == """
+        ForeverLM:
+        What is AMPK?
+
+        You:
+        An energy sensor.
+
+        ForeverLM:
+        It is a **kinase**.
+
+        You:
+        Why?
+
+        ForeverLM:
+        Because it adds phosphate.
+        """)
+        #expect(ReviewSessionManager.copiedConversationText(fromStored: []).isEmpty)
+    }
+
     @Test("Copy answer joins text fragments around collapsed source activity")
     func copiedAnswerIncludesCollapsedActivityWithoutExpansion() {
         let answer = ReviewSessionManager.copiedAnswerText(from: [

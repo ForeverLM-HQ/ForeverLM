@@ -164,6 +164,14 @@ struct ShellCommandsTests {
         #expect(Set(others).count == others.count)
     }
 
+    @Test("Copy Conversation is a chat command with a key, so the whole chat is always one press away")
+    func copyConversationCommand() {
+        #expect(ShellAction.copyConversation.needsChat)
+        #expect(ShellAction.copyConversation.key == ShellKey("c", [.command, .shift]))
+        #expect(ShellCommands.actions(showsChat: true, inNotebook: false).map(\.target).contains(.action(.copyConversation)))
+        #expect(!ShellCommands.actions(showsChat: false, inNotebook: false).map(\.target).contains(.action(.copyConversation)))
+    }
+
     @Test("No two commands share a key")
     func keysAreUnique() {
         let keys = ShellAction.allCases.flatMap(\.keys)

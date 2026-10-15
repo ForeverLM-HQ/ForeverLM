@@ -1009,6 +1009,7 @@ struct ForeverLMApp: App {
                     shellActionButton(.markChatUnread)
                     shellActionButton(.hideChat)
                     shellActionButton(.copyChatLink)
+                    shellActionButton(.copyConversation)
                 }
                 .disabled(!showsChat)
                 shellActionButton(.clearUnread)

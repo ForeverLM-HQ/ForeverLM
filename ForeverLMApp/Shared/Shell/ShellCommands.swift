@@ -95,6 +95,7 @@ enum ShellAction: String, CaseIterable, Sendable {
     case markChatUnread
     case hideChat
     case copyChatLink
+    case copyConversation
     case clearUnread
     case selectModel
 
@@ -134,6 +135,7 @@ enum ShellAction: String, CaseIterable, Sendable {
         case .markChatUnread: return "Mark Chat as Unread"
         case .hideChat: return "Hide Chat"
         case .copyChatLink: return "Copy Chat Link"
+        case .copyConversation: return "Copy Conversation"
         case .clearUnread: return "Mark All Chats as Read"
         case .selectModel: return "Select Model"
         case .newPage: return "New Page"
@@ -174,6 +176,7 @@ enum ShellAction: String, CaseIterable, Sendable {
         case .markChatUnread: return "circle.badge"
         case .hideChat: return "eye.slash"
         case .copyChatLink: return "link"
+        case .copyConversation: return "doc.on.doc"
         case .clearUnread: return "checkmark.circle"
         case .selectModel: return "cpu"
         case .newPage: return "doc.badge.plus"
@@ -214,6 +217,7 @@ enum ShellAction: String, CaseIterable, Sendable {
         case .markChatUnread: return ["unread", "dot"]
         case .hideChat: return ["archive chat", "put away"]
         case .copyChatLink: return ["deep link", "address", "url", "share"]
+        case .copyConversation: return ["copy chat", "whole chat", "transcript", "copy all", "clipboard"]
         case .clearUnread: return ["read", "clear unread", "dots"]
         case .selectModel: return ["model picker", "recent models", "llm"]
         case .newPage: return ["new doc", "write", "note", "document"]
@@ -259,6 +263,9 @@ enum ShellAction: String, CaseIterable, Sendable {
         // Codex's Archive chat; Hide is ForeverLM's put-away.
         case .hideChat: return [ShellKey("a", [.command, .shift])]
         case .copyChatLink: return [ShellKey("l", [.command, .option])]
+        // The whole chat as text, from anywhere in the window (product owner,
+        // 2026-10-15: "make sure in foreverlm i can always copy the whole chat").
+        case .copyConversation: return [ShellKey("c", [.command, .shift])]
         case .clearUnread: return [ShellKey(ShellKey.escape, .shift)]
         // Codex's model picker and its Open recent models; ForeverLM's picker
         // leads with the recent models, so both open it.
@@ -287,7 +294,7 @@ enum ShellAction: String, CaseIterable, Sendable {
     /// command menu only while it shows one.
     var needsChat: Bool {
         switch self {
-        case .renameChat, .togglePinChat, .markChatUnread, .hideChat, .copyChatLink: return true
+        case .renameChat, .togglePinChat, .markChatUnread, .hideChat, .copyChatLink, .copyConversation: return true
         default: return false
         }
     }
@@ -704,6 +711,7 @@ enum ShellKeyboardShortcuts {
                 ShellShortcutEntry(.markChatUnread),
                 ShellShortcutEntry(.hideChat),
                 ShellShortcutEntry(.copyChatLink),
+                ShellShortcutEntry(.copyConversation),
                 ShellShortcutEntry(.clearUnread),
                 ShellShortcutEntry(.selectModel),
                 ShellShortcutEntry("Find in Chat", [.command("f")]),

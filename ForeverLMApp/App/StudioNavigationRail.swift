@@ -3491,6 +3491,12 @@ private struct RailChatRow: View {
             Label("Copy Link", systemImage: "link")
         }
         .help("Copy this chat's address; paste it to a person or to an assistant using the ForeverLM plugin")
+        Button {
+            Task { await vm.copyChatConversation(sessionID) }
+        } label: {
+            Label("Copy Conversation", systemImage: "doc.on.doc")
+        }
+        .help("Copy the whole chat as text")
         KnowledgeMapAddToCanvasMenu(refs: [KnowledgeMapOutside.chatRef(sessionID)])
         Divider()
         Button(role: .destructive, action: delete) {

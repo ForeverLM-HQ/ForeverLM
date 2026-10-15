@@ -611,6 +611,39 @@ final class ReviewSessionManager {
         return ConversationTranscriptFormatter.plainText(from: turns)
     }
 
+    /// The same transcript for a chat that is not open in a panel (its sidebar
+    /// row, the menu bar's Copy Conversation), read from its saved exchanges:
+    /// the learner's words and the replies they were shown, in order. The tool
+    /// rows of a live turn are not stored, so they are not in it.
+    static func copiedConversationText(fromStored exchanges: [ReviewExchangeRecord]) -> String {
+        var turns: [ConversationTranscriptFormatter.Turn] = []
+        var lastAssistant: String?
+
+        func appendAssistant(_ text: String?) {
+            guard let text,
+                  let content = displayableMessageContent(role: .assistant, content: text)?
+                      .trimmingCharacters(in: .whitespacesAndNewlines),
+                  !content.isEmpty else { return }
+            // A reply stored again as the next question is still the same reply.
+            if lastAssistant.map(Self.storedProse) == Self.storedProse(content) { return }
+            turns.append(.init(speaker: .assistant, content: content))
+            lastAssistant = content
+        }
+
+        for exchange in exchanges.sorted(by: { $0.sequenceNumber < $1.sequenceNumber }) {
+            let question = exchange.question.trimmingCharacters(in: .whitespacesAndNewlines)
+            if question != RealtimeExchangeLedger.openConversationQuestion {
+                appendAssistant(question)
+            }
+            if let answer = exchange.userAnswer,
+               let content = displayableMessageContent(role: .user, content: answer) {
+                turns.append(.init(speaker: .user, content: content))
+            }
+            appendAssistant(exchange.evaluation)
+        }
+        return ConversationTranscriptFormatter.plainText(from: turns)
+    }
+
     /// Clipboard representation of one complete assistant turn. A model answer can
     /// arrive as several text messages separated by tool rows; copying only one of
     /// those messages loses the visible reasoning trail. Keep the compact activity

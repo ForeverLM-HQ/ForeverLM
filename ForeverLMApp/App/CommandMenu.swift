@@ -351,6 +351,9 @@ struct ShellCommandHost: ViewModifier {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(StudioEntityLink.chat(id).markdownDestination, forType: .string)
             vm.showToast("Link copied")
+        case .copyConversation:
+            guard let id = shownChatID else { return }
+            Task { await vm.copyChatConversation(id) }
         case .clearUnread:
             ChatReadMarks.shared.markAllRead()
         case .selectModel:
@@ -737,6 +740,29 @@ struct KeyboardShortcutsSheet: View {
                 $0.title.localizedStandardContains(wanted) || $0.keysDisplay.localizedStandardContains(wanted)
             }
             return entries.isEmpty ? nil : (section.title, entries)
+        }
+    }
+}
+
+
+extension StudioViewModel {
+    /// The whole chat as text on the pasteboard, read from what is saved, so it
+    /// works for a chat no panel has open (a sidebar row, the menu bar). The
+    /// chat's own ⋯ copies from the panel, which also holds a reply in flight.
+    @MainActor
+    func copyChatConversation(_ sessionID: String) async {
+        do {
+            let exchanges = try await storage.loadReviewSessionExchanges(sessionID: sessionID)
+            let transcript = ReviewSessionManager.copiedConversationText(fromStored: exchanges)
+            guard !transcript.isEmpty else {
+                showToast("Nothing to copy yet")
+                return
+            }
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(transcript, forType: .string)
+            showToast("Conversation copied")
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 }
