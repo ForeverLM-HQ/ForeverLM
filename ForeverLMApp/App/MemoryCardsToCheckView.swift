@@ -69,6 +69,12 @@ struct MemoryCardsToCheckView: View {
     @State private var openCard: Revealed?
     /// The height the answer field's text needs.
     @State private var attemptFieldHeight: CGFloat = 0
+    /// The pictures drawn for cards this sitting, by card id, until the card is
+    /// decided: a Keep carries it, a Skip drops it. Never written before.
+    @State private var drawn: [String: MemoryCardImage] = [:]
+    /// The cards whose picture is being drawn.
+    @State private var drawing: Set<String> = []
+    @State private var drawFailure: String?
     @FocusState private var focused: Bool
 
     private struct Revealed: Equatable {
@@ -85,7 +91,11 @@ struct MemoryCardsToCheckView: View {
     private static let columnMaxWidth: CGFloat = 600
     private static let dealAnimation = Animation.spring(response: 0.38, dampingFraction: 0.86)
 
-    private var visible: [MemoryCardToCheck] { cards.filter { !decided.contains($0.cardID) } }
+    private var visible: [MemoryCardToCheck] {
+        cards.filter { !decided.contains($0.cardID) }.map { card in
+            drawn[card.cardID].map { card.addingBackImage($0) } ?? card
+        }
+    }
 
     /// The answer the card in front was opened with; nil while it waits for one.
     private func opened(_ card: MemoryCardToCheck) -> Revealed? {
@@ -144,6 +154,14 @@ struct MemoryCardsToCheckView: View {
             } cancel: {
                 editing = nil
             }
+        }
+        .alert(
+            "Couldn't draw the picture",
+            isPresented: Binding(get: { drawFailure != nil }, set: { if !$0 { drawFailure = nil } })
+        ) {
+            Button("OK") { drawFailure = nil }
+        } message: {
+            Text(drawFailure ?? "")
         }
         .alert(
             "Skip the rest of this source's cards?",
@@ -378,6 +396,7 @@ struct MemoryCardsToCheckView: View {
                 }
             }
             Divider()
+            if card.kind == .draft { drawPictureButton(card) }
             Button("Copy Card ID") {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(card.cardID, forType: .string)
@@ -395,7 +414,7 @@ struct MemoryCardsToCheckView: View {
         .menuIndicator(.hidden)
         .fixedSize()
         .hoverHighlight(cornerRadius: 6, inset: 0)
-        .help("Keep or skip the rest of this source's cards, or copy this card's ID")
+        .help("Keep or skip the rest of this source's cards, draw this card a picture, or copy its ID")
         .accessibilityLabel("More")
         .accessibilityIdentifier("memory.pane.toCheck.more")
     }
@@ -440,6 +459,7 @@ struct MemoryCardsToCheckView: View {
                 Button("Edit…") { editing = card }
                 Button("Skip") { decide(card, .skip) }
                 Divider()
+                if card.kind == .draft { drawPictureButton(card) }
                 sourceMenu(card.sourceID)
             }
             .accessibilityAction(named: "Keep") { if opened(card) != nil { decide(card, .keep) } }
@@ -556,6 +576,40 @@ struct MemoryCardsToCheckView: View {
     /// names one.
     private func openSource(_ sourceID: String, passage: String? = nil) {
         Task { await vm.openLinkedSourceInReader(sourceID, passage: passage, beside: .memory) }
+    }
+
+    // MARK: Drawing a picture
+
+    /// The ••• and right-click item that draws the card a picture: one image
+    /// request on Settings › Images' model, only when chosen. The picture sits
+    /// with the answer and is kept with the card when it is kept.
+    @ViewBuilder
+    private func drawPictureButton(_ card: MemoryCardToCheck) -> some View {
+        let isDrawing = drawing.contains(card.cardID)
+        let hasDrawn = drawn[card.cardID] != nil
+        Button(isDrawing ? "Drawing Picture…" : hasDrawn ? "Draw Picture Again" : "Draw Picture") {
+            drawPicture(for: card)
+        }
+        .disabled(isDrawing || (!hasDrawn && card.face.backImages.count >= MemoryCard.maximumImagesPerFace))
+    }
+
+    private func drawPicture(for card: MemoryCardToCheck) {
+        let cardID = card.cardID
+        guard drawing.insert(cardID).inserted else { return }
+        let title = sourceTitle(card.sourceID)
+        Task {
+            defer { drawing.remove(cardID) }
+            do {
+                drawn[cardID] = try await CardPictureDrawer.draw(
+                    card,
+                    sourceTitle: title == Self.missingSourceTitle ? nil : title,
+                    passage: card.quote,
+                    model: MacImageGenerationSettings.model
+                )
+            } catch {
+                drawFailure = error.localizedDescription
+            }
+        }
     }
 
     // MARK: Deciding
@@ -677,8 +731,10 @@ struct MemoryCardsToCheckView: View {
 
     private func sourceTitle(_ sourceID: String) -> String {
         let title = vm.articlesById[vm.canonicalSourceID(sourceID)]?.title.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return title.isEmpty ? "Source not in the library" : title
+        return title.isEmpty ? Self.missingSourceTitle : title
     }
+
+    private static let missingSourceTitle = "Source not in the library"
 }
 
 // MARK: - A card to check

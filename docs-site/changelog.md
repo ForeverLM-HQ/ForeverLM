@@ -6,6 +6,8 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **Draw Picture on a card to check**: a card from a podcast or article, which has no figure to show, can be given a diagram of its answer from the ••• over the card. It is drawn only when you choose it, and kept if you keep the card.
+
 ## 0.154.0 (build 234) — 2026-10-14
 
 **Highlights:**

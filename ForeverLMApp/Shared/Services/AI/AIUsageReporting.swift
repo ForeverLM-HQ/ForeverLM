@@ -908,6 +908,7 @@ enum AIUsageTaskLabel {
         case "notebook_cover": return "Notebook Thumbnail"
         case "course_quiz_picture": return "Draw Quiz Picture"
         case "course_quiz_icon": return "Draw Quiz Icon"
+        case "card_picture": return "Draw Card Picture"
         case "map_summaries": return "Summarize Canvas"
         case "canvas_ask": return "Ask the Canvas"
         case "canvas_voice": return "Change Canvas by Voice"

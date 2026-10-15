@@ -282,6 +282,7 @@
 		223D5E31B869318B7C3824DD /* PageSpaces.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60431A7A0116F6DB8354729B /* PageSpaces.swift */; };
 		227B6EDF484197C3855D55FB /* TranscriptReaderViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D91DF34ADCEB68DDC4233E6 /* TranscriptReaderViews.swift */; };
 		22F012791328CF3277421ECB /* StudioViewModel+LectureTitles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 920D01648D62A7262980352D /* StudioViewModel+LectureTitles.swift */; };
+		22F49D5D4EA720888A7AC766 /* CardPictureDrawer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 835F90D0B1B6EBA569E8D51E /* CardPictureDrawer.swift */; };
 		2335C910F0AC0DD715D9C773 /* SourceNarrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 756E4375A01A5BAEEF79E618 /* SourceNarrationTests.swift */; };
 		238C2641587EC60A550A8E34 /* String+ReadableMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62B5AD22C124CEE6E00131EB /* String+ReadableMath.swift */; };
 		23957C5A5FB67AE323AD56DC /* journal-feed-nature-rdf.xml in Resources */ = {isa = PBXBuildFile; fileRef = 334251770880E0C58EE8A2D3 /* journal-feed-nature-rdf.xml */; };
@@ -738,6 +739,7 @@
 		606E585D85D5BB7FA3D54B23 /* KnowledgeStore+Sensemaking.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CA9FC3695864BC9598DAAA8 /* KnowledgeStore+Sensemaking.swift */; };
 		609A0A13DF299D4782A7F289 /* PodcastFinderServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DA71A6B4181F9CBEA64D163 /* PodcastFinderServiceTests.swift */; };
 		60D1D52C95307AE1F2572DFD /* KnowledgeStore+PodcastTranscriptDetruncation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 531E3FCD5EAB64AD8C185766 /* KnowledgeStore+PodcastTranscriptDetruncation.swift */; };
+		60FE42A3E74A9B767BF518EE /* CardPictureDrawing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E95AF0FB689952B8A4A0BA7 /* CardPictureDrawing.swift */; };
 		61434061F3E5C7C6F8F6EEA7 /* BookPDFAssembly.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F7579A882F571BC28B8ADCC /* BookPDFAssembly.swift */; };
 		6144A795EE5A394E031236E9 /* MobileReadingStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F7FE5FD56FC16CE3534FAA5 /* MobileReadingStateTests.swift */; };
 		61483C523EC49C2D43850E3B /* DirectionsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B9B52E66E730955ECF639A0 /* DirectionsViews.swift */; };
@@ -2344,6 +2346,7 @@
 		2DF9263213CDF63777EB7130 /* NotebookImportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotebookImportTests.swift; sourceTree = "<group>"; };
 		2E0A55BF329817ECCECBEB79 /* PaperDeduplicationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaperDeduplicationTests.swift; sourceTree = "<group>"; };
 		2E7C4987343F184122ECFB11 /* AIService+CourseGeneration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AIService+CourseGeneration.swift"; sourceTree = "<group>"; };
+		2E95AF0FB689952B8A4A0BA7 /* CardPictureDrawing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardPictureDrawing.swift; sourceTree = "<group>"; };
 		2EA226648B25F648D9BC72DE /* KnowledgeStore+DayClose.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "KnowledgeStore+DayClose.swift"; sourceTree = "<group>"; };
 		2EA743D29EEA4E70EB3202C7 /* ICloudMigrationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ICloudMigrationModel.swift; sourceTree = "<group>"; };
 		2EBC84B5155B780BE7ECC402 /* DefaultsEscapeHatch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultsEscapeHatch.swift; sourceTree = "<group>"; };
@@ -2944,6 +2947,7 @@
 		82FE52CBA9021E0D059A7031 /* NotebookSourceReading.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotebookSourceReading.swift; sourceTree = "<group>"; };
 		82FF77CCE6573FB8BC38C3B5 /* MCPTools+AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MCPTools+AppSettings.swift"; sourceTree = "<group>"; };
 		83168BC534CFBC3BD1D806B8 /* ChatSourceImageRenderingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatSourceImageRenderingTests.swift; sourceTree = "<group>"; };
+		835F90D0B1B6EBA569E8D51E /* CardPictureDrawer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardPictureDrawer.swift; sourceTree = "<group>"; };
 		8397BD6B8A033CF6A68CB9F8 /* SpaceServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpaceServiceTests.swift; sourceTree = "<group>"; };
 		83B49A22D1E17086BEC67EAB /* StudioViewModel+Clips.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StudioViewModel+Clips.swift"; sourceTree = "<group>"; };
 		83C06982C14BF2A59237B4FD /* KnowledgeMapMarkdown.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeMapMarkdown.swift; sourceTree = "<group>"; };
@@ -3982,6 +3986,7 @@
 				CB94A63DB7C071C8D2517889 /* BackgroundAISpend.swift */,
 				553A2FDB88C031A3FB6CA7A9 /* CanvasAskService.swift */,
 				6898ABE3F9378F3717FCC3F5 /* CardDraftingService.swift */,
+				835F90D0B1B6EBA569E8D51E /* CardPictureDrawer.swift */,
 				7F73D9A6221F30AFFEE74EF4 /* CardSourceLinker.swift */,
 				D29A516FA22C8810576148D1 /* CardVariationPass.swift */,
 				812489B715A2C10DDA17B9F0 /* CardWordingGate.swift */,
@@ -4105,6 +4110,7 @@
 				11BBDFD8423AB004B0870D11 /* CanvasVoice.swift */,
 				CE5F282FA59B7E733F97CE6A /* CardDrafting.swift */,
 				842FB113AEDE153B39DB4785 /* CardDraftsPlacement.swift */,
+				2E95AF0FB689952B8A4A0BA7 /* CardPictureDrawing.swift */,
 				11BC2767A5EDAE5E40166A83 /* CardSourceLinking.swift */,
 				039E4C054B51139C9786ECD3 /* CardsToCheckBanner.swift */,
 				B1067031872B3D8F3A29A004 /* CardVariationTurn.swift */,
@@ -7335,6 +7341,8 @@
 				F57FA55DB04CBC853F807671 /* CardDraftingCoordinator.swift in Sources */,
 				0D2D3860E222AB625488100A /* CardDraftingService.swift in Sources */,
 				79EEF8712295AD372F83EDC4 /* CardDraftsPlacement.swift in Sources */,
+				22F49D5D4EA720888A7AC766 /* CardPictureDrawer.swift in Sources */,
+				60FE42A3E74A9B767BF518EE /* CardPictureDrawing.swift in Sources */,
 				98908138B10EF97E836B26F4 /* CardProjection.swift in Sources */,
 				54528C2FA8CA525E5DA05FEE /* CardScheduleFold.swift in Sources */,
 				7F9FCA8DE3E995AE8BB0DD25 /* CardSourceLinker.swift in Sources */,

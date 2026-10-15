@@ -1907,7 +1907,7 @@ private struct AIActivitySettingsSection: View {
             return .transcription(.dictation)
         case "read_aloud", "review_speech":
             return .pane(.aiTextToSpeech)
-        case "notebook_cover", "course_quiz_picture", "course_quiz_icon", "meeting_icon", "doc_image", "chat_image":
+        case "notebook_cover", "course_quiz_picture", "course_quiz_icon", "card_picture", "meeting_icon", "doc_image", "chat_image":
             return .pane(.aiImages)
         case "explainer_video":
             return .pane(.aiVideos)
