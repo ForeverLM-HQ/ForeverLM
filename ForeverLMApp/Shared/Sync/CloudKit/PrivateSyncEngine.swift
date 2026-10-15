@@ -644,7 +644,7 @@ actor PrivateSyncEngine {
     /// Failures a later request may well not meet again: they never count against a record.
     private static let transientCodes: Set<CKError.Code> = [
         .batchRequestFailed, .networkFailure, .networkUnavailable, .serverResponseLost, .notAuthenticated, .operationCancelled,
-        .internalError, .resultsTruncated, .changeTokenExpired,
+        .internalError, .changeTokenExpired,
     ]
 
     /// Whether a per-record failure is one the server will repeat: it counts against the record.
