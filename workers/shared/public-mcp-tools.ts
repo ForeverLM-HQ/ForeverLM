@@ -452,12 +452,9 @@ export const DESKTOP_ONLY_TOOL_NAMES: ReadonlySet<string> = new Set([
   // tool before `MCPToolContractTests` regenerates the file.
   ...SETTINGS_PARITY_TOOL_NAMES.filter((name) => GENERATED_TOOLS.some((entry) => entry.name === name)),
   // Settings › Memory is app preference state — the budget and the daily
-  // switch sync, the two hours and the receipts are this Mac's — and the
-  // day close runs the Mac's own closer over knowledge.db and prepares the
-  // next morning's memory review there.
+  // switch sync, the hour and the receipts are this Mac's.
   "get_memory_review_settings",
   "set_memory_review_settings",
-  "close_day",
   // A source's cards to check live in its private draft deck, a Markdown body
   // in the Mac's library the hosted account cannot write, and what the learner
   // kept or skipped is the app's own synced preference row; a kept card is a

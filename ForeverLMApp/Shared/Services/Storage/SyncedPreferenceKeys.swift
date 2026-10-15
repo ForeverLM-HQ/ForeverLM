@@ -254,10 +254,6 @@ enum SyncedPreferenceKeys {
         // not the device it was said on, so it follows the account; the phone
         // writes the same row from its own Settings.
         MemoryReviewBudget.preferenceKey,
-        // Whether the day closes itself each evening: its chats' closer,
-        // idea extraction, background card drafting and rewording are the
-        // account's spend, so it follows the account; the hour stays below.
-        DayClosePreferences.enabledKey,
         // Whether ForeverLM keeps notes about the learner's work: it is about
         // the learner, and the notes' Doc follows the account.
         WorkingNotesPreference.enabledKey,
@@ -495,10 +491,6 @@ enum SyncedPreferenceKeys {
         // understanding document, which travels.
         ThinkFirstTally.countsKey: "how often each Think first moment was answered or skipped here",
         ThinkFirstAskedSources.preferenceKey: "the sources whose gist this Mac has already asked about",
-        // The evening half of the same switch: the hour this Mac closes the
-        // day is this Mac's, and the receipt says what this device did.
-        DayClosePreferences.hourKey: "device-local hour for the day close",
-        DayClosePreferences.lastRunKey: "this device's day-close receipt",
         // The id this device signs its review-time rows with; the rows themselves
         // sync, the name of the device that wrote them does not need to.
         MemoryReviewActivityDevice.preferenceKey: "identifies this device's memory_review_activity rows",

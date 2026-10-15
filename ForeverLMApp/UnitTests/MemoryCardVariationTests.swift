@@ -2,17 +2,13 @@ import Foundation
 import Testing
 @testable import ForeverLM
 
-// Memory as cards, stage five: variations. A kept card remembered twice is
-// reworded at the day close — three rewordings, the code's checks (length,
-// newness, the answer not in them), then a separate judge — and the
-// rewordings that pass join its rotation in its `cards.state.<deckID>` row.
-// The rotation never asks the wording asked last; "Always ask it this way"
-// turns it off; "This asks something else" is a failed attempt that retires
-// the rewording; a rewording missed more often than the card's own words over
-// three uses retires itself. The rules are pure and pinned first; the pass
-// runs over a store of its own with a canned model and rows held in memory;
-// the one test that writes rows through the state store uses a defaults
-// suite of its own.
+// Memory as cards, stage five: variations. A kept card's rewordings join its
+// rotation in its `cards.state.<deckID>` row. The rotation never asks the
+// wording asked last; "Always ask it this way" turns it off; "This asks
+// something else" is a failed attempt that retires the rewording; a
+// rewording missed more often than the card's own words over three uses
+// retires itself. The rules are pure and pinned first; the one test that
+// writes rows through the state store uses a defaults suite of its own.
 
 // MARK: - Fixtures
 
@@ -55,77 +51,6 @@ private func row(variants: [String] = [], alwaysAsk: Bool = false, variedAt: Dat
     MemoryCardState(
         status: .kept, memoryItemID: MemoryTutorIdentity.cardItemID(cardID: "card-a"), editedFront: editedFront,
         variants: variants, alwaysAsk: alwaysAsk, variedAt: variedAt, updatedAt: keptAt
-    )
-}
-
-private let testRoute = NotebookWritingRoute(
-    provider: .openRouter,
-    model: "test/card-variation",
-    writerInputBudget: nil,
-    condenserInputBudget: nil,
-    inputUSDPerMillion: 1,
-    outputUSDPerMillion: 2
-)
-
-/// The variation model's turns, and what a test hands back for them.
-private final class CannedVariation: CardVariationBackend, @unchecked Sendable {
-    let route: NotebookWritingRoute?
-    private let rewordings: [CardVariationModelCard]
-    private let verdicts: [CardVariationVerdict]
-    private let lock = NSLock()
-    private var storedRewordTurns: [String] = []
-    private var storedJudgeTurns: [String] = []
-
-    init(route: NotebookWritingRoute? = testRoute, rewordings: [CardVariationModelCard], verdicts: [CardVariationVerdict] = []) {
-        self.route = route
-        self.rewordings = rewordings
-        self.verdicts = verdicts
-    }
-
-    var rewordTurns: [String] { lock.withLock { storedRewordTurns } }
-    var judgeTurns: [String] { lock.withLock { storedJudgeTurns } }
-
-    func reword(user: String, source: AIUsageSource) async throws -> [CardVariationModelCard] {
-        lock.withLock { storedRewordTurns.append(user) }
-        return rewordings
-    }
-
-    func judge(user: String, source: AIUsageSource) async throws -> [CardVariationVerdict] {
-        lock.withLock { storedJudgeTurns.append(user) }
-        return verdicts
-    }
-}
-
-/// `cards.state.<deckID>` rows held in memory, written the way the live pass
-/// writes them (`CardVariationPass.apply`).
-private final class Rows: @unchecked Sendable {
-    private let lock = NSLock()
-    private var rows: [String: MemoryCardDeckState] = [:]
-
-    func load(_ deckID: String) -> MemoryCardDeckState {
-        lock.withLock { rows[deckID] ?? MemoryCardDeckState() }
-    }
-
-    func set(_ deckID: String, _ row: MemoryCardDeckState) {
-        lock.withLock { rows[deckID] = row }
-    }
-
-    func write(_ deckID: String, _ writes: [CardVariationWrite], _ now: Date) {
-        lock.withLock {
-            var row = rows[deckID] ?? MemoryCardDeckState()
-            CardVariationPass.apply(writes, to: &row, at: now)
-            rows[deckID] = row
-        }
-    }
-}
-
-private func pass(_ storage: StorageService, _ backend: CannedVariation, _ rows: Rows, spendAllowed: Bool = true) -> CardVariationPass {
-    CardVariationPass(
-        storage: storage,
-        backend: backend,
-        spendAllowed: { spendAllowed },
-        readState: { rows.load($0) },
-        write: { deckID, writes, now in rows.write(deckID, writes, now) }
     )
 }
 
@@ -291,50 +216,6 @@ struct MemoryCardVariationTests {
 
     // MARK: The turns
 
-    @Test("The rewording turn shows each card's question, answer, why and passage; the judge sees only what the code kept, and passes only what answers and does not leak")
-    func turns() throws {
-        let (card, item) = try keptCard()
-        let candidate = CardVariationCandidate(
-            itemID: item.id, cardID: card.cardID, deckID: "carddeck-src-1", sourceID: "src-1",
-            wording: front, back: back, why: card.why, quote: quote
-        )
-        let rewording = CardVariationTurn.rewording([candidate], sourceTitle: "Mitochondria")
-        #expect(rewording == """
-        Source: Mitochondria
-
-        Cards:
-        1. Question: \(front)
-           Answer: \(back)
-           Why: Uncoupling stops ATP synthesis.
-           Passage: \u{201C}\(quote)\u{201D}
-        """)
-
-        let checked = CardVariationTurn.checked([
-            CardVariationModelCard(card: 1, variants: [firstVariant, front, secondVariant]),
-            CardVariationModelCard(card: 1, variants: ["A second answer for card 1 is ignored?"]),
-            CardVariationModelCard(card: 7, variants: ["No such card?"]),
-        ], cards: [candidate])
-        #expect(checked == [1: [firstVariant, secondVariant]])
-        let judging = CardVariationTurn.judging([candidate], rewordings: checked)
-        #expect(judging.contains("   1. \(firstVariant)\n   2. \(secondVariant)"))
-        #expect(!judging.contains("No such card"))
-
-        let passed = CardVariationTurn.judged([
-            CardVariationVerdict(card: 1, variant: 1, answersIt: true, leaksAnswer: false, standsAlone: true),
-            CardVariationVerdict(card: 1, variant: 2, answersIt: true, leaksAnswer: true, standsAlone: true),
-        ], rewordings: [1: [firstVariant, secondVariant, "A third the judge said nothing of?"]])
-        #expect(passed == [1: [firstVariant]])
-        #expect(CardVariationTurn.judged([
-            CardVariationVerdict(card: 1, variant: 1, answersIt: false, leaksAnswer: false, standsAlone: true),
-        ], rewordings: [1: [firstVariant]]) == [1: []])
-        // A rewording that points at its source unnamed ("In this lecture,
-        // …") never joins the rotation, however well it asks for the back.
-        #expect(CardVariationTurn.judged([
-            CardVariationVerdict(card: 1, variant: 1, answersIt: true, leaksAnswer: false, standsAlone: false),
-        ], rewordings: [1: [firstVariant]]) == [1: []])
-        #expect(Prompts.cardVariationJudge.contains("\"stands_alone\""))
-    }
-
     @Test("The cards due their rewordings are read in the order they were kept, in the wording asked now")
     func dueVariants() throws {
         let (card, item) = try keptCard()
@@ -359,25 +240,15 @@ struct MemoryCardVariationTests {
 
     // MARK: The row
 
+    // MARK: The row
+
     @Test("A card's rewordings and the day they were made ride its row, read back as written, once")
     func rowRoundTrip() throws {
         let made = Date(timeIntervalSince1970: 1_790_000_000)
-        var deck = MemoryCardDeckState(cards: ["card-a": row(variants: [firstVariant], variedAt: made)])
+        let deck = MemoryCardDeckState(cards: ["card-a": row(variants: [firstVariant], variedAt: made)])
         let read = try #require(MemoryCardDeckState(preferenceValue: deck.preferenceValue))
         #expect(read == deck)
         #expect(read.cards["card-a"]?.variedAt == made)
-
-        // The pass writes a card's rewordings once, kept, with the day.
-        CardVariationPass.apply([
-            CardVariationWrite(cardID: "card-a", itemID: "item-a", variants: [secondVariant]),
-            CardVariationWrite(cardID: "card-b", itemID: "item-b", variants: []),
-        ], to: &deck, at: made.addingTimeInterval(day))
-        #expect(deck.cards["card-a"]?.variants == [firstVariant], "another Mac's rewordings got there first")
-        let fresh = try #require(deck.cards["card-b"])
-        #expect(fresh.status == .kept)
-        #expect(fresh.memoryItemID == "item-b")
-        #expect(fresh.variants.isEmpty)
-        #expect(fresh.variedAt == made.addingTimeInterval(day), "reworded with nothing kept: not reworded again")
     }
 
     // MARK: The sitting
@@ -477,8 +348,8 @@ struct MemoryCardVariationTests {
 
 // MARK: - Over storage
 
-@Suite("Memory cards: variations at the day close")
-struct CardVariationPassTests {
+@Suite("Memory cards: asking something else")
+struct CardAskedSomethingElseTests {
     @Test("This asks something else is a failed attempt, once a sitting, that moves no schedule and takes the rewording out on every device")
     func askedSomethingElse() async throws {
         let (storage, card, item, cleanup) = try await storageWithEarnedCard()
@@ -520,110 +391,5 @@ struct CardVariationPassTests {
         await #expect(throws: (any Error).self) {
             try await storage.recordMemoryCardAskedSomethingElse(memoryItemID: "no-such-item", prompt: firstVariant, variantIndex: 0, sessionKey: "cards-1")
         }
-    }
-
-    @Test("The day close rewords a card remembered twice, once: the code's checks, then the judge, and only what passes joins its rotation")
-    func rewordsOnce() async throws {
-        let (storage, card, _, cleanup) = try await storageWithEarnedCard()
-        defer { cleanup() }
-        let rows = Rows()
-        let backend = CannedVariation(rewordings: [
-            CardVariationModelCard(card: 1, variants: [
-                firstVariant,
-                front,
-                "What does a proton gradient across the inner membrane do?",
-                secondVariant,
-            ]),
-        ], verdicts: [
-            CardVariationVerdict(card: 1, variant: 1, answersIt: true, leaksAnswer: false, standsAlone: true),
-            CardVariationVerdict(card: 1, variant: 2, answersIt: true, leaksAnswer: true, standsAlone: true),
-        ])
-        let now = keptAt.addingTimeInterval(5 * day)
-        let report = await pass(storage, backend, rows).run(now: now)
-        #expect(report == CardVariationReport(reworded: 1, varied: 1, waiting: 0, failures: []))
-        #expect(backend.rewordTurns.count == 1)
-        #expect(backend.rewordTurns.first?.contains("1. Question: \(front)") == true)
-        #expect(backend.judgeTurns.count == 1)
-        #expect(backend.judgeTurns.first?.contains("   1. \(firstVariant)\n   2. \(secondVariant)") == true, "the judge sees only what the code kept")
-        let state = try #require(rows.load("carddeck-src-1").cards[card.cardID])
-        #expect(state.variants == [firstVariant])
-        #expect(state.variedAt == now)
-        #expect(state.status == .kept)
-
-        // The next evening: nothing more to reword, nothing spent.
-        let again = await pass(storage, backend, rows).run(now: now.addingTimeInterval(day))
-        #expect(again == CardVariationReport())
-        #expect(backend.rewordTurns.count == 1)
-        #expect(backend.judgeTurns.count == 1)
-    }
-
-    @Test("No rewording past the code's checks: no judge is asked, and the card is not reworded again")
-    func nothingPassesTheChecks() async throws {
-        let (storage, card, _, cleanup) = try await storageWithEarnedCard()
-        defer { cleanup() }
-        let rows = Rows()
-        let backend = CannedVariation(rewordings: [CardVariationModelCard(card: 1, variants: [front, "Two\nlines?"])])
-        let now = keptAt.addingTimeInterval(5 * day)
-        let report = await pass(storage, backend, rows).run(now: now)
-        #expect(report.reworded == 1)
-        #expect(report.varied == 0)
-        #expect(backend.judgeTurns.isEmpty)
-        let state = try #require(rows.load("carddeck-src-1").cards[card.cardID])
-        #expect(state.variants.isEmpty)
-        #expect(state.variedAt == now)
-    }
-
-    @Test("A card the model gave no rewordings for waits for another evening")
-    func unansweredCardWaits() async throws {
-        let (storage, card, _, cleanup) = try await storageWithEarnedCard()
-        defer { cleanup() }
-        let rows = Rows()
-        let backend = CannedVariation(rewordings: [CardVariationModelCard(card: 2, variants: [firstVariant])])
-        let report = await pass(storage, backend, rows).run(now: keptAt.addingTimeInterval(5 * day))
-        #expect(report.reworded == 0)
-        #expect(rows.load("carddeck-src-1").cards[card.cardID] == nil)
-    }
-
-    @Test("At the daily background AI limit nothing is sent and the cards wait; with no model the pass says so and sends nothing")
-    func gatedOnBackgroundSpend() async throws {
-        let (storage, card, _, cleanup) = try await storageWithEarnedCard()
-        defer { cleanup() }
-        let rows = Rows()
-        let backend = CannedVariation(rewordings: [CardVariationModelCard(card: 1, variants: [firstVariant])])
-        let capped = await pass(storage, backend, rows, spendAllowed: false).run(now: keptAt.addingTimeInterval(5 * day))
-        #expect(capped.waiting == 1)
-        #expect(capped.reworded == 0)
-        #expect(backend.rewordTurns.isEmpty)
-        #expect(rows.load("carddeck-src-1").cards[card.cardID] == nil)
-
-        let unrouted = CannedVariation(route: nil, rewordings: [CardVariationModelCard(card: 1, variants: [firstVariant])])
-        let noModel = await pass(storage, unrouted, rows).run(now: keptAt.addingTimeInterval(5 * day))
-        #expect(noModel.failures.count == 1)
-        #expect(unrouted.rewordTurns.isEmpty)
-    }
-
-    @Test("The day close reports the cards it reworded, and the ones the limit left for the next evening")
-    func dayCloseReports() async throws {
-        let (storage, _, _, cleanup) = try await storageWithEarnedCard()
-        defer { cleanup() }
-        let now = keptAt.addingTimeInterval(5 * day)
-        let rows = Rows()
-        let backend = CannedVariation(
-            rewordings: [CardVariationModelCard(card: 1, variants: [firstVariant])],
-            verdicts: [CardVariationVerdict(card: 1, variant: 1, answersIt: true, leaksAnswer: false, standsAlone: true)]
-        )
-        let capped = DayClosePass(storage: storage, aiService: AIService(), spendAllowed: { false }, variations: pass(storage, backend, rows, spendAllowed: false))
-        let waiting = await capped.consolidate(now: now, closeConfig: nil)
-        #expect(waiting.rewordedCards == 0)
-        #expect(waiting.notes == ["1 card waits to be reworded: today's background AI limit is reached."])
-        #expect(waiting.failures.isEmpty, "\(waiting.failures)")
-        #expect(backend.rewordTurns.isEmpty)
-
-        let open = DayClosePass(storage: storage, aiService: AIService(), spendAllowed: { true }, variations: pass(storage, backend, rows))
-        let done = await open.consolidate(now: now.addingTimeInterval(60), closeConfig: nil)
-        #expect(done.rewordedCards == 1)
-        #expect(done.variedCards == 1)
-        #expect(done.notes.isEmpty)
-        #expect(!done.isEmpty)
     }
 }

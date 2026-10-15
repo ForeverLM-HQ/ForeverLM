@@ -341,8 +341,6 @@ struct MCPToolActivityTitle: Equatable {
             return Self("Downloading papers")
         case "recheck_paywalled_papers":
             return Self("Rechecking paywalled papers")
-        case "close_day":
-            return Self("Closing the day")
         case "make_atlas":
             return Self(.topic, "Laying out an Atlas of", "Laying out an Atlas")
         case "get_atlas":
@@ -374,7 +372,7 @@ struct MCPToolActivityTitle: Equatable {
         "find_podcast_on_youtube",
         "find_lecture_papers", "ingest_lecture_papers",
         "download_papers_needing_attention", "recheck_paywalled_papers",
-        "close_day", "run_settings_action",
+        "run_settings_action",
         "make_atlas", "get_atlas",
     ]
 

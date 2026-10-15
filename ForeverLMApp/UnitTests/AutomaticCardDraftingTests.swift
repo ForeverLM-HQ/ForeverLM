@@ -478,41 +478,8 @@ struct AutomaticCardDraftingTests {
         #expect(MemoryCardSettings.newCardsPerDay(defaults: defaults) == 100)
         defaults.set(false, forKey: MemoryCardSettings.autoDraftKey)
         #expect(!MemoryCardSettings.autoDraftsCards(defaults: defaults))
-
-        #expect(!DayClosePreferences.isEnabled(defaults: defaults))
-        defaults.set(true, forKey: DailyReviewPreparation.enabledKey)
-        #expect(DayClosePreferences.isEnabled(defaults: defaults), "a learner who had today's review ready keeps the evening close")
-        defaults.set(false, forKey: DayClosePreferences.enabledKey)
-        #expect(!DayClosePreferences.isEnabled(defaults: defaults), "its own switch, once set, is what counts")
     }
 
-    @Test("Changing the reminder pins the evening close to what it did, once")
-    func reminderChangePinsTheDayClose() throws {
-        let suite = "AutomaticCardDraftingTests.pin.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
-        // Never set: the close follows the reminder, so it is pinned to the
-        // reminder's value before the change, on or off.
-        #expect(DayClosePreferences.valueToPin(reminderWas: false, defaults: defaults) == false)
-        #expect(DayClosePreferences.valueToPin(reminderWas: true, defaults: defaults) == true)
-        // Set once: the reminder no longer touches it.
-        defaults.set(true, forKey: DayClosePreferences.enabledKey)
-        #expect(DayClosePreferences.valueToPin(reminderWas: false, defaults: defaults) == nil)
-    }
-
-    @Test("The day close's status line names what was drafted and what failed")
-    func statusLine() {
-        var receipt = DayCloseRunner.Receipt(
-            day: "memory-2026-10-01", at: now, reason: .evening,
-            consolidatedChats: 1, updatedUnderstandingDocuments: 1, warmedSources: 2,
-            nextDayCards: nil, preparationMessage: nil, failures: []
-        )
-        receipt.draftedCards = 12
-        receipt.draftedSources = 3
-        #expect(receipt.statusLine(now: now).contains("12 cards drafted from 3 sources"))
-        receipt.failures = [AutomaticCardDraftingPass.failureLine(title: "Jain 2016", reason: "The drafter is down.")]
-        #expect(receipt.statusLine(now: now).hasSuffix("Cards for \u{201C}Jain 2016\u{201D} could not be drafted: The drafter is down."))
-    }
 }
 
 // MARK: - The pass, over storage
@@ -653,28 +620,6 @@ struct AutomaticCardDraftingPassTests {
         #expect(evening.failures == finish.failures, "the evening's status line names it")
     }
 
-    @Test("The day close drafts after the ideas, from the window and not the watermark, and its receipt says so")
-    func dayCloseRunsTheDrafting() async throws {
-        let (storage, defaults, cleanup) = try makeStorage()
-        defer { cleanup() }
-        let now = Date()
-        try await seedSource("src-read", readAt: now.addingTimeInterval(-3 * 86_400), on: storage)
-        // A close two days ago moved the watermark past the reading.
-        try await storage.recordDayCloseRun(watermark: now.addingTimeInterval(-2 * 86_400), now: now.addingTimeInterval(-2 * 86_400))
-        let drafter = TurnRecorder { _ in [respirationCard] }
-        let dayClose = DayClosePass(
-            storage: storage,
-            aiService: AIService(session: DayCloseCloserStubURLProtocol.mockSession()),
-            spendAllowed: { true },
-            drafting: pass(storage, defaults, drafter: drafter),
-            variations: nil
-        )
-        let report = await dayClose.consolidate(now: now, closeConfig: nil)
-        #expect(report.failures.isEmpty, "\(report.failures)")
-        #expect(report.draftedCards == 1, "read three days ago, still a candidate")
-        #expect(report.draftedSources == 1)
-        #expect(report.isEmpty == false)
-    }
 }
 
 /// A count a `@Sendable` closure can bump.

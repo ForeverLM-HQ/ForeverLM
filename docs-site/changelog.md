@@ -7,6 +7,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 ## Unreleased
 
 - **Draw Picture on a card to check**: a card from a podcast or article, which has no figure to show, can be given a diagram of its answer from the ••• over the card. It is drawn only when you choose it, and kept if you keep the card.
+- **The evening day close is gone,** with its "Close the day at" setting and the `close_day` tool. ForeverLM no longer runs AI in the background at the end of the day: no folding chats into understanding documents, no idea extraction, no background card drafting or rewording, no notes written from your day, and no re-checking of kept cards. Cards still draft as you finish a source when that switch is on, and the notes you add yourself stay.
 
 ## 0.154.0 (build 234) — 2026-10-14
 

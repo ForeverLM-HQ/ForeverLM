@@ -1257,28 +1257,6 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Close the day now, as the evening close does: every chat the learner wrote in since the last close is folded into the understanding documents of the sources it discussed, ideas are extracted for what was read, cards are drafted into To Check from the sources the learner finished or annotated in the last ten days, as many as new_cards_per_day allows today and while auto_draft_cards is on (drafted_cards, drafted_sources, drafts_waiting for the sources left for another day), the cards kept before ForeverLM checked that a card names what it is about have their questions reworded where they point at their source unnamed (“this lecture”, “the paper”), a batch a close until every one has been checked (standalone_reworded_cards), and the cards the learner has remembered twice are reworded so their next reviews ask for the same answer from another angle (varied_cards). Idea extraction, drafting, the wording check and rewording stop at the learner's daily background AI limit; what waits for the next close is listed under notes, and a source that could not be drafted under failures. Then, unless prepare_tomorrow is false, the next morning's cards are counted (next_day_cards). No review chat is made: the memory review is the learner's cards, started from Memory. Idempotent: a second call finds nothing new. Waits for the work; a full day can take a minute. Use it when the learner says the day is over. Paid assistant work has a $3 per-operation ceiling by default. To continue beyond it, show the learner the estimate, obtain explicit approval, and pass that total as approved_spend_usd.",
-    "inputSchema" : {
-      "properties" : {
-        "approved_spend_usd" : {
-          "description" : "Maximum USD the learner has approved for this one operation. Omit for the $3 default ceiling. Pass more than 3 only after showing the learner the estimate or published maximum and receiving explicit approval. The operation stops after the request that reaches the ceiling and starts no further paid request; completed work is kept.",
-          "minimum" : 0.01,
-          "type" : "number"
-        },
-        "prepare_tomorrow" : {
-          "description" : "Defaults to true: count the next morning's cards after consolidating. Pass false to only fold today in.",
-          "type" : "boolean"
-        }
-      },
-      "required" : [
-
-      ],
-      "type" : "object"
-    },
-    "name" : "close_day",
-    "readOnlyHint" : false
-  },
-  {
     "description" : "Today's cohort review: everything the learner substantially read or listened to in the last ~10 days, plus older sources due again, plus one or two semantically adjacent sources deliberately drawn from a different stretch of time so you can ask a question that spans them. Each entry carries its role (spine / spacing / bridge), a compressed guide to what the source says, the learner's own highlights, and what they have previously made of it. YOU are the planner: choose 5-8 moves, ask one question at a time, compose fresh wording every time, and make at least one question span two sources from different times. Finish by calling record_understanding. When the app has already planned today's review by topic, `topics` lists them (topic_id, title, kind, idea_ids, source_ids): conduct those in order, one opening question per topic answerable from any of its sources, instead of planning your own moves.",
     "inputSchema" : {
       "properties" : {
@@ -4639,7 +4617,7 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "Settings › General › Memory review as JSON: budget_minutes (the daily review's length, your account), new_cards_per_day (how many new cards a day's review introduces, which also sets how many sources ForeverLM drafts cards from in the background each day, your account), auto_draft_cards (whether ForeverLM drafts cards into To Check as the learner finishes sources, within the daily background AI limit, your account), draft_nudges (whether the Cards to check corner card and the next morning's banner say drafted cards wait, your account), prepare_review_questions (whether ForeverLM writes review questions ahead of time for the few sources a review is likely to be about today, your account), prepare_daily (\"Have today's review ready\": the reminder on mornings that hold cards, your account), ready_by_hour (when this Mac selects the morning's cards and the reminder fires), close_day_daily (whether the day closes itself each evening, your account), close_day_hour (when this Mac closes the day: folds today's chats and reading into what the tutor knows about each source, drafts cards from what was finished, rewords cards remembered twice, then counts the next morning's cards), automatic_drafting (sources_a_day, this Mac's last_run with what it left waiting, and the sources that failed today), and what this Mac last did about the morning and the day close (last_preparation, last_day_close).",
+    "description" : "Settings › General › Memory review as JSON: budget_minutes (the daily review's length, your account), new_cards_per_day (how many new cards a day's review introduces, which also sets how many sources ForeverLM drafts cards from in the background each day, your account), auto_draft_cards (whether ForeverLM drafts cards into To Check as the learner finishes sources, within the daily background AI limit, your account), draft_nudges (whether the Cards to check corner card and the next morning's banner say drafted cards wait, your account), prepare_review_questions (whether ForeverLM writes review questions ahead of time for the few sources a review is likely to be about today, your account), prepare_daily (\"Have today's review ready\": the reminder on mornings that hold cards, your account), ready_by_hour (when this Mac selects the morning's cards and the reminder fires), automatic_drafting (sources_a_day, this Mac's last_run with what it left waiting, and the sources that failed today), and what this Mac last did about the morning (last_preparation).",
     "inputSchema" : {
       "properties" : {
 
@@ -6748,7 +6726,7 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "Read the working notes ForeverLM keeps about how the learner is working: short sentences, each a thread (work in progress), an interest, a preference, a fact or an outcome, written when the day closes from their chats and reading and handed to every ForeverLM chat. Use it to see what they have been working on, or to answer what ForeverLM knows about them. With a query, the notes nearest those words come first (by the same on-device embedding the chat recalls with); without one, newest first. Answers with each note's id, kind, text and dates, whether notes are switched on, and running_log: ForeverLM's running summary of what they are working on (Right now, then the newest log lines). Both are kept in the background, never as Docs. Notes can be out of date; trust what the learner says now.",
+    "description" : "Read the working notes ForeverLM keeps about how the learner is working: short sentences, each a thread (work in progress), an interest, a preference, a fact or an outcome, kept by the learner or at their word and handed to every ForeverLM chat. Use it to see what they have been working on, or to answer what ForeverLM knows about them. With a query, the notes nearest those words come first (by the same on-device embedding the chat recalls with); without one, newest first. Answers with each note's id, kind, text and dates, whether notes are switched on, and running_log: ForeverLM's running summary of what they are working on (Right now, then the newest log lines). Both are kept in the background, never as Docs. Notes can be out of date; trust what the learner says now.",
     "inputSchema" : {
       "properties" : {
         "kind" : {
@@ -9303,7 +9281,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Write one working note about how the learner works, when they ask you to remember something about it (\"remember I want a review after every paper\", \"note that Berlin is October 21\"). One sentence that stands on its own, naming the topic rather than saying \"it\", at most 400 characters. kind is one of: thread (work in progress), interest (a topic they keep returning to), preference (how they like to work), fact (something true about their situation), outcome (something finished or learned). A fact defaults. Do not write a note on your own initiative or a guess about the learner; ForeverLM writes the rest when the day closes. A sentence that is already a note is not written twice.",
+    "description" : "Write one working note about how the learner works, when they ask you to remember something about it (\"remember I want a review after every paper\", \"note that Berlin is October 21\"). One sentence that stands on its own, naming the topic rather than saying \"it\", at most 400 characters. kind is one of: thread (work in progress), interest (a topic they keep returning to), preference (how they like to work), fact (something true about their situation), outcome (something finished or learned). A fact defaults. Do not write a note on your own initiative or a guess about the learner. A sentence that is already a note is not written twice.",
     "inputSchema" : {
       "properties" : {
         "kind" : {
@@ -10358,23 +10336,15 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Change Settings › General › Memory review: budget_minutes, new_cards_per_day, auto_draft_cards, draft_nudges, prepare_review_questions, prepare_daily, ready_by_hour, close_day_daily, close_day_hour — one or several. Writes through the pane's own entry points, so the reminder and both runners follow. Returns the settings as get_memory_review_settings reads them plus `changed`.",
+    "description" : "Change Settings › General › Memory review: budget_minutes, new_cards_per_day, auto_draft_cards, draft_nudges, prepare_review_questions, prepare_daily, ready_by_hour — one or several. Writes through the pane's own entry points, so the reminder and the runner follow. Returns the settings as get_memory_review_settings reads them plus `changed`.",
     "inputSchema" : {
       "properties" : {
         "auto_draft_cards" : {
-          "description" : "Draft cards into To Check in the background as the learner finishes sources (Mark as Read, read to the end, listening or watching complete) and from annotated sources at the day close, within the daily background AI limit. On by default. Follows your account.",
+          "description" : "Draft cards into To Check in the background as the learner finishes sources (Mark as Read, read to the end, listening or watching complete), within the daily background AI limit. On by default. Follows your account.",
           "type" : "boolean"
         },
         "budget_minutes" : {
           "description" : "Minutes the daily memory review gets (5–120). Follows your account.",
-          "type" : "integer"
-        },
-        "close_day_daily" : {
-          "description" : "Close the day each evening at close_day_hour. Until it is set it keeps what prepare_daily, the switch it was behind, says, and the first change to prepare_daily pins it there, so prepare_daily never starts or stops the evening close. Follows your account.",
-          "type" : "boolean"
-        },
-        "close_day_hour" : {
-          "description" : "Hour (0–23, this Mac's clock) at which the day is closed each evening.",
           "type" : "integer"
         },
         "draft_nudges" : {

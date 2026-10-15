@@ -17,7 +17,7 @@ extension StudioViewModel {
     /// (docs/memory-design.md, "Ideas") — and, while background drafting is
     /// on, their cards drafted within the day's limit, at `.utility`. Both are
     /// background spend: nothing is called once the daily background AI
-    /// limit says no, and the day close picks up what this left. Finishes
+    /// limit says no, and what this left waits for the learner's Make Cards. Finishes
     /// that arrive together — a bulk Mark as Read, one notice in each window
     /// — are one batch, read and drafted once.
     func sourcesWereFinished(_ sourceIDs: [String]) {

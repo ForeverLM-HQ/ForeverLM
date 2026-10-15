@@ -37,7 +37,7 @@ struct CardsToCheckBannerTests {
         }
     }
 
-    @Test("With drafting off, finished sources with no deck are the subject; with it on the day close drafts them, so they are not named")
+    @Test("With drafting off, finished sources with no deck are the subject; with it on they are drafted as finished, so they are not named")
     func undraftedSources() throws {
         let candidates = [finished("a", now: now), finished("b", now: now, hasDeck: true), finished("c", now: now, ideas: 0)]
         let off = try #require(CardsToCheckBanner.subject(pile: nil, candidates: candidates, autoDrafts: false, now: now))

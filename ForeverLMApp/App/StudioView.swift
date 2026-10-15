@@ -920,9 +920,6 @@ struct StudioView: View {
         // Today's cards, selected at the morning's hour when the learner has
         // asked for the review to be ready, and the reminder that says so.
         MemoryReviewPreparationRunner.shared.start()
-        // The evening half: the day closed at its hour, the day's chats and
-        // reading folded in, and the next morning's cards counted.
-        DayCloseRunner.shared.start()
         // Followed journals: checked when due, new articles offered to Notebooks.
         JournalWatchRunner.shared.start()
         // A balance that returned while the app was closed — or on the other

@@ -292,7 +292,7 @@ struct MCPAuthScopeTests {
             "list_github_commits",
             "search_notion", "get_notion_page", "list_notion_databases",
             "get_notion_database", "query_notion_database",
-            "generate_course_quizzes", "generate_walkthrough", "generate_explainer_video", "close_day",
+            "generate_course_quizzes", "generate_walkthrough", "generate_explainer_video",
             "find_podcast_on_youtube", "import_podcast_youtube_transcript",
             "get_linked_references", "get_block", "get_daily_note", "append_to_daily_note",
             "practice_cards",
@@ -7497,7 +7497,7 @@ struct MCPDataStoreTests {
             "make_article_reading_view",
         ])
         for name in [
-            "generate_course_quizzes", "generate_walkthrough", "generate_explainer_video", "close_day",
+            "generate_course_quizzes", "generate_walkthrough", "generate_explainer_video",
             "inspect_paper_figure", "generate_image",
         ] {
             #expect(MCPToolRegistry.storeGateExemptToolNames.contains(name), "\(name) should never touch the cached connection")

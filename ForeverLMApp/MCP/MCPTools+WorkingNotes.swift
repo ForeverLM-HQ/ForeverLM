@@ -4,8 +4,8 @@ import Foundation
 //
 // The notes ForeverLM keeps about how the learner is working, over MCP, so an
 // assistant beside the app can read what the app knows about their work, and
-// write, correct or forget a note when the learner says so. The day close
-// writes most notes; these tools are for what the learner tells an assistant
+// write, correct or forget a note when the learner says so. These tools are
+// for what the learner tells an assistant
 // ("remember that I want a review after every paper", "forget that note about
 // Berlin"). Nothing here calls a model: a read, or a row in the notes file.
 
@@ -88,7 +88,7 @@ extension MCPDataStore {
             "enabled": WorkingNotesPreference.isEnabled,
             "running_log": runningLog ?? NSNull(),
             "guidance": all.isEmpty && runningLog == nil
-                ? "No notes yet. ForeverLM writes them when the day closes from the learner's chats and reading; save_working_note writes one the learner asks for."
+                ? "No notes yet. save_working_note writes one the learner asks for."
                 : "These are notes ForeverLM keeps in the background about how the learner works, newest first (nearest the query first when one is given), and running_log is its running summary of what they are working on: Right now, then the newest log lines. Both may be out of date: trust what the learner says now. They are not Docs; the learner reviews the notes in Settings › Data & Privacy › Notes about your work. Write or change a note only when the learner asks.",
         ] as [String: Any])
     }

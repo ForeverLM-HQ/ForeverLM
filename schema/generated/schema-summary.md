@@ -1047,7 +1047,6 @@ The Setting record keys (§3.5.3): one record per key, account scope in Library 
 | `planner.dayHours.end.v1` | int | account | `set_day_settings` day_end_hour | The hour the Planner's day ends (PlannerDayHours.endHours). 1 to 24. |
 | `memoryReview.dailyPreparation.enabled.v1` | bool | account | `set_memory_review_settings` prepare_daily | Have today's review ready before the click (DailyReviewPreparation); the hour stays on each device. |
 | `memoryReview.budgetMinutes.v1` | int | account | `set_memory_review_settings` budget_minutes | Minutes a day the memory review gets (MemoryReviewBudget). 5 to 120. |
-| `memoryReview.dayClose.enabled.v1` | bool | account | `set_memory_review_settings` close_day_daily | Whether the day closes itself each evening (DayClosePreferences); the hour stays on each device. |
 | `memory.new_cards_per_day` | int | account | `set_memory_review_settings` new_cards_per_day | The day's new cards, which also sets how many sources are drafted a day (MemoryCardQueue.newPerDayRange). 1 to 100. |
 | `memory.auto_draft_cards` | bool | account | `set_memory_review_settings` auto_draft_cards | Draft cards in the background; true when absent. |
 | `memory.draft_nudges` | bool | account | `set_memory_review_settings` draft_nudges | Show the Cards to check card; true when absent. |

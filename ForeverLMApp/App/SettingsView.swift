@@ -224,7 +224,7 @@ enum SettingsSearchCatalog {
                 id: "memory",
                 title: "Memory review",
                 subtitle: "General",
-                keywords: ["memory", "review", "today's review", "prepare", "ready", "morning", "reminder", "daily", "minutes", "how long", "close the day"],
+                keywords: ["memory", "review", "today's review", "prepare", "ready", "morning", "reminder", "daily", "minutes", "how long"],
                 destination: .general,
                 icon: MemoryReviewSession.sidebarIcon,
                 tint: .pink

@@ -88,7 +88,7 @@ extension MCPDataStore {
     private func applyPracticeSetting(key: String, value: SyncJSON) async throws -> Any {
         if key == MemoryCardQueue.newPerDayPreferenceKey {
             guard let count = value.intValue else { throw MCPError.invalidInput("The practice's setting change is not a number of new cards.") }
-            let result = try await setMemoryReviewSettings(budgetMinutes: nil, prepareDaily: nil, readyByHour: nil, closeDayHour: nil, newCardsPerDay: count)
+            let result = try await setMemoryReviewSettings(budgetMinutes: nil, prepareDaily: nil, readyByHour: nil, newCardsPerDay: count)
             return (try? JSONSerialization.jsonObject(with: Data(result.utf8))) ?? result
         }
         let result = try await setAppSetting(settingID: key, value: Self.foundationValue(value))

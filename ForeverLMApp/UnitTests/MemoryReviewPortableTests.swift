@@ -608,18 +608,5 @@ struct MemoryReviewPortableTests {
         )
         #expect(validated.sources.count == 1)
         #expect(validated.sources[0].discussedIdeaIDs == [fixture.ideas[2].id])
-
-        // An earlier chat reached idea 0; this one reached idea 2. Both are met,
-        // and the merged set keeps the source's own order.
-        let brief = CohortSourceBrief(
-            source: fixture.source, guide: nil, highlights: [], understanding: nil,
-            understandingHasLearnerEdits: false, exemplarQuestions: [],
-            ideas: fixture.ideas, discussedIdeaIDs: [fixture.ideas[0].id]
-        )
-        #expect(DayClosePass.mergedDiscussedIdeaIDs(
-            known: brief, adding: validated.sources[0].discussedIdeaIDs
-        ) == [fixture.ideas[0].id, fixture.ideas[2].id])
-        // A source whose ideas were never listed to the closer keeps what it had.
-        #expect(DayClosePass.mergedDiscussedIdeaIDs(known: nil, adding: ["x"]) == nil)
     }
 }

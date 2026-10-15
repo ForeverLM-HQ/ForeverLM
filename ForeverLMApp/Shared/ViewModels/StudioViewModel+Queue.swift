@@ -2400,8 +2400,7 @@ extension StudioViewModel {
                 // Finishing a source is when its ideas are extracted, once
                 // (docs/memory-design.md), and its cards drafted in the
                 // background, both within the daily background AI limit.
-                // Best effort: the day close extracts and drafts what this
-                // missed.
+                // Best effort: what this misses waits for the learner.
                 sourcesWereFinished([sourceID])
             }
         } catch {

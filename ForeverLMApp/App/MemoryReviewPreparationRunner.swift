@@ -5,8 +5,7 @@ import OSLog
 
 extension Notification.Name {
     /// Posted on the main thread once this Mac has selected a day's cards
-    /// ahead of the click (the morning, Prepare now, the day close's look at
-    /// the next day). Studio reads today's counts again off it.
+    /// ahead of the click (the morning, Prepare now). Studio reads today's counts again off it.
     static let memoryReviewDidPrepare = Notification.Name("memoryReviewDidPrepare")
     /// Asks Studio to open the Memory pane in its active window, where Start
     /// Review is. Posted when the daily reminder is clicked, and by the Today
@@ -42,9 +41,8 @@ enum MemoryReviewDayKind: String, Codable, Sendable {
 /// close first, assembled the cohort, called the planner, and created the
 /// day's chat with its opening question, every morning, whether or not the
 /// review was opened. The card review retired that from every entry point
-/// (docs/memory-design.md, "The card review"), and neither this runner nor
-/// the day close (`DayCloseRunner`) makes that chat any more; the day close
-/// keeps its consolidation and idea extraction.
+/// (docs/memory-design.md, "The card review"), and this runner makes that chat
+/// no more.
 ///
 /// **Timing is event-driven**, the way `ScheduledTaskRunner` is: one timer for
 /// the next instant, re-armed on waking, activation, a clock change and a
@@ -223,21 +221,6 @@ final class MemoryReviewPreparationRunner {
         await prepare(day: now, now: now)
     }
 
-    /// The next day's cards, counted now: tomorrow's, or today's when its
-    /// hour is still ahead. What the day close ends with, so its receipt can
-    /// say what the morning holds. No model is called, and nothing is made
-    /// for the other devices: each derives the day's cards from the synced
-    /// attempts. Returns what happened, or nil when a selection was already
-    /// running.
-    @discardableResult
-    func prepareNextReview(now: Date = Date()) async -> Attempt? {
-        guard !isPreparing else { return nil }
-        let day = DailyReviewPreparation.nextPreparationInstant(after: now, hour: DailyReviewPreparation.hour)
-        await prepare(day: day, now: now)
-        armTimer()
-        return lastAttempt
-    }
-
     /// "Prepare now" (`run_settings_action prepare_memory_review_now`):
     /// today's cards selected again, whatever the hour and the day's earlier
     /// selection.
@@ -247,9 +230,7 @@ final class MemoryReviewPreparationRunner {
         armTimer()
     }
 
-    /// Selects the cards of the day `day` falls in — today's when the morning
-    /// runs it, the next day's when the day close does — as of that moment,
-    /// so a card kept today counts as new tomorrow.
+    /// Selects the cards of the day `day` falls in, as of that moment.
     private func prepare(day: Date, now: Date) async {
         // Signed out, the library is behind the Apple sign-in wall: there is
         // no review to select for, and the day is left unattempted so the

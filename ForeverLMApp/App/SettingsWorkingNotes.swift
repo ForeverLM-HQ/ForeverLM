@@ -7,8 +7,8 @@ import SwiftUI
 /// the way to read, correct and forget them. The notes are kept in the
 /// background, as ChatGPT keeps its memory, and are never a page
 /// (`WorkingMemoryRecords`), so this list is the one place they are shown:
-/// every note the day close writes and every chat is handed is here, one
-/// sentence each.
+/// every note the learner added or asked ForeverLM to keep, and every chat is
+/// handed, is here, one sentence each.
 struct WorkingNotesSettingsSection: View {
     @SyncedStorage(wrappedValue: true, WorkingNotesPreference.enabledKey)
     private var keepsNotes: Bool
@@ -21,7 +21,7 @@ struct WorkingNotesSettingsSection: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Toggle("Keep notes about my work", isOn: $keepsNotes)
                         .accessibilityIdentifier("settings.workingNotes.enabled")
-                    Text("Written each evening from your chats and reading, and sent with your chats to the model you chose, so it knows what you have been working on.")
+                    Text("Notes you add, or ask ForeverLM to remember, sent with your chats to the model you chose, so it knows what you have been working on.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -94,7 +94,7 @@ struct WorkingNotesReviewSheet: View {
                     addRow
 
                     if isLoaded, notes.isEmpty {
-                        Text("Nothing yet. Notes are written when the day closes, or add one above.")
+                        Text("Nothing yet. Add one above.")
                             .font(.callout)
                             .foregroundStyle(.secondary)
                     }

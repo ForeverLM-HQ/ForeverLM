@@ -40,8 +40,8 @@ enum CardsToCheckBanner {
 
     /// The subject of the banner: the pile that waits in To Check and, while
     /// background drafting is off, the finished sources no deck covers.
-    /// With drafting on, those sources are the day close's to draft and reach
-    /// the pile by the morning, so they are not named twice. Nil when there
+    /// With drafting on, those sources are drafted as they are finished and
+    /// reach the pile, so they are not named twice. Nil when there
     /// is nothing to process.
     static func subject(
         pile: CardsToCheckNudge.Pile?,

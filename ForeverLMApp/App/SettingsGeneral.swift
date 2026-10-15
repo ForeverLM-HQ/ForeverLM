@@ -34,13 +34,6 @@ struct GeneralSettingsDetailView: View {
     private var prepareDaily: Bool
     @AppStorage(DailyReviewPreparation.hourKey)
     private var readyHour: Int = DailyReviewPreparation.defaultHour
-    @AppStorage(DayClosePreferences.hourKey)
-    private var closeHour: Int = DayClosePreferences.defaultHour
-    /// Synced. Observed so the switch follows another device or MCP; what it
-    /// says when never set is the switch it was behind
-    /// (`DayClosePreferences.isEnabled`).
-    @SyncedStorage(wrappedValue: false, DayClosePreferences.enabledKey)
-    private var closesDayStored: Bool
     /// Synced: the day's new cards, background drafting, and the corner card.
     @SyncedStorage(wrappedValue: MemoryCardQueue.defaultNewPerDay, MemoryCardSettings.newCardsPerDayKey)
     private var newCardsPerDay: Int
@@ -58,9 +51,6 @@ struct GeneralSettingsDetailView: View {
     /// follows another Mac or MCP.
     @SyncedStorage(wrappedValue: false, BetaReleases.preferenceKey)
     private var betaReleasesSignedUp: Bool
-    /// What this Mac last did about closing the day, for its status line.
-    @State private var lastDayClose: DayCloseRunner.Receipt? = DayCloseRunner.shared.lastRun
-
     /// macOS's answer about ForeverLM's notifications: read when the pane
     /// appears and each time the app comes forward, since the learner may
     /// have just changed it in System Settings. Nil until it has been read.
@@ -297,38 +287,6 @@ struct GeneralSettingsDetailView: View {
                             }
                             .padding(.top, 8)
                         }
-
-                        Divider().padding(.vertical, 12)
-
-                        HStack(spacing: 12) {
-                            Text("Close the day at")
-                                .font(.callout.weight(.medium))
-                            Picker("Close the day at", selection: $closeHour) {
-                                ForEach(0..<24, id: \.self) { value in
-                                    Text(DailyReviewPreparation.hourLabel(value)).tag(value)
-                                }
-                            }
-                            .labelsHidden()
-                            .frame(width: 120)
-                            .accessibilityIdentifier("settings.memory.closeHour")
-                            .onChange(of: closeHour) { _, _ in
-                                DayCloseRunner.shared.scheduleRefresh()
-                            }
-                            Spacer(minLength: 0)
-                            Toggle("Close the day each evening", isOn: closesDayBinding)
-                                .toggleStyle(.switch)
-                                .labelsHidden()
-                                .accessibilityIdentifier("settings.memory.closeDayDaily")
-                        }
-                        if let lastDayClose {
-                            Text(lastDayClose.statusLine())
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .textSelection(.disabled)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .padding(.top, 4)
-                                .accessibilityIdentifier("settings.memory.dayCloseStatus")
-                        }
                     }
                 }
 
@@ -377,27 +335,8 @@ struct GeneralSettingsDetailView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             Task { await refreshNotificationPermission() }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .dayCloseDidRun)) { note in
-            lastDayClose = note.object as? DayCloseRunner.Receipt ?? DayCloseRunner.shared.lastRun
-        }
     }
 
-    /// The day close's own switch, as `DayClosePreferences.isEnabled` reads
-    /// it: the stored value, or the morning's switch it was behind until it
-    /// had its own. Reading both wrappers subscribes the view to either.
-    private var closesDayBinding: Binding<Bool> {
-        Binding(
-            get: {
-                _ = closesDayStored
-                _ = prepareDaily
-                return DayClosePreferences.isEnabled
-            },
-            set: { enabled in
-                DayClosePreferences.setEnabled(enabled)
-                DayCloseRunner.shared.scheduleRefresh()
-            }
-        )
-    }
 
     /// Written through `MemoryCardSettings`, so the value is clamped and
     /// syncs exactly as `set_memory_review_settings` writes it. The counts
@@ -517,8 +456,6 @@ struct GeneralSettingsDetailView: View {
     /// offer too, and the reminder notification follows the same switch;
     /// macOS's answer to its prompt is what the notifications line reads.
     private func didChangePrepareDaily(to enabled: Bool) {
-        // The evening close stops following this switch; it keeps what it did.
-        DayClosePreferences.pinBeforeReminderChange(reminderWas: !enabled)
         DailyReviewPreparation.markOfferDecided()
         if enabled {
             Task {

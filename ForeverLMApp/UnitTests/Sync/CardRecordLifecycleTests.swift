@@ -188,9 +188,14 @@ struct CardRecordLifecycleTests {
             #expect(F.changed(change).isSuperset(of: ["alwaysAsk"]))
             #expect(F.fields(change)?["variants"]?["front"]?["text"] == "What links respiration to ATP?")
 
-            // A rewording the day close made, then taken out in the card review.
+            // A card that was reworded once, then taken out in the card review.
             await MainActor.run {
-                _ = MemoryCardStateStore.update(deckID: Self.deckID) { CardVariationPass.apply([CardVariationWrite(cardID: Self.seeded, itemID: item.id, variants: [])], to: &$0, at: Self.now) }
+                _ = MemoryCardStateStore.update(deckID: Self.deckID) { row in
+                    var state = row.cards[Self.seeded] ?? MemoryCardState(status: .kept, memoryItemID: item.id, updatedAt: Self.now)
+                    state.variedAt = Self.now
+                    state.updatedAt = Self.now
+                    row.cards[Self.seeded] = state
+                }
             }
             await MemoryCardStateStore.settled()
             #expect(MemoryCardStateStore.state(cardID: Self.seeded, deckID: Self.deckID)?.variedAt != nil, "reworded once, even with nothing kept")

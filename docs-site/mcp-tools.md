@@ -52,13 +52,12 @@ Settings › Sources › **Search & AI** in the Mac app, per source family, and 
 | `get_source_settings` | — | Every family (`articles`, `papers`, `books`, `courses`, `meetings`, `podcasts`, `youtube`, `x`) with `include_in_search_and_ai`, `pinned` and `can_unpin`, in the learner's tab order. |
 | `set_source_settings` | `family`, `include_in_search_and_ai?`, `pinned?` | Flip one family's switches. Pass one or both. Unpinning the last pinned family is refused: the tab bar keeps at least one. Returns the family's row and `changed`. |
 
-Settings › General › **Memory review** in the Mac app, and the day close. The budget, the day's new cards, background card drafting and its corner card, and the two switches follow the account; the two hours and the receipts are the Mac's. All three tools need the Mac open and connected.
+Settings › General › **Memory review** in the Mac app. The budget, the day's new cards, background card drafting and its corner card, and the switches follow the account; the hour and the receipts are the Mac's. Both tools need the Mac open and connected.
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `get_memory_review_settings` | — | `budget_minutes`, `new_cards_per_day`, `auto_draft_cards`, `draft_nudges`, `prepare_review_questions`, `prepare_daily`, `ready_by_hour`, `close_day_daily`, `close_day_hour`, with `automatic_drafting` (sources drafted a day, this Mac's last run and what it left waiting, the sources that failed today), `last_preparation` and `last_day_close` saying what this Mac last did about each. |
-| `set_memory_review_settings` | `budget_minutes?`, `new_cards_per_day?`, `auto_draft_cards?`, `draft_nudges?`, `prepare_review_questions?`, `prepare_daily?`, `ready_by_hour?`, `close_day_daily?`, `close_day_hour?` | Change one or several, through the pane's own entry points: the reminder follows its switch and both runners re-read their clocks. `new_cards_per_day` (1–100) also sets how many sources are drafted in the background each day, one for every four new cards. Returns the settings and `changed`. |
-| `close_day` | `prepare_tomorrow?`, `approved_spend_usd?` | Close the day now, as the evening close does: every chat written in since the last close is folded into the understanding documents of the sources it discussed, ideas are extracted for what was read, cards are drafted into To Check from what was finished or annotated in the last ten days, as many as today allows (`drafted_cards`, `drafted_sources`, `drafts_waiting`), the questions of cards kept before ForeverLM checked that a card names what it is about are reworded where they point at their source unnamed, a batch a close until every one has been checked (`standalone_reworded_cards`), and cards remembered twice are reworded (`varied_cards`); all of these stop at the daily background AI limit, what waits is listed under `notes`, and a source that could not be drafted under `failures`. Then the next morning's cards are counted (`next_day_cards`, unless `prepare_tomorrow` is false). No review chat is made: the memory review is the learner's cards, started from Memory. Idempotent; waits for the work. |
+| `get_memory_review_settings` | — | `budget_minutes`, `new_cards_per_day`, `auto_draft_cards`, `draft_nudges`, `prepare_review_questions`, `prepare_daily`, `ready_by_hour`, with `automatic_drafting` (sources drafted a day, this Mac's last run and what it left waiting, the sources that failed today), and `last_preparation` saying what this Mac last did about the morning. |
+| `set_memory_review_settings` | `budget_minutes?`, `new_cards_per_day?`, `auto_draft_cards?`, `draft_nudges?`, `prepare_review_questions?`, `prepare_daily?`, `ready_by_hour?` | Change one or several, through the pane's own entry points: the reminder follows its switch and the runner re-reads its clock. `new_cards_per_day` (1–100) also sets how many sources are drafted in the background each day, one for every four new cards. Returns the settings and `changed`. |
 
 Settings › Sources › **Zoom Transcripts**, the recordings only Zoom can convert. Zoom records a meeting held on the Mac as raw `double_click_to_convert_*.zoom` files and converts them when the meeting ends; a meeting ended before that, or with Zoom quit, leaves the raw files, which ForeverLM cannot read. The Meetings tab and the Settings pane list each such recording with **Convert in Zoom** and **Ignore**, and these two tools are those rows. Zoom asks "Files from unknown sources" before converting a recording its meeting did not convert on the spot. When the learner has allowed ForeverLM under Accessibility, ForeverLM answers that dialog itself and converts waiting recordings on its own, one at a time and at most twice each, never during a meeting; without that permission it opens nothing in Zoom on its own. Both tools need the Mac open and connected, and the list and the ignore list are that Mac's.
 
@@ -561,12 +560,10 @@ the Mac app; these tools are how an assistant writes them.
 
 ForeverLM keeps short notes about how the learner is working: a thread of work
 in progress, an interest, a preference, a fact about their situation, an
-outcome. They are written each evening, when the day closes, from the
-learner's chats and reading, and the nearest few ride into every ForeverLM
-chat, with "What I'm working on", the running summary the planner starts
-from. Both are kept in the background, as a memory, never as pages: Settings ›
-Data & Privacy › Notes about your work reads, corrects and forgets the notes,
-and Forget All forgets the summary too. An assistant beside the app can read them to know
+outcome. The learner adds them, or asks ForeverLM to keep one, and the nearest
+few ride into every ForeverLM chat. They are kept in the background, as a
+memory, never as pages: Settings › Data & Privacy › Notes about your work
+reads, corrects and forgets the notes. An assistant beside the app can read them to know
 what the learner has been doing, and writes or forgets one only when the
 learner asks.
 

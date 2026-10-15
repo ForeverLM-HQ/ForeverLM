@@ -2803,7 +2803,7 @@ final class MCPToolRegistry: @unchecked Sendable {
             ),
             MCPToolDef(
                 name: "list_working_notes",
-                description: "Read the working notes ForeverLM keeps about how the learner is working: short sentences, each a thread (work in progress), an interest, a preference, a fact or an outcome, written when the day closes from their chats and reading and handed to every ForeverLM chat. Use it to see what they have been working on, or to answer what ForeverLM knows about them. With a query, the notes nearest those words come first (by the same on-device embedding the chat recalls with); without one, newest first. Answers with each note's id, kind, text and dates, whether notes are switched on, and running_log: ForeverLM's running summary of what they are working on (Right now, then the newest log lines). Both are kept in the background, never as Docs. Notes can be out of date; trust what the learner says now.",
+                description: "Read the working notes ForeverLM keeps about how the learner is working: short sentences, each a thread (work in progress), an interest, a preference, a fact or an outcome, kept by the learner or at their word and handed to every ForeverLM chat. Use it to see what they have been working on, or to answer what ForeverLM knows about them. With a query, the notes nearest those words come first (by the same on-device embedding the chat recalls with); without one, newest first. Answers with each note's id, kind, text and dates, whether notes are switched on, and running_log: ForeverLM's running summary of what they are working on (Right now, then the newest log lines). Both are kept in the background, never as Docs. Notes can be out of date; trust what the learner says now.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -2816,7 +2816,7 @@ final class MCPToolRegistry: @unchecked Sendable {
             ),
             MCPToolDef(
                 name: "save_working_note",
-                description: "Write one working note about how the learner works, when they ask you to remember something about it (\"remember I want a review after every paper\", \"note that Berlin is October 21\"). One sentence that stands on its own, naming the topic rather than saying \"it\", at most 400 characters. kind is one of: thread (work in progress), interest (a topic they keep returning to), preference (how they like to work), fact (something true about their situation), outcome (something finished or learned). A fact defaults. Do not write a note on your own initiative or a guess about the learner; ForeverLM writes the rest when the day closes. A sentence that is already a note is not written twice.",
+                description: "Write one working note about how the learner works, when they ask you to remember something about it (\"remember I want a review after every paper\", \"note that Berlin is October 21\"). One sentence that stands on its own, naming the topic rather than saying \"it\", at most 400 characters. kind is one of: thread (work in progress), interest (a topic they keep returning to), preference (how they like to work), fact (something true about their situation), outcome (something finished or learned). A fact defaults. Do not write a note on your own initiative or a guess about the learner. A sentence that is already a note is not written twice.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -2938,7 +2938,7 @@ final class MCPToolRegistry: @unchecked Sendable {
             ),
             MCPToolDef(
                 name: "get_memory_review_settings",
-                description: "Settings › General › Memory review as JSON: budget_minutes (the daily review's length, your account), new_cards_per_day (how many new cards a day's review introduces, which also sets how many sources ForeverLM drafts cards from in the background each day, your account), auto_draft_cards (whether ForeverLM drafts cards into To Check as the learner finishes sources, within the daily background AI limit, your account), draft_nudges (whether the Cards to check corner card and the next morning's banner say drafted cards wait, your account), prepare_review_questions (whether ForeverLM writes review questions ahead of time for the few sources a review is likely to be about today, your account), prepare_daily (\"Have today's review ready\": the reminder on mornings that hold cards, your account), ready_by_hour (when this Mac selects the morning's cards and the reminder fires), close_day_daily (whether the day closes itself each evening, your account), close_day_hour (when this Mac closes the day: folds today's chats and reading into what the tutor knows about each source, drafts cards from what was finished, rewords cards remembered twice, then counts the next morning's cards), automatic_drafting (sources_a_day, this Mac's last_run with what it left waiting, and the sources that failed today), and what this Mac last did about the morning and the day close (last_preparation, last_day_close).",
+                description: "Settings › General › Memory review as JSON: budget_minutes (the daily review's length, your account), new_cards_per_day (how many new cards a day's review introduces, which also sets how many sources ForeverLM drafts cards from in the background each day, your account), auto_draft_cards (whether ForeverLM drafts cards into To Check as the learner finishes sources, within the daily background AI limit, your account), draft_nudges (whether the Cards to check corner card and the next morning's banner say drafted cards wait, your account), prepare_review_questions (whether ForeverLM writes review questions ahead of time for the few sources a review is likely to be about today, your account), prepare_daily (\"Have today's review ready\": the reminder on mornings that hold cards, your account), ready_by_hour (when this Mac selects the morning's cards and the reminder fires), automatic_drafting (sources_a_day, this Mac's last_run with what it left waiting, and the sources that failed today), and what this Mac last did about the morning (last_preparation).",
                 inputSchema: [
                     "type": "object",
                     "properties": [:] as [String: Any],
@@ -2947,30 +2947,17 @@ final class MCPToolRegistry: @unchecked Sendable {
             ),
             MCPToolDef(
                 name: "set_memory_review_settings",
-                description: "Change Settings › General › Memory review: budget_minutes, new_cards_per_day, auto_draft_cards, draft_nudges, prepare_review_questions, prepare_daily, ready_by_hour, close_day_daily, close_day_hour — one or several. Writes through the pane's own entry points, so the reminder and both runners follow. Returns the settings as get_memory_review_settings reads them plus `changed`.",
+                description: "Change Settings › General › Memory review: budget_minutes, new_cards_per_day, auto_draft_cards, draft_nudges, prepare_review_questions, prepare_daily, ready_by_hour — one or several. Writes through the pane's own entry points, so the reminder and the runner follow. Returns the settings as get_memory_review_settings reads them plus `changed`.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
                         "budget_minutes": ["type": "integer", "description": "Minutes the daily memory review gets (5–120). Follows your account."],
                         "new_cards_per_day": ["type": "integer", "description": "New cards a day's review introduces (1–100; 10 by default). Also sets how many sources are drafted in the background each day: one for every four new cards, at least one. Follows your account."],
-                        "auto_draft_cards": ["type": "boolean", "description": "Draft cards into To Check in the background as the learner finishes sources (Mark as Read, read to the end, listening or watching complete) and from annotated sources at the day close, within the daily background AI limit. On by default. Follows your account."],
+                        "auto_draft_cards": ["type": "boolean", "description": "Draft cards into To Check in the background as the learner finishes sources (Mark as Read, read to the end, listening or watching complete), within the daily background AI limit. On by default. Follows your account."],
                         "draft_nudges": ["type": "boolean", "description": "Show the Cards to check corner card, and send the next morning's banner, while cards drafted in the background wait or finished sources have none. On by default; its Don't Ask Again turns it off. Follows your account."],
                         "prepare_review_questions": ["type": "boolean", "description": "Write review questions ahead of time for up to six sources a day a review is likely to be about (today's Schedule, then what was read in the last two days), so a review starts at once, within the daily background AI limit. A review without them still runs. On by default. Follows your account."],
                         "prepare_daily": ["type": "boolean", "description": "Select the morning's cards at ready_by_hour and send the daily reminder on mornings that hold cards. Follows your account."],
                         "ready_by_hour": ["type": "integer", "description": "Hour (0–23, this Mac's clock) by which the morning's review should be waiting."],
-                        "close_day_daily": ["type": "boolean", "description": "Close the day each evening at close_day_hour. Until it is set it keeps what prepare_daily, the switch it was behind, says, and the first change to prepare_daily pins it there, so prepare_daily never starts or stops the evening close. Follows your account."],
-                        "close_day_hour": ["type": "integer", "description": "Hour (0–23, this Mac's clock) at which the day is closed each evening."],
-                    ],
-                    "required": [] as [String],
-                ]
-            ),
-            MCPToolDef(
-                name: "close_day",
-                description: "Close the day now, as the evening close does: every chat the learner wrote in since the last close is folded into the understanding documents of the sources it discussed, ideas are extracted for what was read, cards are drafted into To Check from the sources the learner finished or annotated in the last ten days, as many as new_cards_per_day allows today and while auto_draft_cards is on (drafted_cards, drafted_sources, drafts_waiting for the sources left for another day), the cards kept before ForeverLM checked that a card names what it is about have their questions reworded where they point at their source unnamed (\u{201C}this lecture\u{201D}, \u{201C}the paper\u{201D}), a batch a close until every one has been checked (standalone_reworded_cards), and the cards the learner has remembered twice are reworded so their next reviews ask for the same answer from another angle (varied_cards). Idea extraction, drafting, the wording check and rewording stop at the learner's daily background AI limit; what waits for the next close is listed under notes, and a source that could not be drafted under failures. Then, unless prepare_tomorrow is false, the next morning's cards are counted (next_day_cards). No review chat is made: the memory review is the learner's cards, started from Memory. Idempotent: a second call finds nothing new. Waits for the work; a full day can take a minute. Use it when the learner says the day is over.",
-                inputSchema: [
-                    "type": "object",
-                    "properties": [
-                        "prepare_tomorrow": ["type": "boolean", "description": "Defaults to true: count the next morning's cards after consolidating. Pass false to only fold today in."],
                     ],
                     "required": [] as [String],
                 ]
@@ -5270,10 +5257,10 @@ final class MCPToolRegistry: @unchecked Sendable {
         // Long paid tools whose reads and writes all go through the storage
         // actor. On 2026-09-27 an assistant could not read a transcript or
         // save a quiz for minutes while generate_course_quizzes held the gate
-        // alone, writing a course's quizzes on the learner's key. The day
-        // close runs on storage actors of its own, and a filmed explainer
-        // waits on the learner's price dialog before the coordinator films it.
-        "generate_course_quizzes", "generate_walkthrough", "generate_explainer_video", "close_day",
+        // alone, writing a course's quizzes on the learner's key. A filmed
+        // explainer waits on the learner's price dialog before the
+        // coordinator films it.
+        "generate_course_quizzes", "generate_walkthrough", "generate_explainer_video",
         // The Reader's Find on YouTube and Use Transcript: the episode is read
         // from the Studio and saved through its storage actor, around page
         // reads, YouTube calls and the learner's model.
@@ -6680,15 +6667,11 @@ final class MCPToolRegistry: @unchecked Sendable {
                     budgetMinutes: arguments["budget_minutes"] as? Int,
                     prepareDaily: arguments["prepare_daily"] as? Bool,
                     readyByHour: arguments["ready_by_hour"] as? Int,
-                    closeDayHour: arguments["close_day_hour"] as? Int,
                     newCardsPerDay: arguments["new_cards_per_day"] as? Int,
                     autoDraftCards: arguments["auto_draft_cards"] as? Bool,
                     draftNudges: arguments["draft_nudges"] as? Bool,
-                    closeDayDaily: arguments["close_day_daily"] as? Bool,
                     prepareReviewQuestions: arguments["prepare_review_questions"] as? Bool
                 )
-            case "close_day":
-                return try await store.closeDay(prepareTomorrow: arguments["prepare_tomorrow"] as? Bool ?? true)
             case "draft_cards":
                 return try await store.draftCards(arguments: arguments)
             case "save_card_drafts":

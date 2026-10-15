@@ -277,8 +277,8 @@ enum WorkingNoteConsolidation {
 // MARK: - The switch
 
 /// Whether ForeverLM keeps notes about the learner's work at all: writes them
-/// from the day close, hands the nearest to every chat, and carries the
-/// running log in a chat's prompt. On unless switched off; off, nothing new is
+/// the learner adds or asks for, hands the nearest to every chat, and carries
+/// the running log in a chat's prompt. On unless switched off; off, nothing new is
 /// written or sent and what exists is kept until the learner forgets it.
 /// Synced (`SyncedPreferenceKeys`): a statement about the learner, not the
 /// Mac it was said on.
