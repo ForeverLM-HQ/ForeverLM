@@ -94,6 +94,51 @@ struct PlanTheDayTests {
         #expect(!open(now: 9 * 60, events: [event(660, 750, "Read the atlas")]))
     }
 
+    @Test("Forced, the question stands until the calendar holds a plan: answering or closing it does not end it")
+    func forced() {
+        func open(answered: Bool, events: [AppleCalendarEvent] = [], enabled: Bool = true, forced: Bool) -> Bool {
+            PlanTheDay.isOpen(
+                events: events, calendarOn: true, nowMinute: 9 * 60, dayHours: 6...24,
+                answeredToday: answered, isEnabled: enabled, forced: forced
+            )
+        }
+        #expect(!open(answered: true, forced: false))
+        #expect(open(answered: true, forced: true))
+        #expect(open(answered: false, forced: true))
+        // A plan still ends it, and so does switching the question off.
+        #expect(!open(answered: true, events: [event(660, 750, "Read the atlas")], forced: true))
+        #expect(!open(answered: false, enabled: false, forced: true))
+    }
+
+    @Test("A forced day opens the planning chat once, for someone at the Mac with ForeverLM in front")
+    func opensChat() {
+        func opens(
+            isOpen: Bool = true, forced: Bool = true, openedToday: Bool = false,
+            inFront: Bool = true, idle: TimeInterval = 5
+        ) -> Bool {
+            PlanTheDay.opensChatNow(
+                isOpen: isOpen, forced: forced, openedToday: openedToday,
+                appIsInFront: inFront, secondsSinceInput: idle
+            )
+        }
+        #expect(opens())
+        #expect(!opens(forced: false))
+        #expect(!opens(isOpen: false))
+        #expect(!opens(openedToday: true))
+        #expect(!opens(inFront: false))
+        #expect(!opens(idle: PlanTheDay.presenceSeconds))
+    }
+
+    @Test("The ledger keeps the day the forced chat opened apart from the day asked and the day answered")
+    func chatLedger() throws {
+        let suite = try #require(UserDefaults(suiteName: "PlanTheDayTests.\(UUID().uuidString)"))
+        #expect(!PlanTheDay.Ledger.chatWasOpened(on: date, defaults: suite))
+        PlanTheDay.Ledger.markChatOpened(on: date, defaults: suite)
+        #expect(PlanTheDay.Ledger.chatWasOpened(on: date, defaults: suite))
+        #expect(!PlanTheDay.Ledger.chatWasOpened(on: "2026-09-23", defaults: suite))
+        #expect(!PlanTheDay.Ledger.wasAsked(on: date, defaults: suite) && !PlanTheDay.Ledger.wasAnswered(on: date, defaults: suite))
+    }
+
     @Test("The question is put once, to someone at the Mac, while it stands")
     func put() {
         #expect(PlanTheDay.isPutNow(isOpen: true, askedToday: false, secondsSinceInput: 5))

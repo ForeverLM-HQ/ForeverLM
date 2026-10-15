@@ -3976,7 +3976,7 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "Read the AI usage ledger behind Settings › AI Usage › Activity for a period (days back, default 30, or from/to as local YYYY-MM-DD): total spend, spend by task with the models each task ran and per-call averages (tokens in and out, cache read share, cost per call), spend by model with its catalogue price, spend by day, and beside every configurable task the route it would run on now (provider, model, effort, speed, which default it follows or that it is overridden) with that model's price per million tokens. cost_usd is what the provider billed when it reported an amount, else the list-price estimate stamped at record time; calls that could not be priced are counted in unpriced_calls and never folded into a total, and a model whose price is unknown says price_known false rather than a guess. Reads no source content.",
+    "description" : "Read the AI usage ledger behind AI Usage › Activity for a period (days back, default 30, or from/to as local YYYY-MM-DD): total spend, spend by task with the models each task ran and per-call averages (tokens in and out, cache read share, cost per call), spend by model with its catalogue price, spend by day, and beside every configurable task the route it would run on now (provider, model, effort, speed, which default it follows or that it is overridden) with that model's price per million tokens. cost_usd is what the provider billed when it reported an amount, else the list-price estimate stamped at record time; calls that could not be priced are counted in unpriced_calls and never folded into a total, and a model whose price is unknown says price_known false rather than a guess. Reads no source content.",
     "inputSchema" : {
       "properties" : {
         "days" : {
@@ -4111,7 +4111,7 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "Read the ForeverLM account behind Settings › Billing (paying for ForeverLM) and Settings › AI Usage (the key and the monthly spending limit), freshly fetched from the account server as those panes do when they open. ForeverLM is a paid app after 7 free days: they begin at the first sign-in, and then the app is paid once (the Early user deal), with no subscription; an account that has not paid by then is locked until it does, and nothing in it is deleted. No monthly plan is sold; one bought before still counts as paid while it is active. AI is never part of the price: the learner's own OpenRouter API key pays for every model, billed by OpenRouter at cost, and ForeverLM adds nothing. OpenRouter is the only supported provider. Returns whether the learner is signed in; the plan (state free_days, paid_once, monthly, comped, family or locked; whether the account is unlocked, when the free days end, how many are left and how many an account gets; a monthly plan's renewal and price; whether the own key may run AI) and the plans on sale with the account server's prices (once, the Early user deal, recommended); a summary of the learner's own router key (details in get_own_router_key); any balance left over from before prepaid balance was retired, which still pays for requests sent without the key until it runs out and cannot be added to; and the monthly spending limit (current value, what has been spent this month, whether it is reached, when it resets, and the options the pane's picker offers, including no_limit). This is account state, the same on every device.",
+    "description" : "Read the ForeverLM account behind Settings › Billing (paying for ForeverLM) and AI Usage (the key and the monthly spending limit), freshly fetched from the account server as those panes do when they open. ForeverLM is a paid app after 7 free days: they begin at the first sign-in, and then the app is paid once (the Early user deal), with no subscription; an account that has not paid by then is locked until it does, and nothing in it is deleted. No monthly plan is sold; one bought before still counts as paid while it is active. AI is never part of the price: the learner's own OpenRouter API key pays for every model, billed by OpenRouter at cost, and ForeverLM adds nothing. OpenRouter is the only supported provider. Returns whether the learner is signed in; the plan (state free_days, paid_once, monthly, comped, family or locked; whether the account is unlocked, when the free days end, how many are left and how many an account gets; a monthly plan's renewal and price; whether the own key may run AI) and the plans on sale with the account server's prices (once, the Early user deal, recommended); a summary of the learner's own router key (details in get_own_router_key); any balance left over from before prepaid balance was retired, which still pays for requests sent without the key until it runs out and cannot be added to; and the monthly spending limit (current value, what has been spent this month, whether it is reached, when it resets, and the options the pane's picker offers, including no_limit). This is account state, the same on every device.",
     "inputSchema" : {
       "properties" : {
 
@@ -4146,7 +4146,7 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "Read the learner's day from the Mac's Calendar — the day is the calendar, and there is no separate plan: every event on the calendars ForeverLM shows (Plugins › Calendar; get_calendar_settings), for one day or up to 14 from date. Each event has event_id (with occurrence_date for one occurrence of a recurring event — pass both to change it), title, calendar and calendar_id, start and end on the learner's clock (HH:MM) and start_at and end_at in ISO 8601 with the offset, all_day, when (ended, now with minutes_left, or ahead), location, join_link (the Teams, Zoom or Meet link, when there is one), notes, attendees, has_other_people (a meeting: it stays at its time and only the Calendar app may change it), and editable (whether update_calendar_event and delete_calendar_event may touch it). Each day also says its weekday, where it sits against today (relative_day), the hours the learner's day runs (day_starts, day_ends; get_day_settings), and the free stretches inside those hours — free_from_now on today, free on a day ahead — which is where a plan goes. new_events_calendar is where create_calendar_event puts an event unless told otherwise. Needs the Mac's Calendar on; the error says how to turn it on. To plan a day: read it (and get_day_activity for how recent days actually went), ask the learner the one thing only they can say — what is fixed and what the day is for — then add each block of the day as an event with create_calendar_event.",
+    "description" : "Read the learner's day from the Mac's Calendar — the day is the calendar, and there is no separate plan: every event on the calendars ForeverLM shows (Plugins › Calendar; get_calendar_settings), for one day or up to 14 from date. Each event has event_id (with occurrence_date for one occurrence of a recurring event — pass both to change it), title, calendar and calendar_id, start and end on the learner's clock (HH:MM) and start_at and end_at in ISO 8601 with the offset, all_day, when (ended, now with minutes_left, or ahead), location, join_link (the Teams, Zoom or Meet link, when there is one), notes, attendees, has_other_people (a meeting: it stays at its time and only the Calendar app may change it), and editable (whether update_calendar_event and delete_calendar_event may touch it). Each day also says its weekday, where it sits against today (relative_day), the hours the learner's day runs (day_starts, day_ends; get_day_settings), and the free stretches inside those hours — free_from_now on today, free on a day ahead — which is where a plan goes. new_events_calendar is where create_calendar_event puts an event unless told otherwise. Needs the Mac's Calendar on; the error says how to turn it on. To plan a day: read it (and get_day_activity for how recent days actually went), propose a first draft of the whole day with one line on what you assumed, revise it with the learner as often as they like (replying with the whole revised list each time), and once they agree add each block of the day as an event with create_calendar_event.",
     "inputSchema" : {
       "properties" : {
         "date" : {
@@ -4307,7 +4307,7 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "Read Settings › General › Day: the hours the learner's day runs (day_start_hour, day_end_hour; 6 and 24 unless the learner set them) — what get_calendar_events counts free time inside and the hours the Activity pane's clock draws; this pair follows the account to the learner's other Macs — and whether this Mac asks \"Plan your day?\" (suggest_planning_the_day, device-local, on unless switched off: each morning today's calendar holds nothing the learner planned — meetings with other people and recurring events do not count — from the start of their day until the afternoon hour /plan turns to tomorrow, with suggest_planning_scope giving this Mac's hours, a card in the bottom-left of the Studio window asks and waits until answered, and a notification says it once if the learner sits down with ForeverLM not in front). notifications_status is whether macOS lets ForeverLM notify on this Mac at all (allowed, refused or not_asked), which a bout's alarms, the memory review reminder and \"Plan your day?\" as a notification need; refused means none of them reaches the learner while the switches still read as on, and only the learner can undo it, in System Settings › Notifications. notifications_note says what the status means.",
+    "description" : "Read Settings › General › Day: the hours the learner's day runs (day_start_hour, day_end_hour; 6 and 24 unless the learner set them) — what get_calendar_events counts free time inside and the hours the Activity pane's clock draws; this pair follows the account to the learner's other Macs — and whether this Mac asks \"Plan your day?\" (suggest_planning_the_day, device-local, on unless switched off: each morning today's calendar holds nothing the learner planned — meetings with other people and recurring events do not count — from the start of their day until the afternoon hour /plan turns to tomorrow, with suggest_planning_scope giving this Mac's hours, a card in the bottom-left of the Studio window asks and waits until answered, and a notification says it once if the learner sits down with ForeverLM not in front; force_planning_the_day, device-local and off unless switched on, makes the question unavoidable while it stands: the planning chat opens by itself the first time the learner is at the Mac, and the card cannot be closed until the calendar holds a plan). notifications_status is whether macOS lets ForeverLM notify on this Mac at all (allowed, refused or not_asked), which a bout's alarms, the memory review reminder and \"Plan your day?\" as a notification need; refused means none of them reaches the learner while the switches still read as on, and only the learner can undo it, in System Settings › Notifications. notifications_note says what the status means.",
     "inputSchema" : {
       "properties" : {
 
@@ -4631,7 +4631,7 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "Read a mnemonic reading: its title, its Notebook, its sources in reading order (written, or pending while their questions are not written), and every question with its question_id, source_id, quote (the passage it is asked after), question, answer, why and difficulty, and where it stands for this learner: unanswered, kept as a Memory card (with its last grade, and due when the card review asks it now, else next_due_at), or retired. counts says how many questions there are, how many are answered and how many are due. While ForeverLM is writing it, writing says how far it has come; last_run says how the last run this session ended. To go through it in a chat, quote the passage and ask one question at a time, show nothing of its answer before the learner answers, and record each answer with answer_mnemonic_question. Reads only. list_docs lists readings as kind mnemonic_reading.",
+    "description" : "Read a mnemonic reading: its title, its Notebook, its sources in reading order (written, or pending while their questions are not written), and every question with its question_id, source_id, quote (the passage it is asked after), question, answer and why, and where it stands for this learner: unanswered, kept as a Memory card (with its last grade, and due when the card review asks it now, else next_due_at), or retired. counts says how many questions there are, how many are answered and how many are due. While ForeverLM is writing it, writing says how far it has come; last_run says how the last run this session ended. To go through it in a chat, quote the passage and ask one question at a time, show nothing of its answer before the learner answers, and record each answer with answer_mnemonic_question. Reads only. list_docs lists readings as kind mnemonic_reading.",
     "inputSchema" : {
       "properties" : {
         "reading_id" : {
@@ -4732,7 +4732,7 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "Read Settings › AI Usage › Your own key: whether the learner has stored their own OpenRouter key, which router it is for, and the key's last four characters. Never the key itself. ForeverLM's AI features are bring your own key: with a key stored, OpenRouter bills the learner directly, at cost, for everything ForeverLM sends through it, and ForeverLM adds nothing. OpenRouter is the only supported provider. The key runs while the account is unlocked (its free days, or ForeverLM paid for; own_key_allowed); a locked account's key runs no model, free ones included. The response names the scope: an OpenRouter key covers chat, reviews and background tasks plus every voice, speech-to-text, image and video model OpenRouter serves, first-party ones such as Gemini and Grok speech, GPT-4o mini transcription and Veo included, so the key pays for every model ForeverLM uses.",
+    "description" : "Read AI Usage › Your own key: whether the learner has stored their own OpenRouter key, which router it is for, and the key's last four characters. Never the key itself. ForeverLM's AI features are bring your own key: with a key stored, OpenRouter bills the learner directly, at cost, for everything ForeverLM sends through it, and ForeverLM adds nothing. OpenRouter is the only supported provider. The key runs while the account is unlocked (its free days, or ForeverLM paid for; own_key_allowed); a locked account's key runs no model, free ones included. The response names the scope: an OpenRouter key covers chat, reviews and background tasks plus every voice, speech-to-text, image and video model OpenRouter serves, first-party ones such as Gemini and Grok speech, GPT-4o mini transcription and Veo included, so the key pays for every model ForeverLM uses.",
     "inputSchema" : {
       "properties" : {
 
@@ -8410,15 +8410,6 @@
                 "maxItems" : 4,
                 "type" : "array"
               },
-              "difficulty" : {
-                "description" : "How hard the card is to answer.",
-                "enum" : [
-                  "easy",
-                  "medium",
-                  "hard"
-                ],
-                "type" : "string"
-              },
               "front" : {
                 "description" : "The question to ask, on one line.",
                 "type" : "string"
@@ -8779,7 +8770,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Save a mnemonic reading whose questions you wrote yourself: the learner reads the sources' own text in ForeverLM with each question right after the passage it tests, as in a reading generate_mnemonic_reading makes. Give sources in reading order, each with its source_id (as list_sources or a search returns it; an id the library does not hold refuses the whole call) and its questions in the order of its text. Each question has quote, the last sentence of the passage it tests copied word for word from the source's text (get_source_content), so ForeverLM can set the question after it; question, on one line, standalone, with one right answer, never yes or no; answer, the short answer first and at most one sentence of why; why, optional; and difficulty, easy, medium or hard. A question whose quote the source does not print is not saved and is listed under not_grounded. An answered question becomes a card, asked weeks later away from the text, so it never points at its source unnamed (“this chapter”, “the author”, “this lecture”): every question is checked for that before it is saved (a small background model call on the learner's Card Wording Check model), and one that does is reworded once or listed under not_saved; when the check cannot run, the source's questions are not saved and failure says why. Pass title (“<book> with questions” reads well) and notebook_id to file it in a Notebook, or reading_id to add questions to a reading that exists: a question already there is not saved twice. Returns reading_id and, per source, the saved question ids and what was not saved, with why.",
+    "description" : "Save a mnemonic reading whose questions you wrote yourself: the learner reads the sources' own text in ForeverLM with each question right after the passage it tests, as in a reading generate_mnemonic_reading makes. Give sources in reading order, each with its source_id (as list_sources or a search returns it; an id the library does not hold refuses the whole call) and its questions in the order of its text. Each question has quote, the last sentence of the passage it tests copied word for word from the source's text (get_source_content), so ForeverLM can set the question after it; question, on one line, standalone, with one right answer, never yes or no; answer, the short answer first and at most one sentence of why; and why, optional. A question whose quote the source does not print is not saved and is listed under not_grounded. An answered question becomes a card, asked weeks later away from the text, so it never points at its source unnamed (“this chapter”, “the author”, “this lecture”): every question is checked for that before it is saved (a small background model call on the learner's Card Wording Check model), and one that does is reworded once or listed under not_saved; when the check cannot run, the source's questions are not saved and failure says why. Pass title (“<book> with questions” reads well) and notebook_id to file it in a Notebook, or reading_id to add questions to a reading that exists: a question already there is not saved twice. Returns reading_id and, per source, the saved question ids and what was not saved, with why.",
     "inputSchema" : {
       "properties" : {
         "notebook_id" : {
@@ -8799,15 +8790,6 @@
                   "properties" : {
                     "answer" : {
                       "description" : "The short answer first, and at most one sentence of why.",
-                      "type" : "string"
-                    },
-                    "difficulty" : {
-                      "description" : "How hard the question is.",
-                      "enum" : [
-                        "easy",
-                        "medium",
-                        "hard"
-                      ],
                       "type" : "string"
                     },
                     "question" : {
@@ -9925,7 +9907,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Change the monthly spending limit in Settings › AI Usage › Spending exactly as the pane's picker does. monthly_spending_limit takes one of the picker's values: no_limit, or a dollar amount from monthly_spending_limit.options in get_billing_settings (5, 10, 20, 50, 100, 250). When the month's AI spend reaches the limit, AI pauses until the month resets; a limit below what has already been spent pauses AI at once. That changes whether AI keeps working, so ask the learner first. Paying for ForeverLM goes through Stripe Checkout, which only the learner can complete: use open_settings billing. The own OpenRouter key is set with set_own_router_key. Returns what get_billing_settings returns, after the change.",
+    "description" : "Change the monthly spending limit in AI Usage › Spending exactly as the pane's picker does. monthly_spending_limit takes one of the picker's values: no_limit, or a dollar amount from monthly_spending_limit.options in get_billing_settings (5, 10, 20, 50, 100, 250). When the month's AI spend reaches the limit, AI pauses until the month resets; a limit below what has already been spent pauses AI at once. That changes whether AI keeps working, so ask the learner first. Paying for ForeverLM goes through Stripe Checkout, which only the learner can complete: use open_settings billing. The own OpenRouter key is set with set_own_router_key. Returns what get_billing_settings returns, after the change.",
     "inputSchema" : {
       "properties" : {
         "monthly_spending_limit" : {
@@ -10142,7 +10124,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Change Settings › General › Day, exactly as the pane does; pass any of the three settings, or request_notifications. day_start_hour and day_end_hour set the hours the learner's day runs (the start 0–23, the end 1–24 with 24 midnight, the end after the start); they follow the account to the learner's other Macs. suggest_planning_the_day false: this Mac stops asking \"Plan your day?\" on a morning with nothing planned; true (the default) resumes. request_notifications true presses the pane's Allow Notifications: if macOS has never asked on this Mac, it shows its prompt there, and only the learner can answer it, so tell them to look for it; the call does not wait for the answer, and notifications_request says what happened. On a Mac that refused, nothing is shown: only the learner can allow ForeverLM again, in System Settings › Notifications. Returns the settings, notifications_status among them, and changed.",
+    "description" : "Change Settings › General › Day, exactly as the pane does; pass any of the four settings, or request_notifications. day_start_hour and day_end_hour set the hours the learner's day runs (the start 0–23, the end 1–24 with 24 midnight, the end after the start); they follow the account to the learner's other Macs. suggest_planning_the_day false: this Mac stops asking \"Plan your day?\" on a morning with nothing planned; true (the default) resumes. force_planning_the_day true makes the learner plan: on a morning with nothing planned the planning chat opens by itself the first time they are at the Mac, and the \"Plan your day\" card cannot be closed, tucked or switched off from itself; only a plan in the Mac's Calendar, or this setting set false, ends it. It does nothing while suggest_planning_the_day is false; false (the default) leaves the question a card they can close. request_notifications true presses the pane's Allow Notifications: if macOS has never asked on this Mac, it shows its prompt there, and only the learner can answer it, so tell them to look for it; the call does not wait for the answer, and notifications_request says what happened. On a Mac that refused, nothing is shown: only the learner can allow ForeverLM again, in System Settings › Notifications. Returns the settings, notifications_status among them, and changed.",
     "inputSchema" : {
       "properties" : {
         "day_end_hour" : {
@@ -10156,6 +10138,10 @@
           "maximum" : 23,
           "minimum" : 0,
           "type" : "integer"
+        },
+        "force_planning_the_day" : {
+          "description" : "true: make the learner plan. While the morning's calendar holds nothing they planned, the planning chat opens by itself the first time they are at the Mac and the card cannot be closed until a plan is in the calendar. false (the default): the card can be closed. No effect while suggest_planning_the_day is false.",
+          "type" : "boolean"
         },
         "request_notifications" : {
           "description" : "true: ask macOS to let ForeverLM notify on this Mac, as Allow Notifications in Settings › General does. Only a Mac never asked shows the prompt, and only the learner can answer it.",
@@ -10420,7 +10406,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Store, replace, or remove the learner's own OpenRouter key — Settings › AI Usage › Your own key, exactly as pasting it into the pane does. Pass router and key to store or replace; pass clear: true (with router) to remove. The key goes to the learner's iCloud Keychain, never to a synced preference, a log, or the response; the response carries only the router and the key's last four characters. Ask before calling this with a key the learner did not just hand you.",
+    "description" : "Store, replace, or remove the learner's own OpenRouter key — AI Usage › Your own key, exactly as pasting it into the pane does. Pass router and key to store or replace; pass clear: true (with router) to remove. The key goes to the learner's iCloud Keychain, never to a synced preference, a log, or the response; the response carries only the router and the key's last four characters. Ask before calling this with a key the learner did not just hand you.",
     "inputSchema" : {
       "properties" : {
         "clear" : {
@@ -11730,7 +11716,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Change one of the learner's kept cards, as Memory's All Cards does, and only on the learner's word. front alone rewords the card: it is asked in the new words from then on, its schedule untouched (the words it was kept with clear the rewording). A new back, why, front_images or back_images, or start_over true, starts the card over: the old card is retired with its answers and a new card is kept on the same passages, first asked the next day, returned as card_id beside previous_card_id. Image arrays replace that face's pictures and [] removes them. always_ask true asks the card in its own words every time, never a rewording; false lets its wording vary again. retire true retires the card, never asked again, its answers kept; it takes no other change. Pass card_id (or item_id) as get_due_cards or list_cards status kept returns it; a card still to check is changed with triage_cards. New words are checked first, as save_card_drafts checks a draft: words that point at the source unnamed (“this lecture”, “the paper”) are reworded once (the message says so), or the change is refused with the reason. Returns the card's card_id, item_id, ask and always_ask after the change.",
+    "description" : "Change one of the learner's kept cards, as Memory's All Cards does, and only on the learner's word. front alone rewords the card: it is asked in the new words from then on, its schedule untouched (the words it was kept with clear the rewording). A new back, why, front_images or back_images, or start_over true, starts the card over: the old card is retired with its answers and a new card is kept on the same passages, first asked the next day, returned as card_id beside previous_card_id. Image arrays replace that face's pictures and [] removes them. always_ask true asks the card in its own words every time, never a rewording; false lets its wording vary again. retire true retires the card, never asked again, its answers kept; it takes no other change. Pass card_id (or item_id) as get_due_cards or list_cards status kept returns it; a card still to check is changed with triage_cards, except that front_images or back_images alone, with the card_id of the card in front of the learner in Memory's To Check, put pictures on it without deciding it: they are held with the card, nothing is written, and the learner's Keep carries them. New words are checked first, as save_card_drafts checks a draft: words that point at the source unnamed (“this lecture”, “the paper”) are reworded once (the message says so), or the change is refused with the reason. Returns the card's card_id, item_id, ask and always_ask after the change.",
     "inputSchema" : {
       "properties" : {
         "always_ask" : {

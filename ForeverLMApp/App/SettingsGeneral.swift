@@ -22,6 +22,8 @@ struct GeneralSettingsDetailView: View {
     /// This Mac's: the card and the notification ask on this Mac.
     @AppStorage(PlanTheDay.settingKey)
     private var suggestPlanningTheDay = true
+    @AppStorage(PlanTheDay.forcedKey)
+    private var forcePlanningTheDay = false
     /// Synced: the learner's day is the same on every Mac.
     @AppStorage(PlannerDayHours.startKey)
     private var dayStartHour: Int = PlannerDayHours.defaultStart
@@ -188,6 +190,11 @@ struct GeneralSettingsDetailView: View {
                         Toggle("Ask each morning to plan the day when nothing is planned", isOn: $suggestPlanningTheDay)
                             .toggleStyle(.switch)
                             .accessibilityIdentifier("settings.general.suggestPlanningTheDay")
+
+                        Toggle("Make me plan: open the planning chat, and keep asking until the day is planned", isOn: $forcePlanningTheDay)
+                            .toggleStyle(.switch)
+                            .disabled(!suggestPlanningTheDay)
+                            .accessibilityIdentifier("settings.general.forcePlanningTheDay")
                     }
                 }
 

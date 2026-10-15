@@ -414,11 +414,24 @@ final class DayModel {
         let ask = isOpen ? today : nil
         if planTheDayAsk != ask { planTheDayAsk = ask }
         let askedToday = PlanTheDay.Ledger.wasAsked(on: today)
-        guard isOpen, !askedToday else { return }
         let secondsSinceInput = CGEventSource.secondsSinceLastEventType(
             .combinedSessionState,
             eventType: CGEventType(rawValue: ~0)!
         )
+        // Forced: the chat that plans the day opens by itself, in the window
+        // in front, the first time the learner is at the Mac with it open.
+        if PlanTheDay.opensChatNow(
+            isOpen: isOpen,
+            forced: PlanTheDay.isForced,
+            openedToday: PlanTheDay.Ledger.chatWasOpened(on: today),
+            appIsInFront: NSApp.isActive,
+            secondsSinceInput: secondsSinceInput
+        ) {
+            PlanTheDay.Ledger.markChatOpened(on: today)
+            logger.info("Opening the planning chat for \(today): forced, nothing planned")
+            NotificationCenter.default.post(name: .requestPlanTheDayChat, object: nil)
+        }
+        guard isOpen, !askedToday else { return }
         guard PlanTheDay.isPutNow(isOpen: isOpen, askedToday: askedToday, secondsSinceInput: secondsSinceInput) else { return }
         PlanTheDay.Ledger.markAsked(on: today)
         // In front, the card is already before them. A banner is for a
@@ -436,7 +449,9 @@ final class DayModel {
     /// again today; a new day asks afresh.
     func answerPlanTheDay() {
         PlanTheDay.Ledger.markAnswered(on: planTheDayAsk ?? todayString)
-        planTheDayAsk = nil
+        // Forced, the question outlives the answer: it stands until the
+        // calendar holds a plan (`PlanTheDay.isOpen`).
+        if !PlanTheDay.isForced { planTheDayAsk = nil }
     }
 
     /// Don't Ask Again, from the card or the notification: the Settings

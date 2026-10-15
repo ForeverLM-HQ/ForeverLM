@@ -31,6 +31,25 @@ enum PlanTheDay {
         UserDefaults.standard.set(enabled, forKey: settingKey)
     }
 
+    /// Settings › General › Day, under the switch above: Make Me Plan. Off
+    /// until the learner turns it on (product owner, 2026-10-15: "give me the
+    /// option to FORCE myself to plan my day if it hasn't been planned yet …
+    /// now it's just a notification nudge"). While the day is unplanned the
+    /// card cannot be closed or switched off from itself, the planning chat
+    /// opens by itself the first time the learner is at the Mac in the
+    /// morning, and the question stands until the calendar holds a plan: only
+    /// planning, or this switch, lifts it. It needs the question asked at all,
+    /// so it does nothing while `isEnabled` is off.
+    static let forcedKey = "planner.forcePlanningTheDay"
+
+    static var isForced: Bool {
+        isEnabled && UserDefaults.standard.bool(forKey: forcedKey)
+    }
+
+    static func setForced(_ forced: Bool) {
+        UserDefaults.standard.set(forced, forKey: forcedKey)
+    }
+
     /// The learner has touched the Mac this recently: the notification is for
     /// someone sitting down to the day, not a banner left on a screen nobody
     /// is at since six in the morning. The card needs no one there; it waits.
@@ -66,16 +85,18 @@ enum PlanTheDay {
     /// switched on, the calendar on (the plan has nowhere to go without it),
     /// not answered today on this Mac, in the morning, and nothing on today's
     /// calendar the learner planned. An event added by any route answers it,
-    /// on this Mac or the other one.
+    /// on this Mac or the other one. Forced (`isForced`), only that answers it:
+    /// closing the card, or opening the chat and leaving it, does not.
     static func isOpen(
         events: [AppleCalendarEvent],
         calendarOn: Bool,
         nowMinute: Int,
         dayHours: ClosedRange<Int>,
         answeredToday: Bool,
-        isEnabled: Bool = PlanTheDay.isEnabled
+        isEnabled: Bool = PlanTheDay.isEnabled,
+        forced: Bool = PlanTheDay.isForced
     ) -> Bool {
-        guard isEnabled, calendarOn, !answeredToday else { return false }
+        guard isEnabled, calendarOn, forced || !answeredToday else { return false }
         guard isMorning(nowMinute: nowMinute, dayHours: dayHours) else { return false }
         return !isPlanned(events)
     }
@@ -88,7 +109,24 @@ enum PlanTheDay {
         isOpen && !askedToday && secondsSinceInput < presenceSeconds
     }
 
+    /// Whether this tick opens the planning chat itself, for a forced day: the
+    /// first tick of the day the learner is at the Mac with ForeverLM in front
+    /// while the question stands. Once a day, so a learner who leaves the chat
+    /// is not thrown back into a new one; the card stays until the day is planned.
+    static func opensChatNow(
+        isOpen: Bool,
+        forced: Bool,
+        openedToday: Bool,
+        appIsInFront: Bool,
+        secondsSinceInput: TimeInterval
+    ) -> Bool {
+        forced && isOpen && !openedToday && appIsInFront && secondsSinceInput < presenceSeconds
+    }
+
     static let title = "Plan your day?"
+
+    /// The title once the learner has asked to be made to plan.
+    static let forcedTitle = "Plan your day"
 
     /// The line under the title, on the card and in the notification. The
     /// point is the planning, not the keeping to it (product owner, 2026-09-27).
@@ -105,6 +143,16 @@ enum PlanTheDay {
         /// The day the learner answered: planned from the card or the
         /// notification, or closed the card for the day.
         static let answeredKey = "planner.planTheDay.answeredOn"
+        /// The day a forced question opened the planning chat by itself.
+        static let chatOpenedKey = "planner.planTheDay.chatOpenedOn"
+
+        static func chatWasOpened(on date: String, defaults: UserDefaults = .standard) -> Bool {
+            defaults.string(forKey: chatOpenedKey) == date
+        }
+
+        static func markChatOpened(on date: String, defaults: UserDefaults = .standard) {
+            defaults.set(date, forKey: chatOpenedKey)
+        }
 
         static func wasAsked(on date: String, defaults: UserDefaults = .standard) -> Bool {
             defaults.string(forKey: key) == date

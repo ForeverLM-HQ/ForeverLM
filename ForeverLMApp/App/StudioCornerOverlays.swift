@@ -312,7 +312,7 @@ struct PlanTheDayCard: View {
         VStack(alignment: .leading, spacing: style.isCompact ? StudioDesign.Spacing.small : StudioDesign.Spacing.medium) {
             HStack(alignment: .top, spacing: StudioDesign.Spacing.small) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(PlanTheDay.title)
+                    Text(PlanTheDay.isForced ? PlanTheDay.forcedTitle : PlanTheDay.title)
                         .zoomedSystemFont(size: style.isCompact ? 12.5 : 13, weight: .semibold)
                     Text(PlanTheDay.detail)
                         .zoomedSystemFont(size: style.isCompact ? 11.5 : 12)
@@ -324,12 +324,15 @@ struct PlanTheDayCard: View {
                 // reach the card's own menu.
                 .textSelection(.disabled)
                 Spacer(minLength: 0)
-                CornerCardClose(
-                    style: style,
-                    kind: .planTheDay,
-                    dismissHelp: "Not today",
-                    identifier: "studio.plantheday.dismiss"
-                ) { model.answerPlanTheDay() }
+                // Forced, there is no way to close it: planning the day does.
+                if !PlanTheDay.isForced {
+                    CornerCardClose(
+                        style: style,
+                        kind: .planTheDay,
+                        dismissHelp: "Not today",
+                        identifier: "studio.plantheday.dismiss"
+                    ) { model.answerPlanTheDay() }
+                }
             }
             HStack(spacing: StudioDesign.Spacing.small) {
                 Spacer(minLength: 0)
@@ -338,11 +341,13 @@ struct PlanTheDayCard: View {
         }
         .cornerCardChrome(style)
         .contextMenu {
-            if let readMark {
-                CornerNoticeReadMenuItem(mark: readMark)
-                Divider()
+            if !PlanTheDay.isForced {
+                if let readMark {
+                    CornerNoticeReadMenuItem(mark: readMark)
+                    Divider()
+                }
+                Button("Don't Ask Again") { model.stopAskingToPlanTheDay() }
             }
-            Button("Don't Ask Again") { model.stopAskingToPlanTheDay() }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("studio.plantheday")
@@ -688,7 +693,10 @@ final class CornerNoticeTray {
     /// Whether a card stands in the corner: not tucked this launch, and not
     /// read for what it says now.
     func showsInCorner(_ kind: CornerNoticeKind, subject: Set<String>) -> Bool {
-        !tucked.contains(kind) && !isRead(kind, subject: subject)
+        // A forced "Plan your day" cannot be tucked or marked read: it stays
+        // until the day is planned (`PlanTheDay.isForced`).
+        if kind == .planTheDay, PlanTheDay.isForced { return true }
+        return !tucked.contains(kind) && !isRead(kind, subject: subject)
     }
 
     /// Read is seen: the card leaves the corner as well, as a tucked one

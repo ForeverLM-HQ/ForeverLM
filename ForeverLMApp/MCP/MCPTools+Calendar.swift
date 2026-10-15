@@ -608,6 +608,8 @@ extension MCPDataStore {
             "day_end_hour": window.upperBound,
             "day_hours": "The learner's day runs \(DayPlan.clockString(minute: window.lowerBound * 60))–\(DayPlan.clockString(minute: window.upperBound * 60)): what get_calendar_events counts free time inside, and the hours the Activity pane's clock draws. Follows the account to the learner's other Macs.",
             "suggest_planning_the_day": PlanTheDay.isEnabled,
+            "force_planning_the_day": UserDefaults.standard.bool(forKey: PlanTheDay.forcedKey),
+            "force_planning_note": "Off unless the learner turned on Make Me Plan: on, a morning with nothing planned opens the planning chat by itself the first time the learner is at the Mac, and the card cannot be closed until the calendar holds a plan. It does nothing while suggest_planning_the_day is false.",
             "suggest_planning_scope": planningScope,
             "notifications_status": notifications.rawValue,
             "notifications_note": dayNotificationsNote(notifications),
@@ -648,13 +650,14 @@ extension MCPDataStore {
         dayStartHour: Int?,
         dayEndHour: Int?,
         suggestPlanningTheDay: Bool? = nil,
+        forcePlanningTheDay: Bool? = nil,
         requestNotifications: Bool? = nil
     ) async throws -> String {
         // request_notifications is the pane's Allow Notifications button, not
         // a setting: only true presses it.
         let requestsNotifications = requestNotifications == true
-        guard dayStartHour != nil || dayEndHour != nil || suggestPlanningTheDay != nil || requestsNotifications else {
-            throw MCPError.invalidInput("Pass at least one of day_start_hour, day_end_hour, suggest_planning_the_day, or request_notifications true.")
+        guard dayStartHour != nil || dayEndHour != nil || suggestPlanningTheDay != nil || forcePlanningTheDay != nil || requestsNotifications else {
+            throw MCPError.invalidInput("Pass at least one of day_start_hour, day_end_hour, suggest_planning_the_day, force_planning_the_day, or request_notifications true.")
         }
         if let message = await MainActor.run(body: { PlannerDayHours.validationMessage(start: dayStartHour, end: dayEndHour) }) {
             throw MCPError.invalidInput(message)
@@ -672,6 +675,10 @@ extension MCPDataStore {
             if let suggestPlanningTheDay {
                 changed = PlanTheDay.isEnabled != suggestPlanningTheDay || changed
                 PlanTheDay.setEnabled(suggestPlanningTheDay)
+            }
+            if let forcePlanningTheDay {
+                changed = UserDefaults.standard.bool(forKey: PlanTheDay.forcedKey) != forcePlanningTheDay || changed
+                PlanTheDay.setForced(forcePlanningTheDay)
             }
             return changed
         }

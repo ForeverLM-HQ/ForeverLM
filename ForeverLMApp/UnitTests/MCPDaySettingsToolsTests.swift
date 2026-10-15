@@ -21,7 +21,7 @@ struct MCPDaySettingsToolsTests {
     /// Restores the defaults the tools write, whatever a test did.
     private func restoringDefaults<T>(_ body: () async throws -> T) async throws -> T {
         let defaults = UserDefaults.standard
-        let keys = [PlannerDayHours.startKey, PlannerDayHours.endKey, PlanTheDay.settingKey]
+        let keys = [PlannerDayHours.startKey, PlannerDayHours.endKey, PlanTheDay.settingKey, PlanTheDay.forcedKey]
         let prior = keys.map { ($0, defaults.object(forKey: $0)) }
         defer {
             for (key, value) in prior {
@@ -42,7 +42,7 @@ struct MCPDaySettingsToolsTests {
         let set = try #require(byName["set_day_settings"])
         #expect((set.inputSchema["required"] as? [String]) == [])
         let properties = try #require(set.inputSchema["properties"] as? [String: Any])
-        #expect(Set(properties.keys) == ["day_start_hour", "day_end_hour", "suggest_planning_the_day", "request_notifications"])
+        #expect(Set(properties.keys) == ["day_start_hour", "day_end_hour", "suggest_planning_the_day", "force_planning_the_day", "request_notifications"])
         #expect(set.description.contains("request_notifications"))
     }
 
@@ -108,6 +108,18 @@ struct MCPDaySettingsToolsTests {
             #expect(!PlanTheDay.isEnabled)
             planning = try payload(try await store.setDaySettings(dayStartHour: nil, dayEndHour: nil, suggestPlanningTheDay: false))
             #expect(planning["changed"] as? Bool == false)
+
+            // Making the learner plan is off until switched on, and needs the question asked.
+            #expect(read["force_planning_the_day"] as? Bool == false)
+            #expect(!PlanTheDay.isForced)
+            var forcing = try payload(try await store.setDaySettings(dayStartHour: nil, dayEndHour: nil, forcePlanningTheDay: true))
+            #expect(forcing["force_planning_the_day"] as? Bool == true && forcing["changed"] as? Bool == true)
+            // The question is off (set above), so nothing is forced.
+            #expect(!PlanTheDay.isForced)
+            _ = try await store.setDaySettings(dayStartHour: nil, dayEndHour: nil, suggestPlanningTheDay: true)
+            #expect(PlanTheDay.isForced)
+            forcing = try payload(try await store.setDaySettings(dayStartHour: nil, dayEndHour: nil, forcePlanningTheDay: true))
+            #expect(forcing["changed"] as? Bool == false)
 
             await #expect(throws: MCPError.self) {
                 _ = try await store.setDaySettings(dayStartHour: nil, dayEndHour: nil)
