@@ -380,7 +380,6 @@ struct MemoryCardSitting: Equatable, Sendable {
         let deckID: String?
         let back: String
         let why: [String]
-        let difficulty: MemoryCardDifficulty?
         let frontImages: [MemoryCardImage]
         let backImages: [MemoryCardImage]
         private(set) var isVariant: Bool
@@ -421,7 +420,6 @@ struct MemoryCardSitting: Equatable, Sendable {
             deckID: String? = nil,
             back: String,
             why: [String] = [],
-            difficulty: MemoryCardDifficulty? = nil,
             frontImages: [MemoryCardImage] = [],
             backImages: [MemoryCardImage] = [],
             isVariant: Bool = false,
@@ -443,7 +441,6 @@ struct MemoryCardSitting: Equatable, Sendable {
             self.deckID = deckID
             self.back = back
             self.why = why
-            self.difficulty = difficulty
             self.frontImages = frontImages
             self.backImages = backImages
             self.isVariant = isVariant
@@ -495,7 +492,6 @@ struct MemoryCardSitting: Equatable, Sendable {
                 deckID: card.deckID,
                 back: card.face.back,
                 why: card.face.why,
-                difficulty: card.face.difficulty,
                 frontImages: card.face.frontImages,
                 backImages: card.face.backImages,
                 sourceID: card.sourceID,
@@ -516,7 +512,6 @@ struct MemoryCardSitting: Equatable, Sendable {
                 deckID: deckID,
                 back: face.back,
                 why: face.why,
-                difficulty: face.difficulty,
                 frontImages: face.frontImages,
                 backImages: face.backImages,
                 sourceID: sourceID,
@@ -550,7 +545,6 @@ struct MemoryCardSitting: Equatable, Sendable {
                 deckID: face.stateDeckID(in: entry.item),
                 back: face.back,
                 why: face.why,
-                difficulty: face.difficulty,
                 frontImages: face.frontImages,
                 backImages: face.backImages,
                 isVariant: asked.isVariant,

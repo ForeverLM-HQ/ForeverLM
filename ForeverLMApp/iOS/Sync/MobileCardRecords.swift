@@ -2,7 +2,7 @@ import Foundation
 
 // Cards on the phone under generation 2 (docs/memory-design.md, "Cards to check on the iPhone";
 // docs/cloudkit-schema-design.md §3.5.22). A drafted card is a `Card` whose status is `draft`: its draft
-// wording (`draft`: front, back, the rubric that carries its why, difficulty and pictures, and the
+// wording (`draft`: front, back, the rubric that carries its why and pictures, and the
 // anchors it stands on) is editable until Keep, and its deck is the source it was drafted from
 // (`deckSourceID`). Keep writes the kept wording on the same record (`kept`, S: the first Keep stands)
 // and the status `kept`; Skip writes `skipped`; Retire `retired`, which nothing turns back. What the
@@ -104,8 +104,8 @@ struct MobileCardRecord: Equatable, Sendable {
         )
     }
 
-    /// The draft as the card it would be kept as, under the Card's own id: its front and back, the why,
-    /// difficulty and pictures its rubric carries, and who drafted it. Nil when the draft has no front or
+    /// The draft as the card it would be kept as, under the Card's own id: its front and back, the why
+    /// and pictures its rubric carries, and who drafted it. Nil when the draft has no front or
     /// no back.
     var draftFace: MemoryCard? {
         guard let front = draftFront, let back = draftBack, let deckSourceID else { return nil }
@@ -118,7 +118,6 @@ struct MobileCardRecord: Equatable, Sendable {
             back: back,
             why: why,
             origin: (card[MemoryCard.originKey] as? String).map(MemoryCardOrigin.init(rawValue:)) ?? Self.faceOrigin(of: origin),
-            difficulty: (card[MemoryCard.difficultyKey] as? String).flatMap(MemoryCardDifficulty.init(rawValue:)),
             deckID: MemoryCard.draftDeckID(sourceID: deckSourceID),
             frontImages: MemoryCardImage.readRubric(card[MemoryCard.frontImagesKey]),
             backImages: MemoryCardImage.readRubric(card[MemoryCard.backImagesKey])
@@ -185,7 +184,6 @@ enum MobileCardRecords {
                     why: face?.why.first,
                     sourceID: sourceID,
                     quote: card.draftAnchors.first?.excerpt,
-                    difficulty: face?.difficulty,
                     seed: card.seedKey,
                     ideaID: card.draftIdeaID,
                     draftedAt: card.draftedAt,

@@ -20,7 +20,6 @@ import Foundation
 /// > Why: Uncoupling breaks the link and ATP synthesis stops.
 ///
 /// Source: [Mitochondria](foreverlm://source/src_1 "couple respiration to ATP synthesis")
-/// Difficulty: medium
 /// Seed: walk-step:step-2
 /// Drafted: 2026-10-01T18:04:05Z
 /// Origin: assistant
@@ -122,7 +121,6 @@ struct FlashcardDeck: Equatable, Sendable {
                 sourceID: draft.sourceID,
                 sourceTitle: draft.sourceTitle,
                 quote: draft.quote,
-                difficulty: draft.difficulty,
                 seed: draft.seed,
                 ideaID: draft.ideaID,
                 draftedAt: draft.draftedAt,
@@ -167,7 +165,6 @@ struct FlashcardDeck: Equatable, Sendable {
                     meta.append("Source: [Source](foreverlm://source/\(target) \"\(Self.linkTitle(link.quote))\")")
                 }
             }
-            if let difficulty = card.difficulty { meta.append("Difficulty: \(difficulty.rawValue)") }
             if let seed = card.seed.flatMap(Self.nonEmptySingleLine) { meta.append("Seed: \(seed)") }
             if let ideaID = card.ideaID.flatMap(Self.nonEmptySingleLine) { meta.append("Idea: \(ideaID)") }
             if let draftedAt = card.draftedAt { meta.append("Drafted: \(draftedAt.formatted(Self.dateStyle))") }
@@ -305,7 +302,6 @@ struct Flashcard: Identifiable, Equatable, Sendable {
     var sourceTitle: String?
     /// The passage the card stands on, which its source's text prints.
     var quote: String?
-    var difficulty: MemoryCardDifficulty?
     /// What it was drafted from: a walk step, a highlight, an idea's or a
     /// review-guide question's hash, as the drafter names it.
     var seed: String?
@@ -332,7 +328,6 @@ struct Flashcard: Identifiable, Equatable, Sendable {
         sourceID: String? = nil,
         sourceTitle: String? = nil,
         quote: String? = nil,
-        difficulty: MemoryCardDifficulty? = nil,
         seed: String? = nil,
         ideaID: String? = nil,
         draftedAt: Date? = nil,
@@ -349,7 +344,6 @@ struct Flashcard: Identifiable, Equatable, Sendable {
         self.sourceID = sourceID
         self.sourceTitle = sourceTitle
         self.quote = quote
-        self.difficulty = difficulty
         self.seed = seed
         self.ideaID = ideaID
         self.draftedAt = draftedAt
@@ -370,7 +364,6 @@ struct Flashcard: Identifiable, Equatable, Sendable {
         sourceID: String,
         sourceTitle: String,
         quote: String,
-        difficulty: MemoryCardDifficulty? = nil,
         seed: String? = nil,
         ideaID: String? = nil,
         origin: MemoryCardOrigin,
@@ -389,7 +382,6 @@ struct Flashcard: Identifiable, Equatable, Sendable {
             sourceID: sourceID,
             sourceTitle: sourceTitle,
             quote: quote,
-            difficulty: difficulty,
             seed: seed,
             ideaID: ideaID,
             draftedAt: now,
@@ -464,7 +456,6 @@ private struct CardLines {
     var sourceID: String?
     var sourceTitle: String?
     var quote: String?
-    var difficulty: MemoryCardDifficulty?
     var seed: String?
     var ideaID: String?
     var draftedAt: Date?
@@ -501,8 +492,9 @@ private struct CardLines {
         } else if let value = Self.value(of: "source:", in: line, lower: lower) {
             readSource(value)
             markMetadata()
-        } else if let value = Self.value(of: "difficulty:", in: line, lower: lower) {
-            difficulty = MemoryCardDifficulty(rawValue: value.lowercased())
+        } else if Self.value(of: "difficulty:", in: line, lower: lower) != nil {
+            // A deck written before cards stopped carrying a drafted
+            // difficulty has the line; it is read past, and never kept.
             markMetadata()
         } else if let value = Self.value(of: "seed:", in: line, lower: lower) {
             seed = value.isEmpty ? nil : value

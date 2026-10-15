@@ -97,7 +97,6 @@ struct MobileCardTriageTests {
         #expect(first.sourceID == "src1")
         #expect(first.quote == "a proton gradient across the inner membrane")
         #expect(first.face.why == ["Uncoupling stops ATP synthesis."], "the why rides the draft's rubric")
-        #expect(first.face.difficulty == .hard)
         #expect(MobileCardRecords.toCheck(records, availableSourceIDs: nil, now: Self.now).map(\.cardID).contains("d8"))
     }
 

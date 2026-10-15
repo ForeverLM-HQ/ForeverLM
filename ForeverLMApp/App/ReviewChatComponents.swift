@@ -4242,8 +4242,8 @@ struct ReviewChatMessageContent: View {
 /// `save_card_drafts` step, and the product owner had to ask where they were: "it should
 /// immediately point to those actual cards".
 ///
-/// A small deck: the card on top drawn as To Check draws it — its difficulty,
-/// the front in the card review's serif, a rule, the back — with where it
+/// A small deck: the card on top drawn as To Check draws it — the front in
+/// the card review's serif, a rule, the back — with where it
 /// stands now, the cards under it stacked behind, ‹ › to page through them.
 /// The header counts them as they stand ("6 cards to check", "4 to check · 2
 /// kept"). Its one primary action, **Check Cards**, opens To Check beside the
@@ -4465,9 +4465,6 @@ struct ReviewChatSavedCardsView: View {
         }()
         return VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 6) {
-                if let difficulty = card.face.difficulty {
-                    MemoryCardTagLine(tags: [difficulty.rawValue])
-                }
                 Spacer(minLength: 0)
                 standing(card.standing)
             }

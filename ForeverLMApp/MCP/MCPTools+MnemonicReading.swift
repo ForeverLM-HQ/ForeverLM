@@ -62,7 +62,7 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "save_mnemonic_reading",
-                description: "Save a mnemonic reading whose questions you wrote yourself: the learner reads the sources' own text in ForeverLM with each question right after the passage it tests, as in a reading generate_mnemonic_reading makes. Give sources in reading order, each with its source_id (as list_sources or a search returns it; an id the library does not hold refuses the whole call) and its questions in the order of its text. Each question has quote, the last sentence of the passage it tests copied word for word from the source's text (get_source_content), so ForeverLM can set the question after it; question, on one line, standalone, with one right answer, never yes or no; answer, the short answer first and at most one sentence of why; why, optional; and difficulty, easy, medium or hard. A question whose quote the source does not print is not saved and is listed under not_grounded. An answered question becomes a card, asked weeks later away from the text, so it never points at its source unnamed (\u{201C}this chapter\u{201D}, \u{201C}the author\u{201D}, \u{201C}this lecture\u{201D}): every question is checked for that before it is saved (a small background model call on the learner's Card Wording Check model), and one that does is reworded once or listed under not_saved; when the check cannot run, the source's questions are not saved and failure says why. Pass title (\u{201C}<book> with questions\u{201D} reads well) and notebook_id to file it in a Notebook, or reading_id to add questions to a reading that exists: a question already there is not saved twice. Returns reading_id and, per source, the saved question ids and what was not saved, with why.",
+                description: "Save a mnemonic reading whose questions you wrote yourself: the learner reads the sources' own text in ForeverLM with each question right after the passage it tests, as in a reading generate_mnemonic_reading makes. Give sources in reading order, each with its source_id (as list_sources or a search returns it; an id the library does not hold refuses the whole call) and its questions in the order of its text. Each question has quote, the last sentence of the passage it tests copied word for word from the source's text (get_source_content), so ForeverLM can set the question after it; question, on one line, standalone, with one right answer, never yes or no; answer, the short answer first and at most one sentence of why; and why, optional. A question whose quote the source does not print is not saved and is listed under not_grounded. An answered question becomes a card, asked weeks later away from the text, so it never points at its source unnamed (\u{201C}this chapter\u{201D}, \u{201C}the author\u{201D}, \u{201C}this lecture\u{201D}): every question is checked for that before it is saved (a small background model call on the learner's Card Wording Check model), and one that does is reworded once or listed under not_saved; when the check cannot run, the source's questions are not saved and failure says why. Pass title (\u{201C}<book> with questions\u{201D} reads well) and notebook_id to file it in a Notebook, or reading_id to add questions to a reading that exists: a question already there is not saved twice. Returns reading_id and, per source, the saved question ids and what was not saved, with why.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -85,7 +85,6 @@ extension MCPToolRegistry {
                                                 "question": ["type": "string", "description": "The question, on one line."],
                                                 "answer": ["type": "string", "description": "The short answer first, and at most one sentence of why."],
                                                 "why": ["type": "string", "description": "Optional: one line on why the answer is right."],
-                                                "difficulty": ["type": "string", "enum": ["easy", "medium", "hard"], "description": "How hard the question is."],
                                             ],
                                             "required": ["quote", "question", "answer"],
                                         ],
@@ -100,7 +99,7 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "get_mnemonic_reading",
-                description: "Read a mnemonic reading: its title, its Notebook, its sources in reading order (written, or pending while their questions are not written), and every question with its question_id, source_id, quote (the passage it is asked after), question, answer, why and difficulty, and where it stands for this learner: unanswered, kept as a Memory card (with its last grade, and due when the card review asks it now, else next_due_at), or retired. counts says how many questions there are, how many are answered and how many are due. While ForeverLM is writing it, writing says how far it has come; last_run says how the last run this session ended. To go through it in a chat, quote the passage and ask one question at a time, show nothing of its answer before the learner answers, and record each answer with answer_mnemonic_question. Reads only. list_docs lists readings as kind mnemonic_reading.",
+                description: "Read a mnemonic reading: its title, its Notebook, its sources in reading order (written, or pending while their questions are not written), and every question with its question_id, source_id, quote (the passage it is asked after), question, answer and why, and where it stands for this learner: unanswered, kept as a Memory card (with its last grade, and due when the card review asks it now, else next_due_at), or retired. counts says how many questions there are, how many are answered and how many are due. While ForeverLM is writing it, writing says how far it has come; last_run says how the last run this session ended. To go through it in a chat, quote the passage and ask one question at a time, show nothing of its answer before the learner answers, and record each answer with answer_mnemonic_question. Reads only. list_docs lists readings as kind mnemonic_reading.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -384,8 +383,7 @@ extension MCPDataStore {
                     quote: item["quote"] as? String,
                     question: item["question"] as? String,
                     answer: item["answer"] as? String,
-                    why: item["why"] as? String,
-                    difficulty: item["difficulty"] as? String
+                    why: item["why"] as? String
                 )
             }
         }
@@ -532,7 +530,6 @@ extension MCPDataStore {
                     "memory": Self.mnemonicMemoryPayload(memory[question.id], now: now, iso: iso),
                 ]
                 if let why = question.why { entry["why"] = why }
-                if let difficulty = question.difficulty { entry["difficulty"] = difficulty.rawValue }
                 return entry
             },
             "counts": ["questions": counts.questions, "answered": counts.answered, "due": counts.due],

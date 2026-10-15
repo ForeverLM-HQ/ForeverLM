@@ -444,7 +444,7 @@ struct CardDraftingTests {
         let now = Date(timeIntervalSinceReferenceDate: 812_000_000)
         let answer = CardDraftingAnswer.drafts([
             CardDraftingModelCard(front: "What does complex I pump?", back: "Four protons for each NADH.", why: "The text says so.",
-                                  quote: "Complex I pumps four protons for each NADH", difficulty: "Medium", seed: "[i1]"),
+                                  quote: "Complex I pumps four protons for each NADH", seed: "[i1]"),
             CardDraftingModelCard(front: "A second card from the same seed?", back: "No.", quote: "x", seed: "I1"),
             CardDraftingModelCard(front: "What is released as heat?", back: "", quote: "released as heat"),
             CardDraftingModelCard(front: "Where is it? See [the paper](https://example.com)", back: "Here.", quote: "x"),
@@ -456,7 +456,6 @@ struct CardDraftingTests {
         let first = answer.drafts[0]
         #expect(first.seed == "idea:x")
         #expect(first.ideaID == "idea-x")
-        #expect(first.difficulty == .medium)
         #expect(first.isRequested)
         #expect(first.origin == .drafted)
         #expect(first.sourceID == "src-1")

@@ -61,7 +61,6 @@ extension MCPDataStore {
         var order: [String] = []
         var bySource: [String: [Flashcard]] = [:]
         var incomplete: [[String: Any]] = []
-        var difficultyErrors: [String] = []
         for (index, entry) in rawCards.enumerated() {
             let sourceID = Self.trimmedOrNil(entry["source_id"] as? String) ?? ""
             let front = Self.trimmedOrNil(entry["front"] as? String)
@@ -75,14 +74,6 @@ extension MCPDataStore {
                 incomplete.append(["index": index, "source_id": sourceID, "missing": missing])
                 continue
             }
-            var difficulty: MemoryCardDifficulty?
-            if let raw = Self.trimmedOrNil(entry["difficulty"] as? String) {
-                guard let value = MemoryCardDifficulty(rawValue: raw.lowercased()) else {
-                    difficultyErrors.append("card \(index): \(raw)")
-                    continue
-                }
-                difficulty = value
-            }
             let alsoFrom = try Self.cardSourceLinks(entry["also_from"], cardIndex: index, store: store, excluded: excluded) ?? []
             let card = Flashcard.mint(
                 front: front,
@@ -91,7 +82,6 @@ extension MCPDataStore {
                 sourceID: sourceID,
                 sourceTitle: source.title,
                 quote: quote,
-                difficulty: difficulty,
                 seed: Self.trimmedOrNil(entry["seed"] as? String),
                 origin: .assistant,
                 isRequested: keptByDefault,
@@ -102,9 +92,6 @@ extension MCPDataStore {
             )
             if bySource[sourceID] == nil { order.append(sourceID) }
             bySource[sourceID, default: []].append(card)
-        }
-        guard difficultyErrors.isEmpty else {
-            throw MCPError.invalidInput("Nothing was saved. difficulty is easy, medium or hard (\(difficultyErrors.joined(separator: "; "))).")
         }
 
         // One deck per source: a source that cannot take cards (no text yet,
@@ -371,7 +358,6 @@ extension MCPDataStore {
                 if let quote = card.quote { entry["quote"] = quote }
                 // Every source the card stands on, its own first, each with its passage.
                 entry["sources"] = Self.cardSourcesPayload(card.links, titles: titles, excluded: excluded)
-                if let difficulty = card.face.difficulty { entry["difficulty"] = difficulty.rawValue }
                 if let seed = card.seed { entry["seed"] = seed }
                 if let draftedAt = card.draftedAt { entry["drafted_at"] = ISO8601DateFormatter().string(from: draftedAt) }
                 if let expiresAt = card.expiresAt { entry["expires_at"] = ISO8601DateFormatter().string(from: expiresAt) }
@@ -729,7 +715,6 @@ extension MCPDataStore {
             if !card.frontImages.isEmpty { payload["front_images"] = card.frontImages.map(\.rubricObject) }
             if !card.backImages.isEmpty { payload["back_images"] = card.backImages.map(\.rubricObject) }
             if !card.why.isEmpty { payload["why"] = card.why.joined(separator: "\n") }
-            if let difficulty = card.difficulty { payload["difficulty"] = difficulty.rawValue }
             if let sourceID = card.sourceID {
                 payload["source_id"] = sourceID
                 if let title = titles[sourceID] { payload["source_title"] = title }

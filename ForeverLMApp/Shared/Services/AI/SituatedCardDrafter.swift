@@ -292,7 +292,6 @@ enum SituatedCardDrafting {
         let back: String?
         let why: String?
         let quote: String?
-        let difficulty: String?
     }
 
     struct ModelAnswer: Decodable, Sendable {
@@ -412,7 +411,6 @@ enum SituatedCardDrafting {
                 sourceID: sourceID,
                 sourceTitle: title(of: labels[sourceID]) ?? "Source",
                 quote: quote,
-                difficulty: card.difficulty.flatMap { MemoryCardDifficulty(rawValue: $0.lowercased()) },
                 seed: seedKey(for: anchor, card: made + 1),
                 origin: .drafted,
                 isRequested: true,

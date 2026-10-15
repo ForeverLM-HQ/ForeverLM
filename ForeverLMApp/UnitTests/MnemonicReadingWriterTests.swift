@@ -107,8 +107,7 @@ private let answerForChapter: @Sendable (String) throws -> [MnemonicReadingModel
                 quote: "System 1 operates automatically and quickly",
                 question: "In Kahneman's account, which system operates automatically and quickly?",
                 answer: "System 1.",
-                why: "It runs with little or no effort.",
-                difficulty: "easy"
+                why: "It runs with little or no effort."
             ),
             MnemonicReadingModelQuestion(quote: "a sentence this chapter never printed", question: "What is lost?", answer: "Nothing."),
         ]
@@ -118,8 +117,7 @@ private let answerForChapter: @Sendable (String) throws -> [MnemonicReadingModel
             quote: "Self-control and deliberate thought apparently draw on the same limited budget of effort",
             question: "According to Kahneman, what do self-control and deliberate thought draw on?",
             answer: "The same limited budget of effort.",
-            why: nil,
-            difficulty: "medium"
+            why: nil
         ),
     ]
 }
@@ -237,9 +235,7 @@ struct MnemonicReadingWriterTests {
         let drafts = MnemonicReadingDrafts.questions(answer.questions, sourceID: "c1", asked: 2)
         #expect(drafts.questions.count == 3)
         #expect(drafts.questions[0].why == nil)
-        #expect(drafts.questions[0].difficulty == .easy)
         #expect(drafts.questions[0].id == MnemonicQuestion.id(sourceID: "c1", quote: "System 1 operates automatically and quickly", question: "Which system operates automatically?"))
-        #expect(drafts.questions[1].difficulty == .hard)
         #expect(drafts.questions.allSatisfy { $0.sourceID == "c1" })
         #expect(drafts.refused.map(\.reason) == [
             "It had no question, no answer or no quote.",

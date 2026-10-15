@@ -272,7 +272,7 @@ extension StorageService {
             givenIDs[id] = card.id
             named.append(Flashcard(
                 id: id, front: card.front, back: card.back, why: card.why, sourceID: card.sourceID, sourceTitle: card.sourceTitle,
-                quote: card.quote, difficulty: card.difficulty, seed: card.seed, ideaID: card.ideaID, draftedAt: card.draftedAt,
+                quote: card.quote, seed: card.seed, ideaID: card.ideaID, draftedAt: card.draftedAt,
                 origin: card.origin, isRequested: card.isRequested, frontImages: card.frontImages, backImages: card.backImages,
                 alsoFrom: card.alsoFrom
             ))
@@ -445,7 +445,6 @@ extension StorageService {
                         back: card.back,
                         why: card.why.map { [$0] } ?? [],
                         origin: card.origin ?? .drafted,
-                        difficulty: card.difficulty,
                         deckID: deck.deckID,
                         frontImages: card.frontImages,
                         backImages: card.backImages
@@ -572,8 +571,7 @@ enum MemoryCardTriageWriter {
                         front: edit.front,
                         back: edit.back,
                         why: edit.why,
-                        origin: .walkthrough,
-                        difficulty: card.face.difficulty
+                        origin: .walkthrough
                     )
                     do {
                         let item = try await storage.startMemoryCardOver(memoryItemID: itemID, as: revision, at: now)
@@ -692,7 +690,6 @@ enum MemoryCardEditWriter {
             back: edit?.back ?? face.back,
             why: edit?.why ?? face.why,
             origin: face.origin == .legacy ? .walkthrough : face.origin,
-            difficulty: face.difficulty,
             deckID: face.deckID,
             frontImages: edit?.frontImages ?? face.frontImages,
             backImages: edit?.backImages ?? face.backImages

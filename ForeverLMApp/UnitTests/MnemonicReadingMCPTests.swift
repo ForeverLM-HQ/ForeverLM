@@ -43,8 +43,7 @@ private struct CannedQuestions: MnemonicReadingBackend {
                     quote: "System 1 operates automatically and quickly",
                     question: "In Kahneman's account, which system operates automatically and quickly?",
                     answer: "System 1.",
-                    why: "It runs with little or no effort.",
-                    difficulty: "easy"
+                    why: "It runs with little or no effort."
                 ),
                 MnemonicReadingModelQuestion(quote: "a sentence this chapter never printed", question: "What is lost?", answer: "Nothing."),
             ]
@@ -53,8 +52,7 @@ private struct CannedQuestions: MnemonicReadingBackend {
             MnemonicReadingModelQuestion(
                 quote: "Self-control and deliberate thought apparently draw on the same limited budget of effort",
                 question: "According to Kahneman, what do self-control and deliberate thought draw on?",
-                answer: "The same limited budget of effort.",
-                difficulty: "medium"
+                answer: "The same limited budget of effort."
             ),
         ]
     }
@@ -115,7 +113,6 @@ private let ownQuestions: [[String: Any]] = [
                 "quote": "System 2 allocates attention to the effortful mental activities that demand it",
                 "question": "Which system allocates attention to effortful mental activities?",
                 "answer": "System 2.",
-                "difficulty": "easy",
             ],
             ["quote": "words the chapter never prints", "question": "What is missing?", "answer": "Nothing."],
         ],
@@ -272,7 +269,7 @@ struct MnemonicReadingMCPTests {
         let first = try #require(questions.first { $0["source_id"] as? String == "c1" })
         #expect(first["quote"] as? String == "System 1 operates automatically and quickly")
         #expect(first["why"] as? String == "It runs with little or no effort.")
-        #expect(first["difficulty"] as? String == "easy")
+        #expect(first["difficulty"] == nil)
         #expect(questions.allSatisfy { ($0["memory"] as? [String: Any])?["state"] as? String == "unanswered" })
         #expect(read["counts"] as? [String: Int] == ["questions": 2, "answered": 0, "due": 0])
         let lastRun = try #require(read["last_run"] as? [String: Any])

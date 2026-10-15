@@ -112,7 +112,7 @@ struct MemoryReviewButton: View {
 // MARK: - Editing a card
 
 /// A card being edited, drawn as the card it is: the question in the review's
-/// serif, the fold, the answer, WHY, each a quiet field you type straight into
+/// serif, the fold, the answer, why it holds, each a quiet field you type straight into
 /// (a soft wash under the one with the keys), then Cancel and one dark pill.
 /// The triage sheet and a kept card's sheet share it, so both read as the card
 /// they change rather than a form about it.
@@ -140,20 +140,13 @@ struct MemoryCardEditorForm: View {
                 text: $back, prompt: "The answer", font: MemoryCardMetrics.backFont, label: "Back",
                 identifier: "memory.card.editor.back"
             )
-            HStack(alignment: .top, spacing: 8) {
-                Text("WHY")
-                    .font(MemoryCardMetrics.whyLabelFont)
-                    .tracking(0.8)
-                    .foregroundStyle(MemoryCardMetrics.smallWordsStyle)
-                    .padding(.top, 11)
-                    .accessibilityHidden(true)
-                MemoryCardEditorField(
-                    text: $why, prompt: "Why the answer holds", font: .callout, label: "Why",
-                    identifier: "memory.card.editor.why"
-                )
-                .foregroundStyle(.secondary)
-            }
-            .padding(.top, 4)
+            MemoryCardEditorField(
+                text: $why, prompt: "Why the answer holds", font: MemoryCardMetrics.whyFont, label: "Why",
+                identifier: "memory.card.editor.why"
+            )
+            .foregroundStyle(.secondary)
+            // The fields' own insets already leave a gap under the answer.
+            .padding(.top, -4)
             HStack(spacing: 8) {
                 Spacer()
                 MemoryReviewButton(title: "Cancel", kind: .quiet, shortcut: .cancelAction, action: cancel)

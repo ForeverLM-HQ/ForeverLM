@@ -390,12 +390,11 @@ struct MemoryCardSessionView: View {
         }
     }
 
-    /// "NEW · MEDIUM", "TO CHECK": what kind of card this is, in its ink.
+    /// "NEW", "TO CHECK": what kind of card this is, in its ink.
     private static func tags(of card: MemoryCardSitting.Card) -> [String] {
         var tags: [String] = []
         if card.isDraft { tags.append("To check") }
         if card.isNew { tags.append("New") }
-        if let difficulty = card.difficulty { tags.append(difficulty.rawValue) }
         return tags
     }
 

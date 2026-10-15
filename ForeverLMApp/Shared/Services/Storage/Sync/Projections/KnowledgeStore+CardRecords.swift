@@ -198,7 +198,7 @@ extension KnowledgeStore {
         )
     }
 
-    /// A row as its deck's card: the draft wording (front, back, the why, difficulty, pictures and
+    /// A row as its deck's card: the draft wording (front, back, the why, pictures and
     /// origin its rubric carries, the quote its first anchor holds), its seed and idea, when it was
     /// drafted and whether the learner asked for it; a card gone through that has no draft wording (kept
     /// on another device from a draft its seed names) holds its seed and its kept front. Nil for a row
@@ -233,7 +233,6 @@ extension KnowledgeStore {
             why: why,
             sourceID: row.deckSourceID,
             quote: quote,
-            difficulty: (face[MemoryCard.difficultyKey] as? String).flatMap(MemoryCardDifficulty.init(rawValue:)),
             seed: row.seedKey,
             ideaID: draft?["ideaID"]?.stringValue,
             draftedAt: row.draftedAt.map { Date(timeIntervalSinceReferenceDate: $0) },
@@ -259,7 +258,7 @@ extension KnowledgeStore {
     // MARK: Drafting
 
     /// A draft's wording as its Card holds it (`Card.draft`): front and back, the rubric it would be kept
-    /// with (its why, difficulty, pictures and origin, `MemoryCard.rubricJSON`), and its quote as the one
+    /// with (its why, pictures and origin, `MemoryCard.rubricJSON`), and its quote as the one
     /// anchor on its source (`target` the source's wire id, `textHash` the source text's hash when it is
     /// known); the idea it was drafted from and whether the learner asked for it ride beside them.
     static func draftJSON(
@@ -268,7 +267,7 @@ extension KnowledgeStore {
     ) throws -> SyncJSON {
         let face = MemoryCard(
             cardID: card.id, front: card.front, back: card.back, why: card.why.map { [$0] } ?? [],
-            origin: card.origin ?? .drafted, difficulty: card.difficulty, deckID: MemoryCard.draftDeckID(sourceID: deckSourceID),
+            origin: card.origin ?? .drafted, deckID: MemoryCard.draftDeckID(sourceID: deckSourceID),
             frontImages: card.frontImages, backImages: card.backImages
         )
         var draft: [String: SyncJSON] = [

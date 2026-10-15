@@ -28,8 +28,7 @@ struct MobileMnemonicReadingTests {
         quote: "System 1 operates automatically and quickly",
         question: "In Kahneman's account, which system operates automatically and quickly?",
         answer: "System 1.",
-        why: "It works with little or no effort.",
-        difficulty: .easy
+        why: "It works with little or no effort."
     )
 
     static let second = MnemonicQuestion.mint(

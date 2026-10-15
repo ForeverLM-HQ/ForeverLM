@@ -362,7 +362,7 @@ enum ChatContextAdditions {
         lines.append(card.answerShown
             ? "The learner had turned the card over, so the answer was on screen."
             : "The learner had not turned the card over yet: the card was still asking its question, so do not hand over the answer unless they ask for it.")
-        lines.append("\"This question\", \"this card\", \"this answer\" or \"it\" means this card, whether or not any source is attached to this chat. Only the latest message's card is what is open now.")
+        lines.append("\"This question\", \"this card\" or \"this answer\" means this card, whether or not any source is attached to this chat. A bare \"this\", \"that\" or \"it\" (\"what does this say exactly?\", \"open that\") means whatever the conversation was last about: when your previous reply made a claim or cited a source, that is the thing, not the card, which is only what the learner happens to have open beside the chat. Read the turns above before you decide. Only the latest message's card is what is open now.")
         lines.append("</card_on_screen_when_sent>")
         return lines.joined(separator: "\n")
     }

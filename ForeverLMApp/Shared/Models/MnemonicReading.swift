@@ -36,7 +36,6 @@ struct MnemonicQuestion: Identifiable, Equatable, Sendable {
     var question: String
     var answer: String
     var why: String?
-    var difficulty: MemoryCardDifficulty?
 
     init(
         id: String,
@@ -44,8 +43,7 @@ struct MnemonicQuestion: Identifiable, Equatable, Sendable {
         quote: String,
         question: String,
         answer: String,
-        why: String? = nil,
-        difficulty: MemoryCardDifficulty? = nil
+        why: String? = nil
     ) {
         self.id = id
         self.sourceID = sourceID
@@ -53,7 +51,6 @@ struct MnemonicQuestion: Identifiable, Equatable, Sendable {
         self.question = question
         self.answer = answer
         self.why = why
-        self.difficulty = difficulty
     }
 
     /// A newly written question, in the form the body writes it, under the
@@ -63,8 +60,7 @@ struct MnemonicQuestion: Identifiable, Equatable, Sendable {
         quote: String,
         question: String,
         answer: String,
-        why: String? = nil,
-        difficulty: MemoryCardDifficulty? = nil
+        why: String? = nil
     ) -> MnemonicQuestion {
         let written = MnemonicQuestion(
             id: "",
@@ -72,8 +68,7 @@ struct MnemonicQuestion: Identifiable, Equatable, Sendable {
             quote: quote,
             question: question,
             answer: answer,
-            why: why,
-            difficulty: difficulty
+            why: why
         ).asWritten
         return MnemonicQuestion(
             id: id(sourceID: written.sourceID, quote: written.quote, question: written.question),
@@ -81,8 +76,7 @@ struct MnemonicQuestion: Identifiable, Equatable, Sendable {
             quote: written.quote,
             question: written.question,
             answer: written.answer,
-            why: written.why,
-            difficulty: written.difficulty
+            why: written.why
         )
     }
 
@@ -118,8 +112,7 @@ struct MnemonicQuestion: Identifiable, Equatable, Sendable {
             front: question,
             back: answer,
             why: why.map { [$0] } ?? [],
-            origin: .reading,
-            difficulty: difficulty
+            origin: .reading
         )
     }
 
@@ -217,7 +210,6 @@ enum MnemonicReadingDensity: String, CaseIterable, Identifiable, Sendable {
 /// > Why: It works with little or no effort and no sense of voluntary control.
 ///
 /// Asked after: “System 1 operates automatically and quickly.”
-/// Difficulty: easy
 ///
 /// ## Attention and Effort
 /// <!-- source:src_2 pending -->
@@ -228,7 +220,7 @@ enum MnemonicReadingDensity: String, CaseIterable, Identifiable, Sendable {
 /// written (a run still writing, stopped, or failed for that source). Every
 /// `### ` heading under it is a question; its minted id is the
 /// `<!-- question:<id> -->` line, then come its answer, its `> Why:`, the
-/// `Asked after:` quote and its `Difficulty:`. The sections are the reading
+/// `Asked after:` quote. The sections are the reading
 /// order, whatever order the record's grounding lists them in (a team's copy
 /// sorts it). A build that does not know the kind reads the body as a Doc
 /// listing the questions under their chapters.
@@ -388,9 +380,6 @@ struct MnemonicReading: Equatable, Sendable {
                 }
                 lines.append("")
                 lines.append("\(Self.quoteLabel) \u{201C}\(Self.singleLine(question.quote))\u{201D}")
-                if let difficulty = question.difficulty {
-                    lines.append("Difficulty: \(difficulty.rawValue)")
-                }
             }
         }
         return lines.joined(separator: "\n") + "\n"
@@ -551,7 +540,6 @@ private struct QuestionLines {
     var answerLines: [String] = []
     var whyLines: [String] = []
     var quote: String?
-    var difficulty: MemoryCardDifficulty?
     /// Once the question's metadata starts, later prose is no longer its answer.
     private var inMetadata = false
     /// Set once a line after the why is read, so a stray quote after it is
@@ -581,7 +569,8 @@ private struct QuestionLines {
             quote = Self.unquoted(String(line.dropFirst(MnemonicReading.quoteLabel.count)))
             markMetadata()
         } else if lower.hasPrefix("difficulty:") {
-            difficulty = MemoryCardDifficulty(rawValue: String(line.dropFirst("difficulty:".count)).trimmingCharacters(in: .whitespaces).lowercased())
+            // A reading written before questions stopped carrying a drafted
+            // difficulty has the line; it is read past, and never kept.
             markMetadata()
         } else if !inMetadata {
             answerLines.append(line)
@@ -613,8 +602,7 @@ private struct QuestionLines {
             quote: quote,
             question: front,
             answer: answer,
-            why: why.isEmpty ? nil : why,
-            difficulty: difficulty
+            why: why.isEmpty ? nil : why
         )
     }
 }

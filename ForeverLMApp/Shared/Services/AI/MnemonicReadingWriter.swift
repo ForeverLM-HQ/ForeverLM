@@ -386,14 +386,12 @@ struct MnemonicReadingModelQuestion: Decodable, Equatable, Sendable {
     let question: String?
     let answer: String?
     let why: String?
-    let difficulty: String?
 
-    init(quote: String?, question: String?, answer: String?, why: String? = nil, difficulty: String? = nil) {
+    init(quote: String?, question: String?, answer: String?, why: String? = nil) {
         self.quote = quote
         self.question = question
         self.answer = answer
         self.why = why
-        self.difficulty = difficulty
     }
 }
 
@@ -443,8 +441,7 @@ enum MnemonicReadingDrafts {
                 quote: quote,
                 question: text,
                 answer: answer,
-                why: why,
-                difficulty: item.difficulty.flatMap { MemoryCardDifficulty(rawValue: $0.lowercased()) }
+                why: why
             ))
         }
         return (questions, refused)

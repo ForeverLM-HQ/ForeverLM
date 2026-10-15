@@ -7,6 +7,9 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 ## Unreleased
 
 - **Add a picture to the card you are checking.** Ask the chat beside To Check to add a figure it showed ("can you add it to the card?") and the picture goes on the card in front of you. It waits with the card: Keep carries it, Skip drops it. Assistants do it with `update_card` and `back_images` (or `front_images`) on a card still to check.
+- **Cards no longer say easy, medium or hard.** A model used to guess a difficulty when it drafted a card and the card wore it, a small MEDIUM over the question, in To Check, in the review and in the deck a chat shows. That guess said nothing about how you find the card, so it is gone, on the Mac and the iPhone, and nothing asks for it any more (`save_card_drafts` and `save_mnemonic_reading` no longer take a `difficulty`). How hard a card is for you is something your answers will show over time.
+- **Why the answer holds reads as part of the answer.** On the back of a card it is now one plain sentence under the answer, without the small WHY label, on the Mac's review, To Check and All Cards, on the iPhone, and in Edit Card. Drafted cards are asked to give the cause or the evidence that makes the answer true, not the answer again or what the author did.
+
 ## 0.155.0 (build 235) — 2026-10-15
 
 **Highlights:**

@@ -1017,7 +1017,6 @@ struct CardDraftingModelCard: Decodable, Equatable, Sendable {
     let back: String?
     let why: String?
     let quote: String?
-    let difficulty: String?
     let seed: String?
     /// The handle of a listed figure the card shows ("F2"), which side it
     /// shows on ("front" or "back"), and what it shows, for its alt text.
@@ -1030,7 +1029,6 @@ struct CardDraftingModelCard: Decodable, Equatable, Sendable {
         back: String?,
         why: String? = nil,
         quote: String?,
-        difficulty: String? = nil,
         seed: String? = nil,
         figure: String? = nil,
         figureWith: String? = nil,
@@ -1040,7 +1038,6 @@ struct CardDraftingModelCard: Decodable, Equatable, Sendable {
         self.back = back
         self.why = why
         self.quote = quote
-        self.difficulty = difficulty
         self.seed = seed
         self.figure = figure
         self.figureWith = figureWith
@@ -1048,7 +1045,7 @@ struct CardDraftingModelCard: Decodable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case front, back, why, quote, difficulty, seed, figure
+        case front, back, why, quote, seed, figure
         case figureWith = "figure_with"
         case figureShows = "figure_shows"
     }
@@ -1065,7 +1062,6 @@ struct CardDraftingModelCard: Decodable, Equatable, Sendable {
         back = text(.back)
         why = text(.why)
         quote = text(.quote)
-        difficulty = text(.difficulty)
         seed = text(.seed)
         figure = text(.figure)
         figureWith = text(.figureWith)
@@ -1219,7 +1215,6 @@ enum CardDraftingAnswer {
                 sourceID: plan.source.sourceID,
                 sourceTitle: plan.source.title,
                 quote: quote,
-                difficulty: card.difficulty.flatMap { MemoryCardDifficulty(rawValue: $0.lowercased()) },
                 seed: seed?.key ?? (quote.isEmpty ? nil : CardDraftingSeedKey.passage(quote)),
                 ideaID: seed?.ideaID,
                 origin: .drafted,

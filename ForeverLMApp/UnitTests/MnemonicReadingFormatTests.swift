@@ -12,10 +12,9 @@ struct MnemonicReadingFormatTests {
         quote: String = "System 1 operates automatically and quickly.",
         question: String = "In Kahneman's account, which system operates automatically and quickly?",
         answer: String = "System 1.",
-        why: String? = "It works with little or no effort and no sense of voluntary control.",
-        difficulty: MemoryCardDifficulty? = .easy
+        why: String? = "It works with little or no effort and no sense of voluntary control."
     ) -> MnemonicQuestion {
-        MnemonicQuestion.mint(sourceID: source, quote: quote, question: question, answer: answer, why: why, difficulty: difficulty)
+        MnemonicQuestion.mint(sourceID: source, quote: quote, question: question, answer: answer, why: why)
     }
 
     static let reading = MnemonicReading(title: "Thinking, Fast and Slow with questions", sections: [
@@ -25,8 +24,7 @@ struct MnemonicReadingFormatTests {
                 quote: "System 2 allocates attention to the effortful mental activities that demand it.",
                 question: "Which system allocates attention to effortful mental activities?",
                 answer: "System 2,\nincluding complex computations.",
-                why: nil,
-                difficulty: nil
+                why: nil
             ),
         ]),
         .init(sourceID: "chapter-2", title: "Attention and Effort", isWritten: false),
@@ -35,8 +33,7 @@ struct MnemonicReadingFormatTests {
                 "chapter-3",
                 quote: "Self-control and deliberate thought apparently draw on the same limited budget of effort.",
                 question: "According to the chapter, what do self-control and deliberate thought draw on?",
-                answer: "The same limited budget of effort.",
-                difficulty: .medium
+                answer: "The same limited budget of effort."
             ),
         ]),
     ])
@@ -53,6 +50,19 @@ struct MnemonicReadingFormatTests {
         #expect(parsed.question(id: Self.reading.questions[2].id)?.sourceID == "chapter-3")
         // Writing what was read changes nothing.
         #expect(parsed.markdown == markdown)
+    }
+
+    @Test("A reading written when questions carried a drafted difficulty still reads, the line read past")
+    func oldDifficultyLineIsReadPast() {
+        let markdown = Self.reading.markdown
+        let written = Self.reading.questions[0]
+        let quoted = "Asked after: \u{201C}System 1 operates automatically and quickly.\u{201D}"
+        #expect(markdown.contains(quoted))
+        let old = markdown.replacingOccurrences(of: quoted, with: quoted + "\nDifficulty: easy")
+        let parsed = MnemonicReading.parse(old, fallbackTitle: "Fallback")
+        #expect(parsed == Self.reading)
+        #expect(parsed.questions[0] == written)
+        #expect(!parsed.markdown.contains("Difficulty:"))
     }
 
     @Test("The marker leads the body, and only a reading's body is a reading's")
@@ -112,7 +122,6 @@ struct MnemonicReadingFormatTests {
         #expect(card.why == ["It works with little or no effort and no sense of voluntary control."])
         #expect(card.origin == .reading)
         #expect(card.origin.rawValue == "reading")
-        #expect(card.difficulty == .easy)
         #expect(card.deckID == nil)
     }
 

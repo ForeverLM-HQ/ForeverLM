@@ -214,8 +214,7 @@ enum CardWordingGate {
                     quote: question.quote,
                     question: front,
                     answer: back,
-                    why: question.why,
-                    difficulty: question.difficulty
+                    why: question.why
                 ))
             case .failed(let reason):
                 refused.append(MnemonicReadingDrafts.Refused(question: question.question, reason: reason))

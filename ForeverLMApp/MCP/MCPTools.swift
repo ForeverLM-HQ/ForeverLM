@@ -2981,7 +2981,6 @@ final class MCPToolRegistry: @unchecked Sendable {
                                     "why": ["type": "string", "description": "One line on why the back is right."],
                                     "quote": ["type": "string", "description": "The passage of the source the card stands on, copied word for word from its text."],
                                     "also_from": Self.cardAlsoFromInputSchema(description: "The other sources the card also stands on, when they state what it asks: each with the passage that does, copied word for word from its text."),
-                                    "difficulty": ["type": "string", "enum": ["easy", "medium", "hard"], "description": "How hard the card is to answer."],
                                     "seed": ["type": "string", "description": "A short, stable key for what the card was drafted from, so it is never drafted twice."],
                                     "front_images": Self.cardImagesInputSchema(description: "Pictures shown with the question before reveal. Include a relevant durable image by default when it materially supports recall."),
                                     "back_images": Self.cardImagesInputSchema(description: "Pictures shown with the answer after reveal. Include a relevant durable image by default when it materially supports recall. Two or more appear side by side when space allows."),

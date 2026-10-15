@@ -34,14 +34,13 @@ extension Prompts {
     - "back": the complete answer and no more: one or two short sentences, the number with its unit when the answer is a number.
     - \(cardStandsAloneRule)
     - Qualify a claim by its source when the passage reports it as a finding: "Kirkby and Matuschak report that …", "In the 2024 mouse study, …". Keep a passage's hedges: what it says is suggested or debated stays suggested or debated on the card.
-    - "why": one line on why the back is right, from the passage.
+    - \(cardWhyRule)
     - "passage": the handle of the passage the card stands on ("P3"), one of its anchor's passages.
     - "quote": a sentence or two copied exactly from that passage, the words the answer rests on, with nothing changed: no ellipsis, no words added, no quotation marks of your own. A card whose quote its passage does not print is thrown away.
-    - "difficulty": "easy", "medium" or "hard".
 
     Work only from the anchors and their passages. Never add a fact, a number or a claim the passages do not make. Write no links, ids, citations or Markdown.
 
     Return JSON only:
-    {"cards": [{"anchor": "A1", "front": "...", "back": "...", "why": "...", "passage": "P1", "quote": "...", "difficulty": "medium"}]}
+    {"cards": [{"anchor": "A1", "front": "...", "back": "...", "why": "...", "passage": "P1", "quote": "..."}]}
     """
 }

@@ -27,7 +27,7 @@ struct CardRecordLifecycleTests {
     ) -> Flashcard {
         Flashcard.mint(
             front: front, back: "A proton gradient across the inner membrane.", why: "Uncoupling breaks the link and ATP synthesis stops.",
-            sourceID: "src-1", sourceTitle: "Mitochondria", quote: quote, difficulty: .medium, seed: seed, ideaID: ideaID,
+            sourceID: "src-1", sourceTitle: "Mitochondria", quote: quote, seed: seed, ideaID: ideaID,
             origin: .drafted, isRequested: requested, at: draftedAt, id: id
         )
     }
@@ -86,7 +86,7 @@ struct CardRecordLifecycleTests {
             id: Self.seeded, kind: .concept, target: "A proton gradient across the inner membrane.", rubricJSON: rubric, sources: [],
             createdAt: Self.now, updatedAt: Self.now
         )))
-        #expect(face.cardID == Self.seeded && face.deckID == Self.deckID && face.difficulty == .medium)
+        #expect(face.cardID == Self.seeded && face.deckID == Self.deckID)
         #expect(face.why == ["Uncoupling breaks the link and ATP synthesis stops."] && face.origin == .drafted)
 
         let deck = try #require(try await storage.loadCardDrafts().first)
@@ -251,7 +251,7 @@ struct CardRecordLifecycleTests {
         #expect(try store.loadArtifact(Self.deckID) != nil, "not activated yet: generation 1's deck")
         let face = MemoryCard(
             cardID: "card-k", front: "Kept one?", back: "A proton gradient across the inner membrane.",
-            why: ["Uncoupling breaks the link and ATP synthesis stops."], origin: .drafted, difficulty: .medium, deckID: Self.deckID
+            why: ["Uncoupling breaks the link and ATP synthesis stops."], origin: .drafted, deckID: Self.deckID
         )
         let kept = try await storage.keepMemoryCard(face, sourceID: "src-1", quote: Self.quote, at: at)
         #expect(kept.id == MemoryTutorIdentity.cardItemID(cardID: "card-k"))

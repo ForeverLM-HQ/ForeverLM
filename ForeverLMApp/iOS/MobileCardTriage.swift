@@ -131,7 +131,6 @@ enum MobileCardEditWriter {
             back: edit?.back ?? face.back,
             why: edit?.why ?? face.why,
             origin: face.origin == .legacy ? .walkthrough : face.origin,
-            difficulty: face.difficulty,
             deckID: face.deckID,
             frontImages: edit?.frontImages ?? face.frontImages,
             backImages: edit?.backImages ?? face.backImages

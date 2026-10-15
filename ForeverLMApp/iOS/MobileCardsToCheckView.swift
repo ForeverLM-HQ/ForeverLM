@@ -361,7 +361,7 @@ struct MobileCardsToCheckList<Header: View>: View {
 
     /// Its kind, the front in the review's serif, its pictures, the fold, the back and why it holds.
     private func cardFace(_ card: MemoryCardToCheck) -> some View {
-        let tags = [card.face.difficulty?.rawValue, card.kind == .legacy ? "From before cards" : nil].compactMap { $0 }
+        let tags = card.kind == .legacy ? ["From before cards"] : []
         let inset: CGFloat = horizontalSizeClass == .regular ? 34 : 24
         let shown = isOpen(card)
         return VStack(alignment: .leading, spacing: 0) {
@@ -686,8 +686,8 @@ struct MobileCardEditorSheet: View {
                         .lineLimit(2...8)
                         .accessibilityIdentifier("memory.editor.back")
                 }
-                Section("Why") {
-                    TextField("Why", text: $why, axis: .vertical)
+                Section("Why it holds") {
+                    TextField("Why the answer holds", text: $why, axis: .vertical)
                         .lineLimit(1...6)
                         .accessibilityIdentifier("memory.editor.why")
                 }

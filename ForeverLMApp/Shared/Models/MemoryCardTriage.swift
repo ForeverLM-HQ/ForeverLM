@@ -220,7 +220,6 @@ enum MemoryCardTriage {
                         back: card.back,
                         why: card.why.map { [$0] } ?? [],
                         origin: card.origin ?? .drafted,
-                        difficulty: card.difficulty,
                         deckID: deck.deckID,
                         frontImages: card.frontImages,
                         backImages: card.backImages
@@ -333,7 +332,7 @@ enum MemoryCardTriage {
     }
 
     /// The face a draft is kept with after the learner's edit: their words
-    /// under the draft's card id, origin, difficulty and deck. Nil when the
+    /// under the draft's card id, origin and deck. Nil when the
     /// edit leaves no front or no back.
     static func editedFace(_ card: MemoryCardToCheck, _ edit: MemoryCardEdit) -> MemoryCard? {
         let face = MemoryCard(
@@ -342,7 +341,6 @@ enum MemoryCardTriage {
             back: edit.back,
             why: edit.why,
             origin: card.face.origin,
-            difficulty: card.face.difficulty,
             deckID: card.face.deckID,
             frontImages: edit.frontImages,
             backImages: edit.backImages

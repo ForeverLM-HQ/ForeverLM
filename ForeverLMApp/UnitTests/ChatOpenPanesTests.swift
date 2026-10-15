@@ -264,6 +264,10 @@ struct ChatOpenPanesLeftOutTests {
         asking.answerShown = false
         #expect(try #require(ChatContextAdditions.cardFraming(asking)).contains("do not hand over the answer"))
         #expect(ChatContextAdditions.cardFraming(nil) == nil)
+        // "What does this say exactly? Open that in Reader", asked of a reply about a
+        // paper, was read as the card beside the chat (product owner, 2026-10-15).
+        #expect(framing.contains("means whatever the conversation was last about"))
+        #expect(!framing.contains("or \"it\" means this card"))
     }
 
     @Test("The card's pictures ride with it, and the framing says how to add one")

@@ -10,7 +10,7 @@ import Foundation
 // face rides inside the item:
 //
 // - `target` is the back;
-// - `rubricJSON` is `{"card":{"cardID","deckID"?,"difficulty"?,"front","origin"},
+// - `rubricJSON` is `{"card":{"cardID","deckID"?,"front","origin"},
 //   "criteria":[why…]}`, written by `rubricJSON()` alone, keys sorted, because
 //   the fingerprint compares bytes;
 // - the anchor is the card's quote, verified against the source's text.
@@ -46,14 +46,6 @@ struct MemoryCardOrigin: RawRepresentable, Hashable, Sendable {
     /// An item from before cards, read as a card (`MemoryCard.legacyFace`).
     /// Never written: such an item keeps the rubric it was made with.
     static let legacy = MemoryCardOrigin(rawValue: "legacy")
-}
-
-/// How hard a card was drafted to be. Optional on every card; a value this
-/// build does not know reads as none.
-enum MemoryCardDifficulty: String, CaseIterable, Sendable {
-    case easy
-    case medium
-    case hard
 }
 
 /// One durable picture on a card face. The target is a ForeverLM source
@@ -155,7 +147,6 @@ struct MemoryCard: Equatable, Sendable, Identifiable {
     /// is none.
     let why: [String]
     let origin: MemoryCardOrigin
-    let difficulty: MemoryCardDifficulty?
     /// Pictures shown with the question, before reveal.
     let frontImages: [MemoryCardImage]
     /// Pictures shown with the answer, after reveal. Two or more share a row.
@@ -172,7 +163,6 @@ struct MemoryCard: Equatable, Sendable, Identifiable {
         back: String,
         why: [String] = [],
         origin: MemoryCardOrigin,
-        difficulty: MemoryCardDifficulty? = nil,
         deckID: String? = nil,
         frontImages: [MemoryCardImage] = [],
         backImages: [MemoryCardImage] = []
@@ -186,7 +176,6 @@ struct MemoryCard: Equatable, Sendable, Identifiable {
         self.back = back
         self.why = reasons == [back] ? [] : reasons
         self.origin = origin
-        self.difficulty = difficulty
         self.frontImages = Array(frontImages.prefix(Self.maximumImagesPerFace))
         self.backImages = Array(backImages.prefix(Self.maximumImagesPerFace))
         let deck = deckID?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -259,7 +248,6 @@ struct MemoryCard: Equatable, Sendable, Identifiable {
             Self.frontKey: front,
             Self.originKey: origin.rawValue,
         ]
-        if let difficulty { card[Self.difficultyKey] = difficulty.rawValue }
         if let deckID { card[Self.deckIDKey] = deckID }
         if !frontImages.isEmpty { card[Self.frontImagesKey] = frontImages.map(\.rubricObject) }
         if !backImages.isEmpty { card[Self.backImagesKey] = backImages.map(\.rubricObject) }
@@ -326,7 +314,6 @@ struct MemoryCard: Equatable, Sendable, Identifiable {
             back: item.target,
             why: Self.criteria(in: rubric),
             origin: MemoryCardOrigin(rawValue: origin),
-            difficulty: (card[Self.difficultyKey] as? String).flatMap(MemoryCardDifficulty.init(rawValue:)),
             deckID: card[Self.deckIDKey] as? String,
             frontImages: MemoryCardImage.readRubric(card[Self.frontImagesKey]),
             backImages: MemoryCardImage.readRubric(card[Self.backImagesKey])
@@ -400,7 +387,6 @@ struct MemoryCard: Equatable, Sendable, Identifiable {
     static let cardIDKey = "cardID"
     static let frontKey = "front"
     static let originKey = "origin"
-    static let difficultyKey = "difficulty"
     static let deckIDKey = "deckID"
     static let frontImagesKey = "frontImages"
     static let backImagesKey = "backImages"

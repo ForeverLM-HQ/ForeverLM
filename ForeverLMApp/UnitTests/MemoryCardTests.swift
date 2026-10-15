@@ -34,7 +34,6 @@ struct MemoryCardTests {
             back: back,
             why: why,
             origin: .drafted,
-            difficulty: .medium,
             deckID: MemoryCard.draftDeckID(sourceID: "src-1")
         )
     }
@@ -81,7 +80,7 @@ struct MemoryCardTests {
         ))
         let card = MemoryCard(
             cardID: "card-A", front: "What does ATP/ADP exchange need?", back: "The carrier.",
-            why: ["  It crosses the inner membrane. ", ""], origin: .drafted, difficulty: .hard, deckID: "carddeck-src-1",
+            why: ["  It crosses the inner membrane. ", ""], origin: .drafted, deckID: "carddeck-src-1",
             frontImages: [figure1], backImages: [figure1, figure2]
         )
         let rubric = try #require(try JSONSerialization.jsonObject(with: Data(card.rubricJSON().utf8)) as? [String: Any])
@@ -106,15 +105,15 @@ struct MemoryCardTests {
         #expect(bare.why.isEmpty)
         #expect(try bare.rubricJSON() == #"{"card":{"cardID":"card-B","front":"Q","origin":"assistant"},"criteria":["A"]}"#)
 
-        // A newer device's origin reads as itself; an unknown difficulty as none.
+        // A newer device's origin reads as itself; the difficulty an older build stored is read past.
         let future = MemoryItem(
             id: "future", kind: .concept, target: "Back",
-            rubricJSON: #"{"card":{"cardID":"c","difficulty":"extreme","front":"Front","origin":"lecture"},"criteria":["Back"]}"#,
+            rubricJSON: #"{"card":{"cardID":"c","difficulty":"hard","front":"Front","origin":"lecture"},"criteria":["Back"]}"#,
             sources: item.sources
         )
         let read = try #require(MemoryCard(storedIn: future))
         #expect(read.origin.rawValue == "lecture")
-        #expect(read.difficulty == nil)
+        #expect(read.front == "Front")
         #expect(MemoryCard(storedIn: legacyItem(target: "Q — A", criteria: ["A"])) == nil)
     }
 
@@ -620,7 +619,6 @@ struct MemoryCardTests {
             sourceID: "src-1",
             sourceTitle: "Mitochondria",
             quote: Self.quote,
-            difficulty: .medium,
             seed: seed,
             origin: .assistant,
             isRequested: requested,
@@ -661,7 +659,6 @@ struct MemoryCardTests {
         #expect(first.isRequested)
         #expect(first.origin == .assistant)
         #expect(first.draftedAt == Self.keptAt)
-        #expect(first.difficulty == .medium)
         #expect(read.cards[1].back == "Protons leak back.\nThe synthase is bypassed.")
         #expect(!read.cards[1].isRequested)
 

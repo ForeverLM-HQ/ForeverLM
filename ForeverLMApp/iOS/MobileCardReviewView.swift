@@ -1080,7 +1080,6 @@ struct MobileCardReviewScreen: View {
         var tags: [String] = []
         if card.isDraft { tags.append("To check") }
         if card.isNew { tags.append("New") }
-        if let difficulty = card.difficulty { tags.append(difficulty.rawValue) }
         return tags
     }
 
@@ -1089,7 +1088,6 @@ struct MobileCardReviewScreen: View {
         var heard: [String] = []
         if card.isDraft { heard.append("To check") }
         if card.isNew { heard.append("New card") }
-        if let difficulty = card.difficulty { heard.append(difficulty.rawValue.capitalized) }
         return heard.joined(separator: ", ")
     }
 

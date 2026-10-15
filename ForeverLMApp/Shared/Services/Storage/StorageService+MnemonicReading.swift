@@ -123,8 +123,7 @@ extension StorageService {
                 quote: question.quote,
                 question: question.question,
                 answer: question.answer,
-                why: question.why,
-                difficulty: question.difficulty
+                why: question.why
             )
             if grounding.contains(own.quote) {
                 grounded.append(own)

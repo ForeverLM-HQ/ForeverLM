@@ -2013,15 +2013,14 @@ enum Prompts {
     - "front": one question on one line, that a learner who understood the source could answer in a sentence or two weeks later, with only one right answer. Never yes or no, never multiple choice, never answerable from its own wording, never a sentence of the source with a word blanked out.
     - "back": the complete answer and no more: what a strong answer says, in a sentence or two, with the number and its unit when the answer is a number.
     - \(cardStandsAloneRule)
-    - "why": one line on why the back is right, from the source.
+    - \(cardWhyRule)
     - "quote": eight to forty consecutive words copied exactly from the text, the passage the card stands on, with nothing changed: no ellipsis, no words added, no quotation marks of your own. A card whose quote the text does not print is thrown away. From a [Sampled] text, quote within one excerpt.
-    - "difficulty": "easy", "medium" or "hard".
     - "seed": the handle of the seed the card was drafted from ("G2", "H1"), or null for a card drafted from the text.
 
     Work exclusively from the source. Never add a fact, a number or a claim it does not make. Write no links, ids, citations or Markdown.
 
     Return JSON only:
-    {"cards": [{"front": "...", "back": "...", "why": "...", "quote": "...", "difficulty": "medium", "seed": "H1"}]}
+    {"cards": [{"front": "...", "back": "...", "why": "...", "quote": "...", "seed": "H1"}]}
     """
 
     /// Go Deeper's question in the card review (docs/memory-design.md, "Go
@@ -2055,6 +2054,16 @@ enum Prompts {
     You reply to a learner's answer to one question that went past a flashcard they had remembered. You are given the card, the kind of question and what it asks for, the question, and their answer.
 
     Write two or three plain sentences: first what the answer got, then what it missed or could add. Be specific to their words and to the card. No score or grade, no praise or flattery ("great answer"), and do not repeat the question. When the answer is empty or beside the point, say in one sentence what the question was after. Plain text only: no Markdown, no lists, no headings.
+    """
+
+    /// The "why" every card writer is asked for (`cardDrafter`,
+    /// `situatedCards`, `mnemonicReadingWriter`). It is shown under the answer as
+    /// one more plain sentence of it, so it has to read as the reason the answer
+    /// is true, not as a note about the source (product owner, 2026-10-15, of a
+    /// card whose why described the author's step: "this why also looks kind of
+    /// weird").
+    static let cardWhyRule = """
+    "why": one plain sentence, shown under the back as the next sentence of the answer, that says why the back is true: the cause, the mechanism or the evidence behind it, taken from the source. It adds something the back does not say: never the back again in other words, never what the author, the speaker or a step of the passage did or proposed ("The authors turned …", "The step was to …", "This shows that …"), never a pointer at the source. For a back that says ice is less dense than liquid water, "Ice is less dense than water" is no why, and "Hydrogen bonds hold the molecules in an open lattice as water freezes, spacing them further apart than in the liquid" is one. null when the back already gives the reason.
     """
 
     /// The rule every card writer is given (`cardDrafter`,
@@ -2188,13 +2197,12 @@ enum Prompts {
     - "quote": the last sentence of the passage the question tests — or, when that sentence is long, its last eight to forty words — copied exactly from the text, in order, with nothing changed: no ellipsis, no words added, no quotation marks of your own. A question whose quote the text does not print is thrown away, so copy rather than recall.
     - "question": the question, on one line.
     - "answer": the reference answer, as above.
-    - "why": one line on why the answer is right, from the text; null when the answer already says it.
-    - "difficulty": "easy", "medium" or "hard".
+    - \(cardWhyRule)
 
     Work exclusively from the text. Never add a fact, a number or a claim it does not make. Write no links, ids, citations or Markdown.
 
     Return JSON only:
-    {"questions": [{"quote": "...", "question": "...", "answer": "...", "why": "...", "difficulty": "medium"}]}
+    {"questions": [{"quote": "...", "question": "...", "answer": "...", "why": "..."}]}
     """
 
     // MARK: - Course generation

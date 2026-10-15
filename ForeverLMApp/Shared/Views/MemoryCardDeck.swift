@@ -26,16 +26,19 @@ enum MemoryCardMetrics {
     /// sits in the middle of a card rather than on a strip of one.
     static let cardMinimumHeight: CGFloat = 260
     #if os(iOS)
-    /// The small tracked words over a question (NEW · MEDIUM) and beside
-    /// why (WHY): on the phone they scale with the text size, and take the
-    /// secondary ink, which holds its contrast at that size on a phone's
-    /// paper.
+    /// The small tracked words over a question (NEW, TO CHECK): on the phone
+    /// they scale with the text size, and take the secondary ink, which holds
+    /// its contrast at that size on a phone's paper.
     static let tagFont = Font.caption2.weight(.semibold)
-    static let whyLabelFont = Font.caption2.weight(.semibold)
+    /// Why the answer holds, under the answer: a size down from it, in the
+    /// phone's text sizes.
+    static let whyFont = Font.callout
     static let smallWordsStyle = HierarchicalShapeStyle.secondary
     #else
     static let tagFont = Font.system(size: 10, weight: .semibold)
-    static let whyLabelFont = Font.system(size: 9.5, weight: .semibold)
+    /// Why the answer holds, under the answer: a size down from it, close
+    /// enough that it reads as the answer's next sentence.
+    static let whyFont = Font.system(size: 15)
     static let smallWordsStyle = HierarchicalShapeStyle.tertiary
     #endif
 }
@@ -118,7 +121,7 @@ struct MemoryDeckEdges: View {
 }
 
 /// What kind of card this is, in a few small words above its question —
-/// "NEW · MEDIUM", "TO CHECK" — in the card's own ink, never a colour.
+/// "NEW", "TO CHECK" — in the card's own ink, never a colour.
 struct MemoryCardTagLine: View {
     let tags: [String]
 
@@ -132,24 +135,22 @@ struct MemoryCardTagLine: View {
     }
 }
 
-/// "WHY", small, beside why the answer holds.
+/// Why the answer holds, as one more plain sentence under the answer: no
+/// label, no rule, the card's secondary ink a size under the answer's. It
+/// belongs to the answer rather than naming itself like a form field
+/// (product owner, 2026-10-15, of the tiny WHY label beside it: "this why
+/// also looks kind of weird"). VoiceOver still says what it is.
 struct MemoryCardWhyLine: View {
     let why: [String]
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text("WHY")
-                .font(MemoryCardMetrics.whyLabelFont)
-                .tracking(0.8)
-                .foregroundStyle(MemoryCardMetrics.smallWordsStyle)
-                .accessibilityHidden(true)
-            Text(why.joined(separator: " "))
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityLabel("Why: " + why.joined(separator: " "))
-        }
-        .textSelection(.disabled)
+        Text(why.joined(separator: " "))
+            .font(MemoryCardMetrics.whyFont)
+            .lineSpacing(2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .textSelection(.disabled)
+            .accessibilityLabel("Why: " + why.joined(separator: " "))
     }
 }
 

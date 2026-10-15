@@ -5998,7 +5998,6 @@ struct MCPDataStoreTests {
                 "back": "Retrieval practice.",
                 "why": "Recalling is itself practice.",
                 "quote": "Retrieval practice strengthens later access",
-                "difficulty": "easy",
                 "seed": "guide:q1",
                 "back_images": [
                     "![Retrieval curve](foreverlm://image/source-cards/page/2)",
