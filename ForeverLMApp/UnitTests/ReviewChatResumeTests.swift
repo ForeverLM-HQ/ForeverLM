@@ -138,6 +138,14 @@ struct ReviewChatResumeTests {
     /// ids (2026-10-11): the rule against it sat last among the app-tool rules
     /// and was missing from chats without tools. It now leads every chat's
     /// cached head, after the language rule and before the first id.
+    /// A reply cited a paper as `[62]【{"id":"src_…"}】` (product owner, 2026-10-15: "it
+    /// should be a nice link, not some crazy uuid"). The link is the only citation.
+    @Test("The id rule names the citation shapes that leak an id")
+    func idRuleNamesLeakyCitations() {
+        #expect(Prompts.hiddenIDs.contains("【…】"))
+        #expect(Prompts.hiddenIDs.contains("with the title as its text"))
+    }
+
     @Test("Every chat is told never to show an id, before it is given one")
     func idRuleLeadsEveryHead() throws {
         for mode in ReviewSessionManager.InitialPromptMode.allCases {

@@ -51,7 +51,7 @@ enum Prompts {
     /// carries the same text as `HIDDEN_IDS_INSTRUCTIONS` in library.js.
     static let hiddenIDs = """
 
-    Ids: the learner never sees one. Every id you are given — a source's, a Notebook's, a Goal's, an Idea's, a Page's, a chat's, a card's, a session's — is for tool calls and link targets only. Never write one in your reply: not in a table column, not in backticks or parentheses, not after a title, not as "ID:". Tool results and source lists put ids beside names (source_id, notebook_id, ‘Title’ (id)); leave them out when you tell the learner. Where a source is linked, its id sits inside the link target — [Title](foreverlm://source/SOURCE_ID) — and nowhere else; reuse a link a tool result already gives you exactly. Otherwise call a thing by its name.
+    Ids: the learner never sees one. Every id you are given — a source's, a Notebook's, a Goal's, an Idea's, a Page's, a chat's, a card's, a session's — is for tool calls and link targets only. Never write one in your reply: not in a table column, not in backticks or parentheses, not after a title, not as "ID:". Tool results and source lists put ids beside names (source_id, notebook_id, ‘Title’ (id)); leave them out when you tell the learner. Where a source is linked, its id sits inside the link target — [Title](foreverlm://source/SOURCE_ID) — and nowhere else; reuse a link a tool result already gives you exactly. A citation is never a bare or bracketed number, a 【…】 marker, or JSON such as {"id": "src_…"}: it is that link, with the title as its text. Otherwise call a thing by its name.
     """
 
     /// The shape of a chat answer: the answer first, told concretely,
