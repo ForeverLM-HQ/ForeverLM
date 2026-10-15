@@ -95,6 +95,18 @@ extension ChatOpenPanes {
             case .activity:
                 guard isOnScreen else { break }
                 contents = [.day(DayModel.shared.selectedDate)]
+            case .memory:
+                // The Memory pane names its section; in To Check it also has
+                // one card in front of the learner, which the pane registers
+                // while it is mounted.
+                let section = state.memoryPaneSection.title
+                guard isOnScreen else { break }
+                if state.memoryPaneSection == .toCheck, let card = state.memoryCardOnScreen {
+                    contents = [.card(card)]
+                } else {
+                    contents = []
+                }
+                return Tab(name: "\(tab.title), \(section)", contents: contents)
             case .courses:
                 if let courseID = state.coursePageID, vm.allCourseGroupNames.contains(courseID) {
                     contents = [.course(id: courseID, title: vm.courseDisplayName(courseID))]

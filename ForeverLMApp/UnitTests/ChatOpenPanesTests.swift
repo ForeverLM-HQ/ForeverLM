@@ -210,4 +210,75 @@ struct ChatOpenPanesLeftOutTests {
         manager.endSession()
         #expect(manager.onScreenSourcesLeftOut.isEmpty)
     }
+
+    // MARK: - The card the Memory pane has in front of the learner
+
+    private static let card = ChatContextAdditions.CardOnScreen(
+        id: "card-1",
+        question: "What persists despite organ loss?",
+        answer: "Spatial information persists in tissue.",
+        why: ["The paper states it."],
+        sourceID: "src-aging",
+        sourceTitle: "Aging as a Loss of Goal-Directedness",
+        place: "To Check, 1 of 170",
+        answerShown: true
+    )
+
+    private static let cardBesideChat = ChatOpenPanes(windows: [
+        .init(isChatsWindow: true, panes: [
+            .init(onScreen: .init(name: "Chat", contents: [.chat(title: "New chat", isThisChat: true)])),
+            .init(onScreen: .init(name: "Memory, To Check", contents: [.card(card)])),
+        ]),
+    ])
+
+    @Test("The card in the Memory pane beside the chat is named whole by list_open_panes")
+    func cardIsNamed() {
+        let text = Self.cardBesideChat.text
+        #expect(text.contains("- Right pane, on screen: Memory, To Check — the flashcard “What persists despite organ loss?” (card_id: card-1)"))
+        #expect(text.contains("answer: “Spatial information persists in tissue.”"))
+        #expect(Self.cardBesideChat.cardOnScreenInChatsWindow == Self.card)
+        #expect(Self.cardBesideChat.sourcesOnScreenInChatsWindow.isEmpty, "a card is not a library source")
+    }
+
+    @Test("A card in another window is not the chat's card")
+    func cardInAnotherWindow() {
+        let panes = ChatOpenPanes(windows: [
+            .init(isChatsWindow: true, panes: [.init(onScreen: .init(name: "Chat", contents: [.chat(title: "New chat", isThisChat: true)]))]),
+            .init(isChatsWindow: false, panes: [.init(onScreen: .init(name: "Memory, To Check", contents: [.card(Self.card)]))]),
+        ])
+        #expect(panes.cardOnScreenInChatsWindow == nil)
+    }
+
+    @Test("Every message carries the card in its mark, and the framing says what it is")
+    func cardRidesBesideTheMessage() throws {
+        let stored = try #require(ChatContextAdditions.contextContent(nil, onScreen: [], card: Self.card))
+        let parsed = ChatContextAdditions.parse(contextContent: stored)
+        #expect(parsed.card == Self.card)
+        #expect(parsed.remainder == nil)
+        let framing = try #require(ChatContextAdditions.cardFraming(parsed.card))
+        #expect(framing.contains("Question: What persists despite organ loss?"))
+        #expect(framing.contains("Answer: Spatial information persists in tissue."))
+        #expect(framing.contains("(source_id: src-aging)"))
+        #expect(framing.contains("answer was on screen"))
+        var asking = Self.card
+        asking.answerShown = false
+        #expect(try #require(ChatContextAdditions.cardFraming(asking)).contains("do not hand over the answer"))
+        #expect(ChatContextAdditions.cardFraming(nil) == nil)
+    }
+
+    @Test("Filling in a video's moment keeps the card in the mark")
+    func completingMomentsKeepsTheCard() throws {
+        let video = ChatContextAdditions.OnScreen(
+            id: "src-talk", title: "Talk", kind: "video",
+            moment: .init(at: 10, playing: false)
+        )
+        let stored = try #require(ChatContextAdditions.contextContent("quoted", onScreen: [video], card: Self.card))
+        let completed = ChatContextAdditions.contextContent(
+            stored, completingMoments: ["src-talk": .init(at: 10, playing: false, said: "words")]
+        )
+        let parsed = ChatContextAdditions.parse(contextContent: completed)
+        #expect(parsed.card == Self.card)
+        #expect(parsed.onScreen.first?.moment?.said == "words")
+        #expect(parsed.remainder == "quoted")
+    }
 }

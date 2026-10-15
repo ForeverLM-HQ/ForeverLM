@@ -3835,8 +3835,12 @@ final class ReviewSessionManager {
     /// (`ChatContextAdditions.onScreen`). A chat outside a Studio window, or
     /// a window showing no source, leaves the context as it was.
     private func attachOnScreenSources(to contextualContent: String?) -> String? {
-        guard let onScreen = openPanesForThisChat()?.sourcesOnScreenInChatsWindow else { return contextualContent }
-        return ChatContextAdditions.contextContent(contextualContent, onScreen: onScreen)
+        guard let panes = openPanesForThisChat() else { return contextualContent }
+        return ChatContextAdditions.contextContent(
+            contextualContent,
+            onScreen: panes.sourcesOnScreenInChatsWindow,
+            card: panes.cardOnScreenInChatsWindow
+        )
     }
 
     // MARK: - The moment a question beside a video is about
@@ -15304,6 +15308,11 @@ final class ReviewSessionManager {
                 // What the chat's window showed as the message went, so "the
                 // article I have open" is the one on screen, not the attached one.
                 if let framing = ChatContextAdditions.onScreenFraming(stored.onScreen) {
+                    content += "\n\n" + framing
+                }
+                // The flashcard the Memory pane beside the chat had in front
+                // of the learner, so "this question" is that card.
+                if let framing = ChatContextAdditions.cardFraming(stored.card) {
                     content += "\n\n" + framing
                 }
                 // A question asked beside a video: its moment, what was said

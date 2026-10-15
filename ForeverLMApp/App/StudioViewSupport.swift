@@ -306,6 +306,27 @@ enum StudioChatHeaderClearance {
         return max(0, chromeClearance - columnTrailingGap)
     }
 
+    /// Extra leading padding the column-bound content needs to start clear of
+    /// the window's own controls — ‹ › and the sidebar toggle — drawn over the
+    /// leftmost pane's top-left corner. The column is centered, so on a wide
+    /// pane its leading edge already sits right of them and this is zero.
+    ///
+    /// `chromeClearance` is how far in from the panel's leading edge the
+    /// content must start; the arithmetic is `extraTrailingPadding`'s, mirrored.
+    static func extraLeadingPadding(
+        panelWidth: CGFloat,
+        gutter: CGFloat,
+        columnMaxWidth: CGFloat,
+        chromeClearance: CGFloat
+    ) -> CGFloat {
+        extraTrailingPadding(
+            panelWidth: panelWidth,
+            gutter: gutter,
+            columnMaxWidth: columnMaxWidth,
+            chromeClearance: chromeClearance
+        )
+    }
+
     /// Where the header's own trailing control stops, measured in from the
     /// panel's trailing edge.
     ///

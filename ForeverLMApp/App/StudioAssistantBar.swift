@@ -579,6 +579,7 @@ struct StudioDockedAssistantPanel: View {
     @Environment(\.studioPanelTrailingOverflow) private var trailingOverflow
     @Environment(\.studioCenterTabStripVisible) private var centerTabStripVisible
     @Environment(\.studioTitlebarBandHeight) private var titlebarBandHeight
+    @Environment(\.studioCenterPaneHeaderLeadingInset) private var headerLeadingInset
     @Environment(\.studioChromeLineReservation) private var chromeReservation
     @Environment(\.studioPaneChromePlacement) private var placement
 
@@ -590,6 +591,7 @@ struct StudioDockedAssistantPanel: View {
             fillsAvailableSpace: true,
             usesDockedHeaderChrome: true,
             headerTrailingChromeClearance: headerTrailingChromeClearance,
+            headerLeadingChromeClearance: max(0, headerLeadingInset - Self.hostInset),
             // A sole chat takes the wider reading column: alone in the
             // center, or a notebook's chat with nothing in its document slot.
             expandsChatContent: windowState.notebook.map { $0.document == nil }

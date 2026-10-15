@@ -69,6 +69,47 @@ enum ChatContextAdditions {
         }
     }
 
+    /// The flashcard the Memory pane beside the chat had in front of the
+    /// learner as the message went: its To Check card, the one "this
+    /// question" or "it" means (product owner, 2026-10-15: "whatever is open
+    /// on the right is actually automatically in the chat context"). It rides
+    /// beside every message like the sources on screen do, and carries the
+    /// whole card so the tutor never needs a tool call to read it.
+    struct CardOnScreen: Codable, Equatable, Hashable, Sendable {
+        var id: String
+        var question: String
+        var answer: String
+        /// Why the answer is right, one line per reason; empty when there is none.
+        var why: [String]
+        var sourceID: String?
+        var sourceTitle: String?
+        /// The pane's section and the card's place in it: "To Check, 1 of 170".
+        var place: String
+        /// Whether the learner had turned the card over, so the tutor does not
+        /// give away an answer the card is still asking for.
+        var answerShown: Bool
+
+        init(
+            id: String,
+            question: String,
+            answer: String,
+            why: [String] = [],
+            sourceID: String? = nil,
+            sourceTitle: String? = nil,
+            place: String,
+            answerShown: Bool
+        ) {
+            self.id = id
+            self.question = question
+            self.answer = answer
+            self.why = why
+            self.sourceID = sourceID
+            self.sourceTitle = sourceTitle
+            self.place = place
+            self.answerShown = answerShown
+        }
+    }
+
     /// Where a video beside the chat stood when the learner asked.
     ///
     /// The product owner (2026-09-29), of a talk full of physics he wanted to stop and
@@ -124,19 +165,20 @@ enum ChatContextAdditions {
     private struct Payload: Codable {
         var added: [Source]
         var onScreen: [OnScreen]?
+        var card: CardOnScreen?
     }
 
     /// The one-line mark for these additions and on-screen sources, or nil
     /// when there is nothing to mark. The payload is JSON on one line —
     /// `JSONEncoder` escapes any newline inside a title — with sorted keys,
     /// so the same additions always produce the same bytes.
-    static func marker(added: [Source], onScreen: [OnScreen] = []) -> String? {
+    static func marker(added: [Source], onScreen: [OnScreen] = [], card: CardOnScreen? = nil) -> String? {
         let additions = dedupe(added)
         let shown = dedupe(onScreen)
-        guard !additions.isEmpty || !shown.isEmpty else { return nil }
+        guard !additions.isEmpty || !shown.isEmpty || card != nil else { return nil }
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-        let payload = Payload(added: additions, onScreen: shown.isEmpty ? nil : shown)
+        let payload = Payload(added: additions, onScreen: shown.isEmpty ? nil : shown, card: card)
         guard let data = try? encoder.encode(payload),
               let json = String(data: data, encoding: .utf8) else { return nil }
         return openingTag + json + closingTag
@@ -151,10 +193,11 @@ enum ChatContextAdditions {
     static func contextContent(
         added: [Source],
         onScreen: [OnScreen] = [],
+        card: CardOnScreen? = nil,
         referenceContext: String?
     ) -> String? {
         let reference = referenceContext?.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let mark = marker(added: added, onScreen: onScreen) else {
+        guard let mark = marker(added: added, onScreen: onScreen, card: card) else {
             return reference?.isEmpty == false ? reference : nil
         }
         guard let reference, !reference.isEmpty else { return mark }
@@ -164,10 +207,10 @@ enum ChatContextAdditions {
     /// The stored context with the sources on screen written into its mark,
     /// beside any additions already there. Nothing on screen hands the
     /// context back unchanged.
-    static func contextContent(_ contextContent: String?, onScreen: [OnScreen]) -> String? {
-        guard !dedupe(onScreen).isEmpty else { return contextContent }
+    static func contextContent(_ contextContent: String?, onScreen: [OnScreen], card: CardOnScreen? = nil) -> String? {
+        guard !dedupe(onScreen).isEmpty || card != nil else { return contextContent }
         let stored = parse(contextContent: contextContent)
-        return self.contextContent(added: stored.added, onScreen: onScreen, referenceContext: stored.remainder)
+        return self.contextContent(added: stored.added, onScreen: onScreen, card: card, referenceContext: stored.remainder)
     }
 
     /// The stored context with each on-screen video's moment replaced by the
@@ -183,7 +226,7 @@ enum ChatContextAdditions {
             if let moment = moments[source.id] { source.moment = moment }
             return source
         }
-        return self.contextContent(added: stored.added, onScreen: completed, referenceContext: stored.remainder)
+        return self.contextContent(added: stored.added, onScreen: completed, card: stored.card, referenceContext: stored.remainder)
     }
 
     /// A message's stored context, read back: the sources that joined before
@@ -193,6 +236,7 @@ enum ChatContextAdditions {
     struct Parsed: Equatable, Sendable {
         var added: [Source]
         var onScreen: [OnScreen] = []
+        var card: CardOnScreen? = nil
         var remainder: String?
     }
 
@@ -215,6 +259,7 @@ enum ChatContextAdditions {
         return Parsed(
             added: dedupe(payload.added),
             onScreen: dedupe(payload.onScreen ?? []),
+            card: payload.card,
             remainder: rest.isEmpty ? nil : rest
         )
     }
@@ -281,6 +326,32 @@ enum ChatContextAdditions {
             + "whether or not it is attached to this chat; the chat's attached sources are what the learner gave it, not what they are looking at. "
             + "A shown source that is not attached is still in the library: read it with get_source_content before answering about it. "
             + "Only the latest message's list is what is open now.\n</on_screen_when_sent>"
+    }
+
+    /// Appended to the learner's turn beside the on-screen framing: the
+    /// flashcard the Memory pane beside the chat had in front of them as the
+    /// message went, whole, so "this question is phrased weird" or "why is
+    /// that the answer?" means that card without a tool call.
+    static func cardFraming(_ card: CardOnScreen?) -> String? {
+        guard let card else { return nil }
+        func clean(_ text: String) -> String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
+        var lines = [
+            "<card_on_screen_when_sent>",
+            "When the learner sent this message, the Memory pane beside this chat (\(card.place)) showed this flashcard (card_id: \(card.id)):",
+            "Question: \(clean(card.question))",
+            "Answer: \(clean(card.answer))",
+        ]
+        let reasons = card.why.map(clean).filter { !$0.isEmpty }
+        if !reasons.isEmpty { lines.append("Why: " + reasons.joined(separator: " ")) }
+        if let title = card.sourceTitle.map(clean), !title.isEmpty {
+            lines.append("From the source \u{201C}\(title)\u{201D}" + (card.sourceID.map { " (source_id: \($0))" } ?? "") + ".")
+        }
+        lines.append(card.answerShown
+            ? "The learner had turned the card over, so the answer was on screen."
+            : "The learner had not turned the card over yet: the card was still asking its question, so do not hand over the answer unless they ask for it.")
+        lines.append("\"This question\", \"this card\", \"this answer\" or \"it\" means this card, whether or not any source is attached to this chat. Only the latest message's card is what is open now.")
+        lines.append("</card_on_screen_when_sent>")
+        return lines.joined(separator: "\n")
     }
 
     /// Appended beside the on-screen framing for every video the question was

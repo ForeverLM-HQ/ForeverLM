@@ -157,6 +157,12 @@ struct MemoryCardsToCheckView: View {
         } message: { _ in
             Text("Its cards from before cards are retired and never asked again.")
         }
+        // The card in front is what a chat beside the pane is asked about:
+        // every message from it carries the card (`ChatContextAdditions.cardFraming`).
+        .onChange(of: onScreenCard, initial: true) { _, card in
+            windowState?.memoryCardOnScreen = card
+        }
+        .onDisappear { windowState?.memoryCardOnScreen = nil }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("memory.pane.toCheck")
     }
@@ -546,6 +552,24 @@ struct MemoryCardsToCheckView: View {
             return false
         }
         return true
+    }
+
+    /// The card in front as a chat is told of it: the question, the back and
+    /// why, its source, its place, and whether the learner has turned it over.
+    private var onScreenCard: ChatContextAdditions.CardOnScreen? {
+        guard let card = current else { return nil }
+        let canonical = vm.canonicalSourceID(card.sourceID)
+        let title = vm.articlesById[canonical]?.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        return ChatContextAdditions.CardOnScreen(
+            id: card.cardID,
+            question: card.face.front,
+            answer: card.face.back,
+            why: card.face.why,
+            sourceID: canonical,
+            sourceTitle: title?.isEmpty == false ? title : nil,
+            place: "\(MemoryPaneSection.toCheck.title), \(gone.count + 1) of \(gone.count + visible.count)",
+            answerShown: opened(card) != nil
+        )
     }
 
     private func sourceTitle(_ sourceID: String) -> String {

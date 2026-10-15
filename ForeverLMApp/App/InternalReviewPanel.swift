@@ -124,6 +124,10 @@ struct InternalReviewPanel: View {
     /// from the pin and pane close drawn over the pane's top-right corner.
     /// Only a docked host has that chrome; everywhere else this is zero.
     var headerTrailingChromeClearance: CGFloat = 0
+    /// How far in from this panel's leading edge the chat title must start, to
+    /// clear the window's ‹ › and sidebar toggle when this is the leftmost
+    /// pane. Zero everywhere else.
+    var headerLeadingChromeClearance: CGFloat = 0
     /// A chat that owns its whole pane can use a wider reading column. Split
     /// layouts keep the compact cap so Chat and Reader remain comfortable side
     /// by side; the panel width still constrains either mode on smaller windows.
@@ -156,6 +160,7 @@ struct InternalReviewPanel: View {
             fillsAvailableSpace: fillsAvailableSpace,
             usesDockedHeaderChrome: usesDockedHeaderChrome,
             headerTrailingChromeClearance: headerTrailingChromeClearance,
+            headerLeadingChromeClearance: headerLeadingChromeClearance,
             expandsChatContent: expandsChatContent,
             acceptsGlobalNavigationRequests: acceptsGlobalNavigationRequests,
             ownerWindowID: ownerWindowID,
@@ -177,6 +182,7 @@ private struct InternalReviewPanelContent: View {
     var fillsAvailableSpace: Bool
     var usesDockedHeaderChrome: Bool
     var headerTrailingChromeClearance: CGFloat
+    var headerLeadingChromeClearance: CGFloat
     var expandsChatContent: Bool
     var acceptsGlobalNavigationRequests: Bool
     var ownerWindowID: UUID?
@@ -2306,6 +2312,10 @@ private struct InternalReviewPanelContent: View {
             // Truncate it a control-gap short of the button, and give up
             // nothing at all when the column already ends left of that.
                 .padding(.trailing, chatHeaderTitleClearance)
+            // Likewise on the left: the leftmost pane's title would otherwise
+            // run under the window's ‹ › and sidebar toggle, which reach past
+            // the icon strip into the pane.
+                .padding(.leading, chatHeaderTitleLeadingClearance)
             // Match the transcript's readable column: the title begins
             // on the same leading outline instead of floating at panel center.
                 .frame(maxWidth: chatColumnMaxWidth, alignment: .leading)
@@ -2716,6 +2726,18 @@ private struct InternalReviewPanelContent: View {
                 chromeClearance: headerTrailingChromeClearance,
                 controlSize: chatHeaderControlsWidth
             )
+        )
+    }
+
+    /// Leading padding the title gives up to start clear of the window's
+    /// ‹ › and sidebar toggle. Zero whenever the reading column already
+    /// begins right of them, which is the case on a wide pane.
+    private var chatHeaderTitleLeadingClearance: CGFloat {
+        StudioChatHeaderClearance.extraLeadingPadding(
+            panelWidth: chatPanelWidth,
+            gutter: chatHeaderGutter,
+            columnMaxWidth: chatColumnMaxWidth,
+            chromeClearance: headerLeadingChromeClearance
         )
     }
 

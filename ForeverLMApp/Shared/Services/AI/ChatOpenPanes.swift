@@ -27,6 +27,8 @@ struct ChatOpenPanes: Equatable {
         case day(String)
         /// The course whose page the Courses tab shows (courses-design.md).
         case course(id: String, title: String)
+        /// The flashcard the Memory pane has in front of the learner.
+        case card(ChatContextAdditions.CardOnScreen)
     }
 
     struct Tab: Equatable {
@@ -141,6 +143,19 @@ struct ChatOpenPanes: Equatable {
         return shown
     }
 
+    /// The flashcard the Memory pane in the chat's own window has in front of
+    /// the learner, if any. Every message the learner sends carries it
+    /// (`ChatContextAdditions.cardFraming`), so "this question is phrased
+    /// weird" means that card.
+    var cardOnScreenInChatsWindow: ChatContextAdditions.CardOnScreen? {
+        for window in windows where window.isChatsWindow {
+            for case let .card(card) in window.panes.flatMap(\.onScreen.contents) {
+                return card
+            }
+        }
+        return nil
+    }
+
     /// The windows with these sources taken out, wherever they are shown:
     /// what a chat is told once the learner has left them out of it with the
     /// × on their chip over its composer. A Reader showing only a left-out
@@ -233,6 +248,11 @@ struct ChatOpenPanes: Equatable {
             return "turned to \(date)"
         case let .course(id, title):
             return "the course \u{201C}\(title)\u{201D} (course_id: \(id))"
+        case let .card(card):
+            var line = "the flashcard \u{201C}\(card.question)\u{201D} (card_id: \(card.id)), answer: \u{201C}\(card.answer)\u{201D}"
+            if let sourceID = card.sourceID { line += ", from source_id: \(sourceID)" }
+            line += card.answerShown ? "; the learner has turned it over" : "; the learner has not turned it over yet"
+            return line
         }
     }
 }
