@@ -377,7 +377,7 @@ enum BackgroundAIBulkQueue: String, CaseIterable, Sendable {
     static let learnerDecisionThreshold = 50
 
     /// "Recent" for the estimate: the last 30 days of the ledger, the default
-    /// range of Settings › AI Usage, so the estimate prices from the history
+    /// range of AI Usage, so the estimate prices from the history
     /// the learner sees there.
     static let costSampleWindowDays = 30
 

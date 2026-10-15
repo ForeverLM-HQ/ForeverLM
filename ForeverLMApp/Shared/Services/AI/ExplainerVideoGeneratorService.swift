@@ -127,7 +127,7 @@ enum ExplainerVideoGenerationError: LocalizedError, Equatable {
         case .unsupportedSource(let title):
             return "A video explainer can lean on a paper or an article, not on \"\(title)\"."
         case .noModelConfigured:
-            return "No model is configured for Explainer Writing. Sign in and check Settings › AI Usage."
+            return "No model is configured for Explainer Writing. Sign in and check AI Usage (the sidebar's OpenRouter button)."
         case .emptyStoryboard:
             return "The writer returned no storyboard."
         case .clipFailed(let scene, let reason):

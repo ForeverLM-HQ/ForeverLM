@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Settings › AI Usage › Spending: the daily cap on background AI, as a row
+/// AI Usage › Spending: the daily cap on background AI, as a row
 /// in the Spending card. Off unless the learner sets an amount; covers calls paid
 /// by their own OpenRouter key as well as the balance.
 /// `set_app_setting` `billing.background_daily_cap_usd` writes the same

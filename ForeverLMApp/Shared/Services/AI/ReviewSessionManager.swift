@@ -1906,7 +1906,7 @@ final class ReviewSessionManager {
         }
         guard let planConfig = await resolvedTaskConfigOrShowError(
             .cohortSessionPlan,
-            unavailableMessage: "The model for planning a review isn't available. Check your OpenRouter key in Settings › AI Usage."
+            unavailableMessage: "The model for planning a review isn't available. Check your OpenRouter key in AI Usage (the sidebar's OpenRouter button)."
         ) else { return }
 
         errorMessage = nil
@@ -4167,7 +4167,7 @@ final class ReviewSessionManager {
         }
         guard let config = await resolvedTaskConfigOrShowError(
             .reviewGrading,
-            unavailableMessage: "The selected Review Grading model isn't available. Check your OpenRouter key in Settings › AI Usage."
+            unavailableMessage: "The selected Review Grading model isn't available. Check your OpenRouter key in AI Usage (the sidebar's OpenRouter button)."
         ) else { return }
 
         isGenerating = true
@@ -4738,7 +4738,7 @@ final class ReviewSessionManager {
         guard isSignedIn else {
             return signInRequiredMessage
         }
-        return "The selected chat model isn't available. Choose another model, or check your OpenRouter key in Settings › AI Usage."
+        return "The selected chat model isn't available. Choose another model, or check your OpenRouter key in AI Usage (the sidebar's OpenRouter button)."
     }
 
     nonisolated static func chatConfigFailureMessageForTesting(

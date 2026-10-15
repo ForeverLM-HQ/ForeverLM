@@ -507,7 +507,7 @@ extension KnowledgeStore {
     /// The rows the spend controls read: the ones this account's devices
     /// wrote as each call returned (`server_ledger_id IS NULL`), own-key calls
     /// included. Not the proxy's mirror: it is imported only on events such as
-    /// opening Settings › AI Usage, so it lags by hours, and it repeats calls
+    /// opening AI Usage, so it lags by hours, and it repeats calls
     /// these rows already carry.
     private static let spendControlRowPredicate = "server_ledger_id IS NULL"
 

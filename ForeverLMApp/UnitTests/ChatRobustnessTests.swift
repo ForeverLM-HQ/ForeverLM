@@ -1879,7 +1879,7 @@ struct ChatRobustnessTests {
             ReviewSessionManager.chatConfigFailureMessageForTesting(
                 isSignedIn: true,
                 provider: .meta
-            ) == "The selected chat model isn't available. Choose another model, or check your OpenRouter key in Settings › AI Usage."
+            ) == "The selected chat model isn't available. Choose another model, or check your OpenRouter key in AI Usage (the sidebar's OpenRouter button)."
         )
         #expect(
             !ReviewSessionManager.chatConfigFailureMessageForTesting(

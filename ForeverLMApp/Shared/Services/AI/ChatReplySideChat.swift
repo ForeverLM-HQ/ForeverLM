@@ -31,7 +31,7 @@ enum ChatReplySideChatError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .noModelConfigured:
-            return "No model is configured for Chat. Sign in and check Settings › AI Usage."
+            return "No model is configured for Chat. Sign in and check AI Usage (the sidebar's OpenRouter button)."
         case .emptyAnswer:
             return "The tutor returned nothing."
         }

@@ -49,7 +49,7 @@ When a check finds matches while ForeverLM is open, a short message appears in t
 
 ## Cost
 
-Matching is one AI call per batch of up to forty new items, paid by your OpenRouter key and listed in **Settings → AI Usage → Activity** as *Feed Article Matching*. Its model follows your Background default, which has no Settings pane; ask the chat to change it (`set_ai_task_settings`).
+Matching is one AI call per batch of up to forty new items, paid by your OpenRouter key and listed in the **Activity** list under the sidebar's OpenRouter button as *Feed Article Matching*. Its model follows your Background default, which has no Settings pane; ask the chat to change it (`set_ai_task_settings`).
 
 ## What stays on this Mac
 

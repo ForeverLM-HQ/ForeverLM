@@ -6,7 +6,7 @@ import Foundation
 // change the model settings that drive it, without a Settings pane in the loop:
 //
 // - `get_ai_usage_report` reads the local AI usage ledger (`ai_usage_events`,
-//   the same rows Settings › AI Usage › Activity aggregates) for a period and groups
+//   the same rows AI Usage › Activity aggregates) for a period and groups
 //   spend by task, by model and by day, and beside every task the route it is
 //   configured to run on today and that model's catalogue price.
 // - `get_ai_task_settings` is Settings › AI Models as JSON: the Default Model,
@@ -354,7 +354,7 @@ extension MCPDataStore {
         }
 
         var payload: [String: Any] = [
-            "settings_pane": "Settings › AI Usage › Activity",
+            "settings_pane": "AI Usage › Activity",
             "period": [
                 "from": iso.string(from: period.since),
                 "until": iso.string(from: period.until),

@@ -176,11 +176,11 @@ private enum CanonicalContentCleanupOutcome: Sendable {
 /// reprocessing; only the cleaned derivative is exposed as ordinary content.
 struct PaperContentPreparationService: Sendable {
     static let contentCleanupCreditsPausedMessage =
-        "Source Content Cleanup paused: add your OpenRouter key in Settings → AI Usage to finish ingesting this source."
+        "Source Content Cleanup paused: add your OpenRouter key in AI Usage (the sidebar's OpenRouter button) to finish ingesting this source."
     /// The wording while the key needed a plan (until 2026-10-10). Rows that
     /// stored it are still paused for the same reason.
     private static let planEraContentCleanupCreditsPausedMessage =
-        "Source Content Cleanup paused: add your OpenRouter key in Settings → AI Usage and choose a plan in Settings → Billing to finish ingesting this source."
+        "Source Content Cleanup paused: add your OpenRouter key in AI Usage (the sidebar's OpenRouter button) and choose a plan in Settings → Billing to finish ingesting this source."
     /// The wording before the prepaid balance was retired (2026-09-25). Rows
     /// that stored it are still paused for the same reason.
     private static let legacyContentCleanupCreditsPausedMessage =

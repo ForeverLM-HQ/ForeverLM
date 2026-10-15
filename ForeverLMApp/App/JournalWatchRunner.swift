@@ -362,7 +362,7 @@ final class JournalWatchRunner {
             // Consent is the usual cause and has its own wording; otherwise the
             // Background model itself could not be resolved.
             lastMatchingError = KeychainService.backgroundAIUnavailableMessage(for: .journalArticleMatching)
-                ?? "No model is available for judging new articles. Check Settings › AI Usage."
+                ?? "No model is available for judging new articles. Check AI Usage (the sidebar's OpenRouter button)."
             return []
         }
 

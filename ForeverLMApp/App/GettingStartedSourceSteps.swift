@@ -486,7 +486,7 @@ struct SourceCleanupProgress: View {
     /// model their key (or leftover balance) pays for.
     private var modelLine: String {
         guard KeychainService.resolveConfig(for: task) != nil else {
-            return "Cleanup waits until AI is set up in Settings › AI Usage."
+            return "Cleanup waits until AI is set up in AI Usage (the sidebar's OpenRouter button)."
         }
         let selection = KeychainService.resolvedSelection(for: task)
         let name = AIModelCatalog.displayName(provider: selection.provider, modelID: selection.model)

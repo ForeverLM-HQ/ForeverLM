@@ -756,9 +756,13 @@ struct StudioNavigationRail: View {
             // What an AI app set the app's models to do, an explainer, an
             // import: the app's logo, over the paid work (product owner, 2026-10-13).
             StudioWorkButton()
-            // Paid work running in the background, one click from its
-            // progress and a Stop (product owner, 2026-10-08).
-            BackgroundWorkButton(monitor: BackgroundWorkMonitor.shared)
+            // The OpenRouter button: paid work running in the background, one
+            // click from its progress and a Stop (product owner, 2026-10-08),
+            // and under it what has run and the key (2026-10-15).
+            BackgroundWorkButton(
+                monitor: BackgroundWorkMonitor.shared,
+                onOpenSettings: { onOpenSettings($0) }
+            )
             DayNowChip(style: .rail, compact: true, iconOnly: true)
             // Every corner card that is waiting, the ones tucked away included.
             NotificationCenterButton(
@@ -1942,7 +1946,7 @@ struct StudioNavigationRail: View {
 
         // Hidden with the crown: the switch exists to keep the comp out of
         // screenshots and recordings, and the menu is filmed too (library
-        // switching). Settings › AI Usage still says who pays.
+        // switching). AI Usage still says who pays.
         if showsCompOnScreen {
             accountMenuAction(
                 title: compTitle,

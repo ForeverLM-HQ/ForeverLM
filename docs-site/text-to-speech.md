@@ -99,7 +99,7 @@ selected.
 
 Each model's card shows OpenRouter's price in the unit OpenRouter bills that model by: per million characters for most, per million UTF-8 bytes for Fish Audio, per million text and audio tokens for Gemini, per minute of audio for Seed Audio. `:free` models show as free. The prices come from OpenRouter, for the host it routes each model to, and none is written into the app. A model OpenRouter has not priced shows **Price unknown**, never free. Before an uncached source is generated manually, ForeverLM shows its narration length, how long the finished audio runs, and its cost. That is a total for a model billed by the character. For a model billed another way it is the model's own price ("priced at $1 / $20 per 1M tokens"), because a total would have to be guessed. A selected model is never silently replaced by a second paid one. This confirmation is on by default. Selecting **Don't ask again for this model** suppresses it only for that model, across all of the model's voices; choosing another model asks again. On the Mac it has no Settings pane: ask the chat to turn confirmation back on for the selected model (`read_aloud.confirm_cost`). On the iPhone it is **Confirm cost for this model** in **Settings** -> **Text to Speech**.
 
-The estimate uses OpenRouter's price as last read. The exact charge appears in **Settings** -> **AI Usage** -> **Activity** after generation; retries can add cost. Replaying cached audio does not generate or charge for new speech.
+The estimate uses OpenRouter's price as last read. The exact charge appears in the **Activity** list under the sidebar's OpenRouter button after generation; retries can add cost. Replaying cached audio does not generate or charge for new speech.
 
 ## Automatic audio
 

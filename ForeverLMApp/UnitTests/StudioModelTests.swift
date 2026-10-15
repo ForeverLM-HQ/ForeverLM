@@ -915,7 +915,7 @@ struct StudioArticlePropertyTests {
         article.failPaperIngestionMetadata("Paper ingestion failed: \(KeychainService.emptyBalanceMessage)")
         #expect(article.paperIngestionRecoveryAction(hasUsablePDF: true) == .addBalance)
 
-        // The wording from before Settings › AI Usage split off Billing, still
+        // The wording from before AI Usage split off Billing, still
         // stored on older rows, and the content cleanup's pause.
         article.failPaperIngestionMetadata(
             "Paper ingestion failed: Add your OpenRouter key and choose a plan in Settings → Billing to run this."
@@ -931,7 +931,7 @@ struct StudioArticlePropertyTests {
         // 2026-10-10), still stored on older rows.
         article.failPaperIngestionMetadata(
             StudioArticle.paperContentCleanupFailureMessage(
-                "Source Content Cleanup paused: add your OpenRouter key in Settings → AI Usage and choose a plan in Settings → Billing to finish ingesting this source."
+                "Source Content Cleanup paused: add your OpenRouter key in AI Usage (the sidebar's OpenRouter button) and choose a plan in Settings → Billing to finish ingesting this source."
             )
         )
         #expect(article.paperIngestionRecoveryAction(hasUsablePDF: true) == .addBalance)

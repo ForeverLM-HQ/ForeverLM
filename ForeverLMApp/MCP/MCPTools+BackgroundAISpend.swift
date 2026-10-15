@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Spend control for background AI, from a chat (2026-09-24)
 //
-// The sidebar row that asks about a bulk re-queue, and Settings › AI Usage's
+// The sidebar row that asks about a bulk re-queue, and AI Usage's
 // daily background cap, each have a chat equivalent (settings-need-mcp-parity):
 // `get_background_ai_jobs` / `decide_background_ai_job` here, and the cap as
 // the `billing.background_daily_cap_usd` entry of `get_app_settings` /

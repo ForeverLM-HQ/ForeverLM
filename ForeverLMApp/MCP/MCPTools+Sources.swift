@@ -788,7 +788,7 @@ extension MCPDataStore {
         }
     }
 
-    /// Settings › AI Usage › Your own key, read. The payload never carries the
+    /// AI Usage › Your own key, read. The payload never carries the
     /// key: a plugin learns which router bills the learner and the key's
     /// last four characters, which is what the pane shows too.
     func getOwnRouterKey() throws -> String {
@@ -835,7 +835,7 @@ extension MCPDataStore {
         return payload
     }
 
-    /// Settings › AI Usage › Your own key, written: what pasting a key into the
+    /// AI Usage › Your own key, written: what pasting a key into the
     /// pane, or pressing Remove, does. The write goes through `ManagedAI`, so
     /// the Keychain, the in-memory routing snapshot, the "balance is empty"
     /// flag and the change notification all move together; the open AI Usage

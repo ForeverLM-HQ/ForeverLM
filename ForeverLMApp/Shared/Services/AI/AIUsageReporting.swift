@@ -791,7 +791,7 @@ enum AICreditEntitlement {
             + "to pick up exactly where you left off. Everything you've set up stays as it is."
     #else
     static let purchaseRequiredMessage =
-        "Chat runs on your own OpenRouter key. Add your key in Settings → AI Usage "
+        "Chat runs on your own OpenRouter key. Add your key in AI Usage (the sidebar's OpenRouter button) "
             + "to pick up exactly where you left off. Everything you've set up stays as it is."
     #endif
 
@@ -808,7 +808,7 @@ enum AICreditEntitlement {
     static let planEraPurchaseRequiredMessages = [
         "Chat runs on your own OpenRouter key with a ForeverLM plan. Add your key and choose a plan in Settings → Billing "
             + "to pick up exactly where you left off — everything you've set up stays exactly as it is.",
-        "Chat runs on your own OpenRouter key with a ForeverLM plan. Add your key in Settings → AI Usage and choose a plan in Settings → Billing "
+        "Chat runs on your own OpenRouter key with a ForeverLM plan. Add your key in AI Usage (the sidebar's OpenRouter button) and choose a plan in Settings → Billing "
             + "to pick up exactly where you left off — everything you've set up stays exactly as it is.",
     ]
 }

@@ -379,7 +379,7 @@ enum CourseGenerationError: LocalizedError, Equatable {
         case .emptyTopic:
             return "Enter a topic for the course."
         case .noModelConfigured(let task):
-            return "\(task.displayName) has no available AI model, or nothing to pay for it. Check your OpenRouter key in Settings › AI Usage."
+            return "\(task.displayName) has no available AI model, or nothing to pay for it. Check your OpenRouter key in AI Usage (the sidebar's OpenRouter button)."
         case .nothingToTeach:
             return "Nothing in the library matches this topic. Add sources first, or allow web research."
         case .emptyPlan:

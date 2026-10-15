@@ -145,7 +145,7 @@ enum ExplainerGenerationError: LocalizedError, Equatable {
         case .noText(let title):
             return "\"\(title)\" has no text to explain yet."
         case .noModelConfigured:
-            return "No model is configured for Explainer Writing. Sign in and check Settings › AI Usage."
+            return "No model is configured for Explainer Writing. Sign in and check AI Usage (the sidebar's OpenRouter button)."
         case .emptyScript:
             return "The writer returned no script."
         }

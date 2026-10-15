@@ -2796,7 +2796,7 @@ enum KeychainService {
     /// Named so the surfaces that must route each one to its own fix — the
     /// paper row's recovery button most visibly — match on a constant rather
     /// than on a re-typed sentence.
-    static let emptyBalanceMessage = "Add your OpenRouter key in Settings → AI Usage to run this."
+    static let emptyBalanceMessage = "Add your OpenRouter key in AI Usage (the sidebar's OpenRouter button) to run this."
     static let invalidModelRouteMessage =
         "The selected AI model route is invalid. Choose the model again in Settings."
     static let backgroundAIConsentMessage =

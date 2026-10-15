@@ -521,6 +521,7 @@
 		44ACFD8A6E8A01816F85C477 /* KnowledgeStore+PersonalStateKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = C88796FE8F16032DEDE70CF4 /* KnowledgeStore+PersonalStateKeys.swift */; };
 		44AE706F7B286ADCD99AFDE1 /* PastedLineJoiningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3319A7BE555EEE0FF88C9B4C /* PastedLineJoiningTests.swift */; };
 		44E24B99360CF0C5023475BB /* BackgroundWorkIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D733DDC005684265B40585C /* BackgroundWorkIndicator.swift */; };
+		3FD7DC9C7D484141865C1B4A /* AIUsagePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD1AFFAFE61F41C490B99424 /* AIUsagePanel.swift */; };
 		4512EFC81C2BEE9DDE2D4FEE /* SourceReaderToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 254A5124A08F3B640343E263 /* SourceReaderToolbar.swift */; };
 		452743D4D1B31756F4089F8C /* BackgroundAISpendSettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B203E7BF10708DA5E0922F1 /* BackgroundAISpendSettingsSection.swift */; };
 		4529DF90BD18FBAB2EB00E6B /* KnowledgeCloneBeforeMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21FE94D9FD58A4C1D892A666 /* KnowledgeCloneBeforeMigrationTests.swift */; };
@@ -2444,6 +2445,7 @@
 		3D538F7657646EA331B84EAE /* SpaceCopyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpaceCopyTests.swift; sourceTree = "<group>"; };
 		3D59A84EBE5D13CDB7A76728 /* NotebookVersusGoalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotebookVersusGoalTests.swift; sourceTree = "<group>"; };
 		3D733DDC005684265B40585C /* BackgroundWorkIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundWorkIndicator.swift; sourceTree = "<group>"; };
+		DD1AFFAFE61F41C490B99424 /* AIUsagePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIUsagePanel.swift; sourceTree = "<group>"; };
 		3DCACE445703401A791FA5EC /* RetiredQuestionCalibration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetiredQuestionCalibration.swift; sourceTree = "<group>"; };
 		3DD998E30DF0AA20009CB691 /* MCPTools+Explainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MCPTools+Explainer.swift"; sourceTree = "<group>"; };
 		3E31AE472C11F272145C9097 /* HoverHighlight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoverHighlight.swift; sourceTree = "<group>"; };
@@ -5077,6 +5079,7 @@
 				1030F2B7F42AD8EE5676BEA4 /* BackgroundAIBulkJobRow.swift */,
 				2B203E7BF10708DA5E0922F1 /* BackgroundAISpendSettingsSection.swift */,
 				3D733DDC005684265B40585C /* BackgroundWorkIndicator.swift */,
+				DD1AFFAFE61F41C490B99424 /* AIUsagePanel.swift */,
 				5F5D2320FA75284E9111E161 /* BookAudiobookBadge.swift */,
 				6F7579A882F571BC28B8ADCC /* BookPDFAssembly.swift */,
 				25D8DC0955D2898B19054C7D /* BrowserPane.swift */,
@@ -7295,6 +7298,7 @@
 				B40F625F32A5F46BC66998BA /* BackgroundAISpend.swift in Sources */,
 				452743D4D1B31756F4089F8C /* BackgroundAISpendSettingsSection.swift in Sources */,
 				44E24B99360CF0C5023475BB /* BackgroundWorkIndicator.swift in Sources */,
+				3FD7DC9C7D484141865C1B4A /* AIUsagePanel.swift in Sources */,
 				5FFCEE24BE78775C8CC15E0C /* BlobStore.swift in Sources */,
 				E85AEE5E2FDAD8E7F5651D65 /* BookAudiobookBadge.swift in Sources */,
 				07D0CA4DD4C11E19699A18AA /* BookFileMerge.swift in Sources */,

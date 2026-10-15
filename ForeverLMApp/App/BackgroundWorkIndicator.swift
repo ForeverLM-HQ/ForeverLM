@@ -383,36 +383,54 @@ final class BackgroundWorkMonitor: ObservableObject {
     }
 }
 
-/// The rail's button: a still grey OpenRouter logo (a ring, when one thing
-/// reports its share) that appears only while paid work runs, and opens the list.
+/// The rail's OpenRouter button: always there, still and grey (a ring, when
+/// one thing reports its share), and it opens the AI panel — what runs now,
+/// what has run, the key and its limits (`AIUsagePanel`).
 struct BackgroundWorkButton: View {
     @ObservedObject var monitor: BackgroundWorkMonitor
+    /// Opens a Settings pane from a row in the panel.
+    let onOpenSettings: (SettingsPane) -> Void
     @Environment(StudioViewModel.self) private var vm
     @State private var isShown = false
 
     var body: some View {
-        if !monitor.items.isEmpty || !monitor.finished.isEmpty || !monitor.stopped.isEmpty {
-            Button { isShown.toggle() } label: {
-                indicator
-                    .frame(width: 36, height: 30)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.hoverWash(cornerRadius: 7, inset: 0))
-            .railTooltip(helpText)
-            .accessibilityLabel("Background work")
-            .accessibilityValue(monitor.items.isEmpty ? (monitor.finished.isEmpty ? "Stopped" : "Finished") : "\(monitor.items.count) running")
-            .accessibilityIdentifier("rail.backgroundWork")
-            .popover(isPresented: $isShown, arrowEdge: .trailing) {
-                BackgroundWorkList(monitor: monitor, title: title(for:))
-            }
-            .transition(.opacity)
+        Button { isShown.toggle() } label: {
+            indicator
+                .frame(width: 36, height: 30)
+                .contentShape(Rectangle())
         }
+        .buttonStyle(.hoverWash(cornerRadius: 7, inset: 0))
+        .railTooltip(helpText)
+        .accessibilityLabel("AI Usage")
+        .accessibilityValue(accessibilityState)
+        .accessibilityIdentifier("rail.backgroundWork")
+        .popover(isPresented: $isShown, arrowEdge: .trailing) {
+            AIUsagePanel(
+                monitor: monitor,
+                title: title(for:),
+                onOpenSettings: { pane in
+                    isShown = false
+                    onOpenSettings(pane)
+                },
+                onClose: { isShown = false }
+            )
+        }
+        // Anything that asks for AI Usage (a missing key, a refused call)
+        // lands here: Settings has no pane for it.
+        .onChange(of: vm.aiUsageOpenRequest) { _, _ in isShown = true }
+    }
+
+    private var accessibilityState: String {
+        if !monitor.items.isEmpty { return "\(monitor.items.count) running" }
+        if !monitor.finished.isEmpty { return "Finished" }
+        return monitor.stopped.isEmpty ? "Idle" : "Stopped"
     }
 
     private var helpText: String {
         switch monitor.items.count {
-        case 0 where monitor.finished.isEmpty: return "Stopped work — click to resume it"
-        case 0: return "Audio finished — click to see how it went"
+        case 0 where !monitor.finished.isEmpty: return "Audio finished — click to see how it went"
+        case 0 where !monitor.stopped.isEmpty: return "Stopped work — click to resume it"
+        case 0: return "AI Usage — what is running, what has run, your key"
         case 1: return "1 thing is running in the background — click to see it"
         default: return "\(monitor.items.count) things are running in the background — click to see them"
         }
@@ -420,16 +438,16 @@ struct BackgroundWorkButton: View {
 
     @ViewBuilder
     private var indicator: some View {
-        if monitor.items.isEmpty && monitor.finished.isEmpty {
-            // Only stopped steps are left: a pause, until they are resumed.
-            Image(systemName: "pause.circle")
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(Color.secondary)
-        } else if monitor.items.isEmpty {
+        if monitor.items.isEmpty && !monitor.finished.isEmpty {
             let hasProblem = monitor.finished.contains { $0.isProblem }
             Image(systemName: hasProblem ? "exclamationmark.circle" : "checkmark.circle")
                 .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(hasProblem ? Color.orange : Color.secondary)
+        } else if monitor.items.isEmpty && !monitor.stopped.isEmpty {
+            // Only stopped steps are left: a pause, until they are resumed.
+            Image(systemName: "pause.circle")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(Color.secondary)
         } else if monitor.items.count == 1, let fraction = monitor.items[0].fraction {
             ZStack {
                 Circle().stroke(Color.primary.opacity(0.15), lineWidth: 2)
@@ -462,15 +480,15 @@ struct BackgroundWorkButton: View {
     }
 }
 
-private struct BackgroundWorkList: View {
+/// The rows of what runs, ended and is stopped, for the AI panel's
+/// "Running now" section (`AIUsagePanel`).
+struct BackgroundWorkList: View {
     @ObservedObject var monitor: BackgroundWorkMonitor
     let title: (BackgroundWorkItem) -> String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(heading)
-                .font(.system(size: 12.5, weight: .semibold))
-            if monitor.items.isEmpty && monitor.finished.isEmpty && monitor.stopped.isEmpty {
+            if monitor.items.isEmpty {
                 Text("Nothing is running.")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
@@ -479,11 +497,9 @@ private struct BackgroundWorkList: View {
                 row(item)
             }
             if !monitor.finished.isEmpty {
-                if !monitor.items.isEmpty {
-                    Divider()
-                    Text("Finished")
-                        .font(.system(size: 12.5, weight: .semibold))
-                }
+                Divider()
+                Text("Finished")
+                    .font(.system(size: 12.5, weight: .semibold))
                 ForEach(monitor.finished) { done in
                     finishedRow(done)
                 }
@@ -492,18 +508,15 @@ private struct BackgroundWorkList: View {
                     .accessibilityIdentifier("rail.backgroundWork.dismiss")
             }
             if !monitor.stopped.isEmpty {
-                if !monitor.items.isEmpty || !monitor.finished.isEmpty {
-                    Divider()
-                    Text("Stopped")
-                        .font(.system(size: 12.5, weight: .semibold))
-                }
+                Divider()
+                Text("Stopped")
+                    .font(.system(size: 12.5, weight: .semibold))
                 ForEach(monitor.stopped) { step in
                     stoppedRow(step)
                 }
             }
         }
-        .padding(14)
-        .frame(width: 320)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// What Stop does, where it does more than stop the row.
@@ -518,11 +531,6 @@ private struct BackgroundWorkList: View {
         default:
             return "Stop"
         }
-    }
-
-    private var heading: String {
-        if !monitor.items.isEmpty { return "Running in the background" }
-        return monitor.finished.isEmpty && !monitor.stopped.isEmpty ? "Stopped" : "Finished"
     }
 
     /// A step the learner stopped: it waits, on every Mac of the account,

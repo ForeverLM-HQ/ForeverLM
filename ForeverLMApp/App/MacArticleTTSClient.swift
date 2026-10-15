@@ -797,7 +797,7 @@ enum MacArticleTTSError: LocalizedError {
             return message
         case .providerRejected(let provider, let statusCode, let reason):
             return "\(provider) rejected the text-to-speech request (HTTP \(statusCode)): \(reason) "
-                + "Check your OpenRouter key in Settings › AI Usage."
+                + "Check your OpenRouter key in AI Usage (the sidebar's OpenRouter button)."
         case .modelRefused(let model, let statusCode, let reason):
             let name = ArticleSpeechCatalog.model(id: model)?.name ?? model
             return "OpenRouter refused \(name) (HTTP \(statusCode)): \(reason)"

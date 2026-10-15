@@ -3589,7 +3589,7 @@ extension StudioViewModel {
             // else. When the blocker is a stale model route, an empty balance,
             // or unaccepted background usage, say that instead: the generic
             // sentence sent a signed-in learner to the sign-in sheet for a
-            // problem only the model picker or Settings → AI Usage can fix.
+            // problem only the model picker or AI Usage can fix.
             let reason = KeychainService.backgroundAIUnavailableMessage(for: .paperMetadata)
                 ?? "Paper Metadata AI is not configured."
             await failPaperMetadataExtraction(

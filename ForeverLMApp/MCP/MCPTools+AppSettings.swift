@@ -353,7 +353,7 @@ extension MCPDataStore {
                 id: "account.show_comp_crown",
                 pane: "General › Your name (the crown has no pane)",
                 title: "Show the crown by your name",
-                detail: "Whether an account whose AI usage ForeverLM pays for shows it: the crown in the web's account footer and the Mac account menu's \"Usage is paid for\" row (the Mac's account button carries no crown since 2026-10-06). On by default; off hides both on every client, for screenshots and recordings. It shows nothing on an account that pays for itself either way, and Settings › AI Usage still says who pays.",
+                detail: "Whether an account whose AI usage ForeverLM pays for shows it: the crown in the web's account footer and the Mac account menu's \"Usage is paid for\" row (the Mac's account button carries no crown since 2026-10-06). On by default; off hides both on every client, for screenshots and recordings. It shows nothing on an account that pays for itself either way, and AI Usage still says who pays.",
                 reach: .account,
                 kind: .boolean,
                 preferenceKeys: [MacAccountUser.showsCompCrownPreferenceKey],

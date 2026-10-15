@@ -1650,7 +1650,7 @@ extension MCPDataStore {
         guard let config = KeychainService.resolveConfig(for: .journalArticleMatching) else {
             throw MCPError.invalidInput(
                 KeychainService.backgroundAIUnavailableMessage(for: .journalArticleMatching)
-                    ?? "No model is available to judge which sources fit. Check Settings › AI Usage."
+                    ?? "No model is available to judge which sources fit. Check AI Usage."
             )
         }
         let verdicts = try await AIService().matchJournalArticles(

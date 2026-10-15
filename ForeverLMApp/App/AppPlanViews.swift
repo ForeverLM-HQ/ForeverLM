@@ -82,7 +82,7 @@ struct EarlyUserDealOffer: View {
 /// Settings → Billing: paying for ForeverLM, in one card. The product owner
 /// (2026-09-28): "there should be a place where people can cancel their
 /// subscription or manage their subscription … separate from all the AI
-/// usage". The key, limits and activity are Settings › AI Usage.
+/// usage". The key, limits and activity are AI Usage.
 ///
 /// In the free days, or locked, the card is the offer. A buyer sees "Paid
 /// once". A subscriber from before the lock (nothing sells a subscription

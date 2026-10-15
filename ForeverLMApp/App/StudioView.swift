@@ -119,10 +119,7 @@ struct StudioView: View {
                     edge: .leading,
                     style: .strip,
                     onOpenChatBeside: { openChatBeside($0, atLeadingEdge: false) },
-                    onOpenSettings: { pane in
-                        settingsInitialPane = pane
-                        presentSettings()
-                    },
+                    onOpenSettings: openSettings,
                     goldenWidth: golden,
                     isGettingStarted: showGettingStarted
                 )
@@ -139,10 +136,7 @@ struct StudioView: View {
                             edge: .leading,
                             style: .homeSidebar,
                             onOpenChatBeside: { openChatBeside($0, atLeadingEdge: false) },
-                            onOpenSettings: { pane in
-                                settingsInitialPane = pane
-                                presentSettings()
-                            },
+                            onOpenSettings: openSettings,
                             goldenWidth: golden,
                             isGettingStarted: showGettingStarted
                         )
@@ -646,6 +640,18 @@ struct StudioView: View {
         showSettings = true
     }
 
+    /// Opens Settings at `pane`. AI Usage is no pane: it is the rail's
+    /// OpenRouter button's popover, so Settings closes for it.
+    private func openSettings(_ pane: SettingsPane?) {
+        if pane == .aiUsage {
+            if showSettings { dismissSettings() }
+            vm.aiUsageOpenRequest += 1
+            return
+        }
+        settingsInitialPane = pane
+        presentSettings()
+    }
+
     private func shouldHandleWindowCommand(_ note: Notification) -> Bool {
         if let targetID = note.object as? UUID {
             return targetID == windowState.id
@@ -1016,8 +1022,7 @@ struct StudioView: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: .requestOpenStudioSettings)) { note in
                 guard StudioWindowRegistry.shared.activeState === windowState else { return }
-                settingsInitialPane = note.object as? SettingsPane
-                presentSettings()
+                openSettings(note.object as? SettingsPane)
             }
             .onReceive(NotificationCenter.default.publisher(for: .showWhatsNew)) { note in
                 guard shouldHandleWindowCommand(note) else { return }
@@ -1518,7 +1523,7 @@ private struct CreditsEmptySheet: View {
             Text("Add your OpenRouter key")
                 .font(.title2.weight(.semibold))
 
-            Text("AI features run on your own OpenRouter API key, billed by OpenRouter at cost, and ForeverLM adds nothing. Add your key in Settings → AI Usage.")
+            Text("AI features run on your own OpenRouter API key, billed by OpenRouter at cost, and ForeverLM adds nothing. Add your key from the OpenRouter button in the sidebar.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

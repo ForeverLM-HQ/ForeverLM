@@ -313,7 +313,7 @@ final class NotebookDiscoverySession {
     func runWebSearch(_ rawQuery: String, context: NotebookDiscoveryContext, vm: StudioViewModel) async {
         guard let config = services.resolveConfig() else {
             let reason = KeychainService.backgroundAIUnavailableMessage(for: .sourceDiscovery)
-                ?? "Discover has no available AI model, or nothing to pay for it. Check your OpenRouter key in Settings › AI Usage."
+                ?? "Discover has no available AI model, or nothing to pay for it. Check your OpenRouter key in AI Usage (the sidebar's OpenRouter button)."
             update(.web) { $0.phase = .failed(reason) }
             return
         }

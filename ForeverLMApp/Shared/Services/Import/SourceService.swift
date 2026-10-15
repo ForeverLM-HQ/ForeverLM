@@ -3161,7 +3161,7 @@ enum SourceError: LocalizedError, Equatable {
     /// `aiCreditsRequired`'s sentence while the key needed a plan (until
     /// 2026-10-10). Sources that stored it are still on hold for that reason.
     static let planEraAICreditsRequiredMessage =
-        "Saved to your library, but reading it in is on hold: add your OpenRouter key in Settings → AI Usage and choose a plan in Settings → Billing to finish ingesting it. You can open and read it now."
+        "Saved to your library, but reading it in is on hold: add your OpenRouter key in AI Usage (the sidebar's OpenRouter button) and choose a plan in Settings → Billing to finish ingesting it. You can open and read it now."
 
     var errorDescription: String? {
         switch self {
@@ -3180,7 +3180,7 @@ enum SourceError: LocalizedError, Equatable {
         case .paperIngestionFailed(let message):
             return message
         case .aiCreditsRequired:
-            return "Saved to your library, but reading it in is on hold: add your OpenRouter key in Settings → AI Usage to finish ingesting it. You can open and read it now."
+            return "Saved to your library, but reading it in is on hold: add your OpenRouter key in AI Usage (the sidebar's OpenRouter button) to finish ingesting it. You can open and read it now."
         case .unsupportedBookFormat: return "Unsupported book format"
         case .bookChapterBoundaryMismatch(let message): return message
         case .kindleConversionToolMissing: return "Install Calibre to import Kindle files: brew install --cask calibre"

@@ -3600,6 +3600,9 @@ class StudioViewModel {
     /// and the next import starts with it showing again. Nothing is lost by
     /// hiding it: the course's own sidebar row spins until the import is done.
     var playlistImportBannerHidden = false
+    /// Bumped to open the rail's AI popover (what is running now, what has
+    /// run, the key and its limits): the button watches it.
+    var aiUsageOpenRequest = 0
     /// The import banner's text, or nil when there is no import or the
     /// learner hid the banner for this one.
     var visiblePlaylistImportStatus: String? {
