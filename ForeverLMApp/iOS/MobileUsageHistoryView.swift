@@ -5,18 +5,16 @@ import SwiftUI
 /// file or as an alternate billing truth. A successful refresh always replaces
 /// it atomically; the proxy remains authoritative.
 struct MobileUsageHistorySnapshot: Codable, Sendable {
-    let balanceUSD: Double
     let events: [ManagedAI.UsageLedgerEvent]
     let updatedAt: Date
 }
 
-/// Where the money actually went: every usage debit the managed proxy has
-/// billed to this account, grouped by day. The amounts come from the server's
-/// ledger — the same rows that drew the balance down — not from the local rate
-/// card, so what this screen lists is exactly what the home screen's "left"
-/// figure has already subtracted. Realtime voice (until 2026-10-01) billed
-/// per reply; a day of those rows reads as one line with a reply count rather
-/// than dozens of fraction-of-a-cent rows.
+/// What ran: every AI request the managed proxy has recorded for this account,
+/// grouped by day, then by task and model. It shows tasks and request counts,
+/// never dollars: spend is OpenRouter's monitor, linked at the top (product
+/// owner, 2026-10-15: "we shouldn't maintain our own spend stuff"). Realtime
+/// voice (until 2026-10-01) ran per reply; a day of those rows reads as one
+/// line with a reply count rather than dozens of tiny rows.
 struct MobileUsageHistoryView: View {
     private enum Phase {
         case loading
@@ -25,7 +23,6 @@ struct MobileUsageHistoryView: View {
     }
 
     private struct LoadedUsage {
-        let balanceUSD: Double
         let events: [ManagedAI.UsageLedgerEvent]
         let updatedAt: Date
     }
@@ -40,42 +37,22 @@ struct MobileUsageHistoryView: View {
         }
     }
 
-    struct Summary {
-        let balanceUSD: Double
-        let monthMicroUSD: Int
-        let allTimeMicroUSD: Int
-        let days: [Day]
-    }
-
     struct Day: Identifiable {
         /// Start of day — stable across reloads, unlike a synthesized UUID.
         let id: Date
         let label: String
-        let totalMicroUSD: Int
+        let requestCount: Int
         let lines: [Line]
     }
 
     struct Line: Identifiable {
         // Synthesized identity: two lines can render identically (a
         // pre-attribution row with no platform next to an iOS one of the same
-        // task and amount) and must still be distinct to ForEach.
+        // task) and must still be distinct to ForEach.
         let id = UUID()
         let title: String
         let detail: String
-        let microUSD: Int
-        let cachedCharge: CachedCharge?
-    }
-
-    struct CachedCharge: Equatable {
-        let range: ClosedRange<Int>
-        let tokens: Int
-
-        var costText: String {
-            if range.lowerBound == range.upperBound {
-                return "≈\(MobileCostFormat.money(microUSD: range.lowerBound))"
-            }
-            return "\(MobileCostFormat.money(microUSD: range.lowerBound))–\(MobileCostFormat.money(microUSD: range.upperBound))"
-        }
+        let requestCount: Int
     }
 
     @State private var phase: Phase = .loading
@@ -118,11 +95,7 @@ struct MobileUsageHistoryView: View {
 
     private func list(_ usage: LoadedUsage) -> some View {
         let visibleEvents = Self.filtered(usage.events, by: filters)
-        let summary = Self.summarise(
-            balanceUSD: usage.balanceUSD,
-            events: visibleEvents,
-            now: Date()
-        )
+        let days = Self.days(of: visibleEvents, now: Date())
         return List {
             if let refreshError {
                 Section {
@@ -138,39 +111,33 @@ struct MobileUsageHistoryView: View {
             }
 
             Section {
-                row("Balance", MobileCostFormat.usd(summary.balanceUSD), identifier: "usage.balance")
-                row("Spent this month", MobileCostFormat.money(microUSD: summary.monthMicroUSD))
-                row(
-                    "Spent all time",
-                    MobileCostFormat.money(microUSD: summary.allTimeMicroUSD),
-                    identifier: "usage.allTime"
-                )
+                Link(destination: ManagedAI.openRouterActivityURL) {
+                    LabeledContent("Spend") {
+                        Text("Open OpenRouter")
+                    }
+                }
+                .accessibilityIdentifier("usage.openRouter")
             } footer: {
-                Text("Amounts are what your account was charged, the ForeverLM margin included.")
+                Text("What your key has cost, by model and day, is in OpenRouter.")
             }
 
-            if summary.days.isEmpty {
+            if days.isEmpty {
                 Section {
-                    Text("Nothing billed yet.")
+                    Text("Nothing has run yet.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
             }
 
-            ForEach(summary.days) { day in
+            ForEach(days) { day in
                 Section {
                     ForEach(day.lines) { line in
                         LabeledContent {
-                            Text(MobileCostFormat.money(microUSD: line.microUSD))
+                            Text(line.requestCount.formatted())
                                 .monospacedDigit()
                         } label: {
                             Text(line.title)
                             Text(line.detail)
-                            if let cached = line.cachedCharge {
-                                Text("Cached input · \(Self.tokenCount(cached.tokens)) tokens · \(cached.costText)")
-                                    .foregroundStyle(.secondary)
-                                    .accessibilityIdentifier("usage.cachedCost")
-                            }
                         }
                         .accessibilityIdentifier("usage.line")
                     }
@@ -178,7 +145,7 @@ struct MobileUsageHistoryView: View {
                     HStack {
                         Text(day.label)
                         Spacer()
-                        Text(MobileCostFormat.money(microUSD: day.totalMicroUSD))
+                        Text(day.requestCount.formatted())
                             .monospacedDigit()
                     }
                 }
@@ -191,13 +158,11 @@ struct MobileUsageHistoryView: View {
     private var loadingList: some View {
         List {
             Section {
-                row("Balance", "$0.00")
-                row("Spent this month", "$0.00")
-                row("Spent all time", "$0.00")
+                LabeledContent("Spend") { Text("Open OpenRouter") }
             }
             Section("Recent") {
                 ForEach(0..<3, id: \.self) { _ in
-                    LabeledContent("Managed AI") { Text("$0.00") }
+                    LabeledContent("Managed AI") { Text("0") }
                 }
             }
         }
@@ -286,18 +251,9 @@ struct MobileUsageHistoryView: View {
         )
     }
 
-    private func row(_ title: String, _ value: String, identifier: String? = nil) -> some View {
-        LabeledContent(title) {
-            Text(value)
-                .monospacedDigit()
-        }
-        .accessibilityIdentifier(identifier ?? "")
-    }
-
     private func load() async {
         if let cached = await MobileCloudSourceCatalog.shared.loadUsageHistorySnapshot() {
             phase = .loaded(LoadedUsage(
-                balanceUSD: cached.balanceUSD,
                 events: cached.events,
                 updatedAt: cached.updatedAt
             ))
@@ -313,7 +269,6 @@ struct MobileUsageHistoryView: View {
             hadLoadedUsage = false
         }
         do {
-            async let balance = ManagedAI.balance()
             // The events endpoint pages forward from a cursor (it exists for
             // the Mac's ledger reconciliation), so completeness means walking
             // it to the end — there is no "latest first" to stop early on.
@@ -328,7 +283,6 @@ struct MobileUsageHistoryView: View {
                 cursor = page.nextAfterID
             }
             let loaded = LoadedUsage(
-                balanceUSD: try await balance.usd,
                 events: events,
                 updatedAt: Date()
             )
@@ -337,7 +291,6 @@ struct MobileUsageHistoryView: View {
             do {
                 try await MobileCloudSourceCatalog.shared.saveUsageHistorySnapshot(
                     MobileUsageHistorySnapshot(
-                        balanceUSD: loaded.balanceUSD,
                         events: loaded.events,
                         updatedAt: loaded.updatedAt
                     )
@@ -369,45 +322,24 @@ struct MobileUsageHistoryView: View {
         }
     }
 
-    static func summarise(
-        balanceUSD: Double,
-        events: [ManagedAI.UsageLedgerEvent],
-        now: Date
-    ) -> Summary {
+    static func days(of events: [ManagedAI.UsageLedgerEvent], now: Date) -> [Day] {
         let calendar = Calendar.current
-        let allTime = events.reduce(0) { $0 + $1.billedMicrousd }
-        let month = events
-            .filter {
-                calendar.isDate(
-                    Date(timeIntervalSince1970: $0.createdAtUnix),
-                    equalTo: now,
-                    toGranularity: .month
-                )
-            }
-            .reduce(0) { $0 + $1.billedMicrousd }
-
         let byDay = Dictionary(grouping: events) {
             calendar.startOfDay(for: Date(timeIntervalSince1970: $0.createdAtUnix))
         }
-        let days = byDay.keys.sorted(by: >).map { day in
+        return byDay.keys.sorted(by: >).map { day in
             let rows = byDay[day] ?? []
             return Day(
                 id: day,
                 label: label(for: day, now: now, calendar: calendar),
-                totalMicroUSD: rows.reduce(0) { $0 + $1.billedMicrousd },
+                requestCount: rows.count,
                 lines: lines(for: rows)
             )
         }
-        return Summary(
-            balanceUSD: balanceUSD,
-            monthMicroUSD: month,
-            allTimeMicroUSD: allTime,
-            days: days
-        )
     }
 
     /// One line per (task, model, platform) within a day. A voice session
-    /// bills per reply, so without this fold a single conversation would fill
+    /// runs per reply, so without this fold a single conversation would fill
     /// the screen with rows too small to mean anything.
     private static func lines(for events: [ManagedAI.UsageLedgerEvent]) -> [Line] {
         struct Key: Hashable {
@@ -429,52 +361,20 @@ struct MobileUsageHistoryView: View {
                 parts.append("\(rows.count.formatted()) \(noun)")
                 // Only foreign platforms get named: this ledger is shared with
                 // the Mac and the watch, and a Mac row that looked local would
-                // misattribute spend the phone never made.
+                // misattribute work the phone never did.
                 if let platform = key.platform, platform != "iOS" {
                     parts.append(platform)
                 }
                 return Line(
                     title: title,
                     detail: parts.joined(separator: " · "),
-                    microUSD: rows.reduce(0) { $0 + $1.billedMicrousd },
-                    cachedCharge: cachedCharge(for: rows)
+                    requestCount: rows.count
                 )
             }
             .sorted { lhs, rhs in
-                if lhs.microUSD != rhs.microUSD { return lhs.microUSD > rhs.microUSD }
+                if lhs.requestCount != rhs.requestCount { return lhs.requestCount > rhs.requestCount }
                 return lhs.title < rhs.title
             }
-    }
-
-    /// Reconstruct the cached part of a historical realtime charge from its
-    /// immutable model id and token count, retaining a range when the ledger's
-    /// aggregate lost the text/audio split.
-    private static func cachedCharge(
-        for events: [ManagedAI.UsageLedgerEvent]
-    ) -> CachedCharge? {
-        let tokens = events.reduce(0) { $0 + ($1.cachedInputTokens ?? 0) }
-        guard tokens > 0 else { return nil }
-
-        var lower = 0
-        var upper = 0
-        for event in events {
-            guard let eventTokens = event.cachedInputTokens, eventTokens > 0 else { continue }
-            guard let range = MobileRealtimeRates.historicCachedBilledCostRange(
-                    model: event.model,
-                    cachedInputTokens: eventTokens
-                  ) else {
-                // Never make up a price for a row whose historical rate cannot
-                // be recovered. The total charge remains visible as before.
-                return nil
-            }
-            lower += range.lowerBound
-            upper += range.upperBound
-        }
-        return CachedCharge(range: lower...upper, tokens: tokens)
-    }
-
-    private static func tokenCount(_ value: Int) -> String {
-        value.formatted(.number.notation(.compactName))
     }
 
     private static func taskLabel(_ task: String) -> String {

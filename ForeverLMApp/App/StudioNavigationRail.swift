@@ -415,7 +415,6 @@ struct StudioNavigationRail: View {
     @SyncedStorage(wrappedValue: true, MemoryCardSettings.draftNudgesKey) private var showsDraftNudges: Bool
     /// What the learner's own key has spent since local midnight, in USD, read
     /// from the usage ledger each time the account menu opens. Nil until read.
-    @State private var ownKeySpentTodayUSD: Double?
     /// The name the rail shows: the stand-in while Screen record mode films.
     private var accountFullName: String? { MacAccountUser.displayedFullName(saved: savedDisplayName) }
 
@@ -1837,11 +1836,10 @@ struct StudioNavigationRail: View {
         .onChange(of: showsAccountMenu) { _, isShown in
             guard isShown else { return }
             accountMenuPage = .root
-            // "Used today" is only as fresh as the last balance fetch, which is
-            // otherwise launch and Settings. Opening the menu is asking for it.
+            // Whether usage is comped is only as fresh as the last balance fetch,
+            // which is otherwise launch and Settings. Opening the menu asks again.
             if showsCompOnScreen {
                 Task { await account.refresh(minimumInterval: 30, silently: true) }
-                if ownKeyPays { Task { await loadOwnKeySpentToday() } }
             }
         }
     }
@@ -2231,22 +2229,11 @@ struct StudioNavigationRail: View {
 
     /// The icon of the account menu's "Usage is paid for" row, for a learner
     /// whose usage ForeverLM is paying for (beside the name on the account
-    /// button until 2026-10-06). The balance figure elsewhere is history on a
-    /// comped account, so the row shows today's comped spend as the only
-    /// honest number.
+    /// button until 2026-10-06).
     private var compCrown: some View {
         Text(verbatim: "👑")
             .font(.system(size: 12))
             .accessibilityHidden(true)
-    }
-
-    /// Configured tester comps report today's comped spend over the learner's
-    /// own day, which the balance request names (`dayStartHeaderValue`).
-    /// Legacy/predefined billing-exempt testers are still complimentary but
-    /// have no comp row, and a worker that predates the daily figure sends none.
-    private var compSpentText: String? {
-        guard let spentToday = account.comp?.spentTodayMicroUSD else { return nil }
-        return ManagedAI.creditBalanceText(microUSD: spentToday)
     }
 
     /// The comp pays only for what goes through the proxy. With the learner's
@@ -2255,19 +2242,6 @@ struct StudioNavigationRail: View {
     /// said "Usage is paid for by ForeverLM · $0.00 used today" while the key
     /// paid for the day's chats (2026-09-27). The row names the key instead.
     private var ownKeyPays: Bool { account.ownKey != nil && account.ownKeyAllowed }
-
-    private var ownKeySpentText: String? {
-        ownKeySpentTodayUSD.map { ManagedAI.creditBalanceText(microUSD: Int(($0 * 1_000_000).rounded())) }
-    }
-
-    private func loadOwnKeySpentToday() async {
-        let filter = KnowledgeStore.AIUsageEventFilter(
-            since: Calendar.current.startOfDay(for: Date()),
-            paidByOwnKey: true
-        )
-        guard let totals = try? await StorageService().aiUsageEventTotals(filter: filter) else { return }
-        ownKeySpentTodayUSD = totals.cost ?? 0
-    }
 
     @ViewBuilder
     private var compRowIcon: some View {
@@ -2280,25 +2254,22 @@ struct StudioNavigationRail: View {
         }
     }
 
+    /// Who pays, never how much: spend is OpenRouter's to show (product
+    /// owner, 2026-10-15: "we shouldn't maintain our own spend stuff").
     private var compTitle: String {
-        if ownKeyPays { return ownKeySpentText.map { "\($0) used today" } ?? "AI usage" }
-        return "Usage is paid for by ForeverLM"
+        ownKeyPays ? "Your own key" : "Usage is paid for by ForeverLM"
     }
 
     private var compSubtitle: String {
         if let own = account.ownKey, ownKeyPays { return "Billed to your \(own.router.label) account" }
-        guard let compSpentText else { return "ForeverLM is covering your AI usage" }
-        return "\(compSpentText) used today"
+        return "ForeverLM is covering your AI usage"
     }
 
     private var compHelpText: String {
         if let own = account.ownKey, ownKeyPays {
-            let billed = "\(own.router.billedScopeCapitalized) are billed to your \(own.router.label) account"
-            guard let ownKeySpentText else { return billed }
-            return "\(billed) — \(ownKeySpentText) used today"
+            return "\(own.router.billedScopeCapitalized) are billed to your \(own.router.label) account"
         }
-        guard let compSpentText else { return "Usage is paid for by ForeverLM on this account" }
-        return "Usage is paid for by ForeverLM — \(compSpentText) used today"
+        return "Usage is paid for by ForeverLM on this account"
     }
 
     /// The comp's "Usage is paid for" menu row, its crown and the button's

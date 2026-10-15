@@ -173,12 +173,12 @@ final class MobileVoiceUITests: XCTestCase {
         app.descendants(matching: .any)["settings.usage"].tap()
 
         let placeholder = app.descendants(matching: .any)["usage.loadingPlaceholder"]
-        let balance = app.descendants(matching: .any)["usage.balance"]
+        let openRouter = app.descendants(matching: .any)["usage.openRouter"]
         XCTAssertTrue(
-            placeholder.waitForExistence(timeout: 2) || balance.exists,
+            placeholder.waitForExistence(timeout: 2) || openRouter.exists,
             "Usage showed neither its saved content nor a stable loading layout."
         )
-        XCTAssertTrue(balance.waitForExistence(timeout: 30), "Usage never loaded the server ledger.")
+        XCTAssertTrue(openRouter.waitForExistence(timeout: 30), "Usage never loaded the server ledger.")
 
         app.terminate()
         app.launch()
@@ -186,7 +186,7 @@ final class MobileVoiceUITests: XCTestCase {
         try openSettings()
         app.descendants(matching: .any)["settings.usage"].tap()
         XCTAssertTrue(
-            app.descendants(matching: .any)["usage.balance"].waitForExistence(timeout: 2),
+            app.descendants(matching: .any)["usage.openRouter"].waitForExistence(timeout: 2),
             "Usage did not render its saved SQLite snapshot immediately."
         )
     }

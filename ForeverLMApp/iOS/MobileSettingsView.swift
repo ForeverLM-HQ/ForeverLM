@@ -187,7 +187,7 @@ struct MobileSettingsView: View {
                 NavigationLink {
                     MobileUsageHistoryView()
                 } label: {
-                    Label("Usage", systemImage: "creditcard")
+                    Label("Usage", systemImage: "chart.bar")
                 }
                 .accessibilityIdentifier("settings.usage")
             } header: {
@@ -896,11 +896,9 @@ private struct MobileCreditsView: View {
         }
     }
 
-    /// A comped tester needs to know what the comp covered this month; the figure
-    /// above it is the account balance, which a comp does not move.
+    /// A comped tester needs to know why the figure above never moves.
     private var compLabel: String {
-        guard let comp = balance?.comp else { return "Usage is paid for by ForeverLM on this account" }
-        return "Paid for by ForeverLM — \(ManagedAI.creditBalanceText(microUSD: comp.spentThisMonthMicroUSD)) used this month"
+        "Usage is paid for by ForeverLM on this account"
     }
 
     @MainActor
