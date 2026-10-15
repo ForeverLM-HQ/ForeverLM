@@ -6127,6 +6127,9 @@ final class ReviewSessionManager {
         // (2026-10-13): the chat chooses the kept cards and the app's card
         // review opens on them.
         "list_cards",
+        // A card also stands on the other sources that state it: the chat
+        // that drafts cards finds them and names them with each card.
+        "find_card_sources",
         "practice_cards",
         // "Make a mnemonic reading of this book" is said in the chat about
         // the book (2026-10-03): ForeverLM writes the questions, priced first

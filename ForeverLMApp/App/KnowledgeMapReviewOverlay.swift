@@ -323,6 +323,9 @@ private struct KnowledgeMapReviewCard: View {
                 if let sourceID = card.sourceID {
                     sourceChip(sourceID: sourceID, quote: card.quote)
                 }
+                ForEach(Array(card.alsoFrom.enumerated()), id: \.offset) { _, link in
+                    sourceChip(sourceID: link.sourceID, quote: link.quote)
+                }
             }
         }
     }

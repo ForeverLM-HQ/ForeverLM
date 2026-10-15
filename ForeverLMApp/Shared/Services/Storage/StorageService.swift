@@ -3719,6 +3719,7 @@ actor StorageService {
         _ card: MemoryCard,
         sourceID: String,
         quote: String,
+        alsoFrom: [CardSourceLink] = [],
         ideaID: String? = nil,
         at now: Date = Date()
     ) throws -> MemoryItem {
@@ -3726,6 +3727,7 @@ actor StorageService {
             card,
             sourceID: sourceID,
             quote: quote,
+            alsoFrom: alsoFrom,
             ideaID: ideaID,
             at: now
         )

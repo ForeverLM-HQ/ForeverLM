@@ -53,8 +53,26 @@ struct MemoryCardToCheck: Equatable, Identifiable, Sendable {
     let isRequested: Bool
     /// The item of a card from before cards.
     let memoryItemID: String?
+    /// Passages of other sources the card also stands on, beside `quote` in
+    /// `sourceID`: Keep anchors the card on each of them too. Empty for a card
+    /// with one source, and for an item from before cards, whose anchors are
+    /// kept as they are.
+    var alsoFrom: [CardSourceLink] = []
 
     var id: String { face.cardID }
+
+    /// Every passage the card stands on, its own source's first: what Keep
+    /// anchors it on, and what its source chips are.
+    var links: [CardSourceLink] {
+        let own = quote.map { CardSourceLink(sourceID: sourceID, quote: $0) }
+        return CardSourceLink.normalized((own.map { [$0] } ?? []) + alsoFrom)
+    }
+
+    /// Every source the card stands on, once each, its own first.
+    var sourceIDs: [String] {
+        var seen = Set<String>()
+        return ([sourceID] + alsoFrom.map(\.sourceID)).filter { seen.insert($0).inserted }
+    }
     var cardID: String { face.cardID }
 
     /// Kept unless the learner says otherwise: a requested draft, and an item
@@ -214,7 +232,8 @@ enum MemoryCardTriage {
                     ideaID: card.ideaID,
                     draftedAt: card.draftedAt,
                     isRequested: card.isRequested,
-                    memoryItemID: nil
+                    memoryItemID: nil,
+                    alsoFrom: card.alsoFrom
                 )
                 var pile = piles[deck.sourceID] ?? Pile()
                 pile.drafts.append(entry)

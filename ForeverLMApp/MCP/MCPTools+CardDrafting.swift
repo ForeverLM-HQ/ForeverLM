@@ -180,7 +180,7 @@ extension MCPDataStore {
             "model": plan.route.writing.model,
             "requests": plan.cost.requestCount,
             "estimated_cost": plan.callCount == 0 ? "free" : plan.cost.label,
-            "basis": "One request a source the model drafts for, its whole text or its excerpts and the cards at their usual length; at most is every request's output ceiling, reasoning included. A walkthrough's own questions cost nothing.",
+            "basis": "One request a source the model drafts for, its whole text or its excerpts and the cards at their usual length; at most is every request's output ceiling, reasoning included. A walkthrough's own questions cost nothing. A run over several sources also asks, a dozen cards a request, which of the other sources state each card, so a card stands on every source that prints it (list_cards shows them under sources); that small request is not in the estimate.",
         ]
         if let usd = plan.cost.expectedUSD { drafting["estimated_cost_usd"] = usd }
         if let usd = plan.cost.maximumUSD { drafting["maximum_cost_usd"] = usd }
@@ -258,6 +258,8 @@ extension MCPDataStore {
                         if !source.notSaved.isEmpty {
                             row["not_saved"] = source.notSaved.map { ["front": $0.front, "reason": $0.reason] }
                         }
+                        if source.linkedCount > 0 { row["also_from_cards"] = source.linkedCount }
+                        if let note = source.linkFailure { row["links_note"] = note }
                         if let failure = source.failure { row["failure"] = failure }
                         return row
                     }

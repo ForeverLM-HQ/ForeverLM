@@ -129,7 +129,8 @@ struct FlashcardDeck: Equatable, Sendable {
                 origin: draft.origin,
                 isRequested: draft.isRequested,
                 frontImages: draft.frontImages,
-                backImages: draft.backImages
+                backImages: draft.backImages,
+                alsoFrom: draft.alsoFrom
             ))
         }
         let trimmedTitle = title?.trimmingCharacters(in: .whitespaces) ?? ""
@@ -158,6 +159,12 @@ struct FlashcardDeck: Equatable, Sendable {
                     meta.append("Source: [\(label)](foreverlm://source/\(target) \"\(Self.linkTitle(quote))\")")
                 } else {
                     meta.append("Source: [\(label)](foreverlm://source/\(target))")
+                }
+            }
+            if card.sourceID?.isEmpty == false {
+                for link in card.alsoFrom {
+                    let target = link.sourceID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? link.sourceID
+                    meta.append("Source: [Source](foreverlm://source/\(target) \"\(Self.linkTitle(link.quote))\")")
                 }
             }
             if let difficulty = card.difficulty { meta.append("Difficulty: \(difficulty.rawValue)") }
@@ -312,6 +319,10 @@ struct Flashcard: Identifiable, Equatable, Sendable {
     var isRequested: Bool
     var frontImages: [MemoryCardImage]
     var backImages: [MemoryCardImage]
+    /// Passages of other sources the card also stands on, beside `quote` in
+    /// `sourceID`: each is another anchor of the card once it is kept. Empty
+    /// for a card with one source, and for a card with no source of its own.
+    var alsoFrom: [CardSourceLink]
 
     init(
         id: String,
@@ -328,7 +339,8 @@ struct Flashcard: Identifiable, Equatable, Sendable {
         origin: MemoryCardOrigin? = nil,
         isRequested: Bool = false,
         frontImages: [MemoryCardImage] = [],
-        backImages: [MemoryCardImage] = []
+        backImages: [MemoryCardImage] = [],
+        alsoFrom: [CardSourceLink] = []
     ) {
         self.id = id
         self.front = front
@@ -345,6 +357,7 @@ struct Flashcard: Identifiable, Equatable, Sendable {
         self.isRequested = isRequested
         self.frontImages = Array(frontImages.prefix(MemoryCard.maximumImagesPerFace))
         self.backImages = Array(backImages.prefix(MemoryCard.maximumImagesPerFace))
+        self.alsoFrom = alsoFrom
     }
 
     /// A newly drafted card under a freshly minted id, its text in the form the
@@ -364,6 +377,7 @@ struct Flashcard: Identifiable, Equatable, Sendable {
         isRequested: Bool,
         frontImages: [MemoryCardImage] = [],
         backImages: [MemoryCardImage] = [],
+        alsoFrom: [CardSourceLink] = [],
         at now: Date,
         id: String = UUID().uuidString.lowercased()
     ) -> Flashcard {
@@ -382,7 +396,8 @@ struct Flashcard: Identifiable, Equatable, Sendable {
             origin: origin,
             isRequested: isRequested,
             frontImages: frontImages,
-            backImages: backImages
+            backImages: backImages,
+            alsoFrom: alsoFrom
         ).asWritten
     }
 
@@ -409,10 +424,16 @@ struct Flashcard: Identifiable, Equatable, Sendable {
                 let title = FlashcardDeck.linkTitle(quote)
                 return title.isEmpty ? nil : title
             }
+            let primary = card.quote.map { CardSourceLink(sourceID: sourceID, quote: $0) }
+            card.alsoFrom = CardSourceLink.normalized(
+                alsoFrom.map { CardSourceLink(sourceID: $0.sourceID, quote: FlashcardDeck.linkTitle($0.quote)) },
+                excluding: primary
+            )
         } else {
             card.sourceID = nil
             card.sourceTitle = nil
             card.quote = nil
+            card.alsoFrom = []
         }
         card.draftedAt = draftedAt.map { Date(timeIntervalSince1970: $0.timeIntervalSince1970.rounded(.down)) }
         return card
@@ -451,6 +472,7 @@ private struct CardLines {
     var isRequested = false
     var frontImages: [MemoryCardImage] = []
     var backImages: [MemoryCardImage] = []
+    var alsoFrom: [CardSourceLink] = []
     /// Once a card's metadata starts, later prose is no longer its back.
     private var inMetadata = false
     /// Set once a line after the why is read, so a stray quote after it is
@@ -522,7 +544,9 @@ private struct CardLines {
         return String(line.dropFirst(key.count)).trimmingCharacters(in: .whitespaces)
     }
 
-    /// `[Title](foreverlm://source/<id> "quote")`, or a bare link.
+    /// `[Title](foreverlm://source/<id> "quote")`, or a bare link. The first
+    /// `Source:` line of a card is the source it was drafted from; each later
+    /// one is another source it also stands on.
     private mutating func readSource(_ text: String) {
         guard let open = text.firstIndex(of: "["),
               let close = text[open...].firstIndex(of: "]"),
@@ -530,22 +554,31 @@ private struct CardLines {
               text[text.index(after: close)] == "(",
               let end = text.lastIndex(of: ")"),
               end > close else { return }
-        sourceTitle = String(text[text.index(after: open)..<close]).trimmingCharacters(in: .whitespaces)
+        let title = String(text[text.index(after: open)..<close]).trimmingCharacters(in: .whitespaces)
         let inside = text[text.index(close, offsetBy: 2)..<end].trimmingCharacters(in: .whitespaces)
         let target: Substring
+        var linkQuote: String?
         if let space = inside.firstIndex(of: " ") {
             target = inside[..<space]
             let rest = inside[space...].trimmingCharacters(in: .whitespaces)
             if rest.count >= 2, rest.hasPrefix("\""), rest.hasSuffix("\"") {
-                quote = String(rest.dropFirst().dropLast())
+                linkQuote = String(rest.dropFirst().dropLast())
             }
         } else {
             target = inside[...]
         }
         let prefix = "foreverlm://source/"
+        var linkSourceID: String?
         if target.hasPrefix(prefix) {
             let id = target.dropFirst(prefix.count).split(separator: "?").first.map(String.init) ?? ""
-            sourceID = id.isEmpty ? nil : id.removingPercentEncoding ?? id
+            linkSourceID = id.isEmpty ? nil : id.removingPercentEncoding ?? id
+        }
+        if sourceID == nil, sourceTitle == nil {
+            sourceTitle = title
+            quote = linkQuote
+            sourceID = linkSourceID
+        } else if let linkSourceID, let linkQuote {
+            alsoFrom.append(CardSourceLink(sourceID: linkSourceID, quote: linkQuote))
         }
     }
 }

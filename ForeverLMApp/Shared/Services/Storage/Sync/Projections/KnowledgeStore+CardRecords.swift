@@ -217,7 +217,14 @@ extension KnowledgeStore {
         let why = ((rubric[MemoryCard.criteriaKey] as? [Any]) ?? []).compactMap { $0 as? String }
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .first { !$0.isEmpty && $0 != back.trimmingCharacters(in: .whitespacesAndNewlines) }
-        let quote = draft?["anchors"]?.arrayValue?.first?["excerpt"]?.stringValue
+        let anchors = draft?["anchors"]?.arrayValue ?? []
+        let quote = anchors.first?["excerpt"]?.stringValue
+        // The anchors after the first are the other sources the card also stands on.
+        let alsoFrom: [CardSourceLink] = anchors.dropFirst().compactMap { anchor in
+            guard let target = anchor["target"]?.stringValue, target.hasPrefix("src:"),
+                  let excerpt = anchor["excerpt"]?.stringValue else { return nil }
+            return CardSourceLink(sourceID: String(target.dropFirst(4)).components(separatedBy: "#")[0], quote: excerpt)
+        }
         let origin = (face[MemoryCard.originKey] as? String).map(MemoryCardOrigin.init(rawValue:)) ?? faceOrigin(of: row.origin)
         return Flashcard(
             id: cardKey(row),
@@ -233,7 +240,8 @@ extension KnowledgeStore {
             origin: origin,
             isRequested: draft?["requested"]?.boolValue ?? false,
             frontImages: MemoryCardImage.readRubric(face[MemoryCard.frontImagesKey]),
-            backImages: MemoryCardImage.readRubric(face[MemoryCard.backImagesKey])
+            backImages: MemoryCardImage.readRubric(face[MemoryCard.backImagesKey]),
+            alsoFrom: alsoFrom
         )
     }
 
@@ -254,7 +262,10 @@ extension KnowledgeStore {
     /// with (its why, difficulty, pictures and origin, `MemoryCard.rubricJSON`), and its quote as the one
     /// anchor on its source (`target` the source's wire id, `textHash` the source text's hash when it is
     /// known); the idea it was drafted from and whether the learner asked for it ride beside them.
-    static func draftJSON(_ card: Flashcard, deckSourceID: String, anchorSourceKey: String, textHash: String) throws -> SyncJSON {
+    static func draftJSON(
+        _ card: Flashcard, deckSourceID: String, anchorSourceKey: String, textHash: String,
+        links: [(key: String, hash: String, quote: String)] = []
+    ) throws -> SyncJSON {
         let face = MemoryCard(
             cardID: card.id, front: card.front, back: card.back, why: card.why.map { [$0] } ?? [],
             origin: card.origin ?? .drafted, difficulty: card.difficulty, deckID: MemoryCard.draftDeckID(sourceID: deckSourceID),
@@ -262,8 +273,14 @@ extension KnowledgeStore {
         )
         var draft: [String: SyncJSON] = [
             "front": .string(face.front), "back": .string(face.back), "rubric": .string(try face.rubricJSON()),
-            "anchors": .array(card.quote.map { quote in
-                [["target": .string("src:" + anchorSourceKey), "locator": .null, "excerpt": .string(quote), "textHash": .string(textHash)]]
+            "anchors": .array(card.quote.map { quote -> [SyncJSON] in
+                var entries: [SyncJSON] = [
+                    ["target": .string("src:" + anchorSourceKey), "locator": .null, "excerpt": .string(quote), "textHash": .string(textHash)],
+                ]
+                for link in links {
+                    entries.append(["target": .string("src:" + link.key), "locator": .null, "excerpt": .string(link.quote), "textHash": .string(link.hash)])
+                }
+                return entries
             } ?? []),
         ]
         if card.isRequested { draft["requested"] = .bool(true) }
@@ -301,12 +318,17 @@ extension KnowledgeStore {
     /// the caller chose (`card:<deckSourceID>:<seedKey>` for a seeded draft whose id is free). A Card that
     /// exists under an id is never written over: a draft is never written twice, and a card gone through
     /// never becomes a draft again.
-    func saveCardDraftRecords(_ cards: [Flashcard], deckSourceID: String, textHash: String) throws {
+    func saveCardDraftRecords(_ cards: [Flashcard], deckSourceID: String, textHash: String, linkHashes: [String: String] = [:]) throws {
         guard !cards.isEmpty else { return }
         let anchorKey = try personalStateSourceKey(deckSourceID)
         var written: [(Flashcard, String)] = []
         for card in cards {
-            written.append((card, SittingProjection.text(try Self.draftJSON(card, deckSourceID: deckSourceID, anchorSourceKey: anchorKey, textHash: textHash)) ?? "{}"))
+            // A card's other sources' anchors follow its own, each by its source's wire key and text hash.
+            let links = try card.alsoFrom.map { link in
+                (key: try personalStateSourceKey(link.sourceID), hash: linkHashes[link.sourceID] ?? "", quote: link.quote)
+            }
+            let json = try Self.draftJSON(card, deckSourceID: deckSourceID, anchorSourceKey: anchorKey, textHash: textHash, links: links)
+            written.append((card, SittingProjection.text(json) ?? "{}"))
         }
         try inDerivationTransaction { store in
             for (card, draft) in written {

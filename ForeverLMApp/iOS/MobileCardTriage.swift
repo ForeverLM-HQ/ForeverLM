@@ -50,8 +50,18 @@ enum MobileCardTriageWriter {
                     continue
                 }
                 if texts[card.sourceID] == nil { texts[card.sourceID] = await sourceText(card.sourceID) }
+                // The other sources the card is kept on: its own, or the ones the learner chose in Edit.
+                var alsoFrom = card.alsoFrom
+                if case .keepEdited(let edit) = decision.action, let chosen = edit.alsoFrom { alsoFrom = chosen }
+                var linkTexts: [String: String] = [:]
+                for link in alsoFrom {
+                    if texts[link.sourceID] == nil { texts[link.sourceID] = await sourceText(link.sourceID) }
+                    if let text = texts[link.sourceID] ?? nil { linkTexts[link.sourceID] = text }
+                }
                 do {
-                    let item = try MobileCardRecords.keptItem(card, face: face, sourceText: texts[card.sourceID] ?? nil, at: now)
+                    let item = try MobileCardRecords.keptItem(
+                        card, face: face, sourceText: texts[card.sourceID] ?? nil, alsoFrom: alsoFrom, linkTexts: linkTexts, at: now
+                    )
                     let kept = try await writer.transaction { try $0.keepDraftCard(item) }
                     let held: MemoryItem
                     switch kept {

@@ -56,6 +56,9 @@ struct MemoryCardsToCheckView: View {
     @State private var selection: String?
     @State private var editing: MemoryCardToCheck?
     @State private var confirmingSkipAll: [MemoryCardToCheck]?
+    /// The other sources the learner took off a card before deciding it, by
+    /// card id: the card is kept on the rest. The card's own source stays.
+    @State private var droppedSources: [String: Set<String>] = [:]
     /// Where the card in front goes once decided: Keep to the right, Skip to
     /// the left, as Review's Remembered and Forgot.
     @State private var exitEdge: HorizontalEdge = .trailing
@@ -251,30 +254,12 @@ struct MemoryCardsToCheckView: View {
     }
 
     /// Over the card: its source, which opens it, its place in what waits,
-    /// the ⋯ for its source, and the strip of the cards gone through.
+    /// the ⋯ for its source, and the strip of the cards gone through. A card
+    /// that stands on several sources shows them together and opens any.
     private func header(_ card: MemoryCardToCheck, waiting: Int) -> some View {
-        let title = sourceTitle(card.sourceID)
-        let article = vm.articlesById[vm.canonicalSourceID(card.sourceID)]
-        return VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center, spacing: 10) {
-                Button {
-                    openSource(card.sourceID)
-                } label: {
-                    HStack(spacing: 9) {
-                        sourceThumbnail(article)
-                        Text(title)
-                            .font(.system(size: 12.5, weight: .medium))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.hoverWash(cornerRadius: 8, inset: -5))
-                .help("Open \(title)")
-                .contextMenu { sourceMenu(card.sourceID) }
-                .accessibilityLabel("Source: \(title)")
-                .accessibilityIdentifier("memory.pane.toCheck.source")
+                sourceChip(card)
                 Spacer(minLength: 12)
                 Text("\(gone.count + 1) of \(gone.count + waiting)")
                     .font(.system(size: 12.5))
@@ -291,6 +276,90 @@ struct MemoryCardsToCheckView: View {
                     + Array(repeating: .upcoming, count: max(0, waiting - 1))
             )
         }
+    }
+
+    /// The sources the card will be kept on: its own, then the others it
+    /// stands on that the learner has not taken off.
+    private func keptSourceIDs(_ card: MemoryCardToCheck) -> [String] {
+        let dropped = droppedSources[card.cardID] ?? []
+        return card.sourceIDs.enumerated().filter { $0.offset == 0 || !dropped.contains($0.element) }.map(\.element)
+    }
+
+    /// The card's source as a chip: one source opens it; several show their
+    /// pictures stacked and the count beyond the first, and open a menu of
+    /// them, each of which opens, and each other one of which can be taken
+    /// off the card.
+    @ViewBuilder
+    private func sourceChip(_ card: MemoryCardToCheck) -> some View {
+        let ids = keptSourceIDs(card)
+        let title = sourceTitle(card.sourceID)
+        if ids.count <= 1 && card.sourceIDs.count <= 1 {
+            Button {
+                openSource(card.sourceID)
+            } label: {
+                chipLabel(ids: ids, title: title, more: 0)
+            }
+            .buttonStyle(.hoverWash(cornerRadius: 8, inset: -5))
+            .help("Open \(title)")
+            .contextMenu { sourceMenu(card.sourceID) }
+            .accessibilityLabel("Source: \(title)")
+            .accessibilityIdentifier("memory.pane.toCheck.source")
+        } else {
+            Menu {
+                ForEach(card.sourceIDs, id: \.self) { id in
+                    let isDropped = !ids.contains(id)
+                    Menu(sourceTitle(id)) {
+                        Button("Open Source") { openSource(id) }
+                        if id != card.sourceID {
+                            Button(isDropped ? "Use This Source for the Card" : "Take Off This Card") {
+                                toggleDropped(id, on: card)
+                            }
+                        }
+                    }
+                }
+            } label: {
+                chipLabel(ids: ids, title: title, more: ids.count - 1)
+            }
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .hoverHighlight(cornerRadius: 8, inset: -5)
+            .help("The sources this card stands on")
+            .accessibilityLabel("Sources: \(ids.map(sourceTitle).joined(separator: ", "))")
+            .accessibilityIdentifier("memory.pane.toCheck.source")
+        }
+    }
+
+    private func chipLabel(ids: [String], title: String, more: Int) -> some View {
+        HStack(spacing: 9) {
+            HStack(spacing: -8) {
+                ForEach(Array(ids.prefix(3).enumerated()), id: \.element) { index, id in
+                    sourceThumbnail(vm.articlesById[vm.canonicalSourceID(id)])
+                        .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color(nsColor: .windowBackgroundColor), lineWidth: 1.5))
+                        .zIndex(Double(-index))
+                }
+            }
+            Text(title)
+                .font(.system(size: 12.5, weight: .medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            if more > 0 {
+                Text("+\(more)")
+                    .font(.system(size: 12.5, weight: .medium))
+                    .foregroundStyle(.tertiary)
+                    .monospacedDigit()
+                    .textSelection(.disabled)
+            }
+        }
+        .contentShape(Rectangle())
+    }
+
+    private func toggleDropped(_ sourceID: String, on card: MemoryCardToCheck) {
+        var dropped = droppedSources[card.cardID] ?? []
+        if !dropped.insert(sourceID).inserted { dropped.remove(sourceID) }
+        droppedSources[card.cardID] = dropped.isEmpty ? nil : dropped
     }
 
     /// The rest of the card's source at once, and the source's own menu.
@@ -326,7 +395,7 @@ struct MemoryCardsToCheckView: View {
         .menuIndicator(.hidden)
         .fixedSize()
         .hoverHighlight(cornerRadius: 6, inset: 0)
-        .help("Keep or skip the rest of this source's cards")
+        .help("Keep or skip the rest of this source's cards, or copy this card's ID")
         .accessibilityLabel("More")
         .accessibilityIdentifier("memory.pane.toCheck.more")
     }
@@ -362,7 +431,7 @@ struct MemoryCardsToCheckView: View {
                 attemptFieldHeight: $attemptFieldHeight,
                 autoFocusAttempt: windowState?.memoryPaneFocusCardID == nil,
                 submit: { reveal(card) },
-                showPassage: passage(of: card).map { quote in { openSource(card.sourceID, passage: quote) } }
+                passages: passages(of: card)
             )
             .id(card.cardID)
             .transition(.memoryCard(leavingTo: exitEdge, reduceMotion: reduceMotion))
@@ -470,10 +539,17 @@ struct MemoryCardsToCheckView: View {
         OtherWindowSourceMenuItem(sourceID: sourceID)
     }
 
-    /// The passage a card quotes, when it names one.
-    private func passage(of card: MemoryCardToCheck) -> String? {
-        guard let quote = card.quote?.trimmingCharacters(in: .whitespacesAndNewlines), !quote.isEmpty else { return nil }
-        return quote
+    /// The passages a card stands on, one for each source it will be kept on
+    /// that it quotes, its own source's first.
+    private func passages(of card: MemoryCardToCheck) -> [MemoryCardToCheckFace.Passage] {
+        let kept = Set(keptSourceIDs(card))
+        return card.links.filter { kept.contains($0.sourceID) }.map { link in
+            MemoryCardToCheckFace.Passage(
+                id: "\(link.sourceID)#\(link.quote.hashValue)",
+                sourceTitle: sourceTitle(link.sourceID),
+                open: { openSource(link.sourceID, passage: link.quote) }
+            )
+        }
     }
 
     /// The Reader beside the pane, at the passage a card quotes when it
@@ -501,8 +577,9 @@ struct MemoryCardsToCheckView: View {
 
     /// Hides the decided cards at once, deals the next card in front, and
     /// writes the decisions; a card storage refused comes back.
-    private func decide(_ decisions: [MemoryCardTriageDecision]) {
-        guard !decisions.isEmpty else { return }
+    private func decide(_ given: [MemoryCardTriageDecision]) {
+        guard !given.isEmpty else { return }
+        let decisions = given.map(withSourcesTakenOff)
         focused = true
         let ids = Set(decisions.map(\.card.cardID))
         let front = current?.cardID
@@ -524,6 +601,28 @@ struct MemoryCardsToCheckView: View {
             guard !failed.isEmpty else { return }
             decided.subtract(failed)
             gone.removeAll { failed.contains($0.cardID) }
+        }
+    }
+
+    /// A decision that keeps a draft, kept on the sources the learner left it
+    /// on: unchanged when they took none off.
+    private func withSourcesTakenOff(_ decision: MemoryCardTriageDecision) -> MemoryCardTriageDecision {
+        let card = decision.card
+        guard card.kind == .draft, let dropped = droppedSources[card.cardID], !dropped.isEmpty else { return decision }
+        let kept = Set(keptSourceIDs(card))
+        let remaining = card.alsoFrom.filter { kept.contains($0.sourceID) }
+        switch decision.action {
+        case .skip:
+            return decision
+        case .keep:
+            let face = card.face
+            let edit = MemoryCardEdit(
+                front: face.front, back: face.back, why: face.why,
+                frontImages: face.frontImages, backImages: face.backImages
+            ).keptOn(remaining)
+            return MemoryCardTriageDecision(card: card, action: .keepEdited(edit))
+        case .keepEdited(let edit):
+            return MemoryCardTriageDecision(card: card, action: .keepEdited(edit.keptOn(remaining)))
         }
     }
 
@@ -607,8 +706,15 @@ private struct MemoryCardToCheckFace: View {
     let autoFocusAttempt: Bool
     /// Return in the answer field.
     let submit: () -> Void
-    /// Opens the source at the passage the card quotes; nil when it quotes none.
-    let showPassage: (() -> Void)?
+    /// Where the card stands on each of its sources, each opening its source
+    /// at the passage; empty when it quotes none.
+    let passages: [Passage]
+
+    struct Passage: Identifiable {
+        let id: String
+        let sourceTitle: String
+        let open: () -> Void
+    }
 
     private var tags: [String] {
         [card.face.difficulty?.rawValue, card.kind == .legacy ? "From before cards" : nil].compactMap { $0 }
@@ -716,16 +822,36 @@ private struct MemoryCardToCheckFace: View {
                 MemoryCardWhyLine(why: card.face.why)
                     .padding(.top, 14)
             }
-            if let showPassage {
-                Button(action: showPassage) {
-                    Label("Show Passage", systemImage: "text.quote")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
+            if let first = passages.first {
+                if passages.count == 1 {
+                    Button(action: first.open) {
+                        Label("Show Passage", systemImage: "text.quote")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.hoverWash(cornerRadius: 6, inset: -4, tint: .secondary))
+                    .help("Open the source at the passage this card stands on")
+                    .accessibilityIdentifier("memory.pane.toCheck.passage")
+                    .padding(.top, 20)
+                } else {
+                    Menu {
+                        ForEach(passages) { passage in
+                            Button(passage.sourceTitle, action: passage.open)
+                        }
+                    } label: {
+                        Label("Show Passage", systemImage: "text.quote")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+                    .menuStyle(.button)
+                    .buttonStyle(.plain)
+                    .menuIndicator(.hidden)
+                    .fixedSize()
+                    .hoverHighlight(cornerRadius: 6, inset: -4)
+                    .help("Open a source at the passage this card stands on")
+                    .accessibilityIdentifier("memory.pane.toCheck.passage")
+                    .padding(.top, 20)
                 }
-                .buttonStyle(.hoverWash(cornerRadius: 6, inset: -4, tint: .secondary))
-                .help("Open the source at the passage this card stands on")
-                .accessibilityIdentifier("memory.pane.toCheck.passage")
-                .padding(.top, 20)
             }
         }
     }

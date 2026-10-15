@@ -136,13 +136,14 @@ actor CardDraftingService {
         route: CardDraftingRoute? = nil,
         gate: CardDraftingSpendGate,
         wording: (any CardWordingBackend)? = nil,
+        linking: (any CardSourceLinkBackend)? = nil,
         stateDefaults: UserDefaults = .standard,
         onProgress: @escaping @Sendable (CardDraftingProgress) async -> Void = { _ in }
     ) async throws -> CardDraftingResult {
         guard let route = route ?? CardDraftingRoute.current() else { throw CardDraftingError.noModel }
         let materials = try await Self.load(request, storage: storage, stateDefaults: stateDefaults)
         let plan = Self.plan(materials, route: route)
-        return try await run(plan, storage: storage, backend: backend, gate: gate, wording: wording, onProgress: onProgress)
+        return try await run(plan, storage: storage, backend: backend, gate: gate, wording: wording, linking: linking, onProgress: onProgress)
     }
 
     /// Drafts every source of `plan`, a few at a time, each in its own lane,
@@ -158,14 +159,18 @@ actor CardDraftingService {
         backend: any CardDraftingBackend,
         gate: CardDraftingSpendGate,
         wording: (any CardWordingBackend)? = nil,
+        linking: (any CardSourceLinkBackend)? = nil,
         onProgress: @escaping @Sendable (CardDraftingProgress) async -> Void = { _ in }
     ) async throws -> CardDraftingResult {
         var result = CardDraftingResult(skipped: plan.skipped)
         let wording = wording ?? CardWordingGate.backend()
+        let linking = linking ?? LiveCardSourceLinkBackend(aiService: AIService())
         guard !plan.sources.isEmpty else { return result }
         let now = Date()
         let workflowID = UUID().uuidString
         let sources = plan.sources
+        // The sources of this run, which a card of one may also stand on.
+        let pool = Set(sources.map(\.source.sourceID))
         let total = sources.count
         let isRequested = plan.request.isRequested
         let system = plan.system
@@ -185,7 +190,8 @@ actor CardDraftingService {
                         let outcome = try await self.inLane(sourcePlan.source.sourceID) {
                             try await Self.draftOne(
                                 sourcePlan, system: system, route: route, isRequested: isRequested,
-                                storage: storage, backend: backend, gate: gate, wording: wording, at: now
+                                pool: pool, storage: storage, backend: backend, gate: gate, wording: wording,
+                                linking: linking, at: now
                             )
                         }
                         return (index, outcome)
@@ -203,7 +209,8 @@ actor CardDraftingService {
                             let outcome = try await self.inLane(sourcePlan.source.sourceID) {
                                 try await Self.draftOne(
                                     sourcePlan, system: system, route: route, isRequested: isRequested,
-                                    storage: storage, backend: backend, gate: gate, wording: wording, at: now
+                                    pool: pool, storage: storage, backend: backend, gate: gate, wording: wording,
+                                    linking: linking, at: now
                                 )
                             }
                             return (index, outcome)
@@ -233,10 +240,12 @@ actor CardDraftingService {
         system: String,
         route: CardDraftingRoute,
         isRequested: Bool,
+        pool: Set<String>,
         storage: StorageService,
         backend: any CardDraftingBackend,
         gate: CardDraftingSpendGate,
         wording: any CardWordingBackend,
+        linking: any CardSourceLinkBackend,
         at now: Date
     ) async throws -> CardDraftingSourceOutcome {
         var outcome = CardDraftingSourceOutcome(sourceID: plan.source.sourceID, title: plan.source.title)
@@ -298,6 +307,31 @@ actor CardDraftingService {
             return outcome
         }
         guard !drafts.isEmpty else { return outcome }
+        // A run over several sources looks for the other sources of the run
+        // that also state each card, so the card stands on all of them. The
+        // cards are saved whether or not it finds any, or can look.
+        if pool.count > 1 {
+            if await gate.allowsSpend() {
+                do {
+                    let linked = try await CardSourceLinker.link(
+                        cards: drafts.map { ($0.front, $0.back) },
+                        excluding: [plan.source.sourceID],
+                        among: pool,
+                        storage: storage,
+                        backend: linking,
+                        usage: AIUsageSource(id: plan.source.sourceID, type: plan.source.sourceType, title: plan.source.title)
+                    )
+                    try Task.checkCancellation()
+                    for index in drafts.indices { drafts[index].alsoFrom = linked.links[index] }
+                    outcome.linkedCount = linked.linkedCount
+                } catch {
+                    if AITransientErrorClassifier.isCancellation(error) || Task.isCancelled { throw CancellationError() }
+                    outcome.linkFailure = "The other sources could not be looked for, so the cards were saved with one source each. \(error.localizedDescription)"
+                }
+            } else {
+                outcome.linkFailure = "The other sources were not looked for: today's background AI limit is reached."
+            }
+        }
         do {
             let saved = try await storage.saveCardDrafts(drafts, sourceID: plan.source.sourceID, sourceTitle: plan.source.title)
             outcome.added = saved.added

@@ -332,7 +332,7 @@ final class MemoryCardSessionModel: Identifiable {
                 self.saveError = "That card was not kept. \(result.failed.first?.reason ?? "")"
                 return false
             }
-            self.sitting.keepDraft(itemID: card.itemID, as: card.keptEdited(face, as: kept.memoryItemID))
+            self.sitting.keepDraft(itemID: card.itemID, as: card.keptEdited(face, as: kept.memoryItemID, alsoFrom: edit.alsoFrom))
             self.saveError = nil
             return true
         }

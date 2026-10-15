@@ -107,6 +107,38 @@ struct MemoryCardImage: Equatable, Hashable, Sendable {
     }
 }
 
+/// A passage of one more source a card stands on, beside the passage of the
+/// source it was drafted from. A card is about an idea, and an idea is often
+/// printed in several sources; each that prints it is an anchor of the kept
+/// card (`MemoryItem.sources`), in the order the card names them, so the card
+/// reads as grounded in all of them.
+struct CardSourceLink: Equatable, Hashable, Sendable {
+    let sourceID: String
+    /// The passage the card stands on there, which the source's text prints.
+    let quote: String
+
+    init(sourceID: String, quote: String) {
+        self.sourceID = sourceID.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.quote = quote.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Links in the order given, one per source and passage, none for the
+    /// card's own source passage (`primary`) and none with an empty id or
+    /// quote, at most `MemoryCard.maximumLinkedSources` of them. What every
+    /// writer of a card's links passes through, so two devices reading one
+    /// card agree on its anchors.
+    static func normalized(_ links: [CardSourceLink], excluding primary: CardSourceLink? = nil) -> [CardSourceLink] {
+        var seen = Set<CardSourceLink>()
+        if let primary { seen.insert(primary) }
+        var result: [CardSourceLink] = []
+        for link in links where !link.sourceID.isEmpty && !link.quote.isEmpty && seen.insert(link).inserted {
+            result.append(link)
+            if result.count == MemoryCard.maximumLinkedSources { break }
+        }
+        return result
+    }
+}
+
 /// One card's face: what is asked, what answers it, and why that is right.
 struct MemoryCard: Equatable, Sendable, Identifiable {
     /// The card's identity. A drafted card's is minted when it is drafted (a
@@ -169,6 +201,8 @@ struct MemoryCard: Equatable, Sendable, Identifiable {
 
     static let draftDeckIDPrefix = "carddeck-"
     static let maximumImagesPerFace = 4
+    /// The most sources, beside the one it was drafted from, a card stands on.
+    static let maximumLinkedSources = 5
 
     /// Whether `id` names a source's draft deck. The id is the deck's own
     /// mark, so a deck an older build saved back without its kind is still

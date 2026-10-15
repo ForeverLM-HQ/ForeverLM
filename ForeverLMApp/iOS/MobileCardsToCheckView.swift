@@ -175,7 +175,8 @@ struct MobileCardsToCheckList<Header: View>: View {
                 Button {
                     openSource(card.sourceID)
                 } label: {
-                    Text(title)
+                    // A card that stands on several sources names the first and counts the rest.
+                    Text(card.sourceIDs.count > 1 ? "\(title) +\(card.sourceIDs.count - 1)" : title)
                         .fontWeight(.medium)
                         .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
                         .truncationMode(.tail)
@@ -183,7 +184,7 @@ struct MobileCardsToCheckList<Header: View>: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(!opens)
-                .accessibilityLabel("From \(title)")
+                .accessibilityLabel(card.sourceIDs.count > 1 ? "From \(card.sourceIDs.map(sourceTitle).joined(separator: ", "))" : "From \(title)")
                 .accessibilityHint(opens ? "Opens the source" : "")
                 .accessibilityIdentifier("memory.toCheck.source")
                 Text("\(gone.count + 1) of \(gone.count + waiting)")
@@ -222,6 +223,12 @@ struct MobileCardsToCheckList<Header: View>: View {
                 Button("Open Source", systemImage: "doc.text") { openSource(card.sourceID) }
             }
             Button("Copy Card ID", systemImage: "doc.on.doc") { UIPasteboard.general.string = card.cardID }
+            // The card's other sources, each of which opens.
+            ForEach(card.sourceIDs.dropFirst(), id: \.self) { id in
+                if vm.sourcesByID[id] != nil {
+                    Button("Open \(sourceTitle(id))", systemImage: "doc.text") { openSource(id) }
+                }
+            }
         } label: {
             Image(systemName: "ellipsis")
                 .font(.body.weight(.semibold))

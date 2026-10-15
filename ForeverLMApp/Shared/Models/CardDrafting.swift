@@ -1261,6 +1261,12 @@ struct CardDraftingSourceOutcome: Equatable, Sendable {
     /// A background run's gate said no before its model call: the daily
     /// background AI limit, not a failure of the source.
     var waitsForSpend = false
+    /// How many of the added drafts also stand on another source of the run
+    /// (`CardSourceLinker`).
+    var linkedCount = 0
+    /// Why the other sources of the run could not be looked for, when they
+    /// could not: the cards were saved without links.
+    var linkFailure: String?
 }
 
 /// What one request did, source by source.

@@ -192,7 +192,9 @@ enum MobileCardRecords {
                     origin: face?.origin ?? MobileCardRecord.faceOrigin(of: card.origin),
                     isRequested: card.draftRequested,
                     frontImages: face?.frontImages ?? [],
-                    backImages: face?.backImages ?? []
+                    backImages: face?.backImages ?? [],
+                    // The anchors after the first are the other sources the draft also stands on.
+                    alsoFrom: card.draftAnchors.dropFirst().map { CardSourceLink(sourceID: $0.sourceID, quote: $0.excerpt) }
                 ))
             }
             decks.append(MemoryCardDraftDeck(deckID: deckID, sourceID: sourceID, deck: FlashcardDeck(title: "", cards: flashcards)))
@@ -212,7 +214,8 @@ enum MobileCardRecords {
             guard let face = faces[card.cardID] else { return card }
             return MemoryCardToCheck(
                 kind: card.kind, face: face, deckID: card.deckID, sourceID: card.sourceID, quote: card.quote, seed: card.seed,
-                ideaID: card.ideaID, draftedAt: card.draftedAt, isRequested: card.isRequested, memoryItemID: card.memoryItemID
+                ideaID: card.ideaID, draftedAt: card.draftedAt, isRequested: card.isRequested, memoryItemID: card.memoryItemID,
+                alsoFrom: card.alsoFrom
             )
         }
     }
@@ -260,11 +263,26 @@ enum MobileCardRecords {
     /// learner's edit), anchored on its quote, which `sourceText` must print — the check the Mac's Keep
     /// makes (`validatedMemorySourceAnchor`). No goal (a notebook reaches a card through its sources), the
     /// idea it was drafted from.
-    static func keptItem(_ card: MemoryCardToCheck, face: MemoryCard, sourceText: String?, at now: Date) throws -> MemoryItem {
+    ///
+    /// The card is anchored on every source it stands on, its own first (`alsoFrom`, each printed by its own
+    /// source's text in `linkTexts`): another device keeping the same card must write the same anchors, or
+    /// the two items disagree on the card's curriculum, so a linked source whose text is not on the phone
+    /// refuses the keep rather than leaving its anchor off.
+    static func keptItem(
+        _ card: MemoryCardToCheck,
+        face: MemoryCard,
+        sourceText: String?,
+        alsoFrom: [CardSourceLink]? = nil,
+        linkTexts: [String: String] = [:],
+        at now: Date
+    ) throws -> MemoryItem {
         guard let quote = card.quote?.trimmingCharacters(in: .whitespacesAndNewlines), !quote.isEmpty else { throw Refusal.noQuote }
-        let anchor = try anchor(sourceID: card.sourceID, excerpt: quote, sourceText: sourceText)
+        var anchors = [try anchor(sourceID: card.sourceID, excerpt: quote, sourceText: sourceText)]
+        for link in CardSourceLink.normalized(alsoFrom ?? card.alsoFrom, excluding: CardSourceLink(sourceID: card.sourceID, quote: quote)) {
+            anchors.append(try anchor(sourceID: link.sourceID, excerpt: link.quote, sourceText: linkTexts[link.sourceID]))
+        }
         do {
-            return try face.memoryItem(id: card.cardID, anchors: [anchor], goalID: nil, ideaID: card.ideaID, at: now)
+            return try face.memoryItem(id: card.cardID, anchors: anchors, goalID: nil, ideaID: card.ideaID, at: now)
         } catch {
             throw Refusal.noFace
         }

@@ -207,6 +207,49 @@ extension AIService {
         }
     }
 
+    /// The response budget of one source-linking call: a pick and its quote
+    /// for each of `CardSourceLinking.cardsPerCall` cards.
+    static let cardSourceLinkingMaxTokens = 3_000
+
+    /// Which candidate passages state each card (`Prompts.cardSourceLinking`),
+    /// on the Card Drafting route: a card's other sources are part of drafting
+    /// it. Never answered from the response cache, and sent exactly as built.
+    func linkCardSources(
+        user: String,
+        source: AIUsageSource,
+        config: AITaskConfig
+    ) async throws -> [CardSourceLinkingVerdict] {
+        let system = Prompts.cardSourceLinking
+        let routed = KeychainService.routedTextConfig(config)
+        let budgeted = Self.budgetedOneShotRequest(
+            provider: routed.provider,
+            model: routed.model,
+            system: system,
+            user: user,
+            requestedMaxTokens: Self.cardSourceLinkingMaxTokens
+        )
+        guard budgeted.system == system, budgeted.user == user else {
+            throw CardDraftingError.wouldBeCut(model: routed.model, title: source.title)
+        }
+        let response = try await AIUsageAttribution.withSource(source, activityID: AIUsageAttribution.activityID ?? UUID().uuidString) {
+            try await call(
+                config: config,
+                system: system,
+                user: user,
+                maxTokens: Self.cardSourceLinkingMaxTokens,
+                temperature: 0,
+                allowsResponseCache: false,
+                jsonMode: true
+            )
+        }
+        do {
+            let answer: CardSourceLinkingAnswer = try MemoryReviewPlanning.decodeJSON(response)
+            return answer.cards
+        } catch {
+            throw AIError.invalidResponse
+        }
+    }
+
     /// Three rewordings of each of a source's cards (`Prompts.cardVariation`).
     func rewordCards(user: String, source: AIUsageSource, config: AITaskConfig) async throws -> [CardVariationModelCard] {
         struct Answer: Decodable { let cards: [CardVariationModelCard] }

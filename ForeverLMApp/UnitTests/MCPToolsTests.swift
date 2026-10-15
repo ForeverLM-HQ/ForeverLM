@@ -6140,6 +6140,120 @@ struct MCPDataStoreTests {
 
     /// A card kept on `source-cards` `daysAgo` days ago, its state in the
     /// source's deck.
+    private static let secondCardSourceText = "Testing yourself beats rereading: retrieval practice strengthens memory, and spreading the practice over days helps further."
+
+    @Test("A card stands on several sources: save_card_drafts takes also_from, list_cards shows every source, triage_cards chooses them at Keep, and a link its source does not print is left off")
+    func cardsStandOnSeveralSources() async throws {
+        let (store, dbPath, _, cleanup) = try makeCardStore()
+        defer { cleanup() }
+        try insertSource(dbPath: dbPath, id: "source-cards", title: "Retrieval practice", content: Self.cardSourceText)
+        try insertSource(dbPath: dbPath, id: "source-second", title: "Testing yourself", content: Self.secondCardSourceText)
+
+        let saved = try parseJSON(try await store.saveCardDrafts(cards: [
+            [
+                "source_id": "source-cards",
+                "front": "What strengthens later access more than rereading?",
+                "back": "Retrieval practice.",
+                "quote": "Retrieval practice strengthens later access",
+                "also_from": [
+                    ["source_id": "source-second", "quote": "retrieval practice strengthens memory"],
+                    ["source_id": "source-second", "quote": "a sentence the second source never prints"],
+                ],
+            ],
+            [
+                "source_id": "source-cards",
+                "front": "What does spacing the practice do?",
+                "back": "It helps.",
+                "quote": "Spacing the practice helps too",
+                "also_from": [["source_id": "source-second", "quote": "spreading the practice over days helps further"]],
+            ],
+        ], keptByDefault: false))
+        #expect(saved["saved_count"] as? Int == 2)
+        let entry = try #require((saved["sources"] as? [[String: Any]])?.first)
+        let missed = try #require(entry["not_grounded_links"] as? [[String: Any]])
+        #expect(missed.count == 1)
+        #expect(missed.first?["source_id"] as? String == "source-second")
+
+        // An unknown source in also_from refuses the whole call, before anything is written.
+        do {
+            _ = try await store.saveCardDrafts(cards: [
+                ["source_id": "source-cards", "front": "Another?", "back": "Yes.", "quote": "Spacing the practice helps too",
+                 "also_from": [["source_id": "no-such-source", "quote": "x"]]],
+            ], keptByDefault: false)
+            Issue.record("An unknown also_from source was accepted")
+        } catch let error as MCPError {
+            #expect(error.localizedDescription.contains("no-such-source"))
+        }
+
+        let listed = try parseJSON(try await store.listCards(status: nil, notebookID: nil, sourceID: "source-second", limit: nil))
+        let cards = try #require(listed["to_check"] as? [[String: Any]])
+        #expect(cards.count == 2, "a card stands on each of its sources, so the second source's filter finds both")
+        let first = try #require(cards.first { ($0["front"] as? String)?.hasPrefix("What strengthens") == true })
+        let sources = try #require(first["sources"] as? [[String: Any]])
+        #expect(sources.compactMap { $0["source_id"] as? String } == ["source-cards", "source-second"])
+        #expect(sources.last?["source_title"] as? String == "Testing yourself")
+
+        // Keep as drafted: anchored on both. Keep the other with also_from [] : on its own source alone.
+        let secondID = try #require(cards.first { ($0["front"] as? String)?.hasPrefix("What does spacing") == true }?["card_id"] as? String)
+        let firstID = try #require(first["card_id"] as? String)
+        let kept = try parseJSON(try await store.triageCards(decisions: [
+            ["card_id": firstID, "action": "keep"],
+            ["card_id": secondID, "action": "keep", "also_from": [] as [[String: Any]]],
+        ], keepSourceIDs: [], skipSourceIDs: []))
+        #expect((kept["kept"] as? [[String: Any]])?.count == 2)
+
+        let keptList = try parseJSON(try await store.listCards(status: "kept", notebookID: nil, sourceID: nil, limit: nil))
+        let keptCards = try #require(keptList["kept"] as? [[String: Any]])
+        let byFront = Dictionary(uniqueKeysWithValues: keptCards.compactMap { card in (card["front"] as? String).map { ($0, card) } })
+        let both = try #require(byFront["What strengthens later access more than rereading?"]?["sources"] as? [[String: Any]])
+        #expect(both.compactMap { $0["source_id"] as? String } == ["source-cards", "source-second"])
+        #expect(both.last?["quote"] as? String == "retrieval practice strengthens memory")
+        let alone = try #require(byFront["What does spacing the practice do?"]?["sources"] as? [[String: Any]])
+        #expect(alone.compactMap { $0["source_id"] as? String } == ["source-cards"])
+    }
+
+    @Test("find_card_sources is read-only, takes a card or a question and an answer, and refuses an unknown card")
+    func findCardSourcesTool() async throws {
+        let registry = MCPToolRegistry(store: MCPDataStore())
+        let tool = try #require(registry.tools.first { $0.name == "find_card_sources" })
+        #expect(tool.inputSchema["anyOf"] == nil && tool.inputSchema["oneOf"] == nil)
+        #expect(MCPToolRegistry.annotations(for: "find_card_sources")["readOnlyHint"] as? Bool == true)
+        #expect(!MCPToolRegistry.paidWorkToolNames.contains("find_card_sources"))
+        #expect(ReviewSessionManager.studySurfaceToolNames.contains("find_card_sources"))
+
+        let (_, dbPath, defaults, cleanup) = try makeCardStore()
+        defer { cleanup() }
+        // No embedding model: the search runs on text alone.
+        let store = MCPDataStore(dbPath: dbPath, sourceEmbeddingProvider: { _ in throw MCPError.invalidInput("no embedding model") }, cardStateDefaults: defaults)
+        try insertSource(dbPath: dbPath, id: "source-cards", title: "Retrieval practice", content: Self.cardSourceText)
+        try insertSource(dbPath: dbPath, id: "source-second", title: "Testing yourself", content: Self.secondCardSourceText)
+
+        let found = try parseJSON(try await store.findCardSources(
+            cardID: nil,
+            question: "What strengthens memory more than rereading?",
+            answer: "Retrieval practice strengthens memory.",
+            sourceIDs: ["source-second"],
+            notebookID: nil
+        ))
+        #expect(found["question"] as? String == "What strengthens memory more than rereading?")
+        let candidates = try #require(found["candidates"] as? [[String: Any]])
+        #expect(candidates.allSatisfy { $0["source_id"] as? String == "source-second" })
+        #expect(found["guidance"] != nil)
+
+        do {
+            _ = try await store.findCardSources(cardID: "no-such-card", question: nil, answer: nil, sourceIDs: [], notebookID: nil)
+            Issue.record("An unknown card was accepted")
+        } catch let error as MCPError {
+            #expect(error.localizedDescription.contains("no-such-card"))
+        }
+        do {
+            _ = try await store.findCardSources(cardID: nil, question: "Only a question?", answer: nil, sourceIDs: [], notebookID: nil)
+            Issue.record("A question without an answer was accepted")
+        } catch let error as MCPError {
+            #expect(error.localizedDescription.contains("card_id"))
+        }
+    }
+
     private func keepCard(
         _ store: MCPDataStore,
         front: String,

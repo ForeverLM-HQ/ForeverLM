@@ -171,7 +171,10 @@ extension KnowledgeStore {
     // MARK: Keep
 
     /// Keeps a drafted card: makes its Memory item, once, anchored on `quote`,
-    /// which the source's text must print. The item's id is the card's
+    /// which the source's text must print, and on each passage of `alsoFrom`,
+    /// which its own source's text must print too: a card that stands on
+    /// several sources is anchored on all of them, the card's own source
+    /// first. A passage of the card's own source is no second anchor. The item's id is the card's
     /// (`MemoryTutorIdentity.cardItemID`; under generation 2 the draft's Card
     /// id itself, so the Card the draft was is the card kept, and it says
     /// `kept` at once), so keeping it again — a second click, the other Mac —
@@ -196,6 +199,7 @@ extension KnowledgeStore {
         _ card: MemoryCard,
         sourceID: String,
         quote: String,
+        alsoFrom: [CardSourceLink] = [],
         ideaID: String? = nil,
         at now: Date = Date()
     ) throws -> MemoryItem {
@@ -211,9 +215,13 @@ extension KnowledgeStore {
             throw KnowledgeStoreError.invalidData("Card \(card.cardID) is retired, so it is not kept again.")
         }
         let anchor = try validatedMemorySourceAnchor(sourceID: sourceID, excerpt: quote)
+        var anchors = [anchor]
+        for link in CardSourceLink.normalized(alsoFrom, excluding: CardSourceLink(sourceID: sourceID, quote: quote)) {
+            anchors.append(try validatedMemorySourceAnchor(sourceID: link.sourceID, excerpt: link.quote))
+        }
         let item: MemoryItem
         do {
-            item = try card.memoryItem(id: itemID, anchors: [anchor], goalID: nil, ideaID: ideaID, at: now)
+            item = try card.memoryItem(id: itemID, anchors: anchors, goalID: nil, ideaID: ideaID, at: now)
         } catch let error as MemoryCardError {
             throw KnowledgeStoreError.invalidData(error.localizedDescription)
         }

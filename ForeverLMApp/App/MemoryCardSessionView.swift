@@ -377,9 +377,15 @@ struct MemoryCardSessionView: View {
                 MemoryCardWhyLine(why: card.why)
                     .padding(.top, 14)
             }
-            if let sourceID = card.sourceID {
-                sourceLink(sourceID: sourceID, quote: card.quote)
-                    .padding(.top, 22)
+            // Every source the card stands on, its own first.
+            let sources = (card.sourceID.map { [($0, card.quote)] } ?? []) + card.alsoFrom.map { ($0.sourceID, Optional($0.quote)) }
+            if !sources.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(Array(sources.enumerated()), id: \.offset) { _, source in
+                        sourceLink(sourceID: source.0, quote: source.1)
+                    }
+                }
+                .padding(.top, 22)
             }
         }
     }

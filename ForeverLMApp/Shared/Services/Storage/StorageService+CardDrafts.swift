@@ -30,6 +30,10 @@ struct MemoryCardDraftsSaved: Equatable, Sendable {
     /// Drafts the deck's Markdown would not give back whole: not saved rather
     /// than saved changed.
     var unreadable: [Flashcard] = []
+    /// Passages of other sources a draft named that those sources' texts do not
+    /// print (or whose source the library does not hold): the draft is saved
+    /// without that link, and the caller is told which.
+    var ungroundedLinks: [UngroundedLink] = []
     /// The id a saved draft was given by the caller, by the id it was saved
     /// under, where they differ: under generation 2 a seeded draft is saved as
     /// its source's Card for that seed (`card:<deckSourceID>:<seedKey>`).
@@ -37,6 +41,84 @@ struct MemoryCardDraftsSaved: Equatable, Sendable {
 
     /// The id the caller gave `card`.
     func givenID(of card: Flashcard) -> String { givenIDs[card.id] ?? card.id }
+
+    /// A link a draft named and its source does not support.
+    struct UngroundedLink: Equatable, Sendable {
+        let front: String
+        let link: CardSourceLink
+        let reason: String
+    }
+}
+
+/// The other sources' passages the drafts of one deck name, checked against
+/// each source's own text once per source: a link stands only on a passage its
+/// source prints, as the card's own quote does. A team's copy of a source is
+/// linked at the learner's own source at the same address, as `saveCardDrafts`
+/// does for the deck's.
+private struct CardDraftLinkSources {
+    let deckSourceID: String
+    private var grounding: [String: MemoryGroundingText?] = [:]
+    /// The text hash of every source a kept link names (`sha256` of its text),
+    /// which the draft Card's anchor records.
+    private(set) var hashes: [String: String] = [:]
+    private var resolved: [String: String?] = [:]
+
+    init(deckSourceID: String) {
+        self.deckSourceID = deckSourceID
+    }
+
+    /// `links` less those the library or their source's text does not support,
+    /// each at its own source's id; the others go into `result`.
+    mutating func grounded(
+        _ links: [CardSourceLink],
+        for card: Flashcard,
+        store: KnowledgeStore,
+        into result: inout MemoryCardDraftsSaved
+    ) -> [CardSourceLink] {
+        var kept: [CardSourceLink] = []
+        for link in links {
+            guard let ownID = ownSourceID(link.sourceID, store: store) else {
+                result.ungroundedLinks.append(.init(front: card.front, link: link, reason: "The library holds no source \(link.sourceID)."))
+                continue
+            }
+            guard let text = text(of: ownID, store: store) else {
+                result.ungroundedLinks.append(.init(front: card.front, link: link, reason: "Source \(link.sourceID) has no text yet, so no card can stand on a passage of it."))
+                continue
+            }
+            guard text.contains(link.quote) else {
+                result.ungroundedLinks.append(.init(front: card.front, link: link, reason: "Source \(link.sourceID)'s text does not print this quote."))
+                continue
+            }
+            kept.append(CardSourceLink(sourceID: ownID, quote: link.quote))
+        }
+        return CardSourceLink.normalized(
+            kept,
+            excluding: card.quote.map { CardSourceLink(sourceID: deckSourceID, quote: $0) }
+        )
+    }
+
+    private mutating func ownSourceID(_ id: String, store: KnowledgeStore) -> String? {
+        if let known = resolved[id] { return known }
+        var own: String?
+        if let source = try? store.loadSourceWithoutContent(id), source.status == .active {
+            own = source.id
+            if source.teamID != nil, let mine = store.activeSourceID(matchingAddress: source.url, teamID: nil) { own = mine }
+        }
+        resolved[id] = own
+        return own
+    }
+
+    private mutating func text(of id: String, store: KnowledgeStore) -> MemoryGroundingText? {
+        if let known = grounding[id] { return known }
+        var loaded: MemoryGroundingText?
+        if let content = try? store.loadSourceContent(id),
+           !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            loaded = MemoryGroundingText(content)
+            hashes[id] = PaperContentPreparationService.sha256(content)
+        }
+        grounding[id] = loaded
+        return loaded
+    }
 }
 
 extension StorageService {
@@ -88,6 +170,7 @@ extension StorageService {
             throw KnowledgeStoreError.invalidData("Source \(sourceID) has no text yet, so no card can stand on a passage of it.")
         }
         let grounding = MemoryGroundingText(content)
+        var linkSources = CardDraftLinkSources(deckSourceID: sourceID)
         var grounded: [Flashcard] = []
         for draft in drafts {
             var card = draft
@@ -98,10 +181,14 @@ extension StorageService {
                 result.ungrounded.append(card)
                 continue
             }
+            card.alsoFrom = linkSources.grounded(card.alsoFrom, for: card, store: store, into: &result)
             grounded.append(card)
         }
         if try store.recordsMemoryForGeneration2() {
-            try saveCardDraftRecords(grounded, sourceID: sourceID, content: content, into: &result, store: store, now: now)
+            try saveCardDraftRecords(
+                grounded, sourceID: sourceID, content: content, linkHashes: linkSources.hashes,
+                into: &result, store: store, now: now
+            )
             return result
         }
 
@@ -162,6 +249,7 @@ extension StorageService {
         _ grounded: [Flashcard],
         sourceID: String,
         content: String,
+        linkHashes: [String: String],
         into result: inout MemoryCardDraftsSaved,
         store: KnowledgeStore,
         now: Date
@@ -185,7 +273,8 @@ extension StorageService {
             named.append(Flashcard(
                 id: id, front: card.front, back: card.back, why: card.why, sourceID: card.sourceID, sourceTitle: card.sourceTitle,
                 quote: card.quote, difficulty: card.difficulty, seed: card.seed, ideaID: card.ideaID, draftedAt: card.draftedAt,
-                origin: card.origin, isRequested: card.isRequested, frontImages: card.frontImages, backImages: card.backImages
+                origin: card.origin, isRequested: card.isRequested, frontImages: card.frontImages, backImages: card.backImages,
+                alsoFrom: card.alsoFrom
             ))
         }
         let appended = FlashcardDeck(title: deck.title, cards: deck.cards.filter { !lapsed.contains($0.id) }).appending(named)
@@ -194,7 +283,9 @@ extension StorageService {
         result.unreadable = appended.unreadable
         result.givenIDs = givenIDs.filter { id, _ in appended.added.contains { $0.id == id } }
         guard !appended.added.isEmpty else { return }
-        try store.saveCardDraftRecords(appended.added, deckSourceID: sourceID, textHash: PaperContentPreparationService.sha256(content))
+        try store.saveCardDraftRecords(
+            appended.added, deckSourceID: sourceID, textHash: PaperContentPreparationService.sha256(content), linkHashes: linkHashes
+        )
         scheduleSoonCloudKitSyncForCardDrafts()
         MemoryCardStateStore.reload()
     }
@@ -426,11 +517,14 @@ enum MemoryCardTriageWriter {
                     fail(card, "This card quotes no passage of its source, so it cannot be kept.")
                     continue
                 }
+                var alsoFrom = card.alsoFrom
+                if case .keepEdited(let edit) = decision.action, let chosen = edit.alsoFrom { alsoFrom = chosen }
                 do {
                     let item = try await storage.keepMemoryCard(
                         face,
                         sourceID: card.sourceID,
                         quote: quote,
+                        alsoFrom: alsoFrom,
                         ideaID: card.ideaID,
                         at: now
                     )

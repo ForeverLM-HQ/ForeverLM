@@ -186,6 +186,23 @@ final class MCPToolRegistry: @unchecked Sendable {
         ]
     }
 
+    /// A card's other sources: `{source_id, quote}` each, for `also_from`.
+    static func cardAlsoFromInputSchema(description: String) -> [String: Any] {
+        [
+            "type": "array",
+            "maxItems": MemoryCard.maximumLinkedSources,
+            "description": description,
+            "items": [
+                "type": "object",
+                "properties": [
+                    "source_id": ["type": "string", "description": "Another source the card also stands on, from list_sources, a search or find_card_sources."],
+                    "quote": ["type": "string", "description": "The passage of that source that states what the card asks, copied word for word from its text (get_source_content)."],
+                ],
+                "required": ["source_id", "quote"],
+            ] as [String: Any],
+        ]
+    }
+
     // MARK: - Tool List
 
     var tools: [MCPToolDef] {
@@ -2961,7 +2978,7 @@ final class MCPToolRegistry: @unchecked Sendable {
             Self.draftCardsToolDef,
             MCPToolDef(
                 name: "save_card_drafts",
-                description: "Save flashcards you drafted from the learner's sources as cards for them to check in ForeverLM: they wait in Memory's To Check (a notebook's Studio shows its count on its Cards row) until the learner keeps, edits or skips each one, and only a kept card is ever reviewed. Each card names its source_id, as list_sources or a search returns it (an id the library does not hold refuses the whole call), and a quote: words copied exactly from that source's text (get_source_content), the passage the card stands on. A card whose quote the source does not print is not saved and is listed under not_grounded. Write front as the question to ask, back as the complete answer and no more, and why as one line on why the back is right. A card stands on its own: it is asked weeks later among cards from every source, so neither face may point at its source unnamed (\u{201C}this lecture\u{201D}, \u{201C}the paper\u{201D}, \u{201C}the speaker\u{201D}, \u{201C}the authors\u{201D}); ask about the subject itself, or name the source. Every card is checked for that before it is saved (a small background model call on the learner's Card Wording Check model): one that points at its source is reworded once and listed under reworded, or, when the rewording does not fix it, not saved and listed under not_standalone; when the check cannot run, the source's cards are not saved and sources_not_saved says why. Images are the default: when a relevant slide, paper figure, diagram or other durable ForeverLM picture materially supports recall, include it in front_images or back_images; omit imagery only when no useful picture is available. Each face takes up to four pictures; pass the exact Markdown image line returned by show_source_image, inspect_paper_figure or generate_image, or {target, alt}. Multiple images share a row in review. Local paths, web URLs, chat attachments and made-up image ids are refused. seed is optional: a short, stable key for what the card was drafted from (a walkthrough step, a highlight, a review-guide question), so the same seed is never drafted twice. A card whose seed or front its source's cards already hold is not saved again (already_drafted), whether it was kept or skipped. Pass kept_by_default true when the learner asked you for these cards; leave it false for cards you drafted unasked. Either way the learner keeps, edits or skips each one. A draft not gone through within 14 days stops being offered. Cards stay the learner's own: they never enter a team, whatever notebook they were made for. Returns each source's saved_card_ids and what was not saved, with why.",
+                description: "Save flashcards you drafted from the learner's sources as cards for them to check in ForeverLM: they wait in Memory's To Check (a notebook's Studio shows its count on its Cards row) until the learner keeps, edits or skips each one, and only a kept card is ever reviewed. Each card names its source_id, as list_sources or a search returns it (an id the library does not hold refuses the whole call), and a quote: words copied exactly from that source's text (get_source_content), the passage the card stands on. A card whose quote the source does not print is not saved and is listed under not_grounded. A card is about an idea, and an idea is often printed in more than one source: when other sources of the library state what the card asks, name each in also_from with its own quote (at most 5; find_card_sources finds them), and the card stands on all of them, its source chips in To Check and in review showing each. A link whose source's text does not print its quote is left off, the card still saved, and listed under not_grounded_links. Write front as the question to ask, back as the complete answer and no more, and why as one line on why the back is right. A card stands on its own: it is asked weeks later among cards from every source, so neither face may point at its source unnamed (\u{201C}this lecture\u{201D}, \u{201C}the paper\u{201D}, \u{201C}the speaker\u{201D}, \u{201C}the authors\u{201D}); ask about the subject itself, or name the source. Every card is checked for that before it is saved (a small background model call on the learner's Card Wording Check model): one that points at its source is reworded once and listed under reworded, or, when the rewording does not fix it, not saved and listed under not_standalone; when the check cannot run, the source's cards are not saved and sources_not_saved says why. Images are the default: when a relevant slide, paper figure, diagram or other durable ForeverLM picture materially supports recall, include it in front_images or back_images; omit imagery only when no useful picture is available. Each face takes up to four pictures; pass the exact Markdown image line returned by show_source_image, inspect_paper_figure or generate_image, or {target, alt}. Multiple images share a row in review. Local paths, web URLs, chat attachments and made-up image ids are refused. seed is optional: a short, stable key for what the card was drafted from (a walkthrough step, a highlight, a review-guide question), so the same seed is never drafted twice. A card whose seed or front its source's cards already hold is not saved again (already_drafted), whether it was kept or skipped. Pass kept_by_default true when the learner asked you for these cards; leave it false for cards you drafted unasked. Either way the learner keeps, edits or skips each one. A draft not gone through within 14 days stops being offered. Cards stay the learner's own: they never enter a team, whatever notebook they were made for. Returns each source's saved_card_ids and what was not saved, with why.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -2976,6 +2993,7 @@ final class MCPToolRegistry: @unchecked Sendable {
                                     "back": ["type": "string", "description": "The complete answer, and no more."],
                                     "why": ["type": "string", "description": "One line on why the back is right."],
                                     "quote": ["type": "string", "description": "The passage of the source the card stands on, copied word for word from its text."],
+                                    "also_from": Self.cardAlsoFromInputSchema(description: "The other sources the card also stands on, when they state what it asks: each with the passage that does, copied word for word from its text."),
                                     "difficulty": ["type": "string", "enum": ["easy", "medium", "hard"], "description": "How hard the card is to answer."],
                                     "seed": ["type": "string", "description": "A short, stable key for what the card was drafted from, so it is never drafted twice."],
                                     "front_images": Self.cardImagesInputSchema(description: "Pictures shown with the question before reveal. Include a relevant durable image by default when it materially supports recall."),
@@ -2991,7 +3009,7 @@ final class MCPToolRegistry: @unchecked Sendable {
             ),
             MCPToolDef(
                 name: "list_cards",
-                description: "List the learner's Memory cards in ForeverLM. status to_check (the default) lists the cards waiting in Memory's To Check: drafts not yet kept or skipped (kind draft, offered until expires_at, 14 days after drafting) and the Memory items from before cards, offered once (kind from_before, kept already), each with card_id, source_id, source_title, front, back, why, optional front_images/back_images, quote, origin and kept_by_default. status kept lists the kept cards, each with card_id, item_id, ask (the wording to ask: the learner's own rewording when there is one), back, why, optional images, source_ids and where its schedule stands (new, due, or scheduled with next_due_at). status all lists both. notebook_id narrows to one Notebook's cards (those on its sources) and source_id to one source's. With to_check or all, drafting says what Make Cards and draft_cards drafted lately for those sources: each run's state and, once done, the card ids it added, the cards it did not find in their source (not_grounded) and the sources it read as excerpts (sampled). Reads only: keep or skip cards with triage_cards.",
+                description: "List the learner's Memory cards in ForeverLM. status to_check (the default) lists the cards waiting in Memory's To Check: drafts not yet kept or skipped (kind draft, offered until expires_at, 14 days after drafting) and the Memory items from before cards, offered once (kind from_before, kept already), each with card_id, source_id, source_title, front, back, why, optional front_images/back_images, quote, origin and kept_by_default; sources lists every source the card stands on, its own first, each with source_id, source_title and the quote it stands on there (a card often stands on several). status kept lists the kept cards, each with card_id, item_id, ask (the wording to ask: the learner's own rewording when there is one), back, why, optional images, source_ids, sources (each with its quote) and where its schedule stands (new, due, or scheduled with next_due_at). status all lists both. notebook_id narrows to one Notebook's cards (those on its sources) and source_id to the cards that stand on that source, whichever it is of theirs. With to_check or all, drafting says what Make Cards and draft_cards drafted lately for those sources: each run's state and, once done, the card ids it added, the cards it did not find in their source (not_grounded) and the sources it read as excerpts (sampled). Reads only: keep or skip cards with triage_cards.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -3004,8 +3022,27 @@ final class MCPToolRegistry: @unchecked Sendable {
                 ]
             ),
             MCPToolDef(
+                name: "find_card_sources",
+                description: "Find the other sources of the learner's library that also state what a card asks, so the card can stand on every source that prints it. A card is about an idea, and an idea is often printed in several sources (a talk and the paper behind it, two lectures on one mechanism); a card that stands on several sources shows each in To Check and in review. Pass card_id (a card to check or a kept card, from list_cards), or a question and an answer you are about to save with save_card_drafts. Returns the passages of other sources nearest the card, up to 4, each with source_id, source_title and passage: they are retrieved, not judged, so read each and keep only those that state the card's answer in substance, not merely its topic, then name them in also_from (source_id and a quote copied word for word from its passage) in save_card_drafts, or in triage_cards when the learner keeps the card. source_ids or notebook_id narrow the search to those sources or to one Notebook's; sources the card already stands on, and sources kept from AI, are never listed. Reads only; free apart from the embedding of the card's words.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "card_id": ["type": "string", "description": "A card_id from list_cards (status to_check or kept)."],
+                        "question": ["type": "string", "description": "With answer, instead of card_id: the question of a card you are about to save."],
+                        "answer": ["type": "string", "description": "With question: its answer."],
+                        "source_ids": [
+                            "type": "array",
+                            "items": ["type": "string"],
+                            "description": "Look only among these sources, as list_sources or a search returns them.",
+                        ],
+                        "notebook_id": ["type": "string", "description": "Look only among this Notebook's sources (list_notebooks)."],
+                    ],
+                    "required": [] as [String],
+                ]
+            ),
+            MCPToolDef(
                 name: "triage_cards",
-                description: "Go through the learner's cards to check, as Memory's To Check does, and only on the learner's word: each decision is theirs. action keep makes a card a Memory card, first asked the day after it is kept; keep with front, back, why, front_images or back_images keeps it with those changes (Edit, then Keep). Image arrays replace that face's pictures and [] removes them. For a card from before cards (kind from_before), which is kept already, a new front alone rewords it, and a new back, why or image list starts it over as a new card. action skip drops a draft for good, so its seed is never drafted again, and retires a card from before cards, never asked again. decisions name cards by the card_id list_cards returned; keep_source_ids and skip_source_ids keep or skip every card to check on those sources at once. Returns what was kept (with item_id), skipped, refused (with why) and not found (decided already, expired, or not a card to check), and how many cards still wait.",
+                description: "Go through the learner's cards to check, as Memory's To Check does, and only on the learner's word: each decision is theirs. action keep makes a card a Memory card, first asked the day after it is kept; keep with front, back, why, front_images or back_images keeps it with those changes (Edit, then Keep). Image arrays replace that face's pictures and [] removes them. also_from (draft cards only) chooses the other sources the card is kept on, replacing the ones it was drafted with: [] keeps it on its own source alone, and a list keeps it on each source named with its quote, copied word for word from that source's text (a source whose text does not print its quote refuses the keep). A kept card stands on those sources for good; changing them later means starting the card over. For a card from before cards (kind from_before), which is kept already, a new front alone rewords it, and a new back, why or image list starts it over as a new card. action skip drops a draft for good, so its seed is never drafted again, and retires a card from before cards, never asked again. decisions name cards by the card_id list_cards returned; keep_source_ids and skip_source_ids keep or skip every card to check on those sources at once. Returns what was kept (with item_id), skipped, refused (with why) and not found (decided already, expired, or not a card to check), and how many cards still wait.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -3022,6 +3059,7 @@ final class MCPToolRegistry: @unchecked Sendable {
                                     "why": ["type": "string", "description": "With keep: why the answer is right, in the learner's words."],
                                     "front_images": Self.cardImagesInputSchema(description: "With keep: pictures shown with the question; pass [] to remove them."),
                                     "back_images": Self.cardImagesInputSchema(description: "With keep: pictures shown with the answer; pass [] to remove them."),
+                                    "also_from": Self.cardAlsoFromInputSchema(description: "With keep, on a draft: the other sources to keep the card on, replacing those it was drafted with; [] keeps it on its own source alone."),
                                 ],
                                 "required": ["card_id", "action"],
                             ],
@@ -3042,7 +3080,7 @@ final class MCPToolRegistry: @unchecked Sendable {
             ),
             MCPToolDef(
                 name: "get_due_cards",
-                description: "Today's card review in ForeverLM, for you to run here: the learner's kept cards to ask today, in the order the app's own card review asks them (the cards of a notebook with a block on today's calendar or a Goal ending within 36 hours first, then due cards most overdue first, then up to the day's new cards, new_cards_per_day), cut to the learner's daily minutes, across every Notebook or narrowed to one with notebook_id. Each card has item_id, card_id, ask (the wording to ask exactly as written: the card's question, the learner's own rewording, or, once it has been remembered twice, a rewording ForeverLM checked asks for the same answer), back, why, optional front_images/back_images, source_id, source_title, quote, is_new, and say_first when it is asked in other words for the first time. Show front_images with the question; ask one card at a time and show nothing of its back, back_images, why or quote before the learner has answered it in their own words, typed or said: never a bare \u{201C}show me\u{201D}, never an answer you supply for them (an \u{201C}I don't know\u{201D} is an answer, and counts as forgot). Then show back_images beside the answer and record each answer with record_card_result and the sitting_id returned here. due_left_over and new_left_over count what the day's minutes leave for another day. Reads only: a card listed is not marked asked.",
+                description: "Today's card review in ForeverLM, for you to run here: the learner's kept cards to ask today, in the order the app's own card review asks them (the cards of a notebook with a block on today's calendar or a Goal ending within 36 hours first, then due cards most overdue first, then up to the day's new cards, new_cards_per_day), cut to the learner's daily minutes, across every Notebook or narrowed to one with notebook_id. Each card has item_id, card_id, ask (the wording to ask exactly as written: the card's question, the learner's own rewording, or, once it has been remembered twice, a rewording ForeverLM checked asks for the same answer), back, why, optional front_images/back_images, source_id, source_title, quote, sources (every source the card stands on, each with its quote), is_new, and say_first when it is asked in other words for the first time. Show front_images with the question; ask one card at a time and show nothing of its back, back_images, why or quote before the learner has answered it in their own words, typed or said: never a bare \u{201C}show me\u{201D}, never an answer you supply for them (an \u{201C}I don't know\u{201D} is an answer, and counts as forgot). Then show back_images beside the answer and record each answer with record_card_result and the sitting_id returned here. due_left_over and new_left_over count what the day's minutes leave for another day. Reads only: a card listed is not marked asked.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -5105,6 +5143,7 @@ final class MCPToolRegistry: @unchecked Sendable {
         "get_source_settings",
         "get_memory_review_settings",
         "list_cards",
+        "find_card_sources",
         "list_practices",
         // Today's cards with the wording to ask: nothing is marked asked.
         "get_due_cards",
@@ -6663,6 +6702,14 @@ final class MCPToolRegistry: @unchecked Sendable {
                     notebookID: arguments["notebook_id"] as? String,
                     sourceID: arguments["source_id"] as? String,
                     limit: try MCPDataStore.intArgument(arguments, "limit")
+                )
+            case "find_card_sources":
+                return try await store.findCardSources(
+                    cardID: arguments["card_id"] as? String,
+                    question: arguments["question"] as? String,
+                    answer: arguments["answer"] as? String,
+                    sourceIDs: arguments["source_ids"] as? [String] ?? [],
+                    notebookID: arguments["notebook_id"] as? String
                 )
             case "triage_cards":
                 return try await store.triageCards(

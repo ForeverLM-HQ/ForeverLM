@@ -398,6 +398,9 @@ struct MemoryCardSitting: Equatable, Sendable {
         /// The passage the card quotes, which the Reader beside the review
         /// scrolls to.
         let quote: String?
+        /// The other passages the card stands on, beside `quote` in `sourceID`
+        /// (a kept card's later anchors): each is a source chip of its own.
+        let alsoFrom: [CardSourceLink]
         let isNew: Bool
         /// A card to check that a notebook's Practice deals: not kept yet,
         /// and asked under the item Keep would make of it
@@ -428,6 +431,7 @@ struct MemoryCardSitting: Equatable, Sendable {
             isFromBeforeCards: Bool = false,
             sourceID: String? = nil,
             quote: String? = nil,
+            alsoFrom: [CardSourceLink] = [],
             isNew: Bool = false,
             draft: MemoryCardToCheck? = nil
         ) {
@@ -449,7 +453,15 @@ struct MemoryCardSitting: Equatable, Sendable {
             self.isFromBeforeCards = isFromBeforeCards
             self.sourceID = sourceID
             self.quote = quote
+            self.alsoFrom = alsoFrom
             self.isNew = isNew
+        }
+
+        /// Every passage the card stands on, its own source's first.
+        var links: [CardSourceLink] {
+            guard let sourceID else { return alsoFrom }
+            let own = quote.map { [CardSourceLink(sourceID: sourceID, quote: $0)] } ?? []
+            return own + alsoFrom
         }
 
         /// The card asked in its own words again: after "This asks something
@@ -488,6 +500,7 @@ struct MemoryCardSitting: Equatable, Sendable {
                 backImages: card.face.backImages,
                 sourceID: card.sourceID,
                 quote: card.quote,
+                alsoFrom: card.alsoFrom,
                 draft: card
             )
         }
@@ -495,7 +508,7 @@ struct MemoryCardSitting: Equatable, Sendable {
         /// The draft kept in the learner's words (Edit, then Keep) as
         /// `itemID`: a new kept card in `face`'s words, its answer still to
         /// give.
-        func keptEdited(_ face: MemoryCard, as itemID: String) -> Card {
+        func keptEdited(_ face: MemoryCard, as itemID: String, alsoFrom chosen: [CardSourceLink]? = nil) -> Card {
             Card(
                 itemID: itemID,
                 prompt: face.front,
@@ -508,6 +521,7 @@ struct MemoryCardSitting: Equatable, Sendable {
                 backImages: face.backImages,
                 sourceID: sourceID,
                 quote: quote,
+                alsoFrom: chosen ?? alsoFrom,
                 isNew: true
             )
         }
@@ -523,10 +537,11 @@ struct MemoryCardSitting: Equatable, Sendable {
             guard let face = MemoryCard.face(of: entry.item, attempts: attempts) else { return nil }
             let row = state(face)
             let asked = MemoryCardWording.asked(card: face, state: row, attempts: attempts)
-            let anchor = entry.item.sources.min {
+            let anchors = entry.item.sources.sorted {
                 if $0.sortIndex != $1.sortIndex { return $0.sortIndex < $1.sortIndex }
                 return $0.id < $1.id
             }
+            let anchor = anchors.first
             return Card(
                 itemID: entry.item.id,
                 prompt: asked.text,
@@ -545,6 +560,10 @@ struct MemoryCardSitting: Equatable, Sendable {
                 isFromBeforeCards: face.origin == .legacy,
                 sourceID: anchor?.sourceID,
                 quote: anchor?.excerpt,
+                alsoFrom: CardSourceLink.normalized(
+                    anchors.dropFirst().map { CardSourceLink(sourceID: $0.sourceID, quote: $0.excerpt) },
+                    excluding: anchor.map { CardSourceLink(sourceID: $0.sourceID, quote: $0.excerpt) }
+                ),
                 isNew: entry.isNew
             )
         }
@@ -889,6 +908,9 @@ struct MemoryCardListing: Equatable, Identifiable, Sendable {
     let face: MemoryCard
     /// The sources the card is anchored on, best first.
     let sourceIDs: [String]
+    /// The passages the card is anchored on, best first: one per anchor, so a
+    /// card that stands on several sources lists each with its passage.
+    let links: [CardSourceLink]
     /// The item's goal: none for a card kept since cards, possibly a
     /// notebook for an item from before them.
     let goalID: String?
@@ -897,10 +919,11 @@ struct MemoryCardListing: Equatable, Identifiable, Sendable {
     var id: String { itemID }
     var isNew: Bool { schedule.isNew }
 
-    init(itemID: String, face: MemoryCard, sourceIDs: [String], goalID: String? = nil, schedule: MemorySchedule) {
+    init(itemID: String, face: MemoryCard, sourceIDs: [String], links: [CardSourceLink] = [], goalID: String? = nil, schedule: MemorySchedule) {
         self.itemID = itemID
         self.face = face
         self.sourceIDs = sourceIDs
+        self.links = links
         self.goalID = goalID
         self.schedule = schedule
     }
@@ -909,15 +932,15 @@ struct MemoryCardListing: Equatable, Identifiable, Sendable {
     /// nil for an item with none.
     init?(item: MemoryItem, attempts: [MemoryAttempt], calendar: Calendar = .current) {
         guard let face = MemoryCard.face(of: item, attempts: attempts) else { return nil }
+        let anchors = item.sources.sorted {
+            if $0.sortIndex != $1.sortIndex { return $0.sortIndex < $1.sortIndex }
+            return $0.id < $1.id
+        }
         self.init(
             itemID: item.id,
             face: face,
-            sourceIDs: item.sources
-                .sorted {
-                    if $0.sortIndex != $1.sortIndex { return $0.sortIndex < $1.sortIndex }
-                    return $0.id < $1.id
-                }
-                .map(\.sourceID),
+            sourceIDs: anchors.map(\.sourceID),
+            links: anchors.map { CardSourceLink(sourceID: $0.sourceID, quote: $0.excerpt) },
             goalID: item.goalID,
             schedule: MemoryTutorScheduler.schedule(item: item, attempts: attempts, calendar: calendar)
         )
@@ -936,19 +959,30 @@ struct MemoryCardEdit: Equatable, Sendable {
     let why: [String]
     let frontImages: [MemoryCardImage]
     let backImages: [MemoryCardImage]
+    /// The other sources a draft is kept on, as the learner left them; nil
+    /// keeps the draft's own. Only a draft's Keep reads it: a kept card's
+    /// anchors never change (`KnowledgeStore.startMemoryCardOver`).
+    let alsoFrom: [CardSourceLink]?
 
     init(
         front: String,
         back: String,
         why: [String],
         frontImages: [MemoryCardImage] = [],
-        backImages: [MemoryCardImage] = []
+        backImages: [MemoryCardImage] = [],
+        alsoFrom: [CardSourceLink]? = nil
     ) {
         self.front = front
         self.back = back
         self.why = why
         self.frontImages = frontImages
         self.backImages = backImages
+        self.alsoFrom = alsoFrom
+    }
+
+    /// The same edit, kept on these other sources.
+    func keptOn(_ alsoFrom: [CardSourceLink]) -> MemoryCardEdit {
+        MemoryCardEdit(front: front, back: back, why: why, frontImages: frontImages, backImages: backImages, alsoFrom: alsoFrom)
     }
 }
 

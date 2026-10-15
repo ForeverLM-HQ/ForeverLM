@@ -83,6 +83,7 @@ extension MCPDataStore {
                 }
                 difficulty = value
             }
+            let alsoFrom = try Self.cardSourceLinks(entry["also_from"], cardIndex: index, store: store, excluded: excluded) ?? []
             let card = Flashcard.mint(
                 front: front,
                 back: back,
@@ -96,6 +97,7 @@ extension MCPDataStore {
                 isRequested: keptByDefault,
                 frontImages: try Self.cardImages(entry["front_images"], cardIndex: index, field: "front_images", store: store),
                 backImages: try Self.cardImages(entry["back_images"], cardIndex: index, field: "back_images", store: store),
+                alsoFrom: alsoFrom,
                 at: now
             )
             if bySource[sourceID] == nil { order.append(sourceID) }
@@ -169,6 +171,16 @@ extension MCPDataStore {
                     ["front": card.front, "quote": card.quote ?? "", "reason": "The source's text does not print this quote. Copy the passage word for word from get_source_content."]
                 }
             }
+            if !result.ungroundedLinks.isEmpty {
+                entry["not_grounded_links"] = result.ungroundedLinks.map { missed in
+                    [
+                        "front": missed.front,
+                        "source_id": missed.link.sourceID,
+                        "quote": missed.link.quote,
+                        "reason": "\(missed.reason) The card was saved without this link; copy the passage word for word from get_source_content and link it with triage_cards also_from.",
+                    ]
+                }
+            }
             if !result.unreadable.isEmpty {
                 entry["not_saved"] = result.unreadable.map { card in
                     ["front": card.front, "reason": "A line of the back reads as a heading or as the card's own metadata (Source:, Seed:, …). Reword that line."]
@@ -207,6 +219,59 @@ extension MCPDataStore {
             payload["wording_guidance"] = "A card is asked weeks later, away from its source: it never points at \u{201C}this lecture\u{201D}, \u{201C}the paper\u{201D} or \u{201C}the speaker\u{201D} without naming it. ForeverLM reworded the cards under reworded, and refused those under not_standalone; ask about the subject itself, or name the source."
         }
         return try jsonString(payload)
+    }
+
+    /// A card's `also_from`: the other sources' passages it stands on, each
+    /// `{source_id, quote}`, in the order given. Nil when the argument is
+    /// absent; `[]` when it is empty (no other source). Every source must be
+    /// one the library holds and shows to an assistant; whether its text prints
+    /// the quote is checked when the card is saved or kept, as the card's own
+    /// quote is. Refuses the whole call for a malformed entry.
+    static func cardSourceLinks(
+        _ raw: Any?,
+        cardIndex: Int,
+        store: KnowledgeStore,
+        excluded: Set<String>
+    ) throws -> [CardSourceLink]? {
+        guard let raw, !(raw is NSNull) else { return nil }
+        guard let entries = raw as? [[String: Any]] else {
+            throw MCPError.invalidInput(
+                "Nothing was changed. also_from is a list of {source_id, quote}: each other source the card also stands on, with the passage copied word for word from its text."
+            )
+        }
+        guard entries.count <= MemoryCard.maximumLinkedSources else {
+            throw MCPError.invalidInput(
+                "Nothing was changed. A card stands on at most \(MemoryCard.maximumLinkedSources) other sources; also_from has \(entries.count) (card \(cardIndex))."
+            )
+        }
+        var links: [CardSourceLink] = []
+        for entry in entries {
+            guard let id = trimmedOrNil(entry["source_id"] as? String), let quote = trimmedOrNil(entry["quote"] as? String) else {
+                throw MCPError.invalidInput(
+                    "Nothing was changed. Each also_from entry needs a source_id and a quote (card \(cardIndex))."
+                )
+            }
+            guard !excluded.contains(id), let source = try store.loadSourceWithoutContent(id), source.status == .active else {
+                throw MCPError.invalidInput(
+                    "Nothing was changed. No library source answers to \(id) in also_from (card \(cardIndex)). Pass a source_id as list_sources or a search returns it."
+                )
+            }
+            links.append(CardSourceLink(sourceID: id, quote: quote))
+        }
+        return links
+    }
+
+    /// A card's sources as an assistant reads them: each with its title and
+    /// the passage the card stands on there. A source kept from AI is left
+    /// out, with its passage.
+    static func cardSourcesPayload(
+        _ links: [CardSourceLink],
+        titles: [String: String],
+        excluded: Set<String>
+    ) -> [[String: Any]] {
+        links.filter { !excluded.contains($0.sourceID) }.map {
+            ["source_id": $0.sourceID, "source_title": titles[$0.sourceID] ?? "", "quote": $0.quote]
+        }
     }
 
     /// Card image arguments are the exact Markdown image lines returned by
@@ -286,7 +351,7 @@ extension MCPDataStore {
         var payload: [String: Any] = [:]
         if status != "kept" {
             let cards = snapshot.toCheck.filter { card in
-                !excluded.contains(card.sourceID) && (onlySource.map { $0 == card.sourceID } ?? true)
+                !excluded.contains(card.sourceID) && (onlySource.map { card.sourceIDs.contains($0) } ?? true)
             }
             payload["to_check_count"] = cards.count
             payload["to_check"] = cards.prefix(limit).map { card in
@@ -304,6 +369,8 @@ extension MCPDataStore {
                 if !card.face.frontImages.isEmpty { entry["front_images"] = card.face.frontImages.map(\.rubricObject) }
                 if !card.face.backImages.isEmpty { entry["back_images"] = card.face.backImages.map(\.rubricObject) }
                 if let quote = card.quote { entry["quote"] = quote }
+                // Every source the card stands on, its own first, each with its passage.
+                entry["sources"] = Self.cardSourcesPayload(card.links, titles: titles, excluded: excluded)
                 if let difficulty = card.face.difficulty { entry["difficulty"] = difficulty.rawValue }
                 if let seed = card.seed { entry["seed"] = seed }
                 if let draftedAt = card.draftedAt { entry["drafted_at"] = ISO8601DateFormatter().string(from: draftedAt) }
@@ -333,6 +400,7 @@ extension MCPDataStore {
                     "origin": card.face.origin.rawValue,
                     "source_ids": card.sourceIDs,
                     "source_titles": card.sourceIDs.compactMap { titles[$0] },
+                    "sources": Self.cardSourcesPayload(card.links, titles: titles, excluded: excluded),
                 ]
                 if !card.face.frontImages.isEmpty { entry["front_images"] = card.face.frontImages.map(\.rubricObject) }
                 if !card.face.backImages.isEmpty { entry["back_images"] = card.face.backImages.map(\.rubricObject) }
@@ -364,12 +432,108 @@ extension MCPDataStore {
 
     /// Titles of the sources a read names, in one pass.
     private func sourceTitles(for snapshot: MemoryCardReviewSnapshot, store: KnowledgeStore) throws -> [String: String] {
-        let ids = Set(snapshot.toCheck.map(\.sourceID)).union(snapshot.cards.flatMap(\.sourceIDs))
+        let ids = Set(snapshot.toCheck.flatMap(\.sourceIDs)).union(snapshot.cards.flatMap(\.sourceIDs))
         var titles: [String: String] = [:]
         for id in ids {
             if let source = try store.loadSourceWithoutContent(id) { titles[id] = source.title }
         }
         return titles
+    }
+
+    // MARK: find_card_sources
+
+    /// The embedding of a card's words, for `CardSourceLinker`'s retrieval;
+    /// no judge is behind it (`find_card_sources` leaves the judging to the
+    /// assistant), so `pick` is never asked.
+    private struct CardSourceEmbedder: CardSourceLinkBackend {
+        let embedder: SourceEmbeddingProvider
+
+        func embed(_ text: String) async throws -> [Float] { try await embedder(text) }
+
+        func pick(user: String, usage: AIUsageSource) async throws -> [CardSourceLinkingVerdict] {
+            throw MCPError.invalidInput("find_card_sources judges nothing itself.")
+        }
+    }
+
+    /// The passages of the library's other sources nearest a card, for an
+    /// assistant to judge: which of them state what the card asks, so it can
+    /// name them in `also_from`. Reads only; the card is a card to check or a
+    /// kept card (`card_id`), or a question and answer an assistant is about
+    /// to save as one.
+    func findCardSources(
+        cardID: String?,
+        question: String?,
+        answer: String?,
+        sourceIDs rawSourceIDs: [String],
+        notebookID: String?
+    ) async throws -> String {
+        let store = try knowledgeStore()
+        let excluded = try store.knowledgeSearchExcludedSourceIDs(includeArchived: true)
+        var front: String
+        var back: String
+        var own: Set<String> = []
+        var found: [String: Any] = [:]
+        if let cardID = Self.trimmedOrNil(cardID) {
+            await MemoryCardStateStore.loaded(defaults: cardStateDefaults)
+            let snapshot = try await notebookFileStorage.memoryCardReviewSnapshot(
+                now: Date(), budgetMinutes: nil, newPerDay: MemoryCardSettings.newCardsPerDay(), deadlines: [],
+                scope: nil, includesListings: true, includesToCheck: true, stateDefaults: cardStateDefaults
+            )
+            if let waiting = snapshot.toCheck.first(where: { $0.cardID == cardID }) {
+                front = waiting.face.front
+                back = waiting.face.back
+                own = Set(waiting.sourceIDs)
+            } else if let kept = snapshot.cards.first(where: { $0.face.cardID == cardID || $0.itemID == cardID }) {
+                front = kept.face.front
+                back = kept.face.back
+                own = Set(kept.sourceIDs)
+            } else {
+                throw MCPError.notFound("No card answers to \(cardID). Pass a card_id list_cards returned, or a question and an answer.")
+            }
+            found["card_id"] = cardID
+        } else if let question = Self.trimmedOrNil(question), let answer = Self.trimmedOrNil(answer) {
+            front = question
+            back = answer
+        } else {
+            throw MCPError.invalidInput("Pass card_id (from list_cards), or a question and an answer.")
+        }
+        own.formUnion(excluded)
+
+        var pool: Set<String>?
+        let named = rawSourceIDs.compactMap { Self.trimmedOrNil($0) }
+        if !named.isEmpty {
+            var scoped = Set<String>()
+            for id in named {
+                guard !excluded.contains(id), let source = try store.loadSourceWithoutContent(id), source.status == .active else {
+                    throw MCPError.invalidInput("No library source answers to \(id). Pass source_ids as list_sources or a search returns them.")
+                }
+                scoped.insert(id)
+            }
+            pool = scoped
+        }
+        if let notebookID = Self.trimmedOrNil(notebookID) {
+            let goal = try resolveMCPNotebookGoal(notebookID: notebookID, store: store)
+            let members = Set(notebookChatPoolSourceIDs(goal: goal, store: store))
+            pool = pool.map { $0.intersection(members) } ?? members
+        }
+
+        let embedder = sourceEmbeddingProvider ?? liveSourceEmbeddingProvider
+        let candidates = await CardSourceLinker.candidates(
+            for: [(front, back)],
+            excluding: own,
+            among: pool,
+            storage: notebookFileStorage,
+            backend: CardSourceEmbedder(embedder: embedder)
+        ).first ?? []
+        found["question"] = front
+        found["answer"] = back
+        found["candidates"] = candidates.map {
+            ["source_id": $0.sourceID, "source_title": $0.title, "passage": $0.passage] as [String: Any]
+        }
+        found["guidance"] = candidates.isEmpty
+            ? "No other source of the library has a passage near this card."
+            : "These are the nearest passages of other sources, not yet judged. Keep only those that state what the card asks, in substance, not merely its topic. For each, pass its source_id and a quote copied word for word from its passage (or get_source_content) as an also_from entry of the card: in save_card_drafts when you draft it, or in triage_cards when the learner keeps it."
+        return try jsonString(found)
     }
 
     // MARK: triage_cards
@@ -392,6 +556,7 @@ extension MCPDataStore {
             let why: String?
             let frontImages: Any?
             let backImages: Any?
+            let alsoFrom: Any?
         }
         var asked: [Asked] = []
         for (index, entry) in rawDecisions.enumerated() {
@@ -409,7 +574,8 @@ extension MCPDataStore {
                 back: entry["back"] as? String,
                 why: (entry["why"] as? String) ?? (entry["why"] as? [String])?.joined(separator: "\n"),
                 frontImages: entry["front_images"],
-                backImages: entry["back_images"]
+                backImages: entry["back_images"],
+                alsoFrom: entry["also_from"]
             ))
         }
 
@@ -439,7 +605,8 @@ extension MCPDataStore {
             decidedIDs.insert(card.cardID)
             if entry.action == "skip" {
                 decisions.append(MemoryCardTriageDecision(card: card, action: .skip))
-            } else if entry.front != nil || entry.back != nil || entry.why != nil || entry.frontImages != nil || entry.backImages != nil {
+            } else if entry.front != nil || entry.back != nil || entry.why != nil || entry.frontImages != nil || entry.backImages != nil
+                        || (entry.alsoFrom != nil && !(entry.alsoFrom is NSNull)) {
                 let edit = MemoryCardEdit(
                     front: entry.front?.trimmingCharacters(in: .whitespacesAndNewlines) ?? card.face.front,
                     back: entry.back?.trimmingCharacters(in: .whitespacesAndNewlines) ?? card.face.back,
@@ -451,7 +618,8 @@ extension MCPDataStore {
                     } ?? card.face.frontImages,
                     backImages: try entry.backImages.map {
                         try Self.cardImages($0, cardIndex: 0, field: "back_images", store: store)
-                    } ?? card.face.backImages
+                    } ?? card.face.backImages,
+                    alsoFrom: try Self.cardSourceLinks(entry.alsoFrom, cardIndex: 0, store: store, excluded: excluded)
                 )
                 decisions.append(MemoryCardTriageDecision(card: card, action: .keepEdited(edit)))
             } else {
@@ -545,7 +713,7 @@ extension MCPDataStore {
             if let card { dealt.append((entry, card)) }
         }
         var titles: [String: String] = [:]
-        for case let sourceID? in dealt.map({ $0.card.sourceID }) where titles[sourceID] == nil {
+        for sourceID in dealt.flatMap({ $0.card.links.map(\.sourceID) }) where titles[sourceID] == nil {
             if let source = try store.loadSourceWithoutContent(sourceID) { titles[sourceID] = source.title }
         }
         let iso = ISO8601DateFormatter()
@@ -567,6 +735,7 @@ extension MCPDataStore {
                 if let title = titles[sourceID] { payload["source_title"] = title }
             }
             if let quote = card.quote { payload["quote"] = quote }
+            payload["sources"] = Self.cardSourcesPayload(card.links, titles: titles, excluded: excluded)
             if entry.daysOverdue > 0 { payload["days_overdue"] = entry.daysOverdue }
             if !card.isNew { payload["due_since"] = iso.string(from: entry.schedule.dueAt) }
             if let notebookID = entry.notebookID { payload["needed_soon_in_notebook_id"] = notebookID }

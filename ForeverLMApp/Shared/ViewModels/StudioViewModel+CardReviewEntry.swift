@@ -522,7 +522,7 @@ extension StudioViewModel {
 
     private func memorySourceTitles(for cards: [MemoryCardSitting.Card]) -> [String: String] {
         var titles: [String: String] = [:]
-        for case let sourceID? in cards.map(\.sourceID) where titles[sourceID] == nil {
+        for sourceID in cards.flatMap({ card in (card.sourceID.map { [$0] } ?? []) + card.alsoFrom.map(\.sourceID) }) where titles[sourceID] == nil {
             if let title = articlesById[canonicalSourceID(sourceID)]?.title, !title.isEmpty {
                 titles[sourceID] = title
             }
