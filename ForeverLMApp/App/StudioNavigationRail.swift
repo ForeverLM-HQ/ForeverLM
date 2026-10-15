@@ -2281,15 +2281,12 @@ struct StudioNavigationRail: View {
     }
 
     private var compTitle: String {
-        if let own = account.ownKey, ownKeyPays { return "Your \(own.router.label) key pays" }
+        if ownKeyPays { return ownKeySpentText.map { "\($0) used today" } ?? "AI usage" }
         return "Usage is paid for by ForeverLM"
     }
 
     private var compSubtitle: String {
-        if let own = account.ownKey, ownKeyPays {
-            guard let ownKeySpentText else { return "Billed to your \(own.router.label) account" }
-            return "\(ownKeySpentText) used today"
-        }
+        if let own = account.ownKey, ownKeyPays { return "Billed to your \(own.router.label) account" }
         guard let compSpentText else { return "ForeverLM is covering your AI usage" }
         return "\(compSpentText) used today"
     }

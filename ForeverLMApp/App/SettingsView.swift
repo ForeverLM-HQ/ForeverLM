@@ -1270,35 +1270,6 @@ private struct AIUsageAccountSections: View {
                         if account.ownKey != nil { rowDivider }
                         ownKeyEntry
                     }
-
-                    rowDivider
-                    billingRow(title: "Training on your data", detail: ownKeyRouter.trainingSummary) {
-                        SettingsMoreInfoButton {
-                            Text(ownKeyRouter.aboutNote)
-                            Text(ownKeyRouter.trainingNote)
-                            Text(AIDataPolicy.openRouterAccountNote)
-                        }
-                        Button("Privacy Settings") { NSWorkspace.shared.open(AIFreeModels.openRouterPrivacyURL) }
-                            .buttonStyle(.bordered)
-                            .accessibilityIdentifier("billing.ownKey.openRouterPrivacy")
-                    }
-                    .accessibilityElement(children: .contain)
-                    .accessibilityIdentifier("billing.ownKey.training")
-
-                    // Free models too: OpenRouter lifts their daily cap
-                    // once the account has bought $10 of credits.
-                    rowDivider
-                    billingRow(title: "Add $10 of credits", detail: ownKeyRouter.creditsSummary) {
-                        SettingsMoreInfoButton {
-                            Text(ownKeyRouter.creditsNote)
-                        }
-                        Button("Add Credits") { NSWorkspace.shared.open(ownKeyRouter.creditsURL) }
-                            .buttonStyle(.bordered)
-                    }
-                    // A group of its own: on a plain container the
-                    // identifier landed on the note and on the link.
-                    .accessibilityElement(children: .contain)
-                    .accessibilityIdentifier("billing.ownKey.credits")
                 }
             }
         }

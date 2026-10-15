@@ -254,24 +254,7 @@ enum ManagedAI {
             "You are responsible for understanding the terms of the models you choose. Some providers train on what you send them and others do not. Free models usually do, and some paid models do too."
         }
 
-        /// The product owner (2026-09-27): ask for $10 of credits even from a learner who
-        /// means to use only free models. OpenRouter caps `:free` models at 50
-        /// requests a day until an account has bought 10 credits in total, and
-        /// at 1,000 after (openrouter.ai/docs/api-reference/limits, read
-        /// 2026-09-27). Free models never spend the credits.
-        var creditsNote: String {
-            "Add $10 of credits at \(label), even if you mean to use only free models. Until you have bought $10 in total, \(label) lets free models answer only 50 requests a day; after that, 1,000. Paid models draw on the credits; free models never spend them."
-        }
-
         var creditsLinkTitle: String { "Add credits at \(label)" }
-
-        /// One line each for the Mac Settings rows (product owner, 2026-10-07: "there
-        /// should never be such a long paragraph just shown in the app",
-        /// beside ChatGPT's rows of a title and one line). The full notes above
-        /// stay behind each row's More Info popover and in the other surfaces.
-        var trainingSummary: String { "Free models usually train on what you send them" }
-
-        var creditsSummary: String { "Lifts the free-model limit from 50 to 1,000 requests a day" }
 
         var keyPrivacySummary: String { "Saved in your Keychain, sent only to \(label)" }
 

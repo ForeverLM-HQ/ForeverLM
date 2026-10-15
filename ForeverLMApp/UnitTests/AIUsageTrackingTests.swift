@@ -388,7 +388,7 @@ struct AIUsageTrackingTests {
         #expect(!visible.contains("client-balance"))
         #expect(try store.countAIUsageEvents() == 2)
 
-        // The account menu's "Your OpenRouter key pays · $x used today" reads
+        // The account menu's "$x used today" reads
         // the key's share alone; the comp's share comes from the proxy.
         let ownKeyTotals = try store.aiUsageEventTotals(filter: .init(paidByOwnKey: true))
         #expect(ownKeyTotals.count == 1)
