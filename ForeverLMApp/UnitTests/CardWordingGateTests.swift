@@ -50,6 +50,11 @@ struct CardWordingGateTests {
         for rule in ["\"this lecture\"", "\"the speaker\"", "\"stands_alone\""] {
             #expect(Prompts.cardWordingCheck.contains(rule))
         }
+        // A question with several correct answers, whose card holds the source's one, is held back too.
+        #expect(Prompts.cardStandsAloneRule.contains("the question has one answer"))
+        #expect(Prompts.cardWordingCheck.contains("more than one correct answer"))
+        #expect(Prompts.cardWordingRewrite.contains("attribute it"))
+        #expect(Prompts.cardVariationJudge.contains("in several ways"))
         #expect(Prompts.cardDrafter.contains(Prompts.cardStandsAloneRule))
         #expect(Prompts.cardVariation.contains(Prompts.cardStandsAloneRule))
         #expect(Prompts.situatedCards.contains(Prompts.cardStandsAloneRule))
