@@ -221,6 +221,7 @@ struct MobileCardsToCheckList<Header: View>: View {
             if opens {
                 Button("Open Source", systemImage: "doc.text") { openSource(card.sourceID) }
             }
+            Button("Copy Card ID", systemImage: "doc.on.doc") { UIPasteboard.general.string = card.cardID }
         } label: {
             Image(systemName: "ellipsis")
                 .font(.body.weight(.semibold))

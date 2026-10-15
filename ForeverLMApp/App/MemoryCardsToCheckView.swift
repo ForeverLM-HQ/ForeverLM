@@ -309,6 +309,10 @@ struct MemoryCardsToCheckView: View {
                 }
             }
             Divider()
+            Button("Copy Card ID") {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(card.cardID, forType: .string)
+            }
             sourceMenu(card.sourceID)
         } label: {
             Image(systemName: "ellipsis")
