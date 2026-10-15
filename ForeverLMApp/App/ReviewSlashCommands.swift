@@ -1007,7 +1007,7 @@ enum ReviewSlashCommandParser {
 
         Open with what you see in my log: the topics I keep returning to, a notebook I have been filling, a paper read without a review or any writing. Offer the next step for it — solidify it (a review or quiz), write about it, or turn it into a Goal. The log is kept up by the app from what I do; read it, do not edit it.
 
-        Then ask me ONE short question — what is fixed, and what the day is for — and propose the whole day as a short list of blocks. When I agree, add each block to my calendar with create_calendar_event, into the free stretches the calendar leaves. Put what each block is for in its notes — the next step, and the foreverlm:// link of the source it reads. Leave room for calls, email and anything I have to reach out to someone about — those are blocks too. Keep work blocks 90–120 minutes, leave a break when more than two hours remain, and end before my day does.
+        Then do not ask me a question first: propose the whole day as a short list of blocks right away, taking what is fixed from the calendar and what the day is for from the log, and say in one line what you assumed so I can correct it. When I agree, add each block to my calendar with create_calendar_event, into the free stretches the calendar leaves. Put what each block is for in its notes — the next step, and the foreverlm:// link of the source it reads. Leave room for calls, email and anything I have to reach out to someone about — those are blocks too. Keep work blocks 90–120 minutes, leave a break when more than two hours remain, and end before my day does.
         """
     }
 

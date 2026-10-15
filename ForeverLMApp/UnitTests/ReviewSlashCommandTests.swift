@@ -654,7 +654,7 @@ struct ChatPluginSetupNeedTests {
         #expect(free.hasPrefix("Plan my clock. monday, I'm out until 11"))
     }
 
-    @Test("The /plan request reads the calendar first, asks one question, and writes the agreed day into the calendar")
+    @Test("The /plan request reads the calendar first, proposes the day without asking first, and writes the agreed day into the calendar")
     func planDayRequestCarriesTheRules() {
         let request = ReviewSlashCommandParser.planDayRequest("today")
         // Read before planning: the calendar, the Goals, and how recent days went.
@@ -670,8 +670,9 @@ struct ChatPluginSetupNeedTests {
         #expect(!request.contains(WorkingLog.id))
         // Meetings with other people stay put.
         #expect(request.contains("meetings with other people stay where they are"))
-        // One question, a proposal, and only then the calendar.
-        #expect(request.contains("ONE short question"))
+        // A proposal at once, no question first, and only then the calendar.
+        #expect(request.contains("do not ask me a question first"))
+        #expect(!request.contains("ONE short question"))
         #expect(request.contains("When I agree"))
         #expect(request.contains("create_calendar_event"))
         // It is not only learning.
