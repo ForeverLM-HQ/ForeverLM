@@ -54,6 +54,11 @@ struct CardWordingGateTests {
         #expect(Prompts.cardWordingRewrite.contains("attribute it"))
         #expect(Prompts.cardDrafter.contains(Prompts.cardStandsAloneRule))
         #expect(Prompts.situatedCards.contains(Prompts.cardStandsAloneRule))
+        // A card asks what is true in one question, never what the source does not claim.
+        #expect(Prompts.cardAsksWhatIsTrueRule.contains("what do the authors not claim"))
+        for writer in [Prompts.cardDrafter, Prompts.situatedCards, Prompts.mnemonicReadingWriter] {
+            #expect(writer.contains(Prompts.cardAsksWhatIsTrueRule))
+        }
         #expect(Prompts.mnemonicReadingWriter.contains("\"this lecture\" without naming it"))
         #expect(AITask.cardWordingCheck.rawValue == "card_wording_check")
         #expect(AITask.cardWordingCheck.isBackgroundWork)
