@@ -12,9 +12,16 @@ import SwiftUI
 /// edit etc"): over the card, the source it is from, which opens it, its
 /// place ("3 of 15") and the strip of the cards gone through; the card drawn
 /// as Review draws one — the deck's paper, its difficulty, the front in the
-/// review's serif, the fold, the back and why, Show Passage — with the edges
-/// of the cards still to come under it; under it **Skip**, **Edit** and
-/// **Keep**.
+/// review's serif — with the edges of the cards still to come under it.
+///
+/// A card is asked before it is judged (product owner, 2026-10-15: "even for
+/// 'to check' cards i should still be quizzed on them; not just see the
+/// answer"): the front waits for the learner's answer, typed or said, or "I
+/// Don't Know", as Review's does, and only then turns to the fold, the back,
+/// why and Show Passage, with **Skip**, **Edit** and **Keep** under it. The
+/// answer is not graded and not stored: it is there to be set against the
+/// back. Skip and Edit stay within reach before it, for a card that is wrong
+/// on its face.
 ///
 /// - **Keep** makes it a card of Memory (`keepMemoryCard`) and goes off to
 ///   the right, **Skip** drops it for good and goes off to the left, **Edit**
@@ -52,7 +59,19 @@ struct MemoryCardsToCheckView: View {
     /// Where the card in front goes once decided: Keep to the right, Skip to
     /// the left, as Review's Remembered and Forgot.
     @State private var exitEdge: HorizontalEdge = .trailing
+    /// What the learner has written for the card in front, until they check it.
+    @State private var attemptDraft = ""
+    /// The card in front once its back shows, and the answer that opened it
+    /// (nil for "I Don't Know"). Nothing here is written to storage.
+    @State private var openCard: Revealed?
+    /// The height the answer field's text needs.
+    @State private var attemptFieldHeight: CGFloat = 0
     @FocusState private var focused: Bool
+
+    private struct Revealed: Equatable {
+        let cardID: String
+        let attempt: String?
+    }
 
     private struct Gone: Equatable {
         let cardID: String
@@ -64,6 +83,11 @@ struct MemoryCardsToCheckView: View {
     private static let dealAnimation = Animation.spring(response: 0.38, dampingFraction: 0.86)
 
     private var visible: [MemoryCardToCheck] { cards.filter { !decided.contains($0.cardID) } }
+
+    /// The answer the card in front was opened with; nil while it waits for one.
+    private func opened(_ card: MemoryCardToCheck) -> Revealed? {
+        openCard?.cardID == card.cardID ? openCard : nil
+    }
 
     private var current: MemoryCardToCheck? {
         let visible = visible
@@ -105,6 +129,11 @@ struct MemoryCardsToCheckView: View {
             takeFocusCard()
         }
         .onChange(of: windowState?.memoryPaneFocusCardID) { _, _ in takeFocusCard() }
+        .onChange(of: current?.cardID) { _, _ in
+            // Another card in front starts with an empty answer.
+            attemptDraft = ""
+            openCard = nil
+        }
         .sheet(item: $editing) { card in
             MemoryCardToCheckEditorSheet(card: card) { edit in
                 editing = nil
@@ -205,7 +234,7 @@ struct MemoryCardsToCheckView: View {
             actions(card)
             if gone.isEmpty {
                 // What the buttons do, to someone who has never seen them.
-                Text("Keep a card and Review will ask it. Skip it and it is gone.")
+                Text("Answer the card, then keep it and Review will ask it, or skip it and it is gone.")
                     .font(.callout)
                     .foregroundStyle(.tertiary)
                     .textSelection(.disabled)
@@ -318,19 +347,23 @@ struct MemoryCardsToCheckView: View {
         ZStack {
             MemoryCardToCheckFace(
                 card: card,
+                opened: opened(card).map { MemoryCardToCheckFace.Opened(attempt: $0.attempt) },
+                attempt: $attemptDraft,
+                attemptFieldHeight: $attemptFieldHeight,
+                autoFocusAttempt: windowState?.memoryPaneFocusCardID == nil,
+                submit: { reveal(card) },
                 showPassage: passage(of: card).map { quote in { openSource(card.sourceID, passage: quote) } }
             )
             .id(card.cardID)
             .transition(.memoryCard(leavingTo: exitEdge, reduceMotion: reduceMotion))
-            .onTapGesture(count: 2) { editing = card }
             .contextMenu {
-                Button("Keep") { decide(card, .keep) }
+                if opened(card) != nil { Button("Keep") { decide(card, .keep) } }
                 Button("Edit…") { editing = card }
                 Button("Skip") { decide(card, .skip) }
                 Divider()
                 sourceMenu(card.sourceID)
             }
-            .accessibilityAction(named: "Keep") { decide(card, .keep) }
+            .accessibilityAction(named: "Keep") { if opened(card) != nil { decide(card, .keep) } }
             .accessibilityAction(named: "Edit") { editing = card }
             .accessibilityAction(named: "Skip") { decide(card, .skip) }
         }
@@ -340,28 +373,85 @@ struct MemoryCardsToCheckView: View {
         .padding(.bottom, MemoryDeckEdges.depth)
     }
 
-    /// Skip and Edit, pale; Keep, the dark pill that moves on.
+    /// Before the answer: I Don't Know and Check, as Review's, with Skip and
+    /// Edit quiet under them. After it: Skip and Edit, pale; Keep, the dark
+    /// pill that moves on.
+    @ViewBuilder
     private func actions(_ card: MemoryCardToCheck) -> some View {
         let keys = focused && editing == nil
-        return HStack(spacing: 10) {
-            MemoryReviewButton(title: "Skip", key: keys ? "S" : nil, kind: .secondary, minWidth: 110) {
-                decide(card, .skip)
+        if opened(card) != nil {
+            HStack(spacing: 10) {
+                MemoryReviewButton(title: "Skip", key: keys ? "S" : nil, kind: .secondary, minWidth: 110) {
+                    decide(card, .skip)
+                }
+                .help("Drop this card for good (S)")
+                .accessibilityIdentifier("memory.pane.toCheck.skip")
+                MemoryReviewButton(title: "Edit", key: keys ? "E" : nil, kind: .secondary, minWidth: 110) {
+                    focused = true
+                    editing = card
+                }
+                .help("Keep this card in your own words (E)")
+                .accessibilityIdentifier("memory.pane.toCheck.edit")
+                MemoryReviewButton(title: "Keep", key: keys ? "K" : nil, kind: .primary, minWidth: 180) {
+                    decide(card, .keep)
+                }
+                .help("Keep this card: Review will ask it (K or Return)")
+                .accessibilityIdentifier("memory.pane.toCheck.keep")
             }
-            .help("Drop this card for good (S)")
-            .accessibilityIdentifier("memory.pane.toCheck.skip")
-            MemoryReviewButton(title: "Edit", key: keys ? "E" : nil, kind: .secondary, minWidth: 110) {
-                focused = true
-                editing = card
+            .frame(maxWidth: .infinity)
+        } else {
+            VStack(spacing: 12) {
+                HStack(spacing: 12) {
+                    MemoryReviewButton(title: "I Don't Know", kind: .secondary, minWidth: 170) {
+                        revealNotKnown(card)
+                    }
+                    .help("Show the answer")
+                    .accessibilityIdentifier("memory.pane.toCheck.notKnown")
+                    MemoryReviewButton(title: "Check", key: "↩", kind: .primary, minWidth: 170) {
+                        reveal(card)
+                    }
+                    .disabled(trimmedAttempt.isEmpty)
+                    .help("Show the answer beside yours (Return)")
+                    .accessibilityIdentifier("memory.pane.toCheck.check")
+                }
+                HStack(spacing: 6) {
+                    MemoryReviewButton(title: "Skip", kind: .quiet) { decide(card, .skip) }
+                        .help("Drop this card for good")
+                        .accessibilityIdentifier("memory.pane.toCheck.skip")
+                    MemoryReviewButton(title: "Edit", kind: .quiet) {
+                        focused = true
+                        editing = card
+                    }
+                    .help("Keep this card in your own words")
+                    .accessibilityIdentifier("memory.pane.toCheck.edit")
+                }
             }
-            .help("Keep this card in your own words (E)")
-            .accessibilityIdentifier("memory.pane.toCheck.edit")
-            MemoryReviewButton(title: "Keep", key: keys ? "K" : nil, kind: .primary, minWidth: 180) {
-                decide(card, .keep)
-            }
-            .help("Keep this card: Review will ask it (K or Return)")
-            .accessibilityIdentifier("memory.pane.toCheck.keep")
+            .frame(maxWidth: .infinity)
         }
-        .frame(maxWidth: .infinity)
+    }
+
+    private var trimmedAttempt: String { attemptDraft.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    /// Turns the card to its back on what the learner wrote. A blank answer
+    /// turns nothing: the back is never a free flip.
+    private func reveal(_ card: MemoryCardToCheck) {
+        let answer = trimmedAttempt
+        guard !answer.isEmpty else { return }
+        open(card, attempt: answer)
+    }
+
+    /// "I Don't Know": the back shows with no answer beside it.
+    private func revealNotKnown(_ card: MemoryCardToCheck) {
+        open(card, attempt: nil)
+    }
+
+    private func open(_ card: MemoryCardToCheck, attempt: String?) {
+        guard opened(card) == nil else { return }
+        withAnimation(.easeOut(duration: 0.22)) {
+            openCard = Revealed(cardID: card.cardID, attempt: attempt)
+        }
+        // The answer field gave the keys up; K, E and S are the pane's again.
+        focused = true
     }
 
     @ViewBuilder
@@ -441,9 +531,10 @@ struct MemoryCardsToCheckView: View {
         }
     }
 
-    /// K, E and S (and Return, which keeps) on the card in front.
+    /// K, E and S (and Return, which keeps) on the card in front, once its
+    /// back shows: before that the keys are the answer's.
     private func handleKey(_ key: String) -> Bool {
-        guard editing == nil, confirmingSkipAll == nil, let card = current else { return false }
+        guard editing == nil, confirmingSkipAll == nil, let card = current, opened(card) != nil else { return false }
         switch key {
         case "k":
             decide(card, .keep)
@@ -465,12 +556,29 @@ struct MemoryCardsToCheckView: View {
 
 // MARK: - A card to check
 
-/// One card to check, drawn as Review draws a card with its answer open: the
-/// deck's paper, its difficulty (or that it is from before cards), the front
-/// in the review's serif, its pictures, the fold, the back, why it holds, and
-/// Show Passage.
+/// One card to check, drawn as Review draws a card: the deck's paper, its
+/// difficulty (or that it is from before cards), the front in the review's
+/// serif and its pictures. Until the learner answers, the field for the
+/// answer is all that is under the front; once they have (or said they do
+/// not know), the learner's answer, the fold, the back, why it holds and
+/// Show Passage follow.
 private struct MemoryCardToCheckFace: View {
+    /// A card whose back is showing, and the answer that opened it (nil when
+    /// the learner said they did not know).
+    struct Opened: Equatable {
+        let attempt: String?
+    }
+
     let card: MemoryCardToCheck
+    /// Nil while the card waits for an answer.
+    let opened: Opened?
+    @Binding var attempt: String
+    @Binding var attemptFieldHeight: CGFloat
+    /// Whether the answer field takes the keys when the card is dealt: not
+    /// when a chat opened the pane at this card and keeps its composer.
+    let autoFocusAttempt: Bool
+    /// Return in the answer field.
+    let submit: () -> Void
     /// Opens the source at the passage the card quotes; nil when it quotes none.
     let showPassage: (() -> Void)?
 
@@ -486,6 +594,7 @@ private struct MemoryCardToCheckFace: View {
             }
             Text(card.face.front)
                 .font(MemoryCardMetrics.frontFont)
+                .foregroundStyle(opened == nil ? Color.primary : Color.secondary)
                 .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("memory.pane.toCheck.front")
@@ -493,6 +602,77 @@ private struct MemoryCardToCheckFace: View {
                 MemoryCardImageGrid(images: card.face.frontImages)
                     .padding(.top, 16)
             }
+            if let opened {
+                if let given = opened.attempt {
+                    yourAnswer(given)
+                        .padding(.top, 22)
+                }
+                answerFace
+                    .transition(.opacity)
+            } else {
+                attemptField
+                    .padding(.top, 26)
+            }
+        }
+        .textSelection(.disabled)
+        .padding(.horizontal, 34)
+        .padding(.top, 30)
+        .padding(.bottom, 28)
+        .frame(
+            maxWidth: .infinity,
+            minHeight: MemoryCardMetrics.cardMinimumHeight,
+            alignment: opened == nil ? .leading : .topLeading
+        )
+        .memoryCardSurface()
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("memory.pane.toCheck.card")
+    }
+
+    /// The learner's answer, as Review's card takes it: Return checks it,
+    /// Shift-Return starts a new line, and macOS dictation speaks into it.
+    private var attemptField: some View {
+        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+        return ReviewChatComposerTextView(
+            text: $attempt,
+            onSubmit: submit,
+            autoFocus: autoFocusAttempt,
+            onHeightChange: { attemptFieldHeight = $0 }
+        )
+        .frame(height: min(max(attemptFieldHeight, 34), 160))
+        .overlay(alignment: .topLeading) {
+            if attempt.isEmpty {
+                Text("Type or dictate your answer")
+                    .foregroundStyle(.tertiary)
+                    .padding(.leading, ReviewChatComposerTextView.overlayTextLeadingInset)
+                    .padding(.top, 7)
+                    .allowsHitTesting(false)
+                    .textSelection(.disabled)
+                    .accessibilityHidden(true)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(shape.fill(Color.primary.opacity(0.035)))
+        .overlay(shape.strokeBorder(Color.primary.opacity(0.1)))
+        .accessibilityLabel("Your answer")
+        .accessibilityIdentifier("memory.pane.toCheck.attempt")
+    }
+
+    private func yourAnswer(_ given: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            MemoryCardTagLine(tags: ["Your answer"])
+            Text(given)
+                .font(.system(size: 16))
+                .lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("memory.pane.toCheck.yourAnswer")
+    }
+
+    /// Under the fold: the back, its pictures, why it holds, Show Passage.
+    private var answerFace: some View {
+        VStack(alignment: .leading, spacing: 0) {
             MemoryCardFold()
                 .padding(.vertical, 22)
             Text(card.face.back)
@@ -520,14 +700,6 @@ private struct MemoryCardToCheckFace: View {
                 .padding(.top, 20)
             }
         }
-        .textSelection(.disabled)
-        .padding(.horizontal, 34)
-        .padding(.top, 30)
-        .padding(.bottom, 28)
-        .frame(maxWidth: .infinity, minHeight: MemoryCardMetrics.cardMinimumHeight, alignment: .topLeading)
-        .memoryCardSurface()
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("memory.pane.toCheck.card")
     }
 }
 

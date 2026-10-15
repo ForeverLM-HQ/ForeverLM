@@ -670,10 +670,11 @@ struct ChatPluginSetupNeedTests {
         #expect(!request.contains(WorkingLog.id))
         // Meetings with other people stay put.
         #expect(request.contains("meetings with other people stay where they are"))
-        // A proposal at once, no question first, and only then the calendar.
+        // A draft at once, revised in conversation, and only then the calendar.
         #expect(request.contains("do not ask me a question first"))
+        #expect(request.contains("Keep going until I say it is right"))
         #expect(!request.contains("ONE short question"))
-        #expect(request.contains("When I agree"))
+        #expect(request.contains("Only then, add each block"))
         #expect(request.contains("create_calendar_event"))
         // It is not only learning.
         #expect(request.contains("calls"))
