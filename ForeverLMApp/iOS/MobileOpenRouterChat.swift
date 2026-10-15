@@ -26,13 +26,19 @@ enum MobileOpenRouterChat {
         }
         let model = route.model
         let lowered = model.lowercased()
-        let explicitQwen: Set<String> = [
-            "deepseek/deepseek-v3.2", "qwen/qwen3-max", "qwen/qwen-plus",
-            "qwen/qwen3.6-plus", "qwen/qwen3-coder-plus", "qwen/qwen3-coder-flash",
-        ]
-        let explicit = lowered.hasPrefix("anthropic/")
-            || lowered.hasPrefix("google/gemini")
-            || explicitQwen.contains(lowered)
+        // The same per-model rule as the Mac's `AIService`, so a family that
+        // needs explicit breakpoints (Anthropic, Gemini, GPT-5.6 and later,
+        // Qwen) gets them on the phone too.
+        let explicitTTL: String?
+        let explicit: Bool
+        switch OpenRouterCachePolicy.policy(for: model) {
+        case .explicitBreakpoints(let ttl):
+            explicit = true
+            explicitTTL = ttl
+        case .implicit, .unsupported, .unverified:
+            explicit = false
+            explicitTTL = nil
+        }
 
         var payloadMessages: [[String: Any]] = [["role": "system", "content": system]]
         payloadMessages.append(contentsOf: messages.map {
@@ -40,13 +46,17 @@ enum MobileOpenRouterChat {
         })
         if explicit {
             var systemMarker: [String: Any] = ["type": "ephemeral"]
-            if lowered.hasPrefix("anthropic/") { systemMarker["ttl"] = "1h" }
+            if let explicitTTL { systemMarker["ttl"] = explicitTTL }
             payloadMessages[0]["content"] = [[
                 "type": "text",
                 "text": system,
                 "cache_control": systemMarker,
             ] as [String: Any]]
-            if let last = payloadMessages.indices.last,
+            // A GPT-5.6-and-later write bills 1.25x, so a lone user turn that
+            // will not be read back stays unmarked.
+            let markTrailing = messages.count >= 2 || !AIModelDefaults.openAIBillsCacheWrites(model)
+            if markTrailing,
+               let last = payloadMessages.indices.last,
                let role = payloadMessages[last]["role"] as? String,
                role == "user",
                let text = payloadMessages[last]["content"] as? String,

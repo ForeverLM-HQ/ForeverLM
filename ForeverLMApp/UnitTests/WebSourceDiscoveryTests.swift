@@ -435,7 +435,7 @@ struct WebSourceDiscoveryTests {
         )
 
         // On the wire the search turn is the last user message, which is what
-        // OpenRouter's web plugin searches with; the notebook is a system block.
+        // OpenRouter's web plugin searches with; the notebook is the message before it, not a second system block.
         let service = AIService()
         let payload = await service.makeOpenAIStyleToolPayload(
             provider: .openRouter, system: request.system, volatileSystem: request.notebook,
@@ -451,7 +451,9 @@ struct WebSourceDiscoveryTests {
             ?? (lastContent as? [[String: Any]])?.compactMap { $0["text"] as? String }.joined()
         #expect(lastText == request.user)
         let systemBlocks = try #require(messages.first?["content"] as? [[String: Any]])
-        #expect(systemBlocks.map { $0["text"] as? String } == [request.system, request.notebook])
+        #expect(systemBlocks.map { $0["text"] as? String } == [request.system])
+        let notebookBlocks = try #require(messages[messages.count - 2]["content"] as? [[String: Any]])
+        #expect(notebookBlocks.map { $0["text"] as? String } == [request.notebook])
     }
 
     @Test("Discover asks the web plugin for more results; every other body is as it was")

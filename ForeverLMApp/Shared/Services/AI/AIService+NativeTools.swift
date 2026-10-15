@@ -779,78 +779,11 @@ extension AIService {
         return !isToolContinuationRound || isExplicitWebEscalation
     }
 
-    /// How a model reaches OpenRouter's prompt cache.
-    ///
-    /// Ground truth per model is
-    /// `GET /api/v1/models/{slug}/endpoints`, whose selected endpoint carries
-    /// `supports_implicit_caching` and an `input_cache_read` price. We classify
-    /// statically rather than fetching that at request time — a network call in
-    /// the request-building path would add a failure mode to every chat turn —
-    /// so adding a model means checking those two fields by hand.
-    enum OpenRouterCachePolicy: Equatable {
-        /// `supports_implicit_caching: true` — the provider caches repeated
-        /// prefixes on its own. Sticky routing only; annotating the payload is
-        /// unnecessary and some providers reject unknown fields.
-        case implicit
-        /// Explicit `cache_control` breakpoints, optionally with a `ttl`.
-        case explicitBreakpoints(ttl: String?)
-        /// No cache read pricing on the endpoint: nothing to buy.
-        case unsupported
-        /// Endpoint prices `input_cache_read` but reports
-        /// `supports_implicit_caching: false`, and whether it honors
-        /// `cache_control` is undocumented. Treated as sticky-routing-only until
-        /// measured, because sending a parameter the provider rejects fails the
-        /// whole request. Verify with scripts/openrouter-cache-probe.sh before
-        /// promoting one of these to `.explicitBreakpoints`.
-        case unverified
-    }
-
-    /// Do not infer Alibaba support from the `qwen/` prefix: OpenRouter excludes
-    /// snapshots and supports only the enumerated endpoints. Gemini explicit
-    /// caching is normalized by OpenRouter for cache-capable Gemini models.
+    /// How a model reaches OpenRouter's prompt cache; the rule lives in
+    /// `OpenRouterCachePolicy` so the iPhone request builder shares it.
     static func openRouterCachePolicy(for model: String) -> OpenRouterCachePolicy {
-        let lowered = model.lowercased()
-
-        // Anthropic is the only family for which OpenRouter documents a `ttl`.
-        if lowered.hasPrefix("anthropic/") {
-            return .explicitBreakpoints(ttl: "1h")
-        }
-        if lowered.hasPrefix("google/gemini") {
-            return .explicitBreakpoints(ttl: nil)
-        }
-        if explicitBreakpointSlugs.contains(lowered) {
-            return .explicitBreakpoints(ttl: nil)
-        }
-        if unverifiedCacheSlugs.contains(lowered) {
-            return .unverified
-        }
-        return .implicit
+        OpenRouterCachePolicy.policy(for: model)
     }
-
-    /// Alibaba/Qwen endpoints OpenRouter documents as requiring `cache_control`.
-    ///
-    /// deepseek-v3.2 is retained from the original list even though OpenRouter's
-    /// current docs put DeepSeek in the implicit-caching bucket: it has shipped
-    /// this way, so the annotation is at worst redundant. Drop it only with a
-    /// measurement, not on the strength of the doc page.
-    private static let explicitBreakpointSlugs: Set<String> = [
-        "deepseek/deepseek-v3.2",
-        "qwen/qwen3-max",
-        "qwen/qwen-plus",
-        "qwen/qwen3.6-plus",
-        "qwen/qwen3-coder-plus",
-        "qwen/qwen3-coder-flash",
-    ]
-
-    /// Priced cache reads, no implicit caching, no documented `cache_control`.
-    /// Muse Spark: input_cache_read $0.15/M vs prompt $1.25/M, but
-    /// `supports_implicit_caching: false` (checked 2026-08-07), so today it
-    /// caches nothing. Worth measuring — that is an 88% discount on the whole
-    /// attached-source block.
-    private static let unverifiedCacheSlugs: Set<String> = [
-        "meta/muse-spark-1.2",
-        "meta/muse-spark-1.1",
-    ]
 
     /// Models for which OpenRouter documents explicit `cache_control`.
     static func openRouterModelNeedsExplicitCacheControl(_ model: String) -> Bool {
@@ -898,9 +831,15 @@ extension AIService {
     /// always keeps the default. Anthropic requires longer-TTL breakpoints to
     /// precede shorter ones, and the system message sorts first, so 1h → 5m
     /// satisfies that ordering.
+    ///
+    /// `markTrailingMessage: false` leaves the trailing message unmarked, for a
+    /// request that will not be sent again (a one-shot task whose only user turn
+    /// is a document read once): where a write bills above the plain input rate,
+    /// marking that turn would pay the premium for nothing.
     static func openAIStyleMessagesMarkingCacheBreakpoints(
         _ messages: [[String: Any]],
-        systemTTL: String? = nil
+        systemTTL: String? = nil,
+        markTrailingMessage: Bool = true
     ) -> [[String: Any]] {
         var marked = messages
 
@@ -931,7 +870,8 @@ extension AIService {
            let blocks = markedBlocks(marked[systemIndex]["content"], markFirst: true, ttl: systemTTL) {
             marked[systemIndex]["content"] = blocks
         }
-        if let lastIndex = marked.indices.last,
+        if markTrailingMessage,
+           let lastIndex = marked.indices.last,
            let role = marked[lastIndex]["role"] as? String,
            role == "user" || role == "tool",
            let blocks = markedBlocks(marked[lastIndex]["content"], markFirst: false, ttl: nil) {

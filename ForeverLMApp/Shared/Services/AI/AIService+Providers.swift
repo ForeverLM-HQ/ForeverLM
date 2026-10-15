@@ -789,6 +789,17 @@ extension AIService {
             payload["session_id"] = sessionID
         }
 
+        // Every model, cached explicitly or automatically, reads a prompt as a
+        // byte prefix, so a per-turn tail ahead of the history ends the shared
+        // prefix at the tail and the whole conversation after it is rewritten
+        // every turn. The tail moves behind the history, in front of the
+        // learner's newest message. The session id above is derived first, while
+        // the tail is still the second system block.
+        let reuseExpected = (payload["tools"] as? [Any])?.isEmpty == false
+            || messages.filter { ($0["role"] as? String) != "system" }.count >= 2
+        messages = openRouterMessagesWithVolatileContextBeforeLatestTurn(messages)
+        payload["messages"] = messages
+
         // Explicit breakpoints are required only for the families documented
         // by OpenRouter. Automatic-cache models keep their native message
         // shape; models without provider cache support still get harmless
@@ -799,10 +810,14 @@ extension AIService {
         // explicit markers are withheld.
         if openRouterModelNeedsExplicitCacheControl(model),
            systemPromptIsCacheable(openAIStyleStableSystemHead(messages)) {
-            messages = openRouterMessagesWithProviderSafeCacheLayout(messages, model: model)
+            // A GPT-5.6-and-later write bills 1.25x, so the trailing message is
+            // marked only when the request has a later turn or tool round to
+            // read it back; a one-shot's document would be paid for twice.
+            let markTrailing = reuseExpected || !AIModelDefaults.openAIBillsCacheWrites(model)
             messages = openAIStyleMessagesMarkingCacheBreakpoints(
                 messages,
-                systemTTL: openRouterModelSupportsCacheTTL(model) ? "1h" : nil
+                systemTTL: openRouterModelSupportsCacheTTL(model) ? "1h" : nil,
+                markTrailingMessage: markTrailing
             )
             payload["messages"] = messages
         }
@@ -824,20 +839,27 @@ extension AIService {
         return system["content"] as? String ?? ""
     }
 
-    /// Gemini treats its normalized `systemInstruction` as one immutable cache
-    /// unit. A changing second block inside the same system message therefore
-    /// invalidates the paper cache even when the first block has the explicit
-    /// breakpoint. OpenRouter's documented shape is a stable cached system
-    /// instruction followed by changing context in a later user message.
+    /// Moves a split system message's volatile tail out of the system message
+    /// and in front of the learner's newest message.
+    ///
+    /// A prompt is cached as a byte prefix, and the tail (clock, history digest,
+    /// notes, retry nudges) changes between turns. Left in the system message it
+    /// sits ahead of the whole conversation, so every turn rewrites the history
+    /// at the cache-write rate; measured on GPT-5.6 Sol chat, 90% of a prompt was
+    /// written and under 5% read once the learner paused for a minute. Behind the
+    /// history it stays put across the tool rounds of one turn and costs only the
+    /// newest turn on the next. Gemini needs it for a second reason: its
+    /// normalized `systemInstruction` is one immutable cache unit, so a changing
+    /// second block invalidates the cached paper even when the first block has
+    /// the explicit breakpoint (OpenRouter's documented shape is a stable cached
+    /// system instruction followed by changing context in a later user message).
     ///
     /// The session id is derived before this transform, while the volatile tail
     /// is still the second system block, so it continues to key off the actual
     /// opening learner message rather than this synthetic context message.
-    static func openRouterMessagesWithProviderSafeCacheLayout(
-        _ messages: [[String: Any]],
-        model: String
+    static func openRouterMessagesWithVolatileContextBeforeLatestTurn(
+        _ messages: [[String: Any]]
     ) -> [[String: Any]] {
-        guard model.lowercased().hasPrefix("google/gemini") else { return messages }
         guard let systemIndex = messages.firstIndex(where: {
             let role = ($0["role"] as? String)?.lowercased()
             return role == "system" || role == "developer"
@@ -856,10 +878,11 @@ extension AIService {
             clean.removeValue(forKey: "cache_control")
             return clean
         }
-        prepared.insert(
-            ["role": "user", "content": Array(volatileBlocks)],
-            at: systemIndex + 1
-        )
+        let tail: [String: Any] = ["role": "user", "content": Array(volatileBlocks)]
+        let latestUser = prepared.indices.last(where: {
+            $0 > systemIndex && (prepared[$0]["role"] as? String)?.lowercased() == "user"
+        })
+        prepared.insert(tail, at: latestUser ?? prepared.endIndex)
         return prepared
     }
 

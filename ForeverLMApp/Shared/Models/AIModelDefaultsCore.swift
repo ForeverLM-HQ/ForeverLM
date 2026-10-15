@@ -76,6 +76,32 @@ extension AIModelDefaults {
         return Int(digits)
     }
 
+    /// The minor version of an OpenAI model id: 6 for "gpt-5.6-sol", nil for
+    /// "gpt-6-astra" (no minor) or a non-GPT id. Same bare-or-routed rule as
+    /// `openAIGeneration(of:)`.
+    static func openAIMinorVersion(of model: String) -> Int? {
+        guard let generation = openAIGeneration(of: model) else { return nil }
+        let normalized = model.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let bare = normalized.split(separator: "/").last.map(String.init) ?? normalized
+        let afterGeneration = bare.dropFirst("gpt-".count + String(generation).count)
+        guard afterGeneration.first == "." else { return nil }
+        let digits = afterGeneration.dropFirst().prefix(while: \.isNumber)
+        return digits.isEmpty ? nil : Int(digits)
+    }
+
+    /// GPT-5.6 and every later generation. OpenRouter lists these with
+    /// `supports_implicit_caching: false` and a priced cache write: the provider
+    /// caches automatically but bills every written token at 1.25x the input
+    /// price whether or not the prefix is ever read, and keeps the entry only
+    /// minutes. Earlier GPT-5 models write for free, and `gpt-oss` is an
+    /// open-weight model with ordinary implicit caching; neither is matched here
+    /// (openrouter.ai/docs/guides/best-practices/prompt-caching, 2026-10-15).
+    static func openAIBillsCacheWrites(_ model: String) -> Bool {
+        guard let generation = openAIGeneration(of: model) else { return false }
+        if generation > 5 { return true }
+        return generation == 5 && (openAIMinorVersion(of: model) ?? 0) >= 6
+    }
+
     /// GPT-5 and every later generation: reasoning models that reject an
     /// explicit temperature, count thinking inside `max_completion_tokens`,
     /// accept `reasoning_effort`, and honour `prompt_cache_key`.
@@ -89,5 +115,88 @@ extension AIModelDefaults {
     static func openAIReasoningEfforts(for model: String) -> [String] {
         guard let generation = openAIGeneration(of: model), generation >= 5 else { return [] }
         return generation >= 6 ? ["low", "medium", "high", "xhigh", "max"] : ["low", "medium", "high"]
+    }
+}
+
+/// How a model reaches OpenRouter's prompt cache.
+///
+/// Ground truth per model is `GET /api/v1/models/{slug}/endpoints`, whose
+/// selected endpoint carries `supports_implicit_caching` and an
+/// `input_cache_read` / `input_cache_write` price. We classify statically rather
+/// than fetching that at request time — a network call in the request-building
+/// path would add a failure mode to every chat turn — so a new model family
+/// means checking those fields (`scripts/openrouter-cache-audit.py`). The
+/// default is `.implicit`, and a family that falls through to it silently loses
+/// its cache: that is what happened to GPT-5.6 and later, which list
+/// `supports_implicit_caching: false` and bill each written token at 1.25x.
+enum OpenRouterCachePolicy: Equatable {
+    /// `supports_implicit_caching: true` — the provider caches repeated
+    /// prefixes on its own. Sticky routing only; annotating the payload is
+    /// unnecessary and some providers reject unknown fields.
+    case implicit
+    /// Explicit `cache_control` breakpoints, optionally with a `ttl`.
+    case explicitBreakpoints(ttl: String?)
+    /// No cache read pricing on the endpoint: nothing to buy.
+    case unsupported
+    /// Endpoint prices `input_cache_read` but reports
+    /// `supports_implicit_caching: false`, and whether it honors
+    /// `cache_control` is undocumented. Treated as sticky-routing-only until
+    /// measured, because sending a parameter the provider rejects fails the
+    /// whole request.
+    case unverified
+
+    /// Alibaba/Qwen endpoints OpenRouter documents as requiring `cache_control`.
+    ///
+    /// deepseek-v3.2 is retained from the original list even though OpenRouter's
+    /// current docs put DeepSeek in the implicit-caching bucket: it has shipped
+    /// this way, so the annotation is at worst redundant. Drop it only with a
+    /// measurement, not on the strength of the doc page.
+    private static let explicitBreakpointSlugs: Set<String> = [
+        "deepseek/deepseek-v3.2",
+        "qwen/qwen3-max",
+        "qwen/qwen-plus",
+        "qwen/qwen3.6-plus",
+        "qwen/qwen3-coder-plus",
+        "qwen/qwen3-coder-flash",
+    ]
+
+    /// Priced cache reads, no implicit caching, no documented `cache_control`.
+    /// Muse Spark: input_cache_read $0.15/M vs prompt $1.25/M, but
+    /// `supports_implicit_caching: false` (checked 2026-08-07), so today it
+    /// caches nothing. Worth measuring — that is an 88% discount on the whole
+    /// attached-source block.
+    private static let unverifiedCacheSlugs: Set<String> = [
+        "meta/muse-spark-1.2",
+        "meta/muse-spark-1.1",
+    ]
+
+    /// Do not infer Alibaba support from the `qwen/` prefix: OpenRouter excludes
+    /// snapshots and supports only the enumerated endpoints. Gemini explicit
+    /// caching is normalized by OpenRouter for cache-capable Gemini models.
+    static func policy(for model: String) -> OpenRouterCachePolicy {
+        let lowered = model.lowercased()
+
+        // Anthropic is the only family for which OpenRouter documents a `ttl`
+        // on `cache_control`.
+        if lowered.hasPrefix("anthropic/") {
+            return .explicitBreakpoints(ttl: "1h")
+        }
+        if lowered.hasPrefix("google/gemini") {
+            return .explicitBreakpoints(ttl: nil)
+        }
+        // GPT-5.6 and later: OpenRouter turns an Anthropic-style `cache_control`
+        // block marker into OpenAI's `prompt_cache_breakpoint` and drops the
+        // `ttl`; a marked prefix is kept at least 30 minutes, where the
+        // automatic entry the provider writes on its own lasts about a minute.
+        if lowered.hasPrefix("openai/"), AIModelDefaults.openAIBillsCacheWrites(lowered) {
+            return .explicitBreakpoints(ttl: nil)
+        }
+        if explicitBreakpointSlugs.contains(lowered) {
+            return .explicitBreakpoints(ttl: nil)
+        }
+        if unverifiedCacheSlugs.contains(lowered) {
+            return .unverified
+        }
+        return .implicit
     }
 }

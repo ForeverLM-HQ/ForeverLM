@@ -3599,10 +3599,15 @@ struct ChatRobustnessTests {
         AIService.applyOpenRouterPayloadExtras(&claude, provider: .openRouter)
         let claudeMessages = try #require(claude["messages"] as? [[String: Any]])
         let systemBlocks = try #require(claudeMessages[0]["content"] as? [[String: Any]])
+        // The tail leaves the system message for every model, so the cached
+        // system block is the whole system message.
+        #expect(systemBlocks.count == 1)
         let systemMarker = try #require(systemBlocks[0]["cache_control"] as? [String: Any])
         #expect(systemMarker["ttl"] as? String == "1h")
-        #expect(systemBlocks[1]["cache_control"] == nil)
-        let lastBlocks = try #require(claudeMessages[1]["content"] as? [[String: Any]])
+        let claudeTail = try #require(claudeMessages[1]["content"] as? [[String: Any]])
+        #expect(claudeTail.map { $0["text"] as? String } == ["volatile tail"])
+        #expect(claudeTail[0]["cache_control"] == nil)
+        let lastBlocks = try #require(claudeMessages[2]["content"] as? [[String: Any]])
         #expect(lastBlocks.last?["cache_control"] != nil)
 
         var gemini: [String: Any] = ["model": "google/gemini-3.1-pro-preview", "messages": baseMessages]
@@ -3625,7 +3630,166 @@ struct ChatRobustnessTests {
         let automaticMessages = try #require(automatic["messages"] as? [[String: Any]])
         let automaticBlocks = try #require(automaticMessages[0]["content"] as? [[String: Any]])
         #expect(automaticBlocks.allSatisfy { $0["cache_control"] == nil })
+        // An automatic-cache model reads the same byte prefix, so its tail is
+        // moved behind the history too, and nothing is marked.
+        #expect(automaticBlocks.map { $0["text"] as? String } == ["stable head"])
+        #expect(automaticMessages.count == 3)
+        #expect(automaticMessages[2]["content"] as? String == "question")
         #expect(automatic["session_id"] != nil)
+    }
+
+    @Test("The volatile tail sits behind the history for every model, so the history is a stable prefix")
+    func volatileTailFollowsHistoryForEveryModel() throws {
+        func turn(tail: String, upTo count: Int) -> [[String: Any]] {
+            var messages: [[String: Any]] = [
+                [
+                    "role": "system",
+                    "content": [
+                        ["type": "text", "text": "stable head"],
+                        ["type": "text", "text": tail],
+                    ] as [[String: Any]],
+                ],
+                ["role": "user", "content": "question one"],
+                ["role": "assistant", "content": "answer one"],
+                ["role": "user", "content": "question two"],
+                ["role": "assistant", "content": "answer two"],
+                ["role": "user", "content": "question three"],
+            ]
+            messages.removeLast(messages.count - (count + 1))
+            return messages
+        }
+
+        for model in [
+            "anthropic/claude-sonnet-5", "google/gemini-3.1-pro-preview", "openai/gpt-5.6-sol",
+            "deepseek/deepseek-v4-pro", "z-ai/glm-5.3-flash",
+        ] {
+            func request(_ messages: [[String: Any]]) throws -> [[String: Any]] {
+                var payload: [String: Any] = ["model": model, "messages": messages]
+                AIService.applyOpenRouterPayloadExtras(&payload, provider: .openRouter)
+                return try #require(payload["messages"] as? [[String: Any]])
+            }
+            // Turn two and turn three differ only in the tail and the newer turns.
+            let second = try request(turn(tail: "clock 10:01", upTo: 3))
+            let third = try request(turn(tail: "clock 10:02", upTo: 5))
+
+            // Nothing volatile remains in the system message ...
+            let system = try #require(second[0]["content"] as? [[String: Any]])
+            #expect(system.map { $0["text"] as? String } == ["stable head"], "\(model)")
+            // ... the tail precedes the learner's newest message ...
+            let secondTail = try #require(second[second.count - 2]["content"] as? [[String: Any]])
+            #expect(secondTail.first?["text"] as? String == "clock 10:01", "\(model)")
+            // ... and the earlier conversation is byte-identical between turns,
+            // so a cached prefix covers it.
+            let sharedCount = 3  // system, question one, answer one
+            let secondBytes = try AIService.stableJSONBody(["m": Array(second.prefix(sharedCount))])
+            let thirdBytes = try AIService.stableJSONBody(["m": Array(third.prefix(sharedCount))])
+            #expect(secondBytes == thirdBytes, "\(model) rewrites its history when the tail changes")
+        }
+    }
+
+    @Test("Within one turn's tool rounds the tail stays put and the prefix only grows")
+    func volatileTailIsStableAcrossToolRounds() throws {
+        func request(extra: [[String: Any]]) throws -> [[String: Any]] {
+            var messages: [[String: Any]] = [
+                [
+                    "role": "system",
+                    "content": [
+                        ["type": "text", "text": "stable head"],
+                        ["type": "text", "text": "clock 10:01"],
+                    ] as [[String: Any]],
+                ],
+                ["role": "user", "content": "find the figure"],
+            ]
+            messages.append(contentsOf: extra)
+            var payload: [String: Any] = [
+                "model": "openai/gpt-5.6-sol",
+                "messages": messages,
+                "tools": [["type": "function", "function": ["name": "t"]]] as [[String: Any]],
+            ]
+            AIService.applyOpenRouterPayloadExtras(&payload, provider: .openRouter)
+            return try #require(payload["messages"] as? [[String: Any]])
+        }
+        let first = try request(extra: [])
+        let second = try request(extra: [
+            ["role": "assistant", "content": "", "tool_calls": [["id": "c1"]]],
+            ["role": "tool", "tool_call_id": "c1", "content": "result"],
+        ])
+        // system, tail, learner message — the same three in both rounds.
+        let firstBytes = try AIService.stableJSONBody(["m": Array(first.prefix(2))])
+        let secondBytes = try AIService.stableJSONBody(["m": Array(second.prefix(2))])
+        #expect(firstBytes == secondBytes)
+        #expect(second.count == 5)
+        #expect(second[2]["role"] as? String == "user")
+    }
+
+    @Test("GPT-5.6 and later are cached with explicit breakpoints; older GPT and gpt-oss are not")
+    func openAIBilledCacheWritesGetExplicitBreakpoints() {
+        for slug in [
+            "openai/gpt-5.6-sol", "openai/gpt-5.6-luna", "openai/gpt-5.6-sol-pro",
+            "openai/gpt-6-luna", "openai/gpt-6-sol-pro", "openai/gpt-6.1-sol", "openai/gpt-6-astra",
+        ] {
+            #expect(AIService.openRouterCachePolicy(for: slug) == .explicitBreakpoints(ttl: nil), "\(slug)")
+            // OpenRouter drops a cache_control ttl toward OpenAI, so none is sent.
+            #expect(!AIService.openRouterModelSupportsCacheTTL(slug), "\(slug)")
+        }
+        for slug in [
+            "openai/gpt-5.5", "openai/gpt-5.5-pro", "openai/gpt-5-nano", "openai/gpt-4o-mini",
+            "openai/gpt-oss-120b", "openai/gpt-oss-20b", "openai/gpt-chat-latest",
+        ] {
+            #expect(AIService.openRouterCachePolicy(for: slug) == .implicit, "\(slug)")
+        }
+        #expect(AIModelDefaults.openAIMinorVersion(of: "openai/gpt-5.6-sol") == 6)
+        #expect(AIModelDefaults.openAIMinorVersion(of: "gpt-6-astra") == nil)
+        #expect(AIModelDefaults.openAIMinorVersion(of: "openai/gpt-oss-120b") == nil)
+    }
+
+    @Test("A GPT-5.6 one-shot marks only its instruction head; a conversation or tool round also marks its tail")
+    func openAIOneShotAvoidsPayingToCacheItsDocument() throws {
+        func marked(_ payload: [String: Any]) throws -> (system: Bool, last: Bool) {
+            var payload = payload
+            AIService.applyOpenRouterPayloadExtras(&payload, provider: .openRouter)
+            let messages = try #require(payload["messages"] as? [[String: Any]])
+            let systemBlocks = try #require(messages[0]["content"] as? [[String: Any]])
+            let lastBlocks = messages.last?["content"] as? [[String: Any]]
+            return (
+                systemBlocks[0]["cache_control"] != nil,
+                lastBlocks?.contains { $0["cache_control"] != nil } ?? false
+            )
+        }
+        let oneShot: [String: Any] = [
+            "model": "openai/gpt-5.6-luna",
+            "messages": [
+                ["role": "system", "content": "instructions"],
+                ["role": "user", "content": "one document, read once"],
+            ] as [[String: Any]],
+        ]
+        let single = try marked(oneShot)
+        #expect(single.system)
+        #expect(!single.last)
+
+        var conversation = oneShot
+        conversation["messages"] = [
+            ["role": "system", "content": "instructions"],
+            ["role": "user", "content": "first"],
+            ["role": "assistant", "content": "answer"],
+            ["role": "user", "content": "second"],
+        ] as [[String: Any]]
+        let multi = try marked(conversation)
+        #expect(multi.system)
+        #expect(multi.last)
+
+        var tooled = oneShot
+        tooled["tools"] = [["type": "function", "function": ["name": "t"]]] as [[String: Any]]
+        let withTools = try marked(tooled)
+        #expect(withTools.system)
+        #expect(withTools.last)
+
+        // Anthropic keeps marking the lone user turn, as it always has.
+        var claude = oneShot
+        claude["model"] = "anthropic/claude-sonnet-5"
+        let anthropic = try marked(claude)
+        #expect(anthropic.system)
+        #expect(anthropic.last)
     }
 
     @Test("A complete paper reaches the final cache-marked OpenRouter request unchanged")
@@ -3670,8 +3834,12 @@ struct ChatRobustnessTests {
         let marker = try #require(firstSystemBlocks[0]["cache_control"] as? [String: Any])
         #expect(marker["type"] as? String == "ephemeral")
         #expect(marker["ttl"] as? String == "1h")
-        #expect(firstSystemBlocks[1]["text"] as? String == "\n\nVOLATILE-TURN-A")
-        #expect(firstSystemBlocks[1]["cache_control"] == nil)
+        // The tail is a message of its own in front of the learner's turn, so
+        // the cached system block is the whole system message.
+        #expect(firstSystemBlocks.count == 1)
+        let firstTail = try #require(firstMessages[1]["content"] as? [[String: Any]])
+        #expect(firstTail[0]["text"] as? String == "\n\nVOLATILE-TURN-A")
+        #expect(firstTail[0]["cache_control"] == nil)
 
         let laterPayload = await service.makeOpenAIStyleToolPayload(
             provider: .openRouter,
@@ -3874,6 +4042,12 @@ struct ChatRobustnessTests {
             }
             if slug.hasPrefix("google/gemini") {
                 #expect(policy == .explicitBreakpoints(ttl: nil), "\(slug) should not send a ttl")
+            }
+            // GPT-5.6 and later list `supports_implicit_caching: false` and bill a
+            // write at 1.25x; left implicit they pay the premium and keep the
+            // entry about a minute (measured 2026-10-15: 4% read after a pause).
+            if slug.hasPrefix("openai/"), AIModelDefaults.openAIBillsCacheWrites(slug) {
+                #expect(policy == .explicitBreakpoints(ttl: nil), "\(slug) must use explicit breakpoints")
             }
             // A model may only claim implicit caching if it isn't one we have
             // already measured as non-caching.
