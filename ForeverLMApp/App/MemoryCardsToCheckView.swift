@@ -137,8 +137,10 @@ struct MemoryCardsToCheckView: View {
             takeFocusCard()
         }
         .onAppear {
-            // Opened at a chat's card, the chat beside it keeps its composer.
-            if windowState?.memoryPaneFocusCardID == nil { focused = true }
+            // The card waits for an answer, so the answer field takes the keys
+            // when it is dealt (and not at all when a chat opened the pane at a
+            // card: the chat beside it keeps its composer). Claiming them here
+            // as well raced the field and left it unable to type.
             takeFocusCard()
         }
         .onChange(of: windowState?.memoryPaneFocusCardID) { _, _ in takeFocusCard() }
@@ -202,8 +204,10 @@ struct MemoryCardsToCheckView: View {
             .frame(maxWidth: .infinity)
         }
         .contentShape(Rectangle())
-        // A click anywhere in the pane gives it the keys.
-        .simultaneousGesture(TapGesture().onEnded { focused = true })
+        // A click in the pane gives it the keys once the back shows. Before
+        // that the keys are the answer field's, and a click into it must not
+        // pull them away.
+        .simultaneousGesture(TapGesture().onEnded { if openCard != nil { focused = true } })
     }
 
     @ViewBuilder
