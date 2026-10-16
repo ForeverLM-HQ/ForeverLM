@@ -98,103 +98,118 @@ struct GeneralSettingsDetailView: View {
         }
     }
 
+    /// Every picker and field on the right edge of a row is this wide, so the
+    /// controls line up down the page instead of each ending where it likes.
+    private static let controlWidth: CGFloat = 150
+
+    private var rowDivider: some View {
+        Divider().padding(.vertical, 12)
+    }
+
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                SettingsSection(title: "Your name") {
+            VStack(alignment: .leading, spacing: 28) {
+                SettingsSection(title: "You") {
                     SettingsCard {
-                        TextField("Name", text: $displayNameDraft, prompt: Text(MacAccountUser.resolvedFullName(saved: savedDisplayName) ?? "Your name"))
+                        SettingsRow("Name") {
+                            TextField("Name", text: $displayNameDraft, prompt: Text(MacAccountUser.resolvedFullName(saved: savedDisplayName) ?? "Your name"))
+                                .labelsHidden()
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 240)
+                                .focused($displayNameFocused)
+                                .onSubmit(commitDisplayName)
+                                .accessibilityIdentifier("settings.general.displayName")
+                        }
+                        .onAppear { displayNameDraft = MacAccountUser.resolvedFullName(saved: savedDisplayName) ?? "" }
+                        .onChange(of: savedDisplayName) { _, saved in
+                            // A rename from the web or a chat lands in the field
+                            // unless the learner is typing in it.
+                            guard !displayNameFocused else { return }
+                            displayNameDraft = MacAccountUser.resolvedFullName(saved: saved) ?? ""
+                        }
+                        .onChange(of: displayNameFocused) { _, focused in
+                            if !focused { commitDisplayName() }
+                        }
+                        .onDisappear(perform: commitDisplayName)
+
+                        rowDivider
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            SettingsRow("About you", detail: "Courses are tailored to it.") { EmptyView() }
+                            TextField(
+                                "About you",
+                                text: $aboutYouDraft,
+                                prompt: Text("Where you're coming from: your background, what you know well, what's new to you"),
+                                axis: .vertical
+                            )
                             .labelsHidden()
                             .textFieldStyle(.roundedBorder)
-                            .frame(maxWidth: 280)
-                            .focused($displayNameFocused)
-                            .onSubmit(commitDisplayName)
-                            .accessibilityIdentifier("settings.general.displayName")
+                            .lineLimit(3...8)
+                            .focused($aboutYouFocused)
+                            .accessibilityIdentifier("settings.general.aboutYou")
+                        }
+                        .onAppear { aboutYouDraft = LearnerProfile.aboutYou }
+                        .onChange(of: savedAboutYou) { _, _ in
+                            // Words written on another Mac or by a chat land here
+                            // unless the learner is typing in the field.
+                            guard !aboutYouFocused else { return }
+                            aboutYouDraft = LearnerProfile.aboutYou
+                        }
+                        .onChange(of: aboutYouFocused) { _, focused in
+                            if !focused { commitAboutYou() }
+                        }
+                        .onDisappear(perform: commitAboutYou)
                     }
                 }
-                .onAppear { displayNameDraft = MacAccountUser.resolvedFullName(saved: savedDisplayName) ?? "" }
-                .onChange(of: savedDisplayName) { _, saved in
-                    // A rename from the web or a chat lands in the field
-                    // unless the learner is typing in it.
-                    guard !displayNameFocused else { return }
-                    displayNameDraft = MacAccountUser.resolvedFullName(saved: saved) ?? ""
-                }
-                .onChange(of: displayNameFocused) { _, focused in
-                    if !focused { commitDisplayName() }
-                }
-                .onDisappear(perform: commitDisplayName)
-
-                SettingsSection(
-                    title: "About you",
-                    description: "Courses are tailored to it."
-                ) {
-                    SettingsCard {
-                        TextField(
-                            "About you",
-                            text: $aboutYouDraft,
-                            prompt: Text("Where you're coming from: your background, what you know well, what's new to you"),
-                            axis: .vertical
-                        )
-                        .labelsHidden()
-                        .textFieldStyle(.roundedBorder)
-                        .lineLimit(3...8)
-                        .focused($aboutYouFocused)
-                        .accessibilityIdentifier("settings.general.aboutYou")
-                    }
-                }
-                .onAppear { aboutYouDraft = LearnerProfile.aboutYou }
-                .onChange(of: savedAboutYou) { _, _ in
-                    // Words written on another Mac or by a chat land here
-                    // unless the learner is typing in the field.
-                    guard !aboutYouFocused else { return }
-                    aboutYouDraft = LearnerProfile.aboutYou
-                }
-                .onChange(of: aboutYouFocused) { _, focused in
-                    if !focused { commitAboutYou() }
-                }
-                .onDisappear(perform: commitAboutYou)
 
                 SettingsSection(title: "Day") {
                     SettingsCard {
-                        HStack(spacing: 12) {
-                            Text("Day starts at")
-                                .font(.callout.weight(.medium))
+                        SettingsRow("Day starts at") {
                             Picker("Day starts at", selection: $dayStartHour) {
                                 ForEach(Array(PlannerDayHours.startHours), id: \.self) { hour in
                                     Text(Self.hourLabel(hour)).tag(hour)
                                 }
                             }
                             .labelsHidden()
-                            .frame(width: 120)
+                            .frame(width: Self.controlWidth, alignment: .trailing)
                             .accessibilityIdentifier("settings.general.dayStart")
                             .onChange(of: dayStartHour) { _, start in
                                 // The end follows a start moved past it.
                                 if dayEndHour <= start { dayEndHour = min(PlannerDayHours.endHours.upperBound, start + 1) }
                             }
+                        }
 
-                            Text("and ends at")
-                                .font(.callout.weight(.medium))
+                        rowDivider
+
+                        SettingsRow("Day ends at") {
                             Picker("Day ends at", selection: $dayEndHour) {
                                 ForEach(endHourChoices, id: \.self) { hour in
                                     Text(Self.hourLabel(hour)).tag(hour)
                                 }
                             }
                             .labelsHidden()
-                            .frame(width: 120)
+                            .frame(width: Self.controlWidth, alignment: .trailing)
                             .accessibilityIdentifier("settings.general.dayEnd")
-                            Spacer(minLength: 0)
                         }
 
-                        Divider().padding(.vertical, 12)
+                        rowDivider
 
-                        Toggle("Ask each morning to plan the day when nothing is planned", isOn: $suggestPlanningTheDay)
-                            .toggleStyle(.switch)
-                            .accessibilityIdentifier("settings.general.suggestPlanningTheDay")
+                        SettingsRow("Ask each morning to plan the day", detail: "When nothing is planned yet.") {
+                            Toggle("Ask each morning to plan the day when nothing is planned", isOn: $suggestPlanningTheDay)
+                                .labelsHidden()
+                                .toggleStyle(.switch)
+                                .accessibilityIdentifier("settings.general.suggestPlanningTheDay")
+                        }
 
-                        Toggle("Make me plan: open the planning chat, and keep asking until the day is planned", isOn: $forcePlanningTheDay)
-                            .toggleStyle(.switch)
-                            .disabled(!suggestPlanningTheDay)
-                            .accessibilityIdentifier("settings.general.forcePlanningTheDay")
+                        rowDivider
+
+                        SettingsRow("Make me plan", detail: "Open the planning chat, and keep asking until the day is planned.") {
+                            Toggle("Make me plan: open the planning chat, and keep asking until the day is planned", isOn: $forcePlanningTheDay)
+                                .labelsHidden()
+                                .toggleStyle(.switch)
+                                .disabled(!suggestPlanningTheDay)
+                                .accessibilityIdentifier("settings.general.forcePlanningTheDay")
+                        }
                     }
                 }
 
@@ -202,87 +217,88 @@ struct GeneralSettingsDetailView: View {
 
                 SettingsSection(title: "Memory review") {
                     SettingsCard {
-                        HStack(spacing: 12) {
-                            Text("Time each day")
-                                .font(.callout.weight(.medium))
-                            Spacer(minLength: 0)
+                        SettingsRow("Time each day") {
                             Picker("Time each day", selection: $budgetMinutes) {
                                 ForEach(Self.budgetChoices(including: budgetMinutes), id: \.self) { minutes in
                                     Text(MemoryReviewBudget.label(minutes)).tag(minutes)
                                 }
                             }
                             .labelsHidden()
-                            .frame(width: 160)
+                            .frame(width: Self.controlWidth, alignment: .trailing)
                             .accessibilityIdentifier("settings.memory.budget")
                         }
 
-                        Divider().padding(.vertical, 12)
+                        rowDivider
 
-                        HStack(spacing: 12) {
-                            Text("New cards each day")
-                                .font(.callout.weight(.medium))
-                            Spacer(minLength: 0)
+                        SettingsRow("New cards each day") {
                             Picker("New cards each day", selection: newCardsPerDayBinding) {
                                 ForEach(Self.newCardChoices(including: newCardsPerDay), id: \.self) { count in
                                     Text("\(count)").tag(count)
                                 }
                             }
                             .labelsHidden()
-                            .frame(width: 160)
+                            .frame(width: Self.controlWidth, alignment: .trailing)
                             .accessibilityIdentifier("settings.memory.newCardsPerDay")
                         }
 
-                        Divider().padding(.vertical, 12)
+                        rowDivider
 
-                        Toggle("Draft cards from what you finish", isOn: autoDraftsCardsBinding)
-                            .toggleStyle(.switch)
-                            .accessibilityIdentifier("settings.memory.autoDraftCards")
-                        Text("Uses AI, within your daily background limit.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .padding(.top, 4)
-                        Toggle("Say when drafted cards wait", isOn: showsDraftNudgesBinding)
-                            .toggleStyle(.switch)
-                            .accessibilityIdentifier("settings.memory.draftNudges")
-                            .padding(.top, 8)
+                        SettingsRow("Draft cards from what you finish", detail: "Uses AI, within your daily background limit.") {
+                            Toggle("Draft cards from what you finish", isOn: autoDraftsCardsBinding)
+                                .labelsHidden()
+                                .toggleStyle(.switch)
+                                .accessibilityIdentifier("settings.memory.autoDraftCards")
+                        }
 
-                        Divider().padding(.vertical, 12)
+                        rowDivider
 
-                        Toggle("Prepare review questions ahead of time", isOn: preparesReviewQuestionsBinding)
-                            .toggleStyle(.switch)
-                            .accessibilityIdentifier("settings.memory.prepareReviewQuestions")
-                        Text(
-                            "Uses AI on up to \(StudioViewModel.reviewGuidePrebuildDailyLimit) sources a day, "
+                        SettingsRow("Say when drafted cards wait") {
+                            Toggle("Say when drafted cards wait", isOn: showsDraftNudgesBinding)
+                                .labelsHidden()
+                                .toggleStyle(.switch)
+                                .accessibilityIdentifier("settings.memory.draftNudges")
+                        }
+
+                        rowDivider
+
+                        SettingsRow(
+                            "Prepare review questions ahead of time",
+                            detail: "Uses AI on up to \(StudioViewModel.reviewGuidePrebuildDailyLimit) sources a day, "
                                 + "within your daily background limit."
-                        )
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .padding(.top, 4)
+                        ) {
+                            Toggle("Prepare review questions ahead of time", isOn: preparesReviewQuestionsBinding)
+                                .labelsHidden()
+                                .toggleStyle(.switch)
+                                .accessibilityIdentifier("settings.memory.prepareReviewQuestions")
+                        }
 
-                        Divider().padding(.vertical, 12)
+                        rowDivider
 
-                        Toggle("Have today's review ready", isOn: $prepareDaily)
-                            .toggleStyle(.switch)
-                            .accessibilityIdentifier("settings.memory.prepareDaily")
-                            .onChange(of: prepareDaily) { _, enabled in
-                                didChangePrepareDaily(to: enabled)
-                            }
+                        SettingsRow("Have today's review ready") {
+                            Toggle("Have today's review ready", isOn: $prepareDaily)
+                                .labelsHidden()
+                                .toggleStyle(.switch)
+                                .accessibilityIdentifier("settings.memory.prepareDaily")
+                                .onChange(of: prepareDaily) { _, enabled in
+                                    didChangePrepareDaily(to: enabled)
+                                }
+                        }
 
                         if let note = notificationNote, note.card == .memoryReview {
                             notificationNoteRow(note.permission)
                         }
 
                         if prepareDaily {
-                            HStack(spacing: 12) {
-                                Text("Ready by")
-                                    .font(.callout.weight(.medium))
+                            rowDivider
+
+                            SettingsRow("Ready by") {
                                 Picker("Ready by", selection: $readyHour) {
                                     ForEach(0..<24, id: \.self) { value in
                                         Text(DailyReviewPreparation.hourLabel(value)).tag(value)
                                     }
                                 }
                                 .labelsHidden()
-                                .frame(width: 120)
+                                .frame(width: Self.controlWidth, alignment: .trailing)
                                 .accessibilityIdentifier("settings.memory.hour")
                                 .onChange(of: readyHour) { _, _ in
                                     MemoryReviewPreparationRunner.shared.scheduleRefresh()
@@ -290,46 +306,40 @@ struct GeneralSettingsDetailView: View {
                                     // only while that morning holds a card.
                                     Task { await MemoryReviewPreparationRunner.shared.refreshReminder() }
                                 }
-                                Spacer(minLength: 0)
                             }
-                            .padding(.top, 8)
                         }
                     }
                 }
 
                 SettingsSection(title: "Think first") {
                     SettingsCard {
-                        HStack(spacing: 12) {
-                            Text("Ask for your own line first")
-                                .font(.callout.weight(.medium))
-                            Spacer(minLength: 0)
+                        SettingsRow(
+                            "Ask for your own line first",
+                            detail: "Before a source's gist, a report or Find directions; Also Chat adds a notebook's chat."
+                        ) {
                             Picker("Ask for your own line first", selection: $thinkFirstLevel) {
                                 ForEach(ThinkFirstLevel.allCases, id: \.self) { level in
                                     Text(level.title).tag(level)
                                 }
                             }
                             .labelsHidden()
-                            .frame(width: 200)
+                            .frame(width: Self.controlWidth, alignment: .trailing)
                             .accessibilityIdentifier("settings.general.thinkFirst")
                         }
-                        Text("Before a source's gist, a report or Find directions; Also Chat adds a notebook's chat.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(.top, 4)
                     }
                 }
 
                 SettingsSection(title: "Updates") {
                     SettingsCard {
-                        Toggle("Get beta releases", isOn: betaReleasesBinding)
-                            .toggleStyle(.switch)
-                            .accessibilityIdentifier("settings.general.betaReleases")
-                        Text("Early builds and beta features, such as the Canvas, on every Mac you use.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(.top, 4)
+                        SettingsRow(
+                            "Get beta releases",
+                            detail: "Early builds and beta features, such as the Canvas, on every Mac you use."
+                        ) {
+                            Toggle("Get beta releases", isOn: betaReleasesBinding)
+                                .labelsHidden()
+                                .toggleStyle(.switch)
+                                .accessibilityIdentifier("settings.general.betaReleases")
+                        }
                     }
                 }
             }
@@ -343,7 +353,6 @@ struct GeneralSettingsDetailView: View {
             Task { await refreshNotificationPermission() }
         }
     }
-
 
     /// Written through `MemoryCardSettings`, so the value is clamped and
     /// syncs exactly as `set_memory_review_settings` writes it. The counts
@@ -474,6 +483,38 @@ struct GeneralSettingsDetailView: View {
             CohortReviewNotifications.cancel()
         }
         MemoryReviewPreparationRunner.shared.scheduleRefresh()
+    }
+}
+
+/// One setting in a card: the name (and a quiet line under it) on the left,
+/// its control on the right edge. Every General row draws this way, so a
+/// switch, a picker and a field all sit in the same column.
+struct SettingsRow<Control: View>: View {
+    let title: String
+    let detail: String?
+    let control: Control
+
+    init(_ title: String, detail: String? = nil, @ViewBuilder control: () -> Control) {
+        self.title = title
+        self.detail = detail
+        self.control = control()
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 16) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.callout.weight(.medium))
+                if let detail {
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Spacer(minLength: 16)
+            control
+        }
     }
 }
 
