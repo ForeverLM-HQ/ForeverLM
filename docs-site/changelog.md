@@ -7,7 +7,8 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 ## Unreleased
 
 - **The Library no longer has a Not in any notebook button.** The toggle beside the search, and the filter it switched on, are gone.
-- **A card for the sources that have no cards.** The "Cards to check" card in the corner also counts the sources in your library that no card covers, read or not: "5 sources have no cards yet", with **Make Cards**, which opens the sheet for all of them together so the cards can link the ideas they share. With nothing to check, the card is titled "Sources without cards". It follows the same switch, Say when drafted cards wait.
+- **A card for the sources that have no cards.** The "Cards to check" card in the corner also counts the sources in your library that no card covers, read or not: "5 sources have no cards yet", with **Choose Sources**, which opens Memory's new Sources section. With nothing to check, the card is titled "Sources without cards". It follows the same switch, Say when drafted cards wait.
+- **Memory has a Sources section, for a verdict on every source.** It lists every source in your library with how many cards it has: **No Cards** is what still waits, **All** is everything. Under the pointer each row offers **Make Cards** (**Make More Cards** once it has some) and **Not Worth Keeping**, which removes the source as Remove does, with Undo; **Make Cards for 10** makes cards for the first ten waiting together so they can link their ideas. Assistants list the same sources with the new `list_source_card_coverage` tool and decide with `save_card_drafts` or `remove_source`.
 
 ## 0.157.0 (build 237) — 2026-10-15
 

@@ -250,6 +250,24 @@ struct SourcesAddedWithoutCardsTests {
         #expect(uncovered.recent == ["today"])
     }
 
+    @Test("Every source that can have cards is listed with where its cards stand; the ones with none come first")
+    func coverageOfTheWholeLibrary() async throws {
+        let (storage, root) = try storage()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let now = Date()
+        try await storage.saveSource(added("newer", now: now))
+        try await storage.saveSource(added("older", addedDaysAgo: 40, now: now))
+        try await storage.saveSource(added("fetching", now: now, state: .fetching))
+        try await storage.saveSource(added("paywalled", now: now, paywalled: true))
+        let coverage = try await storage.sourceCardCoverage()
+        #expect(coverage.rows.map(\.id) == ["newer", "older"])
+        #expect(coverage.rows.allSatisfy { $0.state == .none })
+        #expect(coverage.counts.withoutCards == 2)
+        #expect(coverage.counts.all == 2)
+        let uncovered = try await storage.sourcesWithoutCards(now: now)
+        #expect(uncovered.all == Set(coverage.withoutCards.map(\.id)), "the corner card counts what the Sources section lists")
+    }
+
     @Test("A library with nothing added names nothing")
     func nothingAdded() async throws {
         let (storage, root) = try storage()

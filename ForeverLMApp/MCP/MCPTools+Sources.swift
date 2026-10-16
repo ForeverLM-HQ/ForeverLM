@@ -2086,7 +2086,7 @@ extension MCPToolRegistry {
         // The learner's own work
         "list_docs", "list_animations", "list_spaces", "list_ideas", "list_images", "list_scheduled_tasks",
         "list_walkthroughs", "get_review_sessions", "search_review_sessions", "list_review_session_links",
-        "list_cards", "find_card_sources", "get_due_cards", "list_directions",
+        "list_cards", "list_source_card_coverage", "find_card_sources", "get_due_cards", "list_directions",
         // The day
         "get_calendar_events", "get_day_activity", "get_schedule",
     ]

@@ -6168,6 +6168,10 @@ final class ReviewSessionManager {
         // (2026-10-13): the chat chooses the kept cards and the app's card
         // review opens on them.
         "list_cards",
+        // "Which sources have no cards yet?" is asked in the chat too: the
+        // chat lists them and makes the cards, or removes what the learner
+        // says is not worth keeping (remove_source).
+        "list_source_card_coverage",
         // A card also stands on the other sources that state it: the chat
         // that drafts cards finds them and names them with each card.
         "find_card_sources",

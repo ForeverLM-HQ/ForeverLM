@@ -411,11 +411,11 @@ struct CardsToCheckCard: View {
                 let pile = vm.cardsToCheckPile
                 if pile?.uncoveredSourceIDs.isEmpty == false {
                     CornerCardAction(
-                        title: CardsToCheckNudge.makeCardsTitle,
-                        identifier: "studio.cardsToCheck.makeCards",
+                        title: CardsToCheckNudge.chooseSourcesTitle,
+                        identifier: "studio.cardsToCheck.chooseSources",
                         prominent: pile?.hasDrafts != true
                     ) {
-                        vm.makeCardsForUncoveredSources(in: windowState)
+                        vm.openSourcesWithoutCards(in: windowState)
                     }
                 }
                 if pile?.hasDrafts != false {

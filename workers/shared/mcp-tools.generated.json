@@ -6646,6 +6646,35 @@
     "readOnlyHint" : false
   },
   {
+    "description" : "List the sources of the learner's library with how many cards each has, as Memory's Sources section does. The learner's goal is at least one card for each source, cards that help piece the ideas together, and every source worth its weight: go through the sources with status none one at a time and give each a verdict. Make Cards: save_card_drafts with cards you draft yourself (draft_cards only when the learner asks for ForeverLM's model), then more cards for a source that has some. Not Worth Keeping: remove_source, only when the learner says so. scope without_cards (the default) lists the sources no card covers; all lists every source. Each source has source_id, title, source_type, date_added, status (none, to_check, kept or retired) and cards (kept cards). notebook_id narrows to one Notebook's sources. Also returns without_cards and total over that scope. Sources kept from AI, archived, still fetching, paywalled, without text or a team's copy are not listed. Reads only; free.",
+    "inputSchema" : {
+      "properties" : {
+        "limit" : {
+          "description" : "Most sources listed (default 100, max 500).",
+          "type" : "integer"
+        },
+        "notebook_id" : {
+          "description" : "Only this Notebook's sources, from list_notebooks.",
+          "type" : "string"
+        },
+        "scope" : {
+          "description" : "without_cards (the default) or all.",
+          "enum" : [
+            "without_cards",
+            "all"
+          ],
+          "type" : "string"
+        }
+      },
+      "required" : [
+
+      ],
+      "type" : "object"
+    },
+    "name" : "list_source_card_coverage",
+    "readOnlyHint" : true
+  },
+  {
     "description" : "List the passages the learner highlighted in one source, with the note they wrote on each. These are the learner's own marks, made while reading in ForeverLM — the clearest record of what they found important in a source. Read them before reviewing or summarizing a source the learner has already read. A mark's publication_update is what has been learned since the source was written, as research put it (not the learner's words), and a mark with a session_id carries the chat that research came from.",
     "inputSchema" : {
       "properties" : {

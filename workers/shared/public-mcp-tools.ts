@@ -461,6 +461,8 @@ export const DESKTOP_ONLY_TOOL_NAMES: ReadonlySet<string> = new Set([
   // Memory item the Mac's scheduler deals (docs/memory-design.md).
   "save_card_drafts",
   "list_cards",
+  // Which sources have cards is read from the Mac's own card anchors.
+  "list_source_card_coverage",
   // The nearest passages of other sources to a card, retrieved from the Mac's
   // embeddings of its sources' text.
   "find_card_sources",

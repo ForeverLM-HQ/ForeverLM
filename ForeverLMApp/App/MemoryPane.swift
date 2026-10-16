@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// The Memory pane (docs/memory-design.md, "The Memory pane"): what the rail's
-/// Memory row opens since the card review (2026-10-01). Three sections:
+/// Memory row opens since the card review (2026-10-01). Four sections:
 ///
 /// - **Review**: today's cards in the scope ("6 due · 4 new"), the promise
 ///   starting makes in one line, **Start Review** — with **Practice**, the only thing
@@ -15,6 +15,9 @@ import SwiftUI
 /// - **All Cards**: every kept card in the scope, searched, by source or by
 ///   notebook; a click edits the card, and its menu starts it over or
 ///   retires it.
+/// - **Sources**: every source in the library with how many cards it has and
+///   a verdict on each — Make Cards, or Not Worth Keeping
+///   (`MemorySourcesView`).
 ///
 /// The scope is every notebook, or one, and the section and scope are the
 /// window's (`StudioWindowState.memoryPaneScope`, `.memoryPaneSection`): the
@@ -132,7 +135,7 @@ struct MemoryPane: View {
                     SpaceScopePill(
                         title: item.title,
                         isSelected: section == item,
-                        count: item == .toCheck && hasLoaded ? snapshot.toCheck.count : nil
+                        count: pillCount(item)
                     ) {
                         if windowState.memoryPaneSection != item { windowState.memoryPaneSection = item }
                     }
@@ -147,6 +150,16 @@ struct MemoryPane: View {
             if case .notebook = scope {
                 narrowedNotebook
             }
+        }
+    }
+
+    /// What waits in a section, drawn beside its name: the cards in To Check,
+    /// the sources with no card in Sources.
+    private func pillCount(_ item: MemoryPaneSection) -> Int? {
+        switch item {
+        case .toCheck: return hasLoaded ? snapshot.toCheck.count : nil
+        case .sources: return vm.cardsToCheckPile?.uncoveredSourceIDs.count
+        case .review, .allCards: return nil
         }
     }
 
@@ -200,6 +213,7 @@ struct MemoryPane: View {
         case .review: reviewSection
         case .toCheck: toCheckSection
         case .allCards: allCardsSection
+        case .sources: MemorySourcesView(scope: scope).id(scopeTag)
         }
     }
 

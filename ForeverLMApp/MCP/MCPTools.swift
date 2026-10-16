@@ -3026,6 +3026,19 @@ final class MCPToolRegistry: @unchecked Sendable {
                 ]
             ),
             MCPToolDef(
+                name: "list_source_card_coverage",
+                description: "List the sources of the learner's library with how many cards each has, as Memory's Sources section does. The learner's goal is at least one card for each source, cards that help piece the ideas together, and every source worth its weight: go through the sources with status none one at a time and give each a verdict. Make Cards: save_card_drafts with cards you draft yourself (draft_cards only when the learner asks for ForeverLM's model), then more cards for a source that has some. Not Worth Keeping: remove_source, only when the learner says so. scope without_cards (the default) lists the sources no card covers; all lists every source. Each source has source_id, title, source_type, date_added, status (none, to_check, kept or retired) and cards (kept cards). notebook_id narrows to one Notebook's sources. Also returns without_cards and total over that scope. Sources kept from AI, archived, still fetching, paywalled, without text or a team's copy are not listed. Reads only; free.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "scope": ["type": "string", "enum": ["without_cards", "all"], "description": "without_cards (the default) or all."],
+                        "notebook_id": ["type": "string", "description": "Only this Notebook's sources, from list_notebooks."],
+                        "limit": ["type": "integer", "description": "Most sources listed (default 100, max 500)."],
+                    ],
+                    "required": [] as [String],
+                ]
+            ),
+            MCPToolDef(
                 name: "find_card_sources",
                 description: "Find the other sources of the learner's library that also state what a card asks, so the card can stand on every source that prints it. A card is about an idea, and an idea is often printed in several sources (a talk and the paper behind it, two lectures on one mechanism); a card that stands on several sources shows each in To Check and in review. Pass card_id (a card to check or a kept card, from list_cards), or a question and an answer you are about to save with save_card_drafts. Returns the passages of other sources nearest the card, up to 4, each with source_id, source_title and passage: they are retrieved, not judged, so read each and keep only those that state the card's answer in substance, not merely its topic, then name them in also_from (source_id and a quote copied word for word from its passage) in save_card_drafts, or in triage_cards when the learner keeps the card. source_ids or notebook_id narrow the search to those sources or to one Notebook's; sources the card already stands on, and sources kept from AI, are never listed. Reads only; free apart from the embedding of the card's words.",
                 inputSchema: [
@@ -5152,6 +5165,7 @@ final class MCPToolRegistry: @unchecked Sendable {
         "get_source_settings",
         "get_memory_review_settings",
         "list_cards",
+        "list_source_card_coverage",
         "find_card_sources",
         "list_practices",
         // Today's cards with the wording to ask: nothing is marked asked.
@@ -6715,6 +6729,12 @@ final class MCPToolRegistry: @unchecked Sendable {
                     status: arguments["status"] as? String,
                     notebookID: arguments["notebook_id"] as? String,
                     sourceID: arguments["source_id"] as? String,
+                    limit: try MCPDataStore.intArgument(arguments, "limit")
+                )
+            case "list_source_card_coverage":
+                return try await store.listSourceCardCoverage(
+                    scope: arguments["scope"] as? String,
+                    notebookID: arguments["notebook_id"] as? String,
                     limit: try MCPDataStore.intArgument(arguments, "limit")
                 )
             case "find_card_sources":

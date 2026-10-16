@@ -331,7 +331,7 @@ enum CardsToCheckNudge {
     /// The title when sources without cards are all the card has to say.
     static let uncoveredTitle = "Sources without cards"
     static let goThroughTitle = "Go Through Them"
-    static let makeCardsTitle = "Make Cards"
+    static let chooseSourcesTitle = "Choose Sources"
 
     /// What the card is about: the drafts ForeverLM made in the background
     /// that wait in To Check (not asked for, not an assistant's), and the

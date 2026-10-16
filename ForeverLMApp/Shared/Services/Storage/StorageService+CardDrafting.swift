@@ -1,4 +1,5 @@
 import Foundation
+import SQLite3
 
 // MARK: - Memory cards: what drafting reads
 //
@@ -344,30 +345,58 @@ extension StorageService {
     /// spoken script ForeverLM wrote, one still fetching or failed, a
     /// paywalled one, and one with no text.
     func sourcesWithoutCards(now: Date = Date(), calendar: Calendar = .current) throws -> UncoveredSources {
+        var result = UncoveredSources()
+        for row in try readSourceCardCoverage().withoutCards {
+            result.all.insert(row.id)
+            if CardsToCheckBanner.isRecentlyAdded(row.dateAdded, now: now, calendar: calendar) {
+                result.recent.insert(row.id)
+            }
+        }
+        return result
+    }
+
+    /// Every source in the library that can have cards and how many it has:
+    /// the Memory pane's Sources section, which goes through all of them
+    /// (product owner, 2026-10-16: "go through ALL the sources in my library
+    /// and come up with at least one flashcard; and then the option to
+    /// generate more"). One set-based read of the card anchors, not a query
+    /// per source.
+    func sourceCardCoverage() throws -> SourceCardCoverage {
+        try readSourceCardCoverage()
+    }
+
+    private func readSourceCardCoverage() throws -> SourceCardCoverage {
         let store = try notebookFilesKnowledgeStore()
+        let excluded = try store.knowledgeSearchExcludedSourceIDs(includeArchived: true)
         let sources = try store.loadSourcesWithoutContent().filter {
             $0.teamID == nil && $0.status == .active && $0.state == .ready && !$0.isPaywalled
                 && ($0.wordCount.map { $0 > 0 } ?? true)
                 && !TextToSpeechPreparationPolicy.isSpokenScript(url: $0.url)
+                && !excluded.contains($0.id)
         }
-        guard !sources.isEmpty else { return UncoveredSources() }
-        var covered: Set<String>
+        guard !sources.isEmpty else { return SourceCardCoverage() }
+        let drafted: Set<String>
         if try store.recordsMemoryForGeneration2() {
-            covered = Set(try store.cardRecordDeckFirstDrafts().keys)
+            drafted = Set(try store.cardRecordDeckFirstDrafts().keys)
         } else {
             let decks = try store.loadArtifacts(listing: .cardDecksOnly)
-            covered = Set(decks.compactMap { MemoryCard.sourceID(fromDraftDeckID: $0.id) ?? $0.sourceIDs.first })
+            drafted = Set(decks.compactMap { MemoryCard.sourceID(fromDraftDeckID: $0.id) ?? $0.sourceIDs.first })
         }
-        covered.formUnion(try store.sourceIDsAnchoringMemoryItems())
-        covered.formUnion(try store.knowledgeSearchExcludedSourceIDs(includeArchived: true))
-        var result = UncoveredSources()
-        for source in sources where !covered.contains(source.id) {
-            result.all.insert(source.id)
-            if CardsToCheckBanner.isRecentlyAdded(source.dateAdded, now: now, calendar: calendar) {
-                result.recent.insert(source.id)
-            }
-        }
-        return result
+        let anchored = try store.sourceIDsAnchoringMemoryItems()
+        let kept = try store.activeMemoryItemCountsBySource()
+        return SourceCardCoverage(rows: sources.map { source in
+            SourceCardRow(
+                id: source.id,
+                title: source.title,
+                sourceType: source.sourceType,
+                dateAdded: source.dateAdded,
+                state: SourceCardState(
+                    keptCards: kept[source.id] ?? 0,
+                    hasDrafts: drafted.contains(source.id),
+                    isAnchored: anchored.contains(source.id)
+                )
+            )
+        })
     }
 }
 
@@ -380,6 +409,22 @@ extension StorageService {
 }
 
 extension KnowledgeStore {
+    /// How many active Memory items each source anchors: one read for the
+    /// whole library. A source with none is absent.
+    func activeMemoryItemCountsBySource() throws -> [String: Int] {
+        var counts: [String: Int] = [:]
+        try query("""
+            SELECT mis.source_id, COUNT(DISTINCT mis.memory_item_id)
+            FROM memory_item_sources mis
+            JOIN memory_items mi ON mi.id = mis.memory_item_id
+            WHERE mi.status = 'active'
+            GROUP BY mis.source_id
+        """) { statement in
+            if let id = self.string(statement, 0) { counts[id] = Int(sqlite3_column_int64(statement, 1)) }
+        }
+        return counts
+    }
+
     /// Every source that has a Memory item anchored on it, whatever the
     /// item's status: one read for the whole library.
     func sourceIDsAnchoringMemoryItems() throws -> Set<String> {

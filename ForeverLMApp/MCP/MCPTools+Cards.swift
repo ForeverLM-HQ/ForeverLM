@@ -534,6 +534,54 @@ extension MCPDataStore {
         return try jsonString(found)
     }
 
+    // MARK: list_source_card_coverage
+
+    /// The sources of the library and how many cards each has: Memory's
+    /// Sources section, for an assistant to go through with the learner. The
+    /// verdicts are the tools that already exist: Make Cards is
+    /// `save_card_drafts` (the assistant drafts) or `draft_cards`, Not Worth
+    /// Keeping is `remove_source`. Reads only.
+    func listSourceCardCoverage(scope rawScope: String?, notebookID: String?, limit rawLimit: Int?) async throws -> String {
+        let scope = Self.trimmedOrNil(rawScope)?.lowercased() ?? "without_cards"
+        guard ["without_cards", "all"].contains(scope) else {
+            throw MCPError.invalidInput("scope is without_cards or all.")
+        }
+        let limit = max(1, min(rawLimit ?? 100, 500))
+        var allowed: Set<String>?
+        if let notebookID = Self.trimmedOrNil(notebookID) {
+            let store = try knowledgeStore()
+            let notebook = try resolveMCPNotebookGoal(notebookID: notebookID, store: store)
+            allowed = MemoryCardScope(membership: try store.notebookMembership(notebookID: notebook.id)).sourceIDs
+        }
+        let coverage = try await notebookFileStorage.sourceCardCoverage()
+        let inScope = SourceCardList.filter(coverage.rows, scope: .all, allowed: allowed)
+        let listed = SourceCardList.filter(inScope, scope: scope == "all" ? .all : .withoutCards)
+        let dates = ISO8601DateFormatter()
+        var payload: [String: Any] = [
+            "scope": scope,
+            "without_cards": inScope.filter { $0.state == .none }.count,
+            "total": inScope.count,
+            "returned": min(listed.count, limit),
+        ]
+        payload["sources"] = listed.prefix(limit).map { row -> [String: Any] in
+            var entry: [String: Any] = [
+                "source_id": row.id,
+                "title": row.title,
+                "source_type": row.sourceType.rawValue,
+                "date_added": dates.string(from: row.dateAdded),
+            ]
+            switch row.state {
+            case .none: entry["status"] = "none"; entry["cards"] = 0
+            case .toCheck: entry["status"] = "to_check"; entry["cards"] = 0
+            case .cards(let count): entry["status"] = "kept"; entry["cards"] = count
+            case .retired: entry["status"] = "retired"; entry["cards"] = 0
+            }
+            return entry
+        }
+        payload["guidance"] = "The learner's goal is at least one card for each source, and every source worth its weight. For each source with status none, make cards (save_card_drafts with cards you draft yourself; draft_cards only when the learner asks for ForeverLM's model) or, when the learner says it is not worth keeping, remove_source. Never remove a source on your own judgment. to_check means drafts wait in Memory's To Check; kept sources can get more cards."
+        return try jsonString(payload)
+    }
+
     // MARK: triage_cards
 
     func triageCards(decisions rawDecisions: [[String: Any]], keepSourceIDs: [String], skipSourceIDs: [String]) async throws -> String {

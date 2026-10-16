@@ -6304,6 +6304,58 @@ struct MCPDataStoreTests {
         #expect(alone.compactMap { $0["source_id"] as? String } == ["source-cards"])
     }
 
+    @Test("list_source_card_coverage lists the sources no card covers, then every source with where its cards stand")
+    func listSourceCardCoverageTool() async throws {
+        let registry = MCPToolRegistry(store: MCPDataStore())
+        let tool = try #require(registry.tools.first { $0.name == "list_source_card_coverage" })
+        #expect(tool.inputSchema["anyOf"] == nil && tool.inputSchema["oneOf"] == nil)
+        #expect(MCPToolRegistry.annotations(for: "list_source_card_coverage")["readOnlyHint"] as? Bool == true)
+        #expect(!MCPToolRegistry.paidWorkToolNames.contains("list_source_card_coverage"))
+        #expect(ReviewSessionManager.studySurfaceToolNames.contains("list_source_card_coverage"))
+
+        let (store, dbPath, _, cleanup) = try makeCardStore()
+        defer { cleanup() }
+        try insertSource(dbPath: dbPath, id: "source-cards", title: "Retrieval practice", content: Self.cardSourceText)
+        try insertSource(dbPath: dbPath, id: "source-second", title: "Testing yourself", content: Self.secondCardSourceText)
+        try insertSource(dbPath: dbPath, id: "source-bare", title: "Bare source", content: "Some words to read here.")
+
+        let none = try parseJSON(try await store.listSourceCardCoverage(scope: nil, notebookID: nil, limit: nil))
+        #expect(none["scope"] as? String == "without_cards")
+        #expect(none["without_cards"] as? Int == 3)
+        #expect(none["total"] as? Int == 3)
+        #expect(Set((none["sources"] as? [[String: Any]] ?? []).compactMap { $0["source_id"] as? String })
+            == ["source-cards", "source-second", "source-bare"])
+        #expect(none["guidance"] != nil)
+
+        _ = try await store.saveCardDrafts(cards: [
+            ["source_id": "source-cards", "front": "What strengthens later access more than rereading?",
+             "back": "Retrieval practice.", "quote": "Retrieval practice strengthens later access"],
+        ], keptByDefault: false)
+        let drafted = try parseJSON(try await store.listSourceCardCoverage(scope: "all", notebookID: nil, limit: nil))
+        let rows = try #require(drafted["sources"] as? [[String: Any]])
+        let byID = Dictionary(uniqueKeysWithValues: rows.compactMap { row in (row["source_id"] as? String).map { ($0, row) } })
+        #expect(byID["source-cards"]?["status"] as? String == "to_check")
+        #expect(byID["source-second"]?["status"] as? String == "none")
+        #expect(drafted["without_cards"] as? Int == 2)
+        #expect(rows.first?["status"] as? String == "none", "the sources with no card come first")
+
+        let cardID = try #require(((try parseJSON(try await store.listCards(status: nil, notebookID: nil, sourceID: nil, limit: nil)))["to_check"] as? [[String: Any]])?.first?["card_id"] as? String)
+        _ = try await store.triageCards(decisions: [["card_id": cardID, "action": "keep"]], keepSourceIDs: [], skipSourceIDs: [])
+        let kept = try parseJSON(try await store.listSourceCardCoverage(scope: "all", notebookID: nil, limit: 1))
+        #expect(kept["returned"] as? Int == 1, "limit caps the list")
+        let keptRows = try parseJSON(try await store.listSourceCardCoverage(scope: "all", notebookID: nil, limit: nil))
+        let keptSource = try #require((keptRows["sources"] as? [[String: Any]])?.first { $0["source_id"] as? String == "source-cards" })
+        #expect(keptSource["status"] as? String == "kept")
+        #expect(keptSource["cards"] as? Int == 1)
+
+        do {
+            _ = try await store.listSourceCardCoverage(scope: "everything", notebookID: nil, limit: nil)
+            Issue.record("An unknown scope was accepted")
+        } catch let error as MCPError {
+            #expect(error.localizedDescription.contains("without_cards"))
+        }
+    }
+
     @Test("find_card_sources is read-only, takes a card or a question and an answer, and refuses an unknown card")
     func findCardSourcesTool() async throws {
         let registry = MCPToolRegistry(store: MCPDataStore())

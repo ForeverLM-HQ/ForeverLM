@@ -155,14 +155,12 @@ extension StudioViewModel {
         inWindow(windowState) { openCardsToCheck(scope: .allNotebooks) }
     }
 
-    /// Make Cards on the card: the Make Cards sheet for the sources no card
-    /// covers, together, so the cards can link what several of them print.
-    /// The card is answered for today.
-    func makeCardsForUncoveredSources(in windowState: StudioWindowState) {
-        let sourceIDs = (cardsToCheckPile?.uncoveredSourceIDs ?? []).sorted()
+    /// Choose Sources on the card: the Memory pane's Sources section over
+    /// every notebook, where each source without cards gets a verdict. The
+    /// card is answered for today.
+    func openSourcesWithoutCards(in windowState: StudioWindowState) {
         putOffCardsToCheck()
-        guard !sourceIDs.isEmpty else { return }
-        inWindow(windowState) { presentMakeCards(notebookID: nil, sourceIDs: sourceIDs) }
+        inWindow(windowState) { openMemoryPane(scope: .allNotebooks, section: .sources) }
     }
 
     /// Sources came into the library or became readable: the sources no card
