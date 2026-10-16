@@ -1982,23 +1982,6 @@ struct StudioNavigationRail: View {
             .accessibilityValue(mcpStatusLightLabel)
         }
 
-        // Hidden with the crown: the switch exists to keep the comp out of
-        // screenshots and recordings, and the menu is filmed too (library
-        // switching). AI Usage still says who pays.
-        if showsCompOnScreen {
-            accountMenuAction(
-                title: compTitle,
-                subtitle: compSubtitle,
-                icon: compRowIcon,
-                accessibilityIdentifier: "rail.comp.badge"
-            ) {
-                showsAccountMenu = false
-                onOpenSettings(.aiUsage)
-            }
-            .help("Open AI Usage")
-            .accessibilityValue(compHelpText)
-        }
-
         accountMenuAction(
             title: "My Settings",
             systemImage: "gearshape",
@@ -2269,50 +2252,12 @@ struct StudioNavigationRail: View {
 
     // MARK: Comp
 
-    /// The icon of the account menu's "Usage is paid for" row, for a learner
-    /// whose usage ForeverLM is paying for (beside the name on the account
-    /// button until 2026-10-06).
-    private var compCrown: some View {
-        Text(verbatim: "👑")
-            .font(.system(size: 12))
-            .accessibilityHidden(true)
-    }
-
     /// The comp pays only for what goes through the proxy. With the learner's
     /// own key stored and allowed to run (a comp is unlocked), everything the key
     /// covers goes straight to its router and is billed there, so the comp row
     /// said "Usage is paid for by ForeverLM · $0.00 used today" while the key
-    /// paid for the day's chats (2026-09-27). The row names the key instead.
+    /// paid for the day's chats (2026-09-27). The help text names the key instead.
     private var ownKeyPays: Bool { account.ownKey != nil && account.ownKeyAllowed }
-
-    @ViewBuilder
-    private var compRowIcon: some View {
-        if ownKeyPays {
-            // The router's own mark, not a key glyph (product owner,
-            // 2026-10-15: "you can get rid of this now that we have the open
-            // router logo").
-            Image("OpenRouterIcon")
-                .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 14, height: 14)
-                .foregroundStyle(.secondary)
-                .accessibilityHidden(true)
-        } else {
-            compCrown
-        }
-    }
-
-    /// Who pays, never how much: spend is OpenRouter's to show (product
-    /// owner, 2026-10-15: "we shouldn't maintain our own spend stuff").
-    private var compTitle: String {
-        ownKeyPays ? "Your own key" : "Usage is paid for by ForeverLM"
-    }
-
-    private var compSubtitle: String {
-        if let own = account.ownKey, ownKeyPays { return "Billed to your \(own.router.label) account" }
-        return "ForeverLM is covering your AI usage"
-    }
 
     private var compHelpText: String {
         if let own = account.ownKey, ownKeyPays {
@@ -2321,8 +2266,7 @@ struct StudioNavigationRail: View {
         return "Usage is paid for by ForeverLM on this account"
     }
 
-    /// The comp's "Usage is paid for" menu row, its crown and the button's
-    /// tooltip: on for a comped account unless the learner switched the crown
+    /// The button's tooltip and the comp refresh on opening the menu: on for a comped account unless the learner switched the crown
     /// off, and never while screen record mode is filming (usage stays off
     /// screen). The button itself carries no crown since 2026-10-06.
     private var showsCompOnScreen: Bool {
