@@ -84,12 +84,30 @@ struct MemoryCardsToCheckView: View {
     /// nothing of the check is written.
     @State private var checks: [String: MemoryCardSitting.AnswerCheck] = [:]
     @State private var checkWork: Task<Void, Never>?
+    /// Decisions taken and not yet written, oldest first: Back takes the
+    /// newest one back (product owner, 2026-10-16: "if i click the wrong thing;
+    /// i need to be able to go back here"). They are written once the learner
+    /// has been still for `holdSeconds`, when the pane closes, or when the app
+    /// goes to the background; a Back after that has nothing to take back.
+    @State private var held: [Held] = []
+    @State private var flushWork: Task<Void, Never>?
     @FocusState private var focused: Bool
 
     private struct Revealed: Equatable {
         let cardID: String
         let attempt: String?
     }
+
+    private struct Held {
+        let id = UUID()
+        let decisions: [MemoryCardTriageDecision]
+        /// The source this decision removed from the library, when it did;
+        /// its own Undo brings it back.
+        let removedSourceID: String?
+    }
+
+    /// How long a decision waits for a Back before it is written.
+    private static let holdSeconds: UInt64 = 30
 
     private struct Gone: Equatable {
         let cardID: String
@@ -219,8 +237,15 @@ struct MemoryCardsToCheckView: View {
             windowState?.memoryCardsWaitingIDs = waiting
         }
         .onDisappear {
+            flushHeld()
             windowState?.memoryCardOnScreen = nil
             windowState?.memoryCardsWaitingIDs = []
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.willResignActiveNotification)) { _ in
+            flushHeld()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
+            flushHeld()
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("memory.pane.toCheck")
@@ -275,10 +300,14 @@ struct MemoryCardsToCheckView: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .monospacedDigit()
+            if !held.isEmpty {
+                backButton
+                    .padding(.top, 6)
+            }
         }
         .textSelection(.disabled)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("memory.pane.toCheck.done")
     }
 
@@ -310,6 +339,7 @@ struct MemoryCardsToCheckView: View {
             HStack(alignment: .center, spacing: 10) {
                 sourceChip(card)
                 Spacer(minLength: 12)
+                if canGoBack { backButton }
                 Text("\(gone.count + 1) of \(gone.count + waiting)")
                     .font(.system(size: 12.5))
                     .foregroundStyle(.secondary)
@@ -601,7 +631,7 @@ struct MemoryCardsToCheckView: View {
         let sourceID = card.sourceID
         let theirs = visible.filter { $0.sourceID == sourceID }
         exitEdge = .leading
-        decide(theirs.map { MemoryCardTriageDecision(card: $0, action: .skip) })
+        decide(theirs.map { MemoryCardTriageDecision(card: $0, action: .skip) }, removing: sourceID)
         Task { await vm.removeArticle(id: sourceID) }
     }
 
@@ -685,6 +715,97 @@ struct MemoryCardsToCheckView: View {
         Task { await vm.openLinkedSourceInReader(sourceID, passage: passage, beside: .memory) }
     }
 
+    // MARK: Going back
+
+    /// Back has something to take back: the answer of the card in front, else
+    /// the last decision, while it is still unwritten.
+    private var canGoBack: Bool {
+        if let card = current, opened(card) != nil { return true }
+        return !held.isEmpty
+    }
+
+    private var backButton: some View {
+        Button(action: goBack) {
+            HStack(spacing: 4) {
+                Image(systemName: "arrow.uturn.backward")
+                    .font(.system(size: 11, weight: .semibold))
+                Text("Back")
+                    .font(.system(size: 12.5, weight: .medium))
+            }
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 6)
+            .frame(height: 22)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .hoverHighlight(cornerRadius: 6, inset: 0)
+        .help(current.flatMap(opened) != nil
+            ? "Back to the question"
+            : "Take the last decision back and bring its card here again")
+        .accessibilityIdentifier("memory.pane.toCheck.back")
+    }
+
+    /// A card turned over goes back to its question, with what was written
+    /// for it; otherwise the newest decision still unwritten is taken back and
+    /// its card is dealt in front again, unanswered.
+    private func goBack() {
+        if let card = current, let shown = opened(card) {
+            checkWork?.cancel()
+            checks[card.cardID] = nil
+            attemptDraft = shown.attempt ?? ""
+            withAnimation(.easeOut(duration: 0.22)) { openCard = nil }
+            return
+        }
+        guard let last = held.last else { return }
+        guard let sourceID = last.removedSourceID else {
+            restore(last)
+            return
+        }
+        Task {
+            guard await vm.undoPendingDeletion(forSourceID: sourceID) else {
+                vm.showToast("That source is already removed, so its cards stay skipped.")
+                return
+            }
+            restore(last)
+        }
+    }
+
+    private func restore(_ entry: Held) {
+        guard held.contains(where: { $0.id == entry.id }) else { return }
+        held.removeAll { $0.id == entry.id }
+        if held.isEmpty {
+            flushWork?.cancel()
+            flushWork = nil
+        }
+        let ids = entry.decisions.map(\.card.cardID)
+        exitEdge = .trailing
+        withAnimation(Self.dealAnimation) {
+            decided.subtract(ids)
+            gone.removeAll { ids.contains($0.cardID) }
+            selection = ids.first
+        }
+    }
+
+    /// Writes every decision still held, once.
+    private func flushHeld() {
+        flushWork?.cancel()
+        flushWork = nil
+        let batch = held.flatMap(\.decisions)
+        held = []
+        guard !batch.isEmpty else { return }
+        let ids = Set(batch.map(\.card.cardID))
+        Task {
+            let result = await vm.triageCardsToCheck(batch)
+            let failed = Set(result.failed.map(\.cardID))
+            // What was held for a decided card goes with it; a card storage
+            // refused comes back with its pictures.
+            for id in ids.subtracting(failed) { windowState?.memoryCardPictures[id] = nil }
+            guard !failed.isEmpty else { return }
+            decided.subtract(failed)
+            gone.removeAll { failed.contains($0.cardID) }
+        }
+    }
+
     // MARK: Drawing a picture
 
     /// The ••• and right-click item that draws the card a picture: one image
@@ -737,8 +858,9 @@ struct MemoryCardsToCheckView: View {
     }
 
     /// Hides the decided cards at once, deals the next card in front, and
-    /// writes the decisions; a card storage refused comes back.
-    private func decide(_ given: [MemoryCardTriageDecision]) {
+    /// holds the decisions for Back before writing them (`flushHeld`); a card
+    /// storage refused comes back.
+    private func decide(_ given: [MemoryCardTriageDecision], removing removedSourceID: String? = nil) {
         guard !given.isEmpty else { return }
         let decisions = given.map(withSourcesTakenOff)
         focused = true
@@ -757,15 +879,12 @@ struct MemoryCardsToCheckView: View {
                 return Gone(cardID: decision.card.cardID, kept: true)
             }
         }
-        Task {
-            let result = await vm.triageCardsToCheck(decisions)
-            let failed = Set(result.failed.map(\.cardID))
-            // What was held for a decided card goes with it; a card storage
-            // refused comes back with its pictures.
-            for id in ids.subtracting(failed) { windowState?.memoryCardPictures[id] = nil }
-            guard !failed.isEmpty else { return }
-            decided.subtract(failed)
-            gone.removeAll { failed.contains($0.cardID) }
+        held.append(Held(decisions: decisions, removedSourceID: removedSourceID))
+        flushWork?.cancel()
+        flushWork = Task {
+            try? await Task.sleep(for: .seconds(Self.holdSeconds))
+            guard !Task.isCancelled else { return }
+            flushHeld()
         }
     }
 
