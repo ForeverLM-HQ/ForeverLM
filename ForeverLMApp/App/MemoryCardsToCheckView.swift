@@ -299,15 +299,6 @@ struct MemoryCardsToCheckView: View {
             header(card, waiting: waiting)
             deck(card, waiting: waiting)
             actions(card)
-            if gone.isEmpty {
-                // What the buttons do, to someone who has never seen them.
-                Text("Answer the card, then keep it and Review will ask it, or skip it and it is gone.")
-                    .font(.callout)
-                    .foregroundStyle(.tertiary)
-                    .textSelection(.disabled)
-                    .frame(maxWidth: .infinity)
-                    .accessibilityIdentifier("memory.pane.toCheck.hint")
-            }
         }
     }
 
