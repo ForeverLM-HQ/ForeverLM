@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// Where the chrome over a pane's top-right corner goes, resolved once by
 /// `StudioPaneHost` and handed to whatever the host draws there (a center
@@ -16,6 +17,211 @@ struct StudioPaneHostCorner {
     /// For a corner control to report the pointer over itself, which sits in
     /// the titlebar band above the pane's own frame.
     var reportHover: (Bool) -> Void = { _ in }
+    /// The titlebar band the corner's controls rise into, nil with none.
+    var titlebarBandHeight: CGFloat?
+    /// How the pane's swap control is drawn at this width, resolved with the
+    /// pin and the close so the three share the corner without colliding.
+    var swapTier: StudioPaneSwap.Tier = .none
+}
+
+/// The pane's own way to change what it shows, drawn over its top-right corner
+/// beside the pin (docs/ui-design.md, "Direct pane arrangement"): a row of
+/// icons for the places that earn one, which fold into one menu button when the
+/// pane is narrower, and leave the pin alone when it is narrower still. The
+/// product owner, 2026-10-15, of Codex's and Claude's right-hand panels:
+/// "in codex they have buttons at the top right... same with claude... we could
+/// also do a design like that". Dragging a sidebar row onto a pane does the
+/// same job (`StudioPaneReplaceDropTarget`); this is the second way.
+enum StudioPaneSwap {
+    /// A place the control can show in its pane.
+    struct Destination: Equatable {
+        let tab: StudioCenterTab
+        var startsBlankChat = false
+
+        var title: String { tab.title }
+        var systemImage: String { ShellPlaces.descriptor(for: tab).glyph }
+        var dragPayload: StudioCenterTabDragPayload.Payload {
+            .init(tab: tab, startsBlankChat: startsBlankChat)
+        }
+
+        /// Whether `current`, what the pane shows now, is this destination.
+        func isShown(by current: StudioCenterTab) -> Bool {
+            tab == current || (tab == .chat && current == .secondaryChat)
+        }
+    }
+
+    enum Tier: Equatable {
+        /// One icon per destination.
+        case row
+        /// One button that opens the destinations as a menu.
+        case menu
+        /// Nothing: the pane is too narrow to spare the room.
+        case none
+    }
+
+    /// The visible widths at which the row, then the menu, fit beside the
+    /// pin, the close and a title (a pane may be as narrow as 200pt).
+    static let rowMinimumWidth: CGFloat = 520
+    static let menuMinimumWidth: CGFloat = 300
+
+    static let iconSize: CGFloat = StudioPanelChrome.centerTabCloseButtonSize
+    /// Equal to twice the wash's reach past an icon, so neighbouring washes
+    /// touch and their hit surfaces never overlap.
+    static let iconSpacing: CGFloat = 4
+    static let washInset: CGFloat = 2
+
+    /// The five places a pane most often becomes, in the sidebar's order.
+    static var centerDestinations: [Destination] {
+        offered([.init(tab: .chat), .init(tab: .library), .init(tab: .memory), .init(tab: .browser), .init(tab: .notepad)])
+    }
+
+    /// What a notebook's document slot can become. Chat is the notebook's own
+    /// slot and the Library leaves the notebook, so neither is offered there.
+    static var notebookDocumentDestinations: [Destination] {
+        offered([.init(tab: .notepad), .init(tab: .browser), .init(tab: .memory)])
+    }
+
+    private static func offered(_ destinations: [Destination]) -> [Destination] {
+        destinations.filter { !BetaFeatures.unofferedCenterTabs.contains($0.tab) }
+    }
+
+    static func tier(visibleWidth: CGFloat, destinationCount: Int) -> Tier {
+        guard destinationCount > 0 else { return .none }
+        if visibleWidth >= rowMinimumWidth { return .row }
+        if visibleWidth >= menuMinimumWidth { return .menu }
+        return .none
+    }
+
+    /// What the control claims at the corner, with the gap that separates it
+    /// from the pin (or the close, in a pane with no pin).
+    static func reservedWidth(tier: Tier, destinationCount: Int) -> CGFloat {
+        switch tier {
+        case .row:
+            return CGFloat(destinationCount) * iconSize
+                + CGFloat(max(0, destinationCount - 1)) * iconSpacing
+                + StudioTopBar.paneControlSpacing
+        case .menu:
+            return iconSize + StudioTopBar.paneControlSpacing
+        case .none:
+            return 0
+        }
+    }
+}
+
+/// The swap control itself, laid over a pane's top-right corner by the host's
+/// `corner` closure. It shows only while the pointer is over its pane, like the
+/// pin, and every icon is also a drag source for the same destination.
+struct StudioPaneSwapControl: View {
+    let corner: StudioPaneHostCorner
+    let destinations: [StudioPaneSwap.Destination]
+    /// What the pane shows now: lit in the row, and a click on it does nothing.
+    let current: StudioCenterTab
+    let identifierPrefix: String
+    /// Whether a pin sits between this control and the pane's close.
+    let reservesPin: Bool
+    let onSelect: (StudioPaneSwap.Destination) -> Void
+
+    var body: some View {
+        Group {
+            switch corner.swapTier {
+            case .row: row
+            case .menu: menu
+            case .none: EmptyView()
+            }
+        }
+        .opacity(corner.isPointerOver ? 1 : 0)
+        .animation(.easeOut(duration: 0.15), value: corner.isPointerOver)
+        .padding(.trailing, StudioPanelChrome.headerHorizontalPadding
+            + corner.trailingOverflow
+            + corner.closeReservation
+            + (reservesPin
+                ? StudioPanelChrome.centerTabCloseButtonSize + StudioTopBar.paneControlSpacing
+                : 0))
+        .frame(height: corner.titlebarBandHeight ?? StudioPanelChrome.headerHeight)
+        .offset(y: corner.placement == .chromeLine ? -(corner.titlebarBandHeight ?? 0) : 0)
+    }
+
+    private var row: some View {
+        HStack(spacing: StudioPaneSwap.iconSpacing) {
+            ForEach(destinations, id: \.tab) { destination in
+                let isShown = destination.isShown(by: current)
+                TitlebarBandButton(
+                    help: destination.title,
+                    accessibilityLabel: destination.title,
+                    accessibilityValue: isShown ? "Showing" : "",
+                    accessibilityIdentifier: "\(identifierPrefix).swap.\(destination.tab.rawValue)",
+                    washInset: StudioPaneSwap.washInset,
+                    cornerRadius: 6,
+                    onHover: corner.reportHover,
+                    dragDestination: destination.dragPayload,
+                    action: { if !isShown { onSelect(destination) } }
+                ) {
+                    Image(systemName: destination.systemImage)
+                        .zoomedSystemFont(size: 12, weight: .medium)
+                        .foregroundStyle(isShown ? Color.primary : Color.secondary)
+                        .frame(width: StudioPaneSwap.iconSize, height: StudioPaneSwap.iconSize)
+                        .background(
+                            StudioDesign.selectionFill(isSelected: isShown, isHovered: false),
+                            in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        )
+                }
+            }
+        }
+    }
+
+    private var menu: some View {
+        TitlebarBandButton(
+            help: "Show in this pane",
+            accessibilityLabel: "Show in this pane",
+            accessibilityIdentifier: "\(identifierPrefix).swap.menu",
+            washInset: StudioPaneSwap.washInset,
+            cornerRadius: 6,
+            onHover: corner.reportHover,
+            action: {},
+            menu: { [destinations, current, onSelect] in
+                StudioPaneSwapMenu(destinations: destinations, current: current, onSelect: onSelect)
+            }
+        ) {
+            Image(systemName: "rectangle.2.swap")
+                .zoomedSystemFont(size: 12, weight: .medium)
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
+/// The menu of destinations. It is its own item target, since a menu item
+/// holds its target weakly and the menu outlives the press that built it.
+final class StudioPaneSwapMenu: NSMenu {
+    private let destinations: [StudioPaneSwap.Destination]
+    private let onSelect: (StudioPaneSwap.Destination) -> Void
+
+    init(
+        destinations: [StudioPaneSwap.Destination],
+        current: StudioCenterTab,
+        onSelect: @escaping (StudioPaneSwap.Destination) -> Void
+    ) {
+        self.destinations = destinations
+        self.onSelect = onSelect
+        super.init(title: "")
+        autoenablesItems = false
+        for (index, destination) in destinations.enumerated() {
+            let item = NSMenuItem(title: destination.title, action: #selector(pick(_:)), keyEquivalent: "")
+            item.target = self
+            item.tag = index
+            item.image = NSImage(systemSymbolName: destination.systemImage, accessibilityDescription: nil)
+            item.state = destination.isShown(by: current) ? .on : .off
+            addItem(item)
+        }
+    }
+
+    required init(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    @objc private func pick(_ sender: NSMenuItem) {
+        guard destinations.indices.contains(sender.tag) else { return }
+        onSelect(destinations[sender.tag])
+    }
 }
 
 /// A hover that lingers: true as soon as the pointer is over any of its
@@ -134,6 +340,9 @@ struct StudioPaneHost<Content: View, Corner: View, Band: View>: View {
     /// Whether the titlebar band passes through to the pane, which then
     /// raises its header into it. False only under a visible tab strip.
     var bandPassesThrough: Bool = true
+    /// How many destinations the pane's swap control offers; zero for a pane
+    /// that draws none. The host resolves its tier and reserves its room.
+    var swapDestinationCount: Int = 0
     @ViewBuilder let content: () -> Content
     /// Drawn over the pane's top-right corner, given where it goes.
     @ViewBuilder let corner: (StudioPaneHostCorner) -> Corner
@@ -149,6 +358,7 @@ struct StudioPaneHost<Content: View, Corner: View, Band: View>: View {
         leadingReservation: CGFloat = 0,
         reservesPin: Bool = true,
         bandPassesThrough: Bool = true,
+        swapDestinationCount: Int = 0,
         @ViewBuilder content: @escaping () -> Content,
         @ViewBuilder corner: @escaping (StudioPaneHostCorner) -> Corner,
         @ViewBuilder band: @escaping () -> Band
@@ -159,6 +369,7 @@ struct StudioPaneHost<Content: View, Corner: View, Band: View>: View {
         self.leadingReservation = leadingReservation
         self.reservesPin = reservesPin
         self.bandPassesThrough = bandPassesThrough
+        self.swapDestinationCount = swapDestinationCount
         self.content = content
         self.corner = corner
         self.band = band
@@ -178,19 +389,37 @@ struct StudioPaneHost<Content: View, Corner: View, Band: View>: View {
         )
         // One placement for the pin and the close alike, from the room both
         // need together; each control reads it from the environment.
+        let pinAndClose = (reservesPin ? StudioPanelChrome.centerTabCloseButtonSize : 0) + closeReservation
         let placement = StudioPaneClosePlacement.resolve(
             visibleWidth: visibleWidth,
             leadingReservation: leadingReservation,
-            controlWidth: (reservesPin ? StudioPanelChrome.centerTabCloseButtonSize : 0) + closeReservation
+            controlWidth: pinAndClose
         )
+        // The swap control draws only where it too keeps the controls on the
+        // chrome line; otherwise the pin and close keep the corner to themselves.
+        var swapTier = bandPassesThrough
+            ? StudioPaneSwap.tier(visibleWidth: visibleWidth, destinationCount: swapDestinationCount)
+            : .none
+        if swapTier != .none {
+            let withSwap = StudioPaneClosePlacement.resolve(
+                visibleWidth: visibleWidth,
+                leadingReservation: leadingReservation,
+                controlWidth: pinAndClose
+                    + StudioPaneSwap.reservedWidth(tier: swapTier, destinationCount: swapDestinationCount)
+            )
+            if placement != .chromeLine || withSwap != .chromeLine { swapTier = .none }
+        }
         let pointer = pointer
         let corner = StudioPaneHostCorner(
             placement: placement,
             trailingOverflow: trailingOverflow,
             closeReservation: closeReservation,
             isPointerOver: pointer.isActive,
-            reportHover: { pointer.set($0, from: "corner") }
+            reportHover: { pointer.set($0, from: "corner") },
+            titlebarBandHeight: titlebarBandHeight,
+            swapTier: swapTier
         )
+        let swapReservation = StudioPaneSwap.reservedWidth(tier: swapTier, destinationCount: swapDestinationCount)
         return Color.clear
             .frame(width: width)
             .frame(maxHeight: .infinity)
@@ -204,7 +433,7 @@ struct StudioPaneHost<Content: View, Corner: View, Band: View>: View {
                     .environment(\.studioTitlebarBandHeight, bandPassesThrough ? titlebarBandHeight : nil)
                     .environment(\.studioCenterPaneHeaderLeadingInset, bandPassesThrough ? leadingReservation : 0)
                     .environment(\.studioCenterTabStripVisible, !bandPassesThrough)
-                    .environment(\.studioChromeLineReservation, chromeLineReservation())
+                    .environment(\.studioChromeLineReservation, chromeLineReservation(swapReservation: swapReservation))
                     .environment(\.studioPaneChromePlacement, placement)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .frame(width: contentWidth)
@@ -229,12 +458,13 @@ struct StudioPaneHost<Content: View, Corner: View, Band: View>: View {
     /// What the chrome over this pane's top-right corner claims, resolved
     /// beside the code that draws it rather than in each pane: the pin and
     /// the close ride over every pane once the strip is hidden.
-    private func chromeLineReservation() -> StudioChromeLineReservation {
+    private func chromeLineReservation(swapReservation: CGFloat) -> StudioChromeLineReservation {
         var reservation = StudioChromeLineReservation()
         if bandPassesThrough {
             let drawsClose = StudioTopBar.paneDrawsCloseControl()
             reservation.paneControls = (reservesPin ? StudioTopBar.centerPanePinControlReservedWidth : 0)
                 + (drawsClose ? StudioTopBar.centerPaneCloseControlReservedWidth : 0)
+                + swapReservation
         }
         return reservation
     }
@@ -259,6 +489,33 @@ extension StudioPaneHost where Corner == EmptyView, Band == EmptyView {
             reservesPin: reservesPin,
             content: content,
             corner: { _ in EmptyView() },
+            band: { EmptyView() }
+        )
+    }
+}
+
+extension StudioPaneHost where Band == EmptyView {
+    /// A pane with a corner control of its own and no strip: a notebook's
+    /// document slot, which draws the swap control and no pin.
+    init(
+        activeTab: StudioCenterTab,
+        width: CGFloat,
+        enclosingClip: CGFloat = 0,
+        leadingReservation: CGFloat = 0,
+        reservesPin: Bool = false,
+        swapDestinationCount: Int,
+        @ViewBuilder content: @escaping () -> Content,
+        @ViewBuilder corner: @escaping (StudioPaneHostCorner) -> Corner
+    ) {
+        self.init(
+            activeTab: activeTab,
+            width: width,
+            enclosingClip: enclosingClip,
+            leadingReservation: leadingReservation,
+            reservesPin: reservesPin,
+            swapDestinationCount: swapDestinationCount,
+            content: content,
+            corner: corner,
             band: { EmptyView() }
         )
     }

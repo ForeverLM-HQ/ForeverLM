@@ -618,7 +618,7 @@ private final class WindowDragBlockerView: NSView {
 /// mounting it directly. Sizing matters too — the previous native target took
 /// its intrinsic size rather than the wash's, leaving a dead ring inside the
 /// grey the pointer lights up.
-final class TitlebarBandHitSurfaceView: NSView {
+final class TitlebarBandHitSurfaceView: NSView, NSDraggingSource {
     private static let registeredSurfaces = NSHashTable<TitlebarBandHitSurfaceView>.weakObjects()
     private static var mouseDownMonitor: Any?
     var action: () -> Void = {}
@@ -629,6 +629,12 @@ final class TitlebarBandHitSurfaceView: NSView {
     var menuProvider: (() -> NSMenu)?
     var onHoverChange: (Bool) -> Void = { _ in }
     var onPressedChange: (Bool) -> Void = { _ in }
+    /// When set, a press that moves past `dragThreshold` starts a drag of this
+    /// pane destination instead of cancelling, so a band control can be both a
+    /// button and a drag source (a pane's swap icons).
+    var dragDestination: StudioCenterTabDragPayload.Payload?
+    private static let dragThreshold: CGFloat = 4
+    private var pendingDragEvent: NSEvent?
 
     private var hoverTrackingArea: NSTrackingArea?
     private var isPressed = false {
@@ -756,6 +762,15 @@ final class TitlebarBandHitSurfaceView: NSView {
             }
             switch tracked.type {
             case .leftMouseDragged:
+                if self.dragDestination != nil, let origin = self.pressOrigin,
+                   hypot(
+                       tracked.locationInWindow.x - origin.x,
+                       tracked.locationInWindow.y - origin.y
+                   ) > Self.dragThreshold {
+                    self.pendingDragEvent = tracked
+                    stop.pointee = true
+                    return
+                }
                 self.updatePress(with: tracked)
             case .leftMouseUp:
                 stop.pointee = true
@@ -764,6 +779,33 @@ final class TitlebarBandHitSurfaceView: NSView {
                 break
             }
         }
+        if let dragEvent = pendingDragEvent {
+            pendingDragEvent = nil
+            isPressed = false
+            pressOrigin = nil
+            beginDrag(with: dragEvent)
+        }
+    }
+
+    /// Starts a real dragging session from the event that crossed the
+    /// threshold, carrying the same private pane payload the sidebar's rows
+    /// and the tab strip carry, so any pane or edge destination takes it.
+    private func beginDrag(with event: NSEvent) {
+        guard let destination = dragDestination else { return }
+        StudioDragVisibility.shared.begin(centerTab: destination.tab)
+        let item = NSDraggingItem(
+            pasteboardWriter: StudioCenterTabDragPayload.pasteboardItem(
+                for: destination.tab,
+                startsBlankChat: destination.startsBlankChat
+            )
+        )
+        let ghost = studioDragGhostImage(title: destination.tab.title)
+        item.setDraggingFrame(NSRect(origin: .zero, size: ghost.size), contents: ghost)
+        beginDraggingSession(with: [item], event: event, source: self)
+    }
+
+    func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
+        context == .withinApplication ? .move : []
     }
 
     /// Opens the control's menu hanging from its bottom edge. `popUp` runs its
@@ -812,6 +854,7 @@ final class TitlebarBandHitSurfaceView: NSView {
 struct TitlebarBandHitSurface: NSViewRepresentable {
     let action: () -> Void
     var menu: (() -> NSMenu)? = nil
+    var dragDestination: StudioCenterTabDragPayload.Payload? = nil
     let help: String
     let onHoverChange: (Bool) -> Void
     let onPressedChange: (Bool) -> Void
@@ -832,6 +875,7 @@ struct TitlebarBandHitSurface: NSViewRepresentable {
     func updateNSView(_ view: TitlebarBandHitSurfaceView, context: Context) {
         view.action = action
         view.menuProvider = menu
+        view.dragDestination = dragDestination
         view.onHoverChange = onHoverChange
         view.onPressedChange = onPressedChange
         view.toolTip = help
@@ -878,6 +922,9 @@ struct TitlebarBandButton<Label: View>: View {
     /// Told when the pointer comes over the control and leaves it, for
     /// chrome that shows only under the pointer (`StudioHoverLinger`).
     var onHover: ((Bool) -> Void)? = nil
+    /// Makes the control a drag source for this pane destination as well as a
+    /// button: a still click fires `action`, a moved press drags.
+    var dragDestination: StudioCenterTabDragPayload.Payload? = nil
     let action: () -> Void
     /// A menu control: a press opens this menu instead of firing `action`. Build
     /// it fresh per press so it reflects the current state. Use
@@ -900,6 +947,7 @@ struct TitlebarBandButton<Label: View>: View {
             TitlebarBandHitSurface(
                 action: isEnabled ? action : {},
                 menu: isEnabled ? menu : nil,
+                dragDestination: isEnabled ? dragDestination : nil,
                 help: help,
                 onHoverChange: { hovering in
                     isHovering = hovering
@@ -1144,31 +1192,36 @@ final class StudioCenterTabDragHandleView: NSView, NSDraggingSource {
     /// A simple pill ghost with the tab title — this view is transparent, so
     /// snapshotting it would produce an empty drag image.
     private func dragGhostImage() -> NSImage {
-        let text = title as NSString
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 12, weight: .medium),
-            .foregroundColor: NSColor.labelColor,
-        ]
-        let textSize = text.size(withAttributes: attributes)
-        let size = NSSize(width: min(textSize.width, 150) + 20, height: 24)
-        return NSImage(size: size, flipped: false) { rect in
-            let pill = NSBezierPath(roundedRect: rect.insetBy(dx: 0.5, dy: 0.5), xRadius: 7, yRadius: 7)
-            NSColor.windowBackgroundColor.withAlphaComponent(0.9).setFill()
-            pill.fill()
-            NSColor.separatorColor.setStroke()
-            pill.stroke()
-            text.draw(
-                with: NSRect(
-                    x: 10,
-                    y: (rect.height - textSize.height) / 2,
-                    width: rect.width - 20,
-                    height: textSize.height
-                ),
-                options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine],
-                attributes: attributes
-            )
-            return true
-        }
+        studioDragGhostImage(title: title)
+    }
+}
+
+/// The pill a pane drag shows under the pointer: the destination's title.
+func studioDragGhostImage(title: String) -> NSImage {
+    let text = title as NSString
+    let attributes: [NSAttributedString.Key: Any] = [
+        .font: NSFont.systemFont(ofSize: 12, weight: .medium),
+        .foregroundColor: NSColor.labelColor,
+    ]
+    let textSize = text.size(withAttributes: attributes)
+    let size = NSSize(width: min(textSize.width, 150) + 20, height: 24)
+    return NSImage(size: size, flipped: false) { rect in
+        let pill = NSBezierPath(roundedRect: rect.insetBy(dx: 0.5, dy: 0.5), xRadius: 7, yRadius: 7)
+        NSColor.windowBackgroundColor.withAlphaComponent(0.9).setFill()
+        pill.fill()
+        NSColor.separatorColor.setStroke()
+        pill.stroke()
+        text.draw(
+            with: NSRect(
+                x: 10,
+                y: (rect.height - textSize.height) / 2,
+                width: rect.width - 20,
+                height: textSize.height
+            ),
+            options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine],
+            attributes: attributes
+        )
+        return true
     }
 }
 
@@ -2368,9 +2421,9 @@ enum StudioCenterTabDragPayload {
         prefix + tab.rawValue + (startsBlankChat ? blankChatSuffix : "")
     }
 
-    static func pasteboardItem(for tab: StudioCenterTab) -> NSPasteboardItem {
+    static func pasteboardItem(for tab: StudioCenterTab, startsBlankChat: Bool = false) -> NSPasteboardItem {
         let item = NSPasteboardItem()
-        let payload = string(for: tab)
+        let payload = string(for: tab, startsBlankChat: startsBlankChat)
         item.setString(payload, forType: pasteboardType)
         item.setString(payload, forType: .string)
         return item
@@ -2648,7 +2701,8 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
             enclosingClip: enclosingClip,
             leadingReservation: index == 0 ? headerLeadingInset : 0,
             reservesPin: true,
-            bandPassesThrough: !stripsVisible
+            bandPassesThrough: !stripsVisible,
+            swapDestinationCount: StudioPaneSwap.centerDestinations.count
         ) {
             VStack(spacing: 0) {
                 if titlebarBandHeight == nil && stripsVisible {
@@ -2658,14 +2712,31 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
                 tabContent(group.activeTab)
             }
         } corner: { corner in
-            panePinButton(
-                for: group,
-                at: index,
-                placement: corner.placement,
-                trailingOverflow: corner.trailingOverflow,
-                closeReservation: corner.closeReservation,
-                hover: corner
-            )
+            ZStack(alignment: .topTrailing) {
+                panePinButton(
+                    for: group,
+                    at: index,
+                    placement: corner.placement,
+                    trailingOverflow: corner.trailingOverflow,
+                    closeReservation: corner.closeReservation,
+                    hover: corner
+                )
+                StudioPaneSwapControl(
+                    corner: corner,
+                    destinations: StudioPaneSwap.centerDestinations,
+                    current: group.activeTab,
+                    identifierPrefix: "studio.centerPane.\(index)",
+                    reservesPin: true,
+                    onSelect: { destination in
+                        vm.replaceCenterPane(
+                            at: index,
+                            with: destination.tab,
+                            startsBlankChat: destination.startsBlankChat,
+                            in: windowState
+                        )
+                    }
+                )
+            }
         } band: {
             if let band = titlebarBandHeight, stripsVisible {
                 StudioBandRow(band: band) {

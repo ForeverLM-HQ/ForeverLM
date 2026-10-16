@@ -966,13 +966,33 @@ struct NotebookWorkspaceView: View {
         totalWidth: CGFloat,
         identifier: String
     ) -> some View {
-        StudioPaneHost(
+        // The slot beside the chat can become Pages, Browser or Memory from its
+        // corner; the slot standing in the chat's place has no swap control.
+        let swaps = identifier == "notebook.document.leading" ? [] : StudioPaneSwap.notebookDocumentDestinations
+        return StudioPaneHost(
             activeTab: document.centerTab ?? .reader,
             width: width,
             enclosingClip: clip(start: start, width: width, totalWidth: totalWidth),
-            leadingReservation: leadingReservation(start: start)
+            leadingReservation: leadingReservation(start: start),
+            swapDestinationCount: swaps.count
         ) {
             self.document(document)
+        } corner: { corner in
+            StudioPaneSwapControl(
+                corner: corner,
+                destinations: swaps,
+                current: document.centerTab ?? .reader,
+                identifierPrefix: identifier,
+                reservesPin: false,
+                onSelect: { destination in
+                    vm.replaceCenterPane(
+                        at: 0,
+                        with: destination.tab,
+                        startsBlankChat: destination.startsBlankChat,
+                        in: windowState
+                    )
+                }
+            )
         }
         .overlay { replaceDropOverlay(identifier == "notebook.document.leading" ? .leadingDocument : .document) }
         .accessibilityElement(children: .contain)
