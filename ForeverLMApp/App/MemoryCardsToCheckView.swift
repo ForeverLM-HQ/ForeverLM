@@ -75,6 +75,13 @@ struct MemoryCardsToCheckView: View {
     /// The cards whose picture is being drawn.
     @State private var drawing: Set<String> = []
     @State private var drawFailure: String?
+    /// Where the check of the answer that opened a card stands, by card id:
+    /// the same Card Answer Check Review runs (product owner, 2026-10-16: "it
+    /// should actually grade my answer here! in these cards"). The verdict
+    /// only says how the answer did; Keep and Skip stay the decisions, and
+    /// nothing of the check is written.
+    @State private var checks: [String: MemoryCardSitting.AnswerCheck] = [:]
+    @State private var checkWork: Task<Void, Never>?
     @FocusState private var focused: Bool
 
     private struct Revealed: Equatable {
@@ -461,7 +468,7 @@ struct MemoryCardsToCheckView: View {
         ZStack {
             MemoryCardToCheckFace(
                 card: card,
-                opened: opened(card).map { MemoryCardToCheckFace.Opened(attempt: $0.attempt) },
+                opened: opened(card).map { MemoryCardToCheckFace.Opened(attempt: $0.attempt, check: checks[card.cardID]) },
                 attempt: $attemptDraft,
                 attemptFieldHeight: $attemptFieldHeight,
                 autoFocusAttempt: windowState?.memoryPaneFocusCardID == nil,
@@ -477,6 +484,8 @@ struct MemoryCardsToCheckView: View {
                 Divider()
                 if card.kind == .draft { drawPictureButton(card) }
                 sourceMenu(card.sourceID)
+                Divider()
+                Button("Remove Source", role: .destructive) { removeSource(of: card) }
             }
             .accessibilityAction(named: "Keep") { if opened(card) != nil { decide(card, .keep) } }
             .accessibilityAction(named: "Edit") { editing = card }
@@ -488,30 +497,33 @@ struct MemoryCardsToCheckView: View {
         .padding(.bottom, MemoryDeckEdges.depth)
     }
 
-    /// Before the answer: I Don't Know and Check, as Review's, with Skip and
-    /// Edit quiet under them. After it: Skip and Edit, pale; Keep, the dark
-    /// pill that moves on.
+    /// Before the answer: I Don't Know and Check, as Review's, with Skip,
+    /// Edit and Remove Source quiet under them. After it: Skip and Edit,
+    /// pale; Keep, the dark pill that moves on; Remove Source quiet below.
     @ViewBuilder
     private func actions(_ card: MemoryCardToCheck) -> some View {
         let keys = focused && editing == nil
         if opened(card) != nil {
-            HStack(spacing: 10) {
-                MemoryReviewButton(title: "Skip", key: keys ? "S" : nil, kind: .secondary, minWidth: 110) {
-                    decide(card, .skip)
+            VStack(spacing: 12) {
+                HStack(spacing: 10) {
+                    MemoryReviewButton(title: "Skip", key: keys ? "S" : nil, kind: .secondary, minWidth: 110) {
+                        decide(card, .skip)
+                    }
+                    .help("Drop this card for good (S)")
+                    .accessibilityIdentifier("memory.pane.toCheck.skip")
+                    MemoryReviewButton(title: "Edit", key: keys ? "E" : nil, kind: .secondary, minWidth: 110) {
+                        focused = true
+                        editing = card
+                    }
+                    .help("Keep this card in your own words (E)")
+                    .accessibilityIdentifier("memory.pane.toCheck.edit")
+                    MemoryReviewButton(title: "Keep", key: keys ? "K" : nil, kind: .primary, minWidth: 180) {
+                        decide(card, .keep)
+                    }
+                    .help("Keep this card: Review will ask it (K or Return)")
+                    .accessibilityIdentifier("memory.pane.toCheck.keep")
                 }
-                .help("Drop this card for good (S)")
-                .accessibilityIdentifier("memory.pane.toCheck.skip")
-                MemoryReviewButton(title: "Edit", key: keys ? "E" : nil, kind: .secondary, minWidth: 110) {
-                    focused = true
-                    editing = card
-                }
-                .help("Keep this card in your own words (E)")
-                .accessibilityIdentifier("memory.pane.toCheck.edit")
-                MemoryReviewButton(title: "Keep", key: keys ? "K" : nil, kind: .primary, minWidth: 180) {
-                    decide(card, .keep)
-                }
-                .help("Keep this card: Review will ask it (K or Return)")
-                .accessibilityIdentifier("memory.pane.toCheck.keep")
+                removeSourceButton(card)
             }
             .frame(maxWidth: .infinity)
         } else {
@@ -539,10 +551,29 @@ struct MemoryCardsToCheckView: View {
                     }
                     .help("Keep this card in your own words")
                     .accessibilityIdentifier("memory.pane.toCheck.edit")
+                    removeSourceButton(card)
                 }
             }
             .frame(maxWidth: .infinity)
         }
+    }
+
+    /// Not worth keeping, decided from the card: the source leaves the
+    /// library as the Sources list's Remove does, with Undo, and every card
+    /// of its waiting here is skipped (product owner, 2026-10-16: "there
+    /// should be a button to remove certain sources").
+    private func removeSourceButton(_ card: MemoryCardToCheck) -> some View {
+        MemoryReviewButton(title: "Remove Source", kind: .quiet) { removeSource(of: card) }
+            .help("Not worth keeping: remove this source from the library, with Undo, and skip its cards")
+            .accessibilityIdentifier("memory.pane.toCheck.removeSource")
+    }
+
+    private func removeSource(of card: MemoryCardToCheck) {
+        let sourceID = card.sourceID
+        let theirs = visible.filter { $0.sourceID == sourceID }
+        exitEdge = .leading
+        decide(theirs.map { MemoryCardTriageDecision(card: $0, action: .skip) })
+        Task { await vm.removeArticle(id: sourceID) }
     }
 
     private var trimmedAttempt: String { attemptDraft.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -567,6 +598,37 @@ struct MemoryCardsToCheckView: View {
         }
         // The answer field gave the keys up; K, E and S are the pane's again.
         focused = true
+        if let attempt { startAnswerCheck(card, attempt: attempt) }
+    }
+
+    /// Sends the answer to the Card Answer Check, as Review does, off the
+    /// main actor; the verdict lands under the fold while the card is still
+    /// in front. A model that is not set up, or a failed call, says so on
+    /// the card; nothing is graded by the app itself.
+    private func startAnswerCheck(_ card: MemoryCardToCheck, attempt: String) {
+        let cardID = card.cardID
+        let step = vm.memoryCardAnswerCheck()
+        let request = MemoryCardAnswerCheck.Request(
+            front: card.face.front,
+            back: card.face.back,
+            why: card.face.why,
+            quote: card.quote,
+            answer: attempt
+        )
+        let title = sourceTitle(card.sourceID)
+        checks[cardID] = .checking
+        checkWork?.cancel()
+        checkWork = Task {
+            let outcome: MemoryCardSitting.AnswerCheck
+            do {
+                outcome = .judged(try await step(request, cardID, title == Self.missingSourceTitle ? nil : title))
+            } catch {
+                if error is CancellationError || Task.isCancelled { return }
+                outcome = .failed(MemoryCardAnswerCheck.failureLine(error.localizedDescription))
+            }
+            guard !Task.isCancelled, checks[cardID] == .checking else { return }
+            checks[cardID] = outcome
+        }
     }
 
     @ViewBuilder
@@ -652,6 +714,7 @@ struct MemoryCardsToCheckView: View {
         let decisions = given.map(withSourcesTakenOff)
         focused = true
         let ids = Set(decisions.map(\.card.cardID))
+        for id in ids { checks[id] = nil }
         let front = current?.cardID
         let order = visible.map(\.cardID)
         withAnimation(Self.dealAnimation) {
@@ -771,6 +834,8 @@ private struct MemoryCardToCheckFace: View {
     /// the learner said they did not know).
     struct Opened: Equatable {
         let attempt: String?
+        /// Where the check of that answer stands; nil for "I Don't Know".
+        let check: MemoryCardSitting.AnswerCheck?
     }
 
     let card: MemoryCardToCheck
@@ -881,11 +946,16 @@ private struct MemoryCardToCheckFace: View {
         .accessibilityIdentifier("memory.pane.toCheck.yourAnswer")
     }
 
-    /// Under the fold: the back, its pictures, why it holds, Show Passage.
+    /// Under the fold: the verdict on the learner's answer when one was
+    /// given, then the back, its pictures, why it holds, Show Passage.
     private var answerFace: some View {
         VStack(alignment: .leading, spacing: 0) {
             MemoryCardFold()
                 .padding(.vertical, 22)
+            if let check = opened?.check {
+                MemoryCardVerdictLine(check: check)
+                    .padding(.bottom, 16)
+            }
             Text(card.face.back.foldingMathSpans())
                 .font(MemoryCardMetrics.backFont)
                 .lineSpacing(2)
