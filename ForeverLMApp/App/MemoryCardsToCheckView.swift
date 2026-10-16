@@ -48,6 +48,8 @@ struct MemoryCardsToCheckView: View {
 
     /// Cards decided and on their way to storage, hidden meanwhile.
     @State private var decided: Set<String> = []
+    /// Every card id this sitting has seen, in the order it first met them.
+    @State private var dealt: [String] = []
     /// What this sitting decided, in order: kept or not. The strip and the
     /// count read it; a card storage refused leaves it.
     @State private var gone: [Gone] = []
@@ -98,10 +100,22 @@ struct MemoryCardsToCheckView: View {
     private static let columnMaxWidth: CGFloat = 600
     private static let dealAnimation = Animation.spring(response: 0.38, dampingFraction: 0.86)
 
+    /// The cards in the order this sitting dealt them. A card another agent
+    /// adds while the pane is open (a re-read puts it anywhere in the pane's
+    /// order) waits at the back, so the card in front and the next one stay
+    /// what the learner was looking at.
+    private var ordered: [MemoryCardToCheck] {
+        guard !dealt.isEmpty else { return cards }
+        let rank = Dictionary(dealt.enumerated().map { ($1, $0) }, uniquingKeysWith: { first, _ in first })
+        return cards.enumerated()
+            .sorted { (rank[$0.element.cardID] ?? Int.max, $0.offset) < (rank[$1.element.cardID] ?? Int.max, $1.offset) }
+            .map(\.element)
+    }
+
     /// The cards waiting, each with the pictures put on it since it was dealt:
     /// those a chat beside the pane added (`update_card`), then the one drawn.
     private var visible: [MemoryCardToCheck] {
-        cards.filter { !decided.contains($0.cardID) }.map { card in
+        ordered.filter { !decided.contains($0.cardID) }.map { card in
             var card = card
             if let held = windowState?.memoryCardPictures[card.cardID] {
                 card = card.replacingImages(front: held.front, back: held.back)
@@ -145,6 +159,8 @@ struct MemoryCardsToCheckView: View {
         .onChange(of: cards.map(\.cardID)) { _, ids in
             // A fresh read: what storage refused is back, what it wrote is gone.
             let present = Set(ids)
+            let known = Set(dealt)
+            dealt += ids.filter { !known.contains($0) }
             decided.formIntersection(present)
             if let selection, !present.contains(selection) { self.selection = nil }
             takeFocusCard()
@@ -154,6 +170,7 @@ struct MemoryCardsToCheckView: View {
             // when it is dealt (and not at all when a chat opened the pane at a
             // card: the chat beside it keeps its composer). Claiming them here
             // as well raced the field and left it unable to type.
+            if dealt.isEmpty { dealt = cards.map(\.cardID) }
             takeFocusCard()
         }
         .onChange(of: windowState?.memoryPaneFocusCardID) { _, _ in takeFocusCard() }
