@@ -24,7 +24,10 @@ import Foundation
 // `MemoryReviewScope`, which kept cards a card review deals, is in
 // `Shared/Models/MemoryCardSitting.swift`, which the iPhone compiles too.
 
-/// The Memory pane's three sections (`App/MemoryPane.swift`).
+/// The Memory pane's three sections (`App/MemoryPane.swift`). The sources
+/// with how many cards each has, and a verdict on each, are the Library's
+/// rows and its No Cards pill (`StudioViewModel+SourceCards.swift`), not a
+/// section here: one list of sources.
 enum MemoryPaneSection: String, CaseIterable, Identifiable, Sendable {
     /// Today's cards, the promise, Start Review, and the history grid.
     case review
@@ -33,9 +36,6 @@ enum MemoryPaneSection: String, CaseIterable, Identifiable, Sendable {
     case toCheck
     /// Every kept card, searched and grouped.
     case allCards
-    /// Every source in the library with how many cards it has, a verdict on
-    /// each: Make Cards, or Not Worth Keeping (`MemorySourcesView`).
-    case sources
 
     var id: String { rawValue }
 
@@ -44,7 +44,6 @@ enum MemoryPaneSection: String, CaseIterable, Identifiable, Sendable {
         case .review: return "Review"
         case .toCheck: return "To Check"
         case .allCards: return "All Cards"
-        case .sources: return "Sources"
         }
     }
 }

@@ -1477,6 +1477,10 @@ class StudioViewModel {
         get { sidebarStore.sourceContentFilter }
         set { sidebarStore.sourceContentFilter = newValue }
     }
+    var sourceCardFilter: SourceCardScope {
+        get { sidebarStore.sourceCardFilter }
+        set { sidebarStore.sourceCardFilter = newValue }
+    }
     var podcastSortMode: PodcastSortMode = PodcastSortMode(rawValue: UserDefaults.standard.string(forKey: "podcastSortMode") ?? "") ?? .date {
         didSet {
             PreferenceStore.set(podcastSortMode.rawValue, forKey: "podcastSortMode")
@@ -1677,6 +1681,16 @@ class StudioViewModel {
     /// counts' one read (`CardsToCheckNudge.pile`): what the "Cards to check"
     /// corner card says. Nil when none wait.
     var cardsToCheckPile: CardsToCheckNudge.Pile?
+    /// Every source that can have cards and how many it has, from one
+    /// set-based read (`StorageService.sourceCardCoverage`): the Library
+    /// rows' card counts, their verdicts and the No Cards pill
+    /// (`refreshSourceCardCoverage`). Empty until the Library first asks.
+    var sourceCardCoverage = SourceCardCoverage()
+    /// Advances with each change to `sourceCardCoverage`, for the sidebar
+    /// filter cache's key while the No Cards pill is on.
+    var sourceCardCoverageRevision = 0
+    /// The inputs the coverage was last read for (`refreshSourceCardCoverage`).
+    @ObservationIgnored var sourceCardCoverageKey: String?
     /// Candidates this Mac's last background run left for another day,
     /// named on the corner card ("2 more sources to come").
     var cardsToCheckWaiting = 0

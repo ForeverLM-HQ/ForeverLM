@@ -426,6 +426,14 @@ struct StudioSidebar: View, Equatable {
             async let meetings: Void = refreshMeetingPluginHealth()
             _ = await (drive, meetings)
         }
+        // The rows' card counts, the No Cards pill's count and its list read
+        // one coverage (`StudioViewModel.sourceCardCoverage`), read again
+        // when the cards or the sources change; the same inputs in another
+        // window read nothing twice. On the body, so a notebook's column
+        // with its search row hidden reads it too.
+        .task(id: "\(vm.memoryCardRevision)#\(vm.articles.count)#\(vm.activeTeamID ?? "")") {
+            await vm.refreshSourceCardCoverage()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .pluginConnectionChanged)) { _ in
             Task {
                 async let drive: Void = refreshGoogleDriveConnectionState()

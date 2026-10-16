@@ -74,10 +74,23 @@ struct SourceCardVerdictsTests {
         #expect(SourceCardList.filter(rows, scope: .all, allowed: []).isEmpty)
     }
 
-    @Test("The pane's Sources section is named Sources and follows All Cards")
-    func paneSection() {
-        #expect(MemoryPaneSection.sources.title == "Sources")
-        #expect(MemoryPaneSection.allCases.last == .sources)
-        #expect(MemorySourcesView.batchSize == 10)
+    @Test("A coverage answers each listed source's state from a set, and whether no card covers it")
+    func statesByID() {
+        let coverage = SourceCardCoverage(rows: [row("a", .none), row("b", .cards(2)), row("c", .toCheck)])
+        #expect(coverage.statesByID == ["a": .none, "b": .cards(2), "c": .toCheck])
+        #expect(coverage.isWithoutCards("a"))
+        #expect(!coverage.isWithoutCards("b"))
+        #expect(!coverage.isWithoutCards("c"))
+        #expect(!coverage.isWithoutCards("not-listed"), "a source that cannot have cards is not without cards")
+        #expect(!coverage.isEmpty)
+        #expect(SourceCardCoverage().isEmpty)
+    }
+
+    @Test("The list of sources is the Library's: Memory keeps Review, To Check and All Cards, and the pill is No Cards")
+    func theLibraryHoldsTheList() {
+        #expect(MemoryPaneSection.allCases == [.review, .toCheck, .allCards])
+        #expect(MemoryPaneSection.allCases.map(\.title) == ["Review", "To Check", "All Cards"])
+        #expect(SourceCardScope.withoutCards.title == "No Cards")
+        #expect(SourceCardList.batchSize == 10)
     }
 }

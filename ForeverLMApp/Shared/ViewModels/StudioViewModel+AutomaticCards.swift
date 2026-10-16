@@ -155,12 +155,12 @@ extension StudioViewModel {
         inWindow(windowState) { openCardsToCheck(scope: .allNotebooks) }
     }
 
-    /// Choose Sources on the card: the Memory pane's Sources section over
-    /// every notebook, where each source without cards gets a verdict. The
-    /// card is answered for today.
+    /// Choose Sources on the card: the Library with its No Cards pill on,
+    /// where each source without cards gets a verdict
+    /// (`openLibraryWithoutCards`). The card is answered for today.
     func openSourcesWithoutCards(in windowState: StudioWindowState) {
         putOffCardsToCheck()
-        inWindow(windowState) { openMemoryPane(scope: .allNotebooks, section: .sources) }
+        openLibraryWithoutCards(in: windowState)
     }
 
     /// Sources came into the library or became readable: the sources no card

@@ -6,12 +6,15 @@ import Foundation
 // library, cards that help piece the ideas together, and every piece worth
 // its weight (product owner, 2026-10-16: "go through ALL the sources in my
 // library and come up with at least one flashcard; and then the option to
-// generate more"). The Memory pane's Sources section lists every source and
-// gives each a verdict: Make Cards (then Make More Cards, once it has some)
-// or Not Worth Keeping, which removes it like the Sources list's Remove
-// (`StudioViewModel.removeArticle`, with its Undo banner). The verdict
-// stores nothing of its own: the cards are the "keep", the removal is the
-// "not worth it".
+// generate more"). The Library's rows carry each source's kept cards and,
+// under the pointer, a verdict on it: Make Cards (then Make More Cards, once
+// it has some) or Not Worth Keeping, which removes it like the Sources
+// list's Remove (`StudioViewModel.removeArticle`, with its Undo banner); its
+// **No Cards** pill lists what still waits for one. One list, the Library's
+// (product owner, 2026-10-16: "probably would be better if this was
+// integrated into the library tab instead?"; it was the Memory pane's
+// fourth section in build 238). The verdict stores nothing of its own: the
+// cards are the "keep", the removal is the "not worth it".
 
 /// Where one source stands on cards.
 enum SourceCardState: Equatable, Sendable {
@@ -52,7 +55,7 @@ enum SourceCardState: Equatable, Sendable {
     var makeCardsTitle: String { hasCards ? "Make More Cards" : "Make Cards" }
 }
 
-/// One source as the section's list draws it.
+/// One source as the coverage lists it.
 struct SourceCardRow: Identifiable, Equatable, Sendable {
     let id: String
     let title: String
@@ -66,6 +69,9 @@ struct SourceCardRow: Identifiable, Equatable, Sendable {
 /// the newest first.
 struct SourceCardCoverage: Equatable, Sendable {
     private(set) var rows: [SourceCardRow]
+    /// Each listed source's state by id: what a Library row reads for its
+    /// trailer. A source that is not here cannot have cards.
+    private(set) var statesByID: [String: SourceCardState]
 
     init(rows: [SourceCardRow] = []) {
         self.rows = rows.sorted { lhs, rhs in
@@ -73,10 +79,22 @@ struct SourceCardCoverage: Equatable, Sendable {
             if lhs.dateAdded != rhs.dateAdded { return lhs.dateAdded > rhs.dateAdded }
             return lhs.id < rhs.id
         }
+        var states: [String: SourceCardState] = [:]
+        states.reserveCapacity(rows.count)
+        for row in self.rows { states[row.id] = row.state }
+        statesByID = states
     }
 
+    var isEmpty: Bool { rows.isEmpty }
+
     func state(of sourceID: String) -> SourceCardState {
-        rows.first { $0.id == sourceID }?.state ?? .none
+        statesByID[sourceID] ?? .none
+    }
+
+    /// Whether `sourceID` is listed and no card covers it: what the
+    /// Library's No Cards pill keeps.
+    func isWithoutCards(_ sourceID: String) -> Bool {
+        statesByID[sourceID] == SourceCardState.none
     }
 
     /// The sources no card covers.
@@ -90,7 +108,9 @@ struct SourceCardCoverage: Equatable, Sendable {
     }
 }
 
-/// The Sources section's two lists: what still has no card, and everything.
+/// The Library's No Cards pill: on, the list is the sources that still have
+/// no card; off, everything (`StudioSidebarStore.sourceCardFilter`). Over
+/// MCP, `list_source_card_coverage`'s `scope`.
 enum SourceCardScope: String, CaseIterable, Identifiable, Sendable {
     case withoutCards
     case all
@@ -106,6 +126,11 @@ enum SourceCardScope: String, CaseIterable, Identifiable, Sendable {
 }
 
 enum SourceCardList {
+    /// How many sources the list head's Make Cards takes together: what one
+    /// Auto request can give four cards each (`MemoryCardRequestCount`), so
+    /// the drafter can link their ideas.
+    static let batchSize = MemoryCardRequestCount.maximumPerRequest / MemoryCardRequestCount.autoPerSource
+
     /// `rows` narrowed to `scope`, to what `query` finds in a title, to the
     /// ids in `allowed` (a notebook's sources; nil is every source) and
     /// without `removed`, which the learner has just said are not worth

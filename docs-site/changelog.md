@@ -6,6 +6,8 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **The sources and their cards are one list, the Library's.** Memory's Sources section is gone; the Library's rows now say how many cards each source has ("3 cards", quietly at the row's end), a **No Cards** pill beside the search lists the sources in the tab that have none, with their count, and under the pointer each row offers **Make Cards** (**Make More Cards** once it has some) and **Not Worth Keeping**, which removes the source with Undo; both are on the row's right-click menu too. With **No Cards** on, **Make Cards for 10** sits at the head. The corner card's **Choose Sources** opens the Library with the pill on.
+
 ## 0.159.0 (build 239) — 2026-10-16
 
 **Highlights:**

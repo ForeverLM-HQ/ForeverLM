@@ -923,14 +923,30 @@ extension StudioViewModel {
         }
     }
 
-    /// True when any of the source-list filters (review, read, content status)
-    /// is narrowing the sidebar.
-    var hasActiveSourceListFilters: Bool {
+    /// The Library's No Cards pill: with it on, only a source the coverage
+    /// lists with no card (`SourceCardCoverage.isWithoutCards`), so a team's
+    /// copy, a hidden or paywalled source, one without text and a spoken
+    /// script stay out, as `StorageService.sourceCardCoverage` leaves them
+    /// out.
+    func matchesCardFilter(_ article: StudioArticle) -> Bool {
+        sourceCardFilter == .all || sourceCardCoverage.isWithoutCards(article.id)
+    }
+
+    /// True when a filter the chips under the search stand for (review, read,
+    /// content status, meeting provider) is narrowing the sidebar. No Cards
+    /// is not among them: its pill shows its own state.
+    var hasChippedSourceListFilters: Bool {
         sourceReviewFilter != .all || sourceReadFilter != .all || sourceContentFilter != .all
             || meetingProviderFilter != nil
     }
 
-    /// Number of source-list filters currently narrowing the sidebar (0–4). The
+    /// True when any of the source-list filters (review, read, content
+    /// status, meeting provider, No Cards) is narrowing the sidebar.
+    var hasActiveSourceListFilters: Bool {
+        hasChippedSourceListFilters || sourceCardFilter != .all
+    }
+
+    /// Number of source-list filters currently narrowing the sidebar (0–5). The
     /// meeting provider filter counts: it lives in the same popover as the other
     /// chips, so it has to show in the badge and clear with them.
     var activeSourceListFilterCount: Int {
@@ -939,6 +955,7 @@ extension StudioViewModel {
             sourceReviewFilter != .all,
             sourceContentFilter != .all,
             meetingProviderFilter != nil,
+            sourceCardFilter != .all,
         ]
         .filter { $0 }
         .count
@@ -949,6 +966,31 @@ extension StudioViewModel {
         sourceReadFilter = .all
         sourceContentFilter = .all
         meetingProviderFilter = nil
+        sourceCardFilter = .all
+    }
+
+    /// The No Cards pill's count: the tab's sources no card covers, before
+    /// the search and the other filters, so the pill says what it would list.
+    /// Memoized per tab, library and coverage read (the tab's membership test
+    /// is the only work; the coverage answers from a set).
+    var sourcesWithoutCardsCountInTab: Int {
+        let key = SourcesWithoutCardsCountCacheKey(
+            tab: sidebarTab,
+            selectedBookKind: selectedBookKind,
+            articlesRevision: articlesRevision,
+            coverageRevision: sourceCardCoverageRevision
+        )
+        if let cached = sidebarStore.sourcesWithoutCardsCountCache,
+           sidebarStore.sourcesWithoutCardsCountCacheKey == key {
+            return cached
+        }
+        let coverage = sourceCardCoverage
+        let count = coverage.isEmpty ? 0 : activeArticles.reduce(0) { total, article in
+            total + (coverage.isWithoutCards(article.id) && matchesCurrentTab(article) ? 1 : 0)
+        }
+        sidebarStore.sourcesWithoutCardsCountCache = count
+        sidebarStore.sourcesWithoutCardsCountCacheKey = key
+        return count
     }
 
     /// Active items for the current tab, filtered by search text (before pagination)

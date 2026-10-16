@@ -793,6 +793,35 @@ extension StudioSidebar {
             }
         }
 
+        // The source's card verdicts (docs/memory-design.md, "Cards for
+        // every source"), the same two the wide row shows under the pointer:
+        // Make Cards for the row or the whole selection — the sheet drafts
+        // them together, so the cards can link the ideas they share — and Not
+        // Worth Keeping for the row, which removes it with Undo. Only for
+        // sources that can have cards.
+        let cardStates = selectedIds.compactMap { vm.sourceCardCoverage.statesByID[$0] }
+        if cardStates.count == selectedIds.count, !cardStates.isEmpty {
+            Button {
+                let ids = selectedIds
+                let notebookID = sidebarNotebook?.notebookID
+                windowVM.inWindow { $0.presentMakeCards(notebookID: notebookID, sourceIDs: ids) }
+            } label: {
+                Label(
+                    cardStates.allSatisfy(\.hasCards) ? "Make More Cards" : "Make Cards",
+                    systemImage: MemoryReviewSession.sidebarIcon
+                )
+            }
+            .help("Draft cards from \(selectedIds.count > 1 ? "these sources" : "this source") into To Check")
+            if !usesMultiSelection {
+                Button(role: .destructive) {
+                    Task { await vm.removeArticle(id: article.id) }
+                } label: {
+                    Label("Not Worth Keeping", systemImage: "xmark.bin")
+                }
+                .help("Remove this source from the library, with Undo")
+            }
+        }
+
         // Walk Through / Write Walkthrough / Remove Walkthrough, shared with
         // the reader's ⋯ menu. Gated on its own: a book chapter has no
         // explainer and still has a walkthrough.

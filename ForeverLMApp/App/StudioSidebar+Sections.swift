@@ -719,6 +719,20 @@ extension StudioSidebar {
             if sidebar.sidebarTab == .meetings {
                 meetingsByDateToggle
             }
+            // The No Cards pill and, with it on, Make Cards for the first
+            // ten: the Library's head, not the notebook column's, whose own
+            // kinds row is its head ("one head for every list").
+            if sourcesListLayout != .compact {
+                noCardsPill
+                if sourcesListLayout == .wide, sidebar.sourceCardFilter == .withoutCards,
+                   let batch = StudioViewModel.sourceCardBatch(windowVM.filteredActiveItems) {
+                    SpaceDarkPillButton(title: "Make Cards for \(batch.count)", systemImage: nil, image: nil) {
+                        windowVM.inWindow { $0.presentMakeCards(notebookID: sidebarNotebook?.notebookID, sourceIDs: batch) }
+                    }
+                    .help("Make cards for the first \(batch.count) sources without cards together, so the cards can link their ideas")
+                    .accessibilityIdentifier("library.cards.makeBatch")
+                }
+            }
         }
         .onChange(of: sidebar.searchText) {
             // This window's field, this window's list — it fires in
@@ -780,6 +794,25 @@ extension StudioSidebar {
         .accessibilityLabel(MeetingListOrder.byDate.title)
         .accessibilityAddTraits(isOn ? .isSelected : [])
         .accessibilityIdentifier("library.meetings.byDate")
+    }
+
+    /// The Library's **No Cards** (docs/memory-design.md, "Cards for every
+    /// source"): only the sources in the tab that no card covers, with how
+    /// many there are, as the Space's scope pills draw a list's parts. A
+    /// click turns it on, another turns it off; it stays while the Library
+    /// closes with it on, and the chip under the search clears it where the
+    /// pill is not drawn. The rows then offer Make Cards or Not Worth Keeping
+    /// under the pointer, and the head Make Cards for the first ten.
+    private var noCardsPill: some View {
+        let isOn = sidebar.sourceCardFilter == .withoutCards
+        let count = windowVM.sourcesWithoutCardsCountInTab
+        return SpaceScopePill(title: SourceCardScope.withoutCards.title, isSelected: isOn, count: count) {
+            withAnimation {
+                sourceFilterBinding(\.sourceCardFilter).wrappedValue = isOn ? .all : .withoutCards
+            }
+        }
+        .help(isOn ? "Show every source" : "Show only the sources that have no cards yet")
+        .accessibilityIdentifier("library.filter.noCards")
     }
 
     /// Filter chips and the transient status rows that sit under the search row.
@@ -864,8 +897,16 @@ extension StudioSidebar {
             .transition(.opacity)
         }
 
-        if windowVM.hasActiveSourceListFilters {
+        // No Cards gets a chip only where its pill is not drawn (the
+        // notebook's column), so the filter never narrows a list out of sight.
+        let showsNoCardsChip = sidebar.sourceCardFilter != .all && sourcesListLayout == .compact
+        if windowVM.hasChippedSourceListFilters || showsNoCardsChip {
             ChipFlowLayout(spacing: 6) {
+                if showsNoCardsChip {
+                    ActiveFilterChip(title: SourceCardScope.withoutCards.title) {
+                        withAnimation { sourceFilterBinding(\.sourceCardFilter).wrappedValue = .all }
+                    }
+                }
                 if sidebar.sourceReadFilter != .all {
                     ActiveFilterChip(title: sidebar.sourceReadFilter.title) {
                         withAnimation { sourceFilterBinding(\.sourceReadFilter).wrappedValue = .all }

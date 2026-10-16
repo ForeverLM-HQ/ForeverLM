@@ -14,6 +14,11 @@ extension StudioViewModel {
         /// Reading-progress store revision, sampled only while a read filter is
         /// active (0 otherwise) so page-turn persistence doesn't churn the cache.
         let readingProgressRevision: Int
+        /// The Library's No Cards pill, and the coverage read it filters on,
+        /// sampled only while the pill is on (0 otherwise) so a coverage
+        /// refresh does not churn a list that does not read it.
+        let cardFilter: SourceCardScope
+        let sourceCardCoverageRevision: Int
         let articleOriginFilter: DiscoveryOrigin?
         let meetingProviderFilter: MeetingProvider?
         /// The Books tab's category chip. `matchesCurrentTab` reads it, so a list
@@ -33,6 +38,14 @@ extension StudioViewModel {
         let courseMetadataCount: Int
         let meetingMetadataCount: Int
         let bookTitleCount: Int
+    }
+
+    /// The inputs of the No Cards pill's count (`sourcesWithoutCardsCountInTab`).
+    struct SourcesWithoutCardsCountCacheKey: Equatable {
+        let tab: StudioSidebarTab
+        let selectedBookKind: String?
+        let articlesRevision: Int
+        let coverageRevision: Int
     }
 
     struct ReadingListOriginCountsCacheKey: Equatable {
@@ -71,6 +84,7 @@ extension StudioViewModel {
             .filter { matchesReviewFilter($0) }
             .filter { matchesReadFilter($0) }
             .filter { matchesContentFilter($0) }
+            .filter { matchesCardFilter($0) }
             .sorted { lhs, rhs in
                 if sidebarTab == .videos {
                     return compareVideoArticles(lhs, rhs)
@@ -189,6 +203,8 @@ extension StudioViewModel {
             readFilter: sourceReadFilter,
             contentFilter: sourceContentFilter,
             readingProgressRevision: sourceReadFilter == .all ? 0 : readingProgressStore.revision,
+            cardFilter: sourceCardFilter,
+            sourceCardCoverageRevision: sourceCardFilter == .all ? 0 : sourceCardCoverageRevision,
             articleOriginFilter: articleOriginFilter,
             meetingProviderFilter: meetingProviderFilter,
             selectedBookKind: selectedBookKind,

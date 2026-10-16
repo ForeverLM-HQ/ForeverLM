@@ -394,6 +394,76 @@ struct NotebookStudioTests {
         #expect(vm.toastMessage == "No cards in Bioenergetics to practice yet.")
     }
 
+    // MARK: - The Library's cards
+
+    @Test("The Library's No Cards pill narrows the rows to the sources no card covers, counts them for the tab, and clears with the other filters")
+    func noCardsPillNarrowsTheLibrary() {
+        let restore = capturingSharedDefaults()
+        defer { restore() }
+        let (vm, window, paperID, explainerID) = studio()
+        let otherID = vm.articles.first { $0.url == Self.otherURL }!.id
+        // The explainer is a source the coverage leaves out (a spoken script),
+        // the paper has cards, the other paper none.
+        vm.noteSourceCardCoverage(SourceCardCoverage(rows: [
+            SourceCardRow(id: paperID, title: "Oxidative phosphorylation", sourceType: .article, dateAdded: Self.now, state: .cards(3)),
+            SourceCardRow(id: otherID, title: "Another paper", sourceType: .article, dateAdded: Self.now, state: .none),
+        ]))
+        #expect(vm.sourceCardCoverage.state(of: paperID) == .cards(3))
+        #expect(vm.sourceCardCoverage.statesByID[explainerID] == nil)
+
+        vm.inWindow(window) {
+            vm.sidebarTab = .articles
+            #expect(vm.sourceCardFilter == .all)
+            #expect(Set(vm.filteredActiveItems.map(\.id)) == [paperID, otherID, explainerID])
+            #expect(vm.sourcesWithoutCardsCountInTab == 1, "the pill counts the tab's sources with no card")
+
+            vm.sourceCardFilter = .withoutCards
+            #expect(vm.filteredActiveItems.map(\.id) == [otherID], "only the source no card covers; the explainer is not without cards")
+            #expect(vm.hasActiveSourceListFilters)
+            #expect(!vm.hasChippedSourceListFilters, "the pill shows its own state; no chip")
+            #expect(vm.activeSourceListFilterCount == 1)
+            #expect(StudioViewModel.sourceCardBatch(vm.filteredActiveItems) == nil, "Make Cards for N needs two or more")
+
+            // Cards made for the last one: the coverage read again empties the list.
+            vm.noteSourceCardCoverage(SourceCardCoverage(rows: [
+                SourceCardRow(id: paperID, title: "Oxidative phosphorylation", sourceType: .article, dateAdded: Self.now, state: .cards(3)),
+                SourceCardRow(id: otherID, title: "Another paper", sourceType: .article, dateAdded: Self.now, state: .toCheck),
+            ]))
+            #expect(vm.filteredActiveItems.isEmpty)
+            #expect(vm.sourcesWithoutCardsCountInTab == 0)
+
+            vm.clearSourceListFilters()
+            #expect(vm.sourceCardFilter == .all)
+            #expect(vm.filteredActiveItems.count == 3)
+        }
+
+        // The batch is the first ten of the list as it stands.
+        let many = (0..<12).map { Self.article(url: "https://example.com/\($0)", title: "Source \($0)") }
+        #expect(StudioViewModel.sourceCardBatch(many) == many.prefix(10).map(\.id))
+        #expect(StudioViewModel.sourceCardBatch(Array(many.prefix(2))) == many.prefix(2).map(\.id))
+    }
+
+    @Test("Choose Sources on the corner card opens the Library in its window with the No Cards pill on; Memory has no Sources section")
+    func chooseSourcesOpensTheLibraryWithoutCards() {
+        let restore = capturingSharedDefaults()
+        defer { restore() }
+        let (vm, window, _, _) = studio()
+        let other = StudioWindowState()
+        other.centerTabGroups = .defaultLayout
+        // What `openSourcesWithoutCards` does after answering the card for
+        // today (that answer is this Mac's preference, left alone here).
+        vm.openLibraryWithoutCards(in: other)
+        #expect(other.sidebarStore.sourceCardFilter == .withoutCards)
+        #expect(vm.visibleCenterTabs(in: other).contains(.library))
+        #expect(window.sidebarStore.sourceCardFilter == .all, "the other windows keep their lists")
+
+        // Opened from a window holding a notebook, the Library is reached the
+        // way the rail's row reaches it, with the pill on.
+        vm.openLibraryWithoutCards(in: window)
+        #expect(window.sidebarStore.sourceCardFilter == .withoutCards)
+        #expect(window.notebook == nil || vm.visibleCenterTabs(in: window).contains(.library))
+    }
+
     @Test("The Report tile is offered, and its format opens the report's options in the window it was pressed in, starting no chat")
     func reportTileOpensItsOptions() {
         let restore = capturingSharedDefaults()

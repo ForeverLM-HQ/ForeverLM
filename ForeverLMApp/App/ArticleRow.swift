@@ -251,6 +251,48 @@ struct ArticleRow: View {
         vm.sourceRowActivityLabel(for: article)
     }
 
+    /// Where the source stands on cards, from the Library's one coverage
+    /// read; nil for a source that cannot have cards (a team's copy, hidden,
+    /// paywalled, without text), which gets no count and no verdict.
+    private var cardState: SourceCardState? {
+        vm.sourceCardCoverage.statesByID[article.id]
+    }
+
+    /// The row's card count, a muted trailer ("3 cards", "To check",
+    /// "Retired"); nothing with no card, where the No Cards pill and the
+    /// verdicts say so.
+    @ViewBuilder
+    private var cardCountTrailer: some View {
+        if let label = cardState?.label {
+            Text(label)
+                .zoomedSystemFont(size: 11)
+                .foregroundStyle(.tertiary)
+                .monospacedDigit()
+                .lineLimit(1)
+                .fixedSize()
+                .textSelection(.disabled)
+                .accessibilityLabel(label)
+        }
+    }
+
+    /// Make Cards (Make More Cards once it has some): the sheet for this
+    /// source, in the notebook the list marks (`presentMakeCards`).
+    private func makeCards() {
+        let notebookID = notebook?.notebookID
+        if let windowState {
+            vm.inWindow(windowState) { vm.presentMakeCards(notebookID: notebookID, sourceIDs: [article.id]) }
+        } else {
+            vm.presentMakeCards(notebookID: notebookID, sourceIDs: [article.id])
+        }
+    }
+
+    /// Not Worth Keeping: the source leaves the library as the Sources
+    /// list's Remove takes it, with the same Undo banner (`removeArticle`).
+    private func notWorthKeeping() {
+        let id = article.id
+        Task { await vm.removeArticle(id: id) }
+    }
+
     @ViewBuilder
     private var trackingStatusView: some View {
         if article.cachedSupportsReadTracking {
@@ -361,6 +403,7 @@ struct ArticleRow: View {
                     .help(attention)
                     .accessibilityLabel(attention)
             }
+            cardCountTrailer
             if let notebook {
                 NotebookMembershipMark(
                     sourceIDs: [article.id],
@@ -570,6 +613,9 @@ struct ArticleRow: View {
 
                         Spacer()
 
+                        // The card count, a quiet right column down the list.
+                        cardCountTrailer
+
                         if let paperAttentionReason {
                             paperAttentionBadge(paperAttentionReason)
                         } else if paperIngestionFailureDetail == nil,
@@ -585,7 +631,13 @@ struct ArticleRow: View {
                 }
 
                 if sourcesListLayout == .wide {
-                    LibraryRowDetails(article: article, isRowHovered: isHovering)
+                    LibraryRowDetails(
+                        article: article,
+                        isRowHovered: isHovering,
+                        cardState: cardState,
+                        makeCards: makeCards,
+                        notWorthKeeping: notWorthKeeping
+                    )
                 }
 
                 if article.isPaperContentCleanupFailure {

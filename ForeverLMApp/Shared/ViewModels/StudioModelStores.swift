@@ -204,6 +204,9 @@ final class StudioSidebarStore {
     var sourceReviewFilter: SourceReviewFilter = .all
     var sourceReadFilter: SourceReadFilter = .all
     var sourceContentFilter: SourceContentFilter = .all
+    /// The Library's No Cards pill (`SourceCardScope.withoutCards`): only the
+    /// sources no card covers, read from `StudioViewModel.sourceCardCoverage`.
+    var sourceCardFilter: SourceCardScope = .all
     var articleOriginFilter: DiscoveryOrigin?
     /// Narrows the Meetings tab to one provider (nil = every provider).
     ///
@@ -253,6 +256,11 @@ final class StudioSidebarStore {
     @ObservationIgnored var totalFilteredCountCacheKey: StudioViewModel.SidebarFilterCacheKey?
     @ObservationIgnored var totalFilteredCountCache: Int?
 
+    /// The No Cards pill's count — the tab's sources no card covers —
+    /// memoized per tab, library and coverage read; one set test a source.
+    @ObservationIgnored var sourcesWithoutCardsCountCacheKey: StudioViewModel.SourcesWithoutCardsCountCacheKey?
+    @ObservationIgnored var sourcesWithoutCardsCountCache: Int?
+
     /// Books-tab group list memoized per filter revision and book metadata. The
     /// sidebar body reads it several times per render and the chapter filter once
     /// more; each read used to re-run every book's metadata and chapter scan.
@@ -296,6 +304,8 @@ final class StudioSidebarStore {
         filteredSidebarCacheKey = nil
         totalFilteredCountCache = nil
         totalFilteredCountCacheKey = nil
+        sourcesWithoutCardsCountCache = nil
+        sourcesWithoutCardsCountCacheKey = nil
         filteredBookGroupNamesCache = nil
         filteredBookGroupNamesCacheKey = nil
         readingListOriginCountsCache = nil
