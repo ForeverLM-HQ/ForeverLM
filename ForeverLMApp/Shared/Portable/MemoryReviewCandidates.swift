@@ -553,6 +553,78 @@ struct ChatSourceTitleIndex: Equatable {
     )
 }
 
+/// The repair of a reply that cites a source by printing its id: "measured
+/// directlysrc_fa3c…", "(src_fa3c…)", "[src_fa3c…]", "`src_fa3c…`", or a link
+/// that lost its scheme, `[Title](src_fa3c…)`. The prompts forbid every one of
+/// them and models write them anyway, leaving sixty-four hex digits in the
+/// answer (product owner, 2026-10-16: "it needs to never put these uuids in
+/// the text … it should always show up nicely instead").
+///
+/// Each becomes the source's `foreverlm://source/` link, which the chat draws as
+/// a numbered citation with the source's card below. An id must be whole, or
+/// cut short with an ellipsis, so the hex of an id still streaming in is left
+/// until it is complete. An id in a link target or a tag attribute (after `/`,
+/// `=` or a quote) is already where ids belong and stays as it is.
+enum ChatSourceIDCitations {
+    /// `text` with every written source id turned into a link. A title from
+    /// `titleByID` is the link's text when the chat knows one; the renderer
+    /// replaces a citation's text with its number and card either way.
+    static func linking(_ text: String, titleByID: [String: String] = [:]) -> String {
+        guard text.range(of: "src_", options: .caseInsensitive) != nil else { return text }
+        var result = schemelessTargetExpression.stringByReplacingMatches(
+            in: text,
+            range: NSRange(text.startIndex..., in: text),
+            withTemplate: "](\(ChatSourceEvidence.sourceLinkMarker)$1"
+        )
+        let matches = writtenIDExpression.matches(in: result, range: NSRange(result.startIndex..., in: result))
+        for match in matches.reversed() {
+            guard let range = Range(match.range, in: result) else { continue }
+            let written = String(result[range])
+            let ids = idExpression.matches(in: written, range: NSRange(written.startIndex..., in: written))
+                .compactMap { Range($0.range(at: 1), in: written).map { String(written[$0]) } }
+            guard !ids.isEmpty else { continue }
+            let links = ids.map { id in
+                ChatSourceTitleIndex.link(title: title(for: id, in: titleByID) ?? "Source", id: id)
+            }
+            result.replaceSubrange(range, with: links.joined())
+        }
+        return result
+    }
+
+    /// The title of a whole id, or of the one id a shortened one begins.
+    private static func title(for id: String, in titleByID: [String: String]) -> String? {
+        if let title = titleByID[id] { return title }
+        let matching = titleByID.filter { $0.key.lowercased().hasPrefix(id.lowercased()) }
+        return matching.count == 1 ? matching.first?.value : nil
+    }
+
+    /// A whole id, or eight or more of its digits and an ellipsis; group 1 is
+    /// the id without the ellipsis.
+    private static let id = #"(src_(?:[0-9a-f]{64}(?![0-9a-f])|[0-9a-f]{8,63}(?=\x{2026}|\.\.\.)))(?:\x{2026}|\.\.\.)?"#
+    /// Ids listed in one wrapper: "src_a, src_b".
+    private static let idList = "`?\(id)`?(?:\\s*[,;]\\s*`?\(id)`?)*"
+
+    private static let idExpression = try! NSRegularExpression(pattern: id, options: [.caseInsensitive])
+
+    private static let schemelessTargetExpression = try! NSRegularExpression(
+        pattern: #"\]\(\s*"# + id + #"(?=\s|\))"#,
+        options: [.caseInsensitive]
+    )
+
+    /// An id as visible text, with the wrapper around it and the spaces
+    /// before it: the citation sits against the word it follows.
+    private static let writtenIDExpression = try! NSRegularExpression(
+        pattern: "[ \\t]*(?:"
+            + "\\(\\s*(?:(?:source[ _]?)?ids?\\s*[:=]\\s*)?\(idList)\\s*\\)"
+            + "|\\[\\s*\(idList)\\s*\\](?!\\()"
+            + "|\\x{3010}\\s*\(idList)\\s*\\x{3011}"
+            + "|`\(id)`"
+            + "|(?<![/=_\\[\"'-])\(id)"
+            + ")",
+        options: [.caseInsensitive]
+    )
+}
+
 /// A chat the learner had, as material for the memory review.
 ///
 /// docs/memory-design.md, "Evidence": every chat is evidence, and something the

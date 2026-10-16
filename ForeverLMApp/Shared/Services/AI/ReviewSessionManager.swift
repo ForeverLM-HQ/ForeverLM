@@ -581,7 +581,9 @@ final class ReviewSessionManager {
     /// into heading rows.
     static func displayableAssistantContentKeepingSourceTurns(_ content: String) -> String? {
         guard let text = AIStreamDeltaExtractor.text(fromRawDelta: content) else { return nil }
-        return visibleAssistantText(from: text)
+        // A reply saved before its printed source ids were repaired, or still
+        // streaming, shows them as citations all the same.
+        return visibleAssistantText(from: text).map { ChatSourceIDCitations.linking($0) }
     }
 
     static func copiedConversationText(from messages: [Message]) -> String {
@@ -14084,14 +14086,16 @@ final class ReviewSessionManager {
     }
 
     /// A reply with each `【Title】` citation written as the source's link, or as
-    /// plain words when no source of this chat has that title. Some open models
-    /// cite that way whatever the prompt says (`ChatSourceTitleIndex`).
+    /// plain words when no source of this chat has that title, and each source
+    /// id it printed as text made that source's link. Some open models cite
+    /// that way whatever the prompt says (`ChatSourceTitleIndex`,
+    /// `ChatSourceIDCitations`).
     private func repairingSourceTitleMarkers(in text: String) -> String {
-        guard text.contains("\u{3010}") else { return text }
+        guard text.contains("\u{3010}") || text.range(of: "src_", options: .caseInsensitive) != nil else { return text }
         var index = toolSourceTitles
         for article in activeArticles { index.note(id: article.id, title: article.title) }
         for found in foundSources { index.note(id: found.id, title: found.title) }
-        return index.repairing(text)
+        return ChatSourceIDCitations.linking(index.repairing(text), titleByID: index.titleByID)
     }
 
     private static func visibleAssistantText(from text: String) -> String? {

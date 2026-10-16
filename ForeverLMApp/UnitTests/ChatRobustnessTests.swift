@@ -5164,6 +5164,33 @@ struct ChatRobustnessTests {
         #expect(index.repairing("Nothing to fix [here](foreverlm://source/src_a).") == "Nothing to fix [here](foreverlm://source/src_a).")
     }
 
+    @Test("A source id printed as text becomes the source's citation; ids in links and tags stay")
+    func printedSourceIDsBecomeCitations() {
+        let id = "src_fa3cbe10a8f3f227d0cd27287b4ae262ad27332d1023ec9d45421bd040f05795"
+        let other = "src_00bbb3f26f409809ce6704ec2d2bd9c7ac56695d7867e50690d18383a10d89c4"
+        let titles = [id: "A Voltmeter for Organelles"]
+        let link = "[A Voltmeter for Organelles](foreverlm://source/\(id))"
+
+        let reply = "Measured directly\(id). Dyes reach mitochondria (\(id), \(other)). "
+            + "GEVIs are pH-sensitive [\(id)], `\(id)`, as in [the paper](\(id)) and (src_fa3cbe10…)."
+        let linked = ChatSourceIDCitations.linking(reply, titleByID: titles)
+
+        #expect(linked.contains("Measured directly\(link)."))
+        #expect(linked.contains("mitochondria\(link)[Source](foreverlm://source/\(other))."))
+        #expect(linked.contains("pH-sensitive\(link),\(link), as in [the paper](foreverlm://source/\(id)) and\(link.replacingOccurrences(of: id, with: "src_fa3cbe10"))."))
+        #expect(ChatCitationLedger.citations(in: linked).count == 7)
+        // Without a title the link still cites; the renderer draws the card.
+        #expect(ChatSourceIDCitations.linking("Shown\(id).") == "Shown[Source](foreverlm://source/\(id)).")
+        // Ids where ids belong, and one still streaming in, are left alone.
+        for untouched in [
+            "[Paper](foreverlm://source/\(id)?t=12) and [\(id)](foreverlm://source/\(id))",
+            "<flm_source_turn id=\"\(id)\"/>",
+            "Streaming src_fa3cbe10a8f3f2",
+        ] {
+            #expect(ChatSourceIDCitations.linking(untouched, titleByID: titles) == untouched)
+        }
+    }
+
     @Test("Web sources footer is defensively capped")
     @MainActor
     func webSourcesFooterHasMaximum() {
