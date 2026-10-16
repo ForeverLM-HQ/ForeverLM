@@ -6449,9 +6449,20 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.158.0 (build 238) — 2026-10-16
+
+**Highlights:**
+- **Memory's Sources section:** every source in your library with how many cards it has; Make Cards or Not Worth Keeping on each row, and Make Cards for 10.
+- **The corner card counts sources without cards**, with Choose Sources.
+- **Home** lists every chat, first in the icon strip.
+
 - **The Library no longer has a Not in any notebook button.** The toggle beside the search, and the filter it switched on, are gone.
 - **A card for the sources that have no cards.** The "Cards to check" card in the corner also counts the sources in your library that no card covers, read or not: "5 sources have no cards yet", with **Choose Sources**, which opens Memory's new Sources section. With nothing to check, the card is titled "Sources without cards". It follows the same switch, Say when drafted cards wait.
 - **Memory has a Sources section, for a verdict on every source.** It lists every source in your library with how many cards it has: **No Cards** is what still waits, **All** is everything. Under the pointer each row offers **Make Cards** (**Make More Cards** once it has some) and **Not Worth Keeping**, which removes the source as Remove does, with Undo; **Make Cards for 10** makes cards for the first ten waiting together so they can link their ideas. Assistants list the same sources with the new `list_source_card_coverage` tool and decide with `save_card_drafts` or `remove_source`.
+- **Home lists every chat.** The icon strip's first icon is Home, every chat you have, with search and the notebook filter; the Space no longer has a Chats row. Home opens beside, in another window, and can be hidden from Show in Sidebar.
+- **Plan today on my clock.** /plan, the Today menu, the Now chip and the first-run guide send one line to the chat; the day-planning rules ride along as a built-in skill the model reads, so the long prompt is gone from the chat.
+- **Several accounts per plugin.** The Linear, Notion, YouTube and X pages list every connected account or workspace as its own card, with Disconnect and Add Another; the plugins list says "N connected". Linear and Notion read tools take an optional `workspace`.
+- **Google Drive, one card per account.** Each connected Google account is its own card with its folders under it and its own Add Folder; Add Another Account is one quiet action below.
 
 ## 0.157.0 (build 237) — 2026-10-15
 
