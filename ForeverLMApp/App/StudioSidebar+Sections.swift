@@ -719,9 +719,6 @@ extension StudioSidebar {
             if sidebar.sidebarTab == .meetings {
                 meetingsByDateToggle
             }
-            if sourcesListLayout == .wide {
-                notInAnyNotebookToggle
-            }
         }
         .onChange(of: sidebar.searchText) {
             // This window's field, this window's list — it fires in
@@ -783,33 +780,6 @@ extension StudioSidebar {
         .accessibilityLabel(MeetingListOrder.byDate.title)
         .accessibilityAddTraits(isOn ? .isSelected : [])
         .accessibilityIdentifier("library.meetings.byDate")
-    }
-
-    /// The full-window Library's "Not in any notebook": only the sources no
-    /// notebook of the open library holds (`SourceNotebookFilter`). A toggle
-    /// beside the search, lit while on; its chip under the search clears it
-    /// too, and stays in the Sources panel if the Library closes with it on.
-    private var notInAnyNotebookToggle: some View {
-        let isOn = sidebar.sourceNotebookFilter == .notInAnyNotebook
-        return Button {
-            withAnimation {
-                sourceFilterBinding(\.sourceNotebookFilter).wrappedValue = isOn ? .all : .notInAnyNotebook
-            }
-        } label: {
-            Label(SourceNotebookFilter.notInAnyNotebook.title, systemImage: "folder.badge.minus")
-                .font(.caption)
-                .lineLimit(1)
-                .foregroundStyle(isOn ? Color.accentColor : Color.secondary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(isOn ? Color.accentColor.opacity(0.14) : Color.clear, in: Capsule())
-                .contentShape(Capsule())
-        }
-        .buttonStyle(.hoverWash(in: Capsule()))
-        .fixedSize()
-        .help(isOn ? "Show every source" : "Show only the sources no notebook holds")
-        .accessibilityAddTraits(isOn ? .isSelected : [])
-        .accessibilityIdentifier("library.filter.notInAnyNotebook")
     }
 
     /// Filter chips and the transient status rows that sit under the search row.
@@ -909,11 +879,6 @@ extension StudioSidebar {
                 if sidebar.sourceContentFilter != .all {
                     ActiveFilterChip(title: sidebar.sourceContentFilter.title) {
                         withAnimation { sourceFilterBinding(\.sourceContentFilter).wrappedValue = .all }
-                    }
-                }
-                if sidebar.sourceNotebookFilter != .all {
-                    ActiveFilterChip(title: sidebar.sourceNotebookFilter.title) {
-                        withAnimation { sourceFilterBinding(\.sourceNotebookFilter).wrappedValue = .all }
                     }
                 }
                 if windowVM.activeSourceListFilterCount > 1 {

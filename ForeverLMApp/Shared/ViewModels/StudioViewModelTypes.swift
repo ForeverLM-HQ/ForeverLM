@@ -182,21 +182,6 @@ enum SourceReadFilter: String, CaseIterable {
     }
 }
 
-/// Filters the library's sources by the notebooks holding them: the
-/// full-window Library's "Not in any notebook" shows only sources no notebook
-/// of the open library holds (`notebooksHolding(_:)` empty).
-enum SourceNotebookFilter: String, CaseIterable {
-    case all
-    case notInAnyNotebook
-
-    var title: String {
-        switch self {
-        case .all: return "All"
-        case .notInAnyNotebook: return "Not in any notebook"
-        }
-    }
-}
-
 /// Filters sources by content/processing status.
 enum SourceContentFilter: String, CaseIterable {
     case all

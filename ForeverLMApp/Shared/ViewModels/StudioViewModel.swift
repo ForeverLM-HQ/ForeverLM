@@ -1475,10 +1475,6 @@ class StudioViewModel {
         get { sidebarStore.sourceContentFilter }
         set { sidebarStore.sourceContentFilter = newValue }
     }
-    var sourceNotebookFilter: SourceNotebookFilter {
-        get { sidebarStore.sourceNotebookFilter }
-        set { sidebarStore.sourceNotebookFilter = newValue }
-    }
     var podcastSortMode: PodcastSortMode = PodcastSortMode(rawValue: UserDefaults.standard.string(forKey: "podcastSortMode") ?? "") ?? .date {
         didSet {
             PreferenceStore.set(podcastSortMode.rawValue, forKey: "podcastSortMode")

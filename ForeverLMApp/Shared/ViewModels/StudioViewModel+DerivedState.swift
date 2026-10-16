@@ -927,10 +927,10 @@ extension StudioViewModel {
     /// is narrowing the sidebar.
     var hasActiveSourceListFilters: Bool {
         sourceReviewFilter != .all || sourceReadFilter != .all || sourceContentFilter != .all
-            || sourceNotebookFilter != .all || meetingProviderFilter != nil
+            || meetingProviderFilter != nil
     }
 
-    /// Number of source-list filters currently narrowing the sidebar (0–5). The
+    /// Number of source-list filters currently narrowing the sidebar (0–4). The
     /// meeting provider filter counts: it lives in the same popover as the other
     /// chips, so it has to show in the badge and clear with them.
     var activeSourceListFilterCount: Int {
@@ -938,7 +938,6 @@ extension StudioViewModel {
             sourceReadFilter != .all,
             sourceReviewFilter != .all,
             sourceContentFilter != .all,
-            sourceNotebookFilter != .all,
             meetingProviderFilter != nil,
         ]
         .filter { $0 }
@@ -949,7 +948,6 @@ extension StudioViewModel {
         sourceReviewFilter = .all
         sourceReadFilter = .all
         sourceContentFilter = .all
-        sourceNotebookFilter = .all
         meetingProviderFilter = nil
     }
 

@@ -6,6 +6,8 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **The Library no longer has a Not in any notebook button.** The toggle beside the search, and the filter it switched on, are gone.
+
 ## 0.157.0 (build 237) — 2026-10-15
 
 **Highlights:**

@@ -174,19 +174,6 @@ extension StudioViewModel {
             }
     }
 
-    /// Every Sources row some notebook of the open library holds, as
-    /// `notebooksHolding(_:)` counts them: what the Library's "Not in any
-    /// notebook" leaves out (`SourceNotebookFilter`). One pass over the
-    /// membership index, so the filter costs a set lookup per row.
-    func sourceIDsInAnyNotebook() -> Set<String> {
-        let counted = notebooksCountedForLibrary()
-        var held = Set<String>()
-        for (notebookID, members) in notebookMemberSourceIDsByNotebook where counted(notebookID) {
-            held.formUnion(members)
-        }
-        return held
-    }
-
     /// Whether a notebook counts as holding the Library's sources: one of the
     /// open library's (a team's notebooks belong to the team's library), and
     /// filmed while Screen record mode is on.

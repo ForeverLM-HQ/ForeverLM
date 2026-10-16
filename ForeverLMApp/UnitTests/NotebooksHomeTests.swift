@@ -800,41 +800,6 @@ struct NotebooksHomeRoutingTests {
         #expect(vm.notebooksHolding("src-3").isEmpty)
     }
 
-    @Test("The Library's Not in any notebook leaves out what the open library's notebooks hold, and follows membership")
-    func notInAnyNotebookFilter() {
-        let vm = makeViewModel()
-        let otherTeam = "another-team-\(UUID().uuidString)"
-        let pages = (1...3).map { index in
-            StudioArticle(url: "https://example.com/filed-\(index)", title: "Page \(index)", sourceType: .article)
-        }
-        vm.articles = pages
-        vm.sidebarTab = .articles
-        vm.notebookTitlesByNotebook = ["bio": "Bioelectricity", "theirs": "Team notebook"]
-        var teams = ["theirs": otherTeam]
-        if let library = vm.activeTeamID { teams["bio"] = library }
-        vm.notebookTeamIDsByNotebook = teams
-        // Page 1 is in this library's notebook; page 2 only in another
-        // library's, which does not count here.
-        vm.notebookMemberSourceIDsByNotebook = ["bio": [pages[0].id], "theirs": [pages[1].id]]
-        vm.notebookMembershipRevision &+= 1
-        #expect(vm.sourceIDsInAnyNotebook() == [pages[0].id])
-
-        #expect(Set(vm.filteredActiveItems.map(\.id)) == Set(pages.map(\.id)))
-        vm.sourceNotebookFilter = .notInAnyNotebook
-        #expect(vm.hasActiveSourceListFilters)
-        #expect(vm.activeSourceListFilterCount == 1)
-        #expect(Set(vm.filteredActiveItems.map(\.id)) == [pages[1].id, pages[2].id])
-
-        // Filing page 3 takes it off the filtered list.
-        vm.notebookMemberSourceIDsByNotebook["bio"] = [pages[0].id, pages[2].id]
-        vm.notebookMembershipRevision &+= 1
-        #expect(vm.filteredActiveItems.map(\.id) == [pages[1].id])
-
-        vm.clearSourceListFilters()
-        #expect(vm.sourceNotebookFilter == .all)
-        #expect(vm.filteredActiveItems.count == 3)
-    }
-
     @Test("The Library's bulk bar goes through the row menus' store APIs")
     func bulkActions() async throws {
         let restore = capturingSharedDefaults()

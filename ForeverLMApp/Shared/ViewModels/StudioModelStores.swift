@@ -204,7 +204,6 @@ final class StudioSidebarStore {
     var sourceReviewFilter: SourceReviewFilter = .all
     var sourceReadFilter: SourceReadFilter = .all
     var sourceContentFilter: SourceContentFilter = .all
-    var sourceNotebookFilter: SourceNotebookFilter = .all
     var articleOriginFilter: DiscoveryOrigin?
     /// Narrows the Meetings tab to one provider (nil = every provider).
     ///

@@ -11,11 +11,6 @@ extension StudioViewModel {
         let reviewFilter: SourceReviewFilter
         let readFilter: SourceReadFilter
         let contentFilter: SourceContentFilter
-        let notebookFilter: SourceNotebookFilter
-        /// Notebook membership revision, sampled only while the notebook
-        /// filter is on (0 otherwise), so a source filed or taken out
-        /// re-runs the list only when the filter reads membership.
-        let notebookMembershipRevision: Int
         /// Reading-progress store revision, sampled only while a read filter is
         /// active (0 otherwise) so page-turn persistence doesn't churn the cache.
         let readingProgressRevision: Int
@@ -71,13 +66,11 @@ extension StudioViewModel {
     }
 
     func computeFilteredActiveItems() -> [StudioArticle] {
-        let filed = sourceNotebookFilter == .all ? nil : sourceIDsInAnyNotebook()
         var tabItems = activeArticles
             .filter { matchesCurrentTab($0) }
             .filter { matchesReviewFilter($0) }
             .filter { matchesReadFilter($0) }
             .filter { matchesContentFilter($0) }
-            .filter { article in filed.map { !$0.contains(canonicalSourceID(article.id)) } ?? true }
             .sorted { lhs, rhs in
                 if sidebarTab == .videos {
                     return compareVideoArticles(lhs, rhs)
@@ -195,8 +188,6 @@ extension StudioViewModel {
             reviewFilter: sourceReviewFilter,
             readFilter: sourceReadFilter,
             contentFilter: sourceContentFilter,
-            notebookFilter: sourceNotebookFilter,
-            notebookMembershipRevision: sourceNotebookFilter == .all ? 0 : notebookMembershipRevision,
             readingProgressRevision: sourceReadFilter == .all ? 0 : readingProgressStore.revision,
             articleOriginFilter: articleOriginFilter,
             meetingProviderFilter: meetingProviderFilter,
