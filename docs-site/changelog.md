@@ -6,8 +6,25 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.157.0 (build 237) — 2026-10-15
+
+**Highlights:**
+- **Panes:** each pane's top-right corner swaps what it shows, and dropping a place onto a pane replaces it.
+- **Cards:** a card can play a saved animation, reads math, and the chat adds a picture to the previous card at once.
+- **Copy Conversation** works on every chat.
+
 - **A card can show an animation.** A card's question or answer can carry one of your saved animations, which plays inline under the card's pictures, with its own controls, on the Mac and the iPhone, in Review, To Check and the Knowledge Map's review; an answer's animation stays hidden until the answer shows. It runs sandboxed, with scripts and no network. Assistants put it on a card with `update_card`, `triage_cards` or `save_card_drafts`, by passing the animation's `foreverlm-site://<animation_id>/` address in `front_images` or `back_images` (one per face).
 - **Cards can carry math.** A formula or symbol written in LaTeX (`\(…\)` or `$$…$$`) on a card's question, answer or why now reads as math on the Mac and the iPhone (`k_{-1}` as k₋₁, `\frac{a}{b}` as a/b) instead of showing backslashes and braces, and the card writers use it when a card needs a formula.
+- **A pane's corner changes what it shows.** Hover a pane and the icons at its top right (Chat, Library, Memory, Browser, Pages) swap what the pane shows; a narrow pane folds them into one menu, and each icon can be dragged to another pane.
+- **Drop a place onto a pane to replace it.** Drag a sidebar row, a Space place or New chat onto the middle of a pane and that pane shows it; the edges still open it beside.
+- **Add it to the card, even after you moved on.** Ask the chat to put a figure on the previous card and it does, whether you kept that card or it is still waiting in To Check, without asking again.
+- **Cards read math.** Formulas on a card read as math, not as raw LaTeX.
+- **Copy Conversation everywhere.** Copy Conversation is in the menu bar, the command menu, with ⇧⌘C, and on every chat's sidebar row.
+- **Chat points at passages in notes and transcripts.** The chat can open a meeting's notes or a podcast's transcript at the passage it cites.
+- **【Title】 citations are links.** A bracketed title in a reply becomes the source's link.
+- **Shorter card answers.** Card writers ask what an idea means and answer in one short sentence, and never ask what a source does not claim.
+- **Settings General is one column.** One row per setting, labels on the left and the controls in a single column on the right.
+- **OpenRouter logo on your own key.** The account menu's own-key row shows the OpenRouter logo.
 
 ## 0.156.0 (build 236) — 2026-10-15
 
