@@ -191,7 +191,13 @@ struct MemoryCardsToCheckView: View {
         .onChange(of: onScreenCard, initial: true) { _, card in
             windowState?.memoryCardOnScreen = card
         }
-        .onDisappear { windowState?.memoryCardOnScreen = nil }
+        .onChange(of: Set(visible.map(\.cardID)), initial: true) { _, waiting in
+            windowState?.memoryCardsWaitingIDs = waiting
+        }
+        .onDisappear {
+            windowState?.memoryCardOnScreen = nil
+            windowState?.memoryCardsWaitingIDs = []
+        }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("memory.pane.toCheck")
     }

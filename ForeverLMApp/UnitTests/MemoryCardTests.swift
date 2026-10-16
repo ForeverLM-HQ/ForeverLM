@@ -1171,4 +1171,25 @@ struct MemoryCardTests {
         let store = try await storage.notebookFilesKnowledgeStore()
         #expect(try store.memoryCardDraftSourcesAvailable(["src-1", "src-missing"]) == ["src-1"])
     }
+
+    @Test("A picture can be put on a card to check the pane has moved past")
+    @MainActor
+    func picturesReachACardWaitingBehindTheOneInFront() throws {
+        let state = StudioWindowState()
+        StudioWindowRegistry.shared.register(state)
+        defer { StudioWindowRegistry.shared.unregister(state) }
+        state.memoryPaneSection = .toCheck
+        state.memoryCardsWaitingIDs = ["card-a", "card-b"]
+        let figure = try #require(MemoryCardImage(reference: "![Figure 3](foreverlm://source-image/src-1/p3)"))
+
+        // Neither card is on screen, but the pane has both waiting.
+        #expect(MCPDataStore.holdPicturesOnCardToCheck(cardID: "card-a", front: nil, back: [figure]))
+        #expect(state.memoryCardPictures["card-a"]?.back?.count == 1)
+        // A card the pane does not have is not held.
+        #expect(!MCPDataStore.holdPicturesOnCardToCheck(cardID: "card-z", front: nil, back: [figure]))
+        #expect(state.memoryCardPictures["card-z"] == nil)
+        // Only the To Check pane holds them.
+        state.memoryPaneSection = .review
+        #expect(!MCPDataStore.holdPicturesOnCardToCheck(cardID: "card-b", front: nil, back: [figure]))
+    }
 }

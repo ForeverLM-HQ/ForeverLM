@@ -1144,11 +1144,12 @@ extension MCPDataStore {
 
 extension MCPDataStore {
     /// Puts pictures on the card to check that a Memory pane shows in front of
-    /// the learner, as the chat beside it was asked to ("can you add it to the
-    /// card?"). The card is not decided, so nothing is written: the pictures
-    /// are held with the card in the window (`StudioWindowState.memoryCardPictures`)
-    /// and a Keep carries them, as it carries a drawn one. False when no window
-    /// has that card in front.
+    /// the learner, or on one of the others the pane still has waiting: the chat
+    /// beside it was asked to ("can you add it to the card?"), and the learner
+    /// may have turned to another card since. The card is not decided, so
+    /// nothing is written: the pictures are held with the card in the window
+    /// (`StudioWindowState.memoryCardPictures`) and a Keep carries them, as it
+    /// carries a drawn one. False when no window has that card waiting.
     @MainActor
     static func holdPicturesOnCardToCheck(
         cardID: String,
@@ -1156,7 +1157,8 @@ extension MCPDataStore {
         back: [MemoryCardImage]?
     ) -> Bool {
         let shown = StudioWindowRegistry.shared.states.filter {
-            $0.memoryPaneSection == .toCheck && $0.memoryCardOnScreen?.id == cardID
+            $0.memoryPaneSection == .toCheck
+                && ($0.memoryCardOnScreen?.id == cardID || $0.memoryCardsWaitingIDs.contains(cardID))
         }
         for state in shown {
             var held = state.memoryCardPictures[cardID] ?? StudioWindowState.MemoryCardPictures()

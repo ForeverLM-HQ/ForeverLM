@@ -704,6 +704,11 @@ final class StudioWindowState: Identifiable {
     /// it. Observed, for the chip over the chat's composer that shows it;
     /// it changes once per card dealt. Presentation, so not in `Snapshot`.
     var memoryCardOnScreen: ChatContextAdditions.CardOnScreen?
+    /// Every card this window's To Check pane still has waiting, in front or
+    /// not, registered by the pane while it is mounted. A chat that moved on
+    /// to another card can still put a picture on one of these
+    /// (`holdPicturesOnCardToCheck`). Not observed: no view renders from it.
+    @ObservationIgnored var memoryCardsWaitingIDs: Set<String> = []
     /// Pictures put on a card to check from outside the pane, by card id: the
     /// chat beside it, through `update_card`, on the learner's word ("can you
     /// add it to the card?"). Like a drawn picture they are held with the card
