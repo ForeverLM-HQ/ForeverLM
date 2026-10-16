@@ -174,11 +174,11 @@ final class MCPToolRegistry: @unchecked Sendable {
         [
             "type": "array",
             "maxItems": MemoryCard.maximumImagesPerFace,
-            "description": description + " Each entry is the exact Markdown image line a ForeverLM image tool returned, or an object with its target and alt text.",
+            "description": description + " Each entry is the exact Markdown image line a ForeverLM image tool returned, or an object with its target and alt text. One entry per face may be a saved animation (from save_animation or list_animations), by its foreverlm-site://<animation_id>/ address: the card plays it inline with its own controls, on the back only once the back shows.",
             "items": [
                 "type": ["string", "object"],
                 "properties": [
-                    "target": ["type": "string", "description": "A foreverlm://image source or generated-image address."],
+                    "target": ["type": "string", "description": "A foreverlm://image source or generated-image address, or a saved animation's foreverlm-site://<animation_id>/ address."],
                     "alt": ["type": "string", "description": "A short accessible description of the picture."],
                 ],
                 "required": [] as [String],

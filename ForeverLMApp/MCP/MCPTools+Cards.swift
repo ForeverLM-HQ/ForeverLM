@@ -265,7 +265,10 @@ extension MCPDataStore {
     /// show_source_image / inspect_paper_figure / generate_image, or objects
     /// with `target` and `alt`. Only durable source and generated references
     /// are accepted; chat attachments and local/web paths would not travel
-    /// with a card.
+    /// with a card. One entry per face may instead be a saved animation, by
+    /// its `foreverlm-site://<animation_id>/` address (from `save_animation` or
+    /// `list_animations`), which the card plays; the record must be an
+    /// animation this Mac holds.
     private static func cardImages(
         _ raw: Any?,
         cardIndex: Int,
@@ -274,7 +277,7 @@ extension MCPDataStore {
     ) throws -> [MemoryCardImage] {
         guard let raw, !(raw is NSNull) else { return [] }
         guard let entries = raw as? [Any] else {
-            throw MCPError.invalidInput("Nothing was saved. Card \(cardIndex)'s \(field) is an array of ForeverLM image references.")
+            throw MCPError.invalidInput("Nothing was saved. Card \(cardIndex)'s \(field) is an array of ForeverLM image references (one may be a saved animation's address).")
         }
         guard entries.count <= MemoryCard.maximumImagesPerFace else {
             throw MCPError.invalidInput("Nothing was saved. Card \(cardIndex)'s \(field) takes at most \(MemoryCard.maximumImagesPerFace) images.")
@@ -285,14 +288,23 @@ extension MCPDataStore {
             if let text = entry as? String {
                 image = MemoryCardImage(reference: text)
             } else if let object = entry as? [String: Any], let target = object["target"] as? String {
-                image = MemoryCardImage(target: target, alt: object["alt"] as? String ?? "Image")
+                image = MemoryCardImage(target: target, alt: object["alt"] as? String ?? "")
             } else {
                 image = nil
             }
             guard let image else {
-                throw MCPError.invalidInput("Nothing was saved. Card \(cardIndex)'s \(field)[\(imageIndex)] must be a source or generated ForeverLM image, as an image-tool Markdown line or {target, alt}.")
+                throw MCPError.invalidInput("Nothing was saved. Card \(cardIndex)'s \(field)[\(imageIndex)] must be a source or generated ForeverLM image, as an image-tool Markdown line or {target, alt}, or a saved animation's foreverlm-site://<animation_id>/ address.")
             }
-            if let reference = SourceImageReference(urlString: image.target) {
+            if let animationID = image.animationID {
+                guard !images.contains(where: \.isAnimation) else {
+                    throw MCPError.invalidInput("Nothing was saved. Card \(cardIndex)'s \(field) takes one animation; \(field)[\(imageIndex)] is a second.")
+                }
+                let held = try store.loadArtifacts(listing: .everyRecord)
+                    .first { $0.id.lowercased() == animationID && $0.isAnimation }
+                guard held != nil else {
+                    throw MCPError.invalidInput("Nothing was saved. Card \(cardIndex)'s \(field)[\(imageIndex)] names an animation this Mac does not hold; list_animations has the saved ones.")
+                }
+            } else if let reference = SourceImageReference(urlString: image.target) {
                 guard let source = try? store.loadSourceWithoutContent(reference.sourceID), source.status == .active else {
                     throw MCPError.invalidInput("Nothing was saved. Card \(cardIndex)'s \(field)[\(imageIndex)] names a source the library does not hold.")
                 }
@@ -1148,8 +1160,8 @@ extension MCPDataStore {
         }
         for state in shown {
             var held = state.memoryCardPictures[cardID] ?? StudioWindowState.MemoryCardPictures()
-            if let front { held.front = Array(front.prefix(MemoryCard.maximumImagesPerFace)) }
-            if let back { held.back = Array(back.prefix(MemoryCard.maximumImagesPerFace)) }
+            if let front { held.front = MemoryCardImage.faceList(front) }
+            if let back { held.back = MemoryCardImage.faceList(back) }
             state.memoryCardPictures[cardID] = held
         }
         return !shown.isEmpty

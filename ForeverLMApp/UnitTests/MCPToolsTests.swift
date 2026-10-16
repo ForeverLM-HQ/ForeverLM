@@ -6056,6 +6056,52 @@ struct MCPDataStoreTests {
         #expect(try store.knowledgeStore().loadArtifact(MemoryCard.draftDeckID(sourceID: "source-cards")) != nil)
     }
 
+    @Test("A card's face takes one saved animation beside its pictures, by its address, and only one the library holds")
+    func cardFaceTakesAnAnimation() async throws {
+        let (store, dbPath, _, cleanup) = try makeCardStore()
+        defer { cleanup() }
+        try insertSource(dbPath: dbPath, id: "source-cards", title: "Retrieval practice", content: Self.cardSourceText)
+        let saved = try parseJSON(try await store.saveAnimation(
+            animation: nil, title: "Spacing curve", description: "How spaced practice flattens forgetting.",
+            html: "<!doctype html><title>Spacing curve</title><button id=\"play\">Play</button><script>1</script>",
+            files: nil, sources: [], homeNotebookID: nil, notebookIDs: []
+        ))
+        let animationID = try #require(saved["animation_id"] as? String)
+        let address = "foreverlm-site://\(animationID)/"
+        func draft(front: String, backImages: [Any]) -> [String: Any] {
+            ["source_id": "source-cards", "front": front, "back": "Retrieval practice.", "quote": "Retrieval practice strengthens later access", "back_images": backImages]
+        }
+
+        let payload = try parseJSON(try await store.saveCardDrafts(cards: [
+            draft(front: "What strengthens later access?", backImages: [
+                ["target": "foreverlm://image/source-cards/page/2", "alt": "Curve"],
+                "![Spacing in motion](\(address))",
+            ]),
+        ], keptByDefault: false))
+        #expect(payload["saved_count"] as? Int == 1)
+        let listed = try parseJSON(try await store.listCards(status: nil, notebookID: nil, sourceID: nil, limit: nil))
+        let card = try #require((listed["to_check"] as? [[String: Any]])?.first)
+        let images = try #require(card["back_images"] as? [[String: Any]])
+        #expect(images.compactMap { $0["target"] as? String } == ["foreverlm://image/source-cards/page/2", address])
+        #expect(images.last?["alt"] as? String == "Spacing in motion")
+
+        // A second animation on one face, an animation the library does not
+        // hold, and a site that is no animation are each refused whole.
+        for (images, reason) in [
+            ([address, "![Again](\(address))"] as [Any], "takes one animation"),
+            (["foreverlm-site://no-such-animation/"] as [Any], "does not hold"),
+        ] {
+            do {
+                _ = try await store.saveCardDrafts(cards: [draft(front: "Another question about \(reason)?", backImages: images)], keptByDefault: false)
+                Issue.record("\(reason): the call was accepted")
+            } catch let error as MCPError {
+                #expect(error.localizedDescription.contains("Nothing was saved"))
+                #expect(error.localizedDescription.contains(reason), "\(error.localizedDescription)")
+            }
+        }
+        #expect((try parseJSON(try await store.listCards(status: nil, notebookID: nil, sourceID: nil, limit: nil)))["to_check_count"] as? Int == 1)
+    }
+
     @Test("triage_cards keeps, edits and skips cards to check on the learner's word, and list_cards lists the kept ones with the wording to ask")
     func listAndTriageCardsTools() async throws {
         let (store, dbPath, defaults, cleanup) = try makeCardStore()

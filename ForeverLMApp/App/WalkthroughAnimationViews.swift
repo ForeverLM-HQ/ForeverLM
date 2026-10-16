@@ -68,6 +68,9 @@ struct WalkthroughAnimationWebView: NSViewRepresentable {
 /// the step and holds the last frame with the motion running.
 struct WalkthroughHostedAnimationWebView: NSViewRepresentable {
     let url: URL
+    /// Serves the page under the card player's policy, which refuses the
+    /// network (`LocalSiteServing.cardContentSecurityPolicy`).
+    var restrictsNetwork = false
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -76,7 +79,11 @@ struct WalkthroughHostedAnimationWebView: NSViewRepresentable {
         SharedWebKit.applySharedProcessPool(to: configuration)
         configuration.websiteDataStore = .nonPersistent()
         configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
-        LocalSiteSchemeHandler.install(on: configuration)
+        if restrictsNetwork {
+            LocalSiteSchemeHandler.installCardPlayer(on: configuration)
+        } else {
+            LocalSiteSchemeHandler.install(on: configuration)
+        }
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
         webView.uiDelegate = context.coordinator
@@ -128,10 +135,12 @@ struct WalkthroughAnimationSheet: View {
     @Environment(\.dismiss) private var dismiss
     let title: String
     let content: WalkthroughAnimationContent
+    var restrictsNetwork = false
 
-    init(title: String, content: WalkthroughAnimationContent) {
+    init(title: String, content: WalkthroughAnimationContent, restrictsNetwork: Bool = false) {
         self.title = title
         self.content = content
+        self.restrictsNetwork = restrictsNetwork
     }
 
     init(title: String, html: String) {
@@ -153,7 +162,7 @@ struct WalkthroughAnimationSheet: View {
             Divider()
             switch content {
             case .inline(let html): WalkthroughAnimationWebView(html: html)
-            case .hosted(let url): WalkthroughHostedAnimationWebView(url: url)
+            case .hosted(let url): WalkthroughHostedAnimationWebView(url: url, restrictsNetwork: restrictsNetwork)
             }
         }
         .frame(minWidth: 720, idealWidth: 900, minHeight: 480, idealHeight: 640)

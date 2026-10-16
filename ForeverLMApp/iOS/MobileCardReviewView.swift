@@ -1508,18 +1508,29 @@ struct MobileMemoryCardImageGrid: View {
     /// its walk (`MobileSourceFileStore.walkthroughPicture`).
     let sourceID: String?
 
-    private var columns: [GridItem] {
-        Array(repeating: GridItem(.flexible(), spacing: MobileDesign.Spacing.small, alignment: .top), count: min(2, max(1, images.count)))
+    private func columns(for count: Int) -> [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: MobileDesign.Spacing.small, alignment: .top), count: min(2, max(1, count)))
     }
 
     var body: some View {
-        LazyVGrid(columns: columns, alignment: .leading, spacing: MobileDesign.Spacing.small) {
-            ForEach(images, id: \.self) { image in
-                MobileMemoryCardImageTile(image: image, sourceID: sourceID)
+        let split = MemoryCardImage.split(images)
+        VStack(alignment: .leading, spacing: MobileDesign.Spacing.small) {
+            if !split.pictures.isEmpty {
+                LazyVGrid(columns: columns(for: split.pictures.count), alignment: .leading, spacing: MobileDesign.Spacing.small) {
+                    ForEach(split.pictures, id: \.self) { image in
+                        MobileMemoryCardImageTile(image: image, sourceID: sourceID)
+                    }
+                }
+                .accessibilityIdentifier("memory.cards.images")
+            }
+            // The face's one animation, below its pictures. The grid is drawn
+            // where its side is shown, so an answer's animation is fetched
+            // only once the back shows.
+            if let animation = split.animation {
+                MobileCardAnimationView(image: animation)
             }
         }
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("memory.cards.images")
     }
 }
 

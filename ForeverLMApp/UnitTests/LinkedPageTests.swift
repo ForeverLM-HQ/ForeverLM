@@ -63,6 +63,20 @@ struct LinkedPageTests {
         #expect((home.headers["Content-Type"] as? String) == "text/html; charset=utf-8")
         #expect((home.headers["Content-Security-Policy"] as? String)?.hasPrefix("sandbox allow-scripts") == true)
         #expect((home.headers["Content-Security-Policy"] as? String)?.contains("allow-same-origin") == false, "each page gets an opaque origin, as on the web host")
+
+        // An animation on a Memory card is served under the card policy: scripts
+        // run in an opaque origin, nothing loads but the animation's own files.
+        let card = try #require(LocalSiteSchemeHandler.answer(
+            for: URLRequest(url: URL(string: "foreverlm-site://site-a/")!),
+            contentRoot: root,
+            contentSecurityPolicy: LocalSiteServing.cardContentSecurityPolicy
+        ).response as? HTTPURLResponse)
+        let cardPolicy = try #require(card.allHeaderFields["Content-Security-Policy"] as? String)
+        #expect(cardPolicy.hasPrefix("sandbox allow-scripts;"))
+        #expect(!cardPolicy.contains("allow-same-origin") && !cardPolicy.contains("allow-popups") && !cardPolicy.contains("allow-forms"))
+        #expect(cardPolicy.contains("default-src foreverlm-site: data: blob:"))
+        #expect(!cardPolicy.contains("http"), "no network origin is named")
+        #expect(cardPolicy.contains("form-action 'none'"))
         #expect(answer("foreverlm-site://site-a/pages").body == Data("<h1>Two</h1>".utf8), "a folder answers with its index.html")
         #expect(answer("foreverlm-site://site-a/pages/?embed=1&step=2").status == 200)
         #expect(answer("foreverlm-site://site-a/missing.html").status == 404)

@@ -14,6 +14,14 @@ enum LocalSiteServing {
 
     static let contentSecurityPolicy = "sandbox allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-pointer-lock"
 
+    /// The policy an animation on a Memory card is served under: scripts run
+    /// in an opaque origin, and nothing loads from anywhere but the animation's
+    /// own files (`default-src` names this scheme, `data:` and `blob:`, so a
+    /// page's `fetch`, images, fonts, frames and media over the network are
+    /// refused), with no forms, popups, modals or downloads.
+    static let cardContentSecurityPolicy =
+        "sandbox allow-scripts; default-src \(scheme): data: blob: 'unsafe-inline' 'unsafe-eval'; form-action 'none'"
+
     /// The record a local site address names, lowercased as WebKit hands a
     /// host back; nil for any other address.
     static func siteID(from url: URL) -> String? {
@@ -48,11 +56,12 @@ enum LocalSiteServing {
     static func answer(
         for request: URLRequest,
         missingPage: String,
+        contentSecurityPolicy policy: String = LocalSiteServing.contentSecurityPolicy,
         siteDirectory: (String) -> URL
     ) -> (response: URLResponse, body: Data) {
         let url = request.url ?? URL(string: "\(scheme)://missing/")!
         var headers = [
-            "Content-Security-Policy": contentSecurityPolicy,
+            "Content-Security-Policy": policy,
             "Access-Control-Allow-Origin": "*",
             "Cache-Control": "no-cache",
             "X-Content-Type-Options": "nosniff",

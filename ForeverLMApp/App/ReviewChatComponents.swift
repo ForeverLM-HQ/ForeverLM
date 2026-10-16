@@ -4475,7 +4475,7 @@ struct ReviewChatSavedCardsView: View {
                 .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
             if !card.face.frontImages.isEmpty {
-                MemoryCardImageGrid(images: card.face.frontImages)
+                MemoryCardImageGrid(images: card.face.frontImages, animationStartsAtOnce: false)
                     .padding(.top, 10)
             }
             MemoryCardFold()
@@ -4485,7 +4485,7 @@ struct ReviewChatSavedCardsView: View {
                 .foregroundStyle(Color.primary.opacity(0.85))
                 .fixedSize(horizontal: false, vertical: true)
             if !card.face.backImages.isEmpty {
-                MemoryCardImageGrid(images: card.face.backImages)
+                MemoryCardImageGrid(images: card.face.backImages, animationStartsAtOnce: false)
                     .padding(.top, 10)
             }
         }

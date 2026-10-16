@@ -8387,7 +8387,7 @@
                 "type" : "string"
               },
               "back_images" : {
-                "description" : "Pictures shown with the answer after reveal. Include a relevant durable image by default when it materially supports recall. Two or more appear side by side when space allows. Each entry is the exact Markdown image line a ForeverLM image tool returned, or an object with its target and alt text.",
+                "description" : "Pictures shown with the answer after reveal. Include a relevant durable image by default when it materially supports recall. Two or more appear side by side when space allows. Each entry is the exact Markdown image line a ForeverLM image tool returned, or an object with its target and alt text. One entry per face may be a saved animation (from save_animation or list_animations), by its foreverlm-site://<animation_id>/ address: the card plays it inline with its own controls, on the back only once the back shows.",
                 "items" : {
                   "properties" : {
                     "alt" : {
@@ -8395,7 +8395,7 @@
                       "type" : "string"
                     },
                     "target" : {
-                      "description" : "A foreverlm://image source or generated-image address.",
+                      "description" : "A foreverlm://image source or generated-image address, or a saved animation's foreverlm-site://<animation_id>/ address.",
                       "type" : "string"
                     }
                   },
@@ -8415,7 +8415,7 @@
                 "type" : "string"
               },
               "front_images" : {
-                "description" : "Pictures shown with the question before reveal. Include a relevant durable image by default when it materially supports recall. Each entry is the exact Markdown image line a ForeverLM image tool returned, or an object with its target and alt text.",
+                "description" : "Pictures shown with the question before reveal. Include a relevant durable image by default when it materially supports recall. Each entry is the exact Markdown image line a ForeverLM image tool returned, or an object with its target and alt text. One entry per face may be a saved animation (from save_animation or list_animations), by its foreverlm-site://<animation_id>/ address: the card plays it inline with its own controls, on the back only once the back shows.",
                 "items" : {
                   "properties" : {
                     "alt" : {
@@ -8423,7 +8423,7 @@
                       "type" : "string"
                     },
                     "target" : {
-                      "description" : "A foreverlm://image source or generated-image address.",
+                      "description" : "A foreverlm://image source or generated-image address, or a saved animation's foreverlm-site://<animation_id>/ address.",
                       "type" : "string"
                     }
                   },
@@ -11154,7 +11154,7 @@
                 "type" : "string"
               },
               "back_images" : {
-                "description" : "With keep: pictures shown with the answer; pass [] to remove them. Each entry is the exact Markdown image line a ForeverLM image tool returned, or an object with its target and alt text.",
+                "description" : "With keep: pictures shown with the answer; pass [] to remove them. Each entry is the exact Markdown image line a ForeverLM image tool returned, or an object with its target and alt text. One entry per face may be a saved animation (from save_animation or list_animations), by its foreverlm-site://<animation_id>/ address: the card plays it inline with its own controls, on the back only once the back shows.",
                 "items" : {
                   "properties" : {
                     "alt" : {
@@ -11162,7 +11162,7 @@
                       "type" : "string"
                     },
                     "target" : {
-                      "description" : "A foreverlm://image source or generated-image address.",
+                      "description" : "A foreverlm://image source or generated-image address, or a saved animation's foreverlm-site://<animation_id>/ address.",
                       "type" : "string"
                     }
                   },
@@ -11186,7 +11186,7 @@
                 "type" : "string"
               },
               "front_images" : {
-                "description" : "With keep: pictures shown with the question; pass [] to remove them. Each entry is the exact Markdown image line a ForeverLM image tool returned, or an object with its target and alt text.",
+                "description" : "With keep: pictures shown with the question; pass [] to remove them. Each entry is the exact Markdown image line a ForeverLM image tool returned, or an object with its target and alt text. One entry per face may be a saved animation (from save_animation or list_animations), by its foreverlm-site://<animation_id>/ address: the card plays it inline with its own controls, on the back only once the back shows.",
                 "items" : {
                   "properties" : {
                     "alt" : {
@@ -11194,7 +11194,7 @@
                       "type" : "string"
                     },
                     "target" : {
-                      "description" : "A foreverlm://image source or generated-image address.",
+                      "description" : "A foreverlm://image source or generated-image address, or a saved animation's foreverlm-site://<animation_id>/ address.",
                       "type" : "string"
                     }
                   },
@@ -11728,7 +11728,7 @@
           "type" : "string"
         },
         "back_images" : {
-          "description" : "Replacement pictures for the answer face; starts the card over. Pass [] to remove them. Each entry is the exact Markdown image line a ForeverLM image tool returned, or an object with its target and alt text.",
+          "description" : "Replacement pictures for the answer face; starts the card over. Pass [] to remove them. Each entry is the exact Markdown image line a ForeverLM image tool returned, or an object with its target and alt text. One entry per face may be a saved animation (from save_animation or list_animations), by its foreverlm-site://<animation_id>/ address: the card plays it inline with its own controls, on the back only once the back shows.",
           "items" : {
             "properties" : {
               "alt" : {
@@ -11736,7 +11736,7 @@
                 "type" : "string"
               },
               "target" : {
-                "description" : "A foreverlm://image source or generated-image address.",
+                "description" : "A foreverlm://image source or generated-image address, or a saved animation's foreverlm-site://<animation_id>/ address.",
                 "type" : "string"
               }
             },
@@ -11760,7 +11760,7 @@
           "type" : "string"
         },
         "front_images" : {
-          "description" : "Replacement pictures for the question face; starts the card over. Pass [] to remove them. Each entry is the exact Markdown image line a ForeverLM image tool returned, or an object with its target and alt text.",
+          "description" : "Replacement pictures for the question face; starts the card over. Pass [] to remove them. Each entry is the exact Markdown image line a ForeverLM image tool returned, or an object with its target and alt text. One entry per face may be a saved animation (from save_animation or list_animations), by its foreverlm-site://<animation_id>/ address: the card plays it inline with its own controls, on the back only once the back shows.",
           "items" : {
             "properties" : {
               "alt" : {
@@ -11768,7 +11768,7 @@
                 "type" : "string"
               },
               "target" : {
-                "description" : "A foreverlm://image source or generated-image address.",
+                "description" : "A foreverlm://image source or generated-image address, or a saved animation's foreverlm-site://<animation_id>/ address.",
                 "type" : "string"
               }
             },

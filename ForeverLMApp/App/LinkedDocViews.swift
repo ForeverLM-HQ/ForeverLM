@@ -2096,9 +2096,27 @@ struct ConvertToGoogleDocSheet: View {
 /// seeking) is answered in part. Files are read off the main thread.
 final class LocalSiteSchemeHandler: NSObject, WKURLSchemeHandler {
     static let shared = LocalSiteSchemeHandler()
+    /// Serves an animation on a Memory card: the same files under
+    /// `LocalSiteServing.cardContentSecurityPolicy`, which refuses the network.
+    static let cardPlayer = LocalSiteSchemeHandler(contentSecurityPolicy: LocalSiteServing.cardContentSecurityPolicy)
 
     static func install(on configuration: WKWebViewConfiguration) {
         configuration.setURLSchemeHandler(shared, forURLScheme: LinkedPage.localSiteScheme)
+    }
+
+    static func installCardPlayer(on configuration: WKWebViewConfiguration) {
+        configuration.setURLSchemeHandler(cardPlayer, forURLScheme: LinkedPage.localSiteScheme)
+    }
+
+    private let policy: String
+
+    override convenience init() {
+        self.init(contentSecurityPolicy: LocalSiteServing.contentSecurityPolicy)
+    }
+
+    private init(contentSecurityPolicy: String) {
+        policy = contentSecurityPolicy
+        super.init()
     }
 
     static let contentSecurityPolicy = LocalSiteServing.contentSecurityPolicy
@@ -2110,8 +2128,13 @@ final class LocalSiteSchemeHandler: NSObject, WKURLSchemeHandler {
     func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
         let request = urlSchemeTask.request
         let key = ObjectIdentifier(urlSchemeTask)
+        let policy = policy
         queue.async { [weak self] in
-            let answer = Self.answer(for: request, contentRoot: URL(fileURLWithPath: StorageService.libraryRootPath, isDirectory: true))
+            let answer = Self.answer(
+                for: request,
+                contentRoot: URL(fileURLWithPath: StorageService.libraryRootPath, isDirectory: true),
+                contentSecurityPolicy: policy
+            )
             DispatchQueue.main.async {
                 guard let self, !self.consumeStopped(key) else { return }
                 urlSchemeTask.didReceive(answer.response)
@@ -2147,10 +2170,15 @@ final class LocalSiteSchemeHandler: NSObject, WKURLSchemeHandler {
         LocalSiteServing.fileURL(for: url) { siteDirectory(artifactID: $0, contentRoot: contentRoot) }
     }
 
-    static func answer(for request: URLRequest, contentRoot: URL) -> (response: URLResponse, body: Data) {
+    static func answer(
+        for request: URLRequest,
+        contentRoot: URL,
+        contentSecurityPolicy: String = LocalSiteServing.contentSecurityPolicy
+    ) -> (response: URLResponse, body: Data) {
         LocalSiteServing.answer(
             for: request,
-            missingPage: "This site has no such page on this Mac. If the site was saved on another device, it arrives with iCloud sync."
+            missingPage: "This site has no such page on this Mac. If the site was saved on another device, it arrives with iCloud sync.",
+            contentSecurityPolicy: contentSecurityPolicy
         ) { siteDirectory(artifactID: $0, contentRoot: contentRoot) }
     }
 

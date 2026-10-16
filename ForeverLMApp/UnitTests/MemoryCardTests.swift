@@ -117,6 +117,125 @@ struct MemoryCardTests {
         #expect(MemoryCard(storedIn: legacyItem(target: "Q — A", criteria: ["A"])) == nil)
     }
 
+    @Test("A card face takes a saved animation by its site address, lowercased and bare, and nothing that is not one")
+    func animationTargets() throws {
+        let id = "77bbc5f1-0c5e-42b0-9b61-9659c875bd5b"
+        let address = "foreverlm-site://\(id)/"
+        for written in [
+            address,
+            "foreverlm-site://\(id)",
+            "  FOREVERLM-SITE://\(id.uppercased())/  ",
+            "foreverlm-site://\(id)/index.html",
+        ] {
+            let image = try #require(MemoryCardImage(target: written, alt: "Scaling"), "\(written) is an animation")
+            #expect(image.target == address)
+            #expect(image.animationID == id)
+            #expect(image.isAnimation)
+            #expect(image.animationURL == URL(string: address))
+        }
+
+        // The Markdown line and the bare address read the same, and a missing
+        // alt text says what it is.
+        let fromMarkdown = try #require(MemoryCardImage(reference: "![Scaling, in motion](\(address))"))
+        #expect(fromMarkdown.alt == "Scaling, in motion")
+        #expect(fromMarkdown.markdown == "![Scaling, in motion](\(address))")
+        #expect(MemoryCardImage(reference: fromMarkdown.markdown) == fromMarkdown)
+        #expect(MemoryCardImage(reference: address)?.alt == "Animation")
+        #expect(MemoryCardImage(target: address, alt: "  ")?.alt == "Animation")
+        #expect(MemoryCardImage(target: "foreverlm://image/src-1/page/2", alt: "")?.alt == "Image")
+
+        // A picture is no animation.
+        let picture = try #require(MemoryCardImage(target: "foreverlm://image/src-1/page/2", alt: "Figure"))
+        #expect(!picture.isAnimation)
+        #expect(picture.animationID == nil)
+        #expect(picture.animationURL == nil)
+
+        // What is not the animation's own page is no card face: a step of it,
+        // a file of it, a fragment, another scheme, a web address, a local path.
+        for refused in [
+            "foreverlm-site://\(id)/?step=2",
+            "foreverlm-site://\(id)/#top",
+            "foreverlm-site://\(id)/pages/two.html",
+            "foreverlm-site:///index.html",
+            "foreverlm-site://../",
+            "https://example.com/\(id)/",
+            "foreverlm://site/\(id)",
+            "/Users/someone/animation/index.html",
+            "",
+        ] {
+            #expect(MemoryCardImage(target: refused) == nil, "\(refused) is not an animation address")
+        }
+    }
+
+    @Test("A face keeps its pictures in order, four at most, and only its first animation")
+    func faceListCapsOneAnimation() throws {
+        let one = try #require(MemoryCardImage(target: "foreverlm-site://anim-one/", alt: "One"))
+        let two = try #require(MemoryCardImage(target: "foreverlm-site://anim-two/", alt: "Two"))
+        let pictures = try (1...5).map { try #require(MemoryCardImage(target: "foreverlm://image/src-1/page/\($0)", alt: "Figure \($0)")) }
+
+        #expect(MemoryCardImage.faceList([pictures[0], one, two, pictures[1]]) == [pictures[0], one, pictures[1]])
+        #expect(MemoryCardImage.faceList([one, two]) == [one])
+        #expect(MemoryCardImage.faceList(pictures) == Array(pictures.prefix(MemoryCard.maximumImagesPerFace)))
+        #expect(MemoryCardImage.faceList(pictures + [one]) == Array(pictures.prefix(4)), "the animation counts toward the four")
+        #expect(MemoryCardImage.faceList([]).isEmpty)
+
+        let split = MemoryCardImage.split([pictures[0], one, pictures[1]])
+        #expect(split.pictures == [pictures[0], pictures[1]])
+        #expect(split.animation == one)
+        #expect(MemoryCardImage.split([pictures[0]]).animation == nil)
+
+        // Every writer of a face goes through it: the card, and a draft.
+        let card = MemoryCard(cardID: "card-A", front: "Q", back: "A", origin: .assistant, backImages: [one, pictures[0], two])
+        #expect(card.backImages == [one, pictures[0]])
+        let capped = Flashcard(
+            id: "card-a", front: "Q", back: "A",
+            frontImages: [two, one], backImages: [one, two, pictures[0]]
+        )
+        #expect(capped.frontImages == [two])
+        #expect(capped.backImages == [one, pictures[0]])
+    }
+
+    @Test("An animation on a face is kept in the same {target, alt} entry as a picture: the rubric, the item and a deck read it back, no schema change")
+    func animationStorageRoundTrip() throws {
+        let animation = try #require(MemoryCardImage(
+            reference: "![Heart rate against body mass](foreverlm-site://77bbc5f1-0c5e-42b0-9b61-9659c875bd5b/)"
+        ))
+        let chart = try #require(MemoryCardImage(target: "foreverlm://image/src-1/page/3", alt: "Chart"))
+        let card = MemoryCard(
+            cardID: "card-anim", front: "Why do bigger animals have slower hearts?", back: "Metabolic rate scales as mass to the 3/4.",
+            origin: .assistant, deckID: "carddeck-src-1", frontImages: [], backImages: [chart, animation]
+        )
+
+        // The rubric stores the animation as an entry like a picture's.
+        let rubric = try #require(try JSONSerialization.jsonObject(with: Data(card.rubricJSON().utf8)) as? [String: Any])
+        let stored = try #require((rubric["card"] as? [String: Any])?["backImages"] as? [[String: String]])
+        #expect(stored == [
+            ["target": chart.target, "alt": "Chart"],
+            ["target": "foreverlm-site://77bbc5f1-0c5e-42b0-9b61-9659c875bd5b/", "alt": "Heart rate against body mass"],
+        ])
+        #expect(Set(try #require((rubric["card"] as? [String: Any])).keys) == ["backImages", "cardID", "deckID", "front", "origin"], "no new key")
+        #expect(try card.rubricJSON() == card.rubricJSON())
+
+        // Kept, it reads back as the same card; a device that knows no
+        // animations reads the entry as no picture and shows the rest.
+        let item = try card.memoryItem(
+            id: MemoryTutorIdentity.cardItemID(cardID: card.cardID),
+            anchors: [MemorySourceAnchorValidation(sourceID: "src-1", excerpt: Self.quote, sourceSHA256: "h")],
+            at: Self.keptAt
+        )
+        #expect(MemoryCard(storedIn: item) == card)
+        #expect(MemoryCardImage.readRubric(stored) == [chart, animation])
+        #expect(MemoryCardImage.readRubric([["target": "foreverlm-site://x/?step=1", "alt": "A step"]]).isEmpty)
+
+        // A draft waiting in To Check is a deck Page: its Markdown carries the
+        // animation as a "Back image:" line and parses to the same draft.
+        var drafted = draft(requested: false, id: "card-a")
+        drafted.backImages = [animation]
+        let deck = FlashcardDeck(title: FlashcardDeck.title(forSourceTitle: "Mitochondria"), cards: [drafted])
+        #expect(deck.markdown.contains("Back image: ![Heart rate against body mass](foreverlm-site://77bbc5f1-0c5e-42b0-9b61-9659c875bd5b/)"))
+        #expect(FlashcardDeck.parse(deck.markdown, fallbackTitle: "Cards") == deck)
+    }
+
     @Test("An item from before cards reads as a card from what its writer stored")
     func legacyFaces() throws {
         // The front is the earliest attempt's prompt; the back is the target

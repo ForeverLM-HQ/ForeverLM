@@ -349,8 +349,8 @@ struct Flashcard: Identifiable, Equatable, Sendable {
         self.draftedAt = draftedAt
         self.origin = origin
         self.isRequested = isRequested
-        self.frontImages = Array(frontImages.prefix(MemoryCard.maximumImagesPerFace))
-        self.backImages = Array(backImages.prefix(MemoryCard.maximumImagesPerFace))
+        self.frontImages = MemoryCardImage.faceList(frontImages)
+        self.backImages = MemoryCardImage.faceList(backImages)
         self.alsoFrom = alsoFrom
     }
 

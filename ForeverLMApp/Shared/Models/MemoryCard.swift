@@ -48,24 +48,39 @@ struct MemoryCardOrigin: RawRepresentable, Hashable, Sendable {
     static let legacy = MemoryCardOrigin(rawValue: "legacy")
 }
 
-/// One durable picture on a card face. The target is a ForeverLM source
-/// picture or generated picture address, never a local path or web URL, so
-/// the card can carry the same reference to every client. Alt text is stored
-/// with it for accessibility and for a useful unavailable-picture note.
+/// One durable picture, or one animation, on a card face. The target is a
+/// ForeverLM source picture or generated picture address, or the address of a
+/// saved animation (`foreverlm-site://<animation-id>/`), never a local path or
+/// web URL, so the card can carry the same reference to every client. Alt text
+/// is stored with it for accessibility and for a useful unavailable note.
+///
+/// An animation rides in the same `{target, alt}` entry a picture does, so a
+/// card needs no new stored field, no schema bump and no sync change: the
+/// face's `frontImages` / `backImages` payload already carries any address, and
+/// a build that does not know animations drops the entry it cannot read
+/// (`readRubric`) and shows the card without it. A face holds at most one
+/// animation (`faceList`), played in a sandboxed web view, with the pictures
+/// above it.
 struct MemoryCardImage: Equatable, Hashable, Sendable {
     let target: String
     let alt: String
 
-    init?(target: String, alt: String = "Image") {
+    init?(target: String, alt: String = "") {
         let target = target.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard SourceImageReference(urlString: target) != nil
-                || GeneratedImageReference(urlString: target) != nil else { return nil }
-        self.target = target
-        self.alt = Self.cleanAlt(alt)
+        if let animationID = Self.animationID(inTarget: target) {
+            self.target = Self.animationTarget(id: animationID)
+        } else if SourceImageReference(urlString: target) != nil
+                    || GeneratedImageReference(urlString: target) != nil {
+            self.target = target
+        } else {
+            return nil
+        }
+        self.alt = Self.cleanAlt(alt, fallback: self.target.hasPrefix("\(LocalSiteServing.scheme)://") ? "Animation" : "Image")
     }
 
     /// Accepts the exact Markdown line returned by ForeverLM's image tools,
-    /// or its bare `foreverlm://image/…` address.
+    /// or its bare `foreverlm://image/…` address; an animation by its
+    /// `foreverlm-site://<animation-id>/` address, bare or as `![alt](address)`.
     init?(reference: String) {
         let value = reference.trimmingCharacters(in: .whitespacesAndNewlines)
         if value.hasPrefix("!["), let close = value.range(of: "]("), value.hasSuffix(")") {
@@ -81,21 +96,71 @@ struct MemoryCardImage: Equatable, Hashable, Sendable {
 
     var rubricObject: [String: String] { ["target": target, "alt": alt] }
 
+    /// The saved animation this entry plays; nil for a picture.
+    var animationID: String? { Self.animationID(inTarget: target) }
+
+    var isAnimation: Bool { animationID != nil }
+
+    /// The animation's page address, which the app's web views serve from the
+    /// library; nil for a picture.
+    var animationURL: URL? { animationID.flatMap { URL(string: Self.animationTarget(id: $0)) } }
+
+    /// `foreverlm-site://<id>/`, the id lowercased as WebKit hands a host back.
+    static func animationTarget(id: String) -> String {
+        "\(LocalSiteServing.scheme)://\(id.lowercased())/"
+    }
+
+    /// The animation id a target names: a `foreverlm-site://<id>` address
+    /// with no more path than the site's root page, no query and no fragment
+    /// (the card plays the animation's own player, not a step of it). Nil for
+    /// anything else.
+    static func animationID(inTarget target: String) -> String? {
+        guard let url = URL(string: target.trimmingCharacters(in: .whitespacesAndNewlines)),
+              let id = LocalSiteServing.siteID(from: url),
+              url.query == nil, url.fragment == nil,
+              ["", "/", "/index.html"].contains(url.path) else { return nil }
+        return id
+    }
+
+    /// What a face keeps of the entries it is given: in order, at most
+    /// `MemoryCard.maximumImagesPerFace`, and at most one animation (the
+    /// first), the rest dropped. What every writer of a face passes through,
+    /// so two devices reading one card show the same face.
+    static func faceList(_ images: [MemoryCardImage]) -> [MemoryCardImage] {
+        var seenAnimation = false
+        var kept: [MemoryCardImage] = []
+        for image in images {
+            if image.isAnimation {
+                guard !seenAnimation else { continue }
+                seenAnimation = true
+            }
+            kept.append(image)
+            if kept.count == MemoryCard.maximumImagesPerFace { break }
+        }
+        return kept
+    }
+
+    /// The face's entries split for drawing: pictures in their order, then
+    /// the one animation, if any.
+    static func split(_ images: [MemoryCardImage]) -> (pictures: [MemoryCardImage], animation: MemoryCardImage?) {
+        (images.filter { !$0.isAnimation }, images.first(where: \.isAnimation))
+    }
+
     static func readRubric(_ value: Any?) -> [MemoryCardImage] {
         guard let entries = value as? [[String: Any]] else { return [] }
         return entries.compactMap { entry in
             guard let target = entry["target"] as? String else { return nil }
-            return MemoryCardImage(target: target, alt: entry["alt"] as? String ?? "Image")
+            return MemoryCardImage(target: target, alt: entry["alt"] as? String ?? "")
         }
     }
 
-    private static func cleanAlt(_ value: String) -> String {
+    private static func cleanAlt(_ value: String, fallback: String = "Image") -> String {
         let cleaned = value
             .replacingOccurrences(of: "\n", with: " ")
             .replacingOccurrences(of: "[", with: "(")
             .replacingOccurrences(of: "]", with: ")")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        return cleaned.isEmpty ? "Image" : cleaned
+        return cleaned.isEmpty ? fallback : cleaned
     }
 }
 
@@ -176,8 +241,8 @@ struct MemoryCard: Equatable, Sendable, Identifiable {
         self.back = back
         self.why = reasons == [back] ? [] : reasons
         self.origin = origin
-        self.frontImages = Array(frontImages.prefix(Self.maximumImagesPerFace))
-        self.backImages = Array(backImages.prefix(Self.maximumImagesPerFace))
+        self.frontImages = MemoryCardImage.faceList(frontImages)
+        self.backImages = MemoryCardImage.faceList(backImages)
         let deck = deckID?.trimmingCharacters(in: .whitespacesAndNewlines)
         self.deckID = deck?.isEmpty == false ? deck : nil
     }

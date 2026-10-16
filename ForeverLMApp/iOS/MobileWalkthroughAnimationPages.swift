@@ -47,15 +47,27 @@ actor MobileAnimationSiteStore {
     /// The page for a step's reference: the record fetched, its files
     /// unpacked when this phone does not hold its current revision.
     func page(for reference: WalkthroughAnimationReference) async throws -> Page {
+        let address = try await siteAddress(animationID: reference.animationID)
+        return .local(reference.pageURL(animationURL: address))
+    }
+
+    /// The animation's own page, its player and controls, with no walk
+    /// parameters: what a Memory card plays.
+    func page(forAnimationID animationID: String) async throws -> Page {
+        .local(try await siteAddress(animationID: animationID))
+    }
+
+    /// The animation's address, once its record is fetched and its files
+    /// unpacked here when this phone does not hold its current revision.
+    private func siteAddress(animationID: String) async throws -> URL {
         // The Artifact as the phone holds it, its package the `body` satellite, fetched by name
         // (docs/cloudkit-schema-design.md §3.5.15).
         guard let satellites = await MobileSatellites.current(),
-              let body = try await satellites.artifactBody(reference.animationID) else { throw PageError.noAddress }
+              let body = try await satellites.artifactBody(animationID) else { throw PageError.noAddress }
         let localID = body.linkedURL.flatMap(URL.init(string:)).flatMap(LocalSiteServing.siteID(from:))
         if localID != nil || (body.linkedURL == nil && body.package != nil) {
-            try unpackIfNeeded(artifactID: reference.animationID, revision: body.bodyRevision, package: body.package)
-            let address = URL(string: "\(LocalSiteServing.scheme)://\(reference.animationID.lowercased())/")!
-            return .local(reference.pageURL(animationURL: address))
+            try unpackIfNeeded(artifactID: animationID, revision: body.bodyRevision, package: body.package)
+            return URL(string: "\(LocalSiteServing.scheme)://\(animationID.lowercased())/")!
         }
         throw PageError.noAddress
     }
@@ -104,9 +116,27 @@ actor MobileAnimationSiteStore {
 /// the main thread.
 final class MobileLocalSiteSchemeHandler: NSObject, WKURLSchemeHandler {
     static let shared = MobileLocalSiteSchemeHandler()
+    /// Serves an animation on a Memory card under
+    /// `LocalSiteServing.cardContentSecurityPolicy`, which refuses the network.
+    static let cardPlayer = MobileLocalSiteSchemeHandler(contentSecurityPolicy: LocalSiteServing.cardContentSecurityPolicy)
 
     static func install(on configuration: WKWebViewConfiguration) {
         configuration.setURLSchemeHandler(shared, forURLScheme: LocalSiteServing.scheme)
+    }
+
+    static func installCardPlayer(on configuration: WKWebViewConfiguration) {
+        configuration.setURLSchemeHandler(cardPlayer, forURLScheme: LocalSiteServing.scheme)
+    }
+
+    private let policy: String
+
+    override convenience init() {
+        self.init(contentSecurityPolicy: LocalSiteServing.contentSecurityPolicy)
+    }
+
+    private init(contentSecurityPolicy: String) {
+        policy = contentSecurityPolicy
+        super.init()
     }
 
     private let queue = DispatchQueue(label: "com.foreverlm.mobile-local-site", qos: .userInitiated, attributes: .concurrent)
@@ -116,10 +146,12 @@ final class MobileLocalSiteSchemeHandler: NSObject, WKURLSchemeHandler {
     func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
         let request = urlSchemeTask.request
         let key = ObjectIdentifier(urlSchemeTask)
+        let policy = policy
         queue.async { [weak self] in
             let answer = LocalSiteServing.answer(
                 for: request,
-                missingPage: "This animation has no such page on this phone yet."
+                missingPage: "This animation has no such page on this phone yet.",
+                contentSecurityPolicy: policy
             ) { MobileAnimationSiteStore.siteDirectory(artifactID: $0) }
             DispatchQueue.main.async {
                 guard let self, !self.consumeStopped(key) else { return }
@@ -190,6 +222,9 @@ struct MobileWalkthroughReferencedAnimation: View {
 /// and popups go nowhere, as on the Mac.
 private struct MobileAnimationPageWebView: UIViewRepresentable {
     let page: MobileAnimationSiteStore.Page
+    /// A Memory card's player: the card player's policy (no network), and the
+    /// page scrolls inside its frame, where a walk's stage does not.
+    var isCardPlayer = false
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -198,13 +233,17 @@ private struct MobileAnimationPageWebView: UIViewRepresentable {
         configuration.websiteDataStore = .nonPersistent()
         configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
         configuration.allowsInlineMediaPlayback = true
-        MobileLocalSiteSchemeHandler.install(on: configuration)
+        if isCardPlayer {
+            MobileLocalSiteSchemeHandler.installCardPlayer(on: configuration)
+        } else {
+            MobileLocalSiteSchemeHandler.install(on: configuration)
+        }
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
         webView.uiDelegate = context.coordinator
         webView.isOpaque = false
         webView.backgroundColor = .clear
-        webView.scrollView.isScrollEnabled = false
+        webView.scrollView.isScrollEnabled = isCardPlayer
         load(into: webView, coordinator: context.coordinator)
         return webView
     }
@@ -248,6 +287,61 @@ private struct MobileAnimationPageWebView: UIViewRepresentable {
             windowFeatures: WKWindowFeatures
         ) -> WKWebView? {
             nil
+        }
+    }
+}
+
+/// A Memory card's animation on the phone: the animation's record fetched when
+/// the face is on screen (a card holds no web view for a face nobody is
+/// looking at), then played from its own page in the card player's web view,
+/// with the page's controls. A failure says why instead of drawing nothing.
+struct MobileCardAnimationView: View {
+    let image: MemoryCardImage
+
+    private enum LoadState {
+        case loading
+        case loaded(MobileAnimationSiteStore.Page)
+        case failed(String)
+    }
+
+    @State private var state: LoadState = .loading
+
+    var body: some View {
+        Group {
+            switch state {
+            case .loading:
+                ProgressView()
+                    .frame(maxWidth: .infinity, minHeight: 90)
+            case .loaded(let page):
+                MobileAnimationPageWebView(page: page, isCardPlayer: true)
+                    .frame(height: 340)
+            case .failed(let message):
+                Label(message, systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, minHeight: 90)
+                    .textSelection(.disabled)
+            }
+        }
+        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.primary.opacity(0.08)))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(image.alt)
+        .accessibilityIdentifier("memory.cards.animation")
+        .task(id: image.target) {
+            guard let animationID = image.animationID else {
+                state = .failed("This animation's address is not one this phone can play.")
+                return
+            }
+            state = .loading
+            do {
+                state = .loaded(try await MobileAnimationSiteStore.shared.page(forAnimationID: animationID))
+            } catch is CancellationError {
+                return
+            } catch {
+                state = .failed(error.localizedDescription)
+            }
         }
     }
 }
