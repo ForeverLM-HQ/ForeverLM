@@ -1407,101 +1407,62 @@ private struct GoogleDriveConnectionSettingsView: View {
     }
 
     var body: some View {
-        PluginSettingsCard(
-            title: "Google Drive",
-            subtitle: "Read-only import of meeting recordings and transcripts from folders you choose.",
-            icon: {
-                Image("GoogleDriveIcon")
-                    .resizable()
-                    .renderingMode(.original)
-                    .scaledToFit()
-                    .frame(width: 22, height: 18)
-            },
-            status: isSignedIn
-                ? (hasFolderReadAccess ? .connected : .needsAttention)
-                : .notConnected
-        ) {
-            VStack(alignment: .leading, spacing: 12) {
-                if !connectedAccounts.isEmpty {
-                    let attribution = foldersByAccount
-                    VStack(alignment: .leading, spacing: 12) {
-                        ForEach(connectedAccounts) { account in
-                            accountSection(account, folders: attribution.folders(for: account.id))
-                        }
-                        let strays = attribution.unattributed
-                        if !strays.isEmpty {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Folders whose Google account is no longer connected")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                folderList(strays)
+        VStack(alignment: .leading, spacing: 16) {
+            if connectedAccounts.isEmpty {
+                SettingsCard {
+                    HStack(spacing: 12) {
+                        driveGlyph
+                        Text(hasLegacyConnection ? "Connected Google account" : "No Google account connected")
+                            .font(.headline)
+                        Spacer(minLength: 12)
+                        if hasLegacyConnection {
+                            Button("Disconnect", role: .destructive) {
+                                disconnectLegacyConnection()
                             }
+                            .buttonStyle(.hoverWash)
+                            .disabled(isWorking)
                         }
                     }
-                } else if hasLegacyConnection {
-                    HStack(spacing: 8) {
-                        Image(systemName: "person.crop.circle.fill")
-                            .foregroundStyle(.secondary)
-                        Text("Connected Google account")
-                        Spacer(minLength: 8)
-                        Button("Disconnect", role: .destructive) {
-                            disconnectLegacyConnection()
-                        }
-                        .disabled(isWorking)
-                    }
-                }
-
-                HStack(spacing: 8) {
-                    Spacer()
-                    if isWorking {
-                        // The browser sends nothing back when its tab is closed,
-                        // so a bare spinner held this card for ten minutes.
-                        ProgressView()
-                            .controlSize(.small)
-                        Text("Waiting for Google…")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Button("Cancel") {
-                            Task { await GoogleDriveService.shared.cancelPendingConnection() }
-                        }
-                    } else {
-                        Button {
-                            connectAndChooseFolder()
-                        } label: {
-                            Label(
-                                isSignedIn && !hasFolderReadAccess
-                                    ? "Reconnect Google Drive"
-                                    : (isSignedIn ? "Add Account or Folder" : "Connect Google Drive"),
-                                systemImage: "folder.badge.plus"
-                            )
-                        }
-                        .disabled(!GoogleDriveService.shared.canConnect)
-                    }
-                }
-
-                if isSignedIn {
-                    Divider()
-                    Toggle("Transcribe recordings Google didn't", isOn: $ownTranscriptionEnabled)
-                    Text("Each recording is a paid speech-to-text run.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                if !GoogleDriveService.shared.canConnect {
-                    Text("This build of ForeverLM has no Google Drive OAuth client configured.")
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                } else if isSignedIn && !hasFolderReadAccess {
-                    Text("Reconnect to let ForeverLM read the files inside meeting folders.")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                } else if let statusMessage {
-                    Text(statusMessage)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 }
             }
+
+            // One card per Google account, the way Slack draws a workspace: any
+            // number of accounts, and under each any number of folders.
+            let attribution = foldersByAccount
+            ForEach(connectedAccounts) { account in
+                accountCard(account, folders: attribution.folders(for: account.id))
+            }
+            let strays = attribution.unattributed
+            if !strays.isEmpty {
+                SettingsCard {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Account no longer connected")
+                            .font(.callout.weight(.medium))
+                        folderList(strays)
+                    }
+                }
+            }
+
+            addRow
+
+            if isSignedIn {
+                SettingsCard {
+                    HStack(alignment: .center, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Transcribe recordings Google didn't")
+                            Text("Each recording is a paid speech-to-text run.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 12)
+                        Toggle("", isOn: $ownTranscriptionEnabled)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                    }
+                }
+            }
+
+            notice
         }
         .onAppear {
             Task {
@@ -1511,36 +1472,121 @@ private struct GoogleDriveConnectionSettingsView: View {
         }
     }
 
-    /// One connected Google account: who it is, the meeting folders ForeverLM
-    /// reads through it, and its Disconnect — the shape Slack gives a workspace.
+    private var driveGlyph: some View {
+        Image("GoogleDriveIcon")
+            .resizable()
+            .renderingMode(.original)
+            .scaledToFit()
+            .frame(width: 20, height: 17)
+            .frame(width: 34, height: 34)
+            .background(Circle().fill(Color.primary.opacity(0.055)))
+    }
+
+    /// Connecting never replaces what is there: it adds another account, and
+    /// each account takes more folders from its own card.
     @ViewBuilder
-    private func accountSection(_ account: GoogleDriveAccount, folders: [GoogleDriveFolderAttribution.Folder]) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Image(systemName: "person.crop.circle.fill")
+    private var addRow: some View {
+        HStack(spacing: 10) {
+            if isWorking {
+                // The browser sends nothing back when its tab is closed,
+                // so a bare spinner held this page for ten minutes.
+                ProgressView()
+                    .controlSize(.small)
+                Text("Waiting for Google…")
+                    .font(.callout)
                     .foregroundStyle(.secondary)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(account.displayLabel)
-                        .lineLimit(1)
-                    Text(accountSummary(account, folders: folders))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                Button("Cancel") {
+                    Task { await GoogleDriveService.shared.cancelPendingConnection() }
                 }
-                Spacer(minLength: 8)
-                Button("Disconnect", role: .destructive) {
-                    disconnect(accountID: account.id)
+                .buttonStyle(.hoverWash)
+            } else {
+                Button {
+                    connectAndChooseFolder()
+                } label: {
+                    Label(
+                        isSignedIn && !hasFolderReadAccess
+                            ? "Reconnect Google Drive"
+                            : (isSignedIn ? "Add Another Account" : "Connect Google Drive"),
+                        systemImage: "plus"
+                    )
+                    .font(.callout.weight(.medium))
                 }
-                .disabled(isWorking)
+                .buttonStyle(.hoverWash)
+                .disabled(!GoogleDriveService.shared.canConnect)
             }
-            if !folders.isEmpty {
-                folderList(folders)
-                    .padding(.leading, 24)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 4)
+    }
+
+    @ViewBuilder
+    private var notice: some View {
+        if !GoogleDriveService.shared.canConnect {
+            Text("This build of ForeverLM has no Google Drive OAuth client configured.")
+                .font(.caption)
+                .foregroundStyle(.red)
+        } else if isSignedIn && !hasFolderReadAccess {
+            Text("Reconnect to let ForeverLM read the files inside meeting folders.")
+                .font(.caption)
+                .foregroundStyle(.orange)
+        } else if let statusMessage {
+            Text(statusMessage)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    /// One connected Google account: who it is, the meeting folders ForeverLM
+    /// reads through it, a way to add another, and its Disconnect.
+    @ViewBuilder
+    private func accountCard(_ account: GoogleDriveAccount, folders: [GoogleDriveFolderAttribution.Folder]) -> some View {
+        SettingsCard {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .center, spacing: 12) {
+                    Text(String(account.displayLabel.prefix(1)).uppercased())
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .textSelection(.disabled)
+                        .frame(width: 34, height: 34)
+                        .background(Circle().fill(Color.primary.opacity(0.055)))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(account.displayLabel)
+                            .font(.headline)
+                            .lineLimit(1)
+                        Text(accountSummary(account, folders: folders))
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 12)
+                    if !hasFolderReadAccess {
+                        Label("Reconnect", systemImage: "exclamationmark.circle.fill")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.orange)
+                    }
+                    Button("Disconnect", role: .destructive) {
+                        disconnect(accountID: account.id)
+                    }
+                    .buttonStyle(.hoverWash)
+                    .foregroundStyle(.secondary)
+                    .disabled(isWorking)
+                }
+                if !folders.isEmpty {
+                    folderList(folders)
+                }
+                Button {
+                    addFolder(to: account)
+                } label: {
+                    Label("Add Folder", systemImage: "folder.badge.plus")
+                        .font(.callout)
+                }
+                .buttonStyle(.hoverWash)
+                .disabled(isWorking)
             }
         }
     }
 
-    /// "Alan Young · reads 2 folders." The name is left out when the label
+    /// "Zara Holt · 1 folder." The name is left out when the label
     /// already is the name (an account Google gave no email for).
     private func accountSummary(_ account: GoogleDriveAccount, folders: [GoogleDriveFolderAttribution.Folder]) -> String {
         var parts: [String] = []
@@ -1548,31 +1594,47 @@ private struct GoogleDriveConnectionSettingsView: View {
         if !name.isEmpty, name != account.displayLabel { parts.append(name) }
         switch folders.count {
         case 0: parts.append("No meeting folder yet")
-        case 1: parts.append("Reads 1 folder")
-        default: parts.append("Reads \(folders.count) folders")
+        case 1: parts.append("1 folder")
+        default: parts.append("\(folders.count) folders")
         }
         return parts.joined(separator: " · ")
     }
 
     private func folderList(_ folders: [GoogleDriveFolderAttribution.Folder]) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            ForEach(folders) { folder in
-                HStack(spacing: 6) {
-                    Image(systemName: "folder")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(width: 14)
-                    Text(folder.title)
-                        .lineLimit(1)
-                    Spacer(minLength: 8)
-                    if let url = folder.url {
-                        Link(destination: url) {
-                            Label("Open in Drive", systemImage: "arrow.up.right")
-                                .labelStyle(.titleAndIcon)
-                        }
-                        .font(.caption)
-                    }
-                }
+        VStack(spacing: 0) {
+            ForEach(Array(folders.enumerated()), id: \.element.id) { index, folder in
+                if index > 0 { Divider().padding(.leading, 38) }
+                GoogleDriveFolderRow(folder: folder)
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.primary.opacity(0.04))
+        )
+    }
+
+    /// Another meeting folder through an account that is already connected:
+    /// no second sign-in, only the folder chooser.
+    private func addFolder(to account: GoogleDriveAccount) {
+        guard !isWorking else { return }
+        isWorking = true
+        statusMessage = nil
+        Task { @MainActor in
+            defer { isWorking = false }
+            do {
+                guard let folder = await GoogleDriveFolderPicker.choose(account: account) else { return }
+                vm.pinIntegrationTabsInUse()
+                try await vm.importMeetingFolderFromAuthenticatedDrive(
+                    folder.webURL,
+                    groupTitle: folder.name,
+                    silent: false
+                )
+                await refreshConnectionState()
+            } catch is CancellationError {
+                return
+            } catch {
+                await refreshConnectionState()
+                statusMessage = error.localizedDescription
             }
         }
     }
@@ -2530,6 +2592,36 @@ enum PluginScopeCopy {
         guard let value else { return nil }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
+/// One meeting folder under a Google account. "Open in Drive" appears on hover.
+private struct GoogleDriveFolderRow: View {
+    let folder: GoogleDriveFolderAttribution.Folder
+    @State private var isHovering = false
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "folder")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .frame(width: 18)
+            Text(folder.title)
+                .lineLimit(1)
+            Spacer(minLength: 8)
+            if let url = folder.url {
+                Link(destination: url) {
+                    Label("Open in Drive", systemImage: "arrow.up.right")
+                        .font(.caption)
+                }
+                .opacity(isHovering ? 1 : 0)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .contentShape(Rectangle())
+        .onHover { isHovering = $0 }
+        .animation(.easeOut(duration: 0.12), value: isHovering)
     }
 }
 
