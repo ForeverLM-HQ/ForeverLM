@@ -990,3 +990,64 @@ struct NotebooksHomeRoutingTests {
         #expect(NotebookFromChatRequest(sessionID: "d", title: "").id == "d")
     }
 }
+
+@Suite("A destination dropped on a pane")
+struct ReplacingPaneTests {
+    /// Memory beside a pinned Reader, the way a source opened in the Reader
+    /// leaves the window; Chat and the Space parked behind them.
+    private static let memoryBesideReader = StudioCenterTabGroups(groups: [
+        .init(tabs: [.memory, .chat], activeTab: .memory),
+        .init(tabs: [.reader, .artifacts], activeTab: .reader, isPinned: true),
+    ])
+
+    @Test("The pane under the drop takes the tab, a pinned pane included")
+    func pinnedPaneGivesWay() throws {
+        let layout = try #require(Self.memoryBesideReader.replacingPane(at: 1, with: .artifacts))
+        #expect(layout.groups[1].activeTab == .artifacts)
+        #expect(layout.groups[1].tabs.contains(.reader), "what it showed parks behind it")
+        #expect(!layout.groups[1].isPinned, "the pin guarded what was replaced")
+        #expect(layout.groups[0] == Self.memoryBesideReader.groups[0], "the other pane is untouched")
+    }
+
+    @Test("A tab parked in the other pane moves across and leaves that pane on the Reader or its next tab")
+    func tabLeavesItsPane() throws {
+        let layout = try #require(Self.memoryBesideReader.replacingPane(at: 1, with: .chat))
+        #expect(layout.groups[1].activeTab == .chat)
+        #expect(layout.groups[0].tabs == [.memory])
+        #expect(layout.groups[0].activeTab == .memory)
+    }
+
+    @Test("A tab shown alone in another pane trades places with the pane it lands on")
+    func aloneTabSwaps() throws {
+        let layout = StudioCenterTabGroups(groups: [
+            .init(tabs: [.memory], activeTab: .memory),
+            .init(tabs: [.reader, .chat], activeTab: .reader, isPinned: true),
+        ])
+        let swapped = try #require(layout.replacingPane(at: 1, with: .memory))
+        #expect(swapped.groups.map(\.activeTab) == [.reader, .memory])
+        #expect(swapped.groups[0].isPinned, "the pin travels with the pane that held it")
+    }
+
+    @Test("A tab already on top of the pane changes nothing; one parked in it comes forward")
+    func samePane() throws {
+        let unchanged = try #require(Self.memoryBesideReader.replacingPane(at: 0, with: .memory))
+        #expect(unchanged == Self.memoryBesideReader)
+        let forward = try #require(Self.memoryBesideReader.replacingPane(at: 0, with: .chat))
+        #expect(forward.groups[0].activeTab == .chat)
+        #expect(forward.groups[0].tabs == [.memory, .chat])
+    }
+
+    @Test("No pane at the slot, or no pane holding the tab, is no change")
+    func nothingToShow() {
+        #expect(Self.memoryBesideReader.replacingPane(at: 2, with: .chat) == nil)
+        #expect(Self.memoryBesideReader.replacingPane(at: -1, with: .chat) == nil)
+        #expect(Self.memoryBesideReader.replacingPane(at: 0, with: .secondaryChat) == nil)
+    }
+
+    @Test("A replaced pane keeps its identity, so its views are not rebuilt")
+    func keepsIdentity() throws {
+        let before = Self.memoryBesideReader.groups.map(\.id)
+        let layout = try #require(Self.memoryBesideReader.replacingPane(at: 1, with: .chat))
+        #expect(layout.groups.map(\.id) == before)
+    }
+}

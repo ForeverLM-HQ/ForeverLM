@@ -224,6 +224,45 @@ struct StudioCenterTabGroups: Equatable {
         return layout
     }
 
+    /// The arrangement once the pane at `index` shows `tab`, the way a drag
+    /// onto a pane says it: that pane, and no other, takes it.
+    ///
+    /// Unlike `activating`, a pinned pane is replaced. A pin guards a pane
+    /// against being navigated over by a click; dropping a destination on a
+    /// pane is the learner choosing that pane, so the pane gives way and its
+    /// pin goes with the thing it protected.
+    ///
+    /// - `tab` shown alone in another pane: the two panes trade places, so
+    ///   what the drop covered stays on screen.
+    /// - `tab` parked or sharing another pane: it moves into this one, and
+    ///   what this pane showed parks behind it.
+    ///
+    /// Nil when `index` is not a pane or no pane holds `tab`.
+    func replacingPane(at index: Int, with tab: StudioCenterTab) -> StudioCenterTabGroups? {
+        guard groups.indices.contains(index),
+              let source = groups.firstIndex(where: { $0.tabs.contains(tab) }) else { return nil }
+        var layout = self
+        if source == index {
+            guard layout.groups[index].activeTab != tab else { return layout }
+            layout.groups[index].activeTab = tab
+            layout.groups[index].isPinned = false
+            return layout
+        }
+        if layout.groups[source].tabs == [tab] {
+            layout.groups.swapAt(source, index)
+            return layout
+        }
+        layout.groups[source].tabs.removeAll { $0 == tab }
+        if layout.groups[source].activeTab == tab {
+            let remaining = layout.groups[source].tabs
+            layout.groups[source].activeTab = remaining.contains(.reader) ? .reader : remaining[0]
+        }
+        layout.groups[index].tabs.append(tab)
+        layout.groups[index].activeTab = tab
+        layout.groups[index].isPinned = false
+        return layout
+    }
+
     /// The arrangement with no pane showing one of `unoffered`, the panes of
     /// a feature this Mac does not show yet (`BetaFeatures`): such a pane
     /// shows its first other tab instead, preferring the Space, and a

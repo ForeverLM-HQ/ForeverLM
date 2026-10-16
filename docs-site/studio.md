@@ -577,6 +577,14 @@ edge, or choose **Open Beside** from its right-click menu. Artifact rows can be 
 the same way. At two panes, opening another surface replaces the focused pane so
 each remains readable. Studio restores the saved arrangement on the next launch.
 
+To replace what a pane shows, drag a navigation item, a place from the Space's
+sidebar or **New chat** onto the middle of that pane: it lights up, and lets go
+puts the item there, with what the pane showed parked behind it. A pane you pinned
+gives way too, since you chose it, and its pin is released. A destination already
+shown alone in the other pane trades places with the pane you drop it on. Only the
+outer strip of each side opens a new pane beside. Inside a notebook, the item opens
+in the notebook's chat or document slot you drop it on.
+
 With more than one Studio window open, **New chat**, an opened chat, and a
 reader selection sent to Chat land in the window you clicked in. When that
 window cannot show Chat — every pane there is pinned with Chat parked behind

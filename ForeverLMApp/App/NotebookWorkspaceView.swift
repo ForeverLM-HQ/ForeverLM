@@ -317,6 +317,8 @@ struct NotebookWorkspaceView: View {
     /// for as long as the notebook shows; a divider drag moves it.
     @State private var leadingFraction: CGFloat = 0.5
     @State private var dragStartFraction: CGFloat?
+    /// The slot a sidebar destination is being dragged over.
+    @State private var replaceTarget: CenterPane?
     @State private var isAddingSources = false
     @State private var isRenaming = false
     @State private var renameText = ""
@@ -930,9 +932,31 @@ struct NotebookWorkspaceView: View {
         ) {
             chat()
         }
+        .overlay { replaceDropOverlay(.chat) }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Chat")
         .accessibilityIdentifier("notebook.chat")
+    }
+
+    /// A destination dragged from the sidebar onto a slot opens in the
+    /// notebook's chat or document slot, as it does anywhere in this window.
+    private func replaceDropOverlay(_ pane: CenterPane) -> some View {
+        ZStack {
+            StudioPaneReplaceDropTarget(
+                onTargeted: { targeted in
+                    if targeted {
+                        replaceTarget = pane
+                    } else if replaceTarget == pane {
+                        replaceTarget = nil
+                    }
+                },
+                onDrop: {
+                    replaceTarget = nil
+                    vm.showDropped($0, inPaneAt: 0, in: windowState)
+                }
+            )
+            StudioDropZoneOverlay(isActive: replaceTarget == pane, cornerRadius: 10, inset: 6)
+        }
     }
 
     private func documentSlot(
@@ -950,6 +974,7 @@ struct NotebookWorkspaceView: View {
         ) {
             self.document(document)
         }
+        .overlay { replaceDropOverlay(identifier == "notebook.document.leading" ? .leadingDocument : .document) }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(document.centerTab?.title ?? "Cards")
         .accessibilityIdentifier(identifier)

@@ -2796,6 +2796,32 @@ class StudioViewModel {
         moveCenterTabToNewGroup(tab, at: source + 1)
     }
 
+    /// Shows `tab` in the pane at `groupIndex` of `destination`, in place of
+    /// what that pane showed: a destination from the sidebar dropped on a
+    /// pane. A window holding a notebook has no panes to pick from, so there
+    /// the tab opens in the notebook's chat or document slot.
+    ///
+    /// `startsBlankChat` is the rail's "New chat" row, which means a fresh
+    /// conversation in the pane it lands on. `destination` is explicit for the
+    /// reason `placeCenterTabAtEdge` takes one: the drop names its own window.
+    func replaceCenterPane(
+        at groupIndex: Int,
+        with tab: StudioCenterTab,
+        startsBlankChat: Bool = false,
+        in destination: StudioWindowState
+    ) {
+        guard !BetaFeatures.unofferedCenterTabs.contains(tab) else { return }
+        if destination.isVoiceWorkspacePresented { destination.isVoiceWorkspacePresented = false }
+        if destination.memoryReviewFocusYields(to: tab) { leaveMemoryReviewFocus(in: destination) }
+        if routeIntoNotebook(tab, in: destination) {
+            if startsBlankChat { inWindow(destination) { requestNewChat() } }
+            return
+        }
+        guard let layout = destination.centerTabGroups.replacingPane(at: groupIndex, with: tab) else { return }
+        if layout != destination.centerTabGroups { destination.centerTabGroups = layout }
+        if startsBlankChat { inWindow(destination) { requestNewChat() } }
+    }
+
     /// Places a permanent workspace destination at the requested outer edge.
     /// A hidden destination peels into a new pane when capacity permits. At
     /// two panes it replaces only its own parked groupmate, then moves that

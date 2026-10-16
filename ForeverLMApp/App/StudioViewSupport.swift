@@ -2523,6 +2523,8 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
     @State private var dragStartFractions: [CGFloat] = []
     @State private var draggingTab: StudioCenterTab?
     @State private var dropTarget: StudioCenterTabDropTarget?
+    /// The pane a sidebar destination is being dragged over, by slot.
+    @State private var replaceTarget: Int?
     private let dragVisibility = StudioDragVisibility.shared
 
     private let dividerWidth = StudioCenterTabGroupSizing.dividerWidth
@@ -2672,6 +2674,29 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
                 }
             }
         }
+        // A destination dragged from the sidebar onto this pane shows here,
+        // in place of what the pane showed. The edge zones above sit over the
+        // pane's outer gutters, so a drop there still opens beside.
+        .overlay {
+            StudioPaneReplaceDropTarget(
+                onTargeted: { targeted in
+                    if targeted {
+                        replaceTarget = index
+                    } else if replaceTarget == index {
+                        replaceTarget = nil
+                    }
+                },
+                onDrop: { replacePane(at: index, with: $0) }
+            )
+        }
+        .overlay {
+            StudioDropZoneOverlay(isActive: replaceTarget == index, cornerRadius: 10, inset: 6)
+        }
+    }
+
+    private func replacePane(at index: Int, with destination: StudioPaneDropDestination) {
+        replaceTarget = nil
+        vm.showDropped(destination, inPaneAt: index, in: windowState)
     }
 
     /// The pane's pin, anchored to the pane's *visible* top-right corner. The
@@ -3016,6 +3041,13 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
         guard let tab = draggingTab ?? dragVisibility.draggedCenterTab,
               let sourceIndex = groups.firstIndex(where: { $0.tabs.contains(tab) }) else { return nil }
 
+        // A destination dragged from the sidebar is taken by the pane under
+        // the pointer, so the edge zones keep to a gutter and leave each pane
+        // its middle, as they do for a source.
+        let cap = draggingTab == nil && dragVisibility.isPaneDrag
+            ? StudioCenterTabSplitPreviewSizing.sourceEdgeZoneWidth(totalWidth: totalWidth)
+            : .infinity
+
         if groups[sourceIndex].tabs.count > 1 {
             guard StudioCenterTabGroups(groups: groups).canCreateGroup else { return nil }
             let width = StudioCenterTabSplitPreviewSizing.newPaneWidth(
@@ -3024,16 +3056,19 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
                 dividerWidth: dividerWidth,
                 maximumGroupCount: StudioCenterTabGroups.overflowGroupCount
             )
-            return width > 0 ? width : nil
+            return width > 0 ? min(width, cap) : nil
         }
 
         let destinationIndex = leading ? 0 : groups.count - 1
         guard sourceIndex != destinationIndex else { return nil }
-        return groupWidth(
-            at: destinationIndex,
-            fractions: fractions,
-            count: groups.count,
-            totalWidth: totalWidth
+        return min(
+            groupWidth(
+                at: destinationIndex,
+                fractions: fractions,
+                count: groups.count,
+                totalWidth: totalWidth
+            ),
+            cap
         )
     }
 
@@ -3381,6 +3416,155 @@ final class StudioDropCatcherView: NSView {
         guard ownsCurrentDrag else { return }
         ownsCurrentDrag = false
         onTargeted(false)
+    }
+}
+
+// MARK: - Dropping a destination on a pane
+
+/// What a destination dragged from the sidebar names: a pane to show, or a
+/// Space place that has no pane of its own and shows inside the Space.
+enum StudioPaneDropDestination: Equatable {
+    case tab(StudioCenterTabDragPayload.Payload)
+    case place(StudioRailShortcut)
+}
+
+extension StudioViewModel {
+    /// The pane at `groupIndex` of `windowState` shows what a drop named, in
+    /// place of what it showed. A Space place with no pane of its own shows
+    /// inside the Space, which takes the pane first. In a window holding a
+    /// notebook the slot index means nothing: the destination opens in the
+    /// notebook's chat or document slot.
+    func showDropped(_ destination: StudioPaneDropDestination, inPaneAt groupIndex: Int, in windowState: StudioWindowState) {
+        StudioDragVisibility.shared.endNow()
+        switch destination {
+        case .tab(let payload):
+            replaceCenterPane(
+                at: groupIndex,
+                with: payload.tab,
+                startsBlankChat: payload.startsBlankChat,
+                in: windowState
+            )
+            if payload.tab == .courses { openCoursesListInReader(in: windowState) }
+        case .place(let shortcut):
+            replaceCenterPane(at: groupIndex, with: .artifacts, in: windowState)
+            switch shortcut {
+            case .place(let place): showSpace(place, in: windowState)
+            case .courses: openCoursesListInReader(in: windowState)
+            }
+        }
+    }
+}
+
+/// An AppKit destination laid over one pane that takes a bare pane drag — a
+/// rail or Space-sidebar destination, the "New chat" row, a kept shortcut —
+/// and hands it to `onDrop`, so the pane under the pointer shows it. Any pane
+/// is a destination, pinned or not (`StudioCenterTabGroups.replacingPane`).
+///
+/// It declines a drag that carries content as well (a Docs row names its pane
+/// but carries the Page, a chat row, a source): the pane's own destination,
+/// such as the chat attaching it, takes those, as before. Whether a drag
+/// carries content is read off the pasteboard, so the answer does not depend
+/// on the drag's visibility state still being alive.
+struct StudioPaneReplaceDropTarget: NSViewRepresentable {
+    let onTargeted: (Bool) -> Void
+    let onDrop: (StudioPaneDropDestination) -> Void
+
+    func makeNSView(context: Context) -> StudioPaneReplaceDropView {
+        let view = StudioPaneReplaceDropView()
+        update(view)
+        return view
+    }
+
+    func updateNSView(_ nsView: StudioPaneReplaceDropView, context: Context) {
+        update(nsView)
+    }
+
+    private func update(_ view: StudioPaneReplaceDropView) {
+        view.onTargeted = onTargeted
+        view.onDrop = onDrop
+    }
+}
+
+final class StudioPaneReplaceDropView: NSView {
+    var onTargeted: (Bool) -> Void = { _ in }
+    var onDrop: (StudioPaneDropDestination) -> Void = { _ in }
+    private var isTargeted = false
+
+    private static let shortcutType = NSPasteboard.PasteboardType(UTType.studioRailShortcut.identifier)
+    /// Types whose presence means the drag carries content for a pane to take.
+    private static let contentTypes: [NSPasteboard.PasteboardType] = [
+        UTType.studioArtifact, .studioArticle, .studioSourceID, .studioGroup, .reviewSession, .studioNotebook,
+    ].map { NSPasteboard.PasteboardType($0.identifier) }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        registerForDraggedTypes([StudioCenterTabDragPayload.pasteboardType, Self.shortcutType])
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        registerForDraggedTypes([StudioCenterTabDragPayload.pasteboardType, Self.shortcutType])
+    }
+
+    /// Destinations are chosen from registered bounds, not mouse hit testing,
+    /// so every click and scroll still reaches the pane underneath.
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        update(for: sender)
+    }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        update(for: sender)
+    }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        setTargeted(false)
+    }
+
+    override func draggingEnded(_ sender: NSDraggingInfo) {
+        setTargeted(false)
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        defer { setTargeted(false) }
+        guard let destination = Self.destination(on: sender.draggingPasteboard) else { return false }
+        onDrop(destination)
+        return true
+    }
+
+    private func update(for sender: NSDraggingInfo) -> NSDragOperation {
+        guard Self.destination(on: sender.draggingPasteboard) != nil else {
+            setTargeted(false)
+            return []
+        }
+        setTargeted(true)
+        return .move
+    }
+
+    private func setTargeted(_ targeted: Bool) {
+        guard targeted != isTargeted else { return }
+        isTargeted = targeted
+        onTargeted(targeted)
+    }
+
+    /// The destination a bare pane drag names; nil for a drag that carries
+    /// content, or anything else. A pane wins over a place, since Pages, Sites
+    /// and Courses carry both.
+    static func destination(on pasteboard: NSPasteboard) -> StudioPaneDropDestination? {
+        guard pasteboard.availableType(from: contentTypes) == nil else { return nil }
+        let tabType = StudioCenterTabDragPayload.pasteboardType
+        if let raw = pasteboard.string(forType: tabType)
+            ?? pasteboard.data(forType: tabType).flatMap({ String(data: $0, encoding: .utf8) }),
+           let payload = StudioCenterTabDragPayload.payload(from: raw) {
+            return .tab(payload)
+        }
+        if let raw = pasteboard.string(forType: shortcutType)
+            ?? pasteboard.data(forType: shortcutType).flatMap({ String(data: $0, encoding: .utf8) }),
+           let shortcut = StudioRailShortcut(key: raw) {
+            return .place(shortcut)
+        }
+        return nil
     }
 }
 
