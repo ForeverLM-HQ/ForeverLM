@@ -331,13 +331,11 @@ struct GettingStartedTests {
         #expect(!merged.isComplete)
     }
 
-    @Test("Getting-started and YouTube choices use the synced SQLite preference rail")
+    @Test("Getting-started and YouTube setup choices use the synced SQLite preference rail")
     func setupPreferencesAreSynced() {
         #expect(SyncedPreferenceKeys.isSynced("gettingStarted.completed"))
         #expect(SyncedPreferenceKeys.isSynced("gettingStarted.dismissed"))
         #expect(SyncedPreferenceKeys.isSynced("gettingStarted.completedSteps"))
-        #expect(SyncedPreferenceKeys.isSynced("youtube.likedImportPolicy"))
-        #expect(SyncedPreferenceKeys.isSynced("youtube.likedImportCutoff"))
         #expect(SyncedPreferenceKeys.isSynced("youtube.likedTranscriptFormattingEnabled"))
     }
 

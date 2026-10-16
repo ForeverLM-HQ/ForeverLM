@@ -271,6 +271,9 @@ private struct PluginDirectoryView: View {
         let status: PluginStatus?
         let logo: Logo
         let page: PluginPage
+        /// How many accounts or workspaces are connected; the chip says the
+        /// number once it is more than one.
+        var connectionCount = 1
     }
 
     /// What a row's tile draws.
@@ -290,12 +293,14 @@ private struct PluginDirectoryView: View {
             Row(
                 id: PluginPage.x.rawValue, title: PluginPage.x.title, subtitle: xSubtitle,
                 status: vm.isXOAuthSignedIn ? (vm.xPluginNeedsReauth ? .needsAttention : .connected) : .notConnected,
-                logo: .x, page: .x
+                logo: .x, page: .x,
+                connectionCount: max(1, vm.xAccounts.count)
             ),
             Row(
                 id: PluginPage.youtube.rawValue, title: PluginPage.youtube.title, subtitle: youtubeSubtitle,
-                status: isYouTubeSignedIn ? .connected : .notConnected,
-                logo: .asset("YouTubeIcon", width: 25, height: 18, template: false), page: .youtube
+                status: isYouTubeSignedIn ? .connected : (vm.youtubePluginNeedsReconnect ? .needsAttention : .notConnected),
+                logo: .asset("YouTubeIcon", width: 25, height: 18, template: false), page: .youtube,
+                connectionCount: max(1, vm.youtubeAccounts.count - vm.youtubeDisconnectedAccountIDs.count)
             ),
             Row(
                 id: PluginPage.googleDrive.rawValue, title: PluginPage.googleDrive.title, subtitle: googleDriveSubtitle,
@@ -315,7 +320,8 @@ private struct PluginDirectoryView: View {
             Row(
                 id: PluginPage.linear.rawValue, title: PluginPage.linear.title, subtitle: linearSubtitle,
                 status: linearConnection.map { $0.isConnected ? .connected : .notConnected },
-                logo: .asset("LinearIcon", width: 20, height: 20, template: false), page: .linear
+                logo: .asset("LinearIcon", width: 20, height: 20, template: false), page: .linear,
+                connectionCount: linearConnection?.workspaces.count ?? 1
             ),
             Row(
                 id: PluginPage.github.rawValue, title: PluginPage.github.title, subtitle: githubSubtitle,
@@ -325,7 +331,8 @@ private struct PluginDirectoryView: View {
             Row(
                 id: PluginPage.notion.rawValue, title: PluginPage.notion.title, subtitle: notionSubtitle,
                 status: notionConnection.map { $0.isConnected ? .connected : .notConnected },
-                logo: .asset("NotionIcon", width: 20, height: 20, template: true), page: .notion
+                logo: .asset("NotionIcon", width: 20, height: 20, template: true), page: .notion,
+                connectionCount: notionConnection?.workspaces.count ?? 1
             ),
         ]
     }
@@ -392,7 +399,7 @@ private struct PluginDirectoryView: View {
     // organisations — so the list answers "which?" without opening the row.
 
     private var xSubtitle: String {
-        guard vm.isXOAuthSignedIn, let scope = PluginScopeCopy.x(username: vm.xAccountUsername) else {
+        guard vm.isXOAuthSignedIn, let scope = PluginScopeCopy.x(accounts: vm.xAccounts) else {
             return "Import saved posts and bookmarks into Studio."
         }
         return scope
@@ -400,7 +407,7 @@ private struct PluginDirectoryView: View {
 
     private var youtubeSubtitle: String {
         guard isYouTubeSignedIn, let scope = PluginScopeCopy.youtube(
-            source: vm.youtubeImportSource?.displayName,
+            sources: vm.youtubeAccounts.compactMap { $0.choices.source?.displayName },
             followedChannels: vm.followedYouTubeChannelGroupIDs.count
         ) else {
             return "Import Liked videos or your ForeverLM playlist."
@@ -431,8 +438,7 @@ private struct PluginDirectoryView: View {
     }
 
     private var linearSubtitle: String {
-        if case .connected(let workspace, let user)? = linearConnection,
-           let scope = PluginScopeCopy.linear(workspace: workspace, user: user) {
+        if let scope = PluginScopeCopy.linear(linearConnection?.workspaces ?? []) {
             return scope
         }
         return "Read issues, teams and projects as you. Read-only."
@@ -447,8 +453,7 @@ private struct PluginDirectoryView: View {
     }
 
     private var notionSubtitle: String {
-        if case .connected(let workspace, let user)? = notionConnection,
-           let scope = PluginScopeCopy.notion(workspace: workspace, user: user) {
+        if let scope = PluginScopeCopy.notion(notionConnection?.workspaces ?? []) {
             return scope
         }
         return "Read the pages and databases you share as you. Read-only."
@@ -507,7 +512,7 @@ private struct PluginDirectoryView: View {
 
         var body: some View {
             Button { open(row.page) } label: {
-                PluginPickerRow(title: row.title, subtitle: row.subtitle, status: row.status, reservesMenuSpace: true) {
+                PluginPickerRow(title: row.title, subtitle: row.subtitle, status: row.status, connectionCount: row.connectionCount, reservesMenuSpace: true) {
                     logo()
                 }
             }
@@ -753,6 +758,9 @@ struct PluginPickerRow<Icon: View>: View {
     /// nil renders no state chip — for action rows (Build Your Own) that have
     /// no connection of their own.
     var status: PluginStatus?
+    /// How many accounts or workspaces are connected. The chip reads "2
+    /// connected" for more than one, and "Connected" otherwise.
+    var connectionCount = 1
     /// Leaves room before the chevron for the row's ⋯, drawn over it.
     var reservesMenuSpace = false
     @ViewBuilder var icon: () -> Icon
@@ -783,7 +791,7 @@ struct PluginPickerRow<Icon: View>: View {
                 Spacer(minLength: 12)
 
                 if let status {
-                    Text(status.label)
+                    Text(status == .connected && connectionCount > 1 ? "\(connectionCount) connected" : status.label)
                         .font(.caption.weight(.medium))
                         .foregroundStyle(status.color)
                         .padding(.horizontal, 10)

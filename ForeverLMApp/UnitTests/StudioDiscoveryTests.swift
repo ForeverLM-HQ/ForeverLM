@@ -1572,24 +1572,35 @@ struct XBookmarkServiceTests {
     @Test("A failed sync becomes a red dot on the X tab, not a toast")
     func syncFailureIsTabAttention() {
         let failure = "X bookmarks couldn’t be synced right now. Try again later."
+        let robin = XAccount(id: "1001", username: "robin")
+        let zara = XAccount(id: "1002", username: "zara_holt")
+        let sync = XAccountFailure(message: failure, offersReconnect: false)
 
         #expect(StudioViewModel.xPluginAttention(
-            errorMessage: failure, needsReauth: false, isSignedIn: true
+            accounts: [robin], failures: ["1001": sync], needsReauth: []
         ) == failure)
         #expect(StudioViewModel.xPluginAttention(
-            errorMessage: nil, needsReauth: true, isSignedIn: true
+            accounts: [robin], failures: [:], needsReauth: ["1001"]
         ) == "Reconnect to X to keep syncing bookmarks.")
         // The sync's own message wins over the generic reconnect line.
         #expect(StudioViewModel.xPluginAttention(
-            errorMessage: failure, needsReauth: true, isSignedIn: true
+            accounts: [robin], failures: ["1001": sync], needsReauth: ["1001"]
         ) == failure)
         // Nothing to flag once a sync goes through, and nothing to nag about
         // when X was never connected — that tab has its own Connect row.
         #expect(StudioViewModel.xPluginAttention(
-            errorMessage: nil, needsReauth: false, isSignedIn: true
+            accounts: [robin], failures: [:], needsReauth: []
         ) == nil)
         #expect(StudioViewModel.xPluginAttention(
-            errorMessage: failure, needsReauth: true, isSignedIn: false
+            accounts: [], failures: ["1001": sync], needsReauth: ["1001"]
+        ) == nil)
+        // With several accounts a line says whose it is, and an account that
+        // is fine adds none.
+        #expect(StudioViewModel.xPluginAttention(
+            accounts: [robin, zara], failures: ["1002": sync], needsReauth: ["1001"]
+        ) == "@robin: Reconnect to X to keep syncing bookmarks.\n@zara_holt: \(failure)")
+        #expect(StudioViewModel.xPluginAttention(
+            accounts: [robin, zara], failures: [:], needsReauth: []
         ) == nil)
     }
 

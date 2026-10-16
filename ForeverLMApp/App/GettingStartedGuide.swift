@@ -564,6 +564,8 @@ struct GettingStartedGuide: View {
     @State private var workingAction: String?
     @State private var youtubeError: String?
     @State private var isYouTubeSignedIn = YouTubeService.shared.isSignedIn
+    /// The account this step sets up: the one just connected, else the first.
+    @State private var youtubeAccountID: String?
     @State private var showYouTubeSourceChoice = false
     @State private var isChoosingLikedVideos = false
     @State private var enabledReadingListBrowsers = ReadingListBrowser.enabled
@@ -1196,7 +1198,7 @@ struct GettingStartedGuide: View {
                     run("youtube-connect") { await connectYouTube() }
                 }
                 .disabled(!YouTubeService.shared.canConnect)
-            } else if showYouTubeSourceChoice || (vm.youtubeImportSource == nil && !isChoosingLikedVideos) {
+            } else if showYouTubeSourceChoice || (youtubeAccount?.choices.source == nil && !isChoosingLikedVideos) {
                 stepHeading(
                     icon: "play.rectangle.fill",
                     title: "Which videos should come in?",
@@ -1226,7 +1228,7 @@ struct GettingStartedGuide: View {
                 .disabled(workingAction != nil)
                 actionProgress("youtube-source")
             } else if isChoosingLikedVideos
-                || (vm.youtubeImportSource == .likedVideos && vm.youtubeLikedImportPolicy == .undecided) {
+                || (youtubeAccount?.choices.source == .likedVideos && youtubeAccount?.choices.likedPolicy == .undecided) {
                 stepHeading(
                     icon: "hand.thumbsup",
                     title: "Bring in the videos you've already liked?",
@@ -1253,7 +1255,7 @@ struct GettingStartedGuide: View {
                 .disabled(workingAction != nil)
                 Toggle("Format transcripts with AI", isOn: $automaticallyFormatLikedVideoTranscripts)
                 actionProgress("youtube-policy")
-            } else if let source = vm.youtubeImportSource {
+            } else if let source = youtubeAccount?.choices.source {
                 stepHeading(
                     icon: "play.rectangle.fill",
                     title: "YouTube is connected",
@@ -2027,6 +2029,10 @@ struct GettingStartedGuide: View {
         return nil
     }
 
+    private var youtubeAccount: YouTubeAccount? {
+        vm.youtubeAccount(id: youtubeAccountID ?? "") ?? vm.youtubeAccounts.first
+    }
+
     private var newestYouTubeVideo: StudioArticle? {
         vm.activeArticles
             .filter { $0.discoveryOrigin == .youtubePlaylist && $0.sourceType == .video }
@@ -2050,7 +2056,7 @@ struct GettingStartedGuide: View {
         case .courses: return newestCourseLecture != nil
         case .meetings: return newestSource(of: .meeting) != nil || zoomFolder != nil
         case .youtube:
-            return (vm.youtubeImportSource != nil && newestYouTubeVideo != nil)
+            return (youtubeAccount?.choices.source != nil && newestYouTubeVideo != nil)
                 || newestSource(of: .video) != nil
         // The question waits for a pick or "None of these"; the pages after
         // it can each be left as they are.
@@ -2203,7 +2209,9 @@ struct GettingStartedGuide: View {
 
     private func connectYouTube() async {
         do {
-            try await YouTubeService.shared.authenticate()
+            let account = try await YouTubeService.shared.authenticate()
+            await vm.reloadYouTubeAccounts()
+            youtubeAccountID = account.id
             isYouTubeSignedIn = YouTubeService.shared.isSignedIn
             youtubeError = nil
         } catch {
@@ -2212,9 +2220,11 @@ struct GettingStartedGuide: View {
     }
 
     private func configureYouTube(_ policy: YouTubeLikedImportPolicy) {
+        guard let accountID = youtubeAccount?.id else { return }
         run("youtube-policy") {
             _ = await vm.configureYouTubeLikedVideos(
                 policy,
+                accountID: accountID,
                 automaticallyFormatTranscripts: automaticallyFormatLikedVideoTranscripts
             )
             isChoosingLikedVideos = false
@@ -2222,8 +2232,9 @@ struct GettingStartedGuide: View {
     }
 
     private func configureForeverLMPlaylist() {
+        guard let accountID = youtubeAccount?.id else { return }
         run("youtube-source") {
-            let groupID = await vm.followYouTubeForeverLMPlaylist()
+            let groupID = await vm.followYouTubeForeverLMPlaylist(accountID: accountID)
             guard groupID != nil else {
                 youtubeError = vm.errorMessage ?? "Could not find your ForeverLM playlist."
                 return

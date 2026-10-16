@@ -206,8 +206,7 @@ enum SyncedPreferenceKeys {
         "studio.navigation.expandedProjectIDs.v1",
 
         // Plugin toggles and discovery scope.
-        "youtube.autoImportEnabled", "youtube.likedImportPolicy",
-        "youtube.likedImportCutoff", "youtube.likedTranscriptFormattingEnabled",
+        "youtube.autoImportEnabled", "youtube.likedTranscriptFormattingEnabled",
         "gettingStarted.completed", "gettingStarted.dismissed", "gettingStarted.completedSteps",
         // Which AI apps the learner pays for, asked in setup: a fact about the
         // person, so the other Mac's guide does not ask again.

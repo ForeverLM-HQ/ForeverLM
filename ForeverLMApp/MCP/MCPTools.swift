@@ -715,17 +715,19 @@ final class MCPToolRegistry: @unchecked Sendable {
                     "type": "object",
                     "properties": [
                         "issue": ["type": "string", "description": "Issue identifier such as ENG-123, or the issue id, from a search hit or a list."],
+                        "workspace": ["type": "string", "description": "Read one connected Linear workspace, by name, URL key or id. Omit to read every connected workspace; each result then says which one it came from."],
                     ],
                     "required": ["issue"],
                 ]
             ),
             MCPToolDef(
                 name: "search_linear_issues",
-                description: "Search the learner's Linear workspace live for issues by words, ranked by relevance, optionally within one team. This is how to find an issue by what it is about rather than by identifier. Each hit carries its identifier for get_linear_issue. Read-only: ForeverLM never writes to Linear.",
+                description: "Search the learner's Linear workspaces live (all connected ones unless workspace names one) for issues by words, ranked by relevance, optionally within one team. This is how to find an issue by what it is about rather than by identifier. Each hit carries its identifier for get_linear_issue. Read-only: ForeverLM never writes to Linear.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
                         "term": ["type": "string", "description": "Words from the issue's title or description, an identifier, or a name."],
+                        "workspace": ["type": "string", "description": "Read one connected Linear workspace, by name, URL key or id. Omit to read every connected workspace; each result then says which one it came from."],
                         "team_key": ["type": "string", "description": "Restrict to one team by its key (the ENG in ENG-123), from list_linear_teams."],
                         "limit": ["type": "integer", "description": "Most issues to return. Defaults to 25, maximum 100."],
                     ],
@@ -743,6 +745,7 @@ final class MCPToolRegistry: @unchecked Sendable {
                         "assigned_to_me": ["type": "boolean", "description": "Only issues assigned to the learner."],
                         "updated_since_days": ["type": "integer", "description": "Only issues changed within this many days."],
                         "project": ["type": "string", "description": "Only issues in this project, by id or slug_id from list_linear_projects."],
+                        "workspace": ["type": "string", "description": "Read one connected Linear workspace, by name, URL key or id. Omit to read every connected workspace; each result then says which one it came from."],
                         "limit": ["type": "integer", "description": "Most issues to return. Defaults to 25, maximum 100."],
                     ],
                     "required": [] as [String],
@@ -750,8 +753,14 @@ final class MCPToolRegistry: @unchecked Sendable {
             ),
             MCPToolDef(
                 name: "list_linear_teams",
-                description: "List the teams in the learner's Linear workspace with their keys, names, descriptions and issue counts. A team's key is the prefix of its issue identifiers (ENG in ENG-123) and the team_key the other Linear tools take. Read-only.",
-                inputSchema: ["type": "object", "properties": [:] as [String: Any], "required": [] as [String]]
+                description: "List the teams in the learner's connected Linear workspaces (every one unless workspace names one) with their keys, names, descriptions and issue counts. A team's key is the prefix of its issue identifiers (ENG in ENG-123) and the team_key the other Linear tools take. Read-only.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "workspace": ["type": "string", "description": "Read one connected Linear workspace, by name, URL key or id. Omit to read every connected workspace; each result then says which one it came from."],
+                    ],
+                    "required": [] as [String],
+                ]
             ),
             MCPToolDef(
                 name: "list_linear_projects",
@@ -761,6 +770,7 @@ final class MCPToolRegistry: @unchecked Sendable {
                     "properties": [
                         "team_key": ["type": "string", "description": "Only projects a team with this key can see, from list_linear_teams."],
                         "status_type": ["type": "string", "enum": ["backlog", "planned", "started", "paused", "completed", "canceled"], "description": "Project status type."],
+                        "workspace": ["type": "string", "description": "Read one connected Linear workspace, by name, URL key or id. Omit to read every connected workspace; each result then says which one it came from."],
                         "limit": ["type": "integer", "description": "Most projects to return. Defaults to 25, maximum 100."],
                     ],
                     "required": [] as [String],
@@ -773,6 +783,7 @@ final class MCPToolRegistry: @unchecked Sendable {
                     "type": "object",
                     "properties": [
                         "project": ["type": "string", "description": "Project id or slug_id, from list_linear_projects or the project's URL."],
+                        "workspace": ["type": "string", "description": "Read one connected Linear workspace, by name, URL key or id. Omit to read every connected workspace; each result then says which one it came from."],
                     ],
                     "required": ["project"],
                 ]
@@ -915,6 +926,7 @@ final class MCPToolRegistry: @unchecked Sendable {
                     "type": "object",
                     "properties": [
                         "query": ["type": "string", "description": "Words from page and database titles. Omit to list the most recently edited."],
+                        "workspace": ["type": "string", "description": "Read one connected Notion workspace, by name or id. Omit to read every connected workspace; each result then says which one it came from."],
                         "kind": ["type": "string", "enum": ["page", "database"], "description": "Search only pages or only databases. Omit for both."],
                         "limit": ["type": "integer", "description": "Most results to return. Defaults to 25, maximum 100."],
                     ],
@@ -929,6 +941,7 @@ final class MCPToolRegistry: @unchecked Sendable {
                     "properties": [
                         "page": ["type": "string", "description": "The page's id (dashed or not), or its Notion URL, from search_notion or query_notion_database."],
                         "include_content": ["type": "boolean", "description": "Render the page's blocks as text. Defaults to true; false returns the properties alone."],
+                        "workspace": ["type": "string", "description": "Read one connected Notion workspace, by name or id. Omit to read every connected workspace; each result then says which one it came from."],
                     ],
                     "required": ["page"],
                 ]
@@ -940,6 +953,7 @@ final class MCPToolRegistry: @unchecked Sendable {
                     "type": "object",
                     "properties": [
                         "query": ["type": "string", "description": "Words from database titles. Omit to list them all."],
+                        "workspace": ["type": "string", "description": "Read one connected Notion workspace, by name or id. Omit to read every connected workspace; each result then says which one it came from."],
                         "limit": ["type": "integer", "description": "Most databases to return. Defaults to 25, maximum 100."],
                     ],
                     "required": [] as [String],
@@ -952,6 +966,7 @@ final class MCPToolRegistry: @unchecked Sendable {
                     "type": "object",
                     "properties": [
                         "database": ["type": "string", "description": "The database's id (dashed or not), or its Notion URL, from list_notion_databases or search_notion."],
+                        "workspace": ["type": "string", "description": "Read one connected Notion workspace, by name or id. Omit to read every connected workspace; each result then says which one it came from."],
                     ],
                     "required": ["database"],
                 ]
@@ -967,18 +982,20 @@ final class MCPToolRegistry: @unchecked Sendable {
                         "sorts": ["type": "array", "items": ["type": "object"], "description": "Notion sort objects, such as [{\"property\": \"Due\", \"direction\": \"ascending\"}]."],
                         "limit": ["type": "integer", "description": "Most rows to return. Defaults to 25, maximum 100."],
                         "cursor": ["type": "string", "description": "next_cursor from the previous page."],
+                        "workspace": ["type": "string", "description": "Read one connected Notion workspace, by name or id. Omit to read every connected workspace; each result then says which one it came from."],
                     ],
                     "required": ["database"],
                 ]
             ),
             MCPToolDef(
                 name: "create_x_post",
-                description: "Publish a post on X (Twitter) as the connected ForeverLM user, optionally as a reply to another post. This posts publicly and immediately — always show the user the exact text and get their explicit confirmation before calling. Requires the X plugin to be signed in with posting permission (Plugins → X); read-only sessions from before posting support must reconnect once. Returns the new post's id and URL.",
+                description: "Publish a post on X (Twitter) as the connected ForeverLM user, optionally as a reply to another post. This posts publicly and immediately — always show the user the exact text and get their explicit confirmation before calling. Requires the X plugin to be signed in with posting permission (Plugins → X); read-only sessions from before posting support must reconnect once. With one X account connected it posts as that account; with several, pass account (the user id or @username from get_plugin_connections) — it is required, and the account named is the person the post is published as. Returns the new post's id and URL.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
                         "text": ["type": "string", "description": "The post text, exactly as it should appear. Standard accounts are limited to 280 characters; the X API rejects anything longer."],
                         "reply_to_post_id": ["type": "string", "description": "Optional id of an existing post to reply to (the numeric id from its URL)."],
+                        "account": ["type": "string", "description": "The X account to post as: its user id or @username from get_plugin_connections. Optional when only one account is connected, required when several are."],
                     ],
                     "required": ["text"],
                 ]
@@ -3772,10 +3789,11 @@ final class MCPToolRegistry: @unchecked Sendable {
             ),
             MCPToolDef(
                 name: "follow_youtube_liked_videos",
-                description: "Follow the signed-in user's YouTube \"Liked videos\" and keep them fresh in the background. Choose whether to import existing likes or only likes added from now on. Automatic AI transcript formatting is off unless explicitly enabled because a large history can run up a substantial bill on the learner's OpenRouter key. Requires connecting YouTube in Plugins → YouTube.",
+                description: "Make one connected YouTube account's \"Liked videos\" its import source and keep them fresh in the background; each account has its own source. Choose whether to import existing likes or only likes added from now on. Automatic AI transcript formatting is off unless explicitly enabled because a large history can run up a substantial bill on the learner's OpenRouter key. Requires connecting YouTube in Plugins → YouTube.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
+                        "account": ["type": "string", "description": "Which connected YouTube account, by channel title or id (get_plugin_connections lists them). Optional when only one is connected."],
                         "import_existing": ["type": "boolean", "description": "true to import existing and future likes; false for future likes only. Defaults to true."],
                         "format_transcripts_automatically": ["type": "boolean", "description": "true to opt into paid AI formatting for automatically fetched liked-video transcripts. Defaults to false; raw transcripts remain available."],
                     ],
@@ -3783,18 +3801,22 @@ final class MCPToolRegistry: @unchecked Sendable {
             ),
             MCPToolDef(
                 name: "follow_youtube_foreverlm_playlist",
-                description: "Follow the signed-in user's YouTube playlist named \"ForeverLM\" and import all of its videos. The playlist may be public, unlisted, or private. Metadata only; transcripts fetch on demand. Requires connecting YouTube in Plugins → YouTube.",
+                description: "Make one connected YouTube account's playlist named \"ForeverLM\" its import source and import all of its videos; each account has its own source. The playlist may be public, unlisted, or private. Metadata only; transcripts fetch on demand. Requires connecting YouTube in Plugins → YouTube.",
                 inputSchema: [
                     "type": "object",
-                    "properties": [:],
+                    "properties": [
+                        "account": ["type": "string", "description": "Which connected YouTube account, by channel title or id (get_plugin_connections lists them). Optional when only one is connected."],
+                    ],
                 ]
             ),
             MCPToolDef(
                 name: "refresh_youtube_sources",
-                description: "Re-check the selected YouTube import source and import any new videos (metadata only).",
+                description: "Re-check the selected YouTube import source and import any new videos (metadata only), for every connected YouTube account, or for one when account is given.",
                 inputSchema: [
                     "type": "object",
-                    "properties": [:],
+                    "properties": [
+                        "account": ["type": "string", "description": "Only this connected YouTube account, by channel title or id. Omit to refresh them all."],
+                    ],
                 ]
             ),
             MCPToolDef(
@@ -5766,12 +5788,13 @@ final class MCPToolRegistry: @unchecked Sendable {
                     sort: arguments["sort"] as? String
                 )
             case "get_linear_issue":
-                return try await store.getLinearIssue(issue: arguments["issue"] as? String ?? "")
+                return try await store.getLinearIssue(issue: arguments["issue"] as? String ?? "", workspace: arguments["workspace"] as? String)
             case "search_linear_issues":
                 return try await store.searchLinearIssues(
                     term: arguments["term"] as? String ?? "",
                     teamKey: arguments["team_key"] as? String,
-                    limit: try MCPDataStore.intArgument(arguments, "limit")
+                    limit: try MCPDataStore.intArgument(arguments, "limit"),
+                    workspace: arguments["workspace"] as? String
                 )
             case "list_linear_issues":
                 return try await store.listLinearIssues(
@@ -5781,18 +5804,20 @@ final class MCPToolRegistry: @unchecked Sendable {
                         ?? (arguments["assigned_to_me"] as? String).map { ["true", "1", "yes"].contains($0.lowercased()) },
                     updatedSinceDays: try MCPDataStore.intArgument(arguments, "updated_since_days"),
                     project: arguments["project"] as? String,
-                    limit: try MCPDataStore.intArgument(arguments, "limit")
+                    limit: try MCPDataStore.intArgument(arguments, "limit"),
+                    workspace: arguments["workspace"] as? String
                 )
             case "list_linear_teams":
-                return try await store.listLinearTeams()
+                return try await store.listLinearTeams(workspace: arguments["workspace"] as? String)
             case "list_linear_projects":
                 return try await store.listLinearProjects(
                     teamKey: arguments["team_key"] as? String,
                     statusType: arguments["status_type"] as? String,
-                    limit: try MCPDataStore.intArgument(arguments, "limit")
+                    limit: try MCPDataStore.intArgument(arguments, "limit"),
+                    workspace: arguments["workspace"] as? String
                 )
             case "get_linear_project":
-                return try await store.getLinearProject(project: arguments["project"] as? String ?? "")
+                return try await store.getLinearProject(project: arguments["project"] as? String ?? "", workspace: arguments["workspace"] as? String)
             case "list_github_repositories":
                 return try await store.listGitHubRepositories(
                     query: arguments["query"] as? String,
@@ -5859,38 +5884,44 @@ final class MCPToolRegistry: @unchecked Sendable {
                 return try await store.searchNotion(
                     query: arguments["query"] as? String,
                     kind: arguments["kind"] as? String,
-                    limit: try MCPDataStore.intArgument(arguments, "limit")
+                    limit: try MCPDataStore.intArgument(arguments, "limit"),
+                    workspace: arguments["workspace"] as? String
                 )
             case "get_notion_page":
                 return try await store.getNotionPage(
                     page: arguments["page"] as? String ?? "",
                     includeContent: (arguments["include_content"] as? Bool)
-                        ?? (arguments["include_content"] as? String).map { !["false", "0", "no"].contains($0.lowercased()) }
+                        ?? (arguments["include_content"] as? String).map { !["false", "0", "no"].contains($0.lowercased()) },
+                    workspace: arguments["workspace"] as? String
                 )
             case "list_notion_databases":
                 return try await store.listNotionDatabases(
                     query: arguments["query"] as? String,
-                    limit: try MCPDataStore.intArgument(arguments, "limit")
+                    limit: try MCPDataStore.intArgument(arguments, "limit"),
+                    workspace: arguments["workspace"] as? String
                 )
             case "get_notion_database":
-                return try await store.getNotionDatabase(database: arguments["database"] as? String ?? "")
+                return try await store.getNotionDatabase(database: arguments["database"] as? String ?? "", workspace: arguments["workspace"] as? String)
             case "query_notion_database":
                 return try await store.queryNotionDatabase(
                     database: arguments["database"] as? String ?? "",
                     filter: arguments["filter"],
                     sorts: arguments["sorts"],
                     limit: try MCPDataStore.intArgument(arguments, "limit"),
-                    cursor: arguments["cursor"] as? String
+                    cursor: arguments["cursor"] as? String,
+                    workspace: arguments["workspace"] as? String
                 )
             case "create_x_post":
                 let posted = try await XBookmarkService.shared.createPost(
                     text: arguments["text"] as? String ?? "",
-                    replyToPostId: arguments["reply_to_post_id"] as? String
+                    replyToPostId: arguments["reply_to_post_id"] as? String,
+                    account: arguments["account"] as? String
                 )
                 return try store.jsonString([
                     "posted": true,
                     "post_id": posted.postId,
                     "url": posted.url,
+                    "posted_as": posted.account.displayLabel,
                 ] as [String: Any])
             case "attach_meeting_artifact":
                 return try store.attachMeetingArtifact(
@@ -7057,14 +7088,15 @@ final class MCPToolRegistry: @unchecked Sendable {
                 )
             case "follow_youtube_liked_videos":
                 return try await store.followYouTubeLikedVideosMCP(
+                    account: arguments["account"] as? String,
                     importExisting: arguments["import_existing"] as? Bool ?? true,
                     automaticallyFormatTranscripts:
                         arguments["format_transcripts_automatically"] as? Bool ?? false
                 )
             case "follow_youtube_foreverlm_playlist":
-                return try await store.followYouTubeForeverLMPlaylistMCP()
+                return try await store.followYouTubeForeverLMPlaylistMCP(account: arguments["account"] as? String)
             case "refresh_youtube_sources":
-                return try await store.refreshYouTubeSourcesMCP()
+                return try await store.refreshYouTubeSourcesMCP(account: arguments["account"] as? String)
             case "import_youtube_playlist":
                 return try await store.importYouTubePlaylistMCP(
                     url: arguments["url"] as? String ?? "",

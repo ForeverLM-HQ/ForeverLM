@@ -422,16 +422,20 @@ class StudioViewModel {
     @ObservationIgnored var podcastAutoSyncTask: Task<Void, Never>?
     @ObservationIgnored var zoomLocalTranscriptAutoSyncTask: Task<Void, Never>?
     @ObservationIgnored var youtubeAutoImportTask: Task<Void, Never>?
+    /// Re-reads `youtubeAccounts` whenever a plugin connection changes.
+    @ObservationIgnored var youtubeAccountObserverTask: Task<Void, Never>?
     /// The low-frequency pass that writes quiz guides ahead of time for the
     /// sources a review is likely to be about today (`startReviewGuidePrebuild`).
     @ObservationIgnored var reviewGuidePrebuildTask: Task<Void, Never>?
-    /// Set when the selected YouTube source fails because the connection is
-    /// gone (signed out, or Google revoked the grant). Observed, so the Videos
-    /// sidebar and the Plugins place can say so — a plugin that
-    /// quietly stops syncing for days is indistinguishable from "I haven't
+    /// The YouTube accounts, in the order they were connected
+    /// (`reloadYouTubeAccounts`). Observed, so the plugin page, the Plugins
+    /// place and the Videos sidebar follow connections.
+    var youtubeAccounts: [YouTubeAccount] = []
+    /// Listed accounts Google revoked (`youtubePluginNeedsReconnect`). A plugin
+    /// that quietly stops syncing for days is indistinguishable from "I haven't
     /// added anything lately", which is exactly how a week of missed videos
-    /// went unnoticed. Cleared by the next sync that gets through.
-    var youtubePluginNeedsReconnect = false
+    /// went unnoticed.
+    var youtubeDisconnectedAccountIDs: Set<String> = []
     /// Whether the last YouTube failure was already logged, so a plugin
     /// that stays broken writes one log line per outage instead of one every
     /// 15 minutes for as long as the app stays open.
@@ -1441,8 +1445,6 @@ class StudioViewModel {
     /// `hidden_youtube_channels` table so future imports stay hidden too.
     var hiddenYouTubeChannels: Set<String> = []
     var visibleYouTubeVideoOverrideIDs: Set<String> = []
-    var youtubeLikedImportPolicyRaw = UserDefaults.standard.string(forKey: "youtube.likedImportPolicy") ?? ""
-    var youtubeLikedImportCutoffTimestamp = UserDefaults.standard.double(forKey: "youtube.likedImportCutoff")
     /// Whether browser reading list discovery failed due to missing folder access.
     var needsBrowserAccess = false
     /// Access grants are local to one signed app copy. Keep dismissal local too:
@@ -3663,42 +3665,42 @@ class StudioViewModel {
     // Keychain lookup can block while macOS resolves an access prompt or an
     // unavailable vault. Publish a neutral launch snapshot, then refresh it
     // off-main from `checkXSignInStatus()`; model construction must stay fast.
-    var isXSignedIn: Bool = false
-    var isXOAuthSignedIn: Bool = false
+
+    /// The connected X accounts, in the order they were connected. Every other
+    /// piece of X state below is keyed by an account's id.
+    var xAccounts: [XAccount] = []
     var isSyncingXBookmarks: Bool = false
+    /// The accounts the running sync pass has yet to finish, for the card
+    /// spinners; empty between passes.
+    var xSyncingAccountIDs: Set<String> = []
     /// True from a Connect or Reconnect click until the browser sign-in has
     /// returned. macOS hosts that sign-in in a system agent it launches on
     /// demand, and on a loaded Mac the launch can take a long while; a button
     /// that showed nothing meanwhile read as dead, and the second click it
     /// invited would have started another session on top of the first.
     var isConnectingX: Bool = false
-    var lastXSyncDate: Date?
-    /// The connected X account's handle, without the @, so the plugins
-    /// list can say whose bookmarks it imports. nil until a sign-in or sync
-    /// has read it.
-    var xAccountUsername: String?
+    var xLastSyncDates: [String: Date] = [:]
 
-    /// True when X tokens exist but the session is expired and can't be
-    /// refreshed — the plugin card shows "Reconnect needed" instead of
-    /// "Connected".
-    var xPluginNeedsReauth: Bool = false
+    /// Accounts whose session is expired and can't be refreshed — their card
+    /// shows "Reconnect needed" instead of the sync time.
+    var xAccountsNeedingReauth: Set<String> = []
 
-    /// Inline error shown in the X plugin settings card after a failed
-    /// sync or sign-in, and — through `xPluginAttention` — as the red dot
-    /// on the X tab in the Sources pane. Cleared by the next successful sync.
-    var xPluginErrorMessage: String?
+    /// What went wrong at each account's last sync, shown on its card and —
+    /// through `xPluginAttention` — as the red dot on the X tab in the Sources
+    /// pane. Cleared by that account's next successful sync.
+    var xAccountFailures: [String: XAccountFailure] = [:]
 
-    /// True when the last failed sync is one a reconnect might clear
-    /// (`XBookmarkError.reconnectMayHelp`), so the X tab and the Settings card
-    /// offer Reconnect beside the retry. Cleared with `xPluginErrorMessage`.
-    var xPluginOffersReconnect: Bool = false
+    /// Why the last sign-in failed, shown on the plugin page. A failed
+    /// sign-in belongs to no account yet.
+    var xConnectError: String?
 
-    /// When X said its rate-limit window reopens, after a sync it refused with
-    /// a 429. Until then every sync is a guaranteed failure against the same
-    /// limit, so the event-triggered syncs skip X, the Try Again button waits,
-    /// and `xSyncResumeTask` runs the sync X asked us to wait for. Nil when no
-    /// limit is in force, and cleared by the next successful sync.
-    var xSyncPausedUntil: Date?
+    /// When X said each account's rate-limit window reopens, after a sync it
+    /// refused with a 429. Until then every sync of that account is a
+    /// guaranteed failure against the same limit, so the event-triggered syncs
+    /// skip it, its Sync button waits, and `xSyncResumeTasks` runs the sync X
+    /// asked us to wait for. An account with no entry has no limit in force; a
+    /// successful sync removes it.
+    var xSyncPausedUntil: [String: Date] = [:]
 
     /// True after X answered a sync with 402: ForeverLM's API credits are
     /// spent, and every request fails until someone tops them up. The
@@ -3706,15 +3708,32 @@ class StudioViewModel {
     /// pull-to-refresh still do, and the first sync that succeeds clears it.
     var xCreditsDepleted = false
 
-    /// The sync scheduled for `xSyncPausedUntil`; replaced by each new pause
-    /// and cancelled by a successful sync.
-    @ObservationIgnored var xSyncResumeTask: Task<Void, Never>?
+    /// The sync scheduled for each `xSyncPausedUntil`; replaced by each new
+    /// pause and cancelled by a successful sync or a disconnect.
+    @ObservationIgnored var xSyncResumeTasks: [String: Task<Void, Never>] = [:]
 
-    /// True while X has told us to wait. A retry the learner presses inside
-    /// this window cannot succeed, so the button is disabled and the message
-    /// beside it names the time instead.
+    /// Whether any X account is connected: the sidebar, the corner overlays and
+    /// source discovery ask only this.
+    var isXOAuthSignedIn: Bool { !xAccounts.isEmpty }
+
+    /// Whether any account's session needs signing in again.
+    var xPluginNeedsReauth: Bool { !xAccountsNeedingReauth.isEmpty }
+
+    /// True when a failed sync is one a reconnect might clear, so the X tab
+    /// and the plugin page offer Reconnect beside the retry.
+    var xPluginOffersReconnect: Bool { xAccountFailures.values.contains { $0.offersReconnect } }
+
+    /// True while X has told us to wait on this account. A retry the learner
+    /// presses inside this window cannot succeed, so the button is disabled and
+    /// the message beside it names the time instead.
+    func isXSyncPaused(accountID: String) -> Bool {
+        Self.isXSyncPaused(until: xSyncPausedUntil[accountID], now: Date())
+    }
+
+    /// True while every account that could sync is waiting out a limit.
     var isXSyncPaused: Bool {
-        Self.isXSyncPaused(until: xSyncPausedUntil, now: Date())
+        let syncable = xAccounts.filter { !xAccountsNeedingReauth.contains($0.id) }
+        return !syncable.isEmpty && syncable.allSatisfy { isXSyncPaused(accountID: $0.id) }
     }
 
     nonisolated static func isXSyncPaused(until: Date?, now: Date) -> Bool {
@@ -3742,22 +3761,32 @@ class StudioViewModel {
     /// retry cannot fix, so the dot stays up until the learner reconnects.
     var xPluginAttention: String? {
         Self.xPluginAttention(
-            errorMessage: xPluginErrorMessage,
-            needsReauth: xPluginNeedsReauth,
-            isSignedIn: isXOAuthSignedIn
+            accounts: xAccounts,
+            failures: xAccountFailures,
+            needsReauth: xAccountsNeedingReauth
         )
     }
 
     nonisolated static func xPluginAttention(
-        errorMessage: String?,
-        needsReauth: Bool,
-        isSignedIn: Bool
+        accounts: [XAccount],
+        failures: [String: XAccountFailure],
+        needsReauth: Set<String>
     ) -> String? {
         // A disconnected X has its own "Connect to X" row; a dot on top of that
         // would nag about an integration the learner never set up.
-        guard isSignedIn else { return nil }
-        if let errorMessage, !errorMessage.isEmpty { return errorMessage }
-        return needsReauth ? "Reconnect to X to keep syncing bookmarks." : nil
+        let lines: [String] = accounts.compactMap { account in
+            let line: String
+            if let message = failures[account.id]?.message, !message.isEmpty {
+                line = message
+            } else if needsReauth.contains(account.id) {
+                line = "Reconnect to X to keep syncing bookmarks."
+            } else {
+                return nil
+            }
+            // With several accounts the line must say whose it is.
+            return accounts.count > 1 ? "\(account.displayLabel): \(line)" : line
+        }
+        return lines.isEmpty ? nil : lines.joined(separator: "\n")
     }
 
     /// Profile pictures for X handles, keyed by lowercased handle, as resolved

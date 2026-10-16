@@ -43,9 +43,11 @@ enum YouTubeServiceError: LocalizedError {
 /// Read-only YouTube Data API plugin. Authenticates against ForeverLM's own
 /// Google OAuth client (`GoogleOAuthClient.appOwnedYouTube`), requests the
 /// `youtube.readonly` scope, and stores its own tokens, so signing into one
-/// plugin does not affect the other. Used only to import the signed-in
-/// user's private Liked-videos feed, an owned playlist named "ForeverLM", or
-/// to find a public video when Apple does not expose a podcast transcript.
+/// plugin does not affect the other. Any number of Google accounts can be
+/// connected (`YouTubeAccount`); every private read names its account. Used
+/// only to import an account's private Liked-videos feed, its playlist named
+/// "ForeverLM", or to find a public video when Apple does not expose a
+/// podcast transcript.
 actor YouTubeService {
     static let shared = YouTubeService()
 
@@ -63,17 +65,58 @@ actor YouTubeService {
     static let likedVideosPlaylistURL = "https://www.youtube.com/playlist?list=LL"
     static let foreverLMPlaylistName = "ForeverLM"
 
-    nonisolated var isSignedIn: Bool {
-        KeychainService.youtubeAccessToken != nil || KeychainService.youtubeRefreshToken != nil
+    /// Serializes read-modify-write of the account list, which the app and MCP
+    /// both write from any thread.
+    private nonisolated static let accountListLock = NSLock()
+
+    /// Every account the plugin holds, in the order they were connected,
+    /// including ones whose grant Google revoked.
+    nonisolated var accounts: [YouTubeAccount] {
+        YouTubeAccountList.decode(KeychainService.youtubeAccounts)
     }
 
-    nonisolated func signOut() {
-        KeychainService.youtubeAccessToken = nil
-        KeychainService.youtubeRefreshToken = nil
-        KeychainService.youtubeTokenExpiry = nil
-        KeychainService.youtubeClientID = nil
-        KeychainService.youtubeClientSecret = nil
+    /// The accounts that can make a request now.
+    nonisolated var connectedAccounts: [YouTubeAccount] {
+        accounts.filter(Self.hasStoredCredential)
+    }
+
+    nonisolated var isSignedIn: Bool {
+        !connectedAccounts.isEmpty
+    }
+
+    nonisolated func snapshot() -> YouTubeAccountSnapshot {
+        let listed = accounts
+        return YouTubeAccountSnapshot(
+            accounts: listed,
+            disconnectedIDs: Set(listed.filter { !Self.hasStoredCredential($0) }.map(\.id))
+        )
+    }
+
+    private nonisolated static func hasStoredCredential(_ account: YouTubeAccount) -> Bool {
+        KeychainService.youtubeCredential(field: .accessToken, accountID: account.id)?.isEmpty == false
+            || KeychainService.youtubeCredential(field: .refreshToken, accountID: account.id)?.isEmpty == false
+    }
+
+    /// Disconnect one account: its grant and everything it chose go.
+    nonisolated func signOut(accountID: String) {
+        Self.accountListLock.lock()
+        KeychainService.deleteYouTubeCredentials(accountID: accountID)
+        KeychainService.youtubeAccounts = YouTubeAccountList.encode(
+            YouTubeAccountList.removing(id: accountID, from: accounts)
+        )
+        Self.accountListLock.unlock()
         Self.notifyConnectionChanged()
+    }
+
+    /// Store what one account imports. The account's grant is untouched.
+    @discardableResult
+    nonisolated func setChoices(_ choices: YouTubeImportChoices, forAccount accountID: String) -> YouTubeAccount? {
+        Self.accountListLock.lock()
+        defer { Self.accountListLock.unlock() }
+        let updated = YouTubeAccountList.setting(choices, forAccount: accountID, in: accounts)
+        guard updated.contains(where: { $0.id == accountID }) else { return nil }
+        KeychainService.youtubeAccounts = YouTubeAccountList.encode(updated)
+        return updated.first { $0.id == accountID }
     }
 
     /// Announce a sign-in state change so settings UI refreshes its cached chip.
@@ -90,18 +133,38 @@ actor YouTubeService {
         GoogleOAuthClient.youtubeAuthorization() != nil
     }
 
-    /// Drop only the cached access token so the next request refreshes it.
-    /// Keeps the refresh token, so the connection itself survives.
-    private nonisolated func invalidateAccessToken() {
-        KeychainService.youtubeAccessToken = nil
-        KeychainService.youtubeTokenExpiry = nil
+    /// Public-data calls (channel lookup, uploads, video details, search) need
+    /// a token but not a particular account, so the first connected account
+    /// lends its own: the same one every time, and the next one once Google
+    /// revokes it.
+    private nonisolated func publicRequestAccountID() throws -> String {
+        guard let account = connectedAccounts.first else { throw YouTubeServiceError.notSignedIn }
+        return account.id
     }
 
+    /// Drop only the cached access token so the next request refreshes it.
+    /// Keeps the refresh token, so the connection itself survives.
+    private nonisolated func invalidateAccessToken(accountID: String) {
+        KeychainService.deleteYouTubeCredential(field: .accessToken, accountID: accountID)
+        KeychainService.deleteYouTubeCredential(field: .tokenExpiry, accountID: accountID)
+    }
+
+    /// Google revoked the grant: the account stays listed (with what it
+    /// imports) but holds no credentials until the learner reconnects it.
+    private nonisolated func dropCredentials(accountID: String) {
+        KeychainService.deleteYouTubeCredentials(accountID: accountID)
+        Self.notifyConnectionChanged()
+    }
+
+    /// Connect a Google account. Connecting one that is already listed
+    /// replaces its grant (the way a revoked grant is repaired) and keeps what
+    /// it imports; any other account is added beside the rest.
     @MainActor
+    @discardableResult
     func authenticate(
         clientID explicitClientID: String? = nil,
         clientSecret explicitClientSecret: String? = nil
-    ) async throws {
+    ) async throws -> YouTubeAccount {
         let explicit = GoogleOAuthCredentials(
             clientID: explicitClientID,
             clientSecret: explicitClientSecret
@@ -165,13 +228,18 @@ actor YouTubeService {
                 clientID: clientID,
                 clientSecret: clientSecret
             )
-            store(tokens: tokens, issuedBy: credentials)
+            guard let accessToken = tokens.accessToken, !accessToken.isEmpty else {
+                throw YouTubeServiceError.authFailed("Google returned no access token.")
+            }
+            let channel = try await ownChannel(accessToken: accessToken)
+            let account = register(channel: channel, tokens: tokens, issuedBy: credentials)
             Self.notifyConnectionChanged()
             callbackServer.completeBrowserCallback(
                 success: true,
                 message: "You can close this tab and return to ForeverLM."
             )
-            logger.info("Authenticated YouTube OAuth client")
+            logger.info("Authenticated a YouTube account")
+            return account
         } catch {
             callbackServer.completeBrowserCallback(
                 success: false,
@@ -193,7 +261,7 @@ actor YouTubeService {
         guard let url = Self.videoSearchURL(query: cleanQuery, maxResults: maxResults) else {
             throw YouTubeServiceError.apiFailed("Could not construct the YouTube search request.")
         }
-        let decoded: VideoSearchResponse = try await getJSON(url: url)
+        let decoded: VideoSearchResponse = try await getJSON(url: url, accountID: try publicRequestAccountID())
         return Self.videoSearchResults(from: decoded)
     }
 
@@ -210,7 +278,7 @@ actor YouTubeService {
             URLQueryItem(name: "part", value: "snippet"),
             URLQueryItem(name: "id", value: wanted.joined(separator: ",")),
         ]
-        let decoded: VideoListResponse = try await getJSON(url: components.url!)
+        let decoded: VideoListResponse = try await getJSON(url: components.url!, accountID: try publicRequestAccountID())
         return Self.videoListResults(from: decoded, orderedBy: wanted)
     }
 
@@ -306,15 +374,15 @@ actor YouTubeService {
         }
     }
 
-    /// The signed-in user's private "Liked videos" playlist id, read from the
+    /// The account's private "Liked videos" playlist id, read from the
     /// channel's `relatedPlaylists.likes`.
-    func likedVideosPlaylistID() async throws -> String {
+    func likedVideosPlaylistID(accountID: String) async throws -> String {
         var components = URLComponents(string: "https://www.googleapis.com/youtube/v3/channels")!
         components.queryItems = [
             URLQueryItem(name: "part", value: "contentDetails"),
             URLQueryItem(name: "mine", value: "true"),
         ]
-        let decoded: ChannelListResponse = try await getJSON(url: components.url!)
+        let decoded: ChannelListResponse = try await getJSON(url: components.url!, accountID: accountID)
         guard let likes = decoded.items?.first?.contentDetails?.relatedPlaylists?.likes,
               !likes.isEmpty else {
             throw YouTubeServiceError.apiFailed("Could not find your Liked videos playlist.")
@@ -322,11 +390,11 @@ actor YouTubeService {
         return likes
     }
 
-    /// Fetch the signed-in user's liked videos, newest first. The Liked-videos
+    /// Fetch an account's liked videos, newest first. The Liked-videos
     /// feed is private, so this uses the authenticated Data API rather than the
     /// keyless playlist path. Deleted/private entries are skipped.
-    func listLikedVideos(maxCount: Int = .max) async throws -> [YouTubePlaylistItem] {
-        try await listLikedVideosFeed(maxCount: maxCount).items
+    func listLikedVideos(accountID: String, maxCount: Int = .max) async throws -> [YouTubePlaylistItem] {
+        try await listLikedVideosFeed(accountID: accountID, maxCount: maxCount).items
     }
 
     /// As `listLikedVideos`, but also reports whether the whole feed was read.
@@ -336,10 +404,11 @@ actor YouTubeService {
     /// that is merely old gets archived (which deletes its transcript) while
     /// still liked.
     func listLikedVideosFeed(
+        accountID: String,
         maxCount: Int = .max
     ) async throws -> (items: [YouTubePlaylistItem], isComplete: Bool) {
-        let playlistID = try await likedVideosPlaylistID()
-        let playlistFeed = try await listPlaylistFeed(playlistID: playlistID, maxCount: maxCount)
+        let playlistID = try await likedVideosPlaylistID(accountID: accountID)
+        let playlistFeed = try await listPlaylistFeed(playlistID: playlistID, maxCount: maxCount, accountID: accountID)
 
         // Google documents `videos.list?myRating=like` as a second, direct way
         // to retrieve the authenticated user's positive ratings. In practice it
@@ -348,7 +417,7 @@ actor YouTubeService {
         // cannot miss that window; only call a feed complete when both were read
         // to the end, which keeps absence-based archiving conservative.
         do {
-            let ratedFeed = try await listPositivelyRatedVideosFeed(maxCount: maxCount)
+            let ratedFeed = try await listPositivelyRatedVideosFeed(maxCount: maxCount, accountID: accountID)
             return Self.mergeLikedVideoFeeds(playlist: playlistFeed, ratings: ratedFeed)
         } catch {
             logger.warning("Direct YouTube ratings lookup failed; using the Liked playlist: \(error.localizedDescription)")
@@ -385,7 +454,8 @@ actor YouTubeService {
     /// rating was added, so `likedAt` remains nil for ratings-only entries and is
     /// filled from the playlist view by `mergeLikedVideoFeeds` whenever possible.
     private func listPositivelyRatedVideosFeed(
-        maxCount: Int
+        maxCount: Int,
+        accountID: String
     ) async throws -> (items: [YouTubePlaylistItem], isComplete: Bool) {
         var items: [YouTubePlaylistItem] = []
         var pageToken: String?
@@ -401,7 +471,7 @@ actor YouTubeService {
             }
             components.queryItems = queryItems
 
-            let decoded: RatedVideosResponse = try await getJSON(url: components.url!)
+            let decoded: RatedVideosResponse = try await getJSON(url: components.url!, accountID: accountID)
             for item in decoded.items ?? [] {
                 guard let videoID = item.id, !videoID.isEmpty,
                       let title = item.snippet?.title, !title.isEmpty else { continue }
@@ -420,10 +490,10 @@ actor YouTubeService {
         return (items, pageToken == nil)
     }
 
-    /// Find the signed-in user's playlist named exactly "ForeverLM". Matching
+    /// Find the account's playlist named exactly "ForeverLM". Matching
     /// ignores case and surrounding whitespace, but ambiguity fails loudly so
     /// the plugin never silently follows the wrong playlist.
-    func foreverLMPlaylist() async throws -> YouTubePluginPlaylist {
+    func foreverLMPlaylist(accountID: String) async throws -> YouTubePluginPlaylist {
         var matches: [YouTubePluginPlaylist] = []
         var pageToken: String?
         repeat {
@@ -438,7 +508,7 @@ actor YouTubeService {
             }
             components.queryItems = queryItems
 
-            let decoded: PlaylistsResponse = try await getJSON(url: components.url!)
+            let decoded: PlaylistsResponse = try await getJSON(url: components.url!, accountID: accountID)
             matches.append(contentsOf: (decoded.items ?? []).compactMap { item in
                 guard let id = item.id, !id.isEmpty,
                       let title = item.snippet?.title,
@@ -461,13 +531,14 @@ actor YouTubeService {
         return playlist
     }
 
-    /// Fetch every currently visible item in the signed-in user's ForeverLM
+    /// Fetch every currently visible item in the account's ForeverLM
     /// playlist. Deleted/private entries are skipped, matching Liked videos.
     func listForeverLMPlaylistFeed(
+        accountID: String,
         maxCount: Int = .max
     ) async throws -> (playlist: YouTubePluginPlaylist, items: [YouTubePlaylistItem], isComplete: Bool) {
-        let playlist = try await foreverLMPlaylist()
-        let feed = try await listPlaylistFeed(playlistID: playlist.id, maxCount: maxCount)
+        let playlist = try await foreverLMPlaylist(accountID: accountID)
+        let feed = try await listPlaylistFeed(playlistID: playlist.id, maxCount: maxCount, accountID: accountID)
         return (playlist: playlist, items: feed.items, isComplete: feed.isComplete)
     }
 
@@ -491,9 +562,7 @@ actor YouTubeService {
         /// the channel id with `UC` swapped for `UU`.
         let uploadsPlaylistID: String
 
-        var uploadsPlaylistURL: String {
-            "https://www.youtube.com/playlist?list=\(uploadsPlaylistID)"
-        }
+        var uploadsPlaylistURL: String { YouTubeService.playlistURL(forID: uploadsPlaylistID) }
     }
 
     /// Reads a channel out of whatever was pasted: `@handle`, a bare `UC…` id,
@@ -540,6 +609,10 @@ actor YouTubeService {
         "UU" + channelID.dropFirst(2)
     }
 
+    nonisolated static func playlistURL(forID id: String) -> String {
+        "https://www.youtube.com/playlist?list=\(id)"
+    }
+
     /// The `list` id in a playlist address, or nil when there is none.
     nonisolated static func playlistID(fromPlaylistURL url: String) -> String? {
         URLComponents(string: url)?.queryItems?.first { $0.name == "list" }?.value
@@ -562,7 +635,7 @@ actor YouTubeService {
                 URLQueryItem(name: lookup.parameter, value: lookup.value),
                 URLQueryItem(name: "maxResults", value: "1"),
             ]
-            let decoded: ChannelListResponse = try await getJSON(url: components.url!)
+            let decoded: ChannelListResponse = try await getJSON(url: components.url!, accountID: try publicRequestAccountID())
             guard let item = decoded.items?.first, let id = item.id, !id.isEmpty else { continue }
             let title = item.snippet?.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             let uploads = item.contentDetails?.relatedPlaylists?.uploads ?? Self.uploadsPlaylistID(forChannelID: id)
@@ -577,7 +650,7 @@ actor YouTubeService {
         uploadsPlaylistID: String,
         maxCount: Int
     ) async throws -> (items: [YouTubePlaylistItem], isComplete: Bool) {
-        try await listPlaylistFeed(playlistID: uploadsPlaylistID, maxCount: maxCount)
+        try await listPlaylistFeed(playlistID: uploadsPlaylistID, maxCount: maxCount, accountID: try publicRequestAccountID())
     }
 
     nonisolated static func isForeverLMPlaylistTitle(_ title: String) -> Bool {
@@ -587,7 +660,8 @@ actor YouTubeService {
 
     private func listPlaylistFeed(
         playlistID: String,
-        maxCount: Int
+        maxCount: Int,
+        accountID: String
     ) async throws -> (items: [YouTubePlaylistItem], isComplete: Bool) {
         var items: [YouTubePlaylistItem] = []
         var pageToken: String?
@@ -607,7 +681,7 @@ actor YouTubeService {
             }
             components.queryItems = queryItems
 
-            let decoded: PlaylistItemsResponse = try await getJSON(url: components.url!)
+            let decoded: PlaylistItemsResponse = try await getJSON(url: components.url!, accountID: accountID)
             for item in decoded.items ?? [] {
                 guard let videoID = item.snippet?.resourceId?.videoId, !videoID.isEmpty,
                       let title = item.snippet?.title,
@@ -642,13 +716,13 @@ actor YouTubeService {
 
     // MARK: - Networking
 
-    private func getJSON<T: Decodable>(url: URL) async throws -> T {
-        var (data, http) = try await performAuthorizedGET(url: url)
+    private func getJSON<T: Decodable>(url: URL, accountID: String) async throws -> T {
+        var (data, http) = try await performAuthorizedGET(url: url, accountID: accountID)
         if http.statusCode == 401 {
             // Google rejected the stored access token; refresh and retry once
             // instead of treating a lone 401 as a lost connection.
-            invalidateAccessToken()
-            (data, http) = try await performAuthorizedGET(url: url)
+            invalidateAccessToken(accountID: accountID)
+            (data, http) = try await performAuthorizedGET(url: url, accountID: accountID)
         }
         guard (200..<300).contains(http.statusCode) else {
             let body = String(data: data, encoding: .utf8) ?? ""
@@ -657,8 +731,8 @@ actor YouTubeService {
         return try JSONDecoder().decode(T.self, from: data)
     }
 
-    private func performAuthorizedGET(url: URL) async throws -> (Data, HTTPURLResponse) {
-        var request = try await authorizedRequest(url: url)
+    private func performAuthorizedGET(url: URL, accountID: String) async throws -> (Data, HTTPURLResponse) {
+        var request = try await authorizedRequest(url: url, accountID: accountID)
         request.httpMethod = "GET"
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse else {
@@ -688,33 +762,59 @@ actor YouTubeService {
     private static let defaultYouTubeAPIEnableURL =
         "https://console.cloud.google.com/apis/library/youtube.googleapis.com"
 
-    private func authorizedRequest(url: URL) async throws -> URLRequest {
-        let token = try await accessToken()
+    private func authorizedRequest(url: URL, accountID: String) async throws -> URLRequest {
+        let token = try await accessToken(accountID: accountID)
         var request = URLRequest(url: url)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("ForeverLM", forHTTPHeaderField: "User-Agent")
         return request
     }
 
-    private func accessToken() async throws -> String {
-        if let expiry = KeychainService.youtubeTokenExpiry,
+    private func accessToken(accountID: String) async throws -> String {
+        if let expiry = KeychainService.youtubeCredential(field: .tokenExpiry, accountID: accountID),
            let expiryDate = ISO8601DateFormatter().date(from: expiry),
            expiryDate.timeIntervalSinceNow > 60,
-           let accessToken = KeychainService.youtubeAccessToken,
+           let accessToken = KeychainService.youtubeCredential(field: .accessToken, accountID: accountID),
            !accessToken.isEmpty {
             return accessToken
         }
 
-        if let refreshToken = KeychainService.youtubeRefreshToken,
+        if let refreshToken = KeychainService.youtubeCredential(field: .refreshToken, accountID: accountID),
            !refreshToken.isEmpty {
-            let tokens = try await refreshAccessToken(refreshToken: refreshToken)
-            store(tokens: tokens)
+            let tokens = try await refreshAccessToken(accountID: accountID, refreshToken: refreshToken)
+            store(tokens: tokens, accountID: accountID)
             if let accessToken = tokens.accessToken {
                 return accessToken
             }
         }
 
         throw YouTubeServiceError.notSignedIn
+    }
+
+    /// The signed-in account's own channel: its id names the account, its
+    /// title labels it. One quota unit, and inside `youtube.readonly`.
+    private func ownChannel(accessToken: String) async throws -> (id: String, title: String) {
+        var components = URLComponents(string: "https://www.googleapis.com/youtube/v3/channels")!
+        components.queryItems = [
+            URLQueryItem(name: "part", value: "snippet"),
+            URLQueryItem(name: "mine", value: "true"),
+        ]
+        var request = URLRequest(url: components.url!)
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("ForeverLM", forHTTPHeaderField: "User-Agent")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw YouTubeServiceError.apiFailed("Invalid response")
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            throw Self.mapAPIError(statusCode: http.statusCode, body: String(data: data, encoding: .utf8) ?? "")
+        }
+        let decoded = try JSONDecoder().decode(ChannelListResponse.self, from: data)
+        guard let channel = decoded.items?.first, let id = channel.id, !id.isEmpty else {
+            throw YouTubeServiceError.apiFailed("This Google account has no YouTube channel to connect.")
+        }
+        let title = channel.snippet?.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return (id, title.isEmpty ? id : title)
     }
 
     private func exchangeCodeForTokens(
@@ -747,12 +847,46 @@ actor YouTubeService {
         return try JSONDecoder().decode(YouTubeTokenResponse.self, from: data)
     }
 
-    private func refreshAccessToken(refreshToken: String) async throws -> YouTubeTokenResponse {
-        // Must be the client that issued this refresh token, not the current
-        // default — Google rejects a cross-client refresh with invalid_grant.
-        guard let credentials = GoogleOAuthClient.youtubeRefresh else {
+    /// The client that issued an account's tokens. Google refuses to refresh a
+    /// token against a different client, so this is the recorded one, never
+    /// simply the current default; a connection that predates the recorded
+    /// client was issued under the learner's own Google client.
+    private nonisolated func refreshCredentials(accountID: String) -> GoogleOAuthCredentials? {
+        GoogleOAuthCredentials(
+            clientID: KeychainService.youtubeCredential(field: .clientID, accountID: accountID),
+            clientSecret: KeychainService.youtubeCredential(field: .clientSecret, accountID: accountID)
+        ) ?? GoogleOAuthClient.userSuppliedGoogle
+    }
+
+    private func refreshAccessToken(accountID: String, refreshToken: String) async throws -> YouTubeTokenResponse {
+        guard let credentials = refreshCredentials(accountID: accountID) else {
             throw YouTubeServiceError.missingClientID
         }
+        do {
+            return try await requestRefresh(refreshToken: refreshToken, credentials: credentials)
+        } catch let revoked as GrantRevoked {
+            dropCredentials(accountID: accountID)
+            throw revoked.serviceError
+        }
+    }
+
+    /// Google no longer honours a refresh token: the connection is gone.
+    private struct GrantRevoked: Error {
+        let usedAppOwnedClient: Bool
+
+        var serviceError: YouTubeServiceError {
+            .authFailed(
+                usedAppOwnedClient
+                    ? "Google revoked the saved sign-in (invalid_grant). Reconnect YouTube to sign in again."
+                    : "Google revoked the saved sign-in (invalid_grant). This connection used your own Google Cloud OAuth client; if its consent screen is still in Testing mode, sign-ins expire after 7 days. Reconnect to switch to ForeverLM's own client."
+            )
+        }
+    }
+
+    private func requestRefresh(
+        refreshToken: String,
+        credentials: GoogleOAuthCredentials
+    ) async throws -> YouTubeTokenResponse {
         let clientID = credentials.clientID
         let clientSecret = credentials.clientSecret
 
@@ -780,13 +914,7 @@ actor YouTubeService {
             // Transient failures (Google 5xx, flaky networks) must not wipe the
             // stored tokens, or the plugin silently disconnects itself.
             if body.contains("invalid_grant") {
-                let usedAppOwnedClient = credentials == GoogleOAuthClient.appOwnedYouTube
-                signOut()
-                throw YouTubeServiceError.authFailed(
-                    usedAppOwnedClient
-                        ? "Google revoked the saved sign-in (invalid_grant). Reconnect YouTube to sign in again."
-                        : "Google revoked the saved sign-in (invalid_grant). This connection used your own Google Cloud OAuth client; if its consent screen is still in Testing mode, sign-ins expire after 7 days. Reconnect to switch to ForeverLM's own client."
-                )
+                throw GrantRevoked(usedAppOwnedClient: credentials == GoogleOAuthClient.appOwnedYouTube)
             }
             let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
             throw YouTubeServiceError.authFailed(Self.mapAPIError(statusCode: statusCode, body: body).localizedDescription)
@@ -794,26 +922,120 @@ actor YouTubeService {
         return try JSONDecoder().decode(YouTubeTokenResponse.self, from: data)
     }
 
-    /// Persist tokens. `issuedBy` is set only when a fresh authorization minted
-    /// them; a refresh leaves the recorded client alone.
+    /// Persist the tokens of one account. `issuedBy` is set only when a fresh
+    /// authorization minted them; a refresh leaves the recorded client alone.
     private nonisolated func store(
         tokens: YouTubeTokenResponse,
+        accountID: String,
         issuedBy credentials: GoogleOAuthCredentials? = nil
     ) {
         if let accessToken = tokens.accessToken {
-            KeychainService.youtubeAccessToken = accessToken
+            KeychainService.saveYouTubeCredential(accessToken, field: .accessToken, accountID: accountID)
         }
         if let refreshToken = tokens.refreshToken {
-            KeychainService.youtubeRefreshToken = refreshToken
+            KeychainService.saveYouTubeCredential(refreshToken, field: .refreshToken, accountID: accountID)
         }
         if let expiresIn = tokens.expiresIn {
             let expiry = Date().addingTimeInterval(TimeInterval(expiresIn))
-            KeychainService.youtubeTokenExpiry = ISO8601DateFormatter().string(from: expiry)
+            KeychainService.saveYouTubeCredential(
+                ISO8601DateFormatter().string(from: expiry),
+                field: .tokenExpiry,
+                accountID: accountID
+            )
         }
         if let credentials {
-            KeychainService.youtubeClientID = credentials.clientID
-            KeychainService.youtubeClientSecret = credentials.clientSecret
+            KeychainService.saveYouTubeCredential(credentials.clientID, field: .clientID, accountID: accountID)
+            KeychainService.saveYouTubeCredential(credentials.clientSecret, field: .clientSecret, accountID: accountID)
         }
+    }
+
+    /// Store a fresh grant under its channel and list the account.
+    private nonisolated func register(
+        channel: (id: String, title: String),
+        tokens: YouTubeTokenResponse,
+        issuedBy credentials: GoogleOAuthCredentials?,
+        choicesIfNew: YouTubeImportChoices = .unchosen
+    ) -> YouTubeAccount {
+        store(tokens: tokens, accountID: channel.id, issuedBy: credentials)
+        Self.accountListLock.lock()
+        defer { Self.accountListLock.unlock() }
+        let listed = YouTubeAccountList.connecting(
+            id: channel.id,
+            title: channel.title,
+            choicesIfNew: choicesIfNew,
+            into: accounts
+        )
+        KeychainService.youtubeAccounts = YouTubeAccountList.encode(listed)
+        return listed.first { $0.id == channel.id }!
+    }
+
+    // MARK: - Adopting the single connection
+
+    /// Whether an older build's single connection is still waiting to become
+    /// an account.
+    nonisolated var hasUnadoptedConnection: Bool {
+        KeychainService.youtubeAccessToken?.isEmpty == false
+            || KeychainService.youtubeRefreshToken?.isEmpty == false
+    }
+
+    /// Turn the single connection older builds stored into the first account,
+    /// so nobody has to reconnect, then delete its singleton keys: this is the
+    /// only place that reads them. `choices` carries what the old connection
+    /// imported (the caller reads it from the learner's old preferences).
+    /// Offline, nothing changes and the next launch tries again.
+    @discardableResult
+    func adoptSingleConnection(choices: YouTubeImportChoices) async throws -> YouTubeAccount? {
+        guard hasUnadoptedConnection else { return nil }
+        let credentials = GoogleOAuthCredentials(
+            clientID: KeychainService.youtubeClientID,
+            clientSecret: KeychainService.youtubeClientSecret
+        ) ?? GoogleOAuthClient.userSuppliedGoogle
+        var tokens = YouTubeTokenResponse(
+            accessToken: KeychainService.youtubeAccessToken,
+            refreshToken: KeychainService.youtubeRefreshToken,
+            expiresIn: nil
+        )
+        let expiry = KeychainService.youtubeTokenExpiry.flatMap { ISO8601DateFormatter().date(from: $0) }
+        let accessTokenIsFresh = (expiry?.timeIntervalSinceNow ?? 0) > 60 && tokens.accessToken?.isEmpty == false
+        if !accessTokenIsFresh {
+            guard let refreshToken = tokens.refreshToken, !refreshToken.isEmpty else {
+                Self.deleteSingleConnection()
+                return nil
+            }
+            guard let credentials else { throw YouTubeServiceError.missingClientID }
+            do {
+                let refreshed = try await requestRefresh(refreshToken: refreshToken, credentials: credentials)
+                tokens = YouTubeTokenResponse(
+                    accessToken: refreshed.accessToken,
+                    refreshToken: refreshToken,
+                    expiresIn: refreshed.expiresIn
+                )
+            } catch is GrantRevoked {
+                // Revoked before it could be named: nothing to adopt.
+                Self.deleteSingleConnection()
+                Self.notifyConnectionChanged()
+                return nil
+            }
+        }
+        guard let accessToken = tokens.accessToken, !accessToken.isEmpty else { return nil }
+        let channel = try await ownChannel(accessToken: accessToken)
+        let account = register(
+            channel: channel,
+            tokens: tokens,
+            issuedBy: credentials,
+            choicesIfNew: choices
+        )
+        Self.deleteSingleConnection()
+        Self.notifyConnectionChanged()
+        return account
+    }
+
+    private nonisolated static func deleteSingleConnection() {
+        KeychainService.youtubeAccessToken = nil
+        KeychainService.youtubeRefreshToken = nil
+        KeychainService.youtubeTokenExpiry = nil
+        KeychainService.youtubeClientID = nil
+        KeychainService.youtubeClientSecret = nil
     }
 
     private nonisolated func validateClientID(_ clientID: String) -> String? {
@@ -921,9 +1143,7 @@ struct YouTubePluginPlaylist: Equatable, Sendable {
     let id: String
     let title: String
 
-    var url: String {
-        "https://www.youtube.com/playlist?list=\(id)"
-    }
+    var url: String { YouTubeService.playlistURL(forID: id) }
 }
 
 struct YouTubeVideoSearchResult: Equatable, Identifiable, Sendable {

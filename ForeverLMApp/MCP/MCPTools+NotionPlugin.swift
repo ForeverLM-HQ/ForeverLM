@@ -131,8 +131,16 @@ extension MCPDataStore {
 
     // MARK: The reads
 
-    func searchNotion(query: String?, kind: String?, limit: Int?) async throws -> String {
-        var items: [URLQueryItem] = []
+    /// The optional `workspace` every read takes: a workspace's id or name.
+    /// Omitted, the gateway reads every connected workspace and tags each
+    /// result with the workspace it came from.
+    private static func notionWorkspaceQuery(_ workspace: String?) -> [URLQueryItem] {
+        guard let workspace = trimmedNotionArgument(workspace) else { return [] }
+        return [URLQueryItem(name: "workspace", value: workspace)]
+    }
+
+    func searchNotion(query: String?, kind: String?, limit: Int?, workspace: String? = nil) async throws -> String {
+        var items = Self.notionWorkspaceQuery(workspace)
         if let query = Self.trimmedNotionArgument(query) { items.append(URLQueryItem(name: "query", value: query)) }
         if let kind = try Self.validatedNotionKind(kind) { items.append(URLQueryItem(name: "kind", value: kind)) }
         if let limit, limit > 0 { items.append(URLQueryItem(name: "limit", value: String(limit))) }
@@ -140,31 +148,31 @@ extension MCPDataStore {
         return try jsonString(payload)
     }
 
-    func getNotionPage(page rawPage: String, includeContent: Bool?) async throws -> String {
+    func getNotionPage(page rawPage: String, includeContent: Bool?, workspace: String? = nil) async throws -> String {
         let id = try Self.validatedNotionID(rawPage, what: "page")
-        var items: [URLQueryItem] = []
+        var items = Self.notionWorkspaceQuery(workspace)
         if includeContent == false { items.append(URLQueryItem(name: "include_content", value: "false")) }
         let payload = try await Self.notionGatewayJSON(path: "/notion/pages/\(id)", query: items)
         return try jsonString(payload)
     }
 
-    func listNotionDatabases(query: String?, limit: Int?) async throws -> String {
-        var items: [URLQueryItem] = []
+    func listNotionDatabases(query: String?, limit: Int?, workspace: String? = nil) async throws -> String {
+        var items = Self.notionWorkspaceQuery(workspace)
         if let query = Self.trimmedNotionArgument(query) { items.append(URLQueryItem(name: "query", value: query)) }
         if let limit, limit > 0 { items.append(URLQueryItem(name: "limit", value: String(limit))) }
         let payload = try await Self.notionGatewayJSON(path: "/notion/databases", query: items)
         return try jsonString(payload)
     }
 
-    func getNotionDatabase(database rawDatabase: String) async throws -> String {
+    func getNotionDatabase(database rawDatabase: String, workspace: String? = nil) async throws -> String {
         let id = try Self.validatedNotionID(rawDatabase, what: "database")
-        let payload = try await Self.notionGatewayJSON(path: "/notion/databases/\(id)")
+        let payload = try await Self.notionGatewayJSON(path: "/notion/databases/\(id)", query: Self.notionWorkspaceQuery(workspace))
         return try jsonString(payload)
     }
 
-    func queryNotionDatabase(database rawDatabase: String, filter: Any?, sorts: Any?, limit: Int?, cursor: String?) async throws -> String {
+    func queryNotionDatabase(database rawDatabase: String, filter: Any?, sorts: Any?, limit: Int?, cursor: String?, workspace: String? = nil) async throws -> String {
         let id = try Self.validatedNotionID(rawDatabase, what: "database")
-        var items: [URLQueryItem] = []
+        var items = Self.notionWorkspaceQuery(workspace)
         if let filter = try Self.notionJSONArgument(filter, name: "filter", array: false) { items.append(URLQueryItem(name: "filter", value: filter)) }
         if let sorts = try Self.notionJSONArgument(sorts, name: "sorts", array: true) { items.append(URLQueryItem(name: "sorts", value: sorts)) }
         if let limit, limit > 0 { items.append(URLQueryItem(name: "limit", value: String(limit))) }
@@ -183,7 +191,12 @@ extension MCPDataStore {
     ///
     /// Static because it touches no store state: the Settings pane asks the
     /// same question without opening `knowledge.db` for it.
-    static func notionGatewayJSON(path: String, query: [URLQueryItem] = []) async throws -> [String: Any] {
+    static func notionGatewayJSON(
+        path: String,
+        query: [URLQueryItem] = [],
+        method: String = "GET",
+        body: [String: Any]? = nil
+    ) async throws -> [String: Any] {
         guard let token = ManagedAI.requestSessionToken else {
             throw MCPError.invalidInput(Self.notionSignedOutMessage)
         }
@@ -197,10 +210,14 @@ extension MCPDataStore {
         }
 
         var request = URLRequest(url: url)
-        request.httpMethod = "GET"
+        request.httpMethod = method
         request.timeoutInterval = 45
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let body {
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        }
 
         let data: Data
         let response: URLResponse
@@ -233,26 +250,44 @@ extension MCPDataStore {
     /// Whether this Mac can read Notion right now, as the Plugins place's
     /// list reports it beside Slack, Linear and GitHub.
     ///
-    /// Notion is connected on the web, not in the app, so there is no local
-    /// credential to inspect: the gateway holds the grant, and `/notion/status`
-    /// says in one field whether a workspace is behind it. The Mac's own part
+    /// Notion is connected through the gateway (the Plugins page or the web
+    /// page), so there is no local credential to inspect: the gateway holds one
+    /// grant per workspace, and `/notion/status` lists them. The Mac's own part
     /// is the managed sign-in — without a session there is nothing to ask
     /// with, which is its own state rather than a failure.
     enum NotionConnection: Equatable {
-        /// A Notion workspace is connected to this ForeverLM account: its name
-        /// and the learner the reads are made as, each nil when the gateway
-        /// did not report it.
-        case connected(workspace: String?, user: String?)
+        /// One or more Notion workspaces are connected to this ForeverLM
+        /// account, oldest first. Each is its own grant, read as the learner.
+        case connected(workspaces: [NotionWorkspace])
         /// The account is signed in, but no Notion workspace has been connected yet.
         case notConnected
         /// This Mac is not signed in with Apple, so it cannot read Notion.
         case signedOut
 
-        /// Whether a workspace is connected, for callers that need one flag.
+        /// Whether any workspace is connected, for callers that need one flag.
         var isConnected: Bool {
             if case .connected = self { return true }
             return false
         }
+
+        /// The connected workspaces; empty when none is.
+        var workspaces: [NotionWorkspace] {
+            if case .connected(let workspaces) = self { return workspaces }
+            return []
+        }
+    }
+
+    /// One connected Notion workspace as the Plugins pages name it.
+    struct NotionWorkspace: Equatable, Identifiable {
+        /// Notion's workspace id, which the management routes take.
+        let id: String
+        /// The workspace's name, nil when the gateway did not report it.
+        let name: String?
+        /// The Notion user the reads are made as.
+        let user: String?
+
+        /// What the pages call the workspace.
+        var label: String { name ?? "Notion workspace" }
     }
 
     /// Asks the gateway once. `nil` means the answer is unknown — the gateway
@@ -266,13 +301,56 @@ extension MCPDataStore {
 
     /// Pure: the connection state a `/notion/status` payload reports. The
     /// gateway answers `connected: false` for an account with no workspace and
-    /// `connected: true` with `workspace` and `user` otherwise; a payload
-    /// without the field is unknown.
+    /// `connected: true` with a `workspaces` list otherwise; a payload without
+    /// the field is unknown. A gateway from before workspaces were listed
+    /// describes its one workspace in `workspace` and `user`, which is read as
+    /// a list of one.
     static func notionConnection(in payload: [String: Any]) -> NotionConnection? {
         guard let connected = payload["connected"] as? Bool else { return nil }
         guard connected else { return .notConnected }
-        let workspace = nonEmptyString((payload["workspace"] as? [String: Any])?["name"])
-        let user = nonEmptyString((payload["user"] as? [String: Any])?["name"])
-        return .connected(workspace: workspace, user: user)
+        let legacyRow = (payload["workspace"] as? [String: Any]).map { workspace -> [String: Any] in
+            var row = workspace
+            row["user"] = payload["user"]
+            return row
+        }
+        let rows = payload["workspaces"] as? [[String: Any]] ?? legacyRow.map { [$0] } ?? []
+        let workspaces = rows.compactMap { row -> NotionWorkspace? in
+            guard let id = nonEmptyString(row["id"]) else { return nil }
+            return NotionWorkspace(
+                id: id,
+                name: nonEmptyString(row["name"]),
+                user: nonEmptyString((row["user"] as? [String: Any])?["name"])
+            )
+        }
+        return .connected(workspaces: workspaces)
+    }
+
+    // MARK: Managing the connection from the page
+
+    /// Where Notion sends the learner back after consent; registered with
+    /// Notion, so it is the same address whichever surface started the connect.
+    static let notionInstallRedirectURL = URL(string: "https://app.foreverlm.com/notion-connect.html")!
+
+    /// Notion's consent page for this account, carrying a state the gateway
+    /// will recognise when the code comes back.
+    static func notionAuthorizationURL() async throws -> URL {
+        let payload = try await notionGatewayJSON(path: "/notion/install")
+        guard let string = payload["authorization_url"] as? String, let url = URL(string: string) else {
+            throw MCPError.invalidInput("The gateway did not return Notion's authorization address.")
+        }
+        return url
+    }
+
+    /// Finishes a connect with the code and state Notion sent back. Adds the
+    /// workspace, or refreshes it when it is already connected.
+    static func completeNotionInstall(code: String, state: String) async throws {
+        _ = try await notionGatewayJSON(path: "/notion/install", method: "POST", body: ["code": code, "state": state])
+    }
+
+    /// Revokes one workspace's grant at Notion and forgets it on the gateway.
+    /// Returns whether any workspace is still connected afterwards.
+    static func disconnectNotionWorkspace(id: String) async throws -> Bool {
+        let payload = try await notionGatewayJSON(path: "/notion/disconnect", method: "POST", body: ["workspace_id": id])
+        return payload["connected"] as? Bool ?? false
     }
 }

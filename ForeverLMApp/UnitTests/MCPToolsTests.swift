@@ -404,6 +404,12 @@ struct MCPAuthScopeTests {
         for key in ["team_key", "state_type", "assigned_to_me", "updated_since_days", "project", "limit"] {
             #expect(listProperties?[key] != nil, "list_linear_issues lacks \(key)")
         }
+        // Every read can address one connected workspace or, omitted, all of them.
+        for name in linear {
+            let properties = byName[name]?.inputSchema["properties"] as? [String: Any]
+            #expect((properties?["workspace"] as? [String: Any])?["type"] as? String == "string", "\(name) lacks workspace")
+            #expect((byName[name]?.inputSchema["required"] as? [String])?.contains("workspace") != true)
+        }
         let stateType = listProperties?["state_type"] as? [String: Any]
         #expect(stateType?["enum"] as? [String] == ["triage", "backlog", "unstarted", "started", "completed", "canceled", "duplicate"])
         // The one fact the model cannot infer from a schema: nothing here writes.
@@ -415,7 +421,7 @@ struct MCPAuthScopeTests {
 
         // The connection state is read off the gateway's status payload, and a
         // payload without the field is unknown rather than a guess.
-        #expect(MCPDataStore.linearConnection(in: ["connected": true]) == .connected(workspace: nil, user: nil))
+        #expect(MCPDataStore.linearConnection(in: ["connected": true]) == .connected(workspaces: []))
         #expect(MCPDataStore.linearConnection(in: ["connected": false, "configured": true]) == .notConnected)
         #expect(MCPDataStore.linearConnection(in: ["error": "x"]) == nil)
         // The workspace and user the gateway reports travel with the state, so
@@ -425,12 +431,24 @@ struct MCPAuthScopeTests {
             "connected": true,
             "organization": ["id": "org_1", "name": "Bench Lab", "url_key": "benchlab"],
             "user": ["name": "Robin Vale"],
-        ]) == .connected(workspace: "Bench Lab", user: "Robin Vale"))
+        ]) == .connected(workspaces: [.init(id: "org_1", name: "Bench Lab", urlKey: "benchlab", user: "Robin Vale")]))
         #expect(MCPDataStore.linearConnection(in: [
             "connected": true,
             "organization": ["id": "org_1", "name": NSNull(), "url_key": "benchlab"],
             "user": ["name": " "],
-        ]) == .connected(workspace: "benchlab", user: nil))
+        ]) == .connected(workspaces: [.init(id: "org_1", name: nil, urlKey: "benchlab", user: nil)]))
+        // Several workspaces arrive as a list, each its own grant, in order.
+        let twoLinear = MCPDataStore.linearConnection(in: [
+            "connected": true,
+            "workspaces": [
+                ["id": "org_1", "name": "Bench Lab", "url_key": "benchlab", "user": ["name": "Robin Vale"]],
+                ["id": "org_2", "name": "Acme Lab", "url_key": "acmelab", "user": ["name": "Zara Holt"]],
+                ["name": "No id"],
+            ],
+        ])
+        #expect(twoLinear?.workspaces.map(\.id) == ["org_1", "org_2"])
+        #expect(twoLinear?.workspaces.map(\.label) == ["Bench Lab", "Acme Lab"])
+        #expect(twoLinear?.workspaces.last?.user == "Zara Holt")
         #expect(MCPDataStore.linearConnection(in: ["connected": true])?.isConnected == true)
         #expect(MCPDataStore.linearConnection(in: ["connected": false])?.isConnected == false)
         #expect(MCPDataStore.linearGatewayBaseURL.absoluteString == "https://plugin.foreverlm.com")
@@ -584,21 +602,36 @@ struct MCPAuthScopeTests {
         for key in ["database", "filter", "sorts", "limit", "cursor"] {
             #expect(queryProperties?[key] != nil, "query_notion_database lacks \(key)")
         }
+        for name in ["search_notion", "get_notion_page", "list_notion_databases", "get_notion_database", "query_notion_database"] {
+            let properties = byName[name]?.inputSchema["properties"] as? [String: Any]
+            #expect((properties?["workspace"] as? [String: Any])?["type"] as? String == "string", "\(name) lacks workspace")
+        }
         #expect((queryProperties?["filter"] as? [String: Any])?["type"] as? String == "object")
         #expect((queryProperties?["sorts"] as? [String: Any])?["type"] as? String == "array")
         #expect(byName["search_notion"]?.description.contains("only way into Notion") == true)
 
         // The connection state is read off the gateway's status payload, and a
         // payload without the field is unknown rather than a guess.
-        #expect(MCPDataStore.notionConnection(in: ["connected": true]) == .connected(workspace: nil, user: nil))
+        #expect(MCPDataStore.notionConnection(in: ["connected": true]) == .connected(workspaces: []))
         #expect(MCPDataStore.notionConnection(in: ["connected": false, "configured": true]) == .notConnected)
         #expect(MCPDataStore.notionConnection(in: ["error": "x"]) == nil)
         #expect(MCPDataStore.notionConnection(in: [
             "connected": true,
             "workspace": ["id": "ws", "name": "Bench Lab", "icon": NSNull()],
             "user": ["id": "u", "name": "Robin Vale"],
-        ]) == .connected(workspace: "Bench Lab", user: "Robin Vale"))
-        #expect(MCPDataStore.notionConnection(in: ["connected": true, "workspace": ["name": ""]]) == .connected(workspace: nil, user: nil))
+        ]) == .connected(workspaces: [.init(id: "ws", name: "Bench Lab", user: "Robin Vale")]))
+        #expect(MCPDataStore.notionConnection(in: ["connected": true, "workspace": ["id": "ws", "name": ""]])
+            == .connected(workspaces: [.init(id: "ws", name: nil, user: nil)]))
+        // Several workspaces arrive as a list, each its own grant, in order.
+        let twoNotion = MCPDataStore.notionConnection(in: [
+            "connected": true,
+            "workspaces": [
+                ["id": "ws_1", "name": "Bench Lab", "user": ["name": "Robin Vale"]],
+                ["id": "ws_2", "name": "Acme Lab"],
+            ],
+        ])
+        #expect(twoNotion?.workspaces.map(\.id) == ["ws_1", "ws_2"])
+        #expect(twoNotion?.workspaces.last?.user == nil)
         #expect(MCPDataStore.notionConnection(in: ["connected": true])?.isConnected == true)
         #expect(MCPDataStore.notionConnection(in: ["connected": false])?.isConnected == false)
         #expect(MCPDataStore.notionGatewayBaseURL.absoluteString == "https://plugin.foreverlm.com")
@@ -795,15 +828,21 @@ struct MCPAuthScopeTests {
     @Test("The plugins list names what each connection reads")
     func pluginScopeCopy() {
         // Nothing to name keeps the plugin's own description (nil here).
-        #expect(PluginScopeCopy.x(username: nil) == nil)
-        #expect(PluginScopeCopy.x(username: " ") == nil)
-        #expect(PluginScopeCopy.x(username: "robin") == "Imports bookmarks and saved posts from @robin.")
+        #expect(PluginScopeCopy.x(accounts: []) == nil)
+        #expect(PluginScopeCopy.x(accounts: [XAccount(id: "1", username: nil)]) == nil)
+        #expect(PluginScopeCopy.x(accounts: [XAccount(id: "1", username: " ")]) == nil)
+        #expect(PluginScopeCopy.x(accounts: [XAccount(id: "1", username: "robin")]) == "Imports bookmarks and saved posts from @robin.")
+        #expect(PluginScopeCopy.x(accounts: [XAccount(id: "1", username: "robin"), XAccount(id: "2", username: nil)])
+            == "Imports bookmarks and saved posts from 2 accounts.")
 
-        #expect(PluginScopeCopy.youtube(source: nil, followedChannels: 0) == nil)
-        #expect(PluginScopeCopy.youtube(source: "Liked videos", followedChannels: 0) == "Imports your Liked videos.")
-        #expect(PluginScopeCopy.youtube(source: nil, followedChannels: 1) == "Follows 1 channel.")
-        #expect(PluginScopeCopy.youtube(source: "ForeverLM playlist", followedChannels: 3)
+        #expect(PluginScopeCopy.youtube(sources: [], followedChannels: 0) == nil)
+        #expect(PluginScopeCopy.youtube(sources: ["Liked videos"], followedChannels: 0) == "Imports your Liked videos.")
+        #expect(PluginScopeCopy.youtube(sources: [], followedChannels: 1) == "Follows 1 channel.")
+        #expect(PluginScopeCopy.youtube(sources: ["ForeverLM playlist"], followedChannels: 3)
             == "Imports your ForeverLM playlist and follows 3 channels.")
+        // Two accounts reading the same source name it once.
+        #expect(PluginScopeCopy.youtube(sources: ["Liked videos", "Liked videos"], followedChannels: 0)
+            == "Imports your Liked videos.")
 
         #expect(PluginScopeCopy.googleDrive(folders: []) == nil)
         #expect(PluginScopeCopy.googleDrive(folders: ["Acme Nexus"]) == "Reads the folder Acme Nexus.")
@@ -859,10 +898,14 @@ struct MCPAuthScopeTests {
         #expect(PluginScopeCopy.slack([.init(name: "Acme Lab", channelCount: 4), .init(name: "Bench Lab", channelCount: nil)])
             == "Reads channels in Acme Lab and Bench Lab.")
 
-        #expect(PluginScopeCopy.linear(workspace: nil, user: nil) == nil)
-        #expect(PluginScopeCopy.linear(workspace: "Bench Lab", user: "Robin Vale") == "Reads the Bench Lab workspace as Robin Vale. Read-only.")
-        #expect(PluginScopeCopy.linear(workspace: "Bench Lab", user: nil) == "Reads the Bench Lab workspace. Read-only.")
-        #expect(PluginScopeCopy.linear(workspace: nil, user: "Robin Vale") == "Reads Linear as Robin Vale. Read-only.")
+        #expect(PluginScopeCopy.linear([]) == nil)
+        #expect(PluginScopeCopy.linear([.init(id: "1", name: "Bench Lab", urlKey: nil, user: "Robin Vale")]) == "Reads the Bench Lab workspace as Robin Vale. Read-only.")
+        #expect(PluginScopeCopy.linear([.init(id: "1", name: "Bench Lab", urlKey: nil, user: nil)]) == "Reads the Bench Lab workspace. Read-only.")
+        #expect(PluginScopeCopy.linear([.init(id: "1", name: nil, urlKey: nil, user: "Robin Vale")]) == "Reads Linear as Robin Vale. Read-only.")
+        #expect(PluginScopeCopy.linear([
+            .init(id: "1", name: "Bench Lab", urlKey: nil, user: "Robin Vale"),
+            .init(id: "2", name: nil, urlKey: "acmelab", user: nil),
+        ]) == "Reads the Bench Lab and acmelab workspaces. Read-only.")
 
         #expect(PluginScopeCopy.github(login: nil, installations: []) == nil)
         #expect(PluginScopeCopy.github(login: "robinvale", installations: ["ForeverLM-HQ", "robinvale"])
@@ -870,10 +913,14 @@ struct MCPAuthScopeTests {
         #expect(PluginScopeCopy.github(login: "robinvale", installations: []) == "Reads GitHub as @robinvale. Read-only.")
         #expect(PluginScopeCopy.github(login: nil, installations: ["ForeverLM-HQ"]) == "Reads ForeverLM-HQ. Read-only.")
 
-        #expect(PluginScopeCopy.notion(workspace: nil, user: nil) == nil)
-        #expect(PluginScopeCopy.notion(workspace: "Bench Lab", user: "Robin Vale") == "Reads the Bench Lab workspace as Robin Vale. Read-only.")
-        #expect(PluginScopeCopy.notion(workspace: "Bench Lab", user: " ") == "Reads the Bench Lab workspace. Read-only.")
-        #expect(PluginScopeCopy.notion(workspace: nil, user: "Robin Vale") == "Reads Notion as Robin Vale. Read-only.")
+        #expect(PluginScopeCopy.notion([]) == nil)
+        #expect(PluginScopeCopy.notion([.init(id: "1", name: "Bench Lab", user: "Robin Vale")]) == "Reads the Bench Lab workspace as Robin Vale. Read-only.")
+        #expect(PluginScopeCopy.notion([.init(id: "1", name: "Bench Lab", user: nil)]) == "Reads the Bench Lab workspace. Read-only.")
+        #expect(PluginScopeCopy.notion([.init(id: "1", name: nil, user: "Robin Vale")]) == "Reads Notion as Robin Vale. Read-only.")
+        #expect(PluginScopeCopy.notion([
+            .init(id: "1", name: "Bench Lab", user: nil),
+            .init(id: "2", name: "Acme Lab", user: nil),
+        ]) == "Reads the Bench Lab and Acme Lab workspaces. Read-only.")
     }
 
     @Test("Slack links resolve to library sources by DOI first, canonical URL second")

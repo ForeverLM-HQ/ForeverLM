@@ -3366,14 +3366,6 @@ extension StudioViewModel {
            let order = MeetingListOrder(rawValue: raw), order != meetingListOrder {
             meetingListOrder = order
         }
-        let likedPolicyRaw = defaults.string(forKey: "youtube.likedImportPolicy") ?? ""
-        if likedPolicyRaw != youtubeLikedImportPolicyRaw {
-            youtubeLikedImportPolicyRaw = likedPolicyRaw
-        }
-        let likedCutoff = defaults.double(forKey: "youtube.likedImportCutoff")
-        if likedCutoff != youtubeLikedImportCutoffTimestamp {
-            youtubeLikedImportCutoffTimestamp = likedCutoff
-        }
         let youtubeFallbackShows = Set(
             defaults.stringArray(forKey: Self.podcastYouTubeFallbackShowsKey) ?? []
         )

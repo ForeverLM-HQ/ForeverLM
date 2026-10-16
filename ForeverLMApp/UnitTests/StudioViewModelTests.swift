@@ -1133,7 +1133,7 @@ struct CoursePlaylistImportTests {
         #expect(vm.filteredVideoPlaylistGroupNames == ["playlist"])
     }
 
-    @Test("ForeverLM plugin videos render inline and identify the selected source")
+    @Test("ForeverLM plugin videos render inline")
     @MainActor
     func foreverLMPluginVideosRenderInline() {
         let vm = makeViewModel()
@@ -1150,7 +1150,6 @@ struct CoursePlaylistImportTests {
             )
         ]
 
-        #expect(vm.youtubeImportSource == .foreverLMPlaylist)
         #expect(vm.inlineVideoPlaylistGroupNames == ["feynman"])
         #expect(vm.filteredVideoPlaylistGroupNames == ["playlist"])
     }

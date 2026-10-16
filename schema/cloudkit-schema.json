@@ -1178,8 +1178,6 @@
       "studio.navigation.chatsExpanded.v1": {"type": "bool", "mcp": {"tool": "set_app_setting", "setting": "window.rail_chats_expanded"}, "doc": "Whether the rail's Chats fold is open."},
       "studio.navigation.hiddenChatsExpanded.v1": {"type": "bool", "mcp": {"tool": "set_app_setting", "setting": "window.rail_hidden_chats_expanded"}, "doc": "Whether the rail's Hidden chats fold is open."},
       "youtube.autoImportEnabled": {"type": "bool", "mcp": {"tool": "set_connector_auto_import", "argument": "enabled"}, "doc": "Whether the YouTube plugin imports on its own."},
-      "youtube.likedImportPolicy": {"type": "string", "mcp": {"tool": "follow_youtube_liked_videos", "argument": "import_existing", "derived": true}, "doc": "Which liked videos the plugin imports."},
-      "youtube.likedImportCutoff": {"type": "double", "mcp": {"tool": "follow_youtube_liked_videos", "argument": "import_existing", "derived": true}, "doc": "Liked videos from before this moment (epoch seconds) are not imported; absent means none."},
       "youtube.likedTranscriptFormattingEnabled": {"type": "bool", "mcp": {"tool": "set_app_setting", "setting": "youtube.format_new_transcripts"}, "doc": "Rewrite a liked video's captions into readable paragraphs as it arrives."},
       "gettingStarted.completed": {"type": "bool", "mcp": {"tool": "set_app_setting", "setting": "getting_started.completed"}, "doc": "Getting Started is done."},
       "gettingStarted.dismissed": {"type": "bool", "mcp": {"tool": "set_app_setting", "setting": "getting_started.dismissed"}, "doc": "Getting Started was put away."},

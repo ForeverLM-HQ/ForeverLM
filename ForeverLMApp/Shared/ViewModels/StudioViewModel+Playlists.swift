@@ -402,7 +402,12 @@ extension StudioViewModel {
             return
         }
         if metadata.connectorKind == YouTubeImportSource.foreverLMPlaylist.connectorKind {
-            _ = await followYouTubeForeverLMPlaylist(silent: false, enablesAutoImport: false)
+            // The group belongs to the account whose playlist it mirrors.
+            if let account = youtubeAccounts.first(where: {
+                $0.choices.foreverLMPlaylistID.map(YouTubeService.playlistURL(forID:)) == metadata.playlistURL
+            }) {
+                _ = await followYouTubeForeverLMPlaylist(accountID: account.id, silent: false, enablesAutoImport: false)
+            }
             return
         }
         await refreshYouTubeVideoPlaylist(url: metadata.playlistURL, groupID: groupName)

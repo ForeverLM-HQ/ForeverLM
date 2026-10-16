@@ -20,7 +20,9 @@ enum KeychainService {
     private static let retiredService = "com.feynmanlm"
     private static let zoomRecordingPasscodeAccountPrefix = "zoom_recording_passcode:"
     private static let googleDriveAccountCredentialPrefix = "google_drive_account:"
+    private static let xAccountCredentialPrefix = "x_account:"
     private static let googleCalendarAccountCredentialPrefix = "google_calendar_account:"
+    private static let youtubeAccountCredentialPrefix = "youtube_account:"
     #if os(macOS)
     private static let vaultAccount = ForeverLMRuntimeIdentity.keychainVaultAccount
     private static let retiredVaultAccount = "__feynmanlm_keychain_vault_v1"
@@ -158,6 +160,14 @@ enum KeychainService {
         case stripeAPIKey = "stripe_api_key"
         case stripeMonthlyLink = "stripe_monthly_link"
         case stripeYearlyLink = "stripe_yearly_link"
+        /// The connected X accounts, as JSON (`XAccountBook`). Each account's
+        /// tokens live in an account-scoped item (`x_account:<id>`). Not synced:
+        /// X refresh tokens are single-use, so two Macs sharing one grant would
+        /// retire each other's.
+        case xAccounts = "x_accounts_v1"
+        /// The next seven are the single connection older builds stored. Only
+        /// `XBookmarkService.adoptLegacyConnectionIfNeeded` reads them, and it
+        /// deletes them once the connection is the first account.
         case xClientId = "x_client_id"
         case xAccessToken = "x_access_token"
         case xRefreshToken = "x_refresh_token"
@@ -183,15 +193,20 @@ enum KeychainService {
         /// Account used for account-agnostic Drive actions such as creating a
         /// Google Doc. Folder and recording reads always use their tagged owner.
         case googleDriveDefaultAccountID = "google_drive_default_account_id_v2"
+        /// The single YouTube connection builds before multi-account kept
+        /// here. Only `YouTubeService.adoptSingleConnection` reads these: it
+        /// turns them into the first account and deletes them.
         case youtubeAccessToken = "youtube_access_token"
         case youtubeRefreshToken = "youtube_refresh_token"
         case youtubeTokenExpiry = "youtube_token_expiry"
         case youtubeAutoImportEnabled = "youtube_auto_import_enabled"
-        /// The OAuth client that issued the stored YouTube tokens. Google only
-        /// refreshes a token for the client it was issued to, so the plugin
-        /// records the client rather than assuming the current default.
+        /// The OAuth client that issued the single connection's tokens
+        /// (adoption-only, like the three above).
         case youtubeClientID = "youtube_client_id"
         case youtubeClientSecret = "youtube_client_secret"
+        /// JSON array of the YouTube accounts the plugin holds; each account's
+        /// grant lives in account-scoped items (`youtube_account:<id>:<field>`).
+        case youtubeAccounts = "youtube_accounts_v1"
         /// The OAuth client that issued the stored Drive tokens. Drive now signs
         /// in against a ForeverLM-owned client; Google only
         /// refreshes a token for its issuing client, so it is recorded here
@@ -292,6 +307,7 @@ enum KeychainService {
         .youtubeAutoImportEnabled,
         .youtubeClientID,
         .youtubeClientSecret,
+        .youtubeAccounts,
         .driveClientID,
         .driveClientSecret,
         .googleCalendarAccessToken,
@@ -1332,6 +1348,52 @@ enum KeychainService {
         return "\(googleDriveAccountCredentialPrefix)\(trimmed):\(field.rawValue)"
     }
 
+    /// One YouTube account's grant, stored as account-scoped synchronized
+    /// items so each Google account keeps its own tokens and issuing client.
+    enum YouTubeCredentialField: String, CaseIterable {
+        case accessToken = "access_token"
+        case refreshToken = "refresh_token"
+        case tokenExpiry = "token_expiry"
+        case clientID = "client_id"
+        case clientSecret = "client_secret"
+    }
+
+    @discardableResult
+    static func saveYouTubeCredential(
+        _ value: String,
+        field: YouTubeCredentialField,
+        accountID: String
+    ) -> Bool {
+        guard let account = youtubeCredentialAccount(field: field, accountID: accountID) else { return false }
+        return saveSynchronizedAccountValue(value, account: account)
+    }
+
+    static func youtubeCredential(field: YouTubeCredentialField, accountID: String) -> String? {
+        guard let account = youtubeCredentialAccount(field: field, accountID: accountID) else { return nil }
+        return loadSynchronizedAccountValue(account: account)
+    }
+
+    @discardableResult
+    static func deleteYouTubeCredential(field: YouTubeCredentialField, accountID: String) -> Bool {
+        guard let account = youtubeCredentialAccount(field: field, accountID: accountID) else { return false }
+        return deleteSynchronizedValue(forAccount: account)
+    }
+
+    @discardableResult
+    static func deleteYouTubeCredentials(accountID: String) -> Bool {
+        var succeeded = true
+        for field in YouTubeCredentialField.allCases where !deleteYouTubeCredential(field: field, accountID: accountID) {
+            succeeded = false
+        }
+        return succeeded
+    }
+
+    private static func youtubeCredentialAccount(field: YouTubeCredentialField, accountID: String) -> String? {
+        let trimmed = accountID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return "\(youtubeAccountCredentialPrefix)\(trimmed):\(field.rawValue)"
+    }
+
     // MARK: The retired Google Calendar plugin
 
     /// The Google Calendar plugin went with the Planner on 2026-09-30: the
@@ -1588,67 +1650,93 @@ enum KeychainService {
         return data.map { String(format: "%02x", $0) }.joined()
     }
 
-    // MARK: - X (Twitter) OAuth
+    // MARK: - X (Twitter) accounts
 
-    static var xClientId: String? {
-        get { load(.xClientId) }
+    /// JSON list of the connected accounts (`XAccountBook`).
+    static var xAccounts: String? {
+        get { load(.xAccounts) }
         set {
-            if let newValue { save(newValue, for: .xClientId) }
-            else { delete(.xClientId) }
+            if let newValue { save(newValue, for: .xAccounts) }
+            else { delete(.xAccounts) }
         }
     }
 
-    static var xAccessToken: String? {
-        get { load(.xAccessToken) }
-        set {
-            if let newValue { save(newValue, for: .xAccessToken) }
-            else { delete(.xAccessToken) }
-        }
+    /// One account's credentials JSON (`XAccountCredentials`), in an item of
+    /// its own so accounts never share a write. Local to this Mac, like every
+    /// X credential.
+    @discardableResult
+    static func saveXAccountCredentials(_ value: String, accountID: String) -> Bool {
+        guard !value.isEmpty, let account = xAccountCredentialsAccount(accountID) else { return false }
+        _ = deleteXAccountCredentialsItem(account)
+        var addQuery = baseQuery(forAccount: account)
+        addQuery[kSecValueData as String] = Data(value.utf8)
+        addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+        return SecItemAdd(addQuery as CFDictionary, nil) == errSecSuccess
     }
 
-    static var xRefreshToken: String? {
-        get { load(.xRefreshToken) }
-        set {
-            if let newValue { save(newValue, for: .xRefreshToken) }
-            else { delete(.xRefreshToken) }
+    static func xAccountCredentials(accountID: String) -> String? {
+        guard let account = xAccountCredentialsAccount(accountID) else { return nil }
+        var queries = [baseQuery(forAccount: account)]
+        #if os(macOS)
+        queries.append(ungroupedDataProtectionBaseQuery(forAccount: account))
+        #endif
+        for var query in queries {
+            query[kSecReturnData as String] = true
+            query[kSecMatchLimit as String] = kSecMatchLimitOne
+            var result: AnyObject?
+            if SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+               let data = result as? Data,
+               let value = String(data: data, encoding: .utf8), !value.isEmpty {
+                return value
+            }
         }
+        return nil
     }
 
-    static var xUserId: String? {
-        get { load(.xUserId) }
-        set {
-            if let newValue { save(newValue, for: .xUserId) }
-            else { delete(.xUserId) }
-        }
+    @discardableResult
+    static func deleteXAccountCredentials(accountID: String) -> Bool {
+        guard let account = xAccountCredentialsAccount(accountID) else { return false }
+        return deleteXAccountCredentialsItem(account)
     }
 
-    /// The @handle of the X account the tokens belong to, read from
-    /// `users/me` beside the user id, so the plugins list can say whose
-    /// bookmarks it imports without an API call.
-    static var xUsername: String? {
-        get { load(.xUsername) }
-        set {
-            if let newValue { save(newValue, for: .xUsername) }
-            else { delete(.xUsername) }
-        }
+    private static func xAccountCredentialsAccount(_ accountID: String) -> String? {
+        let trimmed = accountID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return "\(xAccountCredentialPrefix)\(trimmed)"
     }
 
-    static var xTokenExpiry: String? {
-        get { load(.xTokenExpiry) }
-        set {
-            if let newValue { save(newValue, for: .xTokenExpiry) }
-            else { delete(.xTokenExpiry) }
+    private static func deleteXAccountCredentialsItem(_ account: String) -> Bool {
+        var succeeded = true
+        var queries = [baseQuery(forAccount: account)]
+        #if os(macOS)
+        queries.append(ungroupedDataProtectionBaseQuery(forAccount: account))
+        #endif
+        for query in queries {
+            let status = SecItemDelete(query as CFDictionary)
+            if status != errSecSuccess, status != errSecItemNotFound { succeeded = false }
         }
+        return succeeded
     }
 
-    /// Space-separated OAuth scopes the current X tokens were granted.
-    /// Lets the app tell a read-only session (pre-posting sign-in) from one
-    /// that can also write posts, without a trial API call.
-    static var xGrantedScopes: String? {
-        get { load(.xGrantedScopes) }
-        set {
-            if let newValue { save(newValue, for: .xGrantedScopes) }
-            else { delete(.xGrantedScopes) }
+    /// The single X connection older builds stored, for adoption as the first
+    /// account (`XBookmarkService.adoptLegacyConnectionIfNeeded`).
+    static func legacyXConnection() -> XLegacyConnection {
+        XLegacyConnection(
+            userID: load(.xUserId),
+            username: load(.xUsername),
+            accessToken: load(.xAccessToken),
+            refreshToken: load(.xRefreshToken),
+            tokenExpiry: load(.xTokenExpiry),
+            grantedScopes: load(.xGrantedScopes),
+            clientID: load(.xClientId)
+        )
+    }
+
+    static func deleteLegacyXConnection() {
+        for key: Key in [
+            .xClientId, .xAccessToken, .xRefreshToken, .xUserId, .xUsername, .xTokenExpiry, .xGrantedScopes,
+        ] {
+            delete(key)
         }
     }
 
@@ -1729,9 +1817,19 @@ enum KeychainService {
     // MARK: - YouTube OAuth
     //
     // The YouTube plugin authenticates against ForeverLM's own OAuth client
-    // (Secrets.youtubeOAuthClientID). `youtubeClientID` / `youtubeClientSecret`
-    // record whichever client actually issued the stored tokens, so connections
-    // made under the older shared-with-Drive client keep refreshing.
+    // (Secrets.youtubeOAuthClientID). Each account records whichever client
+    // issued its tokens (`YouTubeCredentialField.clientID`), so connections
+    // made under the older shared-with-Drive client keep refreshing. The five
+    // singleton values below are the pre-multi-account connection; only
+    // `YouTubeService.adoptSingleConnection` reads them.
+
+    static var youtubeAccounts: String? {
+        get { load(.youtubeAccounts) }
+        set {
+            if let newValue { save(newValue, for: .youtubeAccounts) }
+            else { delete(.youtubeAccounts) }
+        }
+    }
 
     static var youtubeAccessToken: String? {
         get { load(.youtubeAccessToken) }

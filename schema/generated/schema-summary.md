@@ -1027,8 +1027,6 @@ The Setting record keys (§3.5.3): one record per key, account scope in Library 
 | `studio.navigation.chatsExpanded.v1` | bool | account | `set_app_setting` window.rail_chats_expanded | Whether the rail's Chats fold is open. |
 | `studio.navigation.hiddenChatsExpanded.v1` | bool | account | `set_app_setting` window.rail_hidden_chats_expanded | Whether the rail's Hidden chats fold is open. |
 | `youtube.autoImportEnabled` | bool | account | `set_connector_auto_import` enabled | Whether the YouTube plugin imports on its own. |
-| `youtube.likedImportPolicy` | string | account | `follow_youtube_liked_videos` import_existing (derived) | Which liked videos the plugin imports. |
-| `youtube.likedImportCutoff` | double | account | `follow_youtube_liked_videos` import_existing (derived) | Liked videos from before this moment (epoch seconds) are not imported; absent means none. |
 | `youtube.likedTranscriptFormattingEnabled` | bool | account | `set_app_setting` youtube.format_new_transcripts | Rewrite a liked video's captions into readable paragraphs as it arrives. |
 | `gettingStarted.completed` | bool | account | `set_app_setting` getting_started.completed | Getting Started is done. |
 | `gettingStarted.dismissed` | bool | account | `set_app_setting` getting_started.dismissed | Getting Started was put away. |

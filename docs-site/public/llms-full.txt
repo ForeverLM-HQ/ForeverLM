@@ -2819,7 +2819,7 @@ In the [in-app Chat](/in-app-chat#citing-a-moment), a citation into an episode c
 
 # X Posts
 
-ForeverLM lets you sign in with your X (formerly Twitter) account and sync your saved bookmarks as sources.
+ForeverLM lets you sign in with one or more X (formerly Twitter) accounts and sync their saved bookmarks as sources.
 
 ::: tip
 X setup also appears in the [Plugins](/external-plugins#x-bookmarks) guide.
@@ -2835,9 +2835,19 @@ You do not need an X Developer account, API subscription, or client ID.
 
 ForeverLM uses its production X app and OAuth 2.0 PKCE. Your authorization is limited to your own X account and can be revoked from either ForeverLM or X.
 
+## More Than One Account
+
+**Plugins -> X** shows each connected account on its own card, with when it last synced. Click **Add Another Account** to connect a further one: X signs you in as whichever account your browser is signed in to there, so sign in to the other account on x.com first. Signing in again as an account that is already connected refreshes it instead of adding a second card.
+
+**Sync** and **Disconnect** on a card act on that account only, and an account that needs signing in again says **Reconnect needed** while the others keep syncing. Disconnecting an account stops its bookmark sync; the posts it already brought in stay.
+
 ## Syncing Bookmarks
 
-Tap **Sync Bookmarks** in the X sidebar tab. New bookmarks are fetched and added to your source queue. Each post appears with the full tweet text, author, and any included URLs.
+Tap **Sync Bookmarks** in the X sidebar tab to sync every account, or **Sync** on one account's card. New bookmarks are fetched and added to your source queue. Each post appears with the full tweet text, author, and any included URLs.
+
+## Posting
+
+Your AI assistant can post to X through the [MCP connection](/mcp-tools) when you ask it to. With one account connected it posts as that account; with several, it has to say which one.
 
 ## Tips
 
@@ -2901,13 +2911,13 @@ Use the X plugin to sync saved X bookmarks into Studio as sources.
 2. Click **Connect**.
 3. Sign in to X and approve ForeverLM's access.
 
-After connecting, use **Sync** on the X plugin page or **Sync Bookmarks** in the Studio X tab.
+After connecting, use **Sync** on the X plugin page or **Sync Bookmarks** in the Studio X tab. You can connect more than one X account: each has its own card on the plugin page, with its own **Sync** and **Disconnect** (see [X Posts](/x-posts#more-than-one-account)).
 
 There is no developer setup: ForeverLM supplies the production OAuth client and X API access. Each person authorizes only their own X account.
 
 ## YouTube
 
-Use the YouTube plugin to import either **Liked videos** or videos from a playlist in your account named **ForeverLM**, and to follow any number of **channels**. The two import modes are mutually exclusive and can be changed later; followed channels sit alongside whichever one you pick.
+Use the YouTube plugin to import either **Liked videos** or videos from a playlist in your account named **ForeverLM**, and to follow any number of **channels**. Connect as many Google accounts as you like: each account has its own import source, which is one of the two and can be changed later. Followed channels belong to you, not to an account, and sit alongside whatever the accounts import.
 
 The plugin imports **metadata only** — a video's transcript (and slides) are fetched on demand the first time you open or review it, not when it's imported.
 
@@ -2917,6 +2927,7 @@ Connecting YouTube is read-only. ForeverLM reads only the source you select.
 
 1. In ForeverLM, open **Plugins** on the icon strip.
 2. Select **YouTube** and click **Connect**. Google asks you to grant read-only access to your YouTube account.
+3. To add another account, click **Add Another Account** below the account cards and sign in with the other Google account. Each account is its own card, labelled with its channel name, with its own **Disconnect**.
 
 There is no Google Cloud setup: YouTube signs in against ForeverLM's own OAuth client.
 
@@ -2928,12 +2939,12 @@ https://www.googleapis.com/auth/youtube.readonly
 
 ### Choose What to Import
 
-After connecting, choose one source:
+After connecting an account, choose its source (each account chooses for itself):
 
 - **Liked videos** — choose whether to import existing and future likes or only future likes. Raw transcripts are imported automatically. AI formatting is a separate opt-in because formatting a large history can use substantial credits.
 - **ForeverLM playlist** — create a playlist in YouTube named exactly `ForeverLM`; all of its current videos import, and later changes stay in sync. The playlist may be public, unlisted, or private.
 
-If more than one playlist is named ForeverLM, rename the extras before selecting it. Switching sources keeps videos already imported and changes what ForeverLM follows from then on.
+If more than one playlist in an account is named ForeverLM, rename the extras before selecting it. Switching an account's source keeps videos already imported and changes what ForeverLM follows from then on. When several accounts import Liked videos, they share one **Liked videos** list, and an unliked video is only archived while a single account is connected, because the list does not record which account liked a video. If Google revokes an account's access, its card says **Reconnect**; reconnecting the same channel brings back what it imported. Disconnecting an account forgets its choices.
 
 ### Follow Channels
 
@@ -2943,7 +2954,7 @@ The back catalog beyond those 50 stays on YouTube; to bring an older run of vide
 
 ### Automatic Import
 
-Turn on **Automatically import new videos** to keep the selected source and every followed channel fresh. ForeverLM also refreshes them when you refresh the Videos tab.
+Turn on **Automatically import new videos** to keep every account's selected source and every followed channel fresh. One account failing does not stop the others. Followed channels are read with the first connected account's access. ForeverLM also refreshes them when you refresh the Videos tab.
 
 ::: tip Watch Later is not available
 Google's YouTube Data API does not expose the Watch Later playlist, so it can't be followed. Liked videos and ordinary playlists are supported.
@@ -2957,7 +2968,7 @@ You can connect more than one workspace. The Slack page lists every workspace on
 
 ## Linear
 
-Linear is connected the same way, on the web: the **Linear** row in **Plugins** links to the Linear page of your ForeverLM account, where you authorize one workspace. The connection is read-only by construction. ForeverLM asks Linear for the single `read` permission, reads issues, comments, teams and projects as you when a chat asks, and never creates, edits, comments on or assigns anything; there is no code path that writes to Linear. The row shows **Connected** or **Not connected** because the Mac asks the ForeverLM gateway that holds the grant, and the Linear pane says the same in a sentence with a button that reads **Connect Linear…** or **Manage Linear…**. Nothing read from Linear is kept between reads. The connection lives on your ForeverLM account, not on the Mac, and follows it if Apple re-issues your Sign in with Apple identity, as the Slack connection does. Linear's access tokens expire after a day; the gateway renews them on its own, and a grant Linear no longer honours is reported as a reconnect at the same page. **Disconnect Linear** on that page revokes the grant at Linear and forgets it. The tools an assistant gets from it are listed in the [MCP Tools Reference](/mcp-tools#linear).
+Linear is connected in the **Linear** row of **Plugins**, and you can connect more than one workspace. The page lists each connected workspace as its own card, with the Linear user the reads are made as and its own **Disconnect**; **Add Another Workspace** opens Linear's consent screen in a sheet, which asks which workspace to add, and **Connect Linear** does the same when none is connected. The Linear page of your ForeverLM account at app.foreverlm.com does the same in a browser. The connection is read-only by construction. ForeverLM asks Linear for the single `read` permission, reads issues, comments, teams and projects as you when a chat asks, and never creates, edits, comments on or assigns anything; there is no code path that writes to Linear. The row shows **Connected** (or **2 connected**, and so on) or **Not connected** because the Mac asks the ForeverLM gateway that holds the grants. A chat reads every connected workspace at once and says which one each result came from; an assistant can also name one workspace. Nothing read from Linear is kept between reads. The connections live on your ForeverLM account, not on the Mac, and follow it if Apple re-issues your Sign in with Apple identity, as the Slack connection does. Linear's access tokens expire after a day; the gateway renews them on its own, and a grant Linear no longer honours is reported as a reconnect for that workspace. **Disconnect** on a workspace's card revokes that grant at Linear and forgets it, and leaves the others as they are. The tools an assistant gets from it are listed in the [MCP Tools Reference](/mcp-tools#linear).
 
 ## GitHub
 
@@ -2965,7 +2976,7 @@ GitHub is connected on the web too: the **GitHub** row in **Plugins** links to t
 
 ## Notion
 
-Notion is connected on the web as well: the **Notion** row in **Plugins** links to the Notion page of your ForeverLM account, where you authorize the ForeverLM connection in one workspace and tick the pages and databases it may read. What ForeverLM can read is exactly what you shared: to add a page later, open it in Notion and choose **Connections** in its **•••** menu. The connection is read-only by construction. Its capabilities are read content and read user information without email, and there is no code path that creates, edits, moves or comments on anything in Notion; a chat that wants to act points you at the page. The row shows **Connected** or **Not connected** because the Mac asks the ForeverLM gateway that holds the grant, and the Notion pane says the same in a sentence with a button that reads **Connect Notion…** or **Manage Notion…**. Nothing read from Notion is kept between reads. The connection lives on your ForeverLM account, not on the Mac, and follows it if Apple re-issues your Sign in with Apple identity, as the Slack, Linear and GitHub connections do. A grant Notion stops honouring is renewed by the gateway on its own, and one it will not renew is reported as a reconnect at the same page. **Disconnect Notion** on that page revokes the grant at Notion and forgets it. The tools an assistant gets from it are listed in the [MCP Tools Reference](/mcp-tools#notion).
+Notion is connected in the **Notion** row of **Plugins**, and you can connect more than one workspace. The page lists each connected workspace as its own card with its own **Disconnect**; **Add Another Workspace** opens Notion's consent screen in a sheet, where you choose the workspace and tick the pages and databases ForeverLM may read, and **Connect Notion** does the same when none is connected. What ForeverLM can read is exactly what you shared: to add a page later, open it in Notion and choose **Connections** in its **•••** menu. The connection is read-only by construction. Its capabilities are read content and read user information without email, and there is no code path that creates, edits, moves or comments on anything in Notion; a chat that wants to act points you at the page. The row shows **Connected** (or **2 connected**, and so on) or **Not connected** because the Mac asks the ForeverLM gateway that holds the grants. A chat reads every connected workspace at once and says which one each result came from; an assistant can also name one workspace. Nothing read from Notion is kept between reads. The connections live on your ForeverLM account, not on the Mac, and follow it if Apple re-issues your Sign in with Apple identity, as the Slack, Linear and GitHub connections do. A grant Notion stops honouring is renewed by the gateway on its own, and one it will not renew is reported as a reconnect for that workspace. **Disconnect** on a workspace's card revokes that grant at Notion and forgets it, and leaves the others as they are. The tools an assistant gets from it are listed in the [MCP Tools Reference](/mcp-tools#notion).
 
 ---
 
@@ -3510,8 +3521,8 @@ three from report to approved change. These need an active Mac:
 | `run_settings_action` | `action`, `approved_spend_usd?` | One of the buttons that act once, whether or not a pane still shows it: `sync_icloud_now`, `prepare_memory_review_now`, `draw_missing_meeting_icons`, `sync_x_bookmarks`, `clear_usage_ledger_warning`, and the iCloud pane's `confirm_this_mac_holds_my_library`, `upload_library_to_icloud_again`, `apply_old_library_removals` and `keep_old_library_removals`, and `replace_icloud_library`, which only an assistant presses when you ask: it deletes iCloud's copy of your library and uploads this Mac's from the start. |
 | `open_settings` | `pane?` | Open the Settings window on the Mac at one pane, for a sign-in, a payment or the sharing sheet. `plugins` and a plugin's id (`x`, `youtube`, `google_drive`, `apple_calendar`, `slack`, `linear`, `github`, `notion`, `build_your_own_plugin`) open the Plugins place on the icon strip instead, at that plugin's page, where its consent page is opened. |
 | `open_in_app` | `kind`, `id?` | Show a notebook, doc, chat, source, quiz or idea in the Mac's window as a click would, `space` (the Space's All list), or `plugins` (the Plugins place, at a plugin's page when `id` names one). Listing or loading a notebook changes nothing on screen; this does. |
-| `get_plugin_connections` | `include_slack_channels?` | Plugins: which of X, YouTube, Google Drive, Calendar (the Mac's), Slack, GitHub, Linear, Notion and the learner's own plugins are connected, their accounts, Slack channels, followed and hidden YouTube channels, and what connecting each takes. |
-| `disconnect_plugin` | `plugin`, `account_id?` | The pane's Disconnect, Turn Off or Remove Access for `x`, `youtube`, `google_drive`, `apple_calendar`, `slack`, `github` or `user_plugin`. `apple_calendar` turns the Mac's Calendar off for ForeverLM; every event stays in the calendar. Ask first. |
+| `get_plugin_connections` | `include_slack_channels?` | Plugins: which of X, YouTube, Google Drive, Calendar (the Mac's), Slack, GitHub, Linear, Notion and the learner's own plugins are connected, their accounts (every X, YouTube and Google account listed on its own, a YouTube account with its import source), Slack channels, followed and hidden YouTube channels, and what connecting each takes. |
+| `disconnect_plugin` | `plugin`, `account_id?` | The pane's Disconnect, Turn Off or Remove Access for `x`, `youtube`, `google_drive`, `apple_calendar`, `slack`, `github`, `linear`, `notion` or `user_plugin`. `x` takes the account as `account_id` (its user id or @username) when more than one is connected, and disconnects that account only: its bookmark sync stops and the posts already imported stay. `youtube` takes the account as `account_id` (its channel id, or its channel title) when more than one is connected, and disconnects that account only: it stops importing, while followed channels and the videos already imported stay. `linear` and `notion` take the workspace as `account_id` (its id, or its name) when more than one is connected, and revoke that workspace only. `apple_calendar` turns the Mac's Calendar off for ForeverLM; every event stays in the calendar. Ask first. |
 | `set_slack_channel_enabled` | `channel_id`, `enabled`, `team_id?` | A Slack channel's switch in Plugins › Slack. |
 | `get_calendar_settings` | — | Plugins › Calendar: whether the Mac's Calendar is on for ForeverLM and macOS granted access, every calendar the Mac holds (iCloud, Google, Exchange, subscriptions) with whether it takes new events (`writable`) and whether it is part of the day (`on_day`), and `new_events_calendar`, where new events go. |
 | `set_calendar_settings` | `apple_calendar_enabled?`, `apple_calendar_ids?`, `new_events_calendar_id?` | Turn the Mac's Calendar on (may show the macOS permission prompt) or off, set the whole list of calendars that make up the day, or choose the calendar new events go to (`""` for the Calendar app's default). |
@@ -4030,9 +4041,9 @@ chapter source IDs under the matched title.
 | `import_gemini_notebook` | `url`, `notebook_id?` | Import a Gemini Notebook (NotebookLM until July 2026) from its `notebook.google.com` address, as pasting the link does: each source through its ordinary route, each chat as a chat under the notebook, each note and report as a Page. Audio and video overviews, flashcards, quizzes, mind maps and apps stay in Gemini (`left_in_notebook`). Importing again adds only what is new. Needs the learner signed in to Google in ForeverLM's own browser. |
 | `import_video_overview` | `file_path`, `notebook_id?` | Bring a video overview (a Gemini Notebook MP4, or any MP4, M4V or MOV on the Mac) into a notebook as a video source its Studio lists as a Video overview. The file must be in the ForeverLM library or the Desktop, Documents or Downloads folder. Nothing is spent, and the video has no transcript. |
 | `fetch_video_transcript` | `source_id`, `passcode?`, `approved_spend_usd?` | Fetch and store the transcript of a YouTube video, a one-off Zoom cloud recording link, or a Teachable lecture. A passcode-protected Zoom recording asks for its `passcode`, which is then kept in the Keychain; a Teachable lecture is transcribed from its audio in the background and needs the learner signed in to the school inside ForeverLM. |
-| `follow_youtube_foreverlm_playlist` | — | Follow the learner's YouTube playlist named "ForeverLM" and import its videos (their details; transcripts come when needed). Needs YouTube connected in Plugins › YouTube. |
-| `follow_youtube_liked_videos` | `import_existing?`, `format_transcripts_automatically?` | Follow the learner's Liked videos and keep them fresh in the background, with or without the likes already there. AI formatting of the transcripts is off unless asked for, because a large history can run up a bill on the learner's OpenRouter key. |
-| `refresh_youtube_sources` | — | Check the followed YouTube playlist or likes now and import new videos (their details only). |
+| `follow_youtube_foreverlm_playlist` | `account?` | Make one connected YouTube account's playlist named "ForeverLM" its import source and import its videos (their details; transcripts come when needed). `account` is its channel title or id; optional when only one account is connected, and an error lists them when several are. Needs YouTube connected in Plugins › YouTube. |
+| `follow_youtube_liked_videos` | `account?`, `import_existing?`, `format_transcripts_automatically?` | Make one connected YouTube account's Liked videos its import source and keep them fresh in the background, with or without the likes already there. `account` is as for `follow_youtube_foreverlm_playlist`. AI formatting of the transcripts is off unless asked for, because a large history can run up a bill on the learner's OpenRouter key. |
+| `refresh_youtube_sources` | `account?` | Check every connected YouTube account's playlist or likes now, or one account's when `account` is given, and import new videos (their details only). |
 | `set_connector_auto_import` | `connector`, `enabled` | Turn the YouTube plugin's automatic import on or off. |
 
 ## Managing sources
@@ -4172,16 +4183,23 @@ is fetched when a chat asks, returned, and forgotten.
 
 These tools are answered by the gateway rather than by a Mac or a hosted
 account, because the gateway is the only place that holds the grant. The learner
-connects Linear at [app.foreverlm.com/linear-connect](https://app.foreverlm.com/linear-connect).
+connects Linear in Plugins › Linear, or at
+[app.foreverlm.com/linear-connect](https://app.foreverlm.com/linear-connect),
+and can connect more than one workspace, each its own grant. Every tool takes an
+optional `workspace` (a workspace's name, URL key or id): omitted, it reads every
+connected workspace and tags each result with the workspace it came from; an
+identifier such as `ENG-123` is looked up in each workspace until one knows it.
+A workspace that needs reconnecting, or does not answer, is named in the result
+and does not stop the others.
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `get_linear_issue` | `issue` | One issue by identifier (`ENG-123`) or id: description, state, priority, assignee, labels, project, team, URL, dates, sub-issues and every comment, oldest first. |
-| `search_linear_issues` | `term`, `team_key?`, `limit?` | Issues matching words, ranked by Linear's relevance, optionally within one team. Each hit carries its identifier and an excerpt of its description. |
-| `list_linear_issues` | `team_key?`, `state_type?`, `assigned_to_me?`, `updated_since_days?`, `project?`, `limit?` | Issues most recently updated first, filtered by team key, workflow state type (`triage`, `backlog`, `unstarted`, `started`, `completed`, `canceled`, `duplicate`), assignment to the learner, project, or how recently they changed. Says (`truncated`) when more matched than fit. |
-| `list_linear_teams` | — | The teams with their keys, names, descriptions and issue counts, and the connected workspace. A team's key is the prefix of its identifiers. |
-| `list_linear_projects` | `team_key?`, `status_type?`, `limit?` | Projects most recently updated first, with status, health, lead, teams, progress, start and target dates. |
-| `get_linear_project` | `project` | One project by id or slug: description and content, its issues summarised by state type and listed, its recent updates with their health, and its comments. |
+| `get_linear_issue` | `issue`, `workspace?` | One issue by identifier (`ENG-123`) or id: description, state, priority, assignee, labels, project, team, URL, dates, sub-issues and every comment, oldest first. |
+| `search_linear_issues` | `term`, `team_key?`, `limit?`, `workspace?` | Issues matching words, ranked by Linear's relevance, optionally within one team. Each hit carries its identifier and an excerpt of its description. |
+| `list_linear_issues` | `team_key?`, `state_type?`, `assigned_to_me?`, `updated_since_days?`, `project?`, `limit?`, `workspace?` | Issues most recently updated first, filtered by team key, workflow state type (`triage`, `backlog`, `unstarted`, `started`, `completed`, `canceled`, `duplicate`), assignment to the learner, project, or how recently they changed. Says (`truncated`) when more matched than fit. |
+| `list_linear_teams` | `workspace?` | The teams with their keys, names, descriptions and issue counts, and the workspace each belongs to. A team's key is the prefix of its identifiers. |
+| `list_linear_projects` | `team_key?`, `status_type?`, `limit?`, `workspace?` | Projects most recently updated first, with status, health, lead, teams, progress, start and target dates. |
+| `get_linear_project` | `project`, `workspace?` | One project by id or slug: description and content, its issues summarised by state type and listed, its recent updates with their health, and its comments. |
 
 ## GitHub
 
@@ -4228,10 +4246,14 @@ Notion is filed into the library: a page is fetched when a chat asks, returned,
 and forgotten.
 
 What ForeverLM can read is decided in Notion, page by page. The learner
-authorizes the connection once at
-[app.foreverlm.com/notion-connect](https://app.foreverlm.com/notion-connect),
+authorizes the connection in Plugins › Notion (or at
+[app.foreverlm.com/notion-connect](https://app.foreverlm.com/notion-connect)),
 ticking the pages and databases it may read in Notion's picker, and shares
-another later from the page's own menu (**•••** → **Connections**). A
+another later from the page's own menu (**•••** → **Connections**). More than
+one workspace can be connected, each its own grant; every tool takes an optional
+`workspace` (a workspace's name or id): omitted, it reads every connected
+workspace and tags each result with the workspace it came from, and a page or
+database id is looked up in each until one knows it. A
 database in Notion holds one or more data sources; these tools take either id
 and resolve it.
 
@@ -4241,11 +4263,11 @@ carries twins of the same five reads for the in-app chat.
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `search_notion` | `query?`, `kind?`, `limit?` | Pages and databases shared with ForeverLM whose titles match the words, or the most recently edited when there are none. `kind` is `page` or `database`. Each result carries `kind`, `id`, `title`, `url`, `parent` and `last_edited_time`. |
-| `get_notion_page` | `page`, `include_content?` | One page in full: title, url, icon, parent, dates, every property flattened to plain values, and its content rendered as text with nested blocks indented, cut at 400 blocks or 60,000 characters (`content_truncated`). Sub-pages appear as `[Page: title] (id)` lines. `page` is an id, dashed or not, or a notion.so URL, here and below. |
-| `list_notion_databases` | `query?`, `limit?` | The databases shared with ForeverLM, most recently edited first, with `id`, `title`, `description`, `url`, `parent`, `database_type` and property names. |
-| `get_notion_database` | `database` | One database's schema: every property with its type and, for selections and statuses, the options it offers. A database with several data sources lists them so one can be chosen. |
-| `query_notion_database` | `database`, `filter?`, `sorts?`, `limit?`, `cursor?` | The database's rows, each a page with its properties flattened, with Notion's own `filter` and `sorts` objects passed through unchanged. 25 rows by default, 100 at most; `next_cursor` continues. |
+| `search_notion` | `query?`, `kind?`, `limit?`, `workspace?` | Pages and databases shared with ForeverLM whose titles match the words, or the most recently edited when there are none. `kind` is `page` or `database`. Each result carries `kind`, `id`, `title`, `url`, `parent` and `last_edited_time`. |
+| `get_notion_page` | `page`, `include_content?`, `workspace?` | One page in full: title, url, icon, parent, dates, every property flattened to plain values, and its content rendered as text with nested blocks indented, cut at 400 blocks or 60,000 characters (`content_truncated`). Sub-pages appear as `[Page: title] (id)` lines. `page` is an id, dashed or not, or a notion.so URL, here and below. |
+| `list_notion_databases` | `query?`, `limit?`, `workspace?` | The databases shared with ForeverLM, most recently edited first, with `id`, `title`, `description`, `url`, `parent`, `database_type` and property names. |
+| `get_notion_database` | `database`, `workspace?` | One database's schema: every property with its type and, for selections and statuses, the options it offers. A database with several data sources lists them so one can be chosen. |
+| `query_notion_database` | `database`, `filter?`, `sorts?`, `limit?`, `cursor?`, `workspace?` | The database's rows, each a page with its properties flattened, with Notion's own `filter` and `sorts` objects passed through unchanged. 25 rows by default, 100 at most; `next_cursor` continues. |
 
 ## Posting to X
 
@@ -4255,7 +4277,7 @@ shows the exact text and waits for the learner's yes.
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `create_x_post` | `text`, `reply_to_post_id?` | Post on X, or reply to a post. Returns the post's id and URL. A sign-in from before posting support must reconnect once. |
+| `create_x_post` | `text`, `reply_to_post_id?`, `account?` | Post on X, or reply to a post. With one X account connected it posts as that account; with several, `account` (the user id or @username from `get_plugin_connections`) is required, and the call refuses and names the connected accounts without it. Returns the post's id and URL, and `posted_as`. A sign-in from before posting support must reconnect once. |
 
 ## The day (the Mac's Calendar)
 
@@ -6426,6 +6448,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 ## Unreleased
 
 - **The Library no longer has a Not in any notebook button.** The toggle beside the search, and the filter it switched on, are gone.
+- **A card for the sources that have no cards.** The "Cards to check" card in the corner also counts the sources in your library that no card covers, read or not: "5 sources have no cards yet", with **Make Cards**, which opens the sheet for all of them together so the cards can link the ideas they share. With nothing to check, the card is titled "Sources without cards". It follows the same switch, Say when drafted cards wait.
 
 ## 0.157.0 (build 237) — 2026-10-15
 

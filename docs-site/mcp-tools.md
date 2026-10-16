@@ -104,8 +104,8 @@ three from report to approved change. These need an active Mac:
 | `run_settings_action` | `action`, `approved_spend_usd?` | One of the buttons that act once, whether or not a pane still shows it: `sync_icloud_now`, `prepare_memory_review_now`, `draw_missing_meeting_icons`, `sync_x_bookmarks`, `clear_usage_ledger_warning`, and the iCloud pane's `confirm_this_mac_holds_my_library`, `upload_library_to_icloud_again`, `apply_old_library_removals` and `keep_old_library_removals`, and `replace_icloud_library`, which only an assistant presses when you ask: it deletes iCloud's copy of your library and uploads this Mac's from the start. |
 | `open_settings` | `pane?` | Open the Settings window on the Mac at one pane, for a sign-in, a payment or the sharing sheet. `plugins` and a plugin's id (`x`, `youtube`, `google_drive`, `apple_calendar`, `slack`, `linear`, `github`, `notion`, `build_your_own_plugin`) open the Plugins place on the icon strip instead, at that plugin's page, where its consent page is opened. |
 | `open_in_app` | `kind`, `id?` | Show a notebook, doc, chat, source, quiz or idea in the Mac's window as a click would, `space` (the Space's All list), or `plugins` (the Plugins place, at a plugin's page when `id` names one). Listing or loading a notebook changes nothing on screen; this does. |
-| `get_plugin_connections` | `include_slack_channels?` | Plugins: which of X, YouTube, Google Drive, Calendar (the Mac's), Slack, GitHub, Linear, Notion and the learner's own plugins are connected, their accounts, Slack channels, followed and hidden YouTube channels, and what connecting each takes. |
-| `disconnect_plugin` | `plugin`, `account_id?` | The pane's Disconnect, Turn Off or Remove Access for `x`, `youtube`, `google_drive`, `apple_calendar`, `slack`, `github` or `user_plugin`. `apple_calendar` turns the Mac's Calendar off for ForeverLM; every event stays in the calendar. Ask first. |
+| `get_plugin_connections` | `include_slack_channels?` | Plugins: which of X, YouTube, Google Drive, Calendar (the Mac's), Slack, GitHub, Linear, Notion and the learner's own plugins are connected, their accounts (every X, YouTube and Google account listed on its own, a YouTube account with its import source), Slack channels, followed and hidden YouTube channels, and what connecting each takes. |
+| `disconnect_plugin` | `plugin`, `account_id?` | The pane's Disconnect, Turn Off or Remove Access for `x`, `youtube`, `google_drive`, `apple_calendar`, `slack`, `github`, `linear`, `notion` or `user_plugin`. `x` takes the account as `account_id` (its user id or @username) when more than one is connected, and disconnects that account only: its bookmark sync stops and the posts already imported stay. `youtube` takes the account as `account_id` (its channel id, or its channel title) when more than one is connected, and disconnects that account only: it stops importing, while followed channels and the videos already imported stay. `linear` and `notion` take the workspace as `account_id` (its id, or its name) when more than one is connected, and revoke that workspace only. `apple_calendar` turns the Mac's Calendar off for ForeverLM; every event stays in the calendar. Ask first. |
 | `set_slack_channel_enabled` | `channel_id`, `enabled`, `team_id?` | A Slack channel's switch in Plugins › Slack. |
 | `get_calendar_settings` | — | Plugins › Calendar: whether the Mac's Calendar is on for ForeverLM and macOS granted access, every calendar the Mac holds (iCloud, Google, Exchange, subscriptions) with whether it takes new events (`writable`) and whether it is part of the day (`on_day`), and `new_events_calendar`, where new events go. |
 | `set_calendar_settings` | `apple_calendar_enabled?`, `apple_calendar_ids?`, `new_events_calendar_id?` | Turn the Mac's Calendar on (may show the macOS permission prompt) or off, set the whole list of calendars that make up the day, or choose the calendar new events go to (`""` for the Calendar app's default). |
@@ -624,9 +624,9 @@ chapter source IDs under the matched title.
 | `import_gemini_notebook` | `url`, `notebook_id?` | Import a Gemini Notebook (NotebookLM until July 2026) from its `notebook.google.com` address, as pasting the link does: each source through its ordinary route, each chat as a chat under the notebook, each note and report as a Page. Audio and video overviews, flashcards, quizzes, mind maps and apps stay in Gemini (`left_in_notebook`). Importing again adds only what is new. Needs the learner signed in to Google in ForeverLM's own browser. |
 | `import_video_overview` | `file_path`, `notebook_id?` | Bring a video overview (a Gemini Notebook MP4, or any MP4, M4V or MOV on the Mac) into a notebook as a video source its Studio lists as a Video overview. The file must be in the ForeverLM library or the Desktop, Documents or Downloads folder. Nothing is spent, and the video has no transcript. |
 | `fetch_video_transcript` | `source_id`, `passcode?`, `approved_spend_usd?` | Fetch and store the transcript of a YouTube video, a one-off Zoom cloud recording link, or a Teachable lecture. A passcode-protected Zoom recording asks for its `passcode`, which is then kept in the Keychain; a Teachable lecture is transcribed from its audio in the background and needs the learner signed in to the school inside ForeverLM. |
-| `follow_youtube_foreverlm_playlist` | — | Follow the learner's YouTube playlist named "ForeverLM" and import its videos (their details; transcripts come when needed). Needs YouTube connected in Plugins › YouTube. |
-| `follow_youtube_liked_videos` | `import_existing?`, `format_transcripts_automatically?` | Follow the learner's Liked videos and keep them fresh in the background, with or without the likes already there. AI formatting of the transcripts is off unless asked for, because a large history can run up a bill on the learner's OpenRouter key. |
-| `refresh_youtube_sources` | — | Check the followed YouTube playlist or likes now and import new videos (their details only). |
+| `follow_youtube_foreverlm_playlist` | `account?` | Make one connected YouTube account's playlist named "ForeverLM" its import source and import its videos (their details; transcripts come when needed). `account` is its channel title or id; optional when only one account is connected, and an error lists them when several are. Needs YouTube connected in Plugins › YouTube. |
+| `follow_youtube_liked_videos` | `account?`, `import_existing?`, `format_transcripts_automatically?` | Make one connected YouTube account's Liked videos its import source and keep them fresh in the background, with or without the likes already there. `account` is as for `follow_youtube_foreverlm_playlist`. AI formatting of the transcripts is off unless asked for, because a large history can run up a bill on the learner's OpenRouter key. |
+| `refresh_youtube_sources` | `account?` | Check every connected YouTube account's playlist or likes now, or one account's when `account` is given, and import new videos (their details only). |
 | `set_connector_auto_import` | `connector`, `enabled` | Turn the YouTube plugin's automatic import on or off. |
 
 ## Managing sources
@@ -766,16 +766,23 @@ is fetched when a chat asks, returned, and forgotten.
 
 These tools are answered by the gateway rather than by a Mac or a hosted
 account, because the gateway is the only place that holds the grant. The learner
-connects Linear at [app.foreverlm.com/linear-connect](https://app.foreverlm.com/linear-connect).
+connects Linear in Plugins › Linear, or at
+[app.foreverlm.com/linear-connect](https://app.foreverlm.com/linear-connect),
+and can connect more than one workspace, each its own grant. Every tool takes an
+optional `workspace` (a workspace's name, URL key or id): omitted, it reads every
+connected workspace and tags each result with the workspace it came from; an
+identifier such as `ENG-123` is looked up in each workspace until one knows it.
+A workspace that needs reconnecting, or does not answer, is named in the result
+and does not stop the others.
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `get_linear_issue` | `issue` | One issue by identifier (`ENG-123`) or id: description, state, priority, assignee, labels, project, team, URL, dates, sub-issues and every comment, oldest first. |
-| `search_linear_issues` | `term`, `team_key?`, `limit?` | Issues matching words, ranked by Linear's relevance, optionally within one team. Each hit carries its identifier and an excerpt of its description. |
-| `list_linear_issues` | `team_key?`, `state_type?`, `assigned_to_me?`, `updated_since_days?`, `project?`, `limit?` | Issues most recently updated first, filtered by team key, workflow state type (`triage`, `backlog`, `unstarted`, `started`, `completed`, `canceled`, `duplicate`), assignment to the learner, project, or how recently they changed. Says (`truncated`) when more matched than fit. |
-| `list_linear_teams` | — | The teams with their keys, names, descriptions and issue counts, and the connected workspace. A team's key is the prefix of its identifiers. |
-| `list_linear_projects` | `team_key?`, `status_type?`, `limit?` | Projects most recently updated first, with status, health, lead, teams, progress, start and target dates. |
-| `get_linear_project` | `project` | One project by id or slug: description and content, its issues summarised by state type and listed, its recent updates with their health, and its comments. |
+| `get_linear_issue` | `issue`, `workspace?` | One issue by identifier (`ENG-123`) or id: description, state, priority, assignee, labels, project, team, URL, dates, sub-issues and every comment, oldest first. |
+| `search_linear_issues` | `term`, `team_key?`, `limit?`, `workspace?` | Issues matching words, ranked by Linear's relevance, optionally within one team. Each hit carries its identifier and an excerpt of its description. |
+| `list_linear_issues` | `team_key?`, `state_type?`, `assigned_to_me?`, `updated_since_days?`, `project?`, `limit?`, `workspace?` | Issues most recently updated first, filtered by team key, workflow state type (`triage`, `backlog`, `unstarted`, `started`, `completed`, `canceled`, `duplicate`), assignment to the learner, project, or how recently they changed. Says (`truncated`) when more matched than fit. |
+| `list_linear_teams` | `workspace?` | The teams with their keys, names, descriptions and issue counts, and the workspace each belongs to. A team's key is the prefix of its identifiers. |
+| `list_linear_projects` | `team_key?`, `status_type?`, `limit?`, `workspace?` | Projects most recently updated first, with status, health, lead, teams, progress, start and target dates. |
+| `get_linear_project` | `project`, `workspace?` | One project by id or slug: description and content, its issues summarised by state type and listed, its recent updates with their health, and its comments. |
 
 ## GitHub
 
@@ -822,10 +829,14 @@ Notion is filed into the library: a page is fetched when a chat asks, returned,
 and forgotten.
 
 What ForeverLM can read is decided in Notion, page by page. The learner
-authorizes the connection once at
-[app.foreverlm.com/notion-connect](https://app.foreverlm.com/notion-connect),
+authorizes the connection in Plugins › Notion (or at
+[app.foreverlm.com/notion-connect](https://app.foreverlm.com/notion-connect)),
 ticking the pages and databases it may read in Notion's picker, and shares
-another later from the page's own menu (**•••** → **Connections**). A
+another later from the page's own menu (**•••** → **Connections**). More than
+one workspace can be connected, each its own grant; every tool takes an optional
+`workspace` (a workspace's name or id): omitted, it reads every connected
+workspace and tags each result with the workspace it came from, and a page or
+database id is looked up in each until one knows it. A
 database in Notion holds one or more data sources; these tools take either id
 and resolve it.
 
@@ -835,11 +846,11 @@ carries twins of the same five reads for the in-app chat.
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `search_notion` | `query?`, `kind?`, `limit?` | Pages and databases shared with ForeverLM whose titles match the words, or the most recently edited when there are none. `kind` is `page` or `database`. Each result carries `kind`, `id`, `title`, `url`, `parent` and `last_edited_time`. |
-| `get_notion_page` | `page`, `include_content?` | One page in full: title, url, icon, parent, dates, every property flattened to plain values, and its content rendered as text with nested blocks indented, cut at 400 blocks or 60,000 characters (`content_truncated`). Sub-pages appear as `[Page: title] (id)` lines. `page` is an id, dashed or not, or a notion.so URL, here and below. |
-| `list_notion_databases` | `query?`, `limit?` | The databases shared with ForeverLM, most recently edited first, with `id`, `title`, `description`, `url`, `parent`, `database_type` and property names. |
-| `get_notion_database` | `database` | One database's schema: every property with its type and, for selections and statuses, the options it offers. A database with several data sources lists them so one can be chosen. |
-| `query_notion_database` | `database`, `filter?`, `sorts?`, `limit?`, `cursor?` | The database's rows, each a page with its properties flattened, with Notion's own `filter` and `sorts` objects passed through unchanged. 25 rows by default, 100 at most; `next_cursor` continues. |
+| `search_notion` | `query?`, `kind?`, `limit?`, `workspace?` | Pages and databases shared with ForeverLM whose titles match the words, or the most recently edited when there are none. `kind` is `page` or `database`. Each result carries `kind`, `id`, `title`, `url`, `parent` and `last_edited_time`. |
+| `get_notion_page` | `page`, `include_content?`, `workspace?` | One page in full: title, url, icon, parent, dates, every property flattened to plain values, and its content rendered as text with nested blocks indented, cut at 400 blocks or 60,000 characters (`content_truncated`). Sub-pages appear as `[Page: title] (id)` lines. `page` is an id, dashed or not, or a notion.so URL, here and below. |
+| `list_notion_databases` | `query?`, `limit?`, `workspace?` | The databases shared with ForeverLM, most recently edited first, with `id`, `title`, `description`, `url`, `parent`, `database_type` and property names. |
+| `get_notion_database` | `database`, `workspace?` | One database's schema: every property with its type and, for selections and statuses, the options it offers. A database with several data sources lists them so one can be chosen. |
+| `query_notion_database` | `database`, `filter?`, `sorts?`, `limit?`, `cursor?`, `workspace?` | The database's rows, each a page with its properties flattened, with Notion's own `filter` and `sorts` objects passed through unchanged. 25 rows by default, 100 at most; `next_cursor` continues. |
 
 ## Posting to X
 
@@ -849,7 +860,7 @@ shows the exact text and waits for the learner's yes.
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `create_x_post` | `text`, `reply_to_post_id?` | Post on X, or reply to a post. Returns the post's id and URL. A sign-in from before posting support must reconnect once. |
+| `create_x_post` | `text`, `reply_to_post_id?`, `account?` | Post on X, or reply to a post. With one X account connected it posts as that account; with several, `account` (the user id or @username from `get_plugin_connections`) is required, and the call refuses and names the connected accounts without it. Returns the post's id and URL, and `posted_as`. A sign-in from before posting support must reconnect once. |
 
 ## The day (the Mac's Calendar)
 

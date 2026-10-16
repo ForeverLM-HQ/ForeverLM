@@ -1431,37 +1431,43 @@ extension StudioViewModel {
         Task { [weak self] in
             let snapshot = await Task.detached(priority: .userInitiated) {
                 let service = XBookmarkService.shared
+                let accounts = service.accounts
                 return (
-                    isSignedIn: service.isSignedIn,
-                    isOAuthSignedIn: service.isOAuthSignedIn,
-                    needsReauthentication: service.needsReauthentication,
-                    lastSyncDate: service.lastSyncDate,
-                    username: service.signedInUsername
+                    accounts: accounts,
+                    needingReauth: Set(accounts.filter { service.needsReauthentication(accountID: $0.id) }.map(\.id)),
+                    lastSyncDates: Dictionary(uniqueKeysWithValues: accounts.compactMap { account in
+                        service.lastSyncDate(accountID: account.id).map { (account.id, $0) }
+                    })
                 )
             }.value
             guard let self else { return }
-            isXSignedIn = snapshot.isSignedIn
-            isXOAuthSignedIn = snapshot.isOAuthSignedIn
-            xPluginNeedsReauth = snapshot.needsReauthentication
-            lastXSyncDate = snapshot.lastSyncDate
-            xAccountUsername = snapshot.username
+            xAccounts = snapshot.accounts
+            xAccountsNeedingReauth = snapshot.needingReauth
+            xLastSyncDates = snapshot.lastSyncDates
+            // State of an account that is gone (disconnected from the pane or
+            // dropped elsewhere) has nothing left to describe.
+            let ids = Set(snapshot.accounts.map(\.id))
+            xAccountFailures = xAccountFailures.filter { ids.contains($0.key) }
+            xSyncPausedUntil = xSyncPausedUntil.filter { ids.contains($0.key) }
             pinIntegrationTabsInUse()
         }
     }
 
+    /// Signs in with X, adding the account it signs in as (or refreshing the
+    /// one already connected for that X user), then syncs that account.
     func signInWithX() async {
         // One browser session at a time: a second `authenticate()` would
         // replace the first session and leave its continuation waiting forever.
         guard !isConnectingX else { return }
         isConnectingX = true
+        xConnectError = nil
         do {
-            _ = try await XBookmarkService.shared.authenticate()
+            let account = try await XBookmarkService.shared.authenticate()
             isConnectingX = false
-            isXSignedIn = true
-            isXOAuthSignedIn = true
-            xPluginNeedsReauth = false
-            xPluginErrorMessage = nil
-            xPluginOffersReconnect = false
+            xAccounts = XAccountBook.merging(account, into: xAccounts)
+            xAccountsNeedingReauth.remove(account.id)
+            xAccountFailures[account.id] = nil
+            forgetXSyncPause(accountID: account.id)
             // Connecting is the evidence the X tab was waiting for.
             pinIntegrationTabsInUse()
             // The handle was written with the tokens; read it back off-main
@@ -1469,149 +1475,185 @@ extension StudioViewModel {
             checkXSignInStatus()
             // A successful connection should do the job the user connected it
             // for. Do not wait for a later app-activation or manual refresh.
-            await syncXBookmarks(showResult: true)
+            await syncXBookmarks(showResult: true, accountID: account.id)
         } catch {
             isConnectingX = false
             let message = XBookmarkError.userFacingMessage(for: error, action: .connect)
             logger.error("X sign-in failed: \(error.localizedDescription, privacy: .private)")
             errorMessage = message
-            xPluginErrorMessage = message
-            xPluginOffersReconnect = XBookmarkError.reconnectMayHelp(after: error)
+            xConnectError = message
             showToast(message)
             checkXSignInStatus()
         }
     }
 
-    func signOutOfX() {
-        XBookmarkService.shared.signOut()
-        isXSignedIn = false
-        isXOAuthSignedIn = false
-        xPluginNeedsReauth = false
-        xAccountUsername = nil
-        xPluginErrorMessage = nil
-        xPluginOffersReconnect = false
+    /// Disconnects one X account; the others keep syncing.
+    func signOutOfX(accountID: String) {
+        XBookmarkService.shared.signOut(accountID: accountID)
+        xAccounts = XAccountBook.removing(id: accountID, from: xAccounts)
+        xAccountsNeedingReauth.remove(accountID)
+        xLastSyncDates[accountID] = nil
+        xAccountFailures[accountID] = nil
+        forgetXSyncPause(accountID: accountID)
     }
 
+    private func forgetXSyncPause(accountID: String) {
+        xSyncPausedUntil[accountID] = nil
+        xSyncResumeTasks[accountID]?.cancel()
+        xSyncResumeTasks[accountID] = nil
+    }
+
+    /// Syncs every connected account (one failing account does not stop the
+    /// others, and its failure is kept against it), or just `accountID`.
+    /// Accounts waiting out a rate limit are skipped, and so are those that
+    /// need reconnecting when no account is named: a sync of either is a
+    /// request that cannot succeed.
     @discardableResult
-    func syncXBookmarks(showResult: Bool = false) async -> Int {
+    func syncXBookmarks(showResult: Bool = false, accountID: String? = nil) async -> Int {
         guard !isSyncingXBookmarks else { return 0 }
+        let targets = xAccounts.filter { account in
+            if let accountID { return account.id == accountID }
+            return !xAccountsNeedingReauth.contains(account.id)
+        }.filter { !isXSyncPaused(accountID: $0.id) }
+        guard !targets.isEmpty else { return 0 }
         isSyncingXBookmarks = true
-        defer { isSyncingXBookmarks = false }
+        xSyncingAccountIDs = Set(targets.map(\.id))
+        defer {
+            isSyncingXBookmarks = false
+            xSyncingAccountIDs = []
+        }
 
-        do {
-            let existingURLs = Set(articles.map { $0.url })
-            // The posts already saved are what a sync stops at, so it asks X
-            // only for what is newer than them.
-            let savedPostIDs = Set(articles.lazy
-                .filter { $0.sourceType == .xPost }
-                .compactMap { XPostThreadService.postID(from: $0.url) })
-            let newCount = try await XBookmarkService.shared.fetchNewBookmarks(
-                savedPostIDs: savedPostIDs
-            ) { bookmarks in
-                var saved = 0
-                // X returns bookmark candidates newest-first. Save oldest-first
-                // so sequential dateAdded values and insert-at-front both leave
-                // the newest bookmark at the top of Studio.
-                for bookmark in bookmarks.reversed() {
-                    let postURL = "https://x.com/\(bookmark.authorUsername)/status/\(bookmark.tweetId)"
-                    guard !existingURLs.contains(postURL) else { continue }
-
-                    // Same title a thread capture writes, so a post saved from a
-                    // pasted link and the same post saved from a bookmark are
-                    // named identically.
-                    let title = XPostThread.sourceTitle(
-                        handle: bookmark.authorUsername,
-                        text: bookmark.text
-                    )
-
-                    var article = StudioArticle(
-                        url: postURL,
-                        title: title,
-                        sourceType: .xPost,
-                        discoveryOrigin: .xBookmarks
-                    )
-                    article.content = bookmark.text
-                    article.wordCount = bookmark.text.split(separator: " ").count
-                    article.state = .ready
-                    article.domain = "x.com"
-                    // The handle is the post's address; the display name is what
-                    // the learner remembers the author by, and it is the only
-                    // part of the search that a URL and an "@handle:" title
-                    // cannot already answer.
-                    article.author = Self.normalizedXAuthorName(bookmark.authorName)
-                    if let createdAt = bookmark.createdAt {
-                        article.publishedYear = Self.xPostYearFormatter.string(from: createdAt)
-                    }
-
-                    let inserted = try await storage.insertSourceIfNew(&article)
-                    if inserted {
-                        articles.insert(article, at: 0)
-                        saved += 1
-                    }
-                }
-                return saved
+        var importedCount = 0
+        var anySucceeded = false
+        var anyFailed = false
+        for account in targets {
+            do {
+                let saved = try await importXBookmarks(from: account)
+                importedCount += saved
+                anySucceeded = true
+                xLastSyncDates[account.id] = XBookmarkService.shared.lastSyncDate(accountID: account.id)
+                xAccountFailures[account.id] = nil
+                forgetXSyncPause(accountID: account.id)
+                xCreditsDepleted = false
+            } catch {
+                anyFailed = true
+                let message = XBookmarkError.userFacingMessage(for: error, action: .syncBookmarks)
+                logger.error("X bookmark sync failed: \(error.localizedDescription, privacy: .private)")
+                errorMessage = xAccounts.count > 1 ? "\(account.displayLabel): \(message)" : message
+                // No toast. Most syncs run on their own, and a banner that vanishes
+                // before it is read is noise; the message becomes a red dot on the
+                // X tab (`xPluginAttention`), and the X list and the plugin
+                // page both show it in full, against the account, with a retry
+                // beside it.
+                xAccountFailures[account.id] = XAccountFailure(
+                    message: message,
+                    offersReconnect: XBookmarkError.reconnectMayHelp(after: error)
+                )
+                if case .creditsDepleted? = error as? XBookmarkError { xCreditsDepleted = true }
+                scheduleXSyncResume(accountID: account.id, after: error)
             }
-
-            lastXSyncDate = XBookmarkService.shared.lastSyncDate
-            xPluginErrorMessage = nil
-            xPluginOffersReconnect = false
-            xSyncPausedUntil = nil
-            xSyncResumeTask?.cancel()
-            xSyncResumeTask = nil
-            xCreditsDepleted = false
-            // A freshly imported bookmark holds the post's text and nothing
-            // else. Capture the thread it belongs to now, while x.com is
-            // plainly reachable, so the post is still readable when it is not.
-            autoFetchUnfetchedSources()
-            let namedCount = await backfillXPostAuthorNames()
-            let picturedCount = await backfillXPostArtwork()
-            if newCount > 0 || namedCount > 0 || picturedCount > 0 {
-                syncCloudKitInBackground()
-            }
-            if showResult {
-                showToast(newCount == 0
-                    ? "X bookmarks are up to date"
-                    : "Imported \(newCount) X bookmark\(newCount == 1 ? "" : "s")")
-            }
-            return newCount
-        } catch {
-            let message = XBookmarkError.userFacingMessage(for: error, action: .syncBookmarks)
-            logger.error("X bookmark sync failed: \(error.localizedDescription, privacy: .private)")
-            errorMessage = message
-            // No toast. Most syncs run on their own, and a banner that vanishes
-            // before it is read is noise; the message becomes a red dot on the
-            // X tab (`xPluginAttention`), and the X list and the Settings
-            // card both show it in full with a retry beside it.
-            xPluginErrorMessage = message
-            xPluginOffersReconnect = XBookmarkError.reconnectMayHelp(after: error)
-            if case .creditsDepleted? = error as? XBookmarkError { xCreditsDepleted = true }
-            scheduleXSyncResume(after: error)
-            // A failed token refresh signs the user out in the keychain;
+            xSyncingAccountIDs.remove(account.id)
+        }
+        if anyFailed {
+            // A failed token refresh drops the account's tokens in the keychain;
             // re-read so the sidebar shows the reconnect button.
             checkXSignInStatus()
-            return 0
+        }
+        guard anySucceeded else { return 0 }
+
+        // A freshly imported bookmark holds the post's text and nothing
+        // else. Capture the thread it belongs to now, while x.com is
+        // plainly reachable, so the post is still readable when it is not.
+        autoFetchUnfetchedSources()
+        let namedCount = await backfillXPostAuthorNames()
+        let picturedCount = await backfillXPostArtwork()
+        if importedCount > 0 || namedCount > 0 || picturedCount > 0 {
+            syncCloudKitInBackground()
+        }
+        if showResult {
+            showToast(importedCount == 0
+                ? "X bookmarks are up to date"
+                : "Imported \(importedCount) X bookmark\(importedCount == 1 ? "" : "s")")
+        }
+        return importedCount
+    }
+
+    /// One account's pass: fetches what is new in its bookmarks and saves it.
+    private func importXBookmarks(from account: XAccount) async throws -> Int {
+        let existingURLs = Set(articles.map { $0.url })
+        // The posts already saved are what a sync stops at, so it asks X
+        // only for what is newer than them.
+        let savedPostIDs = Set(articles.lazy
+            .filter { $0.sourceType == .xPost }
+            .compactMap { XPostThreadService.postID(from: $0.url) })
+        return try await XBookmarkService.shared.fetchNewBookmarks(
+            accountID: account.id,
+            savedPostIDs: savedPostIDs
+        ) { bookmarks in
+            var saved = 0
+            // X returns bookmark candidates newest-first. Save oldest-first
+            // so sequential dateAdded values and insert-at-front both leave
+            // the newest bookmark at the top of Studio.
+            for bookmark in bookmarks.reversed() {
+                let postURL = "https://x.com/\(bookmark.authorUsername)/status/\(bookmark.tweetId)"
+                guard !existingURLs.contains(postURL) else { continue }
+
+                // Same title a thread capture writes, so a post saved from a
+                // pasted link and the same post saved from a bookmark are
+                // named identically.
+                let title = XPostThread.sourceTitle(
+                    handle: bookmark.authorUsername,
+                    text: bookmark.text
+                )
+
+                var article = StudioArticle(
+                    url: postURL,
+                    title: title,
+                    sourceType: .xPost,
+                    discoveryOrigin: .xBookmarks
+                )
+                article.content = bookmark.text
+                article.wordCount = bookmark.text.split(separator: " ").count
+                article.state = .ready
+                article.domain = "x.com"
+                // The handle is the post's address; the display name is what
+                // the learner remembers the author by, and it is the only
+                // part of the search that a URL and an "@handle:" title
+                // cannot already answer.
+                article.author = Self.normalizedXAuthorName(bookmark.authorName)
+                if let createdAt = bookmark.createdAt {
+                    article.publishedYear = Self.xPostYearFormatter.string(from: createdAt)
+                }
+
+                let inserted = try await storage.insertSourceIfNew(&article)
+                if inserted {
+                    articles.insert(article, at: 0)
+                    saved += 1
+                }
+            }
+            return saved
         }
     }
 
-    /// Honours a 429's reset time: nothing syncs X until then, and the sync
-    /// the message promised ("ForeverLM will sync again at …") runs when the
-    /// window reopens. Any other failure leaves retries free.
-    private func scheduleXSyncResume(after error: Error) {
+    /// Honours a 429's reset time: that account does not sync until then, and
+    /// the sync the message promised ("ForeverLM will sync again at …") runs
+    /// when the window reopens. Any other failure leaves retries free.
+    private func scheduleXSyncResume(accountID: String, after error: Error) {
         let now = Date()
-        xSyncResumeTask?.cancel()
-        xSyncResumeTask = nil
+        xSyncResumeTasks[accountID]?.cancel()
+        xSyncResumeTasks[accountID] = nil
         guard let resumeAt = Self.xSyncPause(after: error, now: now) else {
-            xSyncPausedUntil = nil
+            xSyncPausedUntil[accountID] = nil
             return
         }
-        xSyncPausedUntil = resumeAt
-        xSyncResumeTask = Task { [weak self] in
+        xSyncPausedUntil[accountID] = resumeAt
+        xSyncResumeTasks[accountID] = Task { [weak self] in
             try? await Task.sleep(for: .seconds(resumeAt.timeIntervalSince(now)))
             guard !Task.isCancelled, let self else { return }
             // The pause has run out whatever the sync finds; a second 429
             // schedules the next one.
-            self.xSyncPausedUntil = nil
-            await self.syncXBookmarks()
+            self.xSyncPausedUntil[accountID] = nil
+            await self.syncXBookmarks(accountID: accountID)
         }
     }
 

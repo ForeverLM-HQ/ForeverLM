@@ -1577,57 +1577,90 @@ extension MCPDataStore {
         "playlist_" + URLNormalizer.normalize(url)
     }
 
-    /// Follow the signed-in user's "Liked videos": import them now via the
-    /// authenticated YouTube Data API and mark the group for background
+    /// The connected YouTube account a call names by channel title or id; the
+    /// only one when nothing is named, and an error listing them when several
+    /// are connected.
+    func youTubeAccount(named requested: String?) throws -> YouTubeAccount {
+        let accounts = YouTubeService.shared.connectedAccounts
+        guard !accounts.isEmpty else {
+            throw MCPError.invalidInput("YouTube is not connected. Connect YouTube in Plugins → YouTube first.")
+        }
+        let name = requested?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return try Self.pluginPick(
+            accounts,
+            requested: name?.isEmpty == false ? name : nil,
+            id: \.id,
+            label: \.title,
+            what: "YouTube account",
+            argument: "account"
+        )
+    }
+
+    /// Make an account's "Liked videos" its import source: import them now via
+    /// the authenticated YouTube Data API and mark the group for background
     /// auto-import. The Liked feed is private, so this requires a connected
     /// YouTube account.
     func followYouTubeLikedVideosMCP(
+        account requested: String? = nil,
         importExisting: Bool = true,
         automaticallyFormatTranscripts: Bool = false
     ) async throws -> String {
-        guard YouTubeService.shared.isSignedIn else {
-            throw MCPError.invalidInput("YouTube is not connected. Connect YouTube in Plugins → YouTube first.")
-        }
-        let policy: YouTubeLikedImportPolicy = importExisting ? .importExisting : .futureOnly
-        PreferenceStore.set(
-            policy.rawValue,
-            forKey: StudioViewModel.youtubeLikedImportPolicyKey
-        )
-        if importExisting {
-            PreferenceStore.remove(forKey: StudioViewModel.youtubeLikedImportCutoffKey)
-        } else {
-            let cutoff = floor(Date().timeIntervalSince1970)
-            PreferenceStore.set(cutoff, forKey: StudioViewModel.youtubeLikedImportCutoffKey)
+        let account = try youTubeAccount(named: requested)
+        var choices = account.choices
+        choices.source = .likedVideos
+        choices.foreverLMPlaylistID = nil
+        choices.likedPolicy = importExisting ? .importExisting : .futureOnly
+        choices.likedCutoff = importExisting
+            ? nil
+            : Date(timeIntervalSince1970: floor(Date().timeIntervalSince1970))
+        guard let updated = YouTubeService.shared.setChoices(choices, forAccount: account.id) else {
+            throw MCPError.notFound("The YouTube account \(account.title) is no longer connected.")
         }
         StudioViewModel.setLikedYouTubeTranscriptFormattingEnabled(
             automaticallyFormatTranscripts
         )
         StudioViewModel.setYouTubeAutoImportEnabled(true)
         await PreferenceStore.flushPendingWrites()
-        let items = try await YouTubeService.shared.listLikedVideos()
-        return try insertYouTubePluginVideos(
+        let items = try await YouTubeService.shared.listLikedVideos(accountID: account.id)
+        let summary = try insertYouTubePluginVideos(
             url: YouTubeService.likedVideosPlaylistURL,
             title: "Liked videos",
             items: items,
             kind: YouTubeImportSource.likedVideos.connectorKind,
-            assignsParentGroup: false
+            assignsParentGroup: false,
+            account: updated
         )
+        YouTubeService.notifyConnectionChanged()
+        return summary
     }
 
-    /// Follow the signed-in user's owned playlist named "ForeverLM". This is
-    /// the MCP counterpart of the source choice in Settings.
-    func followYouTubeForeverLMPlaylistMCP() async throws -> String {
-        guard YouTubeService.shared.isSignedIn else {
-            throw MCPError.invalidInput("YouTube is not connected. Connect YouTube in Plugins → YouTube first.")
-        }
-        let feed = try await YouTubeService.shared.listForeverLMPlaylistFeed()
+    /// Make an account's owned playlist named "ForeverLM" its import source.
+    /// This is the MCP counterpart of the source choice in Settings.
+    func followYouTubeForeverLMPlaylistMCP(account requested: String? = nil) async throws -> String {
+        let account = try youTubeAccount(named: requested)
+        let summary = try await importYouTubeForeverLMPlaylistMCP(account: account)
         StudioViewModel.setYouTubeAutoImportEnabled(true)
+        YouTubeService.notifyConnectionChanged()
+        return summary
+    }
+
+    /// Read the account's ForeverLM playlist, remember it as the account's
+    /// source, and mirror it into its group.
+    private func importYouTubeForeverLMPlaylistMCP(account: YouTubeAccount) async throws -> String {
+        let feed = try await YouTubeService.shared.listForeverLMPlaylistFeed(accountID: account.id)
+        var choices = account.choices
+        choices.source = .foreverLMPlaylist
+        choices.foreverLMPlaylistID = feed.playlist.id
+        guard let updated = YouTubeService.shared.setChoices(choices, forAccount: account.id) else {
+            throw MCPError.notFound("The YouTube account \(account.title) is no longer connected.")
+        }
         let summary = try insertYouTubePluginVideos(
             url: feed.playlist.url,
             title: feed.playlist.title,
             items: feed.items,
             kind: YouTubeImportSource.foreverLMPlaylist.connectorKind,
-            assignsParentGroup: true
+            assignsParentGroup: true,
+            account: updated
         )
         if feed.isComplete {
             try archiveMissingYouTubePlaylistVideosMCP(
@@ -1638,65 +1671,61 @@ extension MCPDataStore {
         return summary
     }
 
-    /// Re-check whichever mutually-exclusive YouTube source is followed.
-    func refreshYouTubeSourcesMCP() async throws -> String {
-        let store = try knowledgeStore()
-        let followed = try store.loadVideoPlaylistGroups()
-            .filter {
-                $0.value.autoImport
-                    && ($0.value.connectorKind == YouTubeImportSource.likedVideos.connectorKind
-                        || $0.value.connectorKind == YouTubeImportSource.foreverLMPlaylist.connectorKind)
-            }
-        guard !followed.isEmpty else {
-            return try jsonString(["refreshed": 0, "message": "No YouTube import source is selected. Choose one in Plugins → YouTube."] as [String: Any])
-        }
-        guard YouTubeService.shared.isSignedIn else {
+    /// Re-check the import source of the named account, or of every connected
+    /// account when none is named.
+    func refreshYouTubeSourcesMCP(account requested: String? = nil) async throws -> String {
+        let name = requested?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let accounts = name?.isEmpty == false
+            ? [try youTubeAccount(named: name)]
+            : YouTubeService.shared.connectedAccounts
+        guard !accounts.isEmpty else {
             throw MCPError.invalidInput("YouTube is not connected. Connect YouTube in Plugins → YouTube first.")
         }
         var summaries: [[String: Any]] = []
-        for (_, metadata) in followed {
-            let summary: String
-            if metadata.connectorKind == YouTubeImportSource.foreverLMPlaylist.connectorKind {
-                let feed = try await YouTubeService.shared.listForeverLMPlaylistFeed()
-                summary = try insertYouTubePluginVideos(
-                    url: feed.playlist.url,
-                    title: feed.playlist.title,
-                    items: feed.items,
-                    kind: YouTubeImportSource.foreverLMPlaylist.connectorKind,
-                    assignsParentGroup: true
-                )
-                if feed.isComplete {
-                    try archiveMissingYouTubePlaylistVideosMCP(
-                        groupID: youtubePlaylistGroupID(for: feed.playlist.url),
-                        currentURLKeys: Set(feed.items.map { StudioViewModel.sourceURLIdentityKey($0.url) })
-                    )
-                }
-            } else {
-                let items = try await YouTubeService.shared.listLikedVideos()
-                summary = try insertYouTubePluginVideos(
-                    url: metadata.playlistURL,
-                    title: metadata.title.isEmpty ? "Liked videos" : metadata.title,
+        var skipped: [String] = []
+        for account in accounts {
+            switch account.choices.source {
+            case .foreverLMPlaylist:
+                let summary = try await importYouTubeForeverLMPlaylistMCP(account: account)
+                if let obj = Self.jsonObject(summary) { summaries.append(obj) }
+            case .likedVideos where account.choices.likedPolicy != .undecided:
+                let items = try await YouTubeService.shared.listLikedVideos(accountID: account.id)
+                let summary = try insertYouTubePluginVideos(
+                    url: YouTubeService.likedVideosPlaylistURL,
+                    title: "Liked videos",
                     items: items,
                     kind: YouTubeImportSource.likedVideos.connectorKind,
-                    assignsParentGroup: false
+                    assignsParentGroup: false,
+                    account: account
                 )
-            }
-            if let data = summary.data(using: .utf8),
-               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                summaries.append(obj)
+                if let obj = Self.jsonObject(summary) { summaries.append(obj) }
+            case .likedVideos, nil:
+                skipped.append(account.title)
             }
         }
-        return try jsonString(["refreshed": summaries.count, "groups": summaries] as [String: Any])
+        YouTubeService.notifyConnectionChanged()
+        var result: [String: Any] = ["refreshed": summaries.count, "groups": summaries]
+        if !skipped.isEmpty {
+            result["skipped_accounts"] = skipped
+            result["message"] = "No import source (or no liked-video choice) is set for: \(skipped.joined(separator: ", ")). Choose one in Plugins → YouTube."
+        }
+        return try jsonString(result)
     }
 
-    /// Insert an authenticated plugin feed and persist its mutually-exclusive
-    /// followed state through KnowledgeStore so CloudKit metadata stays intact.
+    private static func jsonObject(_ text: String) -> [String: Any]? {
+        text.data(using: .utf8).flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+    }
+
+    /// Insert an authenticated plugin feed and persist its followed state
+    /// through KnowledgeStore so CloudKit metadata stays intact. `account` is
+    /// the one whose feed this is: its policy filters a Liked import.
     private func insertYouTubePluginVideos(
         url: String,
         title playlistTitle: String,
         items: [YouTubePlaylistItem],
         kind: String,
-        assignsParentGroup: Bool
+        assignsParentGroup: Bool,
+        account: YouTubeAccount
     ) throws -> String {
         let store = try knowledgeStore()
         let groupID = youtubePlaylistGroupID(for: url)
@@ -1706,25 +1735,17 @@ extension MCPDataStore {
                 ? id
                 : nil
         })
-        let storedPolicy = YouTubeLikedImportPolicy(
-            rawValue: UserDefaults.standard.string(forKey: StudioViewModel.youtubeLikedImportPolicyKey) ?? ""
-        ) ?? .importExisting
-        let cutoffTimestamp = UserDefaults.standard.double(
-            forKey: StudioViewModel.youtubeLikedImportCutoffKey
-        )
-        let cutoff = cutoffTimestamp > 0 ? Date(timeIntervalSince1970: cutoffTimestamp) : nil
         let existingURLKeys = Set(
             try store.loadActiveSources().map { StudioViewModel.sourceURLIdentityKey($0.url) }
         )
         let importItems = kind == YouTubeImportSource.likedVideos.connectorKind
             ? StudioViewModel.eligibleLikedVideoItems(
                 items,
-                policy: storedPolicy,
-                cutoff: cutoff,
+                policy: account.choices.likedPolicy,
+                cutoff: account.choices.likedCutoff,
                 existingURLKeys: existingURLKeys
             )
             : items
-
         var added = 0
         for (index, item) in importItems.enumerated() {
             if let existing = store.sourceExistsByURL(item.url) {
@@ -1772,9 +1793,12 @@ extension MCPDataStore {
         )
         try store.saveVideoPlaylistGroup(id: groupID, metadata: metadata)
 
+        // Release a source group no account reads any more.
+        let wantedKinds = StudioViewModel.youtubeSourceGroupKinds(accounts: YouTubeService.shared.accounts)
         let supportedKinds = Set(YouTubeImportSource.allCases.map(\.connectorKind))
         for (otherID, var other) in currentGroups
             where otherID != groupID
+                && wantedKinds[otherID] == nil
                 && other.autoImport
                 && other.connectorKind.map({ supportedKinds.contains($0) }) == true {
             other.autoImport = false

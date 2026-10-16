@@ -1988,9 +1988,13 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Publish a post on X (Twitter) as the connected ForeverLM user, optionally as a reply to another post. This posts publicly and immediately — always show the user the exact text and get their explicit confirmation before calling. Requires the X plugin to be signed in with posting permission (Plugins → X); read-only sessions from before posting support must reconnect once. Returns the new post's id and URL.",
+    "description" : "Publish a post on X (Twitter) as the connected ForeverLM user, optionally as a reply to another post. This posts publicly and immediately — always show the user the exact text and get their explicit confirmation before calling. Requires the X plugin to be signed in with posting permission (Plugins → X); read-only sessions from before posting support must reconnect once. With one X account connected it posts as that account; with several, pass account (the user id or @username from get_plugin_connections) — it is required, and the account named is the person the post is published as. Returns the new post's id and URL.",
     "inputSchema" : {
       "properties" : {
+        "account" : {
+          "description" : "The X account to post as: its user id or @username from get_plugin_connections. Optional when only one account is connected, required when several are.",
+          "type" : "string"
+        },
         "reply_to_post_id" : {
           "description" : "Optional id of an existing post to reply to (the numeric id from its URL).",
           "type" : "string"
@@ -2605,11 +2609,11 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Do exactly what a plugin pane's Disconnect / Turn Off / Remove Access button does. x: signs out of X (bookmark sync stops). youtube: forgets the YouTube grant (automatic import stops; followed channels and imported videos stay). google_drive: disconnects one Google account (account_id from get_plugin_connections; optional when only one is connected); its meeting folders stop importing, meetings already imported stay. apple_calendar: turns the Mac's Calendar off for ForeverLM (the macOS permission itself stays; the learner revokes that in System Settings) and forgets the calendar choice; the events stay in the calendar. slack: revokes one workspace's Slack tokens (account_id is its team_id; optional when only one). github: revokes ForeverLM's GitHub token (the GitHub App stays installed on the organisations). user_plugin: removes a Build Your Own plugin's access at once (account_id is its id or name); the sources it added stay — remove_connector_sources removes those. Google accounts, Slack, GitHub and user plugins follow the learner's account on every device; X, YouTube and Calendar are this Mac's. Reconnecting needs the provider's consent page again, so ALWAYS ask the learner before disconnecting anything.",
+    "description" : "Do exactly what a plugin pane's Disconnect / Turn Off / Remove Access button does. x: disconnects one X account (account_id is its user id or @username from get_plugin_connections; optional when only one is connected); its bookmark sync stops, imported posts stay. youtube: disconnects one YouTube account (account_id from get_plugin_connections, a channel title works too; optional when only one is connected); that account stops importing, followed channels and imported videos stay. google_drive: disconnects one Google account (account_id from get_plugin_connections; optional when only one is connected); its meeting folders stop importing, meetings already imported stay. apple_calendar: turns the Mac's Calendar off for ForeverLM (the macOS permission itself stays; the learner revokes that in System Settings) and forgets the calendar choice; the events stay in the calendar. slack: revokes one workspace's Slack tokens (account_id is its team_id; optional when only one). github: revokes ForeverLM's GitHub token (the GitHub App stays installed on the organisations). linear / notion: revokes one workspace's grant (account_id is its id, or its name; optional when only one). user_plugin: removes a Build Your Own plugin's access at once (account_id is its id or name); the sources it added stay — remove_connector_sources removes those. Google accounts, Slack, GitHub, Linear, Notion and user plugins follow the learner's account on every device; X, YouTube and Calendar are this Mac's. Reconnecting needs the provider's consent page again, so ALWAYS ask the learner before disconnecting anything.",
     "inputSchema" : {
       "properties" : {
         "account_id" : {
-          "description" : "google_drive: the account id (or email); slack: the workspace team_id (or name); user_plugin: the plugin id (or name). Optional when only one is connected.",
+          "description" : "x: the X user id or @username; google_drive: the account id (or email); youtube: the account id (or channel title); slack: the workspace team_id (or name); linear: the workspace id, URL key or name; notion: the workspace id or name; user_plugin: the plugin id (or name). Optional when only one is connected.",
           "type" : "string"
         },
         "plugin" : {
@@ -2621,6 +2625,8 @@
             "apple_calendar",
             "slack",
             "github",
+            "linear",
+            "notion",
             "user_plugin"
           ],
           "type" : "string"
@@ -3376,10 +3382,13 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Follow the signed-in user's YouTube playlist named \"ForeverLM\" and import all of its videos. The playlist may be public, unlisted, or private. Metadata only; transcripts fetch on demand. Requires connecting YouTube in Plugins → YouTube.",
+    "description" : "Make one connected YouTube account's playlist named \"ForeverLM\" its import source and import all of its videos; each account has its own source. The playlist may be public, unlisted, or private. Metadata only; transcripts fetch on demand. Requires connecting YouTube in Plugins → YouTube.",
     "inputSchema" : {
       "properties" : {
-
+        "account" : {
+          "description" : "Which connected YouTube account, by channel title or id (get_plugin_connections lists them). Optional when only one is connected.",
+          "type" : "string"
+        }
       },
       "type" : "object"
     },
@@ -3387,9 +3396,13 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Follow the signed-in user's YouTube \"Liked videos\" and keep them fresh in the background. Choose whether to import existing likes or only likes added from now on. Automatic AI transcript formatting is off unless explicitly enabled because a large history can run up a substantial bill on the learner's OpenRouter key. Requires connecting YouTube in Plugins → YouTube.",
+    "description" : "Make one connected YouTube account's \"Liked videos\" its import source and keep them fresh in the background; each account has its own source. Choose whether to import existing likes or only likes added from now on. Automatic AI transcript formatting is off unless explicitly enabled because a large history can run up a substantial bill on the learner's OpenRouter key. Requires connecting YouTube in Plugins → YouTube.",
     "inputSchema" : {
       "properties" : {
+        "account" : {
+          "description" : "Which connected YouTube account, by channel title or id (get_plugin_connections lists them). Optional when only one is connected.",
+          "type" : "string"
+        },
         "format_transcripts_automatically" : {
           "description" : "true to opt into paid AI formatting for automatically fetched liked-video transcripts. Defaults to false; raw transcripts remain available.",
           "type" : "boolean"
@@ -4517,6 +4530,10 @@
         "issue" : {
           "description" : "Issue identifier such as ENG-123, or the issue id, from a search hit or a list.",
           "type" : "string"
+        },
+        "workspace" : {
+          "description" : "Read one connected Linear workspace, by name, URL key or id. Omit to read every connected workspace; each result then says which one it came from.",
+          "type" : "string"
         }
       },
       "required" : [
@@ -4533,6 +4550,10 @@
       "properties" : {
         "project" : {
           "description" : "Project id or slug_id, from list_linear_projects or the project's URL.",
+          "type" : "string"
+        },
+        "workspace" : {
+          "description" : "Read one connected Linear workspace, by name, URL key or id. Omit to read every connected workspace; each result then says which one it came from.",
           "type" : "string"
         }
       },
@@ -4700,6 +4721,10 @@
         "database" : {
           "description" : "The database's id (dashed or not), or its Notion URL, from list_notion_databases or search_notion.",
           "type" : "string"
+        },
+        "workspace" : {
+          "description" : "Read one connected Notion workspace, by name or id. Omit to read every connected workspace; each result then says which one it came from.",
+          "type" : "string"
         }
       },
       "required" : [
@@ -4720,6 +4745,10 @@
         },
         "page" : {
           "description" : "The page's id (dashed or not), or its Notion URL, from search_notion or query_notion_database.",
+          "type" : "string"
+        },
+        "workspace" : {
+          "description" : "Read one connected Notion workspace, by name or id. Omit to read every connected workspace; each result then says which one it came from.",
           "type" : "string"
         }
       },
@@ -4746,7 +4775,7 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "Read the Plugins place as the learner sees it: for each plugin whether it is connected, which account(s), and what connecting would take. X (connected, @username, needs reconnect, last sync); YouTube (connected, automatic import on/off, which import source is followed — liked videos or the ForeverLM playlist — the channels followed with their group_id, hidden channels); Google Drive (connected accounts with id and email, the meeting folders each reads); Calendar, the Mac's own (on/off, macOS permission) — the learner's day; Slack (workspaces with team_id, and each workspace's channels with id, name and whether ForeverLM may read it); GitHub (the account and the organisations the App is installed on); Linear and Notion (connected workspace); and the learner's own Build Your Own plugins (id, name, health, sources added). Every entry names its open_settings pane and the tool that disconnects it. Connecting any plugin needs the provider's consent page, so it cannot be done from a chat: offer open_settings with the pane named here. The Slack channel lists cost one Slack call per workspace; pass include_slack_channels false to skip them.",
+    "description" : "Read the Plugins place as the learner sees it: for each plugin whether it is connected, which account(s), and what connecting would take. X (each connected account with its user id, @username, whether it needs reconnecting, can post, last sync); YouTube (every connected account — channel title and id, whether its grant still works, which import source it follows — liked videos or the ForeverLM playlist — and its liked-import choice; automatic import on/off, the channels followed with their group_id, hidden channels); Google Drive (connected accounts with id and email, the meeting folders each reads); Calendar, the Mac's own (on/off, macOS permission) — the learner's day; Slack (workspaces with team_id, and each workspace's channels with id, name and whether ForeverLM may read it); GitHub (the account and the organisations the App is installed on); Linear and Notion (every connected workspace with its id); and the learner's own Build Your Own plugins (id, name, health, sources added). Every entry names its open_settings pane and the tool that disconnects it. Connecting any plugin needs the provider's consent page, so it cannot be done from a chat: offer open_settings with the pane named here. The Slack channel lists cost one Slack call per workspace; pass include_slack_channels false to skip them.",
     "inputSchema" : {
       "properties" : {
         "include_slack_channels" : {
@@ -6183,6 +6212,10 @@
         "updated_since_days" : {
           "description" : "Only issues changed within this many days.",
           "type" : "integer"
+        },
+        "workspace" : {
+          "description" : "Read one connected Linear workspace, by name, URL key or id. Omit to read every connected workspace; each result then says which one it came from.",
+          "type" : "string"
         }
       },
       "required" : [
@@ -6216,6 +6249,10 @@
         "team_key" : {
           "description" : "Only projects a team with this key can see, from list_linear_teams.",
           "type" : "string"
+        },
+        "workspace" : {
+          "description" : "Read one connected Linear workspace, by name, URL key or id. Omit to read every connected workspace; each result then says which one it came from.",
+          "type" : "string"
         }
       },
       "required" : [
@@ -6227,10 +6264,13 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "List the teams in the learner's Linear workspace with their keys, names, descriptions and issue counts. A team's key is the prefix of its issue identifiers (ENG in ENG-123) and the team_key the other Linear tools take. Read-only.",
+    "description" : "List the teams in the learner's connected Linear workspaces (every one unless workspace names one) with their keys, names, descriptions and issue counts. A team's key is the prefix of its issue identifiers (ENG in ENG-123) and the team_key the other Linear tools take. Read-only.",
     "inputSchema" : {
       "properties" : {
-
+        "workspace" : {
+          "description" : "Read one connected Linear workspace, by name, URL key or id. Omit to read every connected workspace; each result then says which one it came from.",
+          "type" : "string"
+        }
       },
       "required" : [
 
@@ -6384,6 +6424,10 @@
         },
         "query" : {
           "description" : "Words from database titles. Omit to list them all.",
+          "type" : "string"
+        },
+        "workspace" : {
+          "description" : "Read one connected Notion workspace, by name or id. Omit to read every connected workspace; each result then says which one it came from.",
           "type" : "string"
         }
       },
@@ -7356,6 +7400,10 @@
             "type" : "object"
           },
           "type" : "array"
+        },
+        "workspace" : {
+          "description" : "Read one connected Notion workspace, by name or id. Omit to read every connected workspace; each result then says which one it came from.",
+          "type" : "string"
         }
       },
       "required" : [
@@ -7707,10 +7755,13 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Re-check the selected YouTube import source and import any new videos (metadata only).",
+    "description" : "Re-check the selected YouTube import source and import any new videos (metadata only), for every connected YouTube account, or for one when account is given.",
     "inputSchema" : {
       "properties" : {
-
+        "account" : {
+          "description" : "Only this connected YouTube account, by channel title or id. Omit to refresh them all.",
+          "type" : "string"
+        }
       },
       "type" : "object"
     },
@@ -9430,7 +9481,7 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "Search the learner's Linear workspace live for issues by words, ranked by relevance, optionally within one team. This is how to find an issue by what it is about rather than by identifier. Each hit carries its identifier for get_linear_issue. Read-only: ForeverLM never writes to Linear.",
+    "description" : "Search the learner's Linear workspaces live (all connected ones unless workspace names one) for issues by words, ranked by relevance, optionally within one team. This is how to find an issue by what it is about rather than by identifier. Each hit carries its identifier for get_linear_issue. Read-only: ForeverLM never writes to Linear.",
     "inputSchema" : {
       "properties" : {
         "limit" : {
@@ -9443,6 +9494,10 @@
         },
         "term" : {
           "description" : "Words from the issue's title or description, an identifier, or a name.",
+          "type" : "string"
+        },
+        "workspace" : {
+          "description" : "Read one connected Linear workspace, by name, URL key or id. Omit to read every connected workspace; each result then says which one it came from.",
           "type" : "string"
         }
       },
@@ -9509,6 +9564,10 @@
         },
         "query" : {
           "description" : "Words from page and database titles. Omit to list the most recently edited.",
+          "type" : "string"
+        },
+        "workspace" : {
+          "description" : "Read one connected Notion workspace, by name or id. Omit to read every connected workspace; each result then says which one it came from.",
           "type" : "string"
         }
       },

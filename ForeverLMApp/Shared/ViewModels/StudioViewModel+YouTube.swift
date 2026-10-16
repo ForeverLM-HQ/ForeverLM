@@ -1,6 +1,6 @@
 import Foundation
 
-enum YouTubeLikedImportPolicy: String, CaseIterable {
+enum YouTubeLikedImportPolicy: String, CaseIterable, Codable {
     case undecided
     case importExisting
     case futureOnly
@@ -14,7 +14,7 @@ enum YouTubeLikedImportPolicy: String, CaseIterable {
     }
 }
 
-enum YouTubeImportSource: String, CaseIterable, Identifiable {
+enum YouTubeImportSource: String, CaseIterable, Identifiable, Codable {
     case likedVideos
     case foreverLMPlaylist
 
@@ -42,9 +42,9 @@ enum YouTubeImportSource: String, CaseIterable, Identifiable {
     }
 }
 
-/// YouTube plugin: follow either the signed-in user's Liked videos or their
-/// owned playlist named "ForeverLM", plus any number of channels, and
-/// auto-import new entries in the background. Removing an entry upstream removes the plugin-owned row on
+/// YouTube plugin: each connected account follows either its Liked videos or
+/// its owned playlist named "ForeverLM" (`YouTubeAccount.choices`), the learner
+/// follows any number of channels, and new entries import in the background. Removing an entry upstream removes the plugin-owned row on
 /// the next complete sync. Removing a video in the app sticks too: the removal
 /// is a timestamped dismissal that an older upstream entry cannot undo — only
 /// re-adding it after the removal brings it back. Both feeds go through the
@@ -54,8 +54,10 @@ extension StudioViewModel {
     // MARK: - Auto-import preference
 
     nonisolated static let youtubeAutoImportEnabledKey = "youtube.autoImportEnabled"
-    nonisolated static let youtubeLikedImportPolicyKey = "youtube.likedImportPolicy"
-    nonisolated static let youtubeLikedImportCutoffKey = "youtube.likedImportCutoff"
+    /// The single-connection preferences, now per account in `YouTubeImportChoices`.
+    /// Only `adoptSingleYouTubeConnection` reads them, and it removes them.
+    private nonisolated static let legacyLikedImportPolicyKey = "youtube.likedImportPolicy"
+    private nonisolated static let legacyLikedImportCutoffKey = "youtube.likedImportCutoff"
     nonisolated static let youtubeLikedTranscriptFormattingKey =
         "youtube.likedTranscriptFormattingEnabled"
 
@@ -84,22 +86,114 @@ extension StudioViewModel {
         article.likedAt == nil || likedFormattingEnabled
     }
 
-    var youtubeLikedImportPolicy: YouTubeLikedImportPolicy {
-        if let policy = YouTubeLikedImportPolicy(rawValue: youtubeLikedImportPolicyRaw) {
-            return policy
-        }
-        // Existing installs followed Liked videos before this choice existed and
-        // already mirror the whole feed. Preserve that established behavior.
-        let likedGroupID = videoPlaylistID(for: YouTubeService.likedVideosPlaylistURL)
-        return videoPlaylistMetadata[likedGroupID]?.connectorKind == "liked"
-            ? .importExisting
-            : .undecided
+    // MARK: - Accounts
+
+    /// Whether any account holds a grant that can make a request now.
+    var hasConnectedYouTubeAccount: Bool {
+        youtubeAccounts.contains { !youtubeDisconnectedAccountIDs.contains($0.id) }
     }
 
-    var youtubeLikedImportCutoff: Date? {
-        youtubeLikedImportCutoffTimestamp > 0
-            ? Date(timeIntervalSince1970: youtubeLikedImportCutoffTimestamp)
-            : nil
+    /// True while a listed account has lost its grant. The listing, not a
+    /// failed sync, is the source: Google revoking a grant drops the account's
+    /// credentials and keeps the account (with what it imports) listed.
+    var youtubePluginNeedsReconnect: Bool {
+        !youtubeDisconnectedAccountIDs.isEmpty
+    }
+
+    func youtubeAccount(id: String) -> YouTubeAccount? {
+        youtubeAccounts.first { $0.id == id }
+    }
+
+    /// Re-read the account list. Keychain reads run off the main actor.
+    func reloadYouTubeAccounts() async {
+        let snapshot = await Task.detached(priority: .userInitiated) {
+            YouTubeService.shared.snapshot()
+        }.value
+        if youtubeAccounts != snapshot.accounts { youtubeAccounts = snapshot.accounts }
+        if youtubeDisconnectedAccountIDs != snapshot.disconnectedIDs {
+            youtubeDisconnectedAccountIDs = snapshot.disconnectedIDs
+        }
+    }
+
+    /// Store what one account imports, and show it.
+    @discardableResult
+    func setYouTubeChoices(_ choices: YouTubeImportChoices, forAccount accountID: String) async -> Bool {
+        let updated = await Task.detached(priority: .userInitiated) {
+            YouTubeService.shared.setChoices(choices, forAccount: accountID)
+        }.value
+        await reloadYouTubeAccounts()
+        return updated != nil
+    }
+
+    /// Disconnect one account: its grant and choices go, and a group no
+    /// remaining account reads is released.
+    func disconnectYouTubeAccount(_ accountID: String) async {
+        await Task.detached(priority: .userInitiated) {
+            YouTubeService.shared.signOut(accountID: accountID)
+        }.value
+        await reloadYouTubeAccounts()
+        await reconcileYouTubeSourceGroups()
+    }
+
+    /// What the single connection of older builds imported: the source is the
+    /// one whose group is followed, the liked-import policy and cutoff are the
+    /// learner's old preferences, and a Liked feed that was already mirrored
+    /// before the policy existed counts as "existing and future likes".
+    private func legacyYouTubeChoices() -> YouTubeImportChoices {
+        let defaults = UserDefaults.standard
+        return Self.legacyYouTubeChoices(
+            groups: videoPlaylistMetadata,
+            policyRaw: defaults.string(forKey: Self.legacyLikedImportPolicyKey),
+            cutoff: defaults.double(forKey: Self.legacyLikedImportCutoffKey)
+        )
+    }
+
+    nonisolated static func legacyYouTubeChoices(
+        groups: [String: VideoPlaylistMetadata],
+        policyRaw: String?,
+        cutoff: Double
+    ) -> YouTubeImportChoices {
+        let followed = groups.values.filter { $0.autoImport }
+        let source = YouTubeImportSource.allCases.first { source in
+            followed.contains { $0.connectorKind == source.connectorKind }
+        }
+        let likedGroupID = youtubePlaylistGroupID(for: YouTubeService.likedVideosPlaylistURL)
+        let policy = policyRaw.flatMap(YouTubeLikedImportPolicy.init(rawValue:))
+            ?? (groups[likedGroupID]?.connectorKind == YouTubeImportSource.likedVideos.connectorKind
+                ? .importExisting
+                : .undecided)
+        let playlistID = followed
+            .first { $0.connectorKind == YouTubeImportSource.foreverLMPlaylist.connectorKind }
+            .flatMap { YouTubeService.playlistID(fromPlaylistURL: $0.playlistURL) }
+        return YouTubeImportChoices(
+            source: source,
+            foreverLMPlaylistID: source == .foreverLMPlaylist ? playlistID : nil,
+            likedPolicy: policy,
+            likedCutoff: cutoff > 0 ? Date(timeIntervalSince1970: cutoff) : nil
+        )
+    }
+
+    /// Once per old connection: it becomes the first account, with what it
+    /// imported, and its preferences go. Nothing else reads them afterwards.
+    func adoptSingleYouTubeConnection() async {
+        let pending = await Task.detached(priority: .utility) {
+            YouTubeService.shared.hasUnadoptedConnection
+        }.value
+        guard pending else { return }
+        do {
+            try await YouTubeService.shared.adoptSingleConnection(choices: legacyYouTubeChoices())
+            PreferenceStore.remove(forKey: Self.legacyLikedImportPolicyKey)
+            PreferenceStore.remove(forKey: Self.legacyLikedImportCutoffKey)
+        } catch {
+            // Offline or a refused request: the connection stays as it was and
+            // the next launch tries again.
+            logger.warning("YouTube connection not adopted yet: \(error.localizedDescription)")
+        }
+    }
+
+    /// Named only when it tells accounts apart.
+    private func youtubeAccountContext(_ account: YouTubeAccount) -> String {
+        youtubeAccounts.count > 1 ? " for \(account.title)" : ""
     }
 
     /// Whether the user opted into periodic background import of their YouTube
@@ -181,90 +275,127 @@ extension StudioViewModel {
         )
     }
 
-    /// The current mutually-exclusive YouTube import source. Existing installs
-    /// that already follow Liked videos naturally resolve to that source from
-    /// their synced playlist metadata.
-    var youtubeImportSource: YouTubeImportSource? {
-        YouTubeImportSource.allCases.first { source in
-            videoPlaylistMetadata.values.contains {
-                $0.autoImport && $0.connectorKind == source.connectorKind
+    /// The groups that carry accounts' import sources, by group id: one shared
+    /// Liked-videos group, and one group per account's ForeverLM playlist.
+    nonisolated static func youtubeSourceGroupKinds(accounts: [YouTubeAccount]) -> [String: String] {
+        var kinds: [String: String] = [:]
+        for account in accounts {
+            switch account.choices.source {
+            case .likedVideos:
+                kinds[youtubePlaylistGroupID(for: YouTubeService.likedVideosPlaylistURL)] =
+                    YouTubeImportSource.likedVideos.connectorKind
+            case .foreverLMPlaylist:
+                if let playlistID = account.choices.foreverLMPlaylistID {
+                    kinds[youtubePlaylistGroupID(for: YouTubeService.playlistURL(forID: playlistID))] =
+                        YouTubeImportSource.foreverLMPlaylist.connectorKind
+                }
+            case nil:
+                break
+            }
+        }
+        return kinds
+    }
+
+    /// The group id `videoPlaylistID(for:)` derives, for callers without a view model.
+    nonisolated static func youtubePlaylistGroupID(for playlistURL: String) -> String {
+        "playlist_" + sourceURLIdentityKey(playlistURL)
+    }
+
+    /// Keep the followed marks on groups true to the accounts' choices: a group
+    /// is marked while some account reads it, and released when none does.
+    /// Imported videos stay either way.
+    func reconcileYouTubeSourceGroups() async {
+        let kinds = Self.youtubeSourceGroupKinds(accounts: youtubeAccounts)
+        for (id, kind) in kinds {
+            await markYouTubePluginPlaylist(
+                id: id,
+                kind: kind,
+                preferredTitle: kind == YouTubeImportSource.likedVideos.connectorKind ? "Liked videos" : nil
+            )
+        }
+        let sourceKinds = Set(YouTubeImportSource.allCases.map(\.connectorKind))
+        let released: [String] = videoPlaylistMetadata.compactMap { id, metadata -> String? in
+            guard kinds[id] == nil,
+                  metadata.autoImport,
+                  let kind = metadata.connectorKind,
+                  sourceKinds.contains(kind) else { return nil }
+            return id
+        }
+        for id in released {
+            guard var metadata = videoPlaylistMetadata[id] else { continue }
+            metadata.autoImport = false
+            metadata.connectorKind = nil
+            videoPlaylistMetadata[id] = metadata
+            do {
+                try await storage.saveVideoPlaylistGroup(id: id, metadata: metadata)
+            } catch {
+                logger.error("Failed to switch YouTube import source: \(error.localizedDescription)")
             }
         }
     }
 
-    /// Follow the signed-in user's "Liked videos": import them now and keep them
-    /// fresh in the background. Requires a connected YouTube account (the Liked
-    /// feed is private). Returns the playlist group id.
+    /// Make an account's Liked videos its import source, without ever
+    /// importing historical likes before the learner has chosen what should
+    /// happen to them. Returns the Liked group id.
     @discardableResult
-    func followYouTubeLikedVideos() async -> String? {
-        let id = videoPlaylistID(for: YouTubeService.likedVideosPlaylistURL)
-        await refreshLikedYouTubeVideos()
-        guard videoPlaylistMetadata[id] != nil else { return nil }
-        await markYouTubePluginPlaylist(id: id, kind: "liked", preferredTitle: "Liked videos")
-        await unfollowOtherYouTubeImportSources(except: id)
+    func configureYouTubeLikedVideos(
+        _ policy: YouTubeLikedImportPolicy,
+        accountID: String,
+        automaticallyFormatTranscripts: Bool? = nil
+    ) async -> String? {
+        guard policy != .undecided, let account = youtubeAccount(id: accountID) else { return nil }
+        if let automaticallyFormatTranscripts {
+            Self.setLikedYouTubeTranscriptFormattingEnabled(automaticallyFormatTranscripts)
+        }
+        var choices = account.choices
+        choices.source = .likedVideos
+        choices.foreverLMPlaylistID = nil
+        choices.likedPolicy = policy
+        // YouTube timestamps likes to whole seconds. Store the same precision
+        // so a like made immediately after this choice is not lost merely
+        // because the local cutoff carried subsecond precision.
+        choices.likedCutoff = policy == .futureOnly
+            ? Date(timeIntervalSince1970: floor(Date().timeIntervalSince1970))
+            : nil
+        guard await setYouTubeChoices(choices, forAccount: accountID) else { return nil }
+
+        let url = YouTubeService.likedVideosPlaylistURL
+        let id = videoPlaylistID(for: url)
+        switch policy {
+        case .importExisting:
+            await refreshLikedYouTubeVideos()
+            guard videoPlaylistMetadata[id] != nil else { return nil }
+        case .futureOnly:
+            await persistVideoPlaylist(id: id, title: "Liked videos", playlistURL: url)
+            showToast("Watching for new liked videos")
+        case .undecided:
+            return nil
+        }
+        await reconcileYouTubeSourceGroups()
         Self.setYouTubeAutoImportEnabled(true)
         return id
     }
 
-    /// Configure the Liked-videos plugin without ever importing historical
-    /// likes before the learner has chosen what should happen to them.
-    @discardableResult
-    func configureYouTubeLikedVideos(
-        _ policy: YouTubeLikedImportPolicy,
-        automaticallyFormatTranscripts: Bool? = nil
-    ) async -> String? {
-        guard policy != .undecided else { return nil }
-        if let automaticallyFormatTranscripts {
-            Self.setLikedYouTubeTranscriptFormattingEnabled(automaticallyFormatTranscripts)
-        }
-        youtubeLikedImportPolicyRaw = policy.rawValue
-        PreferenceStore.set(policy.rawValue, forKey: Self.youtubeLikedImportPolicyKey)
-
-        switch policy {
-        case .importExisting:
-            youtubeLikedImportCutoffTimestamp = 0
-            PreferenceStore.remove(forKey: Self.youtubeLikedImportCutoffKey)
-            return await followYouTubeLikedVideos()
-        case .futureOnly:
-            // YouTube timestamps likes to whole seconds. Store the same precision
-            // so a like made immediately after this choice is not lost merely
-            // because the local cutoff carried subsecond precision.
-            let cutoff = Date(timeIntervalSince1970: floor(Date().timeIntervalSince1970))
-            youtubeLikedImportCutoffTimestamp = cutoff.timeIntervalSince1970
-            PreferenceStore.set(cutoff.timeIntervalSince1970, forKey: Self.youtubeLikedImportCutoffKey)
-            let id = videoPlaylistID(for: YouTubeService.likedVideosPlaylistURL)
-            await persistVideoPlaylist(
-                id: id,
-                title: "Liked videos",
-                playlistURL: YouTubeService.likedVideosPlaylistURL
-            )
-            await markYouTubePluginPlaylist(id: id, kind: "liked", preferredTitle: "Liked videos")
-            await unfollowOtherYouTubeImportSources(except: id)
-            Self.setYouTubeAutoImportEnabled(true)
-            showToast("Watching for new liked videos")
-            return id
-        case .undecided:
-            return nil
-        }
-    }
-
-    /// Follow the signed-in user's owned playlist named "ForeverLM". The Data
-    /// API lookup is authenticated, so private playlists work too. The playlist
-    /// is the plugin source, not a course: its videos render inline in Videos.
+    /// Make an account's owned playlist named "ForeverLM" its import source.
+    /// The Data API lookup is authenticated, so private playlists work too.
+    /// The playlist is the plugin source, not a course: its videos render
+    /// inline in Videos.
     @discardableResult
     func followYouTubeForeverLMPlaylist(
+        accountID: String,
         silent: Bool = false,
         enablesAutoImport: Bool = true
     ) async -> String? {
         let feed: (playlist: YouTubePluginPlaylist, items: [YouTubePlaylistItem], isComplete: Bool)
         do {
-            feed = try await YouTubeService.shared.listForeverLMPlaylistFeed()
+            feed = try await YouTubeService.shared.listForeverLMPlaylistFeed(accountID: accountID)
         } catch {
             if !silent {
-                errorMessage = "Failed to import ForeverLM playlist: \(error.localizedDescription)"
+                let context = youtubeAccount(id: accountID).map(youtubeAccountContext) ?? ""
+                errorMessage = "Failed to import ForeverLM playlist\(context): \(error.localizedDescription)"
             }
             if Self.isYouTubeReconnectRequired(error) {
-                youtubePluginNeedsReconnect = true
+                await reloadYouTubeAccounts()
             }
             if !hasLoggedYouTubePluginFailure {
                 hasLoggedYouTubePluginFailure = true
@@ -273,7 +404,6 @@ extension StudioViewModel {
             return nil
         }
 
-        youtubePluginNeedsReconnect = false
         hasLoggedYouTubePluginFailure = false
         let groupID = videoPlaylistID(for: feed.playlist.url)
         await persistVideoPlaylist(
@@ -281,12 +411,13 @@ extension StudioViewModel {
             title: feed.playlist.title,
             playlistURL: feed.playlist.url
         )
-        await markYouTubePluginPlaylist(
-            id: groupID,
-            kind: YouTubeImportSource.foreverLMPlaylist.connectorKind,
-            preferredTitle: feed.playlist.title
-        )
-        await unfollowOtherYouTubeImportSources(except: groupID)
+        if var choices = youtubeAccount(id: accountID)?.choices,
+           choices.source != .foreverLMPlaylist || choices.foreverLMPlaylistID != feed.playlist.id {
+            choices.source = .foreverLMPlaylist
+            choices.foreverLMPlaylistID = feed.playlist.id
+            await setYouTubeChoices(choices, forAccount: accountID)
+        }
+        await reconcileYouTubeSourceGroups()
         if enablesAutoImport {
             Self.setYouTubeAutoImportEnabled(true)
         }
@@ -319,6 +450,23 @@ extension StudioViewModel {
         return groupID
     }
 
+    /// Re-check every connected account's import source: the Liked feeds of
+    /// all accounts that read them as one mirror, and each account's playlist.
+    func refreshYouTubeImportSources(silent: Bool) async {
+        let accounts = youtubeAccounts.filter { !youtubeDisconnectedAccountIDs.contains($0.id) }
+        if accounts.contains(where: { $0.choices.source == .likedVideos }) {
+            await refreshLikedYouTubeVideos(silent: silent)
+        }
+        for account in accounts where account.choices.source == .foreverLMPlaylist {
+            guard !Task.isCancelled else { return }
+            _ = await followYouTubeForeverLMPlaylist(
+                accountID: account.id,
+                silent: silent,
+                enablesAutoImport: false
+            )
+        }
+    }
+
     nonisolated static func eligibleLikedVideoItems(
         _ items: [YouTubePlaylistItem],
         policy: YouTubeLikedImportPolicy,
@@ -333,18 +481,66 @@ extension StudioViewModel {
         }
     }
 
+    /// One account's Liked feed as fetched, or nil when its fetch failed.
+    struct LikedFetch: Sendable {
+        let account: YouTubeAccount
+        let feed: (items: [YouTubePlaylistItem], isComplete: Bool)?
+    }
+
+    /// What the Liked mirror does with the accounts' feeds.
+    struct LikedMirrorPlan {
+        /// New videos to import, each account's own policy and cutoff applied,
+        /// a video two accounts like once.
+        let importItems: [YouTubePlaylistItem]
+        /// Videos found in the feeds, before any policy.
+        let fetchedCount: Int
+        let fetchedAny: Bool
+        /// Liked-feed URL keys that count as still liked; nil when rows absent
+        /// from them must not be archived.
+        let stillLikedURLKeys: Set<String>?
+    }
+
+    /// Liked rows carry no account, so absence from one account's feed proves
+    /// nothing once a second account can have put the row there. Archiving
+    /// the unliked therefore needs exactly one account, whose feed was read to
+    /// the end; with several, an unlike leaves the row in the library.
+    nonisolated static func likedMirrorPlan(
+        _ fetches: [LikedFetch],
+        accountCount: Int,
+        existingURLKeys: Set<String>
+    ) -> LikedMirrorPlan {
+        var seen = Set<String>()
+        var importItems: [YouTubePlaylistItem] = []
+        var fetchedCount = 0
+        var fetchedAny = false
+        for fetch in fetches {
+            guard let feed = fetch.feed else { continue }
+            fetchedAny = true
+            fetchedCount += feed.items.count
+            let eligible = eligibleLikedVideoItems(
+                feed.items,
+                policy: fetch.account.choices.likedPolicy,
+                cutoff: fetch.account.choices.likedCutoff,
+                existingURLKeys: existingURLKeys
+            )
+            importItems.append(contentsOf: eligible.filter { seen.insert($0.videoId).inserted })
+        }
+        let sweeps = accountCount == 1 && fetches.count == 1 && fetches[0].feed?.isComplete == true
+        return LikedMirrorPlan(
+            importItems: importItems,
+            fetchedCount: fetchedCount,
+            fetchedAny: fetchedAny,
+            stillLikedURLKeys: sweeps
+                ? Set((fetches[0].feed?.items ?? []).map { sourceURLIdentityKey($0.url) })
+                : nil
+        )
+    }
+
     /// Pull-to-refresh on the Videos tab: sync the Liked feed and every
     /// followed channel, then heal any rows still missing a channel subtitle.
     func refreshYouTubeVideosOnSidebarRefresh() async {
-        if YouTubeService.shared.isSignedIn {
-            switch youtubeImportSource {
-            case .likedVideos:
-                await refreshLikedYouTubeVideos(silent: true)
-            case .foreverLMPlaylist:
-                _ = await followYouTubeForeverLMPlaylist(silent: true, enablesAutoImport: false)
-            case nil:
-                break
-            }
+        if hasConnectedYouTubeAccount {
+            await refreshYouTubeImportSources(silent: true)
             await refreshFollowedYouTubeChannels(silent: true)
         }
         await backfillMissingVideoChannels()
@@ -390,11 +586,10 @@ extension StudioViewModel {
         } catch {
             errorMessage = "Couldn’t follow that channel: \(error.localizedDescription)"
             if Self.isYouTubeReconnectRequired(error) {
-                youtubePluginNeedsReconnect = true
+                await reloadYouTubeAccounts()
             }
             return nil
         }
-        youtubePluginNeedsReconnect = false
         let url = channel.uploadsPlaylistURL
         let groupID = videoPlaylistID(for: url)
         await persistVideoPlaylist(id: groupID, title: channel.title, playlistURL: url)
@@ -437,7 +632,7 @@ extension StudioViewModel {
                     errorMessage = "Failed to refresh \(metadata.title): \(error.localizedDescription)"
                 }
                 if Self.isYouTubeReconnectRequired(error) {
-                    youtubePluginNeedsReconnect = true
+                    await reloadYouTubeAccounts()
                 }
                 if !hasLoggedYouTubePluginFailure {
                     hasLoggedYouTubePluginFailure = true
@@ -445,7 +640,6 @@ extension StudioViewModel {
                 }
                 continue
             }
-            youtubePluginNeedsReconnect = false
             hasLoggedYouTubePluginFailure = false
             guard !feed.items.isEmpty else { continue }
             await refreshYouTubeVideoPlaylist(
@@ -597,64 +791,69 @@ extension StudioViewModel {
         return VideoChannelBackfillResult(id: candidate.id, videoId: candidate.videoId, outcome: outcome)
     }
 
-    /// Import (or refresh) the user's liked videos through the authenticated Data
-    /// API, then reuse the shared playlist ingest path and archive rows whose
-    /// videos are no longer liked. The Liked feed is private, so it cannot use
-    /// the keyless playlist scrape that course playlists use. On fetch errors
-    /// nothing is archived — no feed data, no changes.
+    /// Import (or refresh) the liked videos of every account that reads them
+    /// through the authenticated Data API, then reuse the shared playlist
+    /// ingest path and archive rows whose videos are no longer liked. The
+    /// Liked feed is private, so it cannot use the keyless playlist scrape
+    /// that course playlists use. One account failing does not stop the
+    /// others, and nothing is archived unless the single account's whole feed
+    /// came back (`likedMirrorPlan`): no feed data, no changes.
     func refreshLikedYouTubeVideos(silent: Bool = false) async {
-        guard youtubeLikedImportPolicy != .undecided else {
-            if !silent {
-                showToast("Choose whether to import existing liked videos first.")
-            }
-            return
+        let accounts = youtubeAccounts.filter {
+            $0.choices.source == .likedVideos && !youtubeDisconnectedAccountIDs.contains($0.id)
         }
+        let decided = accounts.filter { $0.choices.likedPolicy != .undecided }
+        if decided.count < accounts.count, !silent {
+            showToast("Choose whether to import existing liked videos first.")
+        }
+        guard !decided.isEmpty else { return }
         let url = YouTubeService.likedVideosPlaylistURL
         let likedGroupID = videoPlaylistID(for: url)
-        let feed: (items: [YouTubePlaylistItem], isComplete: Bool)
-        do {
-            feed = try await YouTubeService.shared.listLikedVideosFeed()
-        } catch {
-            if !silent {
-                errorMessage = "Failed to import liked videos: \(error.localizedDescription)"
+        var fetches: [LikedFetch] = []
+        for account in decided {
+            do {
+                let feed = try await YouTubeService.shared.listLikedVideosFeed(accountID: account.id)
+                fetches.append(LikedFetch(account: account, feed: feed))
+            } catch {
+                if !silent {
+                    errorMessage = "Failed to import liked videos\(youtubeAccountContext(account)): \(error.localizedDescription)"
+                }
+                // A lost connection is not a transient hiccup: it never heals on its
+                // own, so it has to be visible even on the silent background pass.
+                // Quota trips and network blips deliberately don't mark it — they
+                // recover by themselves and a false "reconnect" prompt would train
+                // the user to ignore a real one.
+                if Self.isYouTubeReconnectRequired(error) {
+                    await reloadYouTubeAccounts()
+                }
+                if !hasLoggedYouTubePluginFailure {
+                    hasLoggedYouTubePluginFailure = true
+                    logger.warning("Liked videos import failed: \(error.localizedDescription)")
+                }
+                fetches.append(LikedFetch(account: account, feed: nil))
             }
-            // A lost connection is not a transient hiccup: it never heals on its
-            // own, so it has to be visible even on the silent background pass.
-            // Quota trips and network blips deliberately don't set this — they
-            // recover by themselves and a false "reconnect" prompt would train
-            // the user to ignore a real one.
-            if Self.isYouTubeReconnectRequired(error) {
-                youtubePluginNeedsReconnect = true
-            }
-            if !hasLoggedYouTubePluginFailure {
-                hasLoggedYouTubePluginFailure = true
-                logger.warning("Liked videos import failed: \(error.localizedDescription)")
-            }
-            return
         }
-        youtubePluginNeedsReconnect = false
+        guard fetches.contains(where: { $0.feed != nil }) else { return }
         hasLoggedYouTubePluginFailure = false
-        let items = feed.items
         let existingURLKeys = Set(activeArticles.map { Self.sourceURLIdentityKey($0.url) })
-        let importItems = Self.eligibleLikedVideoItems(
-            items,
-            policy: youtubeLikedImportPolicy,
-            cutoff: youtubeLikedImportCutoff,
+        let plan = Self.likedMirrorPlan(
+            fetches,
+            accountCount: youtubeAccounts.count,
             existingURLKeys: existingURLKeys
         )
         // Absence from a truncated feed proves nothing — the video may simply be
         // older than the fetch window — and archiving deletes the transcript and
         // embeddings, so only sweep when the whole feed was read.
-        let archivedCount = feed.isComplete
-            ? await archiveUnlikedYouTubeVideos(
-                likedGroupID: likedGroupID,
-                likedURLKeys: Set(items.map { Self.sourceURLIdentityKey($0.url) })
-            )
-            : 0
-        guard !importItems.isEmpty else {
+        let archivedCount: Int
+        if let stillLiked = plan.stillLikedURLKeys {
+            archivedCount = await archiveUnlikedYouTubeVideos(likedGroupID: likedGroupID, likedURLKeys: stillLiked)
+        } else {
+            archivedCount = 0
+        }
+        guard !plan.importItems.isEmpty else {
             await persistVideoPlaylist(id: likedGroupID, title: "Liked videos", playlistURL: url)
             if !silent {
-                showToast(items.isEmpty ? "No liked videos found." : "No new liked videos found.")
+                showToast(plan.fetchedCount == 0 ? "No liked videos found." : "No new liked videos found.")
             }
             return
         }
@@ -668,7 +867,7 @@ extension StudioViewModel {
             // back — has to undo that archive rather than be dropped.
             unarchivesExistingSources: true,
             allowsAutomaticTranscriptFormatting: Self.isLikedYouTubeTranscriptFormattingEnabled,
-            prefetched: (title: "Liked videos", items: importItems)
+            prefetched: (title: "Liked videos", items: plan.importItems)
         )
         if archivedCount > 0 && !silent {
             showToast("Archived \(archivedCount) unliked video\(archivedCount == 1 ? "" : "s").")
@@ -801,39 +1000,25 @@ extension StudioViewModel {
         }
     }
 
-    /// Liked videos and the named playlist are alternative intake rails. Keep
-    /// imported sources, but stop every other rail from continuing to sync.
-    private func unfollowOtherYouTubeImportSources(except selectedID: String) async {
-        let supportedKinds = Set(YouTubeImportSource.allCases.map(\.connectorKind))
-        let otherIDs: [String] = videoPlaylistMetadata.compactMap { id, metadata -> String? in
-            guard id != selectedID,
-                  metadata.autoImport,
-                  let kind = metadata.connectorKind,
-                  supportedKinds.contains(kind) else { return nil }
-            return id
-        }
-        for id in otherIDs {
-            guard var metadata = videoPlaylistMetadata[id] else { continue }
-            metadata.autoImport = false
-            metadata.connectorKind = nil
-            videoPlaylistMetadata[id] = metadata
-            do {
-                try await storage.saveVideoPlaylistGroup(id: id, metadata: metadata)
-            } catch {
-                logger.error("Failed to switch YouTube import source: \(error.localizedDescription)")
-            }
-        }
-    }
-
     // MARK: - Background auto-import
 
     /// Start the post-launch YouTube auto-import loop. Safe to call once after the
     /// initial queue load; it never runs at startup and no-ops unless the user has
-    /// enabled auto-import and selected a YouTube source.
+    /// enabled auto-import and an account selected a YouTube source. First an older
+    /// build's single connection becomes an account; the account list then follows
+    /// every connection change.
     func startYouTubeAutoImport() {
         guard youtubeAutoImportTask == nil else { return }
         youtubeAutoImportTask = Task { [weak self] in
+            await self?.adoptSingleYouTubeConnection()
+            await self?.reloadYouTubeAccounts()
             await self?.runYouTubeAutoImportLoop()
+        }
+        youtubeAccountObserverTask = Task { [weak self] in
+            for await _ in NotificationCenter.default.notifications(named: .pluginConnectionChanged) {
+                guard let self else { return }
+                await self.reloadYouTubeAccounts()
+            }
         }
     }
 
@@ -848,7 +1033,7 @@ extension StudioViewModel {
         }
     }
 
-    /// One background pass: re-check the selected YouTube feed and import any new
+    /// One background pass: re-check each account's selected YouTube feed and import any new
     /// videos. Silent (no toasts, no sidebar changes); existing videos are updated
     /// in place, not duplicated. New metadata is published first, then transcript
     /// processing continues independently in the background. The Liked feed is
@@ -856,14 +1041,7 @@ extension StudioViewModel {
     func runYouTubeAutoImportOnce() async {
         guard Self.isYouTubeAutoImportEnabled else { return }
         guard !Task.isCancelled else { return }
-        switch youtubeImportSource {
-        case .likedVideos:
-            await refreshLikedYouTubeVideos(silent: true)
-        case .foreverLMPlaylist:
-            _ = await followYouTubeForeverLMPlaylist(silent: true, enablesAutoImport: false)
-        case nil:
-            break
-        }
+        await refreshYouTubeImportSources(silent: true)
         guard !Task.isCancelled else { return }
         await refreshFollowedYouTubeChannels(silent: true)
     }

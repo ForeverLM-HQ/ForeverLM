@@ -56,13 +56,13 @@ Use the X plugin to sync saved X bookmarks into Studio as sources.
 2. Click **Connect**.
 3. Sign in to X and approve ForeverLM's access.
 
-After connecting, use **Sync** on the X plugin page or **Sync Bookmarks** in the Studio X tab.
+After connecting, use **Sync** on the X plugin page or **Sync Bookmarks** in the Studio X tab. You can connect more than one X account: each has its own card on the plugin page, with its own **Sync** and **Disconnect** (see [X Posts](/x-posts#more-than-one-account)).
 
 There is no developer setup: ForeverLM supplies the production OAuth client and X API access. Each person authorizes only their own X account.
 
 ## YouTube
 
-Use the YouTube plugin to import either **Liked videos** or videos from a playlist in your account named **ForeverLM**, and to follow any number of **channels**. The two import modes are mutually exclusive and can be changed later; followed channels sit alongside whichever one you pick.
+Use the YouTube plugin to import either **Liked videos** or videos from a playlist in your account named **ForeverLM**, and to follow any number of **channels**. Connect as many Google accounts as you like: each account has its own import source, which is one of the two and can be changed later. Followed channels belong to you, not to an account, and sit alongside whatever the accounts import.
 
 The plugin imports **metadata only** — a video's transcript (and slides) are fetched on demand the first time you open or review it, not when it's imported.
 
@@ -72,6 +72,7 @@ Connecting YouTube is read-only. ForeverLM reads only the source you select.
 
 1. In ForeverLM, open **Plugins** on the icon strip.
 2. Select **YouTube** and click **Connect**. Google asks you to grant read-only access to your YouTube account.
+3. To add another account, click **Add Another Account** below the account cards and sign in with the other Google account. Each account is its own card, labelled with its channel name, with its own **Disconnect**.
 
 There is no Google Cloud setup: YouTube signs in against ForeverLM's own OAuth client.
 
@@ -83,12 +84,12 @@ https://www.googleapis.com/auth/youtube.readonly
 
 ### Choose What to Import
 
-After connecting, choose one source:
+After connecting an account, choose its source (each account chooses for itself):
 
 - **Liked videos** — choose whether to import existing and future likes or only future likes. Raw transcripts are imported automatically. AI formatting is a separate opt-in because formatting a large history can use substantial credits.
 - **ForeverLM playlist** — create a playlist in YouTube named exactly `ForeverLM`; all of its current videos import, and later changes stay in sync. The playlist may be public, unlisted, or private.
 
-If more than one playlist is named ForeverLM, rename the extras before selecting it. Switching sources keeps videos already imported and changes what ForeverLM follows from then on.
+If more than one playlist in an account is named ForeverLM, rename the extras before selecting it. Switching an account's source keeps videos already imported and changes what ForeverLM follows from then on. When several accounts import Liked videos, they share one **Liked videos** list, and an unliked video is only archived while a single account is connected, because the list does not record which account liked a video. If Google revokes an account's access, its card says **Reconnect**; reconnecting the same channel brings back what it imported. Disconnecting an account forgets its choices.
 
 ### Follow Channels
 
@@ -98,7 +99,7 @@ The back catalog beyond those 50 stays on YouTube; to bring an older run of vide
 
 ### Automatic Import
 
-Turn on **Automatically import new videos** to keep the selected source and every followed channel fresh. ForeverLM also refreshes them when you refresh the Videos tab.
+Turn on **Automatically import new videos** to keep every account's selected source and every followed channel fresh. One account failing does not stop the others. Followed channels are read with the first connected account's access. ForeverLM also refreshes them when you refresh the Videos tab.
 
 ::: tip Watch Later is not available
 Google's YouTube Data API does not expose the Watch Later playlist, so it can't be followed. Liked videos and ordinary playlists are supported.
@@ -112,7 +113,7 @@ You can connect more than one workspace. The Slack page lists every workspace on
 
 ## Linear
 
-Linear is connected the same way, on the web: the **Linear** row in **Plugins** links to the Linear page of your ForeverLM account, where you authorize one workspace. The connection is read-only by construction. ForeverLM asks Linear for the single `read` permission, reads issues, comments, teams and projects as you when a chat asks, and never creates, edits, comments on or assigns anything; there is no code path that writes to Linear. The row shows **Connected** or **Not connected** because the Mac asks the ForeverLM gateway that holds the grant, and the Linear pane says the same in a sentence with a button that reads **Connect Linear…** or **Manage Linear…**. Nothing read from Linear is kept between reads. The connection lives on your ForeverLM account, not on the Mac, and follows it if Apple re-issues your Sign in with Apple identity, as the Slack connection does. Linear's access tokens expire after a day; the gateway renews them on its own, and a grant Linear no longer honours is reported as a reconnect at the same page. **Disconnect Linear** on that page revokes the grant at Linear and forgets it. The tools an assistant gets from it are listed in the [MCP Tools Reference](/mcp-tools#linear).
+Linear is connected in the **Linear** row of **Plugins**, and you can connect more than one workspace. The page lists each connected workspace as its own card, with the Linear user the reads are made as and its own **Disconnect**; **Add Another Workspace** opens Linear's consent screen in a sheet, which asks which workspace to add, and **Connect Linear** does the same when none is connected. The Linear page of your ForeverLM account at app.foreverlm.com does the same in a browser. The connection is read-only by construction. ForeverLM asks Linear for the single `read` permission, reads issues, comments, teams and projects as you when a chat asks, and never creates, edits, comments on or assigns anything; there is no code path that writes to Linear. The row shows **Connected** (or **2 connected**, and so on) or **Not connected** because the Mac asks the ForeverLM gateway that holds the grants. A chat reads every connected workspace at once and says which one each result came from; an assistant can also name one workspace. Nothing read from Linear is kept between reads. The connections live on your ForeverLM account, not on the Mac, and follow it if Apple re-issues your Sign in with Apple identity, as the Slack connection does. Linear's access tokens expire after a day; the gateway renews them on its own, and a grant Linear no longer honours is reported as a reconnect for that workspace. **Disconnect** on a workspace's card revokes that grant at Linear and forgets it, and leaves the others as they are. The tools an assistant gets from it are listed in the [MCP Tools Reference](/mcp-tools#linear).
 
 ## GitHub
 
@@ -120,4 +121,4 @@ GitHub is connected on the web too: the **GitHub** row in **Plugins** links to t
 
 ## Notion
 
-Notion is connected on the web as well: the **Notion** row in **Plugins** links to the Notion page of your ForeverLM account, where you authorize the ForeverLM connection in one workspace and tick the pages and databases it may read. What ForeverLM can read is exactly what you shared: to add a page later, open it in Notion and choose **Connections** in its **•••** menu. The connection is read-only by construction. Its capabilities are read content and read user information without email, and there is no code path that creates, edits, moves or comments on anything in Notion; a chat that wants to act points you at the page. The row shows **Connected** or **Not connected** because the Mac asks the ForeverLM gateway that holds the grant, and the Notion pane says the same in a sentence with a button that reads **Connect Notion…** or **Manage Notion…**. Nothing read from Notion is kept between reads. The connection lives on your ForeverLM account, not on the Mac, and follows it if Apple re-issues your Sign in with Apple identity, as the Slack, Linear and GitHub connections do. A grant Notion stops honouring is renewed by the gateway on its own, and one it will not renew is reported as a reconnect at the same page. **Disconnect Notion** on that page revokes the grant at Notion and forgets it. The tools an assistant gets from it are listed in the [MCP Tools Reference](/mcp-tools#notion).
+Notion is connected in the **Notion** row of **Plugins**, and you can connect more than one workspace. The page lists each connected workspace as its own card with its own **Disconnect**; **Add Another Workspace** opens Notion's consent screen in a sheet, where you choose the workspace and tick the pages and databases ForeverLM may read, and **Connect Notion** does the same when none is connected. What ForeverLM can read is exactly what you shared: to add a page later, open it in Notion and choose **Connections** in its **•••** menu. The connection is read-only by construction. Its capabilities are read content and read user information without email, and there is no code path that creates, edits, moves or comments on anything in Notion; a chat that wants to act points you at the page. The row shows **Connected** (or **2 connected**, and so on) or **Not connected** because the Mac asks the ForeverLM gateway that holds the grants. A chat reads every connected workspace at once and says which one each result came from; an assistant can also name one workspace. Nothing read from Notion is kept between reads. The connections live on your ForeverLM account, not on the Mac, and follow it if Apple re-issues your Sign in with Apple identity, as the Slack, Linear and GitHub connections do. A grant Notion stops honouring is renewed by the gateway on its own, and one it will not renew is reported as a reconnect for that workspace. **Disconnect** on a workspace's card revokes that grant at Notion and forgets it, and leaves the others as they are. The tools an assistant gets from it are listed in the [MCP Tools Reference](/mcp-tools#notion).

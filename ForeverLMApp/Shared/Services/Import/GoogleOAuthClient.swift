@@ -21,8 +21,9 @@ struct GoogleOAuthCredentials: Equatable, Sendable {
     }
 }
 
-/// Resolves the app-owned Google OAuth clients used by YouTube and Drive, plus
-/// the issuing client recorded for older bring-your-own-client sessions.
+/// Resolves the app-owned Google OAuth clients used by YouTube and Drive. The
+/// client that issued a YouTube account's tokens is recorded per account
+/// (`YouTubeService`).
 enum GoogleOAuthClient {
     /// ForeverLM's own YouTube client. `nil` in Debug builds whose `.env` has no
     /// YouTube client — release builds fail to compile without one.
@@ -52,17 +53,6 @@ enum GoogleOAuthClient {
         explicit: GoogleOAuthCredentials? = nil
     ) -> GoogleOAuthCredentials? {
         explicit ?? appOwnedYouTube ?? userSuppliedGoogle
-    }
-
-    /// The client that issued the stored YouTube tokens. Google refuses to
-    /// refresh a token against a different client, so this must be the recorded
-    /// one — never simply the current default. Connections predating the
-    /// recorded client were issued under the user's own Google client.
-    static var youtubeRefresh: GoogleOAuthCredentials? {
-        GoogleOAuthCredentials(
-            clientID: KeychainService.youtubeClientID,
-            clientSecret: KeychainService.youtubeClientSecret
-        ) ?? userSuppliedGoogle
     }
 
     // MARK: - Google Drive

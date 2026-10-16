@@ -110,7 +110,7 @@ private struct SlackPluginSettingsView: View {
     @State private var disconnectingTeamID: String?
     @State private var pendingDisconnect: MCPDataStore.SlackWorkspace?
     @State private var message: String?
-    @State private var consent = SlackConsentSheet()
+    @State private var consent = PluginConsentSheet()
 
     private var connection: MCPDataStore.SlackWorkspaceConnection? { GatewayPluginState.shared.slack }
 
@@ -370,7 +370,7 @@ private struct SlackPluginSettingsView: View {
                 return
             }
             let authorization = try await MCPDataStore.slackAuthorizationURL()
-            let callback = try await consent.authorize(url: authorization, redirect: MCPDataStore.slackInstallRedirectURL)
+            let callback = try await consent.authorize(provider: "Slack", url: authorization, redirect: MCPDataStore.slackInstallRedirectURL)
             let items = URLComponents(url: callback, resolvingAgainstBaseURL: false)?.queryItems ?? []
             func value(_ name: String) -> String? {
                 items.first(where: { $0.name == name })?.value.flatMap { $0.isEmpty ? nil : $0 }
@@ -410,20 +410,21 @@ private struct SlackPluginSettingsView: View {
     }
 }
 
-/// Slack's consent screen in an `ASWebAuthenticationSession` over the Studio
-/// window. The session is told to stop at the registered redirect address and
-/// hand its query back, so the code never loads the web page; the app finishes
-/// the install with the gateway itself. Same shape as the Developer ID Sign in
-/// with Apple flow in `ManagedAIAccountModel`.
+/// A provider's consent screen (Slack, Linear, Notion) in an
+/// `ASWebAuthenticationSession` over the Studio window. The session is told to
+/// stop at the registered redirect address and hand its query back, so the code
+/// never loads the web page; the app finishes the install with the gateway
+/// itself. Same shape as the Developer ID Sign in with Apple flow in
+/// `ManagedAIAccountModel`.
 @MainActor
-private final class SlackConsentSheet: NSObject, ASWebAuthenticationPresentationContextProviding {
+private final class PluginConsentSheet: NSObject, ASWebAuthenticationPresentationContextProviding {
     private var session: ASWebAuthenticationSession?
 
     @available(macOS 14.4, *)
-    func authorize(url: URL, redirect: URL) async throws -> URL {
+    func authorize(provider: String, url: URL, redirect: URL) async throws -> URL {
         session?.cancel()
         guard let host = redirect.host else {
-            throw MCPError.invalidInput("The Slack redirect address is invalid.")
+            throw MCPError.invalidInput("The \(provider) redirect address is invalid.")
         }
         return try await withCheckedThrowingContinuation { continuation in
             let session = ASWebAuthenticationSession(
@@ -438,7 +439,7 @@ private final class SlackConsentSheet: NSObject, ASWebAuthenticationPresentation
                 } else if let callbackURL {
                     continuation.resume(returning: callbackURL)
                 } else {
-                    continuation.resume(throwing: MCPError.invalidInput("Slack returned no response."))
+                    continuation.resume(throwing: MCPError.invalidInput("\(provider) returned no response."))
                 }
             }
             session.prefersEphemeralWebBrowserSession = false
@@ -446,7 +447,7 @@ private final class SlackConsentSheet: NSObject, ASWebAuthenticationPresentation
             self.session = session
             if !session.start() {
                 self.session = nil
-                continuation.resume(throwing: MCPError.invalidInput("Could not open Slack's sign-in sheet."))
+                continuation.resume(throwing: MCPError.invalidInput("Could not open \(provider)'s sign-in sheet."))
             }
         }
     }
@@ -456,51 +457,213 @@ private final class SlackConsentSheet: NSObject, ASWebAuthenticationPresentation
     }
 }
 
+/// One connected workspace as a gateway-held plugin's card draws it.
+private struct GatewayWorkspaceCard: Identifiable, Equatable {
+    let id: String
+    let label: String
+    /// "Reads as Robin Vale", when the gateway named the user.
+    let detail: String?
+}
+
+/// The page of a plugin whose grants the gateway holds, one per workspace
+/// (Linear, Notion): a card for each connected workspace with its own
+/// Disconnect, and one quiet action below to connect another. The consent
+/// screen opens in a sheet over this window and the app finishes the connect
+/// with the gateway, the way the Slack page does.
 @MainActor
-private struct LinearPluginSettingsView: View {
-    private let setupURL = URL(string: "https://app.foreverlm.com/linear-connect")!
-    private var connection: MCPDataStore.LinearConnection? { GatewayPluginState.shared.linear }
+private struct GatewayWorkspacesView: View {
+    let provider: String
+    /// The provider's web page, for a macOS that cannot stop a sheet at an
+    /// https address.
+    let setupURL: URL
+    let redirect: URL
+    /// nil until the gateway has answered.
+    let workspaces: [GatewayWorkspaceCard]?
+    let isSignedOut: Bool
+    let authorize: () async throws -> URL
+    let complete: (_ code: String, _ state: String) async throws -> Void
+    let disconnect: (_ workspaceID: String) async throws -> Void
+    let refresh: () async -> Void
+
+    @State private var connecting = false
+    @State private var disconnectingID: String?
+    @State private var pendingDisconnect: GatewayWorkspaceCard?
+    @State private var message: String?
+    @State private var consent = PluginConsentSheet()
 
     var body: some View {
-        SettingsCard {
-            VStack(alignment: .leading, spacing: 12) {
-                if let statusMessage {
-                    Text(statusMessage)
+        VStack(alignment: .leading, spacing: 16) {
+            if isSignedOut {
+                SettingsCard {
+                    Text("Sign in with Apple in ForeverLM to connect \(provider). ForeverLM reads \(provider) as you, through your own account, and never writes to it.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                Link(connection?.isConnected == true ? "Manage Linear…" : "Connect Linear…", destination: setupURL)
-                    .buttonStyle(.borderedProminent)
+            } else {
+                ForEach(workspaces ?? []) { workspace in
+                    workspaceCard(workspace)
+                }
+                addRow
+            }
+            if let message {
+                Text(message)
+                    .font(.subheadline)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .task {
-            if let connection = await MCPDataStore.linearConnection() {
-                GatewayPluginState.shared.linear = connection
+        .task { await refresh() }
+        // A workspace can be connected or disconnected from a chat or the web
+        // page; coming back to the app must show it without reopening this page.
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            Task { await refresh() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .pluginConnectionChanged)) { _ in
+            Task { await refresh() }
+        }
+        .confirmationDialog(
+            "Disconnect \(pendingDisconnect?.label ?? "this workspace")?",
+            isPresented: Binding(get: { pendingDisconnect != nil }, set: { if !$0 { pendingDisconnect = nil } }),
+            presenting: pendingDisconnect
+        ) { workspace in
+            Button("Disconnect", role: .destructive) {
+                Task { await disconnectWorkspace(workspace) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { workspace in
+            Text("ForeverLM stops reading \(workspace.label) and its \(provider) grant is revoked. You can connect it again later.")
+        }
+    }
+
+    private func workspaceCard(_ workspace: GatewayWorkspaceCard) -> some View {
+        SettingsCard {
+            HStack(alignment: .center, spacing: 12) {
+                Text(String(workspace.label.prefix(1)).uppercased())
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .textSelection(.disabled)
+                    .frame(width: 34, height: 34)
+                    .background(Circle().fill(Color.primary.opacity(0.055)))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(workspace.label)
+                        .font(.headline)
+                        .lineLimit(1)
+                    if let detail = workspace.detail {
+                        Text(detail)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+                Spacer(minLength: 12)
+                Button("Disconnect", role: .destructive) {
+                    pendingDisconnect = workspace
+                }
+                .buttonStyle(.hoverWash)
+                .foregroundStyle(.secondary)
+                .disabled(disconnectingID == workspace.id)
             }
         }
     }
 
-    /// The same answer the plugins list shows as a chip, in a sentence that
-    /// says what the button will do about it. Every state says read-only once.
-    private var statusMessage: String? {
-        switch connection {
-        case .connected(let workspace, let user):
-            let opening: String
-            switch (workspace, user) {
-            case (let workspace?, let user?): opening = "Connected to \(workspace) as \(user)."
-            case (let workspace?, nil): opening = "Connected to \(workspace)."
-            case (nil, let user?): opening = "Connected as \(user)."
-            case (nil, nil): opening = "Connected."
+    private var addRow: some View {
+        HStack(spacing: 10) {
+            if connecting {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Waiting for \(provider)…")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            } else {
+                Button {
+                    Task { await connect() }
+                } label: {
+                    Label(
+                        (workspaces ?? []).isEmpty ? "Connect \(provider)" : "Add Another Workspace",
+                        systemImage: "plus"
+                    )
+                    .font(.callout.weight(.medium))
+                }
+                .buttonStyle(.hoverWash)
+                .disabled(workspaces == nil)
             }
-            return "\(opening) ForeverLM reads issues, teams and projects as you and changes nothing; disconnect on the Linear page."
-        case .notConnected:
-            return "No Linear workspace is connected to your ForeverLM account yet. The connection is read-only."
-        case .signedOut:
-            return "Sign in with Apple in ForeverLM to connect Linear. ForeverLM reads Linear as you, through your own account, and never writes to it."
-        case nil:
-            return nil
+            Spacer(minLength: 0)
         }
+        .padding(.horizontal, 4)
+    }
+
+    private func connect() async {
+        connecting = true
+        message = nil
+        defer { connecting = false }
+        do {
+            guard #available(macOS 14.4, *) else {
+                NSWorkspace.shared.open(setupURL)
+                return
+            }
+            let authorization = try await authorize()
+            let callback = try await consent.authorize(provider: provider, url: authorization, redirect: redirect)
+            let items = URLComponents(url: callback, resolvingAgainstBaseURL: false)?.queryItems ?? []
+            func value(_ name: String) -> String? {
+                items.first(where: { $0.name == name })?.value.flatMap { $0.isEmpty ? nil : $0 }
+            }
+            if let error = value("error") {
+                if error == "access_denied" { return } // The learner backed out on the provider's screen.
+                throw MCPError.invalidInput("\(provider) did not complete the connection (\(error)).")
+            }
+            guard let code = value("code"), let state = value("state") else {
+                throw MCPError.invalidInput("\(provider) returned an incomplete authorization response.")
+            }
+            try await complete(code, state)
+            await refresh()
+            NotificationCenter.default.post(name: .pluginConnectionChanged, object: nil)
+        } catch is CancellationError {
+            // The sheet was dismissed.
+        } catch {
+            message = error.localizedDescription
+        }
+    }
+
+    private func disconnectWorkspace(_ workspace: GatewayWorkspaceCard) async {
+        disconnectingID = workspace.id
+        message = nil
+        defer { disconnectingID = nil }
+        do {
+            try await disconnect(workspace.id)
+            await refresh()
+            NotificationCenter.default.post(name: .pluginConnectionChanged, object: nil)
+        } catch {
+            message = error.localizedDescription
+        }
+    }
+}
+
+/// The Linear plugin: one card per connected workspace.
+@MainActor
+private struct LinearPluginSettingsView: View {
+    private var connection: MCPDataStore.LinearConnection? { GatewayPluginState.shared.linear }
+
+    var body: some View {
+        GatewayWorkspacesView(
+            provider: "Linear",
+            setupURL: URL(string: "https://app.foreverlm.com/linear-connect")!,
+            redirect: MCPDataStore.linearInstallRedirectURL,
+            workspaces: connection.map { connection in
+                connection.workspaces.map {
+                    GatewayWorkspaceCard(id: $0.id, label: $0.label, detail: $0.user.map { "Reads as \($0)" })
+                }
+            },
+            isSignedOut: connection == .signedOut,
+            authorize: { try await MCPDataStore.linearAuthorizationURL() },
+            complete: { code, state in try await MCPDataStore.completeLinearInstall(code: code, state: state) },
+            disconnect: { id in _ = try await MCPDataStore.disconnectLinearWorkspace(id: id) },
+            refresh: {
+                if let connection = await MCPDataStore.linearConnection() {
+                    GatewayPluginState.shared.linear = connection
+                }
+            }
+        )
     }
 }
 
@@ -852,50 +1015,31 @@ private struct GitHubPluginSettingsView: View {
     }
 }
 
+/// The Notion plugin: one card per connected workspace.
+@MainActor
 private struct NotionPluginSettingsView: View {
-    private let setupURL = URL(string: "https://app.foreverlm.com/notion-connect")!
     private var connection: MCPDataStore.NotionConnection? { GatewayPluginState.shared.notion }
 
     var body: some View {
-        SettingsCard {
-            VStack(alignment: .leading, spacing: 12) {
-                if let statusMessage {
-                    Text(statusMessage)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+        GatewayWorkspacesView(
+            provider: "Notion",
+            setupURL: URL(string: "https://app.foreverlm.com/notion-connect")!,
+            redirect: MCPDataStore.notionInstallRedirectURL,
+            workspaces: connection.map { connection in
+                connection.workspaces.map {
+                    GatewayWorkspaceCard(id: $0.id, label: $0.label, detail: $0.user.map { "Reads as \($0)" })
                 }
-                Link(connection?.isConnected == true ? "Manage Notion…" : "Connect Notion…", destination: setupURL)
-                    .buttonStyle(.borderedProminent)
+            },
+            isSignedOut: connection == .signedOut,
+            authorize: { try await MCPDataStore.notionAuthorizationURL() },
+            complete: { code, state in try await MCPDataStore.completeNotionInstall(code: code, state: state) },
+            disconnect: { id in _ = try await MCPDataStore.disconnectNotionWorkspace(id: id) },
+            refresh: {
+                if let connection = await MCPDataStore.notionConnection() {
+                    GatewayPluginState.shared.notion = connection
+                }
             }
-        }
-        .task {
-            if let connection = await MCPDataStore.notionConnection() {
-                GatewayPluginState.shared.notion = connection
-            }
-        }
-    }
-
-    /// The same answer the plugins list shows as a chip, in a sentence that
-    /// says what the button will do about it. Every state says read-only once.
-    private var statusMessage: String? {
-        switch connection {
-        case .connected(let workspace, let user):
-            let opening: String
-            switch (workspace, user) {
-            case (let workspace?, let user?): opening = "Connected to \(workspace) as \(user)."
-            case (let workspace?, nil): opening = "Connected to \(workspace)."
-            case (nil, let user?): opening = "Connected as \(user)."
-            case (nil, nil): opening = "Connected."
-            }
-            return "\(opening) ForeverLM reads the pages and databases you shared with it as you and changes nothing; share another page from its ••• menu in Notion, or disconnect on the Notion page."
-        case .notConnected:
-            return "No Notion workspace is connected to your ForeverLM account yet. The connection is read-only."
-        case .signedOut:
-            return "Sign in with Apple in ForeverLM to connect Notion. ForeverLM reads Notion as you, through your own account, and never writes to it."
-        case nil:
-            return nil
-        }
+        )
     }
 }
 
@@ -1250,135 +1394,149 @@ private struct PluginSetupDetailView<Content: View>: View {
     }
 }
 
+/// Plugins › X: one card per connected X account, the way Google Drive and
+/// Slack draw theirs, and one quiet action below them to add another.
 private struct XPluginSettingsView: View {
     @Environment(StudioViewModel.self) private var vm
 
-    private var status: PluginStatus {
-        guard vm.isXOAuthSignedIn else { return .notConnected }
-        return vm.xPluginNeedsReauth ? .needsAttention : .connected
-    }
-
-    private var subtitle: String {
-        switch status {
-        case .connected: return "Connected for bookmark sync"
-        case .needsAttention: return "Session expired — reconnect to keep syncing"
-        case .notConnected: return "Connect your X account"
-        }
-    }
-
-    /// The button says so while the sign-in window is on its way. The system
-    /// agent that hosts it launches on demand and can take a while on a busy
-    /// Mac; until this spinner, the click looked like it had done nothing. The
-    /// resting label stays in the layout so the button keeps its width.
-    @ViewBuilder
-    private func connectLabel<Resting: View>(_ resting: Resting) -> some View {
-        ZStack {
-            resting.opacity(vm.isConnectingX ? 0 : 1)
-            HStack(spacing: 6) {
-                ProgressView()
-                    .controlSize(.small)
-                    .tint(.white)
-                Text("Connecting…")
-            }
-            .opacity(vm.isConnectingX ? 1 : 0)
-        }
-    }
-
     var body: some View {
-        PluginSettingsCard(
-            title: "",
-            subtitle: subtitle,
-            icon: {
-                XLogoShape()
-                    .fill(.foreground, style: FillStyle(eoFill: true))
-                    .frame(width: 15, height: 15)
-            },
-            status: status
-        ) {
-            VStack(alignment: .leading, spacing: 16) {
-                HStack(spacing: 8) {
-                    Spacer()
-
-                    if vm.isXOAuthSignedIn {
-                        if vm.xPluginNeedsReauth {
-                            Button {
-                                Task { await vm.signInWithX() }
-                            } label: {
-                                connectLabel(Label("Reconnect", systemImage: "arrow.clockwise"))
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .accessibilityLabel(Text(vm.isConnectingX ? "Connecting to X" : "Reconnect X account"))
-                        } else {
-                            Button {
-                                Task { await vm.syncXBookmarks(showResult: true) }
-                            } label: {
-                                ZStack {
-                                    Label("Sync", systemImage: "arrow.clockwise")
-                                        .opacity(vm.isSyncingXBookmarks ? 0 : 1)
-                                    HStack(spacing: 6) {
-                                        ProgressView()
-                                            .controlSize(.small)
-                                        Text("Syncing")
-                                    }
-                                    .opacity(vm.isSyncingXBookmarks ? 1 : 0)
-                                }
-                            }
-                            .disabled(vm.isSyncingXBookmarks || vm.isXSyncPaused)
-                            .accessibilityLabel(Text(vm.isSyncingXBookmarks ? "Syncing X bookmarks" : "Sync X bookmarks"))
-
-                            if vm.xPluginOffersReconnect {
-                                Button {
-                                    Task { await vm.signInWithX() }
-                                } label: {
-                                    Label("Reconnect", systemImage: "link")
-                                }
-                                .disabled(vm.isSyncingXBookmarks || vm.isConnectingX)
-                                .accessibilityLabel(Text(vm.isConnectingX ? "Connecting to X" : "Reconnect X account"))
-                            }
-                        }
-
-                        Button("Disconnect", role: .destructive) {
-                            vm.signOutOfX()
-                        }
-                    } else {
-                        Button {
-                            Task { await vm.signInWithX() }
-                        } label: {
-                            connectLabel(Label("Connect", systemImage: "link"))
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .accessibilityLabel(Text(vm.isConnectingX ? "Connecting to X" : "Connect X account"))
+        VStack(alignment: .leading, spacing: 16) {
+            if vm.xAccounts.isEmpty {
+                SettingsCard {
+                    HStack(spacing: 12) {
+                        xGlyph
+                        Text("No X account connected")
+                            .font(.headline)
+                        Spacer(minLength: 12)
                     }
                 }
-
-                if let error = vm.xPluginErrorMessage {
-                    PluginErrorNotice(title: "Couldn’t connect to X", message: error)
-                }
-
-                Divider()
-
-                HStack(spacing: 12) {
-                    if let lastSync = vm.lastXSyncDate {
-                        Label("Synced \(lastSync.roughTimeAgo)", systemImage: "clock")
-                            .lineLimit(1)
-                    }
-
-                    Spacer(minLength: 8)
-
-                    Link(destination: URL(string: "https://docs.foreverlm.com/x-posts")!) {
-                        Label("About X bookmarks", systemImage: "arrow.up.right")
-                            .labelStyle(.titleAndIcon)
-                    }
-                    .lineLimit(1)
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
             }
+
+            ForEach(vm.xAccounts) { account in
+                accountCard(account)
+            }
+
+            if let error = vm.xConnectError {
+                PluginErrorNotice(title: "Couldn’t connect to X", message: error)
+            }
+
+            addRow
+
+            Link(destination: URL(string: "https://docs.foreverlm.com/x-posts")!) {
+                Label("About X bookmarks", systemImage: "arrow.up.right")
+                    .labelStyle(.titleAndIcon)
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 4)
         }
         .onAppear {
             vm.checkXSignInStatus()
         }
+    }
+
+    private var xGlyph: some View {
+        XLogoShape()
+            .fill(.foreground, style: FillStyle(eoFill: true))
+            .frame(width: 15, height: 15)
+            .frame(width: 34, height: 34)
+            .background(Circle().fill(Color.primary.opacity(0.055)))
+    }
+
+    /// Connecting never replaces what is there: it adds another account, or
+    /// refreshes the one the browser's X session turns out to be.
+    @ViewBuilder
+    private var addRow: some View {
+        HStack(spacing: 10) {
+            if vm.isConnectingX {
+                // The sign-in window is hosted by a system agent that can be
+                // slow to launch; the row says so instead of looking dead.
+                ProgressView()
+                    .controlSize(.small)
+                Text("Connecting…")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            } else {
+                Button {
+                    Task { await vm.signInWithX() }
+                } label: {
+                    Label(vm.xAccounts.isEmpty ? "Connect X" : "Add Another Account", systemImage: "plus")
+                        .font(.callout.weight(.medium))
+                }
+                .buttonStyle(.hoverWash)
+                .accessibilityLabel(Text(vm.xAccounts.isEmpty ? "Connect X account" : "Connect another X account"))
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 4)
+    }
+
+    @ViewBuilder
+    private func accountCard(_ account: XAccount) -> some View {
+        let needsReauth = vm.xAccountsNeedingReauth.contains(account.id)
+        let failure = vm.xAccountFailures[account.id]
+        let isSyncing = vm.xSyncingAccountIDs.contains(account.id)
+        SettingsCard {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .center, spacing: 12) {
+                    xGlyph
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(account.displayLabel)
+                            .font(.headline)
+                            .lineLimit(1)
+                        Text(stateLine(account, needsReauth: needsReauth, isSyncing: isSyncing))
+                            .font(.subheadline)
+                            .foregroundStyle(needsReauth ? Color.orange : Color.secondary)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 12)
+                    if !needsReauth {
+                        Button {
+                            Task { await vm.syncXBookmarks(showResult: true, accountID: account.id) }
+                        } label: {
+                            ZStack {
+                                Label("Sync", systemImage: "arrow.clockwise")
+                                    .opacity(isSyncing ? 0 : 1)
+                                HStack(spacing: 6) {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                    Text("Syncing")
+                                }
+                                .opacity(isSyncing ? 1 : 0)
+                            }
+                        }
+                        .buttonStyle(.hoverWash)
+                        .disabled(vm.isSyncingXBookmarks || vm.isXSyncPaused(accountID: account.id))
+                        .accessibilityLabel(Text(isSyncing ? "Syncing X bookmarks" : "Sync X bookmarks"))
+                    }
+                    if needsReauth || failure?.offersReconnect == true {
+                        Button {
+                            Task { await vm.signInWithX() }
+                        } label: {
+                            Label("Reconnect", systemImage: "link")
+                        }
+                        .buttonStyle(.hoverWash)
+                        .disabled(vm.isSyncingXBookmarks || vm.isConnectingX)
+                        .accessibilityLabel(Text(vm.isConnectingX ? "Connecting to X" : "Reconnect X account"))
+                    }
+                    Button("Disconnect", role: .destructive) {
+                        vm.signOutOfX(accountID: account.id)
+                    }
+                    .buttonStyle(.hoverWash)
+                    .foregroundStyle(.secondary)
+                }
+                if let failure {
+                    PluginErrorNotice(title: "Couldn’t sync bookmarks", message: failure.message)
+                }
+            }
+        }
+    }
+
+    private func stateLine(_ account: XAccount, needsReauth: Bool, isSyncing: Bool) -> String {
+        if needsReauth { return "Reconnect needed" }
+        if isSyncing { return "Syncing…" }
+        if let lastSync = vm.xLastSyncDates[account.id] { return "Synced \(lastSync.roughTimeAgo)" }
+        return "Connected"
     }
 }
 
@@ -1998,17 +2156,15 @@ private struct AppleCalendarConnectionSettingsView: View {
 
 private struct YouTubeConnectionSettingsView: View {
     @Environment(StudioViewModel.self) private var vm
-    // Placeholders; `.onAppear` fills them in off-main — both are synced
-    // Keychain reads, and `@State` inits re-run on every re-init.
-    @State private var isSignedIn = false
     @State private var isConnecting = false
     @State private var statusMessage: String?
+    // Placeholders; `.onAppear` fills them in off-main (a synced Keychain read).
     @State private var autoImportEnabled = false
     /// What the stores currently say, so the `.onChange` below can tell the
     /// user flipping the toggle apart from the off-main refresh seeding it.
     @State private var persistedAutoImportEnabled = false
     @State private var setupDialog: YouTubeSetupDialog?
-    @State private var isConfiguringSource = false
+    @State private var configuringAccountID: String?
     @State private var pendingLikedImportPolicy: YouTubeLikedImportPolicy?
     @State private var channelInput = ""
     @State private var isFollowingChannel = false
@@ -2016,116 +2172,41 @@ private struct YouTubeConnectionSettingsView: View {
     private var automaticallyFormatLikedVideoTranscripts = false
 
     var body: some View {
-        PluginSettingsCard(
-            title: "YouTube",
-            subtitle: subtitleText,
-            icon: {
-                Image("YouTubeIcon")
-                    .resizable()
-                    .renderingMode(.original)
-                    .scaledToFit()
-                    .frame(width: 22, height: 16)
-            },
-            status: isSignedIn ? .connected : (needsReconnect ? .needsAttention : .notConnected)
-        ) {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Choose what enters your library: your Liked videos or a YouTube playlist named ForeverLM, plus any channels you follow.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Text("Scope: https://www.googleapis.com/auth/youtube.readonly")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-
-                HStack(spacing: 8) {
-                    Spacer()
-                    if isSignedIn {
-                        Button("Disconnect", role: .destructive) {
-                            // UI first; the synced-Keychain deletes run off the
-                            // click (see the Drive button above).
-                            isSignedIn = false
-                            statusMessage = nil
-                            Task.detached(priority: .userInitiated) {
-                                YouTubeService.shared.signOut()
-                            }
-                        }
-                    } else {
-                        Button {
-                            connect()
-                        } label: {
-                            if isConnecting {
-                                ProgressView()
-                                    .controlSize(.small)
-                            } else {
-                                Label("Connect", systemImage: "person.crop.circle.badge.checkmark")
-                            }
-                        }
-                        .disabled(!canConnect || isConnecting)
+        VStack(alignment: .leading, spacing: 16) {
+            if vm.youtubeAccounts.isEmpty {
+                SettingsCard {
+                    HStack(spacing: 12) {
+                        youtubeGlyph
+                        Text("No YouTube account connected")
+                            .font(.headline)
+                        Spacer(minLength: 12)
                     }
                 }
-
-                if isSignedIn {
-                    Divider()
-                    Toggle("Automatically import new videos", isOn: $autoImportEnabled)
-                        .onChange(of: autoImportEnabled) { _, enabled in
-                            // Seeding from `.onAppear` must not re-persist or
-                            // kick an import; only a real user flip does.
-                            guard enabled != persistedAutoImportEnabled else { return }
-                            persistedAutoImportEnabled = enabled
-                            StudioViewModel.setYouTubeAutoImportEnabled(enabled)
-                            if enabled { Task { await vm.runYouTubeAutoImportOnce() } }
-                        }
-                    Text("ForeverLM keeps the selected source up to date in the background. Paid AI work follows your consent settings.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    Divider()
-                    importSourceSection
-                    if vm.youtubeImportSource == .likedVideos {
-                        Divider()
-                        likedImportPolicySection
-                    }
-                    Divider()
-                    followedChannelsSection
-                    if !vm.hiddenYouTubeChannelNames.isEmpty {
-                        Divider()
-                        hiddenChannelsSection
-                    }
-                }
-
-                if !canConnect {
-                    Text("This build of ForeverLM has no YouTube OAuth client configured, so YouTube cannot be connected.")
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                        .fixedSize(horizontal: false, vertical: true)
-                } else if let statusMessage {
-                    Text(statusMessage)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Link("Setup guide", destination: URL(string: "https://docs.foreverlm.com/external-plugins#youtube")!)
-                    .font(.caption)
             }
+
+            // One card per account, the way Google Drive and Slack draw theirs.
+            ForEach(vm.youtubeAccounts) { account in
+                accountCard(account)
+            }
+
+            if vm.hasConnectedYouTubeAccount {
+                learnerCard
+            }
+
+            addRow
+            notice
         }
         .onAppear {
-            // A failed token refresh during a background import signs the
-            // service out; re-read so the card doesn't show a stale
-            // "Connected" state. Off-main: both are synced Keychain reads.
+            // A failed token refresh during a background import drops an
+            // account's grant; re-read so a card never shows a stale
+            // "Connected" state. Off-main: synced Keychain reads.
             Task {
-                let status = await Task.detached(priority: .userInitiated) {
-                    (
-                        signedIn: YouTubeService.shared.isSignedIn,
-                        autoImport: StudioViewModel.isYouTubeAutoImportEnabled
-                    )
+                await vm.reloadYouTubeAccounts()
+                let enabled = await Task.detached(priority: .userInitiated) {
+                    StudioViewModel.isYouTubeAutoImportEnabled
                 }.value
-                isSignedIn = status.signedIn
-                persistedAutoImportEnabled = status.autoImport
-                autoImportEnabled = status.autoImport
+                persistedAutoImportEnabled = enabled
+                autoImportEnabled = enabled
             }
         }
         .confirmationDialog(
@@ -2137,11 +2218,11 @@ private struct YouTubeConnectionSettingsView: View {
                 showLikedHistoryChoiceAfterCurrentDialog()
             }
             Button("ForeverLM Playlist") {
-                configureForeverLMPlaylist()
+                if let accountID = setupDialog?.accountID { configureForeverLMPlaylist(accountID: accountID) }
             }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("The playlist option uses a playlist in your YouTube account named ForeverLM.")
+            Text("The playlist option uses a playlist in this YouTube account named ForeverLM.")
         }
         .confirmationDialog(
             "Import existing liked videos?",
@@ -2177,23 +2258,76 @@ private struct YouTubeConnectionSettingsView: View {
         }
     }
 
-    /// True only once a background sync has actually failed on a lost
-    /// connection, so a user who has simply never connected YouTube still sees
-    /// a neutral "Not connected" rather than a warning.
-    private var needsReconnect: Bool {
-        !isSignedIn && vm.youtubePluginNeedsReconnect
+    private var youtubeGlyph: some View {
+        Image("YouTubeIcon")
+            .resizable()
+            .renderingMode(.original)
+            .scaledToFit()
+            .frame(width: 20, height: 14)
+            .frame(width: 34, height: 34)
+            .background(Circle().fill(Color.primary.opacity(0.055)))
     }
 
-    private var subtitleText: String {
-        if isSignedIn { return "Connected for YouTube import" }
-        if needsReconnect { return "Disconnected — YouTube import has stopped" }
-        return configurationText
+    // MARK: - Accounts
+
+    /// One connected account: who it is, what it imports, its Disconnect.
+    @ViewBuilder
+    private func accountCard(_ account: YouTubeAccount) -> some View {
+        let disconnected = vm.youtubeDisconnectedAccountIDs.contains(account.id)
+        SettingsCard {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .center, spacing: 12) {
+                    Text(String(account.title.prefix(1)).uppercased())
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .textSelection(.disabled)
+                        .frame(width: 34, height: 34)
+                        .background(Circle().fill(Color.primary.opacity(0.055)))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(account.title)
+                            .font(.headline)
+                            .lineLimit(1)
+                        Text(stateLine(account, disconnected: disconnected))
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 12)
+                    if disconnected {
+                        Button {
+                            connect()
+                        } label: {
+                            Label("Reconnect", systemImage: "exclamationmark.circle.fill")
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.orange)
+                        }
+                        .buttonStyle(.hoverWash)
+                        .disabled(isConnecting || !canConnect)
+                    }
+                    Button("Disconnect", role: .destructive) {
+                        // UI first; the synced-Keychain deletes run off the click.
+                        Task { await vm.disconnectYouTubeAccount(account.id) }
+                    }
+                    .buttonStyle(.hoverWash)
+                    .foregroundStyle(.secondary)
+                }
+                if !disconnected {
+                    importSourceRows(account)
+                    if account.choices.source == .likedVideos {
+                        likedImportPolicyRow(account)
+                    }
+                }
+            }
+        }
     }
 
-    // MARK: - Import source
+    private func stateLine(_ account: YouTubeAccount, disconnected: Bool) -> String {
+        if disconnected { return "Disconnected, import has stopped" }
+        return account.choices.source.map { "Imports \($0.displayName)" } ?? "Choose what to import"
+    }
 
     @ViewBuilder
-    private var importSourceSection: some View {
+    private func importSourceRows(_ account: YouTubeAccount) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Import from")
                 .font(.subheadline.weight(.semibold))
@@ -2205,23 +2339,134 @@ private struct YouTubeConnectionSettingsView: View {
                     Text(source.displayName)
                         .font(.callout)
                     Spacer()
-                    if vm.youtubeImportSource == source {
+                    if account.choices.source == source {
                         Label("Selected", systemImage: "checkmark")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                    } else if isConfiguringSource {
+                    } else if configuringAccountID == account.id {
                         ProgressView()
                             .controlSize(.small)
                     } else {
                         Button("Use") {
                             if source == .likedVideos {
-                                setupDialog = .likedHistory
+                                setupDialog = YouTubeSetupDialog(kind: .likedHistory, accountID: account.id)
                             } else {
-                                configureForeverLMPlaylist()
+                                configureForeverLMPlaylist(accountID: account.id)
                             }
                         }
+                        .buttonStyle(.hoverWash)
                         .controlSize(.small)
                     }
+                }
+            }
+        }
+    }
+
+    private func likedImportPolicyRow(_ account: YouTubeAccount) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "clock.arrow.circlepath")
+                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Liked-video history")
+                    .font(.callout)
+                Text(account.choices.likedPolicy.displayName)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            if configuringAccountID == account.id {
+                ProgressView()
+                    .controlSize(.small)
+            } else {
+                Button("Change…") {
+                    setupDialog = YouTubeSetupDialog(kind: .likedHistory, accountID: account.id)
+                }
+                .buttonStyle(.hoverWash)
+                .controlSize(.small)
+            }
+        }
+    }
+
+    /// Connecting never replaces what is there: it adds another account.
+    @ViewBuilder
+    private var addRow: some View {
+        HStack(spacing: 10) {
+            if isConnecting {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Waiting for Google…")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            } else {
+                Button {
+                    connect()
+                } label: {
+                    Label(
+                        vm.youtubeAccounts.isEmpty ? "Connect YouTube" : "Add Another Account",
+                        systemImage: "plus"
+                    )
+                    .font(.callout.weight(.medium))
+                }
+                .buttonStyle(.hoverWash)
+                .disabled(!canConnect)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 4)
+    }
+
+    @ViewBuilder
+    private var notice: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if !canConnect {
+                Text("This build of ForeverLM has no YouTube OAuth client configured, so YouTube cannot be connected.")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if let statusMessage {
+                Text(statusMessage)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Link("Setup guide", destination: URL(string: "https://docs.foreverlm.com/external-plugins#youtube")!)
+                .font(.caption)
+        }
+        .padding(.horizontal, 4)
+    }
+
+    // MARK: - The learner's own
+
+    /// What does not depend on the account: the automatic-import switch and
+    /// the channels, which are public follows.
+    private var learnerCard: some View {
+        SettingsCard {
+            VStack(alignment: .leading, spacing: 14) {
+                Toggle("Automatically import new videos", isOn: $autoImportEnabled)
+                    .onChange(of: autoImportEnabled) { _, enabled in
+                        // Seeding from `.onAppear` must not re-persist or
+                        // kick an import; only a real user flip does.
+                        guard enabled != persistedAutoImportEnabled else { return }
+                        persistedAutoImportEnabled = enabled
+                        StudioViewModel.setYouTubeAutoImportEnabled(enabled)
+                        if enabled { Task { await vm.runYouTubeAutoImportOnce() } }
+                    }
+                if vm.youtubeAccounts.contains(where: { $0.choices.source == .likedVideos }) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Toggle(
+                            "Format new transcripts automatically",
+                            isOn: $automaticallyFormatLikedVideoTranscripts
+                        )
+                        Text("Billed to your OpenRouter key. Raw transcripts are always imported.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Divider()
+                followedChannelsSection
+                if !vm.hiddenYouTubeChannelNames.isEmpty {
+                    Divider()
+                    hiddenChannelsSection
                 }
             }
         }
@@ -2246,6 +2491,7 @@ private struct YouTubeConnectionSettingsView: View {
                     Button("Stop Following") {
                         Task { await vm.unfollowYouTubePluginPlaylist(groupID) }
                     }
+                    .buttonStyle(.hoverWash)
                     .controlSize(.small)
                 }
             }
@@ -2261,6 +2507,7 @@ private struct YouTubeConnectionSettingsView: View {
                     Button("Follow") {
                         followChannel()
                     }
+                    .buttonStyle(.hoverWash)
                     .controlSize(.small)
                     .disabled(channelInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
@@ -2270,6 +2517,36 @@ private struct YouTubeConnectionSettingsView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    private var hiddenChannelsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Hidden channels")
+                .font(.subheadline.weight(.semibold))
+            ForEach(vm.hiddenYouTubeChannelNames, id: \.self) { channel in
+                HStack {
+                    Image(systemName: "eye.slash")
+                        .foregroundStyle(.secondary)
+                    Text(channel)
+                        .lineLimit(1)
+                    Spacer()
+                    Button("Unhide") {
+                        Task { await vm.setYouTubeChannelHidden(channel, hidden: false) }
+                    }
+                    .buttonStyle(.hoverWash)
+                    .controlSize(.small)
+                }
+            }
+        }
+    }
+
+    // MARK: - Actions
+
+    /// Release builds ship ForeverLM's own YouTube OAuth client, so this is
+    /// always true for users. It can only be false in a Debug build whose .env
+    /// carries no YouTube client and which has no legacy Drive credentials.
+    private var canConnect: Bool {
+        YouTubeService.shared.canConnect
     }
 
     private func followChannel() {
@@ -2289,72 +2566,6 @@ private struct YouTubeConnectionSettingsView: View {
         }
     }
 
-    private var likedImportPolicySection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                Image(systemName: "clock.arrow.circlepath")
-                    .foregroundStyle(.secondary)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Liked-video history")
-                        .font(.callout)
-                    Text(vm.youtubeLikedImportPolicy.displayName)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                if isConfiguringSource {
-                    ProgressView()
-                        .controlSize(.small)
-                } else {
-                    Button("Change…") {
-                        setupDialog = .likedHistory
-                    }
-                    .controlSize(.small)
-                }
-            }
-            Toggle(
-                "Format new transcripts automatically",
-                isOn: $automaticallyFormatLikedVideoTranscripts
-            )
-            Text("Billed to your OpenRouter key. Raw transcripts are always imported.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    private var hiddenChannelsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Hidden channels")
-                .font(.subheadline.weight(.semibold))
-            ForEach(vm.hiddenYouTubeChannelNames, id: \.self) { channel in
-                HStack {
-                    Image(systemName: "eye.slash")
-                        .foregroundStyle(.secondary)
-                    Text(channel)
-                        .lineLimit(1)
-                    Spacer()
-                    Button("Unhide") {
-                        Task { await vm.setYouTubeChannelHidden(channel, hidden: false) }
-                    }
-                    .controlSize(.small)
-                }
-            }
-        }
-    }
-
-    // MARK: - Helpers
-
-    private var configurationText: String {
-        canConnect ? "Ready to connect" : "Unavailable in this build"
-    }
-
-    /// Release builds ship ForeverLM's own YouTube OAuth client, so this is
-    /// always true for users. It can only be false in a Debug build whose .env
-    /// carries no YouTube client and which has no legacy Drive credentials.
-    private var canConnect: Bool {
-        YouTubeService.shared.canConnect
-    }
-
     private func connect() {
         guard canConnect else {
             statusMessage = "This build has no YouTube OAuth client configured."
@@ -2364,11 +2575,10 @@ private struct YouTubeConnectionSettingsView: View {
         statusMessage = nil
         Task {
             do {
-                try await YouTubeService.shared.authenticate()
-                isSignedIn = YouTubeService.shared.isSignedIn
-                statusMessage = nil
-                if isSignedIn && vm.youtubeImportSource == nil {
-                    setupDialog = .importSource
+                let account = try await YouTubeService.shared.authenticate()
+                await vm.reloadYouTubeAccounts()
+                if vm.youtubeAccount(id: account.id)?.choices.source == nil {
+                    setupDialog = YouTubeSetupDialog(kind: .importSource, accountID: account.id)
                 }
             } catch {
                 statusMessage = error.localizedDescription
@@ -2379,68 +2589,73 @@ private struct YouTubeConnectionSettingsView: View {
 
     private func configureLikedVideos(
         _ policy: YouTubeLikedImportPolicy,
+        accountID: String,
         automaticallyFormatTranscripts: Bool
     ) {
-        isConfiguringSource = true
+        configuringAccountID = accountID
         statusMessage = nil
         Task {
             let groupID = await vm.configureYouTubeLikedVideos(
                 policy,
+                accountID: accountID,
                 automaticallyFormatTranscripts: automaticallyFormatTranscripts
             )
             if groupID == nil {
                 statusMessage = vm.errorMessage ?? "Could not configure Liked videos."
             }
             autoImportEnabled = StudioViewModel.isYouTubeAutoImportEnabled
-            isConfiguringSource = false
+            configuringAccountID = nil
         }
     }
 
     private func chooseLikedImportPolicy(_ policy: YouTubeLikedImportPolicy) {
         pendingLikedImportPolicy = policy
+        guard let accountID = setupDialog?.accountID else { return }
         setupDialog = nil
         Task { @MainActor in
             await Task.yield()
-            setupDialog = .likedFormatting
+            setupDialog = YouTubeSetupDialog(kind: .likedFormatting, accountID: accountID)
         }
     }
 
     private func finishLikedVideosSetup(automaticallyFormatTranscripts: Bool) {
-        guard let policy = pendingLikedImportPolicy else { return }
+        guard let policy = pendingLikedImportPolicy, let accountID = setupDialog?.accountID else { return }
         pendingLikedImportPolicy = nil
         automaticallyFormatLikedVideoTranscripts = automaticallyFormatTranscripts
         configureLikedVideos(
             policy,
+            accountID: accountID,
             automaticallyFormatTranscripts: automaticallyFormatTranscripts
         )
     }
 
     private func showLikedHistoryChoiceAfterCurrentDialog() {
+        guard let accountID = setupDialog?.accountID else { return }
         setupDialog = nil
         Task { @MainActor in
             await Task.yield()
-            setupDialog = .likedHistory
+            setupDialog = YouTubeSetupDialog(kind: .likedHistory, accountID: accountID)
         }
     }
 
-    private func configureForeverLMPlaylist() {
-        isConfiguringSource = true
+    private func configureForeverLMPlaylist(accountID: String) {
+        configuringAccountID = accountID
         statusMessage = nil
         Task {
-            let groupID = await vm.followYouTubeForeverLMPlaylist()
+            let groupID = await vm.followYouTubeForeverLMPlaylist(accountID: accountID)
             if groupID == nil {
                 statusMessage = vm.errorMessage ?? "Could not find your ForeverLM playlist."
             }
             autoImportEnabled = StudioViewModel.isYouTubeAutoImportEnabled
-            isConfiguringSource = false
+            configuringAccountID = nil
         }
     }
 
-    private func dialogBinding(_ dialog: YouTubeSetupDialog) -> Binding<Bool> {
+    private func dialogBinding(_ kind: YouTubeSetupDialog.Kind) -> Binding<Bool> {
         Binding(
-            get: { setupDialog == dialog },
+            get: { setupDialog?.kind == kind },
             set: { presented in
-                if !presented, setupDialog == dialog {
+                if !presented, setupDialog?.kind == kind {
                     setupDialog = nil
                 }
             }
@@ -2448,10 +2663,16 @@ private struct YouTubeConnectionSettingsView: View {
     }
 }
 
-private enum YouTubeSetupDialog: Equatable {
-    case importSource
-    case likedHistory
-    case likedFormatting
+/// A question the page is asking about one account.
+private struct YouTubeSetupDialog: Equatable {
+    enum Kind {
+        case importSource
+        case likedHistory
+        case likedFormatting
+    }
+
+    let kind: Kind
+    let accountID: String
 }
 
 enum PluginStatus: Equatable {
@@ -2497,16 +2718,28 @@ enum PluginStatus: Equatable {
 /// description, which the row then keeps. Internal so the unit tests can pin
 /// the sentences; Web Studio's `pluginScopeDescriptions` says the same.
 enum PluginScopeCopy {
-    /// "Imports bookmarks and saved posts from @handle."
-    static func x(username: String?) -> String? {
-        guard let username = trimmed(username) else { return nil }
-        return "Imports bookmarks and saved posts from @\(username)."
+    /// "Imports bookmarks and saved posts from @handle." for one account,
+    /// "… from 2 accounts." for several.
+    static func x(accounts: [XAccount]) -> String? {
+        switch accounts.count {
+        case 0:
+            return nil
+        case 1:
+            guard let username = trimmed(accounts[0].username) else { return nil }
+            return "Imports bookmarks and saved posts from @\(username)."
+        default:
+            return "Imports bookmarks and saved posts from \(accounts.count) accounts."
+        }
     }
 
-    /// "Imports your Liked videos and follows 3 channels."
-    static func youtube(source: String?, followedChannels: Int) -> String? {
+    /// "Imports your Liked videos and follows 3 channels." Each source named
+    /// once however many accounts read it: "Imports your Liked videos and
+    /// ForeverLM playlist."
+    static func youtube(sources: [String], followedChannels: Int) -> String? {
+        var seen = Set<String>()
+        let named = sources.compactMap(trimmed).filter { seen.insert($0).inserted }
         var clauses: [String] = []
-        if let source = trimmed(source) { clauses.append("imports your \(source)") }
+        if !named.isEmpty { clauses.append("imports your \(ListFormatter.localizedString(byJoining: named))") }
         if followedChannels > 0 {
             clauses.append("follows \(followedChannels) \(followedChannels == 1 ? "channel" : "channels")")
         }
@@ -2556,22 +2789,27 @@ enum PluginScopeCopy {
         return "Reads channels in \(ListFormatter.localizedString(byJoining: workspaces.map(\.name)))."
     }
 
-    /// "Reads the Bench Lab workspace as Alan Young. Read-only."
-    static func linear(workspace: String?, user: String?) -> String? {
-        switch (trimmed(workspace), trimmed(user)) {
-        case (let workspace?, let user?): return "Reads the \(workspace) workspace as \(user). Read-only."
-        case (let workspace?, nil): return "Reads the \(workspace) workspace. Read-only."
-        case (nil, let user?): return "Reads Linear as \(user). Read-only."
-        case (nil, nil): return nil
-        }
+    /// "Reads the Bench Lab workspace as Alan Young. Read-only." With several
+    /// workspaces, "Reads the Bench Lab and Acme Lab workspaces. Read-only."
+    static func linear(_ workspaces: [MCPDataStore.LinearWorkspace]) -> String? {
+        workspaceScope(workspaces.map { ($0.name ?? $0.urlKey, $0.user) }, provider: "Linear")
     }
 
-    /// "Reads the Bench Lab workspace as Alan Young. Read-only."
-    static func notion(workspace: String?, user: String?) -> String? {
-        switch (trimmed(workspace), trimmed(user)) {
+    /// The same sentences for Notion workspaces.
+    static func notion(_ workspaces: [MCPDataStore.NotionWorkspace]) -> String? {
+        workspaceScope(workspaces.map { ($0.name, $0.user) }, provider: "Notion")
+    }
+
+    private static func workspaceScope(_ workspaces: [(name: String?, user: String?)], provider: String) -> String? {
+        let names = workspaces.compactMap { trimmed($0.name) }
+        if workspaces.count > 1 {
+            guard !names.isEmpty else { return nil }
+            return "Reads the \(ListFormatter.localizedString(byJoining: names)) workspaces. Read-only."
+        }
+        switch (names.first, workspaces.first.flatMap { trimmed($0.user) }) {
         case (let workspace?, let user?): return "Reads the \(workspace) workspace as \(user). Read-only."
         case (let workspace?, nil): return "Reads the \(workspace) workspace. Read-only."
-        case (nil, let user?): return "Reads Notion as \(user). Read-only."
+        case (nil, let user?): return "Reads \(provider) as \(user). Read-only."
         case (nil, nil): return nil
         }
     }

@@ -51,75 +51,135 @@ actor XBookmarkService {
     @MainActor private var presentationContext: WindowPresentationContext?
     #endif
 
-    // MARK: - Sync State (persisted in UserDefaults)
+    // MARK: - Sync State (persisted in UserDefaults, one cursor pair per account)
 
-    /// The newest tweet ID from the last successful sync.
+    /// The newest tweet ID from the account's last successful sync.
     /// On subsequent syncs, we stop paginating when we hit this ID.
-    private var newestSeenTweetId: String? {
-        get { UserDefaults.standard.string(forKey: "x_bookmarks_newest_id") }
-        set { UserDefaults.standard.set(newValue, forKey: "x_bookmarks_newest_id") }
+    private func newestSeenTweetId(accountID: String) -> String? {
+        UserDefaults.standard.string(forKey: XAccountBook.newestIDKey(accountID: accountID))
     }
 
-    nonisolated var lastSyncDate: Date? {
-        let ts = UserDefaults.standard.double(forKey: "x_bookmarks_last_sync")
+    private func setNewestSeenTweetId(_ id: String, accountID: String) {
+        UserDefaults.standard.set(id, forKey: XAccountBook.newestIDKey(accountID: accountID))
+    }
+
+    nonisolated func lastSyncDate(accountID: String) -> Date? {
+        let ts = UserDefaults.standard.double(forKey: XAccountBook.lastSyncKey(accountID: accountID))
         return ts > 0 ? Date(timeIntervalSince1970: ts) : nil
     }
 
-    private func setLastSyncDate(_ date: Date?) {
-        UserDefaults.standard.set(date?.timeIntervalSince1970 ?? 0, forKey: "x_bookmarks_last_sync")
+    private func setLastSyncDate(_ date: Date, accountID: String) {
+        UserDefaults.standard.set(date.timeIntervalSince1970, forKey: XAccountBook.lastSyncKey(accountID: accountID))
     }
 
-    // MARK: - Auth State
+    // MARK: - Accounts
 
-    /// Whether we have OAuth user tokens to call user-context endpoints (bookmarks).
-    /// The X Bookmarks API requires OAuth 2.0 user context — app-only bearer tokens
-    /// cannot access bookmarks. This property only checks for OAuth tokens.
-    /// The @handle of the connected account, without the @, once a sign-in or
-    /// sync has read it. nil while signed out or before the first read.
-    nonisolated var signedInUsername: String? {
-        guard isOAuthSignedIn else { return nil }
-        return KeychainService.xUsername
+    /// Held while an older build's single connection becomes the first
+    /// account, so two first reads cannot both write it.
+    private nonisolated static let adoptionLock = NSLock()
+
+    /// The connected accounts, in the order they were connected. The X
+    /// Bookmarks API requires OAuth 2.0 user context — app-only bearer tokens
+    /// cannot access bookmarks — so an account is a user's tokens.
+    nonisolated var accounts: [XAccount] {
+        Self.adoptLegacyConnectionIfNeeded()
+        return XAccountBook.decode(KeychainService.xAccounts)
     }
 
+    /// Whether any account is connected.
     nonisolated var isOAuthSignedIn: Bool {
-        KeychainService.xAccessToken != nil && KeychainService.xUserId != nil
+        !accounts.isEmpty
     }
 
-    nonisolated var isSignedIn: Bool {
-        isOAuthSignedIn
+    nonisolated func account(id: String) -> XAccount? {
+        accounts.first { $0.id == id }
     }
 
-    /// True when tokens exist but the session can no longer work: the access
-    /// token is expired (or about to expire) and there is no refresh token or
-    /// client ID to renew it with. The UI should prompt for a reconnect
-    /// instead of reporting "Connected".
-    nonisolated var needsReauthentication: Bool {
-        guard isOAuthSignedIn else { return false }
-        guard let expiry = KeychainService.xTokenExpiry,
-              let expiryDate = ISO8601DateFormatter().date(from: expiry) else {
-            return false
-        }
-        guard expiryDate.timeIntervalSinceNow < 60 else { return false }
-        return KeychainService.xRefreshToken == nil || KeychainService.xClientId == nil
+    nonisolated func credentials(accountID: String) -> XAccountCredentials? {
+        XAccountCredentials.decode(KeychainService.xAccountCredentials(accountID: accountID))
     }
 
-    /// Whether the current tokens were granted the `tweet.write` scope.
+    /// True when the account is listed but its session can no longer work:
+    /// its tokens are gone (X revoked the grant), or the access token is
+    /// expired (or about to expire) and there is no refresh token or client ID
+    /// to renew it with. The UI should prompt for a reconnect instead of
+    /// reporting "Connected".
+    nonisolated func needsReauthentication(accountID: String) -> Bool {
+        guard let credentials = credentials(accountID: accountID) else { return true }
+        guard let expiry = credentials.tokenExpiry, expiry.timeIntervalSinceNow < 60 else { return false }
+        return credentials.refreshToken == nil || credentials.clientID == nil
+    }
+
+    /// Whether the account's tokens were granted the `tweet.write` scope.
     /// Sessions created before posting support are read-only until the user
     /// reconnects. Unknown scopes (pre-tracking tokens) count as read-only.
-    nonisolated var canPost: Bool {
-        guard isOAuthSignedIn, let scopes = KeychainService.xGrantedScopes else { return false }
+    nonisolated func canPost(accountID: String) -> Bool {
+        guard let scopes = credentials(accountID: accountID)?.grantedScopes else { return false }
         return scopes.split(separator: " ").contains("tweet.write")
     }
 
-    nonisolated func signOut() {
-        KeychainService.xClientId = nil
-        KeychainService.xAccessToken = nil
-        KeychainService.xRefreshToken = nil
-        KeychainService.xUserId = nil
-        KeychainService.xUsername = nil
-        KeychainService.xTokenExpiry = nil
-        KeychainService.xGrantedScopes = nil
+    /// Disconnects one account: its tokens, its entry and its cursors. The
+    /// others are untouched.
+    nonisolated func signOut(accountID: String) {
+        KeychainService.deleteXAccountCredentials(accountID: accountID)
+        KeychainService.xAccounts = XAccountBook.encode(XAccountBook.removing(id: accountID, from: accounts))
+        UserDefaults.standard.removeObject(forKey: XAccountBook.newestIDKey(accountID: accountID))
+        UserDefaults.standard.removeObject(forKey: XAccountBook.lastSyncKey(accountID: accountID))
     }
+
+    /// X no longer honours the account's tokens. They go, the account stays
+    /// listed with its cursors, and it reads "Reconnect needed" until the
+    /// learner signs in again as the same X user.
+    private nonisolated func invalidateSession(accountID: String) {
+        KeychainService.deleteXAccountCredentials(accountID: accountID)
+    }
+
+    private nonisolated func register(_ account: XAccount, credentials: XAccountCredentials) throws {
+        guard let encoded = credentials.encoded(),
+              KeychainService.saveXAccountCredentials(encoded, accountID: account.id) else {
+            throw XBookmarkError.authFailed("Could not store the X credentials in the Keychain.")
+        }
+        KeychainService.xAccounts = XAccountBook.encode(XAccountBook.merging(account, into: accounts))
+    }
+
+    /// Turns the single connection an older build stored into the first
+    /// account, with its tokens and its cursors, so nobody reconnects. Once the
+    /// singleton slots are deleted this is a cheap miss; nothing else reads them.
+    private nonisolated static func adoptLegacyConnectionIfNeeded() {
+        adoptionLock.lock()
+        defer { adoptionLock.unlock() }
+        let legacy = KeychainService.legacyXConnection()
+        let slots = [legacy.userID, legacy.username, legacy.accessToken, legacy.refreshToken,
+                     legacy.tokenExpiry, legacy.grantedScopes, legacy.clientID]
+        guard slots.contains(where: { $0 != nil }) else { return }
+
+        if let adopted = XAccountBook.adoption(of: legacy) {
+            guard let encoded = adopted.credentials.encoded(),
+                  KeychainService.saveXAccountCredentials(encoded, accountID: adopted.account.id) else {
+                // The grant could not be written yet: keep the slots, so the
+                // next read tries again instead of losing the connection.
+                return
+            }
+            let defaults = UserDefaults.standard
+            let accountID = adopted.account.id
+            if let newest = defaults.string(forKey: legacyNewestIDKey) {
+                defaults.set(newest, forKey: XAccountBook.newestIDKey(accountID: accountID))
+            }
+            let lastSync = defaults.double(forKey: legacyLastSyncKey)
+            if lastSync > 0 {
+                defaults.set(lastSync, forKey: XAccountBook.lastSyncKey(accountID: accountID))
+            }
+            let existing = XAccountBook.decode(KeychainService.xAccounts)
+            KeychainService.xAccounts = XAccountBook.encode(XAccountBook.merging(adopted.account, into: existing))
+        }
+        // The slots are spent: adopted above, or never a finished sign-in.
+        UserDefaults.standard.removeObject(forKey: legacyNewestIDKey)
+        UserDefaults.standard.removeObject(forKey: legacyLastSyncKey)
+        KeychainService.deleteLegacyXConnection()
+    }
+
+    private nonisolated static let legacyNewestIDKey = "x_bookmarks_newest_id"
+    private nonisolated static let legacyLastSyncKey = "x_bookmarks_last_sync"
 
     @MainActor private func clearAuthSession() {
         authSession = nil
@@ -130,10 +190,12 @@ actor XBookmarkService {
 
     // MARK: - OAuth 2.0 PKCE
 
-    /// Authenticate with X using OAuth 2.0 PKCE flow.
-    /// Returns the authenticated user ID.
+    /// Authenticate with X using OAuth 2.0 PKCE flow and add the account it
+    /// signs in as. X's sign-in page answers as whichever X user the browser is
+    /// signed in to, so signing in again as a user already connected refreshes
+    /// that account's tokens instead of adding a second entry.
     @MainActor
-    func authenticate() async throws -> String {
+    func authenticate() async throws -> XAccount {
         let clientId = Self.appOwnedOAuthClientID
 
         let codeVerifier = generateCodeVerifier()
@@ -199,62 +261,71 @@ actor XBookmarkService {
 
         // Exchange code for tokens
         let tokens = try await exchangeCodeForTokens(code: code, codeVerifier: codeVerifier, redirectURI: redirectURI, clientId: clientId)
-        KeychainService.xAccessToken = tokens.accessToken
-        KeychainService.xRefreshToken = tokens.refreshToken
-        KeychainService.xGrantedScopes = tokens.scope ?? scopes
+        let user = try await fetchCurrentUser(token: tokens.accessToken)
+        let account = XAccount(id: user.id, username: user.username)
         // Refresh tokens are bound to the client that issued them. Keep that
         // identity beside the tokens so older bring-your-own-client sessions
         // continue refreshing until the user reconnects, while every new
         // authorization migrates to ForeverLM's production client.
-        KeychainService.xClientId = clientId
-        let expiry = Date().addingTimeInterval(TimeInterval(tokens.expiresIn))
-        KeychainService.xTokenExpiry = ISO8601DateFormatter().string(from: expiry)
-
-        // Fetch user ID
-        let user = try await fetchCurrentUser()
-        KeychainService.xUserId = user.id
-        KeychainService.xUsername = user.username
+        try register(account, credentials: XAccountCredentials(
+            accessToken: tokens.accessToken,
+            refreshToken: tokens.refreshToken,
+            tokenExpiry: Date().addingTimeInterval(TimeInterval(tokens.expiresIn)),
+            grantedScopes: tokens.scope ?? scopes,
+            clientID: clientId
+        ))
         logger.info("Authenticated with X as user \(user.id)")
-        return user.id
+        return account
     }
 
     // MARK: - Token Management
 
-    /// The in-flight refresh, if any. X refresh tokens are single-use and
-    /// rotate on every refresh, so two concurrent refreshes (the actor is
-    /// reentrant across the network await — e.g. a bookmark sync racing an
-    /// MCP post) would send the same token twice and X would invalidate the
-    /// grant. All concurrent callers must await the same request.
-    private var inFlightRefresh: Task<Void, Error>?
+    /// The in-flight refresh of each account, if any. X refresh tokens are
+    /// single-use and rotate on every refresh, so two concurrent refreshes of
+    /// one account (the actor is reentrant across the network await — e.g. a
+    /// bookmark sync racing an MCP post) would send the same token twice and X
+    /// would invalidate the grant. All concurrent callers for an account must
+    /// await the same request.
+    private var inFlightRefreshes: [String: Task<Void, Error>] = [:]
 
-    private func refreshTokenIfNeeded() async throws {
-        if let inFlightRefresh {
-            return try await inFlightRefresh.value
+    /// The access token to call X as the account, renewed first when it is
+    /// about to expire.
+    private func accessToken(accountID: String) async throws -> String {
+        guard credentials(accountID: accountID) != nil else { throw XBookmarkError.notSignedIn }
+        try await refreshTokenIfNeeded(accountID: accountID)
+        // Re-read: the refresh may have written a new token.
+        guard let token = credentials(accountID: accountID)?.accessToken else { throw XBookmarkError.notSignedIn }
+        return token
+    }
+
+    private func refreshTokenIfNeeded(accountID: String) async throws {
+        if let inFlight = inFlightRefreshes[accountID] {
+            return try await inFlight.value
         }
 
-        guard let expiry = KeychainService.xTokenExpiry,
-              let expiryDate = ISO8601DateFormatter().date(from: expiry) else {
+        guard let credentials = credentials(accountID: accountID),
+              let expiry = credentials.tokenExpiry else {
             return // no expiry info, try using current token
         }
 
         // Refresh if expiring within 60 seconds
-        guard expiryDate.timeIntervalSinceNow < 60 else { return }
+        guard expiry.timeIntervalSinceNow < 60 else { return }
 
-        guard let refreshToken = KeychainService.xRefreshToken,
-              let clientId = KeychainService.xClientId else {
+        guard let refreshToken = credentials.refreshToken,
+              let clientId = credentials.clientID else {
             // Without a refresh token or client ID this session can never
-            // recover — sign out so the UI stops reporting "Connected".
-            signOut()
+            // recover — drop its tokens so the UI stops reporting "Connected".
+            invalidateSession(accountID: accountID)
             throw XBookmarkError.sessionExpired
         }
 
-        let task = Task { try await self.performTokenRefresh(refreshToken: refreshToken, clientId: clientId) }
-        inFlightRefresh = task
-        defer { inFlightRefresh = nil }
+        let task = Task { try await self.performTokenRefresh(accountID: accountID, refreshToken: refreshToken, clientId: clientId) }
+        inFlightRefreshes[accountID] = task
+        defer { inFlightRefreshes[accountID] = nil }
         try await task.value
     }
 
-    private func performTokenRefresh(refreshToken: String, clientId: String) async throws {
+    private func performTokenRefresh(accountID: String, refreshToken: String, clientId: String) async throws {
         logger.info("Refreshing X access token")
 
         var request = URLRequest(url: URL(string: "https://api.x.com/2/oauth2/token")!)
@@ -283,7 +354,7 @@ actor XBookmarkService {
             let tokenIsDead = body.contains("invalid_grant")
                 || (body.contains("invalid_request") && body.contains("token was invalid"))
             if tokenIsDead {
-                signOut()
+                invalidateSession(accountID: accountID)
                 throw XBookmarkError.sessionExpired
             }
             logger.error("X token refresh failed: HTTP \(httpResponse.statusCode, privacy: .public) \(Self.errorSummary(fromBody: body), privacy: .public)")
@@ -301,15 +372,21 @@ actor XBookmarkService {
         }
 
         let tokens = try JSONDecoder().decode(TokenResponse.self, from: data)
-        KeychainService.xAccessToken = tokens.accessToken
+        guard var renewed = credentials(accountID: accountID) else { throw XBookmarkError.notSignedIn }
+        renewed.accessToken = tokens.accessToken
         if let newRefresh = tokens.refreshToken {
-            KeychainService.xRefreshToken = newRefresh
+            renewed.refreshToken = newRefresh
         }
         if let scope = tokens.scope {
-            KeychainService.xGrantedScopes = scope
+            renewed.grantedScopes = scope
         }
-        let newExpiry = Date().addingTimeInterval(TimeInterval(tokens.expiresIn))
-        KeychainService.xTokenExpiry = ISO8601DateFormatter().string(from: newExpiry)
+        renewed.tokenExpiry = Date().addingTimeInterval(TimeInterval(tokens.expiresIn))
+        guard let encoded = renewed.encoded(),
+              KeychainService.saveXAccountCredentials(encoded, accountID: accountID) else {
+            // The old refresh token is already spent at X; failing loudly
+            // beats carrying on with tokens that were not kept.
+            throw XBookmarkError.apiFailed("Could not store the renewed X credentials in the Keychain.")
+        }
     }
 
     // MARK: - Fetch Bookmarks
@@ -328,47 +405,35 @@ actor XBookmarkService {
     /// that page starts again from the top with full pages — the few posts it
     /// re-reads were billed moments ago and X does not bill them twice in a day.
     ///
-    /// Auth strategy: OAuth tokens are preferred because bookmarks require user context.
-    /// Bearer tokens are tried as fallback (they work if manually configured as user tokens).
-    /// If bearer fails with 401, the error tells the user to sign in via OAuth.
+    /// Bookmarks belong to one account, so every call names it: its tokens, its
+    /// watermark and its last-sync date are the ones read and advanced.
     ///
-    /// The sync cursor (`newestSeenTweetId`) and last-sync date are advanced ONLY
+    /// The sync cursor (the account's newest seen tweet id) and last-sync date are advanced ONLY
     /// after `persist` returns successfully. If the save throws, the watermark stays
     /// put so these bookmarks are re-fetched on the next sync instead of being lost.
     /// `persist` receives the fetched bookmarks (newest first) and returns how many
     /// were actually saved.
     func fetchNewBookmarks(
+        accountID: String,
         savedPostIDs: Set<String> = [],
         persist: ([XBookmark]) async throws -> Int
     ) async throws -> Int {
-        // Determine auth token: prefer OAuth (bookmarks require user context),
-        // fall back to bearer (works if it's a manually-configured user token)
-        let authToken: String
-        if let oauthToken = KeychainService.xAccessToken, !oauthToken.isEmpty {
-            try await refreshTokenIfNeeded()
-            // Re-read after potential refresh
-            authToken = KeychainService.xAccessToken ?? oauthToken
-        } else {
-            throw XBookmarkError.notSignedIn
-        }
+        let authToken = try await accessToken(accountID: accountID)
 
-        // Ensure we have a user ID (needed for bookmarks endpoint URL). A
-        // session from before the handle was kept learns it on its first sync.
-        var userId = KeychainService.xUserId
-        if userId == nil || KeychainService.xUsername == nil {
-            let user = try await fetchCurrentUser(token: authToken)
-            userId = user.id
-            KeychainService.xUserId = user.id
-            KeychainService.xUsername = user.username
-        }
-        guard let userId else {
-            throw XBookmarkError.notSignedIn
-        }
+        // A session adopted from before the handle was kept learns it on its
+        // first sync.
+        try await learnUsernameIfMissing(accountID: accountID, token: authToken)
+        let userId = accountID
 
         var allBookmarks: [XBookmark] = []
         var paginationToken: String? = nil
-        let stopAtId = newestSeenTweetId
+        let stopAtId = newestSeenTweetId(accountID: accountID)
         var firstTweetId: String? = nil
+        let savedPostIDs = XAccountBook.stopPostIDs(
+            savedPostIDs: savedPostIDs,
+            newestSeenTweetID: stopAtId,
+            connectedAccountCount: accounts.count
+        )
         let hasStop = stopAtId != nil || !savedPostIDs.isEmpty
 
         // One small page answers the usual sync, where little or nothing is new.
@@ -378,6 +443,7 @@ actor XBookmarkService {
             let (bookmarks, nextToken) = try await fetchBookmarksPage(
                 userId: userId,
                 accessToken: authToken,
+                accountID: accountID,
                 paginationToken: nil,
                 pageSize: Self.incrementalPageSize
             )
@@ -388,6 +454,7 @@ actor XBookmarkService {
             )
             if page.hitStop || nextToken == nil {
                 return try await finishSync(
+                    accountID: accountID,
                     candidates: page.bookmarks,
                     newestTweetID: bookmarks.first?.tweetId,
                     persist: persist
@@ -400,6 +467,7 @@ actor XBookmarkService {
             let (bookmarks, nextToken) = try await fetchBookmarksPage(
                 userId: userId,
                 accessToken: authToken,
+                accountID: accountID,
                 paginationToken: paginationToken,
                 pageSize: Self.fullPageSize
             )
@@ -423,10 +491,20 @@ actor XBookmarkService {
             paginationToken = nextToken
         } while paginationToken != nil
 
-        return try await finishSync(candidates: allBookmarks, newestTweetID: firstTweetId, persist: persist)
+        return try await finishSync(accountID: accountID, candidates: allBookmarks, newestTweetID: firstTweetId, persist: persist)
+    }
+
+    private func learnUsernameIfMissing(accountID: String, token: String) async throws {
+        guard account(id: accountID)?.username == nil else { return }
+        let user = try await fetchCurrentUser(token: token)
+        guard let username = user.username else { return }
+        KeychainService.xAccounts = XAccountBook.encode(
+            XAccountBook.merging(XAccount(id: accountID, username: username), into: accounts)
+        )
     }
 
     private func finishSync(
+        accountID: String,
         candidates: [XBookmark],
         newestTweetID: String?,
         persist: ([XBookmark]) async throws -> Int
@@ -437,9 +515,9 @@ actor XBookmarkService {
 
         // Save succeeded — now it is safe to advance the cursor for next sync.
         if let newestTweetID {
-            newestSeenTweetId = newestTweetID
+            setNewestSeenTweetId(newestTweetID, accountID: accountID)
         }
-        setLastSyncDate(Date())
+        setLastSyncDate(Date(), accountID: accountID)
 
         logger.info("Reconciled \(candidates.count) X bookmark candidates, saved \(savedCount)")
         return savedCount
@@ -476,25 +554,30 @@ actor XBookmarkService {
     struct XPostResult: Sendable {
         let postId: String
         let url: String
+        /// Who the post was published as.
+        let account: XAccount
     }
 
-    /// Publishes a post on X as the signed-in user, optionally as a reply.
-    /// Requires the `tweet.write` scope; sessions created before posting
-    /// support must reconnect via `authenticate()` to grant it.
-    func createPost(text: String, replyToPostId: String? = nil) async throws -> XPostResult {
+    /// Publishes a post on X as a connected account, optionally as a reply.
+    /// `account` is a user id or handle; it may be left out only while exactly
+    /// one account is connected (`XAccountBook.postingAccount`), since a guess
+    /// would publish as the wrong person. Requires the `tweet.write` scope;
+    /// sessions created before posting support must reconnect via
+    /// `authenticate()` to grant it.
+    func createPost(text: String, replyToPostId: String? = nil, account requested: String? = nil) async throws -> XPostResult {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             throw XBookmarkError.apiFailed("Post text is empty.")
         }
 
-        guard let currentToken = KeychainService.xAccessToken, !currentToken.isEmpty else {
+        let account = try XAccountBook.postingAccount(among: accounts, requested: requested)
+        guard credentials(accountID: account.id) != nil else {
             throw XBookmarkError.notSignedIn
         }
-        guard canPost else {
+        guard canPost(accountID: account.id) else {
             throw XBookmarkError.postingNotAuthorized
         }
-        try await refreshTokenIfNeeded()
-        let authToken = KeychainService.xAccessToken ?? currentToken
+        let authToken = try await accessToken(accountID: account.id)
 
         var body: [String: Any] = ["text": trimmed]
         if let replyToPostId, !replyToPostId.isEmpty {
@@ -516,7 +599,7 @@ actor XBookmarkService {
         case 201:
             break
         case 401:
-            signOut()
+            invalidateSession(accountID: account.id)
             throw XBookmarkError.notSignedIn
         case 403:
             // Token or developer app lacks write permission.
@@ -531,11 +614,21 @@ actor XBookmarkService {
             let data: PostData
         }
         let decoded = try JSONDecoder().decode(CreatePostResponse.self, from: data)
-        logger.info("Posted to X: \(decoded.data.id)")
-        return XPostResult(postId: decoded.data.id, url: "https://x.com/i/status/\(decoded.data.id)")
+        logger.info("Posted to X as user \(account.id): \(decoded.data.id)")
+        return XPostResult(postId: decoded.data.id, url: "https://x.com/i/status/\(decoded.data.id)", account: account)
     }
 
     // MARK: - Authors
+
+    /// The account a lookup of public data (names, pictures, full post text)
+    /// is made through: the first one whose session still works. Any account
+    /// reads the same public posts, so none is asked for.
+    private func lookupAccountID() throws -> String {
+        guard let account = accounts.first(where: { !needsReauthentication(accountID: $0.id) }) else {
+            throw XBookmarkError.notSignedIn
+        }
+        return account.id
+    }
 
     /// Handles X could not resolve this launch — deleted, renamed, or suspended
     /// accounts. Remembered so a repeated sync does not re-spend a lookup that
@@ -567,16 +660,13 @@ actor XBookmarkService {
             .filter { !$0.isEmpty }
         guard !wanted.isEmpty else { return [:] }
 
-        guard let oauthToken = KeychainService.xAccessToken, !oauthToken.isEmpty else {
-            throw XBookmarkError.notSignedIn
-        }
-        try await refreshTokenIfNeeded()
-        let accessToken = KeychainService.xAccessToken ?? oauthToken
+        let lookupAccountID = try lookupAccountID()
+        let accessToken = try await accessToken(accountID: lookupAccountID)
 
         var resolved: [String: XUserProfile] = [:]
         let batches = Array(wanted).chunked(intoBatchesOf: 100)
         for batch in batches {
-            for (handle, profile) in try await fetchProfilesPage(batch, accessToken: accessToken) {
+            for (handle, profile) in try await fetchProfilesPage(batch, accessToken: accessToken, accountID: lookupAccountID) {
                 resolved[handle] = profile
             }
         }
@@ -588,7 +678,8 @@ actor XBookmarkService {
 
     private func fetchProfilesPage(
         _ usernames: [String],
-        accessToken: String
+        accessToken: String,
+        accountID: String
     ) async throws -> [String: XUserProfile] {
         var components = URLComponents(string: "https://api.x.com/2/users/by")!
         components.queryItems = [
@@ -604,7 +695,7 @@ actor XBookmarkService {
             throw XBookmarkError.apiFailed("Invalid response")
         }
         if httpResponse.statusCode == 401 {
-            signOut()
+            invalidateSession(accountID: accountID)
             throw XBookmarkError.notSignedIn
         }
         try requireOK(httpResponse, data: data, endpoint: "users/by")
@@ -641,11 +732,8 @@ actor XBookmarkService {
     func fetchPostTexts(forPostIDs ids: [String]) async throws -> [String: String] {
         let wanted = Array(Set(ids.filter { !$0.isEmpty }))
         guard !wanted.isEmpty else { return [:] }
-        guard let oauthToken = KeychainService.xAccessToken, !oauthToken.isEmpty else {
-            throw XBookmarkError.notSignedIn
-        }
-        try await refreshTokenIfNeeded()
-        let accessToken = KeychainService.xAccessToken ?? oauthToken
+        let lookupAccountID = try lookupAccountID()
+        let accessToken = try await accessToken(accountID: lookupAccountID)
 
         var texts: [String: String] = [:]
         for batch in wanted.chunked(intoBatchesOf: 100) {
@@ -663,7 +751,7 @@ actor XBookmarkService {
                 throw XBookmarkError.apiFailed("Invalid response")
             }
             if httpResponse.statusCode == 401 {
-                signOut()
+                invalidateSession(accountID: lookupAccountID)
                 throw XBookmarkError.notSignedIn
             }
             try requireOK(httpResponse, data: data, endpoint: "tweets")
@@ -740,6 +828,7 @@ actor XBookmarkService {
     private func fetchBookmarksPage(
         userId: String,
         accessToken: String,
+        accountID: String,
         paginationToken: String?,
         pageSize: Int
     ) async throws -> ([XBookmark], String?) {
@@ -765,12 +854,7 @@ actor XBookmarkService {
         }
 
         if httpResponse.statusCode == 401 {
-            // If we were using bearer token (no OAuth), tell user to sign in via OAuth
-            if KeychainService.xAccessToken == nil {
-                logger.warning("Bearer token rejected for bookmarks — OAuth sign-in required")
-                throw XBookmarkError.bearerTokenInsufficient
-            }
-            signOut()
+            invalidateSession(accountID: accountID)
             throw XBookmarkError.notSignedIn
         }
 
@@ -843,16 +927,7 @@ actor XBookmarkService {
         let username: String?
     }
 
-    private func fetchCurrentUser(token: String? = nil) async throws -> CurrentUser {
-        let authToken: String
-        if let token {
-            authToken = token
-        } else if let accessToken = KeychainService.xAccessToken {
-            authToken = accessToken
-        } else {
-            throw XBookmarkError.notSignedIn
-        }
-
+    private func fetchCurrentUser(token authToken: String) async throws -> CurrentUser {
         var request = URLRequest(url: URL(string: "https://api.x.com/2/users/me")!)
         request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
 
@@ -861,7 +936,6 @@ actor XBookmarkService {
             throw XBookmarkError.apiFailed("Failed to fetch user info")
         }
         if httpResponse.statusCode == 401 {
-            signOut()
             throw XBookmarkError.sessionExpired
         }
         try requireOK(httpResponse, data: data, endpoint: "users/me")
@@ -1039,7 +1113,10 @@ private extension Data {
 enum XBookmarkError: LocalizedError, Equatable {
     case notSignedIn
     case sessionExpired
-    case bearerTokenInsufficient
+    /// A post was asked for with several accounts connected and none named.
+    case accountRequired(connected: [String])
+    /// The named account is not one of the connected ones.
+    case accountNotConnected(String, connected: [String])
     case appAccessUnavailable
     case postingNotAuthorized
     case authFailed(String)
@@ -1059,7 +1136,10 @@ enum XBookmarkError: LocalizedError, Equatable {
         switch self {
         case .notSignedIn: return "Not signed in to X. Please sign in first."
         case .sessionExpired: return "Your X session has expired and could not be renewed. Reconnect to X to continue syncing bookmarks."
-        case .bearerTokenInsufficient: return "Bearer token cannot access bookmarks. Please sign in with X using OAuth."
+        case .accountRequired(let connected):
+            return "Several X accounts are connected; say which one to use: \(connected.joined(separator: ", "))."
+        case .accountNotConnected(let requested, let connected):
+            return "No connected X account matches \(requested). Connected: \(connected.joined(separator: ", "))."
         case .appAccessUnavailable: return "ForeverLM's X bookmark access is temporarily unavailable. Please try again later or contact support."
         case .postingNotAuthorized: return "This X session cannot post. Reconnect to X (Plugins → X) to refresh its permission. If the problem continues, contact support."
         case .authFailed(let msg): return "X authentication failed: \(msg)"
@@ -1125,8 +1205,8 @@ enum XBookmarkError: LocalizedError, Equatable {
             return "Reconnect to X to sync bookmarks."
         case .sessionExpired:
             return "Your X session expired. Reconnect to keep syncing bookmarks."
-        case .bearerTokenInsufficient:
-            return "Reconnect to X to sync bookmarks."
+        case .accountRequired, .accountNotConnected:
+            return "Choose which X account to use."
         case .appAccessUnavailable:
             return "X bookmark access is temporarily unavailable. Try again later."
         case .postingNotAuthorized:
@@ -1161,9 +1241,10 @@ enum XBookmarkError: LocalizedError, Equatable {
         if urlErrorCode(for: error) != nil { return false }
         guard let xError = error as? XBookmarkError else { return true }
         switch xError {
-        case .appAccessUnavailable, .rateLimited, .usageCapExceeded, .creditsDepleted:
+        case .appAccessUnavailable, .rateLimited, .usageCapExceeded, .creditsDepleted,
+             .accountRequired, .accountNotConnected:
             return false
-        case .notSignedIn, .sessionExpired, .bearerTokenInsufficient, .postingNotAuthorized,
+        case .notSignedIn, .sessionExpired, .postingNotAuthorized,
              .authFailed, .apiFailed:
             return true
         }

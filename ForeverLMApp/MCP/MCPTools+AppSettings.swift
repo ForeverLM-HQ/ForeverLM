@@ -1017,7 +1017,7 @@ extension MCPDataStore {
         ["action": "prepare_memory_review_now", "pane": "no pane", "does": "Select today's cards for the memory review now, whatever the hour."],
         ["action": "check_feeds_now", "pane": "Feeds", "does": "Check now: read every followed journal, due or not."],
         ["action": "draw_missing_meeting_icons", "pane": "no pane", "does": "Fill in the meetings that have no icon, with the image model when drawing is on (billed)."],
-        ["action": "sync_x_bookmarks", "pane": "Plugins › X", "does": "Sync: import new X bookmarks now."],
+        ["action": "sync_x_bookmarks", "pane": "Plugins › X", "does": "Sync: import new X bookmarks now, from every connected account."],
         ["action": "clear_usage_ledger_warning", "pane": "AI Usage › Activity", "does": "Clear Warning: forget the recorded usage-ledger write failures."],
     ].filter { JournalWatch.isEnabled || $0["pane"] != "Feeds" }
 
@@ -1105,7 +1105,7 @@ extension MCPDataStore {
     @MainActor
     private static func syncXBookmarksNow() async throws -> Int {
         let studio = try AppModelBridge.requireStudio()
-        guard XBookmarkService.shared.isSignedIn else {
+        guard XBookmarkService.shared.isOAuthSignedIn else {
             throw MCPError.invalidInput("X is not connected. Connect it in Plugins › X (open_settings x).")
         }
         return await studio.syncXBookmarks(showResult: false)

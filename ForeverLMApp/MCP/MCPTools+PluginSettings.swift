@@ -32,7 +32,7 @@ extension MCPToolRegistry {
         [
             MCPToolDef(
                 name: "get_plugin_connections",
-                description: "Read the Plugins place as the learner sees it: for each plugin whether it is connected, which account(s), and what connecting would take. X (connected, @username, needs reconnect, last sync); YouTube (connected, automatic import on/off, which import source is followed — liked videos or the ForeverLM playlist — the channels followed with their group_id, hidden channels); Google Drive (connected accounts with id and email, the meeting folders each reads); Calendar, the Mac's own (on/off, macOS permission) — the learner's day; Slack (workspaces with team_id, and each workspace's channels with id, name and whether ForeverLM may read it); GitHub (the account and the organisations the App is installed on); Linear and Notion (connected workspace); and the learner's own Build Your Own plugins (id, name, health, sources added). Every entry names its open_settings pane and the tool that disconnects it. Connecting any plugin needs the provider's consent page, so it cannot be done from a chat: offer open_settings with the pane named here. The Slack channel lists cost one Slack call per workspace; pass include_slack_channels false to skip them.",
+                description: "Read the Plugins place as the learner sees it: for each plugin whether it is connected, which account(s), and what connecting would take. X (each connected account with its user id, @username, whether it needs reconnecting, can post, last sync); YouTube (every connected account — channel title and id, whether its grant still works, which import source it follows — liked videos or the ForeverLM playlist — and its liked-import choice; automatic import on/off, the channels followed with their group_id, hidden channels); Google Drive (connected accounts with id and email, the meeting folders each reads); Calendar, the Mac's own (on/off, macOS permission) — the learner's day; Slack (workspaces with team_id, and each workspace's channels with id, name and whether ForeverLM may read it); GitHub (the account and the organisations the App is installed on); Linear and Notion (every connected workspace with its id); and the learner's own Build Your Own plugins (id, name, health, sources added). Every entry names its open_settings pane and the tool that disconnects it. Connecting any plugin needs the provider's consent page, so it cannot be done from a chat: offer open_settings with the pane named here. The Slack channel lists cost one Slack call per workspace; pass include_slack_channels false to skip them.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -43,7 +43,7 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "disconnect_plugin",
-                description: "Do exactly what a plugin pane's Disconnect / Turn Off / Remove Access button does. x: signs out of X (bookmark sync stops). youtube: forgets the YouTube grant (automatic import stops; followed channels and imported videos stay). google_drive: disconnects one Google account (account_id from get_plugin_connections; optional when only one is connected); its meeting folders stop importing, meetings already imported stay. apple_calendar: turns the Mac's Calendar off for ForeverLM (the macOS permission itself stays; the learner revokes that in System Settings) and forgets the calendar choice; the events stay in the calendar. slack: revokes one workspace's Slack tokens (account_id is its team_id; optional when only one). github: revokes ForeverLM's GitHub token (the GitHub App stays installed on the organisations). user_plugin: removes a Build Your Own plugin's access at once (account_id is its id or name); the sources it added stay — remove_connector_sources removes those. Google accounts, Slack, GitHub and user plugins follow the learner's account on every device; X, YouTube and Calendar are this Mac's. Reconnecting needs the provider's consent page again, so ALWAYS ask the learner before disconnecting anything.",
+                description: "Do exactly what a plugin pane's Disconnect / Turn Off / Remove Access button does. x: disconnects one X account (account_id is its user id or @username from get_plugin_connections; optional when only one is connected); its bookmark sync stops, imported posts stay. youtube: disconnects one YouTube account (account_id from get_plugin_connections, a channel title works too; optional when only one is connected); that account stops importing, followed channels and imported videos stay. google_drive: disconnects one Google account (account_id from get_plugin_connections; optional when only one is connected); its meeting folders stop importing, meetings already imported stay. apple_calendar: turns the Mac's Calendar off for ForeverLM (the macOS permission itself stays; the learner revokes that in System Settings) and forgets the calendar choice; the events stay in the calendar. slack: revokes one workspace's Slack tokens (account_id is its team_id; optional when only one). github: revokes ForeverLM's GitHub token (the GitHub App stays installed on the organisations). linear / notion: revokes one workspace's grant (account_id is its id, or its name; optional when only one). user_plugin: removes a Build Your Own plugin's access at once (account_id is its id or name); the sources it added stay — remove_connector_sources removes those. Google accounts, Slack, GitHub, Linear, Notion and user plugins follow the learner's account on every device; X, YouTube and Calendar are this Mac's. Reconnecting needs the provider's consent page again, so ALWAYS ask the learner before disconnecting anything.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -52,7 +52,7 @@ extension MCPToolRegistry {
                             "enum": MCPDataStore.disconnectablePlugins,
                             "description": "Which plugin to disconnect.",
                         ],
-                        "account_id": ["type": "string", "description": "google_drive: the account id (or email); slack: the workspace team_id (or name); user_plugin: the plugin id (or name). Optional when only one is connected."],
+                        "account_id": ["type": "string", "description": "x: the X user id or @username; google_drive: the account id (or email); youtube: the account id (or channel title); slack: the workspace team_id (or name); linear: the workspace id, URL key or name; notion: the workspace id or name; user_plugin: the plugin id (or name). Optional when only one is connected."],
                     ],
                     "required": ["plugin"],
                 ]
@@ -152,7 +152,7 @@ extension MCPToolRegistry {
 extension MCPDataStore {
 
     static let disconnectablePlugins = [
-        "x", "youtube", "google_drive", "apple_calendar", "slack", "github", "user_plugin",
+        "x", "youtube", "google_drive", "apple_calendar", "slack", "github", "linear", "notion", "user_plugin",
     ]
 
     /// The dispatch for `pluginSettingsToolDefs`; nil for any other name.
@@ -221,7 +221,7 @@ extension MCPDataStore {
 
     /// One of several connected accounts: the one `requested` names by id or
     /// label, or the only one when nothing is named.
-    fileprivate static func pluginPick<T>(
+    static func pluginPick<T>(
         _ items: [T],
         requested: String?,
         id: (T) -> String,
@@ -244,6 +244,16 @@ extension MCPDataStore {
             throw MCPError.invalidInput("More than one \(what) is connected; pass \(argument) as one of: \(known).")
         }
         return items[0]
+    }
+
+    /// The card's Disconnect: the window releases the groups no account reads
+    /// any more; with no window open the grant is simply forgotten.
+    private static func disconnectYouTubeAccountLikeThePane(_ accountID: String) async {
+        if let studio = await AppModelBridge.studio {
+            await studio.disconnectYouTubeAccount(accountID)
+        } else {
+            YouTubeService.shared.signOut(accountID: accountID)
+        }
     }
 
     @MainActor
@@ -278,20 +288,30 @@ extension MCPDataStore {
 
     private static func xConnectionPayload() -> [String: Any] {
         let service = XBookmarkService.shared
-        var row: [String: Any] = [
+        let accounts = service.accounts
+        return [
             "plugin": "x",
             "name": "X",
-            "connected": service.isOAuthSignedIn,
-            "needs_reconnect": service.needsReauthentication,
+            "connected": !accounts.isEmpty,
+            "needs_reconnect": accounts.contains { service.needsReauthentication(accountID: $0.id) },
             "reach": "this_mac",
             "open_settings": "x",
-            "connect_requires": "Signing in to X in the sheet ForeverLM opens from Plugins › X › Connect.",
-            "imports": "The learner's X bookmarks. run_settings_action sync_x_bookmarks syncs now.",
-            "disconnect": "disconnect_plugin with plugin x",
+            "connect_requires": "Signing in to X in the sheet ForeverLM opens from Plugins › X › Connect (Add Another Account for a further one).",
+            "imports": "The learner's X bookmarks, from every connected account. run_settings_action sync_x_bookmarks syncs them now. create_x_post posts as one account; pass account when several are connected.",
+            "disconnect": "disconnect_plugin with plugin x and account_id",
+            "accounts": accounts.map { account -> [String: Any] in
+                var entry: [String: Any] = [
+                    "id": account.id,
+                    "needs_reconnect": service.needsReauthentication(accountID: account.id),
+                    "can_post": service.canPost(accountID: account.id),
+                ]
+                if let username = account.username { entry["username"] = username }
+                if let lastSync = service.lastSyncDate(accountID: account.id) {
+                    entry["last_synced_at"] = pluginISO(lastSync)
+                }
+                return entry
+            },
         ]
-        if let username = service.signedInUsername { row["username"] = username }
-        if let lastSync = service.lastSyncDate { row["last_synced_at"] = pluginISO(lastSync) }
-        return row
     }
 
     private func youTubeConnectionPayload() async -> [String: Any] {
@@ -304,17 +324,26 @@ extension MCPDataStore {
             "reach": "this_mac",
             "open_settings": "youtube",
             "connect_requires": "Google's consent page for youtube.readonly, opened from Plugins › YouTube › Connect.",
-            "disconnect": "disconnect_plugin with plugin youtube",
-            "tools": "set_connector_auto_import (automatic import), follow_youtube_liked_videos / follow_youtube_foreverlm_playlist (import source), follow_youtube_channel / unfollow_youtube_channel, set_youtube_channel_hidden, refresh_youtube_sources",
+            "disconnect": "disconnect_plugin with plugin youtube and account_id when more than one account is connected",
+            "tools": "set_connector_auto_import (automatic import), follow_youtube_liked_videos / follow_youtube_foreverlm_playlist (an account's import source; account when several are connected), follow_youtube_channel / unfollow_youtube_channel, set_youtube_channel_hidden, refresh_youtube_sources",
         ]
+        let snapshot = YouTubeService.shared.snapshot()
+        row["accounts"] = snapshot.accounts.map { account -> [String: Any] in
+            var entry: [String: Any] = [
+                "account_id": account.id,
+                "name": account.title,
+                "connected": !snapshot.disconnectedIDs.contains(account.id),
+                "import_source": account.choices.source?.rawValue ?? "none",
+                "liked_import_policy": account.choices.likedPolicy.rawValue,
+            ]
+            if let source = account.choices.source { entry["import_source_name"] = source.displayName }
+            if let cutoff = account.choices.likedCutoff { entry["liked_import_cutoff"] = Self.pluginISO(cutoff) }
+            return entry
+        }
+        row["needs_reconnect"] = !snapshot.disconnectedIDs.isEmpty
         do {
             let store = try knowledgeStore()
             let groups = try store.loadVideoPlaylistGroups()
-            let source = YouTubeImportSource.allCases.first { source in
-                groups.values.contains { $0.autoImport && $0.connectorKind == source.connectorKind }
-            }
-            row["import_source"] = source?.rawValue ?? "none"
-            if let source { row["import_source_name"] = source.displayName }
             row["followed_channels"] = groups
                 .filter { $0.value.autoImport && $0.value.connectorKind == StudioViewModel.youtubeChannelPluginKind }
                 .sorted { $0.value.title.localizedCaseInsensitiveCompare($1.value.title) == .orderedAscending }
@@ -333,19 +362,7 @@ extension MCPDataStore {
         } catch {
             row["library_error"] = error.localizedDescription
         }
-        if let studio = await Self.youTubeStudioState() {
-            row.merge(studio) { _, new in new }
-        }
         return row
-    }
-
-    @MainActor
-    private static func youTubeStudioState() -> [String: Any]? {
-        guard let studio = AppModelBridge.studio else { return nil }
-        return [
-            "needs_reconnect": !YouTubeService.shared.isSignedIn && studio.youtubePluginNeedsReconnect,
-            "liked_import_policy": studio.youtubeLikedImportPolicy.rawValue,
-        ]
     }
 
     private static func googleDriveConnectionPayload() async -> [String: Any] {
@@ -529,15 +546,20 @@ extension MCPDataStore {
             "name": "Linear",
             "reach": "account",
             "open_settings": "linear",
-            "connect_requires": "Connecting on the ForeverLM Linear page (https://app.foreverlm.com/linear-connect) in a browser.",
-            "disconnect": "Only on the Linear page; not from a chat.",
+            "connect_requires": "Plugins › Linear › Connect opens Linear's consent page in a sheet; connect again for each further workspace.",
+            "disconnect": "disconnect_plugin with plugin linear and account_id (the workspace id, URL key or name) when more than one is connected",
         ]
         switch answer {
-        case .connected(let workspace, let user)?:
+        case .connected(let workspaces)?:
             row["status"] = "connected"
             row["connected"] = true
-            if let workspace { row["workspace"] = workspace }
-            if let user { row["user"] = user }
+            row["workspaces"] = workspaces.map { workspace -> [String: Any] in
+                var entry: [String: Any] = ["id": workspace.id]
+                if let name = workspace.name { entry["name"] = name }
+                if let urlKey = workspace.urlKey { entry["url_key"] = urlKey }
+                if let user = workspace.user { entry["user"] = user }
+                return entry
+            }
         case .notConnected?:
             row["status"] = "not_connected"
             row["connected"] = false
@@ -556,15 +578,19 @@ extension MCPDataStore {
             "name": "Notion",
             "reach": "account",
             "open_settings": "notion",
-            "connect_requires": "Connecting on the ForeverLM Notion page (https://app.foreverlm.com/notion-connect) in a browser.",
-            "disconnect": "Only on the Notion page; not from a chat.",
+            "connect_requires": "Plugins › Notion › Connect opens Notion's consent page in a sheet; connect again for each further workspace.",
+            "disconnect": "disconnect_plugin with plugin notion and account_id (the workspace id or name) when more than one is connected",
         ]
         switch answer {
-        case .connected(let workspace, let user)?:
+        case .connected(let workspaces)?:
             row["status"] = "connected"
             row["connected"] = true
-            if let workspace { row["workspace"] = workspace }
-            if let user { row["user"] = user }
+            row["workspaces"] = workspaces.map { workspace -> [String: Any] in
+                var entry: [String: Any] = ["id": workspace.id]
+                if let name = workspace.name { entry["name"] = name }
+                if let user = workspace.user { entry["user"] = user }
+                return entry
+            }
         case .notConnected?:
             row["status"] = "not_connected"
             row["connected"] = false
@@ -613,24 +639,28 @@ extension MCPDataStore {
         var result: [String: Any] = ["plugin": plugin]
         switch plugin {
         case "x":
-            guard let username = try await Self.signOutOfXLikeThePane() else {
+            guard let account = try await Self.signOutOfXLikeThePane(requested: accountID) else {
                 result["disconnected"] = false
                 result["message"] = "X was not connected."
                 break
             }
             result["disconnected"] = true
-            result["message"] = "Disconnected X\(username.isEmpty ? "" : " (@\(username))"). Bookmark sync stops; imported posts stay."
+            result["account_id"] = account.id
+            result["message"] = "Disconnected \(account.displayLabel) from X. Its bookmark sync stops; imported posts stay."
 
         case "youtube":
-            guard YouTubeService.shared.isSignedIn else {
+            let accounts = YouTubeService.shared.accounts
+            guard !accounts.isEmpty else {
                 result["disconnected"] = false
                 result["message"] = "YouTube was not connected."
                 break
             }
-            // The pane's Disconnect: forget the grant; signOut announces it.
-            YouTubeService.shared.signOut()
+            let account = try Self.pluginPick(accounts, requested: accountID, id: \.id, label: \.title, what: "YouTube account")
+            // The pane's Disconnect on that account's card.
+            await Self.disconnectYouTubeAccountLikeThePane(account.id)
             result["disconnected"] = true
-            result["message"] = "Disconnected YouTube. Automatic import stops; followed channels and imported videos stay."
+            result["account_id"] = account.id
+            result["message"] = "Disconnected \(account.title) from YouTube. It stops importing; followed channels and imported videos stay."
 
         case "google_drive":
             _ = try? await GoogleDriveService.shared.adoptLegacyAccountIfNeeded()
@@ -699,6 +729,52 @@ extension MCPDataStore {
             result["disconnected"] = !stillConnected
             result["message"] = "Disconnected GitHub\(account.login.map { " (@\($0))" } ?? ""). Its token is revoked; the ForeverLM App stays installed on the organisations."
 
+        case "linear":
+            guard case .connected(let workspaces)? = await Self.linearConnection() else {
+                result["disconnected"] = false
+                result["message"] = "No Linear workspace is connected (or the ForeverLM gateway did not answer)."
+                break
+            }
+            let workspace = try Self.pluginPick(
+                workspaces,
+                requested: accountID,
+                id: \.id,
+                label: { $0.label },
+                what: "Linear workspace"
+            )
+            let stillConnected = try await Self.disconnectLinearWorkspace(id: workspace.id)
+            if let answer = await Self.linearConnection() {
+                await MainActor.run { GatewayPluginState.shared.linear = answer }
+            }
+            await Self.announcePluginConnectionChanged()
+            result["disconnected"] = true
+            result["workspace_id"] = workspace.id
+            result["any_workspace_still_connected"] = stillConnected
+            result["message"] = "Disconnected \(workspace.label). ForeverLM stops reading it and its Linear grant is revoked."
+
+        case "notion":
+            guard case .connected(let workspaces)? = await Self.notionConnection() else {
+                result["disconnected"] = false
+                result["message"] = "No Notion workspace is connected (or the ForeverLM gateway did not answer)."
+                break
+            }
+            let workspace = try Self.pluginPick(
+                workspaces,
+                requested: accountID,
+                id: \.id,
+                label: { $0.label },
+                what: "Notion workspace"
+            )
+            let stillConnected = try await Self.disconnectNotionWorkspace(id: workspace.id)
+            if let answer = await Self.notionConnection() {
+                await MainActor.run { GatewayPluginState.shared.notion = answer }
+            }
+            await Self.announcePluginConnectionChanged()
+            result["disconnected"] = true
+            result["workspace_id"] = workspace.id
+            result["any_workspace_still_connected"] = stillConnected
+            result["message"] = "Disconnected \(workspace.label). ForeverLM stops reading it and its Notion connection is revoked."
+
         case "user_plugin":
             let provider = await MCPOAuthProvider.sharedProvider()
             let plugins = await provider.userPluginSummaries()
@@ -714,20 +790,22 @@ extension MCPDataStore {
             result["message"] = "Removed \(plugin.name)'s access. It would need the learner's approval to reconnect; the sources it added stay (remove_connector_sources with connector_label \(plugin.name) removes them)."
 
         default:
-            throw MCPError.invalidInput("plugin takes one of: \(Self.disconnectablePlugins.joined(separator: ", ")). Linear and Notion disconnect on their web pages.")
+            throw MCPError.invalidInput("plugin takes one of: \(Self.disconnectablePlugins.joined(separator: ", ")).")
         }
         return try jsonString(result)
     }
 
-    /// Plugins › X › Disconnect. Nil when X was not connected;
-    /// otherwise the username it was connected as (empty when unknown).
+    /// Plugins › X › an account's Disconnect. Nil when no X account was
+    /// connected; otherwise the account that was disconnected.
     @MainActor
-    private static func signOutOfXLikeThePane() throws -> String? {
+    private static func signOutOfXLikeThePane(requested: String?) throws -> XAccount? {
         let studio = try AppModelBridge.requireStudio()
-        guard XBookmarkService.shared.isSignedIn || studio.isXOAuthSignedIn else { return nil }
-        let username = XBookmarkService.shared.signedInUsername ?? ""
-        studio.signOutOfX()
-        return username
+        let accounts = XBookmarkService.shared.accounts
+        guard !accounts.isEmpty else { return nil }
+        let bare = requested.map { $0.hasPrefix("@") ? String($0.dropFirst()) : $0 }
+        let account = try pluginPick(accounts, requested: bare, id: \.id, label: { $0.username ?? $0.id }, what: "X account")
+        studio.signOutOfX(accountID: account.id)
+        return account
     }
 
     // MARK: - set_slack_channel_enabled
