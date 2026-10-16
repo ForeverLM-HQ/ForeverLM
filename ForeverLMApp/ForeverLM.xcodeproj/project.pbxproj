@@ -1172,7 +1172,6 @@
 		93DB25B62A2E6A6C8E51F10D /* SourceLevelsBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 604A38155091A2AE75F46C83 /* SourceLevelsBuilder.swift */; };
 		93DCDD43C4719879D9F1A9F2 /* NotebookIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C60FA74759486EEC24D1A24 /* NotebookIcon.swift */; };
 		93DD55FEC5119A16E6E85B51 /* StudioViewModel+AutomaticCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E96319539B467EB8A2FD4D2 /* StudioViewModel+AutomaticCards.swift */; };
-		B1981287FD49A24E71627EE4 /* StudioViewModel+SourceCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = C73313747D1C45305B67E7BB /* StudioViewModel+SourceCards.swift */; };
 		93ECF30083776AA4F15BF98D /* PrivateSyncEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F1A6611009E0154F9341116 /* PrivateSyncEngine.swift */; };
 		94094E66AA2CF8AFD1C59020 /* NotebookCoverMaker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76CEC1DA460B6F38F1F15CAB /* NotebookCoverMaker.swift */; };
 		943A03E4463442EADF52E3E0 /* MobileSourceActivityCancellationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B13F024CE4593D70C8A1C212 /* MobileSourceActivityCancellationTests.swift */; };
@@ -1479,6 +1478,7 @@
 		C010CF43687014253A5D58DD /* ArticleSpeechPickRepair.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3C39552513B19DFC9DBA733 /* ArticleSpeechPickRepair.swift */; };
 		C02B640A98E7D2F50317AFCE /* ChatMarkdownView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83CE0AFCDD733CEB8955584 /* ChatMarkdownView.swift */; };
 		C06A3BE7BD8508407B911996 /* SpaceFollowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7448AA72C1B634ACF1B97F4 /* SpaceFollowTests.swift */; };
+		C1060EFA0338CF1421954B8F /* StudioViewModel+SourceCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF4E0DE9F7B3487A3360C2F7 /* StudioViewModel+SourceCards.swift */; };
 		C1529024AFF566D9F147DDC3 /* NotebookAddSourcesSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7187082FCB472E092A072931 /* NotebookAddSourcesSheet.swift */; };
 		C1AC402DD62C90D1B8FD7AD2 /* MemoryReviewPortableTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77608632D0D32CA81F676C1D /* MemoryReviewPortableTests.swift */; };
 		C1B5FA149214F26A28337258 /* ChatPlugins.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8987E52ACF1DA68017D9F91 /* ChatPlugins.swift */; };
@@ -3020,7 +3020,6 @@
 		8E32269747D999502AA46369 /* SyncPayloadReadingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncPayloadReadingTests.swift; sourceTree = "<group>"; };
 		8E7B459E3FDC5EF48107801F /* MobileVoiceConversationController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileVoiceConversationController.swift; sourceTree = "<group>"; };
 		8E96319539B467EB8A2FD4D2 /* StudioViewModel+AutomaticCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StudioViewModel+AutomaticCards.swift"; sourceTree = "<group>"; };
-		C73313747D1C45305B67E7BB /* StudioViewModel+SourceCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StudioViewModel+SourceCards.swift"; sourceTree = "<group>"; };
 		8F4E473322D3B66E8B52C493 /* StudioRailHiddenItemsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudioRailHiddenItemsTests.swift; sourceTree = "<group>"; };
 		8F7FF3E382E4DAC7A1447EDA /* SourceLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceLifecycleTests.swift; sourceTree = "<group>"; };
 		8FD067D4EB8DEC5048023DB0 /* MCPTools+Cohort.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MCPTools+Cohort.swift"; sourceTree = "<group>"; };
@@ -3497,6 +3496,7 @@
 		CEAB3435D6CABBB7D23B7B65 /* LiveAPIIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveAPIIntegrationTests.swift; sourceTree = "<group>"; };
 		CEF683F7C35D373489817BE4 /* ForeverLMMacUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForeverLMMacUITests.swift; sourceTree = "<group>"; };
 		CF173CF303F32E0FC05B8872 /* KnowledgeStoreWriteGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeStoreWriteGate.swift; sourceTree = "<group>"; };
+		CF4E0DE9F7B3487A3360C2F7 /* StudioViewModel+SourceCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StudioViewModel+SourceCards.swift"; sourceTree = "<group>"; };
 		CF50E193ECA01D4A254D0378 /* MCPTools+SourceLevels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MCPTools+SourceLevels.swift"; sourceTree = "<group>"; };
 		CF9828EDB8F55F0C80452143 /* StudioViewModel+Artifacts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StudioViewModel+Artifacts.swift"; sourceTree = "<group>"; };
 		CFC2B123469EB129A05CDA56 /* StudioLastSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudioLastSessionTests.swift; sourceTree = "<group>"; };
@@ -5487,7 +5487,6 @@
 				CF9828EDB8F55F0C80452143 /* StudioViewModel+Artifacts.swift */,
 				339F9D52A261921299A76528 /* StudioViewModel+Atlas.swift */,
 				8E96319539B467EB8A2FD4D2 /* StudioViewModel+AutomaticCards.swift */,
-				C73313747D1C45305B67E7BB /* StudioViewModel+SourceCards.swift */,
 				FF6D3C9749498A9D3C9BB6A1 /* StudioViewModel+BackgroundAISpend.swift */,
 				84DBFB04D7F0C3E00E93C20F /* StudioViewModel+BatchSelection.swift */,
 				7042D57BAFB13B240F5DE6F1 /* StudioViewModel+BookFileMerge.swift */,
@@ -5558,6 +5557,7 @@
 				B313949BEE5A383006107A76 /* StudioViewModel+Search.swift */,
 				90B458C52CA44969209A2EDC /* StudioViewModel+Sensemaking.swift */,
 				975F491FA218E74F0399BBA1 /* StudioViewModel+SlideCitations.swift */,
+				CF4E0DE9F7B3487A3360C2F7 /* StudioViewModel+SourceCards.swift */,
 				21971B48F220AAF32502E47D /* StudioViewModel+SourceDiscovery.swift */,
 				7911148EAA710753FED7968D /* StudioViewModel+SourceImport.swift */,
 				52F5CECE85971E116C709F00 /* StudioViewModel+SourcePipeline.swift */,
@@ -8144,7 +8144,6 @@
 				BF20A11199600CDDA4FDB33F /* StudioViewModel+Atlas.swift in Sources */,
 				C75D4F8BA35364A553A458B7 /* StudioViewModel+AudioOverview.swift in Sources */,
 				93DD55FEC5119A16E6E85B51 /* StudioViewModel+AutomaticCards.swift in Sources */,
-				B1981287FD49A24E71627EE4 /* StudioViewModel+SourceCards.swift in Sources */,
 				0D9C0BCF55DD37080A20AC72 /* StudioViewModel+BackgroundAISpend.swift in Sources */,
 				27162479E46D3F855B22632D /* StudioViewModel+BatchSelection.swift in Sources */,
 				F58729A77B5F9748ECACA11A /* StudioViewModel+BookFileMerge.swift in Sources */,
@@ -8216,6 +8215,7 @@
 				006FD472813075A672225FD2 /* StudioViewModel+Search.swift in Sources */,
 				F54E48753E125218B9EA4813 /* StudioViewModel+Sensemaking.swift in Sources */,
 				54840F541288F8866E86C175 /* StudioViewModel+SlideCitations.swift in Sources */,
+				C1060EFA0338CF1421954B8F /* StudioViewModel+SourceCards.swift in Sources */,
 				E92CBC4A0D0FD6F5415C77E6 /* StudioViewModel+SourceDiscovery.swift in Sources */,
 				8B003F594918DFE5969F87EB /* StudioViewModel+SourceImport.swift in Sources */,
 				A55C468BD5FA48E6CAF01265 /* StudioViewModel+SourcePipeline.swift in Sources */,
@@ -8515,7 +8515,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 239;
+				CURRENT_PROJECT_VERSION = 240;
 				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FOREVERLM_BUNDLE_NAME = "ForeverLM (Dev)";
@@ -8530,7 +8530,7 @@
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "ForeverLM uses the microphone for dictation.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "ForeverLM uses speech recognition for voice answers in Review Chat.";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MARKETING_VERSION = 0.159.0;
+				MARKETING_VERSION = 0.160.0;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.foreverlm.dev;
 				PRODUCT_MODULE_NAME = ForeverLM;
@@ -8553,7 +8553,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 239;
+				CURRENT_PROJECT_VERSION = 240;
 				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FOREVERLM_BUNDLE_NAME = ForeverLM;
@@ -8568,7 +8568,7 @@
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "ForeverLM uses the microphone for dictation.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "ForeverLM uses speech recognition for voice answers in Review Chat.";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MARKETING_VERSION = 0.159.0;
+				MARKETING_VERSION = 0.160.0;
 				ONLY_ACTIVE_ARCH = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = com.foreverlm;
 				PRODUCT_MODULE_NAME = ForeverLM;
@@ -8713,7 +8713,7 @@
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 239;
+				CURRENT_PROJECT_VERSION = 240;
 				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FOREVERLM_BUNDLE_NAME = "ForeverLM (First Run)";
@@ -8728,7 +8728,7 @@
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "ForeverLM uses the microphone for dictation.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "ForeverLM uses speech recognition for voice answers in Review Chat.";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MARKETING_VERSION = 0.159.0;
+				MARKETING_VERSION = 0.160.0;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.foreverlm.dev.firstrun;
 				PRODUCT_MODULE_NAME = ForeverLM;
