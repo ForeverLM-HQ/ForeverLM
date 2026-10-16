@@ -962,7 +962,8 @@ enum ReviewSlashCommandParser {
         """
     }
 
-    /// What `/plan` sends: the day-planning conversation.
+    /// What `/plan` shows in the chat: one line naming the day. The rules
+    /// travel hidden beside it (`planDaySkill`).
     ///
     /// Which day is the one thing the command decides for itself, because by
     /// the afternoon "plan my day" means the next one, and a day planned the
@@ -1000,8 +1001,22 @@ enum ReviewSlashCommandParser {
                 opening = "Plan my clock. \(trimmed)"
             }
         }
-        return """
-        \(opening)
+        return opening
+    }
+
+    /// The day-planning rules `/plan` carries. They ride beside the short
+    /// opening line as a built-in skill (`ChatSkillRequest`), so the learner's
+    /// chat shows "Plan today on my clock." and the model reads the rest, on
+    /// this message and every later one.
+    static let planDaySkill = ChatSkillRequest.Skill(name: "plan", instructions: planDayInstructions, builtIn: true)
+
+    /// The skill's mark for a message, or nil when it cannot be encoded.
+    static var planDayContextContent: String? {
+        ChatSkillRequest.contextContent(for: planDaySkill)
+    }
+
+    static let planDayInstructions = """
+        The learner's message names the day to plan: today, tomorrow or a date, or says it in their own words.
 
         My day is my Mac's Calendar. Read before you plan: get_calendar_events for that day, so you have what is already on it — meetings with other people stay where they are; the working log ForeverLM keeps of my work (list_working_notes: its running summary and the notes), and get_day_activity for the last few days, so you see what I have actually been reading, making and writing and where my hours went; then get_schedule and list_goals, which come second — a Goal is something you suggest from that pattern, not the spine of the day.
 
@@ -1009,7 +1024,6 @@ enum ReviewSlashCommandParser {
 
         Then this is a conversation, not a form: do not ask me a question first. Propose a first draft of the whole day as a short list of blocks, taking what is fixed from the calendar and what the day is for from the log, and say in one line what you assumed. I will answer in my own words — move this, drop that, I have a call at three — and each time you reply with the whole revised list, short, and nothing else. Keep going until I say it is right. Only then, add each block to my calendar with create_calendar_event, into the free stretches the calendar leaves. Put what each block is for in its notes — the next step, and the foreverlm:// link of the source it reads. Leave room for calls, email and anything I have to reach out to someone about — those are blocks too. Keep work blocks 90–120 minutes, leave a break when more than two hours remain, and end before my day does.
         """
-    }
 
     static func parseSettingsPane(_ token: String) -> SettingsPane? {
         switch token.lowercased() {

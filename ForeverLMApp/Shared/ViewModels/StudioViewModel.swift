@@ -1756,6 +1756,10 @@ class StudioViewModel {
     /// Notebook inspector's new-goal button). Consumed alongside `reviewChatResetRequestID`;
     /// nil means the fresh chat starts with an empty composer.
     @ObservationIgnored var pendingReviewChatDraft: String?
+    /// The day-planning line, when that is the draft waiting: its rules go with
+    /// the send as a hidden skill (`ReviewSlashCommandParser.planDaySkill`). A
+    /// draft that is anything else leaves it unmatched and unarmed.
+    @ObservationIgnored var pendingPlanDayDraft: String?
     /// The questions the next fresh chat offers in its empty state, set when
     /// the chat is opened from the Canvas (`openChatBesideKnowledgeMap`) and
     /// consumed alongside `reviewChatResetRequestID`; empty for every other

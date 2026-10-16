@@ -656,7 +656,14 @@ struct ChatPluginSetupNeedTests {
 
     @Test("The /plan request reads the calendar first, proposes the day without asking first, and writes the agreed day into the calendar")
     func planDayRequestCarriesTheRules() {
-        let request = ReviewSlashCommandParser.planDayRequest("today")
+        // The chat shows one line; the rules travel hidden in a built-in skill.
+        let visible = ReviewSlashCommandParser.planDayRequest("today")
+        #expect(visible == "Plan today on my clock.")
+        let skill = ReviewSlashCommandParser.planDaySkill
+        #expect(skill.builtIn == true)
+        let mark = ReviewSlashCommandParser.planDayContextContent
+        #expect(ChatSkillRequest.parse(contextContent: mark).skill == skill)
+        let request = skill.instructions
         // Read before planning: the calendar, the Goals, and how recent days went.
         #expect(request.contains("Mac's Calendar"))
         #expect(request.contains("get_calendar_events"))

@@ -290,6 +290,9 @@ private struct InternalReviewPanelContent: View {
     /// (`CoursePlanningChat`). Cleared with the composer, so a chat the
     /// learner moved on to never inherits them.
     @State private var coursePlanningArmed = false
+    /// Set when a chat opens on the day-planning line (`requestPlanDayChat`):
+    /// the rules ride with the learner's send, hidden, the way a course's do.
+    @State private var dayPlanningArmed = false
     /// The reply the armed side question is about. Nil with the token off, or
     /// when ⌥Return sends one without arming: then it is the newest reply.
     @State private var sideQuestionTarget: ReviewChatReplyReference?
@@ -2216,7 +2219,10 @@ private struct InternalReviewPanelContent: View {
         guard !manager.isSearching, !manager.isGenerating else { return }
         clearComposer()
         pendingReaderSelection = nil
-        await sendReviewChatMessage(ReviewSlashCommandParser.planDayRequest(nil))
+        await sendReviewChatMessage(
+            ReviewSlashCommandParser.planDayRequest(nil),
+            contextualContent: ReviewSlashCommandParser.planDayContextContent
+        )
     }
 
     @MainActor
@@ -5434,6 +5440,7 @@ private struct InternalReviewPanelContent: View {
         quotedPassage = ""
         lastInsertedDefaultPrompt = nil
         coursePlanningArmed = false
+        dayPlanningArmed = false
         composer.referencedChats = []
         composer.pastedTexts = []
     }
@@ -5505,6 +5512,7 @@ private struct InternalReviewPanelContent: View {
         guard canSubmitComposer else { return }
         // Read before anything below clears the composer.
         let plansCourse = coursePlanningArmed
+        let plansDay = dayPlanningArmed
 
         var answer = draft
         var readerContext: String?
@@ -5596,7 +5604,8 @@ private struct InternalReviewPanelContent: View {
             readerContext: readerContext,
             docAnchor: docAnchor,
             selection: selection,
-            plansCourse: plansCourse
+            plansCourse: plansCourse,
+            plansDay: plansDay
         )
         // Think first: a question in a notebook's chat waits for the
         // learner's guess when the notebook's level asks for one.
@@ -5619,6 +5628,7 @@ private struct InternalReviewPanelContent: View {
         let docAnchor: ChatDocAnchor?
         let selection: ReaderSelectionExplanationRequest?
         let plansCourse: Bool
+        let plansDay: Bool
     }
 
     /// Whether Think first asks for a guess before this message: a question,
@@ -5630,6 +5640,7 @@ private struct InternalReviewPanelContent: View {
               ThinkFirst.asks(.chat, notebookID: notebookID),
               ChatGuess.isQuestion(send.typedText),
               !send.plansCourse,
+              !send.plansDay,
               !isSideQuestionMode,
               [.assistant, .shallowRead, .deepRead].contains(manager.currentPromptMode),
               manager.walkthroughPlayback == nil,
@@ -5659,6 +5670,7 @@ private struct InternalReviewPanelContent: View {
         let docAnchor = send.docAnchor
         let selection = send.selection
         let plansCourse = send.plansCourse
+        let plansDay = send.plansDay
 
         // `@slack do xyz`: a message that mentions a connected plugin is a
         // question for that service. The learner's words go as typed, mention
@@ -5717,9 +5729,13 @@ private struct InternalReviewPanelContent: View {
         } ?? baseContext
         // Generate's chat: the course-planning instructions go on top, the
         // way a skill's do, so every later turn re-reads them.
+        // The day-planning chat carries its rules the same way, so the chat
+        // shows one line and the model reads the rest.
         let messageContext = plansCourse
             ? ChatSkillRequest.contextContent(for: CoursePlanningChat.skill, referenceContext: pluginContext)
-            : pluginContext
+            : plansDay
+                ? ChatSkillRequest.contextContent(for: ReviewSlashCommandParser.planDaySkill, referenceContext: pluginContext)
+                : pluginContext
         // The pictures leave with the text, as image lines the bubble draws
         // and the turn sends as image parts; the tray empties here.
         let content = manager.outgoingMessageContent(text: messageText)
@@ -6102,7 +6118,8 @@ private struct InternalReviewPanelContent: View {
             // Goals and the recent logs before it asks anything, and it writes
             // the whole day once it is agreed rather than an event at a time.
             await sendReviewChatMessage(
-                ReviewSlashCommandParser.planDayRequest(argument)
+                ReviewSlashCommandParser.planDayRequest(argument),
+                contextualContent: ReviewSlashCommandParser.planDayContextContent
             )
 
         case .review:
@@ -7840,6 +7857,9 @@ private struct InternalReviewPanelContent: View {
         // back whatever was left unsent in it before the learner navigated off.
         draft = vm.pendingReviewChatDraft ?? sessionStore.draft(for: currentDraftScope)
         lastInsertedDefaultPrompt = vm.pendingReviewChatDraft
+        dayPlanningArmed = vm.pendingReviewChatDraft != nil
+            && vm.pendingReviewChatDraft == vm.pendingPlanDayDraft
+        vm.pendingPlanDayDraft = nil
         vm.pendingReviewChatDraft = nil
         pendingReaderSelection = nil
         vm.pendingReviewChatNotebookID = nil

@@ -4629,6 +4629,7 @@ extension StudioViewModel {
     /// same conversation under the same rules rather than near-copies.
     func requestPlanDayChat(request: String) {
         pendingReviewChatDraft = request
+        pendingPlanDayDraft = request
         requestBlankReviewChat()
     }
 
