@@ -1141,6 +1141,19 @@ extension StudioViewModel {
         showToast(Self.addedToChatMessage("Passage", elsewhere: chatRequestElsewhereNotice))
     }
 
+    /// A fresh chat beside the pane showing a card to check, filed where this
+    /// window files new chats. It carries no attachment of its own: the card
+    /// on screen rides every message (`ChatContextAdditions.cardFraming`).
+    func requestChatAboutCardOnScreen() {
+        pendingChatCanvasCards = nil
+        pendingReviewChatNotebookID = newChatNotebookID()
+        pendingReviewChatDraft = nil
+        pendingReviewChatCanvasQuestions = []
+        reviewChatResetRequestID = UUID()
+        reviewChatFocusRequestID = UUID()
+        openCenterTabBeside(.chat)
+    }
+
     static func cleanedReaderSelection(_ text: String) -> String {
         text
             .components(separatedBy: .whitespacesAndNewlines)

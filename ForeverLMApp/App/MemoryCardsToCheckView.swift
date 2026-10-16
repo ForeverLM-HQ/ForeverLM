@@ -531,7 +531,10 @@ struct MemoryCardsToCheckView: View {
                     .help("Keep this card: Review will ask it (K or Return)")
                     .accessibilityIdentifier("memory.pane.toCheck.keep")
                 }
-                removeSourceButton(card)
+                HStack(spacing: 6) {
+                    askInChatButton
+                    removeSourceButton(card)
+                }
             }
             .frame(maxWidth: .infinity)
         } else {
@@ -559,11 +562,29 @@ struct MemoryCardsToCheckView: View {
                     }
                     .help("Keep this card in your own words")
                     .accessibilityIdentifier("memory.pane.toCheck.edit")
+                    askInChatButton
                     removeSourceButton(card)
                 }
             }
             .frame(maxWidth: .infinity)
         }
+    }
+
+    /// A follow-up on the card in front: a new chat opens beside the pane and
+    /// reads the card as the chip over its composer shows it
+    /// (`memoryCardOnScreen`), so "why is this wrong?" needs no pasting
+    /// (product owner, 2026-10-16: "there has to be a better way to chat with
+    /// flashcards to follow up; maybe give a direct button").
+    private var askInChatButton: some View {
+        MemoryReviewButton(title: "Ask in Chat", kind: .quiet) {
+            if let windowState {
+                vm.inWindow(windowState) { vm.requestChatAboutCardOnScreen() }
+            } else {
+                vm.requestChatAboutCardOnScreen()
+            }
+        }
+        .help("Open a chat beside this card to follow up on it")
+        .accessibilityIdentifier("memory.pane.toCheck.askInChat")
     }
 
     /// Not worth keeping, decided from the card: the source leaves the
