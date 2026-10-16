@@ -449,6 +449,39 @@ struct AutomaticCardDraftingTests {
         #expect(shown(reader: ["other"]))
     }
 
+    @Test("The card also counts the library's sources no card covers: alone it is titled for them, with drafts it adds a clause, and a source whose drafts wait is not counted twice")
+    func uncoveredSources() throws {
+        let drafts = CardsToCheckNudge.Pile(cardCount: 4, sourceIDs: ["s1"])
+        #expect(CardsToCheckNudge.pile(drafts: nil, uncovered: []) == nil)
+        #expect(CardsToCheckNudge.pile(drafts: drafts, uncovered: []) == drafts)
+
+        let both = try #require(CardsToCheckNudge.pile(drafts: drafts, uncovered: ["s1", "u1", "u2"]))
+        #expect(both.uncoveredSourceIDs == ["u1", "u2"])
+        #expect(both.allSourceIDs == ["s1", "u1", "u2"])
+        #expect(CardsToCheckNudge.heading(both) == "Cards to check")
+        #expect(CardsToCheckNudge.detail(both, waiting: 0) == "4 from a source you finished · 2 sources have no cards yet")
+        #expect(CardsToCheckNudge.detail(both, waiting: 1)
+            == "4 from a source you finished · 1 more source to come · 2 sources have no cards yet")
+
+        let alone = try #require(CardsToCheckNudge.pile(drafts: nil, uncovered: ["u1", "u2", "u3"]))
+        #expect(!alone.hasDrafts)
+        #expect(CardsToCheckNudge.heading(alone) == "Sources without cards")
+        #expect(CardsToCheckNudge.detail(alone, waiting: 3) == "3 sources have no cards yet")
+        let one = try #require(CardsToCheckNudge.pile(drafts: nil, uncovered: ["u1"]))
+        #expect(CardsToCheckNudge.detail(one, waiting: 0) == "A source has no cards yet")
+
+        func shown(_ pile: CardsToCheckNudge.Pile?, reader: Set<String> = []) -> Bool {
+            CardsToCheckNudge.isShown(
+                pile: pile, showsNudges: true, putOffDay: nil, today: "2026-10-16",
+                isMemoryReviewFocused: false, isGettingStarted: false,
+                asksToPlanTheDay: false, readerSourceIDsOnScreen: reader
+            )
+        }
+        #expect(shown(alone), "sources without cards are enough for the card")
+        #expect(shown(alone, reader: ["u1"]), "the Reader's toolbar says nothing about a source with no cards")
+        #expect(!shown(both, reader: ["s1"]), "but it does about one whose drafts wait")
+    }
+
     @Test("A failure is remembered for a day and cleared by a success; the last run's waiting count is today's only")
     func failuresAndLastRun() throws {
         let suite = "foreverlm-test-\(UUID().uuidString)"

@@ -3632,6 +3632,11 @@ extension StudioViewModel {
                     autoFetchNewlyAddedPapers()
                     autoExtractMissingPaperMetadata()
                     autoFetchUnfetchedSources()
+                    // A source came in or became readable: the sources no
+                    // card covers are counted again for the corner card.
+                    Task(priority: .utility) { [weak self] in
+                        await self?.refreshCardsToCheckAdditions()
+                    }
                 }
                 await convergePaperIdentityDuplicates()
             } catch {

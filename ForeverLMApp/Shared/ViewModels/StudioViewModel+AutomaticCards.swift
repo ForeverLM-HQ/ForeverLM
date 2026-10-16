@@ -104,8 +104,13 @@ extension StudioViewModel {
 
     /// What the counts' read says about the background drafts waiting, for
     /// the corner card (`refreshMemoryCardCounts`).
-    func noteCardsToCheck(_ toCheck: [MemoryCardToCheck], now: Date = Date()) {
-        let pile = CardsToCheckNudge.pile(toCheck)
+    /// `uncovered` is the sources no card covers, as the same read found
+    /// them; nil keeps what the card knew.
+    func noteCardsToCheck(_ toCheck: [MemoryCardToCheck], uncovered: Set<String>? = nil, now: Date = Date()) {
+        let pile = CardsToCheckNudge.pile(
+            drafts: CardsToCheckNudge.pile(toCheck),
+            uncovered: uncovered ?? cardsToCheckPile?.uncoveredSourceIDs ?? []
+        )
         if pile != cardsToCheckPile { cardsToCheckPile = pile }
         let waiting = AutomaticCardDraftingRun.last()?.waiting(asOf: now) ?? 0
         if waiting != cardsToCheckWaiting { cardsToCheckWaiting = waiting }
@@ -137,7 +142,8 @@ extension StudioViewModel {
     }
 
     /// The card's line: "14 from 3 sources you finished · 2 more sources to
-    /// come". Nil when no drafts wait.
+    /// come", or "5 sources have no cards yet". Nil when the card has nothing
+    /// to say.
     var cardsToCheckDetail: String? {
         cardsToCheckPile.map { CardsToCheckNudge.detail($0, waiting: cardsToCheckWaiting) }
     }
@@ -147,6 +153,33 @@ extension StudioViewModel {
     func goThroughDraftedCards(in windowState: StudioWindowState) {
         putOffCardsToCheck()
         inWindow(windowState) { openCardsToCheck(scope: .allNotebooks) }
+    }
+
+    /// Make Cards on the card: the Make Cards sheet for the sources no card
+    /// covers, together, so the cards can link what several of them print.
+    /// The card is answered for today.
+    func makeCardsForUncoveredSources(in windowState: StudioWindowState) {
+        let sourceIDs = (cardsToCheckPile?.uncoveredSourceIDs ?? []).sorted()
+        putOffCardsToCheck()
+        guard !sourceIDs.isEmpty else { return }
+        inWindow(windowState) { presentMakeCards(notebookID: nil, sourceIDs: sourceIDs) }
+    }
+
+    /// Sources came into the library or became readable: the sources no card
+    /// covers are read again for the card and the banner. Event-driven, from
+    /// a sources reload that changed something, at `.utility`.
+    func refreshCardsToCheckAdditions() async {
+        let uncovered: StorageService.UncoveredSources
+        do {
+            uncovered = try await storage.sourcesWithoutCards(now: Date())
+        } catch {
+            logger.error("The cards card could not read the sources without cards: \(error.localizedDescription)")
+            return
+        }
+        let drafts = cardsToCheckPile.flatMap { $0.hasDrafts ? CardsToCheckNudge.Pile(cardCount: $0.cardCount, sourceIDs: $0.sourceIDs) : nil }
+        let pile = CardsToCheckNudge.pile(drafts: drafts, uncovered: uncovered.all)
+        if pile != cardsToCheckPile { cardsToCheckPile = pile }
+        await refreshCardsToCheckBanner(uncovered: uncovered)
     }
 
     /// ×: later. The card goes from every window on this Mac and asks again
@@ -165,7 +198,7 @@ extension StudioViewModel {
     /// (`CardsToCheckBanner.subject`). Called wherever that could have
     /// changed — the counts' read, activation, a settings change — at
     /// `.utility`, never on a timer.
-    func refreshCardsToCheckBanner() async {
+    func refreshCardsToCheckBanner(uncovered known: StorageService.UncoveredSources? = nil) async {
         // Signed out, the library is behind the sign-in wall; the queue keeps
         // what it has until there is a library to read.
         guard ManagedAI.isSignedIn else { return }
@@ -184,15 +217,17 @@ extension StudioViewModel {
             }
             // What came into the library today or yesterday with no card: the
             // day's suggestion to make cards, read or not.
-            var added = Set<String>()
-            do {
-                added = try await storage.sourcesAddedWithoutCards(now: now)
-            } catch {
-                logger.error("The cards banner could not read what was added: \(error.localizedDescription)")
-                return nil
+            var added = known?.recent ?? []
+            if known == nil {
+                do {
+                    added = try await storage.sourcesAddedWithoutCards(now: now)
+                } catch {
+                    logger.error("The cards banner could not read what was added: \(error.localizedDescription)")
+                    return nil
+                }
             }
             return CardsToCheckBanner.subject(
-                pile: cardsToCheckPile,
+                pile: cardsToCheckPile.flatMap { $0.hasDrafts ? CardsToCheckNudge.Pile(cardCount: $0.cardCount, sourceIDs: $0.sourceIDs) : nil },
                 candidates: candidates,
                 autoDrafts: autoDrafts,
                 addedSourceIDs: added,

@@ -388,7 +388,7 @@ struct CardsToCheckCard: View {
         VStack(alignment: .leading, spacing: style.isCompact ? StudioDesign.Spacing.small : StudioDesign.Spacing.medium) {
             HStack(alignment: .top, spacing: StudioDesign.Spacing.small) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(CardsToCheckNudge.title)
+                    Text(vm.cardsToCheckPile.map(CardsToCheckNudge.heading) ?? CardsToCheckNudge.title)
                         .zoomedSystemFont(size: style.isCompact ? 12.5 : 13, weight: .semibold)
                     Text(detail)
                         .zoomedSystemFont(size: style.isCompact ? 11.5 : 12)
@@ -408,8 +408,20 @@ struct CardsToCheckCard: View {
             }
             HStack(spacing: StudioDesign.Spacing.small) {
                 Spacer(minLength: 0)
-                CornerCardAction(title: CardsToCheckNudge.goThroughTitle, identifier: "studio.cardsToCheck.goThrough", prominent: true) {
-                    vm.goThroughDraftedCards(in: windowState)
+                let pile = vm.cardsToCheckPile
+                if pile?.uncoveredSourceIDs.isEmpty == false {
+                    CornerCardAction(
+                        title: CardsToCheckNudge.makeCardsTitle,
+                        identifier: "studio.cardsToCheck.makeCards",
+                        prominent: pile?.hasDrafts != true
+                    ) {
+                        vm.makeCardsForUncoveredSources(in: windowState)
+                    }
+                }
+                if pile?.hasDrafts != false {
+                    CornerCardAction(title: CardsToCheckNudge.goThroughTitle, identifier: "studio.cardsToCheck.goThrough", prominent: true) {
+                        vm.goThroughDraftedCards(in: windowState)
+                    }
                 }
             }
         }
@@ -622,7 +634,7 @@ enum CornerNoticeKind: String, CaseIterable, Identifiable {
         case .planTheDay:
             return planDay.map { [$0] } ?? []
         case .cardsToCheck:
-            return (pile?.sourceIDs ?? []).union(["day:" + MemoryReviewGoal.dayKey(for: now)])
+            return (pile?.allSourceIDs ?? []).union(["day:" + MemoryReviewGoal.dayKey(for: now)])
         case .shareRequests:
             return shareRequestIDs
         case .pluginReconnect:

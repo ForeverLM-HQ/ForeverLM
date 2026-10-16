@@ -320,37 +320,54 @@ extension StorageService {
 }
 
 extension StorageService {
+    /// The sources no card covers: the whole library's, and among them the
+    /// ones added today or yesterday.
+    struct UncoveredSources: Equatable, Sendable {
+        /// Every source in the learner's library without a card: the
+        /// learner's goal is at least one card for each (product owner,
+        /// 2026-10-16), so the corner card counts the whole backlog.
+        var all: Set<String> = []
+        /// The part of `all` added today or yesterday, which the morning
+        /// banner names (`CardsToCheckBanner`).
+        var recent: Set<String> = []
+    }
+
     /// The sources added to the learner's library today or yesterday that no
     /// card covers: the day's suggestion to make cards for everything that
-    /// came in, finished or not (`CardsToCheckBanner`). Covered means a draft
-    /// deck on the source or any Memory item anchored on it. Left out: a
-    /// team's copy, a source kept from AI or archived, a spoken script
-    /// ForeverLM wrote, one still fetching or failed, a paywalled one, and
-    /// one with no text.
+    /// came in, finished or not (`CardsToCheckBanner`).
     func sourcesAddedWithoutCards(now: Date = Date(), calendar: Calendar = .current) throws -> Set<String> {
+        try sourcesWithoutCards(now: now, calendar: calendar).recent
+    }
+
+    /// Covered means a draft deck on the source or any Memory item anchored
+    /// on it. Left out: a team's copy, a source kept from AI or archived, a
+    /// spoken script ForeverLM wrote, one still fetching or failed, a
+    /// paywalled one, and one with no text.
+    func sourcesWithoutCards(now: Date = Date(), calendar: Calendar = .current) throws -> UncoveredSources {
         let store = try notebookFilesKnowledgeStore()
-        let recent = try store.loadSourcesWithoutContent().filter {
-            CardsToCheckBanner.isRecentlyAdded($0.dateAdded, now: now, calendar: calendar)
+        let sources = try store.loadSourcesWithoutContent().filter {
+            $0.teamID == nil && $0.status == .active && $0.state == .ready && !$0.isPaywalled
+                && ($0.wordCount.map { $0 > 0 } ?? true)
+                && !TextToSpeechPreparationPolicy.isSpokenScript(url: $0.url)
         }
-        guard !recent.isEmpty else { return [] }
-        let deckSourceIDs: Set<String>
+        guard !sources.isEmpty else { return UncoveredSources() }
+        var covered: Set<String>
         if try store.recordsMemoryForGeneration2() {
-            deckSourceIDs = Set(try store.cardRecordDeckFirstDrafts().keys)
+            covered = Set(try store.cardRecordDeckFirstDrafts().keys)
         } else {
             let decks = try store.loadArtifacts(listing: .cardDecksOnly)
-            deckSourceIDs = Set(decks.compactMap { MemoryCard.sourceID(fromDraftDeckID: $0.id) ?? $0.sourceIDs.first })
+            covered = Set(decks.compactMap { MemoryCard.sourceID(fromDraftDeckID: $0.id) ?? $0.sourceIDs.first })
         }
-        let excluded = try store.knowledgeSearchExcludedSourceIDs(includeArchived: true)
-        var uncovered = Set<String>()
-        for source in recent {
-            guard source.teamID == nil, source.status == .active, source.state == .ready, !source.isPaywalled,
-                  source.wordCount.map({ $0 > 0 }) ?? true,
-                  !excluded.contains(source.id), !deckSourceIDs.contains(source.id),
-                  !TextToSpeechPreparationPolicy.isSpokenScript(url: source.url),
-                  try store.memoryItemIDs(anchoredOn: source.id).isEmpty else { continue }
-            uncovered.insert(source.id)
+        covered.formUnion(try store.sourceIDsAnchoringMemoryItems())
+        covered.formUnion(try store.knowledgeSearchExcludedSourceIDs(includeArchived: true))
+        var result = UncoveredSources()
+        for source in sources where !covered.contains(source.id) {
+            result.all.insert(source.id)
+            if CardsToCheckBanner.isRecentlyAdded(source.dateAdded, now: now, calendar: calendar) {
+                result.recent.insert(source.id)
+            }
         }
-        return uncovered
+        return result
     }
 }
 
@@ -363,6 +380,16 @@ extension StorageService {
 }
 
 extension KnowledgeStore {
+    /// Every source that has a Memory item anchored on it, whatever the
+    /// item's status: one read for the whole library.
+    func sourceIDsAnchoringMemoryItems() throws -> Set<String> {
+        var ids = Set<String>()
+        try query("SELECT DISTINCT source_id FROM memory_item_sources") { statement in
+            if let id = self.string(statement, 0) { ids.insert(id) }
+        }
+        return ids
+    }
+
     /// The Memory items with an anchor on `sourceID`, whatever their status,
     /// by id.
     func memoryItemIDs(anchoredOn sourceID: String) throws -> [String] {

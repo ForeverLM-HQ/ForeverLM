@@ -7,6 +7,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 ## Unreleased
 
 - **The Library no longer has a Not in any notebook button.** The toggle beside the search, and the filter it switched on, are gone.
+- **A card for the sources that have no cards.** The "Cards to check" card in the corner also counts the sources in your library that no card covers, read or not: "5 sources have no cards yet", with **Make Cards**, which opens the sheet for all of them together so the cards can link the ideas they share. With nothing to check, the card is titled "Sources without cards". It follows the same switch, Say when drafted cards wait.
 
 ## 0.157.0 (build 237) — 2026-10-15
 

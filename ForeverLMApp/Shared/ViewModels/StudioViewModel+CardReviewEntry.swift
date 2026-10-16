@@ -705,8 +705,17 @@ extension StudioViewModel {
             if counts != memoryCardCounts { memoryCardCounts = counts }
             let bySource = Dictionary(grouping: snapshot.toCheck, by: \.sourceID).mapValues(\.count)
             if bySource != memoryCardsToCheckBySource { memoryCardsToCheckBySource = bySource }
-            noteCardsToCheck(snapshot.toCheck)
-            Task(priority: .utility) { await refreshCardsToCheckBanner() }
+            // The sources no card covers are read once for the card and the
+            // banner; a failed read leaves what the card knew standing.
+            var uncovered: StorageService.UncoveredSources?
+            do {
+                uncovered = try await storage.sourcesWithoutCards(now: Date())
+            } catch {
+                logger.error("Failed to read the sources without cards: \(error.localizedDescription)")
+            }
+            guard recordingRevision == recordingScopeRevision else { return }
+            noteCardsToCheck(snapshot.toCheck, uncovered: uncovered?.all)
+            Task(priority: .utility) { await refreshCardsToCheckBanner(uncovered: uncovered) }
         } catch {
             logger.error("Failed to read today's cards: \(error.localizedDescription)")
         }

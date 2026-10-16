@@ -236,6 +236,20 @@ struct SourcesAddedWithoutCardsTests {
         #expect(try await storage.sourcesAddedWithoutCards(now: now) == ["today"])
     }
 
+    @Test("The whole library's uncovered sources are counted, the recent among them apart; anything with a card is not")
+    func wholeLibrary() async throws {
+        let (storage, root) = try storage()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let now = Date()
+        try await storage.saveSource(added("today", now: now))
+        try await storage.saveSource(added("long-ago", addedDaysAgo: 40, now: now))
+        try await storage.saveSource(added("fetching", addedDaysAgo: 40, now: now, state: .fetching))
+        try await storage.saveSource(added("paywalled", addedDaysAgo: 40, now: now, paywalled: true))
+        let uncovered = try await storage.sourcesWithoutCards(now: now)
+        #expect(uncovered.all == ["today", "long-ago"])
+        #expect(uncovered.recent == ["today"])
+    }
+
     @Test("A library with nothing added names nothing")
     func nothingAdded() async throws {
         let (storage, root) = try storage()

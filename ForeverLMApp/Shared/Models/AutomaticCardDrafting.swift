@@ -319,31 +319,74 @@ struct AutomaticCardDraftingRun: Codable, Equatable, Sendable {
 /// points"). A sibling of "Plan your day?" (`PlanTheDayCard`), in the same
 /// place, one at a time. Go Through Them opens To Check; × is later, asked
 /// again the next day; Don't Ask Again turns `memory.draft_nudges` off.
+///
+/// Since 2026-10-16 it also counts the library's sources that no card covers,
+/// read or not. Product owner, 2026-10-16: "my goal is to have at least 1
+/// flashcard for each piece of content that's in the library; and it should
+/// really help me understand and piece together these ideas." Make Cards
+/// opens the sheet for them together, with its count and price, so the cards
+/// can link the ideas that several sources print (`CardSourceLinker`).
 enum CardsToCheckNudge {
     static let title = "Cards to check"
+    /// The title when sources without cards are all the card has to say.
+    static let uncoveredTitle = "Sources without cards"
     static let goThroughTitle = "Go Through Them"
+    static let makeCardsTitle = "Make Cards"
 
-    /// The drafts ForeverLM made in the background that wait in To Check:
-    /// not asked for, not an assistant's.
+    /// What the card is about: the drafts ForeverLM made in the background
+    /// that wait in To Check (not asked for, not an assistant's), and the
+    /// library's sources no card covers.
     struct Pile: Equatable, Sendable {
         let cardCount: Int
         let sourceIDs: Set<String>
+        /// Sources in the library that no card covers
+        /// (`StorageService.sourcesWithoutCards`), apart from `sourceIDs`.
+        var uncoveredSourceIDs: Set<String> = []
+
+        var hasDrafts: Bool { cardCount > 0 }
+        var isEmpty: Bool { cardCount == 0 && uncoveredSourceIDs.isEmpty }
+        /// Every source the card names, for what a read mark is about.
+        var allSourceIDs: Set<String> { sourceIDs.union(uncoveredSourceIDs) }
     }
 
+    /// The drafts alone: nil when none wait.
     static func pile(_ toCheck: [MemoryCardToCheck]) -> Pile? {
         let drafts = toCheck.filter { $0.kind == .draft && !$0.isRequested && $0.face.origin == .drafted }
         guard !drafts.isEmpty else { return nil }
         return Pile(cardCount: drafts.count, sourceIDs: Set(drafts.map(\.sourceID)))
     }
 
-    /// "14 from 3 sources you finished · 2 more sources to come".
+    /// `drafts` with the sources no card covers. A source whose drafts wait
+    /// is not also uncovered. Nil when there is nothing to say.
+    static func pile(drafts: Pile?, uncovered: Set<String>) -> Pile? {
+        let added = uncovered.subtracting(drafts?.sourceIDs ?? [])
+        guard drafts?.hasDrafts == true || !added.isEmpty else { return nil }
+        return Pile(cardCount: drafts?.cardCount ?? 0, sourceIDs: drafts?.sourceIDs ?? [], uncoveredSourceIDs: added)
+    }
+
+    /// The card's title: "Sources without cards" when those are all there is
+    /// to say.
+    static func heading(_ pile: Pile) -> String {
+        pile.hasDrafts ? title : uncoveredTitle
+    }
+
+    /// "14 from 3 sources you finished · 2 more sources to come", "5 sources
+    /// have no cards yet", or both: "14 from 3 sources you finished · 5
+    /// sources have no cards yet".
     static func detail(_ pile: Pile, waiting: Int) -> String {
+        let added = pile.uncoveredSourceIDs.count
+        guard pile.hasDrafts else {
+            return added == 1 ? "A source has no cards yet" : "\(added) sources have no cards yet"
+        }
         let sources = pile.sourceIDs.count
         var line = sources == 1
             ? "\(pile.cardCount) from a source you finished"
             : "\(pile.cardCount) from \(sources) sources you finished"
         if waiting > 0 {
             line += waiting == 1 ? " · 1 more source to come" : " · \(waiting) more sources to come"
+        }
+        if added > 0 {
+            line += added == 1 ? " · 1 source has no cards yet" : " · \(added) sources have no cards yet"
         }
         return line
     }
@@ -363,7 +406,7 @@ enum CardsToCheckNudge {
         asksToPlanTheDay: Bool,
         readerSourceIDsOnScreen: Set<String>
     ) -> Bool {
-        guard let pile, pile.cardCount > 0, showsNudges, putOffDay != today else { return false }
+        guard let pile, !pile.isEmpty, showsNudges, putOffDay != today else { return false }
         guard !isMemoryReviewFocused, !isGettingStarted, !asksToPlanTheDay else { return false }
         return pile.sourceIDs.isDisjoint(with: readerSourceIDsOnScreen)
     }
