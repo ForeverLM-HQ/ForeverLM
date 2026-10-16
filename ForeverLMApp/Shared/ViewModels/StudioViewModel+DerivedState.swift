@@ -814,10 +814,10 @@ extension StudioViewModel {
             .sorted { $0.createdAt > $1.createdAt }
     }
 
-    /// Every chat of the open library, newest first, for the Space's Chats:
+    /// Every chat of the open library, newest first, for Home's list:
     /// those in a notebook and those in none, the hidden ones included (its
     /// Hidden scope lists them), and whatever source the rail's chats are
-    /// filtered to, which the Space does not show. A day's memory review is
+    /// filtered to, which Home does not show. A day's memory review is
     /// Memory's, as in the rail.
     func spaceChats() -> [ReviewSessionRecord] {
         let visibleNotebookIDs = Set(notebooks.map(\.id))

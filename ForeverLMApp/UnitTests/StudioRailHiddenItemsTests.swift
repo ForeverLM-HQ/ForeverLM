@@ -8,11 +8,11 @@ struct StudioRailHiddenItemsTests {
     func emptyStorageHidesNothing() {
         let hidden = StudioRailHiddenItems(storage: "")
         #expect(hidden.items.isEmpty)
-        #expect(hidden.visibleTopItems == [.newChat, .memory, .space, .browser, .library, .plugins])
+        #expect(hidden.visibleTopItems == [.home, .newChat, .memory, .space, .browser, .library, .plugins])
         #expect(!hidden.contains(.memory))
     }
 
-    @Test("The rail's rows: New chat, Memory, Spaces, Browser, Library and Plugins are its top rows")
+    @Test("The rail's rows: Home, New chat, Memory, Spaces, Browser, Library and Plugins are its top rows")
     func topRowsSinceShellStage4() {
         // Shell stage 4 (2026-10-01): Activity is reached from the Now chip,
         // Courses and Artifacts from the Space. Spaces sits beside Memory.
@@ -20,7 +20,7 @@ struct StudioRailHiddenItemsTests {
         // in the Space. The Home row (2026-10-07) left on 2026-10-09, with
         // the Notebooks home it opened: the Space lists every notebook.
         // Plugins came out of Settings onto the strip on 2026-10-13.
-        #expect(StudioRailItem.allCases == [.newChat, .memory, .space, .browser, .library, .plugins])
+        #expect(StudioRailItem.allCases == [.home, .newChat, .memory, .space, .browser, .library, .plugins])
         let rows = StudioRailHiddenItems().visibleTopItems.map(\.rawValue)
         #expect(!rows.contains("activity"))
         #expect(!rows.contains("courses"))
@@ -32,12 +32,12 @@ struct StudioRailHiddenItemsTests {
         let stale = StudioRailHiddenItems(storage: "activity,artifacts,browser,courses")
         #expect(stale.items == [.browser], "the retired rows are dropped; Browser stays hidden")
         #expect(stale.storage == "browser")
-        #expect(stale.visibleTopItems == [.newChat, .memory, .space, .library, .plugins])
+        #expect(stale.visibleTopItems == [.home, .newChat, .memory, .space, .library, .plugins])
 
         let allRetired = StudioRailHiddenItems(storage: "activity,courses,artifacts")
         #expect(allRetired.items.isEmpty)
         #expect(allRetired.storage.isEmpty, "the next write leaves no trace of them")
-        #expect(allRetired.visibleTopItems == [.newChat, .memory, .space, .browser, .library, .plugins])
+        #expect(allRetired.visibleTopItems == [.home, .newChat, .memory, .space, .browser, .library, .plugins])
     }
 
     @Test("Hiding and showing a row round-trips through its stored form")
@@ -48,10 +48,10 @@ struct StudioRailHiddenItemsTests {
         #expect(hidden.storage == "browser,memory")
         let decoded = StudioRailHiddenItems(storage: hidden.storage)
         #expect(decoded == hidden)
-        #expect(decoded.visibleTopItems == [.newChat, .space, .library, .plugins])
+        #expect(decoded.visibleTopItems == [.home, .newChat, .space, .library, .plugins])
 
         let shownAgain = decoded.setting(.memory, hidden: false)
-        #expect(shownAgain.visibleTopItems == [.newChat, .memory, .space, .library, .plugins])
+        #expect(shownAgain.visibleTopItems == [.home, .newChat, .memory, .space, .library, .plugins])
         #expect(shownAgain.toggling(.browser).items.isEmpty)
     }
 
@@ -95,7 +95,7 @@ struct StudioRailHiddenItemsTests {
         #expect(stale.items == [.browser, .memory], "the retired name is dropped; the other rows stay hidden")
         #expect(stale.storage == "browser,memory", "the learner's next change leaves it out")
         #expect(StudioRailHiddenItems().visibleTopItems.last == .plugins)
-        #expect(StudioRailHiddenItems.railOrder == [.newChat, .space, .memory, .library, .plugins], "New chat's + leads, then the Space")
+        #expect(StudioRailHiddenItems.railOrder == [.home, .newChat, .space, .memory, .library, .plugins], "Home leads, then New chat's +, then the Space")
         let libraryHidden = StudioRailHiddenItems().setting(.library, hidden: true).setting(.plugins, hidden: true)
         #expect(libraryHidden.visibleTopItems.last == .browser)
     }
@@ -154,7 +154,7 @@ struct BetaFeaturesCanvasGateTests {
     @Test("A production Mac's Space lists no Canvases place; a beta Mac's lists it after Sites")
     func spacePlace() {
         #expect(!SpaceDestination.places(listsCanvases: false).contains(.canvases))
-        #expect(SpaceDestination.places(listsCanvases: true) == [.all, .notebooks, .chats, .pages, .sites, .canvases, .images, .drive])
+        #expect(SpaceDestination.places(listsCanvases: true) == [.all, .notebooks, .pages, .sites, .canvases, .images, .drive])
     }
 
     @Test("A layout showing the Canvas or the Atlas shows another tab instead, the Space first, and nothing else moves")
@@ -239,10 +239,10 @@ struct StudioRailShortcutsTests {
         #expect(stored.storage == "pages,sites")
     }
 
-    @Test("The places offered follow the Space sidebar: Notebooks, Chats, Courses, then the rest; Canvases only where listed")
+    @Test("The places offered follow the Space sidebar: Notebooks, Courses, then the rest; Canvases only where listed")
     func offeredPlaces() {
         #expect(StudioRailShortcut.offered(listsCanvases: true).map(\.key)
-            == ["notebooks", "chats", "courses", "pages", "sites", "canvases", "images", "drive"])
+            == ["notebooks", "courses", "pages", "sites", "canvases", "images", "drive"])
         #expect(!StudioRailShortcut.offered(listsCanvases: false).contains(.place(.canvases)))
         let kept = StudioRailShortcuts([.place(.canvases), .place(.images)])
         #expect(kept.shown(listsCanvases: false) == [.place(.images)], "a kept Canvases waits where canvases are not listed")

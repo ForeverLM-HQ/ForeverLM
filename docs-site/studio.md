@@ -248,7 +248,11 @@ Sidebar** or **Unpin from Sidebar**, **Draw Cover With ▸**, **Archive
 Notebook**, **Share…**, **Share with Team ▸** and **Delete Notebook…**. Then
 **Chats**, the library's own chats, whose **+** (on hover, or **New Library
 Chat** on its right-click menu) starts a library chat; a chat's
-**Move to Notebook ▸** files it in a notebook. "Plan your day?" and **Cards to
+**Move to Notebook ▸** files it in a notebook. **Home**, the first icon on the
+strip, lists every chat you have as one page: in a notebook or in none, with
+its notebook beside it, a search, **New Chat**, a notebook filter, and the
+chat's own menu (**Rename…**, **Move to Notebook ▸**, **Hide**, **Delete…**).
+A click opens the chat. The Space lists no chats. "Plan your day?" and **Cards to
 check** wait at the foot of this sidebar, or in the window's corner where it is
 not showing.
 
@@ -356,7 +360,7 @@ source from it into a chat, or onto a canvas. Close it with its ×.
 ### Pages, Goals and Not in a Notebook
 
 The Space holds what you keep working on beyond one notebook, one place per
-kind in its sidebar under **New chat**: **Notebooks**, **Chats**, **Courses**,
+kind in its sidebar under **New chat**: **Notebooks**, **Courses**,
 **Pages**, **Sites**, **Canvases** (a beta feature, tagged **Beta**), **Images**
 and **Google Drive**, then **Pinned**, **Recents**, your **Spaces** and, at the
 foot, **Trash**. The notebook filter beside the team filter shows **All
@@ -393,7 +397,7 @@ or **⇧-click** to take in a run; while anything is chosen a plain click
 chooses too. A bar at the foot of the list says how many and offers **Move to
 Space ▸**, **Pin** and **Move to Trash** (in Trash, **Restore** and **Delete
 Forever…**), with **Select All**, and **×** lets them all go; the right-click
-of a chosen row offers the same. Chats and Images are chosen one at a time.
+of a chosen row offers the same. Images are chosen one at a time.
 
 **New ▾** on **All** and on a space, and **New chat**'s **⋯** in the sidebar,
 also make an **Image** (a new chat with "Create an image of" typed, ready for
@@ -554,7 +558,7 @@ rail's **Library** row to an edge to dock it beside another.
 
 | Panel | What it does |
 |-------|-------------|
-| **Navigation** (left) | **+** for a new chat, **Spaces**, **Memory** (where today's cards wait) and **Library**, and at the foot the calendar glyph for today's schedule from the Mac's Calendar; beside a chat or the Reader, **New chat**, **Browser**, **Notebooks** with your pinned and recent notebooks and their chats, and your library's own **Chats** ([The rail](#the-rail)) |
+| **Navigation** (left) | **Home** (every chat as one page), **+** for a new chat, **Spaces**, **Memory** (where today's cards wait) and **Library**, and at the foot the calendar glyph for today's schedule from the Mac's Calendar; beside a chat or the Reader, **New chat**, **Browser**, **Notebooks** with your pinned and recent notebooks and their chats, and your library's own **Chats** ([The rail](#the-rail)); **Home** lists them all as a page |
 | **Library** | The whole library, organized by type, across the window for managing it or docked beside another pane ([The Library](#the-library)) |
 | **Reader** | Displays the selected source: web article, PDF, video, or transcript |
 | **Chat** | In-app source-grounded chat and review sessions |
@@ -977,7 +981,7 @@ On the iPhone and iPad, a notebook's **Studio** tab lists its readings with its 
 
 The [Chat panel](/in-app-chat) lets you ask questions and run reviews without leaving ForeverLM. It uses the chat model you choose in **Settings → Chat**, on your own OpenRouter key, records review exchanges, and links completed sessions back to the sources they covered.
 
-The rail and the Space's **Chats** list both in-app sessions and external chats saved from Claude, ChatGPT, Gemini, Grok, or Edison Scientific.
+The rail and **Home** list both in-app sessions and external chats saved from Claude, ChatGPT, Gemini, Grok, or Edison Scientific.
 
 ## Selecting text in a reader
 

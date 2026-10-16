@@ -51,11 +51,12 @@ enum SpaceDestination: Hashable, Sendable {
     /// from the sidebar now that the Notebooks home is gone (product owner,
     /// 2026-10-10: "notebooks have to be linked here").
     case notebooks
-    /// Every chat, in a notebook or in none (product owner, 2026-10-10: "maybe
-    /// we should still have a separate chats page? chats don't always have to
-    /// be in a notebook?"). The chats were Home's sidebar's alone, which shows
-    /// only beside a chat or the Reader, so from the Space no list of them was
-    /// in reach.
+    /// Every chat, in a notebook or in none: Home's list (`HomePane`), which
+    /// the Space draws with this view. It is no place of the Space: it was one
+    /// from 2026-10-10 ("maybe we should still have a separate chats page?
+    /// chats don't always have to be in a notebook?") until 2026-10-16
+    /// ("so maybe chats shouldn't be under spaces"), when the Home place took
+    /// it, so no sidebar row, shortcut or stored window place names it.
     case chats
     case pages
     case sites
@@ -75,7 +76,7 @@ enum SpaceDestination: Hashable, Sendable {
     case list(String)
 
     /// The places listed under New chat, in the sidebar's order.
-    static let places: [SpaceDestination] = [.all, .notebooks, .chats, .pages, .sites, .canvases, .images, .drive]
+    static let places: [SpaceDestination] = [.all, .notebooks, .pages, .sites, .canvases, .images, .drive]
 
     /// The places this Mac lists: Canvases only where canvases are listed
     /// (`StudioViewModel.listsCanvases`).
@@ -94,7 +95,6 @@ enum SpaceDestination: Hashable, Sendable {
     init(key: String) {
         switch key {
         case "notebooks": self = .notebooks
-        case "chats": self = .chats
         case "pages": self = .pages
         case "sites": self = .sites
         case "canvases": self = .canvases
@@ -154,7 +154,7 @@ enum SpaceDestination: Hashable, Sendable {
         switch self {
         case .all: return "All"
         case .notebooks: return "Notebooks"
-        case .chats: return "Chats"
+        case .chats: return "Home"
         case .pages: return "Pages"
         case .sites: return "Sites"
         case .canvases: return "Canvases"
@@ -170,7 +170,7 @@ enum SpaceDestination: Hashable, Sendable {
         switch self {
         case .all: return "rectangle.stack"
         case .notebooks: return NotebookGlyph.systemImage
-        case .chats: return "bubble.left.and.bubble.right"
+        case .chats: return "house"
         case .pages: return "doc.text"
         case .sites: return "globe"
         case .canvases: return KnowledgeMap.symbolName
@@ -393,14 +393,13 @@ struct SpaceSidebar: View {
                 VStack(alignment: .leading, spacing: 1) {
                     newChatRow
                         .padding(.bottom, 10)
-                    // Notebooks lead and the chats follow them, the two places
-                    // the learner works in; then Courses and the rest.
+                    // Notebooks lead, the place the learner works in; then
+                    // Courses and the rest.
                     placeRow(.notebooks)
-                    placeRow(.chats)
                     ForEach(SpaceHub.allCases) { hub in
                         hubRow(hub)
                     }
-                    ForEach(SpaceDestination.sidebarPlaces(listsCanvases: vm.listsCanvases).filter { $0 != .notebooks && $0 != .chats }, id: \.self) { place in
+                    ForEach(SpaceDestination.sidebarPlaces(listsCanvases: vm.listsCanvases).filter { $0 != .notebooks }, id: \.self) { place in
                         placeRow(place)
                     }
                     pinnedSection

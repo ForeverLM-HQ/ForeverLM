@@ -449,20 +449,21 @@ enum ShellCommands {
     /// New Chat's, and Tasks has no way in (product owner, 2026-10-13:
     /// "scheduled is not so important btw; skip that for now").
     static let placeTabs: [StudioCenterTab] = [
-        .artifacts, .notepad, .sites, .courses, .goals, .ideas,
+        .home, .artifacts, .notepad, .sites, .courses, .goals, .ideas,
         .memory, .library, .plugins, .reader, .activity, .browser, .videos, .animations,
         .knowledgeMap, .atlas,
     ]
 
     /// The Space sidebar's places the menu offers beside the panes.
-    static let spacePlaces: [SpaceDestination] = [.notebooks, .chats, .images]
+    static let spacePlaces: [SpaceDestination] = [.notebooks, .images]
 
     /// Beta places (`BetaFeatures`): offered only where the Canvas shows.
     static let betaPlaceTabs: Set<StudioCenterTab> = [.knowledgeMap, .atlas]
 
     static func placeKeywords(_ tab: StudioCenterTab) -> [String] {
         switch tab {
-        case .artifacts: return ["home", "everything", "all"]
+        case .home: return ["chats", "conversations", "threads"]
+        case .artifacts: return ["everything", "all"]
         case .notepad: return ["docs", "documents", "notes", "writing"]
         case .sites: return ["artifacts", "web pages", "published"]
         case .courses: return ["lectures", "quizzes", "class"]

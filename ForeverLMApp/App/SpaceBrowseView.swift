@@ -5,7 +5,7 @@ import SwiftUI
 /// One thing the Space lists: a page, a linked Google Doc, a site, a mnemonic
 /// reading in no notebook, a canvas, a list, a picture, or since 2026-10-09 a
 /// notebook or a course, listed under All (docs/docs-design.md, "The Space");
-/// or a chat, which the Chats place alone lists; or one of the learner's spaces
+/// or a chat, which Home's list alone shows; or one of the learner's spaces
 /// while it is in Trash, which Trash alone lists.
 struct SpaceItem: Identifiable {
     enum Kind: Equatable {
@@ -315,7 +315,7 @@ enum SpaceCatalog {
         return items
     }
 
-    /// The chats of the open library, for the Chats place (`spaceChats`):
+    /// The chats of the open library, for Home's list (`spaceChats`):
     /// those in a notebook beside those in none, and the hidden ones, which
     /// only its Hidden scope shows. Built only while Chats is on screen, so a
     /// long history is never walked for the other places.
@@ -2001,7 +2001,7 @@ struct SpaceBrowseView: View {
                         SpaceDarkPillButton(title: "New Page", systemImage: nil, image: nil, action: onNewPage)
                     }
                 case .chats:
-                    emptyLine(systemImage: SpaceDestination.chats.symbolName, "No chats yet")
+                    emptyLine(systemImage: "bubble.left.and.bubble.right", "No chats yet")
                     SpaceDarkPillButton(title: "New Chat", systemImage: nil, image: nil) { newChat() }
                 case .notebooks:
                     emptyLine(systemImage: NotebookGlyph.systemImage, "No notebooks yet")

@@ -35,6 +35,8 @@ struct NotebookWorkspaceTests {
             .courses: .leave,
             // Plugins are the app's, as the Library is.
             .plugins: .leave,
+            // Home lists every chat of the library, as the Library lists its sources.
+            .home: .leave,
         ]
         // Every tab has an answer here, so a new tab cannot slip past the table.
         #expect(Set(expected.keys) == Set(StudioCenterTab.allCases))

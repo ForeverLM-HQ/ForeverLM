@@ -145,6 +145,8 @@ enum ShellPlaces {
             return ShellPlace(tab: tab, title: "Atlas", glyph: "point.3.connected.trianglepath.dotted", module: .canvas, sidebar: nil, role: .viewer)
         case .plugins:
             return ShellPlace(tab: tab, title: "Plugins", glyph: "square.grid.2x2", module: .plugins, sidebar: nil, role: .list)
+        case .home:
+            return ShellPlace(tab: tab, title: "Home", glyph: "house", module: .chat, sidebar: nil, role: .list)
         }
     }
 

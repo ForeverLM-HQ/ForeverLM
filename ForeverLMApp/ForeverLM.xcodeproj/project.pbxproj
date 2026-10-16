@@ -1057,6 +1057,7 @@
 		86807F9279EC577D9061FDD2 /* SpeechToTextPricingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5C7DCAF61A46E41F5FA1E3B /* SpeechToTextPricingTests.swift */; };
 		8681E166962A0EAD07BFE255 /* MCPHighlightToolsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6411007CBA54E9D60B10FC43 /* MCPHighlightToolsTests.swift */; };
 		86888FE0C8C488BB3EF5B2E7 /* OutboxFeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25BCACAA2B70733DF1C376A0 /* OutboxFeeder.swift */; };
+		86B5C8FCC889585BC59F827F /* HomePane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5079E08B0861FB122CD533F0 /* HomePane.swift */; };
 		86DD47E5BA66AFBA0368887F /* MemoryReviewBudget.swift in Sources */ = {isa = PBXBuildFile; fileRef = E098AFF982E10D351C6843EA /* MemoryReviewBudget.swift */; };
 		87034446778FC0D989F5C9CF /* StudioViewModel+LectureQuiz.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C66A82BE24415921AF529A4 /* StudioViewModel+LectureQuiz.swift */; };
 		8740ED1CE7B1F52AA131F5D9 /* CourseSchema157ActivationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B862F72B7F0A2B04B91CAB56 /* CourseSchema157ActivationTests.swift */; };
@@ -1398,6 +1399,7 @@
 		B5841073C266A12C1D6DA11A /* NotebookOutputs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38C7ADC439666468B62DFB42 /* NotebookOutputs.swift */; };
 		B5AFC6712F2E6000C75B2A5E /* NotebookFoldTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9228373458833583C43B8146 /* NotebookFoldTests.swift */; };
 		B5D0A79C55D215AC72CF4A60 /* CourseGeneration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42CD66FA12D468E9B21B856D /* CourseGeneration.swift */; };
+		B5EE4FEE6EFCA44F7FEE0E13 /* HomePlaceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04330CFF68A64EB16E646D56 /* HomePlaceTests.swift */; };
 		B5FAE62EA9ED49F028FD9D0E /* KnowledgeStore+Schema.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7672C2CFF8B7FC4254278AD /* KnowledgeStore+Schema.swift */; };
 		B60A3A3E0302729B4BC94587 /* MobileReviewSpeechService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A91AA2094D051C38BB13187 /* MobileReviewSpeechService.swift */; };
 		B657413CC5C3FCEE7A5FA03E /* MemoryIdeasTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 113FB21E39369A2ED365CA9D /* MemoryIdeasTests.swift */; };
@@ -2049,6 +2051,7 @@
 		03FAA7A3AD5BC14F478D6768 /* ReaderClipTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderClipTests.swift; sourceTree = "<group>"; };
 		042625C3797FFC86612F2F47 /* NotebookShareTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotebookShareTests.swift; sourceTree = "<group>"; };
 		042D5C9AD2F54A724859D6DD /* MemoryReviewExtractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryReviewExtractionTests.swift; sourceTree = "<group>"; };
+		04330CFF68A64EB16E646D56 /* HomePlaceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomePlaceTests.swift; sourceTree = "<group>"; };
 		045186443DAD1B3811B27BA9 /* SiriAppIntentsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriAppIntentsUITests.swift; sourceTree = "<group>"; };
 		045DAAD4F1D3E13A9C69BC9E /* ActivityLogProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityLogProjection.swift; sourceTree = "<group>"; };
 		048B78629147B2B1348C2D21 /* MemoryTutorGradeMapping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryTutorGradeMapping.swift; sourceTree = "<group>"; };
@@ -2584,6 +2587,7 @@
 		50204E30198405BB707A220A /* IdeaRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdeaRecord.swift; sourceTree = "<group>"; };
 		505E3CE3910E8382FC998C7A /* TranscriptParagraphTextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptParagraphTextView.swift; sourceTree = "<group>"; };
 		50782ACE81A6C755595BB5B0 /* AIService+ContextBudget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AIService+ContextBudget.swift"; sourceTree = "<group>"; };
+		5079E08B0861FB122CD533F0 /* HomePane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomePane.swift; sourceTree = "<group>"; };
 		50BC7871D5CBC5FC704E10A4 /* SlideCitationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SlideCitationService.swift; sourceTree = "<group>"; };
 		517B3DBA0347B0B51631EF0D /* MobileCloudKitRetry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileCloudKitRetry.swift; sourceTree = "<group>"; };
 		5192FC4780A4FA438AE3A1C4 /* KnowledgeStore+ArticleChromeRefilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "KnowledgeStore+ArticleChromeRefilter.swift"; sourceTree = "<group>"; };
@@ -4416,6 +4420,7 @@
 				ED02FC3376F49EE206D7D0C2 /* GoogleDocConversionTests.swift */,
 				55657A749DDC7EE428953FE2 /* GoogleMeetNotesSplitTests.swift */,
 				71427277ECEFFEE0E5BF8B87 /* HiddenItemsModelTests.swift */,
+				04330CFF68A64EB16E646D56 /* HomePlaceTests.swift */,
 				099EA25DCF02641944693095 /* ICloudDownloadTests.swift */,
 				4FC07A8A22C53C16ED1B62C7 /* IdeaPersistenceTests.swift */,
 				0FD4D2761E2CB3F324789916 /* JournalArticleMatchingTests.swift */,
@@ -5134,6 +5139,7 @@
 				97E32C453D9395947A79DCEE /* GoalEditorSheet.swift */,
 				B826E0381D5C772580BEA37E /* GoalsViews.swift */,
 				ACCD06573B50AACC2D0903C0 /* GoogleDriveFolderPicker.swift */,
+				5079E08B0861FB122CD533F0 /* HomePane.swift */,
 				3E31AE472C11F272145C9097 /* HoverHighlight.swift */,
 				2EA743D29EEA4E70EB3202C7 /* ICloudMigrationModel.swift */,
 				11422CE6FC3AB7D11E54C311 /* IdeasViews.swift */,
@@ -6489,6 +6495,7 @@
 				5378EA90FC3F1120D8D46516 /* HiddenItemsModelTests.swift in Sources */,
 				56341311643007A2625FDC83 /* HighlightProjectionTests.swift in Sources */,
 				71907E1595FC36547ADCD103 /* HoldsMyLibraryTests.swift in Sources */,
+				B5EE4FEE6EFCA44F7FEE0E13 /* HomePlaceTests.swift in Sources */,
 				9CC68501AF468B8EC0E18D7D /* ICloudDownloadTests.swift in Sources */,
 				8ABD72A327EC0399F48D8DFA /* ICloudMigrationStateTests.swift in Sources */,
 				1BBDCB1691A8C2A7CF9D9F5E /* IdeaPersistenceTests.swift in Sources */,
@@ -7466,6 +7473,7 @@
 				FB33740E58755617EE51B1F4 /* HTMLTagAttributes.swift in Sources */,
 				7204647650F66A986675D1AA /* HighlightProjection.swift in Sources */,
 				617FA1AED5E458A5AFF0B8A7 /* HoldsMyLibrary.swift in Sources */,
+				86B5C8FCC889585BC59F827F /* HomePane.swift in Sources */,
 				704678C679685DFBF350D937 /* HoverHighlight.swift in Sources */,
 				5FDEF3C30D33425D83A8447F /* ICloudMigrationModel.swift in Sources */,
 				7D27251DBC80E9436C45646A /* IdeaProjection.swift in Sources */,

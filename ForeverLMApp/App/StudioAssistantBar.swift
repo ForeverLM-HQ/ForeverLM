@@ -213,7 +213,7 @@ final class StudioAssistantSessionStore {
     }
 
     /// Every store alive, in every window: what a list holding no store of its
-    /// own — the Space's Chats — ends a deleted chat in.
+    /// own — Home's list — ends a deleted chat in.
     private static let live = NSHashTable<StudioAssistantSessionStore>.weakObjects()
 
     /// Ends the chat in every pane and window that has it open or still

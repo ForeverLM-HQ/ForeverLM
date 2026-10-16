@@ -36,6 +36,12 @@ import UniformTypeIdentifiers
 ///   sites, pages, etc"): each opens from the Space's Canvases, its Recents
 ///   or its Pinned, as a page does (docs/knowledge-map-design.md).
 enum StudioRailItem: String, CaseIterable, Identifiable {
+    /// Home (2026-10-16), Codex's first icon: every chat, in a notebook or in
+    /// none, as one list (`HomePane`). The Space listed them until then
+    /// (product owner, 2026-10-16: "similar to codex we should have a home
+    /// page with all the chats", then "maybe chats shouldn't be under
+    /// spaces").
+    case home
     case newChat
     case memory
     /// The Space (2026-10-07): the Pages home, ChatGPT's Space with its own
@@ -56,6 +62,7 @@ enum StudioRailItem: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
+        case .home: return ShellPlaces.descriptor(for: .home).title
         case .newChat: return "New chat"
         case .memory: return "Memory"
         case .space: return "Spaces"
@@ -67,6 +74,7 @@ enum StudioRailItem: String, CaseIterable, Identifiable {
 
     var systemImage: String {
         switch self {
+        case .home: return ShellPlaces.descriptor(for: .home).glyph
         case .newChat: return "square.and.pencil"
         case .memory: return MemoryReviewSession.sidebarIcon
         case .space: return "square.on.square"
@@ -126,17 +134,17 @@ struct StudioRailHiddenItems: Equatable {
 
     /// The rows still shown at the top of the rail, in rail order.
     var visibleTopItems: [StudioRailItem] {
-        [.newChat, .memory, .space, .browser, .library, .plugins].filter { !items.contains($0) }
+        [.home, .newChat, .memory, .space, .browser, .library, .plugins].filter { !items.contains($0) }
     }
 
-    /// The icon rail's rows, Codex's: a + for a new chat, then Spaces,
+    /// The icon rail's rows, Codex's: Home, a + for a new chat, then Spaces,
     /// Memory, Library and Plugins, in that order, less any the learner hid.
     /// The Space led the places since the Notebooks home, which led until
     /// 2026-10-09, went; the + went above it on 2026-10-13, and Plugins
     /// came out of Settings under the Library the same day. New chat is one
     /// row in Show in Sidebar, so hiding it takes it off the strip and Home's
     /// sidebar together.
-    static let railOrder: [StudioRailItem] = [.newChat, .space, .memory, .library, .plugins]
+    static let railOrder: [StudioRailItem] = [.home, .newChat, .space, .memory, .library, .plugins]
 
     /// The rows at the top of Home's sidebar: New chat and the Browser.
     static let sidebarOrder: [StudioRailItem] = [.newChat, .browser]
@@ -157,8 +165,8 @@ struct StudioRailHiddenItems: Equatable {
 /// Library — stay above the ⋯, which offers every other place and keeps one
 /// here; a shortcut is one of those places, one click away from anywhere.
 enum StudioRailShortcut: Hashable, Identifiable, Sendable {
-    /// One of the Space sidebar's places: Notebooks, Chats, Pages, Sites,
-    /// Canvases, Images or Google Drive.
+    /// One of the Space sidebar's places: Notebooks, Pages, Sites, Canvases,
+    /// Images or Google Drive.
     case place(SpaceDestination)
     /// The Courses list, the Space sidebar's hub.
     case courses
@@ -168,15 +176,15 @@ enum StudioRailShortcut: Hashable, Identifiable, Sendable {
     /// The Space places a shortcut can be. All is the Space itself (its
     /// row), Trash is a place to visit rarely, and a team's, a space's or a
     /// list's place is an item the Space sidebar pins.
-    private static let places: Set<SpaceDestination> = [.notebooks, .chats, .pages, .sites, .canvases, .images, .drive]
+    private static let places: Set<SpaceDestination> = [.notebooks, .pages, .sites, .canvases, .images, .drive]
 
     /// Every shortcut this Mac offers, in the Space sidebar's order:
-    /// Notebooks and Chats, Courses, then the rest; Canvases only where
-    /// canvases are listed.
+    /// Notebooks, Courses, then the rest; Canvases only where canvases are
+    /// listed.
     static func offered(listsCanvases: Bool) -> [StudioRailShortcut] {
         let sidebar = SpaceDestination.sidebarPlaces(listsCanvases: listsCanvases).filter(places.contains)
-        let leading = sidebar.filter { $0 == .notebooks || $0 == .chats }
-        let rest = sidebar.filter { $0 != .notebooks && $0 != .chats }
+        let leading = sidebar.filter { $0 == .notebooks }
+        let rest = sidebar.filter { $0 != .notebooks }
         return leading.map(Self.place) + [.courses] + rest.map(Self.place)
     }
 
@@ -647,7 +655,7 @@ struct StudioNavigationRail: View {
                 renamingSession = nil
             }
         }
-        // Delete asks first, as Codex's does and the Space's Chats do; until
+        // Delete asks first, as Codex's does and Home's list does; until
         // 2026-10-13 the rail's Delete was the one hard delete that did not.
         .confirmationDialog(
             "Delete \u{2018}\(deletingSession.map(railChatTitle) ?? "this chat")\u{2019}?",
@@ -702,6 +710,7 @@ struct StudioNavigationRail: View {
                 case .memory: memoryButton(compact: true)
                 case .library: libraryButton(compact: true)
                 case .plugins: pluginsButton(compact: true)
+                case .home: homeButton(compact: true)
                 case .newChat: newChatButton(compact: true)
                 case .browser: EmptyView()
                 }
@@ -852,7 +861,7 @@ struct StudioNavigationRail: View {
                         switch item {
                         case .newChat: newChatButton()
                         case .browser: browserButton()
-                        case .space, .memory, .library, .plugins: EmptyView()
+                        case .home, .space, .memory, .library, .plugins: EmptyView()
                         }
                     }
                 }
@@ -1348,6 +1357,33 @@ struct StudioNavigationRail: View {
         .onDrag {
             StudioDragVisibility.shared.begin(centerTab: .chat)
             return studioCenterTabDragProvider(for: .chat, startsBlankChat: true)
+        }
+    }
+
+    /// Home (2026-10-16), Codex's first icon: every chat as one list. A place
+    /// like the Library: a pane with its ×, Open Beside, Open in Other Window
+    /// and a drag; in a window holding a notebook it leaves the notebook the
+    /// way the Library does, and the notebook's row brings it back.
+    private func homeButton(compact: Bool = false) -> some View {
+        RailButtonRow(
+            title: StudioRailItem.home.title,
+            systemImage: StudioRailItem.home.systemImage,
+            railItem: .home,
+            isSelected: vm.visibleCenterTabs(in: windowState).contains(.home)
+                && !windowState.isVoiceWorkspacePresented,
+            openBeside: {
+                vm.inWindow(windowState) { vm.openCenterTabBeside(.home) }
+            },
+            otherWindowDestination: .home,
+            help: "Open Home",
+            identifier: "studio.navigation.home",
+            isCompact: compact
+        ) {
+            vm.inWindow(windowState) { vm.openHomePlace(in: windowState) }
+        }
+        .onDrag {
+            StudioDragVisibility.shared.begin(centerTab: .home)
+            return studioCenterTabDragProvider(for: .home)
         }
     }
 
