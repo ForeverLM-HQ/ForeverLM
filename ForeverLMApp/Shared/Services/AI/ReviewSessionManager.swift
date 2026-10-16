@@ -3876,8 +3876,8 @@ final class ReviewSessionManager {
         guard let panes = openPanesForThisChat() else { return contextualContent }
         return ChatContextAdditions.contextContent(
             contextualContent,
-            onScreen: panes.sourcesOnScreenInChatsWindow,
-            card: panes.cardOnScreenInChatsWindow
+            onScreen: panes.sourcesOnScreen,
+            card: panes.cardOnScreen
         )
     }
 
@@ -3909,7 +3909,7 @@ final class ReviewSessionManager {
         let holdsWords = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         defer { composerHoldsWords = holdsWords }
         guard holdsWords, !composerHoldsWords,
-              let onScreen = openPanesForThisChat()?.sourcesOnScreenInChatsWindow else { return }
+              let onScreen = openPanesForThisChat()?.sourcesOnScreen else { return }
         questionStartMoments = [:]
         for shown in onScreen where isVideoMomentForThisChat(shown) {
             guard let moment = shown.moment else { continue }

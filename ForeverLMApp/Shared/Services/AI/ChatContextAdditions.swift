@@ -330,7 +330,7 @@ enum ChatContextAdditions {
             "\(source.kind) “\(source.title.trimmingCharacters(in: .whitespacesAndNewlines))” (source_id: \(source.id))"
                 + (source.moment.map { ", " + playheadPhrase($0) } ?? "")
         }
-        return "<on_screen_when_sent>\nWhen the learner sent this message, the window this chat is in showed "
+        return "<on_screen_when_sent>\nWhen the learner sent this message, ForeverLM showed "
             + names.joined(separator: "; ")
             + ". \"This article\", \"this paper\", \"what I have open\" or \"what I'm reading\" means what was shown, "
             + "whether or not it is attached to this chat; the chat's attached sources are what the learner gave it, not what they are looking at. "
@@ -347,7 +347,7 @@ enum ChatContextAdditions {
         func clean(_ text: String) -> String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
         var lines = [
             "<card_on_screen_when_sent>",
-            "When the learner sent this message, the Memory pane beside this chat (\(card.place)) showed this flashcard (card_id: \(card.id)):",
+            "When the learner sent this message, a Memory pane in ForeverLM (\(card.place)) showed this flashcard (card_id: \(card.id)):",
             "Question: \(clean(card.question))",
             "Answer: \(clean(card.answer))",
         ]

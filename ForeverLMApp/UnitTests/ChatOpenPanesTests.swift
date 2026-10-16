@@ -64,10 +64,10 @@ struct ChatOpenPanesTests {
         #expect(ChatOpenPanes(windows: []).text.hasPrefix("No ForeverLM window"))
     }
 
-    @Test("Only what is drawn in the chat's own window counts as on screen beside it")
+    @Test("What is drawn in any window counts as on screen, the chat's own window first; tabs behind do not")
     func onScreenInChatsWindow() {
-        // The product owner's 2026-09-24 screens: the article in the Reader beside the
-        // chat, the paper's walkthrough in a window on the other display.
+        // The article in the Reader beside the chat, and the paper in a second window
+        // on the other display: both are open (product owner, 2026-10-16).
         let other = ChatOpenPanes.Window(isChatsWindow: false, panes: [
             .init(onScreen: .init(name: "Reader", contents: [.source(id: "src-4d", title: "4D spatiotemporal landscape", kind: "paper", position: nil)])),
         ])
@@ -83,11 +83,12 @@ struct ChatOpenPanesTests {
             alsoOnScreen: [.source(id: "src-second-reader", title: "Second", kind: "book chapter", position: nil)]
         )
         let panes = ChatOpenPanes(windows: [other, chats])
-        #expect(panes.sourcesOnScreenInChatsWindow == [
+        #expect(panes.sourcesOnScreen == [
             .init(id: "src-ask-not", title: "Ask not", kind: "article"),
             .init(id: "src-second-reader", title: "Second", kind: "book chapter"),
+            .init(id: "src-4d", title: "4D spatiotemporal landscape", kind: "paper"),
         ])
-        #expect(ChatOpenPanes(windows: [other]).sourcesOnScreenInChatsWindow.isEmpty)
+        #expect(ChatOpenPanes(windows: [other]).sourcesOnScreen.map(\.id) == ["src-4d"])
     }
 
     @Test("The tool rides a chat shown in a window, and not a manager without one")
@@ -138,7 +139,7 @@ struct ChatOpenPanesVideoPlayheadTests {
 
     @Test("The video in the chat's window carries its moment; another window's video is not on screen here")
     func playheadRidesTheMessage() {
-        let shown = Self.talk.sourcesOnScreenInChatsWindow
+        let shown = Self.talk.sourcesOnScreen
         #expect(shown.map(\.id) == ["src-talk"])
         #expect(shown.first?.moment == ChatContextAdditions.VideoMoment(at: 1611, playing: false))
         #expect(Self.talk.text.contains("(source_id: src-talk), paused at 26:51."))
@@ -149,7 +150,7 @@ struct ChatOpenPanesVideoPlayheadTests {
         let panes = ChatOpenPanes(windows: [.init(isChatsWindow: true, panes: [
             .init(onScreen: .init(name: "Reader", contents: [.source(id: "p1", title: "A paper", kind: "paper", position: "page 2 of 9")])),
         ])])
-        #expect(panes.sourcesOnScreenInChatsWindow.first?.moment == nil)
+        #expect(panes.sourcesOnScreen.first?.moment == nil)
     }
 }
 
@@ -180,7 +181,7 @@ struct ChatOpenPanesLeftOutTests {
     @Test("A left-out video is not on screen, has no moment and is not listed; the rest stays")
     func leftOutVideoGoesEverywhere() {
         let panes = Self.window.leavingOut(["src-talk"])
-        #expect(panes.sourcesOnScreenInChatsWindow.map(\.id) == ["src-paper"])
+        #expect(panes.sourcesOnScreen.map(\.id) == ["src-paper"])
         #expect(panes.windows[0].videoPlayheads.isEmpty)
         #expect(!panes.text.contains("src-talk"))
         #expect(panes.text.contains("- Right pane, on screen: Reader."))
@@ -193,7 +194,7 @@ struct ChatOpenPanesLeftOutTests {
     @Test("Leaving nothing out changes nothing")
     func nothingLeftOut() {
         #expect(Self.window.leavingOut([]) == Self.window)
-        #expect(Self.window.leavingOut(["src-not-open"]).sourcesOnScreenInChatsWindow == Self.window.sourcesOnScreenInChatsWindow)
+        #expect(Self.window.leavingOut(["src-not-open"]).sourcesOnScreen == Self.window.sourcesOnScreen)
     }
 
     @Test("A left-out source stays out while it is open, comes back once it has left the window, and a new chat starts with none left out")
@@ -236,17 +237,17 @@ struct ChatOpenPanesLeftOutTests {
         let text = Self.cardBesideChat.text
         #expect(text.contains("- Right pane, on screen: Memory, To Check — the flashcard “What persists despite organ loss?” (card_id: card-1)"))
         #expect(text.contains("answer: “Spatial information persists in tissue.”"))
-        #expect(Self.cardBesideChat.cardOnScreenInChatsWindow == Self.card)
-        #expect(Self.cardBesideChat.sourcesOnScreenInChatsWindow.isEmpty, "a card is not a library source")
+        #expect(Self.cardBesideChat.cardOnScreen == Self.card)
+        #expect(Self.cardBesideChat.sourcesOnScreen.isEmpty, "a card is not a library source")
     }
 
-    @Test("A card in another window is not the chat's card")
+    @Test("A card in another window is the chat's card too")
     func cardInAnotherWindow() {
         let panes = ChatOpenPanes(windows: [
             .init(isChatsWindow: true, panes: [.init(onScreen: .init(name: "Chat", contents: [.chat(title: "New chat", isThisChat: true)]))]),
             .init(isChatsWindow: false, panes: [.init(onScreen: .init(name: "Memory, To Check", contents: [.card(Self.card)]))]),
         ])
-        #expect(panes.cardOnScreenInChatsWindow == nil)
+        #expect(panes.cardOnScreen == Self.card)
     }
 
     @Test("Every message carries the card in its mark, and the framing says what it is")
@@ -303,8 +304,8 @@ struct ChatOpenPanesLeftOutTests {
     @Test("The card chip's × leaves the card out of what the chat is told, by its id")
     func cardCanBeLeftOut() {
         let kept = Self.cardBesideChat.leavingOut([Self.card.id])
-        #expect(kept.cardOnScreenInChatsWindow == nil)
+        #expect(kept.cardOnScreen == nil)
         #expect(!kept.text.contains("card-1"))
-        #expect(Self.cardBesideChat.leavingOut(["src-other"]).cardOnScreenInChatsWindow == Self.card)
+        #expect(Self.cardBesideChat.leavingOut(["src-other"]).cardOnScreen == Self.card)
     }
 }

@@ -4620,7 +4620,7 @@ private struct InternalReviewPanelContent: View {
     /// for a chat outside a Studio window.
     private var sourcesOnScreenBesideChat: [ChatContextAdditions.OnScreen] {
         guard let windowState else { return [] }
-        return ChatOpenPanes.sourcesOnScreen(in: windowState, vm: vm)
+        return ChatOpenPanes.sourcesOnScreen(chatWindow: windowState, vm: vm)
     }
 
     /// The open sources the tray gives a chip: what the chat is told is on
@@ -4637,7 +4637,7 @@ private struct InternalReviewPanelContent: View {
     /// learner, read as a message sent now reads it.
     private var cardOnScreenBesideChat: ChatContextAdditions.CardOnScreen? {
         guard let windowState else { return nil }
-        return ChatOpenPanes.cardOnScreen(in: windowState, vm: vm)
+        return ChatOpenPanes.cardOnScreen(chatWindow: windowState, vm: vm)
     }
 
     /// The open card the tray gives a chip: less what the learner left out

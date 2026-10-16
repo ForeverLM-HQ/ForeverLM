@@ -23,22 +23,20 @@ extension ChatOpenPanes {
         return ChatOpenPanes(windows: windows)
     }
 
-    /// The library sources on screen in one window, read the way a message
-    /// sent from a chat there reads them: what the chips over that chat's
-    /// composer show, so a chip names exactly what the chat is told.
+    /// The library sources on screen in every window, read the way a message
+    /// sent from a chat in `state` reads them: what the chips over that
+    /// chat's composer show, so a chip names exactly what the chat is told.
     @MainActor
-    static func sourcesOnScreen(in state: StudioWindowState, vm: StudioViewModel) -> [ChatContextAdditions.OnScreen] {
-        ChatOpenPanes(windows: [window(state, isChatsWindow: true, chatSessionID: nil, vm: vm)])
-            .sourcesOnScreenInChatsWindow
+    static func sourcesOnScreen(chatWindow state: StudioWindowState, vm: StudioViewModel) -> [ChatContextAdditions.OnScreen] {
+        studio(chatWindow: state, chatSessionID: nil, vm: vm).sourcesOnScreen
     }
 
-    /// The flashcard the Memory pane in `state` has in front of the learner,
-    /// read the way a message sent from a chat there reads it: what the chip
-    /// over that chat's composer shows.
+    /// The flashcard a Memory pane in any window has in front of the learner,
+    /// read the way a message sent from a chat in `state` reads it: what the
+    /// chip over that chat's composer shows.
     @MainActor
-    static func cardOnScreen(in state: StudioWindowState, vm: StudioViewModel) -> ChatContextAdditions.CardOnScreen? {
-        ChatOpenPanes(windows: [window(state, isChatsWindow: true, chatSessionID: nil, vm: vm)])
-            .cardOnScreenInChatsWindow
+    static func cardOnScreen(chatWindow state: StudioWindowState, vm: StudioViewModel) -> ChatContextAdditions.CardOnScreen? {
+        studio(chatWindow: state, chatSessionID: nil, vm: vm).cardOnScreen
     }
 
     @MainActor

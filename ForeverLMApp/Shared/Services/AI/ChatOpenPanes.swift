@@ -119,17 +119,18 @@ struct ChatOpenPanes: Equatable {
         return ids
     }
 
-    /// The library sources on screen in the chat's own window — each pane's
-    /// drawn tab, then what no pane accounts for — each once. Tabs behind
-    /// and other windows are left out: a walkthrough of one paper on the
-    /// other display is not what "the article I have open" beside this chat
-    /// means. Every message the learner sends carries this list
-    /// (`ChatContextAdditions.onScreen`), a video with the moment its player
-    /// is at.
-    var sourcesOnScreenInChatsWindow: [ChatContextAdditions.OnScreen] {
+    /// The library sources on screen in any window — each pane's drawn tab,
+    /// then what no pane accounts for — each once, the chat's own window
+    /// first. Tabs behind a drawn tab are left out. A paper open in the
+    /// Reader of a second window is as open as one beside the chat (product
+    /// owner, 2026-10-16: the chat "should automatically take into account
+    /// into the context whatever is opened"). Every message the learner
+    /// sends carries this list (`ChatContextAdditions.onScreen`), a video
+    /// with the moment its player is at.
+    var sourcesOnScreen: [ChatContextAdditions.OnScreen] {
         var seen = Set<String>()
         var shown: [ChatContextAdditions.OnScreen] = []
-        for window in windows where window.isChatsWindow {
+        for window in windowsChatsFirst {
             let contents = window.panes.flatMap(\.onScreen.contents) + window.alsoOnScreen
             for case let .source(id, title, kind, _) in contents where seen.insert(id).inserted {
                 shown.append(ChatContextAdditions.OnScreen(
@@ -143,12 +144,12 @@ struct ChatOpenPanes: Equatable {
         return shown
     }
 
-    /// The flashcard the Memory pane in the chat's own window has in front of
-    /// the learner, if any. Every message the learner sends carries it
-    /// (`ChatContextAdditions.cardFraming`), so "this question is phrased
+    /// The flashcard a Memory pane in any window has in front of the learner,
+    /// the chat's own window first. Every message the learner sends carries
+    /// it (`ChatContextAdditions.cardFraming`), so "this question is phrased
     /// weird" means that card.
-    var cardOnScreenInChatsWindow: ChatContextAdditions.CardOnScreen? {
-        for window in windows where window.isChatsWindow {
+    var cardOnScreen: ChatContextAdditions.CardOnScreen? {
+        for window in windowsChatsFirst {
             for case let .card(card) in window.panes.flatMap(\.onScreen.contents) {
                 return card
             }
