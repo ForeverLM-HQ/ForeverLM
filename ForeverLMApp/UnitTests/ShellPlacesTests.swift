@@ -16,7 +16,7 @@ struct ShellPlacesTests {
         .goals: "Goals", .courses: "Courses", .ideas: "Ideas", .notepad: "Pages", .sites: "Sites",
         .browser: "Browser", .videos: "Videos", .animations: "Animations", .artifacts: "Space",
         .memory: "Memory", .library: "Library", .knowledgeMap: "Canvas", .atlas: "Atlas",
-        .plugins: "Plugins", .home: "Home",
+        .plugins: "Plugins",
     ]
 
     /// The glyphs the tab strip's private `systemImage` returned. The Space's
@@ -29,7 +29,7 @@ struct ShellPlacesTests {
         .sites: "globe", .browser: "safari", .videos: "film", .animations: "sparkles.tv",
         .artifacts: "square.on.square", .memory: "brain", .library: "books.vertical",
         .knowledgeMap: "rectangle.3.group", .atlas: "point.3.connected.trianglepath.dotted",
-        .plugins: "square.grid.2x2", .home: "house",
+        .plugins: "square.grid.2x2",
     ]
 
     @Test("Every center tab has a descriptor, and it names its own tab")
@@ -63,9 +63,6 @@ struct ShellPlacesTests {
         #expect(ShellPlaces.descriptor(for: .artifacts).glyph == StudioRailItem.space.systemImage)
         #expect(ShellPlaces.descriptor(for: .plugins).glyph == StudioRailItem.plugins.systemImage)
         #expect(StudioRailItem.plugins.title == StudioCenterTab.plugins.title)
-        #expect(ShellPlaces.descriptor(for: .home).glyph == StudioRailItem.home.systemImage)
-        #expect(StudioRailItem.home.title == StudioCenterTab.home.title)
-        #expect(SpaceDestination.chats.symbolName == StudioRailItem.home.systemImage, "Home's list is drawn with Home's glyph")
     }
 
     @Test("A glyph names one place")
@@ -77,14 +74,12 @@ struct ShellPlacesTests {
     @Test("The shell is Codex's parts; the modules are ForeverLM's")
     func shellAndModules() {
         #expect(ShellModule.allCases.filter(\.isShell) == [.chat, .space, .plugins, .settings, .scheduled])
-        #expect(ShellPlaces.tabs(of: .chat) == [.chat, .secondaryChat, .home])
+        #expect(ShellPlaces.tabs(of: .chat) == [.chat, .secondaryChat])
         #expect(ShellPlaces.tabs(of: .canvas) == [.knowledgeMap, .atlas])
         #expect(ShellPlaces.tabs(of: .space) == [.artifacts, .notepad, .sites, .goals, .ideas])
         #expect(ShellPlaces.tabs(of: .plugins) == [.plugins])
         #expect(ShellPlaces.descriptor(for: .plugins).sidebar == nil, "Plugins has the card to itself, as the Library does")
         #expect(ShellPlaces.descriptor(for: .plugins).role == .list)
-        #expect(ShellPlaces.descriptor(for: .home).sidebar == nil, "Home has the card to itself, as the Library does")
-        #expect(ShellPlaces.descriptor(for: .home).role == .list, "Home lists the chats; it is no thread")
         // Only the chats are threads: the chat's minimum width follows it.
         #expect(Set(ShellPlaces.all.filter { $0.role == .thread }.map(\.tab)) == [.chat, .secondaryChat])
     }
@@ -149,7 +144,7 @@ struct ShellPlacesWindowTests {
         case .courses: showsSpace = !coursePage
         default: showsSpace = false
         }
-        let ownWindow: Set<StudioCenterTab> = [.library, .knowledgeMap, .atlas, .memory, .plugins, .home]
+        let ownWindow: Set<StudioCenterTab> = [.library, .knowledgeMap, .atlas, .memory, .plugins]
         return (showsSpace, !showsSpace && !ownWindow.contains(tab))
     }
 

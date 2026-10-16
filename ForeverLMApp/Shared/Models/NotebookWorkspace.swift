@@ -247,7 +247,7 @@ extension NotebookWorkspace {
         // Space bring back as it was (`notebookLeft`). Inside
         // the notebook the library is its Sources column's search. Plugins
         // are the app's, as the Library is.
-        case .library, .knowledgeMap, .atlas, .plugins, .home: return .leave
+        case .library, .knowledgeMap, .atlas, .plugins: return .leave
         case .activity, .tasks, .goals, .ideas, .videos, .artifacts: return .leave
         }
     }

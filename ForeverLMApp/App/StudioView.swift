@@ -360,8 +360,6 @@ struct StudioView: View {
             AtlasPane()
         case .plugins:
             PluginsPane()
-        case .home:
-            HomePane()
         }
     }
 

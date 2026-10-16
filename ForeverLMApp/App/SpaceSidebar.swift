@@ -39,7 +39,7 @@ enum SpaceHub: String, CaseIterable, Identifiable, Sendable {
 ///
 /// The product owner, 2026-10-06, showing ChatGPT's Space: "maybe just copy this spaces
 /// design entirely from chatgpt; it looks good". The sidebar is ChatGPT's —
-/// New chat, then All, Pages, Sites, Images, Google Drive, the Recents, the
+/// New page, then All, Pages, Sites, Images, Google Drive, the Recents, the
 /// Spaces and Trash at the foot. ForeverLM's Ideas had a row beside the
 /// pictures until 2026-10-10 (product owner: "goals can perhaps just be
 /// visible via chat; same with ideas perhaps"): the chat lists and jots them
@@ -75,7 +75,7 @@ enum SpaceDestination: Hashable, Sendable {
     /// its page: what it holds.
     case list(String)
 
-    /// The places listed under New chat, in the sidebar's order.
+    /// The places listed under New page, in the sidebar's order.
     static let places: [SpaceDestination] = [.all, .notebooks, .pages, .sites, .canvases, .images, .drive]
 
     /// The places this Mac lists: Canvases only where canvases are listed
@@ -334,7 +334,7 @@ struct SpaceHeaderIconButton: View {
     }
 }
 
-/// The sidebar: New chat, the places, Recents, Spaces, and Trash at the foot.
+/// The sidebar: New page, the places, Recents, Spaces, and Trash at the foot.
 /// Drawn by the Space home and by the page pane beside an open page, with the
 /// same width, rows and colour, so opening a page from a list changes only
 /// what is beside the sidebar.
@@ -391,7 +391,7 @@ struct SpaceSidebar: View {
             }
             ScrollView {
                 VStack(alignment: .leading, spacing: 1) {
-                    newChatRow
+                    newPageRow
                         .padding(.bottom, 10)
                     // Notebooks lead, the place the learner works in; then
                     // Courses and the rest.
@@ -455,20 +455,19 @@ struct SpaceSidebar: View {
 
     // MARK: Rows
 
-    /// New chat leads the sidebar, as it leads ChatGPT's (product owner,
-    /// 2026-10-10, of the row that was New page: "we should just have new
-    /// chat"). The icon strip's + beside it does the same: the rail's own
-    /// route (`requestNewChat`), a chat in the window's notebook while it
-    /// holds one, taking this pane as Chat does. A page stays one step away:
-    /// New Page leads the ⋯, the list's New ▾ makes one, and ⇧⌘N still does.
-    private var newChatRow: some View {
+    /// New leads the sidebar, ChatGPT's first row made a page's: New Page,
+    /// with the ⋯ of every other thing the Space makes. A chat is not made
+    /// here (product owner, 2026-10-16: "new chat should not live under
+    /// spaces"): Home's + and its sidebar's New chat start one, and the row
+    /// that was New chat from 2026-10-10 is gone. ⇧⌘N still makes a page.
+    private var newPageRow: some View {
         SpaceSidebarRow(
-            title: "New chat",
+            title: "New page",
             isSelected: false,
-            accessibilityIdentifier: "space.sidebar.newChat",
-            action: startNewChat
+            accessibilityIdentifier: "space.sidebar.newPage",
+            action: onNewPage
         ) {
-            Image(systemName: "square.and.pencil")
+            Image(systemName: "doc.badge.plus")
                 .zoomedSystemFont(size: 13, weight: .regular)
         } trailing: {
             Menu {
@@ -524,16 +523,6 @@ struct SpaceSidebar: View {
             .help("More ways to add")
             .accessibilityLabel("More ways to add")
         }
-        .contextMenu {
-            Button("Open Beside", systemImage: "rectangle.split.2x1") {
-                let window = windowState ?? vm.activeWindowState
-                vm.inWindow(window) {
-                    vm.openCenterTabBeside(.chat)
-                    vm.requestNewChat()
-                }
-            }
-            OtherWindowMenuItem(.newChat)
-        }
         // The shortcut the Pages home's New Page button carried.
         .background {
             Button("New Page", action: onNewPage)
@@ -542,10 +531,6 @@ struct SpaceSidebar: View {
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }
-    }
-
-    private func startNewChat() {
-        vm.inWindow(windowState ?? vm.activeWindowState) { vm.requestNewChat() }
     }
 
     /// Courses: a click shows that pane in this window, the sidebar staying

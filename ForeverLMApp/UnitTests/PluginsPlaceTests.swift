@@ -32,12 +32,12 @@ struct PluginsPlaceTests {
         #expect(place.sidebar == nil)
         #expect(StudioCenterTab.plugins.rawValue == "plugins", "stored layouts name it so")
         #expect(StudioCenterTab.permanentTabs.contains(.plugins))
-        #expect(StudioRailHiddenItems.railOrder == [.home, .newChat, .space, .memory, .library, .plugins])
+        #expect(StudioRailHiddenItems.railOrder == [.home, .space, .memory, .library, .plugins])
         #expect(StudioRailItem.plugins.rawValue == "plugins")
         #expect(StudioRailItem.plugins.systemImage == "square.grid.2x2", "Codex's grid")
         // Hideable like the other rows, from Show in Sidebar.
         let hidden = StudioRailHiddenItems(storage: "plugins")
-        #expect(hidden.railItems() == [.home, .newChat, .space, .memory, .library])
+        #expect(hidden.railItems() == [.home, .space, .memory, .library])
         #expect(StudioRailHiddenItems(storage: hidden.setting(.plugins, hidden: false).storage).railItems().last == .plugins)
         // It leaves a notebook, as the Library does.
         #expect(NotebookWorkspace.route(.plugins, coursePageID: nil) == .leave)

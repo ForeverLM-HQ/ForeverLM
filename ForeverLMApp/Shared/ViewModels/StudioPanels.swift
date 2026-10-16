@@ -89,16 +89,10 @@ enum StudioCenterTab: String, Codable, CaseIterable, Identifiable {
     /// (docs/codex-shell-plan.md, Track 2). The strip's Plugins row opens it;
     /// it leaves a notebook the way the Library does.
     case plugins
-    /// Home, Codex's (2026-10-16): every chat the learner has, in a notebook
-    /// or in none, as one list under the place-chrome head. The strip's first
-    /// row opens it. The Space no longer lists chats (product owner,
-    /// 2026-10-16: "so maybe chats shouldn't be under spaces"). A place like
-    /// the Library: it leaves a notebook, and the notebook's row brings it back.
-    case home
 
     var id: String { rawValue }
 
-    static let permanentTabs: [StudioCenterTab] = [.chat, .reader, .tasks, .activity, .goals, .courses, .ideas, .notepad, .sites, .browser, .videos, .animations, .artifacts, .memory, .knowledgeMap, .atlas, .library, .plugins, .home]
+    static let permanentTabs: [StudioCenterTab] = [.chat, .reader, .tasks, .activity, .goals, .courses, .ideas, .notepad, .sites, .browser, .videos, .animations, .artifacts, .memory, .knowledgeMap, .atlas, .library, .plugins]
 
     /// The panes of the Space's kinds, which open beside one another: the
     /// Pages and Sites the sidebar's rows open (`ArtifactsHomeKind`), and

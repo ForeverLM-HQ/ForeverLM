@@ -304,8 +304,6 @@ enum StudioWindowDestination: Equatable {
     /// The Plugins place where it is: its directory, a plugin's page, the
     /// skills or one skill's page.
     case plugins(PluginsPlaceLocation)
-    /// Home: every chat as one list.
-    case home
 
     /// What the menu item is opening, for the toast and for the label.
     var noun: String {
@@ -331,7 +329,6 @@ enum StudioWindowDestination: Equatable {
         case .atlas: return "Atlas"
         case .cardsToCheck: return "cards to check"
         case .memoryReview: return "Memory"
-        case .home: return "Home"
         case .plugins(let location):
             switch location {
             case .directory: return "Plugins"
@@ -380,7 +377,6 @@ enum StudioWindowDestination: Equatable {
             case .memoryReview(let notebookID):
                 vm.requestCardReview(scope: notebookID.map { .notebook($0) } ?? .allNotebooks)
             case .plugins(let location): vm.openPluginsPlace(at: location, in: target)
-            case .home: vm.openHomePlace(in: target)
             }
         }
     }

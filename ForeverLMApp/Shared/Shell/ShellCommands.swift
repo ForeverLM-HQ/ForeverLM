@@ -449,7 +449,7 @@ enum ShellCommands {
     /// New Chat's, and Tasks has no way in (product owner, 2026-10-13:
     /// "scheduled is not so important btw; skip that for now").
     static let placeTabs: [StudioCenterTab] = [
-        .home, .artifacts, .notepad, .sites, .courses, .goals, .ideas,
+        .artifacts, .notepad, .sites, .courses, .goals, .ideas,
         .memory, .library, .plugins, .reader, .activity, .browser, .videos, .animations,
         .knowledgeMap, .atlas,
     ]
@@ -462,7 +462,6 @@ enum ShellCommands {
 
     static func placeKeywords(_ tab: StudioCenterTab) -> [String] {
         switch tab {
-        case .home: return ["chats", "conversations", "threads"]
         case .artifacts: return ["everything", "all"]
         case .notepad: return ["docs", "documents", "notes", "writing"]
         case .sites: return ["artifacts", "web pages", "published"]

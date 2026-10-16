@@ -36,11 +36,12 @@ import UniformTypeIdentifiers
 ///   sites, pages, etc"): each opens from the Space's Canvases, its Recents
 ///   or its Pinned, as a page does (docs/knowledge-map-design.md).
 enum StudioRailItem: String, CaseIterable, Identifiable {
-    /// Home (2026-10-16), Codex's first icon: every chat, in a notebook or in
-    /// none, as one list (`HomePane`). The Space listed them until then
-    /// (product owner, 2026-10-16: "similar to codex we should have a home
-    /// page with all the chats", then "maybe chats shouldn't be under
-    /// spaces").
+    /// Home (2026-10-16), Codex's first icon, and the strip's + before it
+    /// (product owner, 2026-10-16: "the home button should just replace that
+    /// + button; and it should show what's currently shown under that +
+    /// button"): a blank chat with Home's sidebar beside it, New chat, the
+    /// notebooks and every chat. An action that takes the window home, not a
+    /// pane of its own.
     case home
     case newChat
     case memory
@@ -62,7 +63,7 @@ enum StudioRailItem: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .home: return ShellPlaces.descriptor(for: .home).title
+        case .home: return "Home"
         case .newChat: return "New chat"
         case .memory: return "Memory"
         case .space: return "Spaces"
@@ -74,7 +75,7 @@ enum StudioRailItem: String, CaseIterable, Identifiable {
 
     var systemImage: String {
         switch self {
-        case .home: return ShellPlaces.descriptor(for: .home).glyph
+        case .home: return "house"
         case .newChat: return "square.and.pencil"
         case .memory: return MemoryReviewSession.sidebarIcon
         case .space: return "square.on.square"
@@ -137,14 +138,13 @@ struct StudioRailHiddenItems: Equatable {
         [.home, .newChat, .memory, .space, .browser, .library, .plugins].filter { !items.contains($0) }
     }
 
-    /// The icon rail's rows, Codex's: Home, a + for a new chat, then Spaces,
-    /// Memory, Library and Plugins, in that order, less any the learner hid.
-    /// The Space led the places since the Notebooks home, which led until
-    /// 2026-10-09, went; the + went above it on 2026-10-13, and Plugins
-    /// came out of Settings under the Library the same day. New chat is one
-    /// row in Show in Sidebar, so hiding it takes it off the strip and Home's
-    /// sidebar together.
-    static let railOrder: [StudioRailItem] = [.home, .newChat, .space, .memory, .library, .plugins]
+    /// The icon rail's rows, Codex's: Home, then Spaces, Memory, Library and
+    /// Plugins, in that order, less any the learner hid. The Space led the
+    /// places since the Notebooks home, which led until 2026-10-09, went; a
+    /// + for a new chat led them from 2026-10-13 until Home took its place
+    /// (2026-10-16), and Plugins came out of Settings under the Library on
+    /// 2026-10-13. New chat is Home's sidebar's row alone.
+    static let railOrder: [StudioRailItem] = [.home, .space, .memory, .library, .plugins]
 
     /// The rows at the top of Home's sidebar: New chat and the Browser.
     static let sidebarOrder: [StudioRailItem] = [.newChat, .browser]
@@ -710,9 +710,8 @@ struct StudioNavigationRail: View {
                 case .memory: memoryButton(compact: true)
                 case .library: libraryButton(compact: true)
                 case .plugins: pluginsButton(compact: true)
-                case .home: homeButton(compact: true)
-                case .newChat: newChatButton(compact: true)
-                case .browser: EmptyView()
+                case .home: homeButton()
+                case .newChat, .browser: EmptyView()
                 }
             }
             // Always drawn: it is also the way back for a hidden row, its
@@ -1325,19 +1324,17 @@ struct StudioNavigationRail: View {
     /// Spaces (product owner, 2026-10-13: "maybe we need a 'new chat' button
     /// at the top of the left side bar as well; just a + sign"), so a chat
     /// is one click away from every place, a notebook window included.
-    private func newChatButton(compact: Bool = false) -> some View {
+    private func newChatButton() -> some View {
         // Highlighted only while the user is actually on a fresh/blank chat
         // (no session loaded yet) and that chat is on screen. Once a real chat
         // is open its own row carries the selection, and once Docs or Notebooks
         // has replaced Chat in its pane that row does, so the rail never shows
-        // two selected items at once. The strip's + is never lit: it is an
-        // action, not a place, and Home's sidebar beside it lights its own row.
+        // two selected items at once.
         RailButtonRow(
             title: "New chat",
-            systemImage: compact ? "plus" : "square.and.pencil",
+            systemImage: "square.and.pencil",
             railItem: .newChat,
-            isSelected: !compact
-                && sessionStore.activeSessionID == nil
+            isSelected: sessionStore.activeSessionID == nil
                 && Self.isChatVisible(in: windowState),
             openBeside: {
                 vm.inWindow(windowState) {
@@ -1347,8 +1344,8 @@ struct StudioNavigationRail: View {
             },
             otherWindowDestination: .newChat,
             help: "Start a new chat",
-            identifier: compact ? "studio.navigation.strip.newChat" : "studio.navigation.newChat",
-            isCompact: compact
+            identifier: "studio.navigation.newChat",
+            isCompact: false
         ) {
             vm.inWindow(windowState) { vm.requestNewChat() }
         }
@@ -1360,30 +1357,35 @@ struct StudioNavigationRail: View {
         }
     }
 
-    /// Home (2026-10-16), Codex's first icon: every chat as one list. A place
-    /// like the Library: a pane with its ×, Open Beside, Open in Other Window
-    /// and a drag; in a window holding a notebook it leaves the notebook the
-    /// way the Library does, and the notebook's row brings it back.
-    private func homeButton(compact: Bool = false) -> some View {
+    /// Home (2026-10-16), Codex's first icon, which took the + 's place on the
+    /// strip: a blank chat with Home's sidebar beside it, New chat, the
+    /// notebooks and every chat. In a window holding a notebook it leaves the
+    /// notebook first (`requestBlankReviewChat`), and the notebook's row
+    /// brings it back. Lit while the window is on Home, the sidebar showing.
+    private func homeButton() -> some View {
         RailButtonRow(
             title: StudioRailItem.home.title,
             systemImage: StudioRailItem.home.systemImage,
             railItem: .home,
-            isSelected: vm.visibleCenterTabs(in: windowState).contains(.home)
-                && !windowState.isVoiceWorkspacePresented,
+            isSelected: windowState.isOnHome && !windowState.isVoiceWorkspacePresented,
             openBeside: {
-                vm.inWindow(windowState) { vm.openCenterTabBeside(.home) }
+                vm.inWindow(windowState) {
+                    vm.openCenterTabBeside(.chat)
+                    vm.requestBlankReviewChat()
+                }
             },
-            otherWindowDestination: .home,
-            help: "Open Home",
+            otherWindowDestination: .newChat,
+            help: "Home: a new chat, with your notebooks and chats beside it",
             identifier: "studio.navigation.home",
-            isCompact: compact
+            isCompact: true
         ) {
-            vm.inWindow(windowState) { vm.openHomePlace(in: windowState) }
+            vm.inWindow(windowState) { vm.requestBlankReviewChat() }
         }
+        // Draggable like New chat: dropped at either edge of the center area
+        // it opens a fresh chat in its own pane.
         .onDrag {
-            StudioDragVisibility.shared.begin(centerTab: .home)
-            return studioCenterTabDragProvider(for: .home)
+            StudioDragVisibility.shared.begin(centerTab: .chat)
+            return studioCenterTabDragProvider(for: .chat, startsBlankChat: true)
         }
     }
 

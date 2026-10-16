@@ -163,19 +163,18 @@ struct HomeSidebarTests {
         #expect(window.centerTabGroups.groups.map(\.activeTab) == [.library])
     }
 
-    @Test("The rail is New chat's +, Spaces, Memory and Library, and New chat and the Browser are Home's sidebar")
+    @Test("The rail is Home, Spaces, Memory and Library, and New chat and the Browser are Home's sidebar")
     func railRowsAndSidebarRows() {
         let nothingHidden = StudioRailHiddenItems()
         // The Canvas left the rail on 2026-10-07: canvases open from the Space.
         // The Notebooks home, which led it, went on 2026-10-09. New chat's +
-        // went on top on 2026-10-13.
-        #expect(nothingHidden.railItems() == [.home, .newChat, .space, .memory, .library, .plugins])
+        // went on top on 2026-10-13 and gave way to Home on 2026-10-16.
+        #expect(nothingHidden.railItems() == [.home, .space, .memory, .library, .plugins])
         #expect(nothingHidden.sidebarItems() == [.newChat, .browser])
         let hidden = StudioRailHiddenItems([.memory, .browser])
-        #expect(hidden.railItems() == [.home, .newChat, .space, .library, .plugins])
+        #expect(hidden.railItems() == [.home, .space, .library, .plugins])
         #expect(hidden.sidebarItems() == [.newChat])
-        // One New chat row in Show in Sidebar: hiding it takes the + off the
-        // strip and the row off Home's sidebar.
+        // New chat is Home's sidebar's row alone: hiding it leaves the strip.
         let newChatHidden = StudioRailHiddenItems([.newChat])
         #expect(newChatHidden.railItems() == [.home, .space, .memory, .library, .plugins])
         #expect(newChatHidden.sidebarItems() == [.browser])

@@ -174,7 +174,7 @@ shared notebook](/teams#what-follows-a-shared-notebook).
 
 ## Review history
 
-The rail lists each notebook's chats under it and the rest under **Chats**, and **Home**, the first icon on the strip, lists every chat, in a notebook or in none. In-app reviews are there, and so are external Claude, ChatGPT, Gemini, Grok, or Edison Scientific reviews saved into ForeverLM.
+The rail lists each notebook's chats under it and the rest under **Chats**, and the sidebar beside a chat lists every chat, in a notebook or in none. In-app reviews are there, and so are external Claude, ChatGPT, Gemini, Grok, or Edison Scientific reviews saved into ForeverLM.
 
 Stored sessions can include:
 

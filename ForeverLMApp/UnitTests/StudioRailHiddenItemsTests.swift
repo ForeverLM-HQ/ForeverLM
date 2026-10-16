@@ -63,7 +63,7 @@ struct StudioRailHiddenItemsTests {
         let stale = StudioRailHiddenItems(storage: "sites,docs,videos,animations")
         #expect(stale.items.isEmpty, "the retired kind rows are dropped")
         #expect(stale.storage.isEmpty)
-        #expect(stale.visibleTopItems == [.newChat, .memory, .space, .browser, .library, .plugins])
+        #expect(stale.visibleTopItems == [.home, .newChat, .memory, .space, .browser, .library, .plugins])
     }
 
     @Test("Goals, Ideas and Planner are off the rail; a stored one falls out of the set")
@@ -71,7 +71,7 @@ struct StudioRailHiddenItemsTests {
         let stale = StudioRailHiddenItems(storage: "goals,ideas,planner,library")
         #expect(stale.items == [.library])
         #expect(stale.storage == "library")
-        #expect(stale.visibleTopItems == [.newChat, .memory, .space, .browser, .plugins])
+        #expect(stale.visibleTopItems == [.home, .newChat, .memory, .space, .browser, .plugins])
     }
 
     @Test("A hidden row comes back in its own place")
@@ -79,11 +79,11 @@ struct StudioRailHiddenItemsTests {
         let bothHidden = StudioRailHiddenItems()
             .setting(.memory, hidden: true)
             .setting(.newChat, hidden: true)
-        #expect(bothHidden.visibleTopItems == [.space, .browser, .library, .plugins])
+        #expect(bothHidden.visibleTopItems == [.home, .space, .browser, .library, .plugins])
         #expect(StudioRailHiddenItems(storage: bothHidden.storage) == bothHidden)
 
         let memoryBack = bothHidden.toggling(.memory)
-        #expect(memoryBack.visibleTopItems == [.memory, .space, .browser, .library, .plugins], "Memory comes back in its own place, not where New chat was")
+        #expect(memoryBack.visibleTopItems == [.home, .memory, .space, .browser, .library, .plugins], "Memory comes back in its own place, not where New chat was")
     }
 
     @Test("The Home row is off the rail since the Notebooks home went; a stored hidden one falls out of the set, and Plugins closes the top block")
@@ -95,7 +95,7 @@ struct StudioRailHiddenItemsTests {
         #expect(stale.items == [.browser, .memory], "the retired name is dropped; the other rows stay hidden")
         #expect(stale.storage == "browser,memory", "the learner's next change leaves it out")
         #expect(StudioRailHiddenItems().visibleTopItems.last == .plugins)
-        #expect(StudioRailHiddenItems.railOrder == [.home, .newChat, .space, .memory, .library, .plugins], "Home leads, then New chat's +, then the Space")
+        #expect(StudioRailHiddenItems.railOrder == [.home, .space, .memory, .library, .plugins], "Home leads and has taken the + 's place, then the Space")
         let libraryHidden = StudioRailHiddenItems().setting(.library, hidden: true).setting(.plugins, hidden: true)
         #expect(libraryHidden.visibleTopItems.last == .browser)
     }
