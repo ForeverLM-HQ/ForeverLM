@@ -31,6 +31,21 @@ extension ChatOpenPanes {
         studio(chatWindow: state, chatSessionID: nil, vm: vm).sourcesOnScreen
     }
 
+    /// The Studio windows whose screen shows library source `sourceID` right
+    /// now, the window the learner last used first. `open_in_app` asks before
+    /// it opens a source: one already drawn in a Reader is brought forward,
+    /// not opened a second time in another window.
+    @MainActor
+    static func windows(showing sourceID: String, vm: StudioViewModel) -> [StudioWindowState] {
+        let active = StudioWindowRegistry.shared.activeState
+        let states = StudioWindowRegistry.shared.states
+        let ordered = states.filter { $0 === active } + states.filter { $0 !== active }
+        return ordered.filter { state in
+            ChatOpenPanes(windows: [window(state, isChatsWindow: true, chatSessionID: nil, vm: vm)])
+                .sourcesOnScreen.contains { $0.id == sourceID }
+        }
+    }
+
     /// The flashcard a Memory pane in any window has in front of the learner,
     /// read the way a message sent from a chat in `state` reads it: what the
     /// chip over that chat's composer shows.

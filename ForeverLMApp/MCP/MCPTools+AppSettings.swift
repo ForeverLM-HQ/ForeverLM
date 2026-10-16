@@ -1205,6 +1205,31 @@ extension MCPDataStore {
                 return nil
             }
         }
+        // A source already drawn in a Reader, in any window, is not opened a
+        // second time: the window that shows it comes forward and the answer
+        // says so, so the chat does not go on to open it again (product owner,
+        // 2026-10-16: the chat opened a paper another window already had open).
+        if kind == "source" {
+            let shown: (id: String, title: String, here: Bool)? = await MainActor.run {
+                guard let article = studio.loadedArticle(forLinkToken: id) else { return nil }
+                let windows = ChatOpenPanes.windows(showing: article.id, vm: studio)
+                guard let first = windows.first else { return nil }
+                NSApp.activate(ignoringOtherApps: true)
+                StudioWorkspaceWindowCoordinator.shared.window(for: first)?.makeKeyAndOrderFront(nil)
+                return (article.id, studio.displayTitle(for: article), first === StudioWindowRegistry.shared.activeState)
+            }
+            if let shown {
+                return try jsonString([
+                    "opened": "source",
+                    "id": shown.id,
+                    "title": shown.title,
+                    "already_open": true,
+                    "note": shown.here
+                        ? "This source is already open in the Reader of the window the learner is using. Nothing was opened again."
+                        : "This source is already open in the Reader of another ForeverLM window, which now comes forward. Nothing was opened again.",
+                ])
+            }
+        }
         await MainActor.run { Self.bringActiveStudioWindowForward() }
         switch kind {
         case "space":
@@ -1311,7 +1336,7 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "open_in_app",
-                description: "Show one of the learner's things in the ForeverLM window on this Mac, as a click on it would: a notebook opens in its workspace, a doc comes forward in Docs, a chat resumes in the chat panel, a source opens in the Reader, a course quiz is taken, an idea opens, space shows the Space's All list, where every notebook and course is listed, and plugins shows the Plugins place, at one plugin's page when id names it (x, youtube, google_drive, apple_calendar, slack, linear, github, notion, build_your_own_plugin). Use it whenever the learner asks to open, show, go to or switch to something (\"open this notebook\") — listing or loading it for yourself (list_notebooks, get_notebook) changes nothing on screen. id is the thing's own id from the list tools or the call that created it; space takes none, and plugins none for every plugin. Opens in the window the learner last used and brings ForeverLM to the front. Writes nothing synced. Needs a Studio window open.",
+                description: "Show one of the learner's things in the ForeverLM window on this Mac, as a click on it would: a notebook opens in its workspace, a doc comes forward in Docs, a chat resumes in the chat panel, a source opens in the Reader (one already open in any window is brought forward, not opened again), a course quiz is taken, an idea opens, space shows the Space's All list, where every notebook and course is listed, and plugins shows the Plugins place, at one plugin's page when id names it (x, youtube, google_drive, apple_calendar, slack, linear, github, notion, build_your_own_plugin). Use it whenever the learner asks to open, show, go to or switch to something (\"open this notebook\") — listing or loading it for yourself (list_notebooks, get_notebook) changes nothing on screen. id is the thing's own id from the list tools or the call that created it; space takes none, and plugins none for every plugin. Opens in the window the learner last used and brings ForeverLM to the front. Writes nothing synced. Needs a Studio window open.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
