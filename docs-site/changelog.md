@@ -6,9 +6,14 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.159.0 (build 239) — 2026-10-16
+
+**Highlights:**
+- **To Check grades your answer:** Right, Partly or Not quite, with one line, from the same check Review runs.
+- **Remove Source** under a card you are checking drops the source with Undo and skips its other cards.
+
 - **To Check grades your answer.** Answer a card you are checking and the same check Review runs says Right, Partly or Not quite with one line, under the fold above the answer. Keep and Skip stay yours.
 - **Remove Source while checking a card.** A quiet Remove Source under the card (and in its menu) drops the source from the library as Remove does, with Undo, and skips every card of its that waits in To Check.
-
 ## 0.158.0 (build 238) — 2026-10-16
 
 **Highlights:**
