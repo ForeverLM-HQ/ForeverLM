@@ -566,6 +566,25 @@ struct WindowNotebookTests {
         loose.NotebookID = looseID
         #expect(published(looseID) == nil)
     }
+
+    @Test("In a notebook the window's sidebar toggle folds and shows the Sources column, and touches nothing else")
+    func sidebarToggleFoldsSources() {
+        let window = StudioWindowState()
+        window.NotebookID = "bio"
+        #expect(window.sidebarToggleReadsShown(spaceSidebarHidden: false))
+
+        #expect(window.setSidebarShownFromToggle(false) == nil, "the Space sidebar's preference stays as it is")
+        #expect(window.notebook?.sourcesCollapsed == true)
+        #expect(!window.sidebarToggleReadsShown(spaceSidebarHidden: false))
+
+        window.notebook?.sourcesCollapsed = false
+        window.notebook?.sourcesExpanded = true
+        _ = window.setSidebarShownFromToggle(false)
+        #expect(window.notebook?.sourcesExpanded == false, "folded, the column keeps no search's list")
+
+        #expect(window.setSidebarShownFromToggle(true) == nil)
+        #expect(window.notebook?.sourcesCollapsed == false)
+    }
 }
 
 /// The router: every center-tab entry point, asked of a window that holds a
@@ -882,7 +901,7 @@ struct NotebookAddSourcesTests {
         // Folded, the column shows no list, whatever the flag says.
         var folded = expanded
         folded.sourcesCollapsed = true
-        #expect(Sizing.columnWidths(for: folded, totalWidth: 1_250).sources == Sizing.stripWidth)
+        #expect(Sizing.columnWidths(for: folded, totalWidth: 1_250).sources == 0, "a folded Sources column leaves the window")
 
         #expect(!expanded.persisted.sourcesExpanded)
         let decoded = try JSONDecoder().decode(NotebookWorkspace.self, from: JSONEncoder().encode(expanded))
@@ -1009,8 +1028,11 @@ struct NotebookAddSourcesTests {
         #expect(Sizing.minimumWidth(for: chatOnly) == side + chatWidth + side)
         #expect(Sizing.minimumWidth(for: chatOnly, studioShows: false) == side + chatWidth, "an immersive video has Studio step aside")
         #expect(Sizing.centerMinimumWidth(for: pair) == chatWidth + Sizing.dividerWidth + Sizing.documentMinimumWidth)
-        #expect(Sizing.minimumWidth(for: folded)
-            == Sizing.stripWidth + Sizing.separatorWidth + Sizing.centerMinimumWidth(for: pair) + side)
+        #expect(Sizing.minimumWidth(for: folded) == Sizing.centerMinimumWidth(for: pair) + side,
+                "a folded Sources column takes no strip and no separator")
+        let foldedWidths = Sizing.columnWidths(for: folded, totalWidth: 1_250)
+        #expect(foldedWidths.sources == 0)
+        #expect(foldedWidths.center + foldedWidths.studio + Sizing.separatorWidth == 1_250)
         #expect(Sizing.centerMinimumWidth(for: NotebookWorkspace(notebookID: "bio", showsChat: false)) == chatWidth)
 
         let widths = Sizing.paneWidths(
@@ -1168,12 +1190,12 @@ struct NotebookAddSourcesTests {
         ).leadingDocument == nil)
     }
 
-    @Test("A narrow window folds Sources to its strip, then Studio, for the center's sake alone, and never the rail")
+    @Test("A narrow window folds Sources away, then Studio to its strip, for the center's sake alone, and never the rail")
     func roomMaking() {
         typealias Sizing = NotebookWorkspaceSizing
         let pair = NotebookWorkspace(notebookID: "bio", document: .reader)
         let needed = Sizing.minimumWidth(for: pair)
-        let sourcesSaving = Sizing.sideMinimumWidth - Sizing.stripWidth
+        let sourcesSaving = Sizing.sideMinimumWidth + Sizing.separatorWidth
 
         let roomy = Sizing.folds(for: pair, totalWidth: needed + 50)
         #expect(!roomy.sources && !roomy.studio)

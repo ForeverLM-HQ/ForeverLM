@@ -44,9 +44,11 @@ struct NotebookCenterLayout: Equatable {
 ///
 /// The workspace is Gemini Notebook's three parts (docs/notebooks-design.md,
 /// "The notebook workspace"): Sources and Studio take about a quarter of the
-/// window each and the center the half between them, and a side column
-/// folds to a strip that keeps an icon per source, tile or output rather
-/// than leaving the window.
+/// window each and the center the half between them. Studio folds to a strip
+/// that keeps an icon per tile or output; Sources folds to nothing, so the
+/// window never shows two icon strips side by side (product owner,
+/// 2026-10-17: "multiple sidebars in a notebook feel a bit strange") — the
+/// window's sidebar toggle brings it back.
 enum NotebookWorkspaceSizing {
     /// A side column's narrowest and widest while open.
     static let sideMinimumWidth: CGFloat = 260
@@ -55,8 +57,9 @@ enum NotebookWorkspaceSizing {
     /// bounds above: Gemini's quarter, a little less, so the chat keeps the
     /// half between them.
     static let sideShare: CGFloat = 0.24
-    /// A folded side column: its buttons, then an icon per source (Sources)
-    /// or per tile and output (Studio). Gemini's strip is 56 px.
+    /// A folded Studio column: its buttons, then an icon per tile and output.
+    /// Gemini's strip is 56 px. A folded Sources column has none: it takes no
+    /// width and no separator.
     static let stripWidth: CGFloat = 56
     /// The Sources column while it shows a web or PubMed search's whole list
     /// (`NotebookWorkspace.sourcesExpanded`): Gemini widens its panel to
@@ -129,8 +132,9 @@ enum NotebookWorkspaceSizing {
     }
 
     /// What the Sources column takes at its narrowest, separator included.
+    /// Nothing while it is folded.
     static func sourcesFootprint(for workspace: NotebookWorkspace) -> CGFloat {
-        (workspace.sourcesCollapsed ? stripWidth : sideMinimumWidth) + separatorWidth
+        workspace.sourcesCollapsed ? 0 : sideMinimumWidth + separatorWidth
     }
 
     /// What the Studio column takes at its narrowest, separator included;
@@ -152,7 +156,8 @@ enum NotebookWorkspaceSizing {
     /// The three columns' widths in a workspace `totalWidth` wide, separators
     /// apart: each open side column takes its share — Sources the width the
     /// learner dragged it to (`sourcesPreferredWidth`) if they did — a folded
-    /// one its strip, Sources showing a search's whole list its widened width
+    /// Studio its strip and a folded Sources nothing, Sources showing a
+    /// search's whole list its widened width
     /// (the Studio its minimum meanwhile), and the center the rest. When the
     /// side columns would leave the center short of its minimum, the open
     /// ones give it back down to their own minimum, Studio first, so a fold
@@ -167,11 +172,11 @@ enum NotebookWorkspaceSizing {
         let share = sideWidth(totalWidth: totalWidth)
         let open = openSourcesWidth(totalWidth: totalWidth, preferredWidth: sourcesPreferredWidth)
         let expanded = workspace.sourcesExpanded && !workspace.sourcesCollapsed
-        var sources = workspace.sourcesCollapsed ? stripWidth : (expanded ? max(open, expandedSourcesWidth) : open)
+        var sources = workspace.sourcesCollapsed ? 0 : (expanded ? max(open, expandedSourcesWidth) : open)
         var studio = studioShows
             ? (workspace.studioCollapsed ? stripWidth : (expanded ? sideMinimumWidth : share))
             : 0
-        let separators = separatorWidth * (studioShows ? 2 : 1)
+        let separators = (workspace.sourcesCollapsed ? 0 : separatorWidth) + (studioShows ? separatorWidth : 0)
         let centerMinimum = centerMinimumWidth(for: workspace)
         var short = centerMinimum - (totalWidth - separators - sources - studio)
         if short > 0, studioShows, !workspace.studioCollapsed {
@@ -252,7 +257,7 @@ enum NotebookWorkspaceSizing {
 
     /// What a workspace `totalWidth` wide folds so the notebook's center
     /// fits: Sources first — opening a source is what usually asks for the
-    /// room, and its strip keeps an icon per source — then Studio, which
+    /// room, and the window's sidebar toggle brings it back — then Studio, which
     /// the product owner wants on screen while the notebook is worked in (2026-10-02).
     /// Never the navigation rail, whose visibility is a synced preference an
     /// open must not write; and only for the center's sake, so Show Sources
@@ -266,7 +271,7 @@ enum NotebookWorkspaceSizing {
         let studio = studioFootprint(for: workspace, studioShows: studioShows)
         let foldSources = !workspace.sourcesCollapsed
             && totalWidth < sourcesFootprint(for: workspace) + center + studio
-        let sources = foldSources ? stripWidth + separatorWidth : sourcesFootprint(for: workspace)
+        let sources = foldSources ? 0 : sourcesFootprint(for: workspace)
         let foldStudio = studioShows && !workspace.studioCollapsed && totalWidth < sources + center + studio
         return (foldSources, foldStudio)
     }
@@ -385,12 +390,14 @@ struct NotebookWorkspaceView: View {
                 studioShows: studioShows,
                 sourcesPreferredWidth: sourcesPreferredWidth
             )
-            let centerStart = widths.sources + Sizing.separatorWidth
+            let centerStart = widths.sources + (workspace.sourcesCollapsed ? 0 : Sizing.separatorWidth)
             HStack(spacing: 0) {
-                sourcesColumn
-                    .frame(width: widths.sources)
-                    .frame(maxHeight: .infinity)
-                columnSeparator
+                if !workspace.sourcesCollapsed {
+                    sourcesColumn
+                        .frame(width: widths.sources)
+                        .frame(maxHeight: .infinity)
+                    columnSeparator
+                }
                 center(width: widths.center, start: centerStart, totalWidth: visibleWidth)
                     .frame(width: widths.center)
                     .frame(maxHeight: .infinity)
@@ -402,7 +409,7 @@ struct NotebookWorkspaceView: View {
                 }
             }
             // The Sources column's edge drags, over the hairline and the
-            // column's own padding beside it; folded, the strip has one width.
+            // column's own padding beside it; folded, there is no column.
             .overlay(alignment: .topLeading) {
                 if !workspace.sourcesCollapsed {
                     sourcesResizeHandle(shownWidth: widths.sources, totalWidth: visibleWidth)
@@ -554,22 +561,8 @@ struct NotebookWorkspaceView: View {
 
     // MARK: - Sources column
 
-    @ViewBuilder
+    /// Drawn only while open: folded, the column is not in the window.
     private var sourcesColumn: some View {
-        Group {
-            if workspace.sourcesCollapsed {
-                collapsedSourcesColumn
-            } else {
-                expandedSourcesColumn
-            }
-        }
-        .background(Color(nsColor: .windowBackgroundColor))
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Sources")
-        .accessibilityIdentifier("notebook.sources")
-    }
-
-    private var expandedSourcesColumn: some View {
         Group {
             if let goal {
                 VStack(alignment: .leading, spacing: 10) {
@@ -591,6 +584,10 @@ struct NotebookWorkspaceView: View {
         // header clears the traffic lights. Nothing overlays its corner.
         .environment(\.studioCenterPaneHeaderLeadingInset, headerLeadingInset)
         .environment(\.studioChromeLineReservation, StudioChromeLineReservation())
+        .background(Color(nsColor: .windowBackgroundColor))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Sources")
+        .accessibilityIdentifier("notebook.sources")
     }
 
     private var columnActions: NotebookSourcePoolColumnActions {
@@ -686,30 +683,6 @@ struct NotebookWorkspaceView: View {
         // The wash sits 4 pt outside the words: the name lines up with the
         // search field's edge.
         .padding(.leading, -4)
-    }
-
-    /// The folded column: what brings it back, and the notebook's sources.
-    private var collapsedSourcesColumn: some View {
-        VStack(spacing: 6) {
-            Button { setSourcesCollapsed(false) } label: {
-                Image(systemName: "sidebar.left")
-                    .zoomedSystemFont(size: 12, weight: .medium)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 26, height: 26)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.hoverWash)
-            .help("Show Sources")
-            .accessibilityLabel("Show Sources")
-            .accessibilityIdentifier("notebook.sources.expand")
-            if let goal {
-                NotebookSourcesStripIcons(goal: goal)
-            }
-        }
-        // Full screen has no band, and the rail's toggle then sits in flow
-        // over this corner while the rail is hidden.
-        .padding(.top, titlebarBandHeight == nil && headerLeadingInset > 0 ? 48 : 10)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     private func setSourcesCollapsed(_ collapsed: Bool) {
@@ -1050,51 +1023,5 @@ struct NotebookWorkspaceView: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Chat")
         .accessibilityIdentifier("notebook.chat")
-    }
-}
-
-/// The folded Sources column's icons, Gemini Notebook's strip: one per source
-/// in the notebook, each opening its source in the Reader beside the chat —
-/// ForeverLM's Reader, with the PDF's figures and the video's transcript,
-/// never a text column — with its title as the help.
-private struct NotebookSourcesStripIcons: View {
-    @Environment(StudioViewModel.self) private var vm
-    @Environment(StudioWindowState.self) private var windowState
-    let goal: LearningGoalRecord
-
-    var body: some View {
-        let sources = goal.items.filter(\.isApproved).compactMap { vm.articlesById[$0.sourceID] }
-        if !sources.isEmpty {
-            Rectangle()
-                .fill(Color.primary.opacity(0.08))
-                .frame(width: 24, height: 1)
-                .padding(.vertical, 4)
-                .accessibilityHidden(true)
-            ScrollView(showsIndicators: false) {
-                // Lazy: a button is built as it scrolls in. While an
-                // assistive app reads the screen, SwiftUI walks every control
-                // in the window for each control an update builds
-                // (2026-10-03), so a strip of every source taxed each open.
-                LazyVStack(spacing: 4) {
-                    ForEach(sources) { article in
-                        Button {
-                            Task { await vm.selectArticle(article.id, in: windowState, revealingReader: true) }
-                        } label: {
-                            Image(systemName: article.sourceType.symbolName)
-                                .zoomedSystemFont(size: 13)
-                                .foregroundStyle(.secondary)
-                                .frame(width: 30, height: 26)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.hoverWash)
-                        .help(vm.displayTitle(for: article))
-                        .accessibilityLabel(vm.displayTitle(for: article))
-                    }
-                }
-                .padding(.bottom, 12)
-            }
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel("Sources in this notebook")
-        }
     }
 }

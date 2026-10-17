@@ -557,21 +557,32 @@ final class StudioWindowState: Identifiable {
     }
 
     /// Whether the sidebar toggle reads as shown: the sidebar it folds here is
-    /// on screen. On a place of its own that is Home's sidebar beside it;
-    /// elsewhere, Home's sidebar and the Space's together.
+    /// on screen. In a notebook that is the Sources column; on a place of its
+    /// own, Home's sidebar beside it; elsewhere, Home's sidebar and the
+    /// Space's together.
     /// `spaceSidebarHidden` is this Mac's `space.sidebarHidden`.
     func sidebarToggleReadsShown(spaceSidebarHidden: Bool) -> Bool {
+        if let notebook { return !notebook.sourcesCollapsed }
         if isOnPlaceOfItsOwn { return drawsNavigationRail && homeSidebarBesidePlace }
         return drawsNavigationRail && !spaceSidebarHidden
     }
 
     /// The sidebar toggle pressed, from its button, ⌃⌘S or the View menu.
+    /// In a notebook it folds or shows the Sources column.
     /// On a place of its own it brings Home's sidebar in beside it, or folds
     /// it, and leaves the learner's choice for Home and the Space alone.
     /// Elsewhere it folds Home's sidebar and the Space's together, never the
     /// icon strip. Returns the Space sidebar's hidden state to store in
     /// `space.sidebarHidden`, or nil when that choice stays as it is.
     func setSidebarShownFromToggle(_ shown: Bool) -> Bool? {
+        // A notebook's one sidebar beside the icon strip is its Sources
+        // column; folded, it leaves the window rather than leaving a second
+        // strip (product owner, 2026-10-17).
+        if notebook != nil {
+            notebook?.sourcesCollapsed = !shown
+            if !shown { notebook?.sourcesExpanded = false }
+            return nil
+        }
         if isOnPlaceOfItsOwn {
             if shown { setNavigationRailShown(true) }
             if homeSidebarBesidePlace != shown { homeSidebarBesidePlace = shown }
