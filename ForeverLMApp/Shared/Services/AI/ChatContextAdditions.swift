@@ -347,7 +347,7 @@ enum ChatContextAdditions {
         func clean(_ text: String) -> String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
         var lines = [
             "<card_on_screen_when_sent>",
-            "When the learner sent this message, a Memory pane in ForeverLM (\(card.place)) showed this flashcard (card_id: \(card.id)):",
+            "When the learner sent this message, a Memory pane in ForeverLM (\(card.place)) showed this flashcard (card_id: \(card.id), which can be long: pass it to a tool whole, exactly as written, never shortened or ending in an ellipsis):",
             "Question: \(clean(card.question))",
             "Answer: \(clean(card.answer))",
         ]

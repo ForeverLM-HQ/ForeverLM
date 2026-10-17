@@ -477,6 +477,7 @@ extension MCPDataStore {
                 now: Date(), budgetMinutes: nil, newPerDay: MemoryCardSettings.newCardsPerDay(), deadlines: [],
                 scope: nil, includesListings: true, includesToCheck: true, stateDefaults: cardStateDefaults
             )
+            let cardID = try Self.completedCardID(cardID, among: snapshot.toCheck.map(\.cardID) + snapshot.cards.map(\.face.cardID))
             if let waiting = snapshot.toCheck.first(where: { $0.cardID == cardID }) {
                 front = waiting.face.front
                 back = waiting.face.back
@@ -644,7 +645,8 @@ extension MCPDataStore {
         var notFound: [String] = []
         var decidedIDs = Set<String>()
         for entry in asked {
-            guard let card = byID[entry.cardID] else {
+            let cardID = try Self.completedCardID(entry.cardID, among: Array(byID.keys))
+            guard let card = byID[cardID] else {
                 notFound.append(entry.cardID)
                 continue
             }
@@ -833,7 +835,9 @@ extension MCPDataStore {
         let practice = try Self.strictBoolArgument(rawPractice, "practice") ?? false
         await MemoryCardStateStore.loaded(defaults: cardStateDefaults)
         let store = try knowledgeStore()
-        let (item, attempts, face) = try keptCard(cardID: cardID, itemID: itemID, store: store)
+        var fullID = cardID
+        if itemID == nil { fullID = try await fullCardID(cardID, store: store) }
+        let (item, attempts, face) = try keptCard(cardID: fullID, itemID: itemID, store: store)
         let now = Date()
         let state = face.stateDeckID(in: item).flatMap {
             MemoryCardStateStore.state(cardID: face.cardID, deckID: $0, defaults: cardStateDefaults)
@@ -888,6 +892,38 @@ extension MCPDataStore {
         case .alreadyRecorded: return "already_recorded"
         case .notCounted: return "not_counted"
         case .retired: return "retired"
+        }
+    }
+
+    /// The card id an assistant meant by one it shortened (`CardIDCompletion`):
+    /// `card_id` itself when it is a card's, kept or still to check, and when
+    /// no card's id starts like it (the caller's own refusal then says so). Two
+    /// cards that fit are refused here with their full ids. Only an id that no
+    /// kept card answers to reads the cards to check, so a whole id costs
+    /// nothing.
+    func fullCardID(_ rawCardID: String?, store: KnowledgeStore) async throws -> String? {
+        guard let cardID = Self.trimmedOrNil(rawCardID) else { return nil }
+        if try store.loadMemoryItem(cardID) != nil
+            || store.loadMemoryItem(MemoryTutorIdentity.cardItemID(cardID: cardID)) != nil { return cardID }
+        let snapshot = try await notebookFileStorage.memoryCardReviewSnapshot(
+            now: Date(), budgetMinutes: nil, newPerDay: MemoryCardSettings.newCardsPerDay(), deadlines: [],
+            scope: nil, includesListings: true, includesToCheck: true, stateDefaults: cardStateDefaults
+        )
+        return try Self.completedCardID(cardID, among: snapshot.toCheck.map(\.cardID) + snapshot.cards.map(\.face.cardID))
+    }
+
+    /// `CardIDCompletion` as a tool's answer: the full id, or the refusal that
+    /// names the cards a shortened id could be.
+    static func completedCardID(_ cardID: String, among known: [String]) throws -> String {
+        switch CardIDCompletion.resolve(cardID, among: known) {
+        case .exact, .unknown:
+            return cardID
+        case .completed(let full):
+            return full
+        case .ambiguous(let candidates):
+            throw MCPError.notFound(
+                "\(cardID) fits more than one card, so none was used. Pass the whole card_id, never shortened or with an ellipsis, as list_cards returns it: \(candidates.joined(separator: ", "))."
+            )
         }
     }
 
@@ -1035,6 +1071,8 @@ extension MCPDataStore {
 
         await MemoryCardStateStore.loaded(defaults: cardStateDefaults)
         let store = try knowledgeStore()
+        var cardID = cardID
+        if itemID == nil { cardID = try await fullCardID(cardID, store: store) }
         let kept: (item: MemoryItem, attempts: [MemoryAttempt], face: MemoryCard)
         do {
             kept = try keptCard(cardID: cardID, itemID: itemID, store: store)

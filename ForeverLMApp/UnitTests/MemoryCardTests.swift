@@ -1192,4 +1192,26 @@ struct MemoryCardTests {
         state.memoryPaneSection = .review
         #expect(!MCPDataStore.holdPicturesOnCardToCheck(cardID: "card-b", front: nil, back: [figure]))
     }
+
+    @Test("A shortened card id names the one card it fits; two fits are refused with full ids")
+    func shortenedCardIDsComplete() throws {
+        let source = "src_9781ed5d8ff730973e140c24247d0b7671760f5522f2f15c9b77aa0852e6f57b"
+        let gist = "card:\(source):gist:\(source)"
+        let other = "card:\(source):seed-two"
+        let known = [gist, other, "card:src_aaaa:gist:src_aaaa"]
+        #expect(CardIDCompletion.resolve(gist, among: known) == .exact)
+        // The model's own shortening: whole head, tail written as dots.
+        #expect(CardIDCompletion.resolve("card:\(source):gis...", among: known) == .completed(gist))
+        #expect(CardIDCompletion.resolve("card:\(source):gis\u{2026}", among: known) == .completed(gist))
+        #expect(CardIDCompletion.resolve("card:\(source):gist:src_9781...6f57b", among: known) == .completed(gist))
+        // Cut short with no ellipsis.
+        #expect(CardIDCompletion.resolve("card:\(source):gist", among: known) == .completed(gist))
+        // Two cards fit: no guess.
+        #expect(CardIDCompletion.resolve("card:\(source)...", among: known) == .ambiguous([gist, other]))
+        // Nothing fits.
+        #expect(CardIDCompletion.resolve("card:src_zzzz...", among: known) == .unknown)
+        #expect(CardIDCompletion.resolve("...", among: known) == .unknown)
+        #expect(try MCPDataStore.completedCardID("card:\(source):gis...", among: known) == gist)
+        #expect(throws: MCPError.self) { try MCPDataStore.completedCardID("card:\(source)...", among: known) }
+    }
 }

@@ -546,3 +546,50 @@ struct ChatSavedCards: Equatable, Sendable {
         value.addingPercentEncoding(withAllowedCharacters: encodable) ?? value
     }
 }
+
+// MARK: - A card id an assistant shortened
+
+/// The card an assistant meant by an id it shortened. A card id can run past
+/// 150 characters (`card:<source id>:gist:<source id>`: the source's 68-character
+/// id twice), and a model copying one into a tool call often keeps the head and
+/// writes the tail as `…` or `...`, or stops short. The ids the library holds
+/// settle it: a shortened id names the one card whose id starts with its head
+/// and ends with its tail, and when two cards fit, the call is refused with
+/// their full ids so the retry is exact.
+enum CardIDCompletion {
+    enum Result: Equatable {
+        /// The id is a card's own.
+        case exact
+        /// The one card the shortened id fits, by its full id.
+        case completed(String)
+        /// Two or more cards fit: their full ids, at most `maxCandidates`.
+        case ambiguous([String])
+        /// No card's id starts like this one.
+        case unknown
+    }
+
+    static let maxCandidates = 5
+
+    /// `given` against the ids `known`. A `…` or a run of three or more dots
+    /// stands for the part left out: what is before the first one must start
+    /// the id and what is after the last must end it. With none, the id is
+    /// taken as cut short, a prefix.
+    static func resolve(_ given: String, among known: [String]) -> Result {
+        let trimmed = given.trimmingCharacters(in: .whitespacesAndNewlines)
+        if known.contains(trimmed) { return .exact }
+        let marked = trimmed.replacingOccurrences(of: "(\\.{3,}|\u{2026})+", with: "\u{2026}", options: .regularExpression)
+        let pieces = marked.components(separatedBy: "\u{2026}")
+        let head = pieces.first ?? ""
+        let tail = pieces.count > 1 ? (pieces.last ?? "") : ""
+        guard !head.isEmpty else { return .unknown }
+        var seen = Set<String>()
+        let fits = known.filter { id in
+            id.count >= head.count + tail.count && id.hasPrefix(head) && id.hasSuffix(tail) && seen.insert(id).inserted
+        }
+        switch fits.count {
+        case 0: return .unknown
+        case 1: return .completed(fits[0])
+        default: return .ambiguous(Array(fits.prefix(maxCandidates)))
+        }
+    }
+}
