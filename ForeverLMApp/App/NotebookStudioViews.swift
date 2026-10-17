@@ -676,32 +676,6 @@ struct NotebookStudioTileControl: View {
             .disabled(!enabled)
             .help(tile.help)
             .accessibilityIdentifier(identifier)
-        case .teachBack:
-            // One ticked source, picked here: the chat opens asking the
-            // learner to explain it from memory (`TeachBack`). Live like
-            // the Explainer, saying what it needs when nothing is ticked.
-            let candidates = vm.notebookTeachBackCandidates(goal.id)
-            Menu {
-                if candidates.isEmpty {
-                    Text(Self.nothingTickedLine)
-                }
-                ForEach(candidates) { article in
-                    Button(vm.displayTitle(for: article)) {
-                        vm.inWindow(windowState) {
-                            vm.requestNotebookTeachBack(notebookID: goal.id, sourceID: article.id)
-                        }
-                    }
-                }
-            } label: {
-                NotebookStudioTileLabel(tile: tile, isEnabled: enabled, style: style)
-            }
-            .menuStyle(.button)
-            .buttonStyle(.plain)
-            .menuIndicator(.hidden)
-            .hoverHighlight(cornerRadius: cornerRadius, inset: 0)
-            .disabled(!enabled)
-            .help(tile.help)
-            .accessibilityIdentifier(identifier)
         default:
             Button {
                 act()
@@ -732,8 +706,6 @@ struct NotebookStudioTileControl: View {
     /// The Explainer menu's one line when no ticked source is one it can
     /// explain: what to add or tick for it to work on.
     private static let nothingToExplainLine = "Add or tick a paper, article, episode or video first"
-    /// The Feynman Technique menu's one line when nothing it can read is ticked.
-    private static let nothingTickedLine = "Add or tick a source first"
 
     /// One ticked source in the Explainer tile's menu: its explainer opens
     /// when it has one, is written when it has none, and while it is being
@@ -775,7 +747,7 @@ struct NotebookStudioTileControl: View {
             NotebookStudioActions.importVideoOverviews(into: goal, vm: vm)
         case .mnemonicReading:
             vm.inWindow(windowState) { vm.presentNotebookMnemonicReading(notebookID: goal.id) }
-        case .report, .explainer, .teachBack, .cards, .canvas:
+        case .report, .explainer, .cards, .canvas:
             // Menus, drawn above.
             break
         }
@@ -924,7 +896,6 @@ extension NotebookStudioTile {
         case .deepResearch: return .teal
         case .course: return .green
         case .explainer: return .magenta
-        case .teachBack: return .cyan
         case .canvas: return .violet
         }
     }
@@ -1515,17 +1486,6 @@ struct NotebookMakeMenuItems: View {
             }
         }
         .disabled(!takes || candidates.isEmpty)
-        let papers = vm.notebookTeachBackCandidates(notebookID)
-        Menu(NotebookStudioTile.teachBack.title) {
-            ForEach(papers) { article in
-                Button(vm.displayTitle(for: article)) {
-                    vm.inWindow(windowState) {
-                        vm.requestNotebookTeachBack(notebookID: notebookID, sourceID: article.id)
-                    }
-                }
-            }
-        }
-        .disabled(!takes || papers.isEmpty)
         if vm.listsCanvases {
             let canvases = vm.canvases(inNotebook: notebookID)
             Menu("Canvas") {

@@ -81,6 +81,8 @@ struct NotebookChatGuide: View {
     /// Asks one of the kept questions in this chat.
     var askQuestion: (String) -> Void = { _ in }
     let review: () -> Void
+    /// Starts the Feynman Technique on the notebook (`TeachBack`).
+    let teachBack: () -> Void
     var openChat: (String) -> Void = { _ in }
     @State private var isListingAllChats = false
 
@@ -107,6 +109,8 @@ struct NotebookChatGuide: View {
                             .disabled(inChat == 0)
                     }
                     chip("Quiz me on it", systemImage: "graduationcap", identifier: "notebook.guide.review", action: review)
+                        .disabled(inChat == 0)
+                    chip(TeachBack.title, systemImage: "person.bubble", identifier: "notebook.guide.teachBack", action: teachBack)
                         .disabled(inChat == 0)
                 }
                 if case .questions(let kept) = questions {

@@ -585,22 +585,19 @@ struct NotebookStudioTests {
     @Test("The tiles in Gemini Notebook's order, and the Explainer offers ticked papers and articles")
     func tilesAndExplainerCandidates() {
         #expect(NotebookStudioTile.allCases
-            == [.audioOverview, .videoOverview, .cards, .mnemonicReading, .report, .deepResearch, .course, .explainer, .teachBack, .canvas, .note])
+            == [.audioOverview, .videoOverview, .cards, .mnemonicReading, .report, .deepResearch, .course, .explainer, .canvas, .note])
         #expect(NotebookStudioTile.offered == NotebookStudioTile.allCases, "the Report among them, now its generator is here")
-        #expect(NotebookStudioTile.gridTiles == [.audioOverview, .videoOverview, .cards, .mnemonicReading, .report, .deepResearch, .course, .explainer, .teachBack, .canvas],
+        #expect(NotebookStudioTile.gridTiles == [.audioOverview, .videoOverview, .cards, .mnemonicReading, .report, .deepResearch, .course, .explainer, .canvas],
                 "The Studio draws the Canvas tile only where the Canvas shows; Note is the column's floating Add note, not a tile")
-        #expect(NotebookStudioTile.allCases.filter(\.isMenu) == [.cards, .report, .explainer, .teachBack, .canvas], "Cards offers Make Cards… and Practice Cards…")
-        #expect(NotebookStudioTile.teachBack.title == "Feynman Technique")
-        #expect(NotebookStudioTile.teachBack.makesIntoNotebook)
+        #expect(NotebookStudioTile.allCases.filter(\.isMenu) == [.cards, .report, .explainer, .canvas], "Cards offers Make Cards… and Practice Cards…")
 
         let (vm, _, paperID, _) = studio()
         #expect(vm.notebookExplainerCandidates("bio").map(\.id) == [paperID])
-        #expect(vm.notebookTeachBackCandidates("bio").map(\.id) == [paperID])
         #expect(vm.notebookStudioSourceIDs("bio") == [paperID])
     }
 
-    @Test("A notebook of podcast episodes offers them to the Explainer and to Feynman Technique; a book only to Feynman Technique; ForeverLM's own scripts to neither")
-    func spokenSourcesAreExplainedAndTaughtBack() {
+    @Test("A notebook of podcast episodes offers them to the Explainer; ForeverLM's own scripts it does not")
+    func spokenSourcesAreExplained() {
         let (vm, _, _, _) = studio()
         let episode = Self.article(url: "https://pod.example/ep-4", title: "Ep 4: Bioelectricity", type: .podcast)
         let video = Self.article(url: "https://www.youtube.com/watch?v=abc", title: "Read + Write MRIs", type: .video)
@@ -610,35 +607,6 @@ struct NotebookStudioTests {
         vm.learningGoals.append(Self.notebook("pods", sources: [episode.id, video.id, book.id, script.id], teamID: vm.activeTeamID))
 
         #expect(vm.notebookExplainerCandidates("pods").map(\.id) == [episode.id, video.id])
-        #expect(vm.notebookTeachBackCandidates("pods").map(\.id) == [episode.id, video.id, book.id])
-    }
-
-    @Test("Feynman Technique asks the notebook's chat for a teach-back on the paper picked, and an archived notebook or an unticked paper asks for nothing")
-    func teachBackTileAsksForATeachBackChat() {
-        let restore = capturingSharedDefaults()
-        defer { restore() }
-        let (vm, window, paperID, _) = studio()
-        let unticked = vm.articles.first { $0.title == "Another paper" }!
-
-        vm.inWindow(window) { vm.requestNotebookTeachBack(notebookID: "bio", sourceID: unticked.id) }
-        #expect(vm.pendingTeachBack == nil, "a paper the notebook does not offer")
-
-        window.notebook = NotebookWorkspace(notebookID: "shelved")
-        vm.inWindow(window) { vm.requestNotebookTeachBack(notebookID: "shelved", sourceID: paperID) }
-        #expect(vm.pendingTeachBack == nil, "an archived notebook takes nothing")
-        #expect(vm.reviewChatAutoStartRequestID == nil)
-
-        window.notebook = NotebookWorkspace(notebookID: "bio")
-        vm.inWindow(window) { vm.requestNotebookTeachBack(notebookID: "bio", sourceID: paperID) }
-        #expect(vm.pendingTeachBack == TeachBackChatRequest(
-            notebookID: "bio",
-            sourceID: paperID,
-            sourceTitle: "Oxidative phosphorylation"
-        ))
-        #expect(vm.contextSourceIds == [paperID], "the chat holds the one paper")
-        #expect(vm.reviewChatAutoStartRequestID != nil)
-        #expect(vm.reviewChatTargetWindowID == window.id)
-        #expect(window.notebook?.notebookID == "bio", "a chat of the notebook keeps the window in it")
     }
 
     @Test("The Studio works from the notebook's own ticked sources: a context notebook reaches nothing until put in, and then its chats alone")

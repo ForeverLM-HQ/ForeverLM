@@ -21,7 +21,7 @@ Use in-app Chat when you want to:
 
 Chat is source-grounded. Add sources to the current context or open a scheduled source, then start a review from the Chat panel.
 
-In a [notebook](/studio#inside-a-notebook), the chat reads the sources ticked in the notebook's Sources column, its own and those of any notebook you put into its context, and it can still reach the rest of your library when you ask it to. A new chat there starts in the notebook, an empty one offers **Suggest questions** and **Quiz me on it**, and what the chat makes (a Page, a course, a picture) is filed in the notebook.
+In a [notebook](/studio#inside-a-notebook), the chat reads the sources ticked in the notebook's Sources column, its own and those of any notebook you put into its context, and it can still reach the rest of your library when you ask it to. A new chat there starts in the notebook, an empty one offers **Suggest questions**, **Quiz me on it** and **Feynman Technique**, and what the chat makes (a Page, a course, a picture) is filed in the notebook.
 
 On the Mac, any chat can take you somewhere: "open this notebook", "show me that paper" or "go to my Bioelectricity notebook" opens it in the window, as clicking it would. Chat says it opened, made or changed something only when it actually did.
 
@@ -129,7 +129,7 @@ On the Mac, a trackpad pinch over a chat makes that chat's text larger or smalle
 
 ForeverLM's review flow asks you to explain ideas in your own words. The tutor probes gaps, asks follow-up questions, and records the exchange as a review session.
 
-A notebook's **Feynman Technique** tile turns this around: you explain one paper first, from memory, and the tutor only asks, one question at a time at the biggest gap in your explanation, with no plan and no explaining of its own (see [The Studio column](/studio#the-studio-column)). It is kept as a review too, and a reopened one goes on asking. On the iPhone it reads like any review, and continues on your Mac.
+A notebook's **Feynman Technique** turns this around: you say what you know about the notebook first, from memory, and the tutor asks, one question at a time at the biggest gap, then fills in what is missing once you have tried, with no plan and no explaining before that (see [Inside a notebook](/studio#inside-a-notebook)). It is kept as a review too, and a reopened one goes on asking. On the iPhone it reads like any review, and continues on your Mac.
 
 Completed in-app reviews are linked to the source IDs they covered. That link is what updates a source's Reviewed status, and a review that grades a source planned in Schedule marks it done.
 

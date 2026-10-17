@@ -2,9 +2,9 @@ import Foundation
 import Testing
 @testable import ForeverLM
 
-/// The Studio's Feynman Technique (`TeachBack`): a chat on one source that
-/// opens by asking the learner to explain it, whose tutor probes rather than
-/// explains, and which keeps that tutor when it is reopened because its id
+/// The Feynman Technique (`TeachBack`): a notebook chat that opens by asking
+/// the learner what they know, whose tutor probes and then fills in rather
+/// than explains first, and which keeps that tutor when it is reopened because its id
 /// names it.
 @Suite("Teach back")
 @MainActor
@@ -23,14 +23,14 @@ struct TeachBackTests {
         #expect(ReviewSessionManager.createdChatKind(fixedSessionID: id, mode: .review) == .review)
         #expect(ChatKindClassifier.kind(of: .init(id: id, kind: ChatKind.review.rawValue)) == .review)
         #expect(ChatKind.review.isPrivate)
-        #expect(TeachBack.topic(sourceTitle: "Cristae remodelling") == "Feynman Technique: Cristae remodelling")
+        #expect(TeachBack.topic(notebookTitle: "Mitochondria") == "Feynman Technique: Mitochondria")
     }
 
-    @Test("The opening is written ahead: it names the source and asks for an explanation from memory")
+    @Test("The opening is written ahead: it names the notebook and asks what the learner knows, from memory")
     func scriptedOpening() {
-        let opening = TeachBack.openingMessage(sourceTitle: "Cristae remodelling")
-        #expect(opening == "Explain \u{201C}Cristae remodelling\u{201D} to me in your own words, as you would to a bright friend who hasn't come across it. Don't look back at it first: what is it about, what does it claim, and how does it know? Start wherever you like, and I'll ask about whatever I can't follow yet.")
-        #expect(!opening.contains("\u{2014}"), "Web Studio serves the same words, and its files carry no em dash")
+        let opening = TeachBack.openingMessage(notebookTitle: "Mitochondria")
+        #expect(opening == "Tell me what you know about \u{201C}Mitochondria\u{201D} in your own words, as you would to a bright friend who hasn't come across it. Don't look back at your sources first: just what you remember, in whatever order it comes. I'll ask about whatever I can't follow yet, and we'll fill in what's missing together.")
+        #expect(!opening.contains("\u{2014}"), "Web serves the same words, and its files carry no em dash")
     }
 
     @Test("A chat started with a teach-back id runs the teach-back tutor, reports Review, and offers no suggested questions")
@@ -53,29 +53,31 @@ struct TeachBackTests {
         #expect(chat.offers)
     }
 
-    @Test("The tutor's rules: learner-led, one question at the biggest gap, the passage after a failed retry, then the simplest version and the limits, never ending on its own")
+    @Test("The tutor's rules: learner-led, one question at the biggest gap, filling the gap after a failed retry, then the simplest version and the limits, never ending on its own")
     func tutorPromptRules() {
         let prompt = Prompts.teachBackTutor
         for rule in [
             "Feynman Technique",
-            "in their own words, from memory",
+            "tells you what they know about its subject in their own words, from memory",
             "never do it for them",
-            "never summarize it, quote it at length, or explain any part of it before the learner has tried",
+            "never summarize them, quote them at length, or explain any part of the subject before the learner has tried",
             "Never show a plan",
             "exactly one question, aimed at the biggest gap",
             "a technical term used without saying what it means",
             "a claim with no evidence behind it",
             "do not correct it. Ask a question that lets them notice the problem themselves",
-            "If their second try still misses it, point them to the place in the source that settles it",
+            "When they do not know, or their second try still misses it, fill the gap",
+            "say which source it comes from and where",
+            "ask them to say it back in their own words",
             "show it in the Reader beside the chat",
             "ask for the simplest version",
-            "probe its assumptions and limits",
+            "probe their assumptions and limits",
             "Never name a tool",
             "Never decide that the session is over",
         ] {
             #expect(prompt.contains(rule), "the prompt lacks: \(rule)")
         }
-        // Web Studio sends these words byte for byte from its own copy.
+        // Web sends these words byte for byte from its own copy.
         #expect(!prompt.contains("\u{2014}"))
         #expect(!prompt.contains("\\"))
         #expect(!prompt.contains("ID:"), "the id rule is Prompts.hiddenIDs's, not restated here")
@@ -90,12 +92,12 @@ struct TeachBackTests {
         let sessionID = TeachBack.sessionID()
         try await storage.createReviewSession(
             id: sessionID,
-            topic: TeachBack.topic(sourceTitle: "Cristae remodelling"),
+            topic: TeachBack.topic(notebookTitle: "Mitochondria"),
             sourceIDs: [],
             chatKind: .review
         )
         let manager = ReviewSessionManager(storage: storage)
-        let opening = TeachBack.openingMessage(sourceTitle: "Cristae remodelling")
+        let opening = TeachBack.openingMessage(notebookTitle: "Mitochondria")
         await manager.openScriptedReviewForTesting(sessionID: sessionID, opening: opening)
         #expect(manager.isTeachBackSession)
 

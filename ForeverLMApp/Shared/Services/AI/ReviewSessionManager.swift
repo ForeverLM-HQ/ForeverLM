@@ -552,8 +552,8 @@ final class ReviewSessionManager {
         /// Ephemeral "command the app" agent surface used by the in-app ForeverLM Assistant
         /// window. Agent sessions are not persisted as review records.
         case agent
-        /// The Studio's Feynman Technique (`TeachBack`): the learner explains
-        /// one paper and the tutor probes (`Prompts.teachBackTutor`). Kept like
+        /// The Feynman Technique (`TeachBack`): the learner says what they know
+        /// of a notebook and the tutor probes and fills in (`Prompts.teachBackTutor`). Kept like
         /// a review, tutor turn by learner turn, and named by the chat's id,
         /// so a learner's message never turns it into study.
         case teachBack
@@ -1121,8 +1121,8 @@ final class ReviewSessionManager {
         }
     }
     var isDeepResearchMode: Bool { sessionPromptKind == .deepResearch }
-    /// Whether the chat is the Studio's Feynman Technique: the learner
-    /// explains, the tutor asks (`TeachBack`).
+    /// Whether the chat is the Feynman Technique: the learner explains,
+    /// the tutor asks and fills in (`TeachBack`).
     var isTeachBackSession: Bool { sessionPromptKind == .teachBack }
     /// A chat whose tutor asks and the learner answers: a review, or a
     /// teach-back. Each turn is kept as the tutor's question and the answer
@@ -1881,22 +1881,22 @@ final class ReviewSessionManager {
         return mode.sessionPromptKindForAutomaticStart
     }
 
-    /// The Studio's Feynman Technique: a chat in the notebook on one paper,
-    /// loaded in full, that opens by asking the learner to explain it from
-    /// memory, with no model turn before it (`TeachBack.openingMessage`). The
-    /// tutor (`Prompts.teachBackTutor`) takes over from the learner's first
+    /// The Feynman Technique: a chat in the notebook, its ticked sources
+    /// loaded in full, that opens by asking the learner what they know of it
+    /// from memory, with no model turn before it (`TeachBack.openingMessage`).
+    /// The tutor (`Prompts.teachBackTutor`) takes over from the learner's first
     /// reply. Kept as a review: private to the learner and a review on the
     /// Schedule, like a course quiz's chat.
-    func startTeachBack(_ request: TeachBackChatRequest, articles: [StudioArticle]) async {
+    func startTeachBack(notebookID: String, notebookTitle: String, articles: [StudioArticle]) async {
         await startSession(
-            topic: TeachBack.topic(sourceTitle: request.sourceTitle),
+            topic: TeachBack.topic(notebookTitle: notebookTitle),
             articles: articles,
             mode: .review,
-            goalID: request.notebookID,
-            notebookScopeID: request.notebookID,
+            goalID: notebookID,
+            notebookScopeID: notebookID,
             preloadSourceIDs: Set(articles.map(\.id)),
             fixedSessionID: TeachBack.sessionID(),
-            scriptedOpening: TeachBack.openingMessage(sourceTitle: request.sourceTitle)
+            scriptedOpening: TeachBack.openingMessage(notebookTitle: notebookTitle)
         )
     }
 
@@ -11303,7 +11303,7 @@ final class ReviewSessionManager {
     private var sessionTopicLabel: String {
         switch sessionPromptKind {
         case .review: return "The review target is"
-        case .teachBack: return "The paper the learner is explaining is"
+        case .teachBack: return "The notebook the learner is explaining is"
         case .study: return "The current chat topic is"
         case .summarize: return "The current summary target is"
         case .shallowRead: return "The current shallow-reading target is"
@@ -15629,7 +15629,7 @@ final class ReviewSessionManager {
         case .teachBack:
             // A teach-back opens with its written first message; this asks
             // for one only if that message is missing.
-            return "Ask me to explain the attached paper in my own words, from memory."
+            return "Ask me what I know about this notebook in my own words, from memory."
         }
     }
 

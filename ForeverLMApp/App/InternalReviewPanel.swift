@@ -1561,6 +1561,9 @@ private struct InternalReviewPanelContent: View {
             review: {
                 Task { await startNotebookReviewFromIdle(notebook) }
             },
+            teachBack: {
+                Task { await startNotebookTeachBackFromIdle(notebook) }
+            },
             openChat: { sessionID in
                 if let windowState {
                     vm.inWindow(windowState) { vm.requestResumeReviewSession(sessionID) }
@@ -2249,11 +2252,12 @@ private struct InternalReviewPanelContent: View {
         )
     }
 
+    /// The sources a chat started from a notebook's guide reads: its own and
+    /// those of the context notebooks put in, as a review started from outside
+    /// the panel reads them (`requestNotebookReview`), less the ones unticked.
+    /// Nil, with a toast when every box is unticked, when there is nothing.
     @MainActor
-    private func startNotebookReviewFromIdle(_ notebook: LearningGoalRecord) async {
-        // What the notebook's chats read: its own sources and those of the
-        // context notebooks put in, as a review started from outside the
-        // panel reads them (`requestNotebookReview`).
+    private func notebookArticlesForGuideChat(_ notebook: LearningGoalRecord, toStart what: String) -> [StudioArticle]? {
         let readable = vm.notebookChatPool(notebook)
             .compactMap { vm.articlesById[$0] }
             .filter { vm.isSourceIncludedInKnowledge($0) }
@@ -2261,10 +2265,16 @@ private struct InternalReviewPanelContent: View {
         let notebookArticles = readable.filter { !unticked.contains($0.id) }
         guard !notebookArticles.isEmpty else {
             if !readable.isEmpty {
-                vm.showToast("Tick a source in \u{201C}\(notebook.title)\u{201D} to review it.")
+                vm.showToast("Tick a source in \u{201C}\(notebook.title)\u{201D} to \(what).")
             }
-            return
+            return nil
         }
+        return notebookArticles
+    }
+
+    @MainActor
+    private func startNotebookReviewFromIdle(_ notebook: LearningGoalRecord) async {
+        guard let notebookArticles = notebookArticlesForGuideChat(notebook, toStart: "review it") else { return }
         guard !manager.isSearching, !manager.isGenerating else { return }
         linkedResearchNotebookID = notebook.id
         readsNotebookTicksLive = false
@@ -2279,6 +2289,25 @@ private struct InternalReviewPanelContent: View {
             goalID: notebook.id,
             notebookScopeID: notebook.id
         )
+        await vm.loadReviewSessionLinks()
+        await vm.loadLearningGoals()
+    }
+
+    /// The Feynman Technique from the notebook's guide: a chat on the
+    /// notebook's ticked sources that opens by asking the learner what they
+    /// know of it, from memory (`ReviewSessionManager.startTeachBack`).
+    @MainActor
+    private func startNotebookTeachBackFromIdle(_ notebook: LearningGoalRecord) async {
+        guard let notebookArticles = notebookArticlesForGuideChat(notebook, toStart: "start the \(TeachBack.title)") else { return }
+        guard !manager.isSearching, !manager.isGenerating else { return }
+        linkedResearchNotebookID = notebook.id
+        readsNotebookTicksLive = false
+        vm.setContextSources(notebookArticles.map(\.id))
+        clearComposer()
+        pendingReaderSelection = nil
+        guard await syncSynthesisToolContext() else { return }
+        await vm.ensureContextSourceContentLoaded()
+        await manager.startTeachBack(notebookID: notebook.id, notebookTitle: notebook.title, articles: notebookArticles)
         await vm.loadReviewSessionLinks()
         await vm.loadLearningGoals()
     }
@@ -5342,9 +5371,9 @@ private struct InternalReviewPanelContent: View {
         if manager.currentPromptMode == .deepRead {
             return "Understand your sources in detail…"
         }
-        // The Feynman Technique's answers are the learner's explanation.
+        // The Feynman Technique's answers are what the learner knows.
         if manager.isTeachBackSession {
-            return "Explain it in your own words…"
+            return "Say what you know…"
         }
         // ChatGPT's page chat says what it is for, in the field.
         if pageSideChat != nil { return "Work with this page…" }
@@ -7976,32 +8005,6 @@ private struct InternalReviewPanelContent: View {
             pendingReaderSelection = nil
             let articles = pending.sourceIDs.compactMap { vm.articlesById[$0] }
             await manager.startCourseQuiz(pending, articles: articles)
-            await vm.loadReviewSessionLinks()
-            return
-        }
-
-        // The Studio's Feynman Technique asked for a chat on one paper: a
-        // new chat in the notebook, the paper loaded in full, opening on the
-        // written ask to explain it (`ReviewSessionManager.startTeachBack`).
-        if let pending = vm.pendingTeachBack {
-            vm.pendingTeachBack = nil
-            // A turn under way keeps the chat: the press says so rather
-            // than doing nothing where the learner can see.
-            guard !manager.isSearching, !manager.isGenerating else {
-                vm.showToast("Start the Feynman Technique once this answer finishes")
-                return
-            }
-            if manager.sessionActive || !manager.chatMessages.isEmpty {
-                manager.endSession()
-            }
-            clearComposer()
-            pendingReaderSelection = nil
-            linkedResearchNotebookID = vm.notebook(id: pending.notebookID)?.id
-            readsNotebookTicksLive = false
-            guard await syncSynthesisToolContext() else { return }
-            await vm.ensureContextSourceContentLoaded(sourceIDs: [pending.sourceID])
-            guard let paper = vm.articlesById[pending.sourceID] else { return }
-            await manager.startTeachBack(pending, articles: [paper])
             await vm.loadReviewSessionLinks()
             return
         }

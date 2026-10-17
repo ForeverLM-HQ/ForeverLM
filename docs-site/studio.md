@@ -66,12 +66,28 @@ A notebook fills the window in three columns, as in Gemini Notebook:
 | **Studio** (right) | **Share** at its top right ([Sharing a notebook](/teams#sharing-a-notebook)), then what you can make from the ticked sources, and everything the notebook made |
 
 An empty notebook chat shows the notebook's name and description, and, once it
-has sources, **Suggest questions** and **Quiz me on it**, then the notebook's
-latest chats; with no sources it offers **Add sources**. The chat's **⋯** has
+has sources, **Suggest questions**, **Quiz me on it** and **Feynman Technique**,
+then the notebook's latest chats; with no sources it offers **Add sources**. The chat's **⋯** has
 **Chats in This Notebook ▸**: **New Chat** starts a chat in the notebook the
 window holds, reading its ticked sources, and the notebook's chats follow. A
 chat filed in a notebook opens in that notebook, and a library chat (one in no notebook) leaves it. Coming back
 to a notebook reopens the chat you last had open in it.
+
+**Feynman Technique** is the notebook's way to find out what you know. A chat
+opens asking you to say what you know about the notebook, in your own words,
+from memory, as you would to a bright friend who hasn't come across it, and you
+write whatever comes. The tutor reads the ticked sources privately and never
+explains first: after each answer it says what came across, then asks one
+question at the biggest gap, such as a term you didn't define, a step you
+skipped, a claim with no evidence, a mechanism you waved through or a part of
+the subject you never mentioned. When something you say is wrong it asks a
+question that lets you notice. When you don't know, or a second try still
+misses, it fills the gap in itself, briefly and plainly, says which source it
+comes from and where (in the Reader beside the chat when it can), and asks you
+to say it back in your own words. Once what you say holds together, it asks for
+the simplest version, then for the assumptions and limits. It goes on until you
+stop. The chat is kept as a [review](/in-app-chat#reviews), and reopened later,
+on this Mac or another, it goes on probing.
 
 Following a link never closes what you read it in: a citation or a Page's
 source opens the Reader beside the chat, and the Reader's **Back to** control,
@@ -128,21 +144,6 @@ and makes on the second press:
   [Generating a course](/courses#generating-a-course)).
 - **Explainer**: pick one of the ticked papers, articles, podcast episodes,
   videos or meetings for its spoken [explainer](#explainers).
-- **Feynman Technique**: pick one of the ticked sources, of any kind, and
-  explain it yourself. A chat opens in the notebook asking you to explain it in
-  your own words, from memory, as you would to a bright friend who hasn't come
-  across it.
-  The tutor plays that friend and never explains first: after each answer it
-  says what came across, then asks one question at the biggest gap, such as a
-  term you didn't define, a step you skipped, a claim with no evidence or a
-  mechanism you waved through. When something you say is wrong it asks a
-  question that lets you notice; if your second try still misses, it shows you
-  the place in the source, in the Reader beside the chat, and asks you to
-  explain that part again. Once your explanation holds, it asks for the
-  simplest version, then for the source's assumptions and limits. It goes on
-  until you stop. The chat is kept as a [review](/in-app-chat#reviews), and
-  reopened later, on this Mac or another, it goes on probing. The **Notebook**
-  menu's **Make ▸** has it too, and so does [Web Studio](/web-library).
 - **Add note** (floating at the foot of the column): a new Page in the
   notebook, open beside the chat.
 

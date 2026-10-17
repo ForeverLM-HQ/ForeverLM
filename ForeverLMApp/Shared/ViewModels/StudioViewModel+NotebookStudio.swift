@@ -25,10 +25,6 @@ enum NotebookStudioTile: String, CaseIterable, Identifiable, Sendable {
     case deepResearch
     case course
     case explainer
-    /// The Feynman Technique: a chat on one ticked paper in which the
-    /// learner explains it from memory and the tutor probes the gaps
-    /// (`TeachBack`).
-    case teachBack
     /// A canvas of the notebook, where its sources are laid out and thought
     /// over (docs/knowledge-map-design.md, "Canvases in a notebook"). Beta
     /// with the Canvas: the Studio draws it only where the Canvas shows.
@@ -59,9 +55,6 @@ enum NotebookStudioTile: String, CaseIterable, Identifiable, Sendable {
         case .deepResearch: return "Deep research"
         case .course: return "Course"
         case .explainer: return "Explainer"
-        // The retired method word, kept as this tile's own name on purpose
-        // (product owner, 2026-10-11: "you can call it feynman technique").
-        case .teachBack: return "Feynman Technique"
         case .canvas: return "Canvas"
         case .note: return "Note"
         }
@@ -69,8 +62,7 @@ enum NotebookStudioTile: String, CaseIterable, Identifiable, Sendable {
 
     /// The glyph each tile shows: the mark its feature already uses
     /// elsewhere (an overview's waveform, Memory's, the Deep Research mode's
-    /// globe, the Courses rail row's cap, the explainer's lightbulb), and
-    /// for the Feynman Technique a person speaking.
+    /// globe, the Courses rail row's cap, the explainer's lightbulb).
     var symbolName: String {
         switch self {
         case .audioOverview: return ArtifactKind.audioOverview.symbolName
@@ -81,17 +73,16 @@ enum NotebookStudioTile: String, CaseIterable, Identifiable, Sendable {
         case .deepResearch: return "globe"
         case .course: return "graduationcap"
         case .explainer: return "lightbulb"
-        case .teachBack: return "person.bubble"
         case .canvas: return "square.on.square.dashed"
         case .note: return "square.and.pencil"
         }
     }
 
     /// Whether the tile picks one of several before making: a menu. Cards
-    /// offers Practice, Make Cards… and Open in Memory; the Explainer and the
-    /// Feynman Technique, the ticked paper.
+    /// offers Practice, Make Cards… and Open in Memory; the Explainer, the
+    /// ticked paper.
     var isMenu: Bool {
-        self == .report || self == .explainer || self == .teachBack || self == .cards || self == .canvas
+        self == .report || self == .explainer || self == .cards || self == .canvas
     }
 
     /// Whether the tile files something into the notebook, which an archived
@@ -111,7 +102,6 @@ enum NotebookStudioTile: String, CaseIterable, Identifiable, Sendable {
         case .deepResearch: return "Start a Deep Research chat in this notebook"
         case .course: return "Plan a course from the ticked sources"
         case .explainer: return "Write a spoken explainer of a ticked source"
-        case .teachBack: return "Explain a ticked source in your own words, and answer the questions it raises"
         case .canvas: return "Lay the notebook's sources out on a canvas"
         case .note: return "A new note in this notebook"
         }
@@ -144,38 +134,6 @@ extension StudioViewModel {
         notebookStudioSourceIDs(notebookID)
             .compactMap { articlesById[$0] }
             .filter(GeneratedExplainer.canExplain)
-    }
-
-    /// The notebook's ticked sources the learner can explain in a teach-back:
-    /// any of them the tutor can read — a paper once its text has arrived,
-    /// and every other kind, podcast episodes and books included — never a
-    /// spoken script ForeverLM wrote. Offering papers and articles alone left
-    /// a notebook of podcast episodes saying "add a paper first" (product
-    /// owner, 2026-10-12: "clearly a bug"). In the notebook's order.
-    func notebookTeachBackCandidates(_ notebookID: String) -> [StudioArticle] {
-        notebookStudioSourceIDs(notebookID)
-            .compactMap { articlesById[$0] }
-            .filter(TeachBack.canTeachBack)
-    }
-
-    /// Feynman Technique: a chat in the notebook on one of its ticked
-    /// sources, which opens by asking the learner to explain it from memory
-    /// and whose tutor probes what the explanation leaves out
-    /// (`ReviewSessionManager.startTeachBack`). Nothing for a notebook that
-    /// takes nothing, or a source it does not offer.
-    func requestNotebookTeachBack(notebookID: String, sourceID: String) {
-        guard let notebook = importableNotebook(notebookID),
-              let article = notebookTeachBackCandidates(notebook.id).first(where: { $0.id == sourceID }) else { return }
-        pendingTeachBack = TeachBackChatRequest(
-            notebookID: notebook.id,
-            sourceID: article.id,
-            sourceTitle: displayTitle(for: article)
-        )
-        setContextSources([article.id])
-        reviewChatPanelMode = .chat
-        showAssistantOverlay = true
-        reviewChatAutoStartRequestID = UUID()
-        reviewChatTargetWindowID = activeWindowState.id
     }
 
     /// Deep research: a fresh chat in the notebook, in Deep Research mode,
