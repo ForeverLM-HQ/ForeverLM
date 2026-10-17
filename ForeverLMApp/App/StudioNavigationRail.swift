@@ -165,7 +165,7 @@ struct StudioRailHiddenItems: Equatable {
 /// Library — stay above the ⋯, which offers every other place and keeps one
 /// here; a shortcut is one of those places, one click away from anywhere.
 enum StudioRailShortcut: Hashable, Identifiable, Sendable {
-    /// One of the Space sidebar's places: Notebooks, Pages, Sites, Canvases,
+    /// One of the Space sidebar's places: Notebooks, Board, Pages, Sites, Canvases,
     /// Images or Google Drive.
     case place(SpaceDestination)
     /// The Courses list, the Space sidebar's hub.
@@ -176,7 +176,7 @@ enum StudioRailShortcut: Hashable, Identifiable, Sendable {
     /// The Space places a shortcut can be. All is the Space itself (its
     /// row), Trash is a place to visit rarely, and a team's, a space's or a
     /// list's place is an item the Space sidebar pins.
-    private static let places: Set<SpaceDestination> = [.notebooks, .pages, .sites, .canvases, .images, .drive]
+    private static let places: Set<SpaceDestination> = [.notebooks, .board, .pages, .sites, .canvases, .images, .drive]
 
     /// Every shortcut this Mac offers, in the Space sidebar's order:
     /// Notebooks, Courses, then the rest; Canvases only where canvases are

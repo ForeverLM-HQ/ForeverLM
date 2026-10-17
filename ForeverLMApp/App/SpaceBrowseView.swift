@@ -439,6 +439,17 @@ struct SpaceBrowseView: View {
     }
 
     var body: some View {
+        // The Board is columns of cards, wider than a place's column, with a
+        // head of its own (`SpaceBoardPage`); every other place is a list.
+        if destination == .board {
+            SpaceBoardPage(searchText: $searchText, searchFocusRequest: searchFocusRequest)
+        } else {
+            placeList
+        }
+    }
+
+    @ViewBuilder
+    private var placeList: some View {
         // Chats lists the chats and nothing else, and no other place lists one.
         let all = destination == .chats
             ? SpaceCatalog.chatItems(vm: vm)
@@ -629,7 +640,7 @@ struct SpaceBrowseView: View {
         case .images: return item.kind == .image
         case .drive: return item.kind == .googleDoc
         // A list's page draws what it holds (`SpaceListPage`), not items.
-        case .trash, .list: return false
+        case .trash, .list, .board: return false
         case .team(let id): return item.teamIDs.contains(id)
         case .space(let id): return item.kind != .image && vm.pageSpaces.spaceID(ofPage: item.id) == id
         }
@@ -1152,7 +1163,7 @@ struct SpaceBrowseView: View {
                 onLink(.docs)
             }
             .accessibilityIdentifier("space.linkGoogleDoc")
-        case .images:
+        case .images, .board:
             EmptyView()
         case .notebooks:
             // The place lists only notebooks, so its one next step makes
@@ -2013,7 +2024,7 @@ struct SpaceBrowseView: View {
                     if !vm.isActiveLibraryReadOnly {
                         SpaceDarkPillButton(title: "New Page", systemImage: nil, image: nil, action: onNewPage)
                     }
-                case .list:
+                case .list, .board:
                     EmptyView()
                 }
             }

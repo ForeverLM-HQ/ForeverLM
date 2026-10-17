@@ -74,6 +74,108 @@ enum NotebookTaskBoard {
         (tasks.map(\.sortOrder).max() ?? 0) + 1
     }
 
+    /// Where a card dropped into a column lands, as the tasks that change.
+    /// `targetID` is the card it was dropped on and goes in front of it; nil
+    /// puts it at the bottom of the column. A drop between two cards takes the
+    /// midpoint of their `sortOrder`, so one card is saved; a column whose
+    /// neighbours tie (or a drop that is already where the card is) is
+    /// renumbered, or left alone, instead of guessing an order.
+    static func moving(
+        _ task: NotebookTaskRecord,
+        to status: NotebookTaskStatus,
+        before targetID: String?,
+        among tasks: [NotebookTaskRecord],
+        now: Date = Date()
+    ) -> [NotebookTaskRecord] {
+        guard targetID != task.id else { return [] }
+        let full = sections(tasks).first { $0.status == status }?.tasks ?? []
+        let column = full.filter { $0.id != task.id }
+        let insertIndex = targetID.flatMap { id in column.firstIndex { $0.id == id } } ?? column.count
+        if task.status == status, full.firstIndex(where: { $0.id == task.id }) == insertIndex { return [] }
+
+        var moved = changing(task, to: status, now: now)
+        let previous = insertIndex > 0 ? column[insertIndex - 1].sortOrder : nil
+        let next = insertIndex < column.count ? column[insertIndex].sortOrder : nil
+        switch (previous, next) {
+        case (nil, nil):
+            moved.sortOrder = nextSortOrder(after: [])
+            return [moved]
+        case (let previous?, nil):
+            moved.sortOrder = previous + 1
+            return [moved]
+        case (nil, let next?):
+            moved.sortOrder = next - 1
+            return [moved]
+        case (let previous?, let next?) where previous < next:
+            moved.sortOrder = (previous + next) / 2
+            return [moved]
+        default:
+            var ordered = column
+            ordered.insert(moved, at: insertIndex)
+            var changed: [NotebookTaskRecord] = []
+            for (index, card) in ordered.enumerated() {
+                var renumbered = card
+                renumbered.sortOrder = Double(index + 1)
+                if card.id == moved.id || renumbered.sortOrder != card.sortOrder {
+                    if card.id != moved.id { renumbered.updatedAt = now }
+                    changed.append(renumbered)
+                }
+            }
+            return changed
+        }
+    }
+
+    /// Which cards the board draws.
+    enum Lens: CaseIterable {
+        case all
+        /// The day's plan: what is already under way, what is due today or
+        /// overdue, and what was finished today.
+        case today
+
+        var title: String {
+            switch self {
+            case .all: return "All"
+            case .today: return "Today"
+            }
+        }
+    }
+
+    /// The cards a lens shows. Today keeps an open card that is in progress or
+    /// due by the end of today (a past due date is still today's work), and a
+    /// done card finished today, so the day's column of Done reads as progress.
+    static func lensed(
+        _ tasks: [NotebookTaskRecord],
+        _ lens: Lens,
+        now: Date,
+        calendar: Calendar = .current
+    ) -> [NotebookTaskRecord] {
+        guard lens == .today else { return tasks }
+        let startOfDay = calendar.startOfDay(for: now)
+        guard let startOfTomorrow = calendar.date(byAdding: .day, value: 1, to: startOfDay) else { return tasks }
+        return tasks.filter { task in
+            switch task.status {
+            case .done:
+                guard let completedAt = task.completedAt else { return false }
+                return completedAt >= startOfDay && completedAt < startOfTomorrow
+            case .doing:
+                return true
+            case .todo:
+                guard let dueAt = task.dueAt else { return false }
+                return dueAt < startOfTomorrow
+            }
+        }
+    }
+
+    /// The cards whose title or notes hold every word of the search.
+    static func matching(_ tasks: [NotebookTaskRecord], query: String) -> [NotebookTaskRecord] {
+        let words = query.lowercased().split(whereSeparator: \.isWhitespace)
+        guard !words.isEmpty else { return tasks }
+        return tasks.filter { task in
+            let text = (task.title + " " + task.notes).lowercased()
+            return words.allSatisfy { text.contains($0) }
+        }
+    }
+
     /// What a task is about: one of the Notebook's sources or one of its Docs.
     /// A task points at one thing at most; the record keeps two columns so a
     /// source id and a Doc id never have to share a namespace.

@@ -235,6 +235,18 @@
 		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>
+			<string>com.foreverlm.board-card</string>
+			<key>UTTypeDescription</key>
+			<string>Board Card Transfer</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict/>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
 			<string>com.foreverlm.space-pin</string>
 			<key>UTTypeDescription</key>
 			<string>Space Pinned Row Transfer</string>

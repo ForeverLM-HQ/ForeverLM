@@ -78,17 +78,29 @@ struct NotebookTasksInspectorSection: View {
 
 // MARK: - Board
 
-/// A Notebook's task board: one list grouped by status, with an entry field at
-/// the top. Every Notebook has one; in a team Notebook the tasks can be handed
-/// to a member and the "Mine" filter narrows the board to the signed-in one.
-/// A read-only team shows the board with every editing control disabled.
+/// A Notebook's task board: To do, In progress and Done as columns of cards,
+/// each card a task row. A card is dragged to another column, or to another
+/// place in its column; the circle on it still moves it one column on. A card
+/// is added at the foot of To do or In progress. In a team Notebook the tasks
+/// can be handed to a member; a read-only team shows the board with every
+/// editing control disabled.
 struct NotebookTasksBoardView: View {
     @Environment(StudioViewModel.self) private var vm
     let goal: LearningGoalRecord
-    let onBack: () -> Void
+    /// Which cards are drawn: all of them, or the day's plan.
+    var lens: NotebookTaskBoard.Lens = .all
+    /// The head's search, over the cards' titles and notes.
+    var query = ""
+    /// In a team Notebook, only the signed-in member's cards.
+    var mineOnly = false
+    /// Bumped to put the cursor in To do's add field (the head's New Card).
+    var addFocusRequest = 0
+    /// The space left and right of the columns, so the head's margin and the
+    /// columns' line up while the columns still scroll to the pane's edge.
+    var horizontalPadding: CGFloat = 0
 
-    @State private var newTaskTitle = ""
-    @State private var mineOnly = false
+    private static let minimumColumnWidth: CGFloat = 260
+    private static let columnGap: CGFloat = 14
 
     private var isReadOnly: Bool { vm.isActiveLibraryReadOnly }
     private var isTeamNotebook: Bool { goal.teamID != nil }
@@ -103,71 +115,181 @@ struct NotebookTasksBoardView: View {
     }
 
     private var sections: [NotebookTaskBoard.Section] {
-        NotebookTaskBoard.sections(
-            NotebookTaskBoard.filtered(
-                vm.tasks(for: goal.id),
-                mineOnly: mineOnly && isTeamNotebook,
-                currentUserRecordName: currentMember?.userRecordName
-            )
+        let shown = NotebookTaskBoard.filtered(
+            vm.tasks(for: goal.id),
+            mineOnly: mineOnly && isTeamNotebook,
+            currentUserRecordName: currentMember?.userRecordName
+        )
+        return NotebookTaskBoard.sections(
+            NotebookTaskBoard.matching(NotebookTaskBoard.lensed(shown, lens, now: Date()), query: query)
         )
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            toolbar
-            if !isReadOnly {
-                addField
-            }
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 18) {
+        GeometryReader { proxy in
+            let gaps = Self.columnGap * 2
+            let columnWidth = max(Self.minimumColumnWidth, (proxy.size.width - horizontalPadding * 2 - gaps) / 3)
+            ScrollView(.horizontal) {
+                HStack(alignment: .top, spacing: Self.columnGap) {
                     ForEach(sections, id: \.status) { section in
-                        // Done and In progress appear once something is in
-                        // them; To do is always drawn so an empty board still
-                        // has a place the first task will land.
-                        if !section.tasks.isEmpty || section.status == .todo {
-                            sectionView(section)
-                        }
+                        NotebookTaskColumn(
+                            section: section,
+                            goal: goal,
+                            members: members,
+                            isTeamNotebook: isTeamNotebook,
+                            isReadOnly: isReadOnly,
+                            lens: lens,
+                            addFocusRequest: addFocusRequest,
+                            add: { title in addTask(title, status: section.status) }
+                        )
+                        .frame(width: columnWidth)
+                        .frame(maxHeight: .infinity, alignment: .top)
                     }
                 }
-                .padding(.bottom, 12)
+                .padding(.horizontal, horizontalPadding)
+                .padding(.bottom, 24)
             }
+            .scrollIndicators(.automatic)
         }
-        .padding(.horizontal, StudioDesign.Metrics.pageMargin)
-        .padding(.top, 22)
-        .padding(.bottom, 12)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .task(id: goal.id) {
             await vm.loadNotebookTasks(notebookID: goal.id)
         }
     }
 
-    private var toolbar: some View {
-        HStack(spacing: 8) {
-            Button(action: onBack) {
-                Image(systemName: "chevron.left")
-                    .zoomedSystemFont(size: 11, weight: .semibold)
-            }
-            .buttonStyle(.hoverWash)
-            .help("Back to About")
+    private func addTask(_ title: String, status: NotebookTaskStatus) {
+        guard !isReadOnly else { return }
+        var task = NotebookTaskRecord(
+            notebookID: goal.id,
+            teamID: goal.teamID,
+            title: title,
+            status: status,
+            sortOrder: NotebookTaskBoard.nextSortOrder(after: vm.tasks(for: goal.id).filter { $0.status == status })
+        )
+        // A card typed while the board shows only mine is mine, and one typed
+        // in Today is due today; otherwise it would vanish from the board
+        // the moment it was saved.
+        if mineOnly, isTeamNotebook, let me = currentMember {
+            task.assigneeRecordName = me.userRecordName
+            task.assigneeDisplayName = me.displayName
+        }
+        if lens == .today, status == .todo {
+            task.dueAt = NotebookTaskBoard.dueDate(for: .today, now: Date())
+        }
+        Task { await vm.saveNotebookTask(task) }
+    }
+}
 
-            Text("Tasks")
-                .zoomedSystemFont(size: 17, weight: .semibold)
+/// One column of the board: its name and count over its cards, the field that
+/// adds one, and the drop target a dragged card lands in.
+private struct NotebookTaskColumn: View {
+    @Environment(StudioViewModel.self) private var vm
+    let section: NotebookTaskBoard.Section
+    let goal: LearningGoalRecord
+    let members: [TeamMemberRecord]
+    let isTeamNotebook: Bool
+    let isReadOnly: Bool
+    let lens: NotebookTaskBoard.Lens
+    let addFocusRequest: Int
+    let add: (String) -> Void
 
-            Spacer(minLength: 8)
+    @State private var newTitle = ""
+    @State private var frames: [String: CGRect] = [:]
+    @State private var dropTarget: SpaceBoardDropTarget?
+    @FocusState private var addFocused: Bool
 
-            if isTeamNotebook {
-                Button {
-                    mineOnly.toggle()
-                } label: {
-                    Label("Mine", systemImage: "person.crop.circle")
+    private static let coordinateSpaceName = "boardColumn"
+
+    private var status: NotebookTaskStatus { section.status }
+    private var canAdd: Bool { status != .done && !isReadOnly }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Text(status.title)
+                    .zoomedSystemFont(size: 12, weight: .semibold)
+                    .foregroundStyle(.secondary)
+                if !section.tasks.isEmpty {
+                    Text("\(section.tasks.count)")
                         .zoomedSystemFont(size: 11, weight: .medium)
-                        .foregroundStyle(mineOnly ? Color.accentColor : Color.secondary)
-                        .padding(.horizontal, 4)
+                        .foregroundStyle(.tertiary)
                 }
-                .buttonStyle(.hoverWash)
-                .help(mineOnly ? "Show everyone's tasks" : "Show only tasks assigned to you")
-                .accessibilityAddTraits(mineOnly ? .isSelected : [])
+                Spacer(minLength: 0)
             }
+            .padding(.leading, 4)
+
+            ScrollView(.vertical) {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(section.tasks) { task in
+                        card(task)
+                    }
+                    if dropTarget != nil, dropTarget?.beforeID == nil, !section.tasks.isEmpty {
+                        SpaceBoardInsertionBar()
+                    }
+                    if canAdd {
+                        addField
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+            .scrollIndicators(.never)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(
+            Color.primary.opacity(dropTarget == nil ? 0.03 : 0.06),
+            in: RoundedRectangle(cornerRadius: 12)
+        )
+        .contentShape(Rectangle())
+        // One drop target for the whole column: SwiftUI hands a drag to the
+        // outermost target on macOS, so a target on each card would never
+        // fire. The card under the pointer is found from the cards' frames.
+        .coordinateSpace(name: Self.coordinateSpaceName)
+        .onDrop(of: [.boardCard], delegate: SpaceBoardDropDelegate(
+            orderedIDs: section.tasks.map(\.id),
+            frames: frames,
+            isEnabled: !isReadOnly,
+            target: $dropTarget,
+            move: { taskID, beforeID in
+                // In Today, a card dropped into To do is due today, so it
+                // stays in the view it was dropped in.
+                let dueTodayBy = lens == .today ? NotebookTaskBoard.dueDate(for: .today, now: Date()) : nil
+                Task {
+                    await vm.moveNotebookTask(taskID, notebookID: goal.id, to: status, before: beforeID, dueTodayBy: dueTodayBy)
+                }
+            }
+        ))
+        .onChange(of: addFocusRequest) { _, _ in
+            if status == .todo, canAdd { addFocused = true }
+        }
+    }
+
+    private func card(_ task: NotebookTaskRecord) -> some View {
+        NotebookTaskRow(
+            task: task,
+            goal: goal,
+            members: members,
+            isTeamNotebook: isTeamNotebook,
+            isReadOnly: isReadOnly,
+            save: { changed in Task { await vm.saveNotebookTask(changed) } },
+            delete: { Task { await vm.deleteNotebookTask(task.id, notebookID: goal.id) } }
+        )
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(Self.coordinateSpaceName)) } action: { frame in
+            frames[task.id] = frame
+        }
+        .overlay(alignment: .top) {
+            if dropTarget?.beforeID == task.id {
+                SpaceBoardInsertionBar().offset(y: -5)
+            }
+        }
+        .onDrag {
+            SpaceBoardDropDelegate.dragProvider(taskID: task.id)
+        } preview: {
+            Text(task.title)
+                .zoomedSystemFont(size: 12, weight: .medium)
+                .lineLimit(2)
+                .padding(10)
+                .frame(width: 220, alignment: .leading)
+                .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
         }
     }
 
@@ -176,71 +298,33 @@ struct NotebookTasksBoardView: View {
             Image(systemName: "plus")
                 .zoomedSystemFont(size: 11, weight: .semibold)
                 .foregroundStyle(.secondary)
-            TextField("New task", text: $newTaskTitle)
+            TextField("Add a card", text: $newTitle)
                 .textFieldStyle(.plain)
                 .zoomedSystemFont(size: 12)
-                .onSubmit(addTask)
+                .focused($addFocused)
+                .onSubmit(commitNewCard)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
-        .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 10))
         .overlay {
             RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+                .strokeBorder(Color.primary.opacity(addFocused ? 0.22 : 0.08), lineWidth: 1)
         }
     }
 
-    private func sectionView(_ section: NotebookTaskBoard.Section) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                Text(section.status.title)
-                    .zoomedSystemFont(size: 12, weight: .semibold)
-                    .foregroundStyle(.secondary)
-                if !section.tasks.isEmpty {
-                    Text("\(section.tasks.count)")
-                        .zoomedSystemFont(size: 11, weight: .medium)
-                        .foregroundStyle(.tertiary)
-                }
-            }
-            .padding(.leading, 4)
-
-            ForEach(section.tasks) { task in
-                NotebookTaskRow(
-                    task: task,
-                    goal: goal,
-                    members: members,
-                    isTeamNotebook: isTeamNotebook,
-                    isReadOnly: isReadOnly,
-                    save: { changed in Task { await vm.saveNotebookTask(changed) } },
-                    delete: { Task { await vm.deleteNotebookTask(task.id, notebookID: goal.id) } }
-                )
-            }
-        }
-    }
-
-    private func addTask() {
-        let title = newTaskTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !title.isEmpty, !isReadOnly else { return }
-        var task = NotebookTaskRecord(
-            notebookID: goal.id,
-            teamID: goal.teamID,
-            title: title,
-            sortOrder: NotebookTaskBoard.nextSortOrder(after: vm.tasks(for: goal.id))
-        )
-        // A task typed while the board shows only mine is mine; otherwise it
-        // would vanish from the filtered board the moment it was saved.
-        if mineOnly, isTeamNotebook, let me = currentMember {
-            task.assigneeRecordName = me.userRecordName
-            task.assigneeDisplayName = me.displayName
-        }
-        newTaskTitle = ""
-        Task { await vm.saveNotebookTask(task) }
+    private func commitNewCard() {
+        let title = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { return }
+        newTitle = ""
+        add(title)
+        // Stay in the field, so a list of cards can be typed one after another.
+        addFocused = true
     }
 }
 
 // MARK: - Row
 
-private struct NotebookTaskRow: View {
+struct NotebookTaskRow: View {
     @Environment(StudioViewModel.self) private var vm
     let task: NotebookTaskRecord
     let goal: LearningGoalRecord

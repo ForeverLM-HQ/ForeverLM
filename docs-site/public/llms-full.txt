@@ -1588,11 +1588,10 @@ Three consequences follow:
 ## Creating a team and inviting people
 
 A notebook's **Share** makes a team for you ([Sharing a
-notebook](#sharing-a-notebook)). To make one yourself, click your name at the
-bottom of the navigation rail, open **Library**,
-choose **New Team…** and give it a name, or open
+notebook](#sharing-a-notebook)). To make one yourself, choose **New space** in the
+Space sidebar, fold open **Invite people** and give it a name, or open
 **My Settings → Data & Privacy → Teams**, type the team's name and choose
-**Create**. The team appears in the library switcher at once, empty, and the
+**Create**. The team appears in the Space sidebar at once, empty, and the
 app switches into it.
 
 While a team is open, the account menu carries a second settings entry named
@@ -1618,10 +1617,9 @@ member's Copy Link copies the link as it stands.
 
 ## Switching libraries
 
-Click your name at the bottom of the navigation rail. The account menu opens
-with one **Library** row naming the library on screen; click it and the menu
-turns into the switcher: **My Library**, then each team by name (with a lock on
-one you can only view), then **New Team…**. While a team is open, a badge beside
+The Space sidebar lists your Space and each team by name (with a lock on one you
+can only view); click one to open its library. The account menu holds no library
+switcher. While a team is open, a badge beside
 your name carries the team's name (with a lock when you can only view it), so
 the rail always says whose library is on screen. Switching reloads notebooks,
 Pages and Chats for that library; everything else in the Studio works as before,
@@ -1714,7 +1712,7 @@ does to the team's copy changes yours.
 
 A notebook's task board is the **Tasks** section of its **Notebook settings** in
 the [Web Library](/web-library) (click the notebook's name or its **⋯**), and an
-assistant works it over MCP (below); the Mac app shows no board. In a team
+assistant works it over MCP (below); the Mac app shows no board on a notebook (your own [Board](/board) is a place in the Space). In a team
 notebook the board is the team's: every member sees the same tasks.
 
 A task has a title, notes, a status (**To do**, **In progress**, **Done**), an
@@ -1852,6 +1850,34 @@ The assistant should read the current Schedule before proposing changes. MCP wri
 ## Sync
 
 Schedule is stored in ForeverLM's local SQLite database and synced through CloudKit. Plans, source assignments, planned dates, completion state, and review links follow you across Macs after iCloud sync catches up.
+
+---
+
+<!-- Source: docs-site/board.md -->
+
+# Board
+
+The Board is your own to-do board: cards in three columns, **To do**, **In progress** and **Done**. Use it for anything you are working on, whether or not it is about a source, and for planning your day.
+
+Find **Board** in the Space's sidebar, under Notebooks, or keep it on the icon strip like any other place.
+
+## Cards
+
+Type in **Add a card** at the foot of To do or In progress and press Return; the field stays ready for the next one. **New Card** at the top of the Board puts the cursor in To do.
+
+Drag a card to another column, or to a different place in its column. The circle on a card moves it one column on, and Done wraps back to To do, so a card ticked by mistake reopens with one more click. Right-click a card to move it to any column or to delete it.
+
+A card has a title, notes, an optional due date, and can point at a source or a Page. Moving a card into Done stamps when you finished it; moving it out clears the stamp.
+
+## Planning the day
+
+**Today** shows what belongs to today: cards in progress, cards due today or overdue, and cards you finished today. The count beside it is what is still open. A card you add or drop into To do while Today is showing is due today, so it stays in view. **All** shows every card.
+
+Search filters the cards by their title and notes, in either view.
+
+## Over MCP and on the web
+
+The Board is one notebook named **Board**, and its cards are that notebook's tasks. An assistant connected over MCP reads and changes them with `list_notebook_tasks`, `create_notebook_task` and `update_notebook_task`, passing the Board's `notebook_id` from `list_notebooks`; give a card `due_date` to put it on a day. The same cards appear in that notebook's **Tasks** section in the [Web Library](/web-library). The Board is synced like any notebook, so it is the same on your other devices. It is not shared with a team: a team keeps its tasks on its own notebooks (see [Teams](/teams)).
 
 ---
 
@@ -2309,7 +2335,7 @@ Text to Speech pairs especially well with Schedule:
 
 # AI Providers & Models
 
-**AI runs on your own OpenRouter API key.** Create one at [openrouter.ai/keys](https://openrouter.ai/keys) and add it under **Your own key** in the OpenRouter button at the bottom of the sidebar. OpenRouter bills every model at its own cost, and ForeverLM adds nothing on top. OpenRouter is the only supported provider today. **AI is never part of ForeverLM's price**: no credits, no tier, and every model OpenRouter serves. Pay models at cost, or use free models and pay nothing. You pick a provider and model for each AI capability in **Settings**, and the **Activity** list under the sidebar's OpenRouter button shows what each request cost, precise below a cent.
+**AI runs on your own OpenRouter API key.** Create one at [openrouter.ai/keys](https://openrouter.ai/keys) and add it under **API keys** in the OpenRouter button at the bottom of the sidebar. OpenRouter bills every model at its own cost, and ForeverLM adds nothing on top. OpenRouter is the only supported provider today. **AI is never part of ForeverLM's price**: no credits, no tier, and every model OpenRouter serves. Pay models at cost, or use free models and pay nothing. You pick a provider and model for each AI capability in **Settings**, and the **Activity** list under the sidebar's OpenRouter button shows what each request cost, precise below a cent.
 
 Every text model, whether Anthropic, OpenAI, Google, Meta, xAI or the long tail, is served through [OpenRouter](https://openrouter.ai), on your key, by way of ForeverLM's proxy. A request never falls back silently to another route.
 
@@ -2354,7 +2380,7 @@ Semantic source search runs entirely on-device using Apple's NaturalLanguage con
 
 ## Costs
 
-- **Your key pays, at OpenRouter's cost.** With an OpenRouter key stored under **Your own key** in the OpenRouter button at the bottom of the sidebar, everything ForeverLM sends through OpenRouter goes on your key and OpenRouter bills you directly. ForeverLM adds nothing to it. The key covers text models (chat, reviews, and background tasks) *and* every voice, speech-to-text, image and video model OpenRouter serves: the Gemini and Grok voices, GPT-4o mini transcription, the GPT Image, Gemini, FLUX, Recraft and Seedream image models, and Veo, Kling, Wan, Sora and the other video models. **Settings → AI Models → Images** and **→ Videos** list every one of them, read from OpenRouter each time the pane opens, so a model OpenRouter adds shows up there on its own; each card shows OpenRouter's price. Over MCP the same setting is `get_own_router_key` / `set_own_router_key`.
+- **Your key pays, at OpenRouter's cost.** With an OpenRouter key stored under **API keys** in the OpenRouter button at the bottom of the sidebar, everything ForeverLM sends through OpenRouter goes on your key and OpenRouter bills you directly. ForeverLM adds nothing to it. The key covers text models (chat, reviews, and background tasks) *and* every voice, speech-to-text, image and video model OpenRouter serves: the Gemini and Grok voices, GPT-4o mini transcription, the GPT Image, Gemini, FLUX, Recraft and Seedream image models, and Veo, Kling, Wan, Sora and the other video models. **Settings → AI Models → Images** and **→ Videos** list every one of them, read from OpenRouter each time the pane opens, so a model OpenRouter adds shows up there on its own; each card shows OpenRouter's price. Over MCP the same setting is `get_own_router_key` / `set_own_router_key`.
 - **Your key never touches ForeverLM's servers.** It is saved only in your Keychain, which iCloud Keychain syncs end-to-end encrypted to your Macs and iPhone, and the app sends it only to OpenRouter. Connect OpenRouter signs in at openrouter.ai and hands the key back to the app on your Mac directly. The remote ForeverLM connector refuses to carry a key, so an AI assistant cannot set one through it; paste the key into the app instead.
 - **The app's price is separate from AI.** ForeverLM itself is free. MCP, the connection for an outside assistant, is 7 days free from your first sign-in, then $19 paid once (no subscription), before applicable tax, in **Settings → Billing**. Paying never buys AI: your key runs every model, and OpenRouter's free models cost nothing.
 - The **Activity** list under the sidebar's OpenRouter button itemises every request with the exact cost OpenRouter reports, precise below a cent. Models without a published rate are shown as unpriced rather than guessed.
@@ -3504,7 +3530,7 @@ Settings › Sources › **Zoom Transcripts**, the recordings only Zoom can conv
 | `get_automatic_audio_settings` | — | Every kind with `enabled`, `filter`, `sources_without_audio` and, when the voice may run, the estimated characters and price; the selected `voice` and its rate; `automation_available` with an `unavailable_reason` when it is not; `allow_paid_voices`; and, for a priced voice, the `paid_consent_quote` that consenting would start. |
 | `set_automatic_audio_settings` | `kind?`, `enabled?`, `filter?`, `allow_paid_voices?` | "Always generate audio for articles from Martin Picard" is `kind: "article"`, `filter`, `enabled: true` in one call. `kind` + `enabled` arms or retires one switch — refused while the voice cannot run; `kind` + `filter` saves the rule, evaluated over the waiting sources first and kept only on success, an empty string clearing it; `allow_paid_voices` is the account's consent, a spending decision to put to the learner first, and `false` stops a paid run. Returns the settings with `changed`. |
 
-Settings › AI Usage › **Your own key**: the learner's own OpenRouter key. It is how ForeverLM's AI is paid for: with one stored, OpenRouter bills the learner directly, at its cost, for everything ForeverLM sends through it, and ForeverLM adds nothing. The key covers text models (chat, reviews, background tasks) plus every voice, speech-to-text, image and video model OpenRouter serves, and the reader names that scope. While the key is stored, an AI balance left from before balance was retired pays for nothing (`balance_still_pays_for`). The key lives in the Mac's iCloud Keychain, so both tools need the Mac open and connected, and neither ever returns the key.
+Settings › AI Usage › **API keys**: the learner's own OpenRouter key. It is how ForeverLM's AI is paid for: with one stored, OpenRouter bills the learner directly, at its cost, for everything ForeverLM sends through it, and ForeverLM adds nothing. The key covers text models (chat, reviews, background tasks) plus every voice, speech-to-text, image and video model OpenRouter serves, and the reader names that scope. While the key is stored, an AI balance left from before balance was retired pays for nothing (`balance_still_pays_for`). The key lives in the Mac's iCloud Keychain, so both tools need the Mac open and connected, and neither ever returns the key.
 
 | Tool | Parameters | Description |
 |---|---|---|

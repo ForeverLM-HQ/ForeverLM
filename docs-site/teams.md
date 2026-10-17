@@ -195,7 +195,7 @@ does to the team's copy changes yours.
 
 A notebook's task board is the **Tasks** section of its **Notebook settings** in
 the [Web Library](/web-library) (click the notebook's name or its **⋯**), and an
-assistant works it over MCP (below); the Mac app shows no board. In a team
+assistant works it over MCP (below); the Mac app shows no board on a notebook (your own [Board](/board) is a place in the Space). In a team
 notebook the board is the team's: every member sees the same tasks.
 
 A task has a title, notes, a status (**To do**, **In progress**, **Done**), an

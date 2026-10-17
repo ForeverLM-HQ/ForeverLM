@@ -51,6 +51,10 @@ enum SpaceDestination: Hashable, Sendable {
     /// from the sidebar now that the Notebooks home is gone (product owner,
     /// 2026-10-10: "notebooks have to be linked here").
     case notebooks
+    /// The learner's own Board: To do, In progress and Done as columns of
+    /// cards, and a Today view of the day's plan (docs-site/board.md). Its
+    /// cards are tasks of one Notebook (`TeamContentIdentity.personalBoardNotebookID`).
+    case board
     /// Every chat, in a notebook or in none: Home's list (`HomePane`), which
     /// the Space draws with this view. It is no place of the Space: it was one
     /// from 2026-10-10 ("maybe we should still have a separate chats page?
@@ -76,7 +80,7 @@ enum SpaceDestination: Hashable, Sendable {
     case list(String)
 
     /// The places listed under New page, in the sidebar's order.
-    static let places: [SpaceDestination] = [.all, .notebooks, .pages, .sites, .canvases, .images, .drive]
+    static let places: [SpaceDestination] = [.all, .notebooks, .board, .pages, .sites, .canvases, .images, .drive]
 
     /// The places this Mac lists: Canvases only where canvases are listed
     /// (`StudioViewModel.listsCanvases`).
@@ -95,6 +99,7 @@ enum SpaceDestination: Hashable, Sendable {
     init(key: String) {
         switch key {
         case "notebooks": self = .notebooks
+        case "board": self = .board
         case "pages": self = .pages
         case "sites": self = .sites
         case "canvases": self = .canvases
@@ -119,6 +124,7 @@ enum SpaceDestination: Hashable, Sendable {
         switch self {
         case .all: return "all"
         case .notebooks: return "notebooks"
+        case .board: return "board"
         case .chats: return "chats"
         case .pages: return "pages"
         case .sites: return "sites"
@@ -154,6 +160,7 @@ enum SpaceDestination: Hashable, Sendable {
         switch self {
         case .all: return "All"
         case .notebooks: return "Notebooks"
+        case .board: return "Board"
         case .chats: return "Home"
         case .pages: return "Pages"
         case .sites: return "Sites"
@@ -170,6 +177,7 @@ enum SpaceDestination: Hashable, Sendable {
         switch self {
         case .all: return "rectangle.stack"
         case .notebooks: return NotebookGlyph.systemImage
+        case .board: return "rectangle.split.3x1"
         case .chats: return "house"
         case .pages: return "doc.text"
         case .sites: return "globe"

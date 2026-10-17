@@ -4690,6 +4690,14 @@ actor StorageService {
         return goal
     }
 
+    /// The Board's Notebook (`KnowledgeStore.ensureBoardNotebook`), made on
+    /// first use and synced when it is.
+    func ensureBoardNotebook() throws -> LearningGoalRecord {
+        let result = try knowledgeStore().ensureBoardNotebook()
+        if result.created { scheduleCloudKitSync(.immediate) }
+        return result.notebook
+    }
+
     func companionRecentSessions(goalID: String, limit: Int) throws -> [CompanionSessionSummary] {
         try knowledgeStore().companionRecentSessions(goalID: goalID, limit: limit)
     }

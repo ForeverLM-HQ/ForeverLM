@@ -4963,6 +4963,9 @@ extension UTType {
     /// Custom UTType for a row of the Space sidebar's Pinned dragged onto
     /// another to reorder the pins (`PagePins.rowsAfterMoving`): its id.
     static let spacePin = UTType(exportedAs: "com.foreverlm.space-pin")
+    /// Custom UTType for a Board card dragged to another column or another
+    /// place in its column (`SpaceBoardDrop`): the task's id.
+    static let boardCard = UTType(exportedAs: "com.foreverlm.board-card")
     /// Finder-style web location files for dragging URL-only sources to external apps.
     static let webInternetLocation = UTType(filenameExtension: "webloc")
         ?? UTType(importedAs: "com.apple.web-internet-location")

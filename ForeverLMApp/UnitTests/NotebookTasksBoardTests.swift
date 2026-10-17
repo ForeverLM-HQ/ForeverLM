@@ -172,4 +172,103 @@ struct NotebookTasksBoardTests {
         both.artifactID = "doc-2"
         #expect(NotebookTaskBoard.link(of: both) == .source("src-2"))
     }
+
+    // MARK: Moving a card
+
+    private static func card(_ id: String, _ status: NotebookTaskStatus, order: Double) -> NotebookTaskRecord {
+        NotebookTaskRecord(
+            id: id, notebookID: "proj", title: id, status: status, sortOrder: order,
+            // Distinct creation times, in id order, so a tie in `sortOrder` breaks the same way every run.
+            createdAt: noon.addingTimeInterval(Double(id.unicodeScalars.first?.value ?? 0)), updatedAt: noon
+        )
+    }
+
+    /// Applies the changes the way saving does, then reads a column back.
+    private static func column(_ status: NotebookTaskStatus, after changes: [NotebookTaskRecord], of tasks: [NotebookTaskRecord]) -> [String] {
+        var byID = Dictionary(uniqueKeysWithValues: tasks.map { ($0.id, $0) })
+        for change in changes { byID[change.id] = change }
+        return NotebookTaskBoard.sections(Array(byID.values)).first { $0.status == status }?.tasks.map(\.title) ?? []
+    }
+
+    @Test("A card dropped between two cards takes the midpoint and is the only one saved")
+    func moveBetween() {
+        let tasks = [Self.card("a", .todo, order: 1), Self.card("b", .todo, order: 2), Self.card("c", .doing, order: 1)]
+        let changes = NotebookTaskBoard.moving(tasks[2], to: .todo, before: "b", among: tasks, now: Self.noon)
+        #expect(changes.map(\.id) == ["c"])
+        #expect(changes[0].sortOrder == 1.5)
+        #expect(changes[0].status == .todo)
+        #expect(Self.column(.todo, after: changes, of: tasks) == ["a", "c", "b"])
+    }
+
+    @Test("A card dropped on a column's head or foot goes before the first or after the last")
+    func moveToEnds() {
+        let tasks = [Self.card("a", .todo, order: 1), Self.card("b", .todo, order: 2), Self.card("c", .doing, order: 1)]
+        let top = NotebookTaskBoard.moving(tasks[2], to: .todo, before: "a", among: tasks, now: Self.noon)
+        #expect(Self.column(.todo, after: top, of: tasks) == ["c", "a", "b"])
+        let bottom = NotebookTaskBoard.moving(tasks[2], to: .todo, before: nil, among: tasks, now: Self.noon)
+        #expect(Self.column(.todo, after: bottom, of: tasks) == ["a", "b", "c"])
+        let empty = NotebookTaskBoard.moving(tasks[0], to: .done, before: nil, among: tasks, now: Self.noon)
+        #expect(empty.map(\.status) == [.done])
+        #expect(empty[0].completedAt == Self.noon)
+    }
+
+    @Test("Reordering inside a column keeps its status, and dropping a card where it is changes nothing")
+    func moveWithinColumn() {
+        let tasks = [Self.card("a", .todo, order: 1), Self.card("b", .todo, order: 2), Self.card("c", .todo, order: 3)]
+        let changes = NotebookTaskBoard.moving(tasks[2], to: .todo, before: "a", among: tasks, now: Self.noon)
+        #expect(Self.column(.todo, after: changes, of: tasks) == ["c", "a", "b"])
+        #expect(NotebookTaskBoard.moving(tasks[1], to: .todo, before: "c", among: tasks, now: Self.noon).isEmpty)
+        #expect(NotebookTaskBoard.moving(tasks[1], to: .todo, before: "b", among: tasks, now: Self.noon).isEmpty)
+        #expect(NotebookTaskBoard.moving(tasks[2], to: .todo, before: nil, among: tasks, now: Self.noon).isEmpty)
+    }
+
+    @Test("Tied neighbours renumber the column instead of guessing an order")
+    func moveAmongTies() {
+        let tasks = [
+            Self.card("a", .todo, order: 1), Self.card("b", .todo, order: 1),
+            Self.card("c", .todo, order: 1), Self.card("d", .doing, order: 1),
+        ]
+        let changes = NotebookTaskBoard.moving(tasks[3], to: .todo, before: "b", among: tasks, now: Self.noon)
+        #expect(Self.column(.todo, after: changes, of: tasks) == ["a", "d", "b", "c"])
+    }
+
+    // MARK: The day's plan
+
+    private static func finished(_ title: String, at completedAt: Date, dueAt: Date? = nil) -> NotebookTaskRecord {
+        var task = Self.task(title, status: .done, dueAt: dueAt)
+        task.completedAt = completedAt
+        return task
+    }
+
+    @Test("Today keeps what is under way, what is due by tonight and what was finished today")
+    func todayLens() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        let startOfDay = calendar.startOfDay(for: Self.noon)
+        let tonight = startOfDay.addingTimeInterval(86_400 - 60)
+        let tasks = [
+            Self.task("later", dueAt: tonight.addingTimeInterval(86_400)),
+            Self.task("undated"),
+            Self.task("due today", dueAt: tonight),
+            Self.task("overdue", dueAt: startOfDay.addingTimeInterval(-86_400)),
+            Self.task("doing", status: .doing),
+            Self.finished("done today", at: Self.noon),
+            Self.finished("done last week", at: startOfDay.addingTimeInterval(-7 * 86_400), dueAt: tonight),
+            Self.task("done, never stamped", status: .done),
+        ]
+        let today = NotebookTaskBoard.lensed(tasks, .today, now: Self.noon, calendar: calendar)
+        #expect(Set(today.map(\.title)) == ["due today", "overdue", "doing", "done today"])
+        #expect(NotebookTaskBoard.lensed(tasks, .all, now: Self.noon, calendar: calendar).count == tasks.count)
+    }
+
+    @Test("Search keeps cards whose title or notes hold every word")
+    func searching() {
+        var notes = Self.task("Ship invoice export")
+        notes.notes = "waiting on Zara Holt"
+        let tasks = [notes, Self.task("Write release notes")]
+        #expect(NotebookTaskBoard.matching(tasks, query: "").count == 2)
+        #expect(NotebookTaskBoard.matching(tasks, query: "invoice").map(\.title) == ["Ship invoice export"])
+        #expect(NotebookTaskBoard.matching(tasks, query: "zara export").map(\.title) == ["Ship invoice export"])
+        #expect(NotebookTaskBoard.matching(tasks, query: "invoice release").isEmpty)
+    }
 }

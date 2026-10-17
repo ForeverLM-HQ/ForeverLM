@@ -167,6 +167,13 @@ enum TeamContentIdentity {
         "proj_" + hex("team:\(teamID):assignments")
     }
 
+    /// The Notebook the learner's own Board lives in (docs-site/board.md): a
+    /// Board card is an ordinary Notebook task, so the Board is one Notebook
+    /// whose tasks it draws as columns. The same id on every device, so two
+    /// Macs opening the Board at once make one Notebook, not two. Not a
+    /// team's: a team's tasks stay on the Notebook they belong to.
+    static let personalBoardNotebookID = "proj_" + hex("personal:board:v1")
+
     /// The notebook "Make Study Notebook" makes for a course
     /// (`KnowledgeStore.makeStudyNotebook`). Not a team copy, but the same
     /// need as the Assignments Notebook: two Macs asking at once make one
