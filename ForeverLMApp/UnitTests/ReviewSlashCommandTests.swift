@@ -377,7 +377,7 @@ struct ChatPluginMentionTests {
             slack: .connected(workspaces: [.init(name: "Acme Lab", channelCount: 4), .init(name: "Bench Lab", channelCount: nil)]),
             linear: .notConnected,
             github: .connected(.init(login: "robinvale", installations: [.init(installationID: 1, account: "ForeverLM-HQ", accountType: "Organization")])),
-            notion: .connected(workspace: "Bench Lab", user: nil),
+            notion: .connected(workspaces: [.init(id: "notion-bench", name: "Bench Lab", user: nil)]),
             to: (connected: [], slackWorkspaces: [])
         )
         #expect(first.connected == [.slack, .github, .notion])
@@ -385,7 +385,7 @@ struct ChatPluginMentionTests {
 
         // A gateway that could not be reached (nil) changes nothing; a definite
         // answer does.
-        let second = ChatPluginPresence.apply(slack: nil, linear: .connected(workspace: "Bench Lab", user: nil), github: .notConnected, notion: nil, to: first)
+        let second = ChatPluginPresence.apply(slack: nil, linear: .connected(workspaces: [.init(id: "linear-bench", name: "Bench Lab", urlKey: nil, user: nil)]), github: .notConnected, notion: nil, to: first)
         #expect(second.connected == [.slack, .linear, .notion])
         #expect(second.slackWorkspaces == ["Acme Lab", "Bench Lab"])
 

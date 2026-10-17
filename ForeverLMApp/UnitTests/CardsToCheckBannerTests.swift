@@ -205,12 +205,19 @@ private func added(
     words: Int? = 50,
     paywalled: Bool = false
 ) -> StudioArticle {
-    var article = StudioArticle(url: "https://example.com/\(id)", title: id, sourceType: .article, discoveryOrigin: .manual, id: id)
+    // Only a paper stores a paywall, so the paywalled one is a paper.
+    var article = StudioArticle(url: "https://example.com/\(id)", title: id, sourceType: paywalled ? .paper : .article, discoveryOrigin: .manual, id: id)
     article.normalizedURL = URLNormalizer.normalize(article.url)
     article.content = "Some text about \(id)."
     article.wordCount = words
     article.state = state
     article.isPaywalled = paywalled
+    if paywalled {
+        // A ready paper has had its metadata read.
+        article.author = "Zara Holt"
+        article.publishedYear = "2024"
+        _ = article.attestPaperMetadataExtractionAfterLLM()
+    }
     article.dateAdded = now.addingTimeInterval(-addedDaysAgo * day)
     return article
 }

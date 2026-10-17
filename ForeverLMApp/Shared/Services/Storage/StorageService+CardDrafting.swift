@@ -369,7 +369,7 @@ extension StorageService {
         let store = try notebookFilesKnowledgeStore()
         let excluded = try store.knowledgeSearchExcludedSourceIDs(includeArchived: true)
         let sources = try store.loadSourcesWithoutContent().filter {
-            $0.teamID == nil && $0.status == .active && $0.state == .ready && !$0.isPaywalled
+            $0.teamID == nil && $0.status == .active && $0.state == .ready && !$0.hasPaywallMarker
                 && ($0.wordCount.map { $0 > 0 } ?? true)
                 && !TextToSpeechPreparationPolicy.isSpokenScript(url: $0.url)
                 && !excluded.contains($0.id)

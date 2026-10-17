@@ -123,7 +123,8 @@ struct ReviewChatConversationMockTests {
                 score: nil,
                 sourceRefs: [],
                 knowledgeNote: nil,
-                answeredAt: nil
+                answeredAt: nil,
+                contextContent: nil
             )
         }
         // Stored out of order, and the second question is the first reply

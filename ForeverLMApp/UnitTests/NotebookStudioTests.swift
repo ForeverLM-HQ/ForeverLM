@@ -414,7 +414,8 @@ struct NotebookStudioTests {
         vm.inWindow(window) {
             vm.sidebarTab = .articles
             #expect(vm.sourceCardFilter == .all)
-            #expect(Set(vm.filteredActiveItems.map(\.id)) == [paperID, otherID, explainerID])
+            // The explainer is a notebook output, never a row of the Library's list.
+            #expect(Set(vm.filteredActiveItems.map(\.id)) == [paperID, otherID])
             #expect(vm.sourcesWithoutCardsCountInTab == 1, "the pill counts the tab's sources with no card")
 
             vm.sourceCardFilter = .withoutCards
@@ -434,7 +435,7 @@ struct NotebookStudioTests {
 
             vm.clearSourceListFilters()
             #expect(vm.sourceCardFilter == .all)
-            #expect(vm.filteredActiveItems.count == 3)
+            #expect(vm.filteredActiveItems.count == 2)
         }
 
         // The batch is the first ten of the list as it stands.
