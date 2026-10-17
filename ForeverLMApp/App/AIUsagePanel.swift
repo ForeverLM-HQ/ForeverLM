@@ -345,6 +345,7 @@ enum AIModelSetting {
         }
     }
 
+    @MainActor
     func open(_ onOpenSettings: (SettingsPane) -> Void) {
         switch self {
         case .slot(let slot):
