@@ -717,7 +717,24 @@ extension StudioViewModel {
                 logger.error("Failed to read the sources without cards: \(error.localizedDescription)")
             }
             guard recordingRevision == recordingScopeRevision else { return }
-            noteCardsToCheck(snapshot.toCheck, uncovered: uncovered?.all)
+            // "More sources to come" is the last run's count, kept a day; it is
+            // read against the sources still eligible now, and only while the
+            // run says something waits, so the common refresh costs nothing.
+            var eligibleSources: Int?
+            let now = Date()
+            if (AutomaticCardDraftingRun.last()?.waiting(asOf: now) ?? 0) > 0 {
+                do {
+                    let state = try await storage.automaticCardDraftingState(now: now)
+                    let failed = Set(AutomaticCardDraftingFailures.recent(now: now).map(\.sourceID))
+                    eligibleSources = AutomaticCardDrafting.plan(
+                        state.candidates, decksCreatedToday: 0, limit: 0, failed: failed, now: now
+                    ).waiting
+                } catch {
+                    logger.error("Failed to read the sources still to draft: \(error.localizedDescription)")
+                }
+                guard recordingRevision == recordingScopeRevision else { return }
+            }
+            noteCardsToCheck(snapshot.toCheck, uncovered: uncovered?.all, eligibleSources: eligibleSources, now: now)
             Task(priority: .utility) { await refreshCardsToCheckBanner(uncovered: uncovered) }
         } catch {
             logger.error("Failed to read today's cards: \(error.localizedDescription)")

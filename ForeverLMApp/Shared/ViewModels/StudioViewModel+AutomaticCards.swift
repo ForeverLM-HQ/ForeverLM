@@ -105,14 +105,24 @@ extension StudioViewModel {
     /// What the counts' read says about the background drafts waiting, for
     /// the corner card (`refreshMemoryCardCounts`).
     /// `uncovered` is the sources no card covers, as the same read found
-    /// them; nil keeps what the card knew.
-    func noteCardsToCheck(_ toCheck: [MemoryCardToCheck], uncovered: Set<String>? = nil, now: Date = Date()) {
+    /// them; nil keeps what the card knew. `eligibleSources` is how many
+    /// sources background drafting could still draft right now, as the same
+    /// read found them: the last run's "waiting" is only ever the lesser of
+    /// the two, so a source whose cards came another way is not still "to
+    /// come". Nil leaves the last run's count as it was.
+    func noteCardsToCheck(
+        _ toCheck: [MemoryCardToCheck],
+        uncovered: Set<String>? = nil,
+        eligibleSources: Int? = nil,
+        now: Date = Date()
+    ) {
         let pile = CardsToCheckNudge.pile(
             drafts: CardsToCheckNudge.pile(toCheck),
             uncovered: uncovered ?? cardsToCheckPile?.uncoveredSourceIDs ?? []
         )
         if pile != cardsToCheckPile { cardsToCheckPile = pile }
-        let waiting = AutomaticCardDraftingRun.last()?.waiting(asOf: now) ?? 0
+        var waiting = AutomaticCardDraftingRun.last()?.waiting(asOf: now) ?? 0
+        if let eligibleSources { waiting = min(waiting, eligibleSources) }
         if waiting != cardsToCheckWaiting { cardsToCheckWaiting = waiting }
         let putOff = CardsToCheckNudge.putOffDay() == MemoryReviewGoal.dayKey(for: now)
         if putOff != cardsToCheckIsPutOff { cardsToCheckIsPutOff = putOff }

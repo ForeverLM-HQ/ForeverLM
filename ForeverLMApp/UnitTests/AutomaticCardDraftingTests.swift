@@ -322,6 +322,16 @@ struct AutomaticCardDraftingTests {
         #expect(deduped.draft.filter { $0.deckSourceID == "s5" }.count == 1, "a team copy and its source are one deck")
     }
 
+    @Test("What still waits is the sources eligible now: one that has a deck since drops out, whatever the last run recorded")
+    func waitingIsRecounted() {
+        let candidates = (1...5).map { candidate("s\($0)", seconds: Double(100 * $0), now: now) }
+        // The corner card recounts with no slots, so every eligible source waits.
+        #expect(AutomaticCardDrafting.plan(candidates, decksCreatedToday: 0, limit: 0, now: now).waiting == 5)
+        let since = candidates.map { $0.deckSourceID == "s2" || $0.deckSourceID == "s3" ? candidate($0.sourceID, hasDeck: true, now: now) : $0 }
+        #expect(AutomaticCardDrafting.plan(since, decksCreatedToday: 0, limit: 0, now: now).waiting == 3)
+        #expect(AutomaticCardDrafting.plan(since, decksCreatedToday: 0, limit: 0, failed: ["s5"], now: now).waiting == 2)
+    }
+
     @Test("What of a source the learner met: whole when finished, a chat-only source's discussed ideas, a part read's ideas up to where they stopped")
     func reach() {
         let hash = "h"
