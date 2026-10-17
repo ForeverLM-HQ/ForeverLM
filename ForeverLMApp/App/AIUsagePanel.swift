@@ -284,6 +284,80 @@ struct AIUsageAccountSections: View {
     }
 }
 
+/// Where the model behind a piece of AI work is chosen: one link for the
+/// Activity list's rows and for "Running now", from the work's ledger task.
+enum AIModelSetting {
+    /// Settings › Chat, or Settings › Background on a model or a task.
+    case slot(ModelPickerSlot)
+    /// Settings › Voice › Speech to text, on dictation's or recordings' model.
+    case transcription(ManagedTranscriptionClient.Purpose)
+    /// A pane with one model for the work: Voice's text to speech, Images, Videos.
+    case pane(SettingsPane)
+
+    /// Nil for work whose model is no learner's choice (Apple's on-device
+    /// embeddings) or that no route records; a link there would open a pane
+    /// that changes nothing.
+    init?(task: String) {
+        if let aiTask = AITask(rawValue: task) {
+            if KeychainService.canHaveOwnRoute(aiTask) {
+                self = .slot(.task(aiTask))
+                return
+            }
+            // The chat, and the work that runs on the chat's model.
+            if aiTask.usesBackgroundModelDefault { return nil }
+            self = .slot(.chat)
+            return
+        }
+        switch task {
+        // Purposes of a chat the learner waits on, run on the chat's model.
+        // Its title and history summary are tasks with Background routes.
+        case "deep_research_chat", "chat_quiz_grading":
+            self = .slot(.chat)
+        case "meeting_transcription", "podcast_transcription", "course_video_transcription":
+            self = .transcription(.media)
+        case "composer_dictation", "review_dictation", "canvas_voice_dictation":
+            self = .transcription(.dictation)
+        case "read_aloud", "review_speech":
+            self = .pane(.aiTextToSpeech)
+        case "notebook_cover", "course_quiz_picture", "course_quiz_icon", "card_picture", "meeting_icon", "doc_image", "chat_image":
+            self = .pane(.aiImages)
+        case "explainer_video":
+            self = .pane(.aiVideos)
+        default:
+            return nil
+        }
+    }
+
+    var help: String {
+        switch self {
+        case .slot(.task(let task)):
+            return "Settings › Background › Tasks › \(task.displayName)"
+        case .slot:
+            return "Runs on your chat's model: Settings › Chat"
+        case .transcription(let purpose):
+            return "Settings › Voice › Speech to text › \(purpose.settingsLabel)"
+        case .pane(.aiTextToSpeech):
+            return "Settings › Voice › Text to speech"
+        case .pane(.aiVideos):
+            return "Settings › Videos"
+        case .pane:
+            return "Settings › Images"
+        }
+    }
+
+    func open(_ onOpenSettings: (SettingsPane) -> Void) {
+        switch self {
+        case .slot(let slot):
+            onOpenSettings(ModelPickerSheetRequest.stage(slot))
+        case .transcription(let purpose):
+            TranscriptionModelRequest.stage(purpose)
+            onOpenSettings(.aiTextToSpeech)
+        case .pane(let pane):
+            onOpenSettings(pane)
+        }
+    }
+}
+
 /// AI Usage › Activity: which tasks used AI, grouped by task, for a range,
 /// read from this Mac's usage ledger (`ai_usage_events`). Every row shows what
 /// it cost, a free model's as $0.00.
@@ -504,7 +578,7 @@ struct AIActivitySettingsSection: View {
                     .foregroundStyle(.secondary)
                 modelsLine(
                     summary.models,
-                    change: Self.isCharged(summary) ? summary.task.flatMap(Self.modelSetting) : nil
+                    change: Self.isCharged(summary) ? summary.task.flatMap(AIModelSetting.init(task:)) : nil
                 )
             }
 
@@ -534,16 +608,6 @@ struct AIActivitySettingsSection: View {
         .padding(.vertical, 3)
     }
 
-    /// Where the model behind an activity is chosen.
-    private enum ModelSetting {
-        /// Settings › Chat, or Settings › Background on a model or a task.
-        case slot(ModelPickerSlot)
-        /// Settings › Voice › Speech to text, on dictation's or recordings' model.
-        case transcription(ManagedTranscriptionClient.Purpose)
-        /// A pane with one model for the work: Voice's text to speech, Images, Videos.
-        case pane(SettingsPane)
-    }
-
     /// Whatever ForeverLM is charged for can have its model changed from its
     /// line (product owner, 2026-10-10: "for things we get charged for; we
     /// need to be able to change the model"). A free line has no link. A
@@ -552,62 +616,8 @@ struct AIActivitySettingsSection: View {
         (summary.cost ?? 0) > 0 || summary.unpricedCallCount > 0
     }
 
-    /// Where an activity's model is set. Nil for work whose model is no
-    /// learner's choice (Apple's on-device embeddings) or that no route
-    /// records; a link there would open a pane that changes nothing.
-    private static func modelSetting(for task: String) -> ModelSetting? {
-        if let aiTask = AITask(rawValue: task) {
-            if KeychainService.canHaveOwnRoute(aiTask) { return .slot(.task(aiTask)) }
-            // The chat, and the work that runs on the chat's model.
-            return aiTask.usesBackgroundModelDefault ? nil : .slot(.chat)
-        }
-        switch task {
-        // Purposes of a chat the learner waits on, run on the chat's model.
-        // Its title and history summary are tasks with Background routes.
-        case "deep_research_chat", "chat_quiz_grading":
-            return .slot(.chat)
-        case "meeting_transcription", "podcast_transcription", "course_video_transcription":
-            return .transcription(.media)
-        case "composer_dictation", "review_dictation", "canvas_voice_dictation":
-            return .transcription(.dictation)
-        case "read_aloud", "review_speech":
-            return .pane(.aiTextToSpeech)
-        case "notebook_cover", "course_quiz_picture", "course_quiz_icon", "card_picture", "meeting_icon", "doc_image", "chat_image":
-            return .pane(.aiImages)
-        case "explainer_video":
-            return .pane(.aiVideos)
-        default:
-            return nil
-        }
-    }
-
-    private static func modelSettingHelp(_ setting: ModelSetting) -> String {
-        switch setting {
-        case .slot(.task(let task)):
-            return "Settings › Background › Tasks › \(task.displayName)"
-        case .slot:
-            return "Runs on your chat's model: Settings › Chat"
-        case .transcription(let purpose):
-            return "Settings › Voice › Speech to text › \(purpose.settingsLabel)"
-        case .pane(.aiTextToSpeech):
-            return "Settings › Voice › Text to speech"
-        case .pane(.aiVideos):
-            return "Settings › Videos"
-        case .pane:
-            return "Settings › Images"
-        }
-    }
-
-    private func openModelSetting(_ setting: ModelSetting) {
-        switch setting {
-        case .slot(let slot):
-            onOpenSettings(ModelPickerSheetRequest.stage(slot))
-        case .transcription(let purpose):
-            TranscriptionModelRequest.stage(purpose)
-            onOpenSettings(.aiTextToSpeech)
-        case .pane(let pane):
-            onOpenSettings(pane)
-        }
+    private func openModelSetting(_ setting: AIModelSetting) {
+        setting.open(onOpenSettings)
     }
 
     /// Where the learner turns off the background work behind an activity,
@@ -789,7 +799,7 @@ struct AIActivitySettingsSection: View {
     /// gives every model's share. A charged row adds a link to where its
     /// model is set, beside the model it changes.
     @ViewBuilder
-    private func modelsLine(_ models: [AIUsageModelUse], change: ModelSetting? = nil) -> some View {
+    private func modelsLine(_ models: [AIUsageModelUse], change: AIModelSetting? = nil) -> some View {
         let named = Self.namedModels(models)
         if !named.isEmpty {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -807,7 +817,7 @@ struct AIActivitySettingsSection: View {
                         .buttonStyle(.link)
                         .font(.caption)
                         .fixedSize()
-                        .help(Self.modelSettingHelp(change))
+                        .help(change.help)
                 }
             }
         }
@@ -1051,7 +1061,7 @@ struct AIUsagePanel: View {
                 if keyComesFirst { accountSections }
                 SettingsSection(title: "Running now") {
                     SettingsCard {
-                        BackgroundWorkList(monitor: monitor, title: title)
+                        BackgroundWorkList(monitor: monitor, title: title, onOpenSettings: onOpenSettings)
                     }
                 }
                 AIActivitySettingsSection(onOpenSettings: onOpenSettings, onClose: onClose)

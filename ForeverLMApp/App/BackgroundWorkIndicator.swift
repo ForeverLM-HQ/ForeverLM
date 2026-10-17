@@ -485,6 +485,8 @@ struct BackgroundWorkButton: View {
 struct BackgroundWorkList: View {
     @ObservedObject var monitor: BackgroundWorkMonitor
     let title: (BackgroundWorkItem) -> String
+    /// Opens a Settings pane, for a row's Change Model link.
+    let onOpenSettings: (SettingsPane) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -579,6 +581,13 @@ struct BackgroundWorkList: View {
         }
     }
 
+    /// Where the model behind a running step is set: its ledger task is the
+    /// step's name, the same key the Activity list links from.
+    private func modelSetting(of item: BackgroundWorkItem) -> AIModelSetting? {
+        guard case .modelStep(let step) = item.stop else { return nil }
+        return AIModelSetting(task: step)
+    }
+
     private func row(_ item: BackgroundWorkItem) -> some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: item.kind.systemImage)
@@ -606,6 +615,12 @@ struct BackgroundWorkList: View {
                 }
                 .font(.system(size: 11))
                 .foregroundStyle(.tertiary)
+                if let setting = modelSetting(of: item) {
+                    Button("Change Model…") { setting.open(onOpenSettings) }
+                        .buttonStyle(.link)
+                        .font(.system(size: 11))
+                        .help(setting.help)
+                }
             }
             Spacer(minLength: 0)
             Button { monitor.stop(item) } label: {
