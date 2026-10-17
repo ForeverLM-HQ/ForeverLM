@@ -333,6 +333,11 @@ struct NotebookWorkspaceView: View {
     /// idle. Written to `storedSourcesWidth` once, when the drag ends.
     @State private var draggedSourcesWidth: CGFloat?
     @State private var dragStartSourcesWidth: CGFloat?
+    /// The center's width when that drag began. The center keeps it while the
+    /// drag runs, so the chat and the Reader are not re-typeset at a new
+    /// width on every mouse move (that was the lag); it takes the real
+    /// width once, when the drag ends.
+    @State private var dragStartCenterWidth: CGFloat?
     /// The audio overview's options, asked for by the Studio's tile or the
     /// Notebook menu.
     @State private var audioOverviewTarget: AudioOverviewOptionsTarget?
@@ -394,8 +399,20 @@ struct NotebookWorkspaceView: View {
                         .frame(maxHeight: .infinity)
                     columnSeparator
                 }
-                center(width: widths.center, start: centerStart, totalWidth: visibleWidth)
-                    .frame(width: widths.center)
+                // While the Sources edge is dragged the panes stay as wide as
+                // they were and hang from the Studio's side: a wider Sources
+                // column clips their leading edge, a narrower one leaves a
+                // margin there. Always the same modifiers, so the chat and the
+                // Reader keep their identity when the drag starts and ends.
+                let heldCenter = dragStartCenterWidth ?? widths.center
+                center(
+                    width: heldCenter,
+                    start: centerStart + widths.center - heldCenter,
+                    totalWidth: visibleWidth
+                )
+                    .frame(width: heldCenter)
+                    .frame(width: widths.center, alignment: .trailing)
+                    .clipShape(Rectangle().inset(by: dragStartCenterWidth == nil ? -4000 : 0))
                     .frame(maxHeight: .infinity)
                 if studioShows, !workspace.studioCollapsed {
                     columnSeparator
@@ -408,7 +425,11 @@ struct NotebookWorkspaceView: View {
             // column's own padding beside it; folded, there is no column.
             .overlay(alignment: .topLeading) {
                 if !workspace.sourcesCollapsed {
-                    sourcesResizeHandle(shownWidth: widths.sources, totalWidth: visibleWidth)
+                    sourcesResizeHandle(
+                        shownWidth: widths.sources,
+                        centerWidth: widths.center,
+                        totalWidth: visibleWidth
+                    )
                         .offset(x: centerStart - Sizing.sourcesResizeHandleWidth)
                 }
             }
@@ -527,7 +548,7 @@ struct NotebookWorkspaceView: View {
     /// on this Mac when the drag ends; a double-click gives the column back
     /// its share of the window. It covers the hairline and the column's own
     /// padding, never the center's panes.
-    private func sourcesResizeHandle(shownWidth: CGFloat, totalWidth: CGFloat) -> some View {
+    private func sourcesResizeHandle(shownWidth: CGFloat, centerWidth: CGFloat, totalWidth: CGFloat) -> some View {
         Color.clear
             .frame(width: Sizing.sourcesResizeHandleWidth)
             .frame(maxHeight: .infinity)
@@ -545,7 +566,10 @@ struct NotebookWorkspaceView: View {
                 DragGesture(minimumDistance: 1, coordinateSpace: .named("notebookWorkspace"))
                     .onChanged { value in
                         let start = dragStartSourcesWidth ?? shownWidth
-                        if dragStartSourcesWidth == nil { dragStartSourcesWidth = start }
+                        if dragStartSourcesWidth == nil {
+                            dragStartSourcesWidth = start
+                            dragStartCenterWidth = centerWidth
+                        }
                         draggedSourcesWidth = Sizing.draggedSourcesWidth(
                             startWidth: start,
                             translation: value.translation.width
@@ -561,6 +585,7 @@ struct NotebookWorkspaceView: View {
                             ))
                         }
                         dragStartSourcesWidth = nil
+                        dragStartCenterWidth = nil
                         draggedSourcesWidth = nil
                     }
             )
