@@ -327,9 +327,6 @@ struct NotebookWorkspaceView: View {
     /// The Share popover under the ⋯, for ⋯ › Share… while the Studio
     /// column, where Share lives, is not on screen.
     @State private var isShowingShareUnderMenu = false
-    /// The Sources column's width, for the room its chrome-line row gives
-    /// the notebook's name.
-    @State private var sourcesColumnWidth: CGFloat = NotebookWorkspaceSizing.sideMinimumWidth
     /// The Sources column's width as the learner last dragged it, on this
     /// Mac; nil until the first drag, and again after a double-click on the
     /// edge, when the column takes its share of the window.
@@ -414,9 +411,6 @@ struct NotebookWorkspaceView: View {
             }
             .frame(width: visibleWidth, alignment: .leading)
             .coordinateSpace(.named("notebookWorkspace"))
-            .onChange(of: widths.sources, initial: true) { _, width in
-                if sourcesColumnWidth != width { sourcesColumnWidth = width }
-            }
         }
         // Siri and Shortcuts know which notebook is on screen, as they did
         // on the old Notebook page.
@@ -578,10 +572,13 @@ struct NotebookWorkspaceView: View {
     private var expandedSourcesColumn: some View {
         Group {
             if let goal {
-                NotebookSourcePoolView(goal: goal, column: columnActions)
-                    .padding(.horizontal, 12)
-                    .padding(.top, 10)
-                    .padding(.bottom, 8)
+                VStack(alignment: .leading, spacing: 10) {
+                    notebookTitle(goal)
+                    NotebookSourcePoolView(goal: goal, column: columnActions)
+                }
+                .padding(.horizontal, 12)
+                .padding(.top, 6)
+                .padding(.bottom, 8)
             } else {
                 ProgressView()
                     .controlSize(.small)
@@ -612,44 +609,15 @@ struct NotebookWorkspaceView: View {
         )
     }
 
-    /// The column's row on the chrome line: back to the Space, the notebook's
-    /// name and its actions, and the fold.
+    /// The column's row on the chrome line: the fold, and nothing else. The
+    /// window's ← → and sidebar toggle already sit on this line, and the
+    /// traffic lights before them, so a ‹, the name and a ⋯ squeezed in after
+    /// them left the name a few letters (product owner, 2026-10-17: "looks
+    /// bad in the top left"). The name is the column's title
+    /// below (`notebookTitle`); Close Notebook in its menu, the window's ←
+    /// and the rail lead back to the Space.
     private var sourcesHeader: some View {
         HStack(spacing: 0) {
-            HStack(spacing: 8) {
-                TitlebarBandButton(
-                    help: "Space",
-                    accessibilityLabel: "Back to the Space",
-                    accessibilityIdentifier: "notebook.backToSpace",
-                    action: showSpace
-                ) {
-                    Image(systemName: "chevron.left")
-                        .zoomedSystemFont(size: 11, weight: .semibold)
-                        .foregroundStyle(.secondary)
-                }
-                // The name renames the notebook; the notebook has no settings
-                // sheet (retired 2026-10-04).
-                // What the row leaves the name once its own controls and the
-                // chrome it clears are counted: the name truncates, the
-                // buttons never leave the row.
-                NotebookNameButton(
-                    title: goal?.title ?? "",
-                    maximumWidth: max(40, sourcesColumnWidth - headerLeadingInset - NotebookNameButton.rowControlsWidth)
-                ) {
-                    if let goal, !vm.isNotebookReadOnly(goal) { beginRename(goal) }
-                }
-                // ForeverLM could not name a notebook made without one: the
-                // placeholder stays, and this says why (`NotebookNaming`).
-                if let goal, let namingError = vm.notebookNamingErrors[goal.id] {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .zoomedSystemFont(size: 11)
-                        .foregroundStyle(.orange)
-                        .help(namingError)
-                        .accessibilityLabel(namingError)
-                        .accessibilityIdentifier("notebook.namingError")
-                }
-                notebookMenu
-            }
             Spacer(minLength: 8)
             TitlebarBandButton(
                 help: "Hide Sources",
@@ -662,6 +630,62 @@ struct NotebookWorkspaceView: View {
             }
         }
         .padding(.horizontal, 12)
+    }
+
+    /// The notebook's name at the head of its column, over the search, as a
+    /// Space list wears its name ("One head for every list"): the column's
+    /// whole width, two lines before it truncates. A click opens the
+    /// notebook's menu, Rename Notebook… in it (the name renamed on a click
+    /// until 2026-10-17; the notebook has had no settings sheet since
+    /// 2026-10-04). Off the chrome line it is an ordinary SwiftUI `Menu`.
+    @ViewBuilder
+    private func notebookTitle(_ goal: LearningGoalRecord) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Menu {
+                notebookMenuItems(goal)
+            } label: {
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Text(goal.title)
+                        .zoomedSystemFont(size: 17, weight: .semibold)
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                        .truncationMode(.tail)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Image(systemName: "chevron.down")
+                        .zoomedSystemFont(size: 10, weight: .semibold)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 4)
+                .padding(.vertical, 2)
+                .contentShape(Rectangle())
+            }
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .menuIndicator(.hidden)
+            .hoverHighlight()
+            .help("Notebook actions")
+            .accessibilityLabel(goal.title)
+            .accessibilityHint("Notebook actions")
+            .accessibilityIdentifier("notebook.name")
+            .popover(isPresented: $isShowingShareUnderMenu, arrowEdge: .bottom) {
+                NotebookSharePopover(goal: goal, close: { isShowingShareUnderMenu = false })
+                    .environment(vm)
+            }
+            // ForeverLM could not name a notebook made without one: the
+            // placeholder stays, and this says why (`NotebookNaming`).
+            if let namingError = vm.notebookNamingErrors[goal.id] {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .zoomedSystemFont(size: 11)
+                    .foregroundStyle(.orange)
+                    .help(namingError)
+                    .accessibilityLabel(namingError)
+                    .accessibilityIdentifier("notebook.namingError")
+            }
+        }
+        // The wash sits 4 pt outside the words: the name lines up with the
+        // search field's edge.
+        .padding(.leading, -4)
     }
 
     /// The folded column: what brings it back, and the notebook's sources.
@@ -698,16 +722,9 @@ struct NotebookWorkspaceView: View {
         }
     }
 
-    /// Back to the Space's All list: the notebook leaves this window, and its
-    /// row there or its rail row brings it back as it was.
-    private func showSpace() {
-        withAnimation(.easeInOut(duration: 0.22)) {
-            vm.showSpaceAll(in: windowState)
-        }
-    }
-
-    /// Close Notebook: the window shows the Space, the one place a window
-    /// holding no notebook shows.
+    /// Close Notebook: the window shows the Space's All list, the one place a
+    /// window holding no notebook shows; the notebook's row there or its rail
+    /// row brings it back as it was.
     private func closeNotebook() {
         withAnimation(.easeInOut(duration: 0.22)) {
             vm.showSpaceAll(in: windowState)
@@ -715,48 +732,6 @@ struct NotebookWorkspaceView: View {
     }
 
     // MARK: - The notebook's actions
-
-    /// The notebook's ⋯ on the chrome line: a `TitlebarBandButton` opening an
-    /// `NSHostingMenu`, since a SwiftUI `Menu` neither lights up nor takes
-    /// its press in the band. The items set this view's flags, and this view
-    /// presents the rename, merge and delete dialogs.
-    @ViewBuilder
-    private var notebookMenu: some View {
-        if let goal {
-            Group {
-                if #available(macOS 14.4, *) {
-                    TitlebarBandButton(
-                        help: "Notebook actions",
-                        accessibilityIdentifier: "notebook.actions",
-                        action: {},
-                        menu: {
-                            NSHostingMenu(rootView: notebookMenuItems(goal)
-                                .environment(vm)
-                                .environment(windowState))
-                        }
-                    ) {
-                        RowMoreActionsLabel()
-                    }
-                } else {
-                    Menu {
-                        notebookMenuItems(goal)
-                    } label: {
-                        RowMoreActionsLabel()
-                    }
-                    .menuStyle(.button)
-                    .buttonStyle(.plain)
-                    .hoverHighlight()
-                    .menuIndicator(.hidden)
-                    .fixedSize()
-                    .help("Notebook actions")
-                }
-            }
-            .popover(isPresented: $isShowingShareUnderMenu, arrowEdge: .bottom) {
-                NotebookSharePopover(goal: goal, close: { isShowingShareUnderMenu = false })
-                    .environment(vm)
-            }
-        }
-    }
 
     @ViewBuilder
     private func notebookMenuItems(_ goal: LearningGoalRecord) -> some View {
@@ -795,7 +770,8 @@ struct NotebookWorkspaceView: View {
         }
         Divider()
         // The notebook's Share popover, under the Share at the top right;
-        // under this ⋯ while an immersive video has the Studio column's place.
+        // under the name's menu while an immersive video has the Studio column's
+        // place.
         Button("Share…", systemImage: "person.badge.plus") {
             if studioShows {
                 NotificationCenter.default.post(name: .showNotebookShare, object: windowState.id)
@@ -1074,44 +1050,6 @@ struct NotebookWorkspaceView: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Chat")
         .accessibilityIdentifier("notebook.chat")
-    }
-}
-
-/// The notebook's name on its Sources column's chrome line: a click opens
-/// the notebook's settings, as Gemini Notebook's title opens its own. A
-/// titlebar-band control, sized to the name and truncated past its room.
-struct NotebookNameButton: View {
-    @Environment(\.uiZoomScale) private var uiZoomScale
-    let title: String
-    /// The room the row leaves it, at the window's zoom.
-    var maximumWidth: CGFloat = 170
-    let action: () -> Void
-
-    private static let fontSize: CGFloat = 12.5
-    /// The row's other parts: its padding, ‹, the ⋯, the fold and the gaps
-    /// between them (`sourcesHeader`).
-    static let rowControlsWidth: CGFloat = 12 + 22 + 8 + 8 + 22 + 8 + 22 + 12 + 10
-
-    var body: some View {
-        TitlebarBandButton(
-            help: "Rename Notebook",
-            accessibilityLabel: title.isEmpty ? "Rename notebook" : "\(title), rename",
-            accessibilityIdentifier: "notebook.name",
-            controlWidth: labelWidth,
-            action: action
-        ) {
-            Text(title)
-                .zoomedSystemFont(size: Self.fontSize, weight: .semibold)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .foregroundStyle(.primary)
-        }
-    }
-
-    private var labelWidth: CGFloat {
-        let font = NSFont.systemFont(ofSize: Self.fontSize * uiZoomScale, weight: .semibold)
-        let text = (title as NSString).size(withAttributes: [.font: font]).width
-        return max(24, min(maximumWidth, ceil(text) + 6))
     }
 }
 

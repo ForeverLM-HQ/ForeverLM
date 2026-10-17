@@ -566,7 +566,8 @@ struct NotebookSourcePoolView: View {
         VStack(alignment: .leading, spacing: 12) {
             if let column {
                 // No "Sources" heading over the field since 2026-10-06: the
-                // chrome line above names the notebook, and the field says
+                // notebook's name heads the column above it
+                // (`NotebookWorkspaceView.notebookTitle`), and the field says
                 // what it searches.
                 NotebookSourcesSearchField(
                     text: $sourceSearchText,
