@@ -71,11 +71,10 @@ Three consequences follow:
 ## Creating a team and inviting people
 
 A notebook's **Share** makes a team for you ([Sharing a
-notebook](#sharing-a-notebook)). To make one yourself, click your name at the
-bottom of the navigation rail, open **Library**,
-choose **New Team…** and give it a name, or open
+notebook](#sharing-a-notebook)). To make one yourself, choose **New space** in the
+Space sidebar, fold open **Invite people** and give it a name, or open
 **My Settings → Data & Privacy → Teams**, type the team's name and choose
-**Create**. The team appears in the library switcher at once, empty, and the
+**Create**. The team appears in the Space sidebar at once, empty, and the
 app switches into it.
 
 While a team is open, the account menu carries a second settings entry named
@@ -101,10 +100,9 @@ member's Copy Link copies the link as it stands.
 
 ## Switching libraries
 
-Click your name at the bottom of the navigation rail. The account menu opens
-with one **Library** row naming the library on screen; click it and the menu
-turns into the switcher: **My Library**, then each team by name (with a lock on
-one you can only view), then **New Team…**. While a team is open, a badge beside
+The Space sidebar lists your Space and each team by name (with a lock on one you
+can only view); click one to open its library. The account menu holds no library
+switcher. While a team is open, a badge beside
 your name carries the team's name (with a lock when you can only view it), so
 the rail always says whose library is on screen. Switching reloads notebooks,
 Pages and Chats for that library; everything else in the Studio works as before,

@@ -605,7 +605,6 @@ struct StudioView: View {
             // (Settings and the getting-started guide) so errors and
             // status messages are never hidden behind them.
             .studioToast(vm)
-            .teamCreationPrompt()
             .sharingRightsPrompt()
             .reportOptionsSheet()
             .directionTakeSheet()

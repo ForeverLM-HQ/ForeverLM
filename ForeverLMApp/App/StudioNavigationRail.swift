@@ -408,11 +408,6 @@ struct StudioNavigationRail: View {
     @State private var shortcutDropIsTargeted = false
     /// The kept shortcut a dragged place is over: dropped, it lands above it.
     @State private var shortcutDropBefore: StudioRailShortcut?
-    /// Which page the account menu shows: the root, or the library switcher
-    /// it drills into. Reset to the root each time the menu opens.
-    @State private var accountMenuPage: AccountMenuPage = .root
-
-    private enum AccountMenuPage { case root, library }
     @State private var mcpLauncher = MCPServerLauncher.shared
     @SyncedStorage(AssistantIntegrationSettings.enabledKey) private var assistantIntegrationsEnabled = true
     @SyncedStorage(AssistantIntegrationSettings.statusLightVisibleKey) private var showsMCPStatusLight = true
@@ -1877,7 +1872,6 @@ struct StudioNavigationRail: View {
         }
         .onChange(of: showsAccountMenu) { _, isShown in
             guard isShown else { return }
-            accountMenuPage = .root
             // Whether usage is comped is only as fresh as the last balance fetch,
             // which is otherwise launch and Settings. Opening the menu asks again.
             if showsCompOnScreen {
@@ -1914,46 +1908,31 @@ struct StudioNavigationRail: View {
         .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
     }
 
-    /// The account menu is shaped like Claude's: who you are, one row naming
-    /// the library on screen that drills into the switcher, then a short flat
-    /// list of account actions. Team management is not in the menu; it lives
+    /// The account menu is shaped like Claude's: who you are, then a short
+    /// flat list of account actions. Which library is open is chosen in the
+    /// Space sidebar, not here (product owner, 2026-10-17: "there is no team
+    /// library anymore ... that is now in spaces"), and team management lives
     /// in Settings, scoped to the open team (product owner, 2026-09-08).
     private var accountMenu: some View {
         VStack(alignment: .leading, spacing: 8) {
-            switch accountMenuPage {
-            case .root:
-                accountMenuRoot
-            case .library:
-                libraryPage
-            }
-        }
-        .padding(8)
-        .frame(width: 232)
-        .animation(.easeInOut(duration: 0.15), value: accountMenuPage == .root)
-    }
-
-    @ViewBuilder
-    private var accountMenuRoot: some View {
-        HStack(spacing: 10) {
-            accountAvatar(size: 30)
-            VStack(alignment: .leading, spacing: 1) {
+            HStack(spacing: 10) {
+                accountAvatar(size: 30)
                 Text(accountFullName ?? "Account")
                     .font(.system(size: 13, weight: .semibold))
                     .lineLimit(1)
-                Text(vm.activeLibraryTitle)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
             }
+            .padding(.horizontal, 6)
+
+            Divider()
+
+            accountMenuActions
         }
-        .padding(.horizontal, 6)
+        .padding(8)
+        .frame(width: 232)
+    }
 
-        Divider()
-
-        libraryRow
-
-        Divider()
-
+    @ViewBuilder
+    private var accountMenuActions: some View {
         // The free days' count, quietly: "29 days free left". It opens
         // Billing, where the deal is (docs/pricing-pro-design.md → The free
         // days).
@@ -2060,156 +2039,6 @@ struct StudioNavigationRail: View {
             .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
         }
         .buttonStyle(.hoverWash(cornerRadius: 7, inset: 0))
-        .accessibilityIdentifier(accessibilityIdentifier)
-    }
-
-    // MARK: Library
-
-    /// One row naming the library on screen. It drills into the switcher page
-    /// rather than listing every library inline, so the menu keeps the same
-    /// height however many teams the account belongs to. The switcher stays in
-    /// the account menu rather than at the top of the rail (product owner,
-    /// 2026-09-07), and the badge on the account button names the open team.
-    private var libraryRow: some View {
-        Button {
-            accountMenuPage = .library
-        } label: {
-            HStack(spacing: 10) {
-                Image(systemName: vm.activeTeam == nil ? "books.vertical" : "person.2")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 18)
-                Text("Library")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.primary)
-                Spacer(minLength: 8)
-                Text(vm.activeLibraryTitle)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.tertiary)
-            }
-            .padding(.horizontal, 6)
-            .frame(minHeight: 32)
-            .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-        }
-        .buttonStyle(.hoverWash(cornerRadius: 7, inset: 0))
-        .help("Switch library")
-        .accessibilityLabel("Library")
-        .accessibilityValue(vm.activeLibraryTitle)
-        .accessibilityHint("Opens the library switcher")
-        .accessibilityIdentifier("rail.library")
-    }
-
-    /// The switcher page: back to the root, then My Library, each team (a lock
-    /// on read-only ones; in Screen record mode only those `shownTeams` lets
-    /// on screen) and New Team…. Managing a team happens in that team's
-    /// Settings, not here.
-    @ViewBuilder
-    private var libraryPage: some View {
-        Button {
-            accountMenuPage = .root
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 18)
-                Text("Library")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.primary)
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 6)
-            .frame(minHeight: 30)
-            .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-        }
-        .buttonStyle(.hoverWash(cornerRadius: 7, inset: 0))
-        .accessibilityLabel("Back")
-        .accessibilityIdentifier("rail.library.back")
-
-        Divider()
-
-        libraryChoice(
-            title: "My Library",
-            systemImage: "books.vertical",
-            selected: vm.activeTeamID == nil,
-            readOnly: false,
-            accessibilityIdentifier: "rail.library.mine"
-        ) {
-            Task { await vm.setActiveTeam(nil) }
-        }
-        ForEach(vm.shownTeams) { team in
-            libraryChoice(
-                title: team.name,
-                systemImage: "person.2",
-                selected: team.id == vm.activeTeamID,
-                readOnly: !team.canEdit,
-                accessibilityIdentifier: "rail.library.team"
-            ) {
-                Task { await vm.setActiveTeam(team.id) }
-            }
-        }
-
-        Divider()
-
-        accountMenuAction(
-            title: "New Team…",
-            systemImage: "plus",
-            accessibilityIdentifier: "rail.library.newTeam"
-        ) {
-            showsAccountMenu = false
-            TeamCreationPrompt.shared.begin { team in
-                Task { await vm.setActiveTeam(team.id) }
-            }
-        }
-    }
-
-    private func libraryChoice(
-        title: String,
-        systemImage: String,
-        selected: Bool,
-        readOnly: Bool,
-        accessibilityIdentifier: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button {
-            showsAccountMenu = false
-            action()
-        } label: {
-            HStack(spacing: 10) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(selected ? Color.accentColor : Color.secondary)
-                    .frame(width: 18)
-                Text(title)
-                    .font(.system(size: 13, weight: selected ? .semibold : .medium))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                Spacer(minLength: 0)
-                if readOnly {
-                    Image(systemName: "lock.fill")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .help("Read only")
-                }
-                if selected {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Color.accentColor)
-                }
-            }
-            .padding(.horizontal, 6)
-            .frame(minHeight: 30)
-            .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-        }
-        .buttonStyle(.hoverWash(cornerRadius: 7, inset: 0))
-        .accessibilityLabel(title)
-        .accessibilityValue(readOnly ? "Read only" : "")
-        .accessibilityAddTraits(selected ? .isSelected : [])
         .accessibilityIdentifier(accessibilityIdentifier)
     }
 
