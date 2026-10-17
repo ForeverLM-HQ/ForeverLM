@@ -4242,6 +4242,10 @@ actor StorageService {
         try knowledgeStore().loadReviewSessionLoadedSourceIDs(sessionID: sessionID)
     }
 
+    func chatDiscussedSourceIDs(sessionID: String) throws -> [String] {
+        try knowledgeStore().chatDiscussedSourceIDs(sessionID: sessionID)
+    }
+
     func loadReviewSessionGoalID(sessionID: String) throws -> String? {
         try knowledgeStore().loadReviewSessionGoalID(sessionID: sessionID)
     }

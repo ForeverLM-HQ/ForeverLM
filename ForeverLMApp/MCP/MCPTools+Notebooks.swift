@@ -124,7 +124,7 @@ extension MCPDataStore {
         let givenSeeds = sanitizedSourceIDs(sourceIDs)
         try validateSourcesExist(givenSeeds)
         // Made from a chat, the Notebook starts with what that chat discussed: the
-        // source it was opened on and the sources its turns cite. Asked to "turn this
+        // source it was opened on, the sources its turns cite and those it read. Asked to "turn this
         // into a notebook", a chat on one paper passed no source_ids, and the Notebook
         // began empty of the very paper it was about.
         let hostChatID = try resolvedHostSessionID(hostSessionID)
@@ -216,20 +216,22 @@ extension MCPDataStore {
         """
     }
 
-    /// The sources a chat discussed (`KnowledgeStore.chatDiscussedSourceIDs`) that a
-    /// Notebook made from it starts with, beside the `given` ones: active and outside a
-    /// hidden show or channel (`persistedMCPSourceIDs`), not already given, in the order
-    /// the chat took them up, and only as many as bring the seeds to
-    /// `companionDiscoverySeedLimit`.
-    /// A long chat cites more sources than it is about; the first it took up say what it is.
+    /// The sources a Notebook made from a chat starts with, beside the `given` ones:
+    /// every source the chat discussed (`KnowledgeStore.chatDiscussedSourceIDs`: the one
+    /// it was opened on and those its turns link), in the order it took them up, then
+    /// those it read without linking (`loaded_source_ids`). Each once, not already
+    /// given, active and outside a hidden show or channel (`persistedMCPSourceIDs`).
+    /// None is left out for a cap (product owner, 2026-10-17: "Add every source the chat
+    /// linked or read, with no cap"); discovery steers from the first
+    /// `companionDiscoverySeedLimit` of them on its own (`runCompanionDiscovery`).
     func notebookSeedsDiscussed(inChat sessionID: String, besides given: [String]) throws -> [String] {
-        let room = companionDiscoverySeedLimit - given.count
-        guard room > 0 else { return [] }
-        let givenSet = Set(given)
-        let discussed = try knowledgeStore().chatDiscussedSourceIDs(sessionID: sessionID)
-            .filter { !givenSet.contains($0) }
-        let present = try persistedMCPSourceIDs(discussed)
-        return Array(discussed.filter { present.contains($0) }.prefix(room))
+        let store = try knowledgeStore()
+        let discussed = try store.chatDiscussedSourceIDs(sessionID: sessionID)
+        let read = try store.loadReviewSessionLoadedSourceIDs(sessionID: sessionID) ?? []
+        var seen = Set(given)
+        let candidates = (discussed + read).filter { seen.insert($0).inserted }
+        let present = try persistedMCPSourceIDs(candidates)
+        return candidates.filter { present.contains($0) }
     }
 
     /// nil when the caller omitted `repository` (keep), "" when it asked to

@@ -291,14 +291,17 @@ extension StudioViewModel {
     }
 
     /// The sources a notebook made from the chat `sessionID` starts with:
-    /// those the chat was given and those it read — the open chat's own
-    /// (`openChatSourceIDs`) first, then its record's — each once, and only
-    /// while the library holds it.
+    /// those the chat was given, those its replies link and those it read —
+    /// the open chat's own (`openChatSourceIDs`) first, then its record's —
+    /// each once, and only while the library holds it. Every one, as
+    /// `create_notebook` from a chat takes them (product owner, 2026-10-17:
+    /// "Add every source the chat linked or read, with no cap").
     func notebookSourceIDs(fromChat sessionID: String, openChatSourceIDs: [String] = []) async -> [String] {
         let given = reviewSessionLinks.first { $0.id == sessionID }?.sourceIDs ?? []
+        let linked = (try? await storage.chatDiscussedSourceIDs(sessionID: sessionID)) ?? []
         let read = (try? await storage.loadReviewSessionLoadedSourceIDs(sessionID: sessionID)) ?? nil
         var seen = Set<String>()
-        return (openChatSourceIDs + given + (read ?? []))
+        return (openChatSourceIDs + given + linked + (read ?? []))
             .filter { articlesById[$0] != nil && seen.insert($0).inserted }
     }
 
@@ -321,6 +324,15 @@ extension StudioViewModel {
         // "Created notebook" is the toast; the sources arriving is part of it.
         await addSourcesToNotebookContext(sourceIDs, notebookID: created.id, announce: false)
         await moveReviewSession(sessionID, toNotebook: created.id)
+        // The Pages the chat wrote come along, as they do through
+        // `create_notebook` (`StorageService.fileChatPages`).
+        do {
+            if try await !storage.fileChatPages(sessionID: sessionID, inNotebook: created.id).isEmpty {
+                await loadArtifacts()
+            }
+        } catch {
+            logger.error("Filing a chat's Pages in the notebook made from it failed: \(error.localizedDescription)")
+        }
         inWindow(window) { requestResumeReviewSession(sessionID) }
         return created
     }

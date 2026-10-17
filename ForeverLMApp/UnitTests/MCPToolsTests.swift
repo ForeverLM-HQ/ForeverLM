@@ -3923,6 +3923,40 @@ struct MCPDataStoreTests {
         #expect(given.contains("Seeds: 2."))
     }
 
+    @Test("A Notebook made from a chat takes every source the chat linked or read, past the discovery seed limit")
+    func notebookFromChatTakesEverySourceLinkedOrRead() async throws {
+        let (_, tmpPath) = try makeStore()
+        defer { cleanup(tmpPath) }
+        let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
+        let store = MCPDataStore(dbPath: dbPath)
+        let ks = try store.knowledgeStore()
+
+        let linked = (1...8).map { "linked-\($0)" }
+        for id in linked + ["read-only"] {
+            try insertSource(dbPath: dbPath, id: id, title: "Source \(id)", content: "Body of \(id).")
+        }
+        try ks.createReviewSession(id: "chat-host", topic: "Delivery", sourceIDs: [])
+        for pair in stride(from: 0, to: linked.count, by: 2) {
+            _ = try ks.addReviewExchange(
+                sessionID: "chat-host", question: "", answer: "And these?",
+                evaluation: "See [one](foreverlm://source/\(linked[pair])) and [two](foreverlm://source/\(linked[pair + 1])).",
+                score: nil, knowledgeNote: nil, sourceRefs: []
+            )
+        }
+        // Read through a tool and never linked in a reply.
+        try ks.updateReviewSessionLoadedSources(sessionID: "chat-host", sourceIDs: ["read-only", "linked-1"])
+        #expect(linked.count + 1 > store.companionDiscoverySeedLimit)
+
+        let result = try await store.createNotebook(
+            title: "Delivery routes", description: nil, topic: nil, endDateString: "",
+            sourceIDs: [], dailyTarget: nil, discover: false, hostSessionID: "chat-host"
+        )
+        let notebookID = try #require(createdNotebookID(in: result))
+        let notebook = try #require(try ks.loadLearningGoal(notebookID))
+        #expect(Set(notebook.items.filter(\.isApproved).map(\.sourceID)) == Set(linked + ["read-only"]))
+        #expect(result.contains("Seeds: 9, 9 of them the sources this chat discussed."))
+    }
+
     @Test("A Notebook made from a chat takes in the Pages the chat wrote")
     func notebookFromChatFilesTheChatsPages() async throws {
         let (_, tmpPath) = try makeStore()
