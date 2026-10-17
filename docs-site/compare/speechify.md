@@ -14,7 +14,7 @@ The short version: choose Speechify when the voice reader itself is the product.
 
 | | ForeverLM | Speechify |
 |---|---|---|
-| **Price** | 7 days free, then $19 once (no subscription); AI and voices on your own OpenRouter key at cost (free voices cost nothing) | Free voice-reader tier; Premium is $29/month on the monthly plan |
+| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI and voices on your own OpenRouter key at cost (free voices cost nothing) | Free voice-reader tier; Premium is $29/month on the monthly plan |
 | **Platforms** | Mac for the full library and reader; synced listening and voice interaction on iPhone | Web, Mac, Windows, iPhone, iPad, Android, Chrome, and Edge |
 | **What it reads** | Articles, papers, books, and transcript-only sources already organized in your ForeverLM library | Webpages, PDFs, documents, scans, and text imported from cloud drives |
 | **Voices** | Every speech model OpenRouter serves, from many makers; free ones cost nothing | Premium advertises 1,000+ voices in 60+ languages |

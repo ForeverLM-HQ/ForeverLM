@@ -12,7 +12,7 @@ Mendeley is Elsevier's reference manager for storing, organizing, annotating, sh
 
 | | ForeverLM | Mendeley |
 |---|---|---|
-| **Price** | 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free with 2 GB; Plus $55/year; Pro $110/year; Max $165/year |
+| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free with 2 GB; Plus $55/year; Pro $110/year; Max $165/year |
 | **Paper storage** | Local files and metadata in private iCloud | Elsevier cloud, from 2 GB to unlimited by plan |
 | **AI** | Configurable models, multi-source Chat, and MCP assistants | Reading Assistant; Ask My Library and Compare Experiments on Pro and Max |
 | **Citations** | No cite-while-you-write plugin | Mendeley Cite for Microsoft Word |

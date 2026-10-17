@@ -692,9 +692,9 @@ private struct MobileAccountDeletionAuthorizationView: View {
 }
 
 /// The phone's key screen (product owner, 2026-09-25): AI features run on the
-/// learner's own OpenRouter key, while the account is unlocked (the paid app,
-/// 2026-10-10: its free days, or paid). The phone stores the key and shows
-/// the account's status and any leftover balance. The
+/// learner's own OpenRouter key, for every account (the app is free; only MCP
+/// is paid for, and the phone has none). The phone stores the key and shows
+/// any leftover balance. The
 /// iPhone app is a free companion to the Mac app (product owner, 2026-10-10; App
 /// Review 3.1.3(f)): it sells nothing, and nothing on it names a price, a place
 /// to buy, or a link that leads to one, so Stripe's billing pages and buying
@@ -702,7 +702,6 @@ private struct MobileAccountDeletionAuthorizationView: View {
 private struct MobileCreditsView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var balance: ManagedAI.Balance?
-    @State private var appAccess: ManagedAI.AppAccess? = ManagedAI.appAccess
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var lastRefreshAt: Date?
@@ -715,7 +714,6 @@ private struct MobileCreditsView: View {
     var body: some View {
         List {
             ownKeySection
-            statusSection
             if showsBalanceSection {
                 balanceSection
             }
@@ -810,34 +808,6 @@ private struct MobileCreditsView: View {
         }
     }
 
-    /// Read-only (the paid app, product owner, 2026-10-10): "Free, 6 days
-    /// left", "Paid" or "Locked". It never says what anything costs, offers a
-    /// button or says where to pay (App Review 3.1.3(f)).
-    private var statusSection: some View {
-        Section {
-            LabeledContent("ForeverLM", value: statusTitle)
-                .accessibilityIdentifier("credits.status")
-            if appAccess?.paymentFailed == true {
-                Label("Your last payment didn't go through.", systemImage: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
-            }
-        } footer: {
-            if appAccess?.isLocked(at: ManagedAI.serverNow) == true {
-                Text(ManagedAI.appLockedMessage)
-            }
-        }
-    }
-
-    private var statusTitle: String {
-        guard let appAccess else { return isLoading ? "…" : "—" }
-        let now = ManagedAI.serverNow
-        if appAccess.isLocked(at: now) { return "Locked" }
-        if let days = appAccess.freeDaysLeft(at: now) {
-            return ManagedAI.AppAccess.phoneFreeDaysStatus(daysLeft: days)
-        }
-        return appAccess.isPaid ? "Paid" : "Free"
-    }
-
     private func loadOwnKey() async {
         let stored = await Task.detached(priority: .userInitiated) { ManagedAI.ownKey }.value
         ownKey = stored
@@ -914,8 +884,6 @@ private struct MobileCreditsView: View {
 
         do {
             balance = try await ManagedAI.balance()
-            // Every balance fetch carries the plan too.
-            appAccess = ManagedAI.appAccess
             lastRefreshAt = Date()
         } catch is CancellationError {
             return
@@ -1376,8 +1344,8 @@ extension MobileTextToSpeechVoicePreviewService: AVAudioPlayerDelegate {
     }
 }
 
-/// The key screen's words (the paid app, product owner, 2026-10-10): the
-/// screen is "Key" and names no plan.
+/// The key screen's words (product owner, 2026-10-10): the screen is "Key"
+/// and names no plan.
 enum MobileKeyScreenCopy {
     static let title = "Key"
 

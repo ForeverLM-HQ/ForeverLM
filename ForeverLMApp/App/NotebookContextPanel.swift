@@ -2342,15 +2342,20 @@ struct MCPSettingsDetailView: View {
     @SyncedStorage(AssistantIntegrationSettings.enabledKey) private var assistantIntegrationsEnabled = true
     @SyncedStorage(AssistantIntegrationSettings.statusLightVisibleKey) private var showsMCPStatusLight = true
 
+    @Environment(ManagedAIAccountModel.self) private var account
+
     let showsPairingCode: Bool
+    /// Opens Settings › Billing, where MCP is unlocked.
+    let onOpenBilling: () -> Void
 
     // Keychain reads are securityd IPC round-trips; load them once off-main in
     // `.task` rather than on every render.
     @State private var storedTunnelURL: String?
     @State private var ownerPairingCode: String?
 
-    init(showsPairingCode: Bool = false) {
+    init(showsPairingCode: Bool = false, onOpenBilling: @escaping () -> Void) {
         self.showsPairingCode = showsPairingCode
+        self.onOpenBilling = onOpenBilling
     }
 
     private var hostedMCPURL: String? {
@@ -2404,7 +2409,24 @@ struct MCPSettingsDetailView: View {
                 }
                 .padding(.top, 20)
 
-                if assistantIntegrationsEnabled {
+                if account.isMCPLocked {
+                    // The connection is stopped until MCP is paid for; nothing
+                    // else in the app is held back.
+                    GroupBox {
+                        HStack(spacing: 10) {
+                            Image(systemName: "lock.fill")
+                                .foregroundStyle(.secondary)
+                            Text(EarlyUserDealOffer.lockedTitle)
+                                .font(.title3.weight(.semibold))
+                            Spacer()
+                            Button("Open Billing") { onOpenBilling() }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.purple)
+                                .accessibilityIdentifier("settings.mcp.openBilling")
+                        }
+                        .padding(6)
+                    }
+                } else if assistantIntegrationsEnabled {
                     mcpConnectionPanel
                 } else {
                     GroupBox {

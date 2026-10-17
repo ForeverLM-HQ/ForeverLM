@@ -113,14 +113,14 @@ final class MCPServerLauncher {
     /// serves the tunnel (Use This Mac in Settings). The relay hands the address
     /// here and the other instance steps aside in turn, so the two do not fight.
     func startHostedTunnel(yieldingToLiveInstance: Bool = false, takingOver: Bool = false) async {
-        // The one entitlement gate on the tunnel: it does not connect while the
-        // app is locked (product owner, 2026-10-10: the free days over and
-        // nothing paid; `ManagedAI.isAppLocked`). The app scene stops a running
-        // tunnel when the lock comes on and starts it again when it lifts. A
-        // tool call that reaches this Mac anyway is refused by
-        // `MCPProtocolHandler.appLockRefusal`, and the hosted gateway refuses
+        // The one entitlement gate on the tunnel: it does not connect while MCP
+        // is locked (product owner, 2026-10-10 and 2026-10-16: the free days
+        // over and nothing paid; `ManagedAI.isMCPLocked`). The app scene stops a
+        // running tunnel when the lock comes on and starts it again when it
+        // lifts. A tool call that reaches this Mac anyway is refused by
+        // `MCPProtocolHandler.mcpLockRefusal`, and the hosted gateway refuses
         // its own on the account server's word.
-        guard !ManagedAI.isAppLocked else { return }
+        guard !ManagedAI.isMCPLocked else { return }
         guard !isStartInFlight, state != .running else { return }
         isStartInFlight = true
         defer { isStartInFlight = false }

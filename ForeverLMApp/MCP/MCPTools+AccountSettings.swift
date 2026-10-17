@@ -10,7 +10,7 @@ import AppKit
 // limit. Each tool goes through the exact call the pane's own control makes,
 // so the window and a chat cannot accept different things.
 //
-// What stays in the window: paying for ForeverLM (Stripe Checkout),
+// What stays in the window: unlocking MCP (Stripe Checkout),
 // and managing team members (Apple's sharing sheet). Those are refused here
 // with a pointer to `open_settings`. Balance is no longer sold (retired
 // 2026-09-25), so there is nothing to add or top up.
@@ -99,12 +99,12 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "get_billing_settings",
-                description: "Read the ForeverLM account behind Settings › Billing (paying for ForeverLM) and AI Usage (the key and the monthly spending limit), freshly fetched from the account server as those panes do when they open. ForeverLM is a paid app after 7 free days: they begin at the first sign-in, and then the app is paid once (the Early user deal), with no subscription; an account that has not paid by then is locked until it does, and nothing in it is deleted. No monthly plan is sold; one bought before still counts as paid while it is active. AI is never part of the price: the learner's own OpenRouter API key pays for every model, billed by OpenRouter at cost, and ForeverLM adds nothing. OpenRouter is the only supported provider. Returns whether the learner is signed in; the plan (state free_days, paid_once, monthly, comped, family or locked; whether the account is unlocked, when the free days end, how many are left and how many an account gets; a monthly plan's renewal and price; whether the own key may run AI) and the plans on sale with the account server's prices (once, the Early user deal, recommended); a summary of the learner's own router key (details in get_own_router_key); any balance left over from before prepaid balance was retired, which still pays for requests sent without the key until it runs out and cannot be added to; and the monthly spending limit (current value, what has been spent this month, whether it is reached, when it resets, and the options the pane's picker offers, including no_limit). This is account state, the same on every device.",
+                description: "Read the ForeverLM account behind Settings › Billing (unlocking MCP) and AI Usage (the key and the monthly spending limit), freshly fetched from the account server as those panes do when they open. The app is free; MCP, the assistant connection, is the paid part: 7 free days begin at the first sign-in, and then MCP is paid once (the Early user deal), with no subscription; an account that has not paid by then has MCP locked until it does, and nothing else changes and nothing in the library is deleted. No monthly plan is sold; one bought before still counts as paid while it is active. AI is never part of the price and never locked: the learner's own OpenRouter API key pays for every model, billed by OpenRouter at cost, and ForeverLM adds nothing. OpenRouter is the only supported provider. Returns whether the learner is signed in; the plan (state free_days, paid_once, monthly, comped, family or locked; whether MCP is unlocked, when the free days end, how many are left and how many an account gets; a monthly plan's renewal and price) and the plans on sale with the account server's prices (once, the Early user deal, recommended); a summary of the learner's own router key (details in get_own_router_key); any balance left over from before prepaid balance was retired, which still pays for requests sent without the key until it runs out and cannot be added to; and the monthly spending limit (current value, what has been spent this month, whether it is reached, when it resets, and the options the pane's picker offers, including no_limit). This is account state, the same on every device.",
                 inputSchema: ["type": "object", "properties": [:] as [String: Any], "required": [] as [String]]
             ),
             MCPToolDef(
                 name: "set_billing_settings",
-                description: "Change the monthly spending limit in AI Usage › Spending exactly as the pane's picker does. monthly_spending_limit takes one of the picker's values: no_limit, or a dollar amount from monthly_spending_limit.options in get_billing_settings (5, 10, 20, 50, 100, 250). When the month's AI spend reaches the limit, AI pauses until the month resets; a limit below what has already been spent pauses AI at once. That changes whether AI keeps working, so ask the learner first. Paying for ForeverLM goes through Stripe Checkout, which only the learner can complete: use open_settings billing. The own OpenRouter key is set with set_own_router_key. Returns what get_billing_settings returns, after the change.",
+                description: "Change the monthly spending limit in AI Usage › Spending exactly as the pane's picker does. monthly_spending_limit takes one of the picker's values: no_limit, or a dollar amount from monthly_spending_limit.options in get_billing_settings (5, 10, 20, 50, 100, 250). When the month's AI spend reaches the limit, AI pauses until the month resets; a limit below what has already been spent pauses AI at once. That changes whether AI keeps working, so ask the learner first. Unlocking MCP goes through Stripe Checkout, which only the learner can complete: use open_settings billing. The own OpenRouter key is set with set_own_router_key. Returns what get_billing_settings returns, after the change.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -526,7 +526,7 @@ extension MCPDataStore {
             await account.refresh()
         }
         var payload: [String: Any] = [
-            "settings_pane": "Settings › Billing for paying for ForeverLM; AI Usage for the key and the monthly spending limit",
+            "settings_pane": "Settings › Billing for unlocking MCP; AI Usage for the key and the monthly spending limit",
             "reach": "account",
             "signed_in": account.isSignedIn,
         ]
@@ -540,11 +540,11 @@ extension MCPDataStore {
         } else {
             payload["own_key"] = NSNull()
         }
-        payload["ai_billing"] = "Bring your own key: the learner's own OpenRouter API key pays for every model, billed by OpenRouter at cost, and ForeverLM adds nothing. OpenRouter is the only supported provider. The key runs while the account is unlocked: its free days, or once ForeverLM is paid for (own_key_allowed)."
-        // The paid app (product owner, 2026-10-10 and 2026-10-11): 7 days
-        // free, then the Early user deal, paid once, and nothing else on sale
-        // (`AppAccess.plansOnSale`). Prices and the count of free days are
-        // the account server's.
+        payload["ai_billing"] = "Bring your own key: the learner's own OpenRouter API key pays for every model, billed by OpenRouter at cost, and ForeverLM adds nothing. OpenRouter is the only supported provider. The key runs for every signed-in account: the app is free, and only MCP is paid for."
+        // MCP is the paid part (product owner, 2026-10-10, 2026-10-11 and
+        // 2026-10-16): 7 days free, then the Early user deal, paid once, and
+        // nothing else on sale (`AppAccess.plansOnSale`). Prices and the count
+        // of free days are the account server's.
         let prices = account.planPrices
         let onSale = account.appAccess?.plansOnSale ?? ManagedAI.AppAccess.paidAppPlans
         payload["plans"] = onSale.map { plan -> [String: Any] in
@@ -562,7 +562,7 @@ extension MCPDataStore {
                 "state": access.state.rawValue,
                 "plan": access.plan ?? NSNull(),
                 "unlocked": access.unlocked,
-                "locked": account.isAppLocked,
+                "locked": account.isMCPLocked,
                 "free_until": access.freeUntil.map { ISO8601DateFormatter().string(from: $0) } ?? NSNull(),
                 "free_days_left": account.freeDaysLeft.map { $0 as Any } ?? NSNull(),
                 "free_days_total": access.freeDaysTotal.map { $0 as Any } ?? NSNull(),
@@ -572,13 +572,12 @@ extension MCPDataStore {
                 "cancel_at_period_end": access.cancelAtPeriodEnd,
                 "payment_failed": access.paymentFailed,
                 "trialing": access.trialing,
-                "own_key_allowed": account.ownKeyAllowed,
             ] as [String: Any]
         } else {
             payload["plan"] = NSNull()
         }
         payload["only_in_the_settings_window"] = [
-            "Pay for ForeverLM through Stripe Checkout (the Early user deal, paid once), switch a monthly plan bought before to paid once, or cancel it: Cancel Plan… (which asks why) and the billing portal (open_settings billing). Only the learner can complete a checkout.",
+            "Unlock MCP through Stripe Checkout (the Early user deal, paid once), switch a monthly plan bought before to paid once, or cancel it: Cancel Plan… (which asks why) and the billing portal (open_settings billing). Only the learner can complete a checkout.",
             "Sign in with Apple (open_settings billing).",
         ]
         if let message = account.balanceErrorMessage ?? account.errorMessage {

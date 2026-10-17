@@ -2,8 +2,10 @@ import AppKit
 import SwiftUI
 
 /// What ForeverLM sells (product owner, 2026-10-10; docs/pricing-pro-design.md
-/// → How it is sold): the Early user deal, $19 paid once, and nothing beside
-/// it. There is no monthly plan ("I personally don't like monthly
+/// → How it is sold): the Early user deal, $19 paid once, which unlocks MCP,
+/// and nothing beside it. The app and its AI are free (product owner,
+/// 2026-10-16: "make the MCP paywalled; for the rest people should be able to
+/// use the app for free using openrouter"). There is no monthly plan ("I personally don't like monthly
 /// subscriptions!!"), so nothing here shows a monthly price or compares the
 /// deal with one. The price is the proxy's (`AppAccess.prices`), never this
 /// build's, and the deal is offered only while `plans_on_sale` lists it. Mac
@@ -12,9 +14,12 @@ struct EarlyUserDealOffer: View {
     @Environment(ManagedAIAccountModel.self) private var account
 
     static let title = "Early user deal"
-    static let terms = "paid once, no subscription"
+    static let terms = "Unlocks MCP. Paid once, no subscription"
+    /// What Billing's section says once the free days are over and nothing is
+    /// paid.
+    static let lockedTitle = "MCP is locked"
     /// The line every surface says what AI costs with.
-    static let ownKeyLine = "AI runs on your own OpenRouter key, at OpenRouter's cost. ForeverLM adds nothing."
+    static let ownKeyLine = "The app is free. AI runs on your own OpenRouter key, at OpenRouter's cost. ForeverLM adds nothing."
 
     /// "Get the Early User Deal: $19", or without the price while the proxy
     /// has not said it.
@@ -22,13 +27,18 @@ struct EarlyUserDealOffer: View {
         onceCents.map { "Get the Early User Deal: \(ManagedAI.dollars($0))" } ?? "Get the Early User Deal"
     }
 
-    /// "7 days free, then $19 once. No subscription." The count of free days
-    /// is the proxy's (`AppAccess.freeDaysTotal`), like the price; a part the
-    /// proxy has not said is left unnamed rather than guessed.
+    /// "MCP: 7 days free, then $19 once. No subscription." The count of free
+    /// days is the proxy's (`AppAccess.freeDaysTotal`), like the price; a part
+    /// the proxy has not said is left unnamed rather than guessed.
     static func headline(onceCents: Int?, freeDays: Int?) -> String {
         let start = freeDays.map { "\($0) days free" } ?? "Free to start"
         let price = onceCents.map { "\(ManagedAI.dollars($0)) once" } ?? "pay once"
-        return "\(start), then \(price). No subscription."
+        return "MCP: \(start), then \(price). No subscription."
+    }
+
+    /// What the welcome screen says once: the app is free, and what is not.
+    static func welcomeLine(onceCents: Int?, freeDays: Int?) -> String {
+        "The app is free. \(headline(onceCents: onceCents, freeDays: freeDays))"
     }
 
     private var prices: ManagedAI.AppAccess.Prices { account.planPrices }
@@ -84,7 +94,7 @@ struct EarlyUserDealOffer: View {
 /// subscription or manage their subscription … separate from all the AI
 /// usage". The key, limits and activity are AI Usage.
 ///
-/// In the free days, or locked, the card is the offer. A buyer sees "Paid
+/// In MCP's free days, or locked, the card is the offer. A buyer sees "Paid
 /// once". A subscriber from before the lock (nothing sells a subscription
 /// now) sees the plan, Switch to Paid Once, and paying and cancelling, one
 /// row each, so cancelling is never a search. A comped account sees
@@ -126,7 +136,7 @@ struct AppPlanSettingsSection: View {
     private func planContent(_ access: ManagedAI.AppAccess) -> some View {
         switch access.state {
         case .freeDays, .locked:
-            SettingsSection(title: "ForeverLM", description: offerSummary(access)) {
+            SettingsSection(title: "MCP", description: offerSummary(access)) {
                 VStack(alignment: .leading, spacing: 10) {
                     EarlyUserDealOffer()
                     Text(EarlyUserDealOffer.ownKeyLine)
@@ -235,11 +245,11 @@ struct AppPlanSettingsSection: View {
         }
     }
 
-    /// Above the offer: how many of the free days are left, or that they are
-    /// over.
+    /// Above the offer: how many of the free days are left, or that MCP is
+    /// locked.
     private func offerSummary(_ access: ManagedAI.AppAccess) -> String {
         if let status = account.freeDaysStatus { return status }
-        if account.isAppLocked { return AppLockWall.title }
+        if account.isMCPLocked { return EarlyUserDealOffer.lockedTitle }
         return EarlyUserDealOffer.headline(onceCents: access.prices.onceCents, freeDays: access.freeDaysTotal)
     }
 
@@ -263,7 +273,7 @@ struct AppPlanSettingsSection: View {
         case .paidOnce:
             return access.founding
                 ? "Granted to early users. No subscription"
-                : "ForeverLM is yours to use. No subscription"
+                : "MCP is unlocked. No subscription"
         case .monthly:
             guard let renewsAt = access.renewsAt else {
                 return access.trialing ? "Free trial" : "Renews automatically"
@@ -305,7 +315,7 @@ struct AppPlanSettingsSection: View {
 
 /// The free days' two notices (docs/pricing-pro-design.md → The free days):
 /// one two days before the end and one on the last day, each shown once, each
-/// offering the deal, so the free days never end as a surprise. They count
+/// offering the deal, so MCP never locks as a surprise. They count
 /// from the end, so they fall on days 5 and 7 of the 7. They ride the
 /// Studio status banner (`StudioViewModel.showToast`). Keyed by the free
 /// days' end, so new free days (the cutover's) show them again.
@@ -327,11 +337,11 @@ enum FreeDaysNotices {
         }
     }
 
-    /// "2 days free left. Keep everything you've built with the Early user
-    /// deal, $19 paid once, no subscription."
+    /// "MCP free: 2 days left. Keep your assistants connected with the Early
+    /// user deal, $19 paid once, no subscription."
     static func message(daysLeft: Int, onceCents: Int?) -> String {
         let deal = onceCents.map { "the Early user deal, \(ManagedAI.dollars($0)) paid once" } ?? "the Early user deal, paid once"
-        return "\(ManagedAI.AppAccess.freeDaysStatus(daysLeft: daysLeft)). Keep everything you've built with \(deal), no subscription."
+        return "\(ManagedAI.AppAccess.freeDaysStatus(daysLeft: daysLeft)). Keep your assistants connected with \(deal), no subscription."
     }
 
     private static func shownKey(_ notice: Notice, freeUntil: Date) -> String {

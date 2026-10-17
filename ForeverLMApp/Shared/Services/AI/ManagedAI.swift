@@ -22,8 +22,8 @@ extension Notification.Name {
 }
 
 /// "ForeverLM AI" — the managed rail. Since 2026-09-25 AI features run on the
-/// learner's own OpenRouter key, which runs while the account is unlocked
-/// (`ManagedAI.ownKeyAllowed`; see `ManagedAI.AppAccess`); an account's
+/// learner's own OpenRouter key, which runs for every signed-in account, paid
+/// or not (only MCP is paid for; see `ManagedAI.AppAccess`); an account's
 /// leftover prepaid balance, and operator grants and comps, still pay through
 /// this proxy.
 ///
@@ -265,7 +265,7 @@ enum ManagedAI {
         /// Where the key lives and where it goes, shown wherever a key is
         /// entered. The product owner (2026-09-25): it has to be clear the key is not
         /// stored on ForeverLM's servers. True because `rewrite` sends it only
-        /// to `host` and the proxy gets `ownKeyHeldHeader` instead.
+        /// to `host`, straight to the router.
         var keyPrivacyNote: String {
             "Your key is saved only in your Keychain, which iCloud Keychain syncs end-to-end encrypted to your other devices, and it is sent only to \(label). ForeverLM's servers never receive or store it."
         }
@@ -287,11 +287,6 @@ enum ManagedAI {
     /// Header builds before 2026-09-25 carried the key to the proxy in. This
     /// build never sets it: the key goes to its router and nowhere else.
     static let ownKeyHeader = "X-ForeverLM-Own-Key"
-
-    /// What the proxy gets instead when a key is stored but may not run (a
-    /// locked account): only that the learner holds one, so it can answer
-    /// `app_locked` by name. Never the key.
-    static let ownKeyHeldHeader = "X-ForeverLM-Own-Key-Held"
 
     /// Provider credential headers a caller may have set. Cleared on both
     /// rails before the rail's own credential goes on: the app may have set an
@@ -318,8 +313,7 @@ enum ManagedAI {
         "X-ForeverLM-Platform",
         "X-ForeverLM-Build",
         "X-ForeverLM-Response-Cache",
-        ownKeyHeader,
-        ownKeyHeldHeader
+        ownKeyHeader
     ]
 
     /// Renames a transport failure that never reached a provider.
@@ -364,10 +358,8 @@ enum ManagedAI {
     /// The single statement of the rule: `rewrite` routes by it, and the
     /// OpenRouter body builder asks it whether to request the billed cost that
     /// the proxy would otherwise have resolved on the app's behalf.
-    /// The key leaves direct only while the account is unlocked
-    /// (`ManagedAI.ownKeyAllowed`). Otherwise the request
-    /// goes through the proxy, which answers `app_locked` instead of quietly
-    /// spending balance.
+    /// The key leaves direct whenever one is stored for that router; paying
+    /// for MCP never decides it.
     /// OpenRouter's app attribution (openrouter.ai/docs/app-attribution):
     /// `HTTP-Referer` is what puts ForeverLM on its rankings and model pages,
     /// the title names it there, and the categories file it in the app
@@ -387,11 +379,7 @@ enum ManagedAI {
     }
 
     static func sendsOwnKeyDirect(toHost host: String?) -> Bool {
-        var allowed = ownKeyAllowed
-        #if DEBUG
-        if let override = ownKeyAllowedOverrideForTesting { allowed = override }
-        #endif
-        guard allowed, let host = host?.lowercased(), let own = ownKey else { return false }
+        guard let host = host?.lowercased(), let own = ownKey else { return false }
         return own.router.sendsDirect && own.router.host == host
     }
 
@@ -406,11 +394,6 @@ enum ManagedAI {
     /// the developer's own Keychain, so a routing test's outcome would follow
     /// whatever key the Dev app last stored. `.some(nil)` pins "no key".
     nonisolated(unsafe) static var ownKeyOverrideForTesting: OwnKey??
-
-    /// Pins whether the account lets the key run, for the same reason: the
-    /// stored access otherwise follows whatever account the Dev app last
-    /// signed in.
-    nonisolated(unsafe) static var ownKeyAllowedOverrideForTesting: Bool?
     #endif
 
     private static let ownKeyLock = NSLock()
@@ -781,17 +764,9 @@ enum ManagedAI {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
 
-        // The learner's key never travels to ForeverLM. A request bound for
-        // its router lands here only when the key may not run (a locked
-        // account; otherwise it went direct above), so the proxy is told only
-        // that a key is held, and answers `app_locked` or spends a leftover
-        // balance.
+        // The learner's key never travels to ForeverLM: a request bound for
+        // its router with the key stored went direct above.
         request.setValue(nil, forHTTPHeaderField: ownKeyHeader)
-        if let own = ownKey, own.router.host == host {
-            request.setValue("1", forHTTPHeaderField: ownKeyHeldHeader)
-        } else {
-            request.setValue(nil, forHTTPHeaderField: ownKeyHeldHeader)
-        }
 
         applyUsageAttribution(
             &request,
@@ -1588,10 +1563,8 @@ enum ManagedAI {
     /// main-actor-bound because SwiftUI observes it at the app shell, while the
     /// network response is normally decoded on an AI or URLSession actor.
     static func surfaceIfNeeded(_ error: ServiceError) {
-        // A stale policy, or an account the proxy now says is locked: the
-        // balance fetch re-reads both, and the access it stores is what puts
-        // the pay screen up.
-        if error.isStaleTextRouter || error.code == "app_locked" {
+        // A stale policy: the balance fetch re-reads it.
+        if error.isStaleTextRouter {
             refreshTextRouterPolicy()
             return
         }

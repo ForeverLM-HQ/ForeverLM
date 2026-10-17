@@ -25,8 +25,7 @@ screen says exactly this in plain words. Every source it adds is labeled with
 the plugin's name, so you can always see what came from where, and one
 command (`remove_connector_sources`, from Claude or any full-access assistant)
 removes everything a plugin ever added. A plugin connects over MCP, so, like
-any assistant, it works while your ForeverLM account is in its 7 free days or
-paid for. ForeverLM charges nothing per tool call, but the gateway
+any assistant, it works while your MCP is in its 7 free days or paid for. ForeverLM charges nothing per tool call, but the gateway
 rate-limits every client, so a runaway script runs out of rope quickly.
 
 ## The recipe (give this to your assistant)

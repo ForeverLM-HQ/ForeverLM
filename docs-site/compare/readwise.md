@@ -14,7 +14,7 @@ ForeverLM overlaps with that first job: it gives you a reading list for articles
 
 | | ForeverLM | Readwise Reader + Readwise |
 |---|---|---|
-| **Reading-list price** | 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | 30-day trial, then $9.99/month billed annually or $12.99/month billed monthly |
+| **Reading-list price** | Free; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | 30-day trial, then $9.99/month billed annually or $12.99/month billed monthly |
 | **AI costs** | Your own OpenRouter key, billed by OpenRouter at cost with nothing added, for any model in Chat (free models cost nothing); or an assistant subscription you already use, over MCP | Ghostreader is included; external assistants use your own ChatGPT, Claude, or other MCP client account |
 | **Platforms** | Mac-centered library with synced iPhone reading, listening, and voice access | Web, Mac, Windows, iOS, Android, browser extensions, and e-ink viewing |
 | **Capture** | Safari, Chrome, and Brave reading lists; URL paste; local files; plugins; MCP | Browser extensions, share sheet, email newsletters, RSS, file upload, and imports |
@@ -27,13 +27,13 @@ ForeverLM overlaps with that first job: it gives you a reading list for articles
 
 *Readwise features and pricing checked against its [official Reader page](https://readwise.io/read/) in August 2026. Readwise offers 50% discounts to several eligible groups.*
 
-## A one-time price versus a reading subscription
+## A free app versus a reading subscription
 
 Readwise Full costs **$119.88 per year** on annual billing or **$155.88 per year** month-to-month. That subscription pays for a highly polished cross-platform reader, newsletter and RSS workflows, text-to-speech, Ghostreader, highlight aggregation, Daily Review, and best-in-class exports.
 
-ForeverLM's reading list comes with the app: **7 days free, then $19 once**. Articles saved in Safari, Chrome, or Brave flow into Studio, where you can read them, organize them into notebooks, and put them on Schedule without a subscription. Papers, books, podcasts, videos, courses, and meetings share the same library.
+ForeverLM's reading list comes with the app, which is **free**. Articles saved in Safari, Chrome, or Brave flow into Studio, where you can read them, organize them into notebooks, and put them on Schedule without a subscription. Papers, books, podcasts, videos, courses, and meetings share the same library.
 
-Beyond that, only AI and voices cost anything, and ForeverLM never charges for them. Free voices cost nothing. In-app Chat runs on your own OpenRouter key, billed by OpenRouter at its cost with nothing added, or on free models for nothing. Connecting a Claude, ChatGPT, Gemini, or Grok subscription through MCP is included. A quiet reading month adds nothing to your OpenRouter bill.
+Beyond that, only AI and voices cost anything inside the app, and ForeverLM never charges for them. Free voices cost nothing. In-app Chat runs on your own OpenRouter key, billed by OpenRouter at its cost with nothing added, or on free models for nothing. Connecting a Claude, ChatGPT, Gemini, or Grok subscription through MCP is the one paid part: 7 days free, then $19 once. A quiet reading month adds nothing to your OpenRouter bill.
 
 ## Where Readwise is better
 
@@ -46,7 +46,7 @@ Beyond that, only AI and voices cost anything, and ForeverLM never charges for t
 
 ## Where ForeverLM is more complete
 
-- **The reading list is paid for once.** Saving and organizing articles costs $19 once, not $119.88 every year.
+- **The reading list is free.** Saving and organizing articles costs nothing, not $119.88 every year.
 - **Sources become a plan.** Schedule specific items for specific days, move unfinished work, and see pending, reviewed, and completed sources rather than maintaining an endless queue.
 - **Review tests understanding.** Readwise resurfaces what you highlighted. ForeverLM asks you to reconstruct the source in your own words, probes gaps, and saves the review back against the sources it covered.
 - **Chat is part of the notebook.** Discuss one source or combine papers, articles, podcasts, meetings, and videos in the same conversation. In-app Chat supports model choice, and MCP lets external assistants search and operate the library.

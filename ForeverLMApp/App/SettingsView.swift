@@ -28,8 +28,8 @@ enum SettingsPane: Hashable {
     case aiImages
     /// The model and resolution that film explainer videos.
     case aiVideos
-    /// Paying for ForeverLM: the Early user deal, and switching or cancelling
-    /// a subscription bought before the lock.
+    /// Unlocking MCP: the Early user deal, and switching or cancelling a
+    /// subscription bought before the lock.
     case aiBilling
     /// What runs AI and what it cost: the own key, spending and limits, and
     /// the activity by task. Not a pane: it opens from the rail's OpenRouter
@@ -84,35 +84,7 @@ struct SettingsView: View {
         _selection = State(initialValue: initialPane ?? .general)
     }
 
-    @Environment(ManagedAIAccountModel.self) private var account
-
     var body: some View {
-        // A locked app (the free days over, nothing paid) keeps only Billing
-        // and Sign Out here, as its pay screen does.
-        if account.isAppLocked {
-            lockedBody
-        } else {
-            unlockedBody
-        }
-    }
-
-    private var lockedBody: some View {
-        VStack(spacing: 0) {
-            paneView(for: .aiBilling)
-            Divider()
-            HStack {
-                Spacer()
-                Button("Sign Out") { account.signOut() }
-                    .accessibilityIdentifier("settings.locked.signOut")
-            }
-            .padding(12)
-        }
-        .navigationTitle("Settings")
-        .background(Color(nsColor: .windowBackgroundColor))
-        .frame(minWidth: 760, idealWidth: 860)
-    }
-
-    private var unlockedBody: some View {
         HStack(spacing: 0) {
             SettingsSidebar(
                 scope: scope,
@@ -185,9 +157,9 @@ struct SettingsView: View {
             // `navigate(to:)` sends this to the rail's popover; no pane here.
             EmptyView()
         case .mcp:
-            MCPSettingsDetailView()
+            MCPSettingsDetailView(onOpenBilling: { navigate(to: .aiBilling) })
         case .mcpPairing:
-            MCPSettingsDetailView(showsPairingCode: true)
+            MCPSettingsDetailView(showsPairingCode: true, onOpenBilling: { navigate(to: .aiBilling) })
         }
     }
 

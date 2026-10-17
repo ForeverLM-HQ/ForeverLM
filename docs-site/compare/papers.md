@@ -14,7 +14,7 @@ Papers moves research from **search to citation**. ForeverLM moves sources from 
 
 | | ForeverLM | Papers |
 |---|---|---|
-| **Price** | 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Essentials $65/year; Pro $130/year; 40% academic discount |
+| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Essentials $65/year; Pro $130/year; 40% academic discount |
 | **Library** | Papers plus articles, books, podcasts, videos, courses, meetings, and more | Academic references and research files |
 | **AI** | Chat with any selected sources or the wider library using configurable models and MCP assistants | Chat with one PDF on Essentials; up to 20 papers and AI search on Pro |
 | **Citations** | Stores scholarly metadata, but no cite-while-you-write plugin | SmartCite for Word and Google Docs, with 10,000+ styles |
@@ -38,7 +38,7 @@ Papers moves research from **search to citation**. ForeverLM moves sources from 
 - **AI can operate the library.** An MCP assistant can search sources, retrieve content, organize notebooks, manage a learning schedule, and save a review transcript back to ForeverLM.
 - **Listening is integrated.** Read a dense paper aloud, pause to ask questions, and continue without creating a detached audio file.
 - **Understanding is recorded.** Scheduling, completion state, and reviews turn reading into a repeatable learning loop.
-- **No annual research-software fee.** The library is $19 once after a 7-day free start, instead of an annual tier, and using it from Claude or ChatGPT over MCP is included. The built-in AI runs on your own OpenRouter key: pay models at cost, or use free models.
+- **No annual research-software fee.** The library is free, instead of an annual tier; only using it from Claude or ChatGPT over MCP is paid, $19 once after 7 free days. The built-in AI runs on your own OpenRouter key: pay models at cost, or use free models.
 
 ## Which should you choose?
 

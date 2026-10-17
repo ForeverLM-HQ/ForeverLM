@@ -766,10 +766,9 @@ struct AIUsageEvent: Identifiable, Codable, Sendable {
 
 /// Whether any rail can pay for an AI call right now.
 ///
-/// The learner's own OpenRouter key pays for AI work while the account is
-/// unlocked (the free days, or paid); without a key, only an account's
-/// leftover balance (or a comp) can. A locked app is the pay screen's, not
-/// this message's (`ManagedAI.isAppLocked`).
+/// The learner's own OpenRouter key pays for AI work on every account (only
+/// MCP is paid for); without a key, only an account's leftover balance (or a
+/// comp) can.
 ///
 /// This answers from what the app last learned, never from the network, so a
 /// caller about to start work can ask cheaply and often. It is a way to *skip*
@@ -783,8 +782,8 @@ enum AICreditEntitlement {
     /// What a learner-initiated AI action says when neither rail can pay. Chat
     /// refuses on this before sending, so the answer is immediate and no request
     /// is spent discovering what the app already knew.
-    /// An unlocked account needs only the key (the paid app, 2026-10-10): the
-    /// phone adds it under its own Settings › Key, the Mac in AI Usage.
+    /// Any account needs only the key: the phone adds it under its own
+    /// Settings › Key, the Mac in AI Usage.
     #if os(iOS)
     static let purchaseRequiredMessage =
         "Chat runs on your own OpenRouter key. Add your key in Settings → Key "

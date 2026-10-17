@@ -2889,8 +2889,7 @@ enum KeychainService {
         return !task.usesBackgroundModelDefault || hasConsentedToBackgroundAIUsage
     }
 
-    /// The three reasons a signed-in learner's background work cannot run,
-    /// besides the app lock (`ManagedAI.appLockedMessage`).
+    /// The three reasons a signed-in learner's background work cannot run.
     /// Named so the surfaces that must route each one to its own fix — the
     /// paper row's recovery button most visibly — match on a constant rather
     /// than on a re-typed sentence.
@@ -2904,9 +2903,6 @@ enum KeychainService {
     /// directly and deserves better than "configure an API key". Nil when
     /// missing consent is not the reason.
     static func backgroundAIUnavailableMessage(for task: AITask) -> String? {
-        if ManagedAI.isAppLocked {
-            return ManagedAI.appLockedMessage
-        }
         if AICreditEntitlement.isOutOfCredits {
             return emptyBalanceMessage
         }
@@ -2964,9 +2960,6 @@ enum KeychainService {
         // pending instead of failed. Reading what is already in the library needs
         // no config and is untouched by this.
         guard !AICreditEntitlement.isOutOfCredits else { return nil }
-        // A locked app (the free days over, nothing paid) runs no AI, and its
-        // background work waits rather than fails: paying picks it up again.
-        guard !ManagedAI.isAppLocked else { return nil }
         // A meeting with no paid model to run on waits, like one with no key.
         guard !isWaitingForPaidModel(task) else { return nil }
         let (provider, resolvedModel) = resolvedSelection(for: task)

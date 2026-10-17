@@ -1,24 +1,28 @@
 import Foundation
 
-/// ForeverLM is a paid app (product owner, 2026-10-10 and 2026-10-11;
-/// docs/pricing-pro-design.md): 7 days free from the first sign-in, with no
-/// card and no click, then $19 paid once (the Early user deal). Nothing is
-/// sold by the month ("No ongoing subscription or anything like that").
-/// Paying gets the whole app; there are no tiers. Day 8 without payment locks
-/// the app, and nothing is deleted: paying restores everything. The count of
-/// free days and the price come from the proxy (`freeDaysTotal`, `prices`);
-/// no message here names a count of its own. AI is never
-/// part of the price. It always runs on the learner's own OpenRouter key,
-/// billed by OpenRouter at cost, and a free model costs $0.
+/// ForeverLM is free to use and MCP is the paid part (product owner,
+/// 2026-10-16: "make the MCP paywalled; for the rest people should be able to
+/// use the app for free using openrouter"). Everything in the app, sync and
+/// AI included, runs without paying, on the learner's own OpenRouter key,
+/// billed by OpenRouter at cost; a free model costs $0. What is sold is the
+/// assistant connection (MCP: Claude, ChatGPT and every other client that
+/// reaches the library): 7 days free from the first sign-in, with no card and
+/// no click, then $19 paid once (the Early user deal). Nothing is sold by the
+/// month. The free days end and nothing else changes: the tunnel stops and
+/// assistants' tool calls are refused, nothing is deleted, and paying brings
+/// the connection back. The count of free days and the price come from the
+/// proxy (`freeDaysTotal`, `prices`); no message here names a count of its
+/// own.
 ///
-/// The proxy has run this model since 2026-10-11 and decides all of it: it
-/// returns the account's access with every session and balance fetch
-/// (`access`, and the lock fields at the top level too);
-/// docs/managed-ai-billing.md → App plans. The learner's own key runs for any
-/// unlocked account (`ManagedAI.ownKeyAllowed`).
+/// The proxy decides all of it: it returns the account's access with every
+/// session and balance fetch (`access`, and its `unlocked` / `state` /
+/// `free_until` at the top level too); docs/managed-ai-billing.md → App
+/// plans. On the wire `unlocked` has meant "MCP may run" since 2026-10-16;
+/// the name is older than the decision and is kept so a stored access still
+/// decodes.
 ///
-/// The iPhone and iPad app never shows a price, a way to buy or where to buy
-/// (App Review 3.1.3(f)); see `MobileAppLockView`.
+/// The iPhone and iPad app has no MCP connection, so it never shows a price,
+/// a way to buy or where to buy (App Review 3.1.3(f)).
 extension ManagedAI {
     /// What can be bought. The raw value is the plan id
     /// `POST /v1/plan/checkout` takes; whether it is on sale is
@@ -42,16 +46,13 @@ extension ManagedAI {
         }
     }
 
-    /// What the app says when it is locked and must not say more: the
-    /// iPhone's lock text, background work held back, the direct MCP path.
-    static let appLockedMessage = "Your free days of ForeverLM are over."
-
-    /// A tool call refused on a locked account, on the hosted gateway and on
+    /// A tool call refused while MCP is locked, on the hosted gateway and on
     /// this Mac's direct path alike. It names no price and no place to buy.
-    static let appLockedMCPMessage = "Your free days of ForeverLM are over. Open ForeverLM on your Mac to continue."
+    static let mcpLockedMessage = "ForeverLM's MCP connection is not unlocked on this account. Open ForeverLM on your Mac to unlock it."
 
     struct AppAccess: Codable, Equatable, Sendable {
-        /// The proxy's six states. They arrive as the response's top-level
+        /// The proxy's six states, which are the state of MCP's entitlement:
+        /// the app itself runs in every one of them. They arrive as the response's top-level
         /// `state` and as `access.app_state`; `access.state` keeps its older
         /// values for shipped builds (a paid-once account still says
         /// `forever` there), so it is read only when neither new field is
@@ -67,6 +68,8 @@ extension ManagedAI {
             /// A child in a family team whose parent's plan is live
             /// (docs/managed-ai-billing.md → Family plans).
             case family
+            /// The free days are over and nothing is paid: MCP is off, and
+            /// nothing else is.
             case locked
 
             init(serverValue: String?) {
@@ -169,8 +172,8 @@ extension ManagedAI {
             case freeDaysTotal = "free_days_total"
         }
 
-        /// The account's one entitlement. Not said reads as unlocked: a
-        /// missing answer never locks.
+        /// MCP's entitlement. Not said reads as unlocked: a missing answer
+        /// never locks.
         var unlocked: Bool { unlockedField ?? true }
 
         /// Whether the account has paid in some form: paid once, a
@@ -203,11 +206,11 @@ extension ManagedAI {
             return renewsYearly ? nil : prices.monthlyCents
         }
 
-        /// Whether the app is locked at `serverNow`, a moment on the proxy's
+        /// Whether MCP is locked at `serverNow`, a moment on the proxy's
         /// clock (`ManagedAI.serverNow`). A paid account is never locked
         /// here, whatever the time, so being offline cannot lock it; the free
         /// days run out at `freeUntil` even offline.
-        func isLocked(at serverNow: Date) -> Bool {
+        func isMCPLocked(at serverNow: Date) -> Bool {
             if !unlocked || state == .locked { return true }
             if state == .freeDays, let freeUntil, serverNow >= freeUntil { return true }
             return false
@@ -222,23 +225,13 @@ extension ManagedAI {
             return max(0, Int((remaining / 86_400).rounded(.up)) - 1)
         }
 
-        /// The account menu's quiet line: "6 days free left", "1 day free
-        /// left", "Last free day".
+        /// The account menu's quiet line: "MCP free: 6 days left", "MCP free:
+        /// 1 day left", "MCP free: last day".
         static func freeDaysStatus(daysLeft: Int) -> String {
             switch daysLeft {
-            case ...0: return "Last free day"
-            case 1: return "1 day free left"
-            default: return "\(daysLeft) days free left"
-            }
-        }
-
-        /// The iPhone's status row: "Free, 6 days left", and on the last day
-        /// "Free, last day".
-        static func phoneFreeDaysStatus(daysLeft: Int) -> String {
-            switch daysLeft {
-            case ...0: return "Free, last day"
-            case 1: return "Free, 1 day left"
-            default: return "Free, \(daysLeft) days left"
+            case ...0: return "MCP free: last day"
+            case 1: return "MCP free: 1 day left"
+            default: return "MCP free: \(daysLeft) days left"
             }
         }
 
@@ -444,22 +437,16 @@ extension ManagedAI {
 
     // MARK: - What the lock holds back
 
-    /// Whether the app is locked: the account has neither paid nor free days
-    /// left. Answers from the cached access,
-    /// never the network, so anything about to start work can ask cheaply.
-    /// While locked, the Mac shows only its pay screen, the iPhone its lock,
-    /// and background AI (`KeychainService.resolveConfig`), sync
-    /// (`MacSyncSession.round`) and the MCP connection
-    /// (`MCPServerLauncher.startHostedTunnel`) stop. Nothing is deleted.
-    static var isAppLocked: Bool {
-        appAccess?.isLocked(at: serverNow) ?? false
+    /// Whether MCP is locked: the account has neither paid nor free days
+    /// left. Answers from the cached access, never the network, so anything
+    /// about to start work can ask cheaply. While locked, the MCP connection
+    /// (`MCPServerLauncher.startHostedTunnel`) stops and a tool call that
+    /// still arrives is refused (`MCPProtocolHandler.mcpLockRefusal`). It is
+    /// the only thing the lock holds back: the app, sync and AI keep running.
+    /// Nothing is deleted.
+    static var isMCPLocked: Bool {
+        appAccess?.isMCPLocked(at: serverNow) ?? false
     }
-
-    /// Whether the learner's own router key may pay for requests: for any
-    /// account that is not locked, its free days or paid. Nil access is the
-    /// proxy not having answered yet, which is not locked, and the proxy
-    /// still has the last word (`app_locked`).
-    static var ownKeyAllowed: Bool { !isAppLocked }
 
     /// Why a learner cancels (product owner, 2026-09-26: "if they cancel, they
     /// should be able to let us know why"). The raw values are Stripe's own

@@ -12,7 +12,7 @@ Raindrop.io is a polished bookmark manager for saving, organizing, highlighting,
 
 | | ForeverLM | Raindrop.io |
 |---|---|---|
-| **Price** | 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free plan; optional Pro subscription |
+| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free plan; optional Pro subscription |
 | **Best for** | Learning from a curated source library | Organizing a broad, durable bookmark collection |
 | **Capture** | Reading lists, URLs, files, podcasts, papers, books, and plugins | Browser extensions, share sheets, apps, integrations, and uploads |
 | **Organization** | Notebooks, status, source types, relationships, and Schedule | Collections, nested structure, tags, filters, highlights, and collaboration |

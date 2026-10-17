@@ -493,7 +493,7 @@ struct SourceCleanupProgress: View {
         if AIFreeModels.isFreeSelection(provider: selection.provider, model: selection.model) {
             return "Cleaned up by \(name), a free model. Busy moments are retried on their own."
         }
-        let payer = account.ownKey != nil && account.ownKeyAllowed ? "your OpenRouter key" : "your leftover AI balance"
+        let payer = account.ownKey != nil ? "your OpenRouter key" : "your leftover AI balance"
         return "Cleaned up by \(name), paid from \(payer)."
     }
 }

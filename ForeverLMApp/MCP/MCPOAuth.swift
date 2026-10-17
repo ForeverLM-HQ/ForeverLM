@@ -1876,9 +1876,9 @@ struct MCPAccessContext: Sendable, Equatable {
     /// True for a request that reached this Mac on its own OAuth bearer
     /// (a Build Your Own plugin, Read AI, any client given the tunnel's
     /// address), not through the hosted gateway. Only these are checked
-    /// against the app lock here (`MCPProtocolHandler.appLockRefusal`); the
-    /// gateway checks its own, and in-app callers (`internalFullAccess`),
-    /// which sit behind the pay screen, never are.
+    /// against the MCP lock here (`MCPProtocolHandler.mcpLockRefusal`); the
+    /// gateway checks its own, and in-app callers (`internalFullAccess`)
+    /// never are.
     var arrivedWithoutGateway = false
 
     /// The context in-app callers (Chat, ⌘K assistant bar) run under: the app

@@ -127,10 +127,7 @@ actor MobileSyncSession {
         await round()
     }
 
-    /// None while the app is locked (the free days over and nothing paid; `ManagedAI.isAppLocked`), as on
-    /// the Mac: writes wait in the outbox, and the next foreground after paying runs one.
     private func round() async {
-        guard !ManagedAI.isAppLocked else { return }
         await coordinator.runRound()
     }
 
@@ -142,7 +139,6 @@ actor MobileSyncSession {
 
     /// A CloudKit push of the library container, with the database it came from.
     func handlePush(from database: CloudDatabaseScope) async {
-        guard !ManagedAI.isAppLocked else { return }
         await coordinator.handleRemoteNotification(from: database)
     }
 

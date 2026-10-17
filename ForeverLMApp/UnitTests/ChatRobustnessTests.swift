@@ -2101,11 +2101,7 @@ struct ChatRobustnessTests {
         ManagedAI.ownKeyOverrideForTesting = .some(
             ManagedAI.OwnKey(router: .openRouter, key: "sk-or-test-key")
         )
-        ManagedAI.ownKeyAllowedOverrideForTesting = true
-        defer {
-            ManagedAI.ownKeyOverrideForTesting = nil
-            ManagedAI.ownKeyAllowedOverrideForTesting = nil
-        }
+        defer { ManagedAI.ownKeyOverrideForTesting = nil }
 
         var request = URLRequest(url: URL(string: "https://openrouter.ai/api/v1/chat/completions")!)
         request.setValue("Bearer ", forHTTPHeaderField: "Authorization")
@@ -2138,55 +2134,8 @@ struct ChatRobustnessTests {
         #expect(elsewhere.url?.host == ManagedAI.baseURL.host)
         #expect(elsewhere.url?.path == "/v1/proxy/unsupported")
         #expect(elsewhere.value(forHTTPHeaderField: ManagedAI.ownKeyHeader) == nil)
-        #expect(elsewhere.value(forHTTPHeaderField: ManagedAI.ownKeyHeldHeader) == nil)
         for (_, value) in elsewhere.allHTTPHeaderFields ?? [:] {
             #expect(!value.contains("sk-or-test-key"))
-        }
-
-        // On an account that may not run the key (a locked one) the call goes
-        // to the proxy, which is told only that a key is held. The key itself
-        // never reaches ForeverLM.
-        ManagedAI.ownKeyAllowedOverrideForTesting = false
-        var heldBack = URLRequest(url: URL(string: "https://openrouter.ai/api/v1/chat/completions")!)
-        heldBack.httpMethod = "POST"
-        heldBack.httpBody = try JSONSerialization.data(withJSONObject: ["model": "anthropic/claude-sonnet-5"])
-        ManagedAI.rewrite(&heldBack)
-        #expect(heldBack.url?.host == ManagedAI.baseURL.host)
-        #expect(heldBack.value(forHTTPHeaderField: ManagedAI.ownKeyHeader) == nil)
-        #expect(heldBack.value(forHTTPHeaderField: ManagedAI.ownKeyHeldHeader) == "1")
-        for (_, value) in heldBack.allHTTPHeaderFields ?? [:] {
-            #expect(!value.contains("sk-or-test-key"))
-        }
-    }
-
-    @Test("A locked account's key sends nothing direct, not even a free model")
-    func ownKeyOnALockedAccountRunsNothing() throws {
-        // The paid app (2026-10-10): a locked account's key runs no model.
-        // Free, paid, or a body ForeverLM cannot read: all go to the proxy,
-        // which answers app_locked.
-        ManagedAI.ownKeyOverrideForTesting = .some(
-            ManagedAI.OwnKey(router: .openRouter, key: "sk-or-test-key")
-        )
-        ManagedAI.ownKeyAllowedOverrideForTesting = false
-        defer {
-            ManagedAI.ownKeyOverrideForTesting = nil
-            ManagedAI.ownKeyAllowedOverrideForTesting = nil
-        }
-
-        for body: Data? in [
-            try JSONSerialization.data(withJSONObject: ["model": "test/free-on-a-locked-account:free"]),
-            try JSONSerialization.data(withJSONObject: ["model": "anthropic/claude-sonnet-5"]),
-            nil,
-        ] {
-            var request = URLRequest(url: URL(string: "https://openrouter.ai/api/v1/chat/completions")!)
-            request.httpMethod = "POST"
-            request.httpBody = body
-            ManagedAI.rewrite(&request)
-            #expect(request.url?.host == ManagedAI.baseURL.host)
-            #expect(request.value(forHTTPHeaderField: ManagedAI.ownKeyHeldHeader) == "1")
-            for (_, value) in request.allHTTPHeaderFields ?? [:] {
-                #expect(!value.contains("sk-or-test-key"))
-            }
         }
     }
 
