@@ -6,6 +6,19 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.161.0 (build 241) — 2026-10-16
+
+**Highlights:**
+- **Back in To Check** undoes the last Keep, Skip or Remove Source.
+- **A chat sees every window:** the Reader and the card open in another window go with each message.
+
+- **To Check has a Back.** Clicked the wrong thing? Back, beside the count, undoes the last decision: after I Don't Know or Check it returns to the question with what you typed still there; after Skip, Keep, Edit, Keep All or Skip All it deals that card again, unanswered, and each press steps one further back; after Remove Source it puts the source back with its cards while the removal's Undo is still open. Back also shows under "All checked". Decisions are saved once you pause for 30 seconds, close the pane or leave the app.
+- **Ask in Chat from the card you are checking.** A quiet **Ask in Chat** under a card in To Check opens a new chat beside it that already sees the card, so "why is this wrong?" needs no pasting.
+- **A chat sees what every window shows.** Each message now carries the sources open in a Reader and the card open in To Check in any ForeverLM window, the chat's own window first, and the chips above the composer list them all. A video playing in another window pauses when you start typing.
+- **An assistant asked to open a source that is already open comes to it.** `open_in_app` brings forward the window whose Reader already shows that source instead of opening it a second time, and says so in its answer.
+- **A source id a model prints becomes a citation.** Some models print a library id in their answer instead of citing; it now draws as a numbered citation with the source's card, in new replies, replies still streaming and chats saved before.
+- **Quieter account menu and To Check.** The account menu no longer has the "Your own key" or "Usage is paid for" row (the OpenRouter mark already says who pays), and the hint line under To Check's buttons is gone.
+
 ## 0.160.0 (build 240) — 2026-10-16
 
 **Highlights:**
