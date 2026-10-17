@@ -400,11 +400,14 @@ struct BillingCard<Content: View>: View {
 struct BillingRow<Controls: View>: View {
     let title: String
     let detail: String
+    /// A row that needs the learner's eye: the detail turns orange.
+    let isWarning: Bool
     let controls: Controls
 
-    init(title: String, detail: String, @ViewBuilder controls: () -> Controls) {
+    init(title: String, detail: String, isWarning: Bool = false, @ViewBuilder controls: () -> Controls) {
         self.title = title
         self.detail = detail
+        self.isWarning = isWarning
         self.controls = controls()
     }
 
@@ -415,7 +418,7 @@ struct BillingRow<Controls: View>: View {
                     .font(.subheadline.weight(.medium))
                 Text(detail)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(isWarning ? AnyShapeStyle(Color.orange) : AnyShapeStyle(.secondary))
                     .fixedSize(horizontal: false, vertical: true)
             }
 

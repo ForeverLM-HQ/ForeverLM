@@ -231,7 +231,9 @@ struct GettingStartedTests {
         #expect(summary.hasPrefix("962 of 1,000 left · resets at "))
         #expect(summary.contains("17:00"))
         let spent = ManagedAI.FreeModelDailyRequests(used: 50, limit: 50, remaining: 0)
-        #expect(spent.summary(now: now, locale: english, timeZone: california).hasPrefix("None of 50 left · resets at "))
+        #expect(spent.summary(now: now, locale: english, timeZone: california).hasPrefix("All 50 free-model requests are used. Free models won't answer until "))
+        #expect(spent.isSpent)
+        #expect(!counts.isSpent)
     }
 
     @Test("Apple Books index rows become importable books, previews and other formats left out")

@@ -165,7 +165,12 @@ struct AIUsageAccountSections: View {
     /// calls we have left for the day?" The count is OpenRouter's own, read
     /// when the key row appears and on Refresh.
     private var freeRequestsRow: some View {
-        billingRow(title: "Free-model requests today", detail: freeRequestsDetail) {
+        let spent = freeRequests?.isSpent == true
+        return BillingRow(
+            title: spent ? "Out of free-model requests" : "Free-model requests today",
+            detail: freeRequestsDetail,
+            isWarning: spent
+        ) {
             Button {
                 Task { await loadFreeRequests() }
             } label: {

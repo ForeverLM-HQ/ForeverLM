@@ -492,16 +492,21 @@ enum ManagedAI {
             return utc.date(byAdding: .day, value: 1, to: today) ?? today.addingTimeInterval(86_400)
         }
 
+        /// Every free-model request of the day is used.
+        var isSpent: Bool { remaining <= 0 }
+
         /// "962 of 1,000 left · resets at 17:00", the reset in the learner's
-        /// own time.
+        /// own time. Spent, it says so in a sentence (product owner,
+        /// 2026-10-17: "it should say when we run out of openrouter free
+        /// calls clearly").
         func summary(now: Date = Date(), locale: Locale = .current, timeZone: TimeZone = .current) -> String {
             let number = IntegerFormatStyle<Int>.number.locale(locale)
-            let left = remaining > 0
-                ? "\(remaining.formatted(number)) of \(limit.formatted(number)) left"
-                : "None of \(limit.formatted(number)) left"
             let reset = Self.resetDate(after: now)
                 .formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: locale, timeZone: timeZone))
-            return "\(left) · resets at \(reset)"
+            if isSpent {
+                return "All \(limit.formatted(number)) free-model requests are used. Free models won't answer until \(reset)."
+            }
+            return "\(remaining.formatted(number)) of \(limit.formatted(number)) left · resets at \(reset)"
         }
     }
 
