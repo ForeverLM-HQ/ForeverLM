@@ -512,11 +512,17 @@ struct NotebookCoverCutoutTests {
 
     @Test("A cover is asked for on pure white with no tile, so the cut leaves the icon alone")
     func promptAsksForNoGround() {
-        for style in ImageGenerationCatalog.Style.allCases {
-            let prompt = ImageGenerationCatalog.notebookCoverPrompt(title: "🧬 Cells", instructions: nil, summary: nil, topic: nil, style: style)
-            #expect(prompt.contains("pure white background") && prompt.contains("no tile"), "\(style)")
-            #expect(prompt.contains("fills most of the frame"), "\(style)")
-            #expect(!prompt.contains("app icon") && !prompt.contains("background colour") && !prompt.contains("gradient background") && !prompt.contains("pale solid background"), "\(style): nothing asks for a ground")
-        }
+        let prompt = ImageGenerationCatalog.notebookCoverPrompt(title: "🧬 Cells", instructions: nil, summary: nil, topic: nil)
+        #expect(prompt.contains("pure white background") && prompt.contains("no tile"))
+        #expect(prompt.contains("fills most of the frame"))
+        #expect(!prompt.contains("app icon") && !prompt.contains("background colour") && !prompt.contains("gradient background") && !prompt.contains("pale solid background"), "nothing asks for a ground")
+    }
+
+    @Test("A cover is drawn as an emoji, whatever the Images style")
+    func promptAsksForAnEmoji() {
+        let prompt = ImageGenerationCatalog.notebookCoverPrompt(title: "🧬 Cells", instructions: nil, summary: nil, topic: nil)
+        #expect(prompt.hasPrefix("An emoji for a research notebook."))
+        #expect(prompt.contains(ImageGenerationCatalog.notebookCoverEmojiStyle))
+        #expect(!prompt.contains("Flat vector emblem") && !prompt.contains("line art"))
     }
 }

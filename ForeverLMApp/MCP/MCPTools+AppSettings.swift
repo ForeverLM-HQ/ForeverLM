@@ -787,7 +787,7 @@ extension MCPDataStore {
                 id: "images.draw_notebook_covers",
                 pane: "Images",
                 title: "Draw notebook covers",
-                detail: "A notebook the learner makes one at a time (New notebook, create_notebook) gets a cover, a small picture of its subject shown in place of its emoji, drawn once on images.model when it has a name; and every active notebook without one gets one once, on the Mac that keeps the library's maintenance. One small image request each. On by default. Imported notebooks and a split's new notebooks get none. Off, a notebook is drawn only from Draw Cover With in its menu.",
+                detail: "A notebook the learner makes one at a time (New notebook, create_notebook) gets a cover, a small emoji-style picture of its subject shown in place of its emoji, drawn once on images.model when it has a name; and every active notebook without one gets one once, on the Mac that keeps the library's maintenance. One small image request each. Off by default, so a notebook keeps its emoji. Imported notebooks and a split's new notebooks get none. Off, a notebook is drawn only from Draw Cover With in its menu.",
                 reach: .account,
                 kind: .boolean,
                 preferenceKeys: [MacImageGenerationSettings.automaticForNewNotebooksKey],

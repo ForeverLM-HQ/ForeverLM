@@ -465,19 +465,6 @@ enum ImageGenerationCatalog {
                 return "Thin even line art in a single ink colour on a pale solid background, no fill."
             }
         }
-
-        /// The same style for a picture that is drawn without a ground (a notebook's cover): the shapes
-        /// alone, which the app cuts out and shows as the icon (`NotebookCoverCutout`).
-        fileprivate var groundlessInstruction: String {
-            switch self {
-            case .emblem:
-                return "Flat vector emblem: two or three solid shapes, no shading, no outline."
-            case .gradient:
-                return "One simple rounded shape filled with a smooth two-colour gradient, soft and calm."
-            case .lineArt:
-                return "Thin even line art in a single ink colour, no fill."
-            }
-        }
     }
 
     /// The prompt for one meeting's icon.
@@ -525,16 +512,18 @@ enum ImageGenerationCatalog {
     /// "perhaps they can just be icons with no background?"), because the app
     /// takes the ground away and shows the subject alone
     /// (`NotebookCoverCutout`); a model asked for "an app icon" draws a tile
-    /// with the subject at half its size inside. The title is read
-    /// without its leading emoji, which is only a hint; the Instructions and
-    /// the description or topic say what the notebook is about. The web draws
-    /// covers too: `library-notebook-cover.js` holds the same text.
+    /// with the subject at half its size inside. It is drawn as an emoji, not
+    /// in the Images style, so a cover sits among the emoji other notebooks
+    /// keep (product owner, 2026-10-17: "those custom images should be in the
+    /// style of emojis"). The title is read without its leading emoji, which
+    /// is only a hint; the Instructions and the description or topic say what
+    /// the notebook is about. The web draws covers too:
+    /// `library-notebook-cover.js` holds the same text.
     static func notebookCoverPrompt(
         title: String,
         instructions: String?,
         summary: String?,
-        topic: String?,
-        style: Style
+        topic: String?
     ) -> String {
         let named = NotebookTitle(title)
         func trimmed(_ text: String?, limit: Int) -> String? {
@@ -544,7 +533,7 @@ enum ImageGenerationCatalog {
         var subject = named.text
         if subject.isEmpty { subject = trimmed(topic, limit: 200) ?? "a research notebook" }
         var lines = [
-            "A simple icon for a research notebook.",
+            "An emoji for a research notebook.",
             "Subject: \(subject)",
         ]
         if let about = trimmed(summary, limit: 400) ?? trimmed(topic, limit: 200), about != subject {
@@ -554,15 +543,18 @@ enum ImageGenerationCatalog {
             lines.append("What the learner is after: \(instructions)")
         }
         if let emoji = named.icon {
-            lines.append("The learner marks this notebook with \(emoji); take it as a hint for the subject, never draw the emoji itself.")
+            lines.append("The learner marks this notebook with \(emoji); take it as a hint for the subject, never copy the emoji itself.")
         }
         lines.append("Show one concrete object or structure from the subject; never a person, face, or likeness.")
-        lines.append(style.groundlessInstruction)
+        lines.append(Self.notebookCoverEmojiStyle)
         lines.append("One subject, centred and drawn large so that it fills most of the frame, on a plain pure white background: no tile, rounded square, circle, border, frame, shadow, glow or floor behind it, and nothing else in the picture. Legible when shrunk to 16 pixels.")
         lines.append("Colours that stay clear on both a white and a dark window: mid-tone and dark, nothing pale or white in the subject, no transparency checkerboard.")
         lines.append("Absolutely no text, letters, numbers, words, or logos anywhere in the image.")
         return lines.joined(separator: "\n")
     }
+
+    /// How a notebook's cover is drawn: as one more emoji in the set.
+    static let notebookCoverEmojiStyle = "Drawn in the style of Apple's colour emoji: one bold, rounded object with a clean silhouette, saturated friendly colours, simple soft shading and a small highlight, as it would sit in a row of emoji."
 
     /// The picture for a course quiz's tile: what its questions are about,
     /// drawn in the learner's chosen style like a meeting's icon.

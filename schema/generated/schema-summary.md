@@ -988,7 +988,7 @@ The Setting record keys (§3.5.3): one record per key, account scope in Library 
 | `images.generateIcons` | bool | account | `set_app_setting` images.draw_meeting_icons | Whether ForeverLM may pay to draw a meeting's icon. |
 | `images.generateIcons.automatic` | bool | account | `set_app_setting` images.draw_for_new_meetings | Draw an icon for each new meeting; true when absent. |
 | `images.drawQuizPictures.automatic` | bool | account | `set_app_setting` images.draw_for_new_quizzes | Draw pictures for new course quizzes. |
-| `images.drawNotebookCovers.automatic` | bool | account | `set_app_setting` images.draw_notebook_covers | Draw a cover for a notebook made one at a time, and run the one-time cover backfill (D53, §5.9); true when absent. Generation 2 only. |
+| `images.drawNotebookCovers.automatic` | bool | account | `set_app_setting` images.draw_notebook_covers | Draw a cover for a notebook made one at a time, and run the one-time cover backfill (D53, §5.9); false when absent. Generation 2 only. |
 | `videos.model` | string | account | `set_app_setting` videos.model | The video model (an OpenRouter id) explainer films are made with. |
 | `videos.resolution` | string | account | `set_app_setting` videos.resolution | The resolution every scene is filmed at, one the model offers. |
 | `studio.hiddenTabs` | array | account | `set_source_settings` pinned (derived) | Source families taken off the tab bar (StudioSidebarTab raw values). |

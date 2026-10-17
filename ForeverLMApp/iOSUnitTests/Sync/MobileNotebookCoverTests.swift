@@ -225,10 +225,10 @@ struct MobileNotebookCoverTests {
         #expect(try await Fixture.patchCount(replica) == 0)
     }
 
-    @Test("None is written with the Setting off; with the Setting on or absent, one is")
+    @Test("None is written with the Setting off or absent; with the Setting on, one is")
     func theGates() async throws {
         #expect(MobileNotebookCover.automaticSettingKey == Self.automaticKey)
-        #expect(MobileNotebookCover.isWanted(automatic: nil))
+        #expect(!MobileNotebookCover.isWanted(automatic: nil))
         #expect(MobileNotebookCover.isWanted(automatic: true))
         #expect(!MobileNotebookCover.isWanted(automatic: false))
 
@@ -251,8 +251,8 @@ struct MobileNotebookCoverTests {
         }
 
         let plain = try await made([])
-        #expect(await request(plain) != nil, "the Setting not stored: covers are drawn")
-        #expect(try await jobs(plain.replica) == 1)
+        #expect(await request(plain) == nil, "the Setting not stored: the notebook keeps its emoji")
+        #expect(try await jobs(plain.replica) == 0)
 
         let off = try await made([try Self.setting(Self.automaticKey, false)])
         #expect(await request(off) == nil, "the Setting is off")

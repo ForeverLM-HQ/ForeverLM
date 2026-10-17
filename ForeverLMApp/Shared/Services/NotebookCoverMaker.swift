@@ -118,10 +118,8 @@ struct NotebookCoverSubject: Equatable, Sendable {
             .map(NotebookCoverSubject.init)
     }
 
-    var prompt: (ImageGenerationCatalog.Style) -> String {
-        { style in
-            ImageGenerationCatalog.notebookCoverPrompt(title: title, instructions: instructions, summary: summary, topic: topic, style: style)
-        }
+    var prompt: String {
+        ImageGenerationCatalog.notebookCoverPrompt(title: title, instructions: instructions, summary: summary, topic: topic)
     }
 }
 
@@ -290,8 +288,6 @@ struct NotebookCoverMaker {
     let cache: NotebookCoverCache
     /// The managed image route in the app (`NotebookCoverMaker.managedDrawing`); a stand-in in the suites.
     let draw: @Sendable (NotebookCoverDrawRequest) async throws -> NotebookCoverDrawing
-    /// The Images style (`MacImageGenerationSettings.style`).
-    let style: @Sendable () async -> ImageGenerationCatalog.Style
     let clock: @Sendable () -> Date
 
     func subject(_ target: NotebookCoverTarget) async throws -> NotebookCoverSubject? {
@@ -304,7 +300,7 @@ struct NotebookCoverMaker {
         guard let subject = try await subject(target) else { return .none(.notHeld) }
         guard subject.isActive else { return .none(.notActive) }
         if subject.cover != nil, model == nil { return .none(.hasCover) }
-        let prompt = subject.prompt(await style())
+        let prompt = subject.prompt
         let drawing = try await draw(NotebookCoverDrawRequest(prompt: prompt, notebookID: target.notebookID, title: subject.title, model: model))
         guard let bytes = NotebookCoverImage.normalized(drawing.data) else { throw ManagedImageGeneration.Failure.noImageReturned }
         let hash = try cache.store(bytes)
@@ -727,7 +723,7 @@ actor NotebookCoverService {
 
 #if os(macOS)
 extension NotebookCoverService {
-    /// The service the Mac runs: the managed image route on the account's Images model and style, the
+    /// The service the Mac runs: the managed image route on the account's Images model, the
     /// Setting read when a cover would be drawn, and the covers cached in Caches. WP16 builds it
     /// with the coordinator, beside `MaintenanceService` (`attachCovers`), and keeps it, since `current` is
     /// weak.
@@ -735,7 +731,6 @@ extension NotebookCoverService {
         let maker = NotebookCoverMaker(
             store: store, blobs: blobs, writer: writer, deviceID: deviceID, cache: .shared,
             draw: { try await NotebookCoverMaker.managedDrawing($0) },
-            style: { await MainActor.run { MacImageGenerationSettings.style } },
             clock: { Date() }
         )
         let service = NotebookCoverService(maker: maker, gates: { await NotebookCoverGates.current() })

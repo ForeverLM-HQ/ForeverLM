@@ -1139,7 +1139,7 @@
       "images.generateIcons": {"type": "bool", "mcp": {"tool": "set_app_setting", "setting": "images.draw_meeting_icons"}, "doc": "Whether ForeverLM may pay to draw a meeting's icon."},
       "images.generateIcons.automatic": {"type": "bool", "mcp": {"tool": "set_app_setting", "setting": "images.draw_for_new_meetings"}, "doc": "Draw an icon for each new meeting; true when absent."},
       "images.drawQuizPictures.automatic": {"type": "bool", "mcp": {"tool": "set_app_setting", "setting": "images.draw_for_new_quizzes"}, "doc": "Draw pictures for new course quizzes."},
-      "images.drawNotebookCovers.automatic": {"type": "bool", "mcp": {"tool": "set_app_setting", "setting": "images.draw_notebook_covers"}, "doc": "Draw a cover for a notebook made one at a time, and run the one-time cover backfill (D53, §5.9); true when absent. Generation 2 only."},
+      "images.drawNotebookCovers.automatic": {"type": "bool", "mcp": {"tool": "set_app_setting", "setting": "images.draw_notebook_covers"}, "doc": "Draw a cover for a notebook made one at a time, and run the one-time cover backfill (D53, §5.9); false when absent. Generation 2 only."},
       "videos.model": {"type": "string", "mcp": {"tool": "set_app_setting", "setting": "videos.model"}, "doc": "The video model (an OpenRouter id) explainer films are made with."},
       "videos.resolution": {"type": "string", "mcp": {"tool": "set_app_setting", "setting": "videos.resolution"}, "doc": "The resolution every scene is filmed at, one the model offers."},
       "studio.hiddenTabs": {"type": "array", "mcp": {"tool": "set_source_settings", "argument": "pinned", "derived": true}, "doc": "Source families taken off the tab bar (StudioSidebarTab raw values)."},

@@ -16,7 +16,7 @@ import UIKit
 /// What the phone says to a Mac about a cover.
 enum MobileNotebookCover {
     /// `images.drawNotebookCovers.automatic` (§3.5.3): whether a notebook made one at a time gets a cover
-    /// without being asked (true when absent). The phone reads it and never writes it: it is set in
+    /// without being asked (false when absent). The phone reads it and never writes it: it is set in
     /// Settings › Images on the Mac and over MCP.
     static let automaticSettingKey = "images.drawNotebookCovers.automatic"
     static let jobKind = "makeDerived"
@@ -28,9 +28,9 @@ enum MobileNotebookCover {
     /// handler instead of drawing.
     static var jobParams: SyncJSON { .object(["derived": .string("cover")]) }
 
-    /// Whether a cover is drawn without being asked: the Setting on (true when absent).
+    /// Whether a cover is drawn without being asked: the Setting on (false when absent).
     static func isWanted(automatic: Bool?) -> Bool {
-        automatic ?? true
+        automatic ?? false
     }
 
     /// Whether `fields` (a Notebook's) name a cover.

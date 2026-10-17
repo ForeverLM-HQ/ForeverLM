@@ -97,7 +97,7 @@ enum NotebookCoverFixture {
         NotebookCoverMaker(
             store: mac.local, blobs: M.blobs(mac, clock: clock),
             writer: MaintenanceWriter(transport: mac.transport, store: mac.local, moveMaps: MoveMapIndex(), deviceID: mac.deviceID, clock: clock),
-            deviceID: mac.deviceID, cache: cache, draw: { try await drawer.draw($0) }, style: { .emblem }, clock: clock
+            deviceID: mac.deviceID, cache: cache, draw: { try await drawer.draw($0) }, clock: clock
         )
     }
 

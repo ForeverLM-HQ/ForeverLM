@@ -59,11 +59,10 @@ enum MacImageGenerationSettings {
         PreferenceStore.set(enabled, forKey: automaticForNewQuizzesKey)
     }
 
-    /// Defaults to true (product owner, 2026-10-03: "rather than emojis; can we use
-    /// the ai generated icons? from a cheap image model").
+    /// Defaults to false: a notebook keeps its emoji until the learner draws a
+    /// cover (product owner, 2026-10-17: "but by default use emojis").
     static var drawsNotebookCovers: Bool {
-        guard UserDefaults.standard.object(forKey: automaticForNewNotebooksKey) != nil else { return true }
-        return UserDefaults.standard.bool(forKey: automaticForNewNotebooksKey)
+        UserDefaults.standard.bool(forKey: automaticForNewNotebooksKey)
     }
 
     static func setDrawsNotebookCovers(_ enabled: Bool) {
@@ -126,7 +125,7 @@ struct ImageGenerationSettingsDetailView: View {
     private var modelID: String
     @SyncedStorage(wrappedValue: true, MacImageGenerationSettings.automaticForNewQuizzesKey)
     private var drawsForNewQuizzes: Bool
-    @SyncedStorage(wrappedValue: true, MacImageGenerationSettings.automaticForNewNotebooksKey)
+    @SyncedStorage(wrappedValue: false, MacImageGenerationSettings.automaticForNewNotebooksKey)
     private var drawsNotebookCovers: Bool
     /// Seeded from the last read so a reopened pane draws at once; the
     /// `.task` below refreshes it, then fills in the prices.
@@ -179,7 +178,7 @@ struct ImageGenerationSettingsDetailView: View {
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text("Draw notebook covers")
                                         .font(.headline)
-                                    Text("A notebook you make gets a small picture of its subject in place of its emoji, drawn once on the model above when it has a name, and every notebook without one gets one once. Off, a notebook keeps its emoji unless you choose Draw Cover With in its menu.")
+                                    Text("A notebook you make gets a small emoji-style picture of its subject in place of its emoji, drawn once on the model above when it has a name, and every notebook without one gets one once. Off, a notebook keeps its emoji unless you choose Draw Cover With in its menu.")
                                         .font(.subheadline)
                                         .foregroundStyle(.secondary)
                                         .fixedSize(horizontal: false, vertical: true)
