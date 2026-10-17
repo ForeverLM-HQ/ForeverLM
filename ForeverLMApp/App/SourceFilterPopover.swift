@@ -504,14 +504,19 @@ struct HiddenItemsModel {
 
 // MARK: - Hidden Items Page
 
-/// Searchable list of hidden groups and items with unhide actions. Opens from
-/// the `HiddenItemsFooter` at the bottom of a sources list; `onBack` is for a
+/// Searchable list of hidden groups and items with unhide actions. Expands
+/// under the `HiddenItemsFooter` at the bottom of a sources list (`isInline`),
+/// or stands as a page of its own; `onBack` is for a
 /// host that stacks it behind another page, and nil draws no back control.
 /// Clicking a row that can open (a source, a book) reads it in the Reader and
 /// closes the list; it stays hidden.
 struct HiddenItemsPage: View {
     let model: HiddenItemsModel
     let onBack: (() -> Void)?
+    /// Drawn straight into a list under its footer: every hidden group and
+    /// item as rows of that list, which scrolls them, with no header, no
+    /// height cap of its own, and no dismissing on open (there is no popover).
+    let isInline: Bool
 
     @Environment(\.dismiss) private var dismiss
     @State private var query: String
@@ -527,9 +532,10 @@ struct HiddenItemsPage: View {
     /// The list scrolls once it is taller than this.
     private let maxListHeight: CGFloat = 360
 
-    init(model: HiddenItemsModel, initialQuery: String = "", onBack: (() -> Void)? = nil) {
+    init(model: HiddenItemsModel, initialQuery: String = "", isInline: Bool = false, onBack: (() -> Void)? = nil) {
         self.model = model
         self.onBack = onBack
+        self.isInline = isInline
         _query = State(initialValue: initialQuery)
     }
 
@@ -557,6 +563,59 @@ struct HiddenItemsPage: View {
     }
 
     var body: some View {
+        if isInline {
+            inlineRows
+        } else {
+            popoverBody
+        }
+    }
+
+    /// The rows themselves, as rows of the list the footer ends: the search
+    /// field when there are many, then the groups and the lone items.
+    @ViewBuilder
+    private var inlineRows: some View {
+        if model.searchableCount > 8 || !query.isEmpty {
+            searchField
+                .padding(.bottom, 4)
+        }
+        if !filteredGroups.isEmpty {
+            sectionHeader(model.groupsTitle)
+            ForEach(filteredGroups) { group in
+                groupRow(group)
+            }
+        }
+        if !filteredItems.isEmpty {
+            sectionHeader(model.itemsTitle)
+            ForEach(filteredItems) { item in
+                itemRow(item, indented: false)
+            }
+        }
+        if filteredGroups.isEmpty && filteredItems.isEmpty && !model.isEmpty {
+            Text("No matches")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+        }
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            TextField("Search hidden items", text: $query)
+                .textFieldStyle(.plain)
+                .font(.subheadline)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 6))
+        .padding(.horizontal, 12)
+        .padding(.top, 8)
+    }
+
+    private var popoverBody: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 6) {
                 if let onBack {
@@ -580,19 +639,7 @@ struct HiddenItemsPage: View {
             .padding(.top, 10)
 
             if model.searchableCount > 8 || !query.isEmpty {
-                HStack(spacing: 6) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    TextField("Search hidden items", text: $query)
-                        .textFieldStyle(.plain)
-                        .font(.subheadline)
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 5)
-                .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 6))
-                .padding(.horizontal, 12)
-                .padding(.top, 8)
+                searchField
             }
 
             if model.isEmpty {
@@ -729,7 +776,7 @@ struct HiddenItemsPage: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         if let open {
             Button {
-                dismiss()
+                if !isInline { dismiss() }
                 Task { await open() }
             } label: {
                 label
@@ -777,8 +824,9 @@ struct HiddenItemsPage: View {
 /// from here, so this is where they are found again, and the row is absent when
 /// nothing is hidden. While the search field has text it says how many hidden
 /// items match instead, so a search that comes up short because the thing was
-/// hidden says so rather than looking like a miss; opening the page then
-/// carries the search along.
+/// hidden says so rather than looking like a miss; expanding the row then
+/// carries the search along, and lists every hidden show, book or source
+/// beneath it.
 struct HiddenItemsFooter: View {
     let tab: StudioSidebarTab
     let searchText: String
@@ -786,7 +834,8 @@ struct HiddenItemsFooter: View {
     @Environment(StudioViewModel.self) private var vm
     /// The window a row opens its source in.
     @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
-    @State private var isPresented = false
+    /// The hidden things are listed under the row, all of them.
+    @State private var isExpanded = false
     /// Hidden rows matching the search, or nil while no search is typed. Built
     /// off the main render path: the podcasts model walks every hidden show's
     /// episodes, which is not work for a body that re-runs on each keystroke.
@@ -800,7 +849,7 @@ struct HiddenItemsFooter: View {
         let counts = HiddenItemsModel.footerCounts(for: tab, vm: vm)
         if counts.groups + counts.items > 0 {
             Button {
-                isPresented = true
+                withAnimation(.easeInOut(duration: 0.18)) { isExpanded.toggle() }
             } label: {
                 HStack(spacing: 5) {
                     Spacer()
@@ -808,6 +857,9 @@ struct HiddenItemsFooter: View {
                         .font(.caption2)
                     Text(title(counts: counts))
                         .font(.caption)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 8, weight: .semibold))
+                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
                     Spacer()
                 }
                 .foregroundStyle(matchCount.map { $0 > 0 } == true ? Color.accentColor : Color.secondary)
@@ -815,16 +867,10 @@ struct HiddenItemsFooter: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.hoverWash(cornerRadius: 6, inset: -2))
-            .help("Show what is hidden in \(tab.rawValue)")
+            .help(isExpanded ? "Hide the hidden \(tab.rawValue)" : "Show what is hidden in \(tab.rawValue)")
             .accessibilityLabel("Hidden items")
             .accessibilityValue(title(counts: counts))
-            .popover(isPresented: $isPresented, arrowEdge: .bottom) {
-                HiddenItemsPage(
-                    model: HiddenItemsModel.build(for: tab, vm: vm, in: windowState),
-                    initialQuery: trimmedQuery
-                )
-                .frame(width: 300)
-            }
+            .accessibilityAddTraits(.isButton)
             .task(id: "\(tab.rawValue)\u{1}\(trimmedQuery)") {
                 guard !trimmedQuery.isEmpty else {
                     matchCount = nil
@@ -833,6 +879,13 @@ struct HiddenItemsFooter: View {
                 try? await Task.sleep(for: .milliseconds(200))
                 guard !Task.isCancelled else { return }
                 matchCount = HiddenItemsModel.build(for: tab, vm: vm).matchCount(for: trimmedQuery)
+            }
+            if isExpanded {
+                HiddenItemsPage(
+                    model: HiddenItemsModel.build(for: tab, vm: vm, in: windowState),
+                    initialQuery: trimmedQuery,
+                    isInline: true
+                )
             }
         }
     }
