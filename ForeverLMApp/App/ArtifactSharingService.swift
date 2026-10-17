@@ -101,6 +101,10 @@ final class ForeverLMApplicationDelegate: NSObject, NSApplicationDelegate {
         if !isTestRun {
             MainActor.assumeIsolated { QuickAssistantController.shared.start() }
         }
+        // A publisher sign-in in the reader outlives a quit (Springer Nature's are session cookies).
+        if !isTestRun {
+            Task { @MainActor in await WebSessionCookieKeeper.shared.start() }
+        }
         // The sync hears CloudKit pushes for its private database (D36).
         if !isTestRun {
             NSApplication.shared.registerForRemoteNotifications()
