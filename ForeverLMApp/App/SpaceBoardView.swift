@@ -1,4 +1,5 @@
 #if os(macOS)
+import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -142,12 +143,18 @@ struct SpaceBoardDropDelegate: DropDelegate {
         isEnabled && info.hasItemsConforming(to: [.boardCard])
     }
 
+    /// Whether the learner is still holding the mouse down. AppKit can send a
+    /// last update after the drop, which would bring the line back and leave it
+    /// there (seen in the running app, 2026-10-17); with the button up there is
+    /// no drag left to show.
+    private var isDragLive: Bool { NSEvent.pressedMouseButtons & 1 != 0 }
+
     func dropEntered(info: DropInfo) {
-        target = resolve(info.location)
+        target = isDragLive ? resolve(info.location) : nil
     }
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
-        target = resolve(info.location)
+        target = isDragLive ? resolve(info.location) : nil
         return DropProposal(operation: .move)
     }
 

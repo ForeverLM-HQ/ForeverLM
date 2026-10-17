@@ -250,6 +250,7 @@ private struct NotebookTaskColumn: View {
             isEnabled: !isReadOnly,
             target: $dropTarget,
             move: { taskID, beforeID in
+                dropTarget = nil
                 // In Today, a card dropped into To do is due today, so it
                 // stays in the view it was dropped in.
                 let dueTodayBy = lens == .today ? NotebookTaskBoard.dueDate(for: .today, now: Date()) : nil
@@ -260,6 +261,10 @@ private struct NotebookTaskColumn: View {
         ))
         .onChange(of: addFocusRequest) { _, _ in
             if status == .todo, canAdd { addFocused = true }
+        }
+        // A card arriving or leaving ends any drop line still drawn.
+        .onChange(of: section.tasks.map(\.id)) { _, _ in
+            dropTarget = nil
         }
     }
 
