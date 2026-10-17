@@ -59,6 +59,9 @@ struct LinkedDocView: View {
     @State private var zoomScale = ArticleReaderZoom.defaultScale
     /// The selection the learner pressed Change on, while its sheet is up.
     @State private var changeRequest: SiteChangeRequest?
+    /// The stored files of a local site as the page was last loaded with them
+    /// (`siteFingerprint`); nil until the first read.
+    @State private var loadedSiteFingerprint: String?
 
     private var url: URL? { artifact.linkedURL.flatMap(URL.init(string:)) }
     /// Change is offered on a ForeverLM site kept in the learner's own entry
@@ -307,6 +310,36 @@ struct LinkedDocView: View {
             textCopyFollowsPage = await vm.linkedArtifactTextCopyIsEmpty(artifact.id)
             await refreshExport(force: false)
         }
+        // A site kept in the library and saved again while it is open (a chat,
+        // Claude or Codex calling save_animation or save_site) shows its new
+        // files: the page reloads once its stored files differ from the ones
+        // it was loaded with. Keyed on the files, not on the record's date,
+        // which the text copy's own writes move too.
+        .task(id: artifact.updatedAt) {
+            guard let siteID = LinkedPage.localSiteID(fromURLString: artifact.linkedURL) else { return }
+            let fingerprint = await Task.detached(priority: .utility) { Self.siteFingerprint(siteID: siteID) }.value
+            if let loaded = loadedSiteFingerprint, loaded != fingerprint {
+                bridge.reloadGeneration += 1
+            }
+            loadedSiteFingerprint = fingerprint
+        }
+    }
+
+    /// The names, sizes and dates of a local site's files, one line each; two
+    /// calls differ exactly when a file was added, removed or rewritten.
+    nonisolated private static func siteFingerprint(siteID: String) -> String {
+        let directory = URL(fileURLWithPath: StorageService.libraryRootPath, isDirectory: true)
+            .appendingPathComponent("Artifacts", isDirectory: true)
+            .appendingPathComponent(siteID, isDirectory: true)
+            .appendingPathComponent(KnowledgeStore.localSiteFolderName, isDirectory: true)
+        let keys: [URLResourceKey] = [.contentModificationDateKey, .fileSizeKey]
+        guard let files = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: keys) else { return "" }
+        var lines: [String] = []
+        for case let file as URL in files {
+            let values = try? file.resourceValues(forKeys: Set(keys))
+            lines.append("\(file.path)|\(values?.contentModificationDate?.timeIntervalSince1970 ?? 0)|\(values?.fileSize ?? 0)")
+        }
+        return lines.sorted().joined(separator: "\n")
     }
 
     /// Text the page reported from the frame that holds its content: stored as

@@ -939,10 +939,6 @@ struct ArtifactCanvas: View {
             if let selectedArtifact, showsPage, !selectedArtifact.isLinked, !selectedArtifact.isMnemonicReading {
                 docControls(for: selectedArtifact)
             }
-            // An animation is made in a chat from a source; this is where.
-            if section == .animations {
-                linkPageButton
-            }
         }
         // Clearance for the traffic lights and for the chrome overlaying the
         // pane's top-right corner comes from studioChromeLineHeader; this row
@@ -1153,11 +1149,14 @@ struct ArtifactCanvas: View {
         .accessibilityLabel("\(artifact.linkedKind?.label ?? "Linked page") actions")
     }
 
-    /// Animations' way in on the top line, the one section that still keeps
-    /// it there: a page or a site is added from the Space sidebar.
-    private var linkPageButton: some View {
-        StudioChromeIconButton(systemImage: "link.badge.plus", label: section.linkActionTitle) {
-            isLinkingPage = true
+    /// Animations' way in, in the list's head beside its search, as a new
+    /// chat is in ChatGPT's and Codex's lists: an animation is made in a chat
+    /// from a source, so the button opens one with the request typed (the
+    /// same call the empty state's pill makes). A page or a site is added
+    /// from the Space sidebar; nothing is linked here.
+    private var animateSourceButton: some View {
+        StudioChromeIconButton(systemImage: "square.and.pencil", label: section.linkActionTitle) {
+            vm.requestAnimationChat()
         }
     }
 
@@ -1173,10 +1172,18 @@ struct ArtifactCanvas: View {
                 Label("New Page", systemImage: "doc.badge.plus")
             }
         }
-        Button {
-            isLinkingPage = true
-        } label: {
-            Label(section.linkActionTitle, systemImage: "link.badge.plus")
+        if section == .animations {
+            Button {
+                vm.requestAnimationChat()
+            } label: {
+                Label(section.linkActionTitle, systemImage: "square.and.pencil")
+            }
+        } else {
+            Button {
+                isLinkingPage = true
+            } label: {
+                Label(section.linkActionTitle, systemImage: "link.badge.plus")
+            }
         }
     }
 
@@ -1961,6 +1968,9 @@ struct ArtifactCanvas: View {
                     }
                     .buttonStyle(.hoverWash(in: Circle(), inset: -3))
                     .help("Clear search")
+                }
+                if section == .animations {
+                    animateSourceButton
                 }
                 // The list's collapse control lives on the list, at its inner
                 // edge beside the search field, the way a side panel is
