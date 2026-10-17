@@ -4,9 +4,9 @@ import UniformTypeIdentifiers
 
 /// The notebook's **Studio** column, the workspace's right-hand part
 /// (docs/notebooks-design.md, "Studio"): its title and fold on the chrome
-/// line over what can be made and what was made (`NotebookStudioColumn`), or,
-/// folded, a strip — the way back, Share and an icon per output
-/// (`NotebookStudioStrip`). Studio has the column to itself since
+/// line over what can be made and what was made (`NotebookStudioColumn`);
+/// folded, it leaves the window (2026-10-17: no strips beside the chat), and
+/// the window's top-left toggle brings it back. Studio has the column to itself since
 /// 2026-10-02: the library is the Sources column's search, and About is the
 /// notebook's settings sheet.
 struct NotebookStudioPanel: View {
@@ -14,23 +14,19 @@ struct NotebookStudioPanel: View {
     @Environment(StudioWindowState.self) private var windowState
     @Environment(\.studioTitlebarBandHeight) private var titlebarBandHeight
     let notebookID: String
-    let isCollapsed: Bool
 
     /// The notebook's Share popover (docs/teams-design.md, decision 22),
-    /// from the Share at the top right — on the chrome line, or on the
-    /// folded strip — and from the notebook's ⋯ (`showNotebookShare`).
+    /// from the Share at the top right of the chrome line and from the
+    /// notebook's ⋯ (`showNotebookShare`). While Studio is folded the
+    /// workspace owns the popover (`NotebookWorkspaceView`).
     @State private var isShowingShare = false
 
     var body: some View {
         Group {
             if let goal = vm.notebook(id: notebookID) {
-                if isCollapsed {
-                    NotebookStudioStrip(goal: goal, isShowingShare: $isShowingShare, expand: { setCollapsed(false) })
-                } else {
-                    NotebookStudioColumn(goal: goal)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                        .studioChromeLineHeader { header(goal) }
-                }
+                NotebookStudioColumn(goal: goal)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .studioChromeLineHeader { header(goal) }
             } else {
                 Color.clear
             }
@@ -305,128 +301,8 @@ struct NotebookStudioColumn: View {
     }
 }
 
-/// The folded Studio column's strip: the way back, Share, then an icon per
-/// output, each opening it where a click on its row would. Until 2026-10-06
-/// it drew Gemini Notebook's icon per tile above them too, some twenty
-/// glyphs in a full notebook (the product owner: "cleaner and fewer buttons and bells
-/// and whistles"); the tiles are Show Studio's and the Notebook menu's
-/// Make ▸ (`NotebookMakeMenuItems`).
-struct NotebookStudioStrip: View {
-    @Environment(StudioViewModel.self) private var vm
-    @Environment(StudioWindowState.self) private var windowState
-    @ObservedObject private var overviewWriter = AudioOverviewGenerationCoordinator.shared
-    @ObservedObject private var walkthroughWriter = WalkthroughGenerationCoordinator.shared
-    let goal: LearningGoalRecord
-    /// The notebook's Share popover, which the strip's Share opens.
-    @Binding var isShowingShare: Bool
-    let expand: () -> Void
-
-    @State private var walkthroughs: [PaperWalkthroughSummary] = []
-    @State private var linkedCourseIDs: Set<String> = []
-    @State private var extras = NotebookStudioMadeExtras.Loaded()
-    @State private var openedImage: GeneratedImageStore.ImageGroup?
-
-    private var walkthroughsKey: String {
-        "\(goal.id)#\(vm.readerWalkthroughRevision)#\(walkthroughWriter.runs.count)#\(vm.notebookMembershipRevision)#\(vm.recordingScopeRevision)#\(vm.activeTeamID ?? "")"
-    }
-
-    private var cardsKey: String {
-        "\(goal.id)#\(vm.memoryCardRevision)#\(vm.notebookMembershipRevision)#\(vm.recordingScopeRevision)"
-    }
-
-    var body: some View {
-        let runs = overviewWriter.runs.map { run in
-            NotebookOutputs.Run(id: run.id, notebookID: run.notebookID, title: run.notebookTitle, startedAt: run.startedAt)
-        }
-        let outputs = vm.notebookOutputs(
-            notebookID: goal.id,
-            walkthroughs: walkthroughs,
-            linkedCourseIDs: linkedCourseIDs,
-            runs: runs,
-            cardRuns: extras.cardRuns,
-            pictures: extras.pictures,
-            narrations: extras.narrations
-        )
-        VStack(spacing: 6) {
-            Button(action: expand) {
-                Image(systemName: "sidebar.right")
-                    .zoomedSystemFont(size: 12, weight: .medium)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 30, height: 26)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.hoverWash)
-            .help("Show Studio")
-            .accessibilityLabel("Show Studio")
-            .accessibilityIdentifier("notebook.studio.expand")
-            // Share stays at the top right while Studio is folded.
-            Button { isShowingShare = true } label: {
-                Image(systemName: "person.badge.plus")
-                    .zoomedSystemFont(size: 12, weight: .medium)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 30, height: 26)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.hoverWash)
-            .help("Share this notebook")
-            .accessibilityLabel("Share")
-            .accessibilityIdentifier("notebook.share")
-            .popover(isPresented: $isShowingShare, arrowEdge: .leading) {
-                NotebookSharePopover(goal: goal, close: { isShowingShare = false })
-                    .environment(vm)
-            }
-            ScrollView(showsIndicators: false) {
-                LazyVStack(spacing: 4) {
-                    if !outputs.isEmpty {
-                        Rectangle()
-                            .fill(Color.primary.opacity(0.08))
-                            .frame(width: 24, height: 1)
-                            .padding(.vertical, 4)
-                            .accessibilityHidden(true)
-                    }
-                    ForEach(outputs) { output in
-                        Button {
-                            let output = output
-                            NotebookOutputSeenTracker.shared.markSeen(output)
-                            if output.kind == .picture {
-                                openedImage = extras.imageGroups.first { $0.imageID == output.targetID }
-                            } else {
-                                Task { await vm.openNotebookOutput(output, in: windowState) }
-                            }
-                        } label: {
-                            Image(systemName: output.symbolName)
-                                .zoomedSystemFont(size: 13)
-                                .foregroundStyle(output.kind.hue.glyph)
-                                .frame(width: 30, height: 26)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.hoverWash)
-                        .help(output.title)
-                        .accessibilityLabel("\(output.kindLabel): \(output.title)")
-                    }
-                }
-                .padding(.bottom, 12)
-            }
-        }
-        .padding(.top, 10)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .task(id: walkthroughsKey) {
-            walkthroughs = await vm.notebookWalkthroughs(notebookID: goal.id)
-        }
-        // Following a course touches the notebook's record, as the column
-        // reads it.
-        .task(id: "\(goal.id)#\(goal.updatedAt.timeIntervalSinceReferenceDate)") {
-            linkedCourseIDs = await vm.notebookLinkedCourseIDs(notebookID: goal.id)
-        }
-        .task(id: goal.id) {
-            if !vm.hasLoadedArtifactsOnce { await vm.loadArtifacts() }
-        }
-        .modifier(NotebookStudioMadeExtras(goal: goal, cardsKey: cardsKey, extras: $extras, openedImage: $openedImage))
-    }
-}
-
 /// The kinds of output the Studio reads from outside the view model's
-/// records, for the column and the folded strip alike: the Make Cards runs
+/// records: the Make Cards runs
 /// on the notebook's sources (`StudioViewModel.notebookCardRuns`, read again
 /// when a card is drafted, kept or skipped, or the notebook's sources
 /// change), the standalone pictures homed in it (read again when a picture

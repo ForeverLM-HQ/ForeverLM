@@ -1032,6 +1032,13 @@ struct NotebookAddSourcesTests {
                 "a folded Sources column takes no strip and no separator")
         let foldedWidths = Sizing.columnWidths(for: folded, totalWidth: 1_250)
         #expect(foldedWidths.sources == 0)
+
+        // Studio folded leaves the window too: no strip, no separator.
+        var bothFolded = folded
+        bothFolded.studioCollapsed = true
+        let bare = Sizing.columnWidths(for: bothFolded, totalWidth: 1_250)
+        #expect(bare.sources == 0 && bare.studio == 0 && bare.center == 1_250)
+        #expect(Sizing.minimumWidth(for: bothFolded) == Sizing.centerMinimumWidth(for: pair))
         #expect(foldedWidths.center + foldedWidths.studio + Sizing.separatorWidth == 1_250)
         #expect(Sizing.centerMinimumWidth(for: NotebookWorkspace(notebookID: "bio", showsChat: false)) == chatWidth)
 
@@ -1063,11 +1070,11 @@ struct NotebookAddSourcesTests {
         #expect(chatOnly.sources == 300 && chatOnly.studio == 300)
         #expect(chatOnly.sources + chatOnly.center + chatOnly.studio + separators == 1_250)
 
-        // A paper open with Sources folded: its strip, Studio stays, and the
+        // A paper open with Sources folded: no column, Studio stays, and the
         // center holds the chat and the Reader side by side.
         let reading = NotebookWorkspace(notebookID: "bio", document: .reader, sourcesCollapsed: true)
         let readingWidths = Sizing.columnWidths(for: reading, totalWidth: 1_250)
-        #expect(readingWidths.sources == Sizing.stripWidth)
+        #expect(readingWidths.sources == 0)
         #expect(readingWidths.studio == 300)
         #expect(readingWidths.center >= Sizing.centerMinimumWidth(for: reading))
 
@@ -1117,11 +1124,11 @@ struct NotebookAddSourcesTests {
         #expect(wide.sources == Sizing.sideMinimumWidth + 100)
         #expect(abs(wide.sources + wide.center + wide.studio + separators - tight) < 0.001)
 
-        // Folded, the strip has one width; a search's whole list still gets
+        // Folded, Sources has no width; a search's whole list still gets
         // its widened width, or the learner's when that is wider.
         var folded = notebook
         folded.sourcesCollapsed = true
-        #expect(Sizing.columnWidths(for: folded, totalWidth: 1_250, sourcesPreferredWidth: 420).sources == Sizing.stripWidth)
+        #expect(Sizing.columnWidths(for: folded, totalWidth: 1_250, sourcesPreferredWidth: 420).sources == 0)
         let searching = NotebookWorkspace(notebookID: "bio", sourcesExpanded: true)
         #expect(Sizing.columnWidths(for: searching, totalWidth: 1_400, sourcesPreferredWidth: 300).sources == Sizing.expandedSourcesWidth)
         #expect(Sizing.columnWidths(for: searching, totalWidth: 1_400, sourcesPreferredWidth: 520).sources == 520)

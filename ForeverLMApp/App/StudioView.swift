@@ -420,7 +420,10 @@ struct StudioView: View {
         // In full screen the controls sit in flow at the left edge, and ‹ ›
         // with the toggle reach past the strip too.
         let clearance = hasTitlebarBand ? StudioTopBar.headerLeadingClearance : StudioTopBar.fullscreenHeaderLeadingClearance
-        return max(0, clearance - StudioNavigationRail.compactRailWidth)
+        // A notebook window's Studio toggle stands after the sidebar toggle.
+        let studioToggle = windowState.notebook != nil && !windowState.isDockedReaderImmersive
+            ? StudioTopBar.notebookStudioToggleClearance : 0
+        return max(0, clearance + studioToggle - StudioNavigationRail.compactRailWidth)
     }
 
     /// What ‹ › puts back that the window state does not hold
@@ -580,6 +583,7 @@ struct StudioView: View {
                 HStack(spacing: StudioTopBar.leadingControlsSpacing) {
                     WindowPlaceArrows(reopen: reopenPlaceContent)
                     NavigationRailToggle(isVisible: navigationRailVisibilityBinding)
+                    NotebookStudioToggle()
                 }
                 .frame(height: band)
                 .padding(.leading, toggleLeading)

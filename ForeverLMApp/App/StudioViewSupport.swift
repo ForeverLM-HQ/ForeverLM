@@ -392,6 +392,8 @@ enum StudioTopBar {
     static let leadingControlsSpacing: CGFloat = 2
     /// How wide they run: ‹, › and the toggle.
     static let leadingControlsWidth = 3 * StudioDesign.Metrics.chromeButtonWidth + 2 * leadingControlsSpacing
+    /// What a notebook window's Studio toggle adds to those controls.
+    static let notebookStudioToggleClearance = StudioDesign.Metrics.chromeButtonWidth + leadingControlsSpacing
     /// Gap between the controls drawn over a pane's top-right corner: its
     /// pin, its close target and a header's own trailing controls.
     static let paneControlSpacing: CGFloat = 12

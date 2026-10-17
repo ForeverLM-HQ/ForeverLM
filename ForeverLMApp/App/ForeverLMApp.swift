@@ -1052,6 +1052,10 @@ struct ForeverLMApp: App {
                         }
                     }
 
+                    Button("Share Notebook…") {
+                        postToActiveStudioWindow(.showNotebookShare)
+                    }
+
                     Divider()
 
                     Menu("Make") {

@@ -44,11 +44,10 @@ struct NotebookCenterLayout: Equatable {
 ///
 /// The workspace is Gemini Notebook's three parts (docs/notebooks-design.md,
 /// "The notebook workspace"): Sources and Studio take about a quarter of the
-/// window each and the center the half between them. Studio folds to a strip
-/// that keeps an icon per tile or output; Sources folds to nothing, so the
-/// window never shows two icon strips side by side (product owner,
-/// 2026-10-17: "multiple sidebars in a notebook feel a bit strange") — the
-/// window's sidebar toggle brings it back.
+/// window each and the center the half between them. A side column folds to
+/// nothing, so the window never shows strips beside the chat (product owner,
+/// 2026-10-17: "multiple sidebars in a notebook feel a bit strange"): the
+/// window's top-left toggles bring them back.
 enum NotebookWorkspaceSizing {
     /// A side column's narrowest and widest while open.
     static let sideMinimumWidth: CGFloat = 260
@@ -57,10 +56,6 @@ enum NotebookWorkspaceSizing {
     /// bounds above: Gemini's quarter, a little less, so the chat keeps the
     /// half between them.
     static let sideShare: CGFloat = 0.24
-    /// A folded Studio column: its buttons, then an icon per tile and output.
-    /// Gemini's strip is 56 px. A folded Sources column has none: it takes no
-    /// width and no separator.
-    static let stripWidth: CGFloat = 56
     /// The Sources column while it shows a web or PubMed search's whole list
     /// (`NotebookWorkspace.sourcesExpanded`): Gemini widens its panel to
     /// 540 px for it, and the Studio drops to its minimum meanwhile.
@@ -138,11 +133,11 @@ enum NotebookWorkspaceSizing {
     }
 
     /// What the Studio column takes at its narrowest, separator included;
-    /// nothing while it steps aside (`studioShows` false: an immersive video
+    /// nothing while it is folded or steps aside (`studioShows` false: an immersive video
     /// takes the window, as it took the library's Sources panel).
     static func studioFootprint(for workspace: NotebookWorkspace, studioShows: Bool = true) -> CGFloat {
-        guard studioShows else { return 0 }
-        return (workspace.studioCollapsed ? stripWidth : sideMinimumWidth) + separatorWidth
+        guard studioShows, !workspace.studioCollapsed else { return 0 }
+        return sideMinimumWidth + separatorWidth
     }
 
     /// The whole workspace's minimum: both side columns as they are, open or
@@ -156,8 +151,7 @@ enum NotebookWorkspaceSizing {
     /// The three columns' widths in a workspace `totalWidth` wide, separators
     /// apart: each open side column takes its share — Sources the width the
     /// learner dragged it to (`sourcesPreferredWidth`) if they did — a folded
-    /// Studio its strip and a folded Sources nothing, Sources showing a
-    /// search's whole list its widened width
+    /// one nothing, Sources showing a search's whole list its widened width
     /// (the Studio its minimum meanwhile), and the center the rest. When the
     /// side columns would leave the center short of its minimum, the open
     /// ones give it back down to their own minimum, Studio first, so a fold
@@ -173,13 +167,12 @@ enum NotebookWorkspaceSizing {
         let open = openSourcesWidth(totalWidth: totalWidth, preferredWidth: sourcesPreferredWidth)
         let expanded = workspace.sourcesExpanded && !workspace.sourcesCollapsed
         var sources = workspace.sourcesCollapsed ? 0 : (expanded ? max(open, expandedSourcesWidth) : open)
-        var studio = studioShows
-            ? (workspace.studioCollapsed ? stripWidth : (expanded ? sideMinimumWidth : share))
-            : 0
-        let separators = (workspace.sourcesCollapsed ? 0 : separatorWidth) + (studioShows ? separatorWidth : 0)
+        let studioOpen = studioShows && !workspace.studioCollapsed
+        var studio = studioOpen ? (expanded ? sideMinimumWidth : share) : 0
+        let separators = (workspace.sourcesCollapsed ? 0 : separatorWidth) + (studioOpen ? separatorWidth : 0)
         let centerMinimum = centerMinimumWidth(for: workspace)
         var short = centerMinimum - (totalWidth - separators - sources - studio)
-        if short > 0, studioShows, !workspace.studioCollapsed {
+        if short > 0, studioOpen {
             let give = min(short, max(0, studio - sideMinimumWidth))
             studio -= give
             short -= give
@@ -329,8 +322,8 @@ struct NotebookWorkspaceView: View {
     @State private var renameText = ""
     @State private var showDeleteConfirm = false
     @State private var showMergeSheet = false
-    /// The Share popover under the ⋯, for ⋯ › Share… while the Studio
-    /// column, where Share lives, is not on screen.
+    /// The Share popover from the workspace's top right, for Share… while the
+    /// Studio column, where Share lives, is not on screen.
     @State private var isShowingShareUnderMenu = false
     /// The Sources column's width as the learner last dragged it, on this
     /// Mac; nil until the first drag, and again after a double-click on the
@@ -369,6 +362,9 @@ struct NotebookWorkspaceView: View {
     /// takes the window, as it took the library's Sources panel.
     private var studioShows: Bool { !windowState.isDockedReaderImmersive }
 
+    /// Whether the Studio column, where Share lives, is open on screen.
+    private var studioIsOpen: Bool { studioShows && !workspace.studioCollapsed }
+
     /// The width the Sources column is asked to take: a drag's while one
     /// runs, else the learner's kept one; nil for its share.
     private var sourcesPreferredWidth: CGFloat? {
@@ -401,7 +397,7 @@ struct NotebookWorkspaceView: View {
                 center(width: widths.center, start: centerStart, totalWidth: visibleWidth)
                     .frame(width: widths.center)
                     .frame(maxHeight: .infinity)
-                if studioShows {
+                if studioShows, !workspace.studioCollapsed {
                     columnSeparator
                     studioColumn
                         .frame(width: widths.studio)
@@ -441,6 +437,26 @@ struct NotebookWorkspaceView: View {
         .onReceive(NotificationCenter.default.publisher(for: .showNotebookAddSources)) { note in
             guard (note.object as? UUID) == windowState.id else { return }
             isAddingSources = true
+        }
+        // Share while Studio is folded: its popover hangs from the workspace's
+        // top right, since neither Studio's header nor the Sources column (it
+        // may be folded too) is there to hold it.
+        .overlay(alignment: .topTrailing) {
+            if let goal {
+                Color.clear
+                    .frame(width: 1, height: 1)
+                    .popover(isPresented: $isShowingShareUnderMenu, arrowEdge: .bottom) {
+                        NotebookSharePopover(goal: goal, close: { isShowingShareUnderMenu = false })
+                            .environment(vm)
+                    }
+                    .padding(.trailing, 24)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .showNotebookShare)) { note in
+            guard (note.object as? UUID) == windowState.id, !studioIsOpen, vm.notebook(id: workspace.notebookID) != nil else { return }
+            isShowingShareUnderMenu = true
         }
         .onReceive(NotificationCenter.default.publisher(for: .renameNotebook)) { note in
             guard (note.object as? UUID) == windowState.id, let goal, !vm.isNotebookReadOnly(goal) else { return }
@@ -555,7 +571,7 @@ struct NotebookWorkspaceView: View {
 
     /// The right-hand column: the notebook's Studio, or its strip.
     private var studioColumn: some View {
-        NotebookStudioPanel(notebookID: workspace.notebookID, isCollapsed: workspace.studioCollapsed)
+        NotebookStudioPanel(notebookID: workspace.notebookID)
             .dynamicTypeSize(UIZoom.size(for: uiZoomStep))
     }
 
@@ -665,10 +681,6 @@ struct NotebookWorkspaceView: View {
             .accessibilityLabel(goal.title)
             .accessibilityHint("Notebook actions")
             .accessibilityIdentifier("notebook.name")
-            .popover(isPresented: $isShowingShareUnderMenu, arrowEdge: .bottom) {
-                NotebookSharePopover(goal: goal, close: { isShowingShareUnderMenu = false })
-                    .environment(vm)
-            }
             // ForeverLM could not name a notebook made without one: the
             // placeholder stays, and this says why (`NotebookNaming`).
             if let namingError = vm.notebookNamingErrors[goal.id] {
@@ -742,15 +754,11 @@ struct NotebookWorkspaceView: View {
             .disabled(isReadOnly)
         }
         Divider()
-        // The notebook's Share popover, under the Share at the top right;
-        // under the name's menu while an immersive video has the Studio column's
-        // place.
+        // The notebook's Share popover, under the Share at the top right of
+        // Studio; from the workspace's top right while Studio is folded or an
+        // immersive video has its place.
         Button("Share…", systemImage: "person.badge.plus") {
-            if studioShows {
-                NotificationCenter.default.post(name: .showNotebookShare, object: windowState.id)
-            } else {
-                isShowingShareUnderMenu = true
-            }
+            NotificationCenter.default.post(name: .showNotebookShare, object: windowState.id)
         }
         ShareWithTeamMenu { teamID in
             Task { await vm.shareNotebook(goal.id, withTeam: teamID) }
