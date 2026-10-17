@@ -658,7 +658,7 @@ export const DESKTOP_ONLY_TOOL_NAMES: ReadonlySet<string> = new Set([
   // this Mac asks "Plan your day?", which is this Mac's alone.
   "get_day_settings",
   "set_day_settings",
-  // Settings › AI Usage › Your own key is an item in the Mac's Keychain, and
+  // Settings › AI Usage › API keys is an item in the Mac's Keychain, and
   // routing follows it there.
   "get_own_router_key",
   "set_own_router_key",

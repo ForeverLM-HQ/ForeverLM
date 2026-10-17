@@ -13597,11 +13597,11 @@ struct MCPDataStoreTests {
         #expect(explainer.audioAutomationKind == SourceAudioAutomation.explainerKind)
     }
 
-    /// AI Usage › Your own key over MCP. The reader is pinned against
+    /// AI Usage › API keys over MCP. The reader is pinned against
     /// a test-only key so the developer's Keychain never decides the outcome,
     /// and every refused write is one that throws before `ManagedAI.setOwnKey`
     /// runs — a real write here would store a key in the iCloud Keychain.
-    @Test("get_own_router_key and set_own_router_key are AI Usage › Your own key")
+    @Test("get_own_router_key and set_own_router_key are AI Usage › API keys")
     func ownRouterKeyToolsDriveTheAIUsagePane() throws {
         let (store, tmpPath) = try makeStore()
         defer { cleanup(tmpPath) }

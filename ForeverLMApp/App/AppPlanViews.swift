@@ -19,7 +19,7 @@ struct EarlyUserDealOffer: View {
     /// paid.
     static let lockedTitle = "MCP is locked"
     /// The line every surface says what AI costs with.
-    static let ownKeyLine = "The app is free. AI runs on your own OpenRouter key, at OpenRouter's cost. ForeverLM adds nothing."
+    static let ownKeyLine = "The app is free. AI runs on your OpenRouter API key, at OpenRouter's cost. ForeverLM adds nothing."
 
     /// "Get the Early User Deal: $19", or without the price while the proxy
     /// has not said it.

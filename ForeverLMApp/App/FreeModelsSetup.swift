@@ -139,7 +139,7 @@ extension FreeModelsSetup {
         deniesDataCollection: Bool = AIDataPolicy.deniesDataCollection
     ) -> String? {
         if !hasOpenRouterKey {
-            return "Free models run on your own OpenRouter key. Add it under AI Usage (the sidebar's OpenRouter button)."
+            return "Free models run on your OpenRouter API key. Add it under AI Usage (the sidebar's OpenRouter button)."
         }
         if deniesDataCollection {
             return "Free models' providers may keep what you send, so “\(AIDataPolicy.switchTitle)” under \(AIDataPolicy.settingsLocation) leaves them no host. Turn it off to use one."

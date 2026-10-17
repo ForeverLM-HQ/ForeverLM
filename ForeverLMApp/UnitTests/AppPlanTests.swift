@@ -240,7 +240,7 @@ struct AppPlanTests {
                 "a proxy that has not said the count gets no count of the build's own")
         #expect(EarlyUserDealOffer.welcomeLine(onceCents: 1900, freeDays: 7)
             == "The app is free. MCP: 7 days free, then $19 once. No subscription.")
-        #expect(EarlyUserDealOffer.ownKeyLine == "The app is free. AI runs on your own OpenRouter key, at OpenRouter's cost. ForeverLM adds nothing.")
+        #expect(EarlyUserDealOffer.ownKeyLine == "The app is free. AI runs on your OpenRouter API key, at OpenRouter's cost. ForeverLM adds nothing.")
         #expect(EarlyUserDealOffer.lockedTitle == "MCP is locked")
         #expect(ManagedAI.mcpLockedMessage == "ForeverLM's MCP connection is not unlocked on this account. Open ForeverLM on your Mac to unlock it.")
         for text in [

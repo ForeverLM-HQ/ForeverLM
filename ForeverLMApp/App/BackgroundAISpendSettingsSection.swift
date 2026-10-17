@@ -46,7 +46,7 @@ struct BackgroundAIDailyCapRow: View {
         let spent = spentTodayUSD.map {
             $0.formatted(.currency(code: "USD").precision(.fractionLength(2)))
         } ?? "—"
-        return "Clean-up, Listen preparation and other background work, own key included · \(spent) today"
+        return "Clean-up, Listen preparation and other background work, API key included · \(spent) today"
     }
 
     private func save() {

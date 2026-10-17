@@ -193,7 +193,7 @@ extension MCPDataStore {
         ["pane": "General › Memory review", "read": "get_memory_review_settings", "write": "set_memory_review_settings"],
         ["pane": "Background › Models (Text-only, Multimodal, Tasks), a card's ⋯ for its host; Data & Privacy", "read": "get_ai_task_settings", "write": "set_ai_task_settings"],
         ["pane": "Chat › Models (which models the chat picker offers)", "read": "get_ai_task_settings", "write": "set_chat_model_offered"],
-        ["pane": "AI Usage › Your own key", "read": "get_own_router_key", "write": "set_own_router_key"],
+        ["pane": "AI Usage › API keys", "read": "get_own_router_key", "write": "set_own_router_key"],
         ["pane": "Billing › Plan; AI Usage › Spending (monthly spending limit)", "read": "get_billing_settings", "write": "set_billing_settings"],
         ["pane": "Sources sidebar › bulk re-queues waiting for a decision", "read": "get_background_ai_jobs", "write": "decide_background_ai_job"],
         ["pane": "Automatic audio (no pane)", "read": "get_automatic_audio_settings", "write": "set_automatic_audio_settings"],

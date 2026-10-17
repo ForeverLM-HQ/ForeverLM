@@ -47,7 +47,7 @@ struct AIUsageAccountSections: View {
     }
 
     private var signedOutSection: some View {
-        ManagedAISignInSection(title: "Your own key", message: "Sign in to add your own OpenRouter key.")
+        ManagedAISignInSection(title: "API keys", message: "Sign in to add your OpenRouter API key.")
     }
 
     /// The product owner (2026-09-25): ForeverLM's AI features are bring your own key.
@@ -58,8 +58,8 @@ struct AIUsageAccountSections: View {
     /// `ManagedAI.OwnKeyRouter`.
     private var ownKeySection: some View {
         SettingsSection(
-            title: "Your own key",
-            description: "AI features run on your own OpenRouter key, billed at cost."
+            title: "API keys",
+            description: "AI features run on your OpenRouter API key, billed at cost."
         ) {
             billingCard {
                 VStack(alignment: .leading, spacing: 0) {
@@ -1030,6 +1030,7 @@ struct AIUsagePanel: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
+                AIUsageSpentToday()
                 if keyComesFirst { accountSections }
                 SettingsSection(title: "Running now") {
                     SettingsCard {
@@ -1047,5 +1048,47 @@ struct AIUsagePanel: View {
 
     private var accountSections: some View {
         AIUsageAccountSections(onOpenBilling: { onOpenSettings(.aiBilling) })
+    }
+}
+
+/// The pane's headline (product owner, 2026-10-17: "at the top of this whole
+/// pane; there should be a total spend for today"): what every AI call since
+/// local midnight cost, from the same ledger the activity list below reads.
+/// Calls the ledger could not price are counted in the detail, so the figure
+/// reads as a floor when there are any.
+private struct AIUsageSpentToday: View {
+    @State private var totals: AIUsageEventTotals?
+
+    private var amount: String {
+        (totals?.cost ?? 0).formatted(.currency(code: "USD").precision(.fractionLength(2)))
+    }
+
+    private var detail: String {
+        guard let totals else { return "Reading today's calls" }
+        let calls = totals.count == 1 ? "1 call" : "\(totals.count) calls"
+        if totals.unpriced > 0 { return "\(calls) today, \(totals.unpriced) not priced yet" }
+        return "\(calls) today, every model and task"
+    }
+
+    var body: some View {
+        SettingsCard {
+            BillingRow(title: "Spent today", detail: detail) {
+                Text(totals == nil ? "—" : amount)
+                    .font(.title2.weight(.semibold))
+                    .monospacedDigit()
+            }
+        }
+        .task { await reload() }
+        .onReceive(NotificationCenter.default.publisher(for: .aiUsageEventRecorded).receive(on: RunLoop.main)) { _ in
+            Task { await reload() }
+        }
+    }
+
+    private func reload() async {
+        let start = Calendar.current.startOfDay(for: Date())
+        let filter = KnowledgeStore.AIUsageEventFilter(
+            since: start, provider: nil, model: nil, operation: nil, task: nil, clientPlatform: nil
+        )
+        totals = try? await StorageService().aiUsageEventTotals(filter: filter)
     }
 }

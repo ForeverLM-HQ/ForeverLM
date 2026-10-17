@@ -802,9 +802,9 @@ private struct MobileCreditsView: View {
                 .foregroundStyle(.secondary)
                 .accessibilityIdentifier("credits.ownKey.privacy")
         } header: {
-            Text("Your own key")
+            Text("API keys")
         } footer: {
-            Text("AI features run on your own OpenRouter API key, billed by OpenRouter at cost. Right now ForeverLM supports OpenRouter. The key covers chat, reviews and background tasks, and every voice, speech-to-text, image and video model OpenRouter serves. The key is kept in your iCloud Keychain and shared with your Mac.")
+            Text("AI features run on your OpenRouter API key, billed by OpenRouter at cost. Right now ForeverLM supports OpenRouter. The key covers chat, reviews and background tasks, and every voice, speech-to-text, image and video model OpenRouter serves. The key is kept in your iCloud Keychain and shared with your Mac.")
         }
     }
 
@@ -1349,7 +1349,7 @@ extension MobileTextToSpeechVoicePreviewService: AVAudioPlayerDelegate {
 enum MobileKeyScreenCopy {
     static let title = "Key"
 
-    static let aiFooter = "AI runs on your own OpenRouter key, at OpenRouter's cost. ForeverLM adds nothing."
+    static let aiFooter = "AI runs on your OpenRouter API key, at OpenRouter's cost. ForeverLM adds nothing."
 
     static let creditsRequired = "AI features run on your own OpenRouter API key. Add your key in Settings › Key."
 }
