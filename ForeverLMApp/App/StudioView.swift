@@ -1121,6 +1121,12 @@ struct StudioView: View {
                       let message = note.userInfo?[ImageGenerationCatalog.modelWasReplacedMessageKey] as? String else { return }
                 vm.showToast(message)
             }
+            // The same for the chosen video model.
+            .onReceive(NotificationCenter.default.publisher(for: VideoGenerationCatalog.modelWasReplaced)) { note in
+                guard StudioWindowRegistry.shared.activeState === windowState,
+                      let message = note.userInfo?[VideoGenerationCatalog.modelWasReplacedMessageKey] as? String else { return }
+                vm.showToast(message)
+            }
             // Another device had merged a notebook first that this Mac merged
             // or split too: say where it leads now, once, in the active window.
             .onReceive(NotificationCenter.default.publisher(for: NotebookFoldNotices.didArrive)) { note in

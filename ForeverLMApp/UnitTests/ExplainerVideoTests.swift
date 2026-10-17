@@ -268,6 +268,19 @@ struct ExplainerVideoTests {
         #expect(h3.usdPerSecond(at: VideoGenerationCatalog.Resolution(rawValue: "480p")!) == 0.05)
     }
 
+    @Test("A retired stored video choice is replaced by the default, then a Suggested pick, then any listed model")
+    func videoChoiceReplacement() throws {
+        let models = try VideoGenerationCatalog.models(fromDirectory: videoDirectoryFixture)
+        #expect(VideoGenerationCatalog.replacement(in: models)?.id == VideoGenerationCatalog.defaultModelID)
+        let withoutDefault = models.filter { $0.id != VideoGenerationCatalog.defaultModelID }
+        let suggested = VideoGenerationCatalog.suggestedModelIDs.first { id in withoutDefault.contains { $0.id == id } }
+        #expect(VideoGenerationCatalog.replacement(in: withoutDefault)?.id == suggested ?? withoutDefault.first?.id)
+        #expect(VideoGenerationCatalog.replacement(in: []) == nil)
+        // What Settings shows for a retired choice is what gets stored.
+        #expect(VideoGenerationCatalog.resolvedModel(id: "acme/retired-video", in: withoutDefault).id
+            == VideoGenerationCatalog.replacement(in: withoutDefault)?.id)
+    }
+
     @Test("A stored video choice resolves against the directory, and the old Veo ids keep their model")
     func videoChoiceResolves() throws {
         let models = try VideoGenerationCatalog.models(fromDirectory: videoDirectoryFixture)

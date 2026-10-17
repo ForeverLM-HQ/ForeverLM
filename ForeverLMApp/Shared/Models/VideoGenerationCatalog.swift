@@ -176,6 +176,9 @@ enum VideoGenerationCatalog {
         "black-forest-labs/flux-3-video",
     ]
 
+    /// The preference key holding the learner's chosen model (Settings › Videos).
+    static let storedModelKey = "videos.model"
+
     static let directoryURL = URL(string: "https://openrouter.ai/api/v1/videos/models")!
 
     /// The ids stored before 2026-09-27, when Veo was filmed on Google's own
@@ -212,8 +215,26 @@ enum VideoGenerationCatalog {
         let wanted = id.map(canonicalID).flatMap { $0.isEmpty ? nil : $0 } ?? defaultModelID
         guard !models.isEmpty else { return .unresolved(id: wanted) }
         if let match = models.first(where: { $0.id == wanted }) { return match }
-        return models.first { $0.id == defaultModelID } ?? models[0]
+        return replacement(in: models) ?? models[0]
     }
+
+    /// The model that takes over when the stored choice is no longer listed:
+    /// the default when OpenRouter still serves it, else the first Suggested
+    /// pick it serves, else the first model it lists. Always one the live
+    /// directory lists, so what is stored can film.
+    static func replacement(in models: [VideoGenerationModel]) -> VideoGenerationModel? {
+        if let match = models.first(where: { $0.id == defaultModelID }) { return match }
+        for id in suggestedModelIDs {
+            if let match = models.first(where: { $0.id == id }) { return match }
+        }
+        return models.first
+    }
+
+    /// Posted on the main thread when a stored choice that OpenRouter stopped
+    /// serving was replaced. `userInfo[modelWasReplacedMessageKey]` is the
+    /// sentence to show.
+    static let modelWasReplaced = Notification.Name("foreverlmVideoModelWasReplaced")
+    static let modelWasReplacedMessageKey = "message"
 
     /// The stored resolution when the model films at it; otherwise the one
     /// nearest 720p (a tie goes to the sharper), so a model without 720p films
@@ -382,6 +403,15 @@ enum VideoGenerationDirectory {
 
     private static let latest = OSAllocatedUnfairLock<[VideoGenerationModel]>(initialState: [])
 
+    /// Retired stored choices this launch replaced, mapped to their
+    /// replacement, so a filming that still holds the retired model's stand-in
+    /// films on the replacement.
+    private static let replacedChoices = OSAllocatedUnfairLock<[String: String]>(initialState: [:])
+
+    /// Retired ids whose replacement is being written, so two reads that land
+    /// together switch once and say so once.
+    private static let switching = OSAllocatedUnfairLock<Set<String>>(initialState: [])
+
     static var snapshot: [VideoGenerationModel] { latest.withLock { $0 } }
 
     private static let directory = OpenRouterMediaDirectoryCache<[VideoGenerationModel]>(freshness: 30 * 60) {
@@ -407,16 +437,51 @@ enum VideoGenerationDirectory {
     static func models(forceRefresh: Bool = false) async throws -> [VideoGenerationModel] {
         let models = try await directory.current(forceRefresh: forceRefresh)
         latest.withLock { $0 = models }
+        settleStoredChoice(in: models)
         return models
+    }
+
+    /// Keeps the stored choice one OpenRouter serves. When the directory no
+    /// longer lists it, stores the replacement and tells the learner, so a
+    /// filming never fails on a model that is gone (product owner, 2026-10-17,
+    /// for images: "it needs to switch to another one and notify the user";
+    /// "Yes, apply the same switch-and-notify to the video models").
+    private static func settleStoredChoice(in models: [VideoGenerationModel]) {
+        guard !models.isEmpty else { return }
+        let key = VideoGenerationCatalog.storedModelKey
+        let stored = UserDefaults.standard.string(forKey: key)
+            .map(VideoGenerationCatalog.canonicalID)
+            .flatMap { $0.isEmpty ? nil : $0 }
+        let wanted = stored ?? VideoGenerationCatalog.defaultModelID
+        guard !models.contains(where: { $0.id == wanted }),
+              let replacement = VideoGenerationCatalog.replacement(in: models) else { return }
+        guard switching.withLock({ $0.insert(wanted).inserted }) else { return }
+        replacedChoices.withLock { $0[wanted] = replacement.id }
+        PreferenceStore.set(replacement.id, forKey: key)
+        switching.withLock { _ = $0.remove(wanted) }
+        let message = "OpenRouter no longer serves \(wanted) for video, so ForeverLM switched to \(replacement.name). You can pick another in Settings › Videos."
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(
+                name: VideoGenerationCatalog.modelWasReplaced,
+                object: nil,
+                userInfo: [VideoGenerationCatalog.modelWasReplacedMessageKey: message]
+            )
+        }
     }
 
     /// The directory entry for a model a caller holds, which may be the
     /// unresolved stand-in for a stored choice. Throws when OpenRouter does
-    /// not list it, rather than filming on some other model.
+    /// not list it, rather than filming on some other model; the stored
+    /// choice this launch replaced resolves to its replacement.
     static func resolve(_ model: VideoGenerationModel) async throws -> VideoGenerationModel {
         let id = VideoGenerationCatalog.canonicalID(model.id)
-        guard let match = try await models().first(where: { $0.id == id }) else { throw Failure.notServed(id) }
-        return match
+        let models = try await models()
+        if let match = models.first(where: { $0.id == id }) { return match }
+        if let successor = replacedChoices.withLock({ $0[id] }),
+           let match = models.first(where: { $0.id == successor }) {
+            return match
+        }
+        throw Failure.notServed(id)
     }
 
     /// Starts a directory read in the background when none has happened yet.
