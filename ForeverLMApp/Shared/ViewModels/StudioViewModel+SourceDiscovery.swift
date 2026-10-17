@@ -626,6 +626,7 @@ extension StudioViewModel {
             storage: base.storage
         )
         await self.alignUnplayedPodcastDates(with: discoverySnapshot.episodeMetadata)
+        await self.fillMissingPodcastArtwork(with: discoverySnapshot.episodeMetadata)
         await Self.recordApplePodcastsListening(from: discoverySnapshot.episodeMetadata, storage: base.storage)
         guard !persistence.insertedIDs.isEmpty else { return }
 
@@ -2278,6 +2279,7 @@ extension StudioViewModel {
         let articles = Self.podcastArticles(from: discovered.episodes)
         let persistence = await Self.persistPodcastAutoSync(scannedSources: articles, storage: storage)
         await alignUnplayedPodcastDates(with: discovered.episodes)
+        await fillMissingPodcastArtwork(with: discovered.episodes)
         guard !persistence.insertedIDs.isEmpty else { return 0 }
 
         let reloaded: [StudioArticle]
@@ -2449,6 +2451,45 @@ extension StudioViewModel {
         }
         if moved > 0 {
             logger.info("Re-dated \(moved) unplayed podcast episode(s) to their publish dates")
+            invalidateFilteredSidebarCache()
+        }
+    }
+
+    /// The cover an episode already in the library should carry given what
+    /// Apple Podcasts says about it now: only an episode with no cover takes
+    /// one, and never a cover over one it has. A row is inserted once, with
+    /// whatever Apple held at that moment, so an episode that arrived before its
+    /// show's artwork did (or while it was hidden) kept a bare icon for good.
+    nonisolated static func filledArtworkURL(existing: StudioArticle, episode: PodcastEpisodeMetadata) -> String? {
+        guard existing.artworkURL?.isEmpty ?? true,
+              let artwork = episode.artworkURL, !artwork.isEmpty else { return nil }
+        return artwork
+    }
+
+    /// Give the library's cover-less podcast episodes among `episodes` the
+    /// cover Apple Podcasts now holds, hidden or not, so unhiding one never
+    /// shows a bare icon. Bounded by the discovered set, like the re-dating
+    /// above; a row that already has a cover costs nothing.
+    func fillMissingPodcastArtwork(with episodes: [PodcastEpisodeMetadata]) async {
+        var indexByKey: [String: Int] = [:]
+        for (index, article) in articles.enumerated() where article.sourceType == .podcast {
+            indexByKey[Self.sourceURLIdentityKey(article.url)] = index
+        }
+        var filled = 0
+        for episode in episodes {
+            guard let url = SourceDiscovery.podcastEpisodeURL(for: episode),
+                  let index = indexByKey[Self.sourceURLIdentityKey(url)],
+                  let artwork = Self.filledArtworkURL(existing: articles[index], episode: episode) else { continue }
+            articles[index].artworkURL = artwork
+            do {
+                try await storage.saveSource(articles[index])
+                filled += 1
+            } catch {
+                logger.warning("Could not save the cover of \(episode.episodeTitle): \(error.localizedDescription)")
+            }
+        }
+        if filled > 0 {
+            logger.info("Gave \(filled) podcast episode(s) their cover")
             invalidateFilteredSidebarCache()
         }
     }

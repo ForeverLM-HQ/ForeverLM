@@ -34,6 +34,21 @@ struct PodcastFollowTests {
         #expect(rows.first { $0.title == "Played" }?.dateAdded == played)
     }
 
+    @Test("An episode with no cover takes the one Apple holds now; one that has a cover keeps it")
+    func filledArtworkOnlyForCoverlessEpisodes() {
+        let cover = "https://example.test/cover.jpg"
+        let withCover = PodcastEpisodeMetadata(
+            storeTrackId: 1, episodeUUID: nil, episodeGUID: nil, episodeTitle: "E", podcastName: "S",
+            artworkURL: cover, webPageURL: nil, episodeDescription: nil, enclosureURL: nil,
+            ttmlIdentifier: nil, lastDatePlayed: nil, podcastCollectionId: nil
+        )
+        var row = StudioArticle(url: "apple-podcast://episode/1", title: "E", sourceType: .podcast)
+        #expect(StudioViewModel.filledArtworkURL(existing: row, episode: withCover) == cover)
+        #expect(StudioViewModel.filledArtworkURL(existing: row, episode: episode("E", show: "S", trackID: 1)) == nil)
+        row.artworkURL = "https://example.test/own.jpg"
+        #expect(StudioViewModel.filledArtworkURL(existing: row, episode: withCover) == nil)
+    }
+
     @Test("An unplayed row imported at the wrong minute is re-dated; played and correct rows are left alone")
     func alignedDateMovesOnlyUnplayedMisdatedRows() {
         let published = Date(timeIntervalSince1970: 1_700_000_000)

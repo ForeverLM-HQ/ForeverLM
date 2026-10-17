@@ -2316,8 +2316,10 @@ extension StudioViewModel {
                 undo: hidden ? { [weak self] in await self?.setPodcastShowHidden(trimmed, hidden: false) } : nil
             )
             if !hidden {
+                let needsCover = articles.contains { $0.sourceType == .podcast && $0.domain == trimmed && $0.artworkURL == nil }
                 Task(priority: .utility) { [weak self] in
                     await self?.processPendingPodcastTranscripts()
+                    if needsCover { await self?.syncPodcastLibraryIfChanged(force: true) }
                 }
             }
         } catch {
@@ -2348,7 +2350,9 @@ extension StudioViewModel {
             articles[index].isHidden = false
         }
         showToast(revealed.count == 1 ? "Unhid 1 episode" : "Unhid \(revealed.count) episodes")
+        let needsCover = articles.contains { revealedIDs.contains($0.id) && $0.artworkURL == nil }
         Task(priority: .utility) { [weak self] in
+            if needsCover { await self?.syncPodcastLibraryIfChanged(force: true) }
             await self?.processPendingPodcastTranscripts()
         }
     }
@@ -2377,8 +2381,10 @@ extension StudioViewModel {
             }
             showToast(hidden ? "Hid \(article.title)" : "Unhid \(article.title)")
             if !hidden {
+                let needsCover = article.artworkURL == nil
                 Task(priority: .utility) { [weak self] in
                     await self?.processPendingPodcastTranscripts()
+                    if needsCover { await self?.syncPodcastLibraryIfChanged(force: true) }
                 }
             }
         } catch {
@@ -2928,8 +2934,10 @@ extension StudioViewModel {
             }
             showToast(visible ? "Showing \(article.title)" : "Hid \(article.title)")
             if visible {
+                let needsCover = article.artworkURL == nil
                 Task(priority: .utility) { [weak self] in
                     await self?.processPendingPodcastTranscripts()
+                    if needsCover { await self?.syncPodcastLibraryIfChanged(force: true) }
                 }
             }
         } catch {
