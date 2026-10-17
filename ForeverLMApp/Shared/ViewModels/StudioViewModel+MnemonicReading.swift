@@ -4,11 +4,12 @@ import Foundation
 // MARK: - Mnemonic readings: making one
 //
 // docs/memory-design.md, "Mnemonic reading". Make Mnemonic Reading asks first
-// and makes on the second press, as every Studio tile does: the notebook's
-// Studio tile (its ticked sources) and the Reader's ⋯ (its chapter, or the
-// whole book) open the sheet — what it reads, Fewer · Auto · More, the price —
-// whose Make writes the questions in the background (`MnemonicReadingCoordinator`).
-// The reading opens in the document slot once its first source is written.
+// and makes on the second press, as every Studio tile does: the Reader's ⋯
+// (its source, a book's chapter, or the whole book) opens the sheet — what it
+// reads, Fewer · Auto · More, the price — whose Make writes the questions in the background (`MnemonicReadingCoordinator`).
+// The reading opens in the document slot once its first source is written. It is
+// made from one source at a time, never from a notebook's ticked sources (product
+// owner, 2026-10-17: it "does apply to individual sources").
 
 extension StudioViewModel {
 
@@ -31,7 +32,7 @@ extension StudioViewModel {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty && seen.insert($0).inserted }
         guard !ids.isEmpty else {
-            showToast("Tick a source to read with questions")
+            showToast("Open a source to read it with questions")
             return
         }
         MnemonicReadingCoordinator.shared.present(MnemonicReadingTarget(
@@ -41,12 +42,6 @@ extension StudioViewModel {
             readingID: readingID,
             windowID: activeWindowState.id
         ))
-    }
-
-    /// The notebook's Studio tile and the Notebook menu's Make ▸ Mnemonic
-    /// Reading…: the notebook's ticked sources, in its order.
-    func presentNotebookMnemonicReading(notebookID: String) {
-        presentMnemonicReading(notebookID: notebookID, sourceIDs: notebookStudioSourceIDs(notebookID))
     }
 
     /// The Reader's Make Mnemonic Reading…: its source, and for a book's

@@ -557,8 +557,6 @@ struct NotebookStudioTileControl: View {
     @ObservedObject private var explainerWriter = ExplainerGenerationCoordinator.shared
     /// Cards being drafted, for the Cards tile.
     @ObservedObject private var cardWriter = CardDraftingCoordinator.shared
-    /// Readings being written, for the Mnemonic reading tile.
-    @ObservedObject private var readingWriter = MnemonicReadingCoordinator.shared
     let tile: NotebookStudioTile
     let goal: LearningGoalRecord
     /// The notebook's cards, for the Cards menu's first line; nil until read.
@@ -683,7 +681,6 @@ struct NotebookStudioTileControl: View {
                 NotebookStudioTileLabel(
                     tile: tile,
                     isEnabled: enabled,
-                    isBusy: tile == .mnemonicReading && !readingWriter.runs(inNotebook: goal.id).isEmpty,
                     style: style
                 )
             }
@@ -745,8 +742,6 @@ struct NotebookStudioTileControl: View {
             Task { await vm.makeNotebookNote(notebookID: notebookID, in: windowState) }
         case .videoOverview:
             NotebookStudioActions.makeVideoOverview(of: goal, vm: vm)
-        case .mnemonicReading:
-            vm.inWindow(windowState) { vm.presentNotebookMnemonicReading(notebookID: goal.id) }
         case .report, .explainer, .cards, .canvas:
             // Menus, drawn above.
             break
@@ -891,7 +886,6 @@ extension NotebookStudioTile {
         case .audioOverview: return .indigo
         case .videoOverview: return .sky
         case .cards: return .coral
-        case .mnemonicReading: return .sepia
         case .report, .note: return .amber
         case .deepResearch: return .teal
         case .course: return .green
@@ -912,7 +906,7 @@ extension NotebookOutput.Kind {
         case .course: return NotebookStudioTile.course.hue
         case .explainer: return NotebookStudioTile.explainer.hue
         case .videoOverview: return NotebookStudioTile.videoOverview.hue
-        case .mnemonicReading: return NotebookStudioTile.mnemonicReading.hue
+        case .mnemonicReading: return .sepia
         case .cards: return NotebookStudioTile.cards.hue
         case .picture: return .rose
         case .narration: return .teal
@@ -1448,10 +1442,6 @@ struct NotebookMakeMenuItems: View {
         Button("Practice Cards") {
             vm.inWindow(windowState) { vm.startNotebookPractice(notebookID: notebookID) }
         }
-        Button("Mnemonic Reading…") {
-            vm.inWindow(windowState) { vm.presentNotebookMnemonicReading(notebookID: notebookID) }
-        }
-        .disabled(!takes || vm.notebookStudioSourceIDs(notebookID).isEmpty)
         if ReportEntry.isAvailable {
             Menu("Report") {
                 ForEach(ReportEntry.Format.allCases) { format in

@@ -18,9 +18,6 @@ enum NotebookStudioTile: String, CaseIterable, Identifiable, Sendable {
     case audioOverview
     case videoOverview
     case cards
-    /// A mnemonic reading of the ticked sources: their text read with
-    /// recall questions in it (docs/memory-design.md, "Mnemonic reading").
-    case mnemonicReading
     case report
     case deepResearch
     case course
@@ -50,7 +47,6 @@ enum NotebookStudioTile: String, CaseIterable, Identifiable, Sendable {
         case .audioOverview: return "Audio overview"
         case .videoOverview: return "Video overview"
         case .cards: return "Cards"
-        case .mnemonicReading: return MnemonicReading.kindLabel
         case .report: return "Report"
         case .deepResearch: return "Deep research"
         case .course: return "Course"
@@ -68,7 +64,6 @@ enum NotebookStudioTile: String, CaseIterable, Identifiable, Sendable {
         case .audioOverview: return ArtifactKind.audioOverview.symbolName
         case .videoOverview: return "play.rectangle"
         case .cards: return MemoryReviewSession.sidebarIcon
-        case .mnemonicReading: return ArtifactKind.mnemonicReadingSymbolName
         case .report: return "doc.richtext"
         case .deepResearch: return "globe"
         case .course: return "graduationcap"
@@ -97,7 +92,6 @@ enum NotebookStudioTile: String, CaseIterable, Identifiable, Sendable {
         case .audioOverview: return "Make an audio overview of the ticked sources"
         case .videoOverview: return "Make a short video of the ticked papers and articles"
         case .cards: return "Make cards from the ticked sources, or practice the notebook's cards"
-        case .mnemonicReading: return "Read the ticked sources with questions in them"
         case .report: return "Write a report from the ticked sources"
         case .deepResearch: return "Start a Deep Research chat in this notebook"
         case .course: return "Plan a course from the ticked sources"

@@ -603,7 +603,7 @@ struct ReaderQuestionsChip: View {
                 } label: {
                     Image(systemName: store.isVisible ? "questionmark.circle.fill" : "questionmark.circle")
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(NotebookStudioTile.mnemonicReading.hue.glyph)
+                        .foregroundStyle(NotebookStudioHue.sepia.glyph)
                         .frame(width: 24, height: 24)
                         .contentShape(Rectangle())
                 }

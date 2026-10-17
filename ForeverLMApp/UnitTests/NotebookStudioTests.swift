@@ -585,9 +585,9 @@ struct NotebookStudioTests {
     @Test("The tiles in Gemini Notebook's order, and the Explainer offers ticked papers and articles")
     func tilesAndExplainerCandidates() {
         #expect(NotebookStudioTile.allCases
-            == [.audioOverview, .videoOverview, .cards, .mnemonicReading, .report, .deepResearch, .course, .explainer, .canvas, .note])
+            == [.audioOverview, .videoOverview, .cards, .report, .deepResearch, .course, .explainer, .canvas, .note])
         #expect(NotebookStudioTile.offered == NotebookStudioTile.allCases, "the Report among them, now its generator is here")
-        #expect(NotebookStudioTile.gridTiles == [.audioOverview, .videoOverview, .cards, .mnemonicReading, .report, .deepResearch, .course, .explainer, .canvas],
+        #expect(NotebookStudioTile.gridTiles == [.audioOverview, .videoOverview, .cards, .report, .deepResearch, .course, .explainer, .canvas],
                 "The Studio draws the Canvas tile only where the Canvas shows; Note is the column's floating Add note, not a tile")
         #expect(NotebookStudioTile.allCases.filter(\.isMenu) == [.cards, .report, .explainer, .canvas], "Cards offers Make Cards… and Practice Cards…")
 

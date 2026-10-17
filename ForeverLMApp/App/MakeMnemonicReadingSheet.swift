@@ -1,11 +1,10 @@
 #if os(macOS)
 import SwiftUI
 
-/// What Make Mnemonic Reading opens first — the notebook Studio's tile for its
-/// ticked sources, the Reader's for its chapter or its whole book — and the
-/// second press that writes (docs/memory-design.md, "Mnemonic reading"): what
-/// it reads, how many questions (Fewer · Auto · More), and the price with the
-/// model. Make closes the sheet; the reading opens once its first source is
+/// What Make Mnemonic Reading opens first — the Reader's ⋯ for its source, its
+/// chapter or its whole book — and the second press that writes
+/// (docs/memory-design.md, "Mnemonic reading"): what it reads, how many
+/// questions (Fewer · Auto · More), and the price with the model. Make closes the sheet; the reading opens once its first source is
 /// written, and fills in. Written again from a reading, it reads the
 /// reading's pending sources.
 ///

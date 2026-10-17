@@ -26,7 +26,7 @@ struct MnemonicReadingView: View {
         _model = State(initialValue: MnemonicReadingModel(readingID: artifact.id))
     }
 
-    private static let hue = NotebookStudioTile.mnemonicReading.hue
+    private static let hue = NotebookStudioHue.sepia
     private var bodyFont: NSFont { ProseReaderTypography.bodyFont(zoomScale: 1) }
     private var lineSpacing: CGFloat { (bodyFont.pointSize * (ProseReaderTypography.lineHeightMultiple - 1)).rounded() }
     private var paragraphGap: CGFloat { (bodyFont.pointSize * 0.7).rounded() }
@@ -331,7 +331,7 @@ struct MnemonicQuestionCard: View {
     let storage: StorageService
     let onAnswered: () -> Void
 
-    private static let hue = NotebookStudioTile.mnemonicReading.hue
+    private static let hue = NotebookStudioHue.sepia
 
     private var memory: MnemonicQuestionMemory? { model.memory[question.id] }
     private var isRevealed: Bool { model.revealed.contains(question.id) }
