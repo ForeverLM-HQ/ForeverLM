@@ -325,7 +325,7 @@ struct MnemonicReadingRunsList: View {
     var body: some View {
         ForEach(coordinator.runs(inNotebook: notebookID).filter { run in !vm.artifacts.contains { $0.id == run.id } }) { run in
             HStack(spacing: 10) {
-                NotebookStudioBadge(symbolName: ArtifactKind.mnemonicReadingSymbolName, hue: NotebookStudioTile.mnemonicReading.hue)
+                NotebookStudioBadge(symbolName: ArtifactKind.mnemonicReadingSymbolName, hue: NotebookStudioHue.sepia)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(run.title).lineLimit(1)
                     Text(run.progress.label)
