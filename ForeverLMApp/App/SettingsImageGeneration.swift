@@ -25,7 +25,7 @@ enum MacImageGenerationSettings {
     /// being asked, and whether the one-time cover backfill runs (schema v2
     /// D53, §5.9). Generation 2 only: generation 1 has no cover to write.
     static let automaticForNewNotebooksKey = "images.drawNotebookCovers.automatic"
-    static let modelKey = "images.model"
+    static let modelKey = ImageGenerationCatalog.storedModelKey
     static let styleKey = "images.style"
     static let sourceKey = "images.source"
 

@@ -186,6 +186,9 @@ enum ImageGenerationCatalog {
         "krea/krea-2-medium",
     ]
 
+    /// The preference key holding the learner's chosen model (Settings › Images).
+    static let storedModelKey = "images.model"
+
     static let directoryURL = URL(string: "https://openrouter.ai/api/v1/images/models")!
 
     /// OpenRouter's general directory filtered to image output: where a
@@ -240,8 +243,25 @@ enum ImageGenerationCatalog {
         let wanted = id.map(canonicalID).flatMap { $0.isEmpty ? nil : $0 } ?? defaultModelID
         guard !models.isEmpty else { return .unresolved(id: wanted) }
         if let match = models.first(where: { $0.id == wanted }) { return match }
-        return models.first { $0.id == defaultModelID } ?? models[0]
+        return replacement(in: models) ?? models[0]
     }
+
+    /// The model that takes over when the stored choice is no longer listed:
+    /// the default when OpenRouter still serves it, else the first Suggested
+    /// pick it serves, else the first model it lists. Always one the live
+    /// directory lists, so what is stored can draw.
+    static func replacement(in models: [ImageGenerationModel]) -> ImageGenerationModel? {
+        if let match = models.first(where: { $0.id == defaultModelID }) { return match }
+        for id in suggestedModelIDs {
+            if let match = models.first(where: { $0.id == id }) { return match }
+        }
+        return models.first
+    }
+
+    /// Posted on the main thread when a stored choice that OpenRouter stopped
+    /// serving was replaced. `userInfo[messageKey]` is the sentence to show.
+    static let modelWasReplaced = Notification.Name("foreverlmImageModelWasReplaced")
+    static let modelWasReplacedMessageKey = "message"
 
     // MARK: - Reading OpenRouter's directory
 
@@ -674,6 +694,15 @@ enum ImageGenerationDirectory {
 
     private static let latest = OSAllocatedUnfairLock<[ImageGenerationModel]>(initialState: [])
 
+    /// Retired stored choices this launch replaced, mapped to their
+    /// replacement, so a drawing that still holds the retired model's stand-in
+    /// draws on the replacement.
+    private static let replacedChoices = OSAllocatedUnfairLock<[String: String]>(initialState: [:])
+
+    /// Retired ids whose replacement is being written, so two reads that land
+    /// together switch once and say so once.
+    private static let switching = OSAllocatedUnfairLock<Set<String>>(initialState: [])
+
     /// The last directory read (with prices, once they are in), for readers
     /// that cannot wait. Empty until the first read.
     static var snapshot: [ImageGenerationModel] { latest.withLock { $0 } }
@@ -775,18 +804,53 @@ enum ImageGenerationDirectory {
     /// not list it, rather than drawing on some other model.
     static func resolve(_ model: ImageGenerationModel) async throws -> ImageGenerationModel {
         let id = ImageGenerationCatalog.canonicalID(model.id)
-        let models = try await models()
-        guard let match = models.first(where: { $0.id == id }) else { throw Failure.notServed(id) }
-        return match
+        return try listed(id, in: try await models())
     }
 
     /// `resolve`, with the model's price read too, for a caller about to
     /// quote what drawing will cost.
     static func priced(_ model: ImageGenerationModel) async throws -> ImageGenerationModel {
         let id = ImageGenerationCatalog.canonicalID(model.id)
-        let models = try await modelsWithPrices()
-        guard let match = models.first(where: { $0.id == id }) else { throw Failure.notServed(id) }
-        return match
+        return try listed(id, in: try await modelsWithPrices())
+    }
+
+    /// The entry for `id`; for the stored choice this launch replaced, its
+    /// replacement's. Any other id OpenRouter does not list throws.
+    private static func listed(_ id: String, in models: [ImageGenerationModel]) throws -> ImageGenerationModel {
+        if let match = models.first(where: { $0.id == id }) { return match }
+        if let successor = replacedChoices.withLock({ $0[id] }),
+           let match = models.first(where: { $0.id == successor }) {
+            return match
+        }
+        throw Failure.notServed(id)
+    }
+
+    /// Keeps the stored choice one OpenRouter serves. When the directory no
+    /// longer lists it, stores the replacement and tells the learner, so a
+    /// drawing never fails on a model that is gone (product owner, 2026-10-17:
+    /// "the image model that is selected should always actually work ... it
+    /// needs to switch to another one and notify the user").
+    private static func settleStoredChoice(in models: [ImageGenerationModel]) {
+        guard !models.isEmpty else { return }
+        let key = ImageGenerationCatalog.storedModelKey
+        let stored = UserDefaults.standard.string(forKey: key)
+            .map(ImageGenerationCatalog.canonicalID)
+            .flatMap { $0.isEmpty ? nil : $0 }
+        let wanted = stored ?? ImageGenerationCatalog.defaultModelID
+        guard !models.contains(where: { $0.id == wanted }),
+              let replacement = ImageGenerationCatalog.replacement(in: models) else { return }
+        guard switching.withLock({ $0.insert(wanted).inserted }) else { return }
+        replacedChoices.withLock { $0[wanted] = replacement.id }
+        PreferenceStore.set(replacement.id, forKey: key)
+        switching.withLock { _ = $0.remove(wanted) }
+        let message = "OpenRouter no longer serves \(wanted) for images, so ForeverLM switched to \(replacement.name). You can pick another in Settings › Images."
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(
+                name: ImageGenerationCatalog.modelWasReplaced,
+                object: nil,
+                userInfo: [ImageGenerationCatalog.modelWasReplacedMessageKey: message]
+            )
+        }
     }
 
     /// Starts a directory read in the background when none has happened yet,
@@ -811,6 +875,7 @@ enum ImageGenerationDirectory {
             return model
         }
         latest.withLock { $0 = priced }
+        settleStoredChoice(in: priced)
         return priced
     }
 }

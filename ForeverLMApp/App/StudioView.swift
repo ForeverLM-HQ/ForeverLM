@@ -1114,6 +1114,13 @@ struct StudioView: View {
                     vm.showToast("\(count) new articles from your feeds for your notebooks")
                 }
             }
+            // OpenRouter stopped serving the chosen image model and ForeverLM
+            // switched to another: say so once, in the active window.
+            .onReceive(NotificationCenter.default.publisher(for: ImageGenerationCatalog.modelWasReplaced)) { note in
+                guard StudioWindowRegistry.shared.activeState === windowState,
+                      let message = note.userInfo?[ImageGenerationCatalog.modelWasReplacedMessageKey] as? String else { return }
+                vm.showToast(message)
+            }
             // Another device had merged a notebook first that this Mac merged
             // or split too: say where it leads now, once, in the active window.
             .onReceive(NotificationCenter.default.publisher(for: NotebookFoldNotices.didArrive)) { note in

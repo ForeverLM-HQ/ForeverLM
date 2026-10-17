@@ -1554,6 +1554,19 @@ struct MeetingIconTests {
         #expect(!pending.isResolved)
     }
 
+    @Test("A retired stored choice is replaced by the default, then a Suggested pick, then any listed model")
+    func catalogReplacement() throws {
+        let models = try ImageGenerationCatalog.models(fromDirectory: Self.imageDirectory)
+        #expect(ImageGenerationCatalog.replacement(in: models)?.id == ImageGenerationCatalog.defaultModelID)
+        let withoutDefault = models.filter { $0.id != ImageGenerationCatalog.defaultModelID }
+        let suggested = ImageGenerationCatalog.suggestedModelIDs.first { id in withoutDefault.contains { $0.id == id } }
+        #expect(ImageGenerationCatalog.replacement(in: withoutDefault)?.id == suggested ?? withoutDefault.first?.id)
+        #expect(ImageGenerationCatalog.replacement(in: []) == nil)
+        // What Settings shows for a retired choice is what gets stored.
+        #expect(ImageGenerationCatalog.resolvedModel(id: "inclusionai/ming-image-0.1-design", in: withoutDefault).id
+            == ImageGenerationCatalog.replacement(in: withoutDefault)?.id)
+    }
+
     @Test("An endpoints record gives the output price in the unit OpenRouter bills it by")
     func endpointPrices() {
         func price(_ lines: String) -> ImageGenerationPrice? {
