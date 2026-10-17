@@ -59,6 +59,9 @@ struct ReviewChatComposerTextView: NSViewRepresentable {
     /// A paste long enough to be an attachment (`ChatPastedText`) goes here
     /// rather than into the field, as Codex makes it "Pasted text".
     var onPasteLongText: ((String) -> Void)? = nil
+    /// A card id copied from To Check (`ChatReferencedCard.looksLikeCardID`)
+    /// goes here rather than into the field: the composer shows the card.
+    var onPasteCardID: ((String) -> Void)? = nil
     /// ↑ in an empty field: the last message sent comes back to edit, as
     /// Codex's "Restore previous composer prompt".
     var onRecallPrevious: (() -> Void)? = nil
@@ -106,6 +109,7 @@ struct ReviewChatComposerTextView: NSViewRepresentable {
         textView.onHeightChange = onHeightChange
         textView.onPasteImages = onPasteImages
         textView.onPasteLongText = onPasteLongText
+        textView.onPasteCardID = onPasteCardID
         textView.onRecallPrevious = onRecallPrevious
         textView.mentionPlugins = mentionPlugins
         textView.delegate = context.coordinator
@@ -160,6 +164,7 @@ struct ReviewChatComposerTextView: NSViewRepresentable {
         textView.onHeightChange = onHeightChange
         textView.onPasteImages = onPasteImages
         textView.onPasteLongText = onPasteLongText
+        textView.onPasteCardID = onPasteCardID
         textView.onRecallPrevious = onRecallPrevious
         textView.mentionPlugins = mentionPlugins
         if context.coordinator.focusRequestID != focusRequestID {
@@ -220,6 +225,7 @@ struct ReviewChatComposerTextView: NSViewRepresentable {
         var onHeightChange: ((CGFloat) -> Void)?
         var onPasteImages: (([ChatPastedImage]) -> Void)?
         var onPasteLongText: ((String) -> Void)?
+        var onPasteCardID: ((String) -> Void)?
         var onRecallPrevious: (() -> Void)?
         /// See `ReviewChatComposerTextView.mentionPlugins`.
         var mentionPlugins: [ChatPlugin] = []
@@ -239,6 +245,12 @@ struct ReviewChatComposerTextView: NSViewRepresentable {
                     onPasteImages(images)
                     return
                 }
+            }
+            if let onPasteCardID,
+               let text = NSPasteboard.general.string(forType: .string),
+               ChatReferencedCard.looksLikeCardID(text) {
+                onPasteCardID(text.trimmingCharacters(in: .whitespacesAndNewlines))
+                return
             }
             if let onPasteLongText,
                let text = NSPasteboard.general.string(forType: .string),
@@ -478,6 +490,10 @@ final class ReviewComposerDraft {
     /// Long pastes held as attachments ("Pasted text"), oldest first; they go
     /// with the next message after its words (`ChatPastedText`).
     var pastedTexts: [String] = []
+    /// Flashcards the learner pasted by id, drawn as card chips above the
+    /// field; each goes with the next message as reference material
+    /// (`ChatReferencedCard.context`).
+    var referencedCards: [ChatReferencedCard] = []
 }
 
 /// A long paste, attached to the message rather than poured into the field,
@@ -535,6 +551,8 @@ struct ReviewChatComposerBox: View {
     let onTextChange: (String) -> Void
     /// Pictures pasted into the box. See `ReviewChatComposerTextView.onPasteImages`.
     var onPasteImages: (([ChatPastedImage]) -> Void)? = nil
+    /// A pasted card id. See `ReviewChatComposerTextView.onPasteCardID`.
+    var onPasteCardID: ((String) -> Void)? = nil
     /// ↑ in the empty field. See `ReviewChatComposerTextView.onRecallPrevious`.
     var onRecallPrevious: (() -> Void)? = nil
     /// ⌥Return: send the draft as a side question. See `ReviewChatComposerTextView`.
@@ -613,6 +631,15 @@ struct ReviewChatComposerBox: View {
                 .padding(.top, 4)
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
+            if !composer.referencedCards.isEmpty {
+                ReviewChatReferencedCards(cards: composer.referencedCards) { card in
+                    composer.referencedCards.removeAll { $0.id == card.id }
+                }
+                .padding(.leading, ReviewChatComposerTextView.overlayTextLeadingInset)
+                .padding(.trailing, 4)
+                .padding(.top, 4)
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
             if !composer.pastedTexts.isEmpty {
                 ReviewChatPastedTexts(
                     texts: composer.pastedTexts,
@@ -660,6 +687,7 @@ struct ReviewChatComposerBox: View {
         .animation(.easeOut(duration: 0.12), value: composer.quotedPassage.isEmpty)
         .animation(.easeOut(duration: 0.12), value: composer.referencedChats)
         .animation(.easeOut(duration: 0.12), value: composer.pastedTexts.count)
+        .animation(.easeOut(duration: 0.12), value: composer.referencedCards)
     }
 
     /// Escape takes off the token nearest the words: the guess's, then the
@@ -687,6 +715,7 @@ struct ReviewChatComposerBox: View {
                     // Filed with the draft, so a quit or a trip away keeps it.
                     onTextChange(composer.text)
                 },
+                onPasteCardID: onPasteCardID,
                 onRecallPrevious: onRecallPrevious,
                 onSubmitSideQuestion: onSubmitSideQuestion,
                 onDeleteBackwardAtStart: removeSideQuestionToken
@@ -885,6 +914,137 @@ struct ReviewChatPastedTexts: View {
             }
             Spacer(minLength: 0)
         }
+    }
+}
+
+/// A flashcard the learner pasted into the composer by its id (To Check's
+/// "Copy Card ID"), held as a chip over the field instead of 150 characters
+/// of id (product owner, 2026-10-16: "instead of copying a card id like this;
+/// maybe it'd be nice to show this as a nice flashcard in context").
+struct ChatReferencedCard: Equatable, Identifiable, Sendable {
+    let id: String
+    let question: String
+    let answer: String
+    let why: [String]
+    let sourceTitle: String?
+
+    /// Whether a pasted string is a card id and nothing else: one token, a
+    /// draft's `card:<source>:<seed>`, or a kept card's UUID or 64-hex id.
+    /// Anything else pastes as the text it is.
+    static func looksLikeCardID(_ text: String) -> Bool {
+        let token = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !token.isEmpty, token.count <= 300,
+              token.rangeOfCharacter(from: .whitespacesAndNewlines) == nil else { return false }
+        if token.hasPrefix("card:") { return true }
+        if UUID(uuidString: token) != nil { return true }
+        return token.count == 64 && token.allSatisfy(\.isHexDigit)
+    }
+
+    /// The reference material a send carries for these cards, outside what
+    /// the learner typed, with each card's id so the chat can `update_card`.
+    static func context(_ cards: [ChatReferencedCard]) -> String? {
+        guard !cards.isEmpty else { return nil }
+        func clean(_ text: String) -> String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
+        let blocks = cards.map { card -> String in
+            var lines = ["Flashcard (card_id: \(card.id))", "Question: \(clean(card.question))", "Answer: \(clean(card.answer))"]
+            let reasons = card.why.map(clean).filter { !$0.isEmpty }
+            if !reasons.isEmpty { lines.append("Why: " + reasons.joined(separator: " ")) }
+            if let title = card.sourceTitle.map(clean), !title.isEmpty { lines.append("From the source \u{201C}\(title)\u{201D}.") }
+            return lines.joined(separator: "\n")
+        }
+        return "The learner pasted these flashcards into the message; \"this card\" means them:\n\n" + blocks.joined(separator: "\n\n")
+    }
+}
+
+/// Pasted flashcards above the field: a chip with the question, whose click
+/// opens the card as a flashcard (question over answer, its source below)
+/// and whose × leaves it out of the message.
+struct ReviewChatReferencedCards: View {
+    let cards: [ChatReferencedCard]
+    let remove: (ChatReferencedCard) -> Void
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(cards) { card in
+                ReviewChatReferencedCardChip(card: card, remove: { remove(card) })
+            }
+            Spacer(minLength: 0)
+        }
+    }
+}
+
+private struct ReviewChatReferencedCardChip: View {
+    let card: ChatReferencedCard
+    let remove: () -> Void
+    @State private var showsCard = false
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Button {
+                showsCard.toggle()
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "rectangle.on.rectangle")
+                        .zoomedSystemFont(size: 10, weight: .medium)
+                        .foregroundStyle(.secondary)
+                    Text(card.question)
+                        .zoomedSystemFont(size: 11, weight: .medium)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .frame(maxWidth: 240, alignment: .leading)
+                        .textSelection(.disabled)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.hoverWash(cornerRadius: 5, inset: -2, opacity: 0.08))
+            .help("Show this card")
+            .accessibilityLabel("Flashcard: \(card.question). Show card")
+            .popover(isPresented: $showsCard, arrowEdge: .top) {
+                ReviewChatReferencedCardFace(card: card)
+            }
+            Button(action: remove) {
+                Image(systemName: "xmark")
+                    .zoomedSystemFont(size: 7, weight: .bold)
+                    .frame(width: 14, height: 14)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.hoverWash(in: Circle(), opacity: 0.14))
+            .help("Leave this card out of the message")
+            .accessibilityLabel("Remove flashcard")
+        }
+        .padding(.leading, 6)
+        .padding(.trailing, 2)
+        .padding(.vertical, 2)
+        .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("mac.chatReferencedCard")
+    }
+}
+
+/// The card as a flashcard: its question in the review's serif over its
+/// answer, why and source quiet underneath.
+private struct ReviewChatReferencedCardFace: View {
+    let card: ChatReferencedCard
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(card.question.foldingMathSpans())
+                .font(.system(size: 17, design: .serif))
+                .fixedSize(horizontal: false, vertical: true)
+            Divider()
+            Text(card.answer.foldingMathSpans())
+                .font(.system(size: 14))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if let source = card.sourceTitle, !source.isEmpty {
+                Text(source)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+            }
+        }
+        .frame(width: 320, alignment: .leading)
+        .padding(18)
     }
 }
 

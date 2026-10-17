@@ -4247,6 +4247,9 @@ private struct InternalReviewPanelContent: View {
                 onPasteImages: { pasted in
                     Task { await attachPastedImages(pasted) }
                 },
+                onPasteCardID: { id in
+                    Task { await referencePastedCard(id) }
+                },
                 onRecallPrevious: { recallPreviousPrompt() },
                 onSubmitSideQuestion: {
                     Task { await submitComposer(asSideQuestion: true) }
@@ -5442,6 +5445,7 @@ private struct InternalReviewPanelContent: View {
         coursePlanningArmed = false
         dayPlanningArmed = false
         composer.referencedChats = []
+        composer.referencedCards = []
         composer.pastedTexts = []
     }
 
@@ -5592,10 +5596,16 @@ private struct InternalReviewPanelContent: View {
         // ride beside it as reference material, and their chips leave the field.
         let referencedChats = composer.referencedChats
         composer.referencedChats = []
+        let referencedCards = composer.referencedCards
+        composer.referencedCards = []
         clearComposer()
         manualDictationResultDestination = nil
         if let chatContext = await chatMentionContext(for: referencedChats) {
             readerContext = [readerContext, chatContext].compactMap { $0 }.joined(separator: "\n\n")
+        }
+        // Flashcards pasted by id ride beside the words the same way.
+        if let cardContext = ChatReferencedCard.context(referencedCards) {
+            readerContext = [readerContext, cardContext].compactMap { $0 }.joined(separator: "\n\n")
         }
 
         let send = ComposedChatSend(
@@ -5810,6 +5820,41 @@ private struct InternalReviewPanelContent: View {
         case .chat:
             guard !composer.referencedChats.contains(where: { $0.reference == item.reference }) else { return }
             composer.referencedChats.append(item)
+        }
+    }
+
+    /// A card id pasted into the composer becomes a card chip: the card is
+    /// read from the kept cards and the cards to check, and the chip shows
+    /// its question and opens as a flashcard. An id no card answers to goes
+    /// into the field as the text it is.
+    @MainActor
+    private func referencePastedCard(_ id: String) async {
+        let snapshot = try? await vm.memoryCardReviewSnapshot(scope: .allNotebooks, includesListings: true)
+        let card: ChatReferencedCard?
+        if let waiting = snapshot?.toCheck.first(where: { $0.cardID == id }) {
+            card = ChatReferencedCard(
+                id: waiting.cardID,
+                question: waiting.face.front,
+                answer: waiting.face.back,
+                why: waiting.face.why,
+                sourceTitle: vm.articlesById[vm.canonicalSourceID(waiting.sourceID)]?.title
+            )
+        } else if let kept = snapshot?.cards.first(where: { $0.face.cardID == id || $0.itemID == id }) {
+            card = ChatReferencedCard(
+                id: kept.face.cardID,
+                question: kept.face.front,
+                answer: kept.face.back,
+                why: kept.face.why,
+                sourceTitle: kept.sourceIDs.first.flatMap { vm.articlesById[vm.canonicalSourceID($0)]?.title }
+            )
+        } else {
+            card = nil
+        }
+        if let card {
+            guard !composer.referencedCards.contains(where: { $0.id == card.id }) else { return }
+            composer.referencedCards.append(card)
+        } else {
+            draft = ChatPastedText.field(draft, showing: id)
         }
     }
 
@@ -8066,6 +8111,7 @@ private struct InternalReviewPanelContent: View {
         }
         draft = sessionStore.draft(for: .session(session.id))
         composer.referencedChats = []
+        composer.referencedCards = []
         composer.pastedTexts = []
         editingMessage = nil
         chatFind.close()
@@ -8099,6 +8145,7 @@ private struct InternalReviewPanelContent: View {
         )
         draft = sessionStore.draft(for: .session(session.id))
         composer.referencedChats = []
+        composer.referencedCards = []
         composer.pastedTexts = []
         editingMessage = nil
         chatFind.close()
