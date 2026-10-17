@@ -200,16 +200,16 @@ struct InlineModelPicker: View {
         return copy
     }
 
-    /// A menu row's title with the model maker's logo in front. macOS 27
-    /// draws no NSMenuItem image in this popup (the icon on Choose Models… is
-    /// blank too), so the logo rides inside the title as a text attachment,
-    /// which AppKit does draw; the baseline offset centres it on the name.
-    private func menuRowTitle(for entry: AIModelCatalogEntry) -> Text {
-        let mark = sizedProviderMark(named: entry.maker.iconName, side: 14)
-            .map { Image(nsImage: $0) }
-            ?? Image(systemName: entry.maker.systemImageFallback)
-        let name = AIModelCatalog.pickerName(provider: entry.provider, modelID: entry.modelID)
-        return Text("\(Text(mark).baselineOffset(-2))  \(name)")
+    /// A menu row's title with the model maker's logo in the item's icon
+    /// column, where Choose Models… keeps its icon (`MenuItemIcons` shows them).
+    private func menuRowLabel(for entry: AIModelCatalogEntry) -> some View {
+        Label {
+            Text(AIModelCatalog.pickerName(provider: entry.provider, modelID: entry.modelID))
+        } icon: {
+            sizedProviderMark(named: entry.maker.iconName, side: 14)
+                .map { Image(nsImage: $0) }
+                ?? Image(systemName: entry.maker.systemImageFallback)
+        }
     }
 
     private var hasConfiguredProviders: Bool {
@@ -658,7 +658,7 @@ struct InlineModelPicker: View {
                     Button {
                         selectRecent(row.recent, entry: row.entry)
                     } label: {
-                        menuRowTitle(for: row.entry)
+                        menuRowLabel(for: row.entry)
                         if let effort = row.recent.effort.flatMap(AIEffort.init(rawValue:)) {
                             Text(effort.displayName)
                         }
@@ -674,9 +674,8 @@ struct InlineModelPicker: View {
             let currentSpeedQuote = currentSpeedQuote
             Section(Self.priceUnitHeader) {
                 ForEach(menuEntries) { entry in
-                    // A Toggle, not a Button with a checkmark Image: macOS 27
-                    // draws no item images here, so only the item's own
-                    // state column can show which model is current.
+                    // A Toggle, so the item's own state column shows which
+                    // model is current; the icon column holds the maker's logo.
                     Toggle(isOn: Binding(
                         get: { isCurrent(entry) },
                         set: { _ in select(entry) }
@@ -684,7 +683,7 @@ struct InlineModelPicker: View {
                         // Flat siblings, not an HStack: in a macOS menu SwiftUI
                         // maps the first Text to the item title and the second
                         // to the small gray subtitle line.
-                        menuRowTitle(for: entry)
+                        menuRowLabel(for: entry)
                         if let subtitle = Self.modelRowSubtitle(
                             rates: displayedRates(for: entry),
                             promotion: Self.promotion(
@@ -710,7 +709,7 @@ struct InlineModelPicker: View {
                 Divider()
                 Menu {
                     // Fastest first. A Toggle for the state column, as the
-                    // model rows: macOS 27 draws no item images here.
+                    // model rows.
                     ForEach(efforts) { effort in
                         Toggle(isOn: Binding(
                             get: { effort == current },

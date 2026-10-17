@@ -82,6 +82,43 @@ enum SpaceShareSheet {
     }
 }
 
+/// Every ⋯ and right-click menu shows its items' icons, as Codex's do
+/// (product owner, 2026-10-17: "in codex there is always a small icon for it
+/// too"). macOS 27 hides an `NSMenuItem`'s image unless the item asks for it
+/// (`preferredImageVisibility`), and SwiftUI has no modifier for that, so each
+/// menu asks for its items as it opens. Submenus are filled by then. The menu
+/// bar keeps the system's look.
+enum MenuItemIcons {
+    static func start() {
+        guard #available(macOS 27, *) else { return }
+        NotificationCenter.default.addObserver(forName: NSMenu.didBeginTrackingNotification, object: nil, queue: nil) { note in
+            guard let menu = note.object as? NSMenu else { return }
+            MainActor.assumeIsolated {
+                guard !isInMenuBar(menu) else { return }
+                show(in: menu)
+            }
+        }
+    }
+
+    @available(macOS 27, *)
+    @MainActor
+    private static func show(in menu: NSMenu) {
+        for item in menu.items {
+            if item.image != nil, item.preferredImageVisibility == .automatic {
+                item.preferredImageVisibility = .visible
+            }
+            if let submenu = item.submenu { show(in: submenu) }
+        }
+    }
+
+    @MainActor
+    private static func isInMenuBar(_ menu: NSMenu) -> Bool {
+        var root = menu
+        while let parent = root.supermenu { root = parent }
+        return root === NSApp.mainMenu
+    }
+}
+
 final class ForeverLMApplicationDelegate: NSObject, NSApplicationDelegate {
     /// Record the Studio windows that are open, so the next launch can put them
     /// back. Written at quit rather than continuously: the arrangement only
@@ -93,6 +130,7 @@ final class ForeverLMApplicationDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        MenuItemIcons.start()
         // The quick assistant's shortcut is heard in every app from launch,
         // whether or not a Studio window is open (docs/quick-assistant-design.md).
         // A UI test or a unit-test host must not take a key from the whole Mac.
