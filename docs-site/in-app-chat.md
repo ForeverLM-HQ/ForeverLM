@@ -129,7 +129,7 @@ On the Mac, a trackpad pinch over a chat makes that chat's text larger or smalle
 
 ForeverLM's review flow asks you to explain ideas in your own words. The tutor probes gaps, asks follow-up questions, and records the exchange as a review session.
 
-A notebook's **Feynman Technique** turns this around: you say what you know about the notebook first, from memory, and the tutor asks, one question at a time at the biggest gap, then fills in what is missing once you have tried, with no plan and no explaining before that (see [Inside a notebook](/studio#inside-a-notebook)). It is kept as a review too, and a reopened one goes on asking. On the iPhone it reads like any review, and continues on your Mac.
+A notebook's **Feynman Technique** turns this around: you say what you know about the notebook first, from memory (press its chip, or just ask for it in the notebook's chat), and the tutor asks, one question at a time at the biggest gap, then fills in what is missing once you have tried, in pictures from your sources and one short question at a time, with no plan and no explaining before that (see [Inside a notebook](/studio#inside-a-notebook)). It is kept as a review too, and a reopened one goes on asking. On the iPhone it reads like any review, and continues on your Mac.
 
 Completed in-app reviews are linked to the source IDs they covered. That link is what updates a source's Reviewed status, and a review that grades a source planned in Schedule marks it done.
 

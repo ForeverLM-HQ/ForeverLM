@@ -422,6 +422,7 @@ final class ReviewSessionManager {
                 case "end_review_session": return "Saved review"
                 case "grade_memory_contour", "grade_topic_recall": return "Graded recall"
                 case "set_review_depth": return "Set review depth"
+                case TeachBack.toolName: return "Opened the \(TeachBack.title)"
                 case CourseQuizChatState.gradeToolName: return "Checked answer"
                 case CourseQuizChatState.skipToolName: return "Skipped question"
                 case CourseQuizChatState.readingToolName: return "Read planned reading"
@@ -2084,6 +2085,21 @@ final class ReviewSessionManager {
             return
         }
         courseQuiz = CourseQuizChatState(request: request, resuming: CourseQuizSitting(briefing: briefing))
+    }
+
+    /// `start_feynman_technique`: asks the pane to open the Feynman Technique
+    /// in this chat's Notebook. The pane opens it when the answer ends, as a
+    /// new chat, since a chat's tutor is named by its id and this one's is
+    /// fixed.
+    private func startFeynmanTechnique() -> AppToolResult {
+        guard let teachBackStarter, let notebookID = notebookSourceScopeID else {
+            return AppToolResult(text: "Error: The Feynman Technique opens from a chat in a Notebook, and this chat is in none.", isError: true)
+        }
+        teachBackStarter(notebookID)
+        return AppToolResult(
+            text: "The Feynman Technique opens in a new chat in this Notebook when this answer ends. Say in one short line that it is opening, and nothing more.",
+            isError: false
+        )
     }
 
     /// `grade_quiz_answer`: the quiz's grader on the learner's answer to the
@@ -5748,6 +5764,18 @@ final class ReviewSessionManager {
                         isError: outcome.isError,
                         images: outcome.screenshot.map { [$0] } ?? []
                     ))
+                case TeachBack.toolName:
+                    let activityID = appendToolActivity(
+                        for: AppToolCall(name: call.name, arguments: call.arguments)
+                    )
+                    let started = startFeynmanTechnique()
+                    completeToolActivity(activityID, result: started)
+                    results.append(AIToolResultPayload(
+                        callID: call.id,
+                        toolName: call.name,
+                        text: started.text,
+                        isError: started.isError
+                    ))
                 case Self.loadAppToolsName:
                     // Quiet: loading tools is plumbing, not something the
                     // learner asked for, so it gets no activity row.
@@ -7015,6 +7043,21 @@ final class ReviewSessionManager {
                 ? MemoryReviewTutoring.gradeMemoryContourTool
                 : MemoryReviewTutoring.gradeTopicRecallTool))
             specs.append(AIToolSpec(portable: MemoryReviewTutoring.setReviewDepthTool))
+        }
+
+        // "I want to do the Feynman Technique" is said in the notebook's chat:
+        // a chat of a Notebook, not one already running it, a quiz or a
+        // memory review, can open it.
+        if teachBackStarter != nil, notebookSourceScopeID != nil, sessionPromptKind != .teachBack,
+           courseQuiz == nil, !isMemoryReviewSession {
+            specs.append(AIToolSpec(
+                name: TeachBack.toolName,
+                description: "Open the Feynman Technique in a new chat in this Notebook, on its ticked sources: the learner says what they know about the Notebook, from memory, and the new chat shows pictures from the sources and asks about the gaps. Call it when the learner says they want to do the Feynman Technique, to explain what they know, or to find the gaps in what they know, about this Notebook. It takes no arguments. The new chat opens when this answer ends, so reply with one short line saying it is opening, and nothing more: no explanation of the technique, and do not ask what they know yourself.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [:] as [String: Any],
+                ]
+            ))
         }
 
         if let courseQuiz {
@@ -12283,6 +12326,11 @@ final class ReviewSessionManager {
     /// the pane showing it has the Studio model and sets this on appear, and
     /// the same closure serves the `focus_source_anchor` tool.
     @ObservationIgnored var walkthroughFocusHandler: (@MainActor (WalkthroughReaderFocus) -> Void)?
+    /// How this chat opens the Feynman Technique in its Notebook, for
+    /// `start_feynman_technique`. The pane showing the chat has the Studio
+    /// model and sets this; a manager with no pane (a test, the iPhone) has
+    /// none, and the tool is not offered there.
+    @ObservationIgnored var teachBackStarter: (@MainActor (_ notebookID: String) -> Void)?
 
 
     /// The step row the transcript should bring to the top of the chat: set
@@ -16616,7 +16664,8 @@ extension ReviewSessionManager {
         webSearch: WebSearchAccess = .unavailable,
         browserAgent: ChatBrowserAgent? = nil,
         openPanes: ChatOpenPanes? = nil,
-        pointsReader: Bool = false
+        pointsReader: Bool = false,
+        opensTeachBack: Bool = false
     ) -> [AIToolSpec] {
         let manager = ReviewSessionManager(
             storage: StorageService(storeRoot: temporaryTestingRoot()),
@@ -16639,6 +16688,9 @@ extension ReviewSessionManager {
         // A pane showing the chat lends it a way to point the Reader.
         if pointsReader {
             manager.walkthroughFocusHandler = { _ in }
+        }
+        if opensTeachBack {
+            manager.teachBackStarter = { _ in }
         }
         return manager.nativeToolSpecs(webSearch: webSearch)
     }

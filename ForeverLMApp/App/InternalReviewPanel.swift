@@ -248,6 +248,9 @@ private struct InternalReviewPanelContent: View {
 
     @State private var isSessionBrowserPresented = false
     @State private var linkedResearchNotebookID: String?
+    /// The Notebook whose Feynman Technique the chat asked for
+    /// (`start_feynman_technique`), opened once the answer that asked ends.
+    @State private var pendingTeachBackNotebookID: String?
     /// Set when a notebook opening in this window started this chat
     /// (`StudioViewModel.pendingNotebookChatRequestID`), or an idle chat
     /// joined its window's notebook. Until the learner acts here, the chat
@@ -804,6 +807,7 @@ private struct InternalReviewPanelContent: View {
         // manager does not hold: every pane showing a manager lends it its own.
         .task(id: ObjectIdentifier(manager)) {
             manager.walkthroughFocusHandler = { focus in vm.applyWalkthroughReaderFocus(focus) }
+            manager.teachBackStarter = { notebookID in pendingTeachBackNotebookID = notebookID }
             // A step or a focused panel is enlarged in the row only when no
             // Reader in this window already shows the source outlined beside
             // the chat. Only the active tab of a group mounts, so a Reader
@@ -1000,6 +1004,14 @@ private struct InternalReviewPanelContent: View {
         .onChange(of: manager.isGenerating) { wasGenerating, isGenerating in
             guard wasGenerating, !isGenerating else { return }
             speakLatestAssistantMessageIfNeeded()
+            // The answer that asked for the Feynman Technique has ended: it
+            // opens now, as a new chat, so that answer is not cut off.
+            if let notebookID = pendingTeachBackNotebookID {
+                pendingTeachBackNotebookID = nil
+                if let notebook = vm.notebook(id: notebookID) {
+                    Task { await startNotebookTeachBackFromIdle(notebook) }
+                }
+            }
         }
         // The day's goal clock runs while a memory chat is on screen here and
         // stops when it leaves, whether by closing, by switching chats, or by
@@ -2300,6 +2312,10 @@ private struct InternalReviewPanelContent: View {
     private func startNotebookTeachBackFromIdle(_ notebook: LearningGoalRecord) async {
         guard let notebookArticles = notebookArticlesForGuideChat(notebook, toStart: "start the \(TeachBack.title)") else { return }
         guard !manager.isSearching, !manager.isGenerating else { return }
+        // Asked for from a chat in the notebook, it leaves that chat as it is.
+        if manager.sessionActive || !manager.chatMessages.isEmpty {
+            manager.endSession()
+        }
         linkedResearchNotebookID = notebook.id
         readsNotebookTicksLive = false
         vm.setContextSources(notebookArticles.map(\.id))

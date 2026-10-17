@@ -29,7 +29,7 @@ struct TeachBackTests {
     @Test("The opening is written ahead: it names the notebook and asks what the learner knows, from memory")
     func scriptedOpening() {
         let opening = TeachBack.openingMessage(notebookTitle: "Mitochondria")
-        #expect(opening == "Tell me what you know about \u{201C}Mitochondria\u{201D} in your own words, as you would to a bright friend who hasn't come across it. Don't look back at your sources first: just what you remember, in whatever order it comes. I'll ask about whatever I can't follow yet, and we'll fill in what's missing together.")
+        #expect(opening == "Tell me what you know about \u{201C}Mitochondria\u{201D}, in your own words, from memory, in whatever order it comes. I'll show you pictures from your sources and ask about the gaps.")
         #expect(!opening.contains("\u{2014}"), "Web serves the same words, and its files carry no em dash")
     }
 
@@ -62,10 +62,13 @@ struct TeachBackTests {
             "never do it for them",
             "never summarize them, quote them at length, or explain any part of the subject before the learner has tried",
             "Never show a plan",
-            "exactly one question, aimed at the biggest gap",
+            "Lead with pictures",
+            "show the picture that settles it",
+            "Never write a paragraph, a list or a wall of text",
+            "exactly one prompting question, aimed at the biggest gap",
             "a technical term used without saying what it means",
             "a claim with no evidence behind it",
-            "do not correct it. Ask a question that lets them notice the problem themselves",
+            "do not correct it. Show the picture that settles it and ask a question that lets them notice the problem themselves",
             "When they do not know, or their second try still misses it, fill the gap",
             "say which source it comes from and where",
             "ask them to say it back in their own words",
@@ -117,5 +120,22 @@ struct TeachBackTests {
         #expect(ReviewSessionManager.resumedPromptKindForTesting(sessionID: sessionID, exchanges: []) == "teachBack")
         // The same transcript under any other id is a review, as before.
         #expect(ReviewSessionManager.resumedPromptKindForTesting(sessionID: UUID().uuidString, exchanges: exchanges) == "review")
+    }
+
+    @Test("A chat of a Notebook offers start_feynman_technique when its pane can open it, and no other chat does")
+    func notebookChatOffersTheTool() {
+        func offered(notebook: String?, opens: Bool) -> Bool {
+            ReviewSessionManager.nativeToolSpecsForTesting(
+                hasAttachedSource: true,
+                appTools: [],
+                hasSynthesisContext: false,
+                notebookScopeID: notebook,
+                opensTeachBack: opens
+            ).contains { $0.name == TeachBack.toolName }
+        }
+        #expect(TeachBack.toolName == "start_feynman_technique")
+        #expect(offered(notebook: "nb-1", opens: true))
+        #expect(!offered(notebook: nil, opens: true), "a chat in no Notebook has none to open it in")
+        #expect(!offered(notebook: "nb-1", opens: false), "a manager with no pane, as on the iPhone, cannot open a chat")
     }
 }

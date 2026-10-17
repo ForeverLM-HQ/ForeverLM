@@ -73,21 +73,23 @@ window holds, reading its ticked sources, and the notebook's chats follow. A
 chat filed in a notebook opens in that notebook, and a library chat (one in no notebook) leaves it. Coming back
 to a notebook reopens the chat you last had open in it.
 
-**Feynman Technique** is the notebook's way to find out what you know. A chat
-opens asking you to say what you know about the notebook, in your own words,
-from memory, as you would to a bright friend who hasn't come across it, and you
-write whatever comes. The tutor reads the ticked sources privately and never
-explains first: after each answer it says what came across, then asks one
-question at the biggest gap, such as a term you didn't define, a step you
-skipped, a claim with no evidence, a mechanism you waved through or a part of
-the subject you never mentioned. When something you say is wrong it asks a
-question that lets you notice. When you don't know, or a second try still
-misses, it fills the gap in itself, briefly and plainly, says which source it
-comes from and where (in the Reader beside the chat when it can), and asks you
-to say it back in your own words. Once what you say holds together, it asks for
-the simplest version, then for the assumptions and limits. It goes on until you
-stop. The chat is kept as a [review](/in-app-chat#reviews), and reopened later,
-on this Mac or another, it goes on probing.
+**Feynman Technique** is the notebook's way to find out what you know, built for
+learning by pictures. Press its chip, or say in the notebook's chat that you want
+to do the Feynman Technique, and a new chat opens asking you to say what you know
+about the notebook, in your own words, from memory, in whatever order it comes.
+The tutor reads the ticked sources privately and never explains first. It answers
+with a picture from your sources, a figure, diagram or slide, and one short
+prompting question about it, aimed at the biggest gap: a term you didn't define, a
+step you skipped, a claim with no evidence, a mechanism you waved through or a part
+of the subject you never mentioned. There are no paragraphs or lists. When
+something you say is wrong it shows the picture and asks a question that lets you
+notice. When you don't know, or a second try still misses, it fills the gap with
+the picture that settles it and a line on where to look, names the source and
+where it comes from, and asks you to say it back. Once what you say holds
+together, it asks for the whole subject as one picture you could sketch, then for
+the assumptions and limits. It goes on until you stop. The chat is kept as a
+[review](/in-app-chat#reviews), and reopened later, on this Mac or another, it
+goes on probing.
 
 Following a link never closes what you read it in: a citation or a Page's
 source opens the Reader beside the chat, and the Reader's **Back to** control,
@@ -127,9 +129,6 @@ and makes on the second press:
   window's player.
 - **Cards**: the notebook's cards ("42 kept · 6 due · 9 to check"),
   **Practice**, **Make Cards…** and **Open in Memory** (see [Memory](#memory)).
-- **Mnemonic reading**: the ticked sources read as their own text with a
-  recall question after each passage it tests, the way quantum.country's
-  essays are written (see [Mnemonic readings](#mnemonic-readings)).
 - **Report**: **Briefing**, **Study guide**, **Questions for a meeting**,
   **Feedback on a document** or **Custom…**, written into a Page in the
   notebook. Each claim in it links to the passage of the source it rests on,
@@ -988,7 +987,7 @@ Cards can carry up to four pictures on either face. Question pictures appear wit
 
 ### Mnemonic readings
 
-A mnemonic reading is a book read with its questions in it, the way quantum.country's essays are written: each chapter's own text, set as the Reader sets it, with a recall question right after the passage it tests. Make one from a notebook's **Mnemonic reading** tile for its ticked sources, or from the Reader's **⋯ ▸ Make Mnemonic Reading…** for what you are reading (in a book, **This Chapter** or **Whole Book**). Choose how many questions — **Auto**, about one for every 350 words; **Fewer**; **More** — and the sheet says what writing them costs before you press **Make**. Your Mnemonic Reading Writing model (Settings › AI Models) writes each source's questions from its whole text; a source too long for the model is read in consecutive parts, never sampled, and a question whose passage is not in its source is dropped. The reading opens once its first source is written and fills in as the rest are, its row in the notebook's Outputs saying how far it has come, with **Stop**. A source that failed or was stopped waits in the reading under **Write Questions**.
+A mnemonic reading is a book read with its questions in it, the way quantum.country's essays are written: each chapter's own text, set as the Reader sets it, with a recall question right after the passage it tests. Make one from the Reader's **⋯ ▸ Make Mnemonic Reading…** for the source you are reading, one source at a time (in a book, **This Chapter** or **Whole Book**; a notebook's Studio has no tile for it). Choose how many questions — **Auto**, about one for every 350 words; **Fewer**; **More** — and the sheet says what writing them costs before you press **Make**. Your Mnemonic Reading Writing model (Settings › AI Models) writes each source's questions from its whole text; a source too long for the model is read in consecutive parts, never sampled, and a question whose passage is not in its source is dropped. The reading opens once its first source is written and fills in as the rest are, its row in the notebook's Outputs saying how far it has come, with **Stop**. A source that failed or was stopped waits in the reading under **Write Questions**.
 
 On a paper or book you read as a PDF, the questions are drawn on the PDF itself instead of in a separate reading: a small marker in the margin beside each passage (**?** to answer, **✓** answered, **↻** due to answer again). Click a marker to see the question; **Show Answer**, then **Forgot** or **Remembered**, as in the reading, and the card is kept in Memory. The chip at the top right counts the questions and has **Next**, which goes to the next one you have not answered, and a switch that hides the markers so you can read the page bare.
 

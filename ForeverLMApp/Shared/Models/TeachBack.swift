@@ -27,6 +27,10 @@ enum TeachBack {
     /// technique"). It is the chip's label, help, docs and prompt wording only.
     static let title = "Feynman Technique"
 
+    /// The chat tool a notebook's chat calls when the learner says they want
+    /// the Feynman Technique: it opens the teach-back chat once the answer ends.
+    static let toolName = "start_feynman_technique"
+
     /// A new teach-back chat's id.
     static func sessionID(uuid: UUID = UUID()) -> String {
         sessionIDPrefix + uuid.uuidString
@@ -46,6 +50,6 @@ enum TeachBack {
     /// the learner speaks: the notebook named, and the ask to say what they
     /// know of it from memory. Web writes the same words (`teachBackOpening`).
     static func openingMessage(notebookTitle: String) -> String {
-        "Tell me what you know about “\(notebookTitle)” in your own words, as you would to a bright friend who hasn't come across it. Don't look back at your sources first: just what you remember, in whatever order it comes. I'll ask about whatever I can't follow yet, and we'll fill in what's missing together."
+        "Tell me what you know about “\(notebookTitle)”, in your own words, from memory, in whatever order it comes. I'll show you pictures from your sources and ask about the gaps."
     }
 }
