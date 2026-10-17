@@ -61,6 +61,8 @@ struct MemoryCardsToCheckView: View {
     /// The other sources the learner took off a card before deciding it, by
     /// card id: the card is kept on the rest. The card's own source stays.
     @State private var droppedSources: [String: Set<String>] = [:]
+    /// The sources popover of the card in front is open.
+    @State private var isListingSources = false
     /// Where the card in front goes once decided: Keep to the right, Skip to
     /// the left, as Review's Remembered and Forgot.
     @State private var exitEdge: HorizontalEdge = .trailing
@@ -365,9 +367,9 @@ struct MemoryCardsToCheckView: View {
     }
 
     /// The card's source as a chip: one source opens it; several show their
-    /// pictures stacked and the count beyond the first, and open a menu of
-    /// them, each of which opens, and each other one of which can be taken
-    /// off the card.
+    /// pictures stacked and the count beyond the first, and open a popover
+    /// listing them, each of which opens, and each other one of which can be
+    /// taken off the card.
     @ViewBuilder
     private func sourceChip(_ card: MemoryCardToCheck) -> some View {
         let ids = keptSourceIDs(card)
@@ -384,30 +386,87 @@ struct MemoryCardsToCheckView: View {
             .accessibilityLabel("Source: \(title)")
             .accessibilityIdentifier("memory.pane.toCheck.source")
         } else {
-            Menu {
-                ForEach(card.sourceIDs, id: \.self) { id in
-                    let isDropped = !ids.contains(id)
-                    Menu(sourceTitle(id)) {
-                        Button("Open Source") { openSource(id) }
-                        if id != card.sourceID {
-                            Button(isDropped ? "Use This Source for the Card" : "Take Off This Card") {
-                                toggleDropped(id, on: card)
-                            }
-                        }
-                    }
-                }
+            Button {
+                isListingSources.toggle()
             } label: {
                 chipLabel(ids: ids, title: title, more: ids.count - 1)
             }
-            .menuStyle(.button)
-            .buttonStyle(.plain)
-            .menuIndicator(.hidden)
-            .fixedSize()
-            .hoverHighlight(cornerRadius: 8, inset: -5)
+            .buttonStyle(.hoverWash(cornerRadius: 8, inset: -5))
+            .popover(isPresented: $isListingSources, arrowEdge: .bottom) {
+                sourcesPopover(card)
+            }
+            .onChange(of: card.cardID) { _, _ in isListingSources = false }
             .help("The sources this card stands on")
             .accessibilityLabel("Sources: \(ids.map(sourceTitle).joined(separator: ", "))")
             .accessibilityIdentifier("memory.pane.toCheck.source")
         }
+    }
+
+    /// The sources a card stands on, one row each: its picture and title, a
+    /// click opens it, and each source after the card's own can be taken off
+    /// the card or put back.
+    private func sourcesPopover(_ card: MemoryCardToCheck) -> some View {
+        let kept = Set(keptSourceIDs(card))
+        return VStack(alignment: .leading, spacing: 2) {
+            Text("This card stands on \(card.sourceIDs.count) sources")
+                .font(.system(size: 11.5, weight: .medium))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 10)
+                .padding(.top, 4)
+                .padding(.bottom, 6)
+            ForEach(card.sourceIDs, id: \.self) { id in
+                let isKept = kept.contains(id)
+                let isOwn = id == card.sourceID
+                HStack(spacing: 4) {
+                    Button {
+                        openSource(id)
+                    } label: {
+                        HStack(spacing: 10) {
+                            sourceThumbnail(vm.articlesById[vm.canonicalSourceID(id)])
+                                .opacity(isKept ? 1 : 0.45)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(sourceTitle(id))
+                                    .font(.system(size: 12.5, weight: .medium))
+                                    .foregroundStyle(isKept ? .primary : .secondary)
+                                    .lineLimit(2)
+                                    .multilineTextAlignment(.leading)
+                                    .strikethrough(!isKept)
+                                if isOwn || !isKept {
+                                    Text(isOwn ? "The card's own source" : "Taken off this card")
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(.tertiary)
+                                }
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.hoverWash(cornerRadius: 8, inset: 0))
+                    .help("Open \(sourceTitle(id))")
+                    .contextMenu { sourceMenu(id) }
+                    .accessibilityLabel("Open source: \(sourceTitle(id))")
+                    if !isOwn {
+                        Button {
+                            toggleDropped(id, on: card)
+                        } label: {
+                            Image(systemName: isKept ? "xmark" : "arrow.uturn.backward")
+                                .font(.system(size: 10.5, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 26, height: 26)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.hoverWash(cornerRadius: 8, inset: 0))
+                        .help(isKept ? "Take this source off the card" : "Use this source for the card")
+                        .accessibilityLabel(isKept ? "Take off this card: \(sourceTitle(id))" : "Use for the card: \(sourceTitle(id))")
+                    }
+                }
+            }
+        }
+        .padding(6)
+        .frame(width: 340)
+        .accessibilityIdentifier("memory.pane.toCheck.sources")
     }
 
     private func chipLabel(ids: [String], title: String, more: Int) -> some View {
