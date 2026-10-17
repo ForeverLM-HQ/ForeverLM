@@ -744,7 +744,7 @@ struct NotebookStudioTileControl: View {
             let notebookID = goal.id
             Task { await vm.makeNotebookNote(notebookID: notebookID, in: windowState) }
         case .videoOverview:
-            NotebookStudioActions.importVideoOverviews(into: goal, vm: vm)
+            NotebookStudioActions.makeVideoOverview(of: goal, vm: vm)
         case .mnemonicReading:
             vm.inWindow(windowState) { vm.presentNotebookMnemonicReading(notebookID: goal.id) }
         case .report, .explainer, .cards, .canvas:
@@ -1464,6 +1464,12 @@ struct NotebookMakeMenuItems: View {
         }
         Button("Video Overview…") {
             if let notebook = vm.notebook(id: notebookID) {
+                NotebookStudioActions.makeVideoOverview(of: notebook, vm: vm)
+            }
+        }
+        .disabled(!takes)
+        Button("Add Video File…") {
+            if let notebook = vm.notebook(id: notebookID) {
                 NotebookStudioActions.importVideoOverviews(into: notebook, vm: vm)
             }
         }
@@ -1516,7 +1522,30 @@ enum NotebookStudioActions {
         NotificationCenter.default.post(name: .showNotebookAudioOverviewOptions, object: windowState.id)
     }
 
-    /// Video overview: the file panel for one or more videos, then the
+    /// Video overview's press: films a short video of the notebook's ticked
+    /// papers and articles, under the price question, and files it among the
+    /// notebook's sources when it is done (`ExplainerVideoGenerationCoordinator`).
+    /// It runs in the background; Videos shows its progress and Cancel.
+    static func makeVideoOverview(of notebook: LearningGoalRecord, vm: StudioViewModel) {
+        let grounding = vm.notebookStudioSourceIDs(notebook.id)
+            .compactMap { vm.articlesById[$0] }
+            .filter { ExplainerVideoGeneratorService.groundingSourceTypes.contains($0.sourceType) && !GeneratedExplainer.isSpokenScriptURL($0.url) }
+        guard !grounding.isEmpty else {
+            vm.showToast("Tick a paper or an article in \u{201C}\(notebook.title)\u{201D} to make a video overview from")
+            return
+        }
+        let request = ExplainerVideoRequest(
+            concept: notebook.title,
+            groundingSourceIDs: grounding.map(\.id)
+        )
+        let notebookID = notebook.id
+        Task {
+            guard await ExplainerVideoGenerationCoordinator.shared.start(request, in: vm, notebookID: notebookID) != nil else { return }
+            vm.showToast("Making a video overview of \u{201C}\(notebook.title)\u{201D}. It joins the sources when it is done.")
+        }
+    }
+
+    /// Add Video File: the file panel for one or more videos, then the
     /// import (`StudioViewModel.importVideoOverviews`).
     static func importVideoOverviews(into notebook: LearningGoalRecord, vm: StudioViewModel) {
         Task {

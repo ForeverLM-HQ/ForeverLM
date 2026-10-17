@@ -205,13 +205,32 @@ struct ExplainerVideoGeneratorService: Sendable {
                 truncated = budgeted.truncated
             }
         }
+        var sourceTitle = source?.title
+        if source == nil, !request.groundingSourceIDs.isEmpty {
+            // A notebook's video overview: its papers and articles together.
+            var parts: [(title: String, text: String)] = []
+            for id in request.groundingSourceIDs {
+                guard let found = try await storage.loadSourceWithoutContent(id),
+                      Self.groundingSourceTypes.contains(found.sourceType),
+                      !GeneratedExplainer.isSpokenScriptURL(found.url),
+                      let text = await storage.loadSourceContent(found.id)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                      !text.isEmpty else { continue }
+                parts.append((found.title, text))
+            }
+            if !parts.isEmpty {
+                let combined = GeneratedExplainerVideo.combined(parts)
+                sourceText = combined.text
+                truncated = combined.truncated
+                sourceTitle = "\(parts.count) source\(parts.count == 1 ? "" : "s"): \(concept)"
+            }
+        }
         let subject = source.map { AIUsageSource(source: $0) }
 
         // 2. Storyboard.
         progress(.writingStoryboard)
         let storyboard = try await storyboardBackend.write(
-            request: ExplainerVideoRequest(concept: concept, sourceID: source?.id, length: request.length),
-            sourceTitle: source?.title,
+            request: ExplainerVideoRequest(concept: concept, sourceID: source?.id, groundingSourceIDs: request.groundingSourceIDs, length: request.length),
+            sourceTitle: sourceTitle,
             sourceText: sourceText,
             truncated: truncated
         )

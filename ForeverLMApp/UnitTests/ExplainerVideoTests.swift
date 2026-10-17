@@ -337,6 +337,47 @@ struct ExplainerVideoTests {
         #expect(free.contains("There is no source text"))
     }
 
+    @Test("a notebook's video overview grounds the storyboard on its papers and articles together, each under its title and an equal share, and leaves out what is not a paper or an article")
+    func pipelineGroundsOnSeveralSources() async throws {
+        let (storage, root) = makeTemporaryStorage()
+        defer { try? FileManager.default.removeItem(at: root) }
+        var ids: [String] = []
+        for (index, name) in ["First Article", "Second Article"].enumerated() {
+            var article = StudioArticle(url: "https://example.org/a\(index)", title: name, sourceType: .article, discoveryOrigin: .manual)
+            article.content = String(repeating: "Word\(index) ", count: 20_000)
+            article.wordCount = 20_000
+            article.state = .ready
+            try await storage.saveSource(article)
+            ids.append(article.id)
+        }
+        var talk = StudioArticle(url: "https://example.org/talk", title: "A Talk", sourceType: .video, discoveryOrigin: .manual)
+        talk.content = "A talk about something else."
+        talk.state = .ready
+        try await storage.saveSource(talk)
+        ids.append(talk.id)
+
+        let recorder = StoryboardCallRecorder()
+        let service = ExplainerVideoGeneratorService(
+            storage: storage,
+            storyboardBackend: CannedStoryboardBackend(storyboard: fiveScenes, recorder: recorder),
+            clipBackend: CannedClipBackend(),
+            assembler: CountingAssembler(),
+            model: try fixtureVideoModel(VideoGenerationCatalog.defaultModelID),
+            resolution: .hd,
+            contentRootPath: root.appendingPathComponent("Content", isDirectory: true).path
+        )
+        _ = try await service.run(request: ExplainerVideoRequest(concept: "My Notebook", groundingSourceIDs: ids, length: .standard))
+
+        let call = try #require(recorder.calls.first)
+        let text = try #require(call.sourceText)
+        #expect(text.contains("## First Article\n"))
+        #expect(text.contains("## Second Article\n"))
+        #expect(!text.contains("A Talk"))
+        #expect(call.truncated == true)
+        #expect(call.sourceTitle == "2 sources: My Notebook")
+        #expect(text.count <= GeneratedExplainerVideo.sourceCharacterBudget + 200)
+    }
+
     @Test("the pipeline films every scene, joins them, and saves a video source under Videos with the script as its text")
     func pipelineSavesVideoSource() async throws {
         let (storage, root) = makeTemporaryStorage()

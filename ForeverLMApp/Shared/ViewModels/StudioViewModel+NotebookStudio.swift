@@ -95,7 +95,7 @@ enum NotebookStudioTile: String, CaseIterable, Identifiable, Sendable {
     var help: String {
         switch self {
         case .audioOverview: return "Make an audio overview of the ticked sources"
-        case .videoOverview: return "Bring in a video overview, such as one downloaded from Gemini Notebook"
+        case .videoOverview: return "Make a short video of the ticked papers and articles"
         case .cards: return "Make cards from the ticked sources, or practice the notebook's cards"
         case .mnemonicReading: return "Read the ticked sources with questions in them"
         case .report: return "Write a report from the ticked sources"

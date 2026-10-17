@@ -122,6 +122,10 @@ struct ExplainerVideoRequest: Equatable, Sendable {
     var concept: String
     /// A paper or article whose text grounds the storyboard, when there is one.
     var sourceID: String?
+    /// Several papers and articles that together ground the storyboard, for a
+    /// notebook's video overview. Read only when `sourceID` is nil; ones that
+    /// are not a paper or an article are left out.
+    var groundingSourceIDs: [String] = []
     var length: ExplainerVideoLength = .default
 }
 
@@ -275,5 +279,20 @@ enum GeneratedExplainerVideo {
     /// The text the writer sees: whole when it fits, else the opening budget.
     static func budgeted(_ text: String) -> (text: String, truncated: Bool) {
         ExplainerScript.budgeted(text)
+    }
+
+    /// Several sources' text as one grounding, each under its title and each
+    /// cut to an equal share of the budget, so one long paper does not push
+    /// the others out. `truncated` says some source's end is missing.
+    static func combined(_ parts: [(title: String, text: String)]) -> (text: String, truncated: Bool) {
+        guard !parts.isEmpty else { return ("", false) }
+        let share = ExplainerScript.sourceCharacterBudget / parts.count
+        var truncated = false
+        let sections = parts.map { part -> String in
+            let cut = part.text.count > share
+            truncated = truncated || cut
+            return "## \(part.title)\n\(cut ? String(part.text.prefix(share)) : part.text)"
+        }
+        return (sections.joined(separator: "\n\n"), truncated)
     }
 }
