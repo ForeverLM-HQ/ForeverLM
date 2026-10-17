@@ -134,10 +134,13 @@ and makes on the second press:
   **Feedback on a document** or **Custom…**, written into a Page in the
   notebook. Each claim in it links to the passage of the source it rests on,
   and the Page ends with the sources it was made from.
-- **Video overview**: choose one or more MP4, M4V or MOV files, such as a video
-  overview downloaded from Gemini Notebook. Each is copied into your library as
-  a video, listed under the notebook's outputs, and plays in the Reader. It has
-  no transcript, and importing the same file again adds nothing new.
+- **Video overview**: a short video of the ticked papers and articles. You are
+  asked the price first; the film is made in the background, and when it is
+  done it joins the notebook's sources, is listed under its outputs, and plays
+  in the Reader. With no paper or article ticked there is nothing to film from.
+  **Make ▸ Add Video File…** brings in a video you already have, such as one
+  downloaded from Gemini Notebook (MP4, M4V or MOV); it has no transcript, and
+  importing the same file again adds nothing new.
 - **Deep research**: a [Deep Research](/in-app-chat#deep-research) chat in the
   notebook, reading the ticked sources and waiting for your question.
 - **Course**: a course-planning chat reading the ticked sources (see
