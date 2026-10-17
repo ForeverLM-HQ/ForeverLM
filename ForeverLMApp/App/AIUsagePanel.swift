@@ -285,8 +285,8 @@ struct AIUsageAccountSections: View {
 }
 
 /// AI Usage › Activity: which tasks used AI, grouped by task, for a range,
-/// read from this Mac's usage ledger (`ai_usage_events`). It shows what ran,
-/// never what it cost: dollars are OpenRouter's monitor (Spending card).
+/// read from this Mac's usage ledger (`ai_usage_events`). Every row shows what
+/// it cost, a free model's as $0.00.
 /// Was the Usage pane until 2026-09-24,
 /// with a per-call log, facet filters, a prompt-cache line and a CSV export;
 /// those were diagnostics, and `get_ai_usage_report` reads the same ledger.
@@ -865,7 +865,23 @@ struct AIActivitySettingsSection: View {
             if summary.inputTokens > 0 { parts.append("\(countText(summary.inputTokens)) in") }
             if summary.outputTokens > 0 { parts.append("\(countText(summary.outputTokens)) out") }
         }
+        parts.append(costText(summary.cost, unpriced: summary.unpricedCallCount))
         return parts.joined(separator: " · ")
+    }
+
+    /// What a row cost, always: a free model reads "$0.00" rather than
+    /// leaving the figure out (product owner, 2026-10-17: "even if it's
+    /// free; these things should show a cost"). A row the ledger could not
+    /// price says so instead of passing for free.
+    private static func costText(_ cost: Double?, unpriced: Int) -> String {
+        guard let cost else { return "not priced" }
+        let amount: String
+        if cost > 0, cost < 0.01 {
+            amount = "<$0.01"
+        } else {
+            amount = cost.formatted(.currency(code: "USD").precision(.fractionLength(2)))
+        }
+        return unpriced > 0 ? "\(amount) + \(unpriced) not priced" : amount
     }
 
     private static func subjectDetailSummary(_ summary: AIUsageSubjectActivitySummary) -> String {
@@ -874,6 +890,7 @@ struct AIActivitySettingsSection: View {
         parts.append("\(exactCountText(summary.callCount)) call\(summary.callCount == 1 ? "" : "s")")
         if summary.inputTokens > 0 { parts.append("\(countText(summary.inputTokens)) in") }
         if summary.outputTokens > 0 { parts.append("\(countText(summary.outputTokens)) out") }
+        parts.append(costText(summary.cost, unpriced: summary.unpricedCallCount))
         return parts.joined(separator: " · ")
     }
 
