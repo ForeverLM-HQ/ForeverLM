@@ -120,7 +120,7 @@ Page in the notebook, here in a notebook chat or on your Mac. Written here, each
 source is read whole when it fits: 24,000 characters a source, 32,000 in all.
 When a source is longer, the dialog names it and offers **Write on your Mac**,
 which reads every source whole; a report never reads part of a source. **Deep research** opens a chat that
-searches the web. **Audio overview**, **Make cards**, **Mnemonic reading**,
+searches the web. A notebook's empty chat has a **Feynman Technique** chip that asks you to say what you know about the notebook, from memory, then asks about the gaps and fills them in, as on your Mac (see [Inside a notebook](/studio#inside-a-notebook)); reopened on either, it goes on asking. **Audio overview**, **Make cards**, **Mnemonic reading**,
 **Course** and **Explainer**, a source's **Walk through on your Mac**, and the Sources
 search's **By meaning** and **Web** are done by ForeverLM on your
 Mac while it is open and signed in to the same iCloud account: a paid one
