@@ -289,11 +289,7 @@ Page in the notebook, here in a notebook chat or on your Mac. Written here, each
 source is read whole when it fits: 24,000 characters a source, 32,000 in all.
 When a source is longer, the dialog names it and offers **Write on your Mac**,
 which reads every source whole; a report never reads part of a source. **Deep research** opens a chat that
-searches the web. **Feynman Technique** opens a chat on one ticked paper or
-article that asks you to explain it in your own words, from memory, then asks
-about whatever your explanation leaves out, one question at a time, as on your
-Mac (see [The Studio column](/studio#the-studio-column)); reopened on either,
-it goes on asking. **Audio overview**, **Make cards**, **Mnemonic reading**,
+searches the web. A notebook's empty chat has a **Feynman Technique** chip that asks you to say what you know about the notebook, from memory, then asks about the gaps and fills them in, as on your Mac (see [Inside a notebook](/studio#inside-a-notebook)); reopened on either, it goes on asking. **Audio overview**, **Make cards**, **Mnemonic reading**,
 **Course** and **Explainer**, a source's **Walk through on your Mac**, and the Sources
 search's **By meaning** and **Web** are done by ForeverLM on your
 Mac while it is open and signed in to the same iCloud account: a paid one
@@ -469,12 +465,30 @@ A notebook fills the window in three columns, as in Gemini Notebook:
 | **Studio** (right) | **Share** at its top right ([Sharing a notebook](/teams#sharing-a-notebook)), then what you can make from the ticked sources, and everything the notebook made |
 
 An empty notebook chat shows the notebook's name and description, and, once it
-has sources, **Suggest questions** and **Quiz me on it**, then the notebook's
-latest chats; with no sources it offers **Add sources**. The chat's **⋯** has
+has sources, **Suggest questions**, **Quiz me on it** and **Feynman Technique**,
+then the notebook's latest chats; with no sources it offers **Add sources**. The chat's **⋯** has
 **Chats in This Notebook ▸**: **New Chat** starts a chat in the notebook the
 window holds, reading its ticked sources, and the notebook's chats follow. A
 chat filed in a notebook opens in that notebook, and a library chat (one in no notebook) leaves it. Coming back
 to a notebook reopens the chat you last had open in it.
+
+**Feynman Technique** is the notebook's way to find out what you know, built for
+learning by pictures. Press its chip, or say in the notebook's chat that you want
+to do the Feynman Technique, and a new chat opens asking you to say what you know
+about the notebook, in your own words, from memory, in whatever order it comes.
+The tutor reads the ticked sources privately and never explains first. It answers
+with a picture from your sources, a figure, diagram or slide, and one short
+prompting question about it, aimed at the biggest gap: a term you didn't define, a
+step you skipped, a claim with no evidence, a mechanism you waved through or a part
+of the subject you never mentioned. There are no paragraphs or lists. When
+something you say is wrong it shows the picture and asks a question that lets you
+notice. When you don't know, or a second try still misses, it fills the gap with
+the picture that settles it and a line on where to look, names the source and
+where it comes from, and asks you to say it back. Once what you say holds
+together, it asks for the whole subject as one picture you could sketch, then for
+the assumptions and limits. It goes on until you stop. The chat is kept as a
+[review](/in-app-chat#reviews), and reopened later, on this Mac or another, it
+goes on probing.
 
 Following a link never closes what you read it in: a citation or a Page's
 source opens the Reader beside the chat, and the Reader's **Back to** control,
@@ -514,38 +528,23 @@ and makes on the second press:
   window's player.
 - **Cards**: the notebook's cards ("42 kept · 6 due · 9 to check"),
   **Practice**, **Make Cards…** and **Open in Memory** (see [Memory](#memory)).
-- **Mnemonic reading**: the ticked sources read as their own text with a
-  recall question after each passage it tests, the way quantum.country's
-  essays are written (see [Mnemonic readings](#mnemonic-readings)).
 - **Report**: **Briefing**, **Study guide**, **Questions for a meeting**,
   **Feedback on a document** or **Custom…**, written into a Page in the
   notebook. Each claim in it links to the passage of the source it rests on,
   and the Page ends with the sources it was made from.
-- **Video overview**: choose one or more MP4, M4V or MOV files, such as a video
-  overview downloaded from Gemini Notebook. Each is copied into your library as
-  a video, listed under the notebook's outputs, and plays in the Reader. It has
-  no transcript, and importing the same file again adds nothing new.
+- **Video overview**: a short video of the ticked papers and articles. You are
+  asked the price first; the film is made in the background, and when it is
+  done it joins the notebook's sources, is listed under its outputs, and plays
+  in the Reader. With no paper or article ticked there is nothing to film from.
+  **Make ▸ Add Video File…** brings in a video you already have, such as one
+  downloaded from Gemini Notebook (MP4, M4V or MOV); it has no transcript, and
+  importing the same file again adds nothing new.
 - **Deep research**: a [Deep Research](/in-app-chat#deep-research) chat in the
   notebook, reading the ticked sources and waiting for your question.
 - **Course**: a course-planning chat reading the ticked sources (see
   [Generating a course](/courses#generating-a-course)).
 - **Explainer**: pick one of the ticked papers, articles, podcast episodes,
   videos or meetings for its spoken [explainer](#explainers).
-- **Feynman Technique**: pick one of the ticked sources, of any kind, and
-  explain it yourself. A chat opens in the notebook asking you to explain it in
-  your own words, from memory, as you would to a bright friend who hasn't come
-  across it.
-  The tutor plays that friend and never explains first: after each answer it
-  says what came across, then asks one question at the biggest gap, such as a
-  term you didn't define, a step you skipped, a claim with no evidence or a
-  mechanism you waved through. When something you say is wrong it asks a
-  question that lets you notice; if your second try still misses, it shows you
-  the place in the source, in the Reader beside the chat, and asks you to
-  explain that part again. Once your explanation holds, it asks for the
-  simplest version, then for the source's assumptions and limits. It goes on
-  until you stop. The chat is kept as a [review](/in-app-chat#reviews), and
-  reopened later, on this Mac or another, it goes on probing. The **Notebook**
-  menu's **Make ▸** has it too, and so does [Web Studio](/web-library).
 - **Add note** (floating at the foot of the column): a new Page in the
   notebook, open beside the chat.
 
@@ -1387,7 +1386,7 @@ Cards can carry up to four pictures on either face. Question pictures appear wit
 
 ### Mnemonic readings
 
-A mnemonic reading is a book read with its questions in it, the way quantum.country's essays are written: each chapter's own text, set as the Reader sets it, with a recall question right after the passage it tests. Make one from a notebook's **Mnemonic reading** tile for its ticked sources, or from the Reader's **⋯ ▸ Make Mnemonic Reading…** for what you are reading (in a book, **This Chapter** or **Whole Book**). Choose how many questions — **Auto**, about one for every 350 words; **Fewer**; **More** — and the sheet says what writing them costs before you press **Make**. Your Mnemonic Reading Writing model (Settings › AI Models) writes each source's questions from its whole text; a source too long for the model is read in consecutive parts, never sampled, and a question whose passage is not in its source is dropped. The reading opens once its first source is written and fills in as the rest are, its row in the notebook's Outputs saying how far it has come, with **Stop**. A source that failed or was stopped waits in the reading under **Write Questions**.
+A mnemonic reading is a book read with its questions in it, the way quantum.country's essays are written: each chapter's own text, set as the Reader sets it, with a recall question right after the passage it tests. Make one from the Reader's **⋯ ▸ Make Mnemonic Reading…** for the source you are reading, one source at a time (in a book, **This Chapter** or **Whole Book**; a notebook's Studio has no tile for it). Choose how many questions — **Auto**, about one for every 350 words; **Fewer**; **More** — and the sheet says what writing them costs before you press **Make**. Your Mnemonic Reading Writing model (Settings › AI Models) writes each source's questions from its whole text; a source too long for the model is read in consecutive parts, never sampled, and a question whose passage is not in its source is dropped. The reading opens once its first source is written and fills in as the rest are, its row in the notebook's Outputs saying how far it has come, with **Stop**. A source that failed or was stopped waits in the reading under **Write Questions**.
 
 On a paper or book you read as a PDF, the questions are drawn on the PDF itself instead of in a separate reading: a small marker in the margin beside each passage (**?** to answer, **✓** answered, **↻** due to answer again). Click a marker to see the question; **Show Answer**, then **Forgot** or **Remembered**, as in the reading, and the card is kept in Memory. The chip at the top right counts the questions and has **Next**, which goes to the next one you have not answered, and a switch that hides the markers so you can read the page bare.
 
@@ -1901,7 +1900,7 @@ Use in-app Chat when you want to:
 
 Chat is source-grounded. Add sources to the current context or open a scheduled source, then start a review from the Chat panel.
 
-In a [notebook](/studio#inside-a-notebook), the chat reads the sources ticked in the notebook's Sources column, its own and those of any notebook you put into its context, and it can still reach the rest of your library when you ask it to. A new chat there starts in the notebook, an empty one offers **Suggest questions** and **Quiz me on it**, and what the chat makes (a Page, a course, a picture) is filed in the notebook.
+In a [notebook](/studio#inside-a-notebook), the chat reads the sources ticked in the notebook's Sources column, its own and those of any notebook you put into its context, and it can still reach the rest of your library when you ask it to. A new chat there starts in the notebook, an empty one offers **Suggest questions**, **Quiz me on it** and **Feynman Technique**, and what the chat makes (a Page, a course, a picture) is filed in the notebook.
 
 On the Mac, any chat can take you somewhere: "open this notebook", "show me that paper" or "go to my Bioelectricity notebook" opens it in the window, as clicking it would. Chat says it opened, made or changed something only when it actually did.
 
@@ -2009,7 +2008,7 @@ On the Mac, a trackpad pinch over a chat makes that chat's text larger or smalle
 
 ForeverLM's review flow asks you to explain ideas in your own words. The tutor probes gaps, asks follow-up questions, and records the exchange as a review session.
 
-A notebook's **Feynman Technique** tile turns this around: you explain one paper first, from memory, and the tutor only asks, one question at a time at the biggest gap in your explanation, with no plan and no explaining of its own (see [The Studio column](/studio#the-studio-column)). It is kept as a review too, and a reopened one goes on asking. On the iPhone it reads like any review, and continues on your Mac.
+A notebook's **Feynman Technique** turns this around: you say what you know about the notebook first, from memory (press its chip, or just ask for it in the notebook's chat), and the tutor asks, one question at a time at the biggest gap, then fills in what is missing once you have tried, in pictures from your sources and one short question at a time, with no plan and no explaining before that (see [Inside a notebook](/studio#inside-a-notebook)). It is kept as a review too, and a reopened one goes on asking. On the iPhone it reads like any review, and continues on your Mac.
 
 Completed in-app reviews are linked to the source IDs they covered. That link is what updates a source's Reviewed status, and a review that grades a source planned in Schedule marks it done.
 
@@ -6488,7 +6487,26 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.162.0 (build 242) — 2026-10-17
+
+**Highlights:**
+- **A Board in the Space** with a Today view for planning the day.
+- **Video overview films a video**, Mnemonic Reading is made per source, and the Feynman Technique is a chip in the notebook's chat.
+- **Folded Sources and Studio columns leave the notebook window.**
+- **ForeverLM is free; MCP is the paid part.**
+
+- **Video overview makes the video.** The notebook's Studio tile used to open a file panel ("Select video overviews to add to …"); it now films one, as NotebookLM does (product owner, 2026-10-17: "it should GENERATE video"). It reads the ticked papers and articles, asks the price, films in the background, and files the finished video among the notebook's sources, listed as its Video overview. A notebook with no paper or article ticked says so instead of filming from its title. Bringing in a file you already have moved to **Make ▸ Add Video File…**. Mac only; the film lives in the Mac's library folder.
+- **Mnemonic reading is made from one source.** The notebook's Studio tile and the Make menu's **Mnemonic Reading…** are gone: they wrote one reading across every ticked source (170 questions over nine sources, in one sheet). Open a source and use the Reader's **⋯ ▸ Make Mnemonic Reading…** instead, for that source, or for a book's chapter or whole book. Readings you already made are unchanged.
+- **Feynman Technique moves to the notebook.** It was a Studio tile that asked you to pick one paper. It is now a chip beside **Quiz me on it** in the notebook's chat: it asks what you know about the notebook, from memory, and when you have tried it fills in the gaps, naming the source each came from. Say "I want to do the Feynman Technique" in a notebook's chat and it opens too. Its answers are pictures from your sources and one short question, never a wall of text.
 - **ForeverLM is free; MCP is the paid part.** The Mac app, the iPhone and iPad apps and the web library, with sync, in-app Chat, reviews and every AI feature, never lock. AI still runs on your own OpenRouter key, billed by OpenRouter at its cost with nothing added by ForeverLM, and free models cost $0. Connecting an outside assistant (Claude, ChatGPT, Grok, Gemini, Claude Code or any MCP client) is free for 7 days from your first sign-in, with no card and nothing to click, then $19 once, the Early user deal, with no subscription, in Settings › Billing on the Mac. When the free days end and nothing is paid, only MCP locks: the connection stops and an assistant's tool calls are refused, while the app keeps working and nothing is deleted. Paying brings the connection back by itself. The in-app Chat is not MCP and is never locked. Settings › Billing now reads "MCP: 7 days free, then $19 once. No subscription.", the account menu counts "MCP free: 6 days left", and Setup's welcome line says "The app is free. MCP: 7 days free, then $19 once. No subscription." The iPhone shows no price and no way to buy, since it has no MCP connection. `get_billing_settings` now describes MCP's plan, and `own_key_allowed` is gone from `get_billing_settings` and `get_own_router_key`.
+- **A Board in the Space.** The Space has a Trello-style **Board**: columns of cards you drag between, and a **Today** view for planning the day. A card is a task of a notebook kept for the board; the drop line clears itself after a drop.
+- **Folded columns leave the notebook window.** Fold a notebook's Sources or Studio column and it goes, with no second icon strip left behind; both toggles sit top left in the window's sidebar controls. Dragging the Sources edge no longer re-typesets the chat on every move.
+- **Notebooks from chats, and a rename tool.** Turning a chat into a notebook brings its Pages and takes every source the chat linked or read, and the notebook chat can rename its notebook with `update_notebook`. Notebooks keep their emoji by default; a cover you ask for is drawn as an emoji.
+- **The notebook column names the notebook.** The name leaves the crowded titlebar and heads the column.
+- **Free requests used up, said plainly.** Settings says when the day's OpenRouter free-model requests are used up, and AI Usage now says API keys and opens on today's total spend. Activity's "Turn off…" opens the exact setting, scrolled to and highlighted.
+- **Menus show their icons again on macOS 27**, and the toast banner centres its text with Undo and icons on one line.
+- **Library and sources.** The Hidden footer of a sources list expands in place and lists every hidden book; papers with different DOIs never merge on an identical title; podcast episodes with no cover get Apple's cover, and unhiding fetches it; Reader sign-ins survive a quit.
+- **To Check and cards.** A card on several sources lists them in a popover with larger pictures and a detail line each; "more sources to come" is recounted rather than a day-old snapshot.
 
 ## 0.161.0 (build 241) — 2026-10-16
 

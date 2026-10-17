@@ -6,10 +6,26 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.162.0 (build 242) — 2026-10-17
+
+**Highlights:**
+- **A Board in the Space** with a Today view for planning the day.
+- **Video overview films a video**, Mnemonic Reading is made per source, and the Feynman Technique is a chip in the notebook's chat.
+- **Folded Sources and Studio columns leave the notebook window.**
+- **ForeverLM is free; MCP is the paid part.**
+
 - **Video overview makes the video.** The notebook's Studio tile used to open a file panel ("Select video overviews to add to …"); it now films one, as NotebookLM does (product owner, 2026-10-17: "it should GENERATE video"). It reads the ticked papers and articles, asks the price, films in the background, and files the finished video among the notebook's sources, listed as its Video overview. A notebook with no paper or article ticked says so instead of filming from its title. Bringing in a file you already have moved to **Make ▸ Add Video File…**. Mac only; the film lives in the Mac's library folder.
 - **Mnemonic reading is made from one source.** The notebook's Studio tile and the Make menu's **Mnemonic Reading…** are gone: they wrote one reading across every ticked source (170 questions over nine sources, in one sheet). Open a source and use the Reader's **⋯ ▸ Make Mnemonic Reading…** instead, for that source, or for a book's chapter or whole book. Readings you already made are unchanged.
 - **Feynman Technique moves to the notebook.** It was a Studio tile that asked you to pick one paper. It is now a chip beside **Quiz me on it** in the notebook's chat: it asks what you know about the notebook, from memory, and when you have tried it fills in the gaps, naming the source each came from. Say "I want to do the Feynman Technique" in a notebook's chat and it opens too. Its answers are pictures from your sources and one short question, never a wall of text.
 - **ForeverLM is free; MCP is the paid part.** The Mac app, the iPhone and iPad apps and the web library, with sync, in-app Chat, reviews and every AI feature, never lock. AI still runs on your own OpenRouter key, billed by OpenRouter at its cost with nothing added by ForeverLM, and free models cost $0. Connecting an outside assistant (Claude, ChatGPT, Grok, Gemini, Claude Code or any MCP client) is free for 7 days from your first sign-in, with no card and nothing to click, then $19 once, the Early user deal, with no subscription, in Settings › Billing on the Mac. When the free days end and nothing is paid, only MCP locks: the connection stops and an assistant's tool calls are refused, while the app keeps working and nothing is deleted. Paying brings the connection back by itself. The in-app Chat is not MCP and is never locked. Settings › Billing now reads "MCP: 7 days free, then $19 once. No subscription.", the account menu counts "MCP free: 6 days left", and Setup's welcome line says "The app is free. MCP: 7 days free, then $19 once. No subscription." The iPhone shows no price and no way to buy, since it has no MCP connection. `get_billing_settings` now describes MCP's plan, and `own_key_allowed` is gone from `get_billing_settings` and `get_own_router_key`.
+- **A Board in the Space.** The Space has a Trello-style **Board**: columns of cards you drag between, and a **Today** view for planning the day. A card is a task of a notebook kept for the board; the drop line clears itself after a drop.
+- **Folded columns leave the notebook window.** Fold a notebook's Sources or Studio column and it goes, with no second icon strip left behind; both toggles sit top left in the window's sidebar controls. Dragging the Sources edge no longer re-typesets the chat on every move.
+- **Notebooks from chats, and a rename tool.** Turning a chat into a notebook brings its Pages and takes every source the chat linked or read, and the notebook chat can rename its notebook with `update_notebook`. Notebooks keep their emoji by default; a cover you ask for is drawn as an emoji.
+- **The notebook column names the notebook.** The name leaves the crowded titlebar and heads the column.
+- **Free requests used up, said plainly.** Settings says when the day's OpenRouter free-model requests are used up, and AI Usage now says API keys and opens on today's total spend. Activity's "Turn off…" opens the exact setting, scrolled to and highlighted.
+- **Menus show their icons again on macOS 27**, and the toast banner centres its text with Undo and icons on one line.
+- **Library and sources.** The Hidden footer of a sources list expands in place and lists every hidden book; papers with different DOIs never merge on an identical title; podcast episodes with no cover get Apple's cover, and unhiding fetches it; Reader sign-ins survive a quit.
+- **To Check and cards.** A card on several sources lists them in a popover with larger pictures and a detail line each; "more sources to come" is recounted rather than a day-old snapshot.
 
 ## 0.161.0 (build 241) — 2026-10-16
 
