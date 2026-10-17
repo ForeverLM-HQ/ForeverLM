@@ -1583,7 +1583,7 @@ private struct StudioToastBanner: View {
     @State private var copied = false
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .center, spacing: 12) {
             Text(message)
                 .font(.subheadline.weight(.medium))
                 .textSelection(.enabled)
@@ -1594,7 +1594,6 @@ private struct StudioToastBanner: View {
                     .font(.subheadline.weight(.semibold))
                     .buttonStyle(.hoverWash(tint: Color.accentColor))
                     .accessibilityIdentifier("studio.toast.undo")
-                    .padding(.top, -2)
             }
 
             if let action {
@@ -1602,7 +1601,6 @@ private struct StudioToastBanner: View {
                     .font(.subheadline.weight(.semibold))
                     .buttonStyle(.hoverWash(tint: Color.accentColor))
                     .accessibilityIdentifier("studio.toast.action")
-                    .padding(.top, -2)
             }
 
             // Equal square boxes with a circular wash: `doc.on.doc` and `xmark`
@@ -1628,13 +1626,10 @@ private struct StudioToastBanner: View {
                 .accessibilityLabel("Dismiss message")
             }
             .buttonStyle(.hoverWash(in: Circle(), inset: 0, opacity: 0.12))
-            // Centre the glyphs on the message's first line rather than on the
-            // top of its line box.
-            .padding(.top, -2)
         }
-        .padding(.leading, 16)
-        .padding(.trailing, 8)
-        .padding(.vertical, 10)
+        .padding(.leading, 18)
+        .padding(.trailing, 10)
+        .padding(.vertical, 8)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
         .shadow(radius: 4)
     }
