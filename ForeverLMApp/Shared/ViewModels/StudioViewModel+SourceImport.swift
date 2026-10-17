@@ -144,7 +144,9 @@ extension StudioViewModel {
             default: return false
             }
             if let doi, !doi.isEmpty, let eDOI = existing.doi, eDOI.lowercased() == doi.lowercased() { return true }
-            if !normalizedTitle.isEmpty && Self.normalizedPaperTitle(existing.title) == normalizedTitle { return true }
+            // Not a same-titled paper with another DOI: it is another paper.
+            if !normalizedTitle.isEmpty && Self.normalizedPaperTitle(existing.title) == normalizedTitle
+                && !Self.paperDOIsContradict(doi, Self.paperIdentityDOI(of: existing)) { return true }
             if let webFilename = Self.pdfFilenameFromWebURL(existing.url),
                webFilename.caseInsensitiveCompare(filename) == .orderedSame { return true }
             return false
@@ -603,6 +605,7 @@ extension StudioViewModel {
         guard !normalizedTitle.isEmpty else { return nil }
         return articles.first(where: {
             $0.sourceType == .paper && Self.normalizedPaperTitle($0.title) == normalizedTitle
+                && !Self.paperDOIsContradict(entry.doi, Self.paperIdentityDOI(of: $0))
         })?.id
     }
 

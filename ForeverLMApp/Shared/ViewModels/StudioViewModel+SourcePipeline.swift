@@ -1148,14 +1148,11 @@ extension StudioViewModel {
     func mergePaperIntoBestEquivalent(_ articleId: String) async -> Bool {
         guard let article = articles.first(where: { $0.id == articleId }),
               article.sourceType == .paper else { return false }
-        let keys = Set(Self.paperDedupDisplayKeys(for: article))
-        guard !keys.isEmpty else { return false }
-
         let equivalents = articles.filter { candidate in
             candidate.id != articleId
                 && candidate.sourceType == .paper
                 && candidate.teamID == article.teamID
-                && !keys.isDisjoint(with: Self.paperDedupDisplayKeys(for: candidate))
+                && Self.paperDedupKeysMatch(article, candidate)
         }
         guard !equivalents.isEmpty else { return false }
 
@@ -1176,14 +1173,12 @@ extension StudioViewModel {
         guard let canonicalIdx = articles.firstIndex(where: { $0.id == canonicalId }),
               articles[canonicalIdx].sourceType == .paper else { return false }
 
-        let canonicalKeys = Set(Self.paperDedupDisplayKeys(for: articles[canonicalIdx]))
-        guard !canonicalKeys.isEmpty else { return false }
-
         // A team library lists the learner's own sources beside the team's
         // (docs/teams-design.md, decision 19). A merge archives the duplicate,
         // and archiving a team row takes it from every member, so a duplicate
         // is only ever one from the canonical's own library.
-        let canonicalTeamID = articles[canonicalIdx].teamID
+        let canonicalPaper = articles[canonicalIdx]
+        let canonicalTeamID = canonicalPaper.teamID
         let duplicates = articles.filter { candidate in
             guard candidate.id != canonicalId,
                   candidate.sourceType == .paper,
@@ -1191,7 +1186,7 @@ extension StudioViewModel {
             if let knownDuplicateIDs {
                 return knownDuplicateIDs.contains(candidate.id)
             }
-            return !canonicalKeys.isDisjoint(with: Self.paperDedupDisplayKeys(for: candidate))
+            return Self.paperDedupKeysMatch(canonicalPaper, candidate)
         }
         guard !duplicates.isEmpty else { return false }
 
@@ -2472,7 +2467,7 @@ extension StudioViewModel {
             && (article.content?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
         let needsPDFResolution = article.resolvedPDFPath == nil
             && article.url.hasPrefix("http")
-            && dedupKeysWithPDF.isDisjoint(with: paperDedupDisplayKeys(for: article))
+            && dedupKeysWithPDF.isDisjoint(with: paperDedupLookupKeys(for: article))
         return article.sourceType == .paper
             && !unavailableRecordedPDFIDs.contains(article.id)
             // Schema v37 deliberately requeues historical paywalled papers

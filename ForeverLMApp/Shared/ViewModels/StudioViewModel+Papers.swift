@@ -278,20 +278,32 @@ extension StudioViewModel {
     /// identical content fingerprint, or an identical resolved title. One group at
     /// a time, because merging folds the losers' keys into the survivor and can
     /// pull a further row into the same group.
+    ///
+    /// The group is the first paper that matches another, with each candidate
+    /// that matches every paper already in the group. Pairwise, because a title key
+    /// meets a paper without a DOI from both sides: a DOI-less row titled like
+    /// a Primer and like its PrimeView must not fold the two DOIs into one.
     nonisolated static func firstPaperIdentityDuplicateGroup(
         in papers: [StudioArticle]
     ) -> [StudioArticle]? {
-        var indexesByKey: [String: Set<Int>] = [:]
+        var indexesByKey: [String: [Int]] = [:]
         for (index, paper) in papers.enumerated() {
             for key in paperDedupDisplayKeys(for: paper) {
-                indexesByKey[key, default: []].insert(index)
+                indexesByKey[key, default: []].append(index)
             }
         }
-        let group = indexesByKey.values
-            .filter { $0.count > 1 }
-            .min { ($0.min() ?? .max) < ($1.min() ?? .max) }
-        guard let group else { return nil }
-        return group.sorted().map { papers[$0] }
+        for (index, paper) in papers.enumerated() {
+            let candidates = Set(paperDedupLookupKeys(for: paper).flatMap { indexesByKey[$0] ?? [] })
+                .subtracting([index])
+                .sorted()
+            var group = [index]
+            for candidate in candidates
+            where group.allSatisfy({ paperDedupKeysMatch(papers[$0], papers[candidate]) }) {
+                group.append(candidate)
+            }
+            if group.count > 1 { return group.sorted().map { papers[$0] } }
+        }
+        return nil
     }
 
     struct PaperIdentityMergePlan: Sendable {
@@ -568,6 +580,10 @@ extension StudioViewModel {
             // at a time, never across them.
             let versionKinds = Dictionary(grouping: groupArticles) { Self.paperVersionKind(of: $0) == .preprint }
             for versionGroup in versionKinds.values where versionGroup.count >= 2 {
+                // The model reads titles and addresses; two DOIs say two papers
+                // (a Primer and its PrimeView share their title), so a group
+                // spanning them is left whole rather than guessed apart.
+                guard Set(versionGroup.compactMap(Self.paperIdentityDOI(of:))).count <= 1 else { continue }
                 let best = versionGroup.max(by: { Self.paperStorageScore($0) < Self.paperStorageScore($1) })!
 
                 if let bestIdx = articles.firstIndex(where: { $0.id == best.id }) {

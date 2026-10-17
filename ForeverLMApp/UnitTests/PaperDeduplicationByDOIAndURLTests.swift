@@ -278,7 +278,7 @@ struct PreprintPublishedIdentityTests {
     @Test("Two preprints, or two journal records, of one title are still one record")
     func sameKindStillGroups() {
         let first = makePaper(url: "https://www.biorxiv.org/content/10.1101/2025.01.02.631000v1", title: "PeptiVerse", journal: "bioRxiv")
-        let second = makePaper(url: "https://arxiv.org/abs/2501.00001", title: "PeptiVerse", journal: "arXiv")
+        let second = makePaper(url: "/Papers/copy.pdf", title: "PeptiVerse", journal: "arXiv")
         let journalA = makePaper(url: "https://www.nature.com/articles/a", title: "PeptiVerse", journal: "Nature", doi: "10.1038/a")
         let journalB = makePaper(url: "https://example.org/pv", title: "PeptiVerse", journal: "Nature")
 
@@ -357,6 +357,79 @@ struct PreprintPublishedIdentityTests {
         let second = makePaper(url: "https://example.org/b", title: "Paper B", doi: "10.1/b")
 
         #expect(StudioViewModel.firstPaperIdentityDuplicateGroup(in: [first, second]) == nil)
+    }
+
+    @Test("Two papers with different DOIs are two papers, however exactly their titles match")
+    func differentDOIsNeverGroupOnTitle() {
+        // A Methods Primer and its one-page PrimeView: one title, two DOIs.
+        let primer = makePaper(
+            url: "https://www.nature.com/articles/s43586-021-00084-5",
+            title: "DNA-encoded chemical libraries", journal: "Nature Reviews Methods Primers"
+        )
+        let primeView = makePaper(
+            url: "https://www.nature.com/articles/s43586-021-00090-7",
+            title: "DNA-encoded chemical libraries", journal: "Nature Reviews Methods Primers"
+        )
+
+        #expect(!StudioViewModel.paperDedupKeysMatch(primer, primeView))
+        #expect(!StudioViewModel.paperDedupKeysMatch(primeView, primer))
+        #expect(StudioViewModel.firstPaperIdentityDuplicateGroup(in: [primer, primeView]) == nil)
+        #expect(StudioViewModel.firstPaperIdentityMergePlan(in: [primer, primeView]) == nil)
+        // The PrimeView with a PDF does not hide the Primer that has none.
+        let keysWithPDF = Set(StudioViewModel.paperDedupDisplayKeys(for: primeView))
+        #expect(keysWithPDF.isDisjoint(with: StudioViewModel.paperDedupLookupKeys(for: primer)))
+    }
+
+    @Test("A copy without a DOI still meets its titled twin, but never joins two DOIs together")
+    func doiLessCopyJoinsOneDOI() {
+        let primer = makePaper(
+            url: "https://www.nature.com/articles/s43586-021-00084-5",
+            title: "DNA-encoded chemical libraries", journal: "Nature Reviews Methods Primers"
+        )
+        let primeView = makePaper(
+            url: "https://www.nature.com/articles/s43586-021-00090-7",
+            title: "DNA-encoded chemical libraries", journal: "Nature Reviews Methods Primers"
+        )
+        let copy = makePaper(
+            url: "/Papers/del-copy.pdf",
+            title: "DNA-encoded chemical libraries", journal: "Nature Reviews Methods Primers"
+        )
+
+        #expect(StudioViewModel.paperDedupKeysMatch(copy, primer))
+        #expect(StudioViewModel.paperDedupKeysMatch(primer, copy))
+        let keysWithPDF = Set(StudioViewModel.paperDedupDisplayKeys(for: primer))
+        #expect(!keysWithPDF.isDisjoint(with: StudioViewModel.paperDedupLookupKeys(for: copy)))
+
+        let group = StudioViewModel.firstPaperIdentityDuplicateGroup(in: [copy, primer, primeView])
+        #expect(group?.count == 2)
+        #expect(group.map { Set($0.map(\.id)) } == Set([copy.id, primer.id]))
+    }
+
+    @Test("The Reading List adds a paper whose title is held by a paper with another DOI")
+    func readingListAddsSameTitledPaperWithAnotherDOI() {
+        let primer = makePaper(
+            url: "https://www.nature.com/articles/s43586-021-00084-5",
+            title: "DNA-encoded chemical libraries"
+        )
+        let primeView = makePaper(
+            url: "https://www.nature.com/articles/s43586-021-00090-7",
+            title: "DNA-encoded chemical libraries"
+        )
+        let copy = makePaper(url: "https://example.org/del", title: "DNA-encoded chemical libraries")
+
+        let added = StudioViewModel.computeMergeResultOffMain(
+            discovered: StudioViewModel.makeMergeDiscoveredSnapshot(from: [primeView]),
+            dismissedURLs: [],
+            existing: StudioViewModel.makeMergeExistingSnapshot(from: [primer])
+        )
+        #expect(added.newArticleIndexes == [0])
+
+        let skipped = StudioViewModel.computeMergeResultOffMain(
+            discovered: StudioViewModel.makeMergeDiscoveredSnapshot(from: [copy]),
+            dismissedURLs: [],
+            existing: StudioViewModel.makeMergeExistingSnapshot(from: [primer])
+        )
+        #expect(skipped.newArticleIndexes.isEmpty)
     }
 
     @Test("A published DOI equal to the paper's own DOI is not a self-match")

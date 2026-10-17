@@ -42,7 +42,9 @@ class StudioViewModel {
         let relativeURLs: Set<String>
         let localPaths: Set<String>
         let podcastWebURLs: Set<String>
-        let paperTitles: Set<String>
+        /// Each paper title held, with the DOIs of the papers holding it
+        /// (nil for a paper without one).
+        let paperTitleDOIs: [String: [String?]]
         let localPaperFilenames: Set<String>
         let paperPublisherKeys: Set<String>
     }
@@ -55,6 +57,7 @@ class StudioViewModel {
         let sourceType: String
         let title: String
         let normalizedPaperTitle: String
+        let paperDOI: String?
         let localFilePath: String?
         let podcastWebPageURL: String?
         let normalizedPaperFilename: String?

@@ -609,7 +609,7 @@ extension StudioViewModel {
         )
         let missingPDFs = eligiblePapers.filter { paper in
             guard !hasUsablePDF(paper) else { return false }
-            return paperKeysWithPDF.isDisjoint(with: paperDedupDisplayKeys(for: paper))
+            return paperKeysWithPDF.isDisjoint(with: paperDedupLookupKeys(for: paper))
         }
         let missingPDFIDs = Set(missingPDFs.map(\.id))
 
@@ -1605,7 +1605,7 @@ extension StudioViewModel {
         let paperKeysWithPDF = library.keysWithPDF
         return papers.filter { paper in
             guard !hasUsablePDF(paper), !superseded.contains(paper.id) else { return false }
-            return paperKeysWithPDF.isDisjoint(with: paperDedupKeys(for: paper))
+            return paperKeysWithPDF.isDisjoint(with: cachedPaperDedupLookupKeys(for: paper))
         }
     }
 
@@ -1702,12 +1702,13 @@ extension StudioViewModel {
     }
 
     /// What the Papers lists read off one paper — its versions' facts and its
-    /// identity keys (`paperDedupDisplayKeys`) — each a parse of its address,
-    /// DOI and title.
+    /// identity keys (`paperDedupDisplayKeys`, `paperDedupLookupKeys`) — each a
+    /// parse of its address, DOI and title.
     struct PaperListingFacts {
         let inputs: PaperListingInputs
         let version: PaperVersionFacts
         let dedupKeys: [String]
+        let lookupKeys: [String]
     }
 
     /// One paper's listing facts, kept per source id and parsed again only
@@ -1720,17 +1721,18 @@ extension StudioViewModel {
         let facts = PaperListingFacts(
             inputs: inputs,
             version: PaperVersionFacts(paper),
-            dedupKeys: Self.paperDedupDisplayKeys(for: paper)
+            dedupKeys: Self.paperDedupDisplayKeys(for: paper),
+            lookupKeys: Self.paperDedupLookupKeys(for: paper)
         )
         paperListingFactsByID[paper.id] = facts
         return facts
     }
 
-    /// `paperDedupDisplayKeys(for:)`, read from the kept facts. Only a paper
+    /// `paperDedupLookupKeys(for:)`, read from the kept facts. Only a paper
     /// has keys, so nothing else is kept.
-    func paperDedupKeys(for article: StudioArticle) -> [String] {
+    func cachedPaperDedupLookupKeys(for article: StudioArticle) -> [String] {
         guard article.sourceType == .paper else { return [] }
-        return paperListingFacts(for: article).dedupKeys
+        return paperListingFacts(for: article).lookupKeys
     }
 
     /// Drops the facts of sources the library no longer holds.
@@ -1760,7 +1762,7 @@ extension StudioViewModel {
         return papers.filter { paper in
             guard !hasUsablePDF(paper), !isSourceHidden(paper),
                   let keysWithPDF = keysWithPDFByLibrary[paper.teamID] else { return false }
-            return !keysWithPDF.isDisjoint(with: Self.paperDedupDisplayKeys(for: paper))
+            return !keysWithPDF.isDisjoint(with: Self.paperDedupLookupKeys(for: paper))
         }.map(\.id)
     }
 
@@ -2036,11 +2038,55 @@ extension StudioViewModel {
     /// the title key is split by version so a preprint never meets the journal
     /// record. A paper that says neither (no journal, no DOI) meets both, as it
     /// always did.
+    ///
+    /// A title is evidence only while the DOIs do not contradict it. Two papers
+    /// with different DOIs are two papers whatever they are called: a Nature
+    /// Reviews Methods Primer and its one-page PrimeView share their title
+    /// exactly, and the title key once archived the Primer as the PrimeView's
+    /// duplicate. So the title keys are asymmetric: these are the keys a paper
+    /// is found by, and `paperDedupLookupKeys(for:)` the keys it looks for. A
+    /// paper with a DOI is found under `doi:<its DOI>` and `any`, and looks under
+    /// `doi:<its DOI>` and `nodoi`; a paper without one is found under `nodoi`
+    /// and `any`, and looks under `any`. Same DOI, or a DOI on one side only,
+    /// meets; two different DOIs never do. Compare two papers with
+    /// `paperDedupKeysMatch`, never by intersecting these keys with each other.
     nonisolated static func paperDedupDisplayKeys(for article: StudioArticle) -> [String] {
+        paperIdentityKeys(for: article, lookingUp: false)
+    }
+
+    /// The keys a paper looks for among other papers' `paperDedupDisplayKeys`.
+    nonisolated static func paperDedupLookupKeys(for article: StudioArticle) -> [String] {
+        paperIdentityKeys(for: article, lookingUp: true)
+    }
+
+    /// Whether two paper rows are one paper by a deterministic identity key.
+    /// Symmetric: the title keys' asymmetry cancels out across the pair.
+    nonisolated static func paperDedupKeysMatch(_ lhs: StudioArticle, _ rhs: StudioArticle) -> Bool {
+        !Set(paperDedupLookupKeys(for: lhs)).isDisjoint(with: paperDedupDisplayKeys(for: rhs))
+    }
+
+    /// A paper's DOI for identity, from its record or its address, normalized.
+    nonisolated static func paperIdentityDOI(of article: StudioArticle) -> String? {
+        let recorded = article.doi?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let doi = recorded?.isEmpty == false ? recorded : PaperService.extractDOI(from: article.url)
+        return doi.map(normalizeDOI).flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    /// Two papers whose DOIs are both known and differ are two papers, whatever
+    /// their titles say. Title-based matching everywhere asks this first.
+    nonisolated static func paperDOIsContradict(_ lhs: String?, _ rhs: String?) -> Bool {
+        let lhs = lhs?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let rhs = rhs?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !lhs.isEmpty, !rhs.isEmpty else { return false }
+        return normalizeDOI(lhs) != normalizeDOI(rhs)
+    }
+
+    private nonisolated static func paperIdentityKeys(for article: StudioArticle, lookingUp: Bool) -> [String] {
         guard article.sourceType == .paper else { return [] }
         var keys: [String] = []
-        if let doi = article.doi ?? PaperService.extractDOI(from: article.url) {
-            keys.append("doi:\(normalizeDOI(doi))")
+        let doi = paperIdentityDOI(of: article)
+        if let doi {
+            keys.append("doi:\(doi)")
         }
         if let publisherKey = paperPublisherIdentityKey(for: article.url) {
             keys.append(publisherKey)
@@ -2053,14 +2099,23 @@ extension StudioViewModel {
         let normalizedTitle = normalizedPaperTitle(article.title)
         if !normalizedTitle.isEmpty,
            !titleNeedsResolution(article.title, domain: article.domain, url: article.url) {
+            let versions: [String]
             switch paperVersionKind(of: article) {
-            case .preprint:
-                keys.append("title:\(normalizedTitle)#preprint")
-            case .journal:
-                keys.append("title:\(normalizedTitle)#journal")
-            case .unknown:
-                keys.append("title:\(normalizedTitle)#preprint")
-                keys.append("title:\(normalizedTitle)#journal")
+            case .preprint: versions = ["preprint"]
+            case .journal: versions = ["journal"]
+            case .unknown: versions = ["preprint", "journal"]
+            }
+            let doiTags: [String]
+            switch (doi, lookingUp) {
+            case (let doi?, false): doiTags = ["doi:\(doi)", "any"]
+            case (let doi?, true): doiTags = ["doi:\(doi)", "nodoi"]
+            case (nil, false): doiTags = ["nodoi", "any"]
+            case (nil, true): doiTags = ["any"]
+            }
+            for version in versions {
+                for doiTag in doiTags {
+                    keys.append("title:\(normalizedTitle)#\(version)#\(doiTag)")
+                }
             }
         }
         return keys

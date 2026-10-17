@@ -92,7 +92,7 @@ struct SidebarDerivedStateCacheTests {
         let withPDFItems = base.filter { hasUsablePDF($0) && !superseded.contains($0.id) }
         let missingItems = base.filter { paper in
             guard !hasUsablePDF(paper), !superseded.contains(paper.id) else { return false }
-            return keysWithPDF.isDisjoint(with: StudioViewModel.paperDedupDisplayKeys(for: paper))
+            return keysWithPDF.isDisjoint(with: StudioViewModel.paperDedupLookupKeys(for: paper))
         }
         let processingIDs = vm.processingPaperIDs
         let missingIDs = Set(missingItems.map(\.id))

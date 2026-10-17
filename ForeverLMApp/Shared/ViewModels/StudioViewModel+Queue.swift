@@ -58,10 +58,12 @@ extension StudioViewModel {
     }
 
     nonisolated static func makeMergeExistingSnapshot(from articles: [StudioArticle]) -> MergeExistingSnapshot {
-        let paperTitles = articles
-            .filter { $0.sourceType == .paper }
-            .map { normalizedPaperTitle($0.title) }
-            .filter { !$0.isEmpty }
+        var paperTitleDOIs: [String: [String?]] = [:]
+        for paper in articles where paper.sourceType == .paper {
+            let title = normalizedPaperTitle(paper.title)
+            guard !title.isEmpty else { continue }
+            paperTitleDOIs[title, default: []].append(paperIdentityDOI(of: paper))
+        }
         return MergeExistingSnapshot(
             urls: Set(articles.map { article in
                 article.url.hasPrefix("/") ? article.url : SourceDiscovery.normalizedURL(article.url)
@@ -69,7 +71,7 @@ extension StudioViewModel {
             relativeURLs: Set(articles.map { StorageService.relativeSourcePath($0.url) }),
             localPaths: Set(articles.compactMap(\.localFilePath)),
             podcastWebURLs: Set(articles.compactMap(\.podcastWebPageURL)),
-            paperTitles: Set(paperTitles),
+            paperTitleDOIs: paperTitleDOIs,
             localPaperFilenames: Set(
                 articles
                     .filter { $0.sourceType == .paper && $0.url.hasPrefix("/") && $0.isPDF }
@@ -99,6 +101,7 @@ extension StudioViewModel {
                 sourceType: article.sourceType.rawValue,
                 title: article.title,
                 normalizedPaperTitle: normalizedPaperTitle,
+                paperDOI: article.sourceType == .paper ? paperIdentityDOI(of: article) : nil,
                 localFilePath: article.localFilePath,
                 podcastWebPageURL: article.podcastWebPageURL,
                 normalizedPaperFilename: normalizedPaperFilename,
@@ -131,7 +134,13 @@ extension StudioViewModel {
                 }
                 if let filename = item.normalizedPaperFilename, existing.localPaperFilenames.contains(filename) { continue }
                 let normalizedTitle = item.normalizedPaperTitle
-                if !normalizedTitle.isEmpty && existing.paperTitles.contains(normalizedTitle) { continue }
+                // A held title skips the item unless every paper holding it
+                // has a DOI the item's contradicts (a Primer and its PrimeView).
+                if !normalizedTitle.isEmpty,
+                   let heldDOIs = existing.paperTitleDOIs[normalizedTitle],
+                   heldDOIs.contains(where: { !paperDOIsContradict($0, item.paperDOI) }) {
+                    continue
+                }
             }
 
             if item.sourceType == StudioSourceType.podcast.rawValue {
