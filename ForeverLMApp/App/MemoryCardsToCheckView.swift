@@ -422,7 +422,8 @@ struct MemoryCardsToCheckView: View {
                         openSource(id)
                     } label: {
                         HStack(spacing: 10) {
-                            sourceThumbnail(vm.articlesById[vm.canonicalSourceID(id)])
+                            sourceThumbnail(vm.articlesById[vm.canonicalSourceID(id)], size: 38)
+                                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
                                 .opacity(isKept ? 1 : 0.45)
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(sourceTitle(id))
@@ -431,16 +432,23 @@ struct MemoryCardsToCheckView: View {
                                     .lineLimit(2)
                                     .multilineTextAlignment(.leading)
                                     .strikethrough(!isKept)
-                                if isOwn || !isKept {
-                                    Text(isOwn ? "The card's own source" : "Taken off this card")
+                                if let detail = sourceDetail(id) {
+                                    Text(detail)
                                         .font(.system(size: 11))
                                         .foregroundStyle(.tertiary)
+                                        .lineLimit(1)
+                                        .truncationMode(.tail)
+                                }
+                                if isOwn || !isKept {
+                                    Text(isOwn ? "The card's own source" : "Taken off this card")
+                                        .font(.system(size: 11, weight: .medium))
+                                        .foregroundStyle(.secondary)
                                 }
                             }
                             Spacer(minLength: 0)
                         }
                         .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
+                        .padding(.vertical, 7)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.hoverWash(cornerRadius: 8, inset: 0))
@@ -465,7 +473,7 @@ struct MemoryCardsToCheckView: View {
             }
         }
         .padding(6)
-        .frame(width: 340)
+        .frame(width: 380)
         .accessibilityIdentifier("memory.pane.toCheck.sources")
     }
 
@@ -542,18 +550,18 @@ struct MemoryCardsToCheckView: View {
     /// The source's picture as every source list draws it: its cover, first
     /// page or artwork, else its kind's symbol; a book chapter the book's.
     @ViewBuilder
-    private func sourceThumbnail(_ article: StudioArticle?) -> some View {
+    private func sourceThumbnail(_ article: StudioArticle?, size: CGFloat = 24) -> some View {
         if let article {
             let bookCoverPath = article.sourceType == .book
                 ? article.parentGroup.flatMap { vm.bookCoverPaths[$0] }
                 : nil
-            SourceThumbnail(source: article, size: 24, bookCoverPath: bookCoverPath)
+            SourceThumbnail(source: article, size: size, bookCoverPath: bookCoverPath)
                 .accessibilityHidden(true)
         } else {
             Image(systemName: "doc.text")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
-                .frame(width: 24, height: 24)
+                .frame(width: size, height: size)
                 .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(.quaternary))
                 .accessibilityHidden(true)
         }
@@ -1018,6 +1026,28 @@ struct MemoryCardsToCheckView: View {
             frontImages: card.face.frontImages.map(\.markdown),
             backImages: card.face.backImages.map(\.markdown)
         )
+    }
+
+    /// A line under a source's title: a paper's authors, venue and year, else
+    /// the group it sits in or its site.
+    private func sourceDetail(_ sourceID: String) -> String? {
+        guard let article = vm.articlesById[vm.canonicalSourceID(sourceID)] else { return nil }
+        var parts: [String] = []
+        if article.sourceType == .paper {
+            parts = article.paperMetadataDisplayParts.filter {
+                $0 != StudioArticle.unknownPaperAuthor
+                    && $0 != StudioArticle.unknownPaperJournal
+                    && $0 != StudioArticle.unknownPaperYear
+            }
+        }
+        if parts.isEmpty {
+            if let context = vm.sourceGroupTitle(for: article), !context.isEmpty {
+                parts.append(context)
+            } else if let domain = article.displayDomain {
+                parts.append(domain)
+            }
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     private func sourceTitle(_ sourceID: String) -> String {
