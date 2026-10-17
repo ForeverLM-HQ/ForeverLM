@@ -2330,6 +2330,25 @@ private enum MCPSetupAssistant: String, CaseIterable, Identifiable {
     }
 }
 
+/// The purple "Open Billing" label. `.borderedProminent` paints no hover, and a
+/// `.hoverWash` grey sits behind a filled label, so the fill darkens itself.
+private struct MCPOpenBillingLabel: View {
+    @State private var isHovering = false
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 6, style: .continuous)
+        Text("Open Billing")
+            .foregroundStyle(Color.white)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 4)
+            .background(shape.fill(Color.purple))
+            .overlay(shape.fill(Color.black.opacity(isHovering ? 0.18 : 0)))
+            .contentShape(shape)
+            .onHover { isHovering = $0 }
+            .animation(.easeOut(duration: 0.12), value: isHovering)
+    }
+}
+
 /// Prompt-first setup for connecting external AI clients to the hosted relay.
 struct MCPSettingsDetailView: View {
     private static let publicMCPURL = "https://plugin.foreverlm.com/mcp"
@@ -2419,10 +2438,11 @@ struct MCPSettingsDetailView: View {
                             Text(EarlyUserDealOffer.lockedTitle)
                                 .font(.title3.weight(.semibold))
                             Spacer()
-                            Button("Open Billing") { onOpenBilling() }
-                                .buttonStyle(.borderedProminent)
-                                .tint(.purple)
-                                .accessibilityIdentifier("settings.mcp.openBilling")
+                            Button(action: onOpenBilling) {
+                                MCPOpenBillingLabel()
+                            }
+                            .buttonStyle(.hoverWash(in: RoundedRectangle(cornerRadius: 6, style: .continuous), inset: 0, opacity: 0))
+                            .accessibilityIdentifier("settings.mcp.openBilling")
                         }
                         .padding(6)
                     }
