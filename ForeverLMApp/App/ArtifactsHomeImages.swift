@@ -152,6 +152,8 @@ struct GeneratedImageSheet: View {
     @State private var savedTitle: String?
     @State private var titleDraft: String
     @FocusState private var titleFocused: Bool
+    @State private var didCopyImage = false
+    @State private var didCopyPrompt = false
 
     init(group: GeneratedImageStore.ImageGroup, onTrash: @escaping () -> Void) {
         self.group = group
@@ -169,22 +171,26 @@ struct GeneratedImageSheet: View {
     var body: some View {
         let listing = selected
         VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 3) {
-                TextField(GeneratedImageActions.untitled, text: $titleDraft)
-                    .textFieldStyle(.plain)
-                    .zoomedSystemFont(size: 17, weight: .semibold)
-                    .focused($titleFocused)
-                    .onSubmit { commitTitle() }
-                    .onChange(of: titleFocused) { _, focused in
-                        if !focused { commitTitle() }
-                    }
-                    .help("Rename the image")
-                    .accessibilityLabel("Title")
-                    .accessibilityIdentifier("studio.artifacts.image.title")
-                Text(caption(for: listing))
-                    .zoomedSystemFont(size: 12)
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
+            HStack(alignment: .top, spacing: 10) {
+                VStack(alignment: .leading, spacing: 3) {
+                    TextField(GeneratedImageActions.untitled, text: $titleDraft)
+                        .textFieldStyle(.plain)
+                        .zoomedSystemFont(size: 17, weight: .semibold)
+                        .focused($titleFocused)
+                        .onSubmit { commitTitle() }
+                        .onChange(of: titleFocused) { _, focused in
+                            if !focused { commitTitle() }
+                        }
+                        .help("Rename the image")
+                        .accessibilityLabel("Title")
+                        .accessibilityIdentifier("studio.artifacts.image.title")
+                    Text(caption(for: listing))
+                        .zoomedSystemFont(size: 12)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+                Spacer(minLength: 8)
+                headerActions(for: listing)
             }
 
             Group {
@@ -206,38 +212,8 @@ struct GeneratedImageSheet: View {
             }
 
             if let prompt = listing.details?.text, !prompt.isEmpty {
-                ScrollView {
-                    Text(prompt)
-                        .zoomedSystemFont(size: 12)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .frame(maxHeight: 110)
+                promptCard(prompt, for: listing)
             }
-
-            HStack(spacing: 8) {
-                Spacer(minLength: 8)
-                if versions.count > 1 {
-                    Menu("Move to Trash") {
-                        Button("This Version (v\(listing.version))", role: .destructive) { trashSelectedVersion() }
-                        Button("All \(versions.count) Versions", role: .destructive, action: onTrash)
-                    }
-                    .fixedSize()
-                } else {
-                    Button("Move to Trash", role: .destructive, action: onTrash)
-                }
-                Button("Show in Finder") { GeneratedImageActions.showInFinder(listing) }
-                if listing.details?.text.isEmpty == false {
-                    Button("Copy Prompt") { GeneratedImageActions.copyPrompt(listing) }
-                }
-                Button("Copy Image") { GeneratedImageActions.copyImage(listing) }
-                Button("Done") {
-                    commitTitle()
-                    dismiss()
-                }
-                .keyboardShortcut(.defaultAction)
-            }
-            .controlSize(.regular)
         }
         .padding(20)
         .frame(minWidth: 640, idealWidth: 740)
@@ -249,6 +225,102 @@ struct GeneratedImageSheet: View {
         // title field's and landed on every button of the sheet.
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("studio.artifacts.image.\(group.imageID)")
+    }
+
+    /// Copy Image is the one action that stays in view; the rest wait in the
+    /// ⋯ menu and the × leaves (quiet chrome: a head holds its primary action,
+    /// a ⋯ and the close).
+    private func headerActions(for listing: GeneratedImageStore.Listing) -> some View {
+        HStack(spacing: 6) {
+            SpaceDarkPillButton(
+                title: didCopyImage ? "Copied" : "Copy Image",
+                systemImage: didCopyImage ? "checkmark" : "doc.on.doc",
+                image: nil
+            ) {
+                GeneratedImageActions.copyImage(listing)
+                flash($didCopyImage)
+            }
+            .accessibilityIdentifier("studio.artifacts.image.copy")
+            Menu {
+                Button("Show in Finder") { GeneratedImageActions.showInFinder(listing) }
+                Divider()
+                if versions.count > 1 {
+                    Menu("Move to Trash") {
+                        Button("This Version (v\(listing.version))", role: .destructive) { trashSelectedVersion() }
+                        Button("All \(versions.count) Versions", role: .destructive, action: onTrash)
+                    }
+                } else {
+                    Button("Move to Trash", role: .destructive, action: onTrash)
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 28, height: 28)
+                    .hoverHighlight(cornerRadius: 8, inset: 0)
+            }
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("Show in Finder or move to Trash")
+            .accessibilityLabel("More")
+            .accessibilityIdentifier("studio.artifacts.image.more")
+            Button {
+                commitTitle()
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.hoverWash(cornerRadius: 8, inset: 0))
+            .keyboardShortcut(.cancelAction)
+            .help("Close")
+            .accessibilityLabel("Close")
+            .accessibilityIdentifier("studio.artifacts.image.close")
+        }
+    }
+
+    /// The prompt, on a quiet card with its own copy glyph: the action sits on
+    /// the thing it copies.
+    private func promptCard(_ prompt: String, for listing: GeneratedImageStore.Listing) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            ScrollView {
+                Text(prompt)
+                    .zoomedSystemFont(size: 12)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxHeight: 96)
+            Button {
+                GeneratedImageActions.copyPrompt(listing)
+                flash($didCopyPrompt)
+            } label: {
+                Image(systemName: didCopyPrompt ? "checkmark" : "doc.on.doc")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.hoverWash(cornerRadius: 6, inset: 0))
+            .help("Copy the prompt")
+            .accessibilityLabel("Copy Prompt")
+            .accessibilityIdentifier("studio.artifacts.image.copyPrompt")
+        }
+        .padding(.leading, 12)
+        .padding(.trailing, 6)
+        .padding(.vertical, 8)
+        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    /// Shows a copy's check for a moment.
+    private func flash(_ flag: Binding<Bool>) {
+        flag.wrappedValue = true
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            flag.wrappedValue = false
+        }
     }
 
     /// The versions oldest to newest, as small pictures; the selected one is
