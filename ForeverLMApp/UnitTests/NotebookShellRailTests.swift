@@ -241,6 +241,40 @@ struct HomeSidebarTests {
         ])
         #expect(!window.showsHomeSidebar)
     }
+
+    @Test("On the Library the sidebar toggle brings Home's sidebar beside it and folds it again, leaving Home and the Space as they were")
+    func toggleOnPlaceOfItsOwn() {
+        let restore = capturingWindowDefaults()
+        defer { restore() }
+        let window = StudioWindowState()
+        window.navigationRailVisible = true
+        window.centerTabGroups = layout(.library)
+        #expect(window.isOnPlaceOfItsOwn)
+        #expect(!window.sidebarToggleReadsShown(spaceSidebarHidden: false), "nothing beside the Library to fold")
+        #expect(window.setSidebarShownFromToggle(true) == nil, "the Space's sidebar keeps the learner's choice")
+        #expect(window.showsHomeSidebar)
+        #expect(window.sidebarToggleReadsShown(spaceSidebarHidden: false))
+        window.centerTabGroups = layout(.chat)
+        #expect(window.showsHomeSidebar, "Home keeps its sidebar")
+        window.centerTabGroups = layout(.memory)
+        #expect(window.showsHomeSidebar, "asked for once, it stays beside the places of their own")
+        #expect(window.setSidebarShownFromToggle(false) == nil)
+        #expect(!window.showsHomeSidebar)
+        #expect(window.navigationRailVisible, "folding it there leaves Home's sidebar on Home")
+        window.centerTabGroups = layout(.chat)
+        #expect(window.showsHomeSidebar)
+
+        window.navigationRailVisible = false
+        window.centerTabGroups = layout(.library)
+        #expect(window.setSidebarShownFromToggle(true) == nil)
+        #expect(window.navigationRailVisible, "a hidden sidebar comes back when asked for beside the Library")
+        #expect(window.showsHomeSidebar)
+
+        window.centerTabGroups = layout(.artifacts)
+        #expect(!window.isOnPlaceOfItsOwn)
+        #expect(window.setSidebarShownFromToggle(false) == true, "on the Space the toggle folds the Space's sidebar")
+        #expect(!window.navigationRailVisible)
+    }
 }
 
 // MARK: - The Space's tabs

@@ -72,13 +72,18 @@ struct StudioView: View {
     /// sidebar beside the icon strip, Home's and the Space's, and brings both
     /// back; the strip itself always stays. It reads as shown only while both
     /// are. Pressed while Home's sidebar is stepping aside for a memory
-    /// review, it brings it back now (`setNavigationRailShown`).
+    /// review, it brings it back now (`setNavigationRailShown`). On a place
+    /// with no sidebar of its own, the Library's, it brings Home's sidebar in
+    /// beside it (`setSidebarShownFromToggle`).
     private var navigationRailVisibilityBinding: Binding<Bool> {
         Binding(
-            get: { windowState.drawsNavigationRail && !spaceSidebarHiddenByLearner },
+            get: { windowState.sidebarToggleReadsShown(spaceSidebarHidden: spaceSidebarHiddenByLearner) },
             set: { shown in
-                windowState.setNavigationRailShown(shown)
-                withAnimation(.easeInOut(duration: 0.18)) { spaceSidebarHiddenByLearner = !shown }
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    if let spaceHidden = windowState.setSidebarShownFromToggle(shown) {
+                        spaceSidebarHiddenByLearner = spaceHidden
+                    }
+                }
             }
         )
     }
@@ -147,6 +152,7 @@ struct StudioView: View {
                 .studioInsetCard()
             }
             .animation(.easeInOut(duration: 0.22), value: windowState.drawsNavigationRail)
+            .animation(.easeInOut(duration: 0.22), value: windowState.homeSidebarBesidePlace)
             .animation(.easeInOut(duration: 0.22), value: isMemoryReviewFocused)
         }
     }

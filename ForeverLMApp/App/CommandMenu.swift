@@ -274,10 +274,13 @@ struct ShellCommandHost: ViewModifier {
         case .toggleSidebar:
             withAnimation(.easeInOut(duration: 0.22)) {
                 // As the View menu's item and the sidebar toggle: Home's
-                // sidebar and the Space's fold together, never the strip.
-                let shown = !windowState.drawsNavigationRail
-                windowState.setNavigationRailShown(shown)
-                UserDefaults.standard.set(!shown, forKey: "space.sidebarHidden")
+                // sidebar and the Space's fold together, never the strip,
+                // and a place with no sidebar gets Home's beside it.
+                let defaults = UserDefaults.standard
+                let shown = !windowState.sidebarToggleReadsShown(spaceSidebarHidden: defaults.bool(forKey: "space.sidebarHidden"))
+                if let spaceHidden = windowState.setSidebarShownFromToggle(shown) {
+                    defaults.set(spaceHidden, forKey: "space.sidebarHidden")
+                }
             }
         case .back:
             guard windowState.canGoBackInPlaces else { return }
