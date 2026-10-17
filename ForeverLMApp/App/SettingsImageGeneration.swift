@@ -168,6 +168,7 @@ struct ImageGenerationSettingsDetailView: View {
                         }
                         .toggleStyle(.switch)
                     }
+                    .settingsFocusRow(.imagesQuizPictures)
                 }
                 // Generation 1 has no cover to write, so it neither shows nor
                 // syncs the switch (schema v2 D40, D53).
@@ -186,6 +187,7 @@ struct ImageGenerationSettingsDetailView: View {
                             }
                             .toggleStyle(.switch)
                         }
+                        .settingsFocusRow(.imagesNotebookCovers)
                     }
                 }
             }
@@ -193,6 +195,7 @@ struct ImageGenerationSettingsDetailView: View {
             .frame(maxWidth: 900, alignment: .leading)
         }
         .background(Color(nsColor: .windowBackgroundColor))
+        .settingsFocusHost(pane: .aiImages)
         .navigationTitle("Images")
         .task { await load() }
         .task { await loadPromotions() }

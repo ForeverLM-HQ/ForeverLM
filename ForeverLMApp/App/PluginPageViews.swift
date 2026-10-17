@@ -1391,6 +1391,7 @@ private struct PluginSetupDetailView<Content: View>: View {
             .spacePlaceColumn()
         }
         .background(Color(nsColor: .windowBackgroundColor))
+        .settingsFocusHost(pane: nil)
     }
 }
 
@@ -1618,6 +1619,7 @@ private struct GoogleDriveConnectionSettingsView: View {
                             .toggleStyle(.switch)
                     }
                 }
+                .settingsFocusRow(.driveTranscribeRecordings)
             }
 
             notice
@@ -2461,6 +2463,7 @@ private struct YouTubeConnectionSettingsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+                    .settingsFocusRow(.youTubeFormatTranscripts)
                 }
                 Divider()
                 followedChannelsSection

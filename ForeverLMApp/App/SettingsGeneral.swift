@@ -249,6 +249,7 @@ struct GeneralSettingsDetailView: View {
                                 .toggleStyle(.switch)
                                 .accessibilityIdentifier("settings.memory.autoDraftCards")
                         }
+                        .settingsFocusRow(.memoryDraftCards)
 
                         rowDivider
 
@@ -271,6 +272,7 @@ struct GeneralSettingsDetailView: View {
                                 .toggleStyle(.switch)
                                 .accessibilityIdentifier("settings.memory.prepareReviewQuestions")
                         }
+                        .settingsFocusRow(.memoryPrepareReviewQuestions)
 
                         rowDivider
 
@@ -347,6 +349,7 @@ struct GeneralSettingsDetailView: View {
             .frame(maxWidth: 760, alignment: .leading)
         }
         .background(Color(nsColor: .windowBackgroundColor))
+        .settingsFocusHost(pane: .general)
         .navigationTitle("General")
         .task { await refreshNotificationPermission() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
@@ -515,6 +518,150 @@ struct SettingsRow<Control: View>: View {
             Spacer(minLength: 16)
             control
         }
+    }
+}
+
+/// One setting a learner can be sent to by name, from outside Settings (AI
+/// Usage › Activity's Turn off…). The pane scrolls to the row and washes it.
+enum SettingsRowID: String {
+    case memoryDraftCards
+    case memoryPrepareReviewQuestions
+    case imagesQuizPictures
+    case imagesNotebookCovers
+    case driveTranscribeRecordings
+    case youTubeFormatTranscripts
+
+    /// The Settings pane the row is in; nil for a row on a plugin's page.
+    var pane: SettingsPane? {
+        switch self {
+        case .memoryDraftCards, .memoryPrepareReviewQuestions: .general
+        case .imagesQuizPictures, .imagesNotebookCovers: .aiImages
+        case .driveTranscribeRecordings, .youTubeFormatTranscripts: nil
+        }
+    }
+
+    /// The plugin page the row is on; nil for a row in Settings.
+    var pluginPage: PluginPage? {
+        switch self {
+        case .driveTranscribeRecordings: .googleDrive
+        case .youTubeFormatTranscripts: .youtube
+        default: nil
+        }
+    }
+
+    /// Opens the place that holds the row. The row is staged first so the
+    /// page takes it as it appears.
+    @MainActor
+    func open(settings openSettings: (SettingsPane) -> Void) {
+        let staged = SettingsFocusRequest.stage(self)
+        if let page = pluginPage {
+            PluginsPlace.requestOpen(page)
+        } else if let pane = staged {
+            openSettings(pane)
+        }
+    }
+}
+
+/// Leaves a row for its pane to take when it appears, the way
+/// `ModelPickerSheetRequest` leaves a model slot.
+enum SettingsFocusRequest {
+    static let didRequest = Notification.Name("ForeverLM.settingsRowFocusRequested")
+    @MainActor private static var pending: SettingsRowID?
+
+    /// Stages `row` and names its pane, for a caller that navigates there
+    /// itself. An already open pane does not appear again, so it hears the
+    /// notification too.
+    @MainActor
+    @discardableResult
+    static func stage(_ row: SettingsRowID) -> SettingsPane? {
+        pending = row
+        Task { @MainActor in NotificationCenter.default.post(name: didRequest, object: nil) }
+        return row.pane
+    }
+
+    /// The pending row, if it belongs to `pane`. The pane being left hears
+    /// the request too, and must leave it for the one opening.
+    @MainActor
+    static func take(for pane: SettingsPane?) -> SettingsRowID? {
+        guard let row = pending, row.pane == pane else { return nil }
+        pending = nil
+        return row
+    }
+}
+
+private struct SettingsHighlightedRowKey: EnvironmentKey {
+    static let defaultValue: SettingsRowID? = nil
+}
+
+extension EnvironmentValues {
+    fileprivate var settingsHighlightedRow: SettingsRowID? {
+        get { self[SettingsHighlightedRowKey.self] }
+        set { self[SettingsHighlightedRowKey.self] = newValue }
+    }
+}
+
+extension View {
+    /// Wraps a pane's content so a staged `SettingsRowID` scrolls into the
+    /// middle of the pane and holds a highlight for a few seconds. A nil pane
+    /// is a plugin's page.
+    func settingsFocusHost(pane: SettingsPane?) -> some View {
+        modifier(SettingsFocusHost(pane: pane))
+    }
+
+    /// Marks the row `id` names, so the pane can scroll to it and wash it.
+    func settingsFocusRow(_ id: SettingsRowID) -> some View {
+        modifier(SettingsFocusRow(id: id))
+    }
+}
+
+private struct SettingsFocusHost: ViewModifier {
+    let pane: SettingsPane?
+    @State private var highlighted: SettingsRowID?
+    @State private var clearTask: Task<Void, Never>?
+
+    func body(content: Content) -> some View {
+        ScrollViewReader { proxy in
+            content
+                .environment(\.settingsHighlightedRow, highlighted)
+                .onAppear { focus(proxy) }
+                .onReceive(NotificationCenter.default.publisher(for: SettingsFocusRequest.didRequest)) { _ in
+                    focus(proxy)
+                }
+                .onDisappear { clearTask?.cancel() }
+        }
+    }
+
+    private func focus(_ proxy: ScrollViewProxy) {
+        guard let row = SettingsFocusRequest.take(for: pane) else { return }
+        clearTask?.cancel()
+        clearTask = Task { @MainActor in
+            // The pane's rows load in after it appears; scroll once they exist.
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeInOut(duration: 0.35)) {
+                proxy.scrollTo(row, anchor: .center)
+            }
+            highlighted = row
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.6)) { highlighted = nil }
+        }
+    }
+}
+
+private struct SettingsFocusRow: ViewModifier {
+    let id: SettingsRowID
+    @Environment(\.settingsHighlightedRow) private var highlighted
+
+    func body(content: Content) -> some View {
+        content
+            .padding(8)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.accentColor.opacity(highlighted == id ? 0.14 : 0))
+            )
+            .padding(-8)
+            .id(id)
     }
 }
 

@@ -508,17 +508,14 @@ struct AIActivitySettingsSection: View {
             if let task = summary.task {
                 switch AIUsageTaskNeed.of(taskKey: task) {
                 case .needed:
-                    Text("Needed")
+                    Text("Essential")
                         .font(.caption)
                         .foregroundStyle(.tertiary)
-                        .help("ForeverLM needs this to import and find what you add, so it has no switch.")
+                        .help("This is functionality that is essential for ForeverLM to work, so it cannot be turned off.")
                 case .optional:
                     if let control = Self.offSwitch(for: task) {
                         Button("Turn off…") {
-                            switch control.place {
-                            case .settings(let pane): onOpenSettings(pane)
-                            case .plugin(let page): PluginsPlace.requestOpen(page)
-                            }
+                            control.row.open(settings: onOpenSettings)
                         }
                             .buttonStyle(.link)
                             .font(.caption)
@@ -608,31 +605,25 @@ struct AIActivitySettingsSection: View {
         }
     }
 
-    /// Where an off switch lives: a Settings pane, or a plugin's page in the
-    /// Plugins place, which Settings closes for.
-    private enum OffSwitchPlace {
-        case settings(SettingsPane)
-        case plugin(PluginPage)
-    }
-
     /// Where the learner turns off the background work behind an activity,
     /// for the tasks that have a switch. A task without one shows no link: a
     /// link that only opens a pane would not turn anything off. Adding a
-    /// switch for another task is one more case here.
-    private static func offSwitch(for task: String?) -> (place: OffSwitchPlace, help: String)? {
+    /// switch for another task is one more case here. The row opens in its
+    /// Settings pane or plugin page, scrolled to and highlighted.
+    private static func offSwitch(for task: String?) -> (row: SettingsRowID, help: String)? {
         switch task {
         case "card_drafting":
-            return (.settings(.general), "Settings › General › Memory › Draft cards from what you finish")
+            return (.memoryDraftCards, "Settings › General › Memory › Draft cards from what you finish")
         case "realtime_review_preparation":
-            return (.settings(.general), "Settings › General › Memory review › Prepare review questions ahead of time")
+            return (.memoryPrepareReviewQuestions, "Settings › General › Memory › Prepare review questions ahead of time")
         case "meeting_transcription":
-            return (.plugin(.googleDrive), "Plugins › Google Drive › Transcribe recordings Google didn't")
+            return (.driveTranscribeRecordings, "Plugins › Google Drive › Transcribe recordings Google didn't")
         case "notebook_cover":
-            return (.settings(.aiImages), "Settings › Images › Notebooks › Draw notebook covers")
+            return (.imagesNotebookCovers, "Settings › Images › Notebooks › Draw notebook covers")
         case "course_quiz_picture", "course_quiz_icon":
-            return (.settings(.aiImages), "Settings › Images › Course quizzes › Draw pictures for new quizzes")
+            return (.imagesQuizPictures, "Settings › Images › Course quizzes › Draw pictures for new quizzes")
         case "transcript_formatting":
-            return (.plugin(.youtube), "Plugins › YouTube › Format new transcripts automatically")
+            return (.youTubeFormatTranscripts, "Plugins › YouTube › Format new transcripts automatically")
         default:
             return nil
         }
