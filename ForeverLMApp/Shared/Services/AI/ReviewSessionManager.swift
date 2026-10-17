@@ -6363,7 +6363,7 @@ final class ReviewSessionManager {
         "search_sources_semantic", "search_sources_keyword", "filter_sources",
         "list_shows", "get_source_content", "list_sources",
         "get_notebook_context", "add_notebook_sources", "list_notebook_sources",
-        "list_notebooks", "get_notebook", "create_notebook", "open_in_app",
+        "list_notebooks", "get_notebook", "create_notebook", "update_notebook", "open_in_app",
         "list_docs", "read_doc", "create_doc", "edit_doc", "write_doc",
         "import_paper_from_url",
         "list_goals", "get_schedule", "get_today_sources",

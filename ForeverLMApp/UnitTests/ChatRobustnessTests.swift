@@ -5783,6 +5783,11 @@ struct ChatToolSurfaceTests {
             .intersection(ReviewSessionManager.chatExcludedToolNames)
         #expect(overlap.isEmpty, "\(overlap.sorted())")
     }
+
+    @Test("A notebook chat carries update_notebook, so renaming one needs no load step")
+    func updateNotebookTravelsWithTheCoreTools() {
+        #expect(ReviewSessionManager.coreAppToolNames.contains("update_notebook"))
+    }
 }
 
 // MARK: - Working indicator label
