@@ -3923,6 +3923,57 @@ struct MCPDataStoreTests {
         #expect(given.contains("Seeds: 2."))
     }
 
+    @Test("A Notebook made from a chat takes in the Pages the chat wrote")
+    func notebookFromChatFilesTheChatsPages() async throws {
+        let (_, tmpPath) = try makeStore()
+        defer { cleanup(tmpPath) }
+        let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
+        let store = MCPDataStore(dbPath: dbPath)
+        let ks = try store.knowledgeStore()
+        let pages = store.notebookFileStorage
+
+        let elsewhere = try #require(createdNotebookID(in: try await store.createNotebook(
+            title: "Elsewhere", description: nil, topic: nil, endDateString: "",
+            sourceIDs: [], dailyTarget: nil, discover: false
+        )))
+        let loose = try await pages.createArtifact(title: "Delivery comparison", homeNotebookID: nil, linkedNotebookIDs: []).artifact
+        let homed = try await pages.createArtifact(title: "Homed page", homeNotebookID: elsewhere, linkedNotebookIDs: []).artifact
+        let unrelated = try await pages.createArtifact(title: "Not this chat's", homeNotebookID: nil, linkedNotebookIDs: []).artifact
+        let thisTurn = try await pages.createArtifact(title: "Written this turn", homeNotebookID: nil, linkedNotebookIDs: []).artifact
+
+        // The chat's replies carry the Pages it wrote as card lines; a Page
+        // linked in prose is not one it wrote.
+        try ks.createReviewSession(id: "chat-host", topic: "Delivery", sourceIDs: [])
+        for page in [loose, homed] {
+            _ = try ks.addReviewExchange(
+                sessionID: "chat-host", question: "", answer: "Write it up",
+                evaluation: ChatWrittenPage.storing("Done. See also [this](foreverlm://doc/\(unrelated.id)).",
+                                                    with: [ChatWrittenPage(id: page.id, title: page.title)]),
+                score: nil, knowledgeNote: nil, sourceRefs: []
+            )
+        }
+
+        let result = try await store.createNotebook(
+            title: "In vivo delivery", description: nil, topic: nil, endDateString: "",
+            sourceIDs: [], dailyTarget: nil, discover: false, hostSessionID: "chat-host"
+        )
+        let notebookID = try #require(createdNotebookID(in: result))
+        #expect(result.contains("Pages this chat wrote, now in it: ‘Delivery comparison’, ‘Homed page’."))
+
+        #expect(try ks.loadArtifact(loose.id)?.homeNotebookID == notebookID)
+        let homedAfter = try #require(try ks.loadArtifact(homed.id))
+        #expect(homedAfter.homeNotebookID == elsewhere)
+        #expect(homedAfter.linkedNotebookIDs.contains(notebookID))
+        #expect(try ks.loadArtifact(unrelated.id)?.homeNotebookID == nil)
+
+        // The running turn's Pages, not stored yet, are filed when named; a
+        // second filing moves nothing.
+        let filed = try await pages.fileChatPages(sessionID: "chat-host", pageIDs: [thisTurn.id], inNotebook: notebookID)
+        #expect(filed.map(\.id) == [thisTurn.id])
+        #expect(try ks.loadArtifact(thisTurn.id)?.homeNotebookID == notebookID)
+        #expect(try await pages.fileChatPages(sessionID: "chat-host", pageIDs: [thisTurn.id], inNotebook: notebookID).isEmpty)
+    }
+
     @Test("searchSourcesSemantic filters a relative-date meeting lookup deterministically")
     func searchSourcesSemanticFiltersMeetingDateWithoutEmbeddingGuesswork() async throws {
         let (_, tmpPath) = try makeStore()

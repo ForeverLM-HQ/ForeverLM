@@ -718,6 +718,43 @@ extension StorageService {
         return artifact
     }
 
+    /// Files the Pages a chat wrote (`ChatWrittenPage`) in the Notebook the
+    /// chat was just made into, so "turn this chat into a notebook" brings its
+    /// Pages along as well as its sources. Asked to, a free model wrote a Page
+    /// and left it, and the chat, in no Notebook (product owner, 2026-10-17:
+    /// "turn a chat into a notebook with associated content").
+    ///
+    /// The Pages are the ones the chat's stored replies carry as cards, plus
+    /// `pageIDs`: those the running turn wrote, whose reply is not stored
+    /// yet. A Page with no home takes the Notebook as its home; one homed in
+    /// another Notebook is linked to this one too. A Page already in it, gone,
+    /// archived, not an ordinary Markdown Page, or in another library than
+    /// the Notebook is left as it is. Returns the Pages filed.
+    @discardableResult
+    func fileChatPages(sessionID: String, pageIDs: [String] = [], inNotebook notebookID: String) throws -> [ArtifactRecord] {
+        let store = try notebookFilesKnowledgeStore()
+        guard let notebook = try store.loadLearningGoal(notebookID), notebook.isNotebook else { return [] }
+        let stored = try store.loadReviewSessionExchanges(sessionID: sessionID)
+            .flatMap { ChatWrittenPage.split($0.evaluation ?? "") }
+            .compactMap { part -> String? in
+                if case .page(let page) = part { return page.id }
+                return nil
+            }
+        var seen = Set<String>()
+        var filed: [ArtifactRecord] = []
+        for id in stored + pageIDs where seen.insert(id).inserted {
+            guard let page = try store.loadArtifact(id),
+                  page.kind == nil, page.linkedURL == nil, page.archivedAt == nil,
+                  page.teamID == notebook.teamID,
+                  page.homeNotebookID != notebookID,
+                  !page.linkedNotebookIDs.contains(notebookID) else { continue }
+            filed.append(page.homeNotebookID == nil
+                ? try updateArtifact(artifactID: id, title: nil, homeNotebookID: notebookID, linkedNotebookIDs: nil)
+                : try updateArtifact(artifactID: id, title: nil, homeNotebookID: nil, linkedNotebookIDs: page.linkedNotebookIDs + [notebookID]))
+        }
+        return filed
+    }
+
     /// Hides a doc or site from the Docs and Sites lists on every Mac signed
     /// into this account, or shows it again. This is not `updateArtifact`: the
     /// record does not change — `updatedAt` stays, the Artifact is not

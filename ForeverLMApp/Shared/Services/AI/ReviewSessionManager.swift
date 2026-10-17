@@ -11521,6 +11521,17 @@ final class ReviewSessionManager {
         guard let sessionID,
               let notebookID = try? await storage.loadReviewSessionGoalID(sessionID: sessionID),
               notebookID != notebookSourceScopeID else { return }
+        // `create_notebook` filed the Pages the chat's stored replies carry;
+        // those this turn wrote before it wait for the reply, so they are
+        // filed here. Missing one leaves a Page in no Notebook, as before.
+        let turnPageIDs = stagedWrittenPages.map(\.id)
+        if !turnPageIDs.isEmpty {
+            do {
+                try await storage.fileChatPages(sessionID: sessionID, pageIDs: turnPageIDs, inNotebook: notebookID)
+            } catch {
+                logger.error("Filing this turn's Pages in the Notebook it made failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
         setNotebookScope(notebookID)
         await notebookWithThisChatOpener?(notebookID, sessionID)
     }

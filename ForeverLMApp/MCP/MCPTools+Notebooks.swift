@@ -187,12 +187,22 @@ extension MCPDataStore {
         // JUST open that notebook and move the chat to there").
         if let hostChatID {
             try store.updateReviewSessionGoal(sessionID: hostChatID, goalID: goal.id)
+            // The Pages the chat wrote come along too. The Notebook and the
+            // chat's move are already made, so a Page that cannot be filed is
+            // reported, never a failed call.
+            let pagesLine: String
+            do {
+                let pages = try await notebookFileStorage.fileChatPages(sessionID: hostChatID, inNotebook: goal.id)
+                pagesLine = pages.isEmpty ? "" : " Pages this chat wrote, now in it: \(pages.map { "‘\($0.title)’" }.joined(separator: ", "))."
+            } catch {
+                pagesLine = " The Pages this chat wrote could not be filed in it: \(error.localizedDescription)."
+            }
             let fromChat = chatSeeds.isEmpty ? "" : ", \(chatSeeds.count) of them the sources this chat discussed"
             let suggestionLine = discoveredCount > 0
                 ? " \(discoveredCount) more source\(discoveredCount == 1 ? "" : "s") from the library that fit wait in its Sources as suggestions for the learner to keep or drop there."
                 : ""
             return """
-            Created Notebook ‘\(trimmedTitle)’, filed this chat in it, and the window now shows the Notebook with this chat in it. Seeds: \(seeds.count)\(fromChat).\(suggestionLine)\(discoveryNote)
+            Created Notebook ‘\(trimmedTitle)’, filed this chat in it, and the window now shows the Notebook with this chat in it. Seeds: \(seeds.count)\(fromChat).\(pagesLine)\(suggestionLine)\(discoveryNote)
             notebook_id: \(goal.id)
             Tell the learner in one short sentence that the Notebook is open, by its title, and carry on with what they asked. Do not list its sources or the suggestions, print the Notebook's id, or name a tool. The notebook_id is for later calls only.
             """

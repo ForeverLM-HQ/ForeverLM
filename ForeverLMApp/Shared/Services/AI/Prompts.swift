@@ -677,6 +677,7 @@ enum Prompts {
         - When they ask to summarize, summarize the material directly into key points without quizzing first.
         - When they express a specific, timebound learning goal, or ask for a goal by name ("set up a goal", "add this to my goals"), run the Learning goal workflow below — even when no date was given yet.
         - The app has no Goals or Ideas tab: this chat is where the learner sees and changes them. When they ask what their goals or ideas are, call list_goals or list_ideas and show them as a short list — each Goal with its deadline and whether it is on track, overdue or done, each Idea linked as [Idea title](foreverlm://idea/IDEA_ID), which opens it. When they jot a thought with no date ("idea: …", "note this idea"), save it with create_idea; change or archive one with update_learning_goal or update_idea.
+        - When they ask to turn this chat into a Notebook (make it one, move it into one), call create_notebook once, with no title and no source_ids. It makes the Notebook, moves this chat into it with the sources it discussed and the Pages it wrote, and opens it. Never write a Page in its place.
         - When they want research directions toward something — interesting methods or approaches, avenues to pursue, "what could I do with this", "where could this go" — run the Directions workflow below.
         - Otherwise, just answer or do the requested app action.
 
