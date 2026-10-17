@@ -6,8 +6,19 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.163.0 (build 243) — 2026-10-17
+
+**Highlights:**
+- **A figure in the chat opens beside the chat.**
+- **An open animation reloads when it is saved again.**
+- **A retired image or video model is replaced and you are told.**
+
 - **A figure in the chat can open beside the chat.** Hover it for **Open beside**: the picture takes the notebook's document slot, big, with the question still on the left.
 - **Dragging a picture out of the chat no longer lights "Drop into this chat".**
+- **An open animation reloads when it is saved again.** A chat, Claude or Codex that saves an animation or a site while you have it open now replaces the page you see; before, it stayed as it was loaded until you chose Reload. The animation list's way in is a compose button beside its search, and it opens the animation chat; the lone link glyph on the pane's top line is gone.
+- **A retired image or video model is replaced, and you are told.** When OpenRouter stops serving the model you chose for pictures or videos, the default (or the first suggested model it serves) takes its place, a toast names both, and Settings shows the same.
+- **The picture sheet has a head.** Copy Image is the one primary action, a ⋯ holds Show in Finder and Move to Trash, and the prompt carries its own copy glyph.
+- **Running work links to its model.** A running step in the activity list shows Change Model… and opens the setting for that task.
 
 ## 0.162.0 (build 242) — 2026-10-17
 
