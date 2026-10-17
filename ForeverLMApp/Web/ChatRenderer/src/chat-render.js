@@ -94,6 +94,10 @@ export function createChatRenderer({
   copySourceImage = null,
   openSourceImage = null,
   zoomSourceImage = null,
+  // Open beside: the picture takes a pane next to the conversation, so the
+  // question stays readable while the figure is big. A host with no such place
+  // leaves it null and the figure carries no button for it.
+  openSourceImageBeside = null,
   addSlideCitedPaper = null,
   addSourceToNotebook = null,
   openSource = null,
@@ -299,6 +303,16 @@ export function createChatRenderer({
           }, 1400);
         });
         actions.append(copy);
+        if (openSourceImageBeside) {
+          const beside = actionButton(document_, "Open beside", "Open beside the chat");
+          beside.classList.add("source-image-beside");
+          beside.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            openSourceImageBeside(token, img);
+          });
+          actions.append(beside);
+        }
       }
       paintSlidePapers(figure, token, resolved.citedPapers);
       return;

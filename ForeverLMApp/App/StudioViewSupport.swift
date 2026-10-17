@@ -1677,7 +1677,13 @@ extension View {
     /// is the only pane, they reveal Chat in place rather than disappearing and
     /// leaving the surface no way out.
     func studioCenterTabCloseChrome(for tab: StudioCenterTab) -> some View {
-        modifier(StudioCenterTabCloseChrome(tab: tab))
+        modifier(StudioCenterTabCloseChrome(tab: tab, close: nil))
+    }
+
+    /// The same close × for a pane with no center tab of its own — the
+    /// notebook slot's picture — whose × runs `close`.
+    func studioPaneCloseChrome(close: @escaping () -> Void) -> some View {
+        modifier(StudioCenterTabCloseChrome(tab: nil, close: close))
     }
 }
 
@@ -1846,7 +1852,9 @@ private struct StudioCenterTabCloseChrome: ViewModifier {
     @Environment(\.studioChromeLineReservation) private var chromeReservation
     @Environment(\.studioPaneChromePlacement) private var placement
 
-    let tab: StudioCenterTab
+    let tab: StudioCenterTab?
+    /// What × does for a pane with no tab; nil closes `tab`'s surface.
+    let close: (() -> Void)?
 
     func body(content: Content) -> some View {
         content
@@ -1901,7 +1909,11 @@ private struct StudioCenterTabCloseChrome: ViewModifier {
     /// way the surface the learner asked to dismiss goes away.
     private func closePane() {
         withAnimation(.easeInOut(duration: 0.22)) {
-            vm.dismissCenterSurface(tab, in: windowState)
+            if let close {
+                close()
+            } else if let tab {
+                vm.dismissCenterSurface(tab, in: windowState)
+            }
         }
     }
 }
@@ -3404,6 +3416,11 @@ private final class StudioCenterTabEdgeDropView: NSView {
 /// `hitTest` returns nil, so it never sees a click or a scroll.
 struct StudioDropCatcher: NSViewRepresentable {
     let types: [UTType]
+    /// Leaves a drag alone that started on a view inside this one's own bounds
+    /// (a picture dragged out of the chat's transcript): the chat has nothing
+    /// to take from itself, and claiming it lit "Drop into this chat" the
+    /// moment the drag began, wherever the pointer went after.
+    var declinesDragsFromWithin = false
     let onTargeted: (Bool) -> Void
     let onDrop: ([NSItemProvider]) -> Bool
 
@@ -3418,12 +3435,14 @@ struct StudioDropCatcher: NSViewRepresentable {
     }
 
     private func update(_ view: StudioDropCatcherView) {
+        view.declinesDragsFromWithin = declinesDragsFromWithin
         view.onTargeted = onTargeted
         view.onDrop = onDrop
     }
 }
 
 final class StudioDropCatcherView: NSView {
+    var declinesDragsFromWithin = false
     var onTargeted: (Bool) -> Void = { _ in }
     var onDrop: ([NSItemProvider]) -> Bool = { _ in false }
 
@@ -3454,8 +3473,20 @@ final class StudioDropCatcherView: NSView {
         sender.draggingPasteboard.availableType(from: pasteboardTypes) != nil
     }
 
+    /// Whether the drag began on a view whose visible part lies inside this
+    /// view's bounds. A source in another process, or one beside this view, is
+    /// not within.
+    private func startedWithin(_ sender: NSDraggingInfo) -> Bool {
+        guard declinesDragsFromWithin,
+              let source = sender.draggingSource as? NSView,
+              let window, source.window === window else { return false }
+        let visible = source.convert(source.visibleRect, to: nil)
+        guard !visible.isEmpty else { return false }
+        return convert(bounds, to: nil).contains(visible)
+    }
+
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
-        guard carriesPayload(sender) else {
+        guard carriesPayload(sender), !startedWithin(sender) else {
             ownsCurrentDrag = false
             return []
         }

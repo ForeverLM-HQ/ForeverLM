@@ -661,6 +661,10 @@ struct ChatMarkdownView: NSViewRepresentable {
     /// Add to Notebook beside a Sources row the notebook does not hold: adds
     /// the source the token names to the chat's notebook. Nil offers none.
     var addSourceToNotebook: (@MainActor (String) async -> Void)? = nil
+    /// Open beside on a picture: where the picture goes next to its chat. Nil
+    /// opens it in a picture window of its own; the notebook's chat docks it
+    /// in the document slot (`StudioViewModel.dockPicture`).
+    var openPictureBeside: (@MainActor (DockedChatPicture) -> Void)? = nil
     /// Redraw With on a right-clicked picture from the image store: draws
     /// the version named (by its id) again with the model chosen, and
     /// returns once the redraw has landed or failed. Nil offers no menu lines
@@ -698,6 +702,7 @@ struct ChatMarkdownView: NSViewRepresentable {
             sourceCardForToken: sourceCardForToken,
             sourceImageForToken: sourceImageForToken,
             addSlideCitedPaper: addSlideCitedPaper,
+            openPictureBeside: openPictureBeside,
             redrawPicture: redrawPicture,
             remembersHeight: remembersHeight
         )
@@ -706,7 +711,8 @@ struct ChatMarkdownView: NSViewRepresentable {
     /// Every channel the page posts on. One list, so a pooled web view is
     /// rewired for its next row with exactly the handlers a fresh one gets.
     private static let scriptMessageNames = [
-        "height", "sourceCards", "sourceImages", "copySourceImage", "zoomSourceImage", "addSlideCitedPaper",
+        "height", "sourceCards", "sourceImages", "copySourceImage", "zoomSourceImage", "openSourceImageBeside",
+        "addSlideCitedPaper",
         "addSourceToNotebook",
         "openSource", "webLinks", "selectionAction", contextLinkMessageName, contextPictureMessageName,
     ]
@@ -878,6 +884,7 @@ struct ChatMarkdownView: NSViewRepresentable {
         context.coordinator.sourceImageForToken = sourceImageForToken
         context.coordinator.addSlideCitedPaper = addSlideCitedPaper
         context.coordinator.addSourceToNotebook = addSourceToNotebook
+        context.coordinator.openPictureBeside = openPictureBeside
         context.coordinator.redrawPicture = redrawPicture
         (webView as? ChatMarkdownWebView)?.redrawPicture = redrawPicture
         if context.coordinator.lastFontSize != scaledFontSize {
@@ -939,6 +946,7 @@ struct ChatMarkdownView: NSViewRepresentable {
         var sourceImageForToken: @MainActor (String) async -> ChatSourceImage?
         var addSlideCitedPaper: (@MainActor (String) async -> Void)?
         var addSourceToNotebook: (@MainActor (String) async -> Void)?
+        var openPictureBeside: (@MainActor (DockedChatPicture) -> Void)?
         /// `ChatMarkdownView.citationScopeKey` as this row last drew it; nil
         /// before its first update.
         var lastCitationScopeKey: String?
@@ -979,6 +987,7 @@ struct ChatMarkdownView: NSViewRepresentable {
             sourceCardForToken: @escaping @MainActor (String) async -> ChatSourceCard?,
             sourceImageForToken: @escaping @MainActor (String) async -> ChatSourceImage?,
             addSlideCitedPaper: (@MainActor (String) async -> Void)? = nil,
+            openPictureBeside: (@MainActor (DockedChatPicture) -> Void)? = nil,
             redrawPicture: (@MainActor (String, ImageGenerationModel) async -> Void)? = nil,
             remembersHeight: Bool = true
         ) {
@@ -994,6 +1003,7 @@ struct ChatMarkdownView: NSViewRepresentable {
             self.sourceCardForToken = sourceCardForToken
             self.sourceImageForToken = sourceImageForToken
             self.addSlideCitedPaper = addSlideCitedPaper
+            self.openPictureBeside = openPictureBeside
             self.redrawPicture = redrawPicture
             super.init()
             redrawObserver = NotificationCenter.default.addObserver(
@@ -1123,6 +1133,10 @@ struct ChatMarkdownView: NSViewRepresentable {
             }
             if message.name == "zoomSourceImage" {
                 zoomSourceImage(for: message)
+                return
+            }
+            if message.name == "openSourceImageBeside" {
+                openSourceImageBeside(for: message)
                 return
             }
             if message.name == "addSlideCitedPaper" {
@@ -1265,6 +1279,27 @@ struct ChatMarkdownView: NSViewRepresentable {
             Task { @MainActor in
                 guard let image = await resolver(token) else { return }
                 ChatImageLightbox.present(image, title: title?.isEmpty == false ? title : nil, over: window)
+            }
+        }
+
+        /// Open beside on a picture: the same cached bytes the figure shows go
+        /// where the chat says (the notebook's document slot) or, with no such
+        /// place, into a picture window, with the alt text as the caption.
+        private func openSourceImageBeside(for message: WKScriptMessage) {
+            guard let body = message.body as? [String: Any],
+                  let token = (body["token"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !token.isEmpty else { return }
+            let alt = (body["alt"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let title = alt?.isEmpty == false ? alt : nil
+            let resolver = sourceImageForToken
+            Task { @MainActor [weak self] in
+                guard let image = await resolver(token) else { return }
+                let picture = DockedChatPicture(data: image.data, mediaType: image.mediaType, title: title)
+                if let open = self?.openPictureBeside {
+                    open(picture)
+                } else {
+                    ChatPictureWindow.present(picture)
+                }
             }
         }
 

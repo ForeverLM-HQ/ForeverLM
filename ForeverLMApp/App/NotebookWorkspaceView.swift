@@ -950,7 +950,9 @@ struct NotebookWorkspaceView: View {
     ) -> some View {
         // The slot beside the chat can become Pages, Browser or Memory from its
         // corner; the slot standing in the chat's place has no swap control.
-        let swaps = identifier == "notebook.document.leading" ? [] : StudioPaneSwap.notebookDocumentDestinations
+        // A picture popped out of the chat is not a place to swap away from.
+        let swaps = identifier == "notebook.document.leading" || document == .picture
+            ? [] : StudioPaneSwap.notebookDocumentDestinations
         return StudioPaneHost(
             activeTab: document.centerTab ?? .reader,
             width: width,
@@ -978,7 +980,7 @@ struct NotebookWorkspaceView: View {
         }
         .overlay { replaceDropOverlay(identifier == "notebook.document.leading" ? .leadingDocument : .document) }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(document.centerTab?.title ?? "Cards")
+        .accessibilityLabel(document.centerTab?.title ?? (document == .picture ? "Picture" : "Cards"))
         .accessibilityIdentifier(identifier)
     }
 

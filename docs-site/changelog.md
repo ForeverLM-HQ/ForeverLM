@@ -6,6 +6,9 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **A figure in the chat can open beside the chat.** Hover it for **Open beside**: the picture takes the notebook's document slot, big, with the question still on the left.
+- **Dragging a picture out of the chat no longer lights "Drop into this chat".**
+
 ## 0.162.0 (build 242) — 2026-10-17
 
 **Highlights:**

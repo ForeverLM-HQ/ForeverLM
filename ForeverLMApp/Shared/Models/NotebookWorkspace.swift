@@ -183,6 +183,24 @@ enum NotebookDocument: String, Codable, CaseIterable {
     /// The Memory pane: every notebook's cards, or this notebook's when its
     /// Studio Cards tile opened it (docs/memory-design.md, "The card review").
     case memory
+    /// One picture from the chat, big, beside the conversation it came from:
+    /// the figure's Open beside. No center tab routes here; the window holds
+    /// the bytes (`StudioWindowState.dockedPicture`), and the pane's × or the
+    /// next picture sent beside takes the slot back.
+    case picture
+}
+
+/// A picture the chat popped out beside itself: the bytes the figure shows and
+/// the caption it carries. Plain values, so the shared window state can hold
+/// it; the Mac draws it (`ChatPicturePane`). Two are the same picture when
+/// they are the same opening, never by comparing bytes.
+struct DockedChatPicture: Equatable, Sendable {
+    let id = UUID()
+    let data: Data
+    let mediaType: String
+    let title: String?
+
+    static func == (lhs: DockedChatPicture, rhs: DockedChatPicture) -> Bool { lhs.id == rhs.id }
 }
 
 /// Where a request for a center tab goes in a window that holds a notebook.
@@ -211,6 +229,7 @@ extension NotebookDocument {
         case .browser: return .browser
         case .secondChat: return .secondaryChat
         case .memory: return .memory
+        case .picture: return nil
         }
     }
 
@@ -335,6 +354,16 @@ extension NotebookWorkspace {
             next.document = nil
             next.returnDocument = nil
         }
+        return next
+    }
+
+    /// The workspace once the slot's picture is closed: the slot empties. A
+    /// slot showing anything else is left alone.
+    func closingPicture() -> NotebookWorkspace {
+        guard document == .picture else { return self }
+        var next = self
+        next.document = nil
+        next.returnDocument = nil
         return next
     }
 

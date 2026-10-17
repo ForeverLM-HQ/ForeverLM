@@ -373,11 +373,14 @@ struct StudioView: View {
     /// (`NotebookDocument.flashcards`) has no pane and no route leads to it,
     /// so it shows nothing: the notebook's cards are reviewed in the Memory
     /// pane (`.memory`, the slot's like any pane) and the window-filling
-    /// memory focus its Start Review opens.
+    /// memory focus its Start Review opens. A picture the chat popped out
+    /// (`.picture`) has no tab either and draws its own pane.
     @ViewBuilder
     private func notebookDocumentContent(_ document: NotebookDocument) -> some View {
         if let tab = document.centerTab {
             centerTabContent(tab)
+        } else if document == .picture {
+            ChatPicturePane()
         } else {
             Color(nsColor: .windowBackgroundColor)
         }

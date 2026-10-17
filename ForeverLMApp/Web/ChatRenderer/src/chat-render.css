@@ -622,6 +622,8 @@
   position: absolute;
   top: 0.55em;
   right: 0.55em;
+  display: flex;
+  gap: 0.35em;
 }
 .chat-rendered .source-image-copy {
   padding: 0.28em 0.62em;

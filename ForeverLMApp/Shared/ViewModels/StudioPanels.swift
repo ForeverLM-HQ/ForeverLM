@@ -862,6 +862,12 @@ final class StudioWindowState: Identifiable {
         }
     }
 
+    /// The picture the chat popped out beside itself, which the notebook's
+    /// document slot shows while it holds `.picture`
+    /// (`StudioViewModel.dockPicture`). A moment: never in `Snapshot`, so a
+    /// relaunch does not keep megabytes of figure.
+    var dockedPicture: DockedChatPicture?
+
     /// The notebook this window last left, and how it had it arranged (its
     /// faces and folds, not its moments): opening it here again — its rail
     /// row, its card — brings its columns back as they were (decisions v5, 2: "the

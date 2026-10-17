@@ -755,6 +755,7 @@ private struct InternalReviewPanelContent: View {
         .overlay {
             StudioDropCatcher(
                 types: reviewChatCaughtDropTypes,
+                declinesDragsFromWithin: true,
                 onTargeted: setDropTargeted,
                 onDrop: handleDrop
             )

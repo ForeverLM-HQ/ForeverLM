@@ -71,6 +71,27 @@ extension StudioViewModel {
         if next != notebook { destination.notebook = next }
     }
 
+    /// Pops a chat's picture out beside the conversation: the notebook's
+    /// document slot shows it, replacing what it held, and a picture already
+    /// there gives way to this one. False when `destination` holds no notebook,
+    /// which has no slot to give it; the caller then opens the picture in a
+    /// window of its own.
+    @discardableResult
+    func dockPicture(_ picture: DockedChatPicture, in destination: StudioWindowState) -> Bool {
+        guard let notebook = destination.notebook,
+              let next = notebook.following(.document(.picture)) else { return false }
+        destination.dockedPicture = picture
+        if next != notebook { destination.notebook = next }
+        return true
+    }
+
+    /// The picture pane's ×: the document slot empties.
+    func closePictureInNotebook(in destination: StudioWindowState) {
+        guard let notebook = destination.notebook else { return }
+        let next = notebook.closingPicture()
+        if next != notebook { destination.notebook = next }
+    }
+
     /// The Reader's "Back to …" in `destination`'s notebook: the document
     /// slot shows again what the Reader took it from.
     func returnInNotebook(in destination: StudioWindowState) {
@@ -105,6 +126,8 @@ extension StudioViewModel {
             return "Cards"
         case .memory:
             return "Memory"
+        case .picture:
+            return "Picture"
         case .reader:
             return nil
         }
