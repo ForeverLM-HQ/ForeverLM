@@ -586,7 +586,6 @@ struct StudioView: View {
                 HStack(spacing: StudioTopBar.leadingControlsSpacing) {
                     WindowPlaceArrows(reopen: reopenPlaceContent)
                     NavigationRailToggle(isVisible: navigationRailVisibilityBinding)
-                    NotebookStudioToggle()
                 }
                 .frame(height: band)
                 .padding(.leading, toggleLeading)

@@ -57,9 +57,28 @@ struct NotebookStudioPanel: View {
                         .environment(vm)
                 }
                 .padding(.trailing, 8)
+            // The Studio's own fold, on the Studio's own line (ChatGPT's panel
+            // close); folded, the workspace draws the way back at the same
+            // corner (`NotebookWorkspaceView.studioRestore`).
+            TitlebarBandButton(
+                help: "Hide Studio",
+                accessibilityIdentifier: "notebook.studio.collapse",
+                action: { setCollapsed(true) }
+            ) {
+                Image(systemName: "sidebar.right")
+                    .zoomedSystemFont(size: 12, weight: .medium)
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(.leading, 14)
         .padding(.trailing, 10)
+    }
+
+    private func setCollapsed(_ collapsed: Bool) {
+        guard windowState.notebook?.studioCollapsed != collapsed else { return }
+        withAnimation(.easeInOut(duration: 0.22)) {
+            windowState.notebook?.studioCollapsed = collapsed
+        }
     }
 }
 

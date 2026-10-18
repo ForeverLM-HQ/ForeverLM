@@ -2419,29 +2419,6 @@ struct NavigationRailToggle: View {
     }
 }
 
-/// The notebook's Studio column on and off, beside the sidebar toggle: a
-/// notebook window's right-hand sidebar, which leaves the window folded
-/// rather than leaving a strip (product owner, 2026-10-17). The top left is
-/// the one place both side columns' toggles stand, clear of the chat pane's
-/// close × at the top right. Drawn only in a notebook window.
-struct NotebookStudioToggle: View {
-    @Environment(StudioWindowState.self) private var windowState
-
-    var body: some View {
-        if let notebook = windowState.notebook, !windowState.isDockedReaderImmersive {
-            StudioChromeIconButton(
-                systemImage: "sidebar.right",
-                label: notebook.studioCollapsed ? "Show Studio" : "Hide Studio"
-            ) {
-                withAnimation(.easeInOut(duration: 0.22)) {
-                    windowState.notebook?.studioCollapsed.toggle()
-                }
-            }
-            .accessibilityIdentifier("notebook.studio.toggle")
-        }
-    }
-}
-
 /// ‹ › beside the traffic lights, Codex's (product owner, 2026-10-12: "can do
 /// front and back arrow"): back to the place this window showed before, and
 /// forward again (`StudioWindowState.placeHistory`). Greyed where there is

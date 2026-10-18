@@ -434,6 +434,7 @@ struct NotebookWorkspaceView: View {
                 }
             }
             .frame(width: visibleWidth, alignment: .leading)
+            .overlay(alignment: .topTrailing) { studioRestore }
             .coordinateSpace(.named("notebookWorkspace"))
         }
         // Siri and Shortcuts know which notebook is on screen, as they did
@@ -877,11 +878,45 @@ struct NotebookWorkspaceView: View {
         StudioCenterTabGroupSizing.clippedTrailingWidth(
             groupStart: start,
             groupWidth: width,
-            totalWidth: totalWidth,
+            totalWidth: totalWidth - studioRestoreClearance,
             // `totalWidth` is the visible width already: the overflow is
             // counted out where the columns are laid out.
             enclosingOverflow: 0
         )
+    }
+
+    /// The room at the window's top right the way back to a folded Studio
+    /// takes: the pane that reaches the edge draws its pin and × this much
+    /// further in, as a pane clipped by that much does.
+    private var studioRestoreClearance: CGFloat {
+        studioShows && workspace.studioCollapsed
+            ? StudioPanelChrome.centerTabCloseButtonSize + 18
+            : 0
+    }
+
+    /// The Studio's toggle while it is folded, on the chrome line at the
+    /// window's top right where its own "Hide" stood (the one place the left
+    /// sidebar toggle is not; product owner, 2026-10-18: "like ChatGPT").
+    @ViewBuilder
+    private var studioRestore: some View {
+        if studioShows, workspace.studioCollapsed, let band = titlebarBandHeight {
+            TitlebarBandButton(
+                help: "Show Studio",
+                accessibilityIdentifier: "notebook.studio.toggle",
+                action: {
+                    withAnimation(.easeInOut(duration: 0.22)) {
+                        windowState.notebook?.studioCollapsed = false
+                    }
+                }
+            ) {
+                Image(systemName: "sidebar.right")
+                    .zoomedSystemFont(size: 12, weight: .medium)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(height: band)
+            .padding(.trailing, 10)
+            .offset(y: -band)
+        }
     }
 
     private func chatSlot(width: CGFloat, start: CGFloat, totalWidth: CGFloat) -> some View {
