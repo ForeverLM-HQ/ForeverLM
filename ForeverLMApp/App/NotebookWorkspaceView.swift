@@ -620,7 +620,9 @@ struct NotebookWorkspaceView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .studioChromeLineHeader { sourcesHeader }
+        // The fold lives in the window's top left (the sidebar toggle), once;
+        // the column's own line stays empty so its content clears the band.
+        .studioChromeLineHeader { Spacer(minLength: 0) }
         // The leftmost column of the window while the rail is hidden: its
         // header clears the traffic lights. Nothing overlays its corner.
         .environment(\.studioCenterPaneHeaderLeadingInset, headerLeadingInset)
@@ -645,29 +647,6 @@ struct NotebookWorkspaceView: View {
                 }
             }
         )
-    }
-
-    /// The column's row on the chrome line: the fold, and nothing else. The
-    /// window's ← → and sidebar toggle already sit on this line, and the
-    /// traffic lights before them, so a ‹, the name and a ⋯ squeezed in after
-    /// them left the name a few letters (product owner, 2026-10-17: "looks
-    /// bad in the top left"). The name is the column's title
-    /// below (`notebookTitle`); Close Notebook in its menu, the window's ←
-    /// and the rail lead back to the Space.
-    private var sourcesHeader: some View {
-        HStack(spacing: 0) {
-            Spacer(minLength: 8)
-            TitlebarBandButton(
-                help: "Hide Sources",
-                accessibilityIdentifier: "notebook.sources.collapse",
-                action: { setSourcesCollapsed(true) }
-            ) {
-                Image(systemName: "sidebar.left")
-                    .zoomedSystemFont(size: 12, weight: .medium)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(.horizontal, 12)
     }
 
     /// The notebook's name at the head of its column, over the search, as a

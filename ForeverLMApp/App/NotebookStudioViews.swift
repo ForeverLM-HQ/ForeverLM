@@ -57,25 +57,9 @@ struct NotebookStudioPanel: View {
                         .environment(vm)
                 }
                 .padding(.trailing, 8)
-            TitlebarBandButton(
-                help: "Hide Studio",
-                accessibilityIdentifier: "notebook.studio.collapse",
-                action: { setCollapsed(true) }
-            ) {
-                Image(systemName: "sidebar.right")
-                    .zoomedSystemFont(size: 12, weight: .medium)
-                    .foregroundStyle(.secondary)
-            }
         }
         .padding(.leading, 14)
         .padding(.trailing, 10)
-    }
-
-    private func setCollapsed(_ collapsed: Bool) {
-        guard windowState.notebook?.studioCollapsed != collapsed else { return }
-        withAnimation(.easeInOut(duration: 0.22)) {
-            windowState.notebook?.studioCollapsed = collapsed
-        }
     }
 }
 
