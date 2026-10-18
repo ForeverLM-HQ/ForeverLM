@@ -1615,12 +1615,8 @@ struct WebViewReader: NSViewRepresentable {
             forMainFrameOnly: true
         )
         contentController.addUserScript(contextLinkScript)
-        let mathRenderingScript = WKUserScript(
-            source: ArticleMathRendering.injectionScript,
-            injectionTime: .atDocumentEnd,
-            forMainFrameOnly: true
-        )
-        contentController.addUserScript(mathRenderingScript)
+        // No math typesetting here: an article renders as its author wrote it, so
+        // two dollar amounts in a sentence are never read as a LaTeX span.
         let scrollPreservationScript = WKUserScript(
             source: ReaderScrollPreservation.injectionScript,
             injectionTime: .atDocumentEnd,
