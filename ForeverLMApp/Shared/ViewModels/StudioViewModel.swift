@@ -393,6 +393,7 @@ class StudioViewModel {
         return !PodcastPublicEpisodeResolver.isHostLikeShowName(showName)
             && !showName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
+    @ObservationIgnored var sourceIndexingKickTask: Task<Void, Never>?
     @ObservationIgnored var cloudKitRemoteChangeTask: Task<Void, Never>?
     @ObservationIgnored var cloudKitConflictObservationTask: Task<Void, Never>?
     @ObservationIgnored var cloudKitBackgroundSyncTask: Task<Void, Never>?
@@ -4068,6 +4069,19 @@ class StudioViewModel {
     /// go first.
     func kickSourceEmbeddingIndexing() {
         Task(priority: .utility) { await sourceEmbeddingIndexer.requestIndexing() }
+    }
+
+    /// `kickSourceEmbeddingIndexing` after a short quiet, for the paths that run once per
+    /// source: a source saved or fetched is searchable by its title and text within
+    /// seconds, not at the next launch, while an import saving hundreds of them asks
+    /// for one pass rather than one per save.
+    func kickSourceEmbeddingIndexingSoon() {
+        sourceIndexingKickTask?.cancel()
+        sourceIndexingKickTask = Task(priority: .utility) { [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled, let self else { return }
+            self.kickSourceEmbeddingIndexing()
+        }
     }
 
     /// Turn versioned repair IDs into ordinary sync changes only after the

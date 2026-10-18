@@ -1238,6 +1238,8 @@ extension StudioViewModel {
     ) async -> Bool {
         do {
             try await storage.saveSource(article, syncImmediately: syncImmediately)
+            // A new source is searchable by its title at once, even queued with no text yet.
+            kickSourceEmbeddingIndexingSoon()
             if article.state == .ready,
                SourceAudioAutomation.preferenceKey(
                    for: SourceAudioAutomation.kind(forSourceType: article.sourceType.rawValue, url: article.url)

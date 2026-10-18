@@ -576,38 +576,18 @@ extension StudioViewModel {
         return words[start..<end].joined(separator: " ")
     }
 
-    /// If a source is ready, refresh its search embedding in the background.
-    /// Sources with full content are force re-embedded so vectors keep pace
-    /// with newly fetched transcripts/article text instead of staying title-only.
+    /// If a source is ready, bring its search index up to date in the background, so
+    /// vectors and the full-text row keep pace with newly fetched transcripts and
+    /// article text instead of staying title-only.
+    ///
+    /// Goes through the indexer rather than embedding here: this path used to write
+    /// vectors alone, so a source fetched while the app was open had no full-text row
+    /// until the next launch, and the indexer then embedded it a second time because
+    /// no index stamp had been recorded.
     func queueSourceEmbeddingRefreshIfReady(_ articleId: String) {
         guard let article = articles.first(where: { $0.id == articleId }),
               article.state == .ready else { return }
-        let hasContent = !(article.content?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
-        embedSourceIfNeeded(articleId, force: hasContent)
-    }
-
-    /// Embed a single source in the background. Called when new content becomes available.
-    func embedSourceIfNeeded(_ articleId: String, force: Bool = false) {
-        Task {
-            if !force {
-                let alreadyEmbedded = await storage.embeddedChunkSourceIds()
-                guard !alreadyEmbedded.contains(articleId) else { return }
-            }
-            guard let article = articles.first(where: { $0.id == articleId }) else { return }
-            let chunks = await embeddingChunks(for: article)
-            do {
-                var embeddings: [(chunkId: String, vector: [Float])] = []
-                embeddings.reserveCapacity(chunks.count)
-                for chunk in chunks {
-                    let vector = try await aiService.embedText(chunk.embeddingText)
-                    embeddings.append((chunkId: chunk.id, vector: vector))
-                }
-                try await storage.saveSourceChunkEmbeddings(sourceId: articleId, embeddings: embeddings)
-                logger.info("\(force ? "Refreshed" : "Embedded") source chunks: \(article.title)")
-            } catch {
-                logger.error("Failed to embed source \(articleId): \(error.localizedDescription)")
-            }
-        }
+        kickSourceEmbeddingIndexingSoon()
     }
 
     // MARK: - Sidebar content search
