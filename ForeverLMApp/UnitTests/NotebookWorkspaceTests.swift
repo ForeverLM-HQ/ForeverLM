@@ -56,7 +56,9 @@ struct NotebookWorkspaceTests {
     func documentsAndTheirTabsAgree() {
         for document in NotebookDocument.allCases {
             guard let tab = document.centerTab else {
-                #expect(document == .flashcards, "only card practice has no tab")
+                // Card practice and a picture from the chat: no center tab
+                // routes to either.
+                #expect(document == .flashcards || document == .picture, "\(document) has no tab")
                 continue
             }
             #expect(NotebookWorkspace.route(tab, coursePageID: "course-1") == .document(document), "\(document)")
@@ -1061,7 +1063,7 @@ struct NotebookAddSourcesTests {
             == Sizing.documentMinimumWidth * 2 + Sizing.dividerWidth)
     }
 
-    @Test("Sources and Studio take their shares, a folded one its strip, and the center the rest")
+    @Test("Sources and Studio take their shares, a folded one nothing, and the center the rest")
     func columnWidths() {
         typealias Sizing = NotebookWorkspaceSizing
         let separators = Sizing.separatorWidth * 2
@@ -1085,7 +1087,8 @@ struct NotebookAddSourcesTests {
         let tightWidths = Sizing.columnWidths(for: reading, totalWidth: tight)
         #expect(tightWidths.center >= Sizing.centerMinimumWidth(for: reading), "never clipped at the shares' widths")
         #expect(tightWidths.studio >= Sizing.sideMinimumWidth)
-        #expect(abs(tightWidths.sources + tightWidths.center + tightWidths.studio + separators - tight) < 0.001)
+        // Folded Sources leaves with its separator: only Studio's remains.
+        #expect(abs(tightWidths.sources + tightWidths.center + tightWidths.studio + Sizing.separatorWidth - tight) < 0.001)
 
         // Studio stepping aside for an immersive video takes no width.
         let immersive = Sizing.columnWidths(for: NotebookWorkspace(notebookID: "bio"), totalWidth: 1_250, studioShows: false)
