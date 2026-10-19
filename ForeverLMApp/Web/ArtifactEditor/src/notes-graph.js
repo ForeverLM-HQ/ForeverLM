@@ -392,7 +392,12 @@ function referenceGroupElement(group, { compact = false } = {}) {
 let footRoot = null
 let footReferences = null
 let footDaily = null
-let footOpen = { linked: true, unlinked: false }
+// Which sections stand open. A page opens with Linked References open and
+// Unlinked References folded, whatever the last page was left as: the editor's
+// web view is pooled and outlives the page it showed, and a folded section
+// unfolded on one page must not greet the next one open.
+const footOpenOnArrival = { linked: true, unlinked: false }
+let footOpen = { ...footOpenOnArrival }
 let linkingMentions = new Set()
 let requestedMoreBefore = null
 /// How long a press waits for the host before it can be pressed again.
@@ -682,6 +687,11 @@ export function setFootDaily(daily) {
 /// Draw the foot again: the block texts and titles it resolves have changed.
 export function refreshFoot() {
   if (footReferences || footDaily) renderFoot()
+}
+
+/// Another page arrived in the editor: its foot opens as a fresh page's does.
+export function foldFootForNewPage() {
+  footOpen = { ...footOpenOnArrival }
 }
 
 export function clearFoot() {
