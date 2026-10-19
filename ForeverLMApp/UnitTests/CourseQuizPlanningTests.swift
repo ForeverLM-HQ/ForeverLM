@@ -297,6 +297,29 @@ struct CourseQuizPlanningTests {
         #expect(Set(second.map(\.id)).count == 3)
     }
 
+    @Test("A missed question's card keeps its picture on the side the quiz showed it")
+    func memoryQuestionKeepsPicture() throws {
+        let slide = SourceImageReference(sourceID: "video-1", location: .moment(90))
+        var question = CourseQuizQuestion(
+            id: "q1", sourceID: "video-1", firstLine: 2, lastLine: 2, startSeconds: 30,
+            question: "What pumps?", answer: "Complex I.", keyPoints: [], quote: nil
+        )
+        question.picture = CourseQuizPicture(reference: slide, caption: "The pumping slide", placement: .question)
+        let asked = try #require(CourseQuizPlanning.memoryQuestion(quizID: "quiz", question: question, lines: []))
+        #expect(asked.frontImages.map(\.target) == [slide.urlString])
+        #expect(asked.frontImages.first?.alt == "The pumping slide")
+        #expect(asked.backImages.isEmpty)
+
+        question.picture = CourseQuizPicture(reference: slide, caption: nil, placement: .answer)
+        let answered = try #require(CourseQuizPlanning.memoryQuestion(quizID: "quiz", question: question, lines: []))
+        #expect(answered.backImages.map(\.target) == [slide.urlString])
+        #expect(answered.card(itemID: "item").backImages.map(\.target) == [slide.urlString])
+
+        question.picture = .awaitingDrawing(brief: "A pump", caption: nil, placement: .answer)
+        let waiting = try #require(CourseQuizPlanning.memoryQuestion(quizID: "quiz", question: question, lines: []))
+        #expect(waiting.frontImages.isEmpty && waiting.backImages.isEmpty, "a picture not drawn yet is none")
+    }
+
     @Test("A rewrite keeps the positional id a quiz stored before content ids for the same question")
     func rewriteKeepsLegacyIDs() {
         let stored = [

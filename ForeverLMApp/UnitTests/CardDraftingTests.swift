@@ -540,6 +540,57 @@ struct CardDraftingTests {
         #expect(!bare.user.contains(CardDraftingPictures.instruction))
     }
 
+    @Test("A walkthrough question's card keeps the picture its step shows in the walk: a drawn one, or one an earlier step of its chapter showed")
+    func walkQuestionCardsKeepTheWalksPicture() throws {
+        let figure = SourceImageReference(sourceID: "src-1", location: .page(4))
+        let figures = [CourseQuizFigure(number: 1, reference: figure, page: 4, caption: "Figure 3. Cristae.", label: "Figure 3")]
+        let walk = PaperWalkthrough(
+            sourceID: "src-1",
+            sourceSHA256: "h",
+            title: "Walk",
+            steps: [
+                PaperWalkthroughStep(id: "s1", kind: .figure, title: "", body: "", anchor: PaperWalkthroughAnchor(figureLabel: "Figure 3", passage: "Each crista holds its own potential")),
+                PaperWalkthroughStep(
+                    id: "s2", kind: .quiz, title: "", body: "",
+                    quiz: PaperWalkthroughQuiz(question: "In the cristae study, what does each crista hold?", answer: "Its own membrane potential.")
+                ),
+                PaperWalkthroughStep(
+                    id: "s3", kind: .quiz, title: "", body: "",
+                    quiz: PaperWalkthroughQuiz(question: "In the cristae study, what makes the potential?", answer: "Proton pumping."),
+                    picture: PaperWalkthroughPicture(brief: "Protons pumped across one crista", imageID: "0a1b2c3d-4e5f-6789")
+                ),
+            ],
+            author: .assistant
+        )
+        let borrowed = CardDraftingPictures.walkImage(walk.cardPicture(of: walk.steps[1]), anchorLabel: nil, in: figures)
+        #expect(borrowed?.target == figure.urlString, "an unanchored question borrows the figure the step before it outlined")
+        let drawn = CardDraftingPictures.walkImage(walk.cardPicture(of: walk.steps[2]), anchorLabel: nil, in: figures)
+        #expect(drawn?.target == GeneratedImageReference(id: "0a1b2c3d-4e5f-6789")?.urlString)
+        #expect(drawn?.alt == "Protons pumped across one crista")
+        #expect(CardDraftingPictures.walkImage(walk.cardPicture(of: walk.steps[1]), anchorLabel: nil, in: []) == nil, "no file here, no figure")
+
+        // Drafted as it stands, and kept when missed, the card shows it with its question.
+        let seeds = CardDraftingSeed.walkSteps(of: walk) { $0.first }
+        #expect(seeds.compactMap(\.card?.picture).count == 2)
+        var question = SourceMemoryQuestion(sourceID: "src-1", step: walk.steps[2], quiz: try #require(walk.steps[2].quiz))
+        question.frontImages = drawn.map { [$0] } ?? []
+        #expect(question.card(itemID: "item").frontImages.map(\.target) == [drawn?.target])
+    }
+
+    @Test("A lecture video's slides are the pictures its cards may show, each with when it was on screen")
+    func slidesAreFigures() {
+        let frame = SourceImageReference(sourceID: "video-1", location: .moment(723))
+        let listed = CardDraftingPictures.slideFigures([
+            CourseQuizSlide(number: 1, reference: frame, seconds: 700, text: "Cardiolipin structure", onScreen: [700...733]),
+            CourseQuizSlide(number: 2, reference: SourceImageReference(sourceID: "video-1", location: .moment(900)), seconds: 890, text: ""),
+        ])
+        #expect(listed.map(\.number) == [1, 2])
+        #expect(listed[0].reference == frame)
+        #expect(listed[0].caption == "Slide on screen 11:40–12:13: Cardiolipin structure")
+        #expect(listed[1].caption.hasSuffix(": (no words recognized)"))
+        #expect(CourseQuizPictures.figureBlock(listed, heading: "Figures:")?.contains("[F1] Slide on screen 11:40–12:13") == true)
+    }
+
     @Test("The run's summary names what was added, sampled, not found and failed")
     func resultSummary() {
         var result = CardDraftingResult()

@@ -12890,14 +12890,24 @@ final class ReviewSessionManager {
         walkthroughPlayback?.recall[step.id] = outcome
         walkthroughPlayback?.answeredQuizStepIDs.insert(step.id)
         guard let article = playback.article else { return }
+        var question = SourceMemoryQuestion(
+            sourceID: article.id,
+            step: step,
+            quiz: quiz,
+            testing: playback.walkthrough.stepsBefore(question: step.id)
+        )
+        // A miss keeps a card, which shows the picture the walk showed the
+        // question with; a question remembered first time keeps nothing.
+        if rating != .good, rating != .easy {
+            question.frontImages = await Self.walkthroughCardImages(
+                step: step,
+                walkthrough: playback.walkthrough,
+                article: article
+            )
+        }
         do {
             try await storage.recordSourceQuestionAttempt(
-                SourceMemoryQuestion(
-                    sourceID: article.id,
-                    step: step,
-                    quiz: quiz,
-                    testing: playback.walkthrough.stepsBefore(question: step.id)
-                ),
+                question,
                 answer: answer,
                 feedback: evaluation,
                 score: score,
@@ -12908,6 +12918,27 @@ final class ReviewSessionManager {
             // question's return in spaced review is lost, and said so here.
             logger.error("Walkthrough question \(step.id, privacy: .public) is not in Memory: \(error.localizedDescription, privacy: .public)")
         }
+    }
+
+    /// The picture a walkthrough question's card keeps: the step's card
+    /// picture, a figure read off the paper's file on this Mac (off the main
+    /// actor, as card drafting reads it) or a picture drawn for the walk.
+    /// Empty when the step has none, or its figure's file is not here.
+    private static func walkthroughCardImages(
+        step: PaperWalkthroughStep,
+        walkthrough: PaperWalkthrough,
+        article: StudioArticle
+    ) async -> [MemoryCardImage] {
+        guard let picture = walkthrough.cardPicture(of: step) else { return [] }
+        var figures: [CourseQuizFigure] = []
+        if case .drawn = picture {} else {
+            let sourceID = article.id
+            let filePath = article.resolvedFileLocation
+            figures = await Task.detached(priority: .utility) {
+                CourseQuizGeneratorService.readingFigures(sourceID: sourceID, filePath: filePath, pages: nil)
+            }.value
+        }
+        return CardDraftingPictures.walkImage(picture, anchorLabel: step.anchor?.figureLabel, in: figures).map { [$0] } ?? []
     }
 
     /// The card's Show Whole Step: every beat at once.

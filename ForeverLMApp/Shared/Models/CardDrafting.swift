@@ -184,6 +184,11 @@ struct CardDraftingSeed: Equatable, Sendable {
         /// The figure the walkthrough asked it beside ("Figure 2b"), shown
         /// with the card's question when the source lists it.
         var figureLabel: String?
+        /// The picture the step's cards show in the walk
+        /// (`PaperWalkthrough.cardPicture(of:)`): its figure, a figure an
+        /// earlier step of the chapter showed, or a picture drawn for the
+        /// walk. The card shows it with its question, as the walk does.
+        var picture: WalkthroughCardPicture?
     }
 
     let kind: Kind
@@ -245,7 +250,7 @@ struct CardDraftingSeed: Equatable, Sendable {
                 text: text,
                 question: question,
                 card: printed(memoryQuestion.excerpts).map {
-                    Card(front: question, back: back, why: why, quote: $0, figureLabel: figure)
+                    Card(front: question, back: back, why: why, quote: $0, figureLabel: figure, picture: walkthrough.cardPicture(of: step))
                 }
             )
         }
@@ -628,9 +633,11 @@ struct CardDraftingSource: Equatable, Sendable {
     /// source the learner has not finished — the seeds within reach, which
     /// `seeds` then holds alone.
     var reach: CardDraftingReach = .whole
-    /// Its captioned figures, each cropped from its page, read off the file
-    /// on this Mac (`CourseQuizGeneratorService.readingFigures`): what a card
-    /// may show. Empty for a source with no figure or no file here.
+    /// What a card may show: its captioned figures, each cropped from its
+    /// page, read off the file on this Mac
+    /// (`CourseQuizGeneratorService.readingFigures`); for a lecture video,
+    /// its slides (`CardDraftingPictures.slideFigures`). Empty for a source
+    /// with none of either, or no file here.
     var figures: [CourseQuizFigure] = []
 }
 
@@ -1079,12 +1086,54 @@ struct CardDraftingModelCard: Decodable, Equatable, Sendable {
 /// prompt, so an edited prompt still pins figures.
 enum CardDraftingPictures {
     static let instruction = """
-        The source's figures are listed below: [F2 · p.5] and the figure's printed caption. In a paper the key result is often a figure, so aim for a figure on every card whose point a listed figure shows: a result, a graph, a comparison, a mechanism, a structure, a pathway, a table. A seed asked beside a figure is about it. For such a card add to its JSON object:
+        The source's pictures are listed below: a paper's or book's figures as [F2 · p.5] and the printed caption, a lecture video's slides as [F3] with when the slide was on screen and its words. The learner learns visually, and in a paper the key result is often a figure, so give a listed picture to every card whose point one shows: a result, a graph, a comparison, a mechanism, a structure, a pathway, a table, a slide's diagram. A seed asked beside a figure is about it. For such a card add to its JSON object:
         "figure": the figure's handle, "F2";
         "figure_with": "front" when the learner needs to see it to answer and it does not show the answer, and the front may then point at it ("the trace in this figure") while still naming the study; "back" when the figure shows or states the answer, so it is shown only once they have answered; when in doubt, "back";
         "figure_shows": what the figure shows, in a few words that never give the answer away.
         Leave the three out when no listed figure shows the card's point.
         """
+
+    /// A lecture video's slides as the figures a card may show, numbered as
+    /// the slides are: the caption says when the slide was on screen and
+    /// what it says, so the drafter can match it to the passage a card is
+    /// about. A YouTube slide is the frame at its moment
+    /// (`CourseQuizPictures.slides`), which any Mac captures again.
+    static func slideFigures(_ slides: [CourseQuizSlide]) -> [CourseQuizFigure] {
+        slides.map { slide in
+            let times = slide.onScreen.isEmpty
+                ? VideoQuizPlanning.timestamp(slide.seconds)
+                : slide.onScreen.map { "\(VideoQuizPlanning.timestamp($0.lowerBound))–\(VideoQuizPlanning.timestamp($0.upperBound))" }
+                    .joined(separator: ", ")
+            let words = slide.text.isEmpty ? "(no words recognized)" : slide.text
+            return CourseQuizFigure(
+                number: slide.number,
+                reference: slide.reference,
+                page: nil,
+                caption: "Slide on screen \(times): \(words)"
+            )
+        }
+    }
+
+    /// A walkthrough question's picture as its card keeps it: the figure
+    /// the step outlines (`anchorLabel`) or another figure of the source,
+    /// found among `figures` by its printed label, or a picture drawn for
+    /// the walk, by its stored address. Nil when the step has no picture,
+    /// or its figure is not among those listed (no file on this Mac).
+    static func walkImage(_ picture: WalkthroughCardPicture?, anchorLabel: String?, in figures: [CourseQuizFigure]) -> MemoryCardImage? {
+        switch picture {
+        case nil:
+            return nil
+        case .anchoredFigure:
+            guard let label = anchorLabel, let figure = figure(labelled: label, in: figures) else { return nil }
+            return MemoryCardImage(target: figure.reference.urlString, alt: figure.label ?? label)
+        case .figure(let anchor):
+            guard let label = anchor.figureLabel, let figure = figure(labelled: label, in: figures) else { return nil }
+            return MemoryCardImage(target: figure.reference.urlString, alt: figure.label ?? label)
+        case .drawn(let imageID, let brief):
+            guard let reference = GeneratedImageReference(id: imageID) else { return nil }
+            return MemoryCardImage(target: reference.urlString, alt: brief.map(FlashcardDeck.singleLine) ?? "Picture")
+        }
+    }
 
     /// The listed figure a handle names ("F2", "[F2]", "2"); nil for one
     /// the source does not list.
@@ -1148,9 +1197,11 @@ enum CardDraftingAnswer {
     static func freeDrafts(_ plan: CardDraftingSourcePlan, isRequested: Bool, at now: Date) -> [Flashcard] {
         plan.free.compactMap { seed in
             guard let card = seed.card else { return nil }
-            let figure = card.figureLabel.flatMap { CardDraftingPictures.figure(labelled: $0, in: plan.source.figures) }
-            let frontImages = figure.flatMap { MemoryCardImage(target: $0.reference.urlString, alt: $0.label ?? "Figure \($0.number)") }
-                .map { [$0] } ?? []
+            let frontImages = CardDraftingPictures.walkImage(
+                card.picture ?? card.figureLabel.map { WalkthroughCardPicture.figure(PaperWalkthroughAnchor(figureLabel: $0)) },
+                anchorLabel: card.figureLabel,
+                in: plan.source.figures
+            ).map { [$0] } ?? []
             return Flashcard.mint(
                 front: card.front,
                 back: card.back,

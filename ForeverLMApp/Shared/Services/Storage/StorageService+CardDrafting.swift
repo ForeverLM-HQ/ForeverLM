@@ -135,10 +135,19 @@ extension StorageService {
             try Self.cardDraftingExemplars(deck: deck, state: state, store: store)
         } ?? []
 
-        // Its captioned figures, which a card may show: read off the file on
-        // this Mac, off the storage actor, as a course quiz reads a reading's.
-        let figures = await Task.detached(priority: .utility) { [sourceID, source] in
-            CourseQuizGeneratorService.readingFigures(sourceID: sourceID, filePath: source.resolvedFileLocation, pages: nil)
+        // The pictures a card may show: its captioned figures, read off the
+        // file on this Mac, off the storage actor, as a course quiz reads a
+        // reading's; for a lecture video, which has no such file, its slides,
+        // as a course quiz lists a lecture's (product owner, 2026-10-19: "you
+        // should be able to extract pictures from the sources in there
+        // usually; like the paper; or youtube video").
+        let byMoment = YouTubeTranscriptService.isYouTubeURL(source.url)
+        let figures = await Task.detached(priority: .utility) { [sourceID, source, stored] in
+            let read = CourseQuizGeneratorService.readingFigures(sourceID: sourceID, filePath: source.resolvedFileLocation, pages: nil)
+            guard read.isEmpty else { return read }
+            return CardDraftingPictures.slideFigures(
+                CourseQuizPictures.slides(from: stored, sourceID: sourceID, byMoment: byMoment)
+            )
         }.value
 
         return .source(CardDraftingSource(

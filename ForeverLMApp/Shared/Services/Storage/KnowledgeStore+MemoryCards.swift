@@ -36,6 +36,12 @@ struct SourceMemoryQuestion: Equatable, Sendable {
     let excerpts: [String]
     /// Where the question was asked, which its card records.
     let origin: MemoryCardOrigin
+    /// The pictures the question was shown with, which its card keeps: a
+    /// walkthrough step's picture with the question
+    /// (`CardDraftingPictures.walkImage`), a course-quiz question's on the
+    /// side it was pinned to. Empty when it was shown with none.
+    var frontImages: [MemoryCardImage] = []
+    var backImages: [MemoryCardImage] = []
 
     /// A walkthrough's question card. `testing` is the steps the question
     /// follows, nearest first (`PaperWalkthrough.stepsBefore(question:)`).
@@ -88,7 +94,9 @@ struct SourceMemoryQuestion: Equatable, Sendable {
             front: question,
             back: answer.isEmpty ? points.joined(separator: "\n") : answer,
             why: answer.isEmpty ? [] : points,
-            origin: origin
+            origin: origin,
+            frontImages: frontImages,
+            backImages: backImages
         )
     }
 }

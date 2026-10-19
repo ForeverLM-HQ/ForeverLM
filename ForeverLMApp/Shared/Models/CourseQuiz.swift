@@ -1222,7 +1222,7 @@ extension CourseQuizPlanning {
         lines: [LectureQuizLine]
     ) -> SourceMemoryQuestion? {
         guard let sourceID = question.sourceID else { return nil }
-        return SourceMemoryQuestion(
+        var memoryQuestion = SourceMemoryQuestion(
             sourceID: sourceID,
             stepID: "course-quiz-\(quizID)-\(question.id)",
             question: question.question,
@@ -1231,5 +1231,15 @@ extension CourseQuizPlanning {
             excerpts: memoryExcerpts(for: question, in: lines),
             origin: .courseQuiz
         )
+        // Its picture, on the side the quiz shows it: a picture still
+        // waiting to be drawn has no address yet, and the card goes without.
+        if let picture = question.picture,
+           let image = MemoryCardImage(target: picture.image, alt: picture.caption ?? "Picture") {
+            switch picture.placement {
+            case .question: memoryQuestion.frontImages = [image]
+            case .answer: memoryQuestion.backImages = [image]
+            }
+        }
+        return memoryQuestion
     }
 }
