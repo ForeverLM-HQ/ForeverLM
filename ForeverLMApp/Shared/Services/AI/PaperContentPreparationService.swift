@@ -379,22 +379,43 @@ struct PaperContentPreparationService: Sendable {
         var deletionPlan = AIService.PaperContentDeletionPlan.empty
         for attempt in 1...2 {
             deletionPlan = AIService.PaperContentDeletionPlan.empty
-            for (index, chunk) in requestChunks.enumerated() {
+            // A chunk whose plan runs into the output cap is halved and asked
+            // again, rather than failing the source. On 2026-10-19 a free
+            // reasoning model spent 20k of its 32,768 output tokens thinking
+            // about the first 75k-token chunk of a bioRxiv paper and was cut
+            // off mid-plan; the same chunk at half the size leaves it room.
+            var pendingChunks = requestChunks
+            var index = 0
+            while index < pendingChunks.count {
                 try Task.checkCancellation()
-                let chunkPlan = try await AIBackgroundRetry.run(config: config) { config in
-                    try await aiService.paperContentDeletionPlan(
-                        source: source,
-                        sourceType: sourceType,
-                        blocks: chunk,
-                        config: config,
-                        system: cleanupPrompt,
-                        chunkIndex: index,
-                        chunkCount: requestChunks.count
+                let chunk = pendingChunks[index]
+                let chunkCount = pendingChunks.count
+                do {
+                    let chunkPlan = try await AIBackgroundRetry.run(config: config) { config in
+                        try await aiService.paperContentDeletionPlan(
+                            source: source,
+                            sourceType: sourceType,
+                            blocks: chunk,
+                            config: config,
+                            system: cleanupPrompt,
+                            chunkIndex: index,
+                            chunkCount: chunkCount
+                        )
+                    }
+                    deletionPlan = deletionPlan.merging(chunkPlan)
+                    index += 1
+                } catch AIError.outputTokenLimit where chunk.count > 1 {
+                    let middle = chunk.count / 2
+                    logger.warning(
+                        "Source Content Cleanup chunk \(index + 1)/\(chunkCount) hit the output token limit; splitting its \(chunk.count) blocks in two"
+                    )
+                    pendingChunks.replaceSubrange(
+                        index...index,
+                        with: [Array(chunk[..<middle]), Array(chunk[middle...])]
                     )
                 }
-                deletionPlan = deletionPlan.merging(chunkPlan)
             }
-            if requestChunks.count > 1 {
+            if pendingChunks.count > 1 {
                 let mergedData = try JSONEncoder().encode(deletionPlan)
                 guard let mergedJSON = String(data: mergedData, encoding: .utf8) else {
                     throw AIError.invalidResponse
