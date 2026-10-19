@@ -1,8 +1,8 @@
 // A small Markdown-to-HTML renderer for what the notes graph shows outside
 // the writing: a referenced block's text, an embed's block and what is nested
-// under it, the page foot's Linked References, Unlinked References and
-// earlier days. It reads the subset a Doc is written in (headings,
-// paragraphs, nested and task lists, quotes, code, tables, emphasis, links)
+// under it, the page foot's Linked References and earlier days. It reads the
+// subset a Doc is written in (headings, paragraphs, nested and task lists,
+// quotes, code, tables, emphasis, links)
 // and the notes grammar (`((id))`, `{{embed: ((id))}}`, `[[Title]]`, `#tag`,
 // ` ^id`), and it escapes every character it does not itself write, so a
 // snippet can never carry markup of its own into the page.
@@ -21,17 +21,12 @@ export function escapeHTML(value) {
   return String(value ?? '').replace(/[&<>"']/g, (character) => entities[character])
 }
 
-// A caller may wrap a stretch of the source in these two private-use
-// characters to have it drawn highlighted (an Unlinked Reference's words).
-export const highlightStart = '\uE000'
-export const highlightEnd = '\uE001'
-
 function textHTML(value) {
-  return escapeHTML(value).replace(/\uE000/g, '<mark>').replace(/\uE001/g, '</mark>')
+  return escapeHTML(value)
 }
 
 function attributeText(value) {
-  return escapeHTML(String(value ?? '').replace(/[\uE000\uE001]/g, ''))
+  return escapeHTML(value)
 }
 
 const asciiPunctuation = /[!-/:-@[-`{-~]/

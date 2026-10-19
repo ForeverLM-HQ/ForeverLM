@@ -2647,37 +2647,6 @@ span.artifact-foot-activity-title {
   font-size: 0.9em;
 }
 
-.artifact-graph-mention-line {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-}
-
-.artifact-graph-mention-line .artifact-graph-block-words {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-/* An unlinked mention's Link shows under the pointer, or while it is linking
-   or has the keyboard's focus; its place stays so the words never reflow
-   (2026-10-06: a pill on every mention read as a column of buttons). */
-.artifact-graph-mention .artifact-graph-pill {
-  opacity: 0;
-  transition: opacity 0.12s ease-out;
-}
-
-.artifact-graph-mention:hover .artifact-graph-pill,
-.artifact-graph-mention:focus-within .artifact-graph-pill,
-.artifact-graph-mention .artifact-graph-pill:disabled {
-  opacity: 1;
-}
-
-@media (hover: none) {
-  .artifact-graph-mention .artifact-graph-pill {
-    opacity: 1;
-  }
-}
-
 .artifact-foot-day {
   margin: 0 0 24px;
 }

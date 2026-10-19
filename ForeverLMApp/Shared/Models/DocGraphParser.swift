@@ -1650,8 +1650,7 @@ enum DocGraphText {
 /// Where some words stand in a block's prose — whole words, any case, any
 /// accents, any whitespace between them — outside code, links, pictures, web
 /// addresses, HTML and the graph's own grammar. How a Doc's title is found
-/// written but not linked (Unlinked References), and how a mention is found
-/// again in a Doc that changed.
+/// written but not linked (Unlinked References, for `get_linked_references`).
 struct DocGraphWordMatcher {
     let words: [String]
     private let expression: NSRegularExpression?

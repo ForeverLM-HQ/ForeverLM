@@ -2,9 +2,9 @@ import Foundation
 
 // MARK: - Changing a Doc's Markdown for the graph (docs/notes-graph-design.md)
 //
-// The two writes the graph makes into another Doc — giving a block an id and
-// linking an unlinked mention — as pure edits of its Markdown, and the
-// reading of a Doc's references into words for a reader outside the app.
+// The write the graph makes into another Doc — giving a block an id — as a
+// pure edit of its Markdown, and the reading of a Doc's references into words
+// for a reader outside the app.
 // The storage side (`StorageService+DocGraph.swift`) reads the Doc's
 // snapshot, edits it here, and saves it with the snapshot's revision.
 
@@ -63,98 +63,6 @@ enum DocGraphEditing {
         }
         let matches = parse.blocks.filter { collapsed($0.block.plainText) == wanted }
         return matches.first { $0.block.key == key } ?? matches.first
-    }
-
-    /// The Markdown with one unlinked mention turned into a link to
-    /// `targetDocID`, `[the mention's words](foreverlm://doc/<id>)`. The
-    /// mention is found where it was when its block still reads the same; in
-    /// a Doc that changed since (`keyIsCurrent` false), in the block at the
-    /// same key or one with the same plain text, at the occurrence of the
-    /// words nearest the old place. Nil when the words are no longer there
-    /// unlinked.
-    static func linkingMention(
-        _ mention: DocGraphMention,
-        toDoc targetDocID: String,
-        keyIsCurrent: Bool,
-        in markdown: String
-    ) -> String? {
-        let original = mention.block.markdown as NSString
-        guard mention.start >= 0, mention.end > mention.start, mention.end <= original.length else { return nil }
-        let words = original.substring(with: NSRange(location: mention.start, length: mention.end - mention.start))
-        let matcher = DocGraphWordMatcher(words)
-        guard !matcher.words.isEmpty else { return nil }
-        let parse = DocGraphParser.parse(markdown, docID: mention.docID)
-
-        var found: (block: DocGraphParsedBlock, range: Range<Int>)?
-        let wanted = mention.start..<mention.end
-        let sameText = parse.blocks.filter { $0.block.markdown == mention.block.markdown }
-        if let block = sameText.first(where: { $0.block.key == mention.block.key }) ?? sameText.first,
-           matcher.occurrences(in: block.block.markdown).contains(wanted) {
-            found = (block, wanted)
-        }
-        if found == nil, !keyIsCurrent {
-            var candidates: [DocGraphParsedBlock] = []
-            if let atKey = parse.block(atKey: mention.block.key) { candidates.append(atKey) }
-            candidates += parse.blocks.filter {
-                $0.block.key != mention.block.key && $0.block.plainText == mention.block.plainText
-            }
-            for candidate in candidates {
-                let nearest = matcher.occurrences(in: candidate.block.markdown).min {
-                    abs($0.lowerBound - mention.start) < abs($1.lowerBound - mention.start)
-                }
-                if let nearest {
-                    found = (candidate, nearest)
-                    break
-                }
-            }
-        }
-        guard let found,
-              let range = documentRange(of: found.range, in: found.block, lines: DocGraphLines(markdown)) else { return nil }
-        let text = markdown as NSString
-        let link = "[\(escapingBrackets(text.substring(with: range)))](\(StudioEntityLink.doc(targetDocID).markdownDestination))"
-        return text.replacingCharacters(in: range, with: link)
-    }
-
-    /// Where a range of a block's `markdown` stands in the whole Doc.
-    static func documentRange(of range: Range<Int>, in block: DocGraphParsedBlock, lines: DocGraphLines) -> NSRange? {
-        guard let start = documentOffset(range.lowerBound, in: block, lines: lines),
-              let end = documentOffset(range.upperBound, in: block, lines: lines),
-              end >= start else { return nil }
-        return NSRange(location: start, length: end - start)
-    }
-
-    private static func documentOffset(_ offset: Int, in block: DocGraphParsedBlock, lines: DocGraphLines) -> Int? {
-        var segmentStart = 0
-        for segment in block.segments {
-            let segmentEnd = segmentStart + segment.length
-            if offset >= segmentStart, offset <= segmentEnd {
-                guard segment.line < lines.count else { return nil }
-                return lines.starts[segment.line] + segment.column + (offset - segmentStart)
-            }
-            // The "\n" between two lines of the block's text.
-            segmentStart = segmentEnd + 1
-        }
-        return nil
-    }
-
-    /// Link text: a bracket that is not escaped already is escaped, so the
-    /// words cannot close the link early.
-    static func escapingBrackets(_ text: String) -> String {
-        var result = ""
-        var backslashes = 0
-        for character in text {
-            if character == "\\" {
-                backslashes += 1
-                result.append(character)
-                continue
-            }
-            if character == "[" || character == "]", backslashes % 2 == 0 {
-                result.append("\\")
-            }
-            result.append(character)
-            backslashes = 0
-        }
-        return result
     }
 
     private static func collapsed(_ text: String) -> String {

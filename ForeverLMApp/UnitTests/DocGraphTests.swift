@@ -301,42 +301,6 @@ struct DocGraphParserTests {
         #expect(setext.markdown == "Title ^sete00001\n=====\n")
     }
 
-    private func mention(of title: String, in markdown: String, docID: String = "holder", revision: String = "r1") throws -> DocGraphMention {
-        let parse = DocGraphParser.parse(markdown, docID: docID)
-        let matcher = DocGraphWordMatcher(title)
-        for block in parse.blocks {
-            if let range = matcher.occurrences(in: block.block.markdown).first {
-                return DocGraphMention(docID: docID, docTitle: "Holder", revision: revision, block: block.block, start: range.lowerBound, end: range.upperBound)
-            }
-        }
-        throw DocGraphError.mentionMoved(title)
-    }
-
-    @Test("Linking a mention writes a link with the mention's own words, finds it again in a changed Doc, and refuses when it is gone")
-    func linkingMentions() throws {
-        let markdown = "# Notes\n\nWe study mitophagy in neurons.\n"
-        let found = try mention(of: "Mitophagy", in: markdown)
-        #expect(found.block.key == "1")
-        #expect(DocGraphEditing.linkingMention(found, toDoc: "doc-mito", keyIsCurrent: true, in: markdown)
-            == "# Notes\n\nWe study [mitophagy](foreverlm://doc/doc-mito) in neurons.\n")
-
-        let changed = "# Notes\n\nToday: we study mitophagy in neurons.\n"
-        #expect(DocGraphEditing.linkingMention(found, toDoc: "doc-mito", keyIsCurrent: false, in: changed)
-            == "# Notes\n\nToday: we study [mitophagy](foreverlm://doc/doc-mito) in neurons.\n")
-        #expect(DocGraphEditing.linkingMention(found, toDoc: "doc-mito", keyIsCurrent: false, in: "# Notes\n\nWe study autophagy.\n") == nil)
-        #expect(DocGraphEditing.linkingMention(found, toDoc: "doc-mito", keyIsCurrent: false, in: "# Notes\n\nWe study [[mitophagy]].\n") == nil,
-                "words that became a title link are linked already")
-
-        let bracketed = try mention(of: "A [draft]", in: "Read a [draft] today.")
-        #expect(DocGraphEditing.linkingMention(bracketed, toDoc: "doc-draft", keyIsCurrent: true, in: "Read a [draft] today.")
-            == #"Read [a \[draft\]](foreverlm://doc/doc-draft) today."#)
-
-        let spread = "- The membrane\n  potential falls"
-        let acrossLines = try mention(of: "membrane potential", in: spread)
-        #expect(DocGraphEditing.linkingMention(acrossLines, toDoc: "doc-mmp", keyIsCurrent: true, in: spread)
-            == "- The [membrane\n  potential](foreverlm://doc/doc-mmp) falls")
-    }
-
     // MARK: Resolving
 
     private func lookup(_ markdown: String) -> (String) -> DocGraphParsedBlock? {
@@ -560,8 +524,8 @@ struct DocGraphStorageTests {
         #expect(found["claim0001"]?.childrenMarkdown == "- Evidence")
     }
 
-    @Test("Unlinked References: whole words in other Docs, one per block, not where linked, coded or inside a link, and Link turns one into a link")
-    func unlinkedMentionsAndLinking() async throws {
+    @Test("Unlinked References: whole words in other Docs, one per block, not where linked, coded or inside a link")
+    func unlinkedMentions() async throws {
         let (storage, root) = makeStorage()
         defer { try? FileManager.default.removeItem(at: root) }
         let target = try await doc(storage, "Mitophagy", "Mitophagy is the subject of this page.").artifact
@@ -579,27 +543,6 @@ struct DocGraphStorageTests {
 
         let short = try await doc(storage, "Ox", "Ox ox ox.").artifact
         #expect(try await storage.docGraphUnlinkedMentions(ofDoc: short.id).isEmpty)
-
-        // Link the first, at the revision it was read at.
-        try await storage.docGraphLinkMention(mentions[0], toDoc: target.id)
-        let linked = try await storage.artifactMarkdown(holder.id).markdown
-        #expect(linked == "We study [mitophagy](foreverlm://doc/\(target.id)) in neurons; MITOPHAGY again.\n\n- Mitophagy in a bullet")
-        #expect(try await storage.docGraphUnlinkedMentions(ofDoc: target.id).map(\.block.key) == ["1.0"])
-        #expect(try await storage.docGraphLinkedReferences(to: .doc(target.id), teamID: nil).map(\.id).contains(holder.id))
-
-        // The Doc changed since the bullet's mention was read: it is found again by its text.
-        _ = try await rewrite(storage, holder.id, "Intro line.\n\n" + linked)
-        try await storage.docGraphLinkMention(mentions[1], toDoc: target.id)
-        #expect(try await storage.artifactMarkdown(holder.id).markdown.hasSuffix("- [Mitophagy](foreverlm://doc/\(target.id)) in a bullet"))
-
-        // Gone: refused, nothing written.
-        let gone = try await doc(storage, "Gone", "Mitophagy matters.").artifact
-        let goneMention = try #require(try await storage.docGraphUnlinkedMentions(ofDoc: target.id).first { $0.docID == gone.id })
-        _ = try await rewrite(storage, gone.id, "Autophagy matters.")
-        await #expect(throws: DocGraphError.mentionMoved("Gone")) {
-            try await storage.docGraphLinkMention(goneMention, toDoc: target.id)
-        }
-        #expect(try await storage.artifactMarkdown(gone.id).markdown == "Autophagy matters.")
     }
 
     @Test("Block search: every word must appear; the whole phrase first, then word starts, then the rest, newest Doc first within each")

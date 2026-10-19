@@ -395,7 +395,8 @@ struct DocGraphReferenceGroup: Codable, Equatable, Sendable {
 }
 
 /// A page's title written in another Doc but not linked: Roam's Unlinked
-/// References, each offered with Link.
+/// References, which `get_linked_references` lists with `include_unlinked`.
+/// The page foot does not draw them (product owner, 2026-10-19).
 struct DocGraphMention: Codable, Equatable, Sendable {
     let docID: String
     var docTitle: String
@@ -420,7 +421,6 @@ enum DocGraphError: LocalizedError, Equatable {
     case notBuilt(String)
     case blockNotFound(String)
     case blockMoved(String)
-    case mentionMoved(String)
     case notMarkdown(String)
 
     var errorDescription: String? {
@@ -428,7 +428,6 @@ enum DocGraphError: LocalizedError, Equatable {
         case .notBuilt(let what): return "\(what) is not built yet."
         case .blockNotFound(let id): return "No Page holds the block ((\(id)))."
         case .blockMoved(let title): return "That block changed in “\(title)” before it could be referenced. Try again."
-        case .mentionMoved(let title): return "“\(title)” changed before the mention could be linked. Try again."
         case .notMarkdown(let title): return "“\(title)” is not a Markdown Page."
         }
     }

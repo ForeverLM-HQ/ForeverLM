@@ -224,15 +224,12 @@ final class ArtifactNotesGraphHost {
         let teamID = teamID
         referencesTask = Task { [weak self] in
             var linked: [DocGraphReferenceGroup] = []
-            var unlinked: [DocGraphMention] = []
             var failure: Error?
             do { linked = try await storage.docGraphLinkedReferences(to: .doc(pageID), teamID: teamID) } catch { failure = error }
-            do { unlinked = try await storage.docGraphUnlinkedMentions(ofDoc: pageID) } catch { failure = failure ?? error }
             guard !Task.isCancelled, let self, self.docID == docID else { return }
             let references = NotesGraphWire.References(
                 // A doc's own draft is not a page pointing at the doc.
-                linked: linked.filter { $0.id != docID }.map(NotesGraphWire.Group.init),
-                unlinked: unlinked.filter { $0.docID != docID }.map(NotesGraphWire.Mention.init)
+                linked: linked.filter { $0.id != docID }.map(NotesGraphWire.Group.init)
             )
             let json = await NotesGraphWire.jsonOffMain(references)
             guard !Task.isCancelled, self.docID == docID else { return }
@@ -532,23 +529,6 @@ final class ArtifactNotesGraphHost {
                     await vm.openIdea(id)
                 } else {
                     await vm.openDoc(id, revealing: DocBlockReveal(blockID: blockID, plainText: plainText), in: window)
-                }
-            }
-
-        case .linkMentionRequested(let mention):
-            guard let mention else {
-                vm.showToast("That mention could not be linked. Reopen the page and try again.")
-                return
-            }
-            let pageID = pageID
-            Task { [weak self] in
-                do {
-                    try await storage.docGraphLinkMention(mention, toDoc: pageID)
-                    if let reloaded = try? await vm.loadScopedArtifacts() { vm.artifacts = reloaded }
-                    self?.refreshReferences()
-                } catch {
-                    vm.showToast(error.localizedDescription)
-                    self?.refreshReferences()
                 }
             }
 

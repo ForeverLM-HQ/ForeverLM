@@ -325,40 +325,6 @@ extension StorageService {
         throw DocGraphError.blockMoved(try artifactMarkdown(docID).artifact.title)
     }
 
-    /// Turns an unlinked mention into a link to `targetDocID`
-    /// (`[the mention's own words](foreverlm://doc/<id>)`) in the Doc that
-    /// holds it, and saves it; refused (`mentionMoved`) when that Doc changed
-    /// and the mention cannot be found again.
-    func docGraphLinkMention(_ mention: DocGraphMention, toDoc targetDocID: String) async throws {
-        for attempt in 0..<2 {
-            let snapshot = try artifactMarkdown(mention.docID)
-            guard snapshot.artifact.kind == nil, !snapshot.artifact.isLinked else {
-                throw DocGraphError.notMarkdown(snapshot.artifact.title)
-            }
-            let keyIsCurrent = snapshot.revision.caseInsensitiveCompare(mention.revision) == .orderedSame
-            guard let markdown = DocGraphEditing.linkingMention(
-                mention,
-                toDoc: targetDocID,
-                keyIsCurrent: keyIsCurrent,
-                in: snapshot.markdown
-            ) else {
-                throw DocGraphError.mentionMoved(snapshot.artifact.title)
-            }
-            do {
-                let saved = try await writeArtifactMarkdownAndSync(
-                    artifactID: mention.docID,
-                    markdown: markdown,
-                    expectedRevision: snapshot.revision
-                )
-                docGraphRemember(saved)
-                return
-            } catch let error as ArtifactError {
-                guard case .conflict = error, attempt == 0 else { throw error }
-            }
-        }
-        throw DocGraphError.mentionMoved(try artifactMarkdown(mention.docID).artifact.title)
-    }
-
     /// The daily note for a day (`DailyNote.dayKey`), made in My Library with
     /// its day's title and an empty body when it does not exist yet. Making
     /// it twice, here or on another Mac, makes one record.

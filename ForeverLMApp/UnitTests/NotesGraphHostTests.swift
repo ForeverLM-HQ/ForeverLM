@@ -71,7 +71,6 @@ struct NotesGraphHostTests {
             ("openTitleRequested", ["title": "Mitophagy"]),
             ("openBlockRequested", ["blockID": "a1b2c3d4e"]),
             ("openReferenceRequested", ["kind": "doc", "id": "d"]),
-            ("linkMentionRequested", ["mention": [:] as [String: Any]]),
             ("copyToPasteboardRequested", ["text": "((a1b2c3d4e))"]),
             ("makeIdeaRequested", ["text": "An idea"]),
             ("dailyNoteRequested", ["dayKey": "2026-10-06"]),
@@ -144,23 +143,6 @@ struct NotesGraphHostTests {
             payload: ["docID": id, "title": "Untitled", "nested": true]
         )
         #expect(explicitYes == .pageCreationRequested(docID: id, title: "Untitled", dayKey: nil, open: false, nested: true))
-    }
-
-    @Test("A mention sent to the editor comes back as the same mention for Link")
-    func mentionRoundTrip() throws {
-        let mention = DocGraphMention(
-            docID: "doc-b",
-            docTitle: "Reading notes",
-            revision: "rev-7",
-            block: Self.block(docID: "doc-b", key: "0.1"),
-            start: 6,
-            end: 11
-        )
-        // The editor holds the mention as JSON and posts it back as an object.
-        let posted = try Self.object(NotesGraphWire.json(NotesGraphWire.Mention(mention)))
-        let message = ArtifactNotesGraphMessage.parse(type: "linkMentionRequested", payload: ["mention": posted])
-        #expect(message == .linkMentionRequested(mention))
-        #expect(ArtifactNotesGraphMessage.parse(type: "linkMentionRequested", payload: ["mention": ["docID": "x"]]) == .linkMentionRequested(nil))
     }
 
     // MARK: What the editor is handed
@@ -241,16 +223,16 @@ struct NotesGraphHostTests {
         bridge.open(docID: "doc-a", isDailyNote: false, allowsDates: true)
         let page = RecordingPage(docID: "doc-a")
         bridge.attach(page)
-        bridge.setReferences(#"{"linked":[],"unlinked":[]}"#)
+        bridge.setReferences(#"{"linked":[]}"#)
         #expect(page.scripts.isEmpty, "nothing reaches a page before it is ready")
 
         bridge.pageBecameReady(page)
         #expect(page.scripts.count == 3)
         #expect(page.scripts[0].contains(#"e.setGraphContext({"allowsDates":true,"blocks":{},"docID":"doc-a""#))
-        #expect(page.scripts[1].contains(#"e.setReferences({"linked":[],"unlinked":[]})"#))
+        #expect(page.scripts[1].contains(#"e.setReferences({"linked":[]})"#))
         #expect(page.scripts[2].contains("e.setDailyContext(null)"))
 
-        bridge.setReferences(#"{"linked":[],"unlinked":[]}"#)
+        bridge.setReferences(#"{"linked":[]}"#)
         #expect(page.scripts.count == 3, "the same answer twice is said once")
         bridge.setContext(#"{"docID":"doc-a"}"#)
         #expect(page.scripts.count == 4)

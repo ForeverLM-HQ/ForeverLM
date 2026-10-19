@@ -83,24 +83,6 @@ enum NotesGraphWire {
         }
     }
 
-    struct Mention: Encodable, Equatable, Sendable {
-        var docID: String
-        var docTitle: String
-        var revision: String
-        var block: Block
-        var start: Int
-        var end: Int
-
-        init(_ mention: DocGraphMention) {
-            docID = mention.docID
-            docTitle = mention.docTitle
-            revision = mention.revision
-            block = Block(mention.block)
-            start = mention.start
-            end = mention.end
-        }
-    }
-
     struct Hit: Encodable, Equatable, Sendable {
         var docID: String
         var docTitle: String
@@ -140,7 +122,6 @@ enum NotesGraphWire {
     /// `setReferences`'s argument.
     struct References: Encodable, Equatable, Sendable {
         var linked: [Group]
-        var unlinked: [Mention]
     }
 
     /// One thing a day held, in the page foot of its daily note.
@@ -215,8 +196,6 @@ enum ArtifactNotesGraphMessage: Equatable {
     case openTitleRequested(title: String)
     case openBlockRequested(blockID: String)
     case openReferenceRequested(kind: String, id: String, blockID: String?, plainText: String?)
-    /// nil when the mention the editor sent back could not be read.
-    case linkMentionRequested(DocGraphMention?)
     case copyToPasteboardRequested(text: String)
     case makeIdeaRequested(text: String, blockID: String?)
     case dailyNoteRequested(dayKey: String)
@@ -228,7 +207,7 @@ enum ArtifactNotesGraphMessage: Equatable {
 
     static let messageTypes: Set<String> = [
         "blocksRequested", "blockSearchRequested", "blockIDAssigned", "pageCreationRequested",
-        "openTitleRequested", "openBlockRequested", "openReferenceRequested", "linkMentionRequested",
+        "openTitleRequested", "openBlockRequested", "openReferenceRequested",
         "copyToPasteboardRequested", "makeIdeaRequested", "dailyNoteRequested", "dailyNotesMoreRequested",
         "blockReferencesRequested",
     ]
@@ -282,11 +261,6 @@ enum ArtifactNotesGraphMessage: Equatable {
         case "openReferenceRequested":
             guard let kind = text("kind"), ["doc", "dailyNote", "idea"].contains(kind), let id = text("id") else { return nil }
             return .openReferenceRequested(kind: kind, id: id, blockID: blockID("blockID"), plainText: text("plainText"))
-        case "linkMentionRequested":
-            guard let mention = payload["mention"] as? [String: Any],
-                  JSONSerialization.isValidJSONObject(mention),
-                  let data = try? JSONSerialization.data(withJSONObject: mention) else { return .linkMentionRequested(nil) }
-            return .linkMentionRequested(try? JSONDecoder().decode(DocGraphMention.self, from: data))
         case "copyToPasteboardRequested":
             guard let value = payload["text"] as? String, !value.isEmpty else { return nil }
             return .copyToPasteboardRequested(text: value)

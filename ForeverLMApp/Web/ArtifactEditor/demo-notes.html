@@ -40,7 +40,7 @@
       // the editor posts from the fixtures below. Every message lands in the
       // log at the bottom right and in `window.demoMessages`.
       //
-      //   demo-notes.html          a Doc with Linked and Unlinked References
+      //   demo-notes.html          a Doc with Linked References
       //   demo-notes.html?daily    today's daily note
       //   window.roundTripReport() what a save writes for every grammar form
 
@@ -130,7 +130,6 @@ A reference to this doc's own first paragraph: ((a1b2c3d4e))
                 block({ docID: 'doc-weekly', key: '1.0', kind: 'listItem', markdown: `Plan from [[${dayTitle(todayKey)}]]: finish the memo`, plainText: `Plan from ${dayTitle(todayKey)}: finish the memo`, breadcrumbs: ['This week'] }),
               ] },
             ],
-            unlinked: [],
           }
         : {
             linked: [
@@ -142,10 +141,6 @@ A reference to this doc's own first paragraph: ((a1b2c3d4e))
                 block({ key: '0', kind: 'listItem', markdown: 'Read about ((a1b2c3d4e)) today #aging', plainText: 'Read about the budget today aging' }),
               ] },
               { kind: 'idea', id: 'idea-1', title: 'Energy is the bottleneck of aging', updatedAt: 1791100000, blocks: [] },
-            ],
-            unlinked: [
-              { docID: 'doc-qc', docTitle: 'Quality control', revision: 'r7', start: 0, end: 17, block: block({ docID: 'doc-qc', key: '3', markdown: 'Mitochondria memo notes that mitophagy matters more than ROS.', plainText: 'Mitochondria memo notes that mitophagy matters more than ROS.', breadcrumbs: ['Open questions'] }) },
-              { docID: 'doc-aging', docTitle: 'Aging', revision: 'r3', start: 14, end: 31, block: block({ docID: 'doc-aging', key: '6', markdown: 'Compare the **mitochondria memo** with the hallmarks list.', plainText: 'Compare the mitochondria memo with the hallmarks list.' }) },
             ],
           }
 
@@ -225,16 +220,6 @@ A reference to this doc's own first paragraph: ((a1b2c3d4e))
             break
           case 'blockReferencesRequested':
             setTimeout(() => editorAPI().setBlockReferencesFor(message.blockID, groupsFor(message.blockID)), 140)
-            break
-          case 'linkMentionRequested':
-            setTimeout(() => {
-              const mention = message.mention
-              references = {
-                linked: [...references.linked, { kind: 'doc', id: mention.docID, title: mention.docTitle, updatedAt: 1791400000, blocks: [{ ...mention.block, markdown: `${mention.block.markdown.slice(0, mention.start)}[[${docTitle}]]${mention.block.markdown.slice(mention.end)}` }] }],
-                unlinked: references.unlinked.filter((candidate) => !(candidate.docID === mention.docID && candidate.block.key === mention.block.key)),
-              }
-              editorAPI().setReferences(references)
-            }, 300)
             break
           case 'dailyNotesMoreRequested':
             setTimeout(() => {

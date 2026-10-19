@@ -1,13 +1,13 @@
 // What the notes graph draws around the writing rather than in it: the page
-// foot (a day's activity, Linked References, Unlinked References and, on a
-// daily note, the days before it), the preview a block reference shows on
+// foot (a day's activity, Linked References and, on a daily note, the days
+// before it), the preview a block reference shows on
 // hover, the list a referenced block's count opens, and the small menu a
 // bullet's right-click opens (docs/notes-graph-design.md). Everything here is
 // outside the contenteditable, so none of it can be typed into or saved; the
 // host answers the questions it asks through the messages in PROTOCOL.md,
 // posted with the editor's own `post`.
 
-import { highlightEnd, highlightStart, renderInline, renderMarkdown } from './notes-markdown.js'
+import { renderInline, renderMarkdown } from './notes-markdown.js'
 
 let host = {
   post: () => {},
@@ -384,21 +384,21 @@ function referenceGroupElement(group, { compact = false } = {}) {
 
 // ─── The page foot ──────────────────────────────────────────────────────────
 // Below the writing, inside the page's scroll, in the order Roam keeps them:
-// what the day held in the library (a daily note), Linked References (open),
-// Unlinked References (folded), and a daily note's earlier days with More
-// days. A section with nothing in it is not drawn; a host that sends nothing
-// draws nothing.
+// what the day held in the library (a daily note), Linked References, and a
+// daily note's earlier days with More days. A section with nothing in it is
+// not drawn; a host that sends nothing draws nothing. Roam's Unlinked
+// References are not drawn (product owner, 2026-10-19: "no unlinked
+// references should randomly show up"): a page titled with a common word
+// filled its foot with other Pages' prose.
 
 let footRoot = null
 let footReferences = null
 let footDaily = null
-// Which sections stand open. A page opens with Linked References open and
-// Unlinked References folded, whatever the last page was left as: the editor's
-// web view is pooled and outlives the page it showed, and a folded section
-// unfolded on one page must not greet the next one open.
-const footOpenOnArrival = { linked: true, unlinked: false }
+// Which sections stand open. A page opens with Linked References open,
+// whatever the last page was left as: the editor's web view is pooled and
+// outlives the page it showed.
+const footOpenOnArrival = { linked: true }
 let footOpen = { ...footOpenOnArrival }
-let linkingMentions = new Set()
 let requestedMoreBefore = null
 /// How long a press waits for the host before it can be pressed again.
 const answerTimeout = 8000
@@ -432,22 +432,6 @@ function onFootClick(event) {
     renderFoot()
     return
   }
-  const link = target.closest('[data-link-mention]')
-  if (link) {
-    const key = link.dataset.linkMention
-    const mention = footMentions().find((candidate, index) => mentionKey(candidate, index) === key)
-    if (!mention || linkingMentions.has(key)) return
-    linkingMentions.add(key)
-    renderFoot()
-    host.post('linkMentionRequested', { mention })
-    // The host answers with fresh references; one that could not link says
-    // so in its own toast, and the button comes back to be tried again.
-    setTimeout(() => {
-      if (!linkingMentions.delete(key)) return
-      renderFoot()
-    }, answerTimeout)
-    return
-  }
   const day = target.closest('[data-day-key]')
   if (day) {
     host.post('dailyNoteRequested', { dayKey: day.dataset.dayKey })
@@ -479,14 +463,6 @@ function onFootClick(event) {
     if (String(window.getSelection?.() ?? '').trim()) return
     host.post('openReferenceRequested', JSON.parse(reference.dataset.openReference))
   }
-}
-
-function footMentions() {
-  return Array.isArray(footReferences?.unlinked) ? footReferences.unlinked : []
-}
-
-function mentionKey(mention, index) {
-  return `${mention?.docID ?? ''}\u0000${mention?.block?.key ?? ''}\u0000${mention?.start ?? ''}\u0000${index}`
 }
 
 function sectionHeader(name, title, open) {
@@ -549,67 +525,6 @@ function linkedSection(linked) {
   return section
 }
 
-/// A mention's block with its words marked: the title's range in the
-/// block's Markdown is wrapped in the renderer's highlight sentinels.
-function mentionWordsHTML(mention) {
-  const markdown = String(mention?.block?.markdown ?? '')
-  const start = Number(mention?.start)
-  const end = Number(mention?.end)
-  if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end > markdown.length || end <= start) {
-    return renderInline(markdown, snippetOptions())
-  }
-  const marked = `${markdown.slice(0, start)}${highlightStart}${markdown.slice(start, end)}${highlightEnd}${markdown.slice(end)}`
-  return renderInline(marked, snippetOptions())
-}
-
-function unlinkedSection(unlinked) {
-  const mentions = Array.isArray(unlinked) ? unlinked : []
-  if (mentions.length === 0) return null
-  const section = element('section', 'artifact-foot-section artifact-foot-unlinked')
-  section.append(sectionHeader('unlinked', mentions.length === 1 ? '1 Unlinked Reference' : `${mentions.length} Unlinked References`, footOpen.unlinked))
-  if (!footOpen.unlinked) return section
-  const body = element('div', 'artifact-foot-body artifact-snippet')
-  const byDoc = new Map()
-  mentions.forEach((mention, index) => {
-    const docID = String(mention?.docID ?? '')
-    if (!byDoc.has(docID)) byDoc.set(docID, [])
-    byDoc.get(docID).push({ mention, index })
-  })
-  for (const [docID, entries] of byDoc) {
-    const article = element('article', 'artifact-graph-group')
-    const title = element('button', 'artifact-graph-group-title', entries[0].mention?.docTitle || 'Untitled')
-    title.type = 'button'
-    title.dataset.openReference = JSON.stringify({ kind: 'doc', id: docID })
-    article.append(title)
-    for (const { mention, index } of entries) {
-      const key = mentionKey(mention, index)
-      const row = element('div', 'artifact-graph-block artifact-graph-mention')
-      row.dataset.openReference = JSON.stringify({
-        kind: 'doc',
-        id: docID,
-        blockID: mention?.block?.blockID ?? undefined,
-        plainText: String(mention?.block?.plainText ?? ''),
-      })
-      const crumbs = Array.isArray(mention?.block?.breadcrumbs) ? mention.block.breadcrumbs.filter(Boolean) : []
-      if (crumbs.length) row.append(breadcrumbsElement(crumbs))
-      const line = element('div', 'artifact-graph-mention-line')
-      const words = element('div', 'artifact-graph-block-words')
-      words.innerHTML = mentionWordsHTML(mention)
-      const link = element('button', 'artifact-graph-pill', linkingMentions.has(key) ? 'Linking…' : 'Link')
-      link.type = 'button'
-      link.dataset.linkMention = key
-      link.disabled = linkingMentions.has(key)
-      link.title = 'Link these words to this page'
-      line.append(words, link)
-      row.append(line)
-      article.append(row)
-    }
-    body.append(article)
-  }
-  section.append(body)
-  return section
-}
-
 /// The days before, each drawn whole under its date. A day with nothing
 /// written is left out (2026-10-06): it drew its date over "Nothing
 /// written.", a row of absence for every quiet day. More days still pages
@@ -646,7 +561,6 @@ function renderFoot() {
   const sections = [
     footDaily ? dailySection(footDaily) : null,
     footReferences ? linkedSection(footReferences.linked) : null,
-    footReferences ? unlinkedSection(footReferences.unlinked) : null,
     footDaily ? daysSection(footDaily) : null,
   ].filter(Boolean)
   if (sections.length === 0) {
@@ -668,10 +582,9 @@ function renderFoot() {
   document.body.classList.add('has-page-foot')
 }
 
-/// `setReferences`: `{ linked: [Group], unlinked: [Mention] }`, or null.
+/// `setReferences`: `{ linked: [Group] }`, or null.
 export function setFootReferences(references) {
   footReferences = references && typeof references === 'object' ? references : null
-  linkingMentions = new Set()
   renderFoot()
 }
 
@@ -698,7 +611,6 @@ export function clearFoot() {
   footReferences = null
   footDaily = null
   requestedMoreBefore = null
-  linkingMentions = new Set()
   renderFoot()
 }
 
