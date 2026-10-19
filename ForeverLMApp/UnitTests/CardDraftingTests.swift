@@ -1285,8 +1285,8 @@ struct ChatSavedCardsTests {
 
     @Test("A card to check takes pictures put on it, replaced per face, drawn one not twice")
     func cardToCheckTakesHeldPictures() throws {
-        let figure = try #require(MemoryCardImage(reference: "![Figure 1](foreverlm://source-image/src-1/p1)"))
-        let drawn = try #require(MemoryCardImage(reference: "![Drawn](foreverlm://source-image/src-1/p2)"))
+        let figure = try #require(MemoryCardImage(reference: "![Figure 1](foreverlm://image/src-1/page/1)"))
+        let drawn = try #require(MemoryCardImage(reference: "![Drawn](foreverlm://image/src-1/page/2)"))
         let card = MemoryCardToCheck(
             kind: .draft, face: MemoryCard(cardID: "a", front: "Q?", back: "A.", origin: .assistant, backImages: [drawn]),
             deckID: "carddeck-src-1", sourceID: "src-1", quote: "q", seed: nil, ideaID: nil,

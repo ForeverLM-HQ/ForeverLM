@@ -1180,7 +1180,7 @@ struct MemoryCardTests {
         defer { StudioWindowRegistry.shared.unregister(state) }
         state.memoryPaneSection = .toCheck
         state.memoryCardsWaitingIDs = ["card-a", "card-b"]
-        let figure = try #require(MemoryCardImage(reference: "![Figure 3](foreverlm://source-image/src-1/p3)"))
+        let figure = try #require(MemoryCardImage(reference: "![Figure 3](foreverlm://image/src-1/page/3)"))
 
         // Neither card is on screen, but the pane has both waiting.
         #expect(MCPDataStore.holdPicturesOnCardToCheck(cardID: "card-a", front: nil, back: [figure]))
