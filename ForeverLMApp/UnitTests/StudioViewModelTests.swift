@@ -6106,7 +6106,7 @@ struct ScheduleChatNavigationTests {
         #expect(ArtifactsHomeKind.sites.otherWindowDestination == .sites)
     }
 
-    @Test("workspace destinations replace a pane after the two-pane cap")
+    @Test("workspace destinations replace a pane after the two-pane cap; a drag may make a third")
     func coreWorkspaceCombination() {
         let restoreLayout = capturedCenterTabLayout()
         defer { restoreLayout() }
@@ -6123,12 +6123,15 @@ struct ScheduleChatNavigationTests {
         #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.artifacts, .notepad])
         #expect(vm.centerTabGroups.groups.count == StudioCenterTabGroups.maximumGroupCount)
 
+        // The Space shares its pane with Chat as a tab: dragged to a side it
+        // splits out, a third pane since the learner chose it.
         vm.placeCenterTabAtEdge(.artifacts, leading: true)
-        #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.artifacts, .notepad])
+        #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.artifacts, .chat, .notepad])
 
+        // Docs is its pane's only tab: the pane moves, and none is added.
         vm.placeCenterTabAtEdge(.notepad, leading: false)
-        #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.artifacts, .notepad])
-        #expect(vm.centerTabGroups.groups.count == 2)
+        #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.artifacts, .chat, .notepad])
+        #expect(vm.centerTabGroups.groups.count == 3)
     }
 
     @Test("A dragged chat creates a transient independent pane at either edge")
