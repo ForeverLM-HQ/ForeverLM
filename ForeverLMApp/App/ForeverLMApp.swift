@@ -569,6 +569,12 @@ struct ForeverLMApp: App {
                     await RetiredQuestionCalibration.clearOnce(storage: studioViewModel.storage)
                     #if os(macOS)
                     MacAccountUser.seedSyncedDisplayNameIfNeeded()
+                    // The card pictures the iPhone cannot draw itself are drawn
+                    // here and uploaded with their cards (`CardPicturePublisher`).
+                    let cardPictureStorage = studioViewModel.storage
+                    CardPictures.register { target in
+                        await ChatSourceImage.cardPictureJPEG(target, storage: cardPictureStorage)
+                    }
                     #endif
                     studioViewModel.reloadSyncedPreferences()
                     // Only now: the one-time integration-tab unpin reads and

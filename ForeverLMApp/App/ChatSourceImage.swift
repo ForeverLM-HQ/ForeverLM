@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import ImageIO
 import UniformTypeIdentifiers
 
 /// A picture the chat transcript shows for a `foreverlm://image/…` reference.
@@ -334,3 +335,42 @@ struct ChatSourceImage: Encodable, Sendable {
         return image
     }
 }
+
+// MARK: - A card's picture for the iPhone
+
+extension ChatSourceImage {
+    /// The longest side of a card picture sent to the iPhone: a phone card is narrower than this, and a slide's
+    /// words stay legible at it.
+    static let cardPictureMaxPixels = 1_600
+
+    /// A card picture as the JPEG its Card record carries for the iPhone (`CardPicturePublisher`): drawn the
+    /// way a card on this Mac draws it, then scaled to at most `cardPictureMaxPixels` on its longest side.
+    /// Nil when this Mac cannot draw it.
+    @MainActor
+    static func cardPictureJPEG(_ target: String, storage: StorageService) async -> Data? {
+        guard let image = await resolved(
+            token: target,
+            articleForSourceID: { sourceID in try? await storage.loadSourceWithoutContent(sourceID) },
+            contentForSourceID: { sourceID in await storage.loadSourceContent(sourceID) }
+        ) else { return nil }
+        let data = image.data
+        return await Task.detached(priority: .utility) { jpeg(data, maxPixels: cardPictureMaxPixels) }.value
+    }
+
+    /// `data` decoded and written again as a JPEG no larger than `maxPixels` on its longest side.
+    nonisolated static func jpeg(_ data: Data, maxPixels: Int) -> Data? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixels,
+        ]
+        guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
+        let output = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(output, "public.jpeg" as CFString, 1, nil) else { return nil }
+        CGImageDestinationAddImage(destination, image, [kCGImageDestinationLossyCompressionQuality: 0.82] as CFDictionary)
+        guard CGImageDestinationFinalize(destination) else { return nil }
+        return output as Data
+    }
+}
+

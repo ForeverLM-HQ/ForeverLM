@@ -61,6 +61,35 @@ struct MemoryCardOrigin: RawRepresentable, Hashable, Sendable {
 /// (`readRubric`) and shows the card without it. A face holds at most one
 /// animation (`faceList`), played in a sandboxed web view, with the pictures
 /// above it.
+/// The card pictures a light client cannot draw from what it holds, and the
+/// key each is published under on the Card record (`Card.pictures`,
+/// `CardPicturePublisher`). The iPhone draws a PDF page from the source's
+/// own PDF and plays an animation from its Artifact, but holds no slide
+/// frame, no video, no article's or book's image files and no image store:
+/// a Mac renders each such picture as a JPEG and uploads it with the card
+/// (product owner, 2026-10-19: "i reviewed 30 of them today on my phone and
+/// basically none had it!"). The key is a digest of the picture's address,
+/// so the phone finds it from the card face alone.
+enum CardPictureKey {
+    static func key(_ target: String) -> String {
+        String(SyncIdentity.sha256Hex(Data(target.utf8)).prefix(24))
+    }
+
+    static func role(_ key: String) -> String { "picture." + key }
+
+    /// True for a picture a light client needs from the card: a source's
+    /// image, slide or video moment, or a stored drawing. A PDF page and an
+    /// animation it draws itself.
+    static func isPublished(_ image: MemoryCardImage) -> Bool {
+        guard !image.isAnimation else { return false }
+        if let reference = SourceImageReference(urlString: image.target) {
+            if case .page = reference.location { return false }
+            return true
+        }
+        return GeneratedImageReference(urlString: image.target) != nil
+    }
+}
+
 struct MemoryCardImage: Equatable, Hashable, Sendable {
     let target: String
     let alt: String

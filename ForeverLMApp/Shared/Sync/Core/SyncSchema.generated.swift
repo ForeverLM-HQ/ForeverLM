@@ -114,6 +114,7 @@ enum SyncSchema {
         "Artifact.draftBase": ["draftBase"],
         "Quiz.questions": ["questions"],
         "Quiz.pictures": ["picture.<key>"],
+        "Card.pictures": ["picture.<key>"],
         "Chat.briefing": ["briefing"],
         "Exchange.attachments": ["attachment"],
         "ReadingState.understanding": ["understanding"],
@@ -1026,6 +1027,7 @@ enum SyncTypeSpecs {
             SyncFieldSpec("supersedes", json: "id", policy: .serverFirst, refs: [.card]),
             SyncFieldSpec("splitFrom", json: "id", policy: .serverFirst, refs: [.card]),
             SyncFieldSpec("legacy", json: "object", policy: .serverFirst),
+            SyncFieldSpec("pictures", json: "FileRef", kind: .map, policy: .lastWriter),
             SyncFieldSpec("editedAt", json: "ms", policy: .maximum, requirement: .always),
         ],
         serverFirstLossHooks: ["kept": "splitKeptCard"]

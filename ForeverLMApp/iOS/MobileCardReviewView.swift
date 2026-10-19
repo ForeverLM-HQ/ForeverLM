@@ -981,7 +981,7 @@ struct MobileCardReviewScreen: View {
                 .accessibilityFocused($spoken, equals: .prompt)
                 .accessibilityIdentifier("memory.cards.prompt")
             if !card.frontImages.isEmpty {
-                MobileMemoryCardImageGrid(images: card.frontImages, sourceID: card.sourceID)
+                MobileMemoryCardImageGrid(images: card.frontImages, sourceID: card.sourceID, cardIDs: [card.itemID, card.cardID])
                     .padding(.top, MobileDesign.Spacing.large)
             }
             if card.isFirstVariedServe, !sitting.isRepeat {
@@ -1067,7 +1067,7 @@ struct MobileCardReviewScreen: View {
                 .accessibilityFocused($spoken, equals: .back)
                 .accessibilityIdentifier("memory.cards.back")
             if !card.backImages.isEmpty {
-                MobileMemoryCardImageGrid(images: card.backImages, sourceID: card.sourceID)
+                MobileMemoryCardImageGrid(images: card.backImages, sourceID: card.sourceID, cardIDs: [card.itemID, card.cardID])
                     .padding(.top, MobileDesign.Spacing.large)
             }
             if !card.why.isEmpty {
@@ -1511,6 +1511,9 @@ struct MobileMemoryCardImageGrid: View {
     /// The card's source, whose Source record carries the pictures drawn for
     /// its walk (`MobileSourceFileStore.walkthroughPicture`).
     let sourceID: String?
+    /// The records the card may be: the Card record a Mac hangs the pictures
+    /// this phone cannot draw on (`CardPictureKey`).
+    var cardIDs: [String] = []
 
     private func columns(for count: Int) -> [GridItem] {
         Array(repeating: GridItem(.flexible(), spacing: MobileDesign.Spacing.small, alignment: .top), count: min(2, max(1, count)))
@@ -1522,7 +1525,7 @@ struct MobileMemoryCardImageGrid: View {
             if !split.pictures.isEmpty {
                 LazyVGrid(columns: columns(for: split.pictures.count), alignment: .leading, spacing: MobileDesign.Spacing.small) {
                     ForEach(split.pictures, id: \.self) { image in
-                        MobileMemoryCardImageTile(image: image, sourceID: sourceID)
+                        MobileMemoryCardImageTile(image: image, sourceID: sourceID, cardIDs: cardIDs)
                     }
                 }
                 .accessibilityIdentifier("memory.cards.images")
@@ -1541,6 +1544,7 @@ struct MobileMemoryCardImageGrid: View {
 private struct MobileMemoryCardImageTile: View {
     let image: MemoryCardImage
     let sourceID: String?
+    let cardIDs: [String]
 
     @State private var rendered: UIImage?
     @State private var didResolve = false
@@ -1567,15 +1571,19 @@ private struct MobileMemoryCardImageTile: View {
         .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.primary.opacity(0.08)))
         .accessibilityLabel(image.alt)
         .task(id: "\(sourceID ?? "")#\(image.target)") {
-            if let generated = GeneratedImageReference(urlString: image.target) {
-                // The phone keeps no image store: a drawn picture reaches it only
-                // on the Source record beside the walk that shows it, so a card
-                // whose source carries no such picture says it is unavailable.
-                if let sourceID {
-                    rendered = await MobileSourceFileStore.shared.walkthroughPicture(sourceID: sourceID, imageID: generated.id)
-                }
-            } else {
+            if let generated = GeneratedImageReference(urlString: image.target), let sourceID {
+                // The phone keeps no image store: a drawn picture reaches it
+                // on the Source record beside the walk that shows it…
+                rendered = await MobileSourceFileStore.shared.walkthroughPicture(sourceID: sourceID, imageID: generated.id)
+            } else if !CardPictureKey.isPublished(image) {
+                // …a PDF page is cut from the source's own PDF…
                 rendered = await MobileMemoryCardImageRenderer.shared.data(for: image).flatMap(UIImage.init(data:))
+            }
+            // …and anything else (a slide, a video frame, an article's image, a
+            // drawing) is the JPEG a Mac rendered and hung on the card.
+            if rendered == nil, CardPictureKey.isPublished(image), !cardIDs.isEmpty,
+               let satellites = await MobileSatellites.current() {
+                rendered = await satellites.cardPicture(cardIDs: cardIDs, target: image.target).flatMap(UIImage.init(data:))
             }
             didResolve = true
         }

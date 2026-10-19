@@ -580,6 +580,7 @@ Home: `library` (always the personal Library).
 | `supersedes` | id → Card | scalar | S |  | Editing a kept card retires it and mints a new card pointing back. |
 | `splitFrom` | id → Card | scalar | S |  |  |
 | `legacy` | object | scalar | S |  | {kind, target, learnerContext, goalID, ideaID}: migrated memory_items columns. |
+| `pictures` | FileRef | map | L |  | The card's pictures a light client cannot draw from what it holds (a slide, a video frame, an article's or book's image, a drawn picture), each rendered by a Mac as a JPEG satellite, keyed by CardPictureKey.key(target) (2026-10-19). Keys: pictureKey. |
 | `editedAt` | ms | scalar | X | ✓ | Ms of the last content change. |
 
 On a lost first write (§6.2): `kept` → `splitKeptCard`.
@@ -861,6 +862,7 @@ Unknown values are kept and written back verbatim.
 | Artifact.draftBase | `draftBase` |
 | Quiz.questions | `questions` |
 | Quiz.pictures | `picture.<key>` |
+| Card.pictures | `picture.<key>` |
 | Chat.briefing | `briefing` |
 | Exchange.attachments | `attachment` |
 | ReadingState.understanding | `understanding` |

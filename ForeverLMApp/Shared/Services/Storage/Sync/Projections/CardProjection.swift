@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 // MARK: - Card (docs/cloudkit-schema-design.md §3.5.22)
 
@@ -463,3 +464,142 @@ extension KnowledgeStore {
         }
     }
 }
+
+// MARK: - A card's pictures for the iPhone (`Card.pictures`, 2026-10-19)
+
+/// The pictures on the learner's cards that a light client cannot draw from what it holds
+/// (`CardPictureKey.isPublished`: a slide, a video frame, an article's or book's image, a stored drawing),
+/// and the renderer the app hands the publisher. The Mac draws them from its own files, a video stream or its
+/// image store; the iPhone holds none of those, so each is rendered here as a JPEG and uploaded with the card.
+enum CardPictures {
+    typealias Renderer = @Sendable (String) async -> Data?
+
+    static let mime = "image/jpeg"
+    /// Pictures rendered and uploaded in one pass after a round: a moment from a video is a capture over the
+    /// network, so a backlog goes up a few dozen at a time rather than holding the drain for an hour.
+    static let maximumPerRun = 40
+
+    private static let registered = OSAllocatedUnfairLock<Renderer?>(initialState: nil)
+
+    /// The app's renderer: a picture's address to its JPEG, nil when this Mac cannot draw it.
+    static func register(_ renderer: @escaping Renderer) {
+        registered.withLock { $0 = renderer }
+    }
+
+    static var renderer: Renderer? { registered.withLock { $0 } }
+
+    /// Every picture address a card's stored face names, in order, once each.
+    static func targets(inFaceJSON json: String) -> [String] {
+        var seen = Set<String>()
+        var found: [String] = []
+        let pattern = #"foreverlm://image/[^"\\\s)]+"#
+        guard let expression = try? NSRegularExpression(pattern: pattern) else { return [] }
+        let text = json as NSString
+        for match in expression.matches(in: json, range: NSRange(location: 0, length: text.length)) {
+            let target = text.substring(with: match.range)
+            if seen.insert(target).inserted { found.append(target) }
+        }
+        return found
+    }
+
+    /// The learner's live cards (drafts and kept cards, newest first) with the published pictures their record
+    /// does not point at yet. A card whose record is not in the replica yet waits for it: the pointer goes onto
+    /// a held version.
+    static func unpublished(connection: SQLiteConnection) throws -> [(cardID: String, targets: [String])] {
+        var rows: [(cardID: String, json: String)] = []
+        try connection.query("""
+            SELECT card_id, COALESCE(kept_json, draft_json, '') FROM memory_card_states
+            WHERE status IN ('draft', 'kept') AND COALESCE(kept_json, draft_json, '') LIKE '%foreverlm://image/%'
+            ORDER BY COALESCE(drafted_at, 0) DESC, card_id
+        """, []) { row in
+            if let id = row.text(0), let json = row.text(1) { rows.append((id, json)) }
+        }
+        let replica = ReplicaStore(connection: connection)
+        var cards: [(cardID: String, targets: [String])] = []
+        for row in rows {
+            let wanted = targets(inFaceJSON: row.json).filter { target in
+                MemoryCardImage(target: target).map(CardPictureKey.isPublished) ?? false
+            }
+            guard !wanted.isEmpty,
+                  let record = try replica.record(zoneKey: PrivateSyncZones.libraryKey, recordType: SyncRecordType.card.rawValue, wireID: row.cardID),
+                  let envelope = try? SyncEnvelope(storedPayload: record.payload) else { continue }
+            let held = envelope.fields["pictures"]?.objectValue ?? [:]
+            let missing = wanted.filter { held[CardPictureKey.key($0)].flatMap(FileRef.init(json:)) == nil }
+            if !missing.isEmpty { cards.append((row.cardID, missing)) }
+        }
+        return cards
+    }
+}
+
+/// Renders and uploads the pictures of the learner's cards that the iPhone cannot draw itself, then points
+/// each card's record at them (`Card.pictures[key]`): bytes before pointer (§3.5.30 rule 2), the pointers as
+/// compare-and-set saves on the version the replica holds (`MaintenanceWriter`), as `BookCoverPublisher` does a
+/// book's cover. A picture this Mac cannot render (its file and video are elsewhere) is tried three times a
+/// launch; another Mac that holds it publishes it.
+struct CardPicturePublisher {
+    private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "CardPictures")
+    private static let failures = OSAllocatedUnfairLock<[String: Int]>(initialState: [:])
+
+    let store: MacPrivateSyncStore
+    let blobs: BlobStore
+    let writer: MaintenanceWriter
+
+    /// Returns the cards whose record now points at at least one more picture.
+    @discardableResult
+    func run() async -> Int {
+        guard let render = CardPictures.renderer else { return 0 }
+        do {
+            let zones = try await store.perform { state -> (library: BlobZone, content: BlobZone)? in
+                guard let library = try BlobZone.resolve(zoneKey: PrivateSyncZones.libraryKey, in: state),
+                      let content = try BlobZone.resolve(zoneKey: PrivateSyncZones.key(PrivateSyncZones.content), in: state) else { return nil }
+                return (library, content)
+            }
+            guard let zones else { return 0 }
+            let failed = Self.failures.withLock { $0 }
+            let cards = try await store.perform { try CardPictures.unpublished(connection: $0.connection) }
+            guard !cards.isEmpty else { return 0 }
+
+            var budget = CardPictures.maximumPerRun
+            var writes: [MaintenanceWriter.Write] = []
+            for card in cards where budget > 0 {
+                var pointers: [String: SyncJSON] = [:]
+                for target in card.targets where budget > 0 && (failed[Self.failureKey(card.cardID, target)] ?? 0) < 3 {
+                    budget -= 1
+                    guard let jpeg = await render(target) else {
+                        Self.fail(card.cardID, target)
+                        continue
+                    }
+                    let key = CardPictureKey.key(target)
+                    do {
+                        let file = try await blobs.upload(
+                            jpeg, owner: card.cardID, ownerType: .card, role: CardPictureKey.role(key), mime: CardPictures.mime,
+                            encoding: .identity, into: zones.content
+                        )
+                        pointers[key] = file.value
+                    } catch {
+                        if SourceFilePublisher.isTransient(error) { throw error }
+                        Self.logger.error("A card picture did not upload: \(String(describing: error), privacy: .public)")
+                        Self.fail(card.cardID, target)
+                    }
+                }
+                guard !pointers.isEmpty else { continue }
+                var patch = RecordPatch(.card, id: card.cardID)
+                patch.changes["pictures"] = .elements(pointers)
+                writes.append(MaintenanceWriter.Write(zone: zones.library, patch: patch, onlyIfHeld: true))
+            }
+            guard !writes.isEmpty else { return 0 }
+            let outcomes = try await writer.save(writes)
+            return outcomes.filter { $0 == .saved }.count
+        } catch {
+            Self.logger.notice("Publishing card pictures stopped for now: \(String(describing: error), privacy: .public)")
+            return 0
+        }
+    }
+
+    private static func failureKey(_ cardID: String, _ target: String) -> String { cardID + "\n" + target }
+
+    private static func fail(_ cardID: String, _ target: String) {
+        failures.withLock { $0[failureKey(cardID, target), default: 0] += 1 }
+    }
+}
+

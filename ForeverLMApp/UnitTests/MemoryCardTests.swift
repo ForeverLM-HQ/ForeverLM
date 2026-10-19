@@ -1215,3 +1215,36 @@ struct MemoryCardTests {
         #expect(throws: MCPError.self) { try MCPDataStore.completedCardID("card:\(source)...", among: known) }
     }
 }
+
+/// The pictures a Mac renders for the iPhone and hangs on the card (`Card.pictures`, 2026-10-19).
+@Suite("Memory cards: pictures for the iPhone")
+struct CardPictureKeyTests {
+    @Test("A slide, a video frame, a book's image and a drawing are published; a PDF page and an animation are not")
+    func whatIsPublished() throws {
+        func image(_ target: String) throws -> MemoryCardImage { try #require(MemoryCardImage(target: target)) }
+        #expect(CardPictureKey.isPublished(try image("foreverlm://image/src_a/slide/3")))
+        #expect(CardPictureKey.isPublished(try image("foreverlm://image/src_a/at/265")))
+        #expect(CardPictureKey.isPublished(try image("foreverlm://image/chapter-3/img/2")))
+        #expect(CardPictureKey.isPublished(try image("foreverlm://image/generated/0a1b2c3d-4e5f")))
+        #expect(!CardPictureKey.isPublished(try image("foreverlm://image/src_a/page/9")))
+        #expect(!CardPictureKey.isPublished(try image("foreverlm-site://35d74165-5461-4c72-92b5-c1925d3dcef4/")))
+    }
+
+    @Test("The key is the same for one address everywhere and differs between addresses")
+    func keyIsStable() {
+        let key = CardPictureKey.key("foreverlm://image/src_a/slide/3")
+        #expect(key.count == 24)
+        #expect(key == CardPictureKey.key("foreverlm://image/src_a/slide/3"))
+        #expect(key != CardPictureKey.key("foreverlm://image/src_a/slide/4"))
+        #expect(CardPictureKey.role(key) == "picture." + key)
+    }
+
+    @Test("A stored face's picture addresses are read out of its escaped rubric, once each")
+    func targetsInStoredFace() {
+        let json = #"{"back":"Drp1.","rubric":"{\"card\":{\"backImages\":[{\"alt\":\"Fission\",\"target\":\"foreverlm://image/src_a/slide/13\"},{\"alt\":\"Again\",\"target\":\"foreverlm://image/src_a/slide/13\"},{\"alt\":\"Leak\",\"target\":\"foreverlm://image/src_a/at/90?crop=0.1000,0.2000,0.5000,0.5000\"}]}}"}"#
+        #expect(CardPictures.targets(inFaceJSON: json) == [
+            "foreverlm://image/src_a/slide/13",
+            "foreverlm://image/src_a/at/90?crop=0.1000,0.2000,0.5000,0.5000",
+        ])
+    }
+}

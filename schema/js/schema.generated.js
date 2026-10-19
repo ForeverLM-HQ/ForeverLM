@@ -119,6 +119,7 @@ export const SATELLITE_ROLES = deepFreeze({
   "Artifact.draftBase": ["draftBase"],
   "Quiz.questions": ["questions"],
   "Quiz.pictures": ["picture.<key>"],
+  "Card.pictures": ["picture.<key>"],
   "Chat.briefing": ["briefing"],
   "Exchange.attachments": ["attachment"],
   "ReadingState.understanding": ["understanding"],
@@ -887,6 +888,7 @@ export const TYPES = deepFreeze({
       "supersedes": {"json":"id","kind":"scalar","policy":"S","required":false,"ref":["Card"]},
       "splitFrom": {"json":"id","kind":"scalar","policy":"S","required":false,"ref":["Card"]},
       "legacy": {"json":"object","kind":"scalar","policy":"S","required":false},
+      "pictures": {"json":"FileRef","kind":"map","policy":"L","required":false},
       "editedAt": {"json":"ms","kind":"scalar","policy":"X","required":true}
     },
     "reserved": []

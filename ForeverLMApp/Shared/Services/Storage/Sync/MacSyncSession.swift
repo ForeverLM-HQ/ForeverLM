@@ -597,8 +597,9 @@ actor MacSyncSession {
             let laid = await SyncBackfillDrain.run(store: store)
             let published = await self.publishSourceFiles()
             let covers = await self.publishBookCovers()
+            let pictures = await self.publishCardPictures()
             await self.restoreMissingSatellites()
-            return laid + published + covers
+            return laid + published + covers + pictures
         }
         drain = task
         await task.value
@@ -630,6 +631,19 @@ actor MacSyncSession {
             transport: coordinator.transport, store: store, moveMaps: coordinator.engine.moveMaps, deviceID: deviceID, clock: { Date() }
         )
         return await BookCoverPublisher(store: store, blobs: coordinator.blobs, writer: writer).run()
+    }
+
+    /// Uploads the pictures of the learner's cards that the iPhone cannot draw itself — a slide, a video frame, an
+    /// article's or book's image, a stored drawing — and points each card at them (`CardPictures`). Under the same
+    /// hold as the publisher.
+    private func publishCardPictures() async -> Int {
+        guard let coordinator else { return 0 }
+        let held = (try? await store.perform { try $0.replica.engineState(ReplicaStore.EngineScope.holdSendsForSeed) != nil }) ?? true
+        guard !held else { return 0 }
+        let writer = MaintenanceWriter(
+            transport: coordinator.transport, store: store, moveMaps: coordinator.engine.moveMaps, deviceID: deviceID, clock: { Date() }
+        )
+        return await CardPicturePublisher(store: store, blobs: coordinator.blobs, writer: writer).run()
     }
 
     /// Once per library, uploads the satellites its pointers name and the server lacks, where this Mac holds the

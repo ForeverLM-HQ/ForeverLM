@@ -378,7 +378,7 @@ struct MobileCardsToCheckList<Header: View>: View {
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityIdentifier("memory.toCheck.front")
             if !card.face.frontImages.isEmpty {
-                MobileMemoryCardImageGrid(images: card.face.frontImages, sourceID: card.sourceID)
+                MobileMemoryCardImageGrid(images: card.face.frontImages, sourceID: card.sourceID, cardIDs: [card.cardID])
                     .padding(.top, MobileDesign.Spacing.large)
             }
             if let opened = opened.flatMap({ $0.cardID == card.cardID ? $0 : nil }) {
@@ -399,7 +399,7 @@ struct MobileCardsToCheckList<Header: View>: View {
                     .accessibilityLabel("Answer: \(card.face.back)")
                     .accessibilityIdentifier("memory.toCheck.back")
                 if !card.face.backImages.isEmpty {
-                    MobileMemoryCardImageGrid(images: card.face.backImages, sourceID: card.sourceID)
+                    MobileMemoryCardImageGrid(images: card.face.backImages, sourceID: card.sourceID, cardIDs: [card.cardID])
                         .padding(.top, MobileDesign.Spacing.large)
                 }
                 if !card.face.why.isEmpty {

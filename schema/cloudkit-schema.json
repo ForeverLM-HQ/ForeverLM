@@ -177,6 +177,7 @@
     "Artifact.draftBase": ["draftBase"],
     "Quiz.questions": ["questions"],
     "Quiz.pictures": ["picture.<key>"],
+    "Card.pictures": ["picture.<key>"],
     "Chat.briefing": ["briefing"],
     "Exchange.attachments": ["attachment"],
     "ReadingState.understanding": ["understanding"],
@@ -831,6 +832,7 @@
         "supersedes": {"json": "id", "ref": "Card", "kind": "scalar", "policy": "S", "required": false, "doc": "Editing a kept card retires it and mints a new card pointing back."},
         "splitFrom": {"json": "id", "ref": "Card", "kind": "scalar", "policy": "S", "required": false, "doc": ""},
         "legacy": {"json": "object", "kind": "scalar", "policy": "S", "required": false, "doc": "{kind, target, learnerContext, goalID, ideaID}: migrated memory_items columns."},
+        "pictures": {"json": "FileRef", "kind": "map", "policy": "L", "required": false, "keys": "pictureKey", "doc": "The card's pictures a light client cannot draw from what it holds (a slide, a video frame, an article's or book's image, a drawn picture), each rendered by a Mac as a JPEG satellite, keyed by CardPictureKey.key(target) (2026-10-19)."},
         "editedAt": {"json": "ms", "kind": "scalar", "policy": "X", "required": true, "doc": "Ms of the last content change."}
       },
       "reserved": [],

@@ -195,6 +195,18 @@ actor MobileSatellites {
         return nil
     }
 
+    /// A card picture a Mac rendered for the phone (`Card.pictures`, `CardPictureKey`): the JPEG of `target` on
+    /// the first of `cardIDs` whose record points at one. A draft's record is its card id, a kept card's its
+    /// item's. Nil while no Mac has published it.
+    func cardPicture(cardIDs: [String], target: String) async -> Data? {
+        let key = CardPictureKey.key(target)
+        for id in cardIDs {
+            guard let satellite = try? await locate(.card, id: id, pick: { $0.fields["pictures"]?[key].flatMap(FileRef.init(json:)) }) else { continue }
+            if let bytes = try? await data(satellite) { return bytes }
+        }
+        return nil
+    }
+
     /// The satellite `file` names for an owner held in `ownerZoneKey`; nil until that zone's root is held.
     func satellite(_ file: FileRef, ownerZoneKey: String) async throws -> MobileSatellite? {
         let satelliteZone = Self.satelliteZoneKey(forOwnerIn: ownerZoneKey, personal: file.isPersonal)
