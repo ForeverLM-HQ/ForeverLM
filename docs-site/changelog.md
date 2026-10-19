@@ -6,6 +6,22 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.164.0 (build 244) — 2026-10-19
+
+**Highlights:**
+- **Panes hold tabs: drag a tab to the side to view it beside the rest.**
+- **Show Answer flips a card to grade yourself.**
+- **More flashcards carry a picture, on the iPhone too.**
+
+- **Panes hold tabs; pins are gone.** What a pane stops showing stays one of its tabs, so opening something never covers another surface for good. A pane with two tabs or more shows them in a strip at its top, each with a ×; middle click or Close Tab closes one too. A sidebar click brings a tab already open forward, and opens anything else as a new tab in the pane you last clicked in. Drag a tab to the side of the window to view it beside the rest; drop it on another pane's strip to move it there. A third pane appears only when you drag one there.
+- **Show Answer flips a card.** In a card review you can turn a card over without typing or speaking, and grade yourself Forgot or Remembered, beside the typed answer.
+- **More flashcards carry a picture.** A walkthrough or course-quiz question you miss keeps the picture it was asked with, and a lecture video's slides are pictures a drafted card may show. On the iPhone every card picture now shows: this Mac renders slides, video frames, article images and drawings and hangs them on the card.
+- **A book's cover reaches your other Mac.**
+- **A source you save is searchable within seconds**, not only after the next launch.
+- **Articles render as written.** Two dollar amounts in one sentence no longer turn into italic math.
+- **A notebook window has one sidebar toggle at the top left**, and Studio's own toggle sits at the right, where the panel is.
+- **A paper's cleanup no longer fails on a long chunk**, and a cleanup still queued is no longer reported as a stalled ingestion.
+
 ## 0.163.0 (build 243) — 2026-10-17
 
 **Highlights:**
