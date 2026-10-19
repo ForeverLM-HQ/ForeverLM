@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 // MARK: - Collection (docs/cloudkit-schema-design.md §3.5.5)
 
@@ -159,6 +160,7 @@ struct CollectionProjection: RecordProjection {
                 INSERT INTO books (id, title, subtitle, author) VALUES (?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET title = excluded.title, subtitle = excluded.subtitle, author = excluded.author
             """, [.text(id), .text(text("title") ?? held.title), value("subtitle", held.subtitle), value("author", held.author)])
+            try BookCovers.take(bookID: id, fields: fields, connection: connection)
 
         case "meetingSeries":
             var held: (title: String, drive: String?, rule: String?, zone: String?, merged: String?, schedule: [String: SyncJSON]?) = ("", nil, nil, nil, nil, nil)
@@ -235,6 +237,167 @@ struct CollectionProjection: RecordProjection {
         for table in Self.tableOrder {
             try connection.execute("DELETE FROM \(table) WHERE id = ?", [.text(record.localID)])
         }
+        try BookCovers.forget(bookID: record.localID, connection: connection)
+    }
+}
+
+// MARK: - A book's cover (§3.5.5 `files.cover`)
+
+/// A book's cover as `Collection.files.cover`. The Mac that holds a book's `cover.jpg` uploads it as the
+/// book's `cover` satellite and points the record at it (`BookCoverPublisher`); a Mac that holds no cover
+/// file for the book fetches it (`SatelliteReader`) into `Books/.synced-covers/` and records it as
+/// `books.cover_path`, which every cover the Mac draws reads (`StudioViewModel.bookCoverPaths`). Until
+/// 2026-10-19 neither half was built under generation 2: the record carried a book's title and author
+/// only, so a book added on one Mac showed no cover on the other, though the iPhone reads `files.cover`.
+enum BookCovers {
+    static let queueKind = "bookCover"
+    static let role = "cover"
+    static let mime = "image/jpeg"
+    static let syncedFolder = "Books/.synced-covers"
+
+    static func cover(in fields: [String: SyncJSON]) -> FileRef? {
+        fields["files"]?[role].flatMap(FileRef.init(json:))
+    }
+
+    /// Works out whether an applied book record leaves this Mac a cover to fetch, and remembers it as a
+    /// wish (`{cover: FileRef}`). Runs inside the apply: one read and one queue write.
+    static func take(bookID: String, fields: [String: SyncJSON], connection: SQLiteConnection) throws {
+        let held = try connection.scalarText("SELECT cover_path FROM books WHERE id = ?", [.text(bookID)])
+        guard let file = cover(in: fields), file.heldBy == nil, needs(file, heldPath: held) else {
+            return try forget(bookID: bookID, connection: connection)
+        }
+        // A payload that changed starts the attempts over; the same one keeps what its failures spent.
+        try connection.execute("""
+            INSERT INTO ck_backfill_queue (kind, target, payload_json, enqueued_at) VALUES (?, ?, ?, ?)
+            ON CONFLICT(kind, target) DO UPDATE SET
+                attempts = CASE WHEN ck_backfill_queue.payload_json IS excluded.payload_json THEN ck_backfill_queue.attempts ELSE 0 END,
+                last_error = CASE WHEN ck_backfill_queue.payload_json IS excluded.payload_json THEN ck_backfill_queue.last_error END,
+                payload_json = excluded.payload_json
+        """, [
+            .text(queueKind), .text(bookID), .text(String(decoding: SyncJSON.object([role: file.value]).serialized(), as: UTF8.self)),
+            .real(Date().timeIntervalSinceReferenceDate),
+        ])
+    }
+
+    /// True unless `heldPath` is a cover this Mac can read: its own file, or the fetched copy of this very
+    /// cover. A fetched copy of an earlier cover is replaced; a cover file of the Mac's own never is.
+    static func needs(_ file: FileRef, heldPath: String?) -> Bool {
+        guard let heldPath, !heldPath.isEmpty, CloudKitRecordMapper.readableBookCoverPath(heldPath) != nil else { return true }
+        let relative = StorageService.relativeSourcePath(heldPath)
+        return relative.hasPrefix(syncedFolder + "/") && relative != installedPath(hash: file.hash)
+    }
+
+    static func forget(bookID: String, connection: SQLiteConnection) throws {
+        try connection.execute("DELETE FROM ck_backfill_queue WHERE kind = ? AND target = ?", [.text(queueKind), .text(bookID)])
+    }
+
+    /// Where a fetched cover lands, relative to the content roots: named by its hash, so it is never stale.
+    static func installedPath(hash: String) -> String {
+        "\(syncedFolder)/\(hash.prefix(24)).jpg"
+    }
+
+    /// Writes a fetched cover under the content root (off the store) and returns its relative path. A file
+    /// already there with the same bytes is kept.
+    static func install(_ body: Data, hash: String) throws -> String {
+        let root = KnowledgeStore.installedSourceFileRootOverride ?? URL(fileURLWithPath: StorageService.libraryRootPath, isDirectory: true)
+        let relative = installedPath(hash: hash)
+        let url = root.appendingPathComponent(relative)
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        if (try? Data(contentsOf: url)).map(SyncIdentity.sha256Hex) != hash { try body.write(to: url, options: .atomic) }
+        return relative
+    }
+
+    /// Records a fetched cover as the book's and forgets the wish. False when the wish now names other bytes.
+    static func received(installedPath: String, hash: String, bookID: String, connection: SQLiteConnection) throws -> Bool {
+        let wanted = try connection.scalarText(
+            "SELECT payload_json FROM ck_backfill_queue WHERE kind = ? AND target = ?", [.text(queueKind), .text(bookID)]
+        ).flatMap { try? SyncJSON(parsing: Data($0.utf8)) }?[role].flatMap(FileRef.init(json:))
+        guard wanted?.hash == hash else { return false }
+        try connection.execute("UPDATE books SET cover_path = ? WHERE id = ?", [.text(installedPath), .text(bookID)])
+        try forget(bookID: bookID, connection: connection)
+        return true
+    }
+
+    /// The learner's books whose `cover_path` is set here and whose record in `Catalog` names no cover yet.
+    /// A book whose record is not in the replica yet waits for it (the pointer goes onto a held version).
+    static func unpublished(connection: SQLiteConnection) throws -> [(bookID: String, coverPath: String)] {
+        var rows: [(bookID: String, coverPath: String)] = []
+        try connection.query("SELECT id, cover_path FROM books WHERE COALESCE(cover_path, '') != '' ORDER BY id", []) { row in
+            if let id = row.text(0), let path = row.text(1) { rows.append((id, path)) }
+        }
+        let replica = ReplicaStore(connection: connection)
+        let catalog = PrivateSyncZones.key(PrivateSyncZones.catalog)
+        return try rows.filter { book in
+            guard let record = try replica.record(zoneKey: catalog, recordType: SyncRecordType.collection.rawValue, wireID: book.bookID),
+                  let envelope = try? SyncEnvelope(storedPayload: record.payload) else { return false }
+            return envelope.fields["kind"]?.stringValue == "book" && cover(in: envelope.fields) == nil
+        }
+    }
+}
+
+/// Uploads the covers of the books this Mac holds a cover file for whose record names none, then points each
+/// record at its cover: bytes before pointer (§3.5.30 rule 2), the pointers as compare-and-set saves beside
+/// the engine on the version the replica holds (`MaintenanceWriter`), as a notebook's cover moves. A record
+/// that gained a cover meanwhile (another Mac's) keeps it. Runs after a round, under the same hold as
+/// `SourceFilePublisher`; a book whose cover cannot be read or uploaded is tried three times a launch.
+struct BookCoverPublisher {
+    private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "BookCovers")
+    private static let failures = OSAllocatedUnfairLock<[String: Int]>(initialState: [:])
+
+    let store: MacPrivateSyncStore
+    let blobs: BlobStore
+    let writer: MaintenanceWriter
+
+    /// Returns the books whose record now points at their cover.
+    @discardableResult
+    func run() async -> Int {
+        do {
+            let zones = try await store.perform { state -> (catalog: BlobZone, content: BlobZone)? in
+                guard let catalog = try BlobZone.resolve(zoneKey: PrivateSyncZones.key(PrivateSyncZones.catalog), in: state),
+                      let content = try BlobZone.resolve(zoneKey: PrivateSyncZones.key(PrivateSyncZones.content), in: state) else { return nil }
+                return (catalog, content)
+            }
+            guard let zones else { return 0 }
+            let failed = Self.failures.withLock { $0 }
+            let books = try await store.perform { try BookCovers.unpublished(connection: $0.connection) }
+                .filter { (failed[$0.bookID] ?? 0) < 3 }
+            guard !books.isEmpty else { return 0 }
+
+            var writes: [MaintenanceWriter.Write] = []
+            for book in books {
+                guard let path = CloudKitRecordMapper.readableBookCoverPath(book.coverPath),
+                      let bytes = CloudKitRecordMapper.bookCoverJPEG(absolutePath: path) else {
+                    Self.fail(book.bookID)
+                    continue
+                }
+                do {
+                    let file = try await blobs.upload(
+                        bytes, owner: book.bookID, ownerType: .collection, role: BookCovers.role, mime: BookCovers.mime,
+                        encoding: .identity, into: zones.content
+                    )
+                    var patch = RecordPatch(.collection, id: book.bookID)
+                    patch.changes["files"] = .elements([BookCovers.role: file.value])
+                    writes.append(MaintenanceWriter.Write(zone: zones.catalog, patch: patch, onlyIfHeld: true))
+                } catch {
+                    if SourceFilePublisher.isTransient(error) { throw error }
+                    Self.logger.error("A book cover did not upload: \(String(describing: error), privacy: .public)")
+                    Self.fail(book.bookID)
+                }
+            }
+            // Read again before the pointers move: a cover another Mac set meanwhile stays.
+            let still = Set(try await store.perform { try BookCovers.unpublished(connection: $0.connection) }.map(\.bookID))
+            writes = writes.filter { still.contains($0.patch.id) }
+            guard !writes.isEmpty else { return 0 }
+            let outcomes = try await writer.save(writes)
+            return outcomes.filter { $0 == .saved }.count
+        } catch {
+            Self.logger.notice("Publishing book covers stopped for now: \(String(describing: error), privacy: .public)")
+            return 0
+        }
+    }
+
+    private static func fail(_ bookID: String) {
+        failures.withLock { $0[bookID, default: 0] += 1 }
     }
 }
 

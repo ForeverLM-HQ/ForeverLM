@@ -204,4 +204,67 @@ struct CollectionProjectionTests {
         let changed = try Fixture.pending(store).filter { $0.key.hasPrefix("Collection:") }.values
         #expect(changed.count == 1 && changed.first?.stamps.keys.map(\.field) == ["title"], "only the title is dated")
     }
+
+    // MARK: A book's cover (`files.cover`)
+
+    private static let bookID = "BFD0CD37-6840-4D47-9CEB-3EC7A1E36747"
+
+    private static func cover(_ body: Data) -> FileRef {
+        FileRef(owner: bookID, role: BookCovers.role, hash: SyncIdentity.sha256Hex(body), size: Int64(body.count),
+                mime: BookCovers.mime, encoding: "identity", storedParts: [body])
+    }
+
+    private static func book(cover: FileRef?) throws -> ReplicaRecord {
+        var fields: [String: SyncJSON] = ["kind": "book", "externalKey": .string(bookID), "title": "The Vital Question", "author": "Nick Lane"]
+        if let cover { fields["files"] = .object([BookCovers.role: cover.value]) }
+        return try Fixture.record(.collection, bookID, fields)
+    }
+
+    @Test("A book's cover another Mac put up is fetched into the book's row, and a cover file of this Mac's own is never replaced")
+    func bookCoverArrives() async throws {
+        let (root, store) = try Fixture.makeStore("collection-book-cover")
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("book-covers-\(UUID().uuidString)", isDirectory: true)
+        defer {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: folder)
+        }
+        try Fixture.prepareReplica(store)
+        let body = Data("the cover's bytes".utf8)
+        try Fixture.apply(store, [try Self.book(cover: Self.cover(body))])
+        #expect(try Fixture.count(store, "SELECT COUNT(*) FROM ck_backfill_queue WHERE kind = ? AND target = ?",
+                                  [.text(BookCovers.queueKind), .text(Self.bookID)]) == 1, "a book with no cover file here wants the cover")
+
+        let reader = SatelliteReader(store: .direct(store)) { _ in body }
+        let taken = await KnowledgeStore.$installedSourceFileRootOverride.withValue(folder) { await reader.drain() }
+        #expect(taken == 1)
+        let installed = BookCovers.installedPath(hash: SyncIdentity.sha256Hex(body))
+        #expect(try Fixture.text(store, "SELECT cover_path FROM books WHERE id = ?", [.text(Self.bookID)]) == installed)
+        #expect(try Data(contentsOf: folder.appendingPathComponent(installed)) == body)
+        #expect(try Fixture.count(store, "SELECT COUNT(*) FROM ck_backfill_queue WHERE kind = ?", [.text(BookCovers.queueKind)]) == 0)
+        #expect(try Fixture.pending(store)["Collection:\(Self.bookID)"] == nil, "a fetched cover is never sent back")
+
+        // A Mac that holds its own cover file for the book keeps it, whatever cover the record names.
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let own = folder.appendingPathComponent("own-cover.jpg")
+        try Data("this Mac's own cover".utf8).write(to: own)
+        try store.execute("UPDATE books SET cover_path = ? WHERE id = ?", [.text(own.path), .text(Self.bookID)])
+        try Fixture.apply(store, [try Self.book(cover: Self.cover(Data("another cover".utf8)))])
+        #expect(try Fixture.count(store, "SELECT COUNT(*) FROM ck_backfill_queue WHERE kind = ?", [.text(BookCovers.queueKind)]) == 0)
+        #expect(try Fixture.text(store, "SELECT cover_path FROM books WHERE id = ?", [.text(Self.bookID)]) == own.path)
+    }
+
+    @Test("The publisher takes a book whose cover is set here and whose record names none, and leaves a book with a cover or no record")
+    func bookCoverToPublish() throws {
+        let (root, store) = try Fixture.makeStore("collection-book-cover-publish")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Fixture.prepareReplica(store)
+        try Fixture.apply(store, [try Self.book(cover: nil)])
+        try store.execute("UPDATE books SET cover_path = 'Books/TheVitalQuestion/cover.jpg' WHERE id = ?", [.text(Self.bookID)])
+        // A book the replica holds no record of yet waits for it: the pointer goes onto a held version.
+        try store.execute("INSERT INTO books (id, title, cover_path) VALUES ('B2', 'Unsent', 'Books/Unsent/cover.jpg')")
+        #expect(try BookCovers.unpublished(connection: store).map(\.bookID) == [Self.bookID])
+
+        try Fixture.apply(store, [try Self.book(cover: Self.cover(Data("the cover's bytes".utf8)))])
+        #expect(try BookCovers.unpublished(connection: store).isEmpty, "a record that names a cover is left as it is")
+    }
 }

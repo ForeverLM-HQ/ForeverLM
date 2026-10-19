@@ -918,7 +918,7 @@ struct SourceFilePublisher: Sendable {
         }
     }
 
-    private static func isTransient(_ error: Error) -> Bool {
+    static func isTransient(_ error: Error) -> Bool {
         var cloud = error as? CloudError
         if let blob = error as? BlobStoreError, case .failed(let inner) = blob { cloud = inner }
         guard let code = cloud?.code else { return false }

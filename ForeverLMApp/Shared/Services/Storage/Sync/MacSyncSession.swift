@@ -596,8 +596,9 @@ actor MacSyncSession {
         let task = Task { () -> Int in
             let laid = await SyncBackfillDrain.run(store: store)
             let published = await self.publishSourceFiles()
+            let covers = await self.publishBookCovers()
             await self.restoreMissingSatellites()
-            return laid + published
+            return laid + published + covers
         }
         drain = task
         await task.value
@@ -617,6 +618,18 @@ actor MacSyncSession {
             pendingCount: { await coordinator.engine.pendingCount }, wrote: { await coordinator.sendSoon() }
         )
         return await publisher.run()
+    }
+
+    /// Uploads the covers of the books this Mac holds a cover file for whose record names none, so another Mac
+    /// and the iPhone show them (`BookCovers`). Under the same hold as the publisher.
+    private func publishBookCovers() async -> Int {
+        guard let coordinator else { return 0 }
+        let held = (try? await store.perform { try $0.replica.engineState(ReplicaStore.EngineScope.holdSendsForSeed) != nil }) ?? true
+        guard !held else { return 0 }
+        let writer = MaintenanceWriter(
+            transport: coordinator.transport, store: store, moveMaps: coordinator.engine.moveMaps, deviceID: deviceID, clock: { Date() }
+        )
+        return await BookCoverPublisher(store: store, blobs: coordinator.blobs, writer: writer).run()
     }
 
     /// Once per library, uploads the satellites its pointers name and the server lacks, where this Mac holds the

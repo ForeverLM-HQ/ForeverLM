@@ -4515,7 +4515,7 @@ enum CloudKitRecordMapper {
         ) { bookCoverJPEG(absolutePath: absolutePath) }
     }
 
-    private static func bookCoverJPEG(absolutePath: String) -> Data? {
+    static func bookCoverJPEG(absolutePath: String) -> Data? {
         guard let source = CGImageSourceCreateWithURL(URL(fileURLWithPath: absolutePath) as CFURL, nil) else {
             return nil
         }

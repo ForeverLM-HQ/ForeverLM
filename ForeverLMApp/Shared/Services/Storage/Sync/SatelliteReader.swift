@@ -20,7 +20,7 @@ struct SatelliteWish: Equatable, Sendable {
 }
 
 extension KnowledgeStore {
-    static let satelliteWishKinds = [ChatSatellites.queueKind, QuizSatellites.queueKind, InboundSourceFiles.queueKind]
+    static let satelliteWishKinds = [ChatSatellites.queueKind, QuizSatellites.queueKind, InboundSourceFiles.queueKind, BookCovers.queueKind]
 
     /// The wishes still worth trying, oldest first; a record that failed five times waits for a later
     /// launch (a newer version of it, which saves its wish again, starts it over).
@@ -63,7 +63,7 @@ extension KnowledgeStore {
 
     /// Writes one fetched satellite into its record's row and forgets the wish for it (under the apply
     /// guard, so nothing is sent back). Returns false when the bytes are not the ones now wanted.
-    /// `installedPath` is where the reader wrote a file the satellite is (a paper's PDF).
+    /// `installedPath` is where the reader wrote a file the satellite is (a paper's PDF, a book's cover).
     @discardableResult
     func receiveSatellite(_ wish: SatelliteWish, key: String, body: Data, installedPath: String? = nil) throws -> Bool {
         try replica.apply { _ in
@@ -100,6 +100,11 @@ extension KnowledgeStore {
                       wanted.hash == SyncIdentity.sha256Hex(body) else { return false }
                 try ChatSatellites.received(body, field: key, type, id, connection: self)
                 return true
+            case BookCovers.queueKind:
+                guard key == BookCovers.role, let installedPath else { return false }
+                return try BookCovers.received(
+                    installedPath: installedPath, hash: SyncIdentity.sha256Hex(body), bookID: wish.target, connection: self
+                )
             default:
                 return false
             }
@@ -215,6 +220,7 @@ final class SatelliteReader: @unchecked Sendable {
         var tried = Set<Int64>()
         var adopted = 0
         var sourcesWritten = false
+        var coversWritten = false
         // First what the records applied before this Mac took their work left behind, and the sources
         // whose satellite pointer arrived after the record did: queued as the apply queues them.
         do {
@@ -236,6 +242,7 @@ final class SatelliteReader: @unchecked Sendable {
                     let taken = try await read(wish)
                     written += taken
                     if taken > 0, wish.kind == InboundSourceFiles.queueKind { sourcesWritten = true }
+                    if taken > 0, wish.kind == BookCovers.queueKind { coversWritten = true }
                 }
                 await Task.yield()
             }
@@ -243,6 +250,7 @@ final class SatelliteReader: @unchecked Sendable {
             Self.logger.error("The satellite reader stopped: \(String(describing: error), privacy: .public)")
         }
         if sourcesWritten || adopted > 0 { Self.announceSourcesChanged() }
+        if coversWritten { Self.announceBooksChanged() }
         return written
     }
 
@@ -255,6 +263,19 @@ final class SatelliteReader: @unchecked Sendable {
                 name: .cloudKitSyncRemoteStoreDidChange, object: nil,
                 userInfo: [
                     CloudKitSyncNotificationInfo.affectedEntitiesKey: [CloudKitSyncEntity.source.rawValue],
+                    CloudKitSyncNotificationInfo.requiresFullRefreshKey: false,
+                ]
+            )
+        }
+    }
+
+    /// A book's cover arrived: the book lists read `books` again, as for an inbound Book record.
+    private static func announceBooksChanged() {
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(
+                name: .cloudKitSyncRemoteStoreDidChange, object: nil,
+                userInfo: [
+                    CloudKitSyncNotificationInfo.affectedEntitiesKey: [CloudKitSyncEntity.book.rawValue],
                     CloudKitSyncNotificationInfo.requiresFullRefreshKey: false,
                 ]
             )
@@ -294,6 +315,8 @@ final class SatelliteReader: @unchecked Sendable {
                         try InboundSourceFiles.isPageRangeChapter(sourceID: target, connection: $0)
                     }
                     installedPath = try SourceFileInstall.installPDF(body, hash: file.hash, folder: isBook ? "Books" : "Papers")
+                } else if wish.kind == BookCovers.queueKind, SyncIdentity.sha256Hex(body) == file.hash {
+                    installedPath = try BookCovers.install(body, hash: file.hash)
                 }
                 let taken = try await store.onStore { try $0.receiveSatellite(wish, key: key, body: body, installedPath: installedPath) }
                 if taken { written += 1 } else { failure = "the bytes of \(key) are not the ones wanted" }
