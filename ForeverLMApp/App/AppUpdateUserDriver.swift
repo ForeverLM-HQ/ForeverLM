@@ -118,6 +118,10 @@ final class AppUpdateUserDriver: NSObject, SPUUserDriver {
     /// Reads the feed and reports the newest installable build, or nil when
     /// the feed cannot be read. Called on the main thread; must complete on it.
     var newestPublishedVersion: (@escaping (String?) -> Void) -> Void = { completion in completion(nil) }
+    /// Asked with an error Sparkle is about to show. True means the
+    /// controller will check again on the other feed address (the feed could
+    /// not be read from this one), so the error is acknowledged unseen.
+    var retriesUnreadableFeed: (Error) -> Bool = { _ in false }
     /// Whether the icon strip, whose footer holds the update pill, is on
     /// screen: always, since the sidebar toggle stopped folding it
     /// (2026-10-12). Injected so tests and previews can drive the rule.
@@ -220,6 +224,10 @@ final class AppUpdateUserDriver: NSObject, SPUUserDriver {
     }
 
     func showUpdaterError(_ error: Error, acknowledgement: @escaping () -> Void) {
+        if retriesUnreadableFeed(error) {
+            acknowledgement()
+            return
+        }
         standardDriver.showUpdaterError(error, acknowledgement: acknowledgement)
     }
 

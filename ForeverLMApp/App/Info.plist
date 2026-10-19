@@ -38,6 +38,8 @@
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>SUFeedURL</key>
 	<string>https://releases.foreverlm.com/appcast.xml</string>
+	<key>ForeverLMUpdateFallbackFeedURL</key>
+	<string>https://foreverlm.com/releases/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>ynrptxKXOsmmfaLFMJbuE1r0T4r9Y615m43IWaOPd+w=</string>
 	<key>SUEnableAutomaticChecks</key>

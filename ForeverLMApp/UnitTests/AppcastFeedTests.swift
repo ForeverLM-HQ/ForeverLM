@@ -131,6 +131,37 @@ struct AppcastFeedTests {
         #expect(items.first?.displayVersion == "0.28.0")
     }
 
+    @Test("The feed is tried at SUFeedURL first, then at the fallback, each once")
+    func feedAddressesInOrder() {
+        let primary = "https://releases.foreverlm.com/appcast.xml"
+        let fallback = "https://foreverlm.com/releases/appcast.xml"
+        #expect(AppcastFeed.feedURLs(info: ["SUFeedURL": primary, AppcastFeed.fallbackFeedInfoKey: fallback]).map(\.absoluteString) == [primary, fallback])
+        #expect(AppcastFeed.feedURLs(info: ["SUFeedURL": primary]).map(\.absoluteString) == [primary])
+        #expect(AppcastFeed.feedURLs(info: ["SUFeedURL": primary, AppcastFeed.fallbackFeedInfoKey: primary]).count == 1)
+        #expect(AppcastFeed.feedURLs(info: nil).isEmpty)
+    }
+
+    @Test("The app's own Info.plist names a fallback feed on another host")
+    func bundledFallbackFeed() throws {
+        let plist = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("App/Info.plist")
+        let info = try #require(try PropertyListSerialization.propertyList(from: Data(contentsOf: plist), format: nil) as? [String: Any])
+        let urls = AppcastFeed.feedURLs(info: info)
+        #expect(urls.count == 2)
+        #expect(urls.first?.host != urls.last?.host)
+    }
+
+    @Test("Only a feed that could not be downloaded or parsed moves the check to the fallback")
+    func unreadableFeedErrors() {
+        #expect(AppcastFeed.isUnreadableFeed(NSError(domain: "SUSparkleErrorDomain", code: 1002)))
+        #expect(AppcastFeed.isUnreadableFeed(NSError(domain: "SUSparkleErrorDomain", code: 1000)))
+        // No update, a failed archive download, or a network error Sparkle did not wrap: not the feed's address.
+        #expect(!AppcastFeed.isUnreadableFeed(NSError(domain: "SUSparkleErrorDomain", code: 1001)))
+        #expect(!AppcastFeed.isUnreadableFeed(NSError(domain: "SUSparkleErrorDomain", code: 2001)))
+        #expect(!AppcastFeed.isUnreadableFeed(NSError(domain: NSURLErrorDomain, code: NSURLErrorNetworkConnectionLost)))
+    }
+
     @Test("A feed that is not RSS, or is empty, offers nothing rather than throwing")
     func unreadableFeeds() {
         #expect(AppcastFeed.newestInstallableVersion(in: Data(), systemVersion: "27.0.0", allowedChannels: []) == nil)
