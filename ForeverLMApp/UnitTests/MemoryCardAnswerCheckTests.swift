@@ -116,13 +116,13 @@ struct MemoryCardAnswerCheckTests {
         #expect(sitting.answerCheck == nil)
     }
 
-    @Test("I Don't Know is never checked, and stays Forgot")
-    func notKnownIsNotChecked() {
+    @Test("Show Answer is never checked, and the learner's grade stands")
+    func showAnswerIsNotChecked() {
         var sitting = Self.sitting()
-        sitting.showAnswerNotKnown()
+        sitting.showAnswerUnanswered()
         #expect(sitting.beginAnswerCheck() == nil)
         #expect(sitting.verdictRemembers == nil)
-        #expect(sitting.answer(remembered: true)?.remembered == false)
+        #expect(sitting.answer(remembered: true)?.remembered == true)
     }
 
     // MARK: The review

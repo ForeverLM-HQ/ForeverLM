@@ -171,8 +171,6 @@ private struct KnowledgeMapReviewCardHost: View {
             return true
         case .forgot, .remembered:
             guard isVisible, sitting.isAnswerShown, !sitting.isRoundOver else { return false }
-            // A card not known is only ever Forgot.
-            if key == .remembered, sitting.saidNotKnown { return true }
             vm.answerKnowledgeMapReview(remembered: key == .remembered)
             return true
         }
@@ -181,10 +179,10 @@ private struct KnowledgeMapReviewCardHost: View {
 
 /// The question card: "MEMORY · <source>", where the round stands, the card
 /// in the wording the review asks it, the learner's answer typed or
-/// dictated and Check (never a bare flip: product owner, 2026-10-11), then
-/// their answer over the back, the check's verdict on it, why it is right
-/// and the source it quotes, and Forgot or Remembered, the verdict's grade
-/// first; I Don't Know leaves only Forgot. At the round's
+/// dictated and Check, then their answer over the back, the check's verdict
+/// on it, why it is right and the source it quotes, and Forgot or
+/// Remembered, the verdict's grade first; Show Answer turns the card with
+/// nothing typed, and the learner grades themselves. At the round's
 /// end, how it went, Again for the forgotten ones, and Done.
 private struct KnowledgeMapReviewCard: View {
     @Environment(StudioViewModel.self) private var vm
@@ -366,12 +364,7 @@ private struct KnowledgeMapReviewCard: View {
 
     @ViewBuilder
     private var answerButtons: some View {
-        if sitting.isAnswerShown, sitting.saidNotKnown {
-            capsule("Forgot", key: "1", prominent: true) { vm.answerKnowledgeMapReview(remembered: false) }
-                .help("You didn't know it: Forgot (1 or \u{2190})")
-                .disabled(session.isKeepingDraft)
-                .accessibilityIdentifier("knowledgeMap.review.forgot")
-        } else if sitting.isAnswerShown {
+        if sitting.isAnswerShown {
             // With the check's verdict, its grade is filled and Return takes
             // it; the other side is the override. While it checks, both are
             // pale; with no verdict, the learner's own grade as before.
@@ -396,9 +389,9 @@ private struct KnowledgeMapReviewCard: View {
             .disabled(session.isKeepingDraft)
         } else {
             HStack(spacing: 8) {
-                capsule("I Don\u{2019}t Know", prominent: false) { vm.showKnowledgeMapReviewAnswerNotKnown() }
-                    .help("Show the answer; the card counts as forgot")
-                    .accessibilityIdentifier("knowledgeMap.review.notKnown")
+                capsule("Show Answer", prominent: false) { vm.showKnowledgeMapReviewAnswerUnanswered() }
+                    .help("Turn the card without typing, and grade yourself")
+                    .accessibilityIdentifier("knowledgeMap.review.showAnswer")
                 capsule("Check", key: "\u{21A9}", prominent: true) { vm.checkKnowledgeMapReviewAnswer() }
                     .disabled(session.attemptDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     .help("Check your answer against the card (Return)")

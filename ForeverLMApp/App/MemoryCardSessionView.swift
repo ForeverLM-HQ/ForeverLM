@@ -2,11 +2,11 @@ import SwiftUI
 
 /// The card review, in the window-filling memory focus (docs/memory-design.md,
 /// "The card review"): one card at a time, the wording large, the learner's
-/// answer typed or dictated on the card and Check (never a bare flip:
-/// product owner, 2026-10-11), then their answer over the back, the check's
-/// verdict on it under the fold, why it is right and the source it quotes,
-/// and Forgot or Remembered, the verdict's grade first. I Don't Know opens
-/// the back too, and leaves only Forgot.
+/// answer typed or dictated on the card and Check, then their answer over
+/// the back, the check's verdict on it under the fold, why it is right and
+/// the source it quotes, and Forgot or Remembered, the verdict's grade first.
+/// Show Answer opens the back with nothing typed, as a paper flashcard, and
+/// the learner grades themselves (product owner, 2026-10-19).
 ///
 /// Since 2026-10-11 it is drawn as a deck (docs/memory-design.md, "How a card
 /// looks"; `MemoryCardChrome.swift`): over the card, the source it is from
@@ -23,8 +23,8 @@ import SwiftUI
 /// the review alone). When the goal's minutes are met the celebration shows
 /// here, as it showed in the chat.
 ///
-/// Keys: Return in the answer field checks it (Shift-Return a new line);
-/// once the back shows, Return takes the verdict's grade when the check has
+/// Keys: Return in the answer field checks it (Shift-Return a new line),
+/// Command-Return is Show Answer; once the back shows, Return takes the verdict's grade when the check has
 /// one, ← or 1 is Forgot, → or 2 Remembered, D Go Deeper.
 /// They are off while the answer field is up, which takes the keys, while
 /// the Reader is beside the review, which takes keys of its own, while a
@@ -488,24 +488,7 @@ struct MemoryCardSessionView: View {
     private var answerBar: some View {
         let draft = sitting.current?.draft
         VStack(spacing: 12) {
-            if sitting.isAnswerShown, sitting.saidNotKnown {
-                // Not known is forgotten: one answer, never Remembered.
-                MemoryReviewButton(
-                    title: "Forgot",
-                    key: keysEnabled ? "←" : nil,
-                    kind: .primary,
-                    minWidth: 220,
-                    shortcut: keysEnabled ? KeyboardShortcut(.leftArrow, modifiers: []) : nil
-                ) {
-                    answer(remembered: false)
-                }
-                .help(keysEnabled ? "You didn't know it: Forgot (← or 1)" : "You didn't know it: Forgot")
-                .disabled(session.isKeepingDraft)
-                .accessibilityIdentifier("memory.cards.forgot")
-                if keysEnabled, !session.isKeepingDraft {
-                    hiddenShortcut("1") { answer(remembered: false) }
-                }
-            } else if sitting.isAnswerShown {
+            if sitting.isAnswerShown {
                 gradeButtons
                     .disabled(session.isKeepingDraft)
                 // The arrow of the verdict's side still answers when Return
@@ -539,17 +522,20 @@ struct MemoryCardSessionView: View {
                     hiddenShortcut("2") { answer(remembered: true) }
                 }
             } else {
-                // The back opens on an answer, never on a bare flip.
+                // An answer to check, or Show Answer to turn the card with
+                // nothing typed and grade it yourself.
                 HStack(spacing: 12) {
                     MemoryReviewButton(
-                        title: "I Don't Know",
+                        title: "Show Answer",
+                        key: session.besideSourceID == nil ? "⌘↩" : nil,
                         kind: .secondary,
-                        minWidth: 170
+                        minWidth: 170,
+                        shortcut: session.besideSourceID == nil ? KeyboardShortcut(.return, modifiers: .command) : nil
                     ) {
-                        session.showAnswerNotKnown()
+                        session.showAnswerUnanswered()
                     }
-                    .help("Show the answer; the card counts as forgot")
-                    .accessibilityIdentifier("memory.cards.notKnown")
+                    .help("Turn the card without typing, and grade yourself (⌘Return)")
+                    .accessibilityIdentifier("memory.cards.showAnswer")
                     MemoryReviewButton(
                         title: "Check",
                         key: session.besideSourceID == nil ? "↩" : nil,

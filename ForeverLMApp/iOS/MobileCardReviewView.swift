@@ -217,8 +217,8 @@ final class MobileCardReviewSession: ObservableObject {
     // MARK: The cards
 
     /// Check: the learner's answer, typed or dictated, turns the card to its
-    /// back, the answer shown over it. A blank answer turns nothing: the back
-    /// is never a bare flip (product owner, 2026-10-11). True when it shows.
+    /// back, the answer shown over it. A blank answer turns nothing; Show
+    /// Answer is the turn without one. True when it shows.
     @discardableResult
     func showAnswer(attempt: String) -> Bool {
         guard var sitting, sitting.showAnswer(attempt: attempt) else { return false }
@@ -265,10 +265,12 @@ final class MobileCardReviewSession: ObservableObject {
         await checkWork?.value
     }
 
-    /// "I don't know": the back shows, and the card can only be Forgot.
-    func showAnswerNotKnown() {
+    /// Show Answer, or a tap on the card: the back shows with nothing typed,
+    /// as a paper flashcard, and the learner grades themselves (product
+    /// owner, 2026-10-19: "i can't always type or speak the answer").
+    func showAnswerUnanswered() {
         guard var sitting, !sitting.isAnswerShown, sitting.current != nil else { return }
-        sitting.showAnswerNotKnown()
+        sitting.showAnswerUnanswered()
         self.sitting = sitting
         attemptDraft = ""
         revealCount += 1
@@ -628,10 +630,10 @@ final class MobileBackgroundSaveAssertion {
 
 /// Today's card review, or a notebook's Practice: one card at a time, the
 /// wording large, the learner's answer typed or dictated at the foot and
-/// Check (never a bare flip: product owner, 2026-10-11), then their answer
-/// over the back, why it holds and its source, and Forgot or Remembered; I
-/// Don't Know leaves only Forgot (the Mac's `MemoryCardSessionView`, on a
-/// phone).
+/// Check, then their answer over the back, why it holds and its source, and
+/// Forgot or Remembered; Show Answer, or a tap on the card, turns it with
+/// nothing typed and the learner grades themselves (the Mac's
+/// `MemoryCardSessionView`, on a phone).
 /// Today's review carries the scope in its title — All notebooks or one — and
 /// its menu speaks today's review by voice and, when today's review chat from
 /// before cards holds an answer, continues it. A card's source opens in the
@@ -1021,6 +1023,12 @@ struct MobileCardReviewScreen: View {
             }
         }
         .memoryCardSurface()
+        // A tap on the question turns the card, as a paper flashcard; the
+        // buttons and pictures on it keep their own taps.
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if !shown { showAnswerUnanswered() }
+        }
         .animation(.easeOut(duration: 0.22), value: shown)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("memory.cards.card")
@@ -1167,22 +1175,11 @@ struct MobileCardReviewScreen: View {
     // MARK: Answers
 
     /// At the foot of the screen: the answer field with its mic and Check,
-    /// and I Don't Know under it; then Forgot and Remembered side by side,
-    /// stacked at the accessibility text sizes, or Forgot alone for a card
-    /// not known.
+    /// and Show Answer under it; then Forgot and Remembered side by side,
+    /// stacked at the accessibility text sizes.
     private func answerBar(_ sitting: MemoryCardSitting) -> some View {
         Group {
-            if sitting.isAnswerShown, sitting.saidNotKnown {
-                Button {
-                    answer(remembered: false)
-                } label: {
-                    Text("Forgot")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(MobileMemoryPillStyle(kind: .primary))
-                .accessibilityHint("You didn't know it")
-                .accessibilityIdentifier("memory.cards.forgot")
-            } else if sitting.isAnswerShown {
+            if sitting.isAnswerShown {
                 // The check's verdict fills its grade's pill; the other is
                 // the override. While it checks both are pale; with no
                 // verdict, the learner's own grade as before.
@@ -1215,17 +1212,15 @@ struct MobileCardReviewScreen: View {
                 VStack(spacing: MobileDesign.Spacing.xSmall) {
                     attemptComposer
                     Button {
-                        isAttemptFocused = false
-                        Task { await dictation.cancel() }
-                        session.showAnswerNotKnown()
+                        showAnswerUnanswered()
                     } label: {
-                        Text("I Don't Know")
+                        Text("Show Answer")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(MobileMemoryPillStyle(kind: .quiet, height: MobileDesign.Metrics.minimumTouchTarget))
                     .disabled(dictation.state == .listening)
-                    .accessibilityHint("Shows the answer; the card counts as forgot")
-                    .accessibilityIdentifier("memory.cards.notKnown")
+                    .accessibilityHint("Turns the card without typing; then you say whether you remembered it")
+                    .accessibilityIdentifier("memory.cards.showAnswer")
                 }
             }
         }
@@ -1260,6 +1255,15 @@ struct MobileCardReviewScreen: View {
         ) {
             session.showAnswer(attempt: session.attemptDraft)
         }
+    }
+
+    /// Show Answer: the keyboard and the mic put away, and the card turned
+    /// with nothing typed. Nothing while the mic listens.
+    private func showAnswerUnanswered() {
+        guard dictation.state != .listening else { return }
+        isAttemptFocused = false
+        Task { await dictation.cancel() }
+        session.showAnswerUnanswered()
     }
 
     /// Answers the card in front, tossing it toward its answer's side. The

@@ -262,9 +262,10 @@ final class MemoryCardSessionModel: Identifiable {
         showAnswer(attempt: attemptDraft)
     }
 
-    /// "I don't know": the back shows, and the card can only be Forgot.
-    func showAnswerNotKnown() {
-        sitting.showAnswerNotKnown()
+    /// Show Answer: the back shows with nothing typed, and the learner
+    /// grades themselves.
+    func showAnswerUnanswered() {
+        sitting.showAnswerUnanswered()
         if sitting.isAnswerShown { attemptDraft = "" }
     }
 

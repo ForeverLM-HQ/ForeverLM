@@ -143,11 +143,11 @@ struct MemoryCardSittingTests {
         #expect(!dealtAgain, "every card there has been written")
     }
 
-    @Test("A card's back opens only on an answer, typed or said, or on I don't know, which can only be Forgot")
-    func backOpensOnAnAnswer() {
+    @Test("A card's back opens on an answer, typed or said, or on Show Answer, which the learner grades either way")
+    func backOpensOnAnAnswerOrShowAnswer() {
         let cards = ["a", "b", "c"].map { MemoryCardSitting.Card(itemID: $0, prompt: "Q \($0)", back: "A \($0)") }
         var sitting = MemoryCardSitting(key: "k", kind: .today, cards: cards)
-        // No bare flip: a blank answer opens nothing.
+        // A blank answer opens nothing; Show Answer is the flip.
         let empty = sitting.showAnswer(attempt: "")
         let blank = sitting.showAnswer(attempt: "  \n ")
         #expect(!empty)
@@ -160,7 +160,6 @@ struct MemoryCardSittingTests {
         #expect(checked)
         #expect(sitting.isAnswerShown)
         #expect(sitting.attempt == "The answer, said back")
-        #expect(!sitting.saidNotKnown)
         let secondGo = sitting.showAnswer(attempt: "A second go")
         #expect(!secondGo, "the back is already open")
         #expect(sitting.attempt == "The answer, said back")
@@ -168,24 +167,22 @@ struct MemoryCardSittingTests {
         #expect(first?.remembered == true)
         #expect(sitting.attempt == nil, "the next card starts with nothing answered")
 
-        // I don't know opens the back with nothing to grade, and is Forgot
-        // whatever is asked.
-        sitting.showAnswerNotKnown()
+        // Show Answer opens the back with no answer over it, and the
+        // learner's own grade stands, Remembered as well as Forgot.
+        sitting.showAnswerUnanswered()
         #expect(sitting.isAnswerShown)
-        #expect(sitting.saidNotKnown)
         #expect(sitting.attempt == nil)
-        let notKnown = sitting.answer(remembered: true)
-        #expect(notKnown?.remembered == false)
-        #expect(!sitting.saidNotKnown)
-        #expect(sitting.forgottenCards.map(\.itemID) == ["b"])
+        let flippedRemembered = sitting.answer(remembered: true)
+        #expect(flippedRemembered?.remembered == true)
 
-        sitting.showAnswer(attempt: "C")
-        sitting.answer(remembered: true)
+        sitting.showAnswerUnanswered()
+        let flippedForgot = sitting.answer(remembered: false)
+        #expect(flippedForgot?.remembered == false)
+        #expect(sitting.forgottenCards.map(\.itemID) == ["c"])
         #expect(sitting.isRoundOver)
         // Review Forgotten asks again on an answer too.
         sitting.reviewForgotten()
         #expect(!sitting.isAnswerShown)
-        #expect(!sitting.saidNotKnown)
         #expect(sitting.attempt == nil)
         let blankAgain = sitting.showAnswer(attempt: "")
         #expect(!blankAgain)

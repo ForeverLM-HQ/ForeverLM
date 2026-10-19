@@ -215,10 +215,10 @@ extension StudioViewModel {
         knowledgeMap.memory.review?.session.checkAttempt()
     }
 
-    /// "I don't know" on the card asked: its back shows, and it can only be
-    /// Forgot.
-    func showKnowledgeMapReviewAnswerNotKnown() {
-        knowledgeMap.memory.review?.session.showAnswerNotKnown()
+    /// Show Answer on the card asked: its back shows with nothing typed, and
+    /// the learner grades themselves.
+    func showKnowledgeMapReviewAnswerUnanswered() {
+        knowledgeMap.memory.review?.session.showAnswerUnanswered()
     }
 
     /// Return once the check's verdict is in: the grade it suggests.
