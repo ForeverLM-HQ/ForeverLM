@@ -575,6 +575,31 @@ struct StudioArticlePropertyTests {
         #expect(article.paperAttentionReason(hasUsablePDF: false) == .pdfNeeded)
     }
 
+    @Test("A paper whose cleanup is queued has finished ingestion; an error or a missing attestation has not")
+    func queuedCleanupIsFinishedIngestion() {
+        var article = StudioArticle(
+            url: "/Users/me/paper.pdf",
+            title: "Paper",
+            sourceType: .paper,
+            author: "Ada Researcher",
+            journal: "bioRxiv",
+            publishedYear: "2024"
+        )
+        article.prepareForPaperMetadataExtraction()
+        #expect(!article.hasFinishedPaperIngestion, "queued for metadata, not yet attested")
+
+        let attested = article.attestPaperMetadataExtractionAfterLLM()
+        #expect(attested)
+        let raw = "Header\n\nPaper text.\n\nReferences"
+        article.stagePaperContentCleanup(raw: raw)
+        #expect(article.state == .queued)
+        #expect(!article.isPaperReadyForListenPreparation)
+        #expect(article.hasFinishedPaperIngestion, "the cleanup queue takes it from here")
+
+        article.failPaperIngestionMetadata("Paper ingestion failed: something else")
+        #expect(!article.hasFinishedPaperIngestion)
+    }
+
     @Test("A paper offers Mark as Paywalled only while the AI browser's suspicion still has a PDF to wait for")
     func paperOffersPaywallMarkingOnlyWhileSuspectedAndWithoutPDF() {
         var article = StudioArticle(

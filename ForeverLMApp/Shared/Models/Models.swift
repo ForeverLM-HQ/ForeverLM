@@ -2596,6 +2596,21 @@ struct StudioArticle: Identifiable, Codable, Equatable {
             && hasCompletedPaperContentCleanup
     }
 
+    /// Ingestion is over: metadata is attested, and the text is either clean
+    /// or handed to the durable cleanup queue, which moves the row from
+    /// `.queued` to `.ready` when the clean text lands (3813fb3). Callers that
+    /// ask "did this paper finish?" use this, not
+    /// `isPaperReadyForListenPreparation`: a queued cleanup is not a stall, and
+    /// recording it as one set the row to `.error`, which the queue's drain
+    /// never picks up, so the cleanup could never run.
+    var hasFinishedPaperIngestion: Bool {
+        guard sourceType == .paper else { return true }
+        if isPaperReadyForListenPreparation { return true }
+        return state == .queued
+            && errorMessage == nil
+            && hasPaperIngestionAttestation
+    }
+
     /// Metadata, canonical cleanup, and the durable Listen derivative are all
     /// ready. Since Listen became lazy (2026-09-24) nothing gates a control on
     /// this: a paper without a derivative yet is still fully readable and

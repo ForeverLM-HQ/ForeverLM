@@ -878,7 +878,7 @@ extension StudioViewModel {
                 guard !Task.isCancelled else { return false }
                 try? await Task.sleep(for: .milliseconds(100))
             }
-            return articles.first(where: { $0.id == articleId })?.isPaperReadyForListenPreparation == true
+            return articles.first(where: { $0.id == articleId })?.hasFinishedPaperIngestion == true
         }
 
         guard let idx = articles.firstIndex(where: { $0.id == articleId }),
@@ -1344,7 +1344,7 @@ extension StudioViewModel {
                             _ = await extractPaperMetadataWithAI(id: articleId, showToasts: userInitiated)
                             let currentArticle = articles.first(where: { $0.id == articleId })
                             logger.info("Loaded PMC full text for: \(currentArticle?.title ?? articleId)")
-                            let metadataComplete = currentArticle?.isPaperReadyForListenPreparation == true
+                            let metadataComplete = currentArticle?.hasFinishedPaperIngestion == true
                             if userInitiated, metadataComplete {
                                 showToast("Full text loaded from PubMed Central")
                             }
@@ -1430,7 +1430,7 @@ extension StudioViewModel {
             return PaperDownloadResult(
                 success: true,
                 lastError: nil,
-                metadataComplete: articles.first(where: { $0.id == articleId })?.isPaperReadyForListenPreparation,
+                metadataComplete: articles.first(where: { $0.id == articleId })?.hasFinishedPaperIngestion,
                 debugLog: log
             )
         }
@@ -1555,13 +1555,13 @@ extension StudioViewModel {
                         )
                         logger.info("Downloaded paper PDF through the reader's web session: \(pdfURL)")
                         if userInitiated {
-                            let metadataComplete = current?.isPaperReadyForListenPreparation == true
+                            let metadataComplete = current?.hasFinishedPaperIngestion == true
                             showToast(metadataComplete ? "PDF downloaded" : "PDF downloaded, but AI metadata extraction failed")
                         }
                         return PaperDownloadResult(
                             success: true,
                             lastError: nil,
-                            metadataComplete: current?.isPaperReadyForListenPreparation,
+                            metadataComplete: current?.hasFinishedPaperIngestion,
                             debugLog: log
                         )
                     } catch {
@@ -1961,8 +1961,13 @@ extension StudioViewModel {
                 for: articleId,
                 browserConfig: KeychainService.resolveConfig(for: .paperBrowserAgent)
             )
-            if articles.first(where: { $0.id == articleId })?.isPaperReadyForListenPreparation == true {
-                showToast("Paper cleanup fixed")
+            if let current = articles.first(where: { $0.id == articleId }),
+               current.hasFinishedPaperIngestion {
+                showToast(
+                    current.isPaperReadyForListenPreparation
+                        ? "Paper cleanup fixed"
+                        : "Paper metadata saved; its text is being cleaned up in the background"
+                )
                 return
             }
 
@@ -2035,7 +2040,7 @@ extension StudioViewModel {
         // the saved PDF/raw text, not download the same document again.
         if paperHasLocalPDF(articleId) {
             let recoveredText = await recoverReadablePaperText(for: articleId)
-            var metadataComplete = articles.first(where: { $0.id == articleId })?.isPaperReadyForListenPreparation == true
+            var metadataComplete = articles.first(where: { $0.id == articleId })?.hasFinishedPaperIngestion == true
             if recoveredText && !metadataComplete {
                 metadataComplete = await enrichPaperMetadataAfterPDFAttachment(
                     articleId: articleId,
@@ -2065,7 +2070,7 @@ extension StudioViewModel {
                 identity: identity
             )
             if paperHasLocalPDF(articleId) {
-                let metadataComplete = articles.first(where: { $0.id == articleId })?.isPaperReadyForListenPreparation == true
+                let metadataComplete = articles.first(where: { $0.id == articleId })?.hasFinishedPaperIngestion == true
                 return .downloaded(metadataComplete: metadataComplete)
             }
         }
@@ -2092,12 +2097,12 @@ extension StudioViewModel {
         }
 
         if paperHasLocalPDF(articleId) {
-            let metadataComplete = articles.first(where: { $0.id == articleId })?.isPaperReadyForListenPreparation == true
+            let metadataComplete = articles.first(where: { $0.id == articleId })?.hasFinishedPaperIngestion == true
             return .downloaded(metadataComplete: metadataComplete)
         }
         if paperIsMarkedPaywalled(articleId), !recheckingPaywall {
             if await recoverReadablePaperText(for: articleId) {
-                let complete = articles.first(where: { $0.id == articleId })?.isPaperReadyForListenPreparation == true
+                let complete = articles.first(where: { $0.id == articleId })?.hasFinishedPaperIngestion == true
                 return .textRecovered(metadataComplete: complete)
             }
             return .paywalled
@@ -2105,7 +2110,7 @@ extension StudioViewModel {
 
         guard let browserConfig else {
             if await recoverReadablePaperText(for: articleId) {
-                let complete = articles.first(where: { $0.id == articleId })?.isPaperReadyForListenPreparation == true
+                let complete = articles.first(where: { $0.id == articleId })?.hasFinishedPaperIngestion == true
                 return .textRecovered(metadataComplete: complete)
             }
             return .skippedNoBrowserConfig
@@ -2119,17 +2124,17 @@ extension StudioViewModel {
         )
         switch browserResult {
         case .downloaded:
-            let metadataComplete = articles.first(where: { $0.id == articleId })?.isPaperReadyForListenPreparation == true
+            let metadataComplete = articles.first(where: { $0.id == articleId })?.hasFinishedPaperIngestion == true
             return .downloaded(metadataComplete: metadataComplete)
         case .paywalled:
             if await recoverReadablePaperText(for: articleId) {
-                let complete = articles.first(where: { $0.id == articleId })?.isPaperReadyForListenPreparation == true
+                let complete = articles.first(where: { $0.id == articleId })?.hasFinishedPaperIngestion == true
                 return .textRecovered(metadataComplete: complete)
             }
             return .paywalled
         case .suspectedPaywall:
             if await recoverReadablePaperText(for: articleId) {
-                let complete = articles.first(where: { $0.id == articleId })?.isPaperReadyForListenPreparation == true
+                let complete = articles.first(where: { $0.id == articleId })?.hasFinishedPaperIngestion == true
                 return .textRecovered(metadataComplete: complete)
             }
             return .suspectedPaywall
@@ -2137,13 +2142,13 @@ extension StudioViewModel {
             return .reclassifiedAsArticle
         case .cancelled:
             if paperHasLocalPDF(articleId) {
-                let complete = articles.first(where: { $0.id == articleId })?.isPaperReadyForListenPreparation == true
+                let complete = articles.first(where: { $0.id == articleId })?.hasFinishedPaperIngestion == true
                 return .downloaded(metadataComplete: complete)
             }
             return .failed
         case .failed:
             if await recoverReadablePaperText(for: articleId) {
-                let complete = articles.first(where: { $0.id == articleId })?.isPaperReadyForListenPreparation == true
+                let complete = articles.first(where: { $0.id == articleId })?.hasFinishedPaperIngestion == true
                 return .textRecovered(metadataComplete: complete)
             }
             return .failed
@@ -2422,7 +2427,7 @@ extension StudioViewModel {
             else { return nil }
             autoFetchAttemptedPaperIDs.insert(articleId)
             let recovered = await recoverReadablePaperText(for: articleId)
-            let metadataComplete = articles.first(where: { $0.id == articleId })?.isPaperReadyForListenPreparation == true
+            let metadataComplete = articles.first(where: { $0.id == articleId })?.hasFinishedPaperIngestion == true
             return recovered ? .textRecovered(metadataComplete: metadataComplete) : .failed
         }
         guard article.url.hasPrefix("http") else { return nil }

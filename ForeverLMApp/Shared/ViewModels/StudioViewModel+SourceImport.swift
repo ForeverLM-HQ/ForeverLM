@@ -102,7 +102,7 @@ extension StudioViewModel {
             if importsDocumentMarks {
                 await importPDFMarksReportingFailure(into: articleID, pdfPath: destPath)
             }
-            if processImmediately && !articles[existingIndex].isPaperReadyForListenPreparation {
+            if processImmediately && !articles[existingIndex].hasFinishedPaperIngestion {
                 guard await enrichPaperMetadataAfterPDFAttachment(
                     articleId: articleID,
                     userInitiated: presentsPaperImportUI
