@@ -92,9 +92,6 @@ extension StudioViewModel {
         if destinationWindowState == nil || revealingReader {
             clearReaderSurfaces(in: destination)
         }
-        // A source open to read keeps its pane: a new chat, or the next
-        // destination from the rail, opens beside it rather than over it.
-        pinReaderPane(in: destination)
 
         // Context is intentional: a source click only focuses the reader.
         // Explicit flows such as Schedule start, context menu actions, and
@@ -525,7 +522,6 @@ extension StudioViewModel {
         showReaderPanel = true
         readerPoppedOut = false
         revealReader(beside: .chat, in: destination)
-        pinReaderPane(in: destination)
     }
 
     /// The saved source a web page turned out to be, opened where the page

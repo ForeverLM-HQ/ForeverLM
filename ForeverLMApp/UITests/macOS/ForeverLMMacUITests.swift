@@ -79,7 +79,7 @@ final class ForeverLMMacUITests: XCTestCase {
         )
     }
 
-    func testPinnedDocsSurviveSidebarNavigationAndWorkspaceCanBeSaved() {
+    func testDocsTabSurvivesSidebarNavigationAndWorkspaceCanBeSaved() {
         // Pages is not a rail row: a UI test run starts on the Notebooks home,
         // whose Space tab holds the pages, sites, pictures and Ideas; the
         // Space sidebar's Pages row lists the pages beside it.
@@ -96,26 +96,9 @@ final class ForeverLMMacUITests: XCTestCase {
             in: docsLabels,
             message: "Pages should be visible in a center pane"
         )
-        let docsPaneTitle = try? XCTUnwrap(
-            docsLabels.allElementsBoundByAccessibilityElement.max { $0.frame.midX < $1.frame.midX }
-        )
-        let pinButtons = app.buttons.matching(NSPredicate(
-            format: "identifier BEGINSWITH %@ AND identifier ENDSWITH %@",
-            "studio.centerPane.",
-            ".pin"
-        ))
-        waitForMinimumCount(1, in: pinButtons, message: "Every center pane should expose a pin")
-        let docsPin = pinButtons.allElementsBoundByAccessibilityElement.min {
-            abs($0.frame.midX - (docsPaneTitle?.frame.midX ?? 0))
-                < abs($1.frame.midX - (docsPaneTitle?.frame.midX ?? 0))
-        }
-        XCTAssertNotNil(docsPin)
-        guard let docsPin else { return }
-        docsPin.tap()
-        XCTAssertEqual(docsPin.value as? String, "Pinned")
 
-        // The rail's Notebooks header opens the Space's All list beside the
-        // pinned pane, never over it.
+        // The rail's Notebooks header opens the Space's All list as a tab;
+        // Pages stays one of the pane's tabs, in the strip above it.
         let notebooks = app.buttons["studio.navigation.notebooks"]
         XCTAssertTrue(notebooks.waitForExistence(timeout: 5))
         notebooks.tap()
@@ -124,12 +107,10 @@ final class ForeverLMMacUITests: XCTestCase {
             app.descendants(matching: .any)["space.search"].waitForExistence(timeout: 5),
             "The Space should open"
         )
-        waitForMinimumCount(
-            1,
-            in: docsLabels,
-            message: "The pinned Pages pane should remain visible beside the Space"
+        XCTAssertTrue(
+            app.buttons["Pages"].waitForExistence(timeout: 5),
+            "Pages should remain a tab in the pane's strip"
         )
-        XCTAssertEqual(docsPin.value as? String, "Pinned")
 
         // A named workspace is the whole app arrangement, not a per-window
         // preset. Add a second window before saving, then prove reopening the
@@ -146,22 +127,22 @@ final class ForeverLMMacUITests: XCTestCase {
 
         let name = app.textFields.firstMatch
         XCTAssertTrue(name.waitForExistence(timeout: 3))
-        name.typeText("UI Test Pinned Docs")
+        name.typeText("UI Test Docs Tab")
         app.buttons["Save"].tap()
 
         app.typeKey("w", modifierFlags: .command)
         waitForCount(1, in: app.windows, message: "The second Studio window should close")
 
         openViewWorkspacesMenu()
-        let savedWorkspace = app.menuItems["UI Test Pinned Docs"]
+        let savedWorkspace = app.menuItems["UI Test Docs Tab"]
         XCTAssertTrue(savedWorkspace.waitForExistence(timeout: 3))
         savedWorkspace.tap()
 
         waitForCount(2, in: app.windows, message: "Restoring the workspace should recreate both Studio windows")
         waitForMinimumCount(
             1,
-            in: app.buttons.matching(NSPredicate(format: "value == %@", "Pinned")),
-            message: "The recreated workspace should retain its pinned Pages pane"
+            in: app.buttons.matching(NSPredicate(format: "label == %@", "Pages")),
+            message: "The recreated workspace should retain its Pages tab"
         )
     }
 

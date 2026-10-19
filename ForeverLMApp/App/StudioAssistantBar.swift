@@ -617,10 +617,9 @@ struct StudioDockedAssistantPanel: View {
             // visible and clickable at the panel's real right edge.
             //
             // Whether it sits on the chrome line, drops to the content row or
-            // is not drawn at all is the group's decision, made once beside the
-            // pin that shares this corner. Resolving it here with the close
-            // button's width alone let the x stay on the line after the pin —
-            // which needs the room for both controls — had already dropped.
+            // is not drawn at all is the group's decision, made once for every
+            // control that shares this corner, so none of them can stay on the
+            // line after another has dropped.
             if !centerTabStripVisible && drawsCloseControl && placement != .hidden {
                 GeometryReader { proxy in
                     closeButton
@@ -680,7 +679,7 @@ struct StudioDockedAssistantPanel: View {
     /// The line the chat header's own controls have to stay left of, measured
     /// from this panel's trailing edge.
     ///
-    /// The pin, the pane close, and the Sources restore control are drawn over
+    /// The swap control, the pane close, and the Sources restore control are drawn over
     /// the pane's top-right corner, so nothing the header lays out can push
     /// them aside — the header gets out of their way instead. Every slot in
     /// `chromeReservation.total` is a control plus the shared gap that follows

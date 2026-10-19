@@ -650,11 +650,11 @@ struct CardDraftingTests {
                 "a memory review owns its window")
     }
 
-    @Test("In panes the drafts open in a pane of their own beside the Reader, or one showing neither a chat nor the Reader, never a pinned one")
+    @Test("In panes the drafts open in a pane of their own beside the Reader, or one showing neither a chat nor the Reader")
     func placementInPanes() {
         typealias Group = StudioCenterTabGroups.Group
         let readerAlone = StudioCenterTabGroups(groups: [
-            Group(tabs: [.reader, .chat, .memory, .artifacts], activeTab: .reader, isPinned: true),
+            Group(tabs: [.reader, .chat, .memory, .artifacts], activeTab: .reader),
         ])
         guard case .panes(let split) = CardDraftsPlacement.place(notebook: nil, panes: readerAlone, isInMemoryFocus: false) else {
             Issue.record("room for a second pane: the drafts take it")
@@ -664,32 +664,22 @@ struct CardDraftingTests {
         #expect(split.groups[0].tabs == [.reader, .chat, .artifacts])
 
         let readerAndChat = StudioCenterTabGroups(groups: [
-            Group(tabs: [.reader, .memory], activeTab: .reader, isPinned: true),
+            Group(tabs: [.reader, .memory], activeTab: .reader),
             Group(tabs: [.chat, .artifacts], activeTab: .chat),
         ])
         #expect(CardDraftsPlacement.place(notebook: nil, panes: readerAndChat, isInMemoryFocus: false) == CardDraftsPlacement.none,
                 "never over the chat or the source")
 
         let readerAndDocs = StudioCenterTabGroups(groups: [
-            Group(tabs: [.reader, .memory], activeTab: .reader, isPinned: true),
+            Group(tabs: [.reader, .memory], activeTab: .reader),
             Group(tabs: [.notepad, .chat], activeTab: .notepad),
         ])
         guard case .panes(let overDocs) = CardDraftsPlacement.place(notebook: nil, panes: readerAndDocs, isInMemoryFocus: false) else {
-            Issue.record("an unpinned pane showing a Doc gives way")
+            Issue.record("a pane showing a Doc gives way")
             return
         }
         #expect(overDocs.groups.map(\.activeTab) == [.reader, .memory])
         #expect(!overDocs.groups[0].tabs.contains(.memory))
-
-        let bothPinned = StudioCenterTabGroups(groups: [
-            Group(tabs: [.reader, .memory], activeTab: .reader, isPinned: true),
-            Group(tabs: [.notepad, .chat], activeTab: .notepad, isPinned: true),
-        ])
-        guard case .panes(let third) = CardDraftsPlacement.place(notebook: nil, panes: bothPinned, isInMemoryFocus: false) else {
-            Issue.record("every pane pinned: the third, overflow pane opens")
-            return
-        }
-        #expect(third.groups.map(\.activeTab) == [.reader, .memory, .notepad])
 
         let showing = StudioCenterTabGroups(groups: [Group(tabs: [.memory, .reader], activeTab: .memory)])
         #expect(CardDraftsPlacement.place(notebook: nil, panes: showing, isInMemoryFocus: false) == .memoryOnScreen)
@@ -992,11 +982,11 @@ struct MakeCardsViewModelTests {
         // Panes: a pane of its own beside the Reader; none over a chat.
         typealias Group = StudioCenterTabGroups.Group
         let panes = StudioWindowState()
-        panes.centerTabGroups = StudioCenterTabGroups(groups: [Group(tabs: [.reader, .memory], activeTab: .reader, isPinned: true)])
+        panes.centerTabGroups = StudioCenterTabGroups(groups: [Group(tabs: [.reader, .memory], activeTab: .reader)])
         #expect(vm.placeCardDrafts(scope: .allNotebooks, in: panes))
         #expect(panes.centerTabGroups.groups.map(\.activeTab) == [.reader, .memory])
         panes.centerTabGroups = StudioCenterTabGroups(groups: [
-            Group(tabs: [.reader, .memory], activeTab: .reader, isPinned: true),
+            Group(tabs: [.reader, .memory], activeTab: .reader),
             Group(tabs: [.chat], activeTab: .chat),
         ])
         let before = panes.centerTabGroups

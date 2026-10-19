@@ -4519,7 +4519,7 @@ extension StudioViewModel {
     /// rather than the key window's: the button was pressed in this window,
     /// but the registry's notion of key can lag the click.
     func replayChatRequest(_ replay: ChatRequestReplay, in window: StudioWindowState) {
-        revealCenterTabOverridingPin(.chat, in: window)
+        activateCenterTab(.chat, in: window)
         inWindow(window) {
             reviewChatPanelMode = .chat
             showAssistantOverlay = true
@@ -4538,59 +4538,15 @@ extension StudioViewModel {
         }
     }
 
-    /// Brings `tab` on screen in `windowState` even in the one layout
-    /// `activateCenterTab` refuses — `tab` parked behind a pinned pane with
-    /// nowhere else to go — by releasing that pane's pin first. For an
-    /// explicit request to open here, the pin is what the learner is
-    /// overriding.
-    func revealCenterTabOverridingPin(_ tab: StudioCenterTab, in windowState: StudioWindowState) {
-        if !canRevealCenterTab(tab, in: windowState) {
-            var layout = windowState.centerTabGroups
-            if let group = layout.groups.firstIndex(where: { $0.tabs.contains(tab) }) {
-                layout.groups[group].isPinned = false
-                windowState.centerTabGroups = layout
-            }
-        }
-        activateCenterTab(tab, in: windowState)
-    }
-
     /// The window a chat request made in `origin` should show in: always
-    /// `origin`, the window the click was made in. When every pane there is
-    /// pinned with Chat parked behind one of them, Chat's pane gives up its
-    /// pin so the chat can come on screen; it never goes to another window
-    /// that happens to show Chat already, since sending it there is what the
-    /// context menu's Open in Other Window is for (product owner, 2026-09-22: "no
-    /// actual click on anything should ever open the thing in the other
-    /// ForeverLM window"). A nil origin (no Studio window is key, as from a
-    /// popped-out Reader) starts from the Studio window used last.
+    /// `origin`, the window the click was made in. It never goes to another
+    /// window that happens to show Chat already, since sending it there is
+    /// what the context menu's Open in Other Window is for (product owner,
+    /// 2026-09-22: "no actual click on anything should ever open the thing in
+    /// the other ForeverLM window"). A nil origin (no Studio window is key, as
+    /// from a popped-out Reader) starts from the Studio window used last.
     func chatRequestDestinationWindow(origin: StudioWindowState?) -> StudioWindowState {
-        let destination = origin ?? activeWindowState
-        if !canRevealCenterTab(.chat, in: destination) {
-            var layout = destination.centerTabGroups
-            if let group = layout.groups.firstIndex(where: { $0.tabs.contains(.chat) }) {
-                layout.groups[group].isPinned = false
-                destination.centerTabGroups = layout
-            }
-        }
-        return destination
-    }
-
-    /// Whether `activateCenterTab` can bring `tab` on screen in `windowState`:
-    /// it is showing already, its group is unpinned, or there is room to peel
-    /// it into a pane of its own or into an unpinned neighbour. Mirrors that
-    /// method's one refusal — the tab parked behind a pinned pane, every other
-    /// pane pinned too, and the overflow cap reached.
-    func canRevealCenterTab(_ tab: StudioCenterTab, in windowState: StudioWindowState) -> Bool {
-        // A notebook pins nothing: its chat and document slot always show.
-        if windowState.notebook != nil,
-           NotebookWorkspace.route(tab, coursePageID: windowState.coursePageID) != .leave {
-            return true
-        }
-        let layout = windowState.centerTabGroups
-        guard let source = layout.groups.firstIndex(where: { $0.tabs.contains(tab) }) else { return false }
-        let group = layout.groups[source]
-        guard group.isPinned, group.activeTab != tab else { return true }
-        return layout.canCreateGroup || layout.firstUnpinnedIndex(otherThan: source) != nil
+        origin ?? activeWindowState
     }
 
     /// Where the chat went, for the learner, when it is not the window the

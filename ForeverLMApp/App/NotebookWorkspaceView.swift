@@ -886,7 +886,7 @@ struct NotebookWorkspaceView: View {
     }
 
     /// The room at the window's top right the way back to a folded Studio
-    /// takes: the pane that reaches the edge draws its pin and × this much
+    /// takes: the pane that reaches the edge draws its × this much
     /// further in, as a pane clipped by that much does.
     private var studioRestoreClearance: CGFloat {
         studioShows && workspace.studioCollapsed
@@ -981,7 +981,6 @@ struct NotebookWorkspaceView: View {
                 destinations: swaps,
                 current: document.centerTab ?? .reader,
                 identifierPrefix: identifier,
-                reservesPin: false,
                 onSelect: { destination in
                     vm.replaceCenterPane(
                         at: 0,

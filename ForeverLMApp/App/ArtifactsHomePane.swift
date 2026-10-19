@@ -286,9 +286,9 @@ enum ArtifactsHomeKind: String, CaseIterable, Identifiable {
     func openBeside(in vm: StudioViewModel) {
         vm.openArtifactKindBeside(centerTab)
         // Then the kind's own opener, for what it asks of its pane — Docs
-        // lands on its index — once the pane is on screen. With no room for
-        // it (every other pane pinned, three already), the opener would
-        // cover the pane beside which it was asked for, so nothing opens.
+        // lands on its index — once the pane is on screen. Were it not on
+        // screen, the opener would cover the pane beside which it was asked
+        // for, so nothing opens.
         guard vm.activeCenterTabs.contains(centerTab) else { return }
         open(in: vm)
     }

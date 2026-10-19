@@ -668,18 +668,19 @@ struct NotebookRoutingTests {
         #expect(!vm.inWindow(window) { vm.showAssistantOverlay })
     }
 
-    @Test("× closes the slot it is on, a lone chat hides, and nothing pins")
-    func closeAndPin() {
+    @Test("× closes the slot it is on, and a lone chat hides")
+    func closeSlots() {
         let restore = capturingTemplate()
         defer { restore() }
         let vm = makeViewModel()
         let window = notebookWindow(NotebookWorkspace(notebookID: "bio", document: .reader))
         let panes = window.centerTabGroups
 
-        vm.pinReaderPane(in: window)
-        vm.toggleCenterPanePinned(containing: .reader, in: window)
-        #expect(window.centerTabGroups == panes, "nothing pins inside a notebook")
-        #expect(vm.canRevealCenterTab(.chat, in: window))
+        // A tab's × in a notebook closes its slot; the panes underneath stay.
+        vm.closeCenterTab(.reader, in: window)
+        #expect(window.notebook == NotebookWorkspace(notebookID: "bio"))
+        #expect(window.centerTabGroups == panes, "the panes underneath stay as they were")
+        window.notebook = NotebookWorkspace(notebookID: "bio", document: .reader)
 
         vm.dismissCenterSurface(.reader, in: window)
         #expect(window.notebook == NotebookWorkspace(notebookID: "bio"))

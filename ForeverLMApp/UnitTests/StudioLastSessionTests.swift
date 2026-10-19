@@ -23,11 +23,11 @@ struct StudioLastSessionTests {
         }
 
         let firstSnapshot = StudioWindowState.Snapshot(
-            centerTabGroups: ["notebooks*", "!|reader*"],
+            centerTabGroups: ["notebooks*", "reader*"],
             navigationRailVisible: false
         )
         let secondSnapshot = StudioWindowState.Snapshot(
-            centerTabGroups: ["chat*", "!|notepad*"],
+            centerTabGroups: ["chat*", "notepad*"],
             navigationRailVisible: true
         )
 
@@ -108,7 +108,7 @@ struct StudioLastSessionTests {
             defer: false
         ) }
         let snapshot = StudioWindowState.Snapshot(
-            centerTabGroups: ["chat*", "!|notepad*"],
+            centerTabGroups: ["chat*", "notepad*"],
             navigationRailVisible: false
         )
         let content = StudioWindowContent(
@@ -156,7 +156,7 @@ struct StudioLastSessionTests {
         // back, as before, and nothing that was open does. (Distinct records:
         // the store folds exact copies into one window.)
         let otherSnapshot = StudioWindowState.Snapshot(
-            centerTabGroups: ["notebooks*", "!|reader*"],
+            centerTabGroups: ["notebooks*", "reader*"],
             navigationRailVisible: true
         )
         StudioLastSessionStore.save([
@@ -504,10 +504,10 @@ struct StudioLastSessionTests {
     func notebookComesBackWithItsWindow() throws {
         // A scene snapshot an older build wrote has no notebook key: it still
         // decodes, keeps its layout, and the window holds no notebook.
-        let legacyJSON = #"{"centerTabGroups":["notebooks*","!|reader*"],"showSourcesPanel":true,"collapsedPanelIDs":["sources"],"navigationRailVisible":false}"#
+        let legacyJSON = #"{"centerTabGroups":["notebooks*","reader*"],"showSourcesPanel":true,"collapsedPanelIDs":["sources"],"navigationRailVisible":false}"#
         let legacy = try JSONDecoder().decode(StudioWindowState.Snapshot.self, from: Data(legacyJSON.utf8))
         #expect(legacy.notebook == nil)
-        #expect(legacy.centerTabGroups == ["notebooks*", "!|reader*"])
+        #expect(legacy.centerTabGroups == ["notebooks*", "reader*"])
         #expect(legacy.navigationRailVisible == false)
         let restoredLegacy = StudioWindowState()
         restoredLegacy.restore(from: legacyJSON)
@@ -574,7 +574,7 @@ struct StudioLastSessionTests {
             }
         }
         let layout = StudioWindowState.Snapshot(
-            centerTabGroups: ["notebooks*", "!|reader*"],
+            centerTabGroups: ["notebooks*", "reader*"],
             navigationRailVisible: true
         )
         var bio = layout

@@ -224,8 +224,8 @@ enum StudioPanelChrome {
     static let readerCloseButtonSize: CGFloat = 26
 }
 
-/// Where a center pane's trailing chrome — the pin and the close target that
-/// are drawn over its top-right corner — may go, given how much of the pane is
+/// Where a center pane's trailing chrome — the close target and swap control
+/// drawn over its top-right corner — may go, given how much of the pane is
 /// actually on screen.
 ///
 /// Center-pane content is deliberately allowed to keep a usable logical width
@@ -235,7 +235,7 @@ enum StudioPanelChrome {
 /// lights and the sidebar toggle on the shared chrome line. The rule is
 /// resolved once per pane (`StudioCenterTabGroupsView`) and published through
 /// `\.studioPaneChromePlacement`, so every control on the line reads the same
-/// answer: a pin and a close that each did their own arithmetic once disagreed,
+/// answer: two controls that each did their own arithmetic once disagreed,
 /// and one of them stayed on the line while the other dropped.
 enum StudioPaneClosePlacement: Equatable {
     /// On the traffic lights' center line, in the titlebar band.
@@ -274,7 +274,7 @@ enum StudioPaneClosePlacement: Equatable {
 /// The header's title is laid out on the transcript's reading column, so where
 /// it ends follows the pane's width rather than the edge it has to respect —
 /// the copy button anchored to the panel's trailing edge, and behind that the
-/// pin and pane close drawn over the pane's top-right corner. On a pane only a
+/// pane's close and swap control drawn over its top-right corner. On a pane only a
 /// little wider than the column the two overlap. Nothing laid out in the
 /// header row can move an overlay, so the column-bound content gives way
 /// instead, and only by as much as it has to: a column that already ends left
@@ -333,7 +333,7 @@ enum StudioChatHeaderClearance {
     /// The control is anchored to the panel rather than to the reading column,
     /// so it sits with the pane's other controls at every width instead of
     /// drifting inward as the column narrows. Docked, `chromeClearance` is
-    /// already the line one shared control gap left of the pane's pin, so the
+    /// already the line one shared control gap left of the pane's controls, so the
     /// control lands beside it; undocked there is no such chrome and the
     /// header's own gutter is the whole of it.
     static func controlTrailingInset(gutter: CGFloat, chromeClearance: CGFloat) -> CGFloat {
@@ -395,7 +395,7 @@ enum StudioTopBar {
     /// What a notebook window's Studio toggle adds to those controls.
     static let notebookStudioToggleClearance = StudioDesign.Metrics.chromeButtonWidth + leadingControlsSpacing
     /// Gap between the controls drawn over a pane's top-right corner: its
-    /// pin, its close target and a header's own trailing controls.
+    /// swap control, its close target and a header's own trailing controls.
     static let paneControlSpacing: CGFloat = 12
     /// What the active center pane's close target claims at the top-right,
     /// with the same gap. The target is drawn as an overlay on
@@ -406,11 +406,9 @@ enum StudioTopBar {
         StudioPanelChrome.centerTabCloseButtonSize + paneControlSpacing
     /// The same claim for a pane whose close target is Reader's own, which is
     /// the larger of the two close controls. Reserving the shared width for it
-    /// left its hover wash — and so its hit surface — 2pt inside the pin's.
+    /// left its hover wash — and so its hit surface — 2pt inside its neighbour's.
     static let readerPaneCloseControlReservedWidth =
         StudioPanelChrome.readerCloseButtonSize + paneControlSpacing
-    static let centerPanePinControlReservedWidth =
-        StudioPanelChrome.centerTabCloseButtonSize + paneControlSpacing
     static let centerTabStripHorizontalPadding: CGFloat = 10
 
     /// Whether the pane showing `activeTab` draws a close target while the
@@ -454,7 +452,7 @@ enum StudioTopBar {
 /// and it does so from this one value rather than each pane re-deriving the
 /// arithmetic (and forgetting a control).
 struct StudioChromeLineReservation: Equatable {
-    /// The active pane's pin and optional close targets, at the pane's
+    /// The active pane's swap control and close target, at the pane's
     /// top-right corner while the center tab strip is hidden.
     var paneControls: CGFloat = 0
 
@@ -897,7 +895,7 @@ struct TitlebarBandHitSurface: NSViewRepresentable {
 
 /// An icon button for the window's titlebar band, with `.buttonStyle(.hoverWash)`'s
 /// look and AppKit's mouse handling. Every control on the chrome line — pane
-/// close, pin, swap — uses this instead of a `Button`; see
+/// close, swap, a strip tab's × — uses this instead of a `Button`; see
 /// `TitlebarBandHitSurfaceView` for why a `Button` cannot work there.
 struct TitlebarBandButton<Label: View>: View {
     let help: String
@@ -1061,6 +1059,7 @@ struct StudioCenterTabDragHandle: NSViewRepresentable {
     var splitRightEnabled: Bool
     var onSplitLeft: () -> Void
     var onSplitRight: () -> Void
+    var onClose: () -> Void
 
     func makeNSView(context: Context) -> StudioCenterTabDragHandleView {
         let view = StudioCenterTabDragHandleView()
@@ -1085,10 +1084,11 @@ struct StudioCenterTabDragHandle: NSViewRepresentable {
         view.splitRightEnabled = splitRightEnabled
         view.onSplitLeft = onSplitLeft
         view.onSplitRight = onSplitRight
-        view.toolTip = "\(title); drag to move"
+        view.onClose = onClose
+        view.toolTip = "\(title); drag to the side to view side by side"
         view.setAccessibilityLabel(title)
         view.setAccessibilityValue(isActive ? "Selected" : "Not selected")
-        view.setAccessibilityHelp("Drag to move")
+        view.setAccessibilityHelp("Drag to the side to view side by side")
     }
 }
 
@@ -1103,6 +1103,7 @@ final class StudioCenterTabDragHandleView: NSView, NSDraggingSource {
     var splitRightEnabled = false
     var onSplitLeft: () -> Void = {}
     var onSplitRight: () -> Void = {}
+    var onClose: () -> Void = {}
 
     private var pendingMouseDown: NSEvent?
 
@@ -1150,7 +1151,18 @@ final class StudioCenterTabDragHandleView: NSView, NSDraggingSource {
         menu.autoenablesItems = false
         menu.addItem(menuItem(title: "Split Left", action: #selector(splitLeft), enabled: splitLeftEnabled))
         menu.addItem(menuItem(title: "Split Right", action: #selector(splitRight), enabled: splitRightEnabled))
+        menu.addItem(.separator())
+        menu.addItem(menuItem(title: "Close Tab", action: #selector(closeTab), enabled: true))
         NSMenu.popUpContextMenu(menu, with: event, for: self)
+    }
+
+    /// A middle click closes the tab, as it does in a browser.
+    override func otherMouseUp(with event: NSEvent) {
+        if event.buttonNumber == 2 {
+            onClose()
+        } else {
+            super.otherMouseUp(with: event)
+        }
     }
 
     override func keyDown(with event: NSEvent) {
@@ -1189,6 +1201,10 @@ final class StudioCenterTabDragHandleView: NSView, NSDraggingSource {
 
     @objc private func splitRight() {
         onSplitRight()
+    }
+
+    @objc private func closeTab() {
+        onClose()
     }
 
     /// A simple pill ghost with the tab title — this view is transparent, so
@@ -1859,8 +1875,8 @@ private struct StudioCenterTabCloseChrome: ViewModifier {
     func body(content: Content) -> some View {
         content
             .overlay {
-                // The placement is the group's, resolved once beside the pin
-                // that shares this corner, so the two can never split between
+                // The placement is the group's, resolved once beside the swap
+                // control that shares this corner, so the two can never split between
                 // the chrome line and the content row.
                 if !centerTabStripVisible && drawsCloseControl && placement != .hidden {
                     GeometryReader { proxy in
@@ -1962,7 +1978,7 @@ private struct StudioChromeLineReservationKey: EnvironmentKey {
     static let defaultValue = StudioChromeLineReservation()
 }
 
-/// Where the pane's pin and close controls go — resolved once per center group
+/// Where the pane's close and swap controls go — resolved once per center group
 /// from the pane's *visible* width, and read by every control that shares the
 /// line so none of them can reach a different answer.
 private struct StudioPaneChromePlacementKey: EnvironmentKey {
@@ -2365,7 +2381,7 @@ enum StudioCenterTabGroupSizing {
     /// reaches only the groups whose columns extend past that edge — the last
     /// group first, and the ones before it only once the last is gone
     /// entirely. Handing the whole clipped amount to every group instead
-    /// pushed the first pane's pin and close left by the full overflow, onto
+    /// pushed the first pane's corner controls left by the full overflow, onto
     /// the traffic lights, while that pane was completely on screen.
     ///
     /// - Parameters:
@@ -2559,18 +2575,16 @@ enum StudioCenterTabSplitPreviewSizing {
     }
 }
 
-/// The center area's side-by-side content groups. Groups remain useful for
-/// contextual workflows such as Reader + Chat, but their former destination
-/// tab strips are permanently hidden. Navigation lives in the rail and source
-/// interactions, while each pane owns its contextual titlebar chrome.
+/// The center area's side-by-side panes. A pane with two tabs or more draws
+/// them as a strip in the titlebar band, its own header dropping below it; a
+/// pane with one tab shows it alone, its header in the band. A tab dragged
+/// from a strip to the window's side opens there beside the rest.
 struct StudioCenterTabGroupsView<TabContent: View>: View {
     @Environment(StudioViewModel.self) private var vm
     @Environment(StudioWindowState.self) private var windowState
     @Environment(\.studioTitlebarBandHeight) private var titlebarBandHeight
     @Environment(\.studioCenterPaneHeaderLeadingInset) private var headerLeadingInset
     @Environment(\.studioPanelTrailingOverflow) private var outerTrailingOverflow
-
-    private let stripsVisible = false
 
     let onSessionDropAtEdge: (ReviewSessionTransfer, Bool) -> Void
     @ViewBuilder let tabContent: (StudioCenterTab) -> TabContent
@@ -2702,57 +2716,46 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
     ) -> some View {
         // The pane's chrome — its minimum width, the band it rises into, the
         // traffic-light clearance for the leftmost group, what overlays its
-        // corner, where the pin and close go — is `StudioPaneHost`'s, shared
-        // with the notebook workspace's slots. While a strip owns the top
-        // chrome the band is cleared so panes render their compact in-flow
-        // toolbars below it; with the strips hidden it passes through, and
-        // hiding the tab bar actually hands the row's height back to content.
+        // corner, where the close goes — is `StudioPaneHost`'s, shared with
+        // the notebook workspace's slots. While a strip owns the top chrome
+        // the band is cleared so the pane renders its compact in-flow toolbar
+        // below it; a pane with one tab has no strip, and the band passes
+        // through to its header.
         let minWidth = StudioPaneHostMetrics.minimumContentWidth(for: group.activeTab)
         let stripOverflow = max(width, minWidth) - width
+        let showsStrip = group.showsTabStrip
         return StudioPaneHost(
             activeTab: group.activeTab,
             width: width,
             enclosingClip: enclosingClip,
             leadingReservation: index == 0 ? headerLeadingInset : 0,
-            reservesPin: true,
-            bandPassesThrough: !stripsVisible,
+            bandPassesThrough: !showsStrip,
             swapDestinationCount: StudioPaneSwap.centerDestinations.count
         ) {
             VStack(spacing: 0) {
-                if titlebarBandHeight == nil && stripsVisible {
+                if titlebarBandHeight == nil && showsStrip {
                     strip(for: group, at: index, trailingOverflow: stripOverflow)
                         .frame(height: StudioPanelChrome.headerHeight)
                 }
                 tabContent(group.activeTab)
             }
         } corner: { corner in
-            ZStack(alignment: .topTrailing) {
-                panePinButton(
-                    for: group,
-                    at: index,
-                    placement: corner.placement,
-                    trailingOverflow: corner.trailingOverflow,
-                    closeReservation: corner.closeReservation,
-                    hover: corner
-                )
-                StudioPaneSwapControl(
-                    corner: corner,
-                    destinations: StudioPaneSwap.centerDestinations,
-                    current: group.activeTab,
-                    identifierPrefix: "studio.centerPane.\(index)",
-                    reservesPin: true,
-                    onSelect: { destination in
-                        vm.replaceCenterPane(
-                            at: index,
-                            with: destination.tab,
-                            startsBlankChat: destination.startsBlankChat,
-                            in: windowState
-                        )
-                    }
-                )
-            }
+            StudioPaneSwapControl(
+                corner: corner,
+                destinations: StudioPaneSwap.centerDestinations,
+                current: group.activeTab,
+                identifierPrefix: "studio.centerPane.\(index)",
+                onSelect: { destination in
+                    vm.replaceCenterPane(
+                        at: index,
+                        with: destination.tab,
+                        startsBlankChat: destination.startsBlankChat,
+                        in: windowState
+                    )
+                }
+            )
         } band: {
-            if let band = titlebarBandHeight, stripsVisible {
+            if let band = titlebarBandHeight, showsStrip {
                 StudioBandRow(band: band) {
                     strip(for: group, at: index, trailingOverflow: stripOverflow)
                         .frame(height: band)
@@ -2777,59 +2780,14 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
         .overlay {
             StudioDropZoneOverlay(isActive: replaceTarget == index, cornerRadius: 10, inset: 6)
         }
+        // The pane clicked in last is where a sidebar click opens what is not
+        // open yet (`StudioCenterTabGroups.activating`).
+        .background(StudioPaneFocusObserver { windowState.focusedGroupID = group.id })
     }
 
     private func replacePane(at index: Int, with destination: StudioPaneDropDestination) {
         replaceTarget = nil
         vm.showDropped(destination, inPaneAt: index, in: windowState)
-    }
-
-    /// The pane's pin, anchored to the pane's *visible* top-right corner. The
-    /// caller resolves where it goes and whether it is drawn at all, together
-    /// with the close control that shares the corner.
-    private func panePinButton(
-        for group: StudioCenterTabGroups.Group,
-        at groupIndex: Int,
-        placement: StudioPaneClosePlacement,
-        trailingOverflow: CGFloat,
-        closeReservation: CGFloat,
-        hover: StudioPaneHostCorner
-    ) -> some View {
-        let isPinned = group.isPinned
-        let action = {
-            withAnimation(.easeInOut(duration: 0.16)) {
-                vm.toggleCenterPanePinned(
-                    containing: group.activeTab,
-                    in: windowState
-                )
-            }
-        }
-
-        // Quiet chrome (docs/ui-design.md): the pin shows while the pointer
-        // is over its pane. The Reader pins itself, so a lit pin drawn at all
-        // times was one more glyph on every reading header.
-        return TitlebarBandButton(
-            help: isPinned ? "Unpin pane" : "Pin pane",
-            accessibilityValue: isPinned ? "Pinned" : "Not pinned",
-            accessibilityIdentifier: "studio.centerPane.\(groupIndex).pin",
-            onHover: hover.reportHover,
-            action: action
-        ) {
-            Image(systemName: isPinned ? "pin.fill" : "pin")
-                .zoomedSystemFont(size: 10.5, weight: .medium)
-                .foregroundStyle(isPinned ? Color.accentColor : Color.secondary)
-                .frame(
-                    width: StudioPanelChrome.centerTabCloseButtonSize,
-                    height: StudioPanelChrome.centerTabCloseButtonSize
-                )
-        }
-        .opacity(hover.isPointerOver ? 1 : 0)
-        .animation(.easeOut(duration: 0.15), value: hover.isPointerOver)
-        .padding(.trailing, StudioPanelChrome.headerHorizontalPadding
-            + trailingOverflow
-            + closeReservation)
-        .frame(height: titlebarBandHeight ?? StudioPanelChrome.headerHeight)
-        .offset(y: placement == .chromeLine ? -(titlebarBandHeight ?? 0) : 0)
     }
 
     // MARK: Tab strip
@@ -2840,17 +2798,17 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
         trailingOverflow: CGFloat
     ) -> some View {
         HStack(spacing: 2) {
-            ForEach(Array(group.tabs.enumerated()), id: \.element) { tabIndex, tab in
+            ForEach(Array(group.openTabs.enumerated()), id: \.element) { tabIndex, tab in
                 if dropTarget == .tab(group: groupIndex, index: tabIndex) {
                     dropIndicatorCapsule
                 }
-                let isAlone = group.tabs == [tab]
-                let atCapacity = !windowState.centerTabGroups.canCreateGroup
+                let isAlone = group.openTabs == [tab]
+                let atCapacity = !windowState.centerTabGroups.canCreateDraggedGroup
                 StudioCenterTabButton(
                     title: tab.title,
                     systemImage: tab.systemImage,
                     isActive: group.activeTab == tab,
-                    action: { vm.activateCenterTab(tab) },
+                    action: { vm.activateCenterTab(tab, in: windowState) },
                     payload: StudioCenterTabDragPayload.string(for: tab),
                     onDragBegan: {
                         draggingTab = tab
@@ -2862,14 +2820,19 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
                     },
                     splitLeftEnabled: isAlone ? groupIndex > 0 : !atCapacity,
                     splitRightEnabled: isAlone ? groupIndex < windowState.centerTabGroups.groups.count - 1 : !atCapacity,
-                    onSplitLeft: { vm.splitCenterTab(tab, towardRight: false) },
-                    onSplitRight: { vm.splitCenterTab(tab, towardRight: true) }
+                    onSplitLeft: { vm.splitCenterTab(tab, towardRight: false, in: windowState) },
+                    onSplitRight: { vm.splitCenterTab(tab, towardRight: true, in: windowState) },
+                    onClose: {
+                        withAnimation(.easeInOut(duration: 0.16)) {
+                            vm.closeCenterTab(tab, in: windowState)
+                        }
+                    }
                 )
                 .onDrop(of: StudioCenterTabDragPayload.dropTypes, delegate: StudioCenterTabDropDelegate(
                     target: .tab(group: groupIndex, index: tabIndex),
                     draggingTab: $draggingTab,
                     dropTarget: $dropTarget,
-                    perform: { vm.moveCenterTab($0, toGroup: groupIndex, at: tabIndex) }
+                    perform: { vm.moveCenterTab($0, toGroup: groupIndex, at: tabIndex, in: windowState) }
                 ))
             }
             if dropTarget == .stripEnd(group: groupIndex) {
@@ -2883,7 +2846,7 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
                     target: .stripEnd(group: groupIndex),
                     draggingTab: $draggingTab,
                     dropTarget: $dropTarget,
-                    perform: { vm.moveCenterTab($0, toGroup: groupIndex, at: .max) }
+                    perform: { vm.moveCenterTab($0, toGroup: groupIndex, at: .max, in: windowState) }
                 ))
 
             // Drawn on every strip, a lone pane's included; see
@@ -3102,12 +3065,12 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
             let cap = isDraggingSource
                 ? StudioCenterTabSplitPreviewSizing.sourceEdgeZoneWidth(totalWidth: totalWidth)
                 : .infinity
-            if StudioCenterTabGroups(groups: groups).canCreateGroup {
+            if StudioCenterTabGroups(groups: groups).canCreateDraggedGroup {
                 let width = StudioCenterTabSplitPreviewSizing.newPaneWidth(
                     totalWidth: totalWidth,
                     currentGroupCount: groups.count,
                     dividerWidth: dividerWidth,
-                    maximumGroupCount: StudioCenterTabGroups.overflowGroupCount
+                    maximumGroupCount: StudioCenterTabGroups.draggedGroupCount
                 )
                 return width > 0 ? min(width, cap) : nil
             }
@@ -3133,13 +3096,18 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
             ? StudioCenterTabSplitPreviewSizing.sourceEdgeZoneWidth(totalWidth: totalWidth)
             : .infinity
 
-        if groups[sourceIndex].tabs.count > 1 {
-            guard StudioCenterTabGroups(groups: groups).canCreateGroup else { return nil }
+        // The same three outcomes as `StudioViewModel.placeCenterTabAtEdge`:
+        // a pane of the tab's own moves to the edge, a tab sharing its pane
+        // (or parked) opens a new pane there, and at three panes it joins the
+        // edge pane.
+        let isPaneOfItsOwn = groups[sourceIndex].openTabs == [tab]
+        let movesItsPane = isPaneOfItsOwn && (groups.count > 1 || groups[sourceIndex].tabs == [tab])
+        if !movesItsPane, StudioCenterTabGroups(groups: groups).canCreateDraggedGroup {
             let width = StudioCenterTabSplitPreviewSizing.newPaneWidth(
                 totalWidth: totalWidth,
                 currentGroupCount: groups.count,
                 dividerWidth: dividerWidth,
-                maximumGroupCount: StudioCenterTabGroups.overflowGroupCount
+                maximumGroupCount: StudioCenterTabGroups.draggedGroupCount
             )
             return width > 0 ? min(width, cap) : nil
         }
@@ -3562,7 +3530,8 @@ extension StudioViewModel {
 /// An AppKit destination laid over one pane that takes a bare pane drag — a
 /// rail or Space-sidebar destination, the "New chat" row, a kept shortcut —
 /// and hands it to `onDrop`, so the pane under the pointer shows it. Any pane
-/// is a destination, pinned or not (`StudioCenterTabGroups.replacingPane`).
+/// is a destination, and what it showed stays one of its tabs
+/// (`StudioCenterTabGroups.replacingPane`).
 ///
 /// It declines a drag that carries content as well (a Docs row names its pane
 /// but carries the Page, a chat row, a source): the pane's own destination,
@@ -3710,9 +3679,13 @@ private struct StudioCenterTabButton: View {
     let splitRightEnabled: Bool
     let onSplitLeft: () -> Void
     let onSplitRight: () -> Void
+    let onClose: () -> Void
 
     @State private var hovering = false
     @ScaledMetric(relativeTo: .caption) private var tabTextSize: CGFloat = 12
+
+    /// The tab's ×, inside its trailing edge.
+    private static let closeSize: CGFloat = 14
 
     /// Match the visual label's fixed metrics and give the representable an
     /// explicit non-zero frame. Letting an intrinsic-size-less NSView take its
@@ -3721,7 +3694,7 @@ private struct StudioCenterTabButton: View {
     private var tabWidth: CGFloat {
         let font = NSFont.systemFont(ofSize: tabTextSize, weight: isActive ? .semibold : .medium)
         let textWidth = min(ceil((title as NSString).size(withAttributes: [.font: font]).width), 150)
-        return textWidth + tabTextSize + 24
+        return textWidth + tabTextSize + 24 + Self.closeSize + 4
     }
 
     var body: some View {
@@ -3740,7 +3713,8 @@ private struct StudioCenterTabButton: View {
                 splitLeftEnabled: splitLeftEnabled,
                 splitRightEnabled: splitRightEnabled,
                 onSplitLeft: onSplitLeft,
-                onSplitRight: onSplitRight
+                onSplitRight: onSplitRight,
+                onClose: onClose
             )
             .frame(width: tabWidth, height: 26)
 
@@ -3759,15 +3733,36 @@ private struct StudioCenterTabButton: View {
                     .frame(maxWidth: 150, alignment: .leading)
                     .fixedSize(horizontal: true, vertical: false)
             }
-                .padding(.horizontal, 9)
+                .padding(.leading, 9)
+                .padding(.trailing, 9 + Self.closeSize + 4)
+                .frame(width: tabWidth, height: 26, alignment: .leading)
                 .background(StudioSelectionBackground(isSelected: isActive, isHovered: hovering))
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
+
+            // The strip rides in the titlebar band, where a SwiftUI Button
+            // loses its clicks to the window drag (`TitlebarBandHitSurfaceView`).
+            TitlebarBandButton(
+                help: "Close Tab",
+                accessibilityLabel: "Close \(title)",
+                washInset: 2,
+                controlSize: Self.closeSize,
+                cornerRadius: 4,
+                action: onClose
+            ) {
+                Image(systemName: "xmark")
+                    .zoomedSystemFont(size: 8.5, weight: .semibold)
+                    .foregroundStyle(.secondary)
+                    .frame(width: Self.closeSize, height: Self.closeSize)
+            }
+            .opacity(isActive || hovering ? 1 : 0)
+            .padding(.trailing, 6)
+            .frame(width: tabWidth, height: 26, alignment: .trailing)
         }
         .frame(width: tabWidth, height: 26)
         .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
         .onHover { hovering = $0 }
-        .help(isActive ? title : "Show \(title); drag to move")
+        .help(isActive ? title : "Show \(title); drag to the side to view side by side")
         .accessibilityAddTraits(isActive ? .isSelected : [])
     }
 }
@@ -3815,6 +3810,58 @@ extension View {
     func cursor(_ cursor: NSCursor) -> some View {
         onHover { inside in
             if inside { cursor.push() } else { NSCursor.pop() }
+        }
+    }
+}
+
+/// Reports a left-mouse-down inside this view's frame, without taking the
+/// click: the pane a learner clicks in, whatever handles the click there — a
+/// web view, a text view, a tab. A local monitor sees the press before AppKit
+/// routes it, so no subview can swallow it first.
+struct StudioPaneFocusObserver: NSViewRepresentable {
+    let onFocus: () -> Void
+
+    func makeNSView(context: Context) -> ObserverView {
+        let view = ObserverView()
+        view.onFocus = onFocus
+        return view
+    }
+
+    func updateNSView(_ nsView: ObserverView, context: Context) {
+        nsView.onFocus = onFocus
+    }
+
+    final class ObserverView: NSView {
+        var onFocus: (() -> Void)?
+        private var monitor: Any?
+
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if window == nil {
+                removeMonitor()
+            } else if monitor == nil {
+                monitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
+                    guard let self, let window = self.window, event.window === window,
+                          self.bounds.contains(self.convert(event.locationInWindow, from: nil)) else { return event }
+                    // Never mutate SwiftUI state while a render may be
+                    // tracking access.
+                    Task { @MainActor [weak self] in self?.onFocus?() }
+                    return event
+                }
+            }
+        }
+
+        deinit {
+            removeMonitor()
+        }
+
+        private func removeMonitor() {
+            if let monitor {
+                NSEvent.removeMonitor(monitor)
+            }
+            monitor = nil
         }
     }
 }

@@ -293,7 +293,7 @@ struct SpaceTabTests {
         // The Space | Goals bar went on 2026-10-10: Goals are the chat's to
         // show, and a Goals pane a link opened is left where it is.
         let layout = StudioCenterTabGroups(groups: [
-            .init(tabs: [.chat], activeTab: .chat, isPinned: true),
+            .init(tabs: [.chat], activeTab: .chat),
             .init(tabs: [.goals, .artifacts], activeTab: .goals),
         ])
         #expect(layout.showingSpaceTab(.space) == nil)
@@ -303,7 +303,7 @@ struct SpaceTabTests {
     @Test("The Courses tab swaps with a Space pane, but never replaces a course's page")
     func coursesTabSwaps() throws {
         let layout = StudioCenterTabGroups(groups: [
-            .init(tabs: [.chat], activeTab: .chat, isPinned: true),
+            .init(tabs: [.chat], activeTab: .chat),
             .init(tabs: [.artifacts, .courses, .goals], activeTab: .artifacts),
         ])
         let courses = try #require(layout.showingSpaceTab(.courses))
@@ -318,14 +318,14 @@ struct SpaceTabTests {
         #expect(page.showingSpaceTab(.space, coursesShowsList: true) != nil)
     }
 
-    @Test("A sidebar click swaps the page under the pointer, and leaves every other pane and pin alone")
+    @Test("A sidebar click swaps the page under the pointer, and leaves every other pane alone")
     func swapsInPlace() throws {
         let layout = StudioCenterTabGroups(groups: [
-            .init(tabs: [.chat], activeTab: .chat, isPinned: true),
+            .init(tabs: [.chat], activeTab: .chat),
             .init(tabs: [.courses, .reader, .notepad, .artifacts], activeTab: .courses),
         ])
         let space = try #require(layout.showingSpaceTab(.space, coursesShowsList: true))
-        #expect(space.groups[0] == layout.groups[0], "the pinned chat pane is untouched")
+        #expect(space.groups[0] == layout.groups[0], "the chat pane is untouched")
         #expect(space.groups[1].activeTab == .artifacts)
         #expect(space.groups.count == 2)
 

@@ -567,15 +567,6 @@ struct SourceReaderPanel: View {
             HStack(spacing: StudioTopBar.paneControlSpacing) {
                 readerOverflowMenuWithCitedPapers(for: article)
                 if showsCloseButton {
-                    // The pane pin is drawn by the shared center-pane chrome
-                    // between Reader's overflow and close controls. Reserve
-                    // its actual button slot here; padding the whole toolbar
-                    // would move Reader's close button under the pin instead.
-                    if chromeReservation.paneControls > 0 {
-                        Color.clear
-                            .frame(width: StudioPanelChrome.centerTabCloseButtonSize, height: 1)
-                            .accessibilityHidden(true)
-                    }
                     readerCloseButton
                 }
             }
@@ -1964,11 +1955,11 @@ struct SourceReaderPanel: View {
             Image(systemName: "xmark")
                 .zoomedSystemFont(size: 11, weight: .medium)
                 .foregroundStyle(.secondary)
-                // Unscaled on purpose. The pin the shared chrome draws to the
-                // left reserves `readerPaneCloseControlReservedWidth`, an
-                // unscaled 26 + 12; a box that grew with the UI zoom slid its
-                // left edge under the pin's hit surface, which is layered above
-                // this one, so the pin took every click on that side of the X.
+                // Unscaled on purpose. The shared chrome to the left reserves
+                // `readerPaneCloseControlReservedWidth`, an unscaled 26 + 12; a
+                // box that grew with the UI zoom slid its left edge under the
+                // hit surface of the control there, layered above this one,
+                // which then took every click on that side of the X.
                 // The glyph still scales, through `zoomedSystemFont`.
                 .frame(
                     width: StudioPanelChrome.readerCloseButtonSize,

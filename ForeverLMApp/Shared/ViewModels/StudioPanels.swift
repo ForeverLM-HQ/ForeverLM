@@ -116,13 +116,19 @@ extension ArtifactSection {
 }
 
 /// The user's arrangement of the center tabs: an ordered partition into one,
-/// two, or (when every visible pane is pinned) three groups, each showing one
-/// active tab. Persisted and synced as one string per group — tab raw values
-/// joined by "|" with the active tab suffixed "*" and a pinned group prefixed
-/// by the standalone token "!" (e.g. `["!|artifacts*", "!|notepad*"]`), a
-/// plist-friendly shape the preference sync rails already carry. Older builds
-/// ignore the unknown marker while retaining every tab, so pinning does not
-/// make a synced layout unreadable.
+/// two or three panes, each showing one active tab and a strip of the tabs
+/// the learner has open there. Every destination is parked in some pane;
+/// the ones the learner opened are that pane's tabs (`Group.openTabs`), and a
+/// pane with two or more draws them as a strip above it. Tabs replaced pane
+/// pins on 2026-10-19 (product owner: "a primarily tab-based system where i
+/// can easily drag a tab to the side to view side by side ... clearer than
+/// this whole thing with pinning stuff"): nothing the learner opens covers
+/// another surface for good, so nothing needs guarding.
+///
+/// Persisted and synced as one string per pane — tab raw values joined by
+/// "|", the active tab suffixed "*" and every other open tab "+"
+/// (e.g. `["artifacts*|chat+|reader", "notepad*"]`), a plist-friendly shape
+/// the preference sync rails already carry.
 struct StudioCenterTabGroups: Equatable {
     struct Group: Equatable, Identifiable {
         /// Stable for the life of one pane, and deliberately outside `==`.
@@ -145,13 +151,83 @@ struct StudioCenterTabGroups: Equatable {
         /// compare unequal and defeat all three.
         let id = UUID()
         var tabs: [StudioCenterTab]
-        var activeTab: StudioCenterTab
-        var isPinned = false
+        var activeTab: StudioCenterTab {
+            // What a pane stops showing stays one of its tabs: opening
+            // something over it never closes it.
+            didSet {
+                guard activeTab != oldValue else { return }
+                if tabs.contains(oldValue), !keptOpen.contains(oldValue) { keptOpen.append(oldValue) }
+                if !keptOpen.contains(activeTab) { keptOpen.append(activeTab) }
+            }
+        }
+        /// The open tabs as recorded; read them through `openTabs`.
+        private var keptOpen: [StudioCenterTab]
+
+        init(tabs: [StudioCenterTab], activeTab: StudioCenterTab, openTabs: [StudioCenterTab] = []) {
+            self.tabs = tabs
+            self.activeTab = activeTab
+            self.keptOpen = []
+            self.openTabs = openTabs
+        }
+
+        /// The pane's tabs in strip order: what it shows and every surface it
+        /// showed before that the learner has not closed. Always holds the
+        /// active tab, and only members of `tabs`.
+        ///
+        /// Outside `==`, like `id`: equality asks what each pane shows, which is
+        /// what every no-op guard and every layout test compares. A change to
+        /// the strip alone — a background tab closed — is assigned
+        /// unconditionally (`StudioViewModel.closeCenterTab`).
+        var openTabs: [StudioCenterTab] {
+            get {
+                var open = keptOpen.filter { tabs.contains($0) }
+                if !open.contains(activeTab) { open.append(activeTab) }
+                return open
+            }
+            set {
+                var seen = Set<StudioCenterTab>()
+                keptOpen = newValue.filter { seen.insert($0).inserted }
+            }
+        }
+
+        /// Whether the pane draws its strip: two tabs or more. A pane with one
+        /// tab shows it alone, with its own header in the titlebar band.
+        var showsTabStrip: Bool { openTabs.count > 1 }
+
+        /// Takes `tab` out of the pane, its strip included. When it was the
+        /// active tab the pane shows its neighbour in the strip — the tab to
+        /// its right, else to its left — or, with no other tab open, the
+        /// Reader, else whatever is parked first.
+        mutating func remove(_ tab: StudioCenterTab) {
+            let open = openTabs
+            tabs.removeAll { $0 == tab }
+            keptOpen.removeAll { $0 == tab }
+            guard activeTab == tab, !tabs.isEmpty else { return }
+            activeTab = Self.neighbour(of: tab, in: open)
+                ?? (tabs.contains(.reader) ? .reader : tabs[0])
+        }
+
+        /// Closes `tab`'s tab and leaves it parked in the pane. False when it
+        /// is the pane's only tab, which closes the pane or shows its home
+        /// instead (`StudioViewModel.deactivateCenterTab`).
+        mutating func closeTab(_ tab: StudioCenterTab) -> Bool {
+            let open = openTabs
+            guard open.contains(tab), let next = Self.neighbour(of: tab, in: open) else { return false }
+            keptOpen.removeAll { $0 == tab }
+            if activeTab == tab { activeTab = next }
+            // The closed tab was just kept open by `activeTab`'s own rule.
+            keptOpen.removeAll { $0 == tab }
+            return true
+        }
+
+        private static func neighbour(of tab: StudioCenterTab, in open: [StudioCenterTab]) -> StudioCenterTab? {
+            guard let position = open.firstIndex(of: tab) else { return nil }
+            if position + 1 < open.count { return open[position + 1] }
+            return position > 0 ? open[position - 1] : nil
+        }
 
         static func == (lhs: Group, rhs: Group) -> Bool {
-            lhs.tabs == rhs.tabs
-                && lhs.activeTab == rhs.activeTab
-                && lhs.isPinned == rhs.isPinned
+            lhs.tabs == rhs.tabs && lhs.activeTab == rhs.activeTab
         }
     }
 
@@ -163,74 +239,60 @@ struct StudioCenterTabGroups: Equatable {
     /// home since the Notebooks home went (2026-10-09, docs/docs-design.md,
     /// "The Space"). Before, Chat sat beside the reading surfaces. Subsequent
     /// launches restore the learner's saved arrangement, and a source, a chat
-    /// or a pane opened from the Space opens beside it or in its place by the
+    /// or a pane opened from the Space opens as a tab or beside it by the
     /// ordinary rules.
     static let defaultLayout = StudioCenterTabGroups(groups: [
         Group(tabs: [.artifacts, .chat, .reader, .tasks, .notepad, .sites, .browser], activeTab: .artifacts),
     ])
 
-    /// Ordinary navigation never creates more than two panes: a third column
-    /// makes every surface too narrow to use as the default workspace.
+    /// What the app arranges on its own never makes more than two panes: a
+    /// third column makes every surface too narrow to use as the default
+    /// workspace.
     static let maximumGroupCount = 2
 
-    /// Hard cap, including overflow. A third pane appears only when every
-    /// visible pane is already pinned, so the next destination still has
-    /// somewhere to open. Four panes are never restored.
-    static let overflowGroupCount = 3
+    /// Hard cap. A third pane appears only when the learner drags a tab to an
+    /// edge of a two-pane window; four panes are never restored.
+    static let draggedGroupCount = 3
 
-    /// True when another pane can be created: under the ordinary two-pane cap,
-    /// or as overflow because every replaceable pane is already pinned.
-    var canCreateGroup: Bool { canCreateGroup(preserving: []) }
+    /// True when the app may open another pane on its own (`maximumGroupCount`).
+    var canCreateGroup: Bool { groups.count < Self.maximumGroupCount }
 
-    func canCreateGroup(preserving preserved: Set<Int>) -> Bool {
-        if groups.count < Self.maximumGroupCount { return true }
-        if groups.count >= Self.overflowGroupCount { return false }
-        return groups.indices.allSatisfy { groups[$0].isPinned || preserved.contains($0) }
+    /// True when a tab dragged to an edge may open another pane there.
+    var canCreateDraggedGroup: Bool { groups.count < Self.draggedGroupCount }
+
+    /// Whether every pane has the same strip as in `other`, which `==` leaves
+    /// out (`Group.openTabs`).
+    func hasSameOpenTabs(as other: StudioCenterTabGroups) -> Bool {
+        groups.map(\.openTabs) == other.groups.map(\.openTabs)
     }
 
-    func firstUnpinnedIndex(otherThan excluded: Int? = nil) -> Int? {
-        groups.indices.first { index in
-            index != excluded && !groups[index].isPinned
-        }
-    }
-
-    /// The arrangement once `tab` is on screen: the active tab of the pane
-    /// holding it — or, when that pane is pinned and shows something else,
-    /// which a click must never replace, `tab` peeled into a new pane beside
-    /// it (the third, overflow pane when every pane is pinned) or moved into
-    /// an unpinned one. Nil when there is nowhere to show it. The one rule
-    /// `StudioViewModel.activateCenterTab` and a window arranging itself
-    /// (`StudioWindowState.activateCenterTabForThisWindowOnly`) share.
-    func activating(_ tab: StudioCenterTab) -> StudioCenterTabGroups? {
+    /// The arrangement once `tab` is on screen, the way a sidebar click asks:
+    /// a tab already open in some pane comes to the front there; otherwise it
+    /// opens as a new tab in `focusedGroupID`'s pane — the one the learner
+    /// last clicked in — or, with none, the pane it is parked in. What that
+    /// pane showed stays one of its tabs. Nil when no pane holds `tab`. The
+    /// one rule `StudioViewModel.activateCenterTab` and a window arranging
+    /// itself (`StudioWindowState.activateCenterTabForThisWindowOnly`) share.
+    func activating(_ tab: StudioCenterTab, focusedGroupID: UUID? = nil) -> StudioCenterTabGroups? {
         var layout = self
-        guard let source = layout.groups.firstIndex(where: { $0.tabs.contains(tab) }) else { return nil }
-        if layout.groups[source].isPinned, layout.groups[source].activeTab != tab {
-            guard let position = layout.groups[source].tabs.firstIndex(of: tab) else { return nil }
-            layout.groups[source].tabs.remove(at: position)
-            if layout.canCreateGroup {
-                layout.groups.insert(
-                    .init(tabs: [tab], activeTab: tab),
-                    at: min(source + 1, layout.groups.count)
-                )
-            } else if let unpinned = layout.firstUnpinnedIndex(otherThan: source) {
-                layout.groups[unpinned].tabs.append(tab)
-                layout.groups[unpinned].activeTab = tab
-            } else {
-                return nil
-            }
-        } else {
-            layout.groups[source].activeTab = tab
+        if let open = layout.groups.firstIndex(where: { $0.openTabs.contains(tab) }) {
+            layout.groups[open].activeTab = tab
+            return layout
         }
+        guard let source = layout.groups.firstIndex(where: { $0.tabs.contains(tab) }) else { return nil }
+        let target = focusedGroupID.flatMap { id in layout.groups.firstIndex { $0.id == id } } ?? source
+        if target != source {
+            // Parked and not open, so not the source's active tab either.
+            layout.groups[source].tabs.removeAll { $0 == tab }
+            layout.groups[target].tabs.append(tab)
+        }
+        layout.groups[target].activeTab = tab
         return layout
     }
 
     /// The arrangement once the pane at `index` shows `tab`, the way a drag
-    /// onto a pane says it: that pane, and no other, takes it.
-    ///
-    /// Unlike `activating`, a pinned pane is replaced. A pin guards a pane
-    /// against being navigated over by a click; dropping a destination on a
-    /// pane is the learner choosing that pane, so the pane gives way and its
-    /// pin goes with the thing it protected.
+    /// onto a pane says it: that pane, and no other, takes it. What the pane
+    /// showed stays one of its tabs.
     ///
     /// - `tab` shown alone in another pane: the two panes trade places, so
     ///   what the drop covered stays on screen.
@@ -243,23 +305,16 @@ struct StudioCenterTabGroups: Equatable {
               let source = groups.firstIndex(where: { $0.tabs.contains(tab) }) else { return nil }
         var layout = self
         if source == index {
-            guard layout.groups[index].activeTab != tab else { return layout }
             layout.groups[index].activeTab = tab
-            layout.groups[index].isPinned = false
             return layout
         }
         if layout.groups[source].tabs == [tab] {
             layout.groups.swapAt(source, index)
             return layout
         }
-        layout.groups[source].tabs.removeAll { $0 == tab }
-        if layout.groups[source].activeTab == tab {
-            let remaining = layout.groups[source].tabs
-            layout.groups[source].activeTab = remaining.contains(.reader) ? .reader : remaining[0]
-        }
+        layout.groups[source].remove(tab)
         layout.groups[index].tabs.append(tab)
         layout.groups[index].activeTab = tab
-        layout.groups[index].isPinned = false
         return layout
     }
 
@@ -267,11 +322,15 @@ struct StudioCenterTabGroups: Equatable {
     /// a feature this Mac does not show yet (`BetaFeatures`): such a pane
     /// shows its first other tab instead, preferring the Space, and a
     /// pane that holds nothing else is closed (its tabs rejoin the last pane
-    /// through `reconciled`, behind what that pane shows). Nothing else moves,
-    /// so the arrangement comes back as it was once the feature shows.
+    /// through `reconciled`, behind what that pane shows). No strip offers one
+    /// as a tab either. Nothing else moves, so the arrangement comes back as
+    /// it was once the feature shows.
     func withoutShowing(_ unoffered: Set<StudioCenterTab>) -> StudioCenterTabGroups {
-        guard groups.contains(where: { unoffered.contains($0.activeTab) }) else { return self }
+        guard groups.contains(where: { $0.openTabs.contains(where: unoffered.contains) }) else { return self }
         var layout = self
+        for index in layout.groups.indices {
+            layout.groups[index].openTabs.removeAll(where: unoffered.contains)
+        }
         for index in layout.groups.indices where unoffered.contains(layout.groups[index].activeTab) {
             let others = layout.groups[index].tabs.filter { !unoffered.contains($0) }
             if let shown = others.first(where: { $0 == .artifacts }) ?? others.first {
@@ -287,7 +346,7 @@ struct StudioCenterTabGroups: Equatable {
     /// break: every permanent tab appears exactly once (first appearance wins,
     /// missing tabs join the last group), no group is empty, every group's
     /// active tab is one of its members, and there are at most
-    /// `overflowGroupCount` groups (extras merge into the last). Like the panel
+    /// `draggedGroupCount` groups (extras merge into the last, parked). Like the panel
     /// orders, this must run at every assignment, not just at load, or a partial
     /// synced value would permanently drop tabs.
     static func reconciled(_ raw: StudioCenterTabGroups) -> StudioCenterTabGroups {
@@ -308,11 +367,9 @@ struct StudioCenterTabGroups: Equatable {
         for tab in StudioCenterTab.permanentTabs where !seen.contains(tab) {
             groups[groups.count - 1].tabs.append(tab)
         }
-        while groups.count > overflowGroupCount {
+        while groups.count > draggedGroupCount {
             let extra = groups.removeLast()
-            groups[overflowGroupCount - 1].tabs.append(contentsOf: extra.tabs)
-            groups[overflowGroupCount - 1].isPinned =
-                groups[overflowGroupCount - 1].isPinned || extra.isPinned
+            groups[draggedGroupCount - 1].tabs.append(contentsOf: extra.tabs)
         }
         return StudioCenterTabGroups(groups: groups.map { group in
             var group = group
@@ -332,10 +389,13 @@ struct StudioCenterTabGroups: Equatable {
             let tabs = group.tabs.filter { $0 != .secondaryChat }
             guard !tabs.isEmpty else { return nil }
             let active = tabs.contains(group.activeTab) ? group.activeTab : tabs[0]
-            let encodedTabs = tabs
-                .map { $0 == active ? $0.rawValue + "*" : $0.rawValue }
+            let open = Set(group.openTabs)
+            return tabs
+                .map { tab in
+                    if tab == active { return tab.rawValue + "*" }
+                    return open.contains(tab) ? tab.rawValue + "+" : tab.rawValue
+                }
                 .joined(separator: "|")
-            return group.isPinned ? "!|" + encodedTabs : encodedTabs
         }
     }
 
@@ -347,10 +407,12 @@ struct StudioCenterTabGroups: Equatable {
         let groups: [Group] = raw.map { line in
             var active: StudioCenterTab?
             var tabs: [StudioCenterTab] = []
+            var open: [StudioCenterTab] = []
             for token in line.split(separator: "|") {
                 var name = String(token)
                 let isActive = name.hasSuffix("*")
-                if isActive { name.removeLast() }
+                let isOpen = name.hasSuffix("+")
+                if isActive || isOpen { name.removeLast() }
                 // The Notebooks home is gone (2026-10-09; it was the Projects
                 // tab before 2026-10-04): a layout that still names it shows
                 // the Space in its place, which is where every notebook is
@@ -361,9 +423,9 @@ struct StudioCenterTabGroups: Equatable {
                 guard let tab = StudioCenterTab(rawValue: name), tab != .secondaryChat else { continue }
                 tabs.append(tab)
                 if isActive { active = tab }
+                if isActive || isOpen { open.append(tab) }
             }
-            let isPinned = line.split(separator: "|").contains("!")
-            return Group(tabs: tabs, activeTab: active ?? tabs.first ?? .reader, isPinned: isPinned)
+            return Group(tabs: tabs, activeTab: active ?? tabs.first ?? .reader, openTabs: open)
         }
         return reconciled(StudioCenterTabGroups(groups: groups))
     }
@@ -431,7 +493,7 @@ final class StudioWindowState: Identifiable {
             // template, or a call that slipped past its entry point.
             let reconciled = StudioCenterTabGroups.reconciled(centerTabGroups)
                 .withoutShowing(BetaFeatures.unofferedCenterTabs)
-            if reconciled != centerTabGroups {
+            if reconciled != centerTabGroups || !reconciled.hasSameOpenTabs(as: centerTabGroups) {
                 centerTabGroups = reconciled
                 return
             }
@@ -452,8 +514,6 @@ final class StudioWindowState: Identifiable {
         /// The pane the Reader took, by `Group.id`.
         let groupID: UUID
         let tab: StudioCenterTab
-        /// Whether that pane was pinned before the Reader pinned it.
-        let wasPinned: Bool
         /// The Reader's history depth when it took the pane: a source opened
         /// since is the page before, and below this depth the way back is the
         /// surface rather than whatever was read before.
@@ -478,7 +538,6 @@ final class StudioWindowState: Identifiable {
         readerCover = ReaderCover(
             groupID: group.id,
             tab: before.activeTab,
-            wasPinned: before.isPinned,
             backDepth: readerBackStack.count
         )
     }
@@ -491,7 +550,7 @@ final class StudioWindowState: Identifiable {
     }
 
     /// The Reader's ‹ over a covered surface: the pane shows that surface
-    /// again, pinned only if it was. False when the surface has left the
+    /// again. False when the surface has left the
     /// pane meanwhile, for the caller to bring it on screen the ordinary way.
     @discardableResult
     func returnFromReaderCover() -> Bool {
@@ -504,7 +563,6 @@ final class StudioWindowState: Identifiable {
             return false
         }
         layout.groups[index].activeTab = readerCover.tab
-        layout.groups[index].isPinned = readerCover.wasPinned
         centerTabGroups = layout
         return true
     }
@@ -724,12 +782,11 @@ final class StudioWindowState: Identifiable {
     /// deliberately absent from `Snapshot`, so reopening the app never revives
     /// an unsaved page or implies that it was imported.
     var externalReaderPage: StudioExternalReaderPage?
-    /// The pane, by `Group.id`, the learner unpinned while it showed the
-    /// Reader. Opening something in the Reader pins its pane
-    /// (`StudioViewModel.pinReaderPane(in:)`); this one pane keeps the
-    /// learner's choice instead of being pinned again by the next source.
-    /// Not in `Snapshot`: pane identities are new after a relaunch.
-    var readerPaneUnpinnedByLearner: UUID?
+    /// The pane, by `Group.id`, the learner last clicked in: where a sidebar
+    /// click opens what is not open yet (`StudioCenterTabGroups.activating`).
+    /// Not observed, since nothing on screen draws from it, and not in
+    /// `Snapshot`: pane identities are new after a relaunch.
+    @ObservationIgnored var focusedGroupID: UUID?
     /// The sources this window's readers are displaying right now. Each docked
     /// reader registers what it shows while it is mounted, so the window-wide
     /// audiobook bar can stay away while the narrated source is on screen with
@@ -1162,7 +1219,8 @@ final class StudioWindowState: Identifiable {
     /// later window, here or on the other Mac, starts from.
     func activateCenterTabForThisWindowOnly(_ tab: StudioCenterTab) {
         guard !BetaFeatures.unofferedCenterTabs.contains(tab),
-              let layout = centerTabGroups.activating(tab), layout != centerTabGroups else { return }
+              let layout = centerTabGroups.activating(tab, focusedGroupID: focusedGroupID),
+              layout != centerTabGroups else { return }
         withoutRecordingPersistentChanges {
             centerTabGroups = layout
         }

@@ -277,9 +277,8 @@ struct NotebooksHomeTests {
         #expect(layout.groups[0].activeTab == .artifacts, "the pane that showed the retired home shows the Space")
         #expect(layout.groups[0].tabs.first == .artifacts)
         #expect(Set(tabs) == Set(StudioCenterTab.permanentTabs), "no other tab is lost")
-        // A pinned pane that held the retired home keeps its pin, now on the Space.
+        // A retired pane pin beside it is ignored; the pane shows the Space.
         let pinned = try #require(StudioCenterTabGroups.fromPersisted(["!|notebooks*|chat", "reader*|tasks"]))
-        #expect(pinned.groups[0].isPinned)
         #expect(pinned.groups[0].activeTab == .artifacts)
         // What it writes back never names the retired tab.
         #expect(!layout.persistedRepresentation.joined(separator: "|").contains("notebooks"))
@@ -733,24 +732,20 @@ struct NotebooksHomeRoutingTests {
         let restore = capturingSharedDefaults()
         defer { restore() }
         let vm = makeViewModel()
-        // The Space pinned on the left, the Library on the right: the Reader,
-        // parked behind the pinned Space, takes the Library's pane.
+        // The Space on the left, the Library on the right and last clicked in:
+        // the Reader, parked behind the Space, opens in the Library's pane.
         let target = window(StudioCenterTabGroups(groups: [
-            .init(tabs: StudioCenterTab.permanentTabs.filter { $0 != .library }, activeTab: .artifacts, isPinned: true),
+            .init(tabs: StudioCenterTab.permanentTabs.filter { $0 != .library }, activeTab: .artifacts),
             .init(tabs: [.library], activeTab: .library),
         ]))
+        target.focusedGroupID = target.centerTabGroups.groups[1].id
         target.readerArticleID = "earlier"
         target.readerArticleID = "episode"
         vm.activateCenterTab(.reader, in: target)
         #expect(target.centerTabGroups.groups.map(\.activeTab) == [.artifacts, .reader])
         #expect(target.readerCover?.tab == .library)
         #expect(target.readerBackReturnsToCover, "what was read before the Library is not the way back")
-
-        // The Reader pins itself; it was not pinned before.
-        var pinned = target.centerTabGroups
-        pinned.groups[1].isPinned = true
-        target.centerTabGroups = pinned
-        #expect(target.readerCover?.tab == .library)
+        #expect(target.centerTabGroups.groups[1].openTabs == [.library, .reader])
 
         target.readerArticleID = "paper"
         #expect(!target.readerBackReturnsToCover, "a source read since is the page before")
@@ -759,7 +754,6 @@ struct NotebooksHomeRoutingTests {
 
         #expect(target.returnFromReaderCover())
         #expect(target.centerTabGroups.groups.map(\.activeTab) == [.artifacts, .library])
-        #expect(target.centerTabGroups.groups[1].isPinned == false)
         #expect(target.readerCover == nil)
     }
 
@@ -958,19 +952,18 @@ struct NotebooksHomeRoutingTests {
 
 @Suite("A destination dropped on a pane")
 struct ReplacingPaneTests {
-    /// Memory beside a pinned Reader, the way a source opened in the Reader
+    /// Memory beside the Reader, the way a source opened in the Reader
     /// leaves the window; Chat and the Space parked behind them.
     private static let memoryBesideReader = StudioCenterTabGroups(groups: [
         .init(tabs: [.memory, .chat], activeTab: .memory),
-        .init(tabs: [.reader, .artifacts], activeTab: .reader, isPinned: true),
+        .init(tabs: [.reader, .artifacts], activeTab: .reader),
     ])
 
-    @Test("The pane under the drop takes the tab, a pinned pane included")
-    func pinnedPaneGivesWay() throws {
+    @Test("The pane under the drop takes the tab, what it showed kept as a tab")
+    func paneUnderTheDropTakesTheTab() throws {
         let layout = try #require(Self.memoryBesideReader.replacingPane(at: 1, with: .artifacts))
         #expect(layout.groups[1].activeTab == .artifacts)
-        #expect(layout.groups[1].tabs.contains(.reader), "what it showed parks behind it")
-        #expect(!layout.groups[1].isPinned, "the pin guarded what was replaced")
+        #expect(layout.groups[1].openTabs == [.reader, .artifacts], "what it showed stays a tab")
         #expect(layout.groups[0] == Self.memoryBesideReader.groups[0], "the other pane is untouched")
     }
 
@@ -986,11 +979,10 @@ struct ReplacingPaneTests {
     func aloneTabSwaps() throws {
         let layout = StudioCenterTabGroups(groups: [
             .init(tabs: [.memory], activeTab: .memory),
-            .init(tabs: [.reader, .chat], activeTab: .reader, isPinned: true),
+            .init(tabs: [.reader, .chat], activeTab: .reader),
         ])
         let swapped = try #require(layout.replacingPane(at: 1, with: .memory))
         #expect(swapped.groups.map(\.activeTab) == [.reader, .memory])
-        #expect(swapped.groups[0].isPinned, "the pin travels with the pane that held it")
     }
 
     @Test("A tab already on top of the pane changes nothing; one parked in it comes forward")

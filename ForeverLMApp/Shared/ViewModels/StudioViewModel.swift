@@ -2519,48 +2519,27 @@ class StudioViewModel {
         centerTabGroups.groups.firstIndex { $0.tabs.contains(tab) }
     }
 
-    /// Pins or unpins the pane currently showing `tab`. Every visible pane may
-    /// be pinned independently. Sidebar navigation then opens in an unpinned
-    /// pane, or creates a neighbor — including a third overflow pane when every
-    /// visible pane is already pinned.
-    func toggleCenterPanePinned(
-        containing tab: StudioCenterTab,
+    /// Closes `tab`'s tab — the × on it in a strip. With other tabs
+    /// open in its pane, the pane shows the neighbouring one and `tab` stays
+    /// parked there; as the pane's only tab it closes the way the pane's ×
+    /// does (`dismissCenterSurface`).
+    func closeCenterTab(
+        _ tab: StudioCenterTab,
         in destinationWindowState: StudioWindowState? = nil
     ) {
         let destination = destinationWindowState ?? activeWindowState
-        // A notebook's panes are never pinned: its chat and its document
-        // slot cannot cover each other.
-        guard destination.notebook == nil else { return }
-        var layout = destination.centerTabGroups
-        guard let index = layout.groups.firstIndex(where: {
-            $0.activeTab == tab && $0.tabs.contains(tab)
-        }) else { return }
-        layout.groups[index].isPinned.toggle()
-        if tab == .reader {
-            destination.readerPaneUnpinnedByLearner = layout.groups[index].isPinned
-                ? nil
-                : layout.groups[index].id
+        guard destination.notebook == nil else {
+            dismissCenterSurface(tab, in: destination)
+            return
         }
-        destination.centerTabGroups = layout
-    }
-
-    /// Pins the pane showing the Reader in `destination`. Something opened to
-    /// read is what the learner came for, so the next thing they open — a new
-    /// chat, the Planner, Docs — goes beside it instead of over it (product owner,
-    /// 2026-09-29: "new chat should by default open next to a source we have
-    /// open. maybe by default open things in the reader should be pinned").
-    /// A pane the learner unpinned while it showed the Reader stays unpinned;
-    /// a Reader behind another tab, or popped out into its own window, is not
-    /// on screen and pins nothing. Inside a notebook nothing pins: the Reader
-    /// has the document slot beside the chat, and a new chat cannot cover it.
-    func pinReaderPane(in destination: StudioWindowState) {
-        guard !readerPoppedOut, destination.notebook == nil else { return }
         var layout = destination.centerTabGroups
-        guard let index = layout.groups.firstIndex(where: { $0.activeTab == .reader }),
-              !layout.groups[index].isPinned,
-              layout.groups[index].id != destination.readerPaneUnpinnedByLearner
-        else { return }
-        layout.groups[index].isPinned = true
+        guard let index = layout.groups.firstIndex(where: { $0.openTabs.contains(tab) }) else { return }
+        guard layout.groups[index].closeTab(tab) else {
+            dismissCenterSurface(tab, in: destination)
+            return
+        }
+        // Assigned even when only the strip changed: `==` compares what the
+        // panes show, and a background tab closing changes none of that.
         destination.centerTabGroups = layout
     }
 
@@ -2592,26 +2571,29 @@ class StudioViewModel {
         // A window holding a notebook shows the tab in the notebook's chat
         // or document slot, or leaves the notebook for the panes underneath.
         if routeIntoNotebook(tab, in: destination) { return }
-        // A sidebar click must never replace a pinned pane. If its destination
-        // is parked in that group, it peels into a new pane or moves into an
-        // existing unpinned pane, and shows there. When every visible pane is
-        // pinned, that new pane is the third overflow column.
-        guard let layout = destination.centerTabGroups.activating(tab) else { return }
+        // A tab already open comes to the front where it is; anything else
+        // opens as a new tab in the pane the learner last clicked in, and
+        // what that pane showed stays one of its tabs.
+        guard let layout = destination.centerTabGroups.activating(
+            tab,
+            focusedGroupID: destination.focusedGroupID
+        ) else { return }
         // Guarded rather than self-assigning: @Observable routes every
         // assignment through withMutation and would invalidate observers (and
         // enqueue a preference save) on a no-op.
         if layout != destination.centerTabGroups { destination.centerTabGroups = layout }
     }
 
-    /// Hides `tab` by revealing a groupmate instead — the Space when they
-    /// share a group, else the nearest neighbor. The Space is the shell's home
-    /// surface (the Notebooks home was until 2026-10-09, docs/notebooks-design.md):
+    /// Hides `tab`, which closes its tab. With other tabs open in its pane,
+    /// the neighbouring one shows (`Group.closeTab`). As the pane's only tab
+    /// it reveals a groupmate instead — the Space, the shell's home surface
+    /// (the Notebooks home was until 2026-10-09, docs/notebooks-design.md):
     /// closing the last thing in the center lands on it, not on an empty
     /// Reader. Dismissing the Space itself reveals Chat, since a surface
-    /// cannot be replaced by itself. A tab alone in its
-    /// group dissolves the group and parks, inactive, at the end of the
-    /// neighboring one (VS Code's close-last-editor-closes-the-group); with a
-    /// single group there is nowhere to park and the request is ignored.
+    /// cannot be replaced by itself. A tab alone in its group dissolves the
+    /// group and parks, inactive, at the end of the neighboring one (VS Code's
+    /// close-last-editor-closes-the-group); with a single group there is
+    /// nowhere to park and the request is ignored.
     func deactivateCenterTab(
         _ tab: StudioCenterTab,
         in destinationWindowState: StudioWindowState? = nil
@@ -2626,9 +2608,10 @@ class StudioViewModel {
         var layout = destination.centerTabGroups
         guard let index = layout.groups.firstIndex(where: { $0.tabs.contains(tab) }),
               layout.groups[index].activeTab == tab else { return }
-        // Closing or dismissing a protected surface is an explicit request to
-        // release that protection; its replacement should not inherit it.
-        layout.groups[index].isPinned = false
+        if layout.groups[index].closeTab(tab) {
+            destination.centerTabGroups = layout
+            return
+        }
         if layout.groups[index].tabs.count == 1 {
             guard layout.groups.count > 1 else { return }
             layout.groups.remove(at: index)
@@ -2647,6 +2630,8 @@ class StudioViewModel {
             let position = tabs.firstIndex(of: tab) ?? 0
             layout.groups[index].activeTab = tabs[position == 0 ? 1 : position - 1]
         }
+        // The closed surface is parked, not a tab behind its home.
+        layout.groups[index].openTabs.removeAll { $0 == tab }
         destination.centerTabGroups = layout
     }
 
@@ -2706,28 +2691,39 @@ class StudioViewModel {
         }
     }
 
-    /// Moves a tab into `groupIndex` at `position` (indices into the current
-    /// layout; out-of-range values clamp) and makes it that group's active
-    /// tab. A group emptied by the move dissolves, VS Code style.
-    func moveCenterTab(_ tab: StudioCenterTab, toGroup groupIndex: Int, at position: Int) {
-        var layout = centerTabGroups
-        guard let source = layout.groups.firstIndex(where: { $0.tabs.contains(tab) }),
-              let sourcePosition = layout.groups[source].tabs.firstIndex(of: tab) else { return }
+    /// Moves a tab into the pane at `groupIndex`, as its strip's tab at
+    /// `position` (out-of-range values clamp), and shows it there: a tab
+    /// dropped on a strip. A pane left with no tab dissolves, VS Code style.
+    func moveCenterTab(
+        _ tab: StudioCenterTab,
+        toGroup groupIndex: Int,
+        at position: Int,
+        in destinationWindowState: StudioWindowState? = nil
+    ) {
+        let window = destinationWindowState ?? activeWindowState
+        var layout = window.centerTabGroups
+        guard let source = layout.groups.firstIndex(where: { $0.tabs.contains(tab) }) else { return }
         var destination = max(0, min(groupIndex, layout.groups.count - 1))
         var insertAt = position
-        layout.groups[source].tabs.remove(at: sourcePosition)
-        if source == destination, sourcePosition < insertAt { insertAt -= 1 }
-        if layout.groups[source].tabs.isEmpty, source != destination {
-            layout.groups.remove(at: source)
-            if source < destination { destination -= 1 }
-        } else if source != destination, layout.groups[source].activeTab == tab {
-            let remaining = layout.groups[source].tabs
-            layout.groups[source].activeTab = remaining.contains(.reader) ? .reader : remaining[0]
+        if source == destination {
+            let open = layout.groups[source].openTabs
+            if let current = open.firstIndex(of: tab), current < insertAt { insertAt -= 1 }
+        } else {
+            let sourceWasAlone = layout.groups[source].openTabs == [tab]
+            layout.groups[source].remove(tab)
+            if sourceWasAlone {
+                // Its parked surfaces go with the pane they are dropped on.
+                let parked = layout.groups.remove(at: source).tabs
+                if source < destination { destination -= 1 }
+                layout.groups[destination].tabs.append(contentsOf: parked)
+            }
+            layout.groups[destination].tabs.append(tab)
         }
-        insertAt = max(0, min(insertAt, layout.groups[destination].tabs.count))
-        layout.groups[destination].tabs.insert(tab, at: insertAt)
+        var open = layout.groups[destination].openTabs.filter { $0 != tab }
+        open.insert(tab, at: max(0, min(insertAt, open.count)))
+        layout.groups[destination].openTabs = open
         layout.groups[destination].activeTab = tab
-        if layout != centerTabGroups { centerTabGroups = layout }
+        window.centerTabGroups = layout
     }
 
     /// Slides the whole group containing `tab` one slot left or right. This is
@@ -2735,13 +2731,18 @@ class StudioViewModel {
     /// nothing to separate: asking to split such a tab to an adjacent slot
     /// resolves to the position it already occupies, so it would do nothing.
     /// A request past either end is ignored.
-    func moveCenterGroup(containing tab: StudioCenterTab, by offset: Int) {
-        var layout = centerTabGroups
+    func moveCenterGroup(
+        containing tab: StudioCenterTab,
+        by offset: Int,
+        in destinationWindowState: StudioWindowState? = nil
+    ) {
+        let window = destinationWindowState ?? activeWindowState
+        var layout = window.centerTabGroups
         guard let source = layout.groups.firstIndex(where: { $0.tabs.contains(tab) }) else { return }
         let destination = source + offset
         guard layout.groups.indices.contains(destination) else { return }
         layout.groups.swapAt(source, destination)
-        centerTabGroups = layout
+        window.centerTabGroups = layout
     }
 
     /// Exchanges the two panes that meet at a divider. The destination window
@@ -2761,16 +2762,22 @@ class StudioViewModel {
     }
 
     /// Context-menu split semantics relative to the tab's current group. A tab
-    /// with groupmates peels into a new adjacent group. A tab already alone
-    /// slides that group one slot in the requested direction; keeping the same
-    /// Split Left/Right commands makes the action predictable regardless of the
-    /// current partition and avoids the adjacent-index no-op.
-    func splitCenterTab(_ tab: StudioCenterTab, towardRight: Bool) {
-        guard let source = centerTabGroups.groups.firstIndex(where: { $0.tabs.contains(tab) }) else { return }
-        if centerTabGroups.groups[source].tabs == [tab] {
-            moveCenterGroup(containing: tab, by: towardRight ? 1 : -1)
+    /// with other tabs open beside it peels into a new adjacent group. A tab
+    /// alone in its strip slides that group one slot in the requested
+    /// direction; keeping the same Split Left/Right commands makes the action
+    /// predictable regardless of the current partition and avoids the
+    /// adjacent-index no-op.
+    func splitCenterTab(
+        _ tab: StudioCenterTab,
+        towardRight: Bool,
+        in destinationWindowState: StudioWindowState? = nil
+    ) {
+        let window = destinationWindowState ?? activeWindowState
+        guard let source = window.centerTabGroups.groups.firstIndex(where: { $0.tabs.contains(tab) }) else { return }
+        if window.centerTabGroups.groups[source].openTabs == [tab] {
+            moveCenterGroup(containing: tab, by: towardRight ? 1 : -1, in: window)
         } else {
-            moveCenterTabToNewGroup(tab, at: source + (towardRight ? 1 : 0))
+            moveCenterTabToNewGroup(tab, at: source + (towardRight ? 1 : 0), in: window)
         }
     }
 
@@ -2796,12 +2803,11 @@ class StudioViewModel {
             let coreTabs: Set<StudioCenterTab> = [.chat, .notepad, .sites, .animations, .artifacts, .browser]
             if coreTabs.contains(tab),
                let replacement = centerTabGroups.groups.firstIndex(where: {
-                   !$0.isPinned && !coreTabs.contains($0.activeTab)
+                   !coreTabs.contains($0.activeTab)
                }),
-               replacement != source,
-               let position = centerTabGroups.groups[source].tabs.firstIndex(of: tab) {
+               replacement != source {
                 var layout = centerTabGroups
-                layout.groups[source].tabs.remove(at: position)
+                layout.groups[source].remove(tab)
                 layout.groups[replacement].tabs.append(tab)
                 layout.groups[replacement].activeTab = tab
                 centerTabGroups = layout
@@ -2839,10 +2845,12 @@ class StudioViewModel {
         if startsBlankChat { inWindow(destination) { requestNewChat() } }
     }
 
-    /// Places a permanent workspace destination at the requested outer edge.
-    /// A hidden destination peels into a new pane when capacity permits. At
-    /// two panes it replaces only its own parked groupmate, then moves that
-    /// group to the edge, preserving the other visible pane.
+    /// Places a workspace destination at the requested outer edge: a tab
+    /// dragged to the side to view it beside the rest. A tab sharing its pane
+    /// with other tabs, or a parked one, splits into a new pane there — a third
+    /// one too, since the learner chose it (`canCreateDraggedGroup`). A tab
+    /// that is its pane's only tab moves the whole pane to that edge. At three
+    /// panes the tab joins the edge pane as a tab of its own.
     func placeCenterTabAtEdge(
         _ tab: StudioCenterTab,
         leading: Bool,
@@ -2863,78 +2871,35 @@ class StudioViewModel {
         if routeIntoNotebook(tab, in: destination) { return }
         var layout = destination.centerTabGroups
         guard let source = layout.groups.firstIndex(where: { $0.tabs.contains(tab) }) else { return }
-        let coreTabs: Set<StudioCenterTab> = [.chat, .notepad, .sites, .animations, .artifacts, .browser]
+        let edge = leading ? 0 : layout.groups.count
+        let isPaneOfItsOwn = layout.groups[source].openTabs == [tab]
 
-        if layout.groups[source].activeTab == tab {
-            // The only pane on screen shows this tab (the Library clicked in
-            // the rail fills the window): reordering one pane changes nothing
-            // the learner can see, so the drag docks the tab at the edge and
-            // lets Chat, else the Reader, take the rest of the window.
-            if layout.groups.count == 1, layout.groups[source].tabs != [tab], layout.canCreateGroup {
-                layout.groups[source].tabs.removeAll { $0 == tab }
-                let remaining = layout.groups[source].tabs
+        if isPaneOfItsOwn, layout.groups.count > 1 || layout.groups[source].tabs == [tab] {
+            let group = layout.groups.remove(at: source)
+            layout.groups.insert(group, at: leading ? 0 : layout.groups.count)
+        } else if layout.canCreateDraggedGroup {
+            // The only pane's only tab (the Library clicked in the rail fills
+            // the window) docks at the edge too, and Chat, else the Reader,
+            // takes the rest of the window.
+            if isPaneOfItsOwn {
+                let remaining = layout.groups[source].tabs.filter { $0 != tab }
                 layout.groups[source].activeTab = remaining.contains(.chat)
                     ? .chat
                     : (remaining.contains(.reader) ? .reader : remaining[0])
-                layout.groups.insert(
-                    .init(tabs: [tab], activeTab: tab),
-                    at: leading ? 0 : layout.groups.count
-                )
+            }
+            layout.groups[source].remove(tab)
+            layout.groups.insert(.init(tabs: [tab], activeTab: tab), at: edge)
+        } else {
+            let target = leading ? 0 : layout.groups.count - 1
+            guard target != source else {
+                layout.groups[source].activeTab = tab
                 destination.centerTabGroups = layout
                 return
             }
-            let group = layout.groups.remove(at: source)
-            layout.groups.insert(group, at: leading ? 0 : layout.groups.count)
-            destination.centerTabGroups = layout
-            return
+            layout.groups[source].remove(tab)
+            layout.groups[target].tabs.append(tab)
+            layout.groups[target].activeTab = tab
         }
-
-        if layout.groups[source].tabs != [tab], layout.canCreateGroup {
-            layout.groups[source].tabs.removeAll { $0 == tab }
-            if layout.groups[source].activeTab == tab {
-                let remaining = layout.groups[source].tabs
-                layout.groups[source].activeTab = remaining.contains(.reader) ? .reader : remaining[0]
-            }
-            layout.groups.insert(
-                .init(tabs: [tab], activeTab: tab),
-                at: leading ? 0 : layout.groups.count
-            )
-            destination.centerTabGroups = layout
-            return
-        }
-
-        if layout.groups.count >= StudioCenterTabGroups.maximumGroupCount,
-           coreTabs.contains(tab),
-           let replacement = layout.groups.firstIndex(where: {
-               !$0.isPinned && !coreTabs.contains($0.activeTab)
-           }),
-           replacement != source,
-           let position = layout.groups[source].tabs.firstIndex(of: tab) {
-            layout.groups[source].tabs.remove(at: position)
-            layout.groups[replacement].tabs.append(tab)
-            layout.groups[replacement].activeTab = tab
-            let group = layout.groups.remove(at: replacement)
-            layout.groups.insert(group, at: leading ? 0 : layout.groups.count)
-            destination.centerTabGroups = layout
-            return
-        }
-
-        if layout.groups[source].isPinned {
-            guard let destinationIndex = layout.firstUnpinnedIndex(otherThan: source),
-                  let position = layout.groups[source].tabs.firstIndex(of: tab) else { return }
-            layout.groups[source].tabs.remove(at: position)
-            layout.groups[destinationIndex].tabs.append(tab)
-            layout.groups[destinationIndex].activeTab = tab
-            let group = layout.groups.remove(at: destinationIndex)
-            layout.groups.insert(group, at: leading ? 0 : layout.groups.count)
-            destination.centerTabGroups = layout
-            return
-        }
-
-        layout.groups[source].activeTab = tab
-        let group = layout.groups.remove(at: source)
-        layout.groups.insert(group, at: leading ? 0 : layout.groups.count)
-
         destination.centerTabGroups = layout
     }
 
@@ -2956,28 +2921,15 @@ class StudioViewModel {
                 let group = layout.groups.remove(at: source)
                 layout.groups.insert(group, at: atLeadingEdge ? 0 : layout.groups.count)
             } else if layout.canCreateGroup {
-                layout.groups[source].tabs.removeAll { $0 == .secondaryChat }
-                if layout.groups[source].activeTab == .secondaryChat {
-                    layout.groups[source].activeTab = layout.groups[source].tabs.contains(.reader)
-                        ? .reader
-                        : layout.groups[source].tabs[0]
-                }
+                layout.groups[source].remove(.secondaryChat)
                 layout.groups.insert(
                     .init(tabs: [.secondaryChat], activeTab: .secondaryChat),
                     at: atLeadingEdge ? 0 : layout.groups.count
                 )
-            } else if !layout.groups[source].isPinned {
+            } else {
                 layout.groups[source].activeTab = .secondaryChat
                 let group = layout.groups.remove(at: source)
                 layout.groups.insert(group, at: atLeadingEdge ? 0 : layout.groups.count)
-            } else if let destinationIndex = layout.firstUnpinnedIndex(otherThan: source) {
-                layout.groups[source].tabs.removeAll { $0 == .secondaryChat }
-                layout.groups[destinationIndex].tabs.append(.secondaryChat)
-                layout.groups[destinationIndex].activeTab = .secondaryChat
-                let group = layout.groups.remove(at: destinationIndex)
-                layout.groups.insert(group, at: atLeadingEdge ? 0 : layout.groups.count)
-            } else {
-                return
             }
         } else if layout.canCreateGroup {
             layout.groups.insert(
@@ -2985,11 +2937,7 @@ class StudioViewModel {
                 at: atLeadingEdge ? 0 : layout.groups.count
             )
         } else {
-            let preferred = atLeadingEdge ? 0 : layout.groups.count - 1
-            guard let target = (!layout.groups[preferred].isPinned
-                ? preferred
-                : layout.firstUnpinnedIndex())
-            else { return }
+            let target = atLeadingEdge ? 0 : layout.groups.count - 1
             layout.groups[target].tabs.append(.secondaryChat)
             layout.groups[target].activeTab = .secondaryChat
         }
@@ -3005,13 +2953,9 @@ class StudioViewModel {
         }
         var layout = destination.centerTabGroups
         guard let groupIndex = layout.groups.firstIndex(where: { $0.tabs.contains(.secondaryChat) }) else { return }
-        layout.groups[groupIndex].tabs.removeAll { $0 == .secondaryChat }
+        layout.groups[groupIndex].remove(.secondaryChat)
         if layout.groups[groupIndex].tabs.isEmpty {
             layout.groups.remove(at: groupIndex)
-        } else if layout.groups[groupIndex].activeTab == .secondaryChat {
-            layout.groups[groupIndex].activeTab = layout.groups[groupIndex].tabs.contains(.reader)
-                ? .reader
-                : layout.groups[groupIndex].tabs[0]
         }
         destination.centerTabGroups = layout
     }
@@ -3060,37 +3004,23 @@ class StudioViewModel {
         else { return }
 
         if chatGroup == companionGroup {
-            layout.groups[companionGroup].tabs.removeAll { $0 == .chat }
             layout.groups[companionGroup].activeTab = companion
+            layout.groups[companionGroup].remove(.chat)
 
-            if layout.canCreateGroup(preserving: [companionGroup]) {
+            if layout.canCreateGroup {
                 layout.groups.insert(.init(tabs: [.chat], activeTab: .chat), at: companionGroup + 1)
             } else {
-                // At the pane limit, reuse the nearest unpinned neighbor rather
-                // than replacing the companion. If it was rightmost, swap the
-                // two groups so Chat still lands on its right.
-                let preferred = companionGroup < layout.groups.count - 1
+                // At the pane limit, reuse the nearest neighbor rather than
+                // replacing the companion. If it was rightmost, swap the two
+                // groups so Chat still lands on its right.
+                let destination = companionGroup < layout.groups.count - 1
                     ? companionGroup + 1
                     : companionGroup - 1
-                guard let destination = (!layout.groups[preferred].isPinned
-                    ? preferred
-                    : layout.firstUnpinnedIndex(otherThan: companionGroup))
-                else { return }
                 layout.groups[destination].tabs.insert(.chat, at: 0)
                 layout.groups[destination].activeTab = .chat
                 if destination < companionGroup {
                     layout.groups.swapAt(destination, companionGroup)
                 }
-            }
-        } else if layout.groups[chatGroup].isPinned, layout.groups[chatGroup].activeTab != .chat {
-            // Chat is parked behind a pinned pane, which keeps what it shows.
-            // With no room anywhere, that pane gives up its pin so the chat
-            // still comes on screen, as any chat request does
-            // (`chatRequestDestinationWindow`).
-            layout.groups[companionGroup].activeTab = companion
-            if !Self.peel(.chat, parkedIn: chatGroup, besideGroup: companionGroup, in: &layout) {
-                layout.groups[chatGroup].isPinned = false
-                layout.groups[chatGroup].activeTab = .chat
             }
         } else {
             layout.groups[chatGroup].activeTab = .chat
@@ -3125,8 +3055,7 @@ class StudioViewModel {
 
     /// Keep `companion` visible while revealing `tab` beside it. With both in
     /// one pane, `tab` peels into a new pane next to it; at the two-pane limit
-    /// it joins the nearest unpinned neighbor while `companion` stays in place.
-    /// A `tab` parked behind a pinned pane never covers it (`peel`).
+    /// it joins the nearest neighbor as a tab while `companion` stays in place.
     func revealCenterTab(
         _ tab: StudioCenterTab,
         beside companion: StudioCenterTab,
@@ -3167,32 +3096,21 @@ class StudioViewModel {
         else { return }
 
         if companionGroup == tabGroup {
-            layout.groups[companionGroup].tabs.removeAll { $0 == tab }
             layout.groups[companionGroup].activeTab = companion
+            layout.groups[companionGroup].remove(tab)
 
-            if layout.canCreateGroup(preserving: [companionGroup]) {
+            if layout.canCreateGroup {
                 layout.groups.insert(
                     .init(tabs: [tab], activeTab: tab),
                     at: companionGroup + 1
                 )
             } else {
-                let preferred = companionGroup < layout.groups.count - 1
+                let neighbor = companionGroup < layout.groups.count - 1
                     ? companionGroup + 1
                     : companionGroup - 1
-                guard let neighbor = (!layout.groups[preferred].isPinned
-                    ? preferred
-                    : layout.firstUnpinnedIndex(otherThan: companionGroup))
-                else { return }
                 layout.groups[neighbor].tabs.insert(tab, at: 0)
                 layout.groups[neighbor].activeTab = tab
             }
-        } else if layout.groups[tabGroup].isPinned, layout.groups[tabGroup].activeTab != tab {
-            // `tab` is parked behind a pinned pane — a Reader open on a paper
-            // pins itself — and the pinned pane keeps what it shows. With no
-            // room anywhere the layout stays as it is, as sidebar navigation
-            // does when every pane is pinned.
-            layout.groups[companionGroup].activeTab = companion
-            guard Self.peel(tab, parkedIn: tabGroup, besideGroup: companionGroup, in: &layout) else { return }
         } else {
             layout.groups[companionGroup].activeTab = companion
             layout.groups[tabGroup].activeTab = tab
@@ -3201,57 +3119,33 @@ class StudioViewModel {
         if layout != destination.centerTabGroups { destination.centerTabGroups = layout }
     }
 
-    /// Brings `tab`, parked behind the pinned pane `tabGroup`, on screen
-    /// without covering that pane: into a new pane on the right of
-    /// `companionGroup` — a third one when every pane but the companion is
-    /// pinned — or else into an unpinned pane. False, with `layout`
-    /// untouched, when there is neither.
-    private static func peel(
-        _ tab: StudioCenterTab,
-        parkedIn tabGroup: Int,
-        besideGroup companionGroup: Int,
-        in layout: inout StudioCenterTabGroups
-    ) -> Bool {
-        var candidate = layout
-        candidate.groups[tabGroup].tabs.removeAll { $0 == tab }
-        if candidate.canCreateGroup(preserving: [companionGroup]) {
-            candidate.groups.insert(.init(tabs: [tab], activeTab: tab), at: companionGroup + 1)
-        } else if let unpinned = candidate.firstUnpinnedIndex(otherThan: companionGroup) {
-            candidate.groups[unpinned].tabs.insert(tab, at: 0)
-            candidate.groups[unpinned].activeTab = tab
-        } else {
-            return false
-        }
-        layout = candidate
-        return true
-    }
-
     /// Splits `tab` out into a new group at `groupIndex` (0 = far left,
     /// `groups.count` = far right). A tab already alone reorders its whole
     /// group instead — correct for the far-edge drops that pass an index past
     /// its own position, while adjacent menu actions go through
     /// `splitCenterTab(_:towardRight:)` so they do not land back where they
     /// started.
-    /// At the two-group limit the split request is ignored.
-    func moveCenterTabToNewGroup(_ tab: StudioCenterTab, at groupIndex: Int) {
-        var layout = centerTabGroups
+    /// At the three-pane limit the split request is ignored.
+    func moveCenterTabToNewGroup(
+        _ tab: StudioCenterTab,
+        at groupIndex: Int,
+        in destinationWindowState: StudioWindowState? = nil
+    ) {
+        let window = destinationWindowState ?? activeWindowState
+        var layout = window.centerTabGroups
         guard let source = layout.groups.firstIndex(where: { $0.tabs.contains(tab) }) else { return }
         if layout.groups[source].tabs == [tab] {
             let group = layout.groups.remove(at: source)
             let destination = max(0, min(source < groupIndex ? groupIndex - 1 : groupIndex, layout.groups.count))
             layout.groups.insert(group, at: destination)
-            if layout != centerTabGroups { centerTabGroups = layout }
+            if layout != window.centerTabGroups { window.centerTabGroups = layout }
             return
         }
-        guard layout.canCreateGroup else { return }
-        layout.groups[source].tabs.removeAll { $0 == tab }
-        if layout.groups[source].activeTab == tab {
-            let remaining = layout.groups[source].tabs
-            layout.groups[source].activeTab = remaining.contains(.reader) ? .reader : remaining[0]
-        }
+        guard layout.canCreateDraggedGroup else { return }
+        layout.groups[source].remove(tab)
         let destination = max(0, min(groupIndex, layout.groups.count))
         layout.groups.insert(.init(tabs: [tab], activeTab: tab), at: destination)
-        centerTabGroups = layout
+        window.centerTabGroups = layout
     }
 
     // MARK: - Legacy surface accessors
@@ -3367,8 +3261,7 @@ class StudioViewModel {
     /// one of those kinds already showing — another kind's first, so asking
     /// for Ideas with Docs on screen gives Docs beside Ideas, then the Docs
     /// tab the request came from. With neither on screen it opens beside
-    /// the way a rail row does. `revealCenterTab` never covers a pinned pane;
-    /// a kind already on screen stays where it is.
+    /// the way a rail row does. A kind already on screen stays where it is.
     func openArtifactKindBeside(_ tab: StudioCenterTab) {
         let visible = centerTabGroups.groups.map(\.activeTab)
         guard !visible.contains(tab) else { return }

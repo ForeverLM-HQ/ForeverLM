@@ -4,8 +4,8 @@ import Foundation
 /// window it was pressed in (decisions 2026-09-30, "Entry points and the
 /// session": the drafts open beside the Reader when ready, never over another
 /// chat or the source). Memory's To Check takes a place that covers neither a
-/// chat nor a Reader — the source the cards were made from is in one — and
-/// no pinned pane; with no such place the drafts wait in To Check, the
+/// chat nor a Reader — the source the cards were made from is in one; with
+/// no such place the drafts wait in To Check, the
 /// Reader's toolbar and the notebook's Studio say how many, and a toast
 /// offers them. Pure, so the routing is tested without a window.
 enum CardDraftsPlacement: Equatable {
@@ -16,7 +16,7 @@ enum CardDraftsPlacement: Equatable {
     /// — with its chat hidden — in the chat's place beside the slot.
     case notebook(NotebookWorkspace)
     /// The window's panes with Memory in a pane of its own beside the others,
-    /// or in an unpinned pane that showed neither a chat nor the Reader.
+    /// or in a pane that showed neither a chat nor the Reader.
     case panes(StudioCenterTabGroups)
     /// No place covers nothing the learner works in.
     case none
@@ -67,7 +67,7 @@ enum CardDraftsPlacement: Equatable {
             return .panes(layout)
         }
         guard let free = panes.groups.indices.first(where: { index in
-            !panes.groups[index].isPinned && !protectedTabs.contains(panes.groups[index].activeTab)
+            !protectedTabs.contains(panes.groups[index].activeTab)
         }) else { return .none }
         var replaced = panes
         if free != parked {

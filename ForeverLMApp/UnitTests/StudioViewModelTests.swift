@@ -4791,7 +4791,7 @@ struct ScheduleChatNavigationTests {
             .init(tabs: [.tasks], activeTab: .tasks),
             .init(tabs: [.notepad, .sites, .browser, .videos, .artifacts], activeTab: .notepad),
         ]))
-        #expect(crowded.groups.count == StudioCenterTabGroups.overflowGroupCount)
+        #expect(crowded.groups.count == StudioCenterTabGroups.draggedGroupCount)
         #expect(Set(crowded.groups.flatMap(\.tabs)) == Set(StudioCenterTab.permanentTabs))
     }
 
@@ -4897,7 +4897,7 @@ struct ScheduleChatNavigationTests {
 
         vm.reloadSyncedPreferences()
 
-        #expect(vm.centerTabGroups.groups.count == StudioCenterTabGroups.overflowGroupCount)
+        #expect(vm.centerTabGroups.groups.count == StudioCenterTabGroups.draggedGroupCount)
         #expect(vm.activeCenterTabs == [.chat, .reader, .artifacts])
         #expect(Set(vm.centerTabGroups.groups.flatMap(\.tabs)) == Set(StudioCenterTab.permanentTabs))
         #expect(UserDefaults.standard.stringArray(forKey: "studio.centerTabGroups.v1") == stored)
@@ -5018,8 +5018,8 @@ struct ScheduleChatNavigationTests {
         #expect(vm.opensSidebarSourcesOnSingleClick)
     }
 
-    @Test("a pinned Docs pane survives sidebar navigation")
-    func pinnedPaneRoutesNavigationElsewhere() {
+    @Test("a sidebar destination opens as a tab beside what the pane showed")
+    func sidebarDestinationOpensAsTab() {
         let restoreLayout = capturedCenterTabLayout()
         defer { restoreLayout() }
         let vm = makeViewModel()
@@ -5029,67 +5029,117 @@ struct ScheduleChatNavigationTests {
                 activeTab: .notepad
             ),
         ])
+        #expect(!vm.centerTabGroups.groups[0].showsTabStrip)
 
-        vm.toggleCenterPanePinned(containing: .notepad)
         vm.activateCenterTab(.artifacts)
 
-        #expect(vm.centerTabGroups.groups == [
-            .init(
-                tabs: [.chat, .reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .goals, .courses, .ideas, .animations, .memory, .knowledgeMap, .atlas, .library, .plugins],
-                activeTab: .notepad,
-                isPinned: true
-            ),
-            .init(tabs: [.artifacts], activeTab: .artifacts),
-        ])
+        #expect(vm.centerTabGroups.groups.count == 1)
+        #expect(vm.centerTabGroups.groups[0].activeTab == .artifacts)
+        #expect(vm.centerTabGroups.groups[0].openTabs == [.notepad, .artifacts])
+        #expect(vm.centerTabGroups.groups[0].showsTabStrip)
 
-        // At capacity, the same contract reuses the unpinned pane instead of
-        // replacing the Doc that the learner protected.
-        vm.activateCenterTab(.tasks)
+        // A tab already open comes to the front; nothing new opens.
+        vm.activateCenterTab(.notepad)
         #expect(vm.centerTabGroups.groups[0].activeTab == .notepad)
-        #expect(vm.centerTabGroups.groups[0].isPinned)
-        #expect(vm.centerTabGroups.groups[1].activeTab == .tasks)
-        #expect(!vm.centerTabGroups.groups[1].isPinned)
-
-        vm.toggleCenterPanePinned(containing: .tasks)
-        #expect(vm.centerTabGroups.groups[0].isPinned)
-        #expect(vm.centerTabGroups.groups[1].isPinned)
+        #expect(vm.centerTabGroups.groups[0].openTabs == [.notepad, .artifacts])
     }
 
-    @Test("pinning both panes opens the next destination as a third pane")
-    func pinnedPanesOpenOverflowDestination() {
+    @Test("a sidebar click opens in the pane clicked last")
+    func sidebarClickOpensInFocusedPane() {
         let restoreLayout = capturedCenterTabLayout()
         defer { restoreLayout() }
         let vm = makeViewModel()
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
-            .init(
-                tabs: [.artifacts, .chat, .reader],
-                activeTab: .artifacts,
-                isPinned: true
-            ),
-            .init(
-                tabs: [.notepad, .sites, .tasks],
-                activeTab: .notepad,
-                isPinned: true
-            ),
-        ])
-
-        vm.activateCenterTab(.chat)
-        #expect(vm.centerTabGroups.groups == [
-            .init(tabs: [.artifacts, .reader], activeTab: .artifacts, isPinned: true),
             .init(tabs: [.chat], activeTab: .chat),
-            .init(tabs: [.notepad, .sites, .tasks, .activity, .goals, .courses, .ideas, .browser, .videos, .animations, .memory, .knowledgeMap, .atlas, .library, .plugins], activeTab: .notepad, isPinned: true),
+            .init(tabs: [.notepad, .tasks, .artifacts], activeTab: .notepad),
         ])
+        vm.activeWindowState.focusedGroupID = vm.centerTabGroups.groups[0].id
 
-        vm.toggleCenterPanePinned(containing: .chat)
-        let pinnedOverflow = vm.centerTabGroups
         vm.activateCenterTab(.tasks)
-        #expect(vm.centerTabGroups == pinnedOverflow)
-        #expect(vm.centerTabGroups.groups.map(\.isPinned) == [true, true, true])
-        #expect(!vm.activeCenterTabs.contains(.tasks))
+
+        #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.tasks, .notepad])
+        #expect(vm.centerTabGroups.groups[0].openTabs == [.chat, .tasks])
+        #expect(!vm.centerTabGroups.groups[1].tabs.contains(.tasks))
+
+        // Open in the other pane, the Docs tab is focused there.
+        vm.activateCenterTab(.notepad)
+        #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.tasks, .notepad])
     }
 
-    @Test("New chat opens beside the source being read, not over it")
-    func newChatOpensBesideTheOpenSource() async {
+    @Test("closing a tab shows its neighbour and keeps the pane")
+    func closingTabShowsNeighbour() {
+        let restoreLayout = capturedCenterTabLayout()
+        defer { restoreLayout() }
+        let vm = makeViewModel()
+        vm.centerTabGroups = StudioCenterTabGroups(groups: [
+            .init(tabs: [.artifacts, .chat, .library, .memory], activeTab: .chat, openTabs: [.artifacts, .chat, .library]),
+        ])
+
+        vm.closeCenterTab(.chat)
+        #expect(vm.centerTabGroups.groups[0].activeTab == .library)
+        #expect(vm.centerTabGroups.groups[0].openTabs == [.artifacts, .library])
+
+        // A background tab closes without changing what the pane shows.
+        vm.closeCenterTab(.artifacts)
+        #expect(vm.centerTabGroups.groups[0].activeTab == .library)
+        #expect(vm.centerTabGroups.groups[0].openTabs == [.library])
+
+        // The last tab closes the way the pane's × does: onto the Space.
+        vm.closeCenterTab(.library)
+        #expect(vm.centerTabGroups.groups[0].activeTab == .artifacts)
+        #expect(vm.centerTabGroups.groups[0].openTabs == [.artifacts])
+    }
+
+    @Test("a tab dragged to an edge opens beside the rest")
+    func tabDraggedToEdgeSplits() {
+        let restoreLayout = capturedCenterTabLayout()
+        defer { restoreLayout() }
+        let vm = makeViewModel()
+        vm.centerTabGroups = StudioCenterTabGroups(groups: [
+            .init(tabs: [.artifacts, .chat, .reader], activeTab: .reader, openTabs: [.artifacts, .chat, .reader]),
+        ])
+
+        vm.placeCenterTabAtEdge(.chat, leading: false)
+        #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.reader, .chat])
+        #expect(vm.centerTabGroups.groups[0].openTabs == [.artifacts, .reader])
+
+        // A third pane, since the learner dragged it there.
+        vm.placeCenterTabAtEdge(.artifacts, leading: true)
+        #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.artifacts, .reader, .chat])
+
+        // At three panes a tab sharing a pane joins the edge pane as a tab.
+        vm.activateCenterTab(.library)
+        let library = vm.centerTabGroups.groups.firstIndex { $0.activeTab == .library }
+        #expect(library != nil)
+        vm.placeCenterTabAtEdge(.library, leading: false)
+        #expect(vm.centerTabGroups.groups.count == 3)
+        #expect(vm.centerTabGroups.groups[2].activeTab == .library)
+        #expect(vm.centerTabGroups.groups[2].openTabs == [.chat, .library])
+    }
+
+    @Test("a tab dropped on another pane's strip moves there")
+    func tabDroppedOnStripMoves() {
+        let restoreLayout = capturedCenterTabLayout()
+        defer { restoreLayout() }
+        let vm = makeViewModel()
+        vm.centerTabGroups = StudioCenterTabGroups(groups: [
+            .init(tabs: [.chat, .tasks], activeTab: .chat, openTabs: [.chat, .tasks]),
+            .init(tabs: [.reader, .notepad], activeTab: .reader, openTabs: [.reader, .notepad]),
+        ])
+
+        vm.moveCenterTab(.tasks, toGroup: 1, at: 1)
+        #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.chat, .tasks])
+        #expect(vm.centerTabGroups.groups[1].openTabs == [.reader, .tasks, .notepad])
+
+        // A pane's only tab leaves the pane with it.
+        vm.moveCenterTab(.chat, toGroup: 1, at: .max)
+        #expect(vm.centerTabGroups.groups.count == 1)
+        #expect(vm.centerTabGroups.groups[0].openTabs == [.reader, .tasks, .notepad, .chat])
+        #expect(vm.centerTabGroups.groups[0].activeTab == .chat)
+    }
+
+    @Test("New chat opens as a tab, the source being read kept as one")
+    func newChatKeepsTheOpenSourceAsATab() async {
         let restoreLayout = capturedCenterTabLayout()
         defer { restoreLayout() }
         let vm = makeViewModel()
@@ -5106,17 +5156,16 @@ struct ScheduleChatNavigationTests {
 
         await vm.selectArticle(source.id)
         #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.reader])
-        #expect(vm.centerTabGroups.groups[0].isPinned)
 
         vm.requestBlankReviewChat()
 
-        #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.reader, .chat])
-        #expect(vm.centerTabGroups.groups.map(\.isPinned) == [true, false])
+        #expect(vm.activeCenterTabs.contains(.chat))
+        #expect(vm.centerTabGroups.groups.contains { $0.openTabs.contains(.reader) })
         #expect(vm.selectedArticleId == source.id)
     }
 
-    @Test("the next rail destination opens over Chat while a source is being read")
-    func railDestinationLeavesTheOpenSource() async {
+    @Test("the next rail destination opens as a tab over the Reader")
+    func railDestinationKeepsTheOpenSourceAsATab() async {
         let restoreLayout = capturedCenterTabLayout()
         defer { restoreLayout() }
         let vm = makeViewModel()
@@ -5133,86 +5182,35 @@ struct ScheduleChatNavigationTests {
 
         await vm.selectArticle(source.id)
         #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.chat, .reader])
-        #expect(vm.centerTabGroups.groups.map(\.isPinned) == [false, true])
 
         vm.openActivityInReader()
 
-        #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.activity, .reader])
-    }
-
-    @Test("a Reader pane the learner unpinned is not pinned again by the next source")
-    func unpinnedReaderPaneKeepsTheLearnersChoice() async {
-        let restoreLayout = capturedCenterTabLayout()
-        defer { restoreLayout() }
-        let vm = makeViewModel()
-        let first = makeArticle(url: "https://example.com/first", title: "First", state: .ready, id: "first")
-            .with(content: "Already loaded.")
-        let second = makeArticle(url: "https://example.com/second", title: "Second", state: .ready, id: "second")
-            .with(content: "Already loaded.")
-        vm.articles = [first, second]
-        vm.centerTabGroups = StudioCenterTabGroups(groups: [
-            .init(tabs: [.chat], activeTab: .chat),
-            .init(
-                tabs: [.reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts],
-                activeTab: .reader
-            ),
-        ])
-
-        await vm.selectArticle(first.id)
-        #expect(vm.centerTabGroups.groups.map(\.isPinned) == [false, true])
-
-        vm.toggleCenterPanePinned(containing: .reader)
-        await vm.selectArticle(second.id)
-
-        #expect(vm.centerTabGroups.groups.map(\.isPinned) == [false, false])
-        // Unpinned, the pane is the learner's to replace again.
-        vm.openActivityInReader()
         #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.chat, .activity])
-
-        // The Reader coming back into that pane keeps the choice...
-        await vm.selectArticle(first.id)
-        #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.chat, .reader])
-        #expect(vm.centerTabGroups.groups.map(\.isPinned) == [false, false])
-
-        // ...and a pane made afresh for the Reader starts pinned again.
-        vm.dismissCenterSurface(.reader)
-        await vm.selectArticle(second.id)
-        #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.chat, .reader])
-        #expect(vm.centerTabGroups.groups.map(\.isPinned) == [false, true])
+        #expect(vm.centerTabGroups.groups[1].openTabs.contains(.reader))
     }
 
-    @Test("pinned pane state round-trips without hiding tabs from older layouts")
-    func pinnedPanePersistence() {
+    @Test("open tabs round-trip, and a retired pane pin is ignored")
+    func openTabsPersistence() {
         let layout = StudioCenterTabGroups(groups: [
             .init(tabs: [.chat], activeTab: .chat),
             .init(
                 tabs: [.reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .animations, .artifacts, .goals, .ideas, .courses, .memory, .knowledgeMap, .atlas, .library, .plugins],
                 activeTab: .notepad,
-                isPinned: true
+                openTabs: [.reader, .notepad]
             ),
         ])
 
         #expect(layout.persistedRepresentation == [
             "chat*",
-            "!|reader|tasks|activity|notepad*|sites|browser|videos|animations|artifacts|goals|ideas|courses|memory|knowledgeMap|atlas|library|plugins",
+            "reader+|tasks|activity|notepad*|sites|browser|videos|animations|artifacts|goals|ideas|courses|memory|knowledgeMap|atlas|library|plugins",
         ])
-        #expect(StudioCenterTabGroups.fromPersisted(layout.persistedRepresentation) == layout)
-        #expect(
-            StudioCenterTabGroups.fromPersisted(["chat*", "reader|notepad*"])?
-                .groups.contains(where: \.isPinned) == false
-        )
+        let decoded = StudioCenterTabGroups.fromPersisted(layout.persistedRepresentation)
+        #expect(decoded == layout)
+        #expect(decoded?.groups[1].openTabs == [.reader, .notepad])
 
-        let bothPinned = StudioCenterTabGroups(groups: [
-            .init(tabs: [.artifacts], activeTab: .artifacts, isPinned: true),
-            .init(tabs: [.notepad], activeTab: .notepad, isPinned: true),
-            .init(tabs: [.chat, .reader, .tasks, .activity, .sites, .browser, .videos, .animations, .goals, .ideas, .courses, .memory, .knowledgeMap, .atlas, .library, .plugins], activeTab: .chat),
-        ])
-        #expect(bothPinned.persistedRepresentation == [
-            "!|artifacts*",
-            "!|notepad*",
-            "chat*|reader|tasks|activity|sites|browser|videos|animations|goals|ideas|courses|memory|knowledgeMap|atlas|library|plugins",
-        ])
-        #expect(StudioCenterTabGroups.fromPersisted(bothPinned.persistedRepresentation) == bothPinned)
+        let retired = StudioCenterTabGroups.fromPersisted(["artifacts*", "notepad*"])
+        #expect(retired?.groups.map(\.activeTab) == [.artifacts, .notepad])
+        #expect(retired?.groups.map(\.openTabs) == [[.artifacts], [.notepad]])
     }
 
     @Test("saved workspace views round-trip every window independently")
@@ -5222,7 +5220,7 @@ struct ScheduleChatNavigationTests {
             navigationRailVisible: false
         ))
         let right = StudioWindowState(snapshot: .init(
-            centerTabGroups: ["chat*", "!|notepad*"],
+            centerTabGroups: ["chat*", "notepad*"],
             navigationRailVisible: true
         ))
         let leftPlacement = StudioWindowPlacement(
@@ -5269,11 +5267,11 @@ struct ScheduleChatNavigationTests {
         #expect(right.snapshot == rightBefore)
 
         // Changing the restored left window does not reach the right window's
-        // scene state, including its pane pin.
+        // scene state.
         left.navigationRailVisible = false
         #expect(!left.navigationRailVisible)
         #expect(right.navigationRailVisible)
-        #expect(right.centerTabGroups.groups.contains { $0.isPinned })
+        #expect(right.centerTabGroups.groups.map(\.activeTab) == [.chat, .notepad])
     }
 
     @Test("workspace restore keeps each live window on its saved physical display")
@@ -5363,11 +5361,11 @@ struct ScheduleChatNavigationTests {
 
         coordinator.register(state: firstState, window: firstWindow)
         let firstSnapshot = StudioWindowState.Snapshot(
-            centerTabGroups: ["notebooks*", "!|reader*"],
+            centerTabGroups: ["notebooks*", "reader*"],
             navigationRailVisible: false
         )
         let secondSnapshot = StudioWindowState.Snapshot(
-            centerTabGroups: ["chat*", "!|notepad*"],
+            centerTabGroups: ["chat*", "notepad*"],
             navigationRailVisible: true
         )
         let firstPlacement = StudioWindowPlacement(
@@ -5413,19 +5411,22 @@ struct ScheduleChatNavigationTests {
         #expect(recaptured.allSatisfy { $0.placement != nil })
     }
 
-    @Test("center tabs move and dissolve without exceeding two panes")
+    @Test("center tabs move and dissolve without exceeding three panes")
     func centerTabMoves() {
         let restoreLayout = capturedCenterTabLayout()
         defer { restoreLayout() }
         let vm = makeViewModel()
-        // Chat beside the reading surfaces: two panes, at the cap.
+        // Chat beside the reading surfaces: two panes.
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
             .init(tabs: [.chat], activeTab: .chat),
             .init(tabs: [.reader, .tasks, .notepad, .sites, .browser, .artifacts], activeTab: .reader),
         ])
 
-        let atCapacity = vm.centerTabGroups
+        // Split Right from a strip may make a third pane, as a drag may.
         vm.moveCenterTabToNewGroup(.artifacts, at: 2)
+        #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.chat, .reader, .artifacts])
+        let atCapacity = vm.centerTabGroups
+        vm.moveCenterTabToNewGroup(.tasks, at: 3)
         #expect(vm.centerTabGroups == atCapacity)
 
         vm.moveCenterTab(.artifacts, toGroup: 0, at: 1)
@@ -5515,8 +5516,7 @@ struct ScheduleChatNavigationTests {
             vm.centerTabGroups = StudioCenterTabGroups(groups: [
                 .init(
                     tabs: [.chat, .reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts],
-                    activeTab: tab,
-                    isPinned: true
+                    activeTab: tab
                 ),
             ])
 
@@ -5524,8 +5524,8 @@ struct ScheduleChatNavigationTests {
 
             #expect(vm.centerTabGroups.groups.count == 1)
             #expect(vm.centerTabGroups.groups[0].activeTab == .artifacts, "\(tab)")
-            // Closing a pinned pane is itself a request to release the pin.
-            #expect(!vm.centerTabGroups.groups[0].isPinned)
+            // The closed surface is no tab behind the home.
+            #expect(vm.centerTabGroups.groups[0].openTabs == [.artifacts], "\(tab)")
         }
 
         // The home is the one surface that cannot close onto itself; it
@@ -5884,7 +5884,7 @@ struct ScheduleChatNavigationTests {
         vm.splitCenterTab(.chat, towardRight: false)
         #expect(vm.centerTabGroups == before)
 
-        // A grouped tab cannot create a third pane at capacity.
+        // The Reader is its pane's only tab, and that pane is rightmost.
         let atCapacity = vm.centerTabGroups
         vm.splitCenterTab(.reader, towardRight: true)
         #expect(vm.centerTabGroups == atCapacity)
@@ -6081,15 +6081,15 @@ struct ScheduleChatNavigationTests {
         vm.openArtifactKindBeside(.sites)
         #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.chat, .sites])
 
-        // A Reader pinned on a paper is never covered: Ideas, parked behind
-        // it, peels into a third pane beside Docs.
+        // Ideas parked behind the Reader shows beside Docs in the Reader's
+        // pane, the Reader kept there as a tab.
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
-            .init(tabs: [.reader, .ideas], activeTab: .reader, isPinned: true),
+            .init(tabs: [.reader, .ideas], activeTab: .reader),
             .init(tabs: [.notepad, .chat], activeTab: .notepad),
         ])
         vm.openArtifactKindBeside(.ideas)
-        #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.reader, .notepad, .ideas])
-        #expect(vm.centerTabGroups.groups[0].isPinned)
+        #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.ideas, .notepad])
+        #expect(vm.centerTabGroups.groups[0].openTabs == [.reader, .ideas])
     }
 
     @Test("The Space's sidebar opens Pages and Sites each in its own pane")
@@ -6299,46 +6299,43 @@ struct ScheduleChatNavigationTests {
         #expect(vm.centerTabGroups.groups[1].activeTab == .reader)
     }
 
-    @Test("A citation opens the Reader beside Chat without covering a pinned pane")
-    func revealReaderLeavesAPinnedPane() {
+    @Test("A citation opens the Reader beside Chat, what its pane showed kept as a tab")
+    func revealReaderKeepsTheCoveredSurfaceAsATab() {
         let restoreLayout = capturedCenterTabLayout()
         defer { restoreLayout() }
         let vm = makeViewModel()
 
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
             .init(tabs: [.chat], activeTab: .chat),
-            .init(tabs: [.notepad, .reader, .tasks], activeTab: .notepad, isPinned: true),
+            .init(tabs: [.notepad, .reader, .tasks], activeTab: .notepad),
         ])
         vm.revealReaderBesideChat()
 
-        #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.chat, .reader, .notepad])
-        #expect(vm.centerTabGroups.groups.map(\.isPinned) == [false, false, true])
+        #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.chat, .reader])
+        #expect(vm.centerTabGroups.groups[1].openTabs == [.notepad, .reader])
     }
 
-    @Test("A passage opens Chat beside the Reader without covering a pinned pane, and takes one's pin only when there is no room")
-    func revealChatLeavesAPinnedPane() {
+    @Test("A passage opens Chat beside the Reader, what its pane showed kept as a tab")
+    func revealChatKeepsTheCoveredSurfaceAsATab() {
         let restoreLayout = capturedCenterTabLayout()
         defer { restoreLayout() }
         let vm = makeViewModel()
 
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
-            .init(tabs: [.reader], activeTab: .reader, isPinned: true),
-            .init(tabs: [.notepad, .chat, .tasks], activeTab: .notepad, isPinned: true),
+            .init(tabs: [.reader], activeTab: .reader),
+            .init(tabs: [.notepad, .chat, .tasks], activeTab: .notepad),
         ])
         vm.revealChatBesideReader()
-        #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.reader, .chat, .notepad])
-        #expect(vm.centerTabGroups.groups.map(\.isPinned) == [true, false, true])
+        #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.reader, .chat])
+        #expect(vm.centerTabGroups.groups[1].openTabs == [.notepad, .chat])
 
-        // Three pinned panes: the chat still comes on screen, in the pane it
-        // was parked in, and that pane stops claiming to be pinned.
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
-            .init(tabs: [.reader], activeTab: .reader, isPinned: true),
-            .init(tabs: [.notepad, .chat], activeTab: .notepad, isPinned: true),
-            .init(tabs: [.tasks], activeTab: .tasks, isPinned: true),
+            .init(tabs: [.reader], activeTab: .reader),
+            .init(tabs: [.notepad, .chat], activeTab: .notepad),
+            .init(tabs: [.tasks], activeTab: .tasks),
         ])
         vm.revealChatBesideReader()
         #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.reader, .chat, .tasks])
-        #expect(vm.centerTabGroups.groups.map(\.isPinned) == [true, false, true])
     }
 
     @Test("opening a Chat citation opens the Reader beside the chat")
@@ -11575,7 +11572,7 @@ struct CrossWindowReaderNavigationTests {
         let vm = makeViewModel()
         let here = vm.activeWindowState
         let there = StudioWindowState(snapshot: .init(
-            centerTabGroups: ["!|reader*|tasks|notepad|notebooks", "chat*"],
+            centerTabGroups: ["reader*|tasks|notepad|notebooks", "chat*"],
             navigationRailVisible: true
         ))
         StudioWindowRegistry.shared.register(here, makeActive: true)
@@ -11592,8 +11589,8 @@ struct CrossWindowReaderNavigationTests {
         )
         source.content = "Already loaded."
         vm.articles = [source]
-        // This window is all Chat, and the other one is reading — pinned, at
-        // that. The click still belongs to this window: the Reader is wedged
+        // This window is all Chat, and the other one is reading. The click
+        // still belongs to this window: the Reader is wedged
         // in beside Chat here, and the other window is left alone.
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
             .init(tabs: [.chat, .reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .chat),
@@ -11619,7 +11616,7 @@ struct CrossWindowReaderNavigationTests {
         let vm = makeViewModel()
         let here = vm.activeWindowState
         let there = StudioWindowState(snapshot: .init(
-            centerTabGroups: ["!|reader*|tasks|notepad|notebooks", "chat*"],
+            centerTabGroups: ["reader*|tasks|notepad|notebooks", "chat*"],
             navigationRailVisible: true
         ))
         StudioWindowRegistry.shared.register(here, makeActive: true)
@@ -12259,10 +12256,9 @@ struct ChatRequestWindowTargetTests {
 @Suite("Chat requests say where they went", .serialized)
 @MainActor
 struct ChatRequestElsewhereNoticeTests {
-    /// Three pinned panes with Chat parked behind the first: the one layout in
-    /// which `activateCenterTab(.chat)` refuses rather than replaces.
-    private static let everyPanePinnedChatParked = [
-        "!|reader*|tasks|chat", "!|notepad*", "!|notebooks*",
+    /// Three panes with Chat parked behind the first.
+    private static let threePanesChatParked = [
+        "reader*|tasks|chat", "notepad*", "notebooks*",
     ]
     private static let showingChat = ["chat*", "reader*|tasks|notepad|notebooks"]
 
@@ -12273,14 +12269,14 @@ struct ChatRequestElsewhereNoticeTests {
         ))
     }
 
-    @Test("a New chat in a window that cannot show Chat stays here and releases Chat's pin")
+    @Test("a New chat stays here even when the other window shows Chat")
     func newChatNeverJumpsToTheWindowShowingChat() {
         let restoreLayout = capturedCenterTabLayout()
         defer { restoreLayout() }
         let restoreRegistry = capturedStudioWindowRegistry()
         defer { restoreRegistry() }
         let vm = makeViewModel()
-        let here = window(Self.everyPanePinnedChatParked)
+        let here = window(Self.threePanesChatParked)
         let there = window(Self.showingChat)
         StudioWindowRegistry.shared.register(here, makeActive: true)
         StudioWindowRegistry.shared.register(there)
@@ -12290,19 +12286,16 @@ struct ChatRequestElsewhereNoticeTests {
         }
         let layoutThere = there.centerTabGroups
 
-        #expect(!vm.canRevealCenterTab(.chat, in: here))
         vm.inWindow(here) { vm.requestBlankReviewChat() }
 
-        // The click belongs to this window even though every pane here is
-        // pinned and the other window already shows Chat: Chat's pane gives
-        // up its pin, and nothing moves over there.
+        // The click belongs to this window even though the other window
+        // already shows Chat: nothing moves over there.
         #expect(vm.reviewChatTargetWindowID == here.id)
         #expect(vm.chatPaneAcceptsGlobalRequests(ownerWindowID: here.id))
         #expect(!vm.chatPaneAcceptsGlobalRequests(ownerWindowID: there.id))
         #expect(vm.chatRequestElsewhereNotice == nil)
         #expect(vm.toastMessage == nil)
-        #expect(vm.canRevealCenterTab(.chat, in: here))
-        #expect(here.centerTabGroups.groups.contains { $0.tabs.contains(.chat) && !$0.isPinned })
+        #expect(here.centerTabGroups.groups.contains { $0.activeTab == .chat })
         #expect(there.centerTabGroups == layoutThere)
     }
 
@@ -12313,8 +12306,8 @@ struct ChatRequestElsewhereNoticeTests {
         let restoreRegistry = capturedStudioWindowRegistry()
         defer { restoreRegistry() }
         let vm = makeViewModel()
-        // Chat parked behind a pinned Reader, but with room for a second pane.
-        let here = window(["!|reader*|tasks|notepad|notebooks|chat"])
+        // Chat parked behind the Reader.
+        let here = window(["reader*|tasks|notepad|notebooks|chat"])
         let there = window(Self.showingChat)
         StudioWindowRegistry.shared.register(here, makeActive: true)
         StudioWindowRegistry.shared.register(there)
@@ -12331,14 +12324,14 @@ struct ChatRequestElsewhereNoticeTests {
         #expect(here.centerTabGroups.groups.contains { $0.activeTab == .chat })
     }
 
-    @Test("a selection sent from a window that cannot show Chat stays here")
+    @Test("a selection sent from a window with Chat parked stays here")
     func selectionNeverJumpsToTheOtherWindow() {
         let restoreLayout = capturedCenterTabLayout()
         defer { restoreLayout() }
         let restoreRegistry = capturedStudioWindowRegistry()
         defer { restoreRegistry() }
         let vm = makeViewModel()
-        let here = window(Self.everyPanePinnedChatParked)
+        let here = window(Self.threePanesChatParked)
         let there = window(Self.showingChat)
         StudioWindowRegistry.shared.register(here, makeActive: true)
         StudioWindowRegistry.shared.register(there)
