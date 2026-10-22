@@ -10500,17 +10500,21 @@ function scheduleSelectionPublish() {
   else requestAnimationFrame(run)
 }
 
-// ─── A click between two lines ──────────────────────────────────────────────
+// ─── A click or a drag between two lines ────────────────────────────────────
 // The space between two paragraphs is the page's, not either paragraph's, and
-// WebKit gives a click there to the start of the line below: a click just under
+// WebKit gives a point there to the start of the line below: a click just under
 // the end of a line, where a writer aims to go on writing it, put the caret at
-// the start of the next line instead. A click in that gap goes to the nearer of
-// the two lines, at the column clicked, so one a little low at the end of a
-// line lands at its end, and one a little high on an empty line lands on it.
-// Only a plain single click is moved: the press itself is left to the browser,
-// so a drag that starts in the gap still selects.
+// the start of the next line instead, and a drag that ended there highlighted
+// the line break and the start of the next line, flicking back and forth as
+// the pointer crossed each gap. A point in that gap stands for the nearer of
+// the two lines, at the column under the pointer, so one a little low at the
+// end of a line is its end, and one a little high on an empty line is on it.
+// A plain single click is moved after the browser has placed the caret; during
+// a drag each end in a gap is put right after the browser's own move, before
+// the frame is drawn. A press that starts a drag is still the browser's, so
+// double-click, triple-click and dragging selected words keep working.
 
-function gapClickPosition(view, x, y) {
+function gapPosition(view, x, y) {
   let above = null
   let below = null
   view.state.doc.forEach((node, offset) => {
@@ -10538,11 +10542,19 @@ function gapClickPosition(view, x, y) {
 const gapClickPlugin = $prose(() => new Plugin({
   props: {
     handleDOMEvents: {
+      mousedown(view, event) {
+        gapDrag = null
+        if (event.button !== 0 || event.detail !== 1 || event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return false
+        if (!view.editable) return false
+        const anchor = event.target === view.dom ? gapPosition(view, event.clientX, event.clientY) : null
+        gapDrag = { view, anchor, x: event.clientX, y: event.clientY, moved: false }
+        return false
+      },
       click(view, event) {
         if (event.target !== view.dom || event.button !== 0 || event.detail !== 1) return false
         if (event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return false
         if (!view.state.selection.empty || !view.editable) return false
-        const pos = gapClickPosition(view, event.clientX, event.clientY)
+        const pos = gapPosition(view, event.clientX, event.clientY)
         if (pos == null || pos === view.state.selection.head) return false
         view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, pos)))
         view.focus()
@@ -10551,6 +10563,55 @@ const gapClickPlugin = $prose(() => new Plugin({
     },
   },
 }))
+
+/// The drag in progress: the view, where it started (a press in a gap stands
+/// for a line, as a click there does), and the pointer's last place.
+let gapDrag = null
+let gapDragFrame = null
+
+/// Put the ends of the browser's drag selection that lie in a gap on the
+/// nearer line. The browser keeps its own anchor through a drag and sets the
+/// selection again on every move, so this runs after each move, writes the
+/// DOM selection, and leaves ProseMirror to read it as it reads any drag.
+function correctGapDrag() {
+  gapDragFrame = null
+  const drag = gapDrag
+  if (!drag?.moved || !drag.view.dom.isConnected) return
+  const { view } = drag
+  const selection = view.dom.ownerDocument.getSelection()
+  if (!selection?.anchorNode || !view.dom.contains(selection.anchorNode) || !view.dom.contains(selection.focusNode)) return
+  const head = gapPosition(view, drag.x, drag.y)
+  if (drag.anchor == null && head == null) return
+  let base = { node: selection.anchorNode, offset: selection.anchorOffset }
+  let extent = { node: selection.focusNode, offset: selection.focusOffset }
+  if (drag.anchor != null) base = view.domAtPos(drag.anchor)
+  if (head != null) extent = view.domAtPos(head)
+  if (base.node === selection.anchorNode && base.offset === selection.anchorOffset
+    && extent.node === selection.focusNode && extent.offset === selection.focusOffset) return
+  selection.setBaseAndExtent(base.node, base.offset, extent.node, extent.offset)
+}
+
+document.addEventListener('mousemove', (event) => {
+  if (!gapDrag) return
+  if (!(event.buttons & 1)) {
+    gapDrag = null
+    return
+  }
+  if (!gapDrag.moved && Math.hypot(event.clientX - gapDrag.x, event.clientY - gapDrag.y) < 4) return
+  gapDrag.moved = true
+  gapDrag.x = event.clientX
+  gapDrag.y = event.clientY
+  // After the browser's own move of the selection, which follows this event.
+  if (gapDragFrame == null) gapDragFrame = requestAnimationFrame(correctGapDrag)
+}, true)
+
+document.addEventListener('mouseup', () => {
+  if (!gapDrag) return
+  if (gapDragFrame != null) cancelAnimationFrame(gapDragFrame)
+  gapDragFrame = null
+  if (gapDrag.moved) correctGapDrag()
+  gapDrag = null
+}, true)
 
 const selectionPublishPlugin = $prose(() => new Plugin({
   view: () => ({

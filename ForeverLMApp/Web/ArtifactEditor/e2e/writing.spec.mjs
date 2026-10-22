@@ -209,3 +209,56 @@ test('a click between two lines puts the caret on the nearer one, where it was c
   expect(await page.evaluate(() => window.__editorTest.view().state.selection.empty)).toBe(false)
   expect(await blocks(page)).toEqual(['paragraph', 'paragraph', 'empty', 'paragraph'])
 })
+
+test('a drag that ends or starts between two lines selects up to the nearer one', async ({ page }) => {
+  // WebKit put a drag's end in the gap under a line at the start of the line
+  // below: the highlight took in the line break and the next line's start, and
+  // flicked back and forth as the pointer crossed each gap.
+  await openEditor(page, 'The first line of the page\n\nThe second line, a little longer\n\nThe third line\n')
+  const [first, second, third] = await page.evaluate(() => [...window.__editorTest.view().dom.children].map((element) => {
+    const rect = element.getBoundingClientRect()
+    const range = document.createRange()
+    range.selectNodeContents(element)
+    return { top: rect.top, bottom: rect.bottom, left: rect.left, textRight: range.getBoundingClientRect().right }
+  }))
+  const middle = (line) => (line.top + line.bottom) / 2
+  const selected = () => page.evaluate(() => {
+    const { state } = window.__editorTest.view()
+    return state.doc.textBetween(state.selection.from, state.selection.to, '¶')
+  })
+  const drag = async (from, to) => {
+    await page.mouse.click(5, 5)
+    await settle(page)
+    await page.mouse.move(...from)
+    await page.mouse.down()
+    await page.mouse.move(...to, { steps: 5 })
+    await settle(page)
+    const during = await selected()
+    await page.mouse.up()
+    await settle(page)
+    expect(await selected()).toBe(during)
+    return during
+  }
+  // Ends just under the end of the second line: up to its end, no line break.
+  expect(await drag([first.left + 4, middle(first)], [second.textRight + 30, second.bottom + 2]))
+    .toBe('The first line of the page¶The second line, a little longer')
+  // Starts just under the end of the first line: from its end.
+  expect(await drag([first.textRight - 2, first.bottom + 2], [third.textRight, middle(third)]))
+    .toBe('¶The second line, a little longer¶The third line')
+  // Back up into the gap above the line it started on: the column there.
+  expect(await drag([third.textRight, middle(third)], [third.left + 30, third.top - 2])).not.toContain('¶')
+  // Down across every gap, slowly, right of the words: the selection only ever
+  // grows, a line at a time.
+  await page.mouse.click(5, 5)
+  await settle(page)
+  await page.mouse.move(first.left + 4, middle(first))
+  await page.mouse.down()
+  const lengths = []
+  for (let y = middle(first); y <= middle(third); y += 3) {
+    await page.mouse.move(second.textRight + 40, y)
+    await settle(page, 0)
+    lengths.push((await selected()).length)
+  }
+  await page.mouse.up()
+  for (let index = 1; index < lengths.length; index += 1) expect(lengths[index]).toBeGreaterThanOrEqual(lengths[index - 1])
+})
