@@ -7383,6 +7383,7 @@ async function create(markdown, fontSize) {
     editor.editor.use(aiEditHighlightPlugin)
     editor.editor.use(commentAnchorPlugin)
     editor.editor.use(selectionPublishPlugin)
+    editor.editor.use(gapClickPlugin)
     editor.editor.use(editWatchPlugin)
     editor.editor.use(outlineFoldPlugin)
     editor.editor.use(blockIDPlugin)
@@ -10498,6 +10499,58 @@ function scheduleSelectionPublish() {
   if (document.hidden) setTimeout(run, 0)
   else requestAnimationFrame(run)
 }
+
+// ─── A click between two lines ──────────────────────────────────────────────
+// The space between two paragraphs is the page's, not either paragraph's, and
+// WebKit gives a click there to the start of the line below: a click just under
+// the end of a line, where a writer aims to go on writing it, put the caret at
+// the start of the next line instead. A click in that gap goes to the nearer of
+// the two lines, at the column clicked, so one a little low at the end of a
+// line lands at its end, and one a little high on an empty line lands on it.
+// Only a plain single click is moved: the press itself is left to the browser,
+// so a drag that starts in the gap still selects.
+
+function gapClickPosition(view, x, y) {
+  let above = null
+  let below = null
+  view.state.doc.forEach((node, offset) => {
+    if (below) return
+    const element = view.nodeDOM(offset)
+    if (!(element instanceof Element)) return
+    const rect = element.getBoundingClientRect()
+    if (rect.height === 0) return
+    if (rect.bottom <= y) above = { node, offset, rect }
+    else if (rect.top >= y) below = { node, offset, rect }
+    else above = null
+  })
+  if (!above || !below) return null
+  const nearer = y - above.rect.bottom <= below.rect.top - y ? above : below
+  if (!nearer.node.isTextblock) return null
+  const from = nearer.offset + 1
+  const to = nearer.offset + nearer.node.nodeSize - 1
+  const line = view.coordsAtPos(nearer === above ? to : from)
+  const left = Math.min(Math.max(x, nearer.rect.left + 1), nearer.rect.right - 1)
+  const point = view.posAtCoords({ left, top: (line.top + line.bottom) / 2 })
+  if (point && point.pos >= from && point.pos <= to) return point.pos
+  return nearer === above ? to : from
+}
+
+const gapClickPlugin = $prose(() => new Plugin({
+  props: {
+    handleDOMEvents: {
+      click(view, event) {
+        if (event.target !== view.dom || event.button !== 0 || event.detail !== 1) return false
+        if (event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return false
+        if (!view.state.selection.empty || !view.editable) return false
+        const pos = gapClickPosition(view, event.clientX, event.clientY)
+        if (pos == null || pos === view.state.selection.head) return false
+        view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, pos)))
+        view.focus()
+        return false
+      },
+    },
+  },
+}))
 
 const selectionPublishPlugin = $prose(() => new Plugin({
   view: () => ({

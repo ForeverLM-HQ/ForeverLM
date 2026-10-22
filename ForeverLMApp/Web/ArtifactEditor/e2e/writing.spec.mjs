@@ -166,3 +166,46 @@ test('Edit with AI sends the passage alone, writes the answer into the page, and
   await page.keyboard.press('Meta+z')
   expect(await stored(page)).not.toContain('[one two]')
 })
+
+test('a click between two lines puts the caret on the nearer one, where it was clicked', async ({ page }) => {
+  // WebKit gave the gap between two paragraphs to the start of the line below:
+  // a click a little low at the end of a line started the next one instead.
+  await openEditor(page, 'The first line of the page\n\nThe second line\n\n\nAfter an empty line\n')
+  const lines = await page.evaluate(() => [...window.__editorTest.view().dom.children].map((element) => {
+    const rect = element.getBoundingClientRect()
+    return { text: element.textContent, top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right }
+  }))
+  const caret = () => page.evaluate(() => {
+    const { $head } = window.__editorTest.view().state.selection
+    return { line: $head.parent.textContent, offset: $head.parentOffset, size: $head.parent.content.size }
+  })
+  const [first, second, empty, last] = lines
+  // A beat between clicks, as a hand gives: WebKit's selection change from one
+  // click must not land on the next.
+  const click = async (x, y) => {
+    await page.mouse.click(x, y)
+    await settle(page)
+  }
+  // Just under the end of the first line: its end, not the second line's start.
+  await click(first.right - 10, first.bottom + 2)
+  expect(await caret()).toEqual({ line: 'The first line of the page', offset: 26, size: 26 })
+  // Just above the second line, near its start: on it, at the column clicked.
+  await click(second.left + 30, second.top - 2)
+  const onSecond = await caret()
+  expect(onSecond.line).toBe('The second line')
+  expect(onSecond.offset).toBeGreaterThan(0)
+  expect(onSecond.offset).toBeLessThan(onSecond.size)
+  // Just above the empty line: on it.
+  await click(empty.left + 200, empty.top - 2)
+  expect(await caret()).toEqual({ line: '', offset: 0, size: 0 })
+  // Right of a line, on it: its end, as before.
+  await click(last.right - 10, (last.top + last.bottom) / 2)
+  expect(await caret()).toEqual({ line: 'After an empty line', offset: 19, size: 19 })
+  // A drag that starts in a gap still selects.
+  await page.mouse.move(first.right - 10, first.bottom + 2)
+  await page.mouse.down()
+  await page.mouse.move(last.left + 40, (last.top + last.bottom) / 2, { steps: 6 })
+  await page.mouse.up()
+  expect(await page.evaluate(() => window.__editorTest.view().state.selection.empty)).toBe(false)
+  expect(await blocks(page)).toEqual(['paragraph', 'paragraph', 'empty', 'paragraph'])
+})
