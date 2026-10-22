@@ -7653,72 +7653,55 @@ function setMarkdown(markdown, foldState = null) {
 }
 
 // A body replaced from outside — another team member's edit arriving while
-// this writer types — must not throw the caret to the top of the page and
-// scroll away from the paragraph they are in. `replaceAll` builds a new
-// document, so the caret is carried across as a text offset: unchanged text
-// before it keeps it where it was, unchanged text after it shifts it by the
-// size of the change, and a caret inside the changed passage lands at the
-// start of that passage. The scroll position is put back as it was.
+// this writer types, or this Mac's own save handed back a moment after a pause
+// in typing — must not move the caret or scroll away from the paragraph the
+// writer is in. `replaceAll` builds a new document, so the selection is
+// carried across by comparing the two documents: what stands before the first
+// difference keeps its position, what stands after the last one shifts by the
+// size of the change, and an end inside the changed passage lands at its
+// start. The scroll position is put back as it was.
+//
+// It was carried as a character offset into `textBetween`, and walked back
+// with a count of its own that skipped empty lines and line breaks, which
+// `textBetween` counts: on a page with empty lines a save handed back the same
+// text and put the caret a line or two further down, or back where the writer
+// had typed instead of where they had just clicked (product owner,
+// 2026-10-22: "the cursor stays next to 'toxicity'").
 function captureCaretForReplacement(view) {
-  const doc = view.state.doc
-  const text = doc.textBetween(0, doc.content.size, '\n', '\n')
-  const offset = doc.textBetween(0, view.state.selection.from, '\n', '\n').length
+  const { anchor, head } = view.state.selection
   const scroller = scrollContainer(view.dom)
-  return { text, offset, scroller, scrollTop: scroller ? scroller.scrollTop : 0 }
+  return { doc: view.state.doc, anchor, head, scroller, scrollTop: scroller ? scroller.scrollTop : 0 }
+}
+
+/// Where a position in `before` stands in `after`, for two documents that
+/// differ in one passage.
+function positionAcrossReplacement(before, after, position) {
+  const start = before.content.findDiffStart(after.content)
+  if (start == null) return Math.min(position, after.content.size)
+  let { a: endBefore, b: endAfter } = before.content.findDiffEnd(after.content)
+  // The two ends may cross where the change repeats what is next to it.
+  const overlap = start - Math.min(endBefore, endAfter)
+  if (overlap > 0) {
+    endBefore += overlap
+    endAfter += overlap
+  }
+  if (position <= start) return position
+  if (position >= endBefore) return position + (endAfter - endBefore)
+  return start
 }
 
 function restoreCaretAfterReplacement(view, caret) {
   const doc = view.state.doc
-  const next = doc.textBetween(0, doc.content.size, '\n', '\n')
-  const limit = Math.min(caret.text.length, next.length)
-  let prefix = 0
-  while (prefix < limit && caret.text[prefix] === next[prefix]) prefix += 1
-  let suffix = 0
-  while (suffix < limit - prefix
-    && caret.text[caret.text.length - 1 - suffix] === next[next.length - 1 - suffix]) suffix += 1
-  let offset
-  if (caret.offset <= prefix) offset = caret.offset
-  else if (caret.offset >= caret.text.length - suffix) offset = caret.offset + (next.length - caret.text.length)
-  else offset = prefix
-  const position = positionForTextOffset(doc, Math.max(0, Math.min(offset, next.length)))
+  const clamp = (position) => Math.max(0, Math.min(position, doc.content.size))
+  const anchor = clamp(positionAcrossReplacement(caret.doc, doc, caret.anchor))
+  const head = clamp(positionAcrossReplacement(caret.doc, doc, caret.head))
   try {
-    view.dispatch(view.state.tr.setSelection(TextSelection.near(doc.resolve(position))))
+    view.dispatch(view.state.tr.setSelection(TextSelection.between(doc.resolve(anchor), doc.resolve(head))))
   } catch {
     // An unresolvable position leaves the default selection; the scroll is
     // still put back below.
   }
   if (caret.scroller) caret.scroller.scrollTop = caret.scrollTop
-}
-
-// The document position of a character offset in the text `textBetween`
-// reports with '\n' between blocks: the same walk, so the two agree.
-function positionForTextOffset(doc, offset) {
-  let remaining = offset
-  let separated = true
-  let position = null
-  doc.descendants((node, nodePos) => {
-    if (position != null) return false
-    if (node.isText) {
-      const length = node.text.length
-      if (remaining <= length) {
-        position = nodePos + remaining
-        return false
-      }
-      remaining -= length
-      separated = false
-      return false
-    }
-    if (node.isBlock && !separated) {
-      if (remaining === 0) {
-        position = nodePos + 1
-        return false
-      }
-      remaining -= 1
-      separated = true
-    }
-    return true
-  })
-  return position ?? doc.content.size
 }
 
 function scrollContainer(element) {

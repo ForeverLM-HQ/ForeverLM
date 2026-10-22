@@ -66,6 +66,33 @@ test('a teammate edit elsewhere keeps the caret, and typing goes on where it was
   expect(await stored(page)).toContain('changed by a teammate')
 })
 
+test('a save handed back after a click keeps the caret where the click put it, below empty lines', async ({ page }) => {
+  // The caret was carried as a character count that empty lines and line
+  // breaks threw off: the save the Mac hands back a moment after typing put it
+  // lines away, back where the writer had typed instead of where they clicked.
+  await openEditor(page, '# Notes\n\nA line with a break\\\nin it\n\ndid NMN have some toxicity\n\n\n\n## Etienne Hebert\n\nMitochondrial signaling\n')
+  await caretIn(page, 'did NMN')
+  await page.keyboard.type('x')
+  await caretIn(page, 'Etienne Hebert')
+  const caret = () => page.evaluate(() => {
+    const { $head } = window.__editorTest.view().state.selection
+    return [$head.parent.textContent, $head.parentOffset]
+  })
+  expect(await caret()).toEqual(['Etienne Hebert', 14])
+  const typed = await stored(page)
+  for (const handedBack of [typed, `${typed}\n`, typed.replace('Mitochondrial', 'Mitochondrial cell')]) {
+    await page.evaluate((markdown) => window.foreverLMArtifactEditor.setMarkdown(markdown), handedBack)
+    await settle(page)
+    expect(await caret()).toEqual(['Etienne Hebert', 14])
+  }
+  // A change above the caret moves it with its words.
+  await page.evaluate((markdown) => window.foreverLMArtifactEditor.setMarkdown(markdown.replace('# Notes', '# Notes\n\nA new first line')), await stored(page))
+  await settle(page)
+  expect(await caret()).toEqual(['Etienne Hebert', 14])
+  await page.keyboard.type('!')
+  expect(await stored(page)).toContain('## Etienne Hebert!')
+})
+
 test('unsentMarkdown hands over typing once, and nothing for a page left alone', async ({ page }) => {
   await openEditor(page, '# U\n\nWords.\n')
   expect(await page.evaluate(() => window.foreverLMArtifactEditor.unsentMarkdown())).toBeNull()
