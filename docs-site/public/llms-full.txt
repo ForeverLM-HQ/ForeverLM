@@ -6487,6 +6487,13 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.166.0 (build 246) — 2026-10-22
+
+**Highlights:**
+- **Selecting text on a Page highlights what you meant.**
+
+- **Selecting text on a Page highlights what you meant.** A drag that ends in the space under a line selects up to that line's end instead of jumping to the start of the next one, and the highlight no longer flicks back and forth as you drag down past each line. A drag that starts just under the end of a line starts there.
+
 ## 0.165.0 (build 245) — 2026-10-22
 
 **Highlights:**
