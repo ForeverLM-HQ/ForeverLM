@@ -6,6 +6,8 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **Dragging a pane tab to the side works.** A tab in the strip at the top of a pane no longer moves the whole window when you drag it; drag it to the side of the window to view it beside the rest.
+
 - **Clicking on a Page puts the caret where you clicked.** Right after you type, a click no longer jumps the caret back to where you typed when the page saves, and a click in the margin beside the text goes to that line: its start on the left, its end on the right. Drag down the margin to select line by line.
 
 ## 0.166.0 (build 246) — 2026-10-22

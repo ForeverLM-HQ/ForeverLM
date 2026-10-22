@@ -599,6 +599,58 @@ private final class WindowDragBlockerView: NSView {
     override var mouseDownCanMoveWindow: Bool { false }
 }
 
+/// What a left press on a tab in the titlebar band came to.
+enum TitlebarBandTabPress {
+    case click
+    /// The pointer crossed the drag threshold; the event that crossed it.
+    case drag(NSEvent)
+    case cancelled
+}
+
+/// Owns a press on a tab in the titlebar band from down to up.
+///
+/// AppKit hands a press in the band to the view under it and then, unless that
+/// view consumes the drags that follow, turns them into a window move
+/// (`TitlebarBandHitSurfaceView`). A tab that only noted the press and waited
+/// for `mouseDragged` never got one: dragging a tab to the side to view it
+/// beside the rest moved the whole window instead (product owner, 2026-10-22:
+/// "they overlap with the full window tab bar at the top which will move the
+/// entire window"). This loop takes the drags itself; a release is a click, a
+/// move past `threshold` is the tab's drag, started from that event.
+@MainActor
+func trackTitlebarBandTabPress(
+    _ mouseDown: NSEvent,
+    in window: NSWindow,
+    threshold: CGFloat = 4
+) -> TitlebarBandTabPress {
+    let start = mouseDown.locationInWindow
+    var result = TitlebarBandTabPress.cancelled
+    window.trackEvents(
+        matching: [.leftMouseDragged, .leftMouseUp],
+        timeout: NSEvent.foreverDuration,
+        mode: .eventTracking
+    ) { tracked, stop in
+        guard let tracked else {
+            stop.pointee = true
+            return
+        }
+        switch tracked.type {
+        case .leftMouseDragged:
+            let point = tracked.locationInWindow
+            if hypot(point.x - start.x, point.y - start.y) > threshold {
+                result = .drag(tracked)
+                stop.pointee = true
+            }
+        case .leftMouseUp:
+            result = .click
+            stop.pointee = true
+        default:
+            break
+        }
+    }
+    return result
+}
+
 /// The one mouse surface for a control that lives in the titlebar band.
 ///
 /// A press on a band control used to slide the whole window: measured on the
@@ -1115,15 +1167,28 @@ final class StudioCenterTabDragHandleView: NSView, NSDraggingSource {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     override func mouseDown(with event: NSEvent) {
-        pendingMouseDown = event
+        guard let window else {
+            pendingMouseDown = event
+            return
+        }
+        switch trackTitlebarBandTabPress(event, in: window) {
+        case .click: onActivate()
+        case .drag(let dragged): beginTabDrag(with: dragged)
+        case .cancelled: break
+        }
     }
 
+    /// Reached only when the view has no window to track in, as in tests.
     override func mouseDragged(with event: NSEvent) {
         guard let mouseDown = pendingMouseDown else { return }
         let start = mouseDown.locationInWindow
         let now = event.locationInWindow
         guard hypot(now.x - start.x, now.y - start.y) > 4 else { return }
         pendingMouseDown = nil
+        beginTabDrag(with: event)
+    }
+
+    private func beginTabDrag(with event: NSEvent) {
         onDragBegan()
         guard let tab = StudioCenterTabDragPayload.tab(from: payload) else {
             onDragEnded()
@@ -1323,15 +1388,29 @@ final class StudioSourceTabDragHandleView: NSView, NSDraggingSource {
     }
 
     override func mouseDown(with event: NSEvent) {
-        pendingMouseDown = event
+        guard let window else {
+            pendingMouseDown = event
+            return
+        }
+        switch trackTitlebarBandTabPress(event, in: window) {
+        case .click: onActivate()
+        case .drag(let dragged): beginTabDrag(with: dragged)
+        case .cancelled: break
+        }
     }
 
+    /// Reached only when the view has no window to track in, as in tests.
     override func mouseDragged(with event: NSEvent) {
-        guard let mouseDown = pendingMouseDown, let tab else { return }
+        guard let mouseDown = pendingMouseDown else { return }
         let start = mouseDown.locationInWindow
         let now = event.locationInWindow
         guard hypot(now.x - start.x, now.y - start.y) > 4 else { return }
         pendingMouseDown = nil
+        beginTabDrag(with: event)
+    }
+
+    private func beginTabDrag(with event: NSEvent) {
+        guard let tab else { return }
         onDragBegan()
         let item = NSDraggingItem(pasteboardWriter: pasteboardItem(for: tab))
         let ghost = dragGhostImage(for: tab)
