@@ -10596,6 +10596,75 @@ document.addEventListener('mouseup', () => {
   gapDrag = null
 }, true)
 
+// ─── A press in the page's margin ───────────────────────────────────────────
+// The prose is a column in the middle of the pane; either side of it is the
+// page's own background, and a press there went to nothing: the caret stayed
+// where it was. As on a sheet of paper, a press beside a line goes to that
+// line, at its start on the left and its end on the right, a press beside a
+// gap goes to the nearer line, and a drag from the margin selects line by
+// line. Shift extends the selection to the line pressed beside.
+
+let marginDrag = null
+
+/// The page background around the prose column: the elements a press lands
+/// on when it is beside the prose and on nothing else.
+function isPageBackground(element, view) {
+  if (!(element instanceof Element) || view.dom.contains(element)) return false
+  return element === document.documentElement || element === document.body
+    || element.id === 'editor' || element.classList.contains('milkdown')
+}
+
+/// The position a point beside the prose column stands for, or null when the
+/// point is above or below the prose.
+function marginPosition(view, x, y) {
+  const box = view.dom.getBoundingClientRect()
+  if (y < box.top || y > box.bottom) return null
+  const style = getComputedStyle(view.dom)
+  const left = box.left + (parseFloat(style.paddingLeft) || 0) + 1
+  const right = box.right - (parseFloat(style.paddingRight) || 0) - 1
+  const column = Math.min(Math.max(x, left), right)
+  const gap = gapPosition(view, column, y)
+  if (gap != null) return gap
+  const point = view.posAtCoords({ left: column, top: y })
+  if (point) return point.pos
+  // Past the last line: its end.
+  return Selection.atEnd(view.state.doc).from
+}
+
+document.addEventListener('mousedown', (event) => {
+  marginDrag = null
+  if (event.button !== 0 || event.detail !== 1 || event.metaKey || event.ctrlKey || event.altKey) return
+  const view = activeEditorView()
+  if (!view || !view.editable || !isPageBackground(event.target, view)) return
+  const pos = marginPosition(view, event.clientX, event.clientY)
+  if (pos == null) return
+  event.preventDefault()
+  const anchor = event.shiftKey ? view.state.selection.anchor : pos
+  view.focus()
+  view.dispatch(view.state.tr.setSelection(TextSelection.between(view.state.doc.resolve(anchor), view.state.doc.resolve(pos))))
+  marginDrag = { view, anchor }
+}, true)
+
+document.addEventListener('mousemove', (event) => {
+  if (!marginDrag) return
+  if (!(event.buttons & 1)) {
+    marginDrag = null
+    return
+  }
+  const { view, anchor } = marginDrag
+  const box = view.dom.getBoundingClientRect()
+  const y = Math.min(Math.max(event.clientY, box.top + 1), box.bottom - 1)
+  const head = marginPosition(view, event.clientX, y)
+  if (head == null || head === view.state.selection.head) return
+  view.dispatch(view.state.tr.setSelection(TextSelection.between(view.state.doc.resolve(anchor), view.state.doc.resolve(head))))
+}, true)
+
+document.addEventListener('mouseup', () => {
+  if (!marginDrag) return
+  marginDrag = null
+  requestAnimationFrame(publishSelection)
+}, true)
+
 const selectionPublishPlugin = $prose(() => new Plugin({
   view: () => ({
     update(view, previous) {

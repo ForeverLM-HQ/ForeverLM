@@ -6487,6 +6487,8 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **Clicking on a Page puts the caret where you clicked.** Right after you type, a click no longer jumps the caret back to where you typed when the page saves, and a click in the margin beside the text goes to that line: its start on the left, its end on the right. Drag down the margin to select line by line.
+
 ## 0.166.0 (build 246) — 2026-10-22
 
 **Highlights:**

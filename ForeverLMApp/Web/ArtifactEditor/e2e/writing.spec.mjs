@@ -262,3 +262,47 @@ test('a drag that ends or starts between two lines selects up to the nearer one'
   await page.mouse.up()
   for (let index = 1; index < lengths.length; index += 1) expect(lengths[index]).toBeGreaterThanOrEqual(lengths[index - 1])
 })
+
+test('a press in the margin beside the prose goes to that line, as on paper', async ({ page }) => {
+  // Either side of the prose column is the page's background, and a press
+  // there left the caret where it was.
+  await openEditor(page, '# Title\n\nA first line\n\n\n\n## A heading\n\n- item one\n- item two\n\nPlain line.\n')
+  const box = await page.evaluate(() => window.__editorTest.view().dom.getBoundingClientRect().toJSON())
+  const middleOf = (prefix) => page.evaluate((start) => {
+    const view = window.__editorTest.view()
+    let found = null
+    view.state.doc.descendants((node, pos) => {
+      if (!found && node.isTextblock && node.textContent.startsWith(start)) found = view.nodeDOM(pos).getBoundingClientRect()
+    })
+    return (found.top + found.bottom) / 2
+  }, prefix)
+  const caret = () => page.evaluate(() => {
+    const { state } = window.__editorTest.view()
+    const { $head, from, to } = state.selection
+    return { line: $head.parent.textContent, offset: $head.parentOffset, selected: state.doc.textBetween(from, to, '¶') }
+  })
+  const press = async (x, y) => {
+    await page.mouse.click(x, y)
+    await settle(page)
+  }
+  await press(box.left - 40, await middleOf('A first'))
+  expect(await caret()).toEqual({ line: 'A first line', offset: 0, selected: '' })
+  await press(box.right + 40, await middleOf('A first'))
+  expect(await caret()).toEqual({ line: 'A first line', offset: 12, selected: '' })
+  await press(box.right + 40, await middleOf('A heading'))
+  expect(await caret()).toEqual({ line: 'A heading', offset: 9, selected: '' })
+  await press(box.left - 40, await middleOf('item two'))
+  expect(await caret()).toEqual({ line: 'item two', offset: 0, selected: '' })
+  // Shift extends to the line pressed beside.
+  await page.keyboard.down('Shift')
+  await press(box.right + 40, await middleOf('Plain'))
+  await page.keyboard.up('Shift')
+  expect((await caret()).selected).toBe('item two¶Plain line.')
+  // A drag down the margin selects line by line.
+  await page.mouse.move(box.left - 40, await middleOf('A first'))
+  await page.mouse.down()
+  await page.mouse.move(box.left - 40, await middleOf('item one'), { steps: 6 })
+  await page.mouse.up()
+  await settle(page)
+  expect((await caret()).selected).toBe('A first line¶¶¶A heading')
+})
