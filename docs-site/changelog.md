@@ -6,6 +6,16 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.165.0 (build 245) — 2026-10-22
+
+**Highlights:**
+- **Click at the end of a line on a Page and the caret goes there.**
+- **Updates get through networks that block the update address.**
+
+- **A click just under the end of a line on a Page puts the caret at its end.** A click in the gap between two lines goes to the nearer one, where you clicked, instead of the start of the line below; a click just above an empty line lands on it.
+- **No Unlinked References in a Page's foot.** A page titled with a common word no longer fills its foot with other Pages' prose; the foot shows the day's activity, Linked References and a daily note's earlier days.
+- **Updates get through a network that blocks the update address.** When the feed cannot be read, the app checks foreverlm.com/releases instead, so Check for Updates offers the newest build with no error.
+
 ## 0.164.0 (build 244) — 2026-10-19
 
 **Highlights:**
