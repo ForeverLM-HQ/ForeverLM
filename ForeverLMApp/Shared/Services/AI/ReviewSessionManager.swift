@@ -7789,8 +7789,10 @@ final class ReviewSessionManager {
                 panelLabel: panel?.label
             )
             var crop = Self.paperFigureCrop(analysis: analysis, panel: panel)
+            // A panel nothing placed is shown as the whole figure, and the
+            // figure is the page's crop, not the stored rectangle.
             if case .figure(_, let rect?, _, _) = resolved?.target, rect.isValid,
-               panel == nil || resolved?.panel != nil {
+               panel == nil || resolved?.panel != nil || panel?.rect?.isValid != true {
                 crop = rect
             }
             let shownLabel = PaperWalkthroughValidation.figurePanelLabel(figure.figureLabel, panel: panel?.label)
@@ -8570,17 +8572,17 @@ final class ReviewSessionManager {
         #endif
     }
 
-    /// A figure's crop: the rectangle the vision pass stored if it ever ran,
-    /// and otherwise the one the page itself yields for free.
+    /// A figure's crop: the one the page itself yields for free, and the
+    /// rectangle the vision pass stored only when the page yields none.
     private nonisolated static func cropFor(
         _ figure: PaperFigureRecord,
         page: PDFPage,
         labelsPerPage: [Int: Int]
     ) -> PaperFigureRect? {
         #if os(macOS)
-        if let stored = figure.analysis?.figureRect, stored.isValid { return stored }
-        return PaperFigureRectRefiner.figureCrop(
+        return PaperFigureRectRefiner.displayedFigureCrop(
             forCaption: figure.caption,
+            measured: figure.analysis?.figureRect,
             on: page,
             sharesPageWithOtherFigures: (labelsPerPage[figure.pageIndex] ?? 1) > 1
         )

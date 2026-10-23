@@ -147,7 +147,10 @@ extension MCPDataStore {
                         + "Call again without panel_label to show the whole figure, or with one of those labels."
                 )
             }
-            crop = ReviewSessionManager.paperFigureCrop(analysis: analysis, panel: panel)
+            // The panel's own rectangle when the vision pass measured one; the
+            // whole figure's crop is the page's (`structuralCrop`), never the
+            // stored figure rectangle.
+            crop = panel?.rect.flatMap { $0.isValid ? $0 : nil }
             if let panel { shownLabel = PaperWalkthroughValidation.figurePanelLabel(figure.figureLabel, panel: panel.label) }
             lines = [
                 "\(shownLabel) (PDF page \(figure.pageNumber))",
@@ -214,7 +217,7 @@ extension MCPDataStore {
                 }
             }
             if let analysed = crop, panelToLocate == nil,
-               let extended = Self.extendedAnalysedCrop(analysed, of: figure, pdfPath: path) {
+               let extended = Self.extendedAnalysedCrop(analysed, of: figure, in: figures, pdfPath: path) {
                 crop = extended
             }
             let reference = SourceImageReference(sourceID: sourceID, location: .page(figure.pageNumber), crop: crop)
@@ -232,32 +235,42 @@ extension MCPDataStore {
         return MediaToolResult(text: lines.joined(separator: "\n"), images: images, isError: false)
     }
 
-    /// `crop` — the vision pass's rectangle for the figure or one of its
-    /// panels — grown onto any ink its edges cut through, the way the
-    /// Reader's outline is (`PaperFigureRectRefiner.extendedPanelRects`).
+    /// `crop` — the vision pass's rectangle for one of the figure's panels —
+    /// grown onto any ink its edges cut through, inside the figure's crop, the
+    /// way the Reader's outline is (`PaperFigureRectRefiner.extendedPanelRects`).
     /// Figure 2h of the cardiac-sodium paper was cut a group of bars short.
+    /// Nil for a rectangle that is not one of the panels'.
     static func extendedAnalysedCrop(
         _ crop: PaperFigureRect,
         of figure: PaperFigureRecord,
+        in figures: [PaperFigureRecord],
         pdfPath: String
     ) -> PaperFigureRect? {
-        guard let analysis = figure.analysis, let figureRect = analysis.figureRect, figureRect.isValid,
+        guard let analysis = figure.analysis,
               let document = SourcePDFPages(stored: pdfPath).document(),
               let page = document.page(at: figure.pageIndex) else { return nil }
         return withExtendedLifetime(document) {
             guard let mask = PaperFigureRectRefiner.mask(for: page) else { return nil }
+            let labelsOnPage = Set(figures.filter { $0.pageIndex == figure.pageIndex }.map(\.figureLabel)).count
+            guard let figureCrop = PaperFigureRectRefiner.displayedFigureCrop(
+                forCaption: figure.caption,
+                measured: analysis.figureRect,
+                on: page,
+                mask: mask,
+                sharesPageWithOtherFigures: labelsOnPage > 1
+            ) else { return nil }
             var panels: [String: PaperFigureRect] = [:]
             for panel in analysis.panels {
                 if let rect = panel.rect, rect.isValid { panels[panel.label] = rect }
             }
-            let extended = PaperFigureRectRefiner.extendedPanelRects(panels, within: figureRect, with: mask)
-            if crop == figureRect { return extended.figure }
+            let extended = PaperFigureRectRefiner.extendedPanelRects(panels, within: figureCrop, with: mask)
             return panels.first { $0.value == crop }.flatMap { extended.panels[$0.key] }
         }
     }
 
-    /// A figure's crop when the vision pass never measured one — the block of
-    /// ink its printed caption belongs to, read off the page for free — and,
+    /// A figure's crop — the block of ink its printed caption belongs to, read
+    /// off the page for free, with the vision pass's rectangle only if the page
+    /// yields none — and,
     /// when `panel` names one, that panel's, placed from the panel letters in
     /// the figure's text layer. Either is nil when the page will not yield it.
     static func structuralCrop(
@@ -275,12 +288,13 @@ extension MCPDataStore {
         return withExtendedLifetime(document) {
             let labelsOnPage = Set(figures.filter { $0.pageIndex == figure.pageIndex }.map(\.figureLabel)).count
             let mask = PaperFigureRectRefiner.mask(for: page)
-            let figureCrop = figure.analysis?.figureRect.flatMap { $0.isValid ? $0 : nil }
-                ?? PaperFigureRectRefiner.figureCrop(
-                    forCaption: figure.caption,
-                    on: page,
-                    sharesPageWithOtherFigures: labelsOnPage > 1
-                )
+            let figureCrop = PaperFigureRectRefiner.displayedFigureCrop(
+                forCaption: figure.caption,
+                measured: figure.analysis?.figureRect,
+                on: page,
+                mask: mask,
+                sharesPageWithOtherFigures: labelsOnPage > 1
+            )
             guard let panel, let figureCrop else { return (figureCrop, nil) }
             return (figureCrop, PaperFigurePanelLocator.panelRect(labelled: panel, in: figureCrop, on: page, mask: mask))
         }

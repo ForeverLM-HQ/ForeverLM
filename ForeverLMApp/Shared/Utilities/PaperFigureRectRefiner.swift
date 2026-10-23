@@ -246,6 +246,39 @@ enum PaperFigureRectRefiner {
         return bounds.width > 0 && bounds.height > 0 ? bounds : nil
     }
 
+    /// The crop a figure is outlined, shown and read with, wherever that is:
+    /// what the page itself yields around the caption, and the vision pass's
+    /// rectangle only for a page that yields nothing.
+    ///
+    /// The vision model reads rectangles off the page by eye and gets whole
+    /// figures wrong: a full-width box over a one-column figure (Nature,
+    /// Fig. 1 of the mtDNA-in-blood paper, 2026-10-23), a strip over the
+    /// running head, a box that takes in the paragraph above. Over the 79
+    /// stored rectangles in the library, 29 overlapped the caption's crop by
+    /// less than 0.7 (IoU), and in the sheet of the worst 16 it was the
+    /// stored one that was wrong; over 333 caption crops, Docling's figure
+    /// boxes agree with them at a median IoU of 0.92. Every place that picks
+    /// a figure's crop calls this, so none of them can prefer the stored
+    /// rectangle.
+    static func displayedFigureCrop(
+        forCaption caption: String,
+        measured: PaperFigureRect?,
+        on page: PDFPage,
+        mask: PageInkMask? = nil,
+        sharesPageWithOtherFigures: Bool = false
+    ) -> PaperFigureRect? {
+        if let crop = figureCrop(
+            forCaption: caption,
+            on: page,
+            mask: mask,
+            sharesPageWithOtherFigures: sharesPageWithOtherFigures
+        ) {
+            return crop
+        }
+        guard let measured, measured.isValid else { return nil }
+        return measured
+    }
+
     /// The crop for a figure nobody has paid to explain.
     ///
     /// Everything this needs is printed on the page — the caption says where the
@@ -692,6 +725,7 @@ enum PaperFigureRectRefiner {
         var head: CGRect?
         var above: CGRect?
         var onlyFolios = true
+        let bodyText = rows.isEmpty ? [] : bodyTextLines(on: page)
         for row in rows {
             if let above, above.minY - row.bounds.maxY > row.bounds.height {
                 // A banner's next line is set at its line pitch; the body
@@ -700,6 +734,12 @@ enum PaperFigureRectRefiner {
                 // titles set across it.
                 guard head == nil, onlyFolios else { break }
             }
+            // The head stops where the body begins: the first lines of
+            // Nature's left column, joined with the rotated axis title of the
+            // plot beside them into one wide row, were read as a head and wiped
+            // the top third of that plot out of the crop (Fig. 1 of the
+            // mtDNA-in-blood paper, 2026-10-23). What is above them stays.
+            if bodyText.contains(where: { $0.intersects(row.bounds) }) { break }
             above = row.bounds
             guard row.bounds.width >= box.width * runningHeadMinimumWidthShare else {
                 if head != nil { break }
@@ -743,6 +783,32 @@ enum PaperFigureRectRefiner {
         if let rule = headRule(under: headBox, in: mask) { headBox = headBox.union(rule) }
         guard headBox.bottom > textBottom else { return RunningHead(bounds: found, sideBands: []) }
         return RunningHead(bounds: found.union(headBox.pdfRect(in: box, mask: mask)), sideBands: [])
+    }
+
+    /// The lines of the page's body paragraphs that run on under their first
+    /// line: three or more lines of one block of written text
+    /// (`PageText.paragraphs`), set one under another. A running head is set
+    /// apart from the body by a margin and is never one of them.
+    private static func bodyTextLines(on page: PDFPage) -> [CGRect] {
+        let box = page.bounds(for: .mediaBox)
+        guard let selection = page.selection(for: box) else { return [] }
+        let lines: [PageText.Line] = textLines(of: selection).compactMap { line in
+            let bounds = line.bounds(for: page)
+            guard bounds.width > 0, bounds.height > 0, isTextLineBox(bounds, on: box) else { return nil }
+            let characters = (line.string ?? "").filter { !$0.isWhitespace }.count
+            return PageText.Line(
+                bounds: bounds,
+                isWritten: isWrittenLine(bounds, characters: characters, on: box),
+                captionLabel: nil,
+                isLabelAlone: false,
+                endsSentence: false,
+                pageHeight: box.height,
+                opensCaption: false
+            )
+        }
+        return PageText.paragraphs(of: lines, pageWidth: box.width)
+            .filter { !$0.isCaption && $0.lines.count >= 3 }
+            .flatMap(\.lines)
     }
 
     /// The page's text across its top (`runningHeadDepth`), top first, in PDF
@@ -1922,7 +1988,11 @@ enum PaperFigureRectRefiner {
                             page.mask.erase(piece)
                         }
                     }
-                } else if ink.height * 250 <= mask.height || page.isInRunningText(ink, apartFrom: caption, within: clearance) {
+                } else if ink.height * 250 <= mask.height || ink.width * 250 <= mask.width
+                            || page.isInRunningText(ink, apartFrom: caption, within: clearance) {
+                    // A hairline either way: a rule under a legend, or the one
+                    // Nature runs down the margin beside a column of text,
+                    // which stood a figure's crop out to the page's edge.
                     page.mask.erase(run)
                     dropped = true
                 } else {

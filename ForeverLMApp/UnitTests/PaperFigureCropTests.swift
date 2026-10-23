@@ -126,6 +126,53 @@ struct PaperFigureCropTests {
         }
     }
 
+    @Test("The page's crop wins over a stored rectangle that is wrong")
+    func displayedCropPrefersThePageToTheStoredRectangle() throws {
+        try withSyntheticPage { page, mask in
+            // The stored kind of mistake: a full-width strip across the top of
+            // the page (Nature, Fig. 1 of the mtDNA-in-blood paper, 2026-10-23).
+            let wrong = PaperFigureRect(x: 0.05, y: 0.12, width: 0.9, height: 0.1)
+            let shown = try #require(PaperFigureRectRefiner.displayedFigureCrop(
+                forCaption: SyntheticPaperPage.captionLine,
+                measured: wrong,
+                on: page,
+                mask: mask
+            ))
+            let fromPage = try #require(PaperFigureRectRefiner.figureCrop(
+                forCaption: SyntheticPaperPage.captionLine,
+                on: page,
+                mask: mask
+            ))
+            #expect(shown == fromPage)
+            #expect(shown != wrong)
+            #expect(abs(shown.x - SyntheticPaperPage.figureLeft) < 0.02)
+        }
+    }
+
+    @Test("A stored rectangle stands in only where the page yields no crop")
+    func displayedCropFallsBackToTheStoredRectangle() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("PaperFigureCropTests_\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("blank.pdf")
+        var box = SyntheticPaperPage.mediaBox
+        let consumer = try #require(CGDataConsumer(url: url as CFURL))
+        let context = try #require(CGContext(consumer: consumer, mediaBox: &box, nil))
+        context.beginPDFPage(nil)
+        context.endPDFPage()
+        context.closePDF()
+        let page = try #require(PDFDocument(url: url)?.page(at: 0))
+
+        let caption = "Figure 1 | A caption this blank page does not print."
+        #expect(PaperFigureRectRefiner.figureCrop(forCaption: caption, on: page) == nil)
+        let measured = PaperFigureRect(x: 0.2, y: 0.2, width: 0.5, height: 0.3)
+        #expect(PaperFigureRectRefiner.displayedFigureCrop(forCaption: caption, measured: measured, on: page) == measured)
+        let invalid = PaperFigureRect(x: 0.6, y: 0.6, width: 0.9, height: 0.9)
+        #expect(PaperFigureRectRefiner.displayedFigureCrop(forCaption: caption, measured: invalid, on: page) == nil)
+        #expect(PaperFigureRectRefiner.displayedFigureCrop(forCaption: caption, measured: nil, on: page) == nil)
+    }
+
     @Test("Slack around the figure is trimmed away")
     func slackIsTrimmed() throws {
         try withSyntheticPage { page, mask in
@@ -1769,6 +1816,108 @@ struct PaperFigureLegendWordsTests {
             #expect(captions.map(\.isRunningText) == [false, false, true])
             let indexed = PDFTextExtractor.indexedFigures(from: document, pages: 0..<document.pageCount)
             #expect(indexed.first { $0.figureLabel == "Figure 4" }?.caption.hasPrefix("Fig. 4. The fluorescence") == true)
+        }
+    }
+}
+
+/// A Nature-style page: a column of body prose on the left, a plot with its
+/// legend under it in the right column. Nature rules the page's top and runs a
+/// hairline down the left margin, and the first lines of the left column sit
+/// level with the plot's axis title, which PDFKit joins into one wide row.
+private enum SyntheticColumnPage {
+    static let mediaBox = CGRect(x: 0, y: 0, width: 612, height: 792)
+    static let plot = CGRect(x: 340, y: 520, width: 220, height: 195)
+    static let caption = "Fig. 1 | A plot in the right column, drawn for the crop tests."
+
+    /// Normalized top-left, the frame `PaperFigureRect` uses.
+    static var plotTop: Double { (mediaBox.maxY - plot.maxY) / mediaBox.height }
+    static var plotLeft: Double { plot.minX / mediaBox.width }
+    static var plotRight: Double { plot.maxX / mediaBox.width }
+
+    static func page(marginHairline: Bool, topRule: Bool, in directory: URL) throws -> PDFPage {
+        let url = directory.appendingPathComponent("column-\(UUID().uuidString).pdf")
+        var box = mediaBox
+        let consumer = try #require(CGDataConsumer(url: url as CFURL))
+        let context = try #require(CGContext(consumer: consumer, mediaBox: &box, nil))
+        context.beginPDFPage(nil)
+        context.setStrokeColor(gray: 0, alpha: 1)
+        context.setLineWidth(0.5)
+        if topRule { stroke(from: CGPoint(x: 0, y: 735), to: CGPoint(x: 580, y: 735), in: context) }
+        if marginHairline { stroke(from: CGPoint(x: 40, y: 60), to: CGPoint(x: 40, y: 725), in: context) }
+        for index in 0..<12 {
+            draw("Body prose of the left column runs here and goes on and on \(index)",
+                 at: CGPoint(x: 60, y: 715 - CGFloat(index) * 12), size: 9, in: context)
+        }
+        context.setFillColor(gray: 0.1, alpha: 1)
+        context.fill(plot)
+        draw("Mean count", at: CGPoint(x: 322, y: 715), size: 7, in: context)
+        draw(caption, at: CGPoint(x: 320, y: 500), size: 8, in: context)
+        for index in 0..<10 {
+            draw("More running prose of the right column under the legend \(index)",
+                 at: CGPoint(x: 320, y: 470 - CGFloat(index) * 12), size: 9, in: context)
+        }
+        context.endPDFPage()
+        context.closePDF()
+        return try #require(PDFDocument(url: url)?.page(at: 0))
+    }
+
+    private static func stroke(from start: CGPoint, to end: CGPoint, in context: CGContext) {
+        context.move(to: start)
+        context.addLine(to: end)
+        context.strokePath()
+    }
+
+    private static func draw(_ text: String, at point: CGPoint, size: CGFloat, in context: CGContext) {
+        context.textPosition = point
+        CTLineDraw(
+            CTLineCreateWithAttributedString(NSAttributedString(
+                string: text,
+                attributes: [.font: CTFontCreateWithName("Helvetica" as CFString, size, nil)]
+            )),
+            context
+        )
+    }
+}
+
+@Suite("Paper Figure Beside A Column Of Prose")
+struct PaperFigureBesideProseTests {
+
+    private func withDirectory(_ body: (URL) throws -> Void) throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("PaperFigureColumnTests_\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try body(root)
+    }
+
+    @Test("A hairline down the margin does not stretch the crop over the column of prose")
+    func marginHairlineIsNoFigure() throws {
+        try withDirectory { directory in
+            let page = try SyntheticColumnPage.page(marginHairline: true, topRule: true, in: directory)
+            let crop = try #require(PaperFigureRectRefiner.figureCrop(forCaption: SyntheticColumnPage.caption, on: page))
+            // Nature, Fig. 1 of the mtDNA-in-blood paper, 2026-10-23: the crop ran
+            // from the margin rule to the plot's right edge.
+            #expect(crop.x > SyntheticColumnPage.plotLeft - 0.04)
+            #expect(crop.x + crop.width < SyntheticColumnPage.plotRight + 0.04)
+        }
+    }
+
+    @Test("The first lines of a column of prose are no running head over the plot beside them")
+    func firstLinesOfAColumnAreNoRunningHead() throws {
+        try withDirectory { directory in
+            let page = try SyntheticColumnPage.page(marginHairline: false, topRule: true, in: directory)
+            let mask = try #require(PaperFigureRectRefiner.mask(for: page))
+            // Only the rule is the head: it ends well above the first line of
+            // prose, whose row the axis title widens to a head's width.
+            let head = PaperFigureRectRefiner.runningHeadBounds(on: page, mask: mask)
+            if let head {
+                let bottom = (page.bounds(for: .mediaBox).maxY - head.minY) / page.bounds(for: .mediaBox).height
+                #expect(bottom < SyntheticColumnPage.plotTop)
+            }
+            let crop = try #require(PaperFigureRectRefiner.figureCrop(forCaption: SyntheticColumnPage.caption, on: page))
+            // The plot's own top is in the crop, not cut off under a "head".
+            #expect(crop.y <= SyntheticColumnPage.plotTop + 0.005)
+            #expect(crop.x > SyntheticColumnPage.plotLeft - 0.04)
         }
     }
 }

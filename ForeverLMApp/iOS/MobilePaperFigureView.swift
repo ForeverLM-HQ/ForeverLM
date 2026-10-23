@@ -46,8 +46,9 @@ private actor MobilePaperFigureRenderer {
                 throw MobileSourceFileError.noPDFAvailable
             }
             return withExtendedLifetime(document) {
-                let figureRect = measuredFigure ?? PaperFigureRectRefiner.figureCrop(
+                let figureRect = PaperFigureRectRefiner.displayedFigureCrop(
                     forCaption: caption,
+                    measured: measuredFigure,
                     on: page,
                     sharesPageWithOtherFigures: sharesPageWithOtherFigures
                 )

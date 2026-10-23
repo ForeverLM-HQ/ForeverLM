@@ -207,23 +207,23 @@ actor WalkthroughAnchorResolver {
         return mask
     }
 
-    /// The analysed rectangle when the index has one, else the crop the page
-    /// yields around the caption; nil when the page will not give one.
+    /// The crop the page yields around the caption; the analysed rectangle
+    /// only when the page will not give one, and nil when neither exists. The
+    /// vision pass's rectangle is read by eye and was often wrong for the whole
+    /// figure (`PaperFigureRectRefiner.displayedFigureCrop`).
     private func figureCrop(for record: PaperFigureRecord, sharesPage: Bool) -> PaperFigureRect? {
         if let cached = figureCrops[record.id] { return cached }
         var crop: PaperFigureRect?
-        if let stored = record.analysis?.figureRect, stored.isValid {
-            // The vision pass's rectangle, grown onto any ink its edges cut.
-            crop = mask(for: record.pageIndex).map {
-                PaperFigureRectRefiner.extendedPanelRects([:], within: stored, with: $0).figure
-            } ?? stored
-        } else if let page = page(at: record.pageIndex), let mask = mask(for: record.pageIndex) {
-            crop = PaperFigureRectRefiner.figureCrop(
+        if let page = page(at: record.pageIndex) {
+            crop = PaperFigureRectRefiner.displayedFigureCrop(
                 forCaption: record.caption,
+                measured: record.analysis?.figureRect,
                 on: page,
-                mask: mask,
+                mask: mask(for: record.pageIndex),
                 sharesPageWithOtherFigures: sharesPage
             )
+        } else if let stored = record.analysis?.figureRect, stored.isValid {
+            crop = stored
         }
         figureCrops[record.id] = .some(crop)
         return crop

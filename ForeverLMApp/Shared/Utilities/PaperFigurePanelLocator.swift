@@ -396,7 +396,8 @@ enum PaperFigurePanelLocator {
 
     /// Where one figure is, as much as the text layer needs to find it: the
     /// page, the printed caption the crop is anchored on, and the rectangle
-    /// the vision analysis measured when there is one.
+    /// the vision analysis measured when there is one (used only when the
+    /// page's own crop around the caption is not found).
     struct FigureLocation: Sendable {
         var id: String
         var label: String
@@ -421,13 +422,12 @@ enum PaperFigurePanelLocator {
         withExtendedLifetime(document) {
             for figure in figures {
                 guard let page = document.page(at: figure.pageIndex) else { continue }
-                let crop = figure.measuredRect.flatMap { $0.isValid ? $0 : nil }
-                    ?? PaperFigureRectRefiner.figureCrop(
-                        forCaption: figure.caption,
-                        on: page,
-                        sharesPageWithOtherFigures: (labelsPerPage[figure.pageIndex] ?? 1) > 1
-                    )
-                guard let crop else { continue }
+                guard let crop = PaperFigureRectRefiner.displayedFigureCrop(
+                    forCaption: figure.caption,
+                    measured: figure.measuredRect,
+                    on: page,
+                    sharesPageWithOtherFigures: (labelsPerPage[figure.pageIndex] ?? 1) > 1
+                ) else { continue }
                 let lines = textLines(in: crop, on: page)
                 let letters = partition(panelAnchors(from: lines), within: crop).keys.sorted()
                 result[figure.id] = TextLayerReading(panelLabels: letters, printedText: printedText(from: lines))
