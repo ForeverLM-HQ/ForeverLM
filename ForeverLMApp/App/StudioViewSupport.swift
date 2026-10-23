@@ -651,6 +651,13 @@ func trackTitlebarBandTabPress(
     return result
 }
 
+private let tabPressLogger = Logger(subsystem: "com.foreverlm", category: "TabPress")
+
+private func tabPressOrigin(_ window: NSWindow?) -> String {
+    guard let frame = window?.frame else { return "no window" }
+    return "window at \(Int(frame.origin.x)),\(Int(frame.origin.y))"
+}
+
 /// Marks a registered band view whose control-clicks are not its own: they pass
 /// on to the SwiftUI view underneath, whose `.contextMenu` they open.
 protocol TitlebarBandControlClickPassthrough: NSView {}
@@ -1206,7 +1213,14 @@ final class StudioCenterTabDragHandleView: NSView, NSDraggingSource {
             pendingMouseDown = event
             return
         }
-        switch trackTitlebarBandTabPress(event, in: window) {
+        tabPressLogger.notice("center tab \(self.title, privacy: .public) mouseDown; \(tabPressOrigin(window), privacy: .public)")
+        let result = trackTitlebarBandTabPress(event, in: window)
+        switch result {
+        case .click: tabPressLogger.notice("center tab press: click; \(tabPressOrigin(window), privacy: .public)")
+        case .drag: tabPressLogger.notice("center tab press: drag; \(tabPressOrigin(window), privacy: .public)")
+        case .cancelled: tabPressLogger.notice("center tab press: cancelled; \(tabPressOrigin(window), privacy: .public)")
+        }
+        switch result {
         case .click: onActivate()
         case .drag(let dragged): beginTabDrag(with: dragged)
         case .cancelled: break
@@ -1226,6 +1240,7 @@ final class StudioCenterTabDragHandleView: NSView, NSDraggingSource {
     private func beginTabDrag(with event: NSEvent) {
         onDragBegan()
         guard let tab = StudioCenterTabDragPayload.tab(from: payload) else {
+            tabPressLogger.notice("center tab drag: payload did not decode")
             onDragEnded()
             return
         }
@@ -1236,6 +1251,7 @@ final class StudioCenterTabDragHandleView: NSView, NSDraggingSource {
         // original mouse-down here leaves AppKit free to continue the titlebar's
         // window-move tracking instead of transitioning into a drag session.
         beginDraggingSession(with: [item], event: event, source: self)
+        tabPressLogger.notice("center tab drag session begun; \(tabPressOrigin(self.window), privacy: .public)")
     }
 
     override func mouseUp(with event: NSEvent) {
@@ -1283,6 +1299,7 @@ final class StudioCenterTabDragHandleView: NSView, NSDraggingSource {
     }
 
     func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
+        tabPressLogger.notice("center tab drag ended, operation \(operation.rawValue); \(tabPressOrigin(self.window), privacy: .public)")
         // Fires whether or not a drop target accepted, so a drag released over
         // nothing can't strand the strip in "dragging" state.
         onDragEnded()
