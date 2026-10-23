@@ -83,7 +83,7 @@ enum ChatPluginRequest {
         switch plugin {
         case .slack:
             return """
-            The learner addressed this message to @slack: it is a question about Slack. Answer it from Slack itself, read live in this turn — search_slack_messages for something specific, list_slack_channels and then read_slack_channel for what a channel has been discussing, read_slack_thread for a whole thread — not from the library and not from memory. If Slack is not connected or a channel is not enabled, say so and point at Plugins → Slack.
+            The learner addressed this message to @slack: it is a question about Slack. Answer it from Slack itself, read live in this turn — search_slack_messages for something specific, list_slack_channels and then read_slack_channel for what a channel has been discussing or for its latest message (no since_days; never a from: search), read_slack_thread for a whole thread — not from the library and not from memory. If Slack is not connected or a channel is not enabled, say so and point at Plugins → Slack.
             """
         case .linear:
             return """
