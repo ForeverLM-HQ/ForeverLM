@@ -6,6 +6,17 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.173.0 (build 253) — 2026-10-24
+
+**Highlights:**
+- **Pane tabs sit under the top bar.**
+- **New chat is a button in a notebook chat's header.**
+- **Dragging a source by its title works.**
+
+- **Pane tabs sit under the top bar.** The tabs of a pane, and the tabs of a notebook's document beside its chat, now sit along the top edge of the pane, below the window's top bar. Dragging a tab to the side moves the tab and never the window.
+- **New chat is a button in a notebook chat's header.** The chat's header has a New chat button beside the ⋯, so a second chat in a notebook is one click.
+- **Dragging a source by its title works.** Pressing on the title of a notebook source row drags the row toward the chat instead of selecting the words.
+
 ## 0.172.0 (build 252) — 2026-10-24
 
 **Highlights:**
