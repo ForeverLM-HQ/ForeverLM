@@ -60,6 +60,18 @@ struct BackgroundWorkItem: Identifiable, Equatable {
     /// "$0.42 of $3.00" for an assistant call that has a ceiling.
     var spend: String?
     let stop: Stop
+    /// The sources a model step is working on right now, for the row's
+    /// "Show sources" list (product owner, 2026-10-24: "it would be nice if
+    /// you could click to show the sources getting cleaned up").
+    var sources: [Source] = []
+
+    struct Source: Identifiable, Equatable {
+        /// The library source, when the call named one; the list opens it.
+        let sourceID: String?
+        /// What the call called it, for a source the library no longer lists.
+        let fallbackTitle: String
+        var id: String { sourceID ?? "title-\(fallbackTitle)" }
+    }
 }
 
 /// A narration that ended and has not been dismissed: what the sidebar's
@@ -367,6 +379,13 @@ final class BackgroundWorkMonitor: ObservableObject {
             }
             if !models.isEmpty { detail.append(models.sorted().joined(separator: ", ")) }
             if entries.count > 1 { detail.append("\(entries.count) requests") }
+            var sources: [BackgroundWorkItem.Source] = []
+            for entry in entries {
+                let source = BackgroundWorkItem.Source(sourceID: entry.subjectID, fallbackTitle: entry.sourceTitle ?? "")
+                if (source.sourceID != nil || !source.fallbackTitle.isEmpty), !sources.contains(where: { $0.id == source.id }) {
+                    sources.append(source)
+                }
+            }
             items.append(BackgroundWorkItem(
                 id: "model-\(step)",
                 kind: .modelCall,
@@ -376,7 +395,8 @@ final class BackgroundWorkMonitor: ObservableObject {
                 fraction: nil,
                 startedAt: earliest[step],
                 spend: nil,
-                stop: .modelStep(step: step)
+                stop: .modelStep(step: step),
+                sources: sources
             ))
         }
         return items
@@ -408,6 +428,11 @@ struct BackgroundWorkButton: View {
             AIUsagePanel(
                 monitor: monitor,
                 title: title(for:),
+                sourceTitle: sourceTitle(for:),
+                onOpenSource: { sourceID in
+                    isShown = false
+                    Task { await vm.revealSourceInReader(sourceID) }
+                },
                 onOpenSettings: { pane in
                     isShown = false
                     onOpenSettings(pane)
@@ -470,6 +495,11 @@ struct BackgroundWorkButton: View {
         }
     }
 
+    private func sourceTitle(for source: BackgroundWorkItem.Source) -> String {
+        if let id = source.sourceID, let title = vm.articlesById[id]?.title, !title.isEmpty { return title }
+        return source.fallbackTitle.isEmpty ? "A source" : source.fallbackTitle
+    }
+
     private func title(for item: BackgroundWorkItem) -> String {
         if let title = item.title, !title.isEmpty { return title }
         if let sourceID = item.sourceID,
@@ -487,6 +517,13 @@ struct BackgroundWorkList: View {
     let title: (BackgroundWorkItem) -> String
     /// Opens a Settings pane, for a row's Change Model link.
     let onOpenSettings: (SettingsPane) -> Void
+    /// A listed source's name, from the library when it still lists it.
+    let sourceTitle: (BackgroundWorkItem.Source) -> String
+    /// Opens a listed source in the Reader.
+    let onOpenSource: (String) -> Void
+
+    /// Rows whose sources are listed.
+    @State private var expanded: Set<String> = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -588,6 +625,35 @@ struct BackgroundWorkList: View {
         return AIModelSetting(task: step)
     }
 
+    private func sourceList(_ sources: [BackgroundWorkItem.Source]) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(sources) { source in
+                    let name = sourceTitle(source)
+                    if let id = source.sourceID {
+                        Button { onOpenSource(id) } label: {
+                            Text(name)
+                                .font(.system(size: 11.5))
+                                .lineLimit(2)
+                                .multilineTextAlignment(.leading)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.link)
+                        .help("Open \(name)")
+                    } else {
+                        Text(name)
+                            .font(.system(size: 11.5))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+                }
+            }
+        }
+        .frame(maxHeight: 140)
+        .fixedSize(horizontal: false, vertical: sources.count <= 6)
+    }
+
     private func row(_ item: BackgroundWorkItem) -> some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: item.kind.systemImage)
@@ -615,11 +681,25 @@ struct BackgroundWorkList: View {
                 }
                 .font(.system(size: 11))
                 .foregroundStyle(.tertiary)
-                if let setting = modelSetting(of: item) {
-                    Button("Change Model…") { setting.open(onOpenSettings) }
+                HStack(spacing: 12) {
+                    if !item.sources.isEmpty {
+                        Button(expanded.contains(item.id) ? "Hide Sources" : "Show Sources") {
+                            if !expanded.insert(item.id).inserted { expanded.remove(item.id) }
+                        }
                         .buttonStyle(.link)
                         .font(.system(size: 11))
-                        .help(setting.help)
+                        .help("The sources \(title(item)) is working on")
+                        .accessibilityIdentifier("rail.backgroundWork.showSources")
+                    }
+                    if let setting = modelSetting(of: item) {
+                        Button("Change Model…") { setting.open(onOpenSettings) }
+                            .buttonStyle(.link)
+                            .font(.system(size: 11))
+                            .help(setting.help)
+                    }
+                }
+                if expanded.contains(item.id) {
+                    sourceList(item.sources)
                 }
             }
             Spacer(minLength: 0)

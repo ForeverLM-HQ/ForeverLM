@@ -1087,6 +1087,8 @@ enum AIUsagePlace {
 struct AIUsagePanel: View {
     @ObservedObject var monitor: BackgroundWorkMonitor
     let title: (BackgroundWorkItem) -> String
+    let sourceTitle: (BackgroundWorkItem.Source) -> String
+    let onOpenSource: (String) -> Void
     let onOpenSettings: (SettingsPane) -> Void
     let onClose: () -> Void
 
@@ -1102,7 +1104,13 @@ struct AIUsagePanel: View {
                 if keyComesFirst { accountSections }
                 SettingsSection(title: "Running now") {
                     SettingsCard {
-                        BackgroundWorkList(monitor: monitor, title: title, onOpenSettings: onOpenSettings)
+                        BackgroundWorkList(
+                            monitor: monitor,
+                            title: title,
+                            onOpenSettings: onOpenSettings,
+                            sourceTitle: sourceTitle,
+                            onOpenSource: onOpenSource
+                        )
                     }
                 }
                 AIActivitySettingsSection(onOpenSettings: onOpenSettings, onClose: onClose)
