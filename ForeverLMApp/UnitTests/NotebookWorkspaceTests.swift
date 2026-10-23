@@ -122,7 +122,7 @@ struct NotebookWorkspaceTests {
         // slot, and remembers the Doc for its Back to.
         let docOpen = NotebookWorkspace(notebookID: "bio", document: .docs)
         #expect(docOpen.revealing(.reader, beside: .notepad, coursePageID: nil)
-            == NotebookWorkspace(notebookID: "bio", document: .reader, returnDocument: .docs))
+            == NotebookWorkspace(notebookID: "bio", document: .reader, slotTabs: [.docs, .reader], returnDocument: .docs))
         // A companion with no place here is passed over.
         #expect(bare.revealing(.chat, beside: .goals, coursePageID: nil)
             == NotebookWorkspace(notebookID: "bio"))
@@ -145,14 +145,19 @@ struct NotebookWorkspaceTests {
         #expect(readerBesideDoc.following(.document(.reader)) == readerBesideDoc)
         // From the Reader in the chat's place, a Doc takes the slot.
         let readerBesideSite = NotebookWorkspace(notebookID: "bio", document: .sites, leadingDocument: .reader, showsChat: false)
-        #expect(readerBesideSite.revealing(.notepad, beside: .reader, coursePageID: nil) == readerBesideDoc)
+        // The Site stays open behind the Doc as a tab.
+        #expect(readerBesideSite.revealing(.notepad, beside: .reader, coursePageID: nil)
+            == NotebookWorkspace(
+                notebookID: "bio", document: .docs, slotTabs: [.sites, .docs],
+                leadingDocument: .reader, showsChat: false
+            ))
         #expect(readerBesideDoc.visibleTabs == [.reader, .notepad])
         #expect(readerBesideDoc.centerPaneCount == 2)
         #expect(readerBesideDoc.visibleDocuments == [.reader, .docs])
 
         // Chat coming back takes its place; the Reader moves into the slot,
         // with the Doc behind its Back to.
-        let chatBack = NotebookWorkspace(notebookID: "bio", document: .reader, returnDocument: .docs)
+        let chatBack = NotebookWorkspace(notebookID: "bio", document: .reader, slotTabs: [.docs, .reader], returnDocument: .docs)
         #expect(readerBesideDoc.following(.chat) == chatBack)
         #expect(readerBesideDoc.revealing(.chat, beside: .reader, coursePageID: nil) == chatBack)
         // Back to restores the Doc and forgets it.
@@ -161,11 +166,71 @@ struct NotebookWorkspaceTests {
             == NotebookWorkspace(notebookID: "bio", document: .reader), "nothing to go back to")
 
         // The Reader's × in the chat's place leaves the Doc; the slot's ×
-        // forgets what it would have gone back to.
+        // shows the Doc, its neighbour, and forgets what it would have gone
+        // back to.
         #expect(readerBesideDoc.closing(.reader) == docAlone)
-        #expect(chatBack.closing(.reader) == NotebookWorkspace(notebookID: "bio"))
-        // Anything but the Reader taking the slot forgets the Back to.
-        #expect(chatBack.following(.document(.browser)) == NotebookWorkspace(notebookID: "bio", document: .browser))
+        #expect(chatBack.closing(.reader) == NotebookWorkspace(notebookID: "bio", document: .docs))
+        // Anything but the Reader taking the slot forgets the Back to; the
+        // Doc and the Reader stay open behind it as tabs.
+        #expect(chatBack.following(.document(.browser))
+            == NotebookWorkspace(notebookID: "bio", document: .browser, slotTabs: [.docs, .reader, .browser]))
+    }
+
+    @Test("Documents opened in the slot stay open as tabs, and a strip shows from two")
+    func slotKeepsDocumentsAsTabs() throws {
+        let bare = NotebookWorkspace(notebookID: "bio")
+        let reader = try #require(bare.following(.document(.reader)))
+        #expect(reader.slotTabStrip == [.reader])
+        #expect(!reader.slotShowsTabStrip, "one document is no strip")
+
+        let withDocs = try #require(reader.following(.document(.docs)))
+        #expect(withDocs.document == .docs)
+        #expect(withDocs.slotTabStrip == [.reader, .docs])
+        #expect(withDocs.slotShowsTabStrip)
+        // A click on an open tab brings it forward where it is.
+        let backToReader = try #require(withDocs.following(.document(.reader)))
+        #expect(backToReader.document == .reader)
+        #expect(backToReader.slotTabStrip == [.reader, .docs], "tab order does not move")
+        // Opening a third adds it at the end.
+        let three = try #require(backToReader.following(.document(.browser)))
+        #expect(three.slotTabStrip == [.reader, .docs, .browser])
+    }
+
+    @Test("Closing a slot tab shows its right neighbour, else its left, and the last one empties the slot")
+    func closingSlotTabs() {
+        var three = NotebookWorkspace(notebookID: "bio")
+        for document in [NotebookDocument.reader, .docs, .browser] {
+            three = three.following(.document(document))!
+        }
+        // The active tab last in the strip: its left neighbour shows.
+        let closedBrowser = three.closing(.browser)
+        #expect(closedBrowser.document == .docs)
+        #expect(closedBrowser.slotTabStrip == [.reader, .docs])
+        // A middle tab closing shows the one to its right.
+        let docsActive = three.following(.document(.docs))!
+        let closedDocs = docsActive.closing(.notepad)
+        #expect(closedDocs.document == .browser)
+        #expect(closedDocs.slotTabStrip == [.reader, .browser])
+        // An inactive tab closes without moving the active one.
+        let closedReader = docsActive.closing(.reader)
+        #expect(closedReader.document == .docs)
+        #expect(closedReader.slotTabStrip == [.docs, .browser])
+        // Down to one tab the strip goes, and the slot is the plain
+        // workspace again; closing it empties the slot.
+        let lone = closedReader.closing(.browser)
+        #expect(lone == NotebookWorkspace(notebookID: "bio", document: .docs))
+        #expect(lone.closing(.notepad) == NotebookWorkspace(notebookID: "bio"))
+        // The slot's own × closes every tab.
+        #expect(three.closingSlot() == NotebookWorkspace(notebookID: "bio"))
+    }
+
+    @Test("Slot tabs are a moment: a relaunch reopens the notebook with an empty slot")
+    func slotTabsAreNotPersisted() {
+        var workspace = NotebookWorkspace(notebookID: "bio")
+        for document in [NotebookDocument.reader, .docs] {
+            workspace = workspace.following(.document(document))!
+        }
+        #expect(workspace.persisted == NotebookWorkspace(notebookID: "bio"))
     }
 
     @Test("What the center shows, as tabs and panes")

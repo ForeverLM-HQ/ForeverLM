@@ -3791,6 +3791,82 @@ func studioDropItemProviders(from pasteboard: NSPasteboard, types: [UTType]) -> 
     }
 }
 
+/// The tab strip over a notebook's document slot: the documents open in it,
+/// drawn as a pane's strip is outside a notebook (docs/ui-design.md rule 8),
+/// each tab with its own ×, and the pane's × at the end, which closes the
+/// whole slot. Lives in this file because it borrows the group strip's tab
+/// button and band row.
+struct NotebookSlotTabStrip: View {
+    let tabs: [StudioCenterTab]
+    let activeTab: StudioCenterTab
+    /// How far the slot's laid-out content runs past its visible width, which
+    /// the × rides in by (the group strip's `trailingOverflow`).
+    let trailingOverflow: CGFloat
+    let onSelect: (StudioCenterTab) -> Void
+    let onCloseTab: (StudioCenterTab) -> Void
+    let onCloseSlot: () -> Void
+    var memoryReviewFocused = false
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(tabs, id: \.self) { tab in
+                StudioCenterTabButton(
+                    title: tab.title,
+                    systemImage: tab.systemImage,
+                    isActive: tab == activeTab,
+                    action: { onSelect(tab) },
+                    payload: StudioCenterTabDragPayload.string(for: tab),
+                    onDragBegan: {},
+                    onDragEnded: {},
+                    splitLeftEnabled: false,
+                    splitRightEnabled: false,
+                    onSplitLeft: {},
+                    onSplitRight: {},
+                    onClose: { withAnimation(.easeInOut(duration: 0.16)) { onCloseTab(tab) } }
+                )
+                .accessibilityIdentifier("notebook.document.tab.\(tab.rawValue)")
+            }
+            Color.clear
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(Rectangle())
+            if StudioTopBar.paneDrawsCloseControl(memoryReviewFocused: memoryReviewFocused) {
+                TitlebarBandButton(
+                    help: "Close pane",
+                    accessibilityLabel: "Close pane",
+                    accessibilityIdentifier: "notebook.document.close",
+                    action: { withAnimation(.easeInOut(duration: 0.22)) { onCloseSlot() } }
+                ) {
+                    Image(systemName: "xmark")
+                        .zoomedSystemFont(size: 11, weight: .medium)
+                        .foregroundStyle(.secondary)
+                        .frame(
+                            width: StudioPanelChrome.centerTabCloseButtonSize,
+                            height: StudioPanelChrome.centerTabCloseButtonSize
+                        )
+                }
+                .offset(x: -trailingOverflow)
+            }
+        }
+        .padding(.horizontal, StudioTopBar.centerTabStripHorizontalPadding)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // The strip sits in the titlebar band; without this, every click on it
+        // would start a window drag instead of reaching the tabs.
+        .background(WindowDragBlocker())
+    }
+}
+
+/// `strip` hung in the titlebar band over a pane, on the band's chrome.
+struct NotebookSlotTabBand: View {
+    let band: CGFloat
+    let strip: NotebookSlotTabStrip
+
+    var body: some View {
+        StudioBandRow(band: band) {
+            strip.frame(height: band)
+        }
+    }
+}
+
 /// One tab in a center group's strip.
 private struct StudioCenterTabButton: View {
     let title: String

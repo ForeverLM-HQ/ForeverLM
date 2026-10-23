@@ -967,14 +967,34 @@ struct NotebookWorkspaceView: View {
         // A picture popped out of the chat is not a place to swap away from.
         let swaps = identifier == "notebook.document.leading" || document == .picture
             ? [] : StudioPaneSwap.notebookDocumentDestinations
+        // Two documents open in the slot draw a tab strip, as a pane of the
+        // tab layout does (docs/ui-design.md rule 8); one draws none.
+        let showsStrip = identifier == "notebook.document" && document == workspace.document
+            && workspace.slotShowsTabStrip
+        let activeTab = document.centerTab ?? .reader
+        let strip = NotebookSlotTabStrip(
+            tabs: workspace.slotTabStrip.compactMap(\.centerTab),
+            activeTab: activeTab,
+            trailingOverflow: max(width, StudioPaneHostMetrics.minimumContentWidth(for: activeTab)) - width,
+            onSelect: { vm.activateCenterTab($0, in: windowState) },
+            onCloseTab: { vm.closeCenterTab($0, in: windowState) },
+            onCloseSlot: { windowState.notebook = windowState.notebook?.closingSlot() },
+            memoryReviewFocused: windowState.memoryReviewFocusSessionID != nil
+        )
         return StudioPaneHost(
-            activeTab: document.centerTab ?? .reader,
+            activeTab: activeTab,
             width: width,
             enclosingClip: clip(start: start, width: width, totalWidth: totalWidth),
             leadingReservation: leadingReservation(start: start),
+            bandPassesThrough: !showsStrip,
             swapDestinationCount: swaps.count
         ) {
-            self.document(document)
+            VStack(spacing: 0) {
+                if titlebarBandHeight == nil && showsStrip {
+                    strip.frame(height: StudioPanelChrome.headerHeight)
+                }
+                self.document(document)
+            }
         } corner: { corner in
             StudioPaneSwapControl(
                 corner: corner,
@@ -990,6 +1010,10 @@ struct NotebookWorkspaceView: View {
                     )
                 }
             )
+        } band: {
+            if let band = titlebarBandHeight, showsStrip {
+                NotebookSlotTabBand(band: band, strip: strip)
+            }
         }
         .overlay { replaceDropOverlay(identifier == "notebook.document.leading" ? .leadingDocument : .document) }
         .accessibilityElement(children: .contain)

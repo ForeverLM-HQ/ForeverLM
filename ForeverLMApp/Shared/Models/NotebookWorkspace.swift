@@ -21,6 +21,14 @@ struct NotebookWorkspace: Codable, Equatable {
     /// moment, not an arrangement: `persisted` leaves it out, as
     /// `StudioWindowContent` is left out of the scene snapshot.
     var document: NotebookDocument?
+    /// The documents open as tabs in the slot, in tab order: what the slot
+    /// held stays one of its tabs when another document takes it, as a pane's
+    /// tabs do outside a notebook (docs/ui-design.md rule 8). `document` is the
+    /// one showing. Kept only while two or more are open (`kept`), so a slot
+    /// with one document is the same workspace however it got there. Read
+    /// through `slotTabStrip`, which also counts a `document` that was set
+    /// without going through a tab. A moment, like `document`.
+    var slotTabs: [NotebookDocument] = []
     /// What stands in the chat's place while Chat is hidden: the Reader a
     /// link in the document opened beside it (docs/notebooks-design.md,
     /// "Following a link never closes what you read it in"). Only ever set
@@ -57,6 +65,7 @@ struct NotebookWorkspace: Codable, Equatable {
     init(
         notebookID: String,
         document: NotebookDocument? = nil,
+        slotTabs: [NotebookDocument] = [],
         leadingDocument: NotebookDocument? = nil,
         returnDocument: NotebookDocument? = nil,
         showsChat: Bool = true,
@@ -67,6 +76,7 @@ struct NotebookWorkspace: Codable, Equatable {
     ) {
         self.notebookID = notebookID
         self.document = document
+        self.slotTabs = slotTabs
         self.leadingDocument = leadingDocument
         self.returnDocument = returnDocument
         self.showsChat = showsChat
@@ -88,6 +98,7 @@ struct NotebookWorkspace: Codable, Equatable {
     var persisted: NotebookWorkspace {
         var kept = self
         kept.document = nil
+        kept.slotTabs = []
         kept.leadingDocument = nil
         kept.returnDocument = nil
         kept.sourcesExpanded = false
@@ -332,12 +343,61 @@ extension NotebookWorkspace {
     /// the slot already showing `document` changes nothing.
     private mutating func placeInSlot(_ document: NotebookDocument) {
         guard document != self.document else { return }
+        var tabs = slotTabStrip
         if document == .reader, let previous = self.document {
             returnDocument = previous
         } else {
             returnDocument = nil
         }
+        if document.centerTab != nil, !tabs.contains(document) { tabs.append(document) }
+        slotTabs = Self.kept(tabs)
         self.document = document
+    }
+
+    /// The tabs worth storing: none while at most one document is open.
+    private static func kept(_ tabs: [NotebookDocument]) -> [NotebookDocument] {
+        tabs.count > 1 ? tabs : []
+    }
+
+    /// The slot's tabs left to right: the documents opened in it, then the
+    /// one showing if it was set without a tab. Only documents a center tab
+    /// reaches are tabs; a chat's picture, which has none, replaces the slot
+    /// for as long as it shows and leaves the tabs as they were.
+    var slotTabStrip: [NotebookDocument] {
+        var tabs = slotTabs.filter { $0.centerTab != nil }
+        if let document, document.centerTab != nil, !tabs.contains(document) { tabs.append(document) }
+        return tabs
+    }
+
+    /// Whether the slot draws a tab strip: two documents or more are open in
+    /// it and one of them is showing.
+    var slotShowsTabStrip: Bool {
+        guard let document, document.centerTab != nil else { return false }
+        return slotTabStrip.count > 1
+    }
+
+    /// Closes `tab` in the slot, an inactive tab included. The slot then
+    /// shows the neighbouring tab, the one to its right, else its left, and
+    /// is empty when it was the last.
+    private mutating func closeSlotTab(_ closed: NotebookDocument) {
+        let tabs = slotTabStrip
+        guard let index = tabs.firstIndex(of: closed) else { return }
+        let remaining = tabs.filter { $0 != closed }
+        slotTabs = Self.kept(remaining)
+        if document == closed {
+            document = remaining.indices.contains(index) ? remaining[index] : remaining.last
+            returnDocument = nil
+        }
+    }
+
+    /// The workspace once the slot's × is pressed with a tab strip showing:
+    /// the whole slot closes, every tab with it.
+    func closingSlot() -> NotebookWorkspace {
+        var next = self
+        next.document = nil
+        next.slotTabs = []
+        next.returnDocument = nil
+        return next
     }
 
     /// The workspace once `tab`'s surface is closed — its × or a request to
@@ -350,9 +410,8 @@ extension NotebookWorkspace {
             next.showsChat = false
         } else if let lead = leadingDocument, lead.centerTab == tab {
             next.leadingDocument = nil
-        } else if let document, document.centerTab == tab {
-            next.document = nil
-            next.returnDocument = nil
+        } else if let closed = slotTabStrip.first(where: { $0.centerTab == tab }) {
+            next.closeSlotTab(closed)
         }
         return next
     }
@@ -362,7 +421,8 @@ extension NotebookWorkspace {
     func closingPicture() -> NotebookWorkspace {
         guard document == .picture else { return self }
         var next = self
-        next.document = nil
+        // The tabs the picture covered come back, the latest on top.
+        next.document = slotTabs.last
         next.returnDocument = nil
         return next
     }
@@ -372,6 +432,8 @@ extension NotebookWorkspace {
     func returning() -> NotebookWorkspace {
         guard document == .reader, let previous = returnDocument else { return self }
         var next = self
+        // Back is a back stack, not a tab: the Reader goes as the slot returns.
+        next.slotTabs = Self.kept(slotTabStrip.filter { $0 != .reader })
         next.document = previous
         next.returnDocument = nil
         return next
