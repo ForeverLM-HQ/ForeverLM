@@ -1935,13 +1935,25 @@ struct NotebookPoolSourceRow: View {
             : (nil, title)
         return HStack(spacing: 8) {
             leadingGlyph(chapterNumber: chapter.number)
-            Text(chapter.text)
-                .zoomedSystemFont(size: showsChapterNumber ? 12 : 13)
-                // A filmed title is read, not hovered: it gets a second line
-                // (screen record mode).
-                .lineLimit(vm.isScreenRecordModeActive ? 2 : 1)
-                .truncationMode(.tail)
-                .help(title)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(chapter.text)
+                    .zoomedSystemFont(size: showsChapterNumber ? 12 : 13)
+                    // A filmed title is read, not hovered: it gets a second line
+                    // (screen record mode).
+                    .lineLimit(vm.isScreenRecordModeActive ? 2 : 1)
+                    .truncationMode(.tail)
+                    .help(title)
+                // The warning's words, under the title where they can be read,
+                // not only in the glyph's help.
+                if let attentionLine {
+                    Text(attentionLine)
+                        .zoomedSystemFont(size: 11)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .truncationMode(.tail)
+                        .help(attentionLine)
+                }
+            }
             Spacer(minLength: 0)
             // The ⋯ is built only under the pointer, the hidden label
             // holding its width. A menu at opacity 0 is still a live
@@ -1997,6 +2009,20 @@ struct NotebookPoolSourceRow: View {
         guard article.state == .error else { return nil }
         let message = article.errorMessage?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return message.isEmpty ? "Couldn\u{2019}t load this source" : message
+    }
+
+    /// `attentionNote` in the words a row has room for: a cleanup failure's own
+    /// error rather than the sentence that explains the step, a paper's stored
+    /// ingestion failure without its stage prefix. Nothing while the source is
+    /// still being worked on.
+    private var attentionLine: String? {
+        guard vm.notebookRowActivityLabel(for: article) == nil,
+              attentionNote != nil else { return nil }
+        if article.isPaperContentCleanupFailure {
+            return article.paperContentCleanupFailureDetail.map { "Cleanup failed: \($0)" }
+                ?? "Cleanup failed"
+        }
+        return article.paperIngestionFailureDetail ?? attentionNote
     }
 
     /// The source's thumbnail (its cover, first page or artwork, else its

@@ -438,6 +438,16 @@ private actor Counter {
     }
 }
 
+@Suite("Paper metadata output ceiling")
+struct PaperMetadataOutputCeilingTests {
+    @Test("a request that stopped at the ceiling is asked again with a larger one, up to the largest")
+    func ceilingsRise() {
+        #expect(AIService.paperMetadataRaisedMaxTokens(after: 4096) == 16_384)
+        #expect(AIService.paperMetadataRaisedMaxTokens(after: 16_384) == 32_768)
+        #expect(AIService.paperMetadataRaisedMaxTokens(after: 32_768) == nil)
+    }
+}
+
 /// How many calls hold a slot at once, and the most there ever were.
 private actor Gauge {
     private(set) var current = 0

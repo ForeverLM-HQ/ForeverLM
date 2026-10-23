@@ -125,12 +125,27 @@ struct PendingChatImageChip: View {
     var body: some View {
         ZStack(alignment: .topTrailing) {
             if let nsImage = NSImage(data: attachment.image.data) {
-                Image(nsImage: nsImage)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: 56, height: 56)
-                    .clipShape(shape)
-                    .overlay(shape.strokeBorder(Color.primary.opacity(0.1)))
+                // A click previews the picture full-window, the way a sent
+                // one does; the ✕ above it still takes it back out.
+                Button {
+                    ChatImageLightbox.present(
+                        ChatSourceImage(data: attachment.image.data, mediaType: attachment.image.mediaType),
+                        title: attachment.name,
+                        over: nil
+                    )
+                } label: {
+                    Image(nsImage: nsImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 56, height: 56)
+                        .clipShape(shape)
+                        .overlay(shape.strokeBorder(Color.primary.opacity(0.1)))
+                        .contentShape(shape)
+                }
+                .buttonStyle(.plain)
+                .help("Preview \(attachment.name)")
+                .accessibilityLabel("Preview \(attachment.name)")
+                .accessibilityIdentifier("chat.pendingImage")
             } else {
                 shape
                     .fill(Color.primary.opacity(0.06))
@@ -149,11 +164,9 @@ struct PendingChatImageChip: View {
             .accessibilityLabel("Remove \(attachment.name)")
         }
         .onHover { isHovering = $0 }
-        // The help goes below the group: above it, it replaced the remove
-        // button's "Remove …" help.
+        // Contained, not combined: the preview and the remove button stay
+        // two presses.
         .accessibilityElement(children: .contain)
-        .help(attachment.name)
-        .accessibilityLabel("Attached image: \(attachment.name)")
     }
 }
 

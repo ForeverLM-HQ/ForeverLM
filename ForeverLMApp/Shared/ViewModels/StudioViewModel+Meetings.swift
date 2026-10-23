@@ -3659,6 +3659,7 @@ extension StudioViewModel {
         var attemptsMade = 0
         var result: AIService.PaperMetadataResult?
         var lastError: Error?
+        var metadataMaxTokens = AIService.paperMetadataMaxTokens
         for attempt in 1...maximumAttempts {
             guard !Task.isCancelled,
                   let currentArticle = articles.first(where: { $0.id == id }) else { return false }
@@ -3669,6 +3670,7 @@ extension StudioViewModel {
                     url: currentArticle.url,
                     title: currentArticle.title,
                     firstPageText: firstPageText,
+                    maxTokens: metadataMaxTokens,
                     config: config
                 )
                 break
@@ -3684,6 +3686,13 @@ extension StudioViewModel {
                     maximumAttempts: maximumAttempts,
                     message: error.localizedDescription
                 )
+                // A reasoning model that spent its whole output ceiling thinking
+                // answers within a larger one.
+                if case AIError.outputTokenLimit = error,
+                   let raised = AIService.paperMetadataRaisedMaxTokens(after: metadataMaxTokens) {
+                    metadataMaxTokens = raised
+                    continue
+                }
                 guard attempt < maximumAttempts,
                       AITransientErrorClassifier.isTransient(error) else { break }
                 let retryAfter = AITransientErrorClassifier.retryAfterSeconds(error) ?? 0

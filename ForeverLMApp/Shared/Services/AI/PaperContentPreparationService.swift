@@ -334,6 +334,10 @@ struct PaperContentPreparationService: Sendable {
         }
     }
 
+    /// Re-asks for a chunk whose reply was not a deletion plan, before the
+    /// cleanup fails the source.
+    private static let maximumInvalidPlanRetries = 2
+
     private func prepareAttributed(
         source: AIUsageSource,
         rawText: String,
@@ -386,6 +390,7 @@ struct PaperContentPreparationService: Sendable {
             // off mid-plan; the same chunk at half the size leaves it room.
             var pendingChunks = requestChunks
             var index = 0
+            var invalidPlanRetries = 0
             while index < pendingChunks.count {
                 try Task.checkCancellation()
                 let chunk = pendingChunks[index]
@@ -404,6 +409,14 @@ struct PaperContentPreparationService: Sendable {
                     }
                     deletionPlan = deletionPlan.merging(chunkPlan)
                     index += 1
+                    invalidPlanRetries = 0
+                } catch AIError.apiError(let message)
+                    where message == AIService.invalidPaperContentDeletionPlanMessage
+                        && invalidPlanRetries < Self.maximumInvalidPlanRetries {
+                    invalidPlanRetries += 1
+                    logger.warning(
+                        "Source Content Cleanup chunk \(index + 1)/\(chunkCount) was not a deletion plan; asking again (\(invalidPlanRetries)/\(Self.maximumInvalidPlanRetries))"
+                    )
                 } catch AIError.outputTokenLimit where chunk.count > 1 {
                     let middle = chunk.count / 2
                     logger.warning(

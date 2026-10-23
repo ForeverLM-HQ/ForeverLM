@@ -1640,6 +1640,18 @@ extension AIService {
         }
     }
 
+    /// The first request's output ceiling. A reasoning model can spend all of
+    /// it thinking before the five lines; callers raise it with
+    /// `paperMetadataRaisedMaxTokens(after:)` and ask again.
+    static let paperMetadataMaxTokens = 4096
+
+    /// The ceiling for the request after one that stopped at `ceiling`, or nil
+    /// once the largest has been tried. Ceilings are free unless used.
+    static func paperMetadataRaisedMaxTokens(after ceiling: Int) -> Int? {
+        let steps = [paperMetadataMaxTokens, 16_384, 32_768]
+        return steps.first { $0 > ceiling }
+    }
+
     /// Extract paper metadata from the first page of a PDF using an LLM.
     /// This is the source of truth when a PDF is available.
     func extractPaperMetadata(
@@ -1648,6 +1660,7 @@ extension AIService {
         title: String,
         firstPageText: String,
         characterLimit: Int = 6000,
+        maxTokens: Int = AIService.paperMetadataMaxTokens,
         config: AITaskConfig
     ) async throws -> PaperMetadataResult {
         let system = AITask.paperMetadata.effectivePrompt ?? Prompts.paperMetadata
@@ -1668,7 +1681,7 @@ extension AIService {
             // ceiling. The unified one-shot transport does not pass through the
             // legacy OpenAI adapter that inflates this budget, so the old 600
             // tokens could be exhausted before any of the five required lines.
-            maxTokens: 4096,
+            maxTokens: maxTokens,
             temperature: 0.0,
             allowsReasoningInflation: false,
             // A reply that is not five field lines, or whose title or authors
@@ -2428,6 +2441,11 @@ extension AIService {
         )
     }
 
+    /// The model's reply was not a deletion plan at all. The reply is sampled, so
+    /// asking again usually gets one; the cleanup does that before it fails.
+    nonisolated static let invalidPaperContentDeletionPlanMessage =
+        "Source Content Cleanup returned an invalid deletion plan."
+
     nonisolated static func validatedPaperContentDeletionPlan(
         _ response: String,
         blocks: [PaperContentBlock]
@@ -2447,9 +2465,7 @@ extension AIService {
         let allowedIDs = Set(blocks.map(\.id))
         guard let data = json.data(using: .utf8),
               let plan = try? JSONDecoder().decode(PaperContentDeletionPlan.self, from: data) else {
-            throw AIError.apiError(
-                "Source Content Cleanup returned an invalid deletion plan."
-            )
+            throw AIError.apiError(invalidPaperContentDeletionPlanMessage)
         }
 
         let boxHeadingIDs = Set(

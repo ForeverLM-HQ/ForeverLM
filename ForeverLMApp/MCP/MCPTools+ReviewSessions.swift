@@ -5627,6 +5627,7 @@ extension MCPDataStore {
         let maximumAttempts = 3
         var result: AIService.PaperMetadataResult?
         var lastError: Error?
+        var metadataMaxTokens = AIService.paperMetadataMaxTokens
 
         for attempt in 1...maximumAttempts {
             do {
@@ -5635,6 +5636,7 @@ extension MCPDataStore {
                     url: article.url,
                     title: article.title,
                     firstPageText: paperText,
+                    maxTokens: metadataMaxTokens,
                     config: config
                 )
                 break
@@ -5654,6 +5656,13 @@ extension MCPDataStore {
                     maximumAttempts: maximumAttempts,
                     message: error.localizedDescription
                 )
+                // A reasoning model that spent its whole output ceiling thinking
+                // answers within a larger one.
+                if case AIError.outputTokenLimit = error,
+                   let raised = AIService.paperMetadataRaisedMaxTokens(after: metadataMaxTokens) {
+                    metadataMaxTokens = raised
+                    continue
+                }
                 if attempt < maximumAttempts {
                     try? await Task.sleep(for: .seconds(attempt))
                 }
