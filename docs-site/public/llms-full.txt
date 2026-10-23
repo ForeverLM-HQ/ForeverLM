@@ -6488,6 +6488,13 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.169.0 (build 249) — 2026-10-23
+
+**Highlights:**
+- **See whether OpenRouter used your own key.**
+- **A reply's Web sources start folded.**
+
+- **See whether OpenRouter used your own key.** In AI Usage › Activity, a row's model line now carries a **BYOK** capsule when OpenRouter billed those calls to your own provider key, and an **OpenRouter credits** capsule when Anthropic calls were billed to OpenRouter's credits instead (a partly covered row reads **BYOK 3 of 5**).
 - **A reply's Web sources start folded.** The list of pages a web-searched reply read is one quiet line with a count (**Web sources 5 ›**) until you open it, so it no longer takes the room of five rows under every answer.
 
 ## 0.168.0 (build 248) — 2026-10-23
