@@ -2102,7 +2102,8 @@ the start of the draft turn it off. It works the way a dedicated research produc
 4. The chat reply gives the key findings and names the report Page, which you
    open from the Space's **Pages**.
 
-Every web page the reply searched or read is listed under it as **Web sources**.
+Every web page the reply searched or read is listed under it as **Web sources**,
+folded to one line with a count until you click it open.
 On the Mac each row shows the page's title and site: click the title to read the
 page beside Chat without importing it, or click **Add** to keep it in your library.
 Add runs the same import as the Reader's "Add to Sources" button, so a page
@@ -6486,6 +6487,8 @@ All notable changes to ForeverLM are documented here. Dates are in YYYY-MM-DD fo
 ForeverLM follows [semantic versioning](https://semver.org) against its public surface: the MCP tool contracts, the knowledge-base/sync format, and licensing compatibility. While the version is 0.x, minor releases may include breaking changes to that surface; patch releases never do.
 
 ## Unreleased
+
+- **A reply's Web sources start folded.** The list of pages a web-searched reply read is one quiet line with a count (**Web sources 5 ›**) until you open it, so it no longer takes the room of five rows under every answer.
 
 ## 0.168.0 (build 248) — 2026-10-23
 

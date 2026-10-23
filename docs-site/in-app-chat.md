@@ -223,7 +223,8 @@ the start of the draft turn it off. It works the way a dedicated research produc
 4. The chat reply gives the key findings and names the report Page, which you
    open from the Space's **Pages**.
 
-Every web page the reply searched or read is listed under it as **Web sources**.
+Every web page the reply searched or read is listed under it as **Web sources**,
+folded to one line with a count until you click it open.
 On the Mac each row shows the page's title and site: click the title to read the
 page beside Chat without importing it, or click **Add** to keep it in your library.
 Add runs the same import as the Reader's "Add to Sources" button, so a page

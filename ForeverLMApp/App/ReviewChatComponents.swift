@@ -434,16 +434,39 @@ struct ReviewChatWebSourcesList: View {
     /// Pages this list saved or found already present, so a row reads "Added"
     /// even before the library publishes the new article.
     @State private var savedKeys: Set<String> = []
+    /// The list is folded until the learner opens it: most replies are read
+    /// without keeping a page, so five rows under every answer is noise.
+    @State private var isExpanded = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text("Web sources")
-                .zoomedSystemFont(size: 11, weight: .semibold)
+            Button {
+                isExpanded.toggle()
+            } label: {
+                HStack(spacing: 6) {
+                    Text("Web sources")
+                        .zoomedSystemFont(size: 12, weight: .medium)
+                    Text("\(citations.count)")
+                        .zoomedSystemFont(size: 12)
+                        .monospacedDigit()
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .zoomedSystemFont(size: 10, weight: .semibold)
+                        .foregroundStyle(.tertiary)
+                }
                 .foregroundStyle(.secondary)
-                .padding(.leading, 2)
-                .padding(.bottom, 2)
-            ForEach(Array(citations.enumerated()), id: \.element.url) { index, citation in
-                row(index: index + 1, citation: citation)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.hoverWash(cornerRadius: 6, inset: -3))
+            .padding(.leading, 2)
+            .padding(.bottom, 2)
+            .help(isExpanded ? "Hide the web sources" : "Show the web sources")
+            .accessibilityLabel("Web sources, \(citations.count)")
+            .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
+            .accessibilityIdentifier("chat.webSources.toggle")
+            if isExpanded {
+                ForEach(Array(citations.enumerated()), id: \.element.url) { index, citation in
+                    row(index: index + 1, citation: citation)
+                }
             }
         }
         // A group of its own: on a plain container the identifier replaced

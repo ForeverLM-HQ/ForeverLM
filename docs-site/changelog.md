@@ -6,6 +6,8 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **A reply's Web sources start folded.** The list of pages a web-searched reply read is one quiet line with a count (**Web sources 5 ›**) until you open it, so it no longer takes the room of five rows under every answer.
+
 ## 0.168.0 (build 248) — 2026-10-23
 
 **Highlights:**
