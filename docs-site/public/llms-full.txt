@@ -6488,6 +6488,16 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.172.0 (build 252) — 2026-10-24
+
+**Highlights:**
+- **A list of figures is not figures.**
+- **A figure's outline sits on the figure.**
+
+- **A list of figures is not figures.** A thesis's List of Figures (or a paper's list of supplementary figures) no longer shows up as figures, each with a box over its contents page; the figure is found where its legend is printed. A paper is read again the next time you use it, and its old rows go. Measured over 6,891 figure labels in the library, nine change, in three files: each moves from its contents page to its real page or, for one supplementary list entry with no figure of its own, goes.
+
+- **A figure's outline sits on the figure.** The box a chat draws around a figure in the Reader, the picture it shows, and the one the phone shows now come from the page itself, not from a rectangle an AI model guessed by eye; that guess had put a box over a whole column of text on some papers. A page's first lines of text are no longer mistaken for its running head, and a rule down the margin no longer stretches a crop out to the page's edge. Measured over 3,282 figures in the library: 10 in 100 crops move (the one crop that goes away was a strip 4% of the page tall, and four figures that had none now have one); of the 270 that move and could be checked against a second figure detector (Docling), 126 land closer to it, 40 farther (29 of those only drop the margin rule) and 104 about the same, and the median agreement rises from 0.85 to 0.92.
+
 ## 0.171.0 (build 251) — 2026-10-24
 
 **Highlights:**
