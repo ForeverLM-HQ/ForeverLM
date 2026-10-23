@@ -841,6 +841,12 @@ struct AIUsageModelUse: Sendable, Equatable {
     let provider: String
     let model: String
     let callCount: Int
+    /// Calls OpenRouter reported as `is_byok: true`: the learner's own
+    /// upstream key paid for them, not OpenRouter credits.
+    var byokCallCount: Int = 0
+    /// Calls OpenRouter reported as `is_byok: false`: billed to OpenRouter
+    /// credits. A call whose usage block carried no flag counts in neither.
+    var creditCallCount: Int = 0
 }
 
 /// One item beneath a task row, such as a podcast episode beneath Transcript

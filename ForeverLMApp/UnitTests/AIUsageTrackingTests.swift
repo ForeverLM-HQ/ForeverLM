@@ -522,6 +522,43 @@ struct AIUsageTrackingTests {
         ])
     }
 
+    @Test("Activity rows count the calls OpenRouter billed to the learner's own key")
+    func activityRowsCountBYOKCalls() throws {
+        let store = try KnowledgeStore(inMemory: true)
+        let model = "anthropic/claude-opus-5.5"
+        try store.saveAIUsageEvent(usageEvent(
+            id: "b-1", createdAt: 100, cost: 0, task: "chat", model: model,
+            rawUsageJSON: #"{"cost":0,"cost_details":{"upstream_inference_cost":0.2},"is_byok":true}"#
+        ))
+        try store.saveAIUsageEvent(usageEvent(
+            id: "b-2", createdAt: 101, cost: 0.3, task: "chat", model: model,
+            rawUsageJSON: #"{"cost":0.3,"is_byok":false}"#
+        ))
+        try store.saveAIUsageEvent(usageEvent(id: "b-3", createdAt: 102, cost: 0.1, task: "chat", model: model))
+
+        let chat = try #require(store.loadAIUsageTaskActivities().first)
+        let use = try #require(chat.models.first)
+        #expect(use.callCount == 3)
+        #expect(use.byokCallCount == 1)
+        #expect(use.creditCallCount == 1)
+        #expect(AIActivitySettingsSection.byokRoute(chat.models)?.label == "BYOK 1 of 2")
+    }
+
+    @Test("The BYOK capsule names credits only for Anthropic models")
+    func byokCapsuleCallsOutCreditsOnlyForAnthropic() {
+        let allByok = [AIUsageModelUse(provider: "OpenRouter", model: "anthropic/claude-opus-5.5", callCount: 4, byokCallCount: 4)]
+        #expect(AIActivitySettingsSection.byokRoute(allByok)?.label == "BYOK")
+        #expect(AIActivitySettingsSection.byokRoute(allByok)?.isBYOK == true)
+
+        let anthropicCredits = [AIUsageModelUse(provider: "OpenRouter", model: "anthropic/claude-opus-5.5", callCount: 4, creditCallCount: 4)]
+        #expect(AIActivitySettingsSection.byokRoute(anthropicCredits)?.label == "OpenRouter credits")
+        #expect(AIActivitySettingsSection.byokRoute(anthropicCredits)?.isBYOK == false)
+
+        let otherCredits = [AIUsageModelUse(provider: "OpenRouter", model: "deepseek/deepseek-v4.1-flash", callCount: 4, creditCallCount: 4)]
+        #expect(AIActivitySettingsSection.byokRoute(otherCredits) == nil)
+        #expect(AIActivitySettingsSection.byokRoute([AIUsageModelUse(provider: "OpenRouter", model: "anthropic/claude-opus-5.5", callCount: 2)]) == nil)
+    }
+
     @Test("Activity rows name the models that served them, most calls first")
     func activityRowsNameTheirModels() throws {
         let store = try KnowledgeStore(inMemory: true)
@@ -1348,7 +1385,8 @@ struct AIUsageTrackingTests {
         task: String = "author_normalization",
         sessionID: String? = nil,
         provider: String = "OpenRouter",
-        model: String = "deepseek/deepseek-v4-flash"
+        model: String = "deepseek/deepseek-v4-flash",
+        rawUsageJSON: String? = nil
     ) -> AIUsageEvent {
         AIUsageEvent(
             id: id,
@@ -1372,7 +1410,7 @@ struct AIUsageTrackingTests {
             providerReportedCost: cost,
             estimatedCost: cost,
             currency: "USD",
-            rawUsageJSON: nil
+            rawUsageJSON: rawUsageJSON
         )
     }
 

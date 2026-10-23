@@ -3568,7 +3568,9 @@ extension KnowledgeStore {
             SELECT \(groupKey) AS group_key,
                    MAX(ai_usage_events.provider) AS provider,
                    ai_usage_events.model AS model,
-                   COUNT(*) AS call_count
+                   COUNT(*) AS call_count,
+                   COALESCE(SUM(\(Self.byokUsagePredicate)), 0) AS byok_calls,
+                   COALESCE(SUM(\(Self.creditUsagePredicate)), 0) AS credit_calls
             FROM ai_usage_events
             LEFT JOIN review_sessions ON review_sessions.id = COALESCE(
                 NULLIF(TRIM(ai_usage_events.session_id), ''),
@@ -3587,11 +3589,24 @@ extension KnowledgeStore {
             uses[key, default: []].append(AIUsageModelUse(
                 provider: provider,
                 model: model,
-                callCount: Int(sqlite3_column_int64(stmt, 3))
+                callCount: Int(sqlite3_column_int64(stmt, 3)),
+                byokCallCount: Int(sqlite3_column_int64(stmt, 4)),
+                creditCallCount: Int(sqlite3_column_int64(stmt, 5))
             ))
         }
         return uses
     }
+
+    /// OpenRouter's `usage.is_byok`, read from the stored raw usage block
+    /// (compact JSON, but the spaced spelling is matched too).
+    private static let byokUsagePredicate = """
+        (ai_usage_events.raw_usage_json LIKE '%"is_byok":true%'
+         OR ai_usage_events.raw_usage_json LIKE '%"is_byok": true%')
+        """
+    private static let creditUsagePredicate = """
+        (ai_usage_events.raw_usage_json LIKE '%"is_byok":false%'
+         OR ai_usage_events.raw_usage_json LIKE '%"is_byok": false%')
+        """
 
     /// Distinct providers, models, operations, and tasks present in the
     /// period — the filter menus are built from what the ledger actually

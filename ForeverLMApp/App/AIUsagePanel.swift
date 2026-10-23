@@ -813,6 +813,18 @@ struct AIActivitySettingsSection: View {
                         named.map { "\($0.name) — \(Self.exactCountText($0.calls)) call\($0.calls == 1 ? "" : "s")" }
                             .joined(separator: "\n")
                     )
+                if let route = Self.byokRoute(models) {
+                    Text(route.label)
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(route.isBYOK ? Color.green : Color.orange)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 1)
+                        .background(
+                            Capsule().fill((route.isBYOK ? Color.green : Color.orange).opacity(0.14))
+                        )
+                        .fixedSize()
+                        .help(route.help)
+                }
                 if let change {
                     Button("Change Model…") { openModelSetting(change) }
                         .buttonStyle(.link)
@@ -822,6 +834,34 @@ struct AIActivitySettingsSection: View {
                 }
             }
         }
+    }
+
+    /// Whether a row's calls ran on the learner's own upstream key (OpenRouter
+    /// BYOK) or were billed to OpenRouter credits, from the `is_byok` flag
+    /// OpenRouter returned with each call. Credits are called out only for
+    /// Anthropic models, the ones a learner brings a key for; a row with no
+    /// flag recorded says nothing.
+    static func byokRoute(_ models: [AIUsageModelUse]) -> (label: String, isBYOK: Bool, help: String)? {
+        let byok = models.reduce(0) { $0 + $1.byokCallCount }
+        let credits = models.reduce(0) { $0 + $1.creditCallCount }
+        if byok > 0 {
+            let total = byok + credits
+            let label = credits == 0 ? "BYOK" : "BYOK \(byok) of \(total)"
+            let help = credits == 0
+                ? "OpenRouter used your own provider key for these calls."
+                : "\(byok) of \(total) calls used your own provider key; \(credits) were billed to OpenRouter credits."
+            return (label, true, help)
+        }
+        let anthropicCredits = models
+            .filter { $0.model.hasPrefix("anthropic/") }
+            .reduce(0) { $0 + $1.creditCallCount }
+        guard anthropicCredits > 0 else { return nil }
+        return (
+            "OpenRouter credits",
+            false,
+            "OpenRouter billed these Anthropic calls to its own credits, not your Anthropic key. "
+                + "Check Settings → Integrations → Anthropic on openrouter.ai, and that \"Always use this key\" is on."
+        )
     }
 
     /// Models by the name the model picker gives them, most calls first. Two
