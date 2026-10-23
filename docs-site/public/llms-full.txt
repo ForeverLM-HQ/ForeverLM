@@ -6487,6 +6487,17 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.168.0 (build 248) — 2026-10-23
+
+**Highlights:**
+- **Choosing models no longer crashes.**
+- **Disconnect a plugin from its row.**
+
+- **Choosing models no longer crashes.** Scrolling and picking models in Settings › Chat could close the app; the model table is steady now.
+- **Clicking an open source in a chat keeps it.** A click on a source's chip in the chat's tray no longer removes it from the chat; only its × does.
+- **Ask about the latest Slack message.** A question about the newest message in a channel now reads that channel.
+- **The Library head is quieter.** The No Cards pill is gone from it.
+- **Model names read alike.** In the model directory, Anthropic's models drop the leading "Claude ", so Opus 5.5 and Opus 5.5 (batch) match.
 - **Disconnect a plugin from its row.** In Plugins, the ⋯ and right-click menu on a connected plugin now has **Disconnect…** (**Turn Off…** for Calendar), so you no longer have to open the plugin's page first. A plugin with several accounts or workspaces lists each one, and every disconnect asks first. What was already imported stays.
 
 ## 0.167.0 (build 247) — 2026-10-22
