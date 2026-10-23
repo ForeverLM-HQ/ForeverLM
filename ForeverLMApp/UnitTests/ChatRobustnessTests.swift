@@ -2202,6 +2202,39 @@ struct ChatRobustnessTests {
         #expect((direct["usage"] as? [String: Bool])?["include"] == true)
     }
 
+    @Test("Claude on the learner's own OpenRouter key is pinned to Anthropic's endpoint, so BYOK applies")
+    func ownKeyClaudeRunsOnAnthropicEndpoint() throws {
+        defer { ManagedAI.ownKeyOverrideForTesting = nil }
+        func body(_ model: String) -> [String: Any] {
+            ["model": model, "messages": [["role": "user", "content": "Hello"]] as [[String: Any]]]
+        }
+
+        ManagedAI.ownKeyOverrideForTesting = .some(ManagedAI.OwnKey(router: .openRouter, key: "sk-or-test-key"))
+        var claude = body("anthropic/claude-opus-5.5")
+        AIService.applyOpenRouterPayloadExtras(&claude, provider: .openRouter)
+        let routing = try #require(claude["provider"] as? [String: Any])
+        #expect(routing["order"] as? [String] == ["anthropic"])
+        #expect(routing["allow_fallbacks"] as? Bool == false)
+        #expect(routing["only"] == nil)
+
+        // Another lab's model keeps the throughput route.
+        var other = body("openai/gpt-oss-120b")
+        AIService.applyOpenRouterPayloadExtras(&other, provider: .openRouter)
+        #expect((other["provider"] as? [String: Any])?["order"] == nil)
+
+        // A Speed tier names its own endpoint and is left alone.
+        var pinned = body("anthropic/claude-opus-5.5")
+        pinned["provider"] = ["order": ["anthropic/fast"], "allow_fallbacks": false] as [String: Any]
+        AIService.pinAnthropicModelToItsOwnEndpoint(&pinned)
+        #expect((pinned["provider"] as? [String: Any])?["order"] as? [String] == ["anthropic/fast"])
+
+        // No own key: the proxy's rail keeps OpenRouter's routing.
+        ManagedAI.ownKeyOverrideForTesting = .some(nil)
+        var proxied = body("anthropic/claude-opus-5.5")
+        AIService.applyOpenRouterPayloadExtras(&proxied, provider: .openRouter)
+        #expect((proxied["provider"] as? [String: Any])?["order"] == nil)
+    }
+
     @Test("A first-party lab has no text endpoint; Muse Spark's text travels OpenRouter")
     func firstPartyLabsHaveNoTextEndpoint() throws {
         // The labs are model families on the routers. ForeverLM sends their

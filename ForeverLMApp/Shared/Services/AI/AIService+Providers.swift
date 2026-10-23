@@ -714,6 +714,25 @@ extension AIService {
         try OpenRouterRegionalEndpoints.requireConfined(payload, region: region)
     }
 
+    /// Claude on the learner's own OpenRouter key runs on Anthropic's endpoint.
+    /// The throughput sort below otherwise lands on Bedrock or Vertex, where an
+    /// Anthropic key does not apply, so the call is billed to OpenRouter
+    /// credits (Opus 5.5, 2026-10-24: Bedrock, `is_byok: false`, on every call
+    /// since the key was added). Fallbacks stay off: when the key cannot serve
+    /// the call, it fails instead of quietly spending credits. A pinned host,
+    /// a Speed tier and a region all name their own endpoints and win.
+    static func pinAnthropicModelToItsOwnEndpoint(_ payload: inout [String: Any]) {
+        guard let model = payload["model"] as? String, model.hasPrefix("anthropic/"),
+              ManagedAI.sendsOwnKeyDirect(toHost: ManagedAI.OwnKeyRouter.openRouter.host),
+              openRouterRegion(forModelSlug: model) == nil
+        else { return }
+        var routing = payload["provider"] as? [String: Any] ?? [:]
+        guard routing["order"] == nil, routing["only"] == nil else { return }
+        routing["order"] = ["anthropic"]
+        routing["allow_fallbacks"] = false
+        payload["provider"] = routing
+    }
+
     static func applyOpenRouterPayloadExtras(
         _ payload: inout [String: Any],
         provider: AIProvider,
@@ -756,6 +775,9 @@ extension AIService {
                 routing["sort"] = OpenRouterRoutePreference.interactiveSort
                 payload["provider"] = routing
             }
+        }
+        if hostPreference?.mode != .cheapest {
+            pinAnthropicModelToItsOwnEndpoint(&payload)
         }
         if let model = payload["model"] as? String {
             let cachingTags = OpenRouterEndpointTierCatalog.cachedTiers(slug: model).flatMap {

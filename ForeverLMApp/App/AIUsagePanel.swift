@@ -860,6 +860,7 @@ struct AIActivitySettingsSection: View {
             "OpenRouter credits",
             false,
             "OpenRouter billed these Anthropic calls to its own credits, not your Anthropic key. "
+                + "Its Logs page names the host that served them; Bedrock or Vertex cannot use an Anthropic key. "
                 + "Check Settings → Integrations → Anthropic on openrouter.ai, and that \"Always use this key\" is on."
         )
     }
