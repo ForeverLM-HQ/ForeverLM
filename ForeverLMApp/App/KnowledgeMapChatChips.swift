@@ -144,8 +144,14 @@ struct ComposerRemovableChip: View {
         .animation(.easeOut(duration: 0.12), value: isHovering)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityLabel)
+        // A press on the chip itself opens what it names, or does nothing. Left
+        // alone, `.combine` over the × Button hands the chip the ×'s press, and
+        // a click anywhere on the chip took the source out of the chat
+        // (product owner, 2026-10-23: "this should only be removed if I
+        // actually click the X, not if I click anywhere on that banner").
+        .accessibilityAction { open?() }
         // The × for VoiceOver, which has no pointer to bring it out; while the
-        // × is built, the combined element carries its press already.
+        // × is built it is a named action of its own.
         .accessibilityActions {
             if !isHovering {
                 Button("Remove from Chat", action: remove)
