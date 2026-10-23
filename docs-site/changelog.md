@@ -6,6 +6,11 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.171.0 (build 251) — 2026-10-24
+
+**Highlights:**
+- **Tabs inside a notebook.**
+
 - **Tabs inside a notebook.** The document beside a notebook's chat now holds tabs like the rest of the app: open a Doc while the Reader is there and both stay open, with a tab strip to switch between them and a × on each. A tab closes to its neighbour; the strip's × closes them all.
 
 ## 0.170.0 (build 250) — 2026-10-24
