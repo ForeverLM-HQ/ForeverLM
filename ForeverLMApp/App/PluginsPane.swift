@@ -250,6 +250,7 @@ private struct PluginDirectoryView: View {
     @State private var isGoogleDriveSignedIn = false
     @State private var isGoogleDriveFolderAccessReady = false
     @State private var isAppleCalendarConnected = false
+    @State private var googleDriveAccounts: [GoogleDriveAccount] = []
     @State private var userPlugins: [MCPOAuthProvider.UserPluginSummary] = []
     @State private var userPluginSourceCounts: [String: Int] = [:]
     /// Slack, Linear, GitHub and Notion are connected on the web and their
@@ -274,6 +275,9 @@ private struct PluginDirectoryView: View {
         /// How many accounts or workspaces are connected; the chip says the
         /// number once it is more than one.
         var connectionCount = 1
+        /// What the row's Disconnect can end: empty until the plugin is
+        /// connected, and for Build Your Own.
+        var disconnects: [PluginDisconnectTarget] = []
     }
 
     /// What a row's tile draws.
@@ -294,45 +298,65 @@ private struct PluginDirectoryView: View {
                 id: PluginPage.x.rawValue, title: PluginPage.x.title, subtitle: xSubtitle,
                 status: vm.isXOAuthSignedIn ? (vm.xPluginNeedsReauth ? .needsAttention : .connected) : .notConnected,
                 logo: .x, page: .x,
-                connectionCount: max(1, vm.xAccounts.count)
+                connectionCount: max(1, vm.xAccounts.count),
+                disconnects: vm.isXOAuthSignedIn
+                    ? vm.xAccounts.map { PluginDisconnectTarget(plugin: "x", accountID: $0.id, label: $0.displayLabel) }
+                    : []
             ),
             Row(
                 id: PluginPage.youtube.rawValue, title: PluginPage.youtube.title, subtitle: youtubeSubtitle,
                 status: isYouTubeSignedIn ? .connected : (vm.youtubePluginNeedsReconnect ? .needsAttention : .notConnected),
                 logo: .asset("YouTubeIcon", width: 25, height: 18, template: false), page: .youtube,
-                connectionCount: max(1, vm.youtubeAccounts.count - vm.youtubeDisconnectedAccountIDs.count)
+                connectionCount: max(1, vm.youtubeAccounts.count - vm.youtubeDisconnectedAccountIDs.count),
+                disconnects: isYouTubeSignedIn || vm.youtubePluginNeedsReconnect
+                    ? vm.youtubeAccounts.map { PluginDisconnectTarget(plugin: "youtube", accountID: $0.id, label: $0.title) }
+                    : []
             ),
             Row(
                 id: PluginPage.googleDrive.rawValue, title: PluginPage.googleDrive.title, subtitle: googleDriveSubtitle,
                 status: isGoogleDriveSignedIn ? (isGoogleDriveFolderAccessReady ? .connected : .needsAttention) : .notConnected,
-                logo: .asset("GoogleDriveIcon", width: 22, height: 18, template: false), page: .googleDrive
+                logo: .asset("GoogleDriveIcon", width: 22, height: 18, template: false), page: .googleDrive,
+                disconnects: googleDriveDisconnects
             ),
             Row(
                 id: PluginPage.appleCalendar.rawValue, title: PluginPage.appleCalendar.title, subtitle: appleCalendarSubtitle,
                 status: isAppleCalendarConnected ? .connected : .notConnected,
-                logo: .asset("AppleCalendarIcon", width: 20, height: 20, template: false), page: .appleCalendar
+                logo: .asset("AppleCalendarIcon", width: 20, height: 20, template: false), page: .appleCalendar,
+                disconnects: isAppleCalendarConnected
+                    ? [PluginDisconnectTarget(plugin: "apple_calendar", accountID: nil, label: nil)]
+                    : []
             ),
             Row(
                 id: PluginPage.slack.rawValue, title: PluginPage.slack.title, subtitle: slackSubtitle,
                 status: slackConnection.map { $0.isConnected ? .connected : .notConnected },
-                logo: .asset("SlackIcon", width: 22, height: 22, template: false), page: .slack
+                logo: .asset("SlackIcon", width: 22, height: 22, template: false), page: .slack,
+                disconnects: slackDisconnects
             ),
             Row(
                 id: PluginPage.linear.rawValue, title: PluginPage.linear.title, subtitle: linearSubtitle,
                 status: linearConnection.map { $0.isConnected ? .connected : .notConnected },
                 logo: .asset("LinearIcon", width: 20, height: 20, template: false), page: .linear,
-                connectionCount: linearConnection?.workspaces.count ?? 1
+                connectionCount: linearConnection?.workspaces.count ?? 1,
+                disconnects: (linearConnection?.workspaces ?? []).map {
+                    PluginDisconnectTarget(plugin: "linear", accountID: $0.id, label: $0.label)
+                }
             ),
             Row(
                 id: PluginPage.github.rawValue, title: PluginPage.github.title, subtitle: githubSubtitle,
                 status: githubConnection.map { $0.isConnected ? .connected : .notConnected },
-                logo: .asset("GitHubIcon", width: 22, height: 22, template: true), page: .github
+                logo: .asset("GitHubIcon", width: 22, height: 22, template: true), page: .github,
+                disconnects: githubConnection?.isConnected == true
+                    ? [PluginDisconnectTarget(plugin: "github", accountID: nil, label: nil)]
+                    : []
             ),
             Row(
                 id: PluginPage.notion.rawValue, title: PluginPage.notion.title, subtitle: notionSubtitle,
                 status: notionConnection.map { $0.isConnected ? .connected : .notConnected },
                 logo: .asset("NotionIcon", width: 20, height: 20, template: true), page: .notion,
-                connectionCount: notionConnection?.workspaces.count ?? 1
+                connectionCount: notionConnection?.workspaces.count ?? 1,
+                disconnects: (notionConnection?.workspaces ?? []).map {
+                    PluginDisconnectTarget(plugin: "notion", accountID: $0.id, label: $0.label)
+                }
             ),
         ]
     }
@@ -348,7 +372,8 @@ private struct PluginDirectoryView: View {
                 subtitle: plugin.map { userPluginSubtitle(for: $0) } ?? providerWithoutPluginSubtitle(provider),
                 status: plugin.map(pluginStatus) ?? .notConnected,
                 logo: .meetingProvider(provider),
-                page: .yourPlugins
+                page: .yourPlugins,
+                disconnects: plugin.map(userPluginDisconnects) ?? []
             )
         }
         rows += customPluginTabs.map { tab in
@@ -359,7 +384,8 @@ private struct PluginDirectoryView: View {
                 subtitle: plugin.map { userPluginSubtitle(for: $0) } ?? customPluginSubtitle(for: tab),
                 status: plugin.map(pluginStatus) ?? .notConnected,
                 logo: .sourceTab(tab),
-                page: .yourPlugins
+                page: .yourPlugins,
+                disconnects: plugin.map(userPluginDisconnects) ?? []
             )
         }
         rows += unrepresentedUserPlugins.map { plugin in
@@ -369,7 +395,8 @@ private struct PluginDirectoryView: View {
                 subtitle: userPluginSubtitle(for: plugin),
                 status: pluginStatus(plugin),
                 logo: .userPlugin(plugin),
-                page: .yourPlugins
+                page: .yourPlugins,
+                disconnects: userPluginDisconnects(plugin)
             )
         }
         rows.append(Row(
@@ -381,6 +408,30 @@ private struct PluginDirectoryView: View {
             page: .yourPlugins
         ))
         return rows
+    }
+
+    // MARK: Disconnect targets
+
+    private var googleDriveDisconnects: [PluginDisconnectTarget] {
+        guard isGoogleDriveSignedIn else { return [] }
+        // A sign-in from before accounts has none to name; the tool signs it out.
+        guard !googleDriveAccounts.isEmpty else {
+            return [PluginDisconnectTarget(plugin: "google_drive", accountID: nil, label: nil)]
+        }
+        return googleDriveAccounts.map {
+            PluginDisconnectTarget(plugin: "google_drive", accountID: $0.id, label: $0.displayLabel)
+        }
+    }
+
+    private var slackDisconnects: [PluginDisconnectTarget] {
+        guard case .connected(let workspaces)? = slackConnection else { return [] }
+        return workspaces.compactMap { workspace in
+            workspace.teamID.map { PluginDisconnectTarget(plugin: "slack", accountID: $0, label: workspace.name) }
+        }
+    }
+
+    private func userPluginDisconnects(_ plugin: MCPOAuthProvider.UserPluginSummary) -> [PluginDisconnectTarget] {
+        [PluginDisconnectTarget(plugin: "user_plugin", accountID: plugin.id, label: plugin.name)]
     }
 
     /// The rows the search keeps: a name or a line holding its words.
@@ -500,15 +551,16 @@ private struct PluginDirectoryView: View {
     }
 
     /// A row with Codex's card actions: a click opens the plugin's page;
-    /// the ⋯ (and a right-click) holds Open, Open in Other Window and Copy
-    /// Link. Connecting and disconnecting are on the page, where each
-    /// plugin's own steps are.
+    /// the ⋯ (and a right-click) holds Open, Open in Other Window, Copy
+    /// Link and, once the plugin is connected, Disconnect. Connecting is on
+    /// the page, where each plugin's own steps are.
     private struct PluginDirectoryRow<Logo: View>: View {
         @Environment(StudioViewModel.self) private var vm
         let row: Row
         let open: (PluginPage) -> Void
         @ViewBuilder var logo: () -> Logo
         @State private var isHovering = false
+        @State private var pendingDisconnect: PluginDisconnectTarget?
 
         var body: some View {
             Button { open(row.page) } label: {
@@ -538,7 +590,41 @@ private struct PluginDirectoryView: View {
             }
             .onHover { isHovering = $0 }
             .contextMenu { menuItems }
+            .confirmationDialog(
+                pendingDisconnect.map(confirmationTitle) ?? "Disconnect?",
+                isPresented: Binding(get: { pendingDisconnect != nil }, set: { if !$0 { pendingDisconnect = nil } }),
+                presenting: pendingDisconnect
+            ) { target in
+                Button(target.verb, role: .destructive) { disconnect(target) }
+                Button("Cancel", role: .cancel) {}
+            } message: { target in
+                Text(target.isTurnOff
+                    ? "Events stay in Calendar. You can turn it on again later."
+                    : "Anything already imported stays. You can connect it again later.")
+            }
             .accessibilityIdentifier("plugins.row.\(row.id)")
+        }
+
+        private func confirmationTitle(_ target: PluginDisconnectTarget) -> String {
+            if target.isTurnOff { return "Turn off \(row.title)?" }
+            guard let label = target.label, label != row.title else { return "Disconnect \(row.title)?" }
+            return "Disconnect \(label) from \(row.title)?"
+        }
+
+        /// The tool the page's Disconnect and an assistant share, so the row can
+        /// never end a connection differently from the page.
+        private func disconnect(_ target: PluginDisconnectTarget) {
+            Task {
+                var arguments: [String: Any] = ["plugin": target.plugin]
+                if let accountID = target.accountID { arguments["account_id"] = accountID }
+                let outcome = await MCPToolRegistry.shared.callToolDetailed(
+                    name: "disconnect_plugin",
+                    arguments: arguments,
+                    access: .internalFullAccess
+                )
+                if outcome.isError { vm.showToast(outcome.text) }
+                NotificationCenter.default.post(name: .pluginConnectionChanged, object: nil)
+            }
         }
 
         @ViewBuilder
@@ -547,6 +633,18 @@ private struct PluginDirectoryView: View {
             OtherWindowMenuItem(.plugins(.plugin(row.page)))
             Divider()
             Button("Copy Link") { PluginsPlace.copy(.plugins(row.page), vm: vm) }
+            if let first = row.disconnects.first {
+                Divider()
+                if row.disconnects.count == 1 {
+                    Button("\(first.verb)…", role: .destructive) { pendingDisconnect = first }
+                } else {
+                    Menu(first.verb) {
+                        ForEach(row.disconnects) { target in
+                            Button("\(target.label ?? row.title)…", role: .destructive) { pendingDisconnect = target }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -594,12 +692,16 @@ private struct PluginDirectoryView: View {
                     youtube: YouTubeService.shared.isSignedIn,
                     drive: GoogleDriveService.shared.isSignedIn,
                     driveFolder: GoogleDriveService.shared.hasFolderReadAccess,
+                    driveAccounts: GoogleDriveService.shared.connectedAccounts,
                     appleCalendar: AppleCalendarService.shared.isConnected
                 )
             }.value
             isYouTubeSignedIn = status.youtube
             isGoogleDriveSignedIn = status.drive
             isGoogleDriveFolderAccessReady = status.driveFolder
+            googleDriveAccounts = status.driveAccounts.sorted {
+                $0.displayLabel.localizedCaseInsensitiveCompare($1.displayLabel) == .orderedAscending
+            }
             isAppleCalendarConnected = status.appleCalendar
             let oauthProvider = await MCPOAuthProvider.sharedProvider()
             userPlugins = await oauthProvider.userPluginSummaries()

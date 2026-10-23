@@ -97,6 +97,28 @@ enum PluginPage: String, CaseIterable, Sendable {
     }
 }
 
+/// One connection a directory row's Disconnect can end: a plugin, and the
+/// account or workspace of it when it holds several. It is the argument pair
+/// `disconnect_plugin` takes, so the row does exactly what the page's own
+/// Disconnect does.
+struct PluginDisconnectTarget: Identifiable, Equatable, Sendable {
+    /// `disconnect_plugin`'s `plugin`.
+    let plugin: String
+    /// Its `account_id`; nil for a plugin with one connection and nothing to
+    /// tell apart (GitHub, Calendar, an older Google Drive sign-in).
+    let accountID: String?
+    /// The account or workspace's name, for the confirmation and for the menu
+    /// when a plugin holds more than one.
+    let label: String?
+
+    var id: String { "\(plugin).\(accountID ?? "")" }
+
+    /// Calendar is the Mac's own, so ForeverLM turns it off rather than
+    /// disconnecting from a service.
+    var isTurnOff: Bool { plugin == "apple_calendar" }
+    var verb: String { isTurnOff ? "Turn Off" : "Disconnect" }
+}
+
 // MARK: - Where the place is
 
 /// The Plugins place's two lists and the pages under them, as Codex's

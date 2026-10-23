@@ -268,6 +268,19 @@ struct SkillsDirectoryTests {
         #expect(edited.hasChanges(from: saved))
     }
 
+    @Test("A row's Disconnect names what disconnect_plugin takes, and Calendar turns off")
+    func disconnectTargets() {
+        let workspace = PluginDisconnectTarget(plugin: "notion", accountID: "ws-1", label: "Acme Lab")
+        #expect(workspace.verb == "Disconnect" && !workspace.isTurnOff)
+        let other = PluginDisconnectTarget(plugin: "notion", accountID: "ws-2", label: "Acme Lab")
+        #expect(workspace.id != other.id, "two workspaces of one plugin stay apart in a menu")
+        let calendar = PluginDisconnectTarget(plugin: "apple_calendar", accountID: nil, label: nil)
+        #expect(calendar.verb == "Turn Off" && calendar.isTurnOff)
+        for target in [workspace, calendar] {
+            #expect(MCPDataStore.disconnectablePlugins.contains(target.plugin))
+        }
+    }
+
     @Test("Import SKILL.md fills the fields the file has and keeps the rest")
     func importMarkdown() {
         let typed = SkillDraft(name: "mine", description: "Typed", instructions: "")

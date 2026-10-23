@@ -6487,6 +6487,8 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **Disconnect a plugin from its row.** In Plugins, the ⋯ and right-click menu on a connected plugin now has **Disconnect…** (**Turn Off…** for Calendar), so you no longer have to open the plugin's page first. A plugin with several accounts or workspaces lists each one, and every disconnect asks first. What was already imported stays.
+
 ## 0.167.0 (build 247) — 2026-10-22
 
 **Highlights:**
