@@ -1531,7 +1531,14 @@ extension AIService {
             // says who made it, so keep just the model part, and the author
             // apart for the makers the catalog has no name for.
             let authorRange = rawName.range(of: ": ")
-            let name = authorRange.map { String(rawName[$0.upperBound...]) } ?? rawName
+            var name = authorRange.map { String(rawName[$0.upperBound...]) } ?? rawName
+            // The catalog names Anthropic's models "Opus 5.5", "Sonnet 5.5"
+            // (`AIModelDisplayName`); the directory's "Claude Opus 5.5 (batch)"
+            // must read the same beside them (product owner, 2026-10-23: "why are
+            // some called Opus 5.5 and the other Claude Opus 5.5 batch?").
+            if id.hasPrefix("anthropic/"), name.hasPrefix("Claude ") {
+                name = String(name.dropFirst("Claude ".count))
+            }
             let makerName = authorRange.map { String(rawName[..<$0.lowerBound]) }
             let pricing = row["pricing"] as? [String: Any]
             func usd(_ value: Any?) -> Double? {
