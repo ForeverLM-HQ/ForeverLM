@@ -213,7 +213,7 @@ struct ReaderToolbarPolicyTests {
     }
 
     @MainActor
-    @Test("titlebar band routing hands a press on a tab to the tab, and its × wins over it")
+    @Test("titlebar band routing hands a press on a source tab to the tab, and a control inside it wins")
     func titlebarBandRoutesTabPresses() {
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 300, height: 200),
@@ -221,7 +221,7 @@ struct ReaderToolbarPolicyTests {
             backing: .buffered,
             defer: false
         )
-        let tab = StudioCenterTabDragHandleView()
+        let tab = StudioSourceTabDragHandleView()
         tab.frame = NSRect(x: 20, y: 170, width: 120, height: 26)
         let close = TitlebarBandHitSurfaceView()
         close.frame = NSRect(x: 118, y: 174, width: 18, height: 18)

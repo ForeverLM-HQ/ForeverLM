@@ -746,14 +746,11 @@ final class TitlebarBandHitSurfaceView: NSView, NSDraggingSource {
         }
     }
 
-    /// A tab handle in the band registers here too (`StudioCenterTabDragHandleView`,
-    /// `StudioSourceTabDragHandleView`): it is drawn into the band by the same
+    /// A source-type tab handle in the band registers here too
+    /// (`StudioSourceTabDragHandleView`): it is drawn into the band by the same
     /// SwiftUI offset, so AppKit hit-tests a press on it to the hosting view and
-    /// reads the drag that follows as a window move, whatever its own
-    /// `mouseDownCanMoveWindow` says (product owner, 2026-10-24: dragging the
-    /// Reader tab to the right-hand pane still moved the whole window). Routed
-    /// presses go to the tightest registered view under the pointer, so a tab's
-    /// × beats the tab it sits on.
+    /// reads the drag that follows as a window move. Routed presses go to the
+    /// tightest registered view under the pointer.
     static func registerWithBandRouter(_ view: NSView) {
         registeredSurfaces.add(view)
         installMouseDownMonitorIfNeeded()
@@ -1196,17 +1193,6 @@ final class StudioCenterTabDragHandleView: NSView, NSDraggingSource {
     /// Tabs live in the titlebar band, so behave like toolbar buttons: respond
     /// to the click that also brings the window forward.
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
-
-    /// The strip hangs into the band by an offset, so AppKit never hit-tests a
-    /// press to this view; the band's mouse router hands it over instead.
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        if window == nil {
-            TitlebarBandHitSurfaceView.unregisterFromBandRouter(self)
-        } else {
-            TitlebarBandHitSurfaceView.registerWithBandRouter(self)
-        }
-    }
 
     override func mouseDown(with event: NSEvent) {
         guard let window else {
@@ -2859,10 +2845,13 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
         // The pane's chrome — its minimum width, the band it rises into, the
         // traffic-light clearance for the leftmost group, what overlays its
         // corner, where the close goes — is `StudioPaneHost`'s, shared with
-        // the notebook workspace's slots. While a strip owns the top chrome
-        // the band is cleared so the pane renders its compact in-flow toolbar
-        // below it; a pane with one tab has no strip, and the band passes
-        // through to its header.
+        // the notebook workspace's slots. The tab strip is the pane's first
+        // row, never part of the titlebar band: a press in the band is the
+        // window's to drag, and a tab dragged there moved the whole window
+        // (product owner, 2026-10-24). While a strip is drawn the band is
+        // cleared so the pane renders its compact in-flow toolbar below it; a
+        // pane with one tab has no strip, and the band passes through to its
+        // header.
         let minWidth = StudioPaneHostMetrics.minimumContentWidth(for: group.activeTab)
         let stripOverflow = max(width, minWidth) - width
         let showsStrip = group.showsTabStrip
@@ -2875,7 +2864,7 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
             swapDestinationCount: StudioPaneSwap.centerDestinations.count
         ) {
             VStack(spacing: 0) {
-                if titlebarBandHeight == nil && showsStrip {
+                if showsStrip {
                     strip(for: group, at: index, trailingOverflow: stripOverflow)
                         .frame(height: StudioPanelChrome.headerHeight)
                 }
@@ -2896,13 +2885,6 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
                     )
                 }
             )
-        } band: {
-            if let band = titlebarBandHeight, showsStrip {
-                StudioBandRow(band: band) {
-                    strip(for: group, at: index, trailingOverflow: stripOverflow)
-                        .frame(height: band)
-                }
-            }
         }
         // A destination dragged from the sidebar onto this pane shows here,
         // in place of what the pane showed. The edge zones above sit over the
@@ -3023,15 +3005,8 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
                 .offset(x: -trailingOverflow)
             }
         }
-        .padding(
-            .leading,
-            (groupIndex == 0 ? headerLeadingInset : 0) + StudioTopBar.centerTabStripHorizontalPadding
-        )
-        .padding(.trailing, StudioTopBar.centerTabStripHorizontalPadding)
+        .padding(.horizontal, StudioTopBar.centerTabStripHorizontalPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // The strip sits in the titlebar band; without this, every click on it
-        // would start a window drag instead of reaching the tabs.
-        .background(WindowDragBlocker())
     }
 
     private var dropIndicatorCapsule: some View {
@@ -3866,21 +3841,6 @@ struct NotebookSlotTabStrip: View {
         }
         .padding(.horizontal, StudioTopBar.centerTabStripHorizontalPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // The strip sits in the titlebar band; without this, every click on it
-        // would start a window drag instead of reaching the tabs.
-        .background(WindowDragBlocker())
-    }
-}
-
-/// `strip` hung in the titlebar band over a pane, on the band's chrome.
-struct NotebookSlotTabBand: View {
-    let band: CGFloat
-    let strip: NotebookSlotTabStrip
-
-    var body: some View {
-        StudioBandRow(band: band) {
-            strip.frame(height: band)
-        }
     }
 }
 

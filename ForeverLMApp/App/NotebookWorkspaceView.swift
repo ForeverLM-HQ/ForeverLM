@@ -990,7 +990,7 @@ struct NotebookWorkspaceView: View {
             swapDestinationCount: swaps.count
         ) {
             VStack(spacing: 0) {
-                if titlebarBandHeight == nil && showsStrip {
+                if showsStrip {
                     strip.frame(height: StudioPanelChrome.headerHeight)
                 }
                 self.document(document)
@@ -1010,10 +1010,6 @@ struct NotebookWorkspaceView: View {
                     )
                 }
             )
-        } band: {
-            if let band = titlebarBandHeight, showsStrip {
-                NotebookSlotTabBand(band: band, strip: strip)
-            }
         }
         .overlay { replaceDropOverlay(identifier == "notebook.document.leading" ? .leadingDocument : .document) }
         .accessibilityElement(children: .contain)
