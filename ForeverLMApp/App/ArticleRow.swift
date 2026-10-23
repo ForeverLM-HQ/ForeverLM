@@ -990,6 +990,19 @@ extension StudioViewModel {
         return (row.day ?? article.dateAdded).formatted(date: .abbreviated, time: .omitted)
     }
 
+    /// What a notebook's source row says beside its spinner. A paper whose PDF
+    /// is already attached opens and reads, so its row does not spin while the
+    /// background text and metadata passes still queue behind it; only a source
+    /// with nothing to open yet spins.
+    func notebookRowActivityLabel(for article: StudioArticle) -> String? {
+        if article.sourceType == .paper,
+           article.state != .fetching,
+           displayHasUsablePDF(article) {
+            return nil
+        }
+        return sourceRowActivityLabel(for: article)
+    }
+
     /// What a source row says beside its spinner while the source's content
     /// is on its way — a fetch, a transcript, a PDF being attached, a paper's
     /// processing step — and nil while nothing is.

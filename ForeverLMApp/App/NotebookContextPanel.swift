@@ -2019,7 +2019,7 @@ struct NotebookPoolSourceRow: View {
             SourceThumbnail(source: article, size: 30)
                 .accessibilityHidden(true)
                 .overlay(alignment: .bottomTrailing) {
-                    if let activity = vm.sourceRowActivityLabel(for: article) {
+                    if let activity = vm.notebookRowActivityLabel(for: article) {
                         ProgressView()
                             .controlSize(.mini)
                             .padding(3)

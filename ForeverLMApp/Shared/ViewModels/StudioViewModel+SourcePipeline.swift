@@ -2772,6 +2772,17 @@ extension StudioViewModel {
         if didEnqueue { drainAutoMetadataExtractionQueue() }
     }
 
+    /// The next paper to work on from a background paper queue. The queues are
+    /// filled by a library-wide sweep, so a paper the learner just filed in a
+    /// notebook would otherwise wait behind every paper in the library, with a
+    /// spinner on its row the whole time. Papers that belong to a notebook go
+    /// first, in the order they were queued; the rest keep their order after them.
+    private func takeNextAutoPaperID(from queue: inout [String]) -> String {
+        let members = Set(notebooks.flatMap(\.approvedSourceIDs).map(canonicalSourceID))
+        let index = queue.firstIndex { members.contains(canonicalSourceID($0)) } ?? 0
+        return queue.remove(at: index)
+    }
+
     /// Extract metadata for queued papers one at a time so we never run several AI
     /// calls concurrently. The loop only coordinates on the main actor; the AI
     /// request and PDF parsing happen off-main inside `extractPaperMetadataWithAI`.
@@ -2780,7 +2791,7 @@ extension StudioViewModel {
         isDrainingAutoExtractMetadataQueue = true
         Task {
             while !autoExtractMetadataQueue.isEmpty {
-                let articleId = autoExtractMetadataQueue.removeFirst()
+                let articleId = takeNextAutoPaperID(from: &autoExtractMetadataQueue)
                 _ = await extractPaperMetadataWithAI(id: articleId, showToasts: false)
                 queuedPaperMetadataExtractionIds.remove(articleId)
             }
@@ -2812,7 +2823,7 @@ extension StudioViewModel {
                     autoFetchPaperQueue.removeAll()
                     break
                 }
-                let articleId = autoFetchPaperQueue.removeFirst()
+                let articleId = takeNextAutoPaperID(from: &autoFetchPaperQueue)
                 _ = await autoResolveNewPaperPDF(for: articleId)
             }
             isDrainingAutoPaperFetchQueue = false
