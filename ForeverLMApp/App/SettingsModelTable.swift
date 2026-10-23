@@ -928,7 +928,7 @@ struct ModelDirectoryTableView: NSViewRepresentable {
             let tableColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(column.rawValue))
             let cell = ModelTableHeaderCell(textCell: column.title)
             cell.isFilterable = column.isFilterable
-            cell.baseFont = cell.font
+            cell.baseFontSize = cell.font?.pointSize ?? 0
             tableColumn.headerCell = cell
             tableColumn.title = column.title
             if let widths = Self.widths[column] {
@@ -985,8 +985,8 @@ struct ModelDirectoryTableView: NSViewRepresentable {
         }
 
         private func applyZoom(to cell: ModelTableHeaderCell) {
-            guard let base = cell.baseFont else { return }
-            cell.font = NSFont(descriptor: base.fontDescriptor, size: base.pointSize * zoom) ?? base
+            guard cell.baseFontSize > 0, let font = cell.font else { return }
+            cell.font = NSFont(descriptor: font.fontDescriptor, size: cell.baseFontSize * zoom) ?? font
         }
 
         private func applyFilterMarks() {
@@ -1353,8 +1353,10 @@ private final class ModelTableHeaderCell: NSTableHeaderCell {
     var isFilterable = false
     var isFilterActive = false
     var isFilterHovered = false
-    /// The font before the app's zoom.
-    var baseFont: NSFont?
+    /// The font size before the app's zoom. AppKit copies a cell with
+    /// `NSCopyObject`, which duplicates stored properties without retaining
+    /// them, so a cell keeps only plain values here, never an object.
+    var baseFontSize: CGFloat = 0
     /// Set while AppKit lays out the title in the narrowed frame, which
     /// already leaves the funnel its room.
     private var drawsTitle = false
