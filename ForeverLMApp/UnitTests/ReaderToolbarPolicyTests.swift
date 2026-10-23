@@ -212,6 +212,37 @@ struct ReaderToolbarPolicyTests {
         surface.removeFromSuperview()
     }
 
+    @MainActor
+    @Test("titlebar band routing hands a press on a tab to the tab, and its × wins over it")
+    func titlebarBandRoutesTabPresses() {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 300, height: 200),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        let tab = StudioCenterTabDragHandleView()
+        tab.frame = NSRect(x: 20, y: 170, width: 120, height: 26)
+        let close = TitlebarBandHitSurfaceView()
+        close.frame = NSRect(x: 118, y: 174, width: 18, height: 18)
+        window.contentView?.addSubview(tab)
+        window.contentView?.addSubview(close)
+
+        // A tab hung in the band is otherwise a window move: AppKit never
+        // hit-tests the press to the tab, so the router has to know it.
+        #expect(TitlebarBandHitSurfaceView.registeredSurface(
+            at: NSPoint(x: 60, y: 183),
+            in: window
+        ) === tab)
+        #expect(TitlebarBandHitSurfaceView.registeredSurface(
+            at: NSPoint(x: 126, y: 183),
+            in: window
+        ) === close)
+
+        tab.removeFromSuperview()
+        close.removeFromSuperview()
+    }
+
     @Test("the shared pin clears Reader's wider close target")
     func readerPaneCloseReservation() {
         // Reader draws the larger of the two close controls. Reserving the

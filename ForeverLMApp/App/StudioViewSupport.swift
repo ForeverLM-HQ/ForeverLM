@@ -651,6 +651,10 @@ func trackTitlebarBandTabPress(
     return result
 }
 
+/// Marks a registered band view whose control-clicks are not its own: they pass
+/// on to the SwiftUI view underneath, whose `.contextMenu` they open.
+protocol TitlebarBandControlClickPassthrough: NSView {}
+
 /// The one mouse surface for a control that lives in the titlebar band.
 ///
 /// A press on a band control used to slide the whole window: measured on the
@@ -671,7 +675,7 @@ func trackTitlebarBandTabPress(
 /// its intrinsic size rather than the wash's, leaving a dead ring inside the
 /// grey the pointer lights up.
 final class TitlebarBandHitSurfaceView: NSView, NSDraggingSource {
-    private static let registeredSurfaces = NSHashTable<TitlebarBandHitSurfaceView>.weakObjects()
+    private static let registeredSurfaces = NSHashTable<NSView>.weakObjects()
     private static var mouseDownMonitor: Any?
     var action: () -> Void = {}
     /// When set, a press opens this menu instead of firing `action`. It opens on
@@ -727,13 +731,29 @@ final class TitlebarBandHitSurfaceView: NSView, NSDraggingSource {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         if window == nil {
-            Self.registeredSurfaces.remove(self)
+            Self.unregisterFromBandRouter(self)
             isPressed = false
             onHoverChange(false)
         } else {
-            Self.registeredSurfaces.add(self)
-            Self.installMouseDownMonitorIfNeeded()
+            Self.registerWithBandRouter(self)
         }
+    }
+
+    /// A tab handle in the band registers here too (`StudioCenterTabDragHandleView`,
+    /// `StudioSourceTabDragHandleView`): it is drawn into the band by the same
+    /// SwiftUI offset, so AppKit hit-tests a press on it to the hosting view and
+    /// reads the drag that follows as a window move, whatever its own
+    /// `mouseDownCanMoveWindow` says (product owner, 2026-10-24: dragging the
+    /// Reader tab to the right-hand pane still moved the whole window). Routed
+    /// presses go to the tightest registered view under the pointer, so a tab's
+    /// × beats the tab it sits on.
+    static func registerWithBandRouter(_ view: NSView) {
+        registeredSurfaces.add(view)
+        installMouseDownMonitorIfNeeded()
+    }
+
+    static func unregisterFromBandRouter(_ view: NSView) {
+        registeredSurfaces.remove(view)
     }
 
     /// SwiftUI can draw a representable above its hosting view's content bounds
@@ -758,6 +778,10 @@ final class TitlebarBandHitSurfaceView: NSView, NSDraggingSource {
                 "Titlebar mouse-down at \(Int(event.locationInWindow.x)),\(Int(event.locationInWindow.y)) in \(eventWindow.frame.width)x\(eventWindow.frame.height); registered: [\(candidates, privacy: .public)]; routed: \(target != nil)"
             )
             guard let target else { return event }
+            // A control-click is a context click: it has to reach the SwiftUI
+            // view underneath, where the tab's context menu lives.
+            if target is TitlebarBandControlClickPassthrough,
+               event.modifierFlags.contains(.control) { return event }
             target.mouseDown(with: event)
             return nil
         }
@@ -765,7 +789,7 @@ final class TitlebarBandHitSurfaceView: NSView, NSDraggingSource {
 
     private static let routerLogger = Logger(subsystem: "com.foreverlm", category: "WindowChrome")
 
-    static func registeredSurface(at point: NSPoint, in window: NSWindow) -> TitlebarBandHitSurfaceView? {
+    static func registeredSurface(at point: NSPoint, in window: NSWindow) -> NSView? {
         registeredSurfaces.allObjects
             .filter { surface in
                 surface.window === window
@@ -1166,6 +1190,17 @@ final class StudioCenterTabDragHandleView: NSView, NSDraggingSource {
     /// to the click that also brings the window forward.
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
+    /// The strip hangs into the band by an offset, so AppKit never hit-tests a
+    /// press to this view; the band's mouse router hands it over instead.
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window == nil {
+            TitlebarBandHitSurfaceView.unregisterFromBandRouter(self)
+        } else {
+            TitlebarBandHitSurfaceView.registerWithBandRouter(self)
+        }
+    }
+
     override func mouseDown(with event: NSEvent) {
         guard let window else {
             pendingMouseDown = event
@@ -1354,7 +1389,7 @@ struct StudioSourceTabDragHandle: NSViewRepresentable {
     }
 }
 
-final class StudioSourceTabDragHandleView: NSView, NSDraggingSource {
+final class StudioSourceTabDragHandleView: NSView, NSDraggingSource, TitlebarBandControlClickPassthrough {
     var tab: StudioSidebarTab?
     var onActivate: () -> Void = {}
     var onDragBegan: () -> Void = {}
@@ -1367,6 +1402,17 @@ final class StudioSourceTabDragHandleView: NSView, NSDraggingSource {
     /// Tabs live in the titlebar band, so behave like toolbar buttons: respond
     /// to the click that also brings the window forward.
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    /// Registered with the band's mouse router for the reason the pane tabs are
+    /// (`StudioCenterTabDragHandleView`): a press here is otherwise a window move.
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window == nil {
+            TitlebarBandHitSurfaceView.unregisterFromBandRouter(self)
+        } else {
+            TitlebarBandHitSurfaceView.registerWithBandRouter(self)
+        }
+    }
 
     /// Own the left mouse only. A right-click — or a control-click, its
     /// equivalent — has to reach the SwiftUI button underneath, where the tab's
