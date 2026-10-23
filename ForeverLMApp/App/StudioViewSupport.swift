@@ -4206,8 +4206,13 @@ struct SourceRowDragModifier<Preview: View>: ViewModifier {
     @ViewBuilder
     func body(content: Content) -> some View {
         if let itemProvider {
+            // The main windows turn `.textSelection(.enabled)` on, so a press on
+            // a row's title started a text selection instead of the drag (a
+            // notebook source dragged toward the chat only highlighted its
+            // title). A draggable row's words are not prose to select.
             content
                 .contentShape(Rectangle())
+                .textSelection(.disabled)
                 .onDrag(itemProvider, preview: preview)
         } else {
             content
