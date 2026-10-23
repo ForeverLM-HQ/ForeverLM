@@ -6488,6 +6488,17 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **Tabs inside a notebook.** The document beside a notebook's chat now holds tabs like the rest of the app: open a Doc while the Reader is there and both stay open, with a tab strip to switch between them and a × on each. A tab closes to its neighbour; the strip's × closes them all.
+
+## 0.170.0 (build 250) — 2026-10-24
+
+**Highlights:**
+- **Dragging a tab to the side works.**
+- **See what a running step is working on.**
+
+- **Dragging a tab to the side works.** A tab at the top of a pane, or a source-type tab in the sidebar, no longer moves the whole window when you drag it; drag a tab to the side of the window to view it beside the rest.
+- **See what a running step is working on.** In AI Usage, a running step such as Source Content Cleanup has a **Show Sources** link that lists its sources by title; click one to open it in the Reader.
+
 ## 0.169.0 (build 249) — 2026-10-23
 
 **Highlights:**
