@@ -1637,6 +1637,9 @@ extension StudioViewModel {
         let key: PaperLibraryKey
         let superseded: Set<String>
         let keysWithPDF: Set<String>
+        /// The preprints the library holds a journal version of, PDF or not
+        /// (`publishedVersion(ofPreprint:)` answers the same for one paper).
+        let withPublishedVersion: Set<String>
     }
 
     /// Built on the main actor, as before, but from `paperListingFacts(for:)`,
@@ -1662,7 +1665,17 @@ extension StudioViewModel {
         for paper in library where paper.sourceType == .paper && hasUsablePDF(paper) {
             keysWithPDF.formUnion(paperListingFacts(for: paper).dedupKeys)
         }
-        let index = PaperLibraryIndex(key: key, superseded: superseded, keysWithPDF: keysWithPDF)
+        let withPublishedVersion = Self.supersededPreprintIDs(
+            in: library,
+            hasUsablePDF: { _ in true },
+            versionFacts: { self.paperListingFacts(for: $0).version }
+        )
+        let index = PaperLibraryIndex(
+            key: key,
+            superseded: superseded,
+            keysWithPDF: keysWithPDF,
+            withPublishedVersion: withPublishedVersion
+        )
         paperLibraryIndexCache = index
         return index
     }

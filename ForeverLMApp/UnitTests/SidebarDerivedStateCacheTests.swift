@@ -180,6 +180,15 @@ struct SidebarDerivedStateCacheTests {
         #expect(vm.filteredPapersWithPDF.map(\.id).contains(journal.id))
         #expect(!vm.papersNeedingPDFAttention.map(\.id).contains(preprint.id), "the preprint is listed as its journal version")
         #expect(!vm.papersNeedingPDFAttention.map(\.id).contains(twin.id), "the twin is suppressed")
+        // A row's menu asks the kept index, never the library: it must say what the walk says.
+        #expect(vm.hasPublishedVersion(ofPreprint: preprint.id))
+        #expect(!vm.hasPublishedVersion(ofPreprint: journal.id))
+        for source in vm.articles {
+            #expect(
+                vm.hasPublishedVersion(ofPreprint: source.id) == (vm.publishedVersion(ofPreprint: source.id) != nil),
+                "the kept index and the walk agree on \(source.title)"
+            )
+        }
 
         for query in ["mito", "mitochondrial fission", "muscle", "", "title:ketone", "Zara Holt"] {
             vm.searchText = query
@@ -192,7 +201,8 @@ struct SidebarDerivedStateCacheTests {
         let generation = StudioArticle.resolvedPathCacheGeneration
         let share = vm.paperLibraryIndex
         vm.paperLibraryIndexCache = StudioViewModel.PaperLibraryIndex(
-            key: share.key, superseded: share.superseded, keysWithPDF: share.keysWithPDF.union(["mark"])
+            key: share.key, superseded: share.superseded, keysWithPDF: share.keysWithPDF.union(["mark"]),
+            withPublishedVersion: share.withPublishedVersion
         )
         vm.searchText = "ageing"
         _ = vm.papersNeedingPDFAttention

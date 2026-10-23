@@ -526,9 +526,11 @@ extension StudioViewModel {
     /// launch (`startZoomTranscriptChecks`) and stops asking about a session
     /// once it has text, a terminal error, or has waited `giveUpAfter`.
     func checkWaitingZoomTranscripts(now: Date = Date()) async {
+        // The state test is a few comparisons and the URL test parses the address, so the state
+        // goes first: this runs on the main actor over the whole library, and parsing every
+        // source's URL there once wedged the app for seconds (a stall sample, 2026-10-24).
         let waiting = articles.filter { article in
-            ZoomRecordingService.isZoomRecordingURL(article.url)
-                && article.status == .active
+            article.status == .active
                 && ZoomTranscriptWait.isWaiting(
                     state: article.state,
                     errorMessage: article.errorMessage,
@@ -536,6 +538,7 @@ extension StudioViewModel {
                     addedAt: article.dateAdded,
                     now: now
                 )
+                && ZoomRecordingService.isZoomRecordingURL(article.url)
         }
         guard !waiting.isEmpty else { return }
         logger.info("Asking Zoom again for \(waiting.count) waiting transcript(s)")

@@ -1836,10 +1836,11 @@ struct NotebookPoolSourceRow: View {
 
     private var isNotebookRow: Bool { onOpen != nil }
 
-    /// Whether this is a preprint the library now holds the journal version of. Read where the
-    /// menus are built (a right-click, a hover), never in the row's body.
+    /// Whether this is a preprint the library now holds the journal version of. `.contextMenu`
+    /// builds its items while the row's body runs, so this is the kept index's set lookup, never
+    /// a walk of the library (that walk, once per row, beachballed opening a notebook).
     private var hasPublishedVersion: Bool {
-        article.sourceType == .paper && vm.publishedVersion(ofPreprint: article.id) != nil
+        article.sourceType == .paper && vm.hasPublishedVersion(ofPreprint: article.id)
     }
 
     @ViewBuilder

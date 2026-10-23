@@ -1143,6 +1143,13 @@ extension StudioViewModel {
         return Self.publishedVersion(of: preprint, in: articles)
     }
 
+    /// Whether the library holds a journal version of the preprint `articleID`, read from the
+    /// kept library index. A row's menu asks this while its body runs, once per row, so it is a
+    /// set lookup; `publishedVersion(ofPreprint:)` walks the library and is for the action.
+    func hasPublishedVersion(ofPreprint articleID: String) -> Bool {
+        paperLibraryIndex.withPublishedVersion.contains(articleID)
+    }
+
     /// The preprints the library holds of the journal version `articleID`.
     func earlierVersions(ofPublished articleID: String) -> [StudioArticle] {
         guard let published = articles.first(where: { $0.id == articleID }) else { return [] }
