@@ -460,11 +460,14 @@ enum PDFTextExtractor {
                 previous = line
                 next += 1
             }
-            records.append(FigureCaption(
-                label: label,
-                caption: caption,
-                isRunningText: index > 0 && continuesRunningText(opening, after: lines[index - 1])
-            ))
+            // An entry in a list of figures names a figure and prints no legend.
+            if !PaperFigureCaptionTitle.isContentsEntry(caption) {
+                records.append(FigureCaption(
+                    label: label,
+                    caption: caption,
+                    isRunningText: index > 0 && continuesRunningText(opening, after: lines[index - 1])
+                ))
+            }
             index = next
         }
         return records

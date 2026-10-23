@@ -67,7 +67,12 @@ enum PaperFigureIndexContract {
     ///   broken off mid-sentence (`PDFTextExtractor.FigureCaption.isRunningText`).
     ///   The Biophysical Journal's Figure 5 was titled "The measured
     ///   fluorescence both inside and outside…".
-    static let currentVersion = 7
+    /// 8 (2026-10-23): an entry in a list of figures is no figure — a
+    ///   caption with a run of leader dots (`PaperFigureCaptionTitle.isContentsEntry`).
+    ///   A thesis's List of Figures held 76 rows, each a box over its contents
+    ///   page, beside the real ones; a paper indexed before this is read again
+    ///   on use and the rows go.
+    static let currentVersion = 8
 
     static func figureID(sourceID: String, figureLabel: String, pageIndex: Int) -> String {
         let material = "\(sourceID)\u{1F}\(pageIndex)\u{1F}\(figureLabel.lowercased())"

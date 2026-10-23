@@ -2674,6 +2674,22 @@ enum PaperFigureCaptionTitle {
         title(from: caption) == nil || isContinuedCaption(caption)
     }
 
+    /// Whether a caption is an entry in a list of figures: the label, the
+    /// title, and a run of leader dots to the page number ("Figure 1.1 The
+    /// cardiac action potential. ........ 20"). A legend never prints six dots
+    /// in a row, prose does not, and the entry's title may wrap, so the dots
+    /// are looked for in the whole caption. Until index version 8 a thesis's
+    /// List of Figures was 76 figures, each a box over its page, beside the
+    /// real ones.
+    static func isContentsEntry(_ caption: String) -> Bool {
+        guard let regex = contentsLeaderRegex else { return false }
+        return regex.firstMatch(in: caption, range: NSRange(caption.startIndex..<caption.endIndex, in: caption)) != nil
+    }
+
+    private static let contentsLeaderRegex = try? NSRegularExpression(
+        pattern: #"(?:\.[ \x{00A0}]?){6,}|\x{2026}[ \x{00A0}]?(?:\x{2026}[ \x{00A0}]?){1,}"#
+    )
+
     /// Where a line's caption begins: after the marks some journals set
     /// before it. EMBO points from a legend to the page its figure is on —
     /// "◀ Figure 2. The DΨm-sensitive dye…" opens the page after Figure 2 —

@@ -201,6 +201,36 @@ struct PDFTextExtractorTests {
         #expect(records.first?.caption.hasPrefix("Fig. 2 | A mitochondrial") == true)
     }
 
+    @Test("An entry in a list of figures is not a caption, however its title wraps")
+    func listOfFiguresEntriesAreNotCaptions() {
+        // A thesis's List of Figures (printed pages 11-13): the label, the
+        // title, leader dots, the page number on a line of its own, and a title
+        // that wraps carries its dots on the second line. Until index version 8
+        // each entry was a figure, a box over its contents page.
+        let text = """
+        LIST OF FIGURES
+        Figure 1.1 The cardiac action potential. ..........................................
+        20
+        Figure 2.7. Multiple quantum coherences of 23Na nuclei....................................
+        Figure 3.1 Diagram of the experimental protocol followed in the Krebs vs Full Metabolic Buffer
+        study. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 87
+        Figure 5.6 Manual inversion prevents loss of TQF 23Na NMR signal
+        Figure 1.1 The cardiac action potential. Phases 0-4 of a human ventricular action potential.
+        """
+        let records = PDFTextExtractor.figureCaptionRecords(in: text)
+        #expect(records.map(\.label) == ["Figure 5.6", "Figure 1.1"])
+        #expect(records.last?.caption.hasPrefix("Figure 1.1 The cardiac action potential. Phases") == true)
+    }
+
+    @Test("Leader dots are told from an ellipsis in a legend")
+    func contentsEntryNeedsALongLeader() {
+        #expect(PaperFigureCaptionTitle.isContentsEntry("Figure 1.1 The cardiac action potential. ........ 20"))
+        #expect(PaperFigureCaptionTitle.isContentsEntry("Figure S7: Cross-aspect GO term embedding analysis .............................. 9"))
+        #expect(PaperFigureCaptionTitle.isContentsEntry("Figure 4 Mitochondria \u{2026}\u{2026}\u{2026} 31"))
+        #expect(!PaperFigureCaptionTitle.isContentsEntry("Fig. 2 | The curve rises, then falls... and recovers (n = 4)."))
+        #expect(!PaperFigureCaptionTitle.isContentsEntry("Figure 3. Cells were imaged at 10 . 20 . 30 min."))
+    }
+
     @Test("One label printed twice on a page indexes once")
     func duplicateLabelOnOnePageIndexesOnce() throws {
         let root = FileManager.default.temporaryDirectory
