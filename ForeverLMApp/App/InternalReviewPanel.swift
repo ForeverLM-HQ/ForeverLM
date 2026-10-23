@@ -2387,6 +2387,7 @@ private struct InternalReviewPanelContent: View {
                 .overlay(alignment: .trailing) {
                     HStack(spacing: StudioPaneClosePlacement.interControlSpacing) {
                         memoryReviewFocusChrome
+                        newNotebookChatButton
                         chatActionsMenu
                     }
                     .padding(.trailing, chatHeaderControlTrailingInset)
@@ -2514,12 +2515,65 @@ private struct InternalReviewPanelContent: View {
     /// Width the header's trailing controls take, so the title truncates clear
     /// of them however many there are.
     private var chatHeaderControlsWidth: CGFloat {
-        // The ⋯, once there is something under it.
+        // The ⋯, once there is something under it, and the new-chat button
+        // before it.
         var width: CGFloat = showsChatActionsMenu ? chatHeaderControlSize : 0
+        if showsNewNotebookChatButton {
+            if width > 0 { width += StudioPaneClosePlacement.interControlSpacing }
+            width += chatHeaderControlSize
+        }
         guard showsMemoryReviewFocusChrome else { return width }
         // The review's × in front of it.
         if width > 0 { width += StudioPaneClosePlacement.interControlSpacing }
         return width + chatHeaderControlSize
+    }
+
+    /// Whether the header carries New chat: in a notebook window, once this
+    /// chat has something in it. A blank chat is already the new one, and the
+    /// button would only reload it. Before 2026-10-24 the way to a second
+    /// chat in a notebook was ⋯ ▸ Chats in This Notebook ▸ New Chat, or ⌘N,
+    /// or a + that showed only under the pointer on the rail's row (product
+    /// owner, 2026-10-24: "within the notebook view, how can I actually do a
+    /// new chat? This has to be a lot easier").
+    private var showsNewNotebookChatButton: Bool {
+        headerNotebookID != nil && windowState != nil
+            && (manager.currentSessionID != nil || manager.chatMessageCount > 0)
+    }
+
+    /// New chat, one press from the chat's header: the notebook's own chat
+    /// with its ticked sources (`requestNewChat`), as ⌘N and the ⋯ menu do.
+    @ViewBuilder
+    private var newNotebookChatButton: some View {
+        if showsNewNotebookChatButton, let windowState {
+            if usesTitlebarBandHeader {
+                TitlebarBandButton(
+                    help: "New chat",
+                    accessibilityLabel: "New chat",
+                    accessibilityIdentifier: "mac.newNotebookChat",
+                    controlSize: chatHeaderControlSize,
+                    action: { vm.inWindow(windowState) { vm.requestNewChat() } }
+                ) {
+                    newNotebookChatLabel
+                }
+            } else {
+                Button {
+                    vm.inWindow(windowState) { vm.requestNewChat() }
+                } label: {
+                    newNotebookChatLabel
+                        .frame(width: chatHeaderControlSize, height: chatHeaderControlSize)
+                }
+                .buttonStyle(.hoverWash(cornerRadius: chatHeaderControlSize / 2, inset: -5, opacity: 0.12))
+                .help("New chat")
+                .accessibilityLabel("New chat")
+                .accessibilityIdentifier("mac.newNotebookChat")
+            }
+        }
+    }
+
+    private var newNotebookChatLabel: some View {
+        Image(systemName: "square.and.pencil")
+            .zoomedSystemFont(size: 11, weight: .semibold)
+            .foregroundStyle(.secondary)
     }
 
     /// The chat this header's ⋯ acts on: a chat that has a row to be opened
