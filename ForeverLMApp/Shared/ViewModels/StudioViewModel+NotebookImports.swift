@@ -194,6 +194,18 @@ extension StudioViewModel {
         return LivePageAdd(landed: true, addedSourceID: article.id)
     }
 
+    /// The title a page already carries where it was cited, as a source's
+    /// first title: a site's name on either side of a bar ("… in human blood |
+    /// bioRxiv", "Frontiers | Updating …") dropped by keeping the longest part,
+    /// and nil when it says nothing the address does not (empty, the host).
+    nonisolated static func citedPageTitle(_ raw: String?, host: String) -> String? {
+        let parts = (raw ?? "").components(separatedBy: " | ")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        guard let title = parts.max(by: { $0.count < $1.count }), !title.isEmpty,
+              title.caseInsensitiveCompare(host) != .orderedSame else { return nil }
+        return title
+    }
+
     /// The address a link field can import, or nil when the text is words to
     /// search for: an http(s) URL with a host, or a DOI (`10.…/…`, `doi:…`)
     /// as its doi.org address — the rule `import_paper_from_url` applies.
@@ -229,7 +241,12 @@ extension StudioViewModel {
     /// home, or, linked already, filed under the notebook too. Reports
     /// through the outcome: the caller says it (`notebookImportToast`).
     @discardableResult
-    func importLink(_ rawURL: String, intoNotebook notebookID: String?, revealInReader: Bool = false) async -> NotebookImportOutcome {
+    func importLink(
+        _ rawURL: String,
+        intoNotebook notebookID: String?,
+        revealInReader: Bool = false,
+        knownTitle: String? = nil
+    ) async -> NotebookImportOutcome {
         guard let address = Self.normalizedSourceAddress(rawURL) else {
             return NotebookImportOutcome(library: .failed("There is no address to add."), membership: .none)
         }
@@ -284,7 +301,8 @@ extension StudioViewModel {
                 url: address,
                 revealInReader: revealInReader,
                 waitForInitialPaperProcessing: false,
-                reviveArchivedSourceIfNeeded: true
+                reviveArchivedSourceIfNeeded: true,
+                knownTitle: knownTitle
             )
         } catch {
             return NotebookImportOutcome(library: .failed(error.localizedDescription), membership: .none)

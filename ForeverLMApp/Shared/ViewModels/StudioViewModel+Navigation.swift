@@ -551,9 +551,9 @@ extension StudioViewModel {
     /// joins that notebook as well (`importLink`), and the answer is whether
     /// both hold it.
     @discardableResult
-    func addCitedPageToSources(_ url: URL, notebookID: String? = nil) async -> Bool {
+    func addCitedPageToSources(_ url: URL, notebookID: String? = nil, title: String? = nil) async -> Bool {
         if let notebook = importableNotebook(notebookID) {
-            let outcome = await importLink(url.absoluteString, intoNotebook: notebook.id)
+            let outcome = await importLink(url.absoluteString, intoNotebook: notebook.id, knownTitle: title)
             showToast(Self.notebookImportToast(outcome, notebookTitle: notebook.title))
             return outcome.landed
         }
@@ -568,7 +568,8 @@ extension StudioViewModel {
                 url: address,
                 revealInReader: false,
                 waitForInitialPaperProcessing: false,
-                reviveArchivedSourceIfNeeded: true
+                reviveArchivedSourceIfNeeded: true,
+                knownTitle: title
             )
         } catch {
             showToast("Could not add to Sources: \(error.localizedDescription)")

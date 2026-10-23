@@ -492,7 +492,7 @@ struct ReviewChatWebSourcesList: View {
             .help("Open in Reader")
             Button {
                 guard let url else { return }
-                add(url, key: key, state: state)
+                add(url, key: key, state: state, title: citation.title)
             } label: {
                 Label(addTitle(state, notebook: notebook), systemImage: state.systemImage)
                     .zoomedSystemFont(size: 11, weight: .medium)
@@ -542,7 +542,7 @@ struct ReviewChatWebSourcesList: View {
     /// for a duplicate, import, then report exactly what the library ended up
     /// with. A failed import leaves the row available so the click can be
     /// retried, rather than pretending the page was kept.
-    private func add(_ url: URL, key: String, state: ReaderAddPageToolbarState) {
+    private func add(_ url: URL, key: String, state: ReaderAddPageToolbarState, title: String) {
         if state.opensSavedSource {
             // View in Sources: the saved copy, the way a source citation opens.
             guard let sourceID = vm.librarySourceID(forURL: url.absoluteString) else {
@@ -559,7 +559,7 @@ struct ReviewChatWebSourcesList: View {
             await Task.yield()
             defer { addingKeys.remove(key) }
             // The shared import, which a highlight's cited papers use too.
-            if await vm.addCitedPageToSources(url, notebookID: notebookID) {
+            if await vm.addCitedPageToSources(url, notebookID: notebookID, title: title) {
                 savedKeys.insert(key)
             }
         }

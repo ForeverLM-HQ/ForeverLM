@@ -1150,7 +1150,8 @@ extension StudioViewModel {
         revealInReader: Bool = true,
         zoomPasscode: String? = nil,
         waitForInitialPaperProcessing: Bool = false,
-        reviveArchivedSourceIfNeeded: Bool = false
+        reviveArchivedSourceIfNeeded: Bool = false,
+        knownTitle: String? = nil
     ) async throws {
         guard let normalized = Self.normalizedSourceAddress(url) else { return }
 
@@ -1301,7 +1302,11 @@ extension StudioViewModel {
 
         let origin: DiscoveryOrigin = .manual
         // For direct PDF URLs, use a cleaned filename as initial title instead of the raw domain
-        let initialTitle = Self.titleFromPDFURL(normalized) ?? domain
+        // A caller that already read the page's title (a chat's Web sources) hands
+        // it in, so the row carries its real title from the first frame rather
+        // than the address until the fetch lands.
+        let initialTitle = Self.citedPageTitle(knownTitle, host: domain)
+            ?? Self.titleFromPDFURL(normalized) ?? domain
         var article = StudioArticle(url: normalized, title: initialTitle, sourceType: detectedType, discoveryOrigin: origin)
         article.domain = domain
         article.artworkURL = article.youtubeThumbnailURL

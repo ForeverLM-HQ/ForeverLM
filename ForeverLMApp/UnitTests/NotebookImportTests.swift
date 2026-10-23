@@ -573,6 +573,16 @@ struct NotebookImportLinkTests {
         #expect(StudioViewModel.normalizedSourceAddress("   ") == nil)
     }
 
+    @Test("A cited page's title becomes the new source's first title, without the site's name")
+    func citedPageTitles() {
+        let host = "www.biorxiv.org"
+        #expect(StudioViewModel.citedPageTitle("Mechanism of aging in blood | bioRxiv", host: host) == "Mechanism of aging in blood")
+        #expect(StudioViewModel.citedPageTitle("Frontiers | Updating the Free Radical Theory of Aging", host: host) == "Updating the Free Radical Theory of Aging")
+        #expect(StudioViewModel.citedPageTitle("", host: host) == nil)
+        #expect(StudioViewModel.citedPageTitle(nil, host: host) == nil)
+        #expect(StudioViewModel.citedPageTitle("WWW.biorxiv.org", host: host) == nil)
+    }
+
     @Test("Each outcome says where the page went")
     func toasts() {
         typealias Outcome = StudioViewModel.NotebookImportOutcome

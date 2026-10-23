@@ -1260,6 +1260,17 @@ struct NotebookSourcePoolView: View {
         return typedSearchQuery
     }
 
+    /// A page just added that still wears the address, or a stub like
+    /// "| bioRxiv", for a title: it joins the list once its real title lands,
+    /// which a link added from a chat's Web sources has from the first frame
+    /// (`addCitedPageToSources`). A failed fetch stays listed, to be removed.
+    private static func awaitsItsTitle(_ article: StudioArticle) -> Bool {
+        guard article.sourceType == .article || article.sourceType == .paper,
+              article.state == .queued || article.state == .fetching else { return false }
+        return article.title.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("|")
+            || StudioViewModel.titleNeedsResolution(article.title, domain: article.domain, url: article.url)
+    }
+
     private func filteredArticles(
         for items: [LearningGoalItem],
         includesPaywalled: Bool
@@ -1267,6 +1278,7 @@ struct NotebookSourcePoolView: View {
         let articles = items
             .filter { includesPaywalled || !isPaywalled($0) }
             .compactMap { vm.articlesById[$0.sourceID] }
+            .filter { !Self.awaitsItsTitle($0) }
         let query = trimmedSearchQuery
         guard !query.isEmpty else { return articles }
         let terms = NotebookContextSourceSearch.terms(in: query)
