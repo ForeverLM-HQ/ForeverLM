@@ -588,10 +588,7 @@ struct AIActivitySettingsSection: View {
             if let task = summary.task {
                 switch AIUsageTaskNeed.of(taskKey: task) {
                 case .needed:
-                    Text("Essential")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                        .help("This is functionality that is essential for ForeverLM to work, so it cannot be turned off.")
+                    EmptyView()
                 case .optional:
                     if let control = Self.offSwitch(for: task) {
                         Button("Turn off…") {
