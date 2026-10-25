@@ -6493,6 +6493,8 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.175.0 (build 255) — 2026-10-26
+
 **Highlights:**
 - **The iPhone starts on Home, with the library first.**
 - **A paper opens from the Library again on the iPhone.**
