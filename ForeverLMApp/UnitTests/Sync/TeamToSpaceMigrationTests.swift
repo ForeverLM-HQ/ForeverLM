@@ -103,6 +103,107 @@ struct TeamToSpaceMigrationTests {
         #expect(try alice.store.replica.engineState(TeamToSpace.journal(Self.teamID)) == Data("done".utf8))
     }
 
+    // MARK: A space the library's move left behind
+
+    private static func isOwed(_ mac: S.Mac) async throws -> Bool {
+        try await mac.device.local.perform { try TeamToSpace.isOwed(teamID: teamID, in: $0) }
+    }
+
+    /// The personal root as if the library's zones were made `seconds` from now (an hour back: before the
+    /// team's journal; an hour ahead: after it), with the same salt.
+    private static func setLibraryMade(_ mac: S.Mac, seconds: TimeInterval) async throws {
+        try await mac.device.local.perform { state in
+            let replica = state.replica
+            let personal = try #require(try replica.personalRoot())
+            let made = SyncJSON(SyncTime.milliseconds(Date().addingTimeInterval(seconds)))
+            try replica.upsertRecord(ReplicaRecord(
+                zoneKey: PrivateSyncZones.libraryKey, recordName: SyncSchema.rootRecordName, recordType: SyncRecordType.zoneRoot.rawValue,
+                wireID: "root", systemFields: nil,
+                payload: try OutboxTestProjections.payload(.zoneRoot, "root", [
+                    "kind": "personal", "salt": try #require(personal.envelope.fields["salt"]),
+                    "saltID": try #require(personal.envelope.fields["saltID"]), "createdAt": made,
+                ]),
+                seenPass: nil
+            ))
+        }
+    }
+
+    /// SpaceSync's mark for a space the server no longer lists (`SpaceSync.spaceGone`).
+    private static func markGone(_ mac: S.Mac) async throws {
+        try await mac.device.local.perform { state in
+            let mark = SyncJSON.object(["reason": .string("deleted"), "at": SyncJSON(SyncTime.milliseconds(Date()))]).serialized()
+            try state.replica.setEngineState(SpaceSync.StateScope.gone(zoneKey), mark)
+        }
+    }
+
+    @Test("A team's space that went when the library's zones were made anew is made again, and the team's rows go to it")
+    func spaceLostWithTheLibraryIsMadeAgain() async throws {
+        let server = EngineTestDriver.server()
+        let (alice, _, others) = try await Self.ownerWithTeam(server)
+        try await Self.setLibraryMade(alice, seconds: -3_600)
+        let job = TeamToSpace(service: alice.service, passKey: "macaaaaa.p6")
+        try await job.run(owner: alice.owner)
+        #expect(try await Self.isOwed(alice) == false)
+
+        // The library moves to a new container: its zones are made anew, later than the journal, the space is
+        // not among them, and SpaceSync finds it gone. Nothing the team holds is sent while it stays so.
+        server.deleteZone("Space-\(Self.teamID)", owner: "alice")
+        try await Self.setLibraryMade(alice, seconds: 3_600)
+        try await Self.markGone(alice)
+        #expect(try await Self.isOwed(alice))
+
+        let outcome = try await job.run(owner: alice.owner)
+        #expect(outcome.spaces == [Self.teamID: Self.teamID], "the same space id: the team's rows already name it")
+        #expect(server.storedRecord("root", zone: "Space-\(Self.teamID)", owner: "alice") != nil)
+        #expect(server.recordNames(zone: "Space-\(Self.teamID)", owner: "alice").contains(CloudRecordID.zoneShareRecordName))
+        #expect(try await alice.service.list().first?.gone == nil)
+        #expect(try await Self.isOwed(alice) == false)
+
+        try await alice.syncSpaces()
+        let sourceName = RecordNaming.recordName(type: .source, id: others[0], salt: S.spaceSalt)
+        #expect(server.storedRecord(sourceName, zone: "Space-\(Self.teamID)", owner: "alice") != nil, "the team's source reaches the new zone")
+
+        // A second run finds the team done.
+        #expect(try await job.run(owner: alice.owner) == TeamToSpace.Outcome())
+    }
+
+    @Test("A space that went while the library's zones stayed as they were was deleted on purpose and stays gone")
+    func deletedSpaceStaysGone() async throws {
+        let server = EngineTestDriver.server()
+        let (alice, _, _) = try await Self.ownerWithTeam(server)
+        try await Self.setLibraryMade(alice, seconds: -3_600)
+        let job = TeamToSpace(service: alice.service, passKey: "macaaaaa.p6")
+        try await job.run(owner: alice.owner)
+
+        server.deleteZone("Space-\(Self.teamID)", owner: "alice")
+        try await Self.markGone(alice)
+        #expect(try await Self.isOwed(alice) == false)
+        #expect(try await job.run(owner: alice.owner) == TeamToSpace.Outcome())
+        #expect(server.storedRecord("root", zone: "Space-\(Self.teamID)", owner: "alice") == nil)
+    }
+
+    @Test("A remake that stops after the zone is made is resumed as an unfinished run")
+    func interruptedRemakeResumes() async throws {
+        let server = EngineTestDriver.server()
+        let (alice, _, _) = try await Self.ownerWithTeam(server)
+        try await Self.setLibraryMade(alice, seconds: -3_600)
+        let job = TeamToSpace(service: alice.service, passKey: "macaaaaa.p6")
+        try await job.run(owner: alice.owner)
+        server.deleteZone("Space-\(Self.teamID)", owner: "alice")
+        try await Self.setLibraryMade(alice, seconds: 3_600)
+        try await Self.markGone(alice)
+
+        // The run made the zone and its root, then stopped before the share: the journal was dropped first.
+        try await alice.device.local.perform { try $0.replica.setEngineState(TeamToSpace.journal(Self.teamID), nil) }
+        _ = try await alice.service.create(kind: "team", name: "Mito lab", owner: alice.owner, spaceID: Self.teamID, share: false)
+        #expect(try await alice.service.list().first?.gone == nil)
+        #expect(try await Self.isOwed(alice), "no journal: the share and the journal are still to do")
+
+        try await job.run(owner: alice.owner)
+        #expect(server.recordNames(zone: "Space-\(Self.teamID)", owner: "alice").contains(CloudRecordID.zoneShareRecordName))
+        #expect(try await Self.isOwed(alice) == false)
+    }
+
     @Test("A member's identities move from the old container's owner name to the space as the library container names it")
     func memberRehomes() throws {
         let (root, store) = try F.makeStore("team-member")

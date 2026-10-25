@@ -675,8 +675,27 @@ actor MacSyncSession {
                 _ = try? await spaces.purgeExpired()
             }
         }
+        await remakeLostTeamSpaces()
         await flushSpaceDelta()
         await cutoverTick()
+    }
+
+    /// A team's space is a zone in the container the library syncs with. When the library moved to a new
+    /// container or was uploaded again, the space was not carried with it, SpaceSync marked it gone, and the
+    /// team's sources, notebooks and chats waited in the outbox for a zone that never came back: the iPhone
+    /// listed none of them. The cutover's P6 is done by then, so this makes the space again, as P6 does,
+    /// once the cutover is finished and only for a team `TeamToSpace.isOwed` names.
+    private func remakeLostTeamSpaces() async {
+        guard let coordinator, holds, cutoverFinished else { return }
+        guard (try? await store.perform { try TeamToSpace.anyOwed(in: $0) }) == true else { return }
+        do {
+            let owner = SyncPerson(user: try await coordinator.transport.userRecordName(), name: coordinator.shares.accountName ?? "")
+            let passKey = "\(deviceID).\(CutoverSeeder.teamsPassID)"
+            let outcome = try await TeamToSpace(service: SpaceService(coordinator: coordinator), passKey: passKey).run(owner: owner)
+            Self.logger.info("Made \(outcome.spaces.count) team spaces again")
+        } catch {
+            Self.logger.error("A team's space could not be made again: \(String(describing: error), privacy: .public)")
+        }
     }
 
     /// P6's records are acknowledged by SpaceSync after the seed's last step, so their delta is written in a

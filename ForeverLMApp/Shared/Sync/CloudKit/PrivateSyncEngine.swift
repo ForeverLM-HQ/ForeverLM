@@ -171,6 +171,15 @@ extension ReplicaStore {
         return state
     }
 
+    /// When one scope's state was last written; nil when it holds none.
+    func engineStateUpdatedAt(_ scope: String) throws -> Date? {
+        var written: Date?
+        try connection.query("SELECT updated_at FROM ck_engine_state WHERE scope = ?", [.text(scope)]) {
+            written = $0.real(0).map(Date.init(timeIntervalSinceReferenceDate:))
+        }
+        return written
+    }
+
     /// Writes one scope's state, or removes it with nil.
     func setEngineState(_ scope: String, _ state: Data?, now: Date = Date()) throws {
         guard let state else {

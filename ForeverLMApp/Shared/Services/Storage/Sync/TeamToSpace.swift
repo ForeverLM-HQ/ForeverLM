@@ -39,16 +39,43 @@ struct TeamToSpace {
         var listed: [String: Int] = [:]
     }
 
-    /// Runs every owned team that is not done yet; `owner` is this account as the space roots name it.
+    /// Whether an owned team still needs its space made: it has no journal, or its journal is of an earlier
+    /// library. A space is a zone in the container the library syncs with; when the library moves to a new
+    /// container or is uploaded again, its zones are made anew and a team's space is not among them, so
+    /// SpaceSync marks it gone and nothing the team holds is ever sent. That is told from a space the learner
+    /// deleted by the library's zones being newer than the journal: a delete leaves them as they were.
+    static func isOwed(teamID: String, in state: PrivateSyncLocalState) throws -> Bool {
+        let replica = state.replica
+        guard let journaled = try replica.engineStateUpdatedAt(journal(teamID)) else { return true }
+        guard let libraryMadeAt = try replica.personalRoot()?.envelope.fields["createdAt"]?.int64Value,
+              libraryMadeAt > SyncTime.milliseconds(journaled)
+        else { return false }
+        return try SpaceService.summaries(state.connection).contains { $0.localTeamID == teamID && $0.isOwned && $0.gone != nil }
+    }
+
+    /// Whether any team this Mac owns is owed its space (`isOwed`), for the round's cheap look.
+    static func anyOwed(in state: PrivateSyncLocalState) throws -> Bool {
+        try ownedTeams(in: state).contains { try isOwed(teamID: $0.id, in: state) }
+    }
+
+    private static func ownedTeams(in state: PrivateSyncLocalState) throws -> [Team] {
+        var found: [Team] = []
+        try state.connection.query("SELECT id, name, family_plan_code FROM teams WHERE role = 'owner' ORDER BY created_at, id", []) { row in
+            if let id = row.text(0) { found.append(Team(id: id, name: row.text(1) ?? "", familyPlanCode: row.text(2))) }
+        }
+        return found
+    }
+
+    /// Runs every owned team that is owed its space (`isOwed`); `owner` is this account as the space roots
+    /// name it.
     @discardableResult
     func run(owner: SyncPerson) async throws -> Outcome {
         let store = service.store
         let teams = try await store.perform { state -> [Team] in
-            var found: [Team] = []
-            try state.connection.query("SELECT id, name, family_plan_code FROM teams WHERE role = 'owner' ORDER BY created_at, id", []) { row in
-                if let id = row.text(0) { found.append(Team(id: id, name: row.text(1) ?? "", familyPlanCode: row.text(2))) }
-            }
-            return try found.filter { try state.replica.engineState(Self.journal($0.id)) == nil }
+            let owed = try Self.ownedTeams(in: state).filter { try Self.isOwed(teamID: $0.id, in: state) }
+            // A stale journal goes now, so a run that stops after the zone is made is resumed as an unfinished one.
+            for team in owed { try state.replica.setEngineState(Self.journal(team.id), nil) }
+            return owed
         }
         var outcome = Outcome()
         for team in teams {
