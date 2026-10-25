@@ -7,9 +7,8 @@ import XCTest
 // interaction at all — the simulator helper can screenshot but cannot inject
 // touches.
 //
-// Home is the Notebooks list (docs/notebooks-design.md, "iPhone"): Settings and
-// in its toolbar, the notebooks, then the Library row; a
-// launch reopens the notebook last worked in, pushed over Home. Typed chat
+// Home is where the phone starts (docs/notebooks-design.md, "iPhone"): Settings
+// in its toolbar, the Library row first, then the notebooks. Typed chat
 // lives in a notebook's Chat tab and the Reader's Ask. Extraction is asserted
 // through MobileUITestProbe:
 // a launch-argument-gated status line the app renders after running the same
@@ -39,7 +38,7 @@ final class MobileVoiceUITests: XCTestCase {
     }
 
     /// Home is the notebooks: Settings in the toolbar, a New notebook button,
-    /// the Library row below the notebooks, and no text composer of its own.
+    /// the Library row above the notebooks, and no text composer of its own.
     /// Nothing billable starts.
     func testHomeListsNotebooks() throws {
         app.launch()
@@ -56,9 +55,9 @@ final class MobileVoiceUITests: XCTestCase {
             "Home lost its title."
         )
 
+        // The Library is the first row under the title, in view without a scroll.
         let library = app.descendants(matching: .any).matching(identifier: "home.sources").firstMatch
-        for _ in 0..<10 where !library.exists { app.swipeUp() }
-        XCTAssertTrue(library.exists, "Home has no Library row below the notebooks.")
+        XCTAssertTrue(library.waitForExistence(timeout: 10), "Home has no Library row at the top.")
     }
 
     /// Compact Picker menus flatten custom option views. Keep each Text to Speech
@@ -469,7 +468,7 @@ final class MobileVoiceUITests: XCTestCase {
         add(shot)
     }
 
-    /// Opens the whole library from Home's Library row, below the notebooks.
+    /// Opens the whole library from Home's Library row, the first row under the title.
     private func openSources() throws {
         let link = app.descendants(matching: .any)
             .matching(identifier: "home.sources")
@@ -480,18 +479,12 @@ final class MobileVoiceUITests: XCTestCase {
     }
 
     /// Waits until the home screen renders, failing fast if the catalog settles
-    /// on empty. A launch reopens the notebook last worked in, pushed over
-    /// Home, so a notebook on top is backed out of first.
+    /// on empty. A launch starts on Home.
     private func waitForHome() throws {
         let hero = app.descendants(matching: .any)["home.settings"]
-        let notebookTabBar = app.descendants(matching: .any)["notebook.tabBar"]
         let deadline = Date().addingTimeInterval(Self.catalogTimeout)
         while Date() < deadline {
             if hero.exists { return }
-            if notebookTabBar.exists {
-                let back = app.navigationBars.buttons.element(boundBy: 0)
-                if back.exists { back.tap() }
-            }
             // The account wall showing its sign-in button means this simulator
             // has no managed-AI session, and everything behind the wall is
             // unverifiable here — same shape as the voice transport skip. The

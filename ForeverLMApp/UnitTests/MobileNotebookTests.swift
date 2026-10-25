@@ -712,24 +712,6 @@ struct MobileNotebookTests {
 
     // MARK: - The last notebook
 
-    @Test("A launch reopens the notebook last worked in, and Home otherwise")
-    func lastNotebookRestore() {
-        let notebooks = [notebook("p1"), notebook("p2"), notebook("gone", isArchived: true)]
-        #expect(MobileNotebookResume.restoredNotebookID(stored: "p2", notebooks: notebooks) == "p2")
-        #expect(MobileNotebookResume.restoredNotebookID(stored: nil, notebooks: notebooks) == nil, "a new learner sees Home")
-        #expect(MobileNotebookResume.restoredNotebookID(stored: "p2", notebooks: []) == nil, "no notebooks: Home")
-        #expect(MobileNotebookResume.restoredNotebookID(stored: "deleted", notebooks: notebooks) == nil)
-        #expect(MobileNotebookResume.restoredNotebookID(stored: "gone", notebooks: notebooks) == nil, "archived: Home")
-        #expect(MobileNotebookResume.restoredNotebookID(stored: "  ", notebooks: notebooks) == nil)
-
-        #expect(MobileShellRoute.launchPath(current: [], restoredNotebookID: "p2") == [.notebook("p2")], "pushed over Home")
-        #expect(MobileShellRoute.launchPath(current: [], restoredNotebookID: nil).isEmpty)
-        #expect(
-            MobileShellRoute.launchPath(current: [.cardReview(.allNotebooks)], restoredNotebookID: "p2") == [.cardReview(.allNotebooks)],
-            "a link that came first wins"
-        )
-    }
-
     @Test("The last notebook is remembered on this device only, and forgotten with its notebook")
     func lastNotebookStore() throws {
         let suiteName = "MobileNotebookTests.\(UUID().uuidString)"
@@ -979,7 +961,7 @@ struct MobileNotebookTests {
 
     @Test("The phone's Studio tiles are the Mac's where the Mac has them, and only what the phone can run")
     func studioTilesFollowTheMacs() {
-        #expect(MobileNotebookStudioTile.allCases == [.explainer, .walkthrough, .reviewMe, .quiz])
+        #expect(MobileNotebookStudioTile.allCases == [.explainer, .walkthrough, .quiz])
         // Of the Mac's tiles the phone draws only Explainer, under its title,
         // glyph and menu; making overviews, cards, reports, research, courses
         // and notes stays on the Mac.
@@ -987,13 +969,10 @@ struct MobileNotebookTests {
         #expect(Set(MobileNotebookStudioTile.allCases.map(\.title)).intersection(macTitles) == ["Explainer"])
         #expect(MobileNotebookStudioTile.explainer.title == NotebookStudioTile.explainer.title)
         #expect(MobileNotebookStudioTile.explainer.symbolName == NotebookStudioTile.explainer.symbolName)
-        #expect(MobileNotebookStudioTile.explainer.isMenu == NotebookStudioTile.explainer.isMenu)
         // The phone's own take the glyph the Mac gives their feature.
         let walk = NotebookOutput(kind: .walkthrough, targetID: "s", title: "Walk", sourceIDs: ["s"], date: nil)
         #expect(MobileNotebookStudioTile.walkthrough.symbolName == walk.symbolName)
-        #expect(!MobileNotebookStudioTile.reviewMe.isMenu)
-        #expect(MobileNotebookStudioTile.quiz.isMenu && MobileNotebookStudioTile.walkthrough.isMenu)
-        #expect(Set(MobileNotebookStudioTile.allCases.map(\.accessibilityIdentifier)).count == 4)
+        #expect(Set(MobileNotebookStudioTile.allCases.map(\.accessibilityIdentifier)).count == 3)
     }
 
     @Test("A Studio output row reads as the Mac's: its kind's glyph and \"Doc · 4 sources · 3 days ago\"")

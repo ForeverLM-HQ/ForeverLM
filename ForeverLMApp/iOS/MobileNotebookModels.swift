@@ -575,23 +575,13 @@ enum MobileNotebookOrdering {
     }
 }
 
-// MARK: - Opening in the last notebook
+// MARK: - The last notebook
 
-/// The phone opens in the notebook the learner last worked in, pushed over
-/// Home on a cold launch so Back is the home (decisions-v5). Remembered on
-/// this device only: which notebook a phone shows is not the account's.
+/// Where the last notebook is remembered, for Home's Recent. A cold launch no
+/// longer opens it: the phone starts on Home, where the library is the first
+/// row (2026-10-25).
 enum MobileNotebookResume {
     static let defaultsKey = "ios.notebooks.lastOpenedNotebookID"
-
-    /// The notebook to reopen: the remembered one while it is still a current
-    /// notebook here; nil (Home) for a new learner, or one since archived or
-    /// deleted.
-    static func restoredNotebookID(stored: String?, notebooks: [MobileCloudNotebook]) -> String? {
-        guard let stored = stored?.trimmingCharacters(in: .whitespacesAndNewlines), !stored.isEmpty,
-              let notebook = notebooks.first(where: { $0.id == stored }),
-              !notebook.isArchived else { return nil }
-        return notebook.id
-    }
 }
 
 /// Where the last notebook is remembered: this device's defaults, never a
@@ -743,14 +733,6 @@ enum MobileShellRoute: Hashable {
         case .page(let id), .doc(let id, _): return id == pageID
         default: return false
         }
-    }
-
-    /// The stack a launch settles on: the notebook last worked in pushed over
-    /// Home, unless the learner (or a link) has already gone somewhere, or
-    /// there is no notebook to return to.
-    static func launchPath(current: [MobileShellRoute], restoredNotebookID: String?) -> [MobileShellRoute] {
-        guard current.isEmpty, let restoredNotebookID else { return current }
-        return [.notebook(restoredNotebookID)]
     }
 
     /// The notebook the top of `path` is in: the nearest notebook, or the

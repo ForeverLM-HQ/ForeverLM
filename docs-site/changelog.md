@@ -9,10 +9,12 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 **Highlights:**
 - **Share a source to ChatGPT from the iPhone.**
 - **Talk is gone from the iPhone.**
+- **The iPhone starts on Home, with the library first.**
 - **A team's papers reach the iPhone again.**
 
 - **Share a source to ChatGPT from the iPhone.** **Share** sits in the Reader's bottom bar where Talk was, and **Share…** is in every source's menu and swipe. A paper goes as its PDF, any other source as its text in a Markdown file; pick ChatGPT in the share sheet and it opens there as an attachment.
 - **Talk is gone from the iPhone.** The Reader, a notebook's Chat tab, a notebook's menu and swipe, Home, a walkthrough's last card, a source row and the Studio's **Review me** no longer start a spoken conversation, and a notebook's guide has no **Quiz me on it** on the phone. CarPlay and **Review by Voice** in the card review stay.
+- **The iPhone starts on Home, with the library first.** Library, the Space and Memory are the first rows on Home, above your notebooks, and Home's search looks through the whole library before the notebooks. The phone no longer opens in the notebook you last worked in.
 - **A team's papers reach the iPhone again.** A team space made before the library moved to its new iCloud container was marked deleted and never sent anything, so a team's sources, notebooks and Pages stayed on the Mac. The Mac now makes the space again and uploads what it holds.
 
 ## 0.173.0 (build 253) — 2026-10-24
