@@ -8,8 +8,10 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 **Highlights:**
 - **The iPhone starts on Home, with the library first.**
+- **A paper opens from the Library again on the iPhone.**
 
 - **The iPhone starts on Home, with the library first.** Library, the Space and Memory are the first rows on Home, above your notebooks, and Home's search looks through the whole library before the notebooks. The phone no longer opens in the notebook you last worked in.
+- **A paper opens from the Library again on the iPhone.** Tapping a paper, a video or any source in a Library list slid it in and then showed the list again, with the source underneath. It now opens on top. A paper with no PDF is read as its text, and Share sends the text when there is no PDF.
 
 ## 0.174.0 (build 254) — 2026-10-25
 
