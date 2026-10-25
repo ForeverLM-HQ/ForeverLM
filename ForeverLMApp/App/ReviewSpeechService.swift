@@ -10,8 +10,6 @@ final class ReviewSpeechService: NSObject, ObservableObject, AVSpeechSynthesizer
     @Published private(set) var currentMessageID: UUID?
     @Published var errorMessage: String?
 
-    var onFinishSpeaking: ((UUID?) -> Void)?
-
     private let synthesizer = AVSpeechSynthesizer()
     private var audioPlayer: AVAudioPlayer?
     private var playbackTask: Task<Void, Never>?
@@ -31,7 +29,7 @@ final class ReviewSpeechService: NSObject, ObservableObject, AVSpeechSynthesizer
         let spokenText = Self.spokenText(from: text)
         guard let speakableText = MacArticleSpeechText.speakableInput(from: spokenText) else { return }
 
-        stopPlayback(notify: false)
+        stopPlayback()
         errorMessage = nil
         currentMessageID = messageID
         isSpeaking = true
@@ -47,7 +45,7 @@ final class ReviewSpeechService: NSObject, ObservableObject, AVSpeechSynthesizer
 
         audioChunks = Self.chunk(speakableText, maxLength: Self.chunkLimit(for: activeMode))
         guard !audioChunks.isEmpty else {
-            finishSpeaking(notify: true)
+            finishSpeaking()
             return
         }
         audioChunkIndex = 0
@@ -96,13 +94,13 @@ final class ReviewSpeechService: NSObject, ObservableObject, AVSpeechSynthesizer
     }
 
     func stop() {
-        stopPlayback(notify: false)
+        stopPlayback()
     }
 
     private func playNextCloudChunk(generationID: UUID) async {
         guard generationID == audioGenerationID else { return }
         guard audioChunkIndex < audioChunks.count else {
-            finishSpeaking(notify: true)
+            finishSpeaking()
             return
         }
 
@@ -140,11 +138,11 @@ final class ReviewSpeechService: NSObject, ObservableObject, AVSpeechSynthesizer
             // failing silently took dictation down with it. The failure is not
             // masked: `errorMessage` still raises the composer's error banner.
             // It just no longer costs the user their turn.
-            finishSpeaking(notify: true)
+            finishSpeaking()
         }
     }
 
-    private func stopPlayback(notify: Bool) {
+    private func stopPlayback() {
         playbackTask?.cancel()
         playbackTask = nil
         audioGenerationID = UUID()
@@ -153,31 +151,27 @@ final class ReviewSpeechService: NSObject, ObservableObject, AVSpeechSynthesizer
         audioPlayer = nil
         audioChunks = []
         audioChunkIndex = 0
-        finishSpeaking(utterance: currentUtterance, notify: notify)
+        finishSpeaking(utterance: currentUtterance)
     }
 
-    private func finishSpeaking(utterance: AVSpeechUtterance?, notify: Bool) {
+    private func finishSpeaking(utterance: AVSpeechUtterance?) {
         if let utterance {
             guard let currentUtterance,
                   utterance === currentUtterance else { return }
         }
-        let finishedMessageID = currentMessageID
         currentUtterance = nil
         isSpeaking = false
         isPaused = false
         currentMessageID = nil
-        if notify {
-            onFinishSpeaking?(finishedMessageID)
-        }
     }
 
-    private func finishSpeaking(notify: Bool) {
+    private func finishSpeaking() {
         playbackTask?.cancel()
         playbackTask = nil
         audioPlayer = nil
         audioChunks = []
         audioChunkIndex = 0
-        finishSpeaking(utterance: nil, notify: notify)
+        finishSpeaking(utterance: nil)
     }
 
     private static func appleSpeechRate() -> Float {
@@ -298,13 +292,13 @@ final class ReviewSpeechService: NSObject, ObservableObject, AVSpeechSynthesizer
 
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
         Task { @MainActor in
-            self.finishSpeaking(utterance: utterance, notify: true)
+            self.finishSpeaking(utterance: utterance)
         }
     }
 
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
         Task { @MainActor in
-            self.finishSpeaking(utterance: utterance, notify: false)
+            self.finishSpeaking(utterance: utterance)
         }
     }
 
@@ -314,7 +308,7 @@ final class ReviewSpeechService: NSObject, ObservableObject, AVSpeechSynthesizer
             guard self.audioPlayer === player else { return }
             guard flag else {
                 self.errorMessage = "Audio playback stopped before the current segment finished."
-                self.finishSpeaking(notify: false)
+                self.finishSpeaking()
                 return
             }
             let generationID = self.audioGenerationID

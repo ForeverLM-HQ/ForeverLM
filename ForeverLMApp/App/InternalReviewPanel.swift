@@ -224,7 +224,6 @@ private struct InternalReviewPanelContent: View {
     @State private var canvasSuggestedQuestions: [String] = []
     @StateObject private var dictation = ReviewDictationService()
     @StateObject private var speech = ReviewSpeechService()
-    @State private var voiceConversationEnabled = false
     /// The composer's text and popup state, observed only by the composer views.
     /// The pane reads it from actions, never in its body, so typing does not
     /// re-render the transcript. See `ReviewComposerDraft`.
@@ -234,15 +233,11 @@ private struct InternalReviewPanelContent: View {
     @State private var isSkippingQuizQuestion = false
     @State private var manualDictationTranscriptionTask: Task<String?, Never>?
     @State private var manualDictationResultDestination: ManualDictationResultDestination?
-    @State private var lastSpokenAssistantMessageID: UUID?
     /// Which source each `[n]` in this transcript names, and whose card the
     /// conversation has already shown. A row cannot work its own out — the
     /// answer depends on every reply above it — so the transcript stack rebuilds
     /// it here whenever the set of replies changes. See `ChatCitationLedger`.
     @State private var citationContexts: [UUID: ChatCitationLedger.MessageContext] = [:]
-    @State private var voiceScheduleChoices: [SchedulePlanItem] = []
-    @State private var voiceScheduleChoicesDate = Date()
-    @State private var preserveCurrentSpeechOnVoiceModeDisable = false
     @State private var isDropTargeted = false
     @State private var dropTargetResetTask: Task<Void, Never>?
 
@@ -983,11 +978,6 @@ private struct InternalReviewPanelContent: View {
             // context gauge's cache figures aren't blank until the second turn.
             ChatUsageLiveMonitor.shared.start()
             Task { await syncSynthesisToolContext() }
-            speech.onFinishSpeaking = { messageID in
-                Task { @MainActor in
-                    await handleAssistantSpeechFinished(messageID: messageID)
-                }
-            }
         }
         .onChange(of: manager.chatMessageCount) { _, _ in
             refreshDefaultDraft()
@@ -1004,7 +994,6 @@ private struct InternalReviewPanelContent: View {
         }
         .onChange(of: manager.isGenerating) { wasGenerating, isGenerating in
             guard wasGenerating, !isGenerating else { return }
-            speakLatestAssistantMessageIfNeeded()
             // The answer that asked for the Feynman Technique has ended: it
             // opens now, as a new chat, so that answer is not cut off.
             if let notebookID = pendingTeachBackNotebookID {
@@ -1042,16 +1031,12 @@ private struct InternalReviewPanelContent: View {
                 .accessibilityIdentifier("mac.chatMemoryGoalCelebration")
             }
         }
-        .onChange(of: voiceConversationEnabled) { _, enabled in
-            handleVoiceConversationModeChange(enabled)
-        }
         .onDisappear {
             dropTargetResetTask?.cancel()
             manualDictationTranscriptionTask?.cancel()
             manualDictationTranscriptionTask = nil
             dictation.cancelRecording()
             speech.stop()
-            speech.onFinishSpeaking = nil
         }
         .onChange(of: dragVisibility.isDragging) { _, isDragging in
             guard !isDragging else { return }
@@ -2245,7 +2230,7 @@ private struct InternalReviewPanelContent: View {
     private func startTodayReviewFromIdle(_ items: [SchedulePlanItem]) async {
         let todayArticles = articles(for: items)
         guard !todayArticles.isEmpty else { return }
-        await startVoiceReview(with: todayArticles, topic: "Today's review")
+        await startReview(with: todayArticles, topic: "Today's review")
     }
 
     @MainActor
@@ -4308,7 +4293,6 @@ private struct InternalReviewPanelContent: View {
         .animation(.easeOut(duration: 0.18), value: linkedResearchNotebookID)
         .animation(.easeOut(duration: 0.18), value: dictation.isRecording)
         .animation(.easeOut(duration: 0.18), value: dictation.isTranscribing)
-        .animation(.easeOut(duration: 0.18), value: voiceConversationEnabled)
     }
 
     /// The card itself: the passage, the pictures, the field, and the row of
@@ -7005,56 +6989,11 @@ private struct InternalReviewPanelContent: View {
         await vm.loadLearningGoals()
     }
 
-    private var shouldSpeakAssistantResponses: Bool {
-        voiceConversationEnabled
-    }
-
-    private var latestAssistantMessage: ReviewSessionManager.Message? {
-        manager.chatMessages.last(where: { $0.role == .assistant })
-    }
-
-    private func handleVoiceConversationModeChange(_ enabled: Bool) {
-        if enabled {
-            if latestAssistantMessage != nil {
-                speakLatestAssistantMessageIfNeeded(force: true)
-            } else {
-                speakVoiceModePrompt()
-            }
-        } else {
-            dictation.cancelRecording()
-            if !preserveCurrentSpeechOnVoiceModeDisable {
-                speech.stop()
-            }
-            preserveCurrentSpeechOnVoiceModeDisable = false
-        }
-    }
-
-    private func speakVoiceModePrompt() {
-        guard manager.chatMessages.isEmpty else { return }
-        if !reviewSources.isEmpty {
-            let sourceCount = reviewSources.count
-            let sourceText = sourceCount == 1 ? "the selected source" : "\(sourceCount) selected sources"
-            speech.speak("Voice conversation is on. Say what you want to review, or say start review to begin with \(sourceText).")
-        } else {
-            speech.speak("Voice conversation is on. Say review today, review tomorrow, review yesterday, or name a source you want to review.")
-        }
-    }
-
-    private func speakLatestAssistantMessageIfNeeded(force: Bool = false) {
-        guard shouldSpeakAssistantResponses,
-              !manager.isGenerating,
-              !manager.isSearching,
-              let message = latestAssistantMessage else { return }
-        guard force || lastSpokenAssistantMessageID != message.id else { return }
-        speakAssistantMessage(message)
-    }
-
     private func speakAssistantMessage(_ message: ReviewSessionManager.Message) {
         guard message.role == .assistant,
               let content = ReviewSessionManager.displayableMessageContent(role: message.role, content: message.content)?
                 .trimmingCharacters(in: .whitespacesAndNewlines),
               !content.isEmpty else { return }
-        lastSpokenAssistantMessageID = message.id
         speech.speak(content, messageID: message.id)
     }
 
@@ -7218,214 +7157,8 @@ private struct InternalReviewPanelContent: View {
         return String(firstLine.prefix(90))
     }
 
-    private func speakLatestAssistantMessage() {
-        guard let message = latestAssistantMessage else { return }
-        speakAssistantMessage(message)
-    }
-
     @MainActor
-    private func handleAssistantSpeechFinished(messageID: UUID?) async {
-        if voiceConversationEnabled,
-           messageID == nil,
-           manager.chatMessages.isEmpty,
-           !dictation.isRecording,
-           !dictation.isTranscribing {
-            await startVoiceConversationRecording()
-            return
-        }
-
-        guard voiceConversationEnabled,
-              messageID == latestAssistantMessage?.id,
-              !manager.isGenerating,
-              !manager.isSearching,
-              !dictation.isRecording,
-              !dictation.isTranscribing else { return }
-        await startVoiceConversationRecording()
-    }
-
-    @MainActor
-    private func startVoiceConversationRecording() async {
-        guard voiceConversationEnabled,
-              !dictation.isRecording,
-              !dictation.isTranscribing,
-              !manager.isGenerating,
-              !manager.isSearching else { return }
-
-        await dictation.startRecording(automaticallyStopsAfterSilence: true) {
-            Task { @MainActor in
-                await finishVoiceConversationRecording()
-            }
-        }
-    }
-
-    @MainActor
-    private func finishVoiceConversationRecording() async {
-        guard voiceConversationEnabled,
-              dictation.isRecording,
-              !manager.isGenerating,
-              !manager.isSearching else { return }
-
-        guard let transcript = await dictation.stopAndTranscribe() else { return }
-        if isVoiceCancelCommand(transcript) {
-            voiceConversationEnabled = false
-            return
-        }
-
-        if await handleVoiceConversationControlCommand(transcript) {
-            return
-        }
-
-        if !manager.sessionActive, manager.chatMessages.isEmpty {
-            let handled = await handleVoiceConversationStartCommand(transcript)
-            if handled { return }
-        }
-
-        let response = voiceResponseText(from: transcript)
-        guard !response.isEmpty else {
-            await startVoiceConversationRecording()
-            return
-        }
-        await sendReviewChatMessage(response)
-    }
-
-    private func isVoiceCancelCommand(_ transcript: String) -> Bool {
-        let cancelPattern = #"(?i)^\s*(cancel|never mind|nevermind|discard)\s*[\.\!\?]*\s*$"#
-        return transcript.range(of: cancelPattern, options: .regularExpression) != nil
-    }
-
-    @MainActor
-    private func handleVoiceConversationControlCommand(_ transcript: String) async -> Bool {
-        let command = normalizedVoiceCommand(transcript)
-        guard !command.isEmpty else { return false }
-
-        if command == "repeat"
-            || command == "repeat that"
-            || command == "say that again"
-            || command == "one more time" {
-            speakLatestAssistantMessageIfNeeded(force: true)
-            return true
-        }
-
-        if command == "pause"
-            || command == "stop listening"
-            || command == "stop voice mode"
-            || command == "turn off voice mode" {
-            voiceConversationEnabled = false
-            return true
-        }
-
-        if command == "complete review"
-            || command == "finish review"
-            || command == "end review" {
-            guard manager.sessionActive else {
-                speech.speak("There is no active review to complete.")
-                return true
-            }
-            await manager.completeSession()
-            await refreshAfterReviewChatTurn()
-            if manager.errorMessage == nil {
-                preserveCurrentSpeechOnVoiceModeDisable = true
-                voiceConversationEnabled = false
-                speech.speak("Review completed and saved.")
-            }
-            return true
-        }
-
-        return false
-    }
-
-    @MainActor
-    private func handleVoiceConversationStartCommand(_ transcript: String) async -> Bool {
-        let command = normalizedVoiceCommand(transcript)
-        guard !command.isEmpty else {
-            await startVoiceConversationRecording()
-            return true
-        }
-
-        let requestedScheduleDate = voiceScheduleDate(from: command)
-
-        if isScheduleListingCommand(command) {
-            await loadVoiceScheduleChoices(for: requestedScheduleDate ?? Date())
-            speakSchedule()
-            return true
-        }
-
-        if isReviewCurrentContextCommand(command), !reviewSources.isEmpty {
-            await startVoiceReview(with: reviewSources, topic: reviewTitle)
-            return true
-        }
-
-        if isReviewScheduleCommand(command) {
-            let scheduleDate = requestedScheduleDate ?? (voiceScheduleChoices.isEmpty ? Date() : voiceScheduleChoicesDate)
-            await loadVoiceScheduleChoices(for: scheduleDate)
-            if voiceScheduleChoices.isEmpty {
-                speech.speak("There are no scheduled sources for \(voiceScheduleLabel(for: scheduleDate)). Say the name of a source instead.")
-                return true
-            }
-            if voiceScheduleChoices.count == 1 {
-                await startVoiceReview(with: articles(for: [voiceScheduleChoices[0]]), topic: voiceScheduleChoices[0].title)
-                return true
-            }
-            if isReviewAllCommand(command) || requestedScheduleDate != nil {
-                await startVoiceReview(
-                    with: articles(for: voiceScheduleChoices),
-                    topic: "\(voiceScheduleLabel(for: scheduleDate).capitalized) scheduled sources"
-                )
-                return true
-            }
-            speakSchedule(prefix: "You have \(voiceScheduleChoices.count) sources for \(voiceScheduleLabel(for: scheduleDate)).")
-            return true
-        }
-
-        if !voiceScheduleChoices.isEmpty,
-           let item = matchVoiceScheduleChoice(command) {
-            await startVoiceReview(with: articles(for: [item]), topic: item.title)
-            return true
-        }
-
-        if let article = matchArticle(command) {
-            await startVoiceReview(with: [article], topic: article.title)
-            return true
-        }
-
-        return false
-    }
-
-    @MainActor
-    private func loadVoiceScheduleChoices(for date: Date) async {
-        if vm.learningGoals.isEmpty {
-            await vm.loadLearningGoals()
-        }
-        voiceScheduleChoicesDate = date
-        voiceScheduleChoices = scheduledItems(on: date)
-    }
-
-    /// The day's plan as the Today card reads it: every deliberate placement,
-    /// whichever Goal or Notebook it serves, or none.
-    private func scheduledItems(on date: Date) -> [SchedulePlanItem] {
-        let calendar = Calendar.current
-        return vm.unifiedScheduleDays(containing: date)
-            .first { calendar.isDate($0.date, inSameDayAs: date) }?
-            .items
-            .filter { !$0.isMissingSource } ?? []
-    }
-
-    private func speakSchedule(prefix: String? = nil) {
-        guard !voiceScheduleChoices.isEmpty else {
-            speech.speak("There are no scheduled sources for \(voiceScheduleLabel(for: voiceScheduleChoicesDate)).")
-            return
-        }
-
-        let list = voiceScheduleChoices.prefix(6).enumerated().map { index, item in
-            "Number \(index + 1): \(item.title)"
-        }.joined(separator: ". ")
-        let extra = voiceScheduleChoices.count > 6 ? " There are \(voiceScheduleChoices.count - 6) more after that." : ""
-        let intro = prefix ?? "The scheduled sources for \(voiceScheduleLabel(for: voiceScheduleChoicesDate)) are:"
-        speech.speak("\(intro) \(list).\(extra) Say review all, review number one, or say a title.")
-    }
-
-    @MainActor
-    private func startVoiceReview(with articles: [StudioArticle], topic: String) async {
+    private func startReview(with articles: [StudioArticle], topic: String) async {
         let articles = articles.filter { vm.isSourceIncludedInKnowledge($0) }
         guard !articles.isEmpty else {
             speech.speak("I could not find readable sources for that review.")
@@ -7448,139 +7181,6 @@ private struct InternalReviewPanelContent: View {
         items.compactMap { item in
             vm.articles.first { $0.id == item.sourceID }
         }
-    }
-
-    private func isScheduleListingCommand(_ command: String) -> Bool {
-        command.contains("what") && (command.contains("today") || command.contains("tomorrow") || command.contains("yesterday") || command.contains("schedule"))
-            || command.contains("list today")
-            || command.contains("list tomorrow")
-            || command.contains("list yesterday")
-            || command.contains("read today")
-            || command.contains("read tomorrow")
-            || command.contains("read yesterday")
-            || command.contains("what do i have")
-    }
-
-    private func isReviewScheduleCommand(_ command: String) -> Bool {
-        command.contains("review today")
-            || command.contains("review tomorrow")
-            || command.contains("review yesterday")
-            || command.contains("start today")
-            || command.contains("start tomorrow")
-            || command.contains("start yesterday")
-            || command.contains("today s review")
-            || command.contains("todays review")
-            || command.contains("tomorrow s review")
-            || command.contains("tomorrows review")
-            || command.contains("yesterday s review")
-            || command.contains("yesterdays review")
-            || command.contains("today s session")
-            || command.contains("todays session")
-            || command.contains("tomorrow s session")
-            || command.contains("tomorrows session")
-            || command.contains("yesterday s session")
-            || command.contains("yesterdays session")
-            || command.contains("scheduled")
-            || isReviewAllCommand(command)
-            || command == "start review"
-    }
-
-    private func isReviewAllCommand(_ command: String) -> Bool {
-        command == "review all"
-            || command == "start all"
-            || command.contains("all of them")
-            || command.contains("everything today")
-    }
-
-    private func isReviewCurrentContextCommand(_ command: String) -> Bool {
-        command == "start"
-            || command == "start review"
-            || command == "review this"
-            || command == "review these"
-            || command == "review selected"
-            || command == "review current"
-    }
-
-    private func voiceScheduleDate(from command: String) -> Date? {
-        let calendar = Calendar.current
-        if command.contains("yesterday") || command.contains("yesterdays") || command.contains("yesterday s") {
-            return calendar.date(byAdding: .day, value: -1, to: Date())
-        }
-        if command.contains("tomorrow") || command.contains("tomorrows") || command.contains("tomorrow s") {
-            return calendar.date(byAdding: .day, value: 1, to: Date())
-        }
-        if command.contains("today") || command.contains("todays") || command.contains("today s") {
-            return Date()
-        }
-        return nil
-    }
-
-    private func voiceScheduleLabel(for date: Date) -> String {
-        let calendar = Calendar.current
-        if calendar.isDateInToday(date) { return "today" }
-        if calendar.isDateInTomorrow(date) { return "tomorrow" }
-        if calendar.isDateInYesterday(date) { return "yesterday" }
-        return date.formatted(date: .abbreviated, time: .omitted)
-    }
-
-    private func matchVoiceScheduleChoice(_ command: String) -> SchedulePlanItem? {
-        if isReviewAllCommand(command) {
-            return nil
-        }
-
-        let numberWords = [
-            "one": 1, "first": 1,
-            "two": 2, "second": 2,
-            "three": 3, "third": 3,
-            "four": 4, "fourth": 4,
-            "five": 5, "fifth": 5,
-            "six": 6, "sixth": 6
-        ]
-        for (word, number) in numberWords where command.contains(word) {
-            let index = number - 1
-            if voiceScheduleChoices.indices.contains(index) {
-                return voiceScheduleChoices[index]
-            }
-        }
-
-        if let match = voiceScheduleChoices.first(where: { commandMatchesTitle(command, title: $0.title) }) {
-            return match
-        }
-        return nil
-    }
-
-    private func matchArticle(_ command: String) -> StudioArticle? {
-        vm.articles.first { article in
-            commandMatchesTitle(command, title: article.title)
-        }
-    }
-
-    private func commandMatchesTitle(_ command: String, title: String) -> Bool {
-        let normalizedTitle = normalizedVoiceCommand(title)
-        guard !normalizedTitle.isEmpty else { return false }
-        if command.contains(normalizedTitle) { return true }
-        let titleWords = normalizedTitle.split(separator: " ").filter { $0.count > 3 }
-        guard titleWords.count >= 2 else { return false }
-        let matchedWords = titleWords.filter { command.contains($0) }.count
-        return matchedWords >= min(3, titleWords.count)
-    }
-
-    private func normalizedVoiceCommand(_ transcript: String) -> String {
-        transcript
-            .lowercased()
-            .replacingOccurrences(of: #"[^a-z0-9\s]"#, with: " ", options: .regularExpression)
-            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private func voiceResponseText(from transcript: String) -> String {
-        var result = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
-        let submitPattern = #"(?i)[\s,.;:!\?]*(done|submit|send|send it|that's it|that is it|over)\s*[\.\!\?]*\s*$"#
-        while let range = result.range(of: submitPattern, options: .regularExpression) {
-            result.removeSubrange(range)
-            result = result.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        return result
     }
 
     @MainActor
