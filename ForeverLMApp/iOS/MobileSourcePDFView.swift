@@ -13,6 +13,9 @@ struct MobileSourcePDFView: View {
     /// instead of leaving the reader on a dead end. Papers have no text-only
     /// rendering worth showing and keep the failure UI below.
     var onUnavailable: (() -> Void)?
+    /// A paper's way to the text when the document cannot be had at all (no PDF, kept on the Mac, not
+    /// uploaded yet), so the paper is still read; other failures keep the failure screen and Try Again.
+    var onNoPDF: (() -> Void)?
     var onCreateHighlight: ((MobileReaderHighlightSelection) -> Void)?
     var onOpenHighlight: ((String) -> Void)?
     /// The reader's find bar, when it has one; the PDF view is its performer
@@ -109,7 +112,9 @@ struct MobileSourcePDFView: View {
             return
         } catch {
             guard !Task.isCancelled else { return }
-            if let onUnavailable {
+            if let onNoPDF, let fileError = error as? MobileSourceFileError, fileError.leavesOnlyText {
+                onNoPDF()
+            } else if let onUnavailable {
                 onUnavailable()
             } else {
                 state = .failed(error.localizedDescription)

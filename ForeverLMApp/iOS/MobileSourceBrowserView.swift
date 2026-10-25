@@ -1646,9 +1646,14 @@ struct MobileBrowserSourceLink: View {
 
     var body: some View {
         HStack(spacing: MobileDesign.Spacing.small) {
-            // A typed route, so a citation followed from the Reader's chat
-            // pushes on top of it rather than rebuilding the stack under it.
-            NavigationLink(value: MobileShellRoute.source(source.id, notebookID: notebook?.id)) {
+            // A destination, not a typed route: a source's list (a type's, a group's,
+            // the paywalled shelf) is itself pushed as a destination, and a route pushed
+            // from inside one lands under it, so the Reader slid in and was covered by
+            // the list again (2026-10-26). A destination always opens on top of the
+            // screen it was tapped on.
+            NavigationLink {
+                MobileShellSourceDestination(sourceID: source.id, notebookID: notebook?.id)
+            } label: {
                 MobileBrowserSourceRow(
                     source: source,
                     subtitleStyle: subtitleStyle,

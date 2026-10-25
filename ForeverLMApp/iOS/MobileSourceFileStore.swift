@@ -325,6 +325,15 @@ enum MobileSourceFileError: LocalizedError {
     /// file does not hold, or no usable run at all.
     case chapterPagesUnavailable
 
+    /// The PDF is not to be had on this phone now, whatever the reason, but the source's text may
+    /// be: a paper with no PDF is read, and shared, as its text.
+    var leavesOnlyText: Bool {
+        switch self {
+        case .noPDFAvailable, .keptOnMac, .arriving: return true
+        case .missingRecord, .chapterPagesUnavailable: return false
+        }
+    }
+
     init(_ error: BlobStoreError) {
         switch error {
         case .heldOnlyBy: self = .keptOnMac

@@ -157,8 +157,10 @@ final class MobileSourceReaderViewModel: ObservableObject {
 
     /// `catalog` is the phone's library: an EPUB book chapter opened from it is
     /// read with the rest of its book (`loadBook`).
-    func load(source: MobileCloudSource, catalog: [MobileCloudSource] = []) async {
-        if self.source?.id == source.id, isReady { return }
+    /// `readingPaperAsText`: a paper whose PDF cannot be had is built as a text document like any other
+    /// source, over the PDF reading the view first asked for.
+    func load(source: MobileCloudSource, catalog: [MobileCloudSource] = [], readingPaperAsText: Bool = false) async {
+        if self.source?.id == source.id, isReady, !readingPaperAsText { return }
         self.source = source
         // The view model cannot see Schedule state. Report one real end reach
         // per reader lifetime even for a legacy readAt-only source; the shared
@@ -206,7 +208,7 @@ final class MobileSourceReaderViewModel: ObservableObject {
 
             // A paper renders its original PDF. Prepare only the extracted text
             // that Ask needs instead of building a large, invisible HTML page.
-            if sourceType == "paper" {
+            if sourceType == "paper", !readingPaperAsText {
                 let prepared = await Task.detached(priority: .userInitiated) {
                     let body = MobileReaderText.reflowed(raw, sourceType: sourceType)
                     return MobileReaderChatContext(

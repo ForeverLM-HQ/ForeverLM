@@ -135,10 +135,8 @@ final class MobileSourceShare: ObservableObject {
     @Published private(set) var preparingSourceIDs: Set<String> = []
 
     func share(_ source: MobileCloudSource) async {
-        if MobileSourcePDFExport.canExport(source) {
-            await MobileSourcePDFExport.shared.share(source)
-            return
-        }
+        // A PDF source goes as its PDF; when it has none to be had it goes as its text, like any other.
+        if MobileSourcePDFExport.canExport(source), await MobileSourcePDFExport.shared.share(source) { return }
         guard !preparingSourceIDs.contains(source.id) else { return }
         preparingSourceIDs.insert(source.id)
         defer { preparingSourceIDs.remove(source.id) }
@@ -199,8 +197,15 @@ final class MobileSourcePDFExport: ObservableObject {
         (source.sourceType == "paper" || source.isPDFBackedBookChapter) && !source.isPaywalled
     }
 
-    func share(_ source: MobileCloudSource) async {
-        guard let original = await fetch(source, failureTitle: "Can't Share PDF") else { return }
+    /// Shares the PDF. False when the source has no PDF to be had (none, kept on the Mac, not uploaded
+    /// yet), with nothing presented, so the caller can send its text instead.
+    func share(_ source: MobileCloudSource) async -> Bool {
+        let original: URL
+        switch await fetch(source, failureTitle: "Can't Share PDF", quietWhenNoDocument: true) {
+        case .file(let url): original = url
+        case .noDocument: return false
+        case .handled: return true
+        }
         do {
             let fileManager = FileManager.default
             let folder = fileManager.temporaryDirectory.appendingPathComponent("SharedPDFs", isDirectory: true)
@@ -209,7 +214,9 @@ final class MobileSourcePDFExport: ObservableObject {
         } catch {
             Self.presentFailure(title: "Can't Share PDF", error: error)
         }
+        return true
     }
+
 
     /// The app's Documents folder is what Files lists as On My iPhone ›
     /// ForeverLM (`UIFileSharingEnabled`), and nothing else is kept in it. A
@@ -217,7 +224,7 @@ final class MobileSourcePDFExport: ObservableObject {
     /// it again replaces it. The iCloud container is not public, so this is
     /// the one place the Files app can be opened on a paper.
     func showInFiles(_ source: MobileCloudSource) async {
-        guard let original = await fetch(source, failureTitle: "Can't Show in Files") else { return }
+        guard case .file(let original) = await fetch(source, failureTitle: "Can't Show in Files", quietWhenNoDocument: false) else { return }
         do {
             let documents = try FileManager.default.url(
                 for: .documentDirectory,
@@ -238,8 +245,16 @@ final class MobileSourcePDFExport: ObservableObject {
         }
     }
 
-    private func fetch(_ source: MobileCloudSource, failureTitle: String) async -> URL? {
-        guard !preparingSourceIDs.contains(source.id) else { return nil }
+    private enum Fetched {
+        case file(URL)
+        /// No document to be had, and nothing presented, so the caller can do without one.
+        case noDocument
+        /// Already preparing, or the learner has been shown why not.
+        case handled
+    }
+
+    private func fetch(_ source: MobileCloudSource, failureTitle: String, quietWhenNoDocument: Bool) async -> Fetched {
+        guard !preparingSourceIDs.contains(source.id) else { return .handled }
         preparingSourceIDs.insert(source.id)
         defer { preparingSourceIDs.remove(source.id) }
         do {
@@ -250,11 +265,14 @@ final class MobileSourcePDFExport: ObservableObject {
                     url: source.url
                 )
             )
-            guard pdf.pages != nil else { return pdf.url }
-            return try await Self.chapterFile(pdf)
+            guard pdf.pages != nil else { return .file(pdf.url) }
+            return .file(try await Self.chapterFile(pdf))
         } catch {
+            if quietWhenNoDocument, let fileError = error as? MobileSourceFileError, fileError.leavesOnlyText {
+                return .noDocument
+            }
             Self.presentFailure(title: failureTitle, error: error)
-            return nil
+            return .handled
         }
     }
 

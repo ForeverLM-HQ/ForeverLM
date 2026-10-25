@@ -408,7 +408,7 @@ struct MobileAudioReviewView: View {
 
 /// The Reader for a source a link named. A source that has not reached this
 /// phone says so rather than showing an empty reader.
-private struct MobileShellSourceDestination: View {
+struct MobileShellSourceDestination: View {
     let sourceID: String
     let notebookID: String?
 

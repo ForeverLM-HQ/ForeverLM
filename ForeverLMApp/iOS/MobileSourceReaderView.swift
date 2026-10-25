@@ -29,6 +29,8 @@ struct MobileSourceReaderView: View {
     /// A PDF-split book chapter whose document could not be fetched falls back to
     /// the text reader rather than a dead end.
     @State private var chapterPDFUnavailable = false
+    /// A paper with no PDF to show is read as its text.
+    @State private var paperReadsAsText = false
     /// A book read whole: its chapter list, to jump to one.
     @State private var showsContents = false
 
@@ -170,18 +172,24 @@ struct MobileSourceReaderView: View {
     /// document. The font-size controls only mean anything there — PDFKit does its
     /// own zooming.
     private var showsTextReader: Bool {
-        source.sourceType != "paper" && (!source.isPDFBackedBookChapter || chapterPDFUnavailable)
+        (source.sourceType != "paper" || paperReadsAsText) && (!source.isPDFBackedBookChapter || chapterPDFUnavailable)
     }
 
     @ViewBuilder
     private var content: some View {
-        if source.sourceType == "paper" {
+        if source.sourceType == "paper", !paperReadsAsText {
             // The Mac reader opens a paper's original document. iOS receives
             // that same shared iCloud file (with sourcePDFAsset as a fallback),
             // so it is the reader rather than a reflowed-text approximation.
+            // A paper with no document to open (and not behind a paywall, which says so)
+            // is read as its text.
             MobileSourcePDFView(
                 source: source,
                 highlights: viewModel.highlights,
+                onNoPDF: source.isPaywalled ? nil : {
+                    paperReadsAsText = true
+                    Task { await viewModel.load(source: source, catalog: audio.allSources, readingPaperAsText: true) }
+                },
                 onCreateHighlight: { openHighlight(selection: $0) },
                 onOpenHighlight: { openHighlight(id: $0) },
                 find: find,
