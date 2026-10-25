@@ -438,8 +438,12 @@ enum StudioTopBar {
     static let headerLeadingClearance = leadingControlsLeading + leadingControlsWidth + 12
 
     /// The controls' left edge with no titlebar band (fullscreen): there are no
-    /// traffic lights to stand off from, so they hug the left edge.
-    static let fullscreenLeadingControlsLeading: CGFloat = 10
+    /// traffic lights to stand off from, but the icon strip is narrower than
+    /// the three controls, so hugging the window's edge left › straddling the
+    /// strip and the card's rounded corner (product owner, 2026-10-25: "this
+    /// looks bad in the top left"). They stand inside the card, a short step
+    /// from its edge, as a pane's own header content does.
+    static let fullscreenLeadingControlsLeading: CGFloat = StudioNavigationRail.compactRailWidth + 10
 
     /// The same clearance with no titlebar band (fullscreen), where the
     /// controls sit in flow at the left edge.

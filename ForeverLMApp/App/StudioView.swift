@@ -411,8 +411,9 @@ struct StudioView: View {
         // The rail is a 52-point icon strip: the traffic
         // lights and the sidebar toggle reach past it into the band over the
         // notebook's first column, which sits in the center column.
-        // In full screen there are no traffic lights, and the toggle sits in
-        // flow inside the strip, whose content already starts below it.
+        // In full screen there are no traffic lights, and ‹ › with the toggle
+        // stand inside the card, just right of the strip, whose content
+        // already starts below that row.
         // Home's sidebar beside the strip keeps the panes clear of the
         // lights altogether; without it (a notebook, the Space, the Library)
         // the lights reach into the pane beside the strip.
