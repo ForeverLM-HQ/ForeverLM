@@ -57,13 +57,17 @@ struct CutoverSatellites: Sendable {
         return rolePriority.firstIndex(of: base) ?? rolePriority.count
     }
 
-    /// Every pointer of this store, in priority order.
-    func satellites(in store: KnowledgeStore) throws -> [SeedSatellite] {
+    /// Every pointer of this store's personal library, in priority order; with `teamID`, the pointers of that
+    /// team's copies instead (the bytes a converted team's space needs in its own zone, which `restoreMissing(inSpace:)`
+    /// sends).
+    func satellites(in store: KnowledgeStore, teamID: String? = nil) throws -> [SeedSatellite] {
         var found: [SeedSatellite] = []
+        let owner: [SQLiteValue] = teamID.map { [.text($0)] } ?? []
         for table in [("source_files", "role"), ("source_derived", "kind")] {
             try store.query("""
-                SELECT f.file_ref, f.local_path, f.source_id FROM \(table.0) f JOIN sources s ON s.id = f.source_id WHERE s.team_id IS NULL
-            """, []) { row in
+                SELECT f.file_ref, f.local_path, f.source_id FROM \(table.0) f JOIN sources s ON s.id = f.source_id
+                WHERE \(teamID == nil ? "s.team_id IS NULL" : "s.team_id = ?")
+            """, owner) { row in
                 guard let ref = ArtifactBody.fileRef(row.text(0)) else { return }
                 let origin: SeedSatellite.Origin
                 if let path = row.text(1) {
@@ -77,14 +81,17 @@ struct CutoverSatellites: Sendable {
             }
         }
         try store.query("""
-            SELECT a.id, a.body_ref FROM global_artifacts a WHERE a.team_id IS NULL AND a.body_ref IS NOT NULL
-        """, []) { row in
+            SELECT a.id, a.body_ref FROM global_artifacts a
+            WHERE \(teamID == nil ? "a.team_id IS NULL" : "a.team_id = ?") AND a.body_ref IS NOT NULL
+        """, owner) { row in
             guard let id = row.text(0), let ref = ArtifactBody.fileRef(row.text(1)) else { return }
             found.append(SeedSatellite(ownerType: .artifact, ref: ref, origin: .docBody(artifactID: id, keepsSite: store.hasLocalSite(id)), priority: Self.rolePriority.count / 2))
         }
-        try store.query("SELECT file_ref, local_path FROM artifact_files WHERE local_path IS NOT NULL", []) { row in
-            guard let ref = ArtifactBody.fileRef(row.text(0)), let path = row.text(1) else { return }
-            found.append(SeedSatellite(ownerType: .artifact, ref: ref, origin: .file(path), priority: Self.rolePriority.count / 2))
+        if teamID == nil {
+            try store.query("SELECT file_ref, local_path FROM artifact_files WHERE local_path IS NOT NULL", []) { row in
+                guard let ref = ArtifactBody.fileRef(row.text(0)), let path = row.text(1) else { return }
+                found.append(SeedSatellite(ownerType: .artifact, ref: ref, origin: .file(path), priority: Self.rolePriority.count / 2))
+            }
         }
         return found.sorted { ($0.priority, $0.ref.owner, $0.ref.role) < ($1.priority, $1.ref.owner, $1.ref.role) }
     }
@@ -218,6 +225,38 @@ struct CutoverSatellites: Sendable {
         }
         if failed == 0 {
             try await store.perform { try $0.replica.setEngineState(Self.restoredScope, Data(saltID.utf8)) }
+        }
+        return totals
+    }
+
+    /// `ck_engine_state` scope: the `saltID` of the space whose team's pointers `restoreMissing(inSpace:)` last found whole.
+    static func spaceRestoredScope(_ zoneKey: String) -> String { "satellites.spaceRestoredForSalt.\(zoneKey)" }
+
+    /// Puts into a space's own zone the bytes its team's pointers name and the zone lacks, from what this Mac holds.
+    /// A team converted to a space (`TeamToSpace`) carries its copies' pointers into the space, but nothing laid
+    /// their bytes in the space's zone: the seed and the publisher send the personal library's only, and only a
+    /// move or a share copies a record's satellites across (`SpaceMoveJob`). So every other device met
+    /// `missingParts` on a team source's text and PDF (2026-10-25: 52 sources). Once per space (its root's salt, so
+    /// a space made again is done again), the pointers are looked up by name and only the missing are read and
+    /// uploaded. Returns nil when the space is not held or this is already done.
+    @discardableResult
+    func restoreMissing(inSpace zoneKey: String, teamID: String) async throws -> CutoverSatelliteTotals? {
+        let found = try await store.perform { state -> (zone: BlobZone, saltID: String)? in
+            guard let zone = try BlobZone.resolve(zoneKey: zoneKey, in: state), zone.isSpace else { return nil }
+            let saltID = RecordNaming.saltID(zone.salt)
+            let done = try state.replica.engineState(Self.spaceRestoredScope(zoneKey)).map { String(decoding: $0, as: UTF8.self) }
+            return done == saltID ? nil : (zone, saltID)
+        }
+        guard let (zone, saltID) = found else { return nil }
+        let items = try await store.onStore { try self.satellites(in: $0, teamID: teamID) }
+        let missing = try await blobs.filesMissingParts(items.map(\.ref), in: zone)
+        let lost = items.indices.filter(missing.contains).map { items[$0] }
+        let (totals, failed) = try await upload(lost, into: zone)
+        if !lost.isEmpty {
+            Self.logger.notice("Space satellites restored: \(totals.satellites) parts for \(lost.count) missing, \(failed) refused")
+        }
+        if failed == 0 {
+            try await store.perform { try $0.replica.setEngineState(Self.spaceRestoredScope(zoneKey), Data(saltID.utf8)) }
         }
         return totals
     }

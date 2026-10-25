@@ -204,6 +204,41 @@ struct TeamToSpaceMigrationTests {
         #expect(try await Self.isOwed(alice) == false)
     }
 
+    @Test("A converted team's files go into its space's own zone, once; the personal seed leaves them alone")
+    func teamFilesGoIntoTheSpace() async throws {
+        let server = EngineTestDriver.server()
+        let (alice, _, _) = try await Self.ownerWithTeam(server)
+        try await TeamToSpace(service: alice.service, passKey: "macaaaaa.p6").run(owner: alice.owner)
+
+        // Each team copy has its text laid out as the publisher leaves it: a pointer with no path, the body in its rows.
+        var files: [FileRef] = []
+        for index in 0..<3 {
+            let id = "src-team-\(index)"
+            let wire = try #require(try alice.device.text("SELECT wire_id FROM sources WHERE id = ?", [.text(id)]))
+            let body = "Body of \(id). " + String(repeating: "word ", count: 40)
+            try alice.store.execute("INSERT INTO source_content (source_id, content) VALUES (?, ?)", [.text(id), .text(body)])
+            let satellite = SourceLocalSatellite(map: .files, role: "text", mime: "text/plain", encoding: .gzip, body: Data(body.utf8), localPath: nil, input: nil)
+            let (file, _) = try SourceSatelliteLayout.layout(satellite, owner: wire)
+            try alice.store.execute("INSERT INTO source_files (source_id, role, file_ref, local_path) VALUES (?, 'text', ?, NULL)", [.text(id), .text(ArtifactBody.text(file))])
+            files.append(file)
+        }
+
+        let satellites = CutoverSatellites(store: alice.device.local, blobs: CutoverSeedFixture.blobs(alice.device), pendingCount: { 0 })
+        #expect(try satellites.satellites(in: alice.store).isEmpty, "the personal library's seed holds none of the team's copies")
+        #expect(try satellites.satellites(in: alice.store, teamID: Self.teamID).count == 3)
+
+        let zone = "Space-\(Self.teamID)"
+        let totals = try await satellites.restoreMissing(inSpace: Self.zoneKey, teamID: Self.teamID)
+        #expect(totals?.satellites == 3)
+        for file in files {
+            for id in file.satelliteIDs {
+                let name = RecordNaming.recordName(type: .content, id: id, salt: S.spaceSalt)
+                #expect(server.storedRecord(name, zone: zone, owner: "alice") != nil, "\(id) is in the space's zone")
+            }
+        }
+        #expect(try await satellites.restoreMissing(inSpace: Self.zoneKey, teamID: Self.teamID) == nil, "once per space")
+    }
+
     @Test("A member's identities move from the old container's owner name to the space as the library container names it")
     func memberRehomes() throws {
         let (root, store) = try F.makeStore("team-member")

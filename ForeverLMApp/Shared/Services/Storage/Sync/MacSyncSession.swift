@@ -676,6 +676,7 @@ actor MacSyncSession {
             }
         }
         await remakeLostTeamSpaces()
+        await restoreTeamSpaceSatellites()
         await flushSpaceDelta()
         await cutoverTick()
     }
@@ -695,6 +696,24 @@ actor MacSyncSession {
             Self.logger.info("Made \(outcome.spaces.count) team spaces again")
         } catch {
             Self.logger.error("A team's space could not be made again: \(String(describing: error), privacy: .public)")
+        }
+    }
+
+    /// A converted team's space holds its sources' pointers but, until this runs, none of their bytes: the seed and
+    /// the publisher upload the personal library's satellites only. Once per space and salt, once the cutover is
+    /// finished and this Mac holds the library, the team's missing text, PDFs and the rest go into the space's zone
+    /// (`CutoverSatellites.restoreMissing(inSpace:teamID:)`).
+    private func restoreTeamSpaceSatellites() async {
+        guard let coordinator, holds, cutoverFinished else { return }
+        let spaces = (try? await store.perform { try SpaceService.summaries($0.connection) }) ?? []
+        let pending: @Sendable () async -> Int = { await coordinator.engine.pendingCount }
+        let satellites = CutoverSatellites(store: store, blobs: coordinator.blobs, pendingCount: pending)
+        for space in spaces where space.isOwned && space.gone == nil && ["team", "family"].contains(space.kind ?? "") {
+            do {
+                try await satellites.restoreMissing(inSpace: space.zone.zoneKey, teamID: space.localTeamID)
+            } catch {
+                Self.logger.error("A team space's files could not be sent: \(String(describing: error), privacy: .public)")
+            }
         }
     }
 
