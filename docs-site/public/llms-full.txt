@@ -6496,9 +6496,11 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 **Highlights:**
 - **The iPhone starts on Home, with the library first.**
 - **A paper opens from the Library again on the iPhone.**
+- **A team's files reach its space.**
 
 - **The iPhone starts on Home, with the library first.** Library, the Space and Memory are the first rows on Home, above your notebooks, and Home's search looks through the whole library before the notebooks. The phone no longer opens in the notebook you last worked in.
 - **A paper opens from the Library again on the iPhone.** Tapping a paper, a video or any source in a Library list slid it in and then showed the list again, with the source underneath. It now opens on top. A paper with no PDF is read as its text, and Share sends the text when there is no PDF.
+- **A team's files reach its space.** A team made into a space carried its sources into the space but not their text, PDFs and other files, so the iPhone and any other device found them missing. The Mac now sends each team's missing files into its space, once, and a team space made again does the same.
 
 ## 0.174.0 (build 254) — 2026-10-25
 
