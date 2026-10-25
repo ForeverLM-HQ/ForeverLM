@@ -328,9 +328,14 @@ final class OutboxFeeder {
             )
             return .clean
         }
+        // A pin is stale only when its path has a newer edit of its own than the one it was minted for. A
+        // path no pending row feeds has no edit left (its rows went with an acknowledgement, or only another
+        // column of the record is dirty), so it cannot be compared with the record's `latest`, which moves
+        // whenever any row of the record does: a pin held to that waits for an acknowledgement that never
+        // comes, and the record's rows with it (2026-10-25: three Catalog sources, since 10-12).
         let pinsAreCurrent = pins.allSatisfy { key, pin in
-            let time = eventTime(Self.path(ofKey: key), projection: projection, units: recordUnits) ?? latest
-            return abs(pin.dirtyAt - time) < 0.0005
+            guard let time = eventTime(Self.path(ofKey: key), projection: projection, units: recordUnits) else { return true }
+            return pin.dirtyAt > time - 0.0005
         }
 
         // A delete on its way: a row that came back waits for its acknowledgement, then goes out whole.
