@@ -22,9 +22,6 @@ struct MobileAudioReviewView: View {
     /// Whether the cover's content is on screen, so a refused presentation
     /// can be told from one that happened.
     @State private var voiceCoverIsOnScreen = false
-    /// Set once this launch has had its chance to reopen the last notebook,
-    /// or something the system asked for (a link, the widget) came first.
-    @State private var hasSettledLaunchRoute = false
     /// The Space as a split view over Home, on a screen with the room for one.
     @State private var spaceCover: MobileSpaceCoverRequest?
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -120,17 +117,12 @@ struct MobileAudioReviewView: View {
             vm.pendingDeepLink = nil
             follow(link)
         }
-        .onChange(of: vm.notebooks) { _, _ in
-            reopenLastNotebookIfNeeded()
-        }
         .task {
-            // A request that launched the app arrives before this view does,
-            // and goes before the last notebook is reopened.
+            // A request that launched the app arrives before this view does.
             if let link = vm.pendingDeepLink {
                 vm.pendingDeepLink = nil
                 follow(link)
             }
-            reopenLastNotebookIfNeeded()
         }
     }
 
@@ -224,23 +216,7 @@ struct MobileAudioReviewView: View {
     /// one linked from inside the app (a Doc, a chat) is pushed, so Back
     /// returns to where it was linked from.
     private func follow(_ link: MobileDeepLink, fromInsideApp: Bool = false) {
-        hasSettledLaunchRoute = true
         path = MobileShellRoute.following(link, from: path, fromInsideApp: fromInsideApp)
-    }
-
-    /// The phone opens in the notebook last worked in, pushed over Home once
-    /// per launch, as soon as the notebooks are known (decisions-v5). A new
-    /// learner, or one whose notebook has gone, stays on Home.
-    private func reopenLastNotebookIfNeeded() {
-        guard !hasSettledLaunchRoute, !vm.notebooks.isEmpty else { return }
-        hasSettledLaunchRoute = true
-        path = MobileShellRoute.launchPath(
-            current: path,
-            restoredNotebookID: MobileNotebookResume.restoredNotebookID(
-                stored: MobileLastNotebookStore.standard.notebookID,
-                notebooks: vm.notebooks
-            )
-        )
     }
 
     // MARK: - Voice

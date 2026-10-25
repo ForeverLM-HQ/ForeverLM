@@ -9,22 +9,22 @@ enum MobileNotebookGlyph {
     static let uncategorizedSymbolName = "tray"
 }
 
-/// What Home's search looks through: the notebooks, or the whole library.
+/// What Home's search looks through: the whole library, or the notebooks.
 enum MobileHomeSearchScope: String, CaseIterable, Hashable {
-    case notebooks
     case library
+    case notebooks
 
     var title: String {
         switch self {
-        case .notebooks: return "Notebooks"
         case .library: return "Library"
+        case .notebooks: return "Notebooks"
         }
     }
 }
 
 /// Home: the Mac's compact rail as one list (docs/notebooks-design.md,
-/// "iPhone" and "A compact rail"), what is due today above it and Memory,
-/// the Space and the whole library one row each below. The product owner, 2026-10-03, of a rail
+/// "iPhone" and "A compact rail"), the library, the Space and Memory one row each above
+/// it, and what is due today. The product owner, 2026-10-03, of a rail
 /// listing ~52 notebooks: "is it even still good design to have all these
 /// notebooks in the left sidebar as well?" So Home lists the notebooks at
 /// hand — **Pinned**, **Recent** (the last six worked in, and the notebook
@@ -62,7 +62,7 @@ struct MobileNotebookHomeView: View {
     /// New Page or Daily Notes from the Spaces row's menu could not make its page.
     @State private var spaceFailure: String?
     @State private var query = ""
-    @State private var scope: MobileHomeSearchScope = .notebooks
+    @State private var scope: MobileHomeSearchScope = .library
     /// The meaning ranking's answer for the query it was run on.
     @State private var semantic: (query: String, sources: [MobileCloudSource]) = ("", [])
     @State private var isRankingByMeaning = false
@@ -96,10 +96,10 @@ struct MobileNotebookHomeView: View {
             if isSearching {
                 searchResults
             } else {
+                placesSection
                 todaySection
                 notebookSections
                 coursesSection
-                librarySection
             }
         }
         // Flat rows on the page itself, not boxes on grey (2026-10-11).
@@ -109,7 +109,7 @@ struct MobileNotebookHomeView: View {
         .listRowSpacing(2)
         .scrollContentBackground(.hidden)
         .background(Color(uiColor: .systemBackground))
-        .searchable(text: $query, prompt: "Search notebooks and library")
+        .searchable(text: $query, prompt: "Search library and notebooks")
         .modifier(MobileHomeBottomBar())
         .searchScopes($scope) {
             ForEach(MobileHomeSearchScope.allCases, id: \.self) { scope in
@@ -161,8 +161,8 @@ struct MobileNotebookHomeView: View {
 
             // The Mac's Memory strip: a tap opens Memory, whose Start Review
             // starts. Drawn only while something is due, new or to check
-            // (the Mac's since 2026-10-06); the Memory row under the
-            // notebooks is the way in otherwise.
+            // (the Mac's since 2026-10-06); the Memory row at the
+            // top is the way in otherwise.
             if let line = vm.memoryTodayLine {
                 MobileMemoryStrip(line: line) {
                     open(.memory)
@@ -411,24 +411,25 @@ struct MobileNotebookHomeView: View {
         }
     }
 
-    /// Memory, the Mac rail's row, the way in while the strip above is not
-    /// drawn (nothing due, new or to check), the Space, and the whole
-    /// library. No count under Library (2026-10-06): the screen it opens
-    /// counts.
-    private var librarySection: some View {
+    /// The places that are not a notebook, first on Home so none of them waits
+    /// under the notebooks: the whole library, the Space, and Memory (the way
+    /// in while the strip below is not drawn: nothing due, new or to check).
+    /// No count under Library (2026-10-06): the screen it opens counts.
+    private var placesSection: some View {
         Section {
-            NavigationLink(value: MobileShellRoute.memory) {
-                MobileHomeLinkLabel(systemImage: MemoryReviewSession.sidebarIcon, title: "Memory")
-            }
-            .accessibilityIdentifier("home.memoryRow")
-            if spaceStore.isAvailable {
-                spaceRow
-            }
             NavigationLink(value: MobileShellRoute.library) {
                 MobileHomeLinkLabel(systemImage: "books.vertical", title: "Library")
             }
             .accessibilityIdentifier("home.sources")
+            if spaceStore.isAvailable {
+                spaceRow
+            }
+            NavigationLink(value: MobileShellRoute.memory) {
+                MobileHomeLinkLabel(systemImage: MemoryReviewSession.sidebarIcon, title: "Memory")
+            }
+            .accessibilityIdentifier("home.memoryRow")
         }
+        .listSectionSpacing(MobileDesign.Spacing.medium)
     }
 
     /// The Mac rail's **Spaces** row (docs/docs-design.md, "The Space"): the

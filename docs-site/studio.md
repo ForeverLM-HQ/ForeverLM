@@ -113,7 +113,9 @@ Notebook** (**Restore Notebook** on an archived one), **Share…**, **Share with
 **Merge into Notebook…**, **Open in Other Window**, **Close Notebook** and
 **Delete Notebook…**.
 
-On the iPhone, Home is the list of your notebooks, and a notebook has
+On the iPhone, the app starts on Home, which opens with your **Library**, the
+Space and Memory, then today's plan and your notebooks; search there looks
+through the whole library first and the notebooks second. A notebook has
 **Sources**, **Chat** and **Studio** tabs, with **Share** beside its **⋯**.
 The [Web Library](/web-library) opens notebooks the same way.
 

@@ -420,3 +420,62 @@ struct SyncCoreReviewTests {
         #expect(try b.outboxRows() == 0)
     }
 }
+
+/// Pins held the rows of a record that had nothing left to send for ever (2026-10-25: three Catalog sources,
+/// the oldest since 10-12). A pin is the stamp a handed-out change will be sent with; the feeder settles a
+/// record whose rows already equal the server's only when its pins are current, and compared a pin of a path
+/// no pending row feeds with the record's `latest`, which moves whenever any other row of the record does.
+@Suite("A pin no pending row feeds does not hold a settled record", .serialized)
+struct StalePinTests {
+    private static let pinKey = OutboxFeeder.pinKey(zoneKey: OutboxTestProjections.libraryZoneKey, type: .course, wireID: "c1")
+
+    /// A course the server holds as the device has it: nothing pending, no pin.
+    private static func syncedCourse() async throws -> EngineTestDevice {
+        let server = EngineTestDriver.server()
+        let a = try EngineTestDevice(server, name: "stale-pin", deviceID: "macaaaaa")
+        _ = try await a.bootstrap()
+        try a.exec("INSERT INTO test_courses (id, title) VALUES ('c1', 'Cells')")
+        try await a.sync()
+        #expect(try a.outboxRows() == 0)
+        #expect(try a.pinCount() == 0)
+        return a
+    }
+
+    @Test("A pin on a path with no row of its own is settled with a record whose rows equal the server's")
+    func pinOfAPathNoRowFeedsSettles() async throws {
+        let a = try await Self.syncedCourse()
+        // The title was edited and put back: its row waits, the record equals what the server holds. The
+        // status has no row, only a pin an earlier hand-out left (the live case: `ingest`, `madeBy`).
+        try a.exec("UPDATE test_courses SET title = 'Cells II' WHERE id = 'c1'")
+        try a.exec("UPDATE test_courses SET title = 'Cells' WHERE id = 'c1'")
+        try a.exec("""
+            INSERT INTO ck_outbox_fields (source_table, local_key, column, dirty_at, stamp, seen)
+            VALUES ('\(OutboxFeeder.pinSource)', '\(Self.pinKey)', 'status', \(Date().timeIntervalSinceReferenceDate - 600), NULL, NULL)
+        """)
+        #expect(try a.outboxRows() == 1)
+        #expect(try a.pinCount() == 1)
+
+        await EngineTestDriver.pause()
+        try await a.engine.feed()
+        #expect(try a.outboxRows() == 0, "nothing is left to send, so the rows go")
+        #expect(try a.pinCount() == 0, "and the pin with them")
+    }
+
+    @Test("A pin older than a later edit of its own path still waits for its change, as before")
+    func revertedEditStillWaits() async throws {
+        let a = try await Self.syncedCourse()
+        try a.exec("UPDATE test_courses SET title = 'Cells II' WHERE id = 'c1'")
+        await EngineTestDriver.pause()
+        try await a.engine.feed()
+        #expect(try a.pinCount() >= 1, "the change is handed out with a pinned stamp")
+
+        // The edit is put back while that change is on its way: the record equals the server's again, but
+        // the change may still land, so its rows and pin stay until its acknowledgement settles them.
+        await EngineTestDriver.pause()
+        try a.exec("UPDATE test_courses SET title = 'Cells' WHERE id = 'c1'")
+        await EngineTestDriver.pause()
+        try await a.engine.feed()
+        #expect(try a.outboxRows() >= 1)
+        #expect(try a.pinCount() >= 1)
+    }
+}

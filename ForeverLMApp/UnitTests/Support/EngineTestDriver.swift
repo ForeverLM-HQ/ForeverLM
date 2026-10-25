@@ -107,6 +107,11 @@ final class EngineTestDevice {
         try count("SELECT COUNT(*) FROM ck_outbox_fields WHERE source_table <> ?", [.text(OutboxFeeder.pinSource)])
             + count("SELECT COUNT(*) FROM ck_outbox")
     }
+
+    /// The stamps pinned for changes handed out and not yet settled.
+    func pinCount() throws -> Int64 {
+        try count("SELECT COUNT(*) FROM ck_outbox_fields WHERE source_table = ?", [.text(OutboxFeeder.pinSource)])
+    }
 }
 
 enum EngineTestDriver {
