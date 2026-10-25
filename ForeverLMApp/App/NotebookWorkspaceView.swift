@@ -979,7 +979,8 @@ struct NotebookWorkspaceView: View {
             onSelect: { vm.activateCenterTab($0, in: windowState) },
             onCloseTab: { vm.closeCenterTab($0, in: windowState) },
             onCloseSlot: { windowState.notebook = windowState.notebook?.closingSlot() },
-            memoryReviewFocused: windowState.memoryReviewFocusSessionID != nil
+            memoryReviewFocused: windowState.memoryReviewFocusSessionID != nil,
+            leadingClearance: titlebarBandHeight == nil ? leadingReservation(start: start) : 0
         )
         return StudioPaneHost(
             activeTab: activeTab,

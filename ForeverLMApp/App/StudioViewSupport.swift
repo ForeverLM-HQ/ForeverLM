@@ -3009,7 +3009,14 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
                 .offset(x: -trailingOverflow)
             }
         }
-        .padding(.horizontal, StudioTopBar.centerTabStripHorizontalPadding)
+        // In full screen there is no band: ‹ › and the sidebar toggle stand on
+        // this very row at the window's leading edge, so the leftmost pane's
+        // first tab starts after them rather than under them (product owner,
+        // 2026-10-25: the Chat tab sat on the toggle).
+        .padding(.leading, titlebarBandHeight == nil && groupIndex == 0
+            ? max(StudioTopBar.centerTabStripHorizontalPadding, headerLeadingInset)
+            : StudioTopBar.centerTabStripHorizontalPadding)
+        .padding(.trailing, StudioTopBar.centerTabStripHorizontalPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -3802,6 +3809,9 @@ struct NotebookSlotTabStrip: View {
     let onCloseTab: (StudioCenterTab) -> Void
     let onCloseSlot: () -> Void
     var memoryReviewFocused = false
+    /// What the leading edge must clear: ‹ › and the sidebar toggle, which in
+    /// full screen stand on this row when the slot is the window's leftmost.
+    var leadingClearance: CGFloat = 0
 
     var body: some View {
         HStack(spacing: 2) {
@@ -3843,7 +3853,8 @@ struct NotebookSlotTabStrip: View {
                 .offset(x: -trailingOverflow)
             }
         }
-        .padding(.horizontal, StudioTopBar.centerTabStripHorizontalPadding)
+        .padding(.leading, max(StudioTopBar.centerTabStripHorizontalPadding, leadingClearance))
+        .padding(.trailing, StudioTopBar.centerTabStripHorizontalPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
