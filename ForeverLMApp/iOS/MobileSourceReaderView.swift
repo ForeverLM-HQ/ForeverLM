@@ -2,13 +2,13 @@ import SwiftUI
 
 struct MobileSourceReaderView: View {
     let source: MobileCloudSource
-    /// The notebook the Reader was opened in, when it was: Talk, Ask and a
+    /// The notebook the Reader was opened in, when it was: Ask and a
     /// walk file their chats under it (docs/notebooks-design.md, "iPhone").
     var notebook: MobileCloudNotebook? = nil
 
     @StateObject private var viewModel = MobileSourceReaderViewModel()
     @EnvironmentObject private var audio: MobileAudioReviewViewModel
-    @ObservedObject private var live = MobileVoiceConversationController.shared
+    @ObservedObject private var sharing = MobileSourceShare.shared
     @ObservedObject private var offline = MobileOfflineLibrary.shared
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.scenePhase) private var scenePhase
@@ -33,7 +33,7 @@ struct MobileSourceReaderView: View {
     @State private var showsContents = false
 
     /// The source the reader is on: in a book read whole, the chapter under the
-    /// reading line, which the title, Ask, Listen, Talk and the rest act on;
+    /// reading line, which the title, Ask, Listen, Share and the rest act on;
     /// otherwise the source that was opened.
     private var readingSource: MobileCloudSource {
         viewModel.currentChapter ?? source
@@ -143,16 +143,12 @@ struct MobileSourceReaderView: View {
             }
             .fullScreenCover(isPresented: $showsWalkthrough) {
                 if let deck = walkthroughDeck {
-                    let walked = readingSource
                     MobileWalkthroughDeckView(
-                        source: walked,
+                        source: readingSource,
                         deck: deck,
                         sourceText: viewModel.sourceText,
                         notebook: notebook
-                    ) {
-                        showsWalkthrough = false
-                        Task { await live.start(sourceID: walked.id, notebook: notebook) }
-                    }
+                    )
                 }
             }
     }
@@ -460,13 +456,13 @@ struct MobileSourceReaderView: View {
             }
 
             Button {
-                let sourceID = readingSource.id
-                Task { await live.start(sourceID: sourceID, notebook: notebook) }
+                let shared = readingSource
+                Task { await MobileSourceShare.shared.share(shared) }
             } label: {
-                Label("Talk", systemImage: "waveform")
+                Label("Share", systemImage: "square.and.arrow.up")
             }
-            .disabled(live.isActive)
-            .accessibilityIdentifier("reader.talk")
+            .disabled(sharing.preparingSourceIDs.contains(readingSource.id))
+            .accessibilityIdentifier("reader.share")
 
             Button {
                 presentChat(selection: nil, chapterID: nil)
@@ -668,8 +664,6 @@ private struct MobileBookContentsList: View {
 /// survives a detent drag or a redraw of the reader behind it.
 private struct MobileReaderChatSheet: View {
     @StateObject private var viewModel: MobileChatViewModel
-    @ObservedObject private var live = MobileVoiceConversationController.shared
-    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var audio: MobileAudioReviewViewModel
     private let sourceID: String
 
@@ -695,18 +689,7 @@ private struct MobileReaderChatSheet: View {
     }
 
     var body: some View {
-        MobileChatView(
-            viewModel: viewModel,
-            onStartVoice: {
-                // Voice continues this same chat; the sheet closes for its
-                // cover, so voice finishes the chat when it ends. Marked
-                // before the sheet goes, so its dismissal leaves it open.
-                let chat = viewModel
-                chat.isVoiceDriven = true
-                dismiss()
-                Task { await live.start(continuing: chat, finishesWhenDone: true) }
-            }
-        )
+        MobileChatView(viewModel: viewModel)
         .task {
             await audio.recordSourceActivity(sourceID: sourceID, kind: .chat)
         }

@@ -4,13 +4,12 @@ import SwiftUI
 /// A notebook's Studio on the phone, drawn as the Mac's Studio column is
 /// (`NotebookStudioColumn`): the things the phone can make from the
 /// notebook's sources as labelled chips in two columns
-/// (`MobileNotebookStudioTile`: Explainer, Walkthrough, Review me, Quiz), then
+/// (`MobileNotebookStudioTile`: Explainer, Walkthrough, Quiz), then
 /// what was made, under no heading — the Cards row and its Practice first,
 /// what is being written, and everything made from it, each row its kind's
 /// glyph, its title and the Mac's "Doc · 4 sources · 3 days ago"
 /// (`MobileNotebookOutputLine`). Each
-/// opens here: audio overviews and explainers play, an overview can be talked
-/// about, Docs (reports among them) read, walkthroughs deal their cards,
+/// opens here: audio overviews and explainers play, Docs (reports among them) read, walkthroughs deal their cards,
 /// linked courses open their page. What it lists and in what order are the
 /// Mac's Studio's rules (`NotebookOutputs`): the Docs and audio overviews
 /// filed in it, the courses it follows, the walkthroughs and explainers of
@@ -18,10 +17,8 @@ import SwiftUI
 /// report, cards or an audio overview stays on the Mac for now.
 struct MobileNotebookStudioTab: View {
     let notebook: MobileCloudNotebook
-    @ObservedObject var selection: MobileNotebookChatSelectionStore
 
     @EnvironmentObject private var vm: MobileAudioReviewViewModel
-    @ObservedObject private var live = MobileVoiceConversationController.shared
     @ObservedObject private var explainers = MobileExplainerGenerator.shared
     @ObservedObject private var walkthroughs = MobileWalkthroughGenerator.shared
     @State private var walkthroughToPlay: MobileNotebookWalkthrough?
@@ -29,12 +26,6 @@ struct MobileNotebookStudioTab: View {
     @State private var cardCounts: NotebookCardCounts?
     /// A notice's glyph column, as wide as the output rows' beside it.
     @ScaledMetric(relativeTo: .body) private var noticeGlyphWidth: CGFloat = 24
-
-    /// The notebook's own sources this phone lists: what a talk about an
-    /// overview, written from them, may still hold.
-    private var sources: [MobileCloudSource] {
-        vm.notebookSources(in: notebook)
-    }
 
     /// The notebook's own sources — its Sources tab — which its walkthroughs
     /// and explainers ride and the make buttons offer: a context notebook's
@@ -90,10 +81,7 @@ struct MobileNotebookStudioTab: View {
             cardCounts = await vm.notebookCardCounts(in: notebook)
         }
         .fullScreenCover(item: $walkthroughToPlay) { walk in
-            MobileWalkthroughDeckView(source: walk.source, deck: walk.deck, notebook: notebook) {
-                walkthroughToPlay = nil
-                Task { await live.start(sourceID: walk.source.id, notebook: notebook) }
-            }
+            MobileWalkthroughDeckView(source: walk.source, deck: walk.deck, notebook: notebook)
         }
     }
 
@@ -156,13 +144,6 @@ struct MobileNotebookStudioTab: View {
                 MobileStudioChip(tile: tile, isBusy: ownSources.contains { walkthroughs.isWriting($0.id) })
             }
             .accessibilityIdentifier(tile.accessibilityIdentifier)
-        case .reviewMe:
-            Button(action: reviewMe) {
-                MobileStudioChip(tile: tile)
-            }
-            .buttonStyle(.plain)
-            .disabled(live.isActive || !selection.isLoaded || tickedIDs.isEmpty)
-            .accessibilityIdentifier(tile.accessibilityIdentifier)
         case .quiz:
             Menu {
                 if ownSources.isEmpty {
@@ -179,19 +160,6 @@ struct MobileNotebookStudioTab: View {
             .disabled(vm.isReviewActive)
             .accessibilityIdentifier(tile.accessibilityIdentifier)
         }
-    }
-
-    /// What the notebook's chat reads: its ticked sources and those of the
-    /// context notebooks put in.
-    private var tickedIDs: [String] {
-        selection.chatSourceIDs(of: notebook)
-    }
-
-    /// A spoken review of what the notebook's chat reads: a voice
-    /// conversation on its chat sources that starts with the tutor's first
-    /// question, filed under the notebook.
-    private func reviewMe() {
-        MobileNotebookReviewMe.start(notebook: notebook, selection: selection)
     }
 
     // MARK: - Cards
@@ -350,16 +318,6 @@ struct MobileNotebookStudioTab: View {
         walkthroughs.decks[source.id] ?? source.walkthroughDeck
     }
 
-    /// A voice conversation about an audio overview: the notebook chat by
-    /// voice — Home's Talk — on the sources the overview was written from,
-    /// as far as the notebook still holds them; nil when it holds none.
-    private func talkNotebook(for output: MobileStudioOutput) -> MobileCloudNotebook? {
-        let held = Set(sources.map(\.id))
-        let overviewSources = output.sourceIDs.filter(held.contains)
-        guard !overviewSources.isEmpty else { return nil }
-        return notebook.narrowed(toSourceIDs: overviewSources)
-    }
-
     @ViewBuilder
     private func outputRow(_ output: MobileStudioOutput) -> some View {
         switch output.kind {
@@ -367,8 +325,7 @@ struct MobileNotebookStudioTab: View {
             MobileStudioAudioOverviewRow(
                 overview: overview,
                 sourceCount: output.sourceIDs.count,
-                madeAt: output.date,
-                talkNotebook: talkNotebook(for: output)
+                madeAt: output.date
             )
         case .doc(let doc):
             NavigationLink(value: MobileShellRoute.doc(doc.id, notebookID: notebook.id)) {
@@ -669,12 +626,8 @@ private struct MobileStudioPlayDisc: View {
 
 /// One audio overview among the outputs, the Mac's `AudioOverviewOutputRow`
 /// on the phone: its glyph, title and "Audio overview · 6 sources · 12 min ·
-/// yesterday", a thin bar while it is partly played, then **Talk** and the
-/// play disc. A tap on the row plays or pauses it, as the disc does. Talk is
-/// the notebook chat by voice on the sources the overview was written from
-/// (`MobileVoiceConversationController.start(notebook:)`, Home's Talk),
-/// filed under the notebook; nil `talkNotebook` — a notebook that no longer
-/// holds any of them — leaves it off.
+/// yesterday", a thin bar while it is partly played, then the play disc. A
+/// tap on the row plays or pauses it, as the disc does.
 ///
 /// The length is the narration's own, measured once every file of it is on
 /// this phone; where it has been listened to is the player's while it plays,
@@ -683,10 +636,8 @@ private struct MobileStudioAudioOverviewRow: View {
     let overview: MobileAudioOverviewListing
     let sourceCount: Int
     let madeAt: Date?
-    let talkNotebook: MobileCloudNotebook?
 
     @EnvironmentObject private var vm: MobileAudioReviewViewModel
-    @ObservedObject private var live = MobileVoiceConversationController.shared
     @State private var narration: MobileAudioOverviewNarrationStore.Narration?
 
     private var carrierID: String { overview.carrier.id }
@@ -744,22 +695,6 @@ private struct MobileStudioAudioOverviewRow: View {
             .accessibilityHint(isPlaying ? "Pauses it" : "Plays it")
             .accessibilityIdentifier("notebook.studio.audioOverview")
 
-            Button(action: talk) {
-                Text("Talk")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.primary)
-                    .padding(.horizontal, MobileDesign.Spacing.medium)
-                    .frame(minHeight: 32)
-                    .background(Capsule(style: .continuous).fill(Color.primary.opacity(0.045)))
-                    .overlay(Capsule(style: .continuous).strokeBorder(Color.primary.opacity(0.07), lineWidth: 1))
-                    .frame(minHeight: MobileDesign.Metrics.minimumTouchTarget)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.borderless)
-            .disabled(talkNotebook == nil || live.isActive)
-            .accessibilityLabel("Talk about \(overview.title)")
-            .accessibilityIdentifier("notebook.studio.audioOverview.talk")
-
             Button(action: toggle) {
                 MobileStudioPlayDisc(isPlaying: isPlaying, isPreparing: vm.isPreparingAudio(sourceID: carrierID))
             }
@@ -775,11 +710,6 @@ private struct MobileStudioAudioOverviewRow: View {
 
     private func toggle() {
         Task { await vm.toggleTextToSpeech(sourceID: carrierID) }
-    }
-
-    private func talk() {
-        guard let talkNotebook else { return }
-        Task { await live.start(notebook: talkNotebook) }
     }
 }
 

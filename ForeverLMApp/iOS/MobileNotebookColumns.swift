@@ -171,7 +171,6 @@ struct MobileNotebookColumns: View {
                     ) {
                         setFolded(.studio, false)
                     }
-                    MobileNotebookStripReviewButton(notebook: notebook, selection: selection)
                 }
             } else {
                 VStack(spacing: 0) {
@@ -184,7 +183,7 @@ struct MobileNotebookColumns: View {
                     ) {
                         setFolded(.studio, true)
                     }
-                    MobileNotebookStudioTab(notebook: notebook, selection: selection)
+                    MobileNotebookStudioTab(notebook: notebook)
                 }
             }
         }
@@ -255,31 +254,6 @@ private struct MobileNotebookColumnStrip<Content: View>: View {
             content()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-    }
-}
-
-/// The Studio's Review me on its strip: a spoken review of what the
-/// notebook's chat reads, the ticked sources and the context notebooks put
-/// in, filed under the notebook — the tile's own call. Its own view, so the
-/// voice controller's changes redraw this button and not the columns.
-private struct MobileNotebookStripReviewButton: View {
-    let notebook: MobileCloudNotebook
-    @ObservedObject var selection: MobileNotebookChatSelectionStore
-    @ObservedObject private var live = MobileVoiceConversationController.shared
-
-    private var tickedIDs: [String] {
-        selection.chatSourceIDs(of: notebook)
-    }
-
-    var body: some View {
-        MobileNotebookStripButton(
-            systemImage: MobileNotebookStudioTile.reviewMe.symbolName,
-            label: "Review me",
-            identifier: "notebook.studio.stripReview",
-            isEnabled: !live.isActive && selection.isLoaded && !tickedIDs.isEmpty
-        ) {
-            MobileNotebookReviewMe.start(notebook: notebook, selection: selection)
-        }
     }
 }
 

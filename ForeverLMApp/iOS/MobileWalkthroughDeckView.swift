@@ -15,8 +15,6 @@ import WebKit
 struct MobileWalkthroughDeckView: View {
     let source: MobileCloudSource
     let deck: MobileWalkthroughDeck
-    /// Ends the deck and starts a voice conversation about the source.
-    let onTalk: () -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var position: Int
@@ -36,12 +34,10 @@ struct MobileWalkthroughDeckView: View {
         source: MobileCloudSource,
         deck: MobileWalkthroughDeck,
         sourceText: String = "",
-        notebook: MobileCloudNotebook? = nil,
-        onTalk: @escaping () -> Void
+        notebook: MobileCloudNotebook? = nil
     ) {
         self.source = source
         self.deck = deck
-        self.onTalk = onTalk
         let cards = deck.cards
         self.cards = cards
         let restored = MobileWalkthroughDeckPosition.restored(
@@ -366,15 +362,6 @@ struct MobileWalkthroughDeckView: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 VStack(spacing: MobileDesign.Spacing.medium) {
-                    Button {
-                        onTalk()
-                    } label: {
-                        Label("Talk It Through", systemImage: "waveform")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-
                     Button {
                         withAnimation { position = 1 }
                     } label: {

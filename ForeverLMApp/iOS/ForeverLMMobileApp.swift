@@ -50,8 +50,7 @@ struct ForeverLMMobileApp: App {
                 } else {
                     // Notebooks are the phone's front door: Home lists them,
                     // and a launch reopens the notebook last worked in. Voice
-                    // is a toolbar button on Home and Talk inside a notebook;
-                    // typed chat lives in a notebook's Chat tab and the
+                    // is CarPlay and Review by Voice; typed chat lives in a notebook's Chat tab and the
                     // Reader's Ask. Everything records back to the Mac.
                     MobileAudioReviewView()
                         .environmentObject(viewModel)

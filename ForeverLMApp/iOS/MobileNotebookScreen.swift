@@ -104,7 +104,7 @@ struct MobileNotebookScreen: View {
                     onAddSources: { showsAddSources = true }
                 )
             case .studio:
-                MobileNotebookStudioTab(notebook: notebook, selection: selection)
+                MobileNotebookStudioTab(notebook: notebook)
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -393,12 +393,6 @@ final class MobileNotebookChatSelectionStore: ObservableObject {
         self.write = write
     }
 
-    /// One notebook's two rows, read now, for a caller with no store of its
-    /// own (Home's Talk).
-    nonisolated static func readSelection(notebookID: String) async throws -> Selection {
-        try await readRows(notebookID: notebookID, read: cloudRead)
-    }
-
     /// Both rows at once; an absent row reads as empty.
     private nonisolated static func readRows(notebookID: String, read: Read) async throws -> Selection {
         async let excluded = read(MobileNotebookChatSelection.preferenceKey(notebookID: notebookID))
@@ -419,8 +413,7 @@ final class MobileNotebookChatSelectionStore: ObservableObject {
         current.map { MobileNotebookChatBoard(notebook: notebook, selection: $0) }
     }
 
-    /// What a new chat in `notebook`, a voice conversation on it or Review me
-    /// reads: its own sources and the context notebooks put in, minus the
+    /// What a new chat in `notebook` reads: its own sources and the context notebooks put in, minus the
     /// unticked; nothing until the rows were read.
     func chatSourceIDs(of notebook: MobileCloudNotebook) -> [String] {
         guard let current else { return [] }

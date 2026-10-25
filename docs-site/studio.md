@@ -117,6 +117,10 @@ On the iPhone, Home is the list of your notebooks, and a notebook has
 **Sources**, **Chat** and **Studio** tabs, with **Share** beside its **⋯**.
 The [Web Library](/web-library) opens notebooks the same way.
 
+### Share a source
+
+On the iPhone, **Share** in the Reader's bottom bar, **Share…** in a source's **⋯** menu or long-press menu, and a swipe on a source row send the source out through the iPhone's share sheet. A paper or a PDF chapter goes as its PDF; any other source goes as its text, in a Markdown file named after its title with its address under the title. Choose ChatGPT in the sheet and the source opens in the ChatGPT app as an attachment, to chat or talk about it there. iOS gives an app no way to open ChatGPT with a file itself, so the choice in the share sheet is yours; Files, AirDrop and Mail are in the same sheet.
+
 ### The Studio column
 
 The Studio's tiles make something from the notebook's ticked sources. Each

@@ -103,7 +103,7 @@ enum MobileNotebookChatSelection {
         NotebookChatContext.linkedPool(own: own(of: notebook), linked: linked(of: notebook))
     }
 
-    /// What a new chat, a voice conversation or Review me reads: the chat
+    /// What a new chat reads: the chat
     /// pool minus the unticked, by the rows' ids (a source this phone holds
     /// under another id by both).
     static func chatSourceIDs(of notebook: MobileCloudNotebook, selection: Selection) -> [String] {
@@ -2161,12 +2161,10 @@ enum MobileNotebookOutputOrder {
 /// course or a note stays on the Mac (the Cards row's Practice is the phone's
 /// way into its cards). Then the phone's own, each under the glyph the Mac
 /// gives its feature elsewhere: Walkthrough (the Mac's Walk Through and its
-/// walkthrough outputs), Review me (the notebook chat guide's "Review me on
-/// it") and Quiz (the Mac's course quizzes).
+/// walkthrough outputs) and Quiz (the Mac's course quizzes).
 enum MobileNotebookStudioTile: String, CaseIterable, Identifiable, Sendable {
     case explainer
     case walkthrough
-    case reviewMe
     case quiz
 
     var id: String { rawValue }
@@ -2175,7 +2173,6 @@ enum MobileNotebookStudioTile: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .explainer: return "Explainer"
         case .walkthrough: return "Walkthrough"
-        case .reviewMe: return "Review me"
         case .quiz: return "Quiz"
         }
     }
@@ -2184,19 +2181,14 @@ enum MobileNotebookStudioTile: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .explainer: return "lightbulb"
         case .walkthrough: return "figure.walk"
-        case .reviewMe: return "graduationcap"
         case .quiz: return "checklist"
         }
     }
-
-    /// Whether the tile picks a source before making: a menu.
-    var isMenu: Bool { self != .reviewMe }
 
     var accessibilityIdentifier: String {
         switch self {
         case .explainer: return "notebook.studio.explainer"
         case .walkthrough: return "notebook.studio.walkthrough"
-        case .reviewMe: return "notebook.studio.review"
         case .quiz: return "notebook.studio.quiz"
         }
     }

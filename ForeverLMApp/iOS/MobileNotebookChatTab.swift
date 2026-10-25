@@ -223,24 +223,11 @@ final class MobileNotebookChatSession: ObservableObject {
     }
 }
 
-/// Quiz me on it: a spoken review of what the notebook's chat reads — the
-/// voice conversation on its ticked sources, the context notebooks put in
-/// included, that opens with the tutor's first question, filed under the
-/// notebook. The Studio's Review me starts the same conversation.
-@MainActor
-enum MobileNotebookReviewMe {
-    static func start(notebook: MobileCloudNotebook, selection: MobileNotebookChatSelectionStore) {
-        let ticked = selection.chatSourceIDs(of: notebook)
-        Task { await MobileVoiceConversationController.shared.startReview(notebook: notebook.narrowed(toSourceIDs: ticked)) }
-    }
-}
-
 /// A notebook's Chat tab: with no chat open, the notebook's guide (the Mac's
 /// `NotebookChatGuide`) and its latest chats; else the chat under way — new,
 /// or a saved one continued — over one composer, ChatGPT's and the Mac's
 /// (2026-10-06): "Ask about <notebook>…", "+" (the chat's sources, Add
-/// Sources), the chat's model, dictation, and Talk (the same chat by voice,
-/// turn by turn) while the field is empty or send once it is not. A chat
+/// Sources), the chat's model, dictation and send. A chat
 /// reads the ticked sources whole; when they do not all fit, a line over the
 /// composer says how many it reads. The toolbar holds the notebook's chats
 /// and, while a chat is open, New Chat (the conversation's own bar, with
@@ -254,7 +241,6 @@ struct MobileNotebookChatTab: View {
     let onAddSources: () -> Void
 
     @EnvironmentObject private var vm: MobileAudioReviewViewModel
-    @ObservedObject private var live = MobileVoiceConversationController.shared
     @State private var showsChatHistory = false
     @State private var showsChatSources = false
 
@@ -282,8 +268,7 @@ struct MobileNotebookChatTab: View {
                     selection: selection,
                     hidesTabBar: $hidesTabBar,
                     onShowSources: { showsChatSources = true },
-                    onAddSources: onAddSources,
-                    onTalk: talk
+                    onAddSources: onAddSources
                 )
             } else {
                 VStack(spacing: 0) {
@@ -305,7 +290,6 @@ struct MobileNotebookChatTab: View {
                         modelChoices: session.modelChoices,
                         selectedModelID: session.nextChatModel?.id ?? session.defaultModel?.id,
                         onPickModel: { session.nextChatModel = $0 },
-                        canTalk: !tickedSources.isEmpty && selection.isLoaded && !live.isActive,
                         hidesTabBar: $hidesTabBar,
                         onShowSources: { showsChatSources = true },
                         onAddSources: onAddSources,
@@ -313,8 +297,7 @@ struct MobileNotebookChatTab: View {
                         onDictated: { text in
                             session.draft = Self.appending(text, to: session.draft)
                             session.startChat()
-                        },
-                        onTalk: talk
+                        }
                     )
                 }
             }
@@ -415,7 +398,6 @@ struct MobileNotebookChatTab: View {
                     selection: selection.current ?? NotebookChatContext.Selection()
                 ).isEmpty,
                 canAsk: canStart,
-                canReview: selection.isLoaded && !tickedSources.isEmpty && !live.isActive,
                 overview: overview.map { overview in
                     MobileNotebookGuide.Overview(
                         isPlaying: vm.currentItem?.id == overview.carrier.id && vm.isPlaying,
@@ -427,7 +409,6 @@ struct MobileNotebookChatTab: View {
                 verdict: vm.continuation(of:),
                 onAddSources: onAddSources,
                 onSuggestQuestions: suggestQuestions,
-                onReview: { MobileNotebookReviewMe.start(notebook: notebook, selection: selection) },
                 onListen: {
                     guard let overview else { return }
                     Task { await vm.toggleTextToSpeech(sourceID: overview.carrier.id) }
@@ -464,19 +445,6 @@ struct MobileNotebookChatTab: View {
         )
     }
 
-    /// A voice conversation on what the chat reads: the chat under way,
-    /// continued by voice in the same chat, or a new chat on the ticked
-    /// sources, the context notebooks put in included, filed under the
-    /// notebook.
-    private func talk() {
-        if let chat = session.chat, !chat.messages.isEmpty {
-            Task { await live.start(continuing: chat, finishesWhenDone: false) }
-            return
-        }
-        let ticked = selection.chatSourceIDs(of: notebook)
-        Task { await live.start(notebook: notebook.narrowed(toSourceIDs: ticked)) }
-    }
-
     fileprivate static func appending(_ spoken: String, to draft: String) -> String {
         let text = spoken.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return draft }
@@ -503,14 +471,12 @@ private struct MobileNotebookGuide: View {
     let hasSources: Bool
     /// A chat on the ticked sources can start now.
     let canAsk: Bool
-    let canReview: Bool
     let overview: Overview?
     let recentChats: [MobileNotebookChatSummary]
     let hasMoreChats: Bool
     let verdict: (MobileNotebookChatSummary) -> MobileNotebookChatContinuation.Verdict
     let onAddSources: () -> Void
     let onSuggestQuestions: () -> Void
-    let onReview: () -> Void
     let onListen: () -> Void
     let onContinueChat: (MobileNotebookChatSummary) -> Void
     let onShowAllChats: () -> Void
@@ -550,7 +516,7 @@ private struct MobileNotebookGuide: View {
         .accessibilityIdentifier("notebook.chat.guide")
     }
 
-    /// Suggest questions and Quiz me on it for a notebook with sources, Add
+    /// Suggest questions for a notebook with sources, Add
     /// sources for an empty one, and Listen beside either when there is an
     /// overview. Side by side while they fit, else one above another.
     @ViewBuilder
@@ -570,13 +536,6 @@ private struct MobileNotebookGuide: View {
             .buttonStyle(.plain)
             .disabled(!canAsk)
             .accessibilityIdentifier("notebook.guide.suggestQuestions")
-
-            Button(action: onReview) {
-                MobileGuideChip(title: "Quiz me on it", systemImage: "graduationcap")
-            }
-            .buttonStyle(.plain)
-            .disabled(!canReview)
-            .accessibilityIdentifier("notebook.guide.review")
         } else {
             Button(action: onAddSources) {
                 Label("Add sources", systemImage: "plus")
@@ -903,9 +862,6 @@ private struct MobileNotebookConversation: View {
     @Binding var hidesTabBar: Bool
     let onShowSources: () -> Void
     let onAddSources: () -> Void
-    let onTalk: () -> Void
-
-    @ObservedObject private var live = MobileVoiceConversationController.shared
 
     var body: some View {
         VStack(spacing: 0) {
@@ -930,7 +886,6 @@ private struct MobileNotebookConversation: View {
                     modelChoices: session.modelChoices,
                     selectedModelID: chat.modelOverride?.id ?? session.defaultModel?.id,
                     onPickModel: { chat.modelOverride = $0 },
-                    canTalk: chat.notebookContext?.loaded.isEmpty == false && !live.isActive && !chat.isResponding,
                     hidesTabBar: $hidesTabBar,
                     onShowSources: onShowSources,
                     onAddSources: onAddSources,
@@ -938,8 +893,7 @@ private struct MobileNotebookConversation: View {
                     onDictated: { text in
                         chat.appendDictatedText(text)
                         chat.send()
-                    },
-                    onTalk: onTalk
+                    }
                 )
             }
         }
@@ -1031,7 +985,7 @@ private struct MobileNotebookConversation: View {
 /// (2026-10-06): the field on top, saying "Ask about <notebook>…"; under it
 /// "+" on the leading edge (Choose Sources, with how many the chat reads, and
 /// Add Sources), and on the trailing edge the model chip, dictation, and one
-/// round button — Talk while the field is empty, a filled ↑ once it is not.
+/// round button, a filled ↑.
 /// Over the box, a line only when something is wrong: not every ticked source
 /// is read, a reply or a save failed, dictation could not start.
 private struct MobileNotebookComposer: View {
@@ -1047,13 +1001,11 @@ private struct MobileNotebookComposer: View {
     let modelChoices: [MobileChatModelChoice]
     let selectedModelID: String?
     let onPickModel: (MobileChatModelChoice) -> Void
-    let canTalk: Bool
     @Binding var hidesTabBar: Bool
     let onShowSources: () -> Void
     let onAddSources: () -> Void
     let onSend: () -> Void
     let onDictated: (String) -> Void
-    let onTalk: () -> Void
 
     @StateObject private var dictation = MobileComposerDictation()
     @FocusState private var isFocused: Bool
@@ -1206,19 +1158,10 @@ private struct MobileNotebookComposer: View {
         .accessibilityIdentifier("notebook.chat.model")
     }
 
-    /// Talk while there is nothing to send, send once there is (a spinner
-    /// while the sources a new chat reads are still being read).
+    /// Send (a spinner while the sources a new chat reads are still being read).
     @ViewBuilder
     private var roundButton: some View {
-        if !hasSomethingToSend {
-            Button(action: onTalk) {
-                MobileComposerDiscLabel(systemImage: "waveform")
-            }
-            .buttonStyle(.plain)
-            .disabled(!canTalk)
-            .accessibilityLabel("Talk about this Notebook")
-            .accessibilityIdentifier("notebook.chat.talk")
-        } else if isBusy, !isListening {
+        if hasSomethingToSend, isBusy, !isListening {
             ProgressView()
                 .controlSize(.small)
                 .frame(

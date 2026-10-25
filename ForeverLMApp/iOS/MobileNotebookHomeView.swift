@@ -48,7 +48,6 @@ struct MobileNotebookHomeView: View {
     @EnvironmentObject private var vm: MobileAudioReviewViewModel
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.verticalSizeClass) private var verticalSizeClass
-    @ObservedObject private var live = MobileVoiceConversationController.shared
     /// The Planner's bout, when one is running on a Mac.
     @ObservedObject private var boutTimer = MobileLearningBoutTimer.shared
     /// The learner's collections of notebooks, as this phone last read them.
@@ -111,7 +110,7 @@ struct MobileNotebookHomeView: View {
         .scrollContentBackground(.hidden)
         .background(Color(uiColor: .systemBackground))
         .searchable(text: $query, prompt: "Search notebooks and library")
-        .modifier(MobileHomeBottomBar(live: live))
+        .modifier(MobileHomeBottomBar())
         .searchScopes($scope) {
             ForEach(MobileHomeSearchScope.allCases, id: \.self) { scope in
                 Text(scope.title).tag(scope)
@@ -471,8 +470,7 @@ struct MobileNotebookHomeView: View {
     }
 
     /// A notebook's row: its mark, title and line, no button of its own
-    /// (2026-10-06). Its menu and its trailing swipe play its audio overview
-    /// or talk in it.
+    /// (2026-10-06). Its menu and its trailing swipe play its audio overview.
     private func notebookRow(_ notebook: MobileCloudNotebook, recency: NotebookRecency) -> some View {
         let overview = vm.audioOverviews(inNotebook: notebook.id).first
         let isPlaying = overview.map { vm.currentItem?.id == $0.carrier.id && vm.isPlaying } ?? false
@@ -495,19 +493,12 @@ struct MobileNotebookHomeView: View {
                 }
                 .tint(.accentColor)
             }
-            Button {
-                menus.talk(in: notebook, live: live)
-            } label: {
-                Label("Talk", systemImage: "waveform")
-            }
-            .tint(.gray)
-            .disabled(live.isActive)
         }
     }
 
     /// One notebook in the gallery: the row's data and actions on the Mac's
     /// card, ▶ in its corner while it has an audio overview, as the Mac's
-    /// card draws it; Talk is its menu's.
+    /// card draws it.
     private func notebookCard(_ notebook: MobileCloudNotebook, recency: NotebookRecency) -> some View {
         let overview = vm.audioOverviews(inNotebook: notebook.id).first
         return MobileNotebookGalleryCard(
@@ -806,8 +797,7 @@ struct MobileNotebookCard: View {
 /// A gallery card's ▶ (or ⏸) for the notebook's audio overview, a spinner
 /// while that audio is being made, as the Mac's card draws it
 /// (`NotebookCardPlayButton`). A card with no overview draws nothing here:
-/// the waveform that talked with the notebook went on 2026-10-06, and Talk
-/// is the card's menu's.
+/// the waveform that talked with the notebook went on 2026-10-06.
 private struct MobileNotebookCardPlayButton: View {
     let overviewIsPlaying: Bool
     let isPreparingOverview: Bool
@@ -1006,7 +996,7 @@ extension NotebookTint {
 /// audio overview. The same data as the phone's row (`MobileNotebookCard`)
 /// and the same menu; a tap opens the notebook. Since 2026-10-06, as the
 /// Mac's card, it draws no pin (Pinned on Home and the menu's Unpin say it)
-/// and no waveform (Talk is the menu's). On a phone's Notebooks screen the
+/// and no waveform. On a phone's Notebooks screen the
 /// card is drawn smaller (`isCompact`), two to a row.
 struct MobileNotebookGalleryCard: View {
     let notebook: MobileCloudNotebook
@@ -1120,50 +1110,13 @@ private struct MobileHomeHidesDisclosure: ViewModifier {
     }
 }
 
-/// Search and voice share the bottom: iOS 26 draws Search as a bar at the bottom with a round Talk
-/// button beside it; earlier systems keep Search in the navigation bar and Talk in the bottom bar.
+/// iOS 26 draws Search as a bar at the bottom; earlier systems keep Search in the navigation bar.
 private struct MobileHomeBottomBar: ViewModifier {
-    @ObservedObject var live: MobileVoiceConversationController
-
     func body(content: Content) -> some View {
         if #available(iOS 26.0, *) {
-            content.toolbar { MobileHomeBottomBarContent(live: live) }
+            content.toolbar { DefaultToolbarItem(kind: .search, placement: .bottomBar) }
         } else {
-            content.toolbar {
-                ToolbarItem(placement: .bottomBar) {
-                    MobileHomeTalkButton(live: live)
-                }
-            }
+            content
         }
-    }
-}
-
-@available(iOS 26.0, *)
-private struct MobileHomeBottomBarContent: ToolbarContent {
-    @ObservedObject var live: MobileVoiceConversationController
-
-    var body: some ToolbarContent {
-        DefaultToolbarItem(kind: .search, placement: .bottomBar)
-        ToolbarSpacer(.fixed, placement: .bottomBar)
-        ToolbarItem(placement: .bottomBar) {
-            MobileHomeTalkButton(live: live)
-        }
-    }
-}
-
-/// Starts a hands-free conversation (the shell's top-bar waveform until 2026-10-11).
-private struct MobileHomeTalkButton: View {
-    @ObservedObject var live: MobileVoiceConversationController
-
-    var body: some View {
-        Button {
-            Task { await live.start() }
-        } label: {
-            Image(systemName: "waveform")
-        }
-        .disabled(live.isActive)
-        .accessibilityLabel("Start voice chat")
-        .accessibilityHint("Starts a hands-free conversation")
-        .accessibilityIdentifier("home.startVoiceChat")
     }
 }

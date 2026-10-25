@@ -1639,6 +1639,7 @@ struct MobileBrowserSourceLink: View {
     @ObservedObject private var live = MobileVoiceConversationController.shared
     @ObservedObject private var offline = MobileOfflineLibrary.shared
     @ObservedObject private var pdfExport = MobileSourcePDFExport.shared
+    @ObservedObject private var sharing = MobileSourceShare.shared
     @EnvironmentObject private var vm: MobileAudioReviewViewModel
     @State private var actionDestination: MobileSourceActionDestination?
     @State private var confirmsDelete = false
@@ -1659,7 +1660,7 @@ struct MobileBrowserSourceLink: View {
                     isAudioReady: isAudioReady,
                     downloadFraction: vm.narrationDownloadFraction(sourceID: source.id),
                     offlineState: offline.state(for: source.id),
-                    isPreparingPDF: pdfExport.preparingSourceIDs.contains(source.id)
+                    isPreparingPDF: pdfExport.preparingSourceIDs.contains(source.id) || sharing.preparingSourceIDs.contains(source.id)
                 )
             }
             .accessibilityIdentifier("browser.sourceRow")
@@ -1694,11 +1695,12 @@ struct MobileBrowserSourceLink: View {
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             Button {
-                Task { await live.start(sourceID: source.id, notebook: notebook) }
+                Task { await sharing.share(source) }
             } label: {
-                Label("Talk", systemImage: "waveform")
+                Label("Share", systemImage: "square.and.arrow.up")
             }
             .tint(.accentColor)
+            .disabled(sharing.preparingSourceIDs.contains(source.id))
             if let onRemoveFromNotebook {
                 Button("Remove", systemImage: "folder.badge.minus", role: .destructive) {
                     onRemoveFromNotebook()
@@ -1713,7 +1715,7 @@ struct MobileBrowserSourceLink: View {
             if MobileExplainerStatus.isExplainable(source) {
                 MobileExplainerMenuButton(source: source)
             }
-            MobileSourcePDFExportButtons(source: source)
+            MobileSourceShareButtons(source: source)
             MobileOfflineSaveButton(source: source)
             Divider()
             Button("Add to Notebook", systemImage: "folder.badge.plus") {

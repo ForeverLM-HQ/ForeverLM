@@ -8,7 +8,7 @@ import XCTest
 // touches.
 //
 // Home is the Notebooks list (docs/notebooks-design.md, "iPhone"): Settings and
-// an unscoped voice chat in its toolbar, the notebooks, then the Library row; a
+// in its toolbar, the notebooks, then the Library row; a
 // launch reopens the notebook last worked in, pushed over Home. Typed chat
 // lives in a notebook's Chat tab and the Reader's Ask. Extraction is asserted
 // through MobileUITestProbe:
@@ -38,14 +38,13 @@ final class MobileVoiceUITests: XCTestCase {
         }
     }
 
-    /// Home is the notebooks: Settings and voice in the toolbar, a New
-    /// notebook button, the Library row below the notebooks, and no text
-    /// composer of its own. Nothing billable starts.
-    func testHomeListsNotebooksWithVoiceInTheToolbar() throws {
+    /// Home is the notebooks: Settings in the toolbar, a New notebook button,
+    /// the Library row below the notebooks, and no text composer of its own.
+    /// Nothing billable starts.
+    func testHomeListsNotebooks() throws {
         app.launch()
         try waitForHome()
 
-        XCTAssertTrue(app.buttons["home.startVoiceChat"].exists, "Home's toolbar has no voice button.")
         XCTAssertTrue(
             app.descendants(matching: .any)["home.settings"].exists,
             "Home's toolbar has no Settings."
@@ -96,32 +95,6 @@ final class MobileVoiceUITests: XCTestCase {
                 .firstMatch
             XCTAssertTrue(option.waitForExistence(timeout: 5), "Missing priced option: \(label)")
         }
-    }
-
-    /// Home's voice button opens the conversation in its full-screen cover,
-    /// which says what it is doing; ending before a spoken turn closes the
-    /// cover on Home and keeps this UI check non-billable (the opening offer
-    /// is spoken on the phone, no model is asked).
-    func testLiveVoiceOpensItsCoverAndShowsStatus() throws {
-        app.launch()
-        try waitForHome()
-
-        app.buttons["home.startVoiceChat"].tap()
-        let status = app.descendants(matching: .any)["voice.status"]
-        XCTAssertTrue(status.waitForExistence(timeout: 15), "Voice never showed its transport status.")
-        let spokenStatus = (status.value as? String) ?? status.label
-        XCTAssertFalse(
-            spokenStatus.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-            "Voice exposed an empty status."
-        )
-
-        let end = app.buttons["voice.end"]
-        XCTAssertTrue(end.waitForExistence(timeout: 5), "Voice did not expose its end action.")
-        end.tap()
-        XCTAssertTrue(
-            app.buttons["home.startVoiceChat"].waitForExistence(timeout: 15),
-            "Ending voice did not come back to Home."
-        )
     }
 
     /// A slow audio teardown used to disable the only escape hatch.
@@ -345,7 +318,7 @@ final class MobileVoiceUITests: XCTestCase {
     /// Notebooks (Notebooks in code) made on the Mac reach the phone with their
     /// pools resolvable: the probe proves the catalog carries them, and Home
     /// lists them with cards that open the notebook — Sources, Chat and
-    /// Studio — whose Chat carries the scoped talk action. No session is
+    /// Studio — whose Chat carries its composer. No session is
     /// started — navigation only, nothing billable.
     func testShowsNotebooksSyncedFromMac() throws {
         app.launchArguments += ["-foreverlm-uitest-probe"]
@@ -382,10 +355,10 @@ final class MobileVoiceUITests: XCTestCase {
         let chatTab = app.descendants(matching: .any).matching(identifier: "notebook.tab.chat").firstMatch
         XCTAssertTrue(chatTab.exists, "The notebook has no Chat tab.")
         chatTab.tap()
-        let talkAction = app.buttons["Talk about this Notebook"]
+        let send = app.buttons["notebook.chat.send"]
         XCTAssertTrue(
-            talkAction.waitForExistence(timeout: 10),
-            "The notebook's Chat never showed its scoped talk action."
+            send.waitForExistence(timeout: 10),
+            "The notebook's Chat never showed its composer."
         )
     }
 
@@ -510,7 +483,7 @@ final class MobileVoiceUITests: XCTestCase {
     /// on empty. A launch reopens the notebook last worked in, pushed over
     /// Home, so a notebook on top is backed out of first.
     private func waitForHome() throws {
-        let hero = app.buttons["home.startVoiceChat"]
+        let hero = app.descendants(matching: .any)["home.settings"]
         let notebookTabBar = app.descendants(matching: .any)["notebook.tabBar"]
         let deadline = Date().addingTimeInterval(Self.catalogTimeout)
         while Date() < deadline {

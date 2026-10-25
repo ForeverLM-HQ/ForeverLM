@@ -54,7 +54,7 @@ struct MobileSourceManagementMenu: View {
 
     var body: some View {
         Menu {
-            MobileSourcePDFExportButtons(source: source)
+            MobileSourceShareButtons(source: source)
             MobileOfflineSaveButton(source: source)
             Divider()
             Button("Add to Notebook", systemImage: "folder.badge.plus") {
@@ -93,21 +93,22 @@ struct MobileSourceManagementMenu: View {
     }
 }
 
-/// Share PDF… and Show in Files, in the reader's ⋯ menu and a source row's
-/// long-press menu, for a source that reads as a PDF.
-struct MobileSourcePDFExportButtons: View {
+/// Share… for every source, and Show in Files for one that reads as a PDF, in the reader's ⋯ menu and a
+/// source row's long-press menu.
+struct MobileSourceShareButtons: View {
     let source: MobileCloudSource
 
+    @ObservedObject private var share = MobileSourceShare.shared
     @ObservedObject private var export = MobileSourcePDFExport.shared
 
     var body: some View {
-        if MobileSourcePDFExport.canExport(source) {
-            Button("Share PDF…", systemImage: "square.and.arrow.up") {
-                Task { await export.share(source) }
-            }
-            .disabled(isPreparing)
-            .accessibilityIdentifier("source.sharePDF")
+        Button("Share…", systemImage: "square.and.arrow.up") {
+            Task { await share.share(source) }
+        }
+        .disabled(isPreparing)
+        .accessibilityIdentifier("source.share")
 
+        if MobileSourcePDFExport.canExport(source) {
             Button("Show in Files", systemImage: "folder") {
                 Task { await export.showInFiles(source) }
             }
@@ -117,7 +118,66 @@ struct MobileSourcePDFExportButtons: View {
     }
 
     private var isPreparing: Bool {
-        export.preparingSourceIDs.contains(source.id)
+        share.preparingSourceIDs.contains(source.id) || export.preparingSourceIDs.contains(source.id)
+    }
+}
+
+/// A source out of ForeverLM to the system share sheet, which lists ChatGPT (and Files, AirDrop, Mail) as
+/// targets: the learner picks ChatGPT there and the source opens in its app as an attachment, to chat
+/// about. iOS gives an app no way to open ChatGPT with a file itself, so the pick is theirs. A source
+/// that reads as a PDF goes as its document (`MobileSourcePDFExport`); any other goes as its text in a
+/// Markdown file named after its title, with the source's address under the title.
+@MainActor
+final class MobileSourceShare: ObservableObject {
+    static let shared = MobileSourceShare()
+
+    /// Sources whose text is being read for a share, so a row shows a spinner and cannot ask twice.
+    @Published private(set) var preparingSourceIDs: Set<String> = []
+
+    func share(_ source: MobileCloudSource) async {
+        if MobileSourcePDFExport.canExport(source) {
+            await MobileSourcePDFExport.shared.share(source)
+            return
+        }
+        guard !preparingSourceIDs.contains(source.id) else { return }
+        preparingSourceIDs.insert(source.id)
+        defer { preparingSourceIDs.remove(source.id) }
+        do {
+            let raw = try await MobileCloudSourceTextStore.shared.loadSourceText(sourceID: source.id)
+            let file = try await Self.write(
+                body: MobileReaderText.reflowed(raw, sourceType: source.sourceType),
+                title: source.title,
+                address: source.url
+            )
+            MobileSourcePDFExport.presentShareSheet(for: file)
+        } catch {
+            MobileSourcePDFExport.presentFailure(title: "Can't Share Source", error: error)
+        }
+    }
+
+    /// The Markdown file, in a scratch folder emptied first so only the latest share is kept.
+    private static func write(body: String, title: String, address: String?) async throws -> URL {
+        try await Task.detached(priority: .userInitiated) {
+            guard !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw MobileSourceShareError.noText }
+            let fileManager = FileManager.default
+            let folder = fileManager.temporaryDirectory.appendingPathComponent("SharedSources", isDirectory: true)
+            try? fileManager.removeItem(at: folder)
+            try fileManager.createDirectory(at: folder, withIntermediateDirectories: true)
+            let file = folder.appendingPathComponent(MobileSourceFilePath.sharedFileName(title: title, extension: "md"), isDirectory: false)
+            let link = address.flatMap { $0.isEmpty ? nil : "\n\($0)\n" } ?? ""
+            try Data("# \(title)\n\(link)\n\(body)\n".utf8).write(to: file, options: .atomic)
+            return file
+        }.value
+    }
+}
+
+enum MobileSourceShareError: LocalizedError {
+    case noText
+
+    var errorDescription: String? {
+        switch self {
+        case .noText: return "This source has no text to share yet."
+        }
     }
 }
 
@@ -243,11 +303,11 @@ final class MobileSourcePDFExport: ObservableObject {
         }.value
     }
 
-    private static func presentShareSheet(for file: URL) {
+    static func presentShareSheet(for file: URL) {
         present(UIActivityViewController(activityItems: [file], applicationActivities: nil))
     }
 
-    private static func presentFailure(title: String, error: Error) {
+    static func presentFailure(title: String, error: Error) {
         let alert = UIAlertController(title: title, message: error.localizedDescription, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "OK", style: .cancel))
         present(alert)

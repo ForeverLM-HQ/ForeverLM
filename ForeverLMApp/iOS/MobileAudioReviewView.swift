@@ -7,8 +7,8 @@ import SwiftUI
 // (`foreverlm://notebook/…`, `…/source/…`, `…/doc/…`) and the cold launch's
 // return to the last notebook can push them too. On a screen with the room,
 // the Space is a split view over the stack instead (`MobileSpaceSplitView`). Voice
-// is a full-screen cover over whatever is on screen, so Talk inside a
-// notebook comes back to the notebook. Playback rides outside the stack.
+// (CarPlay, Review by Voice) is a full-screen cover over whatever is on screen,
+// so it comes back to what was open. Playback rides outside the stack.
 struct MobileAudioReviewView: View {
     @EnvironmentObject private var vm: MobileAudioReviewViewModel
     @ObservedObject private var live = MobileVoiceConversationController.shared
@@ -261,9 +261,9 @@ struct MobileAudioReviewView: View {
         )
     }
 
-    /// Talk in the Reader's chat sheet and Talk It Through on a walk's last
-    /// card close what they are in and start voice at once, so the cover is
-    /// asked for while that sheet or cover is still leaving — and UIKit
+    /// Voice can start while a sheet or cover is still leaving (CarPlay starts
+    /// it from the car at any moment), so the cover is asked for while that
+    /// sheet or cover is still leaving — and UIKit
     /// refuses a presentation while another is under way, which would leave a
     /// session running with nothing on screen. So while the cover is wanted
     /// and its content has not appeared, it is asked for again; one that

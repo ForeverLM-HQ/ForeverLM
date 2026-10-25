@@ -152,17 +152,16 @@ Web Studio offers the models ForeverLM curates and requests each from OpenRouter
 
 ## iPhone voice
 
-### Talk
+### Voice in the car and in review
 
-The iPhone talks with you turn by turn. Where you start it decides what it talks about and where the conversation is saved, exactly as if you had typed it:
+CarPlay and **Review by Voice** talk with you turn by turn:
 
-- **Talk** in the Reader or on a source row (swipe it), or **Talk It Through** at the end of a walkthrough: a chat about that source, kept in the notebook you opened it in, if any.
-- **Talk** in a notebook's Chat tab, or the waveform on its row on Home: a chat about the notebook's ticked sources, kept in the notebook. With a chat open, Talk continues that chat by voice, and so does **Continue chat with voice** in the Reader's chat.
-- **Review me** in a notebook's Studio: the same notebook chat, opened with "Quiz me on these sources, one question at a time."
 - **Review by Voice** in the **⋯** of the iPhone's card review: today's whole memory review, spoken.
-- The waveform button on Home, and CarPlay: ForeverLM first offers a source, the audio you were last playing, else something on today's plan, else what you read or discussed most recently. "Shall I quiz you on …? Say yes, name another source, or ask for your memory review." Say yes, or a title, and it talks about that source; ask for your memory review ("my memory review", "what's due") and it holds today's review instead.
+- CarPlay: ForeverLM first offers a source, the audio you were last playing, else something on today's plan, else what you read or discussed most recently. "Shall I quiz you on …? Say yes, name another source, or ask for your memory review." Say yes, or a title, and it talks about that source in a chat kept as any reading chat is; ask for your memory review ("my memory review", "what's due") and it holds that.
 
-Apple's speech recognition hears you and waits for a short pause. Your chat model answers as it would in a typed chat, and Apple's speech synthesis speaks the answer. In a chat, the model is asked to keep spoken answers short and free of formatting, since they are heard rather than read. The microphone is off while ForeverLM speaks, so let it finish before you answer. The screen shows what it heard or is saying and the sources it reads, with Mute and End. Ending shows the conversation's transcript and takes you back where you started.
+Apple's speech recognition hears you and waits for a short pause. Your chat model answers as it would in a typed chat, and Apple's speech synthesis speaks the answer. The microphone is off while ForeverLM speaks, so let it finish before you answer.
+
+To talk about a source out loud with another app, share it: see [Share a source](/studio#share-a-source).
 
 ### Siri
 
@@ -193,7 +192,7 @@ Typical flows:
 - Continue asking follow-up questions naturally.
 - Ask to go back to listening when you are done reviewing.
 
-Talk and Siri both need Sign in with Apple. Their chats and reviews are saved through the same CloudKit records the Mac ingests.
+CarPlay, spoken reviews and Siri all need Sign in with Apple. Their chats and reviews are saved through the same CloudKit records the Mac ingests.
 
 ## Good use cases
 

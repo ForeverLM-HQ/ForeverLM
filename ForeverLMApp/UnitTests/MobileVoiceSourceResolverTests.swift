@@ -1630,6 +1630,16 @@ struct MobileSourceFilePathTests {
         ) == String(repeating: "a", count: 120) + ".pdf")
     }
 
+    @Test("A source shared as text is named after its title under its own extension")
+    func sharedTextFileNames() {
+        #expect(MobileSourceFilePath.sharedFileName(title: "Why we sleep: a review", extension: "md")
+            == "Why we sleep - a review.md")
+        #expect(MobileSourceFilePath.sharedFileName(title: "Notes.MD", extension: "md") == "Notes.md")
+        #expect(MobileSourceFilePath.sharedFileName(title: "  \t ", extension: "md") == "Document.md")
+        // Only its own extension is dropped from the title.
+        #expect(MobileSourceFilePath.sharedFileName(title: "paper.pdf", extension: "md") == "paper.pdf.md")
+    }
+
     @Test("Show in Files opens the Files app on the file itself")
     func filesAppURLs() {
         let placed = URL(fileURLWithPath: "/var/mobile/Containers/Data/Application/ABC/Documents/Sleep and mitochondria.pdf")

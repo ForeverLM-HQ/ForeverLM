@@ -23,7 +23,6 @@ struct MobileChatView: View {
     /// button is hidden when no handler is wired up.
     var onNeedsSignIn: (() -> Void)?
     var presentation: Presentation = .modal
-    var onStartVoice: (() -> Void)?
 
     @StateObject private var dictation = MobileComposerDictation()
     @Environment(\.dismiss) private var dismiss
@@ -252,40 +251,18 @@ struct MobileChatView: View {
                     .accessibilityLabel(isListening ? "Stop dictation" : "Dictate a question")
                 }
 
-                // ChatGPT's one button: Talk while there is nothing to send,
-                // a filled ↑ once there is.
-                if let onStartVoice, showsTalk {
-                    Button(action: onStartVoice) {
-                        MobileComposerDiscLabel(systemImage: "waveform")
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Continue chat with voice")
-                    .accessibilityIdentifier("chat.startVoice")
-                } else {
-                    Button {
-                        sendComposerText()
-                    } label: {
-                        MobileComposerDiscLabel(systemImage: "arrow.up")
-                    }
-                    .buttonStyle(.plain)
-                    // A streaming reply does not hold the button: the send queues.
-                    .disabled(!canSendComposerText)
-                    .accessibilityLabel(isListening ? "Transcribe and send" : "Send")
-                    .accessibilityIdentifier("chat.send")
+                Button {
+                    sendComposerText()
+                } label: {
+                    MobileComposerDiscLabel(systemImage: "arrow.up")
                 }
+                .buttonStyle(.plain)
+                // A streaming reply does not hold the button: the send queues.
+                .disabled(!canSendComposerText)
+                .accessibilityLabel(isListening ? "Transcribe and send" : "Send")
+                .accessibilityIdentifier("chat.send")
             }
         }
-    }
-
-    /// Talk takes the send button's place while the field and the passage
-    /// slot are empty, once the chat has a turn to continue by voice.
-    private var showsTalk: Bool {
-        guard onStartVoice != nil,
-              !viewModel.messages.isEmpty,
-              !isListening,
-              !viewModel.isResponding,
-              viewModel.pendingSelection == nil else { return false }
-        return viewModel.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private func selectionChip(_ selection: MobileReaderSelection) -> some View {
@@ -612,7 +589,7 @@ struct MobileQueuedChatBubble: View {
 }
 
 /// The composer's one round button, ChatGPT's: a filled disc in the text's
-/// colour holding ↑ (send) or the waveform (Talk), inside a 44-point target,
+/// colour holding ↑ (send), inside a 44-point target,
 /// dimmed while it cannot act. The disc grows with Dynamic Type.
 struct MobileComposerDiscLabel: View {
     let systemImage: String

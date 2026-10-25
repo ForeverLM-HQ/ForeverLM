@@ -424,6 +424,11 @@ enum MobileSourceFilePath {
     /// cached copy is named by a hash of the source id, which says nothing to
     /// whoever receives it, so the share is named after the source's title.
     static func sharedPDFFileName(title: String) -> String {
+        sharedFileName(title: title, extension: "pdf")
+    }
+
+    /// The same naming for any file a share hands on: the title, cleaned for a filesystem, under `extension`.
+    static func sharedFileName(title: String, extension fileExtension: String) -> String {
         var name = title
             .replacingOccurrences(of: "/", with: "-")
             .replacingOccurrences(of: ":", with: " - ")
@@ -431,12 +436,13 @@ enum MobileSourceFilePath {
             .joined(separator: " ")
             .split(whereSeparator: \.isWhitespace)
             .joined(separator: " ")
-        if name.lowercased().hasSuffix(".pdf") { name.removeLast(4) }
+        let suffix = "." + fileExtension
+        if name.lowercased().hasSuffix(suffix) { name.removeLast(suffix.count) }
         // A leading dot would hide the file; 120 characters keeps the name
-        // well inside every filesystem's limit once ".pdf" is on it.
+        // well inside every filesystem's limit once the extension is on it.
         name = String(name.prefix(120))
             .trimmingCharacters(in: CharacterSet.whitespaces.union(CharacterSet(charactersIn: ".-")))
-        return (name.isEmpty ? "Document" : name) + ".pdf"
+        return (name.isEmpty ? "Document" : name) + suffix
     }
 
     /// The link that opens the Files app on a file the phone keeps in its

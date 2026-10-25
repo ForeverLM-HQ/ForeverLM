@@ -13,19 +13,13 @@ import Speech
 ///
 /// It replaced the realtime speech-to-speech session on 2026-10-01, when every
 /// model moved to OpenRouter (product owner, 2026-09-27), which serves no
-/// speech-to-speech model. What a conversation drives decides what it reads
-/// and where it is saved, exactly as the typed conversation would:
-/// - a notebook (Talk on a notebook, Review me): a notebook chat on what
-///   its chats read — its ticked sources and those of the context notebooks
-///   put in (`MobileChatViewModel(notebook:)`) — filed under it;
-/// - a source (the Reader's Talk, a walk's Talk It Through, the Library): a
-///   reading chat on it, filed in the notebook it was opened in;
-/// - a text chat under way (Talk in a notebook's chat, the Reader's chat):
-///   that same chat, continued;
-/// - today's memory review: its review chat (`MobileMemoryReviewViewModel`);
-/// - nothing (Home, CarPlay): it offers a source, then talks about the one
-///   the learner takes or names in a reading chat, or holds today's memory
-///   review when that is asked for (`MobileVoiceConversationRules`).
+/// speech-to-speech model. Talking about a source, a notebook or a chat under
+/// way left the app on 2026-10-25 for the ChatGPT share (`MobileSourceShare`);
+/// what is left is what CarPlay and the spoken memory review need:
+/// - nothing (CarPlay): it offers a source, then talks about the one the
+///   learner takes or names in a reading chat, or holds today's memory
+///   review when that is asked for (`MobileVoiceConversationRules`);
+/// - today's memory review: its review chat (`MobileMemoryReviewViewModel`).
 @MainActor
 final class MobileVoiceConversationController: ObservableObject {
     static let shared = MobileVoiceConversationController()
@@ -54,15 +48,6 @@ final class MobileVoiceConversationController: ObservableObject {
         let id: String
         let kind: Kind
         var text: String
-    }
-
-    /// What a conversation on a notebook or a source does first.
-    enum Opening: Equatable {
-        /// Says what it is reading and listens.
-        case greet
-        /// Sends this as the learner's first message and speaks the answer
-        /// (Review me).
-        case ask(String)
     }
 
     @Published private(set) var phase: Phase = .idle
@@ -101,8 +86,6 @@ final class MobileVoiceConversationController: ObservableObject {
     }
 
     private enum Request {
-        case scope(sourceID: String?, notebook: MobileCloudNotebook?, opening: Opening)
-        case continuing(MobileChatViewModel, finishesWhenDone: Bool)
         case memoryReview(MobileMemoryReviewViewModel?)
         case unscoped
     }
@@ -117,8 +100,6 @@ final class MobileVoiceConversationController: ObservableObject {
         let transcript: [VoiceTurn]
         /// Spoken first, then the conversation listens.
         let greeting: String?
-        /// Sent first, as the learner's message.
-        let firstMessage: String?
     }
 
     private enum Outcome {
@@ -128,22 +109,13 @@ final class MobileVoiceConversationController: ObservableObject {
     }
 
     private enum StartError: LocalizedError {
-        case sourceNotOnPhone
         case sourceHasNoText(String)
-        case nothingTicked
-        case nothingFits(String)
         case reviewUnavailable(String)
 
         var errorDescription: String? {
             switch self {
-            case .sourceNotOnPhone:
-                return "This source has not synced to this iPhone yet."
             case .sourceHasNoText(let title):
                 return "\u{201C}\(title)\u{201D} has no text on this iPhone yet. Open it on your Mac so its text syncs."
-            case .nothingTicked:
-                return "Tick a source in the notebook's Sources to talk about it."
-            case .nothingFits(let message):
-                return message
             case .reviewUnavailable(let message):
                 return message
             }
@@ -180,40 +152,7 @@ final class MobileVoiceConversationController: ObservableObject {
 
     // MARK: - Starting
 
-    /// A conversation on a source (`sourceID`, filed in `notebook` when it was
-    /// opened in one), on what a notebook's chats read (`notebook` alone,
-    /// already narrowed to its chat sources, `MobileCloudNotebook.narrowed`),
-    /// or, with neither, on the library: it offers a source first.
-    func start(sourceID: String? = nil, notebook: MobileCloudNotebook? = nil) async {
-        if sourceID == nil, notebook == nil {
-            await begin(.unscoped)
-        } else {
-            await begin(.scope(sourceID: sourceID, notebook: notebook, opening: .greet))
-        }
-    }
-
-    /// Review me: a spoken review of what a notebook's chats read (`notebook`
-    /// narrowed to its chat sources), which starts with the tutor's first
-    /// question.
-    func startReview(notebook: MobileCloudNotebook) async {
-        await begin(.scope(
-            sourceID: nil,
-            notebook: notebook,
-            opening: .ask(MobileVoiceConversationRules.reviewRequest)
-        ))
-    }
-
-    /// Continues a text chat by voice, in the same saved chat.
-    /// `finishesWhenDone` is for a chat whose screen closed to make way for
-    /// voice (the Reader's chat sheet): nothing else will finish it.
-    func start(continuing chat: MobileChatViewModel, finishesWhenDone: Bool) async {
-        // Voice's from this moment, before any await: a screen that closes
-        // for the cover must not finish the chat out from under it.
-        chat.isVoiceDriven = true
-        await begin(.continuing(chat, finishesWhenDone: finishesWhenDone))
-    }
-
-    /// CarPlay's conversation: the same as Home's, started by the car.
+    /// CarPlay's conversation: it offers a source first, then talks about the one the learner takes or names.
     func startFromCarPlay() async {
         await begin(.unscoped)
     }
@@ -226,14 +165,7 @@ final class MobileVoiceConversationController: ObservableObject {
     }
 
     private func begin(_ request: Request) async {
-        guard phase == .idle else {
-            // A chat handed over while another conversation runs stays its
-            // screen's.
-            if case .continuing(let chat, let finishesWhenDone) = request, !holds(chat) {
-                release(.chat(chat, finishesWhenDone: finishesWhenDone))
-            }
-            return
-        }
+        guard phase == .idle else { return }
         let id = UUID()
         lifecycle = id
         self.request = request
@@ -307,9 +239,7 @@ final class MobileVoiceConversationController: ObservableObject {
         phase = .live
         Self.logger.notice("Voice conversation started")
 
-        if let firstMessage = prepared.firstMessage {
-            runTurn(firstMessage, showsAsLearnerTurn: true)
-        } else if let greeting = prepared.greeting {
+        if let greeting = prepared.greeting {
             say(greeting)
         } else {
             listen()
@@ -318,54 +248,7 @@ final class MobileVoiceConversationController: ObservableObject {
 
     private func prepare(_ request: Request) async throws -> Prepared {
         switch request {
-        case .scope(let sourceID?, let notebook, let opening):
-            let source = try await libraryMember(sourceID)
-            statusText = "Reading \u{201C}\(source.title)\u{201D}…"
-            let chat = try await readingChat(on: source, notebook: notebook)
-            return Prepared(
-                conversation: .chat(chat, finishesWhenDone: true),
-                sourceTitle: source.title,
-                notebook: notebook,
-                memoryTarget: nil,
-                sources: [source],
-                transcript: [],
-                greeting: MobileVoiceConversationRules.sourceGreeting(title: source.title),
-                firstMessage: Self.firstMessage(of: opening)
-            )
-
-        case .scope(nil, let notebook?, let opening):
-            let ticked = MobileAudioReviewViewModel.shared.notebookSources(in: notebook)
-            guard !ticked.isEmpty else { throw StartError.nothingTicked }
-            statusText = ticked.count == 1 ? "Reading 1 source…" : "Reading \(ticked.count) sources…"
-            guard let grounded = await MobileNotebookChatSession.ground(notebook: notebook, ticked: ticked) else {
-                throw CancellationError()
-            }
-            guard let chat = MobileChatViewModel(
-                notebook: grounded.context,
-                initialPrompt: nil,
-                onSessionSaveFailure: { [weak self] message in self?.errorMessage = message }
-            ) else {
-                throw StartError.nothingFits(
-                    MobileNotebookChatGrounding.composerNotice(grounded.plan)
-                        ?? "None of the ticked sources could be read on this iPhone yet."
-                )
-            }
-            let loaded = grounded.context.loaded.map(\.source)
-            return Prepared(
-                conversation: .chat(chat, finishesWhenDone: true),
-                sourceTitle: nil,
-                notebook: notebook,
-                memoryTarget: nil,
-                sources: loaded,
-                transcript: [],
-                greeting: MobileVoiceConversationRules.notebookGreeting(
-                    notebookTitle: notebook.title,
-                    sourceCount: loaded.count
-                ),
-                firstMessage: Self.firstMessage(of: opening)
-            )
-
-        case .scope(nil, nil, _), .unscoped:
+        case .unscoped:
             let suggestion = await suggestedSource()
             return Prepared(
                 conversation: .choosingSource(offer: suggestion),
@@ -374,22 +257,7 @@ final class MobileVoiceConversationController: ObservableObject {
                 memoryTarget: nil,
                 sources: [],
                 transcript: [],
-                greeting: MobileVoiceConversationRules.openingOffer(suggestion),
-                firstMessage: nil
-            )
-
-        case .continuing(let chat, let finishesWhenDone):
-            chat.isVoiceDriven = true
-            let sources = chat.notebookContext?.loaded.map(\.source) ?? [chat.source]
-            return Prepared(
-                conversation: .chat(chat, finishesWhenDone: finishesWhenDone),
-                sourceTitle: chat.notebookContext == nil ? chat.source.title : nil,
-                notebook: chat.notebook,
-                memoryTarget: nil,
-                sources: sources,
-                transcript: Self.turns(of: chat),
-                greeting: MobileVoiceConversationRules.continuationGreeting,
-                firstMessage: nil
+                greeting: MobileVoiceConversationRules.openingOffer(suggestion)
             )
 
         case .memoryReview(let given):
@@ -409,15 +277,9 @@ final class MobileVoiceConversationController: ObservableObject {
                 memoryTarget: review.title,
                 sources: [],
                 transcript: Self.turns(of: review),
-                greeting: question,
-                firstMessage: nil
+                greeting: question
             )
         }
-    }
-
-    private static func firstMessage(of opening: Opening) -> String? {
-        if case .ask(let message) = opening { return message }
-        return nil
     }
 
     /// A reading chat on `source`, filed in `notebook`, voice-driven from here.
@@ -435,14 +297,6 @@ final class MobileVoiceConversationController: ObservableObject {
         )
         chat.isVoiceDriven = true
         return chat
-    }
-
-    private func libraryMember(_ sourceID: String) async throws -> MobileCloudSource {
-        if let source = MobileAudioReviewViewModel.shared.sourcesByID[sourceID] { return source }
-        if let source = await MobileCloudSourceCatalog.shared.currentSources().first(where: { $0.id == sourceID }) {
-            return source
-        }
-        throw StartError.sourceNotOnPhone
     }
 
     private func library() async -> [MobileCloudSource] {
@@ -731,11 +585,7 @@ final class MobileVoiceConversationController: ObservableObject {
         speech.stop(owner: .voiceConversation)
         isSpeaking = false
         await listener.stop()
-        if let conversation {
-            release(conversation)
-        } else {
-            releaseUnstartedChat()
-        }
+        if let conversation { release(conversation) }
         conversation = nil
         request = nil
         Task { await MobileAudioSessionArbiter.shared.release(.voiceConversation) }
@@ -759,20 +609,6 @@ final class MobileVoiceConversationController: ObservableObject {
         case .choosingSource:
             break
         }
-    }
-
-    /// A text chat handed to voice whose conversation never started (ended,
-    /// or sign-in cancelled, first) goes back to its screen the same way.
-    private func releaseUnstartedChat() {
-        guard conversation == nil, case .continuing(let chat, let finishesWhenDone)? = request else { return }
-        release(.chat(chat, finishesWhenDone: finishesWhenDone))
-    }
-
-    /// Whether `chat` is this conversation's, or the one it is starting on.
-    private func holds(_ chat: MobileChatViewModel) -> Bool {
-        if case .chat(let current, _)? = conversation, current === chat { return true }
-        if case .continuing(let pending, _)? = request, pending === chat { return true }
-        return false
     }
 
     /// Resume after a failure: listening again in the conversation it left
@@ -809,7 +645,6 @@ final class MobileVoiceConversationController: ObservableObject {
 
     func cancelSignIn() {
         needsSignIn = false
-        releaseUnstartedChat()
         request = nil
     }
 
@@ -852,18 +687,6 @@ final class MobileVoiceConversationController: ObservableObject {
     }
 
     // MARK: - Transcript
-
-    private static func turns(of chat: MobileChatViewModel) -> [VoiceTurn] {
-        chat.messages.compactMap { message in
-            let text = message.content.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !message.isStreaming, message.walkStepID == nil, !text.isEmpty else { return nil }
-            return VoiceTurn(
-                id: message.id.uuidString,
-                kind: message.role == .user ? .user : .assistant,
-                text: text
-            )
-        }
-    }
 
     private static func turns(of review: MobileMemoryReviewViewModel) -> [VoiceTurn] {
         review.messages.compactMap { message in

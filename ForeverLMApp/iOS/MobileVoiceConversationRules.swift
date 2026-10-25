@@ -118,27 +118,9 @@ enum MobileVoiceConversationRules {
     /// Said when today's memory review has nothing to ask.
     static let noReviewReply = "Today's review has nothing to ask yet."
 
-    /// What a conversation on one source says first.
-    static func sourceGreeting(title: String) -> String {
-        "Ask me anything about \(spokenTitle(title)), or say quiz me."
-    }
-
-    /// What a conversation on a notebook's ticked sources says first.
-    static func notebookGreeting(notebookTitle: String, sourceCount: Int) -> String {
-        let sources = sourceCount == 1 ? "its source" : "its \(sourceCount) sources"
-        return "Ask me anything about \(spokenTitle(notebookTitle)) and \(sources), or say quiz me."
-    }
-
-    /// What a text chat continued by voice says first.
-    static let continuationGreeting = "Go ahead, I'm listening."
-
     /// The learner's first message when they take the opening offer, saved
     /// in the chat as theirs: the offer was a quiz.
     static let acceptedOfferRequest = "Quiz me on this source, one question at a time."
-
-    /// The learner's first message when Review me starts a spoken review of
-    /// a notebook's ticked sources.
-    static let reviewRequest = "Quiz me on these sources, one question at a time."
 
     /// Said when no source in the library matched what the learner named.
     static let unmatchedSourceReply = "I couldn't tell which source you mean. Say its title, or part of it."

@@ -42,7 +42,7 @@ Voice dictation in Chat on the Mac uses the model chosen in **Settings → Voice
 
 Audio is sent only to the model you chose, through OpenRouter, and is not kept after transcription. The web library's composer dictates on the same model, through ForeverLM's proxy, once you stop recording.
 
-On the iPhone, the composer's microphone and voice conversations use Apple's on-device speech recognition. It is free, works offline, and is not a model you pick.
+On the iPhone, the composer's microphone, CarPlay and spoken reviews use Apple's on-device speech recognition. It is free, works offline, and is not a model you pick.
 
 ## Semantic search
 

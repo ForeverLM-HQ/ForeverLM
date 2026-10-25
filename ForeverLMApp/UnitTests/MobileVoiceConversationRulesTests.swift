@@ -190,14 +190,4 @@ struct MobileVoiceConversationRulesTests {
         #expect(instruction.contains("at most one question"))
         #expect(instruction.hasPrefix("(") && instruction.hasSuffix(")"))
     }
-
-    @Test("Greetings say what the conversation reads")
-    func greetings() {
-        #expect(MobileVoiceConversationRules.sourceGreeting(title: "Mechanisms of Learning")
-            == "Ask me anything about \u{201C}Mechanisms of Learning\u{201D}, or say quiz me.")
-        #expect(MobileVoiceConversationRules.notebookGreeting(notebookTitle: "Sleep", sourceCount: 1)
-            .contains("its source,"))
-        #expect(MobileVoiceConversationRules.notebookGreeting(notebookTitle: "Sleep", sourceCount: 4)
-            .contains("its 4 sources"))
-    }
 }

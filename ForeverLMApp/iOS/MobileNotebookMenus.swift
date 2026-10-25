@@ -36,7 +36,6 @@ enum MobileCollectionNamePrompt {
 final class MobileNotebookMenuState: ObservableObject {
     @Published var editor: MobileNotebookEditorDestination?
     @Published var notebookToDelete: MobileCloudNotebook?
-    @Published var talkError: String?
     @Published var collectionNamePrompt: MobileCollectionNamePrompt = .new(notebookID: nil)
     @Published var isNamingCollection = false
     @Published var collectionName = ""
@@ -60,26 +59,11 @@ final class MobileNotebookMenuState: ObservableObject {
         collectionToDelete = collection
         isConfirmingCollectionDelete = true
     }
-
-    /// A voice session in the notebook, reading what its chat reads: the
-    /// ticked sources and the context notebooks put in, so the rows are read
-    /// before the session starts.
-    func talk(in notebook: MobileCloudNotebook, live: MobileVoiceConversationController) {
-        Task {
-            do {
-                let rows = try await MobileNotebookChatSelectionStore.readSelection(notebookID: notebook.id)
-                let ticked = MobileNotebookChatSelection.chatSourceIDs(of: notebook, selection: rows)
-                await live.start(notebook: notebook.narrowed(toSourceIDs: ticked))
-            } catch {
-                talkError = "Which of \(notebook.title)'s sources are in its chat could not be read: \(error.localizedDescription)"
-            }
-        }
-    }
 }
 
-/// A notebook's menu: Play Audio Overview (while it has one) and Talk, then
-/// Edit, Add to Collection ▸, Pin or Unpin, Archive and Delete. Play and Talk
-/// were Home's round button on every row until 2026-10-06 (the product owner: "cleaner
+/// A notebook's menu: Play Audio Overview (while it has one), then
+/// Edit, Add to Collection ▸, Pin or Unpin, Archive and Delete. Play was
+/// Home's round button on every row until 2026-10-06 (the product owner: "cleaner
 /// and fewer buttons and bells and whistles"); a gallery card keeps its ▶.
 struct MobileNotebookMenuItems: View {
     let notebook: MobileCloudNotebook
@@ -88,7 +72,6 @@ struct MobileNotebookMenuItems: View {
     @EnvironmentObject private var vm: MobileAudioReviewViewModel
     @ObservedObject private var collectionStore = MobileNotebookCollectionsStore.shared
     @ObservedObject private var railStore = MobileNotebookRailStore.shared
-    @ObservedObject private var live = MobileVoiceConversationController.shared
 
     var body: some View {
         if let overview = vm.audioOverviews(inNotebook: notebook.id).first {
@@ -101,12 +84,6 @@ struct MobileNotebookMenuItems: View {
             }
             .accessibilityIdentifier("home.notebook.menuPlayOverview")
         }
-        // A voice conversation on what the notebook's chat reads.
-        Button("Talk", systemImage: "waveform") {
-            menus.talk(in: notebook, live: live)
-        }
-        .disabled(live.isActive)
-        .accessibilityIdentifier("home.notebook.talk")
         Divider()
         Button("Edit", systemImage: "pencil") {
             menus.editor = .edit(notebook)
@@ -213,17 +190,6 @@ private struct MobileNotebookMenuPresentations: ViewModifier {
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text("\(menus.notebookToDelete?.title ?? "The Notebook") will be deleted. Keep its chats ungrouped in Chats, or delete them too. Its sources will remain available.")
-            }
-            .alert(
-                "Voice Could Not Start",
-                isPresented: Binding(
-                    get: { menus.talkError != nil },
-                    set: { if !$0 { menus.talkError = nil } }
-                )
-            ) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(menus.talkError ?? "")
             }
             .alert(menus.collectionNamePrompt.title, isPresented: $menus.isNamingCollection) {
                 TextField("Name", text: $menus.collectionName)

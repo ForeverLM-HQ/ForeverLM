@@ -106,7 +106,7 @@ final class MobileSourceReaderViewModel: ObservableObject {
     /// other source, which reads exactly as it always has.
     @Published private(set) var bookPage: MobileBookPage?
     /// The chapter under the reading line. Everything the reader does to "this
-    /// source" — the title, Ask, Listen, Talk, progress — is done to it.
+    /// source" — the title, Ask, Listen, Share, progress — is done to it.
     @Published private(set) var currentChapterID: String?
     /// A Contents jump to a chapter not on the page is fetching it.
     @Published private(set) var isOpeningChapter = false
