@@ -593,7 +593,12 @@ struct ActivationCard: View {
 enum CornerNoticeKind: String, CaseIterable, Identifiable {
     /// Corner cards, in the order the corner shows them: one card at a time,
     /// the first that is showing.
-    case libraryMove, storeUpgradeSpace, planTheDay, cardsToCheck
+    case libraryMove, storeUpgradeSpace, planTheDay
+    /// Cards drafted in the background, and sources with none. The bell's
+    /// alone (product owner, 2026-10-25: "i don't want that 'sources without
+    /// cards' notification as a popup each time i build the app; it can be
+    /// under notifications"): it never stands in the corner.
+    case cardsToCheck
     /// Teammates asking for sources this library holds (docs/teams-design.md,
     /// decision 14), answered here with Share or Decline.
     case shareRequests
@@ -605,8 +610,8 @@ enum CornerNoticeKind: String, CaseIterable, Identifiable {
     /// alone, so a notice of theirs is never "in view already".
     var isCornerCard: Bool {
         switch self {
-        case .libraryMove, .storeUpgradeSpace, .planTheDay, .cardsToCheck: return true
-        case .shareRequests, .pluginReconnect: return false
+        case .libraryMove, .storeUpgradeSpace, .planTheDay: return true
+        case .cardsToCheck, .shareRequests, .pluginReconnect: return false
         }
     }
 

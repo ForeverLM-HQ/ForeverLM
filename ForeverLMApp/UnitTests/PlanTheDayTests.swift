@@ -270,9 +270,9 @@ struct InboxReadMarkTests {
         #expect(!tray.isRead(.cardsToCheck, subject: ["a"]))
     }
 
-    @Test("Requests and plugins to reconnect are the bell's alone, each about its own ids")
+    @Test("Cards to check, requests and plugins to reconnect are the bell's alone, each about its own ids")
     func bellOnlyKinds() {
-        #expect(CornerNoticeKind.allCases.filter { !$0.isCornerCard } == [.shareRequests, .pluginReconnect])
+        #expect(CornerNoticeKind.allCases.filter { !$0.isCornerCard } == [.cardsToCheck, .shareRequests, .pluginReconnect])
         let subjects = InboxSubjects(planDay: nil, cardsToCheck: nil, shareRequestIDs: ["req-1"], reconnectPlugins: ["x"])
         #expect(subjects.subject(.shareRequests) == ["req-1"])
         #expect(subjects.subject(.pluginReconnect) == ["x"])
@@ -285,6 +285,7 @@ struct InboxReadMarkTests {
         #expect(tray.lightsBell(unread: [], hasUnreadChats: true))
         #expect(tray.lightsBell(unread: [.shareRequests], hasUnreadChats: false))
         #expect(!tray.lightsBell(unread: [.planTheDay], hasUnreadChats: false), "a card in the corner is in view already")
+        #expect(tray.lightsBell(unread: [.cardsToCheck], hasUnreadChats: false), "cards to check never stand in the corner")
         tray.tuck(.planTheDay)
         #expect(tray.lightsBell(unread: [.planTheDay], hasUnreadChats: false))
     }

@@ -1118,18 +1118,6 @@ struct StudioNavigationRail: View {
                     .padding(.horizontal, 10)
                     .padding(.top, 10)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
-            } else if tray.showsInCorner(.cardsToCheck, subject: subjects.subject(.cardsToCheck)), vm.showsCardsToCheckCard(
-                in: windowState,
-                isGettingStarted: isGettingStarted,
-                asksToPlanTheDay: false,
-                showsNudges: showsDraftNudges
-            ), let detail = vm.cardsToCheckDetail {
-                // "Cards to check" once "Plan your day?" is answered: one
-                // corner card at a time, in the same place.
-                CardsToCheckCard(detail: detail, style: .rail)
-                    .padding(.horizontal, 10)
-                    .padding(.top, 10)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
     }

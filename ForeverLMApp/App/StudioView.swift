@@ -31,9 +31,6 @@ struct StudioView: View {
     /// Read here as well as by the day's clock, so switching "Plan your
     /// day?" off in Settings or over MCP takes the card down at once.
     @AppStorage(PlanTheDay.settingKey) private var asksToPlanTheDay = true
-    /// Read here so Don't Ask Again on the "Cards to check" card, Settings
-    /// or MCP takes the card down at once, in every window.
-    @SyncedStorage(wrappedValue: true, MemoryCardSettings.draftNudgesKey) private var showsDraftNudges: Bool
     /// The Space sidebar the learner hid, which the one sidebar toggle folds
     /// together with Home's sidebar.
     @AppStorage("space.sidebarHidden") private var spaceSidebarHiddenByLearner = false
@@ -495,8 +492,7 @@ struct StudioView: View {
     /// showing, the card is in its footer, over the Now chip. Not drawn over
     /// the memory review, which this window has given itself to, nor over
     /// Getting Started, where a new learner is still setting up. "Cards to
-    /// check" takes the same place once it is answered: one corner card at a
-    /// time (`CardsToCheckNudge.isShown`).
+    /// check" is not a corner card: it waits in the bell (`CornerNoticeKind`).
     /// The corner cards stand clear of a notebook window's icon rail, whose
     /// clock and account sit in the same corner.
     private var cornerCardLeadingInset: CGFloat {
@@ -526,16 +522,6 @@ struct StudioView: View {
             } else if asksToPlanTheDay, let day = DayModel.shared.planTheDayAsk,
                       tray.showsInCorner(.planTheDay, subject: subjects.subject(.planTheDay)) {
                 PlanTheDayCard(day: day, style: .floating)
-                    .padding(.leading, cornerCardLeadingInset)
-                    .padding(.bottom, StudioDesign.Spacing.large)
-                    .transition(.move(edge: .leading).combined(with: .opacity))
-            } else if tray.showsInCorner(.cardsToCheck, subject: subjects.subject(.cardsToCheck)), vm.showsCardsToCheckCard(
-                in: windowState,
-                isGettingStarted: showGettingStarted,
-                asksToPlanTheDay: false,
-                showsNudges: showsDraftNudges
-            ), let detail = vm.cardsToCheckDetail {
-                CardsToCheckCard(detail: detail, style: .floating)
                     .padding(.leading, cornerCardLeadingInset)
                     .padding(.bottom, StudioDesign.Spacing.large)
                     .transition(.move(edge: .leading).combined(with: .opacity))
@@ -569,8 +555,6 @@ struct StudioView: View {
                 .overlay(alignment: .bottomLeading) { planTheDayCard }
                 .animation(.spring(response: 0.32, dampingFraction: 0.86), value: StoreUpgradeSpaceNotice.shared.visibleMessage)
                 .animation(.spring(response: 0.32, dampingFraction: 0.86), value: DayModel.shared.planTheDayAsk)
-                .animation(.spring(response: 0.32, dampingFraction: 0.86), value: vm.cardsToCheckPile)
-                .animation(.spring(response: 0.32, dampingFraction: 0.86), value: vm.cardsToCheckIsPutOff)
             StudioAudiobookPlayerHost()
         }
             // The window's own controls, pinned to the top-left on the macOS
