@@ -458,7 +458,8 @@ extension StudioViewModel {
         let ai = aiService
         let logger = logger
         func config() throws -> AITaskConfig {
-            guard let config = KeychainService.resolveConfig(for: .cardGoDeeper) else {
+            KeychainService.seedGoDeeperRoute()
+            guard let config = KeychainService.resolveConfig(for: .cardGoDeeper, explicitlyAuthorizedBackgroundUsage: true) else {
                 throw GoDeeperUnavailable(
                     message: KeychainService.backgroundAIUnavailableMessage(for: .cardGoDeeper)
                         ?? "No model is set up for Go Deeper. Sign in and check Settings › AI Models."

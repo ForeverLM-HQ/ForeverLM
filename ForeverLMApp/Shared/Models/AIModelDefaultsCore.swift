@@ -55,6 +55,11 @@ enum AIModelDefaults {
     /// Voice's eval put first. A learner whose Default Model was a free one
     /// had every check fail when that free endpoint went away.
     static let cardAnswerCheck = "deepseek/deepseek-v4.1-flash"
+
+    /// The model Go Deeper starts on (`KeychainService.seedGoDeeperRoute`):
+    /// a question or a few sentences of reply, waited on at each press, so
+    /// the same fast paid model as Card Answer Check.
+    static let goDeeper = "deepseek/deepseek-v4.1-flash"
 }
 
 extension AIModelDefaults {

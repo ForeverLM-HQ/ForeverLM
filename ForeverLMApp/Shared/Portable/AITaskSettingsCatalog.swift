@@ -36,7 +36,7 @@ public struct AITaskSettingsDescriptor: Codable, Equatable, Sendable {
 /// IDs are durable `AITask` raw values. The array order is presentation order,
 /// so clients should filter this list rather than sorting their own copies.
 public enum AITaskSettingsCatalog {
-    public static let version = 42
+    public static let version = 43
 
     public static let tasks: [AITaskSettingsDescriptor] = [
         task(
@@ -291,13 +291,13 @@ public enum AITaskSettingsCatalog {
             "Card Drafting",
             "Draft Memory cards from a source's text and the questions, highlights and ideas made of it, for you to keep, edit or skip"
         ),
-        // Asked by the learner's Go Deeper on a card, and waited for: the
-        // chat's model, not background work.
+        // Asked by the learner's Go Deeper on a card, and waited for. It has a
+        // model of its own, as Card Answer Check does, so a paid one can be
+        // picked (`KeychainService.seedGoDeeperRoute`).
         task(
             "card_go_deeper",
             "Go Deeper",
-            "Ask a question that goes past a card you remembered (the principle behind it, where else it applies, what would prove it wrong, or what it is like) and reply to your answer",
-            modelDefault: .chat
+            "Ask a question that goes past a card you remembered (the principle behind it, where else it applies, what would prove it wrong, or what it is like) and reply to your answer"
         ),
         // Asked by the learner's Check on a card, and waited for. It has a
         // model of its own, so a paid one can be picked: the chat's Default

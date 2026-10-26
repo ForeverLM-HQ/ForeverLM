@@ -3,8 +3,8 @@ import Foundation
 // MARK: - Go Deeper in the card review
 //
 // docs/memory-design.md, "Go Deeper on a card". Two calls on the Go Deeper
-// task's route (`AITask.cardGoDeeper`, the chat's model: the learner pressed
-// it and waits): the question, and the reply to the learner's answer. Neither
+// task's route (`AITask.cardGoDeeper`, a model of its own, set in Settings ›
+// Background › Tasks: the learner pressed it and waits): the question, and the reply to the learner's answer. Neither
 // is answered from the response cache — a card met again deserves a question
 // in fresh words, and an answer is never the same twice — and a failure is
 // thrown for the review to say, never replaced by a question or a reply of

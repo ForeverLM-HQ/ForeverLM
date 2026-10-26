@@ -2429,6 +2429,22 @@ enum KeychainService {
         setOwnRoute(AITaskModelRoute(provider: .openRouter, model: AIModelDefaults.cardAnswerCheck), for: .cardAnswerCheck)
     }
 
+    /// The synced mark that Go Deeper was given its starting model
+    /// (`aiSeeded.task.<task>`), as Card Answer Check's.
+    static let goDeeperSeededKey = "aiSeeded.task." + AITask.cardGoDeeper.rawValue
+
+    /// Gives Go Deeper its starting model (`AIModelDefaults.goDeeper`) as a
+    /// model of its own, once for the account, when it has none: it followed
+    /// the chat's model and could not be changed. Changed afterwards in
+    /// Settings › Background › Tasks.
+    static func seedGoDeeperRoute() {
+        guard canHaveOwnRoute(.cardGoDeeper),
+              !UserDefaults.standard.bool(forKey: goDeeperSeededKey),
+              storedRoute(forKey: AIModelPreferenceKey.taskRoute(.cardGoDeeper)) == nil else { return }
+        PreferenceStore.set(true, forKey: goDeeperSeededKey)
+        setOwnRoute(AITaskModelRoute(provider: .openRouter, model: AIModelDefaults.goDeeper), for: .cardGoDeeper)
+    }
+
     // MARK: - Docs Model
 
     /// The model a Doc's Edit with AI runs on, when the learner gave Docs one
