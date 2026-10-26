@@ -120,6 +120,10 @@ struct MemoryCardEditorForm: View {
     @Binding var front: String
     @Binding var back: String
     @Binding var why: String
+    /// The pictures on each side, shown as the review shows them. They are not
+    /// edited here: the edit carries them through unchanged.
+    var frontImages: [MemoryCardImage] = []
+    var backImages: [MemoryCardImage] = []
     /// What the pill says: Keep for a draft, Save for a kept card.
     let primaryTitle: String
     let canSave: Bool
@@ -134,12 +138,20 @@ struct MemoryCardEditorForm: View {
                 text: $front, prompt: "The question", font: MemoryCardMetrics.frontFont, label: "Front",
                 identifier: "memory.card.editor.front"
             )
+            if !frontImages.isEmpty {
+                MemoryCardImageGrid(images: frontImages, animationStartsAtOnce: false)
+                    .padding(.top, 8)
+            }
             MemoryCardFold()
                 .padding(.vertical, 12)
             MemoryCardEditorField(
                 text: $back, prompt: "The answer", font: MemoryCardMetrics.backFont, label: "Back",
                 identifier: "memory.card.editor.back"
             )
+            if !backImages.isEmpty {
+                MemoryCardImageGrid(images: backImages, animationStartsAtOnce: false)
+                    .padding(.vertical, 8)
+            }
             MemoryCardEditorField(
                 text: $why, prompt: "Why the answer holds", font: MemoryCardMetrics.whyFont, label: "Why",
                 identifier: "memory.card.editor.why"

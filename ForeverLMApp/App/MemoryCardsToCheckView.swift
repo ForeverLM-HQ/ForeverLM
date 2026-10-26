@@ -1287,6 +1287,8 @@ struct MemoryCardToCheckEditorSheet: View {
             front: $front,
             back: $back,
             why: $why,
+            frontImages: card.face.frontImages,
+            backImages: card.face.backImages,
             primaryTitle: "Keep",
             canSave: !edit.front.isEmpty && !edit.back.isEmpty,
             cancel: cancel

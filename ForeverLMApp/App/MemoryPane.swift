@@ -765,6 +765,8 @@ struct MemoryCardEditorSheet: View {
             front: $front,
             back: $back,
             why: $why,
+            frontImages: card.face.frontImages,
+            backImages: card.face.backImages,
             primaryTitle: "Save",
             canSave: !edit.front.isEmpty && !edit.back.isEmpty,
             cancel: cancel
