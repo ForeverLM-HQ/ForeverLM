@@ -1085,14 +1085,23 @@ extension MCPDataStore {
                 }
                 let frontImages = hasFrontImages ? try Self.cardImages(rawFrontImages, cardIndex: 0, field: "front_images", store: store) : nil
                 let backImages = hasBackImages ? try Self.cardImages(rawBackImages, cardIndex: 0, field: "back_images", store: store) : nil
-                if await Self.holdPicturesOnCardToCheck(cardID: cardID, front: frontImages, back: backImages) {
+                // The pictures go onto the draft itself, so they stay with it
+                // whether or not a Memory pane has it on screen; a pane that
+                // does shows them at once, held beside the card.
+                let inPane = await Self.holdPicturesOnCardToCheck(cardID: cardID, front: frontImages, back: backImages)
+                let onDraft = try store.setCardDraftPictures(cardID: cardID, front: frontImages, back: backImages)
+                if onDraft {
+                    await notebookFileStorage.scheduleSoonCloudKitSyncForCardDrafts()
+                    MemoryCardStateStore.reload()
+                }
+                if inPane || onDraft {
                     var faces: [String] = []
                     if frontImages != nil { faces.append("the question") }
                     if backImages != nil { faces.append("the answer") }
                     return try jsonString([
                         "card_id": cardID,
                         "held": true,
-                        "message": "The card is still to check, so nothing was written: its pictures on \(faces.joined(separator: " and ")) are held with it in the pane, and the learner's Keep carries them (Skip drops them).",
+                        "message": "The card is still to check, so its words are untouched: its pictures on \(faces.joined(separator: " and ")) are saved with the card, and the learner's Keep carries them (Skip drops them).",
                     ] as [String: Any])
                 }
             }

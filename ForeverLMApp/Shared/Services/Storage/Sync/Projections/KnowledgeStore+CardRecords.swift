@@ -343,6 +343,41 @@ extension KnowledgeStore {
         }
     }
 
+    /// Puts pictures on a draft that is still to check, in its Card's `draft_json`: the face's list for
+    /// the question and/or the answer is replaced (nil leaves a face alone), and a Keep carries them as
+    /// it carries the draft's own. False when no draft Card is waiting under `cardID`; a card kept or
+    /// skipped already is never written over.
+    func setCardDraftPictures(cardID: String, front: [MemoryCardImage]?, back: [MemoryCardImage]?) throws -> Bool {
+        var held: SyncJSON?
+        try query("SELECT draft_json FROM memory_card_states WHERE card_id = ? AND status = 'draft'", [.text(cardID)]) { row in
+            held = SittingProjection.json(row.text(0))
+        }
+        guard var draft = held?.objectValue,
+              let rubricText = draft["rubric"]?.stringValue,
+              var rubric = (try? JSONSerialization.jsonObject(with: Data(rubricText.utf8))) as? [String: Any],
+              var face = rubric[MemoryCard.cardKey] as? [String: Any]
+        else { return false }
+        func put(_ key: String, _ images: [MemoryCardImage]?) {
+            guard let images else { return }
+            let list = MemoryCardImage.faceList(images)
+            face[key] = list.isEmpty ? nil : list.map(\.rubricObject)
+        }
+        put(MemoryCard.frontImagesKey, front)
+        put(MemoryCard.backImagesKey, back)
+        rubric[MemoryCard.cardKey] = face
+        let data = try JSONSerialization.data(withJSONObject: rubric, options: [.sortedKeys, .withoutEscapingSlashes])
+        guard let json = String(data: data, encoding: .utf8) else { return false }
+        draft["rubric"] = .string(json)
+        let text = SittingProjection.text(.object(draft)) ?? "{}"
+        try inDerivationTransaction { store in
+            try store.execute(
+                "UPDATE memory_card_states SET draft_json = ? WHERE card_id = ? AND status = 'draft'",
+                [.text(text), .text(cardID)]
+            )
+        }
+        return true
+    }
+
     // MARK: What the learner did
 
     /// A card's state as a writer changed it: what the writer read, and what it made of it.

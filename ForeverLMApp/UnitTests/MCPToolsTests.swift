@@ -6188,6 +6188,52 @@ struct MCPDataStoreTests {
         #expect(try store.knowledgeStore().loadArtifact(MemoryCard.draftDeckID(sourceID: "source-cards")) != nil)
     }
 
+    @Test("update_card puts pictures on a card still to check, with no Memory pane open, and leaves its words alone")
+    func updateCardPicturesOnCardToCheck() async throws {
+        let (store, dbPath, _, cleanup) = try makeCardStore()
+        defer { cleanup() }
+        try insertSource(dbPath: dbPath, id: "source-cards", title: "Retrieval practice", content: Self.cardSourceText)
+        _ = try await store.saveCardDrafts(cards: [
+            ["source_id": "source-cards", "front": "What strengthens later access?", "back": "Retrieval practice.",
+             "quote": "Retrieval practice strengthens later access",
+             "back_images": ["![Curve](foreverlm://image/source-cards/page/4)"]],
+        ], keptByDefault: false)
+        let listed = try parseJSON(try await store.listCards(status: "to_check", notebookID: nil, sourceID: nil, limit: nil))
+        let draftID = try #require((listed["to_check"] as? [[String: Any]])?.first?["card_id"] as? String)
+
+        let payload = try parseJSON(try await store.updateCard(
+            cardID: draftID, itemID: nil, front: nil, back: nil, why: nil,
+            frontImages: nil,
+            backImages: [
+                "![Curve](foreverlm://image/source-cards/page/4)",
+                "![Fig. 1](foreverlm://image/source-cards/page/2?crop=0.06,0.11,0.88,0.28)",
+            ],
+            startOver: nil, alwaysAsk: nil, retire: nil
+        ))
+        #expect(payload["held"] as? Bool == true)
+
+        let after = try parseJSON(try await store.listCards(status: "to_check", notebookID: nil, sourceID: nil, limit: nil))
+        let card = try #require((after["to_check"] as? [[String: Any]])?.first)
+        #expect(card["card_id"] as? String == draftID)
+        #expect(card["front"] as? String == "What strengthens later access?")
+        let images = try #require(card["back_images"] as? [[String: Any]])
+        #expect(images.count == 2)
+        #expect(images.last?["alt"] as? String == "Fig. 1")
+        #expect(try store.knowledgeStore().loadMemoryItem(MemoryTutorIdentity.cardItemID(cardID: draftID)) == nil, "the card is still a draft")
+
+        // Its words still go through triage_cards, not here.
+        do {
+            _ = try await store.updateCard(
+                cardID: draftID, itemID: nil, front: "Reworded?", back: nil, why: nil,
+                backImages: ["![Curve](foreverlm://image/source-cards/page/4)"],
+                startOver: nil, alwaysAsk: nil, retire: nil
+            )
+            Issue.record("update_card reworded a card still to check")
+        } catch let error as MCPError {
+            #expect(error.localizedDescription.contains("triage_cards"))
+        }
+    }
+
     @Test("A card's face takes one saved animation beside its pictures, by its address, and only one the library holds")
     func cardFaceTakesAnAnimation() async throws {
         let (store, dbPath, _, cleanup) = try makeCardStore()
