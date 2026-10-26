@@ -112,13 +112,25 @@ extension MCPDataStore {
         let sourceID = article.id
 
         let figures: [PaperFigureRecord]
+        /// Why the explanation is missing when the vision call failed; the
+        /// picture is still returned, since it is what was asked for.
+        var visionFailure: String?
         do {
             // The vision half — a model call for this one figure — runs only
             // when the figure has never been explained; a paper with an index
             // answers from it. The structural half is a read of the PDF.
             figures = try await paperFigureIndexer.prepare(sourceID: sourceID, figureLabel: requested)
         } catch {
-            return .failure(error.localizedDescription)
+            // A failed vision call must not cost the picture: the caption index
+            // is a free read of the PDF, and it is all the crop needs.
+            guard !(error is CancellationError),
+                  let structural = try? await paperFigureIndexer.prepareStructure(sourceID: sourceID),
+                  !structural.isEmpty
+            else {
+                return .failure(error.localizedDescription)
+            }
+            figures = structural
+            visionFailure = error.localizedDescription
         }
         guard let figure = PaperFigureIndexer.figure(labelled: requested, in: figures) else {
             return .failure(ReviewSessionManager.figureLabelNotFoundMessage(
@@ -193,6 +205,10 @@ extension MCPDataStore {
                 "Caption: \(figure.caption)",
                 "No vision explanation is available for this figure; read the attached picture directly.",
             ], at: 0)
+        }
+
+        if let visionFailure {
+            lines.append("The explanation of this figure could not be made just now (\(visionFailure)), so the caption and the attached picture are all there is; read the picture directly.")
         }
 
         var images: [MCPToolImage] = []
