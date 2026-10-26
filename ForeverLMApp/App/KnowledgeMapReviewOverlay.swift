@@ -193,8 +193,6 @@ private struct KnowledgeMapReviewCard: View {
     private var session: MemoryCardSessionModel { review.session }
     private var sitting: MemoryCardSitting { session.sitting }
     private static let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
-    /// The height the answer field's text needs.
-    @State private var attemptFieldHeight: CGFloat = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -329,37 +327,18 @@ private struct KnowledgeMapReviewCard: View {
     }
 
     /// The learner's answer: Return checks it, Shift-Return a new line, and
-    /// macOS dictation speaks into it. While it has the keyboard the review's
+    /// the mic dictates into it. While it has the keyboard the review's
     /// keys rest (`KnowledgeMapReviewKeys.isTyping`); Escape still ends the
     /// review.
     private var attemptField: some View {
-        let shape = RoundedRectangle(cornerRadius: 9, style: .continuous)
         let draft = Binding(get: { session.attemptDraft }, set: { session.attemptDraft = $0 })
-        return ReviewChatComposerTextView(
+        return MemoryCardAttemptBox(
             text: draft,
             onSubmit: { vm.checkKnowledgeMapReviewAnswer() },
-            autoFocus: true,
             onCancel: { vm.endKnowledgeMapReview() },
-            onHeightChange: { attemptFieldHeight = $0 }
+            isCompact: true,
+            identifier: "knowledgeMap.review.attempt"
         )
-        .frame(height: min(max(attemptFieldHeight, 30), 120))
-        .overlay(alignment: .topLeading) {
-            if session.attemptDraft.isEmpty {
-                Text("Type or dictate your answer")
-                    .foregroundStyle(.tertiary)
-                    .padding(.leading, ReviewChatComposerTextView.overlayTextLeadingInset)
-                    .padding(.top, 6)
-                    .allowsHitTesting(false)
-                    .textSelection(.disabled)
-                    .accessibilityHidden(true)
-            }
-        }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 2)
-        .background(shape.fill(Color.primary.opacity(0.04)))
-        .overlay(shape.strokeBorder(Color.primary.opacity(0.12)))
-        .accessibilityLabel("Your answer")
-        .accessibilityIdentifier("knowledgeMap.review.attempt")
     }
 
     @ViewBuilder
