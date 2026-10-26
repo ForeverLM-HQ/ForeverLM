@@ -60,8 +60,6 @@ struct MemoryCardSessionView: View {
     @State private var editingDraft: MemoryCardToCheck?
     /// The height Go Deeper's answer field's text needs.
     @State private var deeperFieldHeight: CGFloat = 0
-    /// The height the card's answer field's text needs.
-    @State private var attemptFieldHeight: CGFloat = 0
     /// The side the card in front leaves to once it is answered: set before
     /// the answer, so the card goes the way its key points.
     @State private var exitEdge: HorizontalEdge = .trailing
@@ -309,35 +307,15 @@ struct MemoryCardSessionView: View {
 
     /// The learner's answer, written on the card under the question: Return
     /// checks it, Shift-Return starts a new line (the chat composer's text
-    /// view), and macOS dictation speaks into it. It takes the keys the
+    /// view), and the mic dictates into it. It takes the keys the
     /// review's shortcuts would otherwise answer.
     private var attemptField: some View {
-        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
         let draft = Binding(get: { session.attemptDraft }, set: { session.attemptDraft = $0 })
-        return ReviewChatComposerTextView(
+        return MemoryCardAttemptBox(
             text: draft,
             onSubmit: { session.checkAttempt() },
-            autoFocus: true,
-            onHeightChange: { attemptFieldHeight = $0 }
+            identifier: "memory.cards.attempt"
         )
-        .frame(height: min(max(attemptFieldHeight, 34), 160))
-        .overlay(alignment: .topLeading) {
-            if session.attemptDraft.isEmpty {
-                Text("Type or dictate your answer")
-                    .foregroundStyle(.tertiary)
-                    .padding(.leading, ReviewChatComposerTextView.overlayTextLeadingInset)
-                    .padding(.top, 7)
-                    .allowsHitTesting(false)
-                    .textSelection(.disabled)
-                    .accessibilityHidden(true)
-            }
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(shape.fill(Color.primary.opacity(0.035)))
-        .overlay(shape.strokeBorder(Color.primary.opacity(0.1)))
-        .accessibilityLabel("Your answer")
-        .accessibilityIdentifier("memory.cards.attempt")
     }
 
     /// Once checked, what the learner answered, over the fold, to grade
@@ -928,5 +906,125 @@ struct MemoryCardSessionView: View {
         let skipped = sitting.skippedCount
         return "\(cards) · \(sitting.rememberedCount) remembered · \(sitting.forgottenCount) forgot"
             + (skipped > 0 ? " · \(skipped) skipped" : "")
+    }
+}
+
+/// The learner's answer box on a card, as the chat's composer draws it: the
+/// field, and under it the mic and the model that will check the answer
+/// (product owner, 2026-10-26: "you can just copy paste that text box from the
+/// chat app"). Return checks, Shift-Return starts a new line.
+///
+/// The mic is the chat's: it opens a recording that the dictation model from
+/// Settings → Voice transcribes (`ReviewDictationService`). Stop puts the words
+/// in the field and checks them, as the chat's stop sends; the × puts them in
+/// the field and leaves the check to the learner. The model chip is the
+/// `card_answer_check` route, the same one Settings → AI Models sets.
+struct MemoryCardAttemptBox: View {
+    @Binding var text: String
+    let onSubmit: () -> Void
+    var autoFocus = true
+    var onCancel: (() -> Void)? = nil
+    /// The overlay's smaller box (the knowledge map's review).
+    var isCompact = false
+    let identifier: String
+
+    @StateObject private var dictation = ReviewDictationService()
+    @State private var fieldHeight: CGFloat = 0
+
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: isCompact ? 9 : 12, style: .continuous)
+    }
+
+    var body: some View {
+        VStack(spacing: 2) {
+            field
+            controls
+        }
+        .padding(.horizontal, isCompact ? 6 : 8)
+        .padding(.vertical, isCompact ? 2 : 4)
+        .background(shape.fill(Color.primary.opacity(isCompact ? 0.04 : 0.035)))
+        .overlay(shape.strokeBorder(Color.primary.opacity(isCompact ? 0.12 : 0.1)))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Your answer")
+        .accessibilityIdentifier(identifier)
+        .onDisappear { dictation.cancelRecording() }
+    }
+
+    private var field: some View {
+        ReviewChatComposerTextView(
+            text: $text,
+            onSubmit: onSubmit,
+            autoFocus: autoFocus,
+            onCancel: onCancel,
+            onHeightChange: { fieldHeight = $0 }
+        )
+        .frame(height: min(max(fieldHeight, isCompact ? 30 : 34), isCompact ? 120 : 160))
+        .overlay(alignment: .topLeading) {
+            if text.isEmpty {
+                Text("Type or dictate your answer")
+                    .foregroundStyle(.tertiary)
+                    .padding(.leading, ReviewChatComposerTextView.overlayTextLeadingInset)
+                    .padding(.top, isCompact ? 6 : 7)
+                    .allowsHitTesting(false)
+                    .textSelection(.disabled)
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+
+    /// The chat's row under its field: the model and the mic on the trailing
+    /// edge, and the recording's meter over the whole row while the mic is open.
+    @ViewBuilder
+    private var controls: some View {
+        HStack(spacing: 8) {
+            if dictation.isRecording {
+                ReviewDictationWaveform(
+                    levels: dictation.audioLevels,
+                    seconds: dictation.recordingSeconds,
+                    onStop: { finishDictation(thenCheck: true) },
+                    onKeepInDraft: { finishDictation(thenCheck: false) }
+                )
+            } else {
+                Spacer(minLength: 0)
+                InlineModelPicker(task: .cardAnswerCheck)
+                    .layoutPriority(1)
+                if dictation.isTranscribing {
+                    ReviewDictationTranscribingIndicator()
+                } else {
+                    Button {
+                        Task { await dictation.startRecording() }
+                    } label: {
+                        Image(systemName: "mic.fill")
+                            .font(.system(size: 12, weight: .medium))
+                            .frame(width: 22, height: 22)
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.hoverWash(in: Circle(), opacity: 0.12))
+                    .help("Dictate answer")
+                    .accessibilityLabel("Dictate answer")
+                    .accessibilityIdentifier("\(identifier).dictate")
+                }
+            }
+        }
+        .padding(.bottom, 2)
+        .overlay(alignment: .bottomLeading) {
+            if let failure = dictation.errorMessage {
+                Text(failure)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .lineLimit(2)
+                    .allowsHitTesting(false)
+            }
+        }
+    }
+
+    /// Stops the mic and puts what was said after what was typed.
+    private func finishDictation(thenCheck: Bool) {
+        Task { @MainActor in
+            guard let said = await dictation.stopAndTranscribe(), !said.isEmpty else { return }
+            let typed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            text = typed.isEmpty ? said : "\(text)\n\(said)"
+            if thenCheck { onSubmit() }
+        }
     }
 }

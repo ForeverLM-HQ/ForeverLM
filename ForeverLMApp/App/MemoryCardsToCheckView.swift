@@ -71,8 +71,6 @@ struct MemoryCardsToCheckView: View {
     /// The card in front once its back shows, and the answer that opened it
     /// (nil for "I Don't Know"). Nothing here is written to storage.
     @State private var openCard: Revealed?
-    /// The height the answer field's text needs.
-    @State private var attemptFieldHeight: CGFloat = 0
     /// The pictures drawn for cards this sitting, by card id, until the card is
     /// decided: a Keep carries it, a Skip drops it. Never written before.
     @State private var drawn: [String: MemoryCardImage] = [:]
@@ -575,7 +573,6 @@ struct MemoryCardsToCheckView: View {
                 card: card,
                 opened: opened(card).map { MemoryCardToCheckFace.Opened(attempt: $0.attempt, check: checks[card.cardID]) },
                 attempt: $attemptDraft,
-                attemptFieldHeight: $attemptFieldHeight,
                 autoFocusAttempt: windowState?.memoryPaneFocusCardID == nil,
                 submit: { reveal(card) },
                 passages: passages(of: card)
@@ -1079,7 +1076,6 @@ private struct MemoryCardToCheckFace: View {
     /// Nil while the card waits for an answer.
     let opened: Opened?
     @Binding var attempt: String
-    @Binding var attemptFieldHeight: CGFloat
     /// Whether the answer field takes the keys when the card is dealt: not
     /// when a chat opened the pane at this card and keeps its composer.
     let autoFocusAttempt: Bool
@@ -1142,33 +1138,14 @@ private struct MemoryCardToCheckFace: View {
     }
 
     /// The learner's answer, as Review's card takes it: Return checks it,
-    /// Shift-Return starts a new line, and macOS dictation speaks into it.
+    /// Shift-Return starts a new line, and the mic dictates into it.
     private var attemptField: some View {
-        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
-        return ReviewChatComposerTextView(
+        MemoryCardAttemptBox(
             text: $attempt,
             onSubmit: submit,
             autoFocus: autoFocusAttempt,
-            onHeightChange: { attemptFieldHeight = $0 }
+            identifier: "memory.pane.toCheck.attempt"
         )
-        .frame(height: min(max(attemptFieldHeight, 34), 160))
-        .overlay(alignment: .topLeading) {
-            if attempt.isEmpty {
-                Text("Type or dictate your answer")
-                    .foregroundStyle(.tertiary)
-                    .padding(.leading, ReviewChatComposerTextView.overlayTextLeadingInset)
-                    .padding(.top, 7)
-                    .allowsHitTesting(false)
-                    .textSelection(.disabled)
-                    .accessibilityHidden(true)
-            }
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(shape.fill(Color.primary.opacity(0.035)))
-        .overlay(shape.strokeBorder(Color.primary.opacity(0.1)))
-        .accessibilityLabel("Your answer")
-        .accessibilityIdentifier("memory.pane.toCheck.attempt")
     }
 
     private func yourAnswer(_ given: String) -> some View {
