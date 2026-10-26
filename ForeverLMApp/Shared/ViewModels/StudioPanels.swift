@@ -598,14 +598,15 @@ final class StudioWindowState: Identifiable {
         if navigationRailVisible != shown { navigationRailVisible = shown }
     }
 
-    /// Whether the learner asked, with the sidebar toggle, for Home's sidebar
-    /// beside a place that has the window's card to itself (the Library,
-    /// Memory, the Canvas, the Atlas, Plugins). Those places open without it;
-    /// the toggle is the window's only sidebar control, and pressed there it
-    /// otherwise folded nothing that was on screen. It lasts until the toggle
-    /// folds it again, and is presentation, not layout: absent from
-    /// `Snapshot`, so a relaunch opens those places on their own.
-    var homeSidebarBesidePlace = false
+    /// Whether Home's sidebar shows beside a place that has the window's card
+    /// to itself (the Library, Memory, the Canvas, the Atlas, Plugins). It
+    /// starts shown and stays until the learner folds it with the sidebar
+    /// toggle, so opening Memory never makes the sidebar vanish (product owner,
+    /// 2026-10-26: "when I click memory, the left sidebar disappears randomly
+    /// ... get rid of that"). Before then those places opened without it and
+    /// the toggle brought it in. Presentation, not layout: absent from
+    /// `Snapshot`.
+    var homeSidebarBesidePlace = true
 
     /// Whether the window is on such a place: no notebook, no Space, and a
     /// pane on a place with no sidebar of its own (`ShellPlace.sidebar` nil).

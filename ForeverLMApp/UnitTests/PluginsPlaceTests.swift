@@ -91,7 +91,7 @@ struct PluginsPlaceWindowTests {
         }
     }
 
-    @Test("Plugins is not Home: the card is its own, with no Home sidebar")
+    @Test("Plugins is not Home: the card is its own, with Home's sidebar beside it")
     func notHome() {
         let restore = capturingDefaults()
         defer { restore() }
@@ -100,7 +100,7 @@ struct PluginsPlaceWindowTests {
         window.centerTabGroups = StudioCenterTabGroups(groups: [.init(tabs: [.plugins, .chat], activeTab: .plugins)])
         #expect(!window.isOnHome)
         #expect(!window.showsSpace)
-        #expect(!window.showsHomeSidebar)
+        #expect(window.showsHomeSidebar)
     }
 
     @Test("‹ goes from a plugin's page back to the list, and › to the page again")

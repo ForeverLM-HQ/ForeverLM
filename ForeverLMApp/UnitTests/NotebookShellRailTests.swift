@@ -180,7 +180,7 @@ struct HomeSidebarTests {
         #expect(newChatHidden.sidebarItems() == [.browser])
     }
 
-    @Test("Home's sidebar shows on Home: a chat, the Reader, Goals; not on the Space, its Courses list, Library, Memory or Canvas")
+    @Test("Home's sidebar shows on Home: a chat, the Reader, Goals, and beside the Library, Memory and Canvas; not on the Space or its Courses list")
     func sidebarFollowsHome() {
         let restore = capturingWindowDefaults()
         defer { restore() }
@@ -191,10 +191,15 @@ struct HomeSidebarTests {
             #expect(window.isOnHome, "\(tab) is Home's")
             #expect(window.showsHomeSidebar)
         }
-        for tab in [StudioCenterTab.artifacts, .courses, .sites, .notepad, .library, .memory] {
+        for tab in [StudioCenterTab.artifacts, .courses, .sites, .notepad] {
             window.centerTabGroups = layout(tab)
             #expect(!window.isOnHome, "\(tab) is a place of its own")
             #expect(!window.showsHomeSidebar)
+        }
+        for tab in [StudioCenterTab.library, .memory] {
+            window.centerTabGroups = layout(tab)
+            #expect(!window.isOnHome, "\(tab) is a place of its own")
+            #expect(window.showsHomeSidebar, "opening \(tab) does not make the sidebar vanish")
         }
         window.centerTabGroups = layout(.artifacts)
         #expect(window.showsSpace)
@@ -242,7 +247,7 @@ struct HomeSidebarTests {
         #expect(!window.showsHomeSidebar)
     }
 
-    @Test("On the Library the sidebar toggle brings Home's sidebar beside it and folds it again, leaving Home and the Space as they were")
+    @Test("Beside the Library Home's sidebar shows until the toggle folds it, and the toggle brings it back, leaving Home and the Space as they were")
     func toggleOnPlaceOfItsOwn() {
         let restore = capturingWindowDefaults()
         defer { restore() }
@@ -250,14 +255,16 @@ struct HomeSidebarTests {
         window.navigationRailVisible = true
         window.centerTabGroups = layout(.library)
         #expect(window.isOnPlaceOfItsOwn)
-        #expect(!window.sidebarToggleReadsShown(spaceSidebarHidden: false), "nothing beside the Library to fold")
-        #expect(window.setSidebarShownFromToggle(true) == nil, "the Space's sidebar keeps the learner's choice")
-        #expect(window.showsHomeSidebar)
+        #expect(window.showsHomeSidebar, "the sidebar is beside the Library from the start")
         #expect(window.sidebarToggleReadsShown(spaceSidebarHidden: false))
+        #expect(window.setSidebarShownFromToggle(false) == nil, "the Space's sidebar keeps the learner's choice")
+        #expect(!window.showsHomeSidebar)
+        #expect(window.setSidebarShownFromToggle(true) == nil)
+        #expect(window.showsHomeSidebar)
         window.centerTabGroups = layout(.chat)
         #expect(window.showsHomeSidebar, "Home keeps its sidebar")
         window.centerTabGroups = layout(.memory)
-        #expect(window.showsHomeSidebar, "asked for once, it stays beside the places of their own")
+        #expect(window.showsHomeSidebar, "it stays beside the places of their own")
         #expect(window.setSidebarShownFromToggle(false) == nil)
         #expect(!window.showsHomeSidebar)
         #expect(window.navigationRailVisible, "folding it there leaves Home's sidebar on Home")

@@ -415,7 +415,7 @@ struct StudioView: View {
         // stand inside the card, just right of the strip, whose content
         // already starts below that row.
         // Home's sidebar beside the strip keeps the panes clear of the
-        // lights altogether; without it (a notebook, the Space, the Library)
+        // lights altogether; without it (a notebook, the Space, a folded sidebar)
         // the lights reach into the pane beside the strip.
         if windowState.drawsNavigationRail, windowState.showsHomeSidebar { return 0 }
         // In full screen the controls sit in flow at the left edge, and ‹ ›
