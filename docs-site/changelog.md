@@ -6,6 +6,15 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.176.0 (build 256) — 2026-10-26
+
+**Highlights:**
+- **A figure's crop keeps its panel letters.**
+- **Pictures can be added to a card in To Check.**
+
+- **A figure's crop no longer starts partway down it.** On a Nature page whose figure opens with rows of panel letters and titles just under the journal's head ("Brief Communication", "Article"), the head was read as taking in those rows, and the picture began under them: Figure 1 of a Nature Biotechnology paper lost its panel letters and the titles of a, b and c. The head is now its own line only; this changes the head on 65 of the library's 2,979 figure pages, each a figure's rows or body text that had been taken in.
+- **An assistant can put a picture on a card that is still in To Check.** `update_card` with `front_images` or `back_images` used to work only while that card was on screen in Memory; otherwise it answered that the card was not one of your kept cards and saved nothing. The pictures are now saved with the card whether or not Memory is open, Keep carries them and Skip drops them.
+
 ## 0.175.0 (build 255) — 2026-10-26
 
 **Highlights:**
