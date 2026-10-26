@@ -148,6 +148,11 @@ struct InlineModelPicker: View {
         self.task = task
     }
 
+    /// Only the chat has an effort and a speed of its own; any other task the
+    /// picker serves (the card answer check) runs on a model of its own
+    /// (`KeychainService.setOwnRoute`) and takes neither.
+    private var tunesEffortAndSpeed: Bool { task == .chat }
+
     private var currentModelDisplay: String {
         guard showsSelectedModel else { return "Set Up AI" }
         if let pendingEntry {
@@ -441,7 +446,7 @@ struct InlineModelPicker: View {
     /// has arrived (the row then falls back to the directory price, as the
     /// Speed submenu's Standard row does).
     private var currentSpeedQuote: SpeedQuote? {
-        guard task != nil, let slug = speedSlug else { return nil }
+        guard tunesEffortAndSpeed, let slug = speedSlug else { return nil }
         let tiers = OpenRouterEndpointTierCatalog.cachedTiers(slug: slug) ?? speedTiers
         guard !tiers.isEmpty,
               let entry = AIModelCatalog.entry(provider: selectedProvider, modelID: selectedModel)
@@ -490,7 +495,7 @@ struct InlineModelPicker: View {
     /// with no effort parameter, or a picker that is not task-scoped, where
     /// the chip names the model alone and the menu has no Effort submenu.
     private var supportedEfforts: [AIEffort] {
-        guard task != nil, showsSelectedModel, isEntryAvailableForCurrentSelection else { return [] }
+        guard tunesEffortAndSpeed, showsSelectedModel, isEntryAvailableForCurrentSelection else { return [] }
         return AIRequestOptionSupport.supportedEfforts(provider: selectedProvider, model: selectedModel)
     }
 
@@ -529,7 +534,7 @@ struct InlineModelPicker: View {
         // A pick stored for a model whose tier OpenRouter no longer lists must
         // not keep its checkmark: nothing would honour it.
         if let speed = selectedSpeed, speed != .standard,
-           OpenRouterSpeedTier.tier(for: speed, slug: slug, in: tiers) == nil, let task {
+           OpenRouterSpeedTier.tier(for: speed, slug: slug, in: tiers) == nil, let task, tunesEffortAndSpeed {
             KeychainService.setTaskSpeed(nil, for: task)
             selectedSpeed = nil
         }
@@ -615,7 +620,9 @@ struct InlineModelPicker: View {
     }
 
     private var modelMenuChrome: ModelMenuChrome {
-        let subject = currentEffort == nil ? "Model used for this chat" : "Model and effort for this chat"
+        let subject = task != .chat && task != nil
+            ? "Model that checks the answer"
+            : currentEffort == nil ? "Model used for this chat" : "Model and effort for this chat"
         return ModelMenuChrome(
             help: currentSpeed != .standard && !supportedSpeeds.isEmpty
                 ? "\(subject) — \(currentSpeed.displayName): the lab's \(currentSpeed.displayName.lowercased()) endpoint, at its own price"
@@ -733,7 +740,7 @@ struct InlineModelPicker: View {
             // and prices both come from the shared tier cache: the view's
             // own copy is only the fallback. Task-scoped like the model
             // pick.
-            if task != nil, isEntryAvailableForCurrentSelection, let slug = speedSlug {
+            if tunesEffortAndSpeed, isEntryAvailableForCurrentSelection, let slug = speedSlug {
                 let speeds = supportedSpeeds
                 if !speeds.isEmpty {
                     let tiers = OpenRouterEndpointTierCatalog.cachedTiers(slug: slug) ?? speedTiers
@@ -843,10 +850,15 @@ struct InlineModelPicker: View {
         selectedProvider = entry.provider
         selectedModel = entry.modelID
 
-        if let task {
+        if let task, tunesEffortAndSpeed {
             KeychainService.setTaskRoute(provider: entry.provider, model: entry.modelID, for: task)
             dropUnsupportedTuning(for: task)
             rememberRecentChoice()
+        } else if let task {
+            // A task other than the chat keeps its model as its own route; the
+            // chat's setter ignores it, and the chip fell back to Background's
+            // (the Free Models Router) on the next read.
+            KeychainService.setOwnRoute(AITaskModelRoute(provider: entry.provider, model: entry.modelID), for: task)
         } else {
             KeychainService.setDefaultChatRoute(provider: entry.provider, model: entry.modelID)
         }
@@ -854,7 +866,7 @@ struct InlineModelPicker: View {
 
     private func selectEffort(_ effort: AIEffort?) {
         selectedEffort = effort
-        if let task {
+        if let task, tunesEffortAndSpeed {
             KeychainService.setTaskEffort(effort, for: task)
             // The next chat starts on this effort too (`taskEffort`).
             if let effort { KeychainService.chosenChatEffort = effort }
@@ -883,7 +895,7 @@ struct InlineModelPicker: View {
 
     private func selectSpeed(_ speed: AISpeed) {
         selectedSpeed = speed == .standard ? nil : speed
-        if let task {
+        if let task, tunesEffortAndSpeed {
             KeychainService.setTaskSpeed(speed == .standard ? nil : speed, for: task)
         }
     }
